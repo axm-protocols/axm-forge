@@ -1,0 +1,120 @@
+"""Project Auditor — verifies projects against standards.
+
+This module provides the public API for checking project compliance.
+"""
+
+from pathlib import Path
+
+from axm_audit.core.rules import (
+    BareExceptRule,
+    CircularImportRule,
+    ComplexityRule,
+    CouplingMetricRule,
+    DirectoryExistsRule,
+    DocstringCoverageRule,
+    FileExistsRule,
+    GodClassRule,
+    LintingRule,
+    SecurityPatternRule,
+    TypeCheckRule,
+)
+from axm_audit.core.rules.base import ProjectRule
+from axm_audit.models.results import AuditResult
+
+# Valid audit categories
+VALID_CATEGORIES = {"structure", "quality", "architecture", "practice"}
+
+# Rule categories for filtering
+RULES_BY_CATEGORY: dict[str, list[type[ProjectRule]]] = {
+    "structure": [FileExistsRule, DirectoryExistsRule],
+    "quality": [LintingRule, TypeCheckRule, ComplexityRule],
+    "architecture": [CircularImportRule, GodClassRule, CouplingMetricRule],
+    "practice": [DocstringCoverageRule, BareExceptRule, SecurityPatternRule],
+}
+
+
+def _get_structure_rules() -> list[ProjectRule]:
+    """Get structure validation rules with required parameters.
+    
+    Returns:
+        List of instantiated structure rules.
+    """
+    return [
+        FileExistsRule(file_name="pyproject.toml"),
+        FileExistsRule(file_name="README.md"),
+        DirectoryExistsRule(dir_name="src"),
+        DirectoryExistsRule(dir_name="tests"),
+    ]
+
+
+def get_rules_for_category(
+    category: str | None, quick: bool = False
+) -> list[ProjectRule]:
+    """Get rules for a specific category or all rules.
+
+    Args:
+        category: Filter to specific category, or None for all.
+        quick: If True, only lint + type checks.
+
+    Returns:
+        List of rule instances to run.
+        
+    Raises:
+        ValueError: If category is not valid.
+    """
+    if quick:
+        return [LintingRule(), TypeCheckRule()]
+
+    # Validate category
+    if category is not None and category not in VALID_CATEGORIES:
+        raise ValueError(
+            f"Invalid category: {category}. "
+            f"Valid categories: {', '.join(sorted(VALID_CATEGORIES))}"
+        )
+
+    if category:
+        # Special handling for structure category (rules need parameters)
+        if category == "structure":
+            return _get_structure_rules()
+        rule_classes = RULES_BY_CATEGORY.get(category, [])
+        return [cls() for cls in rule_classes]
+
+    # All rules: structure + quality + architecture + practice
+    return [
+        *_get_structure_rules(),
+        LintingRule(),
+        TypeCheckRule(),
+        ComplexityRule(),
+        CircularImportRule(),
+        GodClassRule(),
+        CouplingMetricRule(),
+        DocstringCoverageRule(),
+        BareExceptRule(),
+        SecurityPatternRule(),
+    ]
+
+
+def audit_project(
+    project_path: Path,
+    category: str | None = None,
+    quick: bool = False,
+) -> AuditResult:
+    """Audit a project against Python 2026 standards.
+
+    Args:
+        project_path: Root directory of the project to audit.
+        category: Optional category filter (quality|architecture|practice).
+        quick: If True, run only lint + type checks.
+
+    Returns:
+        AuditResult containing all check results.
+        
+    Raises:
+        FileNotFoundError: If project_path does not exist.
+    """
+    if not project_path.exists():
+        raise FileNotFoundError(f"Project path does not exist: {project_path}")
+    
+    rules = get_rules_for_category(category, quick)
+    checks = [rule.check(project_path) for rule in rules]
+    return AuditResult(checks=checks)
