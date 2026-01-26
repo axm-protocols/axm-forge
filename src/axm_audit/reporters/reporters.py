@@ -43,38 +43,47 @@ class MarkdownReporter(Reporter):
 
     def _render_audit(self, result: AuditResult) -> str:
         """Render AuditResult as markdown with grade."""
-        passed_count = result.total - result.failed
-        status_icon = "✅ PASSED" if result.success else "❌ FAILED"
-
-        lines = [
-            "# Audit Report",
-            "",
-            f"**Status:** {status_icon}",
+        parts = [
+            self._render_header(result),
+            self._render_grade(result),
+            self._render_summary(result),
+            self._render_checks(result),
+            self._render_fix_hints(result),
         ]
+        return "\n".join(part for part in parts if part)
 
-        # Grade display if available
+    def _render_header(self, result: AuditResult) -> str:
+        status_icon = "✅ PASSED" if result.success else "❌ FAILED"
+        return f"# Audit Report\n\n**Status:** {status_icon}"
+
+    def _render_grade(self, result: AuditResult) -> str:
         if result.quality_score is not None and result.grade is not None:
-            lines.append(f"**Grade:** {result.grade} ({result.quality_score:.1f}/100)")
+            return f"**Grade:** {result.grade} ({result.quality_score:.1f}/100)"
+        return ""
 
-        lines.extend(
-            [
-                f"**Total:** {result.total} | **Passed:** {passed_count} "
-                f"| **Failed:** {result.failed}",
-                "",
-                "| Rule ID | Status | Message |",
-                "|---------|--------|---------|",
-            ]
+    def _render_summary(self, result: AuditResult) -> str:
+        passed_count = result.total - result.failed
+        return (
+            f"**Total:** {result.total} | **Passed:** {passed_count} "
+            f"| **Failed:** {result.failed}\n"
         )
 
+    def _render_checks(self, result: AuditResult) -> str:
+        lines = [
+            "| Rule ID | Status | Message |",
+            "|---------|--------|---------|",
+        ]
         for check in result.checks:
             status = "✅" if check.passed else "❌"
             lines.append(f"| {check.rule_id} | {status} | {check.message} |")
+        return "\n".join(lines)
 
-        # Fix hints for failures
+    def _render_fix_hints(self, result: AuditResult) -> str:
         failed_with_hints = [c for c in result.checks if not c.passed and c.fix_hint]
-        if failed_with_hints:
-            lines.extend(["", "## Fix Hints"])
-            for check in failed_with_hints:
-                lines.append(f"- **{check.rule_id}**: {check.fix_hint}")
-
+        if not failed_with_hints:
+            return ""
+        
+        lines = ["", "## Fix Hints"]
+        for check in failed_with_hints:
+            lines.append(f"- **{check.rule_id}**: {check.fix_hint}")
         return "\n".join(lines)

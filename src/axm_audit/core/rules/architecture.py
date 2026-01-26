@@ -112,9 +112,7 @@ class CircularImportRule(ProjectRule):
         if not src_path.exists():
             return self._empty_result()
 
-        graph = self._build_import_graph(src_path)
-        cycles = _tarjan_scc(graph)
-        score = max(0, 100 - len(cycles) * 20)
+        cycles, score = self._analyze_cycles(src_path)
         passed = len(cycles) == 0
 
         return CheckResult(
@@ -127,6 +125,13 @@ class CircularImportRule(ProjectRule):
             if cycles
             else None,
         )
+
+    def _analyze_cycles(self, src_path: Path) -> tuple[list[list[str]], int]:
+        """Build import graph and detect cycles."""
+        graph = self._build_import_graph(src_path)
+        cycles = _tarjan_scc(graph)
+        score = max(0, 100 - len(cycles) * 20)
+        return cycles, score
 
     def _empty_result(self) -> CheckResult:
         """Return result when src/ doesn't exist."""
@@ -183,39 +188,8 @@ class GodClassRule(ProjectRule):
                 details={"god_classes": [], "score": 100},
             )
 
-        god_classes: list[dict[str, str | int]] = []
-        py_files = _get_python_files(src_path)
-
-        for path in py_files:
-            tree = _parse_file_safe(path)
-            if tree is None:
-                continue
-
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ClassDef):
-                    # Count lines
-                    if hasattr(node, "end_lineno") and node.end_lineno:
-                        lines = node.end_lineno - node.lineno + 1
-                    else:
-                        lines = 0
-
-                    # Count methods
-                    methods = sum(
-                        1
-                        for child in node.body
-                        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef)
-                    )
-
-                    if lines > self.max_lines or methods > self.max_methods:
-                        god_classes.append(
-                            {
-                                "name": node.name,
-                                "file": str(path.relative_to(src_path)),
-                                "lines": lines,
-                                "methods": methods,
-                            }
-                        )
-
+        god_classes = self._find_god_classes(src_path)
+        
         score = max(0, 100 - len(god_classes) * 15)
         passed = len(god_classes) == 0
 
@@ -229,6 +203,53 @@ class GodClassRule(ProjectRule):
             if god_classes
             else None,
         )
+
+    def _find_god_classes(self, src_path: Path) -> list[dict[str, str | int]]:
+        """Identify god classes in the source directory."""
+        god_classes: list[dict[str, str | int]] = []
+        py_files = _get_python_files(src_path)
+
+        for path in py_files:
+            tree = _parse_file_safe(path)
+            if tree is None:
+                continue
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    self._check_class_node(node, path, src_path, god_classes)
+        
+        return god_classes
+
+    def _check_class_node(
+        self, 
+        node: ast.ClassDef, 
+        file_path: Path, 
+        src_root: Path, 
+        results: list[dict[str, str | int]]
+    ) -> None:
+        """Analyze a single class node for god class metrics."""
+        # Count lines
+        if hasattr(node, "end_lineno") and node.end_lineno:
+            lines = node.end_lineno - node.lineno + 1
+        else:
+            lines = 0
+
+        # Count methods
+        methods = sum(
+            1
+            for child in node.body
+            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef)
+        )
+
+        if lines > self.max_lines or methods > self.max_methods:
+            results.append(
+                {
+                    "name": node.name,
+                    "file": str(file_path.relative_to(src_root)),
+                    "lines": lines,
+                    "methods": methods,
+                }
+            )
 
 
 @dataclass
