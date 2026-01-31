@@ -1,14 +1,12 @@
 # CLI Reference
 
-## axm
+## axm-init
 
-::: axm.cli
+::: axm_init.cli
     options:
       show_root_heading: false
       members:
         - init
-        - check
-        - audit
         - reserve
         - version
       show_source: false
