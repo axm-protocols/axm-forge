@@ -26,6 +26,7 @@ version-file = "src/{{ module_name }}/_version.py"
 
 [dependency-groups]
 dev = [
+    "pydantic>=2.0",  # Required for mypy pydantic plugin
     "pytest>=8.0",
     "pytest-cov>=4.0",
     "pytest-asyncio>=0.24",
@@ -65,7 +66,7 @@ warn_return_any = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
 show_error_codes = true
-plugins = ["pydantic.mypy"]
+
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]
