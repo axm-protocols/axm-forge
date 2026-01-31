@@ -1,0 +1,108 @@
+# Copier configuration for Python project scaffold
+# Usage: copier copy ~/setup/templates/python-project ./ (creates <package_name>/ folder)
+
+_min_copier_version: "9.0.0"
+_templates_suffix: .jinja
+
+# =============================================================================
+# Questions (replaces Agent Instructions from python_setup.md)
+# =============================================================================
+
+package_name:
+  type: str
+  help: "Package name (lowercase, hyphens allowed, e.g., my-package)"
+  validator: "{% if not package_name | regex_search('^[a-z][a-z0-9-]*$') %}Invalid package name - use lowercase letters, numbers, and hyphens{% endif %}"
+
+description:
+  type: str
+  help: "One-line description for PyPI (max 100 chars)"
+  default: "A modern Python package"
+
+org:
+  type: str
+  help: "GitHub organization or username"
+  choices:
+    - JarryGabriel
+    - eurocontrol-asu
+  default: JarryGabriel
+
+license:
+  type: str
+  help: "License type"
+  choices:
+    - MIT
+    - Apache-2.0
+    - EUPL-1.2
+  default: MIT
+
+author_name:
+  type: str
+  help: "Author name"
+  default: "Gabriel Jarry"
+
+author_email:
+  type: str
+  help: "Author email"
+  default: "jarry.gabriel@gmail.com"
+
+python_min_version:
+  type: str
+  help: "Minimum Python version to support"
+  choices:
+    - "3.11"
+    - "3.12"
+    - "3.13"
+  default: "3.12"
+
+# =============================================================================
+# Computed values (hidden from user)
+# =============================================================================
+
+module_name:
+  type: str
+  default: "{{ package_name | replace('-', '_') }}"
+  when: false
+
+year:
+  type: str
+  default: "2026"
+  when: false
+
+license_classifier:
+  type: str
+  default: "{% if license == 'MIT' %}License :: OSI Approved :: MIT License{% elif license == 'Apache-2.0' %}License :: OSI Approved :: Apache Software License{% else %}License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2){% endif %}"
+  when: false
+
+license_folder:
+  type: str
+  default: "{% if license == 'MIT' %}mit{% elif license == 'Apache-2.0' %}apache 2.0{% else %}eupl{% endif %}"
+  when: false
+
+python_matrix:
+  type: str
+  default: "{% if python_min_version == '3.11' %}[\"3.11\", \"3.12\", \"3.13\"]{% elif python_min_version == '3.12' %}[\"3.12\", \"3.13\"]{% else %}[\"3.13\"]{% endif %}"
+  when: false
+
+# =============================================================================
+# Post-generation tasks (run in destination directory)
+# =============================================================================
+
+_tasks:
+  # Copy LICENSE file(s) from bundled templates
+  - command: "cp {{ _copier_conf.src_path }}/licences/{{ license_folder }}/* ./{{ package_name }}/"
+    when: "{{ true }}"
+  # Git init FIRST - required for hatch-vcs to detect version
+  - command: "cd {{ package_name }} && git init && git branch -M main"
+    when: "{{ true }}"
+  - command: "cd {{ package_name }} && uv python pin {{ python_min_version }}"
+    when: "{{ true }}"
+  - command: "cd {{ package_name }} && uv add pydantic pydantic-settings loguru"
+    when: "{{ true }}"
+  - command: "cd {{ package_name }} && uv add --group dev pytest pytest-cov pytest-asyncio pytest-mock ruff mypy pre-commit pip-audit"
+    when: "{{ true }}"
+  - command: "cd {{ package_name }} && uv add --group docs mkdocs-material 'mkdocstrings[python]'"
+    when: "{{ true }}"
+  # Commit AFTER all deps installed so uv.lock is included
+  - command: "cd {{ package_name }} && git add . && git commit -m 'feat: initial scaffold'"
+    when: "{{ true }}"
+  - "echo '✅ Project scaffolded! Run: cd {{ package_name }} && make check'"

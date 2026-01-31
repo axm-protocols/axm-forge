@@ -1,0 +1,35 @@
+# Copier configuration for minimal Python project
+_min_copier_version: "9.0.0"
+_templates_suffix: .jinja
+
+package_name:
+  type: str
+  help: "Package name (lowercase, hyphens allowed)"
+  validator: "{% if not package_name | regex_search('^[a-z][a-z0-9-]*$') %}Invalid package name{% endif %}"
+
+description:
+  type: str
+  help: "One-line description"
+  default: "A Python package"
+
+author_name:
+  type: str
+  default: "Gabriel Jarry"
+
+author_email:
+  type: str
+  default: "jarry.gabriel@gmail.com"
+
+module_name:
+  type: str
+  default: "{{ package_name | replace('-', '_') }}"
+  when: false
+
+_tasks:
+  - command: "cd {{ package_name }} && git init && git branch -M main"
+    when: "{{ true }}"
+  - command: "cd {{ package_name }} && uv sync"
+    when: "{{ true }}"
+  - command: "cd {{ package_name }} && git add . && git commit -m 'feat: initial scaffold'"
+    when: "{{ true }}"
+  - "echo '✅ Minimal project scaffolded! Run: cd {{ package_name }} && uv run python -c \"import {{ module_name }}\"'"
