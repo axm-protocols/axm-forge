@@ -30,7 +30,7 @@ uv add axm-init
 
 ```bash
 # Scaffold a new project
-axm-init init my-project --name my-project \
+axm-init init my-project \
   --org axm-protocols \
   --author "Your Name" --email "you@example.com"
 
@@ -41,6 +41,49 @@ axm-init audit
 # Reserve a name on PyPI
 axm-init reserve my-cool-lib --dry-run
 ```
+
+## CLI Commands
+
+### `axm-init init`
+
+Scaffold a production-grade Python project (src layout, PEP 621, CI, docs).
+
+| Option | Short | Default | Description |
+|---|---|---|---|
+| `PATH` | | `.` | Directory to initialize |
+| `--org` | `-o` | *required* | GitHub org or username |
+| `--author` | `-a` | *required* | Author name |
+| `--email` | `-e` | *required* | Author email |
+| `--name` | `-n` | *dir name* | Project name |
+| `--license` | `-l` | `MIT` | License (MIT, Apache-2.0, EUPL-1.2) |
+| `--license-holder` | | *--org* | License holder |
+| `--description` | `-d` | | One-line description |
+| `--check-pypi` | | `False` | Verify PyPI availability first |
+| `--json` | | `False` | Output as JSON |
+
+### `axm-init audit`
+
+Score a project against the AXM gold standard (31 checks across 7 categories).
+
+| Option | Short | Default | Description |
+|---|---|---|---|
+| `PATH` | | `.` | Directory to audit |
+| `--category` | `-c` | *all* | Filter to one category |
+| `--json` | | `False` | Output as JSON |
+
+**Categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`
+
+### `axm-init reserve`
+
+Reserve a package name on PyPI with a minimal placeholder.
+
+| Option | Short | Default | Description |
+|---|---|---|---|
+| `NAME` | | *required* | Package name to reserve |
+| `--author` | `-a` | `Gabriel Jarry` | Author name |
+| `--email` | `-e` | `jarry.gabriel@gmail.com` | Author email |
+| `--dry-run` | | `False` | Skip actual publish |
+| `--json` | | `False` | Output as JSON |
 
 ## Development
 

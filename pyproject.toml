@@ -158,7 +158,7 @@ ignore_missing_imports = true
 source = ["src/axm_init"]
 branch = true
 relative_files = true
-omit = ["*/tests/*"]
+omit = ["*/tests/*", "*/templates/*"]
 
 [tool.coverage.xml]
 output = "coverage.xml"
