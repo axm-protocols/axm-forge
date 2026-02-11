@@ -20,7 +20,7 @@ from axm_init.adapters.copier import CopierAdapter, CopierConfig
 from axm_init.adapters.credentials import CredentialManager
 from axm_init.adapters.pypi import AvailabilityStatus, PyPIAdapter
 from axm_init.core.reserver import reserve_pypi
-from axm_init.core.templates import resolve_template
+from axm_init.core.templates import get_template_path
 
 __all__ = ["app"]
 
@@ -41,10 +41,29 @@ def init(
         str | None,
         cyclopts.Parameter(name=["--name", "-n"], help="Project name"),
     ] = None,
-    template: Annotated[
+    org: Annotated[
         str,
-        cyclopts.Parameter(name=["--template", "-t"], help="Template: python, minimal"),
-    ] = "minimal",
+        cyclopts.Parameter(name=["--org", "-o"], help="GitHub org or username"),
+    ],
+    author: Annotated[
+        str,
+        cyclopts.Parameter(name=["--author", "-a"], help="Author name"),
+    ],
+    email: Annotated[
+        str,
+        cyclopts.Parameter(name=["--email", "-e"], help="Author email"),
+    ],
+    license: Annotated[
+        str,
+        cyclopts.Parameter(name=["--license", "-l"], help="License type"),
+    ] = "MIT",
+    license_holder: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--license-holder"],
+            help="License holder (defaults to --org)",
+        ),
+    ] = None,
     description: Annotated[
         str,
         cyclopts.Parameter(name=["--description", "-d"], help="Description"),
@@ -82,27 +101,23 @@ def init(
         if status == AvailabilityStatus.ERROR:
             if not json_output:
                 print(  # noqa: T201
-                    "⚠️  Could not verify PyPI availability", file=sys.stderr
+                    "⚠️  Could not verify PyPI availability",
+                    file=sys.stderr,
                 )
 
-    # Resolve template and scaffold with Copier
-    try:
-        template_info = resolve_template(template)
-    except ValueError as e:
-        print(f"❌ {e}", file=sys.stderr)  # noqa: T201
-        raise SystemExit(1) from e
-
+    # Scaffold with Copier using the python-project template
     copier_adapter = CopierAdapter()
     copier_config = CopierConfig(
-        template_path=template_info.path,
+        template_path=get_template_path(),
         destination=target_path,
         data={
             "package_name": project_name,
             "description": description or "A modern Python package",
-            "org": "JarryGabriel",
-            "license": "MIT",
-            "author_name": "Gabriel Jarry",
-            "author_email": "jarry.gabriel@gmail.com",
+            "org": org,
+            "license": license,
+            "license_holder": license_holder or org,
+            "author_name": author,
+            "author_email": email,
         },
     )
     result = copier_adapter.copy(copier_config)

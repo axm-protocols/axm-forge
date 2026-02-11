@@ -1,43 +1,39 @@
-"""Tests for template catalog."""
+"""Tests for template module — simplified single-template API."""
 
-import pytest
+from pathlib import Path
 
-from axm_init.core.templates import TemplateType, get_template_catalog, resolve_template
-
-
-class TestTemplateCatalog:
-    """Tests for template catalog functions."""
-
-    def test_get_catalog_returns_dict(self) -> None:
-        """Test catalog returns dictionary of templates."""
-        catalog = get_template_catalog()
-        assert isinstance(catalog, dict)
-        assert TemplateType.PYTHON in catalog
-
-    def test_python_template_has_required_fields(self) -> None:
-        """Test Python template has name, description, path."""
-        catalog = get_template_catalog()
-        python_template = catalog[TemplateType.PYTHON]
-
-        assert python_template.name == "python"
-        assert "Python" in python_template.description
-        assert python_template.path is not None
+from axm_init.core.templates import TemplateInfo, get_template_path
 
 
-class TestResolveTemplate:
-    """Tests for resolve_template function."""
+class TestGetTemplatePath:
+    """Tests for get_template_path()."""
 
-    def test_resolve_python_template(self) -> None:
-        """Test resolving 'python' template."""
-        template = resolve_template("python")
-        assert template.name == "python"
+    def test_returns_path(self) -> None:
+        """get_template_path() returns a Path object."""
+        result = get_template_path()
+        assert isinstance(result, Path)
 
-    def test_resolve_unknown_template_raises(self) -> None:
-        """Test resolving unknown template raises ValueError."""
-        with pytest.raises(ValueError, match="Unknown template"):
-            resolve_template("nonexistent")
+    def test_path_exists(self) -> None:
+        """Returned path points to an existing directory."""
+        result = get_template_path()
+        assert result.exists()
+        assert result.is_dir()
 
-    def test_error_message_lists_available(self) -> None:
-        """Test error message lists available templates."""
-        with pytest.raises(ValueError, match="python"):
-            resolve_template("invalid")
+    def test_path_is_python_project(self) -> None:
+        """Returned path is the python-project template."""
+        result = get_template_path()
+        assert result.name == "python-project"
+
+
+class TestTemplateInfo:
+    """TemplateInfo model is still usable."""
+
+    def test_template_info_creation(self, tmp_path: Path) -> None:
+        """TemplateInfo can be instantiated."""
+        info = TemplateInfo(
+            name="python",
+            description="A python project",
+            path=tmp_path,
+        )
+        assert info.name == "python"
+        assert info.path == tmp_path

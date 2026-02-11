@@ -9,6 +9,16 @@ from pathlib import Path
 
 from axm_init.cli import app
 
+# Required args for init
+INIT_ARGS = [
+    "--org",
+    "test-org",
+    "--author",
+    "Test Author",
+    "--email",
+    "test@test.com",
+]
+
 
 def _run(args: list[str]) -> tuple[str, int]:
     """Run CLI and capture stdout + exit code."""
@@ -27,14 +37,30 @@ class TestInitFlow:
 
     def test_full_init_creates_project(self, tmp_path: Path) -> None:
         """init creates a project directory with expected files."""
-        output, code = _run(["init", str(tmp_path), "--name", "my-project"])
+        output, code = _run(
+            [
+                "init",
+                str(tmp_path),
+                "--name",
+                "my-project",
+                *INIT_ARGS,
+            ]
+        )
         assert code == 0
         assert "my-project" in output
         assert "✅" in output
 
     def test_init_then_check_structure(self, tmp_path: Path) -> None:
         """init creates expected scaffolding structure."""
-        _output, code = _run(["init", str(tmp_path), "--name", "scaffold-test"])
+        _output, code = _run(
+            [
+                "init",
+                str(tmp_path),
+                "--name",
+                "scaffold-test",
+                *INIT_ARGS,
+            ]
+        )
         assert code == 0
 
         # Copier may create files at target level or in a subdirectory
@@ -44,7 +70,16 @@ class TestInitFlow:
 
     def test_init_json_output_is_valid_json(self, tmp_path: Path) -> None:
         """--json flag produces valid, parseable JSON output."""
-        output, code = _run(["init", str(tmp_path), "--name", "json-test", "--json"])
+        output, code = _run(
+            [
+                "init",
+                str(tmp_path),
+                "--name",
+                "json-test",
+                "--json",
+                *INIT_ARGS,
+            ]
+        )
         assert code == 0
         data = json.loads(output)
         assert "success" in data
@@ -61,20 +96,22 @@ class TestInitFlow:
                 "desc-test",
                 "--description",
                 "My custom description",
+                *INIT_ARGS,
             ]
         )
         assert code == 0
 
-    def test_init_different_templates(self, tmp_path: Path) -> None:
-        """init with an explicit template works."""
+    def test_init_with_license_flag(self, tmp_path: Path) -> None:
+        """--license flag is accepted."""
         _output, code = _run(
             [
                 "init",
                 str(tmp_path),
                 "--name",
-                "tmpl-test",
-                "--template",
-                "minimal",
+                "lic-test",
+                "--license",
+                "Apache-2.0",
+                *INIT_ARGS,
             ]
         )
         assert code == 0

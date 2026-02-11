@@ -87,7 +87,7 @@ This installs dependencies and runs lint + type check + tests.
 
 ## Next Steps
 
-- [Initialize a project](../howto/init.md) — Options, templates, PyPI check
+- [Initialize a project](../howto/init.md) — Options, flags, PyPI check
 - [Reserve a package name](../howto/reserve.md) — Claim names on PyPI
 - [Audit your project](../howto/audit.md) — Quality grade (A–F)
 - [CLI Reference](../reference/cli.md) — Full command documentation

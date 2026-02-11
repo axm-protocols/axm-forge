@@ -30,7 +30,9 @@ uv add axm-init
 
 ```bash
 # Scaffold a new project
-axm-init init my-project --name my-project
+axm-init init my-project --name my-project \
+  --org axm-protocols \
+  --author "Your Name" --email "you@example.com"
 
 # Audit against AXM standards
 axm-init audit
@@ -46,7 +48,7 @@ axm-init reserve my-cool-lib --dry-run
 git clone https://github.com/axm-protocols/axm-init.git
 cd axm-init
 uv sync --all-groups
-uv run pytest           # 288 tests
+uv run pytest           # 294 tests
 uv run ruff check src/  # lint
 ```
 

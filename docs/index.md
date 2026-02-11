@@ -44,7 +44,7 @@ $ axm-init init my-project
 - 📋 **Audit** — Score any project against the AXM gold standard (31 checks, A–F grade)
 - 📦 **Reserve** — Claim a package name on PyPI before you're ready to publish
 - ✅ **Standards** — Pre-configured Ruff, MyPy, Pytest, GitHub Actions
-- 🔄 **Templates** — Extensible template system (`minimal`, `python`)
+- 🔄 **Copier-powered** — Production-grade scaffolding with `src/` layout, PEP 621
 - 📊 **JSON output** — Machine-readable output for CI integration
 
 ---

@@ -17,7 +17,11 @@ axm-init init [OPTIONS] [PATH]
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Directory to initialize project in |
 | `--name` | `-n` | string | *dir name* | Project name (defaults to directory name) |
-| `--template` | `-t` | string | `minimal` | Template: `python`, `minimal` |
+| `--org` | `-o` | string | *required* | GitHub org or username |
+| `--author` | `-a` | string | *required* | Author name |
+| `--email` | `-e` | string | *required* | Author email |
+| `--license` | `-l` | string | `MIT` | License type (MIT, Apache-2.0, EUPL-1.2) |
+| `--license-holder` | | string | *--org* | License holder (defaults to --org) |
 | `--description` | `-d` | string | `""` | Project description |
 | `--check-pypi` | | bool | `False` | Check PyPI name availability first |
 | `--json` | | bool | `False` | Output as JSON |
@@ -25,13 +29,15 @@ axm-init init [OPTIONS] [PATH]
 **Validation rules:**
 
 - Missing `--name` → defaults to target directory name
-- Unknown `--template` → error with list of available templates
+- Missing `--org`, `--author`, or `--email` → exit code 1
+- `--license-holder` omitted → defaults to `--org` value
 - `--check-pypi` with taken name → exit code 1
 
 **Example:**
 
 ```bash
-axm-init init my-project --name my-project --template minimal
+axm-init init my-project --name my-project \
+  --org axm-protocols --author "Your Name" --email "you@example.com"
 ```
 
 ```

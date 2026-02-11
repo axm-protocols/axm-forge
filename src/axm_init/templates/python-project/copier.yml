@@ -76,7 +76,7 @@ license_classifier:
 
 license_folder:
   type: str
-  default: "{% if license == 'MIT' %}mit{% elif license == 'Apache-2.0' %}apache 2.0{% else %}eupl{% endif %}"
+  default: "{% if license == 'MIT' %}mit{% elif license == 'Apache-2.0' %}apache-2.0{% else %}eupl{% endif %}"
   when: false
 
 python_matrix:

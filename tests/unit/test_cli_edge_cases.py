@@ -20,7 +20,21 @@ def _run(args: list[str]) -> tuple[str, str, int]:
             app(args, exit_on_error=False)
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else 1
+    except Exception:
+        # Cyclopts raises MissingArgumentError etc. when exit_on_error=False
+        code = 1
     return out.getvalue(), err.getvalue(), code
+
+
+# Required args for init (to avoid noise in unrelated tests)
+INIT_ARGS = [
+    "--org",
+    "test-org",
+    "--author",
+    "Test Author",
+    "--email",
+    "test@test.com",
+]
 
 
 class TestVersionCommand:
@@ -48,15 +62,87 @@ class TestInitCommand:
         """When --name is omitted, project name defaults to directory name."""
         target = tmp_path / "my-awesome-project"
         target.mkdir()
-        stdout, _, code = _run(["init", str(target)])
+        stdout, _, code = _run(["init", str(target), *INIT_ARGS])
         assert code == 0
         assert "my-awesome-project" in stdout
 
-    def test_init_invalid_template_exits_with_error(self, tmp_path) -> None:
-        """Unknown template name causes exit code 1."""
-        _, stderr, code = _run(["init", str(tmp_path), "--template", "nonexistent"])
-        assert code == 1
-        assert "Unknown template" in stderr
+    def test_init_missing_org_exits(self, tmp_path) -> None:
+        """Missing --org causes exit with error."""
+        _, _, code = _run(
+            [
+                "init",
+                str(tmp_path),
+                "--name",
+                "x",
+                "--author",
+                "A",
+                "--email",
+                "e@e.com",
+            ]
+        )
+        assert code != 0
+
+    def test_init_missing_author_exits(self, tmp_path) -> None:
+        """Missing --author causes exit with error."""
+        _, _, code = _run(
+            [
+                "init",
+                str(tmp_path),
+                "--name",
+                "x",
+                "--org",
+                "o",
+                "--email",
+                "e@e.com",
+            ]
+        )
+        assert code != 0
+
+    def test_init_missing_email_exits(self, tmp_path) -> None:
+        """Missing --email causes exit with error."""
+        _, _, code = _run(
+            [
+                "init",
+                str(tmp_path),
+                "--name",
+                "x",
+                "--org",
+                "o",
+                "--author",
+                "A",
+            ]
+        )
+        assert code != 0
+
+    @patch("axm_init.cli.CopierAdapter")
+    def test_init_license_holder_defaults_to_org(
+        self, mock_copier_cls, tmp_path
+    ) -> None:
+        """When --license-holder is omitted, it defaults to --org value."""
+        mock_adapter = mock_copier_cls.return_value
+        mock_adapter.copy.return_value = type(
+            "R", (), {"success": True, "files_created": [], "message": "ok"}
+        )()
+
+        _run(
+            [
+                "init",
+                str(tmp_path),
+                "--name",
+                "test-pkg",
+                "--org",
+                "my-org",
+                "--author",
+                "A",
+                "--email",
+                "e@e.com",
+            ]
+        )
+
+        # Check that CopierConfig was created with license_holder = org
+        call_args = mock_copier_cls.return_value.copy.call_args
+        config = call_args[0][0]
+        assert config.data["license_holder"] == "my-org"
 
     @patch("axm_init.cli.PyPIAdapter")
     def test_init_pypi_taken_exits_with_error(self, mock_cls, tmp_path) -> None:
@@ -67,7 +153,14 @@ class TestInitCommand:
         mock_adapter.check_availability.return_value = AvailabilityStatus.TAKEN
 
         _, _stderr, code = _run(
-            ["init", str(tmp_path), "--name", "requests", "--check-pypi"]
+            [
+                "init",
+                str(tmp_path),
+                "--name",
+                "requests",
+                "--check-pypi",
+                *INIT_ARGS,
+            ]
         )
         assert code == 1
 
@@ -87,6 +180,7 @@ class TestInitCommand:
                 "requests",
                 "--check-pypi",
                 "--json",
+                *INIT_ARGS,
             ]
         )
         assert code == 1
@@ -101,7 +195,16 @@ class TestInitCommand:
         mock_adapter = mock_cls.return_value
         mock_adapter.check_availability.return_value = AvailabilityStatus.ERROR
 
-        _, _, code = _run(["init", str(tmp_path), "--name", "test-pkg", "--check-pypi"])
+        _, _, code = _run(
+            [
+                "init",
+                str(tmp_path),
+                "--name",
+                "test-pkg",
+                "--check-pypi",
+                *INIT_ARGS,
+            ]
+        )
         # Should not fail — availability check error is non-blocking
         assert code == 0
 

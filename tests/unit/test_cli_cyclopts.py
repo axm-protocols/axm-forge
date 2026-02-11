@@ -90,30 +90,44 @@ class TestVersionCommand:
 class TestInitCommandOptions:
     """Tests for init command parameter signatures."""
 
-    def test_init_help_does_not_crash(self) -> None:
-        """init --help runs without error."""
+    def _capture_help(self) -> str:
+        """Run init --help and return output."""
         f = io.StringIO()
         try:
             with redirect_stdout(f):
                 app(["init", "--help"], exit_on_error=False)
         except SystemExit:
             pass
-        output = f.getvalue()
+        return f.getvalue()
+
+    def test_init_help_does_not_crash(self) -> None:
+        """init --help runs without error."""
+        output = self._capture_help()
         assert "init" in output.lower() or "path" in output.lower()
 
-    @patch("axm_init.cli.CopierAdapter")
-    @patch("axm_init.cli.resolve_template")
-    def test_init_with_name_option(
-        self, mock_resolve, mock_copier_cls, tmp_path
-    ) -> None:
-        """--name option is accepted as Annotated parameter."""
-        from axm_init.core.templates import TemplateInfo
+    def test_init_help_shows_org_flag(self) -> None:
+        """init --help shows --org flag."""
+        output = self._capture_help()
+        assert "--org" in output
 
-        mock_resolve.return_value = TemplateInfo(
-            name="minimal",
-            path=str(tmp_path),
-            description="Minimal template",
-        )
+    def test_init_help_shows_author_flag(self) -> None:
+        """init --help shows --author flag."""
+        output = self._capture_help()
+        assert "--author" in output
+
+    def test_init_help_shows_email_flag(self) -> None:
+        """init --help shows --email flag."""
+        output = self._capture_help()
+        assert "--email" in output
+
+    def test_init_help_no_template_flag(self) -> None:
+        """init --help must NOT show --template flag (removed)."""
+        output = self._capture_help()
+        assert "--template" not in output
+
+    @patch("axm_init.cli.CopierAdapter")
+    def test_init_with_name_option(self, mock_copier_cls, tmp_path) -> None:
+        """--name option is accepted and passed through."""
         mock_adapter = mock_copier_cls.return_value
         mock_adapter.copy.return_value = type(
             "R", (), {"success": True, "files_created": [], "message": "ok"}
@@ -123,7 +137,18 @@ class TestInitCommandOptions:
         try:
             with redirect_stdout(f):
                 app(
-                    ["init", str(tmp_path), "--name", "test-project"],
+                    [
+                        "init",
+                        str(tmp_path),
+                        "--name",
+                        "test-project",
+                        "--org",
+                        "test-org",
+                        "--author",
+                        "Test",
+                        "--email",
+                        "t@t.com",
+                    ],
                     exit_on_error=False,
                 )
         except SystemExit:
