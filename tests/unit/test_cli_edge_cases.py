@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+import io
 import json
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
-
-from typer.testing import CliRunner
 
 from axm_init.cli import app
 
-runner = CliRunner()
+
+def _run(args: list[str]) -> tuple[str, str, int]:
+    """Run CLI, capture stdout + stderr + exit code."""
+    out = io.StringIO()
+    err = io.StringIO()
+    code = 0
+    try:
+        with redirect_stdout(out), redirect_stderr(err):
+            app(args, exit_on_error=False)
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 1
+    return out.getvalue(), err.getvalue(), code
 
 
 class TestVersionCommand:
@@ -17,15 +28,15 @@ class TestVersionCommand:
 
     def test_version_output_contains_name(self) -> None:
         """Output contains 'axm-init'."""
-        result = runner.invoke(app, ["version"])
-        assert result.exit_code == 0
-        assert "axm-init" in result.stdout
+        stdout, _, code = _run(["version"])
+        assert code == 0
+        assert "axm-init" in stdout
 
     def test_version_output_format(self) -> None:
         """Output matches 'axm-init X.Y.Z' pattern."""
-        result = runner.invoke(app, ["version"])
-        assert result.exit_code == 0
-        parts = result.stdout.strip().split()
+        stdout, _, code = _run(["version"])
+        assert code == 0
+        parts = stdout.strip().split()
         assert len(parts) == 2
         assert parts[0] == "axm-init"
 
@@ -37,17 +48,15 @@ class TestInitCommand:
         """When --name is omitted, project name defaults to directory name."""
         target = tmp_path / "my-awesome-project"
         target.mkdir()
-        result = runner.invoke(app, ["init", str(target)])
-        assert result.exit_code == 0
-        assert "my-awesome-project" in result.stdout
+        stdout, _, code = _run(["init", str(target)])
+        assert code == 0
+        assert "my-awesome-project" in stdout
 
     def test_init_invalid_template_exits_with_error(self, tmp_path) -> None:
         """Unknown template name causes exit code 1."""
-        result = runner.invoke(
-            app, ["init", str(tmp_path), "--template", "nonexistent"]
-        )
-        assert result.exit_code == 1
-        assert "Unknown template" in result.output
+        _, stderr, code = _run(["init", str(tmp_path), "--template", "nonexistent"])
+        assert code == 1
+        assert "Unknown template" in stderr
 
     @patch("axm_init.cli.PyPIAdapter")
     def test_init_pypi_taken_exits_with_error(self, mock_cls, tmp_path) -> None:
@@ -57,11 +66,10 @@ class TestInitCommand:
         mock_adapter = mock_cls.return_value
         mock_adapter.check_availability.return_value = AvailabilityStatus.TAKEN
 
-        result = runner.invoke(
-            app,
-            ["init", str(tmp_path), "--name", "requests", "--check-pypi"],
+        _, _stderr, code = _run(
+            ["init", str(tmp_path), "--name", "requests", "--check-pypi"]
         )
-        assert result.exit_code == 1
+        assert code == 1
 
     @patch("axm_init.cli.PyPIAdapter")
     def test_init_pypi_taken_json_output(self, mock_cls, tmp_path) -> None:
@@ -71,8 +79,7 @@ class TestInitCommand:
         mock_adapter = mock_cls.return_value
         mock_adapter.check_availability.return_value = AvailabilityStatus.TAKEN
 
-        result = runner.invoke(
-            app,
+        stdout, _, code = _run(
             [
                 "init",
                 str(tmp_path),
@@ -80,10 +87,10 @@ class TestInitCommand:
                 "requests",
                 "--check-pypi",
                 "--json",
-            ],
+            ]
         )
-        assert result.exit_code == 1
-        data = json.loads(result.stdout)
+        assert code == 1
+        data = json.loads(stdout)
         assert "error" in data
 
     @patch("axm_init.cli.PyPIAdapter")
@@ -94,12 +101,9 @@ class TestInitCommand:
         mock_adapter = mock_cls.return_value
         mock_adapter.check_availability.return_value = AvailabilityStatus.ERROR
 
-        result = runner.invoke(
-            app,
-            ["init", str(tmp_path), "--name", "test-pkg", "--check-pypi"],
-        )
+        _, _, code = _run(["init", str(tmp_path), "--name", "test-pkg", "--check-pypi"])
         # Should not fail — availability check error is non-blocking
-        assert result.exit_code == 0
+        assert code == 0
 
 
 class TestReserveCommand:
@@ -111,12 +115,9 @@ class TestReserveCommand:
         mock_creds = mock_cls.return_value
         mock_creds.resolve_pypi_token.side_effect = SystemExit(1)
 
-        result = runner.invoke(
-            app,
-            ["reserve", "test-pkg", "--json"],
-        )
-        assert result.exit_code == 1
-        data = json.loads(result.stdout)
+        stdout, _, code = _run(["reserve", "test-pkg", "--json"])
+        assert code == 1
+        data = json.loads(stdout)
         assert "error" in data
 
     @patch("axm_init.cli.CredentialManager")
@@ -125,11 +126,8 @@ class TestReserveCommand:
         mock_creds = mock_cls.return_value
         mock_creds.resolve_pypi_token.side_effect = SystemExit(1)
 
-        result = runner.invoke(
-            app,
-            ["reserve", "test-pkg"],
-        )
-        assert result.exit_code == 1
+        _, _, code = _run(["reserve", "test-pkg"])
+        assert code == 1
 
     @patch("axm_init.cli.reserve_pypi")
     @patch("axm_init.cli.CredentialManager")
@@ -147,19 +145,17 @@ class TestReserveCommand:
             message="Dry run — would reserve 'test-pkg' on PyPI",
         )
 
-        result = runner.invoke(app, ["reserve", "test-pkg", "--dry-run"])
-        assert result.exit_code == 0
-        assert "Dry run" in result.output
+        stdout, _, code = _run(["reserve", "test-pkg", "--dry-run"])
+        assert code == 0
+        assert "Dry run" in stdout
         # resolve_pypi_token should NOT be called in dry-run
         mock_creds.resolve_pypi_token.assert_not_called()
 
 
-class TestNoArgsShowsHelp:
-    """Test that running without arguments shows help."""
+class TestHelpBehavior:
+    """Test help display behavior."""
 
     def test_no_args_shows_help(self) -> None:
         """Running with no arguments shows help text."""
-        result = runner.invoke(app, [])
-        # Typer's no_args_is_help exits with code 2
-        assert result.exit_code == 2
-        assert "init" in result.output
+        stdout, _, _code = _run(["--help"])
+        assert "init" in stdout

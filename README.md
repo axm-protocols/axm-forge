@@ -38,36 +38,29 @@
 
 ---
 
-<p align="center">
-  <img src="docs/assets/quickstart.gif" alt="AXM Demo" width="800" />
-</p>
-
 ## Installation
 
 ```bash
-pip install axm
+pip install axm-init
 ```
 
 ## Features
 
-- 🚀 **`axm init`** — Bootstrap production-grade Python projects
-- 🔍 **`axm check`** — Verify project compliance with standards
-- 📊 **`axm audit`** — Full project audit with quality grade (A-F)
-- 📦 **`axm reserve`** — Reserve a package name on PyPI
-- 🔄 **`axm version`** — Show AXM version
+- 🚀 **`axm-init init`** — Bootstrap production-grade Python projects with Copier templates
+- 📦 **`axm-init reserve`** — Reserve a package name on PyPI before you're ready to publish
+- 🔄 **`axm-init version`** — Show AXM Init version
 
 ## Quick Start
 
 ```bash
-axm init my-project
+axm-init init my-project --name my-project
 cd my-project
-axm check
-axm audit   # Full quality audit
+make ci
 ```
 
 ## Documentation
 
-Full documentation: https://axm-protocols.github.io/axm/
+Full documentation: https://axm-protocols.github.io/axm-init/
 
 ## License
 

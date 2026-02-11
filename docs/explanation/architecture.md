@@ -7,7 +7,7 @@
 ```mermaid
 graph TD
     subgraph "User Interface"
-        CLI["CLI (Typer)"]
+        CLI["CLI (cyclopts)"]
     end
 
     subgraph "Core Logic"
@@ -47,7 +47,7 @@ graph TD
 
 ### 1. CLI (`cli.py`)
 
-Typer-based commands with input validation and formatted output (text + JSON).
+Cyclopts-based commands with input validation and formatted output (text + JSON).
 
 ### 2. Core Logic (`core/`)
 

@@ -1,9 +1,20 @@
-"""AXM-Init CLI entry point — Project scaffolding tool."""
+"""AXM-Init CLI entry point — Project scaffolding tool.
+
+Usage::
+
+    axm-init init my-project
+    axm-init reserve my-package --dry-run
+    axm-init version
+"""
+
+from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+from typing import Annotated
 
-import typer
+import cyclopts
 
 from axm_init.adapters.copier import CopierAdapter, CopierConfig
 from axm_init.adapters.credentials import CredentialManager
@@ -11,25 +22,41 @@ from axm_init.adapters.pypi import AvailabilityStatus, PyPIAdapter
 from axm_init.core.reserver import reserve_pypi
 from axm_init.core.templates import resolve_template
 
-app = typer.Typer(
+__all__ = ["app"]
+
+app = cyclopts.App(
     name="axm-init",
     help="AXM Init — Python project scaffolding with Copier templates.",
-    no_args_is_help=True,
 )
 
 
 @app.command()
 def init(
-    path: str = typer.Argument(".", help="Path to initialize project"),
-    name: str | None = typer.Option(None, "--name", "-n", help="Project name"),
-    template: str = typer.Option(
-        "minimal", "--template", "-t", help="Template: python, minimal"
-    ),
-    description: str = typer.Option("", "--description", "-d", help="Description"),
-    check_pypi: bool = typer.Option(
-        False, "--check-pypi", help="Check PyPI availability"
-    ),
-    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+    path: Annotated[
+        str,
+        cyclopts.Parameter(help="Path to initialize project"),
+    ] = ".",
+    *,
+    name: Annotated[
+        str | None,
+        cyclopts.Parameter(name=["--name", "-n"], help="Project name"),
+    ] = None,
+    template: Annotated[
+        str,
+        cyclopts.Parameter(name=["--template", "-t"], help="Template: python, minimal"),
+    ] = "minimal",
+    description: Annotated[
+        str,
+        cyclopts.Parameter(name=["--description", "-d"], help="Description"),
+    ] = "",
+    check_pypi: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--check-pypi"], help="Check PyPI availability"),
+    ] = False,
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--json"], help="Output as JSON"),
+    ] = False,
 ) -> None:
     """Initialize a new Python project with best practices."""
     target_path = Path(path).resolve()
@@ -43,25 +70,27 @@ def init(
         status = adapter.check_availability(project_name)
         if status == AvailabilityStatus.TAKEN:
             if json_output:
-                typer.echo(
+                print(  # noqa: T201
                     f'{{"error": "Package name \'{project_name}\' is taken on PyPI"}}'
                 )
             else:
-                typer.echo(
+                print(  # noqa: T201
                     f"❌ Package name '{project_name}' is already taken on PyPI",
-                    err=True,
+                    file=sys.stderr,
                 )
-            raise typer.Exit(1)
+            raise SystemExit(1)
         if status == AvailabilityStatus.ERROR:
             if not json_output:
-                typer.echo("⚠️  Could not verify PyPI availability", err=True)
+                print(  # noqa: T201
+                    "⚠️  Could not verify PyPI availability", file=sys.stderr
+                )
 
     # Resolve template and scaffold with Copier
     try:
         template_info = resolve_template(template)
     except ValueError as e:
-        typer.echo(f"❌ {e}", err=True)
-        raise typer.Exit(1) from e
+        print(f"❌ {e}", file=sys.stderr)  # noqa: T201
+        raise SystemExit(1) from e
 
     copier_adapter = CopierAdapter()
     copier_config = CopierConfig(
@@ -79,7 +108,7 @@ def init(
     result = copier_adapter.copy(copier_config)
 
     if json_output:
-        typer.echo(
+        print(  # noqa: T201
             json.dumps(
                 {
                     "success": result.success,
@@ -89,26 +118,39 @@ def init(
         )
     else:
         if result.success:
-            typer.echo(f"✅ Project '{project_name}' created at {target_path}")
+            print(f"✅ Project '{project_name}' created at {target_path}")  # noqa: T201
             for f in result.files_created:
-                typer.echo(f"   📄 {f}")
+                print(f"   📄 {f}")  # noqa: T201
         else:
-            typer.echo(f"❌ {result.message}", err=True)
-            raise typer.Exit(1)
+            print(f"❌ {result.message}", file=sys.stderr)  # noqa: T201
+            raise SystemExit(1)
 
 
 @app.command()
 def reserve(
-    name: str = typer.Argument(..., help="Package name to reserve"),
-    author: str = typer.Option("Gabriel Jarry", "--author", "-a", help="Author name"),
-    email: str = typer.Option(
-        "jarry.gabriel@gmail.com", "--email", "-e", help="Author email"
-    ),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Skip actual publish"),
-    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+    name: Annotated[
+        str,
+        cyclopts.Parameter(help="Package name to reserve"),
+    ],
+    *,
+    author: Annotated[
+        str,
+        cyclopts.Parameter(name=["--author", "-a"], help="Author name"),
+    ] = "Gabriel Jarry",
+    email: Annotated[
+        str,
+        cyclopts.Parameter(name=["--email", "-e"], help="Author email"),
+    ] = "jarry.gabriel@gmail.com",
+    dry_run: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--dry-run"], help="Skip actual publish"),
+    ] = False,
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--json"], help="Output as JSON"),
+    ] = False,
 ) -> None:
     """Reserve a package name on PyPI."""
-    # Get token
     creds = CredentialManager()
 
     if not dry_run:
@@ -116,8 +158,8 @@ def reserve(
             token = creds.resolve_pypi_token(interactive=not json_output)
         except SystemExit:
             if json_output:
-                typer.echo('{"error": "No PyPI token found"}')
-            raise typer.Exit(1) from None
+                print('{"error": "No PyPI token found"}')  # noqa: T201
+            raise SystemExit(1) from None
     else:
         token = creds.get_pypi_token() or ""
 
@@ -130,7 +172,7 @@ def reserve(
     )
 
     if json_output:
-        typer.echo(
+        print(  # noqa: T201
             json.dumps(
                 {
                     "success": result.success,
@@ -143,11 +185,11 @@ def reserve(
         )
     else:
         if result.success:
-            typer.echo(f"✅ {result.message}")
-            typer.echo(f"   View at: https://pypi.org/project/{name}/")
+            print(f"✅ {result.message}")  # noqa: T201
+            print(f"   View at: https://pypi.org/project/{name}/")  # noqa: T201
         else:
-            typer.echo(f"❌ {result.message}", err=True)
-            raise typer.Exit(1)
+            print(f"❌ {result.message}", file=sys.stderr)  # noqa: T201
+            raise SystemExit(1)
 
 
 @app.command()
@@ -155,7 +197,7 @@ def version() -> None:
     """Show axm-init version."""
     from axm_init import __version__
 
-    typer.echo(f"axm-init {__version__}")
+    print(f"axm-init {__version__}")  # noqa: T201
 
 
 def main() -> None:

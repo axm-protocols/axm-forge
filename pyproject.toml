@@ -20,11 +20,16 @@ classifiers = [
 
 dependencies = [
     "pydantic>=2.0.0",
-    "typer>=0.9.0",
-    "rich>=13.0.0",
+    "cyclopts>=4.5.1",
     "httpx>=0.28.1",
     "copier>=9.11.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/axm-protocols/axm-init"
+Documentation = "https://axm-protocols.github.io/axm-init/"
+Repository = "https://github.com/axm-protocols/axm-init.git"
+Issues = "https://github.com/axm-protocols/axm-init/issues"
 
 [project.scripts]
 axm-init = "axm_init.cli:main"
@@ -95,7 +100,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S105", "S106"]  # Allow test tokens
+"tests/*" = ["S101", "S105", "S106", "S108"]  # Allow assert, test tokens, tmp paths
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_init"]
@@ -143,7 +148,7 @@ module = ["tests.*"]
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["copier.*", "typer.*"]
+module = ["copier.*", "cyclopts.*"]
 ignore_missing_imports = true
 
 # ─────────────────────────────────────────────────────────────────────────────

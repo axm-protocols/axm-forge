@@ -1,4 +1,4 @@
-# Getting Started
+# Quick Start
 
 This tutorial walks you through installing `axm-init` and creating your first project.
 
@@ -25,49 +25,69 @@ Verify the installation:
 axm-init version
 ```
 
-## Step 1: Create a Project
+## Step 1: Create a New Project
 
-Scaffold a production-ready Python project:
+Scaffold a fully configured Python project:
 
 ```bash
-axm-init init my-project
-cd my-project/my-project
+axm-init init my-project --name my-project
 ```
 
-This creates a complete project with:
+You'll see output with all scaffolded files:
 
-- `pyproject.toml` — PEP 621 build config with uv/hatch
-- `src/` layout — Industry-standard package structure
-- `tests/` — Pre-configured Pytest setup
-- Git repository initialized with an initial commit
+```
+✅ Project 'my-project' created at /path/to/my-project
+   📄 pyproject.toml
+   📄 src/my_project/__init__.py
+   📄 tests/__init__.py
+   📄 README.md
+```
 
-## Step 2: Explore the Project
+!!! tip "Default name"
+    If you omit `--name`, the project name defaults to the target directory name.
+
+## Step 2: Explore the Scaffolded Project
+
+```bash
+cd my-project
+tree -L 3
+```
 
 ```
 my-project/
-├── pyproject.toml
-├── README.md
+├── pyproject.toml       # PEP 621, hatch-vcs, ruff, mypy, pytest
 ├── src/
 │   └── my_project/
-│       └── __init__.py
+│       ├── __init__.py
+│       └── py.typed
 ├── tests/
 │   └── __init__.py
-└── uv.lock
+├── Makefile             # make lint, make test, make ci
+├── mkdocs.yml           # Material for MkDocs + Diátaxis
+└── docs/
+    └── index.md
 ```
 
-## Step 3: Reserve a Name on PyPI
+!!! note "What's included"
+    The scaffolded project comes pre-configured with:
 
-Optionally, claim your package name before publishing:
+    - **pyproject.toml** — PEP 621 metadata, hatch-vcs versioning, ruff, mypy, pytest
+    - **Makefile** — `make lint`, `make test`, `make ci`
+    - **MkDocs** — Material theme, Diátaxis nav, auto-gen API docs
+    - **py.typed** — PEP 561 marker for type checkers
+
+## Step 3: Run the Checks
 
 ```bash
-axm-init reserve my-project --dry-run
+cd my-project
+make ci
 ```
 
-!!! tip "Dry run"
-    Use `--dry-run` to verify availability without publishing.
+This installs dependencies and runs lint + type check + tests.
 
 ## Next Steps
 
-- [Initialize a Project](../howto/init.md) — Templates, options, PyPI check
-- [Reserve a Package](../howto/reserve.md) — Token setup, automation
+- [Initialize a project](../howto/init.md) — Options, templates, PyPI check
+- [Reserve a package name](../howto/reserve.md) — Claim names on PyPI
+- [Audit your project](../howto/audit.md) — Quality grade (A–F)
 - [CLI Reference](../reference/cli.md) — Full command documentation
