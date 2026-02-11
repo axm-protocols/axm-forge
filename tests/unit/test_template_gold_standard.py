@@ -18,8 +18,54 @@ TEMPLATE_ROOT = (
     / "{{package_name}}"
 )
 
+COPIER_YML = (TEMPLATE_ROOT.parent / "copier.yml").read_text()
 PYPROJECT = (TEMPLATE_ROOT / "pyproject.toml.jinja").read_text()
 MKDOCS = (TEMPLATE_ROOT / "mkdocs.yml.jinja").read_text()
+README = (TEMPLATE_ROOT / "README.md.jinja").read_text()
+PRECOMMIT = (TEMPLATE_ROOT / ".pre-commit-config.yaml").read_text()
+MAKEFILE = (TEMPLATE_ROOT / "Makefile").read_text()
+
+DOCS_DIR = TEMPLATE_ROOT / "docs"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# copier.yml tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestCopierQuestions:
+    """Verify copier.yml question ordering and content."""
+
+    def test_has_license_holder(self) -> None:
+        """license_holder question must exist."""
+        assert "license_holder:" in COPIER_YML
+
+    def test_org_is_open_text(self) -> None:
+        """org must NOT have choices (open text field)."""
+        # Find the org section and check there are no choices under it
+        lines = COPIER_YML.split("\n")
+        in_org = False
+        for line in lines:
+            if line.startswith("org:"):
+                in_org = True
+                continue
+            if in_org:
+                if line.startswith("  "):
+                    assert "choices:" not in line, "org should not have choices"
+                else:
+                    break
+
+    def test_license_before_org(self) -> None:
+        """license question must appear before org question."""
+        assert COPIER_YML.index("license:") < COPIER_YML.index("org:")
+
+    def test_license_holder_after_license(self) -> None:
+        """license_holder must appear after license."""
+        assert COPIER_YML.index("license:") < COPIER_YML.index("license_holder:")
+
+    def test_license_holder_before_org(self) -> None:
+        """license_holder must appear before org."""
+        assert COPIER_YML.index("license_holder:") < COPIER_YML.index("org:")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -31,11 +77,9 @@ class TestTemplatePyprojectVersion:
     """Version configuration must use hatch-vcs."""
 
     def test_dynamic_version(self) -> None:
-        """dynamic = ["version"] must be present."""
         assert 'dynamic = ["version"]' in PYPROJECT
 
     def test_hatch_vcs_in_build_requires(self) -> None:
-        """hatch-vcs must be in build-system.requires."""
         assert '"hatch-vcs"' in PYPROJECT
 
 
@@ -43,7 +87,6 @@ class TestTemplatePyprojectUrls:
     """[project.urls] must be present with 4 URLs."""
 
     def test_has_project_urls(self) -> None:
-        """[project.urls] section must exist."""
         assert "[project.urls]" in PYPROJECT
 
     def test_has_homepage(self) -> None:
@@ -79,7 +122,6 @@ class TestTemplatePyprojectRuff:
     """Ruff must have gold-standard rule set and per-file-ignores."""
 
     def test_per_file_ignores_for_tests(self) -> None:
-        """per-file-ignores must include tests/* with S101."""
         assert "[tool.ruff.lint.per-file-ignores]" in PYPROJECT
         assert '"tests/*"' in PYPROJECT
 
@@ -119,7 +161,6 @@ class TestTemplatePyprojectCoverage:
         assert "relative_files = true" in PYPROJECT
 
     def test_xml_output(self) -> None:
-        """coverage.xml output must be configured."""
         assert "[tool.coverage.xml]" in PYPROJECT
 
     def test_exclude_lines(self) -> None:
@@ -151,10 +192,10 @@ class TestTemplateMkdocsDiataxis:
     """mkdocs.yml must have Diátaxis nav structure."""
 
     def test_tutorials_section(self) -> None:
-        assert "Tutorials:" in MKDOCS or "tutorials:" in MKDOCS.lower()
+        assert "Tutorials:" in MKDOCS
 
     def test_howto_section(self) -> None:
-        assert "How-To" in MKDOCS or "howto" in MKDOCS.lower()
+        assert "How-To" in MKDOCS
 
     def test_reference_section(self) -> None:
         assert "Reference:" in MKDOCS
@@ -190,3 +231,131 @@ class TestTemplateMkdocsExtensions:
 
     def test_superfences(self) -> None:
         assert "superfences" in MKDOCS
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# README.md.jinja tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestTemplateReadme:
+    """README.md must follow axm-bib standard."""
+
+    def test_has_bold_tagline(self) -> None:
+        """Bold description tagline like axm-bib."""
+        assert "**{{ description }}**" in README
+
+    def test_has_features_section(self) -> None:
+        assert "## Features" in README
+
+    def test_has_installation_section(self) -> None:
+        assert "## Installation" in README
+
+    def test_has_quick_start_section(self) -> None:
+        assert "## Quick Start" in README
+
+    def test_has_development_section(self) -> None:
+        assert "## Development" in README
+
+    def test_has_license_section(self) -> None:
+        assert "## License" in README
+
+    def test_license_uses_holder(self) -> None:
+        """License references license_holder variable."""
+        assert "license_holder" in README
+
+    def test_has_separator_after_badges(self) -> None:
+        """--- separator after badges like axm-bib."""
+        assert "---" in README
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# .pre-commit-config.yaml tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestTemplatePrecommit:
+    """Pre-commit must match axm-init reference."""
+
+    def test_ruff(self) -> None:
+        assert "ruff" in PRECOMMIT
+
+    def test_mypy(self) -> None:
+        assert "mypy" in PRECOMMIT
+
+    def test_conventional_commits(self) -> None:
+        assert "conventional-pre-commit" in PRECOMMIT
+
+    def test_trailing_whitespace(self) -> None:
+        assert "trailing-whitespace" in PRECOMMIT
+
+    def test_end_of_file_fixer(self) -> None:
+        assert "end-of-file-fixer" in PRECOMMIT
+
+    def test_check_yaml(self) -> None:
+        assert "check-yaml" in PRECOMMIT
+
+    def test_check_large_files(self) -> None:
+        assert "check-added-large-files" in PRECOMMIT
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Makefile tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestTemplateMakefile:
+    """Makefile must be aligned with axm-bib."""
+
+    def test_has_coverage_html_in_clean(self) -> None:
+        assert "coverage_html" in MAKEFILE
+
+    def test_has_pycache_cleanup(self) -> None:
+        assert "__pycache__" in MAKEFILE
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Docs Diátaxis structure tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestTemplateDocsStructure:
+    """Docs must have Diátaxis directory structure."""
+
+    def test_no_flat_getting_started(self) -> None:
+        """Old flat getting-started.md should NOT exist."""
+        assert not (DOCS_DIR / "getting-started.md.jinja").exists()
+
+    def test_tutorials_dir_exists(self) -> None:
+        assert (DOCS_DIR / "tutorials").is_dir()
+
+    def test_tutorials_getting_started_exists(self) -> None:
+        assert (DOCS_DIR / "tutorials" / "getting-started.md.jinja").exists()
+
+    def test_howto_dir_exists(self) -> None:
+        assert (DOCS_DIR / "howto").is_dir()
+
+    def test_howto_index_exists(self) -> None:
+        assert (DOCS_DIR / "howto" / "index.md").exists()
+
+    def test_reference_dir_exists(self) -> None:
+        assert (DOCS_DIR / "reference").is_dir()
+
+    def test_reference_cli_exists(self) -> None:
+        assert (DOCS_DIR / "reference" / "cli.md.jinja").exists()
+
+    def test_explanation_dir_exists(self) -> None:
+        assert (DOCS_DIR / "explanation").is_dir()
+
+    def test_explanation_architecture_exists(self) -> None:
+        assert (DOCS_DIR / "explanation" / "architecture.md.jinja").exists()
+
+    def test_gen_ref_pages_exists(self) -> None:
+        assert (DOCS_DIR / "gen_ref_pages.py.jinja").exists()
+
+
+class TestTemplateNoChangelog:
+    """CHANGELOG.md should NOT exist (git-cliff auto-generates)."""
+
+    def test_no_changelog(self) -> None:
+        assert not (TEMPLATE_ROOT / "CHANGELOG.md").exists()

@@ -8,7 +8,7 @@ _exclude:
   - "copier.yml"
 
 # =============================================================================
-# Questions (replaces Agent Instructions from python_setup.md)
+# Questions — ordered by decision priority
 # =============================================================================
 
 package_name:
@@ -21,14 +21,6 @@ description:
   help: "One-line description for PyPI (max 100 chars)"
   default: "A modern Python package"
 
-org:
-  type: str
-  help: "GitHub organization or username"
-  choices:
-    - JarryGabriel
-    - eurocontrol-asu
-  default: JarryGabriel
-
 license:
   type: str
   help: "License type"
@@ -38,15 +30,21 @@ license:
     - EUPL-1.2
   default: MIT
 
+license_holder:
+  type: str
+  help: "Person or organization that holds the license (used in LICENSE and copyright)"
+
+org:
+  type: str
+  help: "GitHub organization or username that owns the repository (required)"
+
 author_name:
   type: str
   help: "Author name"
-  default: "Gabriel Jarry"
 
 author_email:
   type: str
   help: "Author email"
-  default: "jarry.gabriel@gmail.com"
 
 python_min_version:
   type: str
@@ -101,9 +99,9 @@ _tasks:
     when: "{{ true }}"
   - command: "cd {{ package_name }} && uv add pydantic pydantic-settings loguru"
     when: "{{ true }}"
-  - command: "cd {{ package_name }} && uv add --group dev pytest pytest-cov pytest-asyncio pytest-mock ruff mypy pre-commit pip-audit"
+  - command: "cd {{ package_name }} && uv add --group dev pytest pytest-cov pytest-mock ruff mypy pre-commit pip-audit"
     when: "{{ true }}"
-  - command: "cd {{ package_name }} && uv add --group docs mkdocs-material 'mkdocstrings[python]'"
+  - command: "cd {{ package_name }} && uv add --group docs mkdocs-material 'mkdocstrings[python]' mkdocs-gen-files mkdocs-literate-nav"
     when: "{{ true }}"
   # Commit AFTER all deps installed so uv.lock is included
   - command: "cd {{ package_name }} && git add . && git commit -m 'feat: initial scaffold'"
