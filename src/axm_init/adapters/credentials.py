@@ -2,12 +2,16 @@
 
 Reads tokens from environment variables and config files,
 with support for interactive prompting when tokens are missing.
+
+Resolves values with priority: env var > config file > interactive prompt.
 """
 
 from __future__ import annotations
 
 import configparser
+import getpass
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -84,3 +88,45 @@ class CredentialManager:
         # Set restrictive permissions
         self.pypirc_path.chmod(0o600)
         return True
+
+    def resolve_pypi_token(self, *, interactive: bool = True) -> str:
+        """Resolve PyPI token: env → .pypirc → prompt → save.
+
+        Args:
+            interactive: If True, prompt user when token is not configured.
+
+        Returns:
+            Token string.
+
+        Raises:
+            SystemExit: If no token available and not interactive.
+        """
+        token = self.get_pypi_token()
+        if token:
+            return token
+
+        if not interactive or not sys.stdin.isatty():
+            print(  # noqa: T201
+                "Error: No PyPI token found.\n"
+                "Set PYPI_API_TOKEN env var or add to ~/.pypirc.",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
+        # Interactive prompt
+        print(  # noqa: T201
+            "No PyPI token found. Get one at https://pypi.org/manage/account/token/"
+        )
+        token = getpass.getpass("PyPI API token: ")
+
+        if not self.validate_token(token):
+            print(  # noqa: T201
+                "Error: Invalid token (must start with 'pypi-').",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
+        # Persist
+        self.save_pypi_token(token)
+        print(f"✅ Saved to {self.pypirc_path}")  # noqa: T201
+        return token

@@ -110,25 +110,16 @@ def reserve(
     """Reserve a package name on PyPI."""
     # Get token
     creds = CredentialManager()
-    token = creds.get_pypi_token()
 
-    if not token and not dry_run:
-        if json_output:
-            typer.echo('{"error": "No PyPI token found"}')
-            raise typer.Exit(1)
-
-        typer.echo("🔑 No PyPI token found in PYPI_API_TOKEN or ~/.pypirc")
-        token_input = typer.prompt("Enter PyPI API token", hide_input=True)
-
-        if not creds.validate_token(token_input):
-            typer.echo("❌ Invalid token format (must start with 'pypi-')", err=True)
-            raise typer.Exit(1)
-
-        if typer.confirm("Save token to ~/.pypirc?"):
-            creds.save_pypi_token(token_input)
-            typer.echo("✅ Token saved")
-
-        token = token_input
+    if not dry_run:
+        try:
+            token = creds.resolve_pypi_token(interactive=not json_output)
+        except SystemExit:
+            if json_output:
+                typer.echo('{"error": "No PyPI token found"}')
+            raise typer.Exit(1) from None
+    else:
+        token = creds.get_pypi_token() or ""
 
     result = reserve_pypi(
         name=name,
