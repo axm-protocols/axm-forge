@@ -5,31 +5,32 @@
 ```bash
 git clone https://github.com/{{ org }}/{{ package_name }}.git
 cd {{ package_name }}
-make install
+uv sync --all-groups
 ```
 
-## Code Quality
+## Commands
 
-Before submitting a PR, run all checks:
+| Command | Description |
+|---------|-------------|
+| `make check` | Lint + type-check + tests |
+| `make lint` | Ruff + MyPy |
+| `make format` | Auto-format with Ruff |
+| `make docs-serve` | Local docs preview |
 
-```bash
-make check  # Runs lint + audit + test
-```
+## Commit Conventions
 
-## Commit Convention
+This project uses [Conventional Commits](https://www.conventionalcommits.org/):
 
-Use [Conventional Commits](https://www.conventionalcommits.org/):
+- `feat:` — new feature
+- `fix:` — bug fix
+- `docs:` — documentation only
+- `chore:` — maintenance (deps, CI, config)
+- `test:` — adding or updating tests
+- `refactor:` — code change that neither fixes a bug nor adds a feature
 
-- `feat:` New feature
-- `fix:` Bug fix
-- `docs:` Documentation
-- `test:` Tests
-- `chore:` Maintenance
-- `refactor:` Code refactoring
+## Pull Request Checklist
 
-## Pull Requests
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feat/my-feature`
-3. Commit changes following convention
-4. Push and create a PR
+1. Write tests first (TDD)
+2. Run `make check` — all tests pass, no lint errors
+3. Keep commits atomic and conventional
+4. Update docs if user-facing

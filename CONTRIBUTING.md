@@ -1,29 +1,38 @@
-# Contributing to AXM
+# Contributing to axm-init
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/axm-protocols/axm.git
-cd axm
-make install
+git clone https://github.com/axm-protocols/axm-init.git
+cd axm-init
+uv sync --all-groups
 ```
 
 ## Commands
 
-```bash
-make check      # Lint + audit + tests
-make format     # Auto-format code
-make docs-serve # Local docs preview
-```
+| Command | Description |
+|---------|-------------|
+| `make check` | Lint + type-check + tests |
+| `make lint` | Ruff + MyPy |
+| `make format` | Auto-format with Ruff |
+| `make docs-serve` | Local docs preview |
 
-## Standards
+## Commit Conventions
 
-- Python 3.12+ with type hints
-- Google-style docstrings
-- TDD approach
+This project uses [Conventional Commits](https://www.conventionalcommits.org/):
 
-## Pull Request
+- `feat:` — new feature
+- `fix:` — bug fix
+- `docs:` — documentation only
+- `chore:` — maintenance (deps, CI, config)
+- `test:` — adding or updating tests
+- `refactor:` — code change that neither fixes a bug nor adds a feature
 
-1. Write tests first
-2. Run `make check`
-3. Update CHANGELOG.md if user-facing
+**Breaking changes:** add `!` after the type, e.g. `feat!: remove --template flag`.
+
+## Pull Request Checklist
+
+1. Write tests first (TDD)
+2. Run `make check` — all tests pass, no lint errors
+3. Keep commits atomic and conventional
+4. Update docs if user-facing
