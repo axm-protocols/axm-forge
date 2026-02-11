@@ -14,6 +14,14 @@ classifiers = [
     "{{ license_classifier }}",
 ]
 
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/{{ org }}/{{ package_name }}"
+Documentation = "https://{{ org }}.github.io/{{ package_name }}/"
+Repository = "https://github.com/{{ org }}/{{ package_name }}.git"
+Issues = "https://github.com/{{ org }}/{{ package_name }}/issues"
+
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
@@ -24,12 +32,19 @@ source = "vcs"
 [tool.hatch.build.hooks.vcs]
 version-file = "src/{{ module_name }}/_version.py"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ module_name }}"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UV Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.uv]
+managed = true
+
 [dependency-groups]
 dev = [
-    "pydantic>=2.0",  # Required for mypy pydantic plugin
     "pytest>=8.0",
     "pytest-cov>=4.0",
-    "pytest-asyncio>=0.24",
     "pytest-mock>=3.0",
     "ruff>=0.8",
     "mypy>=1.14",
@@ -39,6 +54,8 @@ dev = [
 docs = [
     "mkdocs-material>=9.0",
     "mkdocstrings[python]>=0.27",
+    "mkdocs-gen-files>=0.5",
+    "mkdocs-literate-nav>=0.6",
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -47,11 +64,15 @@ docs = [
 [tool.ruff]
 target-version = "py312"
 line-length = 88
+src = ["src", "tests"]
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "C4", "S", "T20", "RUF"]
 ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106", "S108"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["{{ module_name }}"]
@@ -62,11 +83,13 @@ known-first-party = ["{{ module_name }}"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+pretty = true
 warn_return_any = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
 show_error_codes = true
-
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]
@@ -77,25 +100,33 @@ disallow_untyped_defs = false
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
     "-v",
     "--strict-markers",
     "--strict-config",
     "--tb=short",
+    "--import-mode=importlib",
     "--cov=src/{{ module_name }}",
     "--cov-report=term-missing",
+    "--cov-report=html:coverage_html",
     "--cov-report=xml",
+    "--cov-fail-under=0",
 ]
-asyncio_mode = "auto"
+filterwarnings = ["error"]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Coverage Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.coverage.run]
-source = ["src"]
+source = ["src/{{ module_name }}"]
 branch = true
+relative_files = true
 omit = ["*/tests/*"]
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.coverage.report]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
