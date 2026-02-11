@@ -1,211 +1,115 @@
 # Understanding Audit Grades
 
-> **Goal:** Learn how AXM calculates project quality grades
-> **Time:** 10 minutes
-> **Prerequisites:** Completed [Quick Start](../tutorials/quickstart.md)
-
 ## Overview
 
-AXM's audit system grades your project from A to F based on Python 2026 engineering standards. This tutorial explains the scoring system and how to improve your grade.
+`axm-init audit` scores your project against the AXM gold standard — a set of 31 checks derived from the best practices embedded in the project template and CI configurations.
 
-## Step 1: Run Your First Audit
+## Grade Scale
 
-From your project directory:
+| Grade | Score Range | Meaning |
+|-------|-----------|---------|
+| **A** 🏆 | 90–100 | Gold standard — production-ready |
+| **B** ✅ | 75–89 | Good — minor improvements needed |
+| **C** ⚠️ | 60–74 | Acceptable — several gaps |
+| **D** 🔧 | 40–59 | Below standard — significant work needed |
+| **F** ❌ | 0–39 | Failing — major structural issues |
 
-```bash
-axm audit
-```
+## Scoring System
 
-You'll see output like:
-
-```
-# Audit Report
-
-**Status:** ❌ FAILED
-**Grade:** B (78.0/100)
-**Total:** 13 | **Passed:** 11 | **Failed:** 2
-
-| Rule ID | Status | Message |
-|---------|--------|---------|
-| FILE_EXISTS_pyproject.toml | ✅ | pyproject.toml exists |
-| QUALITY_TYPE | ❌ | Type score: 70/100 (3 errors) |
-...
-```
-
-## Step 2: Understand the Grade Scale
-
-| Grade | Score | Meaning |
-|-------|-------|---------|
-| **A** | 90-100 | Production-ready, follows all best practices |
-| **B** | 80-89 | Good quality, minor improvements needed |
-| **C** | 70-79 | Acceptable, several issues to address |
-| **D** | 60-69 | Below standard, requires significant work |
-| **F** | <60 | Failing, major structural issues |
-
-## Step 3: Explore the 4 Audit Categories
-
-### Structure Rules
-
-Checks for essential project files:
-
-```bash
-axm audit --category structure
-```
-
-| Rule | Description |
-|------|-------------|
-| `pyproject.toml` | Modern build configuration |
-| `README.md` | Project documentation |
-| `src/` directory | Package source code |
-| `tests/` directory | Test suite |
-
-### Quality Rules
-
-Checks code quality tooling:
-
-```bash
-axm audit --category quality
-```
-
-| Rule | Tool | Threshold |
-|------|------|-----------|
-| Linting | ruff | 0 errors |
-| Type checking | mypy | 0 errors |
-| Complexity | radon | CC ≤ 10 |
-
-### Architecture Rules
-
-Checks structural health:
-
-```bash
-axm audit --category architecture
-```
-
-| Rule | Description |
-|------|-------------|
-| Circular imports | No cross-module cycles |
-| God classes | No class > 20 methods |
-| Coupling | Low inter-module dependencies |
-
-### Practice Rules
-
-Checks coding standards:
-
-```bash
-axm audit --category practice
-```
-
-| Rule | Description |
-|------|-------------|
-| Docstrings | Public functions documented |
-| Bare except | No `except:` without type |
-| Security | No hardcoded secrets |
-
-## Step 4: Filter by Category
-
-Run only quality checks:
-
-```bash
-axm audit --category quality
-```
-
-Expected output:
+Each of the 31 checks has a **weight** (1–5 points), totaling **100 points**.
 
 ```
-# Audit Report
-
-**Status:** ✅ PASSED
-**Grade:** A (100.0/100)
-**Total:** 3 | **Passed:** 3 | **Failed:** 0
-
-| Rule ID | Status | Message |
-|---------|--------|---------|
-| QUALITY_LINT | ✅ | Lint score: 100/100 (0 issues) |
-| QUALITY_TYPE | ✅ | Type score: 100/100 (0 errors) |
-| QUALITY_COMPLEXITY | ✅ | Complexity score: 100/100 (0 high-complexity functions) |
+Score = (earned points / total points) × 100
 ```
 
-## Step 5: Get JSON Output for CI
+The score maps to a grade using the boundaries above.
 
-For automated pipelines, use JSON output:
+## The 7 Categories
 
-```bash
-axm audit --json
-```
+### pyproject (30 pts)
 
-Example output:
+Configuration completeness of `pyproject.toml`:
 
-```json
-{
-  "grade": "A",
-  "score": 92,
-  "total": 13,
-  "passed": 13,
-  "failed": 0,
-  "checks": [
-    {"name": "pyproject.toml exists", "passed": true},
-    {"name": "README.md exists", "passed": true}
-  ]
-}
-```
+| Check | Weight | What It Verifies |
+|-------|--------|-----------------|
+| `pyproject.exists` | 5 | File exists and is valid TOML |
+| `pyproject.urls` | 3 | Homepage, Documentation, Repository, Issues |
+| `pyproject.dynamic_version` | 4 | `dynamic = ["version"]` + hatch-vcs |
+| `pyproject.mypy` | 4 | strict, pretty, disallow_incomplete_defs, check_untyped_defs |
+| `pyproject.ruff` | 4 | per-file-ignores + known-first-party |
+| `pyproject.pytest` | 5 | strict-markers, strict-config, import-mode, pythonpath, filterwarnings |
+| `pyproject.coverage` | 5 | branch, relative_files, xml output, exclude_lines |
 
-Use this in CI to enforce quality gates:
+### ci (15 pts)
 
-```bash
-# Fail CI if grade drops below B
-axm audit --json | jq -e '.score >= 80'
-```
+GitHub Actions CI workflow:
 
-## Common Issues and Fixes
+| Check | Weight | What It Verifies |
+|-------|--------|-----------------|
+| `ci.workflow_exists` | 5 | `.github/workflows/ci.yml` exists |
+| `ci.lint_job` | 3 | Lint/type-check job |
+| `ci.test_job` | 3 | Test job with Python matrix |
+| `ci.security_job` | 2 | pip-audit security scanning |
+| `ci.coverage_upload` | 2 | Coveralls or Codecov upload |
 
-### Issue: Type checking failed
+### tooling (15 pts)
 
-```
-❌ Type checking (mypy): 3 errors found
-```
+Developer tooling configuration:
 
-**Fix:** Add type hints to your functions:
+| Check | Weight | What It Verifies |
+|-------|--------|-----------------|
+| `tooling.precommit_exists` | 3 | `.pre-commit-config.yaml` exists |
+| `tooling.precommit_ruff` | 2 | Ruff hook |
+| `tooling.precommit_mypy` | 2 | MyPy hook |
+| `tooling.precommit_conventional` | 2 | Conventional commits hook |
+| `tooling.precommit_basic` | 1 | trailing-whitespace, end-of-file-fixer, check-yaml |
+| `tooling.makefile` | 5 | All standard targets (install, check, lint, format, test, audit, clean, docs-serve) |
 
-```python
-# Before
-def greet(name):
-    return f"Hello, {name}"
+### docs (15 pts)
 
-# After
-def greet(name: str) -> str:
-    return f"Hello, {name}"
-```
+Documentation setup:
 
-### Issue: Complexity too high
+| Check | Weight | What It Verifies |
+|-------|--------|-----------------|
+| `docs.mkdocs_exists` | 3 | `mkdocs.yml` exists |
+| `docs.diataxis_nav` | 4 | Tutorials + How-To + Reference + Explanation |
+| `docs.plugins` | 3 | gen-files, literate-nav, mkdocstrings |
+| `docs.gen_ref_pages` | 2 | `docs/gen_ref_pages.py` for auto API docs |
+| `docs.readme` | 3 | Features, Installation, Development, License sections |
 
-```
-❌ Complexity: function_x has CC=15 (threshold: 10)
-```
+### structure (15 pts)
 
-**Fix:** Break down complex functions into smaller ones.
+Project structure:
 
-### Issue: Missing docstrings
+| Check | Weight | What It Verifies |
+|-------|--------|-----------------|
+| `structure.src_layout` | 5 | `src/<pkg>/__init__.py` |
+| `structure.py_typed` | 2 | PEP 561 `py.typed` marker |
+| `structure.tests_dir` | 3 | `tests/` with `test_*.py` files |
+| `structure.contributing` | 2 | `CONTRIBUTING.md` exists |
+| `structure.license` | 3 | `LICENSE` file exists |
 
-```
-❌ Docstring coverage: 60% (threshold: 80%)
-```
+### deps (5 pts)
 
-**Fix:** Add docstrings to public functions:
+Dependency groups:
 
-```python
-def calculate_total(items: list[int]) -> int:
-    """Calculate the sum of all items.
+| Check | Weight | What It Verifies |
+|-------|--------|-----------------|
+| `deps.dev_group` | 3 | pytest, ruff, mypy, pre-commit in dev group |
+| `deps.docs_group` | 2 | mkdocs-material, mkdocstrings, gen-files, literate-nav |
 
-    Args:
-        items: List of integers to sum.
+### changelog (5 pts)
 
-    Returns:
-        The total sum of all items.
-    """
-    return sum(items)
-```
+Changelog management:
 
-## What's Next?
+| Check | Weight | What It Verifies |
+|-------|--------|-----------------|
+| `changelog.gitcliff` | 3 | `[tool.git-cliff]` in pyproject.toml |
+| `changelog.no_manual` | 2 | No manual CHANGELOG.md (git-cliff auto-generates) |
 
-- [CLI Reference](../reference/cli.md) — Full command options
-- [Reserve a Package Name](../howto/reserve.md) — Claim your name on PyPI
+## Improving Your Score
+
+Every failed check includes a **Fix** instruction telling you exactly what to do. Run `axm-init audit` iteratively until you reach Grade A.
+
+!!! tip "Quick win"
+    Projects scaffolded with `axm-init init --template python` start at **100/100** by default.

@@ -47,6 +47,7 @@ pip install axm-init
 ## Features
 
 - 🚀 **`axm-init init`** — Bootstrap production-grade Python projects with Copier templates
+- 📋 **`axm-init audit`** — Score any Python project against the AXM gold standard (31 checks, A–F grade)
 - 📦 **`axm-init reserve`** — Reserve a package name on PyPI before you're ready to publish
 - 🔄 **`axm-init version`** — Show AXM Init version
 
@@ -55,7 +56,23 @@ pip install axm-init
 ```bash
 axm-init init my-project --name my-project
 cd my-project
-make ci
+make check
+```
+
+Audit your project against AXM standards:
+
+```bash
+axm-init audit
+# Score: 100/100 — Grade A 🏆
+```
+
+## Development
+
+```bash
+git clone https://github.com/axm-protocols/axm-init.git
+cd axm-init
+make install
+make check
 ```
 
 ## Documentation

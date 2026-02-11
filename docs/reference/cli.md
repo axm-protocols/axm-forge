@@ -76,6 +76,69 @@ axm-init reserve my-cool-package --dry-run
 
 ---
 
+## `audit` — Audit Project Against AXM Standard
+
+```
+axm-init audit [OPTIONS] [PATH]
+```
+
+| Option | Short | Type | Default | Description |
+|---|---|---|---|---|
+| `PATH` | | string | `.` | Directory to audit |
+| `--json` | | bool | `False` | Output as JSON |
+| `--category` | `-c` | string | *all* | Filter to one category |
+
+**Available categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`
+
+**Exit codes:**
+
+- `0` — Score is 100/100
+- `1` — Score below 100 (failures found)
+
+**Example:**
+
+```bash
+axm-init audit
+```
+
+```
+📋 AXM Audit — my-project
+   Path: /path/to/my-project
+
+  pyproject (30/30)
+    ✅ pyproject.exists                 5/5  pyproject.toml found
+    ...
+
+  Score: 97/100 — Grade A 🏆
+
+  📝 Failures (1):
+
+  ❌ docs.readme (3 pts)
+     Problem: README missing 1 section(s)
+     Missing: Development
+     Fix:     Add Development section(s) to README.md.
+```
+
+**JSON output:**
+
+```bash
+axm-init audit --json
+```
+
+```json
+{
+  "project": "/path/to/my-project",
+  "score": 97,
+  "grade": "A",
+  "categories": { "pyproject": { "earned": 30, "total": 30 } },
+  "failures": [
+    { "name": "docs.readme", "weight": 3, "fix": "Add Development..." }
+  ]
+}
+```
+
+---
+
 ## `version` — Show Version
 
 ```
