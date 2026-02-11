@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel, computed_field
 
 
-class Grade(str, Enum):
+class Grade(StrEnum):
     """AXM gold standard grade."""
 
     A = "A"  # ≥90
