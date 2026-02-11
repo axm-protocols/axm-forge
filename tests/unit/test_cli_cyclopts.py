@@ -56,10 +56,9 @@ class TestCommandsRegistered:
         """version command is registered."""
         assert "version" in self._command_names()
 
-    def test_audit_command_not_yet(self) -> None:
-        """audit command does not exist yet (Phase C)."""
-        # Will flip to assertTrue in Phase C
-        assert "audit" not in self._command_names()
+    def test_audit_command_exists(self) -> None:
+        """audit command is registered (Phase C)."""
+        assert "audit" in self._command_names()
 
 
 class TestVersionCommand:
