@@ -55,12 +55,15 @@ dev = [
     "pre-commit>=4.5.1",
     "pytest>=8.3.5",
     "pytest-cov>=5.0.0",
+    "pytest-mock>=3.0",
     "radon>=6.0.1",
     "ruff>=0.14.10",
 ]
 docs = [
     "mkdocs-material[imaging]>=9.5.0",
     "mkdocstrings[python]>=1.0.0",
+    "mkdocs-gen-files>=0.5",
+    "mkdocs-literate-nav>=0.6",
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -138,6 +141,10 @@ exclude = ["src/axm_init/templates/"]
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["copier.*", "typer.*"]
+ignore_missing_imports = true
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Coverage Configuration

@@ -1,115 +1,73 @@
-# Quickstart: Your First Project with AXM
+# Getting Started
 
-> **Goal:** Create a production-ready Python project and audit its quality
-> **Time:** 5 minutes
-> **Prerequisites:** Python 3.12+, pip or uv
+This tutorial walks you through installing `axm-init` and creating your first project.
 
-## Overview
+## Prerequisites
 
-AXM (Axiom eXtensible Manager) is a CLI tool for Python project governance. In this tutorial, you'll initialize a new project and get your first quality grade.
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
 
-## Step 1: Install AXM
+## Installation
 
 ```bash
-# Using pip
-pip install axm
+uv add axm-init
+```
 
-# Or using uv (recommended)
-uv pip install axm
+Or with pip:
+
+```bash
+pip install axm-init
 ```
 
 Verify the installation:
 
 ```bash
-axm version
+axm-init version
 ```
 
-Expected output:
+## Step 1: Create a Project
 
-```
-axm 0.1.0
-```
-
-## Step 2: Initialize a New Project
-
-Create a production-ready Python project with a single command:
+Scaffold a production-ready Python project:
 
 ```bash
-axm init my-awesome-package
-cd my-awesome-package/my-awesome-package
-```
-
-!!! note "Directory Structure"
-    AXM creates a `my-awesome-package/my-awesome-package/` structure where the inner directory contains your actual project files.
-
-Expected output:
-
-```
-✅ Project 'my-awesome-package' created at /path/to/my-awesome-package
+axm-init init my-project
+cd my-project/my-project
 ```
 
 This creates a complete project with:
 
-- `pyproject.toml` — Modern build configuration with uv/hatch support
+- `pyproject.toml` — PEP 621 build config with uv/hatch
 - `src/` layout — Industry-standard package structure
-- `tests/` — Pre-configured pytest setup
-- Git repository initialized with initial commit
+- `tests/` — Pre-configured Pytest setup
+- Git repository initialized with an initial commit
 
-## Step 3: Check Compliance
+## Step 2: Explore the Project
 
-Run a compliance check:
+```
+my-project/
+├── pyproject.toml
+├── README.md
+├── src/
+│   └── my_project/
+│       └── __init__.py
+├── tests/
+│   └── __init__.py
+└── uv.lock
+```
+
+## Step 3: Reserve a Name on PyPI
+
+Optionally, claim your package name before publishing:
 
 ```bash
-axm check
+axm-init reserve my-project --dry-run
 ```
 
-Expected output:
+!!! tip "Dry run"
+    Use `--dry-run` to verify availability without publishing.
 
-```
-# Audit Report
+## Next Steps
 
-**Status:** ✅ PASSED
-**Grade:** A (100.0/100)
-**Total:** 13 | **Passed:** 13 | **Failed:** 0
-
-| Rule ID | Status | Message |
-|---------|--------|---------|
-| FILE_EXISTS_pyproject.toml | ✅ | pyproject.toml exists |
-| FILE_EXISTS_README.md | ✅ | README.md exists |
-| DIR_EXISTS_src | ✅ | src/ exists |
-| DIR_EXISTS_tests | ✅ | tests/ exists |
-...
-```
-
-## Step 4: Run a Full Audit
-
-Get a comprehensive quality grade:
-
-```bash
-axm audit
-```
-
-The audit checks 13 rules across 4 categories:
-
-| Category | What It Checks |
-|----------|---------------|
-| Structure | `pyproject.toml`, `README.md`, `src/`, `tests/` |
-| Quality | Lint (ruff), Types (mypy), Complexity (radon) |
-| Architecture | Circular imports, god classes, coupling |
-| Practice | Docstrings, bare except, security patterns |
-
-## Step 5: Quick Audit (Optional)
-
-For faster CI pipelines, use the quick mode:
-
-```bash
-axm audit --quick
-```
-
-This runs only lint + type checks (the fastest path to catch issues).
-
-## What's Next?
-
-- [Understanding Audit Grades](./audit-grades.md) — Deep dive into scoring
+- [Initialize a Project](../howto/init.md) — Templates, options, PyPI check
+- [Reserve a Package](../howto/reserve.md) — Token setup, automation
 - [CLI Reference](../reference/cli.md) — Full command documentation
-- [Reserve a Package Name](./reserve-package.md) — Claim your name on PyPI

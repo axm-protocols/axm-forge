@@ -1,8 +1,8 @@
-site_name: AXM Documentation
-site_description: Axiom eXtensible Manager — Python project governance CLI.
-site_url: https://axm-protocols.github.io/axm/
-repo_url: https://github.com/axm-protocols/axm
-repo_name: axm-protocols/axm
+site_name: AXM Init
+site_description: "AXM Init — Python project scaffolding CLI with Copier templates."
+site_url: https://axm-protocols.github.io/axm-init
+repo_url: https://github.com/axm-protocols/axm-init
+repo_name: axm-protocols/axm-init
 copyright: Copyright &copy; 2026 Gabriel Jarry &mdash; Licensed under Apache 2.0
 
 theme:
@@ -23,6 +23,7 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   features:
+    - navigation.instant
     - navigation.tabs
     - navigation.sections
     - navigation.top
@@ -32,8 +33,28 @@ theme:
   icon:
     repo: fontawesome/brands/github
 
+nav:
+  - Home: index.md
+  - Tutorials:
+    - Quick Start: tutorials/quickstart.md
+  - How-To Guides:
+    - Initialize a Project: howto/init.md
+    - Reserve a Package: howto/reserve.md
+    - Audit Your Project: howto/audit.md
+  - Reference:
+    - CLI: reference/cli.md
+    - Python API: reference/api/
+  - Explanation:
+    - Architecture: explanation/architecture.md
+    - Audit Grades: explanation/audit-grades.md
+
 plugins:
   - search
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
   - mkdocstrings:
       handlers:
         python:
@@ -41,10 +62,12 @@ plugins:
             - src
           options:
             docstring_style: google
-            show_source: true
             show_root_heading: true
+            show_root_full_path: false
+            heading_level: 3
 
 markdown_extensions:
+  - admonition
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
@@ -57,18 +80,6 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.tabbed:
       alternate_style: true
-  - admonition
   - attr_list
   - md_in_html
-
-nav:
-  - Home: index.md
-  - Getting Started:
-      - Installation: getting-started/installation.md
-      - Quick Start: getting-started/quickstart.md
-  - Tutorials:
-      - Quickstart: tutorials/quickstart.md
-      - Understanding Audit Grades: tutorials/audit-grades.md
-      - Reserve a Package Name: tutorials/reserve-package.md
-  - Reference:
-      - CLI: reference/cli.md
+  - tables

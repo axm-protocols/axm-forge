@@ -1,39 +1,54 @@
-# AXM
+---
+hide:
+  - navigation
+  - toc
+---
 
-**Axiom eXtensible Manager** — The deterministic CLI for Python project governance.
+# axm-init
 
-![AXM Demo](assets/quickstart.gif)
+<p align="center">
+  <strong>Python project scaffolding CLI with Copier templates.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/axm-protocols/axm-init/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-init/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://coveralls.io/github/axm-protocols/axm-init?branch=main"><img src="https://coveralls.io/repos/github/axm-protocols/axm-init/badge.svg?branch=main" alt="Coverage" /></a>
+  <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+" />
+  <img src="https://img.shields.io/badge/typed-strict-blue.svg" alt="Typed" />
+  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff" /></a>
+  <a href="https://github.com/astral-sh/uv"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json" alt="uv" /></a>
+  <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License" />
+</p>
+
+---
+
+## What is axm-init?
+
+`axm-init` scaffolds production-grade Python projects with a single command. It generates fully configured projects with linting, typing, testing, CI/CD, and documentation out of the box.
+
+## Quick Example
+
+```bash
+$ axm-init init my-project
+
+✅ Project 'my-project' created at /path/to/my-project
+   📄 pyproject.toml
+   📄 src/my_project/__init__.py
+   📄 tests/__init__.py
+   📄 README.md
+```
 
 ## Features
 
-- 🚀 **`axm init`** — Bootstrap production-grade Python projects
-- 🔍 **`axm check`** — Verify project compliance with standards
-- 📊 **`axm audit`** — Full project audit with quality grade (A-F)
-- 📦 **`axm reserve`** — Reserve a package name on PyPI
-- 🔄 **`axm version`** — Show AXM version
+- 🚀 **Scaffold** — Bootstrap projects with Copier templates (`src/` layout, PEP 621)
+- 📦 **Reserve** — Claim a package name on PyPI before you're ready to publish
+- ✅ **Standards** — Pre-configured Ruff, MyPy, Pytest, GitHub Actions
+- 🔄 **Templates** — Extensible template system (`minimal`, `python`)
+- 📊 **JSON output** — Machine-readable output for CI integration
 
-## Quick Start
+---
 
-```bash
-pip install axm
-axm init my-project
-cd my-project
-axm audit
-```
-
-## What AXM Checks
-
-AXM enforces Python 2026 engineering standards across 4 categories:
-
-| Category | Rules |
-|----------|-------|
-| Structure | pyproject.toml, README.md, src/, tests/ |
-| Quality | Lint (ruff), Types (mypy), Complexity (radon) |
-| Architecture | Circular imports, God classes, Coupling |
-| Practice | Docstrings, Bare except, Security patterns |
-
-## Next Steps
-
-- [Installation](getting-started/installation.md)
-- [Quick Start](getting-started/quickstart.md)
-- [CLI Reference](reference/cli.md)
+<div style="text-align: center; margin: 2rem 0;">
+  <a href="tutorials/quickstart/" class="md-button md-button--primary">Get Started →</a>
+  <a href="reference/cli/" class="md-button">CLI Reference</a>
+</div>

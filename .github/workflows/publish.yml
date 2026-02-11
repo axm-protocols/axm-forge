@@ -24,7 +24,7 @@ jobs:
     needs: test
     environment:
       name: pypi
-      url: https://pypi.org/project/skycam/
+      url: https://pypi.org/project/axm-init/
     permissions:
       id-token: write
       contents: read

@@ -2,7 +2,7 @@
 
 > **Goal:** Learn how AXM calculates project quality grades
 > **Time:** 10 minutes
-> **Prerequisites:** Completed [Quickstart](./quickstart.md)
+> **Prerequisites:** Completed [Quick Start](../tutorials/quickstart.md)
 
 ## Overview
 
@@ -208,4 +208,4 @@ def calculate_total(items: list[int]) -> int:
 ## What's Next?
 
 - [CLI Reference](../reference/cli.md) — Full command options
-- [Reserve a Package Name](./reserve-package.md) — Claim your name on PyPI
+- [Reserve a Package Name](../howto/reserve.md) — Claim your name on PyPI

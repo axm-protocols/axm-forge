@@ -7,6 +7,13 @@ repos:
         args: [--fix]
       - id: ruff-format
 
+  # MyPy - type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+      - id: mypy
+        additional_dependencies: [pydantic]
+
   # Conventional commits
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v3.6.0

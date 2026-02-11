@@ -20,8 +20,11 @@ test:  ## Run tests with coverage
 audit:  ## Security audit
 	uv run pip-audit
 
+ci: install check  ## Full CI pipeline
+
 clean:  ## Clean artifacts
-	rm -rf .pytest_cache .mypy_cache .ruff_cache .coverage coverage.xml dist
+	rm -rf .pytest_cache .mypy_cache .ruff_cache .coverage coverage.xml dist coverage_html
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 docs-serve:  ## Serve docs locally
 	uv sync --group docs --quiet
