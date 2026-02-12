@@ -40,3 +40,4 @@ PROJECT_SYNTHESIS.md
 
 build_reservation/
 .docs-sync/
+coverage.json

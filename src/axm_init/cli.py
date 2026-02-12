@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import cyclopts
 
@@ -28,6 +28,56 @@ app = cyclopts.App(
     name="axm-init",
     help="AXM Init — Python project scaffolding with Copier templates.",
 )
+
+
+def _check_pypi_availability(project_name: str, *, json_output: bool) -> None:
+    """Check PyPI availability and exit(1) if name is taken."""
+    adapter = PyPIAdapter()
+    status = adapter.check_availability(project_name)
+
+    if status == AvailabilityStatus.TAKEN:
+        if json_output:
+            print(  # noqa: T201
+                f'{{"error": "Package name \'{project_name}\' is taken on PyPI"}}'
+            )
+        else:
+            print(  # noqa: T201
+                f"❌ Package name '{project_name}' is already taken on PyPI",
+                file=sys.stderr,
+            )
+        raise SystemExit(1)
+
+    if status == AvailabilityStatus.ERROR and not json_output:
+        print(  # noqa: T201
+            "⚠️  Could not verify PyPI availability",
+            file=sys.stderr,
+        )
+
+
+def _print_init_result(
+    result: Any,
+    project_name: str,
+    target_path: Path,
+    *,
+    json_output: bool,
+) -> None:
+    """Print init result as JSON or human-readable output."""
+    if json_output:
+        print(  # noqa: T201
+            json.dumps(
+                {
+                    "success": result.success,
+                    "files": [str(f) for f in result.files_created],
+                }
+            )
+        )
+    elif result.success:
+        print(f"✅ Project '{project_name}' created at {target_path}")  # noqa: T201
+        for f in result.files_created:
+            print(f"   📄 {f}")  # noqa: T201
+    else:
+        print(f"❌ {result.message}", file=sys.stderr)  # noqa: T201
+        raise SystemExit(1)
 
 
 @app.command()
@@ -79,33 +129,11 @@ def init(
 ) -> None:
     """Initialize a new Python project with best practices."""
     target_path = Path(path).resolve()
-
-    # Default name to directory name if not provided
     project_name = name or target_path.name
 
-    # Check PyPI availability if requested
     if check_pypi:
-        adapter = PyPIAdapter()
-        status = adapter.check_availability(project_name)
-        if status == AvailabilityStatus.TAKEN:
-            if json_output:
-                print(  # noqa: T201
-                    f'{{"error": "Package name \'{project_name}\' is taken on PyPI"}}'
-                )
-            else:
-                print(  # noqa: T201
-                    f"❌ Package name '{project_name}' is already taken on PyPI",
-                    file=sys.stderr,
-                )
-            raise SystemExit(1)
-        if status == AvailabilityStatus.ERROR:
-            if not json_output:
-                print(  # noqa: T201
-                    "⚠️  Could not verify PyPI availability",
-                    file=sys.stderr,
-                )
+        _check_pypi_availability(project_name, json_output=json_output)
 
-    # Scaffold with Copier using the python-project template
     copier_adapter = CopierAdapter()
     copier_config = CopierConfig(
         template_path=get_template_path(),
@@ -121,24 +149,7 @@ def init(
         },
     )
     result = copier_adapter.copy(copier_config)
-
-    if json_output:
-        print(  # noqa: T201
-            json.dumps(
-                {
-                    "success": result.success,
-                    "files": [str(f) for f in result.files_created],
-                }
-            )
-        )
-    else:
-        if result.success:
-            print(f"✅ Project '{project_name}' created at {target_path}")  # noqa: T201
-            for f in result.files_created:
-                print(f"   📄 {f}")  # noqa: T201
-        else:
-            print(f"❌ {result.message}", file=sys.stderr)  # noqa: T201
-            raise SystemExit(1)
+    _print_init_result(result, project_name, target_path, json_output=json_output)
 
 
 @app.command()
