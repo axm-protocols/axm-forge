@@ -12,7 +12,7 @@ Focus your audit on specific areas instead of running all checks.
 | `testing` | `TestCoverageRule` | Coverage enforcement (pytest-cov) |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule` | Structural analysis (AST) |
 | `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule` | Best practices |
-| `structure` | `FileExistsRule`, `DirectoryExistsRule` | Project layout |
+| `structure` | `PyprojectCompletenessRule` | pyproject.toml completeness |
 | `tooling` | `ToolAvailabilityRule` | CLI tool availability |
 
 ## CLI
@@ -45,7 +45,7 @@ result = audit_project(Path("."), quick=True)
 ```python
 from axm_audit import get_rules_for_category
 
-# All rules (20 instances)
+# All rules (17 instances)
 rules = get_rules_for_category(None)
 
 # Single category

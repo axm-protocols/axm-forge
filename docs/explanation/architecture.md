@@ -99,10 +99,10 @@ Both return typed Pydantic models for safe agent consumption.
 | `testing` | `TestCoverageRule` | 1 |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule` | 3 |
 | `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule` | 3 |
-| `structure` | `FileExistsRule`, `DirectoryExistsRule` | 4 instances |
+| `structure` | `PyprojectCompletenessRule` | 1 |
 | `tooling` | `ToolAvailabilityRule` | 3 instances |
 
-**Total: 20 rule instances across 8 categories.**
+**Total: 17 rule instances across 8 categories.**
 
 ### 3. Tool Integration
 
@@ -118,7 +118,7 @@ Each rule wraps an external tool using Python APIs where possible:
 | `DependencyHygieneRule` | deptry | `subprocess.run([..., "-m", "deptry", ...])` |
 | `TestCoverageRule` | pytest-cov | `subprocess.run([..., "-m", "pytest", "--cov", ...])` |
 | Architecture rules | Python `ast` | Direct AST parsing |
-| Structure rules | `pathlib` | Filesystem checks |
+| Structure rules | `tomllib` | TOML parsing |
 | `ToolAvailabilityRule` | `shutil.which` | PATH lookup |
 
 ### 4. Scoring
@@ -155,7 +155,7 @@ sequenceDiagram
 
     User->>CLI: axm-audit audit . / audit_project(Path("."))
     CLI->>Auditor: get_rules_for_category(category)
-    Auditor-->>CLI: list[ProjectRule] (20 rules)
+    Auditor-->>CLI: list[ProjectRule] (17 rules)
     loop For each rule
         CLI->>Rules: rule.check(project_path)
         Rules->>Tools: Ruff / MyPy / Radon / Bandit / etc.
