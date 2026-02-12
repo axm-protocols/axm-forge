@@ -80,7 +80,7 @@ def _print_init_result(
         raise SystemExit(1)
 
 
-@app.command()  # type: ignore[misc]
+@app.command()
 def init(
     path: Annotated[
         str,
@@ -153,7 +153,7 @@ def init(
     _print_init_result(result, project_name, target_path, json_output=json_output)
 
 
-@app.command()  # type: ignore[misc]
+@app.command()
 def reserve(
     name: Annotated[
         str,
@@ -219,7 +219,7 @@ def reserve(
             raise SystemExit(1)
 
 
-@app.command()  # type: ignore[misc]
+@app.command()
 def check(
     path: Annotated[
         str,
@@ -259,7 +259,7 @@ def check(
         raise SystemExit(1)
 
 
-@app.command()  # type: ignore[misc]
+@app.command()
 def version() -> None:
     """Show axm-init version."""
     from axm_init import __version__
