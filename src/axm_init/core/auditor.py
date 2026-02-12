@@ -13,6 +13,8 @@ from axm_init.checks.ci import (
     check_ci_security_job,
     check_ci_test_job,
     check_ci_workflow_exists,
+    check_dependabot,
+    check_trusted_publishing,
 )
 from axm_init.checks.deps import check_dev_deps, check_docs_deps
 from axm_init.checks.docs import (
@@ -23,20 +25,24 @@ from axm_init.checks.docs import (
     check_readme,
 )
 from axm_init.checks.pyproject import (
+    check_pyproject_classifiers,
     check_pyproject_coverage,
     check_pyproject_dynamic_version,
     check_pyproject_exists,
     check_pyproject_mypy,
     check_pyproject_pytest,
     check_pyproject_ruff,
+    check_pyproject_ruff_rules,
     check_pyproject_urls,
 )
 from axm_init.checks.structure import (
     check_contributing,
     check_license_file,
     check_py_typed,
+    check_python_version,
     check_src_layout,
     check_tests_dir,
+    check_uv_lock,
 )
 from axm_init.checks.tooling import (
     check_makefile,
@@ -58,6 +64,8 @@ ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = {
         check_pyproject_ruff,
         check_pyproject_pytest,
         check_pyproject_coverage,
+        check_pyproject_classifiers,
+        check_pyproject_ruff_rules,
     ],
     "ci": [
         check_ci_workflow_exists,
@@ -65,6 +73,8 @@ ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = {
         check_ci_test_job,
         check_ci_security_job,
         check_ci_coverage_upload,
+        check_trusted_publishing,
+        check_dependabot,
     ],
     "tooling": [
         check_precommit_exists,
@@ -87,6 +97,8 @@ ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = {
         check_tests_dir,
         check_contributing,
         check_license_file,
+        check_uv_lock,
+        check_python_version,
     ],
     "deps": [
         check_dev_deps,

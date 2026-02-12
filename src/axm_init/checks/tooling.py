@@ -1,4 +1,4 @@
-"""Audit checks for developer tooling (6 checks, 15 pts)."""
+"""Audit checks for developer tooling (6 checks, 14 pts)."""
 
 from __future__ import annotations
 
@@ -158,7 +158,7 @@ def check_makefile(project: Path) -> CheckResult:
             name="tooling.makefile",
             category="tooling",
             passed=False,
-            weight=5,
+            weight=4,
             message="Makefile not found",
             details=[],
             fix=(
@@ -184,7 +184,7 @@ def check_makefile(project: Path) -> CheckResult:
             name="tooling.makefile",
             category="tooling",
             passed=False,
-            weight=5,
+            weight=4,
             message=f"Makefile missing {len(missing)} target(s)",
             details=[f"Missing targets: {', '.join(missing)}"],
             fix=f"Add targets to Makefile: {', '.join(missing)}.",
@@ -193,7 +193,7 @@ def check_makefile(project: Path) -> CheckResult:
         name="tooling.makefile",
         category="tooling",
         passed=True,
-        weight=5,
+        weight=4,
         message="Makefile complete",
         details=[],
         fix="",

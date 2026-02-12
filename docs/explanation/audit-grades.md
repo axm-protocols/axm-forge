@@ -2,12 +2,12 @@
 
 ## Overview
 
-`axm-init audit` scores your project against the AXM gold standard — a set of 31 checks derived from the best practices embedded in the project template and CI configurations.
+`axm-init audit` scores your project against the AXM gold standard — a set of 38 checks derived from the best practices embedded in the project template and CI configurations.
 
 ## Grade Scale
 
 | Grade | Score Range | Meaning |
-|-------|-----------|---------|
+|-------|-----------|---------| 
 | **A** 🏆 | 90–100 | Gold standard — production-ready |
 | **B** ✅ | 75–89 | Good — minor improvements needed |
 | **C** ⚠️ | 60–74 | Acceptable — several gaps |
@@ -16,7 +16,7 @@
 
 ## Scoring System
 
-Each of the 31 checks has a **weight** (1–5 points), totaling **100 points**.
+Each of the 38 checks has a **weight** (1–4 points), totaling **100 points**.
 
 ```
 Score = (earned points / total points) × 100
@@ -26,33 +26,37 @@ The score maps to a grade using the boundaries above.
 
 ## The 7 Categories
 
-### pyproject (30 pts)
+### pyproject (27 pts)
 
 Configuration completeness of `pyproject.toml`:
 
 | Check | Weight | What It Verifies |
 |-------|--------|-----------------|
-| `pyproject.exists` | 5 | File exists and is valid TOML |
+| `pyproject.exists` | 4 | File exists and is valid TOML |
 | `pyproject.urls` | 3 | Homepage, Documentation, Repository, Issues |
-| `pyproject.dynamic_version` | 4 | `dynamic = ["version"]` + hatch-vcs |
-| `pyproject.mypy` | 4 | strict, pretty, disallow_incomplete_defs, check_untyped_defs |
-| `pyproject.ruff` | 4 | per-file-ignores + known-first-party |
-| `pyproject.pytest` | 5 | strict-markers, strict-config, import-mode, pythonpath, filterwarnings |
-| `pyproject.coverage` | 5 | branch, relative_files, xml output, exclude_lines |
+| `pyproject.dynamic_version` | 3 | `dynamic = ["version"]` + hatch-vcs |
+| `pyproject.mypy` | 3 | strict, pretty, disallow_incomplete_defs, check_untyped_defs |
+| `pyproject.ruff` | 3 | per-file-ignores + known-first-party |
+| `pyproject.pytest` | 4 | strict-markers, strict-config, import-mode, pythonpath, filterwarnings |
+| `pyproject.coverage` | 4 | branch, relative_files, xml output, exclude_lines |
+| `pyproject.classifiers` | 1 | Development Status, Python version, Typing :: Typed |
+| `pyproject.ruff_rules` | 2 | Essential rules: E, F, I, UP, B |
 
-### ci (15 pts)
+### ci (18 pts)
 
 GitHub Actions CI workflow:
 
 | Check | Weight | What It Verifies |
 |-------|--------|-----------------|
-| `ci.workflow_exists` | 5 | `.github/workflows/ci.yml` exists |
+| `ci.workflow_exists` | 4 | `.github/workflows/ci.yml` exists |
 | `ci.lint_job` | 3 | Lint/type-check job |
 | `ci.test_job` | 3 | Test job with Python matrix |
 | `ci.security_job` | 2 | pip-audit security scanning |
 | `ci.coverage_upload` | 2 | Coveralls or Codecov upload |
+| `ci.trusted_publishing` | 2 | OIDC Trusted Publishing without API token fallback |
+| `ci.dependabot` | 2 | `.github/dependabot.yml` configured |
 
-### tooling (15 pts)
+### tooling (14 pts)
 
 Developer tooling configuration:
 
@@ -63,31 +67,33 @@ Developer tooling configuration:
 | `tooling.precommit_mypy` | 2 | MyPy hook |
 | `tooling.precommit_conventional` | 2 | Conventional commits hook |
 | `tooling.precommit_basic` | 1 | trailing-whitespace, end-of-file-fixer, check-yaml |
-| `tooling.makefile` | 5 | All standard targets (install, check, lint, format, test, audit, clean, docs-serve) |
+| `tooling.makefile` | 4 | All standard targets (install, check, lint, format, test, audit, clean, docs-serve) |
 
-### docs (15 pts)
+### docs (14 pts)
 
 Documentation setup:
 
 | Check | Weight | What It Verifies |
 |-------|--------|-----------------|
 | `docs.mkdocs_exists` | 3 | `mkdocs.yml` exists |
-| `docs.diataxis_nav` | 4 | Tutorials + How-To + Reference + Explanation |
+| `docs.diataxis_nav` | 3 | Tutorials + How-To + Reference + Explanation |
 | `docs.plugins` | 3 | gen-files, literate-nav, mkdocstrings |
 | `docs.gen_ref_pages` | 2 | `docs/gen_ref_pages.py` for auto API docs |
 | `docs.readme` | 3 | Features, Installation, Development, License sections |
 
-### structure (15 pts)
+### structure (17 pts)
 
 Project structure:
 
 | Check | Weight | What It Verifies |
 |-------|--------|-----------------|
-| `structure.src_layout` | 5 | `src/<pkg>/__init__.py` |
+| `structure.src_layout` | 4 | `src/<pkg>/__init__.py` |
 | `structure.py_typed` | 2 | PEP 561 `py.typed` marker |
 | `structure.tests_dir` | 3 | `tests/` with `test_*.py` files |
 | `structure.contributing` | 2 | `CONTRIBUTING.md` exists |
 | `structure.license` | 3 | `LICENSE` file exists |
+| `structure.uv_lock` | 2 | `uv.lock` committed for reproducible builds |
+| `structure.python_version` | 1 | `.python-version` file for pinned Python |
 
 ### deps (5 pts)
 

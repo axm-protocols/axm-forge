@@ -1,4 +1,4 @@
-"""Audit checks for pyproject.toml (7 checks, 30 pts)."""
+"""Audit checks for pyproject.toml (9 checks, 27 pts)."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def check_pyproject_exists(project: Path) -> CheckResult:
             name="pyproject.exists",
             category="pyproject",
             passed=False,
-            weight=5,
+            weight=4,
             message="pyproject.toml not found",
             details=[],
             fix="Create a pyproject.toml at the project root.",
@@ -44,7 +44,7 @@ def check_pyproject_exists(project: Path) -> CheckResult:
             name="pyproject.exists",
             category="pyproject",
             passed=False,
-            weight=5,
+            weight=4,
             message="pyproject.toml is unparsable",
             details=["File exists but contains invalid TOML"],
             fix="Fix TOML syntax errors in pyproject.toml.",
@@ -53,7 +53,7 @@ def check_pyproject_exists(project: Path) -> CheckResult:
         name="pyproject.exists",
         category="pyproject",
         passed=True,
-        weight=5,
+        weight=4,
         message="pyproject.toml found",
         details=[],
         fix="",
@@ -111,7 +111,7 @@ def check_pyproject_dynamic_version(project: Path) -> CheckResult:
             name="pyproject.dynamic_version",
             category="pyproject",
             passed=False,
-            weight=4,
+            weight=3,
             message="pyproject.toml not found or unparsable",
             details=[],
             fix="Create pyproject.toml with dynamic version using hatch-vcs.",
@@ -130,7 +130,7 @@ def check_pyproject_dynamic_version(project: Path) -> CheckResult:
             name="pyproject.dynamic_version",
             category="pyproject",
             passed=False,
-            weight=4,
+            weight=3,
             message="Version is not dynamically managed",
             details=problems,
             fix='Add hatch-vcs to build-system.requires and set dynamic = ["version"].',
@@ -139,7 +139,7 @@ def check_pyproject_dynamic_version(project: Path) -> CheckResult:
         name="pyproject.dynamic_version",
         category="pyproject",
         passed=True,
-        weight=4,
+        weight=3,
         message="Dynamic version with hatch-vcs",
         details=[],
         fix="",
@@ -154,7 +154,7 @@ def check_pyproject_mypy(project: Path) -> CheckResult:
             name="pyproject.mypy",
             category="pyproject",
             passed=False,
-            weight=4,
+            weight=3,
             message="pyproject.toml not found or unparsable",
             details=[],
             fix="Create pyproject.toml with [tool.mypy] section.",
@@ -173,7 +173,7 @@ def check_pyproject_mypy(project: Path) -> CheckResult:
             name="pyproject.mypy",
             category="pyproject",
             passed=False,
-            weight=4,
+            weight=3,
             message=f"MyPy config incomplete — missing {len(missing)} setting(s)",
             details=[
                 f"Missing: {', '.join(missing)}",
@@ -185,7 +185,7 @@ def check_pyproject_mypy(project: Path) -> CheckResult:
         name="pyproject.mypy",
         category="pyproject",
         passed=True,
-        weight=4,
+        weight=3,
         message="MyPy fully configured",
         details=[],
         fix="",
@@ -200,7 +200,7 @@ def check_pyproject_ruff(project: Path) -> CheckResult:
             name="pyproject.ruff",
             category="pyproject",
             passed=False,
-            weight=4,
+            weight=3,
             message="pyproject.toml not found or unparsable",
             details=[],
             fix="Create pyproject.toml with [tool.ruff.lint] section.",
@@ -217,7 +217,7 @@ def check_pyproject_ruff(project: Path) -> CheckResult:
             name="pyproject.ruff",
             category="pyproject",
             passed=False,
-            weight=4,
+            weight=3,
             message="Ruff config incomplete",
             details=problems,
             fix="Add per-file-ignores for tests and known-first-party to ruff config.",
@@ -226,7 +226,7 @@ def check_pyproject_ruff(project: Path) -> CheckResult:
         name="pyproject.ruff",
         category="pyproject",
         passed=True,
-        weight=4,
+        weight=3,
         message="Ruff fully configured",
         details=[],
         fix="",
@@ -241,7 +241,7 @@ def check_pyproject_pytest(project: Path) -> CheckResult:
             name="pyproject.pytest",
             category="pyproject",
             passed=False,
-            weight=5,
+            weight=4,
             message="pyproject.toml not found or unparsable",
             details=[],
             fix="Create pyproject.toml with [tool.pytest.ini_options].",
@@ -264,7 +264,7 @@ def check_pyproject_pytest(project: Path) -> CheckResult:
             name="pyproject.pytest",
             category="pyproject",
             passed=False,
-            weight=5,
+            weight=4,
             message=f"Pytest config incomplete — missing {len(problems)} setting(s)",
             details=problems,
             fix="Add missing settings to [tool.pytest.ini_options].",
@@ -273,7 +273,7 @@ def check_pyproject_pytest(project: Path) -> CheckResult:
         name="pyproject.pytest",
         category="pyproject",
         passed=True,
-        weight=5,
+        weight=4,
         message="Pytest fully configured",
         details=[],
         fix="",
@@ -288,7 +288,7 @@ def check_pyproject_coverage(project: Path) -> CheckResult:
             name="pyproject.coverage",
             category="pyproject",
             passed=False,
-            weight=5,
+            weight=4,
             message="pyproject.toml not found or unparsable",
             details=[],
             fix="Create pyproject.toml with [tool.coverage] sections.",
@@ -309,7 +309,7 @@ def check_pyproject_coverage(project: Path) -> CheckResult:
             name="pyproject.coverage",
             category="pyproject",
             passed=False,
-            weight=5,
+            weight=4,
             message=f"Coverage config incomplete — missing {len(problems)} setting(s)",
             details=problems,
             fix="Add missing settings to [tool.coverage] sections.",
@@ -318,8 +318,100 @@ def check_pyproject_coverage(project: Path) -> CheckResult:
         name="pyproject.coverage",
         category="pyproject",
         passed=True,
-        weight=5,
+        weight=4,
         message="Coverage fully configured",
+        details=[],
+        fix="",
+    )
+
+
+def check_pyproject_classifiers(project: Path) -> CheckResult:
+    """Check 36: required classifiers (Dev Status, Python, Typed)."""
+    data = _load_toml(project)
+    if data is None:
+        return CheckResult(
+            name="pyproject.classifiers",
+            category="pyproject",
+            passed=False,
+            weight=1,
+            message="pyproject.toml not found or unparsable",
+            details=[],
+            fix="Add classifiers to [project] in pyproject.toml.",
+        )
+    classifiers = data.get("project", {}).get("classifiers", [])
+    required_prefixes = {
+        "Development Status": "Development Status ::",
+        "Python version": "Programming Language :: Python :: 3",
+        "Typed": "Typing :: Typed",
+    }
+    missing = [
+        label
+        for label, prefix in required_prefixes.items()
+        if not any(c.startswith(prefix) for c in classifiers)
+    ]
+    if missing:
+        return CheckResult(
+            name="pyproject.classifiers",
+            category="pyproject",
+            passed=False,
+            weight=1,
+            message=f"Missing {len(missing)} required classifier(s)",
+            details=[f"Missing: {', '.join(missing)}"],
+            fix=(
+                "Add Development Status, Python version,"
+                " and Typing :: Typed classifiers."
+            ),
+        )
+    return CheckResult(
+        name="pyproject.classifiers",
+        category="pyproject",
+        passed=True,
+        weight=1,
+        message="Required classifiers present",
+        details=[],
+        fix="",
+    )
+
+
+def check_pyproject_ruff_rules(project: Path) -> CheckResult:
+    """Check 37: essential ruff rule codes activated."""
+    data = _load_toml(project)
+    if data is None:
+        return CheckResult(
+            name="pyproject.ruff_rules",
+            category="pyproject",
+            passed=False,
+            weight=2,
+            message="pyproject.toml not found or unparsable",
+            details=[],
+            fix="Add [tool.ruff.lint] select with E, F, I, UP, B.",
+        )
+    ruff_lint = data.get("tool", {}).get("ruff", {}).get("lint", {})
+    select = set(ruff_lint.get("select", []))
+    extend = set(ruff_lint.get("extend-select", []))
+    all_rules = select | extend
+    required = {"E", "F", "I", "UP", "B"}
+    # "ALL" includes everything
+    if "ALL" in all_rules:
+        missing: set[str] = set()
+    else:
+        missing = required - all_rules
+    if missing:
+        return CheckResult(
+            name="pyproject.ruff_rules",
+            category="pyproject",
+            passed=False,
+            weight=2,
+            message=f"Missing {len(missing)} essential ruff rule(s)",
+            details=[f"Missing: {', '.join(sorted(missing))}"],
+            fix=f"Add {', '.join(sorted(missing))} to [tool.ruff.lint] select.",
+        )
+    return CheckResult(
+        name="pyproject.ruff_rules",
+        category="pyproject",
+        passed=True,
+        weight=2,
+        message="Essential ruff rules activated",
         details=[],
         fix="",
     )

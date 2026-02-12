@@ -63,7 +63,7 @@ Scaffold a production-grade Python project (src layout, PEP 621, CI, docs).
 
 ### `axm-init audit`
 
-Score a project against the AXM gold standard (31 checks across 7 categories).
+Score a project against the AXM gold standard (38 checks across 7 categories).
 
 | Option | Short | Default | Description |
 |---|---|---|---|
@@ -91,7 +91,7 @@ Reserve a package name on PyPI with a minimal placeholder.
 git clone https://github.com/axm-protocols/axm-init.git
 cd axm-init
 uv sync --all-groups
-uv run pytest           # 294 tests
+uv run pytest           # 317 tests
 uv run ruff check src/  # lint
 ```
 

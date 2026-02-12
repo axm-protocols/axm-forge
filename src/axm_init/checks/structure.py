@@ -1,4 +1,4 @@
-"""Audit checks for project structure (5 checks, 15 pts)."""
+"""Audit checks for project structure (7 checks, 17 pts)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ def check_src_layout(project: Path) -> CheckResult:
             name="structure.src_layout",
             category="structure",
             passed=False,
-            weight=5,
+            weight=4,
             message="src/ directory not found",
             details=["Expected: src/<package_name>/__init__.py"],
             fix="Migrate to src/ layout: move package into src/<package_name>/.",
@@ -27,7 +27,7 @@ def check_src_layout(project: Path) -> CheckResult:
             name="structure.src_layout",
             category="structure",
             passed=False,
-            weight=5,
+            weight=4,
             message="No Python package found in src/",
             details=["src/ exists but contains no package with __init__.py"],
             fix="Create src/<package_name>/__init__.py.",
@@ -36,7 +36,7 @@ def check_src_layout(project: Path) -> CheckResult:
         name="structure.src_layout",
         category="structure",
         passed=True,
-        weight=5,
+        weight=4,
         message=f"src/ layout with {len(packages)} package(s)",
         details=[],
         fix="",
@@ -155,6 +155,52 @@ def check_license_file(project: Path) -> CheckResult:
         passed=True,
         weight=3,
         message="LICENSE file found",
+        details=[],
+        fix="",
+    )
+
+
+def check_uv_lock(project: Path) -> CheckResult:
+    """Check 32: uv.lock committed for reproducible builds."""
+    if not (project / "uv.lock").exists():
+        return CheckResult(
+            name="structure.uv_lock",
+            category="structure",
+            passed=False,
+            weight=2,
+            message="uv.lock not found",
+            details=["Commit uv.lock for reproducible dependency resolution"],
+            fix="Run `uv lock` and commit the generated uv.lock file.",
+        )
+    return CheckResult(
+        name="structure.uv_lock",
+        category="structure",
+        passed=True,
+        weight=2,
+        message="uv.lock found",
+        details=[],
+        fix="",
+    )
+
+
+def check_python_version(project: Path) -> CheckResult:
+    """Check 33: .python-version file exists."""
+    if not (project / ".python-version").exists():
+        return CheckResult(
+            name="structure.python_version",
+            category="structure",
+            passed=False,
+            weight=1,
+            message=".python-version not found",
+            details=["Pin Python version for consistent environments"],
+            fix="Run `uv python pin 3.12` to create .python-version.",
+        )
+    return CheckResult(
+        name="structure.python_version",
+        category="structure",
+        passed=True,
+        weight=1,
+        message=".python-version found",
         details=[],
         fix="",
     )

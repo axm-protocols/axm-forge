@@ -35,6 +35,19 @@ from {{ module_name }} import hello
 print(hello())
 ```
 
+## CLI Commands
+
+| Command | Description |
+|---|---|
+| `make install` | Install all dependencies (dev + docs) |
+| `make check` | Run lint + audit + test in one step |
+| `make lint` | Lint with ruff |
+| `make format` | Format with ruff |
+| `make test` | Run pytest |
+| `make audit` | Run pip-audit |
+| `make docs-serve` | Preview docs locally |
+| `make clean` | Remove build artifacts |
+
 ## Development
 
 ```bash

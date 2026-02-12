@@ -1,4 +1,4 @@
-"""Audit checks for documentation (5 checks, 15 pts)."""
+"""Audit checks for documentation (5 checks, 14 pts)."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def check_diataxis_nav(project: Path) -> CheckResult:
             name="docs.diataxis_nav",
             category="docs",
             passed=False,
-            weight=4,
+            weight=3,
             message="mkdocs.yml not found",
             details=[],
             fix="Create mkdocs.yml with Diátaxis nav structure.",
@@ -56,7 +56,7 @@ def check_diataxis_nav(project: Path) -> CheckResult:
             name="docs.diataxis_nav",
             category="docs",
             passed=False,
-            weight=4,
+            weight=3,
             message=f"Diátaxis nav incomplete — missing {len(missing)} section(s)",
             details=[
                 f"Missing: {', '.join(missing)}",
@@ -68,7 +68,7 @@ def check_diataxis_nav(project: Path) -> CheckResult:
         name="docs.diataxis_nav",
         category="docs",
         passed=True,
-        weight=4,
+        weight=3,
         message="Full Diátaxis nav structure",
         details=[],
         fix="",

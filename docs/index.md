@@ -41,7 +41,7 @@ $ axm-init init my-project
 ## Features
 
 - 🚀 **Scaffold** — Bootstrap projects with Copier templates (`src/` layout, PEP 621)
-- 📋 **Audit** — Score any project against the AXM gold standard (31 checks, A–F grade)
+- 📋 **Audit** — Score any project against the AXM gold standard (38 checks, A–F grade)
 - 📦 **Reserve** — Claim a package name on PyPI before you're ready to publish
 - ✅ **Standards** — Pre-configured Ruff, MyPy, Pytest, GitHub Actions
 - 🔄 **Copier-powered** — Production-grade scaffolding with `src/` layout, PEP 621

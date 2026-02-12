@@ -1,4 +1,4 @@
-"""Audit checks for CI workflows (5 checks, 15 pts)."""
+"""Audit checks for CI workflows (7 checks, 18 pts)."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def check_ci_workflow_exists(project: Path) -> CheckResult:
             name="ci.workflow_exists",
             category="ci",
             passed=False,
-            weight=5,
+            weight=4,
             message="CI workflow not found",
             details=["Expected: .github/workflows/ci.yml"],
             fix="Create .github/workflows/ci.yml with lint, test, and security jobs.",
@@ -32,7 +32,7 @@ def check_ci_workflow_exists(project: Path) -> CheckResult:
         name="ci.workflow_exists",
         category="ci",
         passed=True,
-        weight=5,
+        weight=4,
         message="CI workflow found",
         details=[],
         fix="",
@@ -132,6 +132,74 @@ def check_ci_coverage_upload(project: Path) -> CheckResult:
         passed=True,
         weight=2,
         message="Coverage upload configured",
+        details=[],
+        fix="",
+    )
+
+
+def _read_publish(project: Path) -> str | None:
+    """Read .github/workflows/publish.yml content, or None if missing."""
+    path = project / ".github" / "workflows" / "publish.yml"
+    if not path.exists():
+        return None
+    return path.read_text()
+
+
+def check_trusted_publishing(project: Path) -> CheckResult:
+    """Check 34: publish.yml uses Trusted Publishing (OIDC) without API token."""
+    content = _read_publish(project)
+    if content is None or "id-token" not in content:
+        return CheckResult(
+            name="ci.trusted_publishing",
+            category="ci",
+            passed=False,
+            weight=2,
+            message="No Trusted Publishing (OIDC) in publish workflow",
+            details=["publish.yml should use permissions: id-token: write"],
+            fix="Add `permissions: id-token: write` to publish.yml for PyPI OIDC.",
+        )
+    if "PYPI_API_TOKEN" in content:
+        return CheckResult(
+            name="ci.trusted_publishing",
+            category="ci",
+            passed=False,
+            weight=2,
+            message="publish.yml still uses PYPI_API_TOKEN alongside OIDC",
+            details=["Remove secrets.PYPI_API_TOKEN to use true Trusted Publishing"],
+            fix=(
+                "Remove `password: ${{ secrets.PYPI_API_TOKEN }}`"
+                " from publish.yml — OIDC handles auth automatically."
+            ),
+        )
+    return CheckResult(
+        name="ci.trusted_publishing",
+        category="ci",
+        passed=True,
+        weight=2,
+        message="Trusted Publishing (OIDC) configured",
+        details=[],
+        fix="",
+    )
+
+
+def check_dependabot(project: Path) -> CheckResult:
+    """Check 35: .github/dependabot.yml exists."""
+    if not (project / ".github" / "dependabot.yml").exists():
+        return CheckResult(
+            name="ci.dependabot",
+            category="ci",
+            passed=False,
+            weight=2,
+            message="Dependabot config not found",
+            details=["Dependabot automates dependency security updates"],
+            fix="Create .github/dependabot.yml with pip and github-actions ecosystems.",
+        )
+    return CheckResult(
+        name="ci.dependabot",
+        category="ci",
+        passed=True,
+        weight=2,
+        message="Dependabot configured",
         details=[],
         fix="",
     )

@@ -19,6 +19,8 @@ from axm_init.checks.ci import (
     check_ci_security_job,
     check_ci_test_job,
     check_ci_workflow_exists,
+    check_dependabot,
+    check_trusted_publishing,
 )
 from axm_init.checks.deps import check_dev_deps, check_docs_deps
 from axm_init.checks.docs import (
@@ -29,20 +31,24 @@ from axm_init.checks.docs import (
     check_readme,
 )
 from axm_init.checks.pyproject import (
+    check_pyproject_classifiers,
     check_pyproject_coverage,
     check_pyproject_dynamic_version,
     check_pyproject_exists,
     check_pyproject_mypy,
     check_pyproject_pytest,
     check_pyproject_ruff,
+    check_pyproject_ruff_rules,
     check_pyproject_urls,
 )
 from axm_init.checks.structure import (
     check_contributing,
     check_license_file,
     check_py_typed,
+    check_python_version,
     check_src_layout,
     check_tests_dir,
+    check_uv_lock,
 )
 from axm_init.checks.tooling import (
     check_makefile,
@@ -62,6 +68,11 @@ GOLD_PYPROJECT = dedent("""\
     [project]
     name = "test-pkg"
     dynamic = ["version"]
+    classifiers = [
+        "Development Status :: 3 - Alpha",
+        "Programming Language :: Python :: 3.12",
+        "Typing :: Typed",
+    ]
 
     [project.urls]
     Homepage = "https://github.com/org/test-pkg"
@@ -95,7 +106,7 @@ GOLD_PYPROJECT = dedent("""\
     check_untyped_defs = true
 
     [tool.ruff.lint]
-    select = ["E", "F", "I", "S", "RUF"]
+    select = ["E", "F", "W", "I", "UP", "B", "SIM", "S", "RUF"]
 
     [tool.ruff.lint.per-file-ignores]
     "tests/*" = ["S101"]
@@ -284,12 +295,24 @@ def gold_project(tmp_path: Path) -> Path:
     ci_dir = tmp_path / ".github" / "workflows"
     ci_dir.mkdir(parents=True)
     (ci_dir / "ci.yml").write_text(GOLD_CI)
+    # publish.yml with Trusted Publishing (OIDC)
+    (ci_dir / "publish.yml").write_text(
+        "name: Publish\npermissions:\n  id-token: write\n"
+    )
+    # dependabot
+    (tmp_path / ".github" / "dependabot.yml").write_text(
+        "version: 2\nupdates:\n  - package-ecosystem: pip\n"
+    )
     # README
     (tmp_path / "README.md").write_text(GOLD_README)
     # CONTRIBUTING
     (tmp_path / "CONTRIBUTING.md").write_text("# Contributing\n")
     # LICENSE
     (tmp_path / "LICENSE").write_text("MIT License\n")
+    # uv.lock
+    (tmp_path / "uv.lock").write_text("version = 1\n")
+    # .python-version
+    (tmp_path / ".python-version").write_text("3.12\n")
     # src layout
     pkg_dir = tmp_path / "src" / "test_pkg"
     pkg_dir.mkdir(parents=True)
@@ -321,7 +344,7 @@ class TestCheckPyprojectExists:
     def test_pass(self, gold_project: Path) -> None:
         r = check_pyproject_exists(gold_project)
         assert r.passed is True
-        assert r.weight == 5
+        assert r.weight == 4
 
     def test_fail_missing(self, empty_project: Path) -> None:
         r = check_pyproject_exists(empty_project)
@@ -739,6 +762,140 @@ class TestCheckNoManualChangelog:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Category 8: new checks — pyproject.classifiers, pyproject.ruff_rules
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestCheckPyprojectClassifiers:
+    def test_pass(self, gold_project: Path) -> None:
+        r = check_pyproject_classifiers(gold_project)
+        assert r.passed is True
+        assert r.weight == 1
+
+    def test_fail_no_classifiers(self, tmp_path: Path) -> None:
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n')
+        r = check_pyproject_classifiers(tmp_path)
+        assert r.passed is False
+
+    def test_fail_missing_typed(self, tmp_path: Path) -> None:
+        toml = (
+            '[project]\nname="x"\nclassifiers = ['
+            '"Development Status :: 3 - Alpha",'
+            '"Programming Language :: Python :: 3.12"]\n'
+        )
+        (tmp_path / "pyproject.toml").write_text(toml)
+        r = check_pyproject_classifiers(tmp_path)
+        assert r.passed is False
+        assert "Typed" in str(r.details)
+
+
+class TestCheckPyprojectRuffRules:
+    def test_pass(self, gold_project: Path) -> None:
+        r = check_pyproject_ruff_rules(gold_project)
+        assert r.passed is True
+        assert r.weight == 2
+
+    def test_fail_no_select(self, tmp_path: Path) -> None:
+        (tmp_path / "pyproject.toml").write_text('[project]\nname="x"\n')
+        r = check_pyproject_ruff_rules(tmp_path)
+        assert r.passed is False
+
+    def test_fail_missing_rules(self, tmp_path: Path) -> None:
+        toml = '[project]\nname="x"\n[tool.ruff.lint]\nselect = ["E", "F"]\n'
+        (tmp_path / "pyproject.toml").write_text(toml)
+        r = check_pyproject_ruff_rules(tmp_path)
+        assert r.passed is False
+        missing = str(r.details)
+        assert "I" in missing or "UP" in missing or "B" in missing
+
+    def test_pass_with_extend_select(self, tmp_path: Path) -> None:
+        toml = (
+            '[project]\nname="x"\n[tool.ruff.lint]\n'
+            'select = ["E", "F"]\n'
+            'extend-select = ["I", "UP", "B"]\n'
+        )
+        (tmp_path / "pyproject.toml").write_text(toml)
+        r = check_pyproject_ruff_rules(tmp_path)
+        assert r.passed is True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Category 9: new checks — ci.trusted_publishing, ci.dependabot
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestCheckTrustedPublishing:
+    def test_pass_oidc(self, gold_project: Path) -> None:
+        r = check_trusted_publishing(gold_project)
+        assert r.passed is True
+        assert r.weight == 2
+
+    def test_fail_no_publish(self, empty_project: Path) -> None:
+        r = check_trusted_publishing(empty_project)
+        assert r.passed is False
+
+    def test_fail_no_oidc(self, tmp_path: Path) -> None:
+        wf = tmp_path / ".github" / "workflows"
+        wf.mkdir(parents=True)
+        (wf / "publish.yml").write_text("name: Publish\njobs:\n  build:\n")
+        r = check_trusted_publishing(tmp_path)
+        assert r.passed is False
+
+    def test_fail_hybrid_token_and_oidc(self, tmp_path: Path) -> None:
+        """id-token present but still using PYPI_API_TOKEN → not true OIDC."""
+        wf = tmp_path / ".github" / "workflows"
+        wf.mkdir(parents=True)
+        (wf / "publish.yml").write_text(
+            "name: Publish\npermissions:\n  id-token: write\n"
+            "jobs:\n  publish:\n    steps:\n"
+            "      - uses: pypa/gh-action-pypi-publish@release/v1\n"
+            "        with:\n"
+            "          password: ${{ secrets.PYPI_API_TOKEN }}\n"
+        )
+        r = check_trusted_publishing(tmp_path)
+        assert r.passed is False
+        assert "PYPI_API_TOKEN" in r.fix
+
+
+class TestCheckDependabot:
+    def test_pass(self, gold_project: Path) -> None:
+        r = check_dependabot(gold_project)
+        assert r.passed is True
+        assert r.weight == 2
+
+    def test_fail_missing(self, empty_project: Path) -> None:
+        r = check_dependabot(empty_project)
+        assert r.passed is False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Category 10: new checks — structure.uv_lock, structure.python_version
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestCheckUvLock:
+    def test_pass(self, gold_project: Path) -> None:
+        r = check_uv_lock(gold_project)
+        assert r.passed is True
+        assert r.weight == 2
+
+    def test_fail_missing(self, empty_project: Path) -> None:
+        r = check_uv_lock(empty_project)
+        assert r.passed is False
+
+
+class TestCheckPythonVersion:
+    def test_pass(self, gold_project: Path) -> None:
+        r = check_python_version(gold_project)
+        assert r.passed is True
+        assert r.weight == 1
+
+    def test_fail_missing(self, empty_project: Path) -> None:
+        r = check_python_version(empty_project)
+        assert r.passed is False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Cross-cutting: every failed check must have a non-empty fix
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -754,11 +911,15 @@ class TestAllFailuresHaveFix:
         check_pyproject_ruff,
         check_pyproject_pytest,
         check_pyproject_coverage,
+        check_pyproject_classifiers,
+        check_pyproject_ruff_rules,
         check_ci_workflow_exists,
         check_ci_lint_job,
         check_ci_test_job,
         check_ci_security_job,
         check_ci_coverage_upload,
+        check_trusted_publishing,
+        check_dependabot,
         check_precommit_exists,
         check_precommit_ruff,
         check_precommit_mypy,
@@ -775,6 +936,8 @@ class TestAllFailuresHaveFix:
         check_tests_dir,
         check_contributing,
         check_license_file,
+        check_uv_lock,
+        check_python_version,
         check_dev_deps,
         check_docs_deps,
         check_gitcliff_config,

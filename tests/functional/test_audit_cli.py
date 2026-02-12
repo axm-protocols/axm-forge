@@ -33,6 +33,11 @@ GOLD_PYPROJECT = dedent("""\
     [project]
     name = "test-pkg"
     dynamic = ["version"]
+    classifiers = [
+        "Development Status :: 3 - Alpha",
+        "Programming Language :: Python :: 3.12",
+        "Typing :: Typed",
+    ]
 
     [project.urls]
     Homepage = "https://github.com/org/test-pkg"
@@ -66,7 +71,7 @@ GOLD_PYPROJECT = dedent("""\
     check_untyped_defs = true
 
     [tool.ruff.lint]
-    select = ["E", "F", "I", "S", "RUF"]
+    select = ["E", "F", "W", "I", "UP", "B", "SIM", "S", "RUF"]
     [tool.ruff.lint.per-file-ignores]
     "tests/*" = ["S101"]
     [tool.ruff.lint.isort]
@@ -122,12 +127,20 @@ def gold_project(tmp_path: Path) -> Path:
         "    steps:\n      - run: pytest\n"
         "  coverage:\n    steps:\n      - uses: coverallsapp/github-action@v2\n"
     )
+    (ci_dir / "publish.yml").write_text(
+        "name: Publish\npermissions:\n  id-token: write\n"
+    )
+    (tmp_path / ".github" / "dependabot.yml").write_text(
+        "version: 2\nupdates:\n  - package-ecosystem: pip\n"
+    )
     (tmp_path / "README.md").write_text(
         "# test-pkg\n\n**desc**\n\n---\n\n## Features\n\n"
         "## Installation\n\n## Quick Start\n\n## Development\n\n## License\n"
     )
     (tmp_path / "CONTRIBUTING.md").write_text("# Contributing\n")
     (tmp_path / "LICENSE").write_text("MIT\n")
+    (tmp_path / "uv.lock").write_text("version = 1\n")
+    (tmp_path / ".python-version").write_text("3.12\n")
     pkg = tmp_path / "src" / "test_pkg"
     pkg.mkdir(parents=True)
     (pkg / "__init__.py").write_text("")

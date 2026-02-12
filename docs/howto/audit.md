@@ -42,15 +42,15 @@ Use in CI to enforce quality gates:
 axm-init audit --json | jq -e '.score >= 90'
 ```
 
-## What Gets Checked (31 Checks)
+## What Gets Checked (38 Checks)
 
 | Category | Checks | Points |
 |----------|--------|--------|
-| **pyproject** | exists, urls, dynamic_version, mypy, ruff, pytest, coverage | 30 |
-| **ci** | workflow, lint job, test job, security job, coverage upload | 15 |
-| **tooling** | pre-commit (×5), Makefile targets | 15 |
-| **docs** | mkdocs.yml, Diátaxis nav, plugins, gen_ref_pages, README | 15 |
-| **structure** | src/ layout, py.typed, tests/, CONTRIBUTING, LICENSE | 15 |
+| **pyproject** | exists, urls, dynamic_version, mypy, ruff, pytest, coverage, classifiers, ruff_rules | 27 |
+| **ci** | workflow, lint job, test job, security job, coverage upload, trusted publishing, dependabot | 18 |
+| **tooling** | pre-commit (×5), Makefile targets | 14 |
+| **docs** | mkdocs.yml, Diátaxis nav, plugins, gen_ref_pages, README | 14 |
+| **structure** | src/ layout, py.typed, tests/, CONTRIBUTING, LICENSE, uv.lock, .python-version | 17 |
 | **deps** | dev group, docs group | 5 |
 | **changelog** | git-cliff config, no manual CHANGELOG | 5 |
 
