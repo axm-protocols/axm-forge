@@ -22,8 +22,10 @@ class LintingRule(ProjectRule):
         return "QUALITY_LINT"
 
     def check(self, project_path: Path) -> CheckResult:
-        """Check project linting with ruff."""
+        """Check project linting with ruff on src/ and tests/."""
         src_path = project_path / "src"
+        tests_path = project_path / "tests"
+
         if not src_path.exists():
             return CheckResult(
                 rule_id=self.rule_id,
@@ -32,8 +34,12 @@ class LintingRule(ProjectRule):
                 severity=Severity.ERROR,
             )
 
+        targets = [str(src_path)]
+        if tests_path.exists():
+            targets.append(str(tests_path))
+
         result = run_in_project(
-            ["ruff", "check", "--output-format=json", str(src_path)],
+            ["ruff", "check", "--output-format=json", *targets],
             project_path,
             capture_output=True,
             text=True,
@@ -49,13 +55,14 @@ class LintingRule(ProjectRule):
         score = max(0, 100 - issue_count * 2)
         passed = score >= 80
 
+        checked = "src/ tests/" if tests_path.exists() else "src/"
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
             message=f"Lint score: {score}/100 ({issue_count} issues)",
             severity=Severity.WARNING if not passed else Severity.INFO,
-            details={"issue_count": issue_count, "score": score},
-            fix_hint="Run: ruff check --fix src/" if issue_count > 0 else None,
+            details={"issue_count": issue_count, "score": score, "checked": checked},
+            fix_hint=f"Run: ruff check --fix {checked}" if issue_count > 0 else None,
         )
 
 
