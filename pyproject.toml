@@ -14,11 +14,15 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
+    "cyclopts>=3.0",
     "loguru>=0.7.3",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
     "radon>=6.0.1",
 ]
+
+[project.scripts]
+axm-audit = "axm_audit.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/axm-protocols/axm-audit"
@@ -70,6 +74,8 @@ ignore = ["S101"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S105", "S106", "S108"]
 "src/axm_audit/core/rules/quality.py" = ["S603", "S607"]
+"src/axm_audit/core/rules/dependencies.py" = ["S603", "S607"]
+"src/axm_audit/cli.py" = ["T201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_audit"]

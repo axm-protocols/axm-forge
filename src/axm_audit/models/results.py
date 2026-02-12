@@ -61,25 +61,57 @@ class AuditResult(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def quality_score(self) -> float | None:
-        """Weighted average of QUALITY_* rule scores.
+        """Weighted average across 6 code-quality categories.
 
-        Weights: LINT=40%, TYPE=35%, COMPLEXITY=25%.
-        Returns None if no quality checks are present.
+        Categories and weights:
+            Linting (20%), Type Safety (20%), Complexity (15%),
+            Security (15%), Dependencies (15%), Testing (15%).
+
+        Structure is NOT scored here (handled by axm-init).
+        Returns None if no scored checks are present.
         """
-        weights = {
-            "QUALITY_LINT": 0.40,
-            "QUALITY_TYPE": 0.35,
-            "QUALITY_COMPLEXITY": 0.25,
+        category_weights = {
+            "lint": 0.20,
+            "type": 0.20,
+            "complexity": 0.15,
+            "security": 0.15,
+            "deps": 0.15,
+            "testing": 0.15,
         }
-        scores: dict[str, float] = {}
+
+        # Map rule_id prefixes to categories
+        rule_to_category: dict[str, str] = {
+            "QUALITY_LINT": "lint",
+            "QUALITY_TYPE": "type",
+            "QUALITY_COMPLEXITY": "complexity",
+            "QUALITY_SECURITY": "security",
+            "PRACTICE_SECURITY": "security",
+            "DEPS_AUDIT": "deps",
+            "DEPS_HYGIENE": "deps",
+            "QUALITY_COVERAGE": "testing",
+        }
+
+        # Collect scores by category
+        category_scores: dict[str, list[float]] = {}
         for check in self.checks:
-            if check.rule_id in weights and check.details:
+            cat = rule_to_category.get(check.rule_id)
+            if cat and check.details:
                 score = check.details.get("score")
                 if score is not None:
-                    scores[check.rule_id] = float(score)
-        if not scores:
+                    category_scores.setdefault(cat, []).append(float(score))
+
+        if not category_scores:
             return None
-        return sum(scores.get(k, 0) * v for k, v in weights.items())
+
+        # Weighted average: avg each category, then weight
+        total = 0.0
+        for cat, weight in category_weights.items():
+            scores = category_scores.get(cat, [])
+            if scores:
+                total += (sum(scores) / len(scores)) * weight
+            # Missing categories contribute 0
+
+        return round(total, 1)
 
     @computed_field  # type: ignore[prop-decorator]
     @property

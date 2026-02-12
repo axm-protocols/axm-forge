@@ -1,4 +1,4 @@
-name: axm-init audit
+name: axm-init check
 
 on:
   push:
@@ -8,8 +8,8 @@ permissions:
   contents: write
 
 jobs:
-  audit:
-    name: AXM Audit & Badge
+  check:
+    name: AXM Check & Badge
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -18,20 +18,20 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
 
-      - name: Run AXM Audit
-        id: audit
+      - name: Run AXM Check
+        id: check
         run: |
-          RESULT=$(uvx axm-init audit . --json) || true
+          RESULT=$(uvx axm-init check . --json) || true
           SCORE=$(echo "$RESULT" | jq '.score')
           GRADE=$(echo "$RESULT" | jq -r '.grade')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"
           echo "grade=$GRADE" >> "$GITHUB_OUTPUT"
-          echo "📋 AXM Audit: Score $SCORE/100 — Grade $GRADE"
+          echo "📋 AXM Check: Score $SCORE/100 — Grade $GRADE"
 
       - name: Choose badge color
         id: color
         run: |
-          SCORE=${{ steps.audit.outputs.score }}
+          SCORE=${{ steps.check.outputs.score }}
           if [ "$SCORE" -ge 95 ]; then COLOR="brightgreen"
           elif [ "$SCORE" -ge 80 ]; then COLOR="green"
           elif [ "$SCORE" -ge 60 ]; then COLOR="yellow"
@@ -43,7 +43,7 @@ jobs:
           mkdir -p badges
           LOGO_SVG=$(curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.svg)
           jq -n \
-            --arg score "${{ steps.audit.outputs.score }}" \
+            --arg score "${{ steps.check.outputs.score }}" \
             --arg color "${{ steps.color.outputs.color }}" \
             --arg logo "$LOGO_SVG" \
             '{
@@ -63,4 +63,4 @@ jobs:
           publish_dir: ./badges
           destination_dir: badges
           keep_files: true
-          commit_message: "badge: update axm-init score to ${{ steps.audit.outputs.score }}/100"
+          commit_message: "badge: update axm-init score to ${{ steps.check.outputs.score }}/100"

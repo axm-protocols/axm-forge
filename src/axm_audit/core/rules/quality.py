@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -186,6 +187,76 @@ class ComplexityRule(ProjectRule):
             fix_hint=(
                 "Refactor complex functions into smaller units"
                 if high_complexity_count > 0
+                else None
+            ),
+        )
+
+
+@dataclass
+class TestCoverageRule(ProjectRule):
+    """Check test coverage via pytest-cov.
+
+    Scoring: coverage percentage directly (e.g., 90% → score 90).
+    Pass threshold: 80%.
+    """
+
+    min_coverage: float = 80.0
+
+    @property
+    def rule_id(self) -> str:
+        """Unique identifier for this rule."""
+        return "QUALITY_COVERAGE"
+
+    def check(self, project_path: Path) -> CheckResult:
+        """Check test coverage with pytest-cov."""
+        coverage_file = project_path / "coverage.json"
+
+        # Run pytest with coverage
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "--cov",
+                "--cov-report=json",
+                "--no-header",
+                "-q",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=str(project_path),
+        )
+
+        # Parse coverage.json
+        if not coverage_file.exists():
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=False,
+                message="No coverage data (pytest-cov not configured)",
+                severity=Severity.WARNING,
+                details={"coverage": 0.0, "score": 0},
+                fix_hint="Add pytest-cov: uv add --dev pytest-cov",
+            )
+
+        try:
+            data = json.loads(coverage_file.read_text())
+            coverage_pct = data.get("totals", {}).get("percent_covered", 0.0)
+        except (json.JSONDecodeError, OSError):
+            coverage_pct = 0.0
+
+        score = int(coverage_pct)
+        passed = coverage_pct >= self.min_coverage
+
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=passed,
+            message=f"Test coverage: {coverage_pct:.0f}% ({score}/100)",
+            severity=Severity.WARNING if not passed else Severity.INFO,
+            details={"coverage": coverage_pct, "score": score},
+            fix_hint=(
+                f"Increase test coverage to >= {self.min_coverage:.0f}%"
+                if not passed
                 else None
             ),
         )

@@ -165,64 +165,49 @@ def complex_fn(x: int, y: int, z: int) -> str:
 
 
 class TestAuditResultScoring:
-    """Tests for AuditResult quality_score and grade."""
+    """Tests for AuditResult quality_score and grade (6-category model)."""
+
+    def _make_check(self, rule_id: str, score: float):
+        """Helper to create a CheckResult with a score."""
+        from axm_audit.models.results import CheckResult
+
+        return CheckResult(
+            rule_id=rule_id,
+            passed=True,
+            message="",
+            details={"score": score},
+        )
 
     def test_quality_score_weighted_average(self) -> None:
-        """quality_score uses 40/35/25 weights."""
-        from axm_audit.models.results import AuditResult, CheckResult
+        """quality_score with all 6 categories at 100 → 100."""
+        from axm_audit.models.results import AuditResult
 
         result = AuditResult(
             checks=[
-                CheckResult(
-                    rule_id="QUALITY_LINT",
-                    passed=True,
-                    message="",
-                    details={"score": 100},
-                ),
-                CheckResult(
-                    rule_id="QUALITY_TYPE",
-                    passed=True,
-                    message="",
-                    details={"score": 100},
-                ),
-                CheckResult(
-                    rule_id="QUALITY_COMPLEXITY",
-                    passed=True,
-                    message="",
-                    details={"score": 100},
-                ),
+                self._make_check("QUALITY_LINT", 100),
+                self._make_check("QUALITY_TYPE", 100),
+                self._make_check("QUALITY_COMPLEXITY", 100),
+                self._make_check("QUALITY_SECURITY", 100),
+                self._make_check("DEPS_AUDIT", 100),
+                self._make_check("DEPS_HYGIENE", 100),
+                self._make_check("QUALITY_COVERAGE", 100),
             ]
         )
         assert result.quality_score == 100.0
 
     def test_quality_score_partial(self) -> None:
-        """quality_score with mixed scores."""
-        from axm_audit.models.results import AuditResult, CheckResult
+        """quality_score with only lint/type/complexity → partial score."""
+        from axm_audit.models.results import AuditResult
 
         result = AuditResult(
             checks=[
-                CheckResult(
-                    rule_id="QUALITY_LINT",
-                    passed=True,
-                    message="",
-                    details={"score": 80},  # 80 * 0.40 = 32
-                ),
-                CheckResult(
-                    rule_id="QUALITY_TYPE",
-                    passed=True,
-                    message="",
-                    details={"score": 60},  # 60 * 0.35 = 21
-                ),
-                CheckResult(
-                    rule_id="QUALITY_COMPLEXITY",
-                    passed=True,
-                    message="",
-                    details={"score": 100},  # 100 * 0.25 = 25
-                ),
+                self._make_check("QUALITY_LINT", 80),  # 80 * 0.20 = 16
+                self._make_check("QUALITY_TYPE", 60),  # 60 * 0.20 = 12
+                self._make_check("QUALITY_COMPLEXITY", 100),  # 100 * 0.15 = 15
             ]
         )
-        # 32 + 21 + 25 = 78
-        assert result.quality_score == 78.0
+        # Only 3 of 6 categories present: 16 + 12 + 15 = 43
+        assert result.quality_score == 43.0
 
     def test_quality_score_none_without_quality_checks(self) -> None:
         """quality_score is None if no quality checks present."""
@@ -237,29 +222,19 @@ class TestAuditResultScoring:
 
     def test_grade_thresholds(self) -> None:
         """Grade boundaries: A>=90, B>=80, C>=70, D>=60, F<60."""
-        from axm_audit.models.results import AuditResult, CheckResult
+        from axm_audit.models.results import AuditResult
 
         def make_result(score: float) -> AuditResult:
+            # Provide all 6 categories so score = input score
             return AuditResult(
                 checks=[
-                    CheckResult(
-                        rule_id="QUALITY_LINT",
-                        passed=True,
-                        message="",
-                        details={"score": score},
-                    ),
-                    CheckResult(
-                        rule_id="QUALITY_TYPE",
-                        passed=True,
-                        message="",
-                        details={"score": score},
-                    ),
-                    CheckResult(
-                        rule_id="QUALITY_COMPLEXITY",
-                        passed=True,
-                        message="",
-                        details={"score": score},
-                    ),
+                    self._make_check("QUALITY_LINT", score),
+                    self._make_check("QUALITY_TYPE", score),
+                    self._make_check("QUALITY_COMPLEXITY", score),
+                    self._make_check("QUALITY_SECURITY", score),
+                    self._make_check("DEPS_AUDIT", score),
+                    self._make_check("DEPS_HYGIENE", score),
+                    self._make_check("QUALITY_COVERAGE", score),
                 ]
             )
 
