@@ -63,7 +63,7 @@ print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics
 - 📐 **Practices** — Docstring coverage, bare except detection
 - 🔧 **Tooling** — CLI tool availability checks
-- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 164+ tests
+- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 174+ tests
 
 ---
 

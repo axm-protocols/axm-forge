@@ -26,16 +26,20 @@ graph TD
         Tooling["Tooling Rules"]
     end
 
+    subgraph "Runner"
+        RunInProject["run_in_project()"]
+    end
+
     subgraph "Tools"
         Ruff["Ruff"]
-        MyPy["mypy.api"]
+        MyPy["mypy"]
         Radon["radon"]
         Bandit["Bandit"]
         PipAudit["pip-audit"]
         Deptry["deptry"]
         PytestCov["pytest-cov"]
         AST["ast module"]
-        FS["pathlib"]
+        Tomllib["tomllib"]
     end
 
     subgraph "Output"
@@ -54,17 +58,20 @@ graph TD
     Rules --> Practice
     Rules --> Structure
     Rules --> Tooling
-    Quality --> Ruff
-    Quality --> MyPy
-    Quality --> Radon
-    Security --> Bandit
-    Deps --> PipAudit
-    Deps --> Deptry
-    Testing --> PytestCov
+    Quality --> RunInProject
+    Security --> RunInProject
+    Deps --> RunInProject
+    Testing --> RunInProject
+    RunInProject --> Ruff
+    RunInProject --> MyPy
+    RunInProject --> Bandit
+    RunInProject --> PipAudit
+    RunInProject --> Deptry
+    RunInProject --> PytestCov
+    Quality -.-> Radon
     Arch --> AST
     Practice --> AST
-    Structure --> FS
-    Tooling --> FS
+    Structure --> Tomllib
     Quality --> Result
     Security --> Result
     Deps --> Result
@@ -106,17 +113,17 @@ Both return typed Pydantic models for safe agent consumption.
 
 ### 3. Tool Integration
 
-Each rule wraps an external tool using Python APIs where possible:
+All subprocess-based rules use `run_in_project()` from `core/runner.py`, which detects the target project's `.venv/` and executes tools via `uv run --directory` to ensure the correct environment is used.
 
 | Rule | Tool | Integration |
 |---|---|---|
-| `LintingRule` | Ruff | `subprocess.run([sys.executable, "-m", "ruff", ...])` |
-| `TypeCheckRule` | MyPy | `mypy.api.run(["--output", "json", ...])` |
+| `LintingRule` | Ruff | `run_in_project(["ruff", "check", ...])` |
+| `TypeCheckRule` | MyPy | `run_in_project(["mypy", ...])` |
 | `ComplexityRule` | Radon | `radon.complexity.cc_visit(source)` |
-| `SecurityRule` | Bandit | `subprocess.run(["bandit", "-r", "-f", "json", ...])` |
-| `DependencyAuditRule` | pip-audit | `subprocess.run([..., "-m", "pip_audit", ...])` |
-| `DependencyHygieneRule` | deptry | `subprocess.run([..., "-m", "deptry", ...])` |
-| `TestCoverageRule` | pytest-cov | `subprocess.run([..., "-m", "pytest", "--cov", ...])` |
+| `SecurityRule` | Bandit | `run_in_project(["bandit", ...])` |
+| `DependencyAuditRule` | pip-audit | `run_in_project(["pip-audit", ...])` |
+| `DependencyHygieneRule` | deptry | `run_in_project(["deptry", ...])` |
+| `TestCoverageRule` | pytest-cov | `run_in_project(["pytest", "--cov", ...])` |
 | Architecture rules | Python `ast` | Direct AST parsing |
 | Structure rules | `tomllib` | TOML parsing |
 | `ToolAvailabilityRule` | `shutil.which` | PATH lookup |
