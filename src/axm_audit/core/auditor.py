@@ -12,11 +12,10 @@ from axm_audit.core.rules import (
     CouplingMetricRule,
     DependencyAuditRule,
     DependencyHygieneRule,
-    DirectoryExistsRule,
     DocstringCoverageRule,
-    FileExistsRule,
     GodClassRule,
     LintingRule,
+    PyprojectCompletenessRule,
     SecurityPatternRule,
     SecurityRule,
     TestCoverageRule,
@@ -40,7 +39,7 @@ VALID_CATEGORIES = {
 
 # Rule categories for filtering
 RULES_BY_CATEGORY: dict[str, list[type[ProjectRule]]] = {
-    "structure": [FileExistsRule, DirectoryExistsRule],
+    "structure": [PyprojectCompletenessRule],
     "quality": [LintingRule, TypeCheckRule, ComplexityRule],
     "architecture": [CircularImportRule, GodClassRule, CouplingMetricRule],
     "practice": [DocstringCoverageRule, BareExceptRule, SecurityPatternRule],
@@ -49,20 +48,6 @@ RULES_BY_CATEGORY: dict[str, list[type[ProjectRule]]] = {
     "testing": [TestCoverageRule],
     "tooling": [ToolAvailabilityRule],
 }
-
-
-def _get_structure_rules() -> list[ProjectRule]:
-    """Get structure validation rules with required parameters.
-
-    Returns:
-        List of instantiated structure rules.
-    """
-    return [
-        FileExistsRule(file_name="pyproject.toml"),
-        FileExistsRule(file_name="README.md"),
-        DirectoryExistsRule(dir_name="src"),
-        DirectoryExistsRule(dir_name="tests"),
-    ]
 
 
 def _get_tooling_rules() -> list[ProjectRule]:
@@ -104,9 +89,6 @@ def get_rules_for_category(
         )
 
     if category:
-        # Special handling for categories that need parameters
-        if category == "structure":
-            return _get_structure_rules()
         if category == "tooling":
             return _get_tooling_rules()
         rule_classes = RULES_BY_CATEGORY.get(category, [])
@@ -114,7 +96,7 @@ def get_rules_for_category(
 
     # All rules
     return [
-        *_get_structure_rules(),
+        PyprojectCompletenessRule(),
         LintingRule(),
         TypeCheckRule(),
         ComplexityRule(),

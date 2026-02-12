@@ -4,15 +4,12 @@ import pytest
 
 
 class TestRulesMigration:
-    """Test that all 13 rules have been migrated correctly."""
+    """Test that all rules have been migrated correctly."""
 
     @pytest.mark.parametrize(
         "rule_id",
         [
-            "FILE_EXISTS_pyproject.toml",
-            "FILE_EXISTS_README.md",
-            "DIR_EXISTS_src",
-            "DIR_EXISTS_tests",
+            "STRUCTURE_PYPROJECT",
             "QUALITY_LINT",
             "QUALITY_TYPE",
             "QUALITY_COMPLEXITY",

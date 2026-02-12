@@ -5,9 +5,32 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from axm_audit.core.rules.base import ProjectRule
 from axm_audit.models.results import CheckResult, Severity
+
+
+def _run_pip_audit(project_path: Path) -> dict[str, Any] | list[Any]:
+    """Run pip-audit and return parsed JSON output."""
+    result = subprocess.run(
+        [sys.executable, "-m", "pip_audit", "--format=json", "--output=-"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(project_path),
+    )
+    try:
+        return json.loads(result.stdout) if result.stdout.strip() else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _parse_vulns(data: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
+    """Extract vulnerable packages from pip-audit output."""
+    if isinstance(data, list):
+        return [d for d in data if d.get("vulns")]
+    return [d for d in data.get("dependencies", []) if d.get("vulns")]
 
 
 @dataclass
@@ -25,13 +48,7 @@ class DependencyAuditRule(ProjectRule):
     def check(self, project_path: Path) -> CheckResult:
         """Check dependencies for known CVEs."""
         try:
-            result = subprocess.run(
-                [sys.executable, "-m", "pip_audit", "--format=json", "--output=-"],
-                capture_output=True,
-                text=True,
-                check=False,
-                cwd=str(project_path),
-            )
+            data = _run_pip_audit(project_path)
         except FileNotFoundError:
             return CheckResult(
                 rule_id=self.rule_id,
@@ -42,42 +59,26 @@ class DependencyAuditRule(ProjectRule):
                 fix_hint="Install with: uv add --dev pip-audit",
             )
 
-        try:
-            data = json.loads(result.stdout) if result.stdout.strip() else {}
-        except json.JSONDecodeError:
-            data = {}
-
-        # pip-audit JSON: {"dependencies": [...]} or bare list
-        if isinstance(data, list):
-            vulns = [d for d in data if d.get("vulns")]
-        else:
-            vulns = [d for d in data.get("dependencies", []) if d.get("vulns")]
-
+        vulns = _parse_vulns(data)
         vuln_count = len(vulns)
         score = max(0, 100 - vuln_count * 15)
-        passed = score >= 80
-
-        top_vulns = [
-            {
-                "name": v.get("name", ""),
-                "version": v.get("version", ""),
-            }
-            for v in vulns[:5]
-        ]
 
         return CheckResult(
             rule_id=self.rule_id,
-            passed=passed,
+            passed=score >= 80,
             message=(
                 "No known vulnerabilities"
                 if vuln_count == 0
                 else f"{vuln_count} vulnerable package(s) found"
             ),
-            severity=Severity.WARNING if not passed else Severity.INFO,
+            severity=Severity.WARNING if score < 80 else Severity.INFO,
             details={
                 "vuln_count": vuln_count,
                 "score": score,
-                "top_vulns": top_vulns,
+                "top_vulns": [
+                    {"name": v.get("name", ""), "version": v.get("version", "")}
+                    for v in vulns[:5]
+                ],
             },
             fix_hint=("Run: pip-audit --fix to remediate" if vuln_count > 0 else None),
         )
@@ -122,30 +123,27 @@ class DependencyHygieneRule(ProjectRule):
 
         issue_count = len(issues)
         score = max(0, 100 - issue_count * 10)
-        passed = score >= 80
-
-        top_issues = [
-            {
-                "code": i.get("error_code", ""),
-                "module": i.get("module", ""),
-                "message": i.get("message", ""),
-            }
-            for i in issues[:5]
-        ]
 
         return CheckResult(
             rule_id=self.rule_id,
-            passed=passed,
+            passed=score >= 80,
             message=(
                 "Clean dependencies (0 issues)"
                 if issue_count == 0
                 else f"{issue_count} dependency issue(s) found"
             ),
-            severity=Severity.WARNING if not passed else Severity.INFO,
+            severity=Severity.WARNING if score < 80 else Severity.INFO,
             details={
                 "issue_count": issue_count,
                 "score": score,
-                "top_issues": top_issues,
+                "top_issues": [
+                    {
+                        "code": i.get("error_code", ""),
+                        "module": i.get("module", ""),
+                        "message": i.get("message", ""),
+                    }
+                    for i in issues[:5]
+                ],
             },
             fix_hint=("Run: deptry . to see details" if issue_count > 0 else None),
         )

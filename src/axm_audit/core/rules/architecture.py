@@ -252,6 +252,35 @@ class GodClassRule(ProjectRule):
             )
 
 
+def _compute_coupling_metrics(
+    src_path: Path,
+) -> dict[str, int | float]:
+    """Compute fan-in/fan-out coupling metrics for all modules."""
+    fan_out: dict[str, int] = {}
+    fan_in: dict[str, int] = defaultdict(int)
+
+    for path in _get_python_files(src_path):
+        tree = _parse_file_safe(path)
+        if tree is None:
+            continue
+        module_name = _get_module_name(path, src_path)
+        if not module_name:
+            continue
+        imports = _extract_imports(tree)
+        fan_out[module_name] = len(set(imports))
+        for imp in imports:
+            fan_in[imp] += 1
+
+    if not fan_out:
+        return {"max_fan_out": 0, "max_fan_in": 0, "avg_coupling": 0.0}
+
+    return {
+        "max_fan_out": max(fan_out.values()),
+        "max_fan_in": max(fan_in.values()) if fan_in else 0,
+        "avg_coupling": sum(fan_out.values()) / len(fan_out),
+    }
+
+
 @dataclass
 class CouplingMetricRule(ProjectRule):
     """Measure module coupling via fan-in/fan-out analysis."""
@@ -275,51 +304,22 @@ class CouplingMetricRule(ProjectRule):
                 details={"max_fan_out": 0, "avg_coupling": 0.0, "score": 100},
             )
 
-        # Calculate fan-out (imports per module)
-        fan_out: dict[str, int] = {}
-        fan_in: dict[str, int] = defaultdict(int)
-        py_files = _get_python_files(src_path)
-
-        for path in py_files:
-            tree = _parse_file_safe(path)
-            if tree is None:
-                continue
-            module_name = _get_module_name(path, src_path)
-            if not module_name:
-                continue
-            imports = _extract_imports(tree)
-            fan_out[module_name] = len(set(imports))
-            for imp in imports:
-                fan_in[imp] += 1
-
-        if not fan_out:
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=True,
-                message="No modules to analyze",
-                severity=Severity.INFO,
-                details={"max_fan_out": 0, "avg_coupling": 0.0, "score": 100},
-            )
-
-        max_fan_out = max(fan_out.values()) if fan_out else 0
-        max_fan_in = max(fan_in.values()) if fan_in else 0
-        avg_coupling = sum(fan_out.values()) / len(fan_out) if fan_out else 0.0
-
-        score = max(0, 100 - int(avg_coupling * 5))
-        passed = avg_coupling <= self.max_avg_coupling
+        metrics = _compute_coupling_metrics(src_path)
+        avg = metrics["avg_coupling"]
+        score = max(0, 100 - int(avg * 5))
 
         return CheckResult(
             rule_id=self.rule_id,
-            passed=passed,
-            message=f"Avg coupling: {avg_coupling:.1f} (max fan-out: {max_fan_out})",
-            severity=Severity.WARNING if not passed else Severity.INFO,
+            passed=avg <= self.max_avg_coupling,
+            message=f"Avg coupling: {avg:.1f} (max fan-out: {metrics['max_fan_out']})",
+            severity=Severity.WARNING if avg > self.max_avg_coupling else Severity.INFO,
             details={
-                "max_fan_out": max_fan_out,
-                "max_fan_in": max_fan_in,
-                "avg_coupling": round(avg_coupling, 2),
+                "max_fan_out": metrics["max_fan_out"],
+                "max_fan_in": metrics["max_fan_in"],
+                "avg_coupling": round(avg, 2),
                 "score": score,
             },
             fix_hint="Reduce imports by consolidating or using dependency injection"
-            if not passed
+            if avg > self.max_avg_coupling
             else None,
         )

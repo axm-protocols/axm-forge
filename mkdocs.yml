@@ -3,7 +3,7 @@ site_description: "Code auditing and quality rules for Python projects."
 site_url: https://axm-protocols.github.io/axm-audit
 repo_url: https://github.com/axm-protocols/axm-audit
 repo_name: axm-protocols/axm-audit
-copyright: Copyright &copy; 2026 axm-protocols
+copyright: Copyright &copy; 2026 Gabriel Jarry
 
 theme:
   name: material

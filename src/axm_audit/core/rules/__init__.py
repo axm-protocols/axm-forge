@@ -22,11 +22,7 @@ from axm_audit.core.rules.quality import (
     TypeCheckRule,
 )
 from axm_audit.core.rules.security import SecurityRule
-from axm_audit.core.rules.structure import (
-    DirectoryExistsRule,
-    FileExistsRule,
-    PyprojectCompletenessRule,
-)
+from axm_audit.core.rules.structure import PyprojectCompletenessRule
 from axm_audit.core.rules.tooling import ToolAvailabilityRule
 
 __all__ = [
@@ -36,9 +32,7 @@ __all__ = [
     "CouplingMetricRule",
     "DependencyAuditRule",
     "DependencyHygieneRule",
-    "DirectoryExistsRule",
     "DocstringCoverageRule",
-    "FileExistsRule",
     "GodClassRule",
     "LintingRule",
     "ProjectRule",

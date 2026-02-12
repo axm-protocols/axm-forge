@@ -107,4 +107,4 @@ uv run mypy src/        # type check
 
 ## License
 
-MIT
+Apache 2.0

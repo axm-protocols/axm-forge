@@ -3,6 +3,7 @@
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from axm_audit.core.rules.base import ProjectRule
 from axm_audit.models.results import CheckResult, Severity
@@ -65,7 +66,24 @@ class DirectoryExistsRule(ProjectRule):
 # Fields to check in pyproject.toml [project] section
 _REQUIRED_FIELDS = ("name", "description", "requires-python", "license", "authors")
 _OPTIONAL_FIELDS = ("classifiers", "readme")
-_TOTAL_FIELDS = len(_REQUIRED_FIELDS) + 3  # +3 for version, urls, optional
+_TOTAL_FIELDS = 9  # required(5) + version + urls + optional(2)
+
+
+def _count_fields(project: dict[str, Any]) -> int:
+    """Count present PEP 621 fields in project table."""
+    present = sum(1 for f in _REQUIRED_FIELDS if f in project)
+
+    # Version: static or dynamic
+    if "version" in project or "version" in project.get("dynamic", []):
+        present += 1
+
+    # URLs section
+    if project.get("urls"):
+        present += 1
+
+    # Optional fields
+    present += sum(1 for f in _OPTIONAL_FIELDS if f in project)
+    return present
 
 
 @dataclass
@@ -107,44 +125,20 @@ class PyprojectCompletenessRule(ProjectRule):
                 fix_hint="Fix pyproject.toml syntax",
             )
 
-        project = data.get("project", {})
-        present = 0
-
-        # Required fields
-        for f in _REQUIRED_FIELDS:
-            if f in project:
-                present += 1
-
-        # Version: static or dynamic
-        if "version" in project:
-            present += 1
-        elif "version" in project.get("dynamic", []):
-            present += 1
-
-        # URLs section
-        if project.get("urls"):
-            present += 1
-
-        # Optional fields
-        for f in _OPTIONAL_FIELDS:
-            if f in project:
-                present += 1
-
-        total = 9
-        score = int((present / total) * 100)
-        passed = score >= 80
+        present = _count_fields(data.get("project", {}))
+        score = int((present / _TOTAL_FIELDS) * 100)
 
         return CheckResult(
             rule_id=self.rule_id,
-            passed=passed,
-            message=f"pyproject.toml completeness: {present}/{total} fields",
-            severity=Severity.WARNING if not passed else Severity.INFO,
+            passed=score >= 80,
+            message=f"pyproject.toml completeness: {present}/{_TOTAL_FIELDS} fields",
+            severity=Severity.WARNING if score < 80 else Severity.INFO,
             details={
                 "fields_present": present,
-                "total_fields": total,
+                "total_fields": _TOTAL_FIELDS,
                 "score": score,
             },
             fix_hint=(
-                "Add missing PEP 621 fields to [project]" if not passed else None
+                "Add missing PEP 621 fields to [project]" if score < 80 else None
             ),
         )
