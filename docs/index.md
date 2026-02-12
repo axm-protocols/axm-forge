@@ -12,12 +12,11 @@ hide:
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm-audit/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-audit/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://axm-protocols.github.io/axm-audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-audit/gh-pages/badges/axm-init.json" alt="axm-init" /></a>
+  <a href="https://github.com/axm-protocols/axm-audit/actions/workflows/axm-audit.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-audit/gh-pages/badges/axm-audit.json" alt="axm-audit" /></a>
   <a href="https://coveralls.io/github/axm-protocols/axm-audit?branch=main"><img src="https://coveralls.io/repos/github/axm-protocols/axm-audit/badge.svg?branch=main" alt="Coverage" /></a>
   <a href="https://pypi.org/project/axm-audit/"><img src="https://img.shields.io/pypi/v/axm-audit" alt="PyPI" /></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+" />
-  <img src="https://img.shields.io/badge/typed-strict-blue.svg" alt="Typed" />
-  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff" /></a>
-  <a href="https://github.com/astral-sh/uv"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json" alt="uv" /></a>
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License" />
 </p>
 
@@ -64,7 +63,7 @@ print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics
 - 📐 **Practices** — Docstring coverage, bare except detection
 - 🔧 **Tooling** — CLI tool availability checks
-- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 142+ tests
+- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 164+ tests
 
 ---
 
