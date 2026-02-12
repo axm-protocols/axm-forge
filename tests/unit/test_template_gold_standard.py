@@ -371,13 +371,21 @@ DOCS_INDEX = (DOCS_DIR / "index.md.jinja").read_text()
 class TestTemplateAxmBadge:
     """README and docs must include the AXM check badge."""
 
-    def test_readme_has_axm_badge(self) -> None:
+    def test_readme_has_axm_init_badge(self) -> None:
         """README must link to the axm-init.json endpoint badge."""
         assert "axm-init.json" in README
 
-    def test_docs_index_has_axm_badge(self) -> None:
+    def test_readme_has_axm_audit_badge(self) -> None:
+        """README must link to the axm-audit.json endpoint badge."""
+        assert "axm-audit.json" in README
+
+    def test_docs_index_has_axm_init_badge(self) -> None:
         """docs/index.md must link to the axm-init.json endpoint badge."""
         assert "axm-init.json" in DOCS_INDEX
+
+    def test_docs_index_has_axm_audit_badge(self) -> None:
+        """docs/index.md must link to the axm-audit.json endpoint badge."""
+        assert "axm-audit.json" in DOCS_INDEX
 
 
 class TestTemplateAxmWorkflow:
@@ -407,3 +415,35 @@ class TestTemplateAxmWorkflow:
             TEMPLATE_ROOT / ".github" / "workflows" / "axm-init.yml.jinja"
         ).read_text()
         assert "axm-protocols/axm-init" in wf
+
+
+class TestTemplateAxmAuditWorkflow:
+    """Template must include axm-audit quality workflow."""
+
+    def test_axm_audit_workflow_exists(self) -> None:
+        """axm-audit.yml.jinja must exist in .github/workflows/."""
+        assert (
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-audit.yml.jinja"
+        ).exists()
+
+    def test_axm_audit_workflow_has_audit_step(self) -> None:
+        """Workflow must run axm-audit via uvx."""
+        wf = (
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-audit.yml.jinja"
+        ).read_text()
+        assert "uvx axm-audit audit" in wf
+
+    def test_axm_audit_workflow_has_badge_push(self) -> None:
+        """Workflow must push badge to gh-pages."""
+        wf = (
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-audit.yml.jinja"
+        ).read_text()
+        assert "peaceiris/actions-gh-pages" in wf
+
+    def test_axm_audit_workflow_fetches_logo(self) -> None:
+        """Workflow must fetch logo from axm-protocols/axm-audit repo."""
+        wf = (
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-audit.yml.jinja"
+        ).read_text()
+        assert "axm-protocols/axm-audit" in wf
+
