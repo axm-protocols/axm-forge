@@ -15,10 +15,9 @@ TEMPLATE_ROOT = (
     / "axm_init"
     / "templates"
     / "python-project"
-    / "{{package_name}}"
 )
 
-COPIER_YML = (TEMPLATE_ROOT.parent / "copier.yml").read_text()
+COPIER_YML = (TEMPLATE_ROOT / "copier.yml").read_text()
 PYPROJECT = (TEMPLATE_ROOT / "pyproject.toml.jinja").read_text()
 MKDOCS = (TEMPLATE_ROOT / "mkdocs.yml.jinja").read_text()
 README = (TEMPLATE_ROOT / "README.md.jinja").read_text()
