@@ -1,17 +1,17 @@
-"""Auto-discovery of AXMTool entry points for MCP registration.
+"""Auto-discovery of tool entry points for MCP registration.
 
 Scans ``axm.tools`` entry points from all installed packages
-(e.g. ``axm-bib``, ``axm-formal``) and registers each tool
+(e.g. ``axm``, ``axm-bib``, ``axm-formal``) and registers each tool
 as an MCP tool callable.
+
+No imports from axm core — uses duck typing via Protocol.
 """
 
 from __future__ import annotations
 
 import importlib.metadata
 import logging
-from typing import Any
-
-from axm.services.tools.base import AXMTool
+from typing import Any, Protocol, runtime_checkable
 
 __all__ = ["discover_tools", "register_tools"]
 
@@ -20,13 +20,23 @@ logger = logging.getLogger(__name__)
 _EP_GROUP = "axm.tools"
 
 
-def discover_tools() -> dict[str, AXMTool]:
+@runtime_checkable
+class ToolLike(Protocol):
+    """Minimal protocol for AXMTool-compatible objects."""
+
+    @property
+    def name(self) -> str: ...
+
+    def execute(self, **kwargs: Any) -> Any: ...
+
+
+def discover_tools() -> dict[str, Any]:
     """Discover and instantiate all AXMTool entry points.
 
     Returns:
-        Dict mapping tool name → AXMTool instance.
+        Dict mapping tool name → tool instance.
     """
-    tools: dict[str, AXMTool] = {}
+    tools: dict[str, Any] = {}
 
     for ep in importlib.metadata.entry_points(group=_EP_GROUP):
         try:
@@ -46,12 +56,12 @@ def discover_tools() -> dict[str, AXMTool]:
 
 def register_tools(
     mcp: Any,
-    tools: dict[str, AXMTool],
+    tools: dict[str, Any],
 ) -> None:
     """Register discovered tools as MCP tool callables.
 
     Each tool becomes a callable ``tool_name(**kwargs) -> dict``
-    that delegates to ``AXMTool.execute(**kwargs)``.
+    that delegates to ``tool.execute(**kwargs)``.
 
     Args:
         mcp: FastMCP server instance.
@@ -62,7 +72,7 @@ def register_tools(
         logger.info("Registered MCP tool: %s", name)
 
 
-def _register_one(mcp: Any, name: str, tool: AXMTool) -> None:
+def _register_one(mcp: Any, name: str, tool: Any) -> None:
     """Register a single tool, capturing in closure."""
 
     @mcp.tool(name=name)  # type: ignore[untyped-decorator]

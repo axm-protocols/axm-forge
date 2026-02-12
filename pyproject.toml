@@ -14,14 +14,14 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
-    "axm",
     "mcp[cli]>=1.25.0",
 ]
 
 [project.optional-dependencies]
+core = ["axm"]
 bib = ["axm-bib"]
 formal = ["axm-formal"]
-all = ["axm-bib", "axm-formal"]
+all = ["axm", "axm-bib", "axm-formal"]
 
 [project.scripts]
 axm-mcp = "axm_mcp:main"
