@@ -16,6 +16,10 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
       - run: uv sync --all-groups
+      - name: Configure git for copier
+        run: |
+          git config --global user.name "CI Bot"
+          git config --global user.email "ci@example.com"
       - run: uv run pytest --no-cov
 
   publish:
