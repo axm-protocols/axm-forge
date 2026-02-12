@@ -90,22 +90,22 @@ python_matrix:
 
 _tasks:
   # Copy LICENSE file(s) from bundled templates
-  - command: "cp {{ _copier_conf.src_path }}/licences/{{ license_folder }}/* ./{{ package_name }}/"
+  - command: "cp {{ _copier_conf.src_path }}/licences/{{ license_folder }}/* ./"
     when: "{{ true }}"
   # Git init FIRST - required for hatch-vcs to detect version
-  - command: "cd {{ package_name }} && git init && git branch -M main"
+  - command: "git init && git branch -M main"
     when: "{{ true }}"
-  - command: "cd {{ package_name }} && uv python pin {{ python_min_version }}"
+  - command: "uv python pin {{ python_min_version }}"
     when: "{{ true }}"
-  - command: "cd {{ package_name }} && uv add pydantic pydantic-settings loguru"
+  - command: "uv add pydantic pydantic-settings loguru"
     when: "{{ true }}"
-  - command: "cd {{ package_name }} && uv add --group dev pytest pytest-cov pytest-mock ruff mypy pre-commit pip-audit"
+  - command: "uv add --group dev pytest pytest-cov pytest-mock ruff mypy pre-commit pip-audit"
     when: "{{ true }}"
-  - command: "cd {{ package_name }} && uv add --group docs mkdocs-material 'mkdocstrings[python]' mkdocs-gen-files mkdocs-literate-nav"
+  - command: "uv add --group docs mkdocs-material 'mkdocstrings[python]' mkdocs-gen-files mkdocs-literate-nav"
     when: "{{ true }}"
   # Commit AFTER all deps installed so uv.lock is included
-  - command: "cd {{ package_name }} && git add . && git commit -m 'feat: initial scaffold'"
+  - command: "git add . && git commit -m 'feat: initial scaffold'"
     when: "{{ true }}"
-  - command: "cd {{ package_name }} && uv run pre-commit install"
+  - command: "uv run pre-commit install"
     when: "{{ true }}"
   - "echo '✅ Project scaffolded! Run: cd {{ package_name }} && make check'"

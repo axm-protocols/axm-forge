@@ -12,7 +12,7 @@ repos:
     rev: v1.14.1
     hooks:
       - id: mypy
-        additional_dependencies: [pydantic, cyclopts]
+        additional_dependencies: [pydantic, cyclopts, pytest]
 
   # Conventional commits
   - repo: https://github.com/compilerla/conventional-pre-commit
