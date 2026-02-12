@@ -18,7 +18,7 @@
 ## Features
 
 - 🚀 **Scaffold** — Bootstrap production-grade Python projects with Copier templates
-- 📋 **Check** — Score any project against the AXM gold standard (37 checks, A–F grade)
+- 📋 **Check** — Score any project against the AXM gold standard (39 checks, A–F grade)
 - 📦 **Reserve** — Claim a package name on PyPI before you're ready to publish
 
 ## Installation
@@ -64,7 +64,7 @@ Scaffold a production-grade Python project (src layout, PEP 621, CI, docs).
 
 ### `axm-init check`
 
-Score a project against the AXM gold standard (38 checks across 7 categories).
+Score a project against the AXM gold standard (39 checks across 7 categories).
 
 | Option | Short | Default | Description |
 |---|---|---|---|

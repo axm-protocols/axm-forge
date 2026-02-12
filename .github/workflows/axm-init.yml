@@ -18,6 +18,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
       - run: uv sync --all-groups
+      - run: uv run pre-commit install
 
       - name: Run AXM Check
         id: check
