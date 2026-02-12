@@ -151,6 +151,10 @@ def gold_project(tmp_path: Path) -> Path:
     docs = tmp_path / "docs"
     docs.mkdir()
     (docs / "gen_ref_pages.py").write_text("")
+    # git hooks
+    hooks_dir = tmp_path / ".git" / "hooks"
+    hooks_dir.mkdir(parents=True)
+    (hooks_dir / "pre-commit").write_text("#!/bin/sh\n")
     return tmp_path
 
 

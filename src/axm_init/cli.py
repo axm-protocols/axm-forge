@@ -149,6 +149,21 @@ def init(
         },
     )
     result = copier_adapter.copy(copier_config)
+
+    # Activate pre-commit hooks in the scaffolded project
+    if result.success:
+        import subprocess
+
+        try:
+            subprocess.run(
+                ["uv", "run", "pre-commit", "install"],
+                cwd=target_path,
+                capture_output=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            pass  # uv/pre-commit not available — skip silently
+
     _print_init_result(result, project_name, target_path, json_output=json_output)
 
 
@@ -162,11 +177,11 @@ def reserve(
     author: Annotated[
         str,
         cyclopts.Parameter(name=["--author", "-a"], help="Author name"),
-    ] = "Gabriel Jarry",
+    ] = "John Doe",
     email: Annotated[
         str,
         cyclopts.Parameter(name=["--email", "-e"], help="Author email"),
-    ] = "jarry.gabriel@gmail.com",
+    ] = "john.doe@example.com",
     dry_run: Annotated[
         bool,
         cyclopts.Parameter(name=["--dry-run"], help="Skip actual publish"),

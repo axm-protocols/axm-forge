@@ -55,6 +55,7 @@ from axm_init.checks.tooling import (
     check_precommit_basic,
     check_precommit_conventional,
     check_precommit_exists,
+    check_precommit_installed,
     check_precommit_mypy,
     check_precommit_ruff,
 )
@@ -326,6 +327,10 @@ def gold_project(tmp_path: Path) -> Path:
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
     (docs_dir / "gen_ref_pages.py").write_text("")
+    # git hooks
+    hooks_dir = tmp_path / ".git" / "hooks"
+    hooks_dir.mkdir(parents=True)
+    (hooks_dir / "pre-commit").write_text("#!/bin/sh\n")
     return tmp_path
 
 
@@ -565,6 +570,39 @@ class TestCheckMakefile:
         r = check_makefile(tmp_path)
         assert r.passed is False
         assert len(r.details) > 0  # reports missing targets
+
+
+class TestCheckPrecommitInstalled:
+    def test_pass_hooks_installed(self, gold_project: Path) -> None:
+        """Config exists + .git/hooks/pre-commit exists -> PASS."""
+        r = check_precommit_installed(gold_project)
+        assert r.passed is True
+        assert r.weight == 2
+
+    def test_pass_no_config(self, empty_project: Path) -> None:
+        """No .pre-commit-config.yaml -> PASS (nothing to install)."""
+        r = check_precommit_installed(empty_project)
+        assert r.passed is True
+
+    def test_fail_config_no_hooks(self, tmp_path: Path) -> None:
+        """Config exists but no .git/hooks/pre-commit -> FAIL."""
+        (tmp_path / ".pre-commit-config.yaml").write_text("repos:\n")
+        r = check_precommit_installed(tmp_path)
+        assert r.passed is False
+        assert "pre-commit install" in r.fix
+
+    def test_fail_git_dir_no_hooks(self, tmp_path: Path) -> None:
+        """.git/ exists but no hooks/ -> FAIL."""
+        (tmp_path / ".pre-commit-config.yaml").write_text("repos:\n")
+        (tmp_path / ".git").mkdir()
+        r = check_precommit_installed(tmp_path)
+        assert r.passed is False
+
+    def test_fail_no_git_dir(self, tmp_path: Path) -> None:
+        """Config exists but not a git repo -> FAIL."""
+        (tmp_path / ".pre-commit-config.yaml").write_text("repos:\n")
+        r = check_precommit_installed(tmp_path)
+        assert r.passed is False
 
 
 # ─────────────────────────────────────────────────────────────────────────────

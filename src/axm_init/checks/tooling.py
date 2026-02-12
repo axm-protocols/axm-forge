@@ -150,6 +150,41 @@ def check_precommit_basic(project: Path) -> CheckResult:
     )
 
 
+def check_precommit_installed(project: Path) -> CheckResult:
+    """Check 19: pre-commit hooks activated in .git/hooks/."""
+    config = project / ".pre-commit-config.yaml"
+    if not config.exists():
+        return CheckResult(
+            name="tooling.precommit_installed",
+            category="tooling",
+            passed=True,
+            weight=2,
+            message="No pre-commit config (nothing to install)",
+            details=[],
+            fix="",
+        )
+    hook = project / ".git" / "hooks" / "pre-commit"
+    if hook.exists():
+        return CheckResult(
+            name="tooling.precommit_installed",
+            category="tooling",
+            passed=True,
+            weight=2,
+            message="Pre-commit hooks installed",
+            details=[],
+            fix="",
+        )
+    return CheckResult(
+        name="tooling.precommit_installed",
+        category="tooling",
+        passed=False,
+        weight=2,
+        message="Pre-commit hooks not installed",
+        details=[".pre-commit-config.yaml exists but hooks are not activated"],
+        fix="Run 'pre-commit install' to activate hooks.",
+    )
+
+
 def check_makefile(project: Path) -> CheckResult:
     """Check 18: Makefile with standard targets."""
     path = project / "Makefile"

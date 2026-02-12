@@ -49,6 +49,7 @@ from axm_init.checks.tooling import (
     check_precommit_basic,
     check_precommit_conventional,
     check_precommit_exists,
+    check_precommit_installed,
     check_precommit_mypy,
     check_precommit_ruff,
 )
@@ -82,6 +83,7 @@ ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = {
         check_precommit_mypy,
         check_precommit_conventional,
         check_precommit_basic,
+        check_precommit_installed,
         check_makefile,
     ],
     "docs": [

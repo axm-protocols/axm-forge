@@ -2,12 +2,12 @@
 
 ## Overview
 
-`axm-init check` scores your project against the AXM gold standard — a set of 38 checks derived from the best practices embedded in the project template and CI configurations.
+`axm-init check` scores your project against the AXM gold standard — a set of 39 checks derived from the best practices embedded in the project template and CI configurations.
 
 ## Grade Scale
 
 | Grade | Score Range | Meaning |
-|-------|-----------|---------| 
+|-------|-----------|---------|
 | **A** 🏆 | 90–100 | Gold standard — production-ready |
 | **B** ✅ | 75–89 | Good — minor improvements needed |
 | **C** ⚠️ | 60–74 | Acceptable — several gaps |
@@ -16,7 +16,7 @@
 
 ## Scoring System
 
-Each of the 38 checks has a **weight** (1–4 points), totaling **100 points**.
+Each of the 39 checks has a **weight** (1–4 points), totaling **102 points**.
 
 ```
 Score = (earned points / total points) × 100
@@ -56,7 +56,7 @@ GitHub Actions CI workflow:
 | `ci.trusted_publishing` | 2 | OIDC Trusted Publishing without API token fallback |
 | `ci.dependabot` | 2 | `.github/dependabot.yml` configured |
 
-### tooling (14 pts)
+### tooling (16 pts)
 
 Developer tooling configuration:
 
@@ -67,6 +67,7 @@ Developer tooling configuration:
 | `tooling.precommit_mypy` | 2 | MyPy hook |
 | `tooling.precommit_conventional` | 2 | Conventional commits hook |
 | `tooling.precommit_basic` | 1 | trailing-whitespace, end-of-file-fixer, check-yaml |
+| `tooling.precommit_installed` | 2 | Pre-commit hooks activated in `.git/hooks/` |
 | `tooling.makefile` | 4 | All standard targets (install, check, lint, format, test, audit, clean, docs-serve) |
 
 ### docs (14 pts)

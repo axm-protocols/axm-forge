@@ -42,13 +42,13 @@ Use in CI to enforce quality gates:
 axm-init check --json | jq -e '.score >= 90'
 ```
 
-## What Gets Checked (38 Checks)
+## What Gets Checked (39 Checks)
 
 | Category | Checks | Points |
 |----------|--------|--------|
 | **pyproject** | exists, urls, dynamic_version, mypy, ruff, pytest, coverage, classifiers, ruff_rules | 27 |
 | **ci** | workflow, lint job, test job, security job, coverage upload, trusted publishing, dependabot | 18 |
-| **tooling** | pre-commit (×5), Makefile targets | 14 |
+| **tooling** | pre-commit (×5), hooks installed, Makefile targets | 16 |
 | **docs** | mkdocs.yml, Diátaxis nav, plugins, gen_ref_pages, README | 14 |
 | **structure** | src/ layout, py.typed, tests/, CONTRIBUTING, LICENSE, uv.lock, .python-version | 17 |
 | **deps** | dev group, docs group | 5 |
