@@ -388,11 +388,11 @@ class TestTemplateAxmWorkflow:
         assert (TEMPLATE_ROOT / ".github" / "workflows" / "axm-init.yml.jinja").exists()
 
     def test_axm_workflow_has_audit_step(self) -> None:
-        """Workflow must run axm_init.cli audit."""
+        """Workflow must run axm-init audit via uvx."""
         wf = (
             TEMPLATE_ROOT / ".github" / "workflows" / "axm-init.yml.jinja"
         ).read_text()
-        assert "axm_init.cli audit" in wf
+        assert "uvx axm-init audit" in wf
 
     def test_axm_workflow_has_badge_push(self) -> None:
         """Workflow must push badge to gh-pages."""
