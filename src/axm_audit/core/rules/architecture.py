@@ -4,6 +4,7 @@ import ast
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from axm_audit.core.rules.base import ProjectRule
 from axm_audit.models.results import CheckResult, Severity
@@ -40,6 +41,9 @@ def _extract_imports(tree: ast.Module) -> list[str]:
 
     Only scans top-level imports to avoid false positives from lazy/deferred
     imports inside functions (which don't cause circular import issues at runtime).
+
+    Counts source modules, not individual imported symbols. For example,
+    ``from foo import A, B`` counts as a single import of ``foo``.
     """
     imports: list[str] = []
     for node in tree.body:
@@ -49,9 +53,6 @@ def _extract_imports(tree: ast.Module) -> list[str]:
         elif isinstance(node, ast.ImportFrom):
             if node.module:
                 imports.append(node.module)
-            for alias in node.names:
-                if node.module:
-                    imports.append(f"{node.module}.{alias.name}")
     return imports
 
 
@@ -254,7 +255,8 @@ class GodClassRule(ProjectRule):
 
 def _compute_coupling_metrics(
     src_path: Path,
-) -> dict[str, int | float]:
+    threshold: int = 10,
+) -> dict[str, Any]:
     """Compute fan-in/fan-out coupling metrics for all modules."""
     fan_out: dict[str, int] = {}
     fan_in: dict[str, int] = defaultdict(int)
@@ -272,20 +274,40 @@ def _compute_coupling_metrics(
             fan_in[imp] += 1
 
     if not fan_out:
-        return {"max_fan_out": 0, "max_fan_in": 0, "avg_coupling": 0.0}
+        return {
+            "max_fan_out": 0,
+            "max_fan_in": 0,
+            "avg_coupling": 0.0,
+            "n_over_threshold": 0,
+            "over_threshold": [],
+        }
+
+    over_unsorted = [
+        {"module": name, "fan_out": fo}
+        for name, fo in fan_out.items()
+        if fo > threshold
+    ]
+    over_unsorted.sort(key=lambda x: x.get("fan_out", 0), reverse=True)  # type: ignore[return-value,arg-type]
+    over = over_unsorted
 
     return {
         "max_fan_out": max(fan_out.values()),
         "max_fan_in": max(fan_in.values()) if fan_in else 0,
         "avg_coupling": sum(fan_out.values()) / len(fan_out),
+        "n_over_threshold": len(over),
+        "over_threshold": over,
     }
 
 
 @dataclass
 class CouplingMetricRule(ProjectRule):
-    """Measure module coupling via fan-in/fan-out analysis."""
+    """Measure module coupling via fan-in/fan-out analysis.
 
-    max_avg_coupling: int = 10
+    Scores based on the number of modules whose fan-out exceeds
+    the threshold: ``score = 100 - N(over) * 5``.
+    """
+
+    fan_out_threshold: int = 10
 
     @property
     def rule_id(self) -> str:
@@ -301,25 +323,46 @@ class CouplingMetricRule(ProjectRule):
                 passed=True,
                 message="src/ directory not found",
                 severity=Severity.INFO,
-                details={"max_fan_out": 0, "avg_coupling": 0.0, "score": 100},
+                details={
+                    "max_fan_out": 0,
+                    "avg_coupling": 0.0,
+                    "score": 100,
+                    "n_over_threshold": 0,
+                    "over_threshold": [],
+                },
             )
 
-        metrics = _compute_coupling_metrics(src_path)
-        avg = metrics["avg_coupling"]
-        score = max(0, 100 - int(avg * 5))
+        metrics = _compute_coupling_metrics(src_path, self.fan_out_threshold)
+        n_over: int = metrics["n_over_threshold"]
+        over: list[dict[str, Any]] = metrics["over_threshold"]
+        avg: float = metrics["avg_coupling"]
+        score = max(0, 100 - n_over * 5)
+
+        if n_over:
+            penalty = n_over * 5
+            msg = f"Coupling: {n_over} module(s) above threshold (-{penalty} pts)"
+        else:
+            max_fo = metrics["max_fan_out"]
+            msg = f"Coupling: 0 modules above threshold (max fan-out: {max_fo})"
+
+        # Build fix_hint with module listing
+        hint = None
+        if over:
+            lines = [f"  \u2022 {m['module']} (fan-out: {m['fan_out']})" for m in over]
+            hint = "Reduce imports in:\n" + "\n".join(lines)
 
         return CheckResult(
             rule_id=self.rule_id,
-            passed=avg <= self.max_avg_coupling,
-            message=f"Avg coupling: {avg:.1f} (max fan-out: {metrics['max_fan_out']})",
-            severity=Severity.WARNING if avg > self.max_avg_coupling else Severity.INFO,
+            passed=n_over == 0,
+            message=msg,
+            severity=Severity.WARNING if n_over else Severity.INFO,
             details={
                 "max_fan_out": metrics["max_fan_out"],
                 "max_fan_in": metrics["max_fan_in"],
                 "avg_coupling": round(avg, 2),
                 "score": score,
+                "n_over_threshold": n_over,
+                "over_threshold": over,
             },
-            fix_hint="Reduce imports by consolidating or using dependency injection"
-            if avg > self.max_avg_coupling
-            else None,
+            fix_hint=hint,
         )

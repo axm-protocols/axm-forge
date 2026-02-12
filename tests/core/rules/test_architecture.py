@@ -120,17 +120,18 @@ class TestCouplingMetricRule:
         src = tmp_path / "src"
         src.mkdir()
         (src / "__init__.py").write_text("")
-        # Create many modules
+        # Create many distinct modules
         for i in range(15):
             (src / f"mod_{i}.py").write_text(f"val_{i} = {i}\n")
-        # Create hub module that imports all
-        imports = "\n".join(f"from src import mod_{i}" for i in range(15))
+        # Create hub module that imports all (distinct module names)
+        imports = "\n".join(f"import mod_{i}" for i in range(15))
         (src / "hub.py").write_text(imports)
 
         rule = CouplingMetricRule()
         result = rule.check(tmp_path)
         assert result.details is not None
         assert result.details["max_fan_out"] >= 10
+        assert result.details["n_over_threshold"] >= 1
 
     def test_rule_id_format(self) -> None:
         """Rule ID should be ARCH_COUPLING."""

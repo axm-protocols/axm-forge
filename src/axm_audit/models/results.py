@@ -61,22 +61,25 @@ class AuditResult(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def quality_score(self) -> float | None:
-        """Weighted average across 6 code-quality categories.
+        """Weighted average across 8 code-quality categories.
 
         Categories and weights:
-            Linting (20%), Type Safety (20%), Complexity (15%),
-            Security (15%), Dependencies (15%), Testing (15%).
+            Linting (20%), Type Safety (15%), Complexity (15%),
+            Security (10%), Dependencies (10%), Testing (15%),
+            Architecture (10%), Practices (5%).
 
         Structure is NOT scored here (handled by axm-init).
         Returns None if no scored checks are present.
         """
         category_weights = {
             "lint": 0.20,
-            "type": 0.20,
+            "type": 0.15,
             "complexity": 0.15,
-            "security": 0.15,
-            "deps": 0.15,
+            "security": 0.10,
+            "deps": 0.10,
             "testing": 0.15,
+            "architecture": 0.10,
+            "practices": 0.05,
         }
 
         # Map rule_id prefixes to categories
@@ -85,10 +88,15 @@ class AuditResult(BaseModel):
             "QUALITY_TYPE": "type",
             "QUALITY_COMPLEXITY": "complexity",
             "QUALITY_SECURITY": "security",
-            "PRACTICE_SECURITY": "security",
             "DEPS_AUDIT": "deps",
             "DEPS_HYGIENE": "deps",
             "QUALITY_COVERAGE": "testing",
+            "ARCH_COUPLING": "architecture",
+            "ARCH_CIRCULAR": "architecture",
+            "ARCH_GOD_CLASS": "architecture",
+            "PRACTICE_DOCSTRING": "practices",
+            "PRACTICE_BARE_EXCEPT": "practices",
+            "PRACTICE_SECURITY": "practices",
         }
 
         # Collect scores by category

@@ -165,7 +165,7 @@ def complex_fn(x: int, y: int, z: int) -> str:
 
 
 class TestAuditResultScoring:
-    """Tests for AuditResult quality_score and grade (6-category model)."""
+    """Tests for AuditResult quality_score and grade (8-category model)."""
 
     def _make_check(self, rule_id: str, score: float):
         """Helper to create a CheckResult with a score."""
@@ -179,7 +179,7 @@ class TestAuditResultScoring:
         )
 
     def test_quality_score_weighted_average(self) -> None:
-        """quality_score with all 6 categories at 100 → 100."""
+        """quality_score with all 8 categories at 100 → 100."""
         from axm_audit.models.results import AuditResult
 
         result = AuditResult(
@@ -191,6 +191,10 @@ class TestAuditResultScoring:
                 self._make_check("DEPS_AUDIT", 100),
                 self._make_check("DEPS_HYGIENE", 100),
                 self._make_check("QUALITY_COVERAGE", 100),
+                self._make_check("ARCH_COUPLING", 100),
+                self._make_check("PRACTICE_DOCSTRING", 100),
+                self._make_check("PRACTICE_BARE_EXCEPT", 100),
+                self._make_check("PRACTICE_SECURITY", 100),
             ]
         )
         assert result.quality_score == 100.0
@@ -202,12 +206,12 @@ class TestAuditResultScoring:
         result = AuditResult(
             checks=[
                 self._make_check("QUALITY_LINT", 80),  # 80 * 0.20 = 16
-                self._make_check("QUALITY_TYPE", 60),  # 60 * 0.20 = 12
+                self._make_check("QUALITY_TYPE", 60),  # 60 * 0.15 = 9
                 self._make_check("QUALITY_COMPLEXITY", 100),  # 100 * 0.15 = 15
             ]
         )
-        # Only 3 of 6 categories present: 16 + 12 + 15 = 43
-        assert result.quality_score == 43.0
+        # Only 3 of 8 categories present: 16 + 9 + 15 = 40
+        assert result.quality_score == 40.0
 
     def test_quality_score_none_without_quality_checks(self) -> None:
         """quality_score is None if no quality checks present."""
@@ -225,7 +229,7 @@ class TestAuditResultScoring:
         from axm_audit.models.results import AuditResult
 
         def make_result(score: float) -> AuditResult:
-            # Provide all 6 categories so score = input score
+            # Provide all 8 categories so score = input score
             return AuditResult(
                 checks=[
                     self._make_check("QUALITY_LINT", score),
@@ -235,6 +239,8 @@ class TestAuditResultScoring:
                     self._make_check("DEPS_AUDIT", score),
                     self._make_check("DEPS_HYGIENE", score),
                     self._make_check("QUALITY_COVERAGE", score),
+                    self._make_check("ARCH_COUPLING", score),
+                    self._make_check("PRACTICE_DOCSTRING", score),
                 ]
             )
 
