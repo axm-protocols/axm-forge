@@ -21,6 +21,14 @@ pip install axm-audit
 
 ## Step 1: Run an Audit
 
+### CLI
+
+```bash
+axm-audit audit .
+```
+
+### Python API
+
 ```python
 from pathlib import Path
 from axm_audit import audit_project
@@ -48,8 +56,14 @@ for check in result.checks:
 
 Focus on a specific area:
 
+```bash
+# CLI
+axm-audit audit . --category quality
+axm-audit audit . --category security
+```
+
 ```python
-# Quality checks only (lint + type + complexity)
+# Python API
 result = audit_project(Path("."), category="quality")
 
 # Quick mode (lint + type only, fastest)
@@ -57,7 +71,21 @@ result = audit_project(Path("."), quick=True)
 ```
 
 !!! tip "Available categories"
-    `quality`, `architecture`, `practice`, `structure`
+    `quality`, `security`, `dependencies`, `testing`,
+    `architecture`, `practice`, `structure`, `tooling`
+
+## Step 4: Get JSON Output
+
+```bash
+axm-audit audit . --json
+```
+
+```python
+from axm_audit.formatters import format_json
+import json
+
+print(json.dumps(format_json(result), indent=2))
+```
 
 ## Next Steps
 

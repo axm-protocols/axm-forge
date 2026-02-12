@@ -55,7 +55,17 @@ class TestAuditProjectFunction:
             audit_project(tmp_path, category="invalid_category")
 
     @pytest.mark.parametrize(
-        "category", ["structure", "quality", "architecture", "practice"]
+        "category",
+        [
+            "structure",
+            "quality",
+            "architecture",
+            "practice",
+            "security",
+            "dependencies",
+            "testing",
+            "tooling",
+        ],
     )
     def test_audit_project_category_filtering(self, tmp_path, category):
         """Test that category filtering works for all valid categories."""
@@ -93,7 +103,7 @@ class TestGetRulesForCategory:
         from axm_audit import get_rules_for_category
 
         rules = get_rules_for_category(None)
-        assert len(rules) == 13  # All 13 rules
+        assert len(rules) == 20  # All 20 rules
 
     @pytest.mark.parametrize(
         "category,expected_min",
@@ -102,6 +112,10 @@ class TestGetRulesForCategory:
             ("quality", 1),
             ("architecture", 1),
             ("practice", 1),
+            ("security", 1),
+            ("dependencies", 1),
+            ("testing", 1),
+            ("tooling", 1),
         ],
     )
     def test_get_rules_by_category(self, category, expected_min):

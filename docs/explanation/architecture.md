@@ -7,6 +7,7 @@
 ```mermaid
 graph TD
     subgraph "Public API"
+        CLI["CLI (cyclopts)"]
         AuditFn["audit_project(path)"]
     end
 
@@ -16,39 +17,63 @@ graph TD
 
     subgraph "Rule Categories"
         Quality["Quality Rules"]
+        Security["Security Rules"]
+        Deps["Dependency Rules"]
+        Testing["Testing Rules"]
         Arch["Architecture Rules"]
         Practice["Practice Rules"]
         Structure["Structure Rules"]
+        Tooling["Tooling Rules"]
     end
 
     subgraph "Tools"
-        Ruff["Ruff (sys.executable)"]
-        MyPy["mypy.api.run()"]
-        Radon["radon.complexity.cc_visit()"]
+        Ruff["Ruff"]
+        MyPy["mypy.api"]
+        Radon["radon"]
+        Bandit["Bandit"]
+        PipAudit["pip-audit"]
+        Deptry["deptry"]
+        PytestCov["pytest-cov"]
         AST["ast module"]
         FS["pathlib"]
     end
 
     subgraph "Output"
         Result["AuditResult"]
+        Formatters["format_report / format_json"]
         Reporters["JsonReporter / MarkdownReporter"]
     end
 
+    CLI --> AuditFn
     AuditFn --> Rules
     Rules --> Quality
+    Rules --> Security
+    Rules --> Deps
+    Rules --> Testing
     Rules --> Arch
     Rules --> Practice
     Rules --> Structure
+    Rules --> Tooling
     Quality --> Ruff
     Quality --> MyPy
     Quality --> Radon
+    Security --> Bandit
+    Deps --> PipAudit
+    Deps --> Deptry
+    Testing --> PytestCov
     Arch --> AST
     Practice --> AST
     Structure --> FS
+    Tooling --> FS
     Quality --> Result
+    Security --> Result
+    Deps --> Result
+    Testing --> Result
     Arch --> Result
     Practice --> Result
     Structure --> Result
+    Tooling --> Result
+    Result --> Formatters
     Result --> Reporters
 ```
 
@@ -56,7 +81,8 @@ graph TD
 
 ### 1. Public API
 
-- **`audit_project()`** — Main entry point (`__init__.py`)
+- **CLI** — `axm-audit audit .` via cyclopts
+- **`audit_project()`** — Python entry point
 - **`get_rules_for_category()`** — Get rule instances, optionally filtered
 
 Both return typed Pydantic models for safe agent consumption.
@@ -65,12 +91,18 @@ Both return typed Pydantic models for safe agent consumption.
 
 `get_rules_for_category()` returns rule instances from the `RULES_BY_CATEGORY` registry:
 
-| Category | Rules |
-|---|---|
-| `quality` | `LintingRule`, `TypeCheckRule`, `ComplexityRule` |
-| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule` |
-| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule` |
-| `structure` | `FileExistsRule`, `DirectoryExistsRule` |
+| Category | Rules | Count |
+|---|---|---|
+| `quality` | `LintingRule`, `TypeCheckRule`, `ComplexityRule` | 3 |
+| `security` | `SecurityRule` | 1 |
+| `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
+| `testing` | `TestCoverageRule` | 1 |
+| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule` | 3 |
+| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule` | 3 |
+| `structure` | `FileExistsRule`, `DirectoryExistsRule` | 4 instances |
+| `tooling` | `ToolAvailabilityRule` | 3 instances |
+
+**Total: 20 rule instances across 8 categories.**
 
 ### 3. Tool Integration
 
@@ -81,35 +113,54 @@ Each rule wraps an external tool using Python APIs where possible:
 | `LintingRule` | Ruff | `subprocess.run([sys.executable, "-m", "ruff", ...])` |
 | `TypeCheckRule` | MyPy | `mypy.api.run(["--output", "json", ...])` |
 | `ComplexityRule` | Radon | `radon.complexity.cc_visit(source)` |
+| `SecurityRule` | Bandit | `subprocess.run(["bandit", "-r", "-f", "json", ...])` |
+| `DependencyAuditRule` | pip-audit | `subprocess.run([..., "-m", "pip_audit", ...])` |
+| `DependencyHygieneRule` | deptry | `subprocess.run([..., "-m", "deptry", ...])` |
+| `TestCoverageRule` | pytest-cov | `subprocess.run([..., "-m", "pytest", "--cov", ...])` |
 | Architecture rules | Python `ast` | Direct AST parsing |
 | Structure rules | `pathlib` | Filesystem checks |
+| `ToolAvailabilityRule` | `shutil.which` | PATH lookup |
 
-### 4. Models
+### 4. Scoring
+
+6-category weighted composite (see [Scoring & Grades](scoring.md)):
+
+| Category | Weight |
+|---|---|
+| Linting | 20% |
+| Type Safety | 20% |
+| Complexity | 15% |
+| Security | 15% |
+| Dependencies | 15% |
+| Testing | 15% |
+
+### 5. Models
 
 `AuditResult`, `CheckResult`, `Severity` — Pydantic models with `extra = "forbid"` for strict validation.
 
-### 5. Reporters
+### 6. Output
 
-`JsonReporter` and `MarkdownReporter` render `AuditResult` for different consumers.
+- **Formatters**: `format_report()` (human-readable), `format_json()` (machine-readable)
+- **Reporters**: `JsonReporter`, `MarkdownReporter` for rendering `AuditResult`
 
 ## Data Flow
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant API as audit_project()
+    participant CLI as CLI / audit_project()
     participant Auditor
     participant Rules
     participant Tools
 
-    User->>API: audit_project(Path("."))
-    API->>Auditor: get_rules_for_category(category)
-    Auditor-->>API: list[ProjectRule]
+    User->>CLI: axm-audit audit . / audit_project(Path("."))
+    CLI->>Auditor: get_rules_for_category(category)
+    Auditor-->>CLI: list[ProjectRule] (20 rules)
     loop For each rule
-        API->>Rules: rule.check(project_path)
-        Rules->>Tools: Ruff / MyPy / Radon / AST
+        CLI->>Rules: rule.check(project_path)
+        Rules->>Tools: Ruff / MyPy / Radon / Bandit / etc.
         Tools-->>Rules: raw output
-        Rules-->>API: CheckResult
+        Rules-->>CLI: CheckResult
     end
-    API-->>User: AuditResult (score, grade, checks)
+    CLI-->>User: AuditResult (score, grade, checks)
 ```

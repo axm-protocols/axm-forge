@@ -25,17 +25,26 @@ hide:
 
 ## What is axm-audit?
 
-`axm-audit` is a Python library that audits project quality across multiple layers. It wraps established tools into a single composite score:
+`axm-audit` is a Python library and CLI that audits project quality across 6 scored categories, producing a composite 0–100 score:
 
-| Layer | Tool | Weight |
+| Category | Tool | Weight |
 |---|---|---|
-| **Linting** | Ruff | 40% |
-| **Type Checking** | MyPy | 35% |
-| **Complexity** | Radon | 25% |
+| **Linting** | Ruff | 20% |
+| **Type Safety** | mypy | 20% |
+| **Complexity** | radon | 15% |
+| **Security** | Bandit | 15% |
+| **Dependencies** | pip-audit + deptry | 15% |
+| **Testing** | pytest-cov | 15% |
 
 ## Quick Example
 
+```bash
+# CLI
+axm-audit audit .
+```
+
 ```python
+# Python API
 from pathlib import Path
 from axm_audit import audit_project
 
@@ -46,13 +55,16 @@ print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
 
 ## Features
 
-- 🔍 **Linting** — Score code quality with Ruff (800+ rules)
-- 🔒 **Type Checking** — Strict mypy analysis via `mypy.api.run()`
+- 🔍 **Linting** — Ruff analysis (800+ rules)
+- 🔒 **Type Safety** — Strict mypy via `mypy.api.run()`
 - 📊 **Complexity** — Cyclomatic complexity via radon Python API
-- 🛡️ **Security** — Pattern-based vulnerability detection
+- 🛡️ **Security** — Bandit integration + hardcoded secrets detection
+- 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry)
+- 🧪 **Testing** — Coverage enforcement via pytest-cov
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics
 - 📐 **Practices** — Docstring coverage, bare except detection
-- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 106+ tests
+- 🔧 **Tooling** — CLI tool availability checks
+- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 142+ tests
 
 ---
 

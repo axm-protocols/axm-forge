@@ -10,19 +10,33 @@ from axm_audit.core.rules import (
     CircularImportRule,
     ComplexityRule,
     CouplingMetricRule,
+    DependencyAuditRule,
+    DependencyHygieneRule,
     DirectoryExistsRule,
     DocstringCoverageRule,
     FileExistsRule,
     GodClassRule,
     LintingRule,
     SecurityPatternRule,
+    SecurityRule,
+    TestCoverageRule,
+    ToolAvailabilityRule,
     TypeCheckRule,
 )
 from axm_audit.core.rules.base import ProjectRule
 from axm_audit.models.results import AuditResult
 
 # Valid audit categories
-VALID_CATEGORIES = {"structure", "quality", "architecture", "practice"}
+VALID_CATEGORIES = {
+    "structure",
+    "quality",
+    "architecture",
+    "practice",
+    "security",
+    "dependencies",
+    "testing",
+    "tooling",
+}
 
 # Rule categories for filtering
 RULES_BY_CATEGORY: dict[str, list[type[ProjectRule]]] = {
@@ -30,6 +44,10 @@ RULES_BY_CATEGORY: dict[str, list[type[ProjectRule]]] = {
     "quality": [LintingRule, TypeCheckRule, ComplexityRule],
     "architecture": [CircularImportRule, GodClassRule, CouplingMetricRule],
     "practice": [DocstringCoverageRule, BareExceptRule, SecurityPatternRule],
+    "security": [SecurityRule],
+    "dependencies": [DependencyAuditRule, DependencyHygieneRule],
+    "testing": [TestCoverageRule],
+    "tooling": [ToolAvailabilityRule],
 }
 
 
@@ -44,6 +62,19 @@ def _get_structure_rules() -> list[ProjectRule]:
         FileExistsRule(file_name="README.md"),
         DirectoryExistsRule(dir_name="src"),
         DirectoryExistsRule(dir_name="tests"),
+    ]
+
+
+def _get_tooling_rules() -> list[ProjectRule]:
+    """Get tooling availability rules with required parameters.
+
+    Returns:
+        List of instantiated tooling rules.
+    """
+    return [
+        ToolAvailabilityRule(tool_name="ruff"),
+        ToolAvailabilityRule(tool_name="mypy"),
+        ToolAvailabilityRule(tool_name="uv"),
     ]
 
 
@@ -73,24 +104,31 @@ def get_rules_for_category(
         )
 
     if category:
-        # Special handling for structure category (rules need parameters)
+        # Special handling for categories that need parameters
         if category == "structure":
             return _get_structure_rules()
+        if category == "tooling":
+            return _get_tooling_rules()
         rule_classes = RULES_BY_CATEGORY.get(category, [])
         return [cls() for cls in rule_classes]
 
-    # All rules: structure + quality + architecture + practice
+    # All rules
     return [
         *_get_structure_rules(),
         LintingRule(),
         TypeCheckRule(),
         ComplexityRule(),
+        SecurityRule(),
+        DependencyAuditRule(),
+        DependencyHygieneRule(),
+        TestCoverageRule(),
         CircularImportRule(),
         GodClassRule(),
         CouplingMetricRule(),
         DocstringCoverageRule(),
         BareExceptRule(),
         SecurityPatternRule(),
+        *_get_tooling_rules(),
     ]
 
 
@@ -103,7 +141,7 @@ def audit_project(
 
     Args:
         project_path: Root directory of the project to audit.
-        category: Optional category filter (quality|architecture|practice).
+        category: Optional category filter.
         quick: If True, run only lint + type checks.
 
     Returns:

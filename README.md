@@ -18,13 +18,16 @@
 
 ## Features
 
-- 🔍 **Linting** — Score code quality with Ruff (800+ rules)
-- 🔒 **Type Checking** — Strict mypy analysis via `mypy.api.run()`
+- 🔍 **Linting** — Ruff analysis (800+ rules)
+- 🔒 **Type Checking** — Strict mypy via `mypy.api.run()`
 - 📊 **Complexity** — Cyclomatic complexity via radon Python API
-- 🛡️ **Security** — Pattern-based vulnerability detection
+- 🛡️ **Security** — Bandit integration + hardcoded secrets detection
+- 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry)
+- 🧪 **Testing** — Coverage enforcement via pytest-cov
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics
 - 📐 **Practices** — Docstring coverage, bare except detection
-- 📈 **Composite Scoring** — Weighted 0–100 score with A–F grade
+- 🔧 **Tooling** — CLI tool availability checks
+- 📈 **Composite Scoring** — Weighted 6-category 0–100 score with A–F grade
 
 ## Installation
 
@@ -33,6 +36,21 @@ uv add axm-audit
 ```
 
 ## Quick Start
+
+### CLI
+
+```bash
+# Full audit
+axm-audit audit .
+
+# JSON output
+axm-audit audit . --json
+
+# Filter by category
+axm-audit audit . --category quality
+```
+
+### Python API
 
 ```python
 from pathlib import Path
@@ -50,31 +68,31 @@ for check in result.checks:
             print(f"     Fix: {check.fix_hint}")
 ```
 
-## Python API
+## Scoring Model
 
-| Function | Description |
-|---|---|
-| `audit_project(path)` | Run all checks, return `AuditResult` |
-| `audit_project(path, category="quality")` | Filter to one category |
-| `audit_project(path, quick=True)` | Lint + type checks only |
-| `get_rules_for_category(cat)` | Get rule instances for a category |
+6-category weighted composite on a 100-point scale:
 
-### Categories
-
-| Category | Rules | Tool |
+| Category | Weight | Tool |
 |---|---|---|
-| `quality` | `LintingRule`, `TypeCheckRule`, `ComplexityRule` | Ruff, MyPy, Radon |
-| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule` | AST |
-| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule` | AST |
-| `structure` | `FileExistsRule`, `DirectoryExistsRule` | Filesystem |
+| Linting | **20%** | Ruff |
+| Type Safety | **20%** | mypy |
+| Complexity | **15%** | radon |
+| Security | **15%** | Bandit |
+| Dependencies | **15%** | pip-audit + deptry |
+| Testing | **15%** | pytest-cov |
 
-### Quality Score Weights
+## Categories
 
-| Layer | Weight |
-|---|---|
-| Lint (Ruff) | **40%** |
-| Type (MyPy) | **35%** |
-| Complexity (Radon) | **25%** |
+| Category | Rules | Count |
+|---|---|---|
+| `quality` | `LintingRule`, `TypeCheckRule`, `ComplexityRule` | 3 |
+| `security` | `SecurityRule` (Bandit) | 1 |
+| `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
+| `testing` | `TestCoverageRule` | 1 |
+| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule` | 3 |
+| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule` | 3 |
+| `structure` | `FileExistsRule`, `DirectoryExistsRule` | 4 |
+| `tooling` | `ToolAvailabilityRule` | 3 |
 
 ## Development
 
@@ -82,8 +100,9 @@ for check in result.checks:
 git clone https://github.com/axm-protocols/axm-audit.git
 cd axm-audit
 uv sync --all-groups
-uv run pytest           # 106 tests
+uv run pytest           # 142 tests
 uv run ruff check src/  # lint
+uv run mypy src/        # type check
 ```
 
 ## License

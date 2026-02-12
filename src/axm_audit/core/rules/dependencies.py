@@ -43,9 +43,15 @@ class DependencyAuditRule(ProjectRule):
             )
 
         try:
-            vulns = json.loads(result.stdout) if result.stdout.strip() else []
+            data = json.loads(result.stdout) if result.stdout.strip() else {}
         except json.JSONDecodeError:
-            vulns = []
+            data = {}
+
+        # pip-audit JSON: {"dependencies": [...]} or bare list
+        if isinstance(data, list):
+            vulns = [d for d in data if d.get("vulns")]
+        else:
+            vulns = [d for d in data.get("dependencies", []) if d.get("vulns")]
 
         vuln_count = len(vulns)
         score = max(0, 100 - vuln_count * 15)
@@ -55,7 +61,6 @@ class DependencyAuditRule(ProjectRule):
             {
                 "name": v.get("name", ""),
                 "version": v.get("version", ""),
-                "aliases": v.get("aliases", [])[:3],
             }
             for v in vulns[:5]
         ]

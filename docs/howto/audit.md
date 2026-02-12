@@ -1,8 +1,28 @@
 # Run an Audit
 
-## Full Audit
+## CLI
 
-Run all checks across all layers:
+The fastest way to audit a project:
+
+```bash
+# Full audit
+axm-audit audit .
+
+# JSON output
+axm-audit audit . --json
+
+# Filter by category
+axm-audit audit . --category quality
+
+# Quick mode (lint + type only)
+axm-audit audit . --quick
+```
+
+## Python API
+
+### Full Audit
+
+Run all checks across all categories:
 
 ```python
 from pathlib import Path
@@ -11,7 +31,7 @@ from axm_audit import audit_project
 result = audit_project(Path("/path/to/project"))
 ```
 
-## Quick Audit
+### Quick Audit
 
 Run only linting + type checking (fastest):
 
@@ -19,26 +39,33 @@ Run only linting + type checking (fastest):
 result = audit_project(Path("."), quick=True)
 ```
 
-## JSON Output
+### Formatted Output
 
-Use the `JsonReporter` for machine-readable output:
+Use the formatters for display:
 
 ```python
-from axm_audit.reporters import JsonReporter
+from axm_audit.formatters import format_report, format_json
 
-reporter = JsonReporter()
-print(reporter.render(result))
+# Human-readable report
+print(format_report(result))
+
+# JSON-serializable dict
+import json
+print(json.dumps(format_json(result), indent=2))
 ```
 
-## Markdown Output
+### Reporters
 
-Use the `MarkdownReporter` for human-readable reports:
+Use the legacy reporters:
 
 ```python
-from axm_audit.reporters import MarkdownReporter
+from axm_audit.reporters import JsonReporter, MarkdownReporter
 
-reporter = MarkdownReporter()
-print(reporter.render(result))
+# JSON
+print(JsonReporter().render(result))
+
+# Markdown
+print(MarkdownReporter().render(result))
 ```
 
 ## Check for Failures
@@ -52,10 +79,12 @@ if not result.success:
                 print(f"   Fix: {check.fix_hint}")
 ```
 
-## Python API
+## API Summary
 
 | Function | Description |
 |---|---|
 | `audit_project(path)` | Run all checks |
 | `audit_project(path, category=...)` | Filter to one category |
 | `audit_project(path, quick=True)` | Lint + type only |
+| `format_report(result)` | Human-readable report |
+| `format_json(result)` | JSON-serializable dict |
