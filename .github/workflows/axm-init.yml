@@ -42,13 +42,14 @@ jobs:
       - name: Generate badge JSON
         run: |
           mkdir -p badges
+          LOGO_SVG="data:image/svg+xml;base64,$(base64 -w0 assets/logo.svg)"
           cat > badges/axm-init.json <<EOF
           {
             "schemaVersion": 1,
             "label": "axm-init",
             "message": "${{ steps.audit.outputs.score }}%",
             "color": "${{ steps.color.outputs.color }}",
-            "namedLogo": "python",
+            "logoSvg": "${LOGO_SVG}",
             "style": "flat"
           }
           EOF
