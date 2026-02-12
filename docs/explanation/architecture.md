@@ -130,16 +130,18 @@ All subprocess-based rules use `run_in_project()` from `core/runner.py`, which d
 
 ### 4. Scoring
 
-6-category weighted composite (see [Scoring & Grades](scoring.md)):
+8-category weighted composite (see [Scoring & Grades](scoring.md)):
 
 | Category | Weight |
 |---|---|
 | Linting | 20% |
-| Type Safety | 20% |
+| Type Safety | 15% |
 | Complexity | 15% |
-| Security | 15% |
-| Dependencies | 15% |
+| Security | 10% |
+| Dependencies | 10% |
 | Testing | 15% |
+| Architecture | 10% |
+| Practices | 5% |
 
 ### 5. Models
 

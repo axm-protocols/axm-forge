@@ -25,7 +25,7 @@
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics
 - 📐 **Practices** — Docstring coverage, bare except detection
 - 🔧 **Tooling** — CLI tool availability checks
-- 📈 **Composite Scoring** — Weighted 6-category 0–100 score with A–F grade
+- 📈 **Composite Scoring** — Weighted 8-category 0–100 score with A–F grade
 
 ## Installation
 
@@ -68,16 +68,18 @@ for check in result.checks:
 
 ## Scoring Model
 
-6-category weighted composite on a 100-point scale:
+8-category weighted composite on a 100-point scale:
 
 | Category | Weight | Tool |
 |---|---|---|
 | Linting | **20%** | Ruff |
-| Type Safety | **20%** | mypy |
+| Type Safety | **15%** | mypy |
 | Complexity | **15%** | radon |
-| Security | **15%** | Bandit |
-| Dependencies | **15%** | pip-audit + deptry |
+| Security | **10%** | Bandit |
+| Dependencies | **10%** | pip-audit + deptry |
 | Testing | **15%** | pytest-cov |
+| Architecture | **10%** | AST analysis |
+| Practices | **5%** | AST analysis |
 
 ## Categories
 
@@ -98,7 +100,7 @@ for check in result.checks:
 git clone https://github.com/axm-protocols/axm-audit.git
 cd axm-audit
 uv sync --all-groups
-uv run pytest           # 174 tests
+uv run pytest           # 186 tests
 uv run ruff check src/  # lint
 uv run mypy src/        # type check
 ```

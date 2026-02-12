@@ -2,28 +2,26 @@
 
 ## Composite Quality Score
 
-The quality score is a **weighted average** across 6 categories, on a 100-point scale:
+The quality score is a **weighted average** across 8 categories, on a 100-point scale:
 
 | Category | Tool | Weight |
 |---|---|---|
 | Linting | Ruff | **20%** |
-| Type Safety | mypy | **20%** |
+| Type Safety | mypy | **15%** |
 | Complexity | radon | **15%** |
-| Security | Bandit | **15%** |
-| Dependencies | pip-audit + deptry | **15%** |
+| Security | Bandit | **10%** |
+| Dependencies | pip-audit + deptry | **10%** |
 | Testing | pytest-cov | **15%** |
+| Architecture | AST analysis | **10%** |
+| Practices | AST analysis | **5%** |
 
 Each category produces a score from 0 to 100. The composite score is:
 
 ```
-score = lint × 0.20 + type × 0.20 + complexity × 0.15
-      + security × 0.15 + deps × 0.15 + testing × 0.15
+score = lint × 0.20 + type × 0.15 + complexity × 0.15
+      + security × 0.10 + deps × 0.10 + testing × 0.15
+      + architecture × 0.10 + practices × 0.05
 ```
-
-!!! note "Quality score vs. audit checks"
-    The `quality_score` tracks **scored** categories only. Other rule categories
-    (structure, architecture, practice, tooling) produce `CheckResult` pass/fail
-    entries but do not contribute to the composite score.
 
 !!! info "Why no Structure category?"
     Structure validation (project layout, `pyproject.toml` completeness) is handled
@@ -77,6 +75,22 @@ score = coverage_percentage
 ```
 
 Uses `pytest-cov` to measure line coverage. Pass threshold: ≥ 80%.
+
+### Architecture Score
+
+```
+score = max(0, 100 − N(modules > threshold) × 5)
+```
+
+Counts the number of modules whose fan-out exceeds the threshold (default: 10 imports). Each module over the threshold deducts 5 points. Circular imports and god classes also contribute to this category.
+
+### Practices Score
+
+Average of three sub-scores:
+
+- **Docstring coverage**: `int(coverage_pct × 100)`
+- **Bare excepts**: `max(0, 100 − count × 20)`
+- **Hardcoded secrets**: `max(0, 100 − count × 20)`
 
 ## Grading Scale
 

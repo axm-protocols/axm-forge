@@ -10,7 +10,7 @@ Every audit returns an `AuditResult` with these properties:
 | `success` | `bool` | `True` if all checks passed |
 | `total` | `int` | Total number of checks |
 | `failed` | `int` | Number of failed checks |
-| `quality_score` | `float \| None` | Composite score 0–100 (6-category weighted) |
+| `quality_score` | `float \| None` | Composite score 0–100 (8-category weighted) |
 | `grade` | `str \| None` | Letter grade A–F |
 
 ## CheckResult Object
@@ -68,16 +68,18 @@ print(reporter.render(result))
 
 ## Scoring
 
-The `quality_score` is computed from 6 weighted categories:
+The `quality_score` is computed from 8 weighted categories:
 
 | Category | Weight |
 |---|---|
 | Linting (Ruff) | 20% |
-| Type Safety (mypy) | 20% |
+| Type Safety (mypy) | 15% |
 | Complexity (radon) | 15% |
-| Security (Bandit) | 15% |
-| Dependencies (pip-audit + deptry) | 15% |
+| Security (Bandit) | 10% |
+| Dependencies (pip-audit + deptry) | 10% |
 | Testing (pytest-cov) | 15% |
+| Architecture (AST analysis) | 10% |
+| Practices (AST analysis) | 5% |
 
 For details, see [Scoring & Grades](../explanation/scoring.md).
 
