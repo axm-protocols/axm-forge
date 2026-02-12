@@ -17,13 +17,11 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
-      - run: uv sync --all-groups
-      - run: uv add --dev axm-init
 
       - name: Run AXM Audit
         id: audit
         run: |
-          RESULT=$(uv run axm-init audit . --json)
+          RESULT=$(uvx axm-init audit . --json)
           SCORE=$(echo "$RESULT" | jq '.score')
           GRADE=$(echo "$RESULT" | jq -r '.grade')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"
@@ -43,7 +41,7 @@ jobs:
       - name: Generate badge JSON
         run: |
           mkdir -p badges
-          LOGO_SVG=$(cat assets/logo.svg)
+          LOGO_SVG=$(curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.svg)
           jq -n \
             --arg score "${{ steps.audit.outputs.score }}" \
             --arg color "${{ steps.color.outputs.color }}" \
@@ -55,7 +53,7 @@ jobs:
               color: $color,
               logoSvg: $logo,
               style: "flat"
-            }' > badges/axm-audit.json
+            }' > badges/axm-init.json
 
       - name: Push badge to gh-pages
         uses: peaceiris/actions-gh-pages@v4
@@ -65,4 +63,4 @@ jobs:
           publish_dir: ./badges
           destination_dir: badges
           keep_files: true
-          commit_message: "badge: update axm-audit score to ${{ steps.audit.outputs.score }}/100"
+          commit_message: "badge: update axm-init score to ${{ steps.audit.outputs.score }}/100"
