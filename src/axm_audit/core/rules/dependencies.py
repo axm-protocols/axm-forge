@@ -1,24 +1,23 @@
 """Dependency rules — vulnerability scanning and hygiene checks."""
 
 import json
-import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
 
 def _run_pip_audit(project_path: Path) -> dict[str, Any] | list[Any]:
     """Run pip-audit and return parsed JSON output."""
-    result = subprocess.run(
-        [sys.executable, "-m", "pip_audit", "--format=json", "--output=-"],
+    result = run_in_project(
+        ["pip-audit", "--format=json", "--output=-"],
+        project_path,
         capture_output=True,
         text=True,
         check=False,
-        cwd=str(project_path),
     )
     try:
         return json.loads(result.stdout) if result.stdout.strip() else {}
@@ -99,12 +98,12 @@ class DependencyHygieneRule(ProjectRule):
     def check(self, project_path: Path) -> CheckResult:
         """Check dependency hygiene with deptry."""
         try:
-            result = subprocess.run(
-                [sys.executable, "-m", "deptry", ".", "--json-output", "-"],
+            result = run_in_project(
+                ["deptry", ".", "--json-output", "-"],
+                project_path,
                 capture_output=True,
                 text=True,
                 check=False,
-                cwd=str(project_path),
             )
         except FileNotFoundError:
             return CheckResult(

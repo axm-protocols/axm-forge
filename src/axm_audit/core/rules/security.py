@@ -1,19 +1,20 @@
 """Security rules — Bandit integration for vulnerability detection."""
 
 import json
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
 
-def _run_bandit(src_path: Path) -> dict[str, Any]:
+def _run_bandit(src_path: Path, project_path: Path) -> dict[str, Any]:
     """Run Bandit and return parsed JSON output."""
-    result = subprocess.run(  # noqa: S603
-        ["bandit", "-r", "-f", "json", str(src_path)],  # noqa: S607
+    result = run_in_project(
+        ["bandit", "-r", "-f", "json", str(src_path)],
+        project_path,
         capture_output=True,
         check=False,
         text=True,
@@ -68,7 +69,7 @@ class SecurityRule(ProjectRule):
                 severity=Severity.ERROR,
             )
 
-        data = _run_bandit(src_path)
+        data = _run_bandit(src_path, project_path)
         results = data.get("results", [])
         high = sum(1 for r in results if r.get("issue_severity") == "HIGH")
         med = sum(1 for r in results if r.get("issue_severity") == "MEDIUM")

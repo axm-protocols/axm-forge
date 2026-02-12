@@ -1,12 +1,11 @@
 """Quality rules — subprocess-based tool execution with JSON parsing."""
 
 import json
-import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
 
@@ -33,8 +32,9 @@ class LintingRule(ProjectRule):
                 severity=Severity.ERROR,
             )
 
-        result = subprocess.run(
+        result = run_in_project(
             ["ruff", "check", "--output-format=json", str(src_path)],
+            project_path,
             capture_output=True,
             text=True,
             check=False,
@@ -82,8 +82,9 @@ class TypeCheckRule(ProjectRule):
                 severity=Severity.ERROR,
             )
 
-        result = subprocess.run(
+        result = run_in_project(
             ["mypy", "--no-error-summary", "--output", "json", str(src_path)],
+            project_path,
             capture_output=True,
             text=True,
             check=False,
@@ -212,20 +213,18 @@ class TestCoverageRule(ProjectRule):
         coverage_file = project_path / "coverage.json"
 
         # Run pytest with coverage
-        subprocess.run(
+        run_in_project(
             [
-                sys.executable,
-                "-m",
                 "pytest",
                 "--cov",
                 "--cov-report=json",
                 "--no-header",
                 "-q",
             ],
+            project_path,
             capture_output=True,
             text=True,
             check=False,
-            cwd=str(project_path),
         )
 
         # Parse coverage.json
