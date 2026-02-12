@@ -1,4 +1,4 @@
-"""Audit engine — orchestrates all checks and produces AuditResult."""
+"""Check engine — orchestrates all checks and produces ProjectResult."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ from axm_init.checks.tooling import (
     check_precommit_mypy,
     check_precommit_ruff,
 )
-from axm_init.models.audit import AuditResult, CheckResult
+from axm_init.models.check import CheckResult, ProjectResult
 
 # Registry: category -> list of check functions
 ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = {
@@ -113,14 +113,14 @@ ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = {
 VALID_CATEGORIES = set(ALL_CHECKS.keys())
 
 
-class AuditEngine:
-    """Orchestrates audit checks and produces results."""
+class CheckEngine:
+    """Orchestrates project checks and produces results."""
 
     def __init__(self, project_path: Path, *, category: str | None = None) -> None:
         self.project_path = project_path.resolve()
         self.category = category
 
-    def run(self) -> AuditResult:
+    def run(self) -> ProjectResult:
         """Run all checks (or filtered by category) and return result."""
         if self.category:
             if self.category not in VALID_CATEGORIES:
@@ -136,13 +136,13 @@ class AuditEngine:
             for fn in check_fns:
                 results.append(fn(self.project_path))
 
-        return AuditResult.from_checks(self.project_path, results)
+        return ProjectResult.from_checks(self.project_path, results)
 
 
-def format_report(result: AuditResult) -> str:
-    """Format audit result as human-readable report."""
+def format_report(result: ProjectResult) -> str:
+    """Format check result as human-readable report."""
     lines: list[str] = []
-    lines.append(f"📋 AXM Audit — {result.project_path.name}")
+    lines.append(f"📋 AXM Check — {result.project_path.name}")
     lines.append(f"   Path: {result.project_path}")
     lines.append("")
 
@@ -178,8 +178,8 @@ def format_report(result: AuditResult) -> str:
     return "\n".join(lines)
 
 
-def format_json(result: AuditResult) -> dict[str, Any]:
-    """Format audit result as JSON-serializable dict."""
+def format_json(result: ProjectResult) -> dict[str, Any]:
+    """Format check result as JSON-serializable dict."""
     return {
         "project": str(result.project_path),
         "score": result.score,

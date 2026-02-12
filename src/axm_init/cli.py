@@ -208,10 +208,10 @@ def reserve(
 
 
 @app.command()
-def audit(
+def check(
     path: Annotated[
         str,
-        cyclopts.Parameter(help="Path to project to audit"),
+        cyclopts.Parameter(help="Path to project to check"),
     ] = ".",
     *,
     json_output: Annotated[
@@ -223,8 +223,8 @@ def audit(
         cyclopts.Parameter(name=["--category", "-c"], help="Filter to one category"),
     ] = None,
 ) -> None:
-    """Audit a project against the AXM gold standard."""
-    from axm_init.core.auditor import AuditEngine, format_json, format_report
+    """Check a project against the AXM gold standard."""
+    from axm_init.core.checker import CheckEngine, format_json, format_report
 
     project_path = Path(path).resolve()
     if not project_path.is_dir():
@@ -232,7 +232,7 @@ def audit(
         raise SystemExit(1)
 
     try:
-        engine = AuditEngine(project_path, category=category)
+        engine = CheckEngine(project_path, category=category)
         result = engine.run()
     except ValueError as e:
         print(f"❌ {e}", file=sys.stderr)  # noqa: T201

@@ -2,7 +2,7 @@
 
 ## Overview
 
-`axm-init audit` scores your project against the AXM gold standard — a set of 38 checks derived from the best practices embedded in the project template and CI configurations.
+`axm-init check` scores your project against the AXM gold standard — a set of 38 checks derived from the best practices embedded in the project template and CI configurations.
 
 ## Grade Scale
 
@@ -115,7 +115,7 @@ Changelog management:
 
 ## Improving Your Score
 
-Every failed check includes a **Fix** instruction telling you exactly what to do. Run `axm-init audit` iteratively until you reach Grade A.
+Every failed check includes a **Fix** instruction telling you exactly what to do. Run `axm-init check` iteratively until you reach Grade A.
 
 !!! tip "Quick win"
     Projects scaffolded with `axm-init init` start at **100/100** by default.

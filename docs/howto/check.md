@@ -5,7 +5,7 @@ Run a full quality audit against the AXM gold standard.
 ## Basic Usage
 
 ```bash
-axm-init audit
+axm-init check
 ```
 
 Score your project out of 100 with a grade from **A** (≥90) to **F** (<40).
@@ -13,7 +13,7 @@ Score your project out of 100 with a grade from **A** (≥90) to **F** (<40).
 ## Audit a Specific Path
 
 ```bash
-axm-init audit /path/to/project
+axm-init check /path/to/project
 ```
 
 ## Filter by Category
@@ -21,25 +21,25 @@ axm-init audit /path/to/project
 Run only one category of checks:
 
 ```bash
-axm-init audit --category pyproject
-axm-init audit --category ci
-axm-init audit --category tooling
-axm-init audit --category docs
-axm-init audit --category structure
-axm-init audit --category deps
-axm-init audit --category changelog
+axm-init check --category pyproject
+axm-init check --category ci
+axm-init check --category tooling
+axm-init check --category docs
+axm-init check --category structure
+axm-init check --category deps
+axm-init check --category changelog
 ```
 
 ## JSON Output for CI
 
 ```bash
-axm-init audit --json
+axm-init check --json
 ```
 
 Use in CI to enforce quality gates:
 
 ```bash
-axm-init audit --json | jq -e '.score >= 90'
+axm-init check --json | jq -e '.score >= 90'
 ```
 
 ## What Gets Checked (38 Checks)
@@ -78,7 +78,7 @@ Projects scaffolded with `axm-init init` include an automated **audit badge** po
 ### How It Works
 
 1. **Push to `main`** triggers `.github/workflows/axm-init.yml`
-2. The workflow runs `axm-init audit --json` and extracts the score
+2. The workflow runs `axm-init check --json` and extracts the score
 3. A shields.io JSON badge is generated and pushed to `gh-pages`
 4. Your README displays the score via a shields.io endpoint badge
 

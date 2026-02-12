@@ -42,13 +42,13 @@ nav:
   - How-To Guides:
     - Initialize a Project: howto/init.md
     - Reserve a Package: howto/reserve.md
-    - Audit Your Project: howto/audit.md
+    - Check Your Project: howto/check.md
   - Reference:
     - CLI: reference/cli.md
     - Python API: reference/api/
   - Explanation:
     - Architecture: explanation/architecture.md
-    - Audit Grades: explanation/audit-grades.md
+    - Check Grades: explanation/check-grades.md
 
 plugins:
   - search

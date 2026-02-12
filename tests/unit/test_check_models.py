@@ -1,6 +1,6 @@
-"""Unit tests for audit models: Grade, CheckResult, AuditResult, CategoryScore.
+"""Unit tests for check models: Grade, CheckResult, ProjectResult, CategoryScore.
 
-TDD RED — these tests define the expected API for models/audit.py.
+TDD RED — these tests define the expected API for models/check.py.
 """
 
 from __future__ import annotations
@@ -8,13 +8,13 @@ from __future__ import annotations
 from pathlib import Path
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Imports (will fail until models/audit.py exists)
+# Imports (will fail until models/check.py exists)
 # ─────────────────────────────────────────────────────────────────────────────
-from axm_init.models.audit import (
-    AuditResult,
+from axm_init.models.check import (
     CategoryScore,
     CheckResult,
     Grade,
+    ProjectResult,
     compute_grade,
 )
 
@@ -169,12 +169,12 @@ class TestCategoryScore:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AuditResult
+# ProjectResult
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-class TestAuditResult:
-    """AuditResult computes score and grade from checks."""
+class TestProjectResult:
+    """ProjectResult computes score and grade from checks."""
 
     def _make_checks(self, pass_weight: int, fail_weight: int) -> list[CheckResult]:
         results = []
@@ -205,26 +205,26 @@ class TestAuditResult:
         return results
 
     def test_perfect_score(self) -> None:
-        r = AuditResult.from_checks(Path("."), self._make_checks(100, 0))
+        r = ProjectResult.from_checks(Path("."), self._make_checks(100, 0))
         assert r.score == 100
         assert r.grade == Grade.A
 
     def test_zero_score(self) -> None:
-        r = AuditResult.from_checks(Path("."), self._make_checks(0, 100))
+        r = ProjectResult.from_checks(Path("."), self._make_checks(0, 100))
         assert r.score == 0
         assert r.grade == Grade.F
 
     def test_mixed_score(self) -> None:
-        r = AuditResult.from_checks(Path("."), self._make_checks(75, 25))
+        r = ProjectResult.from_checks(Path("."), self._make_checks(75, 25))
         assert r.score == 75
         assert r.grade == Grade.B
 
     def test_failures_list(self) -> None:
-        r = AuditResult.from_checks(Path("."), self._make_checks(80, 20))
+        r = ProjectResult.from_checks(Path("."), self._make_checks(80, 20))
         assert len(r.failures) == 1
         assert r.failures[0].name == "fail"
 
     def test_empty_checks_is_f(self) -> None:
-        r = AuditResult.from_checks(Path("."), [])
+        r = ProjectResult.from_checks(Path("."), [])
         assert r.score == 0
         assert r.grade == Grade.F

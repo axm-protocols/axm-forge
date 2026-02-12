@@ -1,4 +1,4 @@
-"""Functional tests for the `axm-init audit` CLI command.
+"""Functional tests for the `axm-init check` CLI command.
 
 TDD RED — tests the full audit command end-to-end.
 """
@@ -154,17 +154,17 @@ def gold_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
-class TestAuditGoldStandard:
+class TestCheckGoldStandard:
     """Gold-standard project should score 100/100."""
 
     def test_score_100(self, gold_project: Path) -> None:
-        stdout, _stderr, code = _run("audit", str(gold_project))
+        stdout, _stderr, code = _run("check", str(gold_project))
         assert code == 0
         assert "100" in stdout
         assert "A" in stdout
 
     def test_json_output(self, gold_project: Path) -> None:
-        stdout, _stderr, code = _run("audit", str(gold_project), "--json")
+        stdout, _stderr, code = _run("check", str(gold_project), "--json")
         assert code == 0
         data = json.loads(stdout)
         assert data["score"] == 100
@@ -172,58 +172,58 @@ class TestAuditGoldStandard:
         assert len(data["failures"]) == 0
 
 
-class TestAuditEmptyDir:
+class TestCheckEmptyDir:
     """Empty directory should score 0/100."""
 
     def test_score_zero(self, tmp_path: Path) -> None:
-        stdout, _stderr, code = _run("audit", str(tmp_path))
+        stdout, _stderr, code = _run("check", str(tmp_path))
         # Non-zero exit for failing audit
         assert "0" in stdout or code != 0
         assert "F" in stdout
 
     def test_json_grade_f(self, tmp_path: Path) -> None:
-        stdout, _stderr, _code = _run("audit", str(tmp_path), "--json")
+        stdout, _stderr, _code = _run("check", str(tmp_path), "--json")
         data = json.loads(stdout)
         assert data["grade"] == "F"
         # changelog.no_manual passes on empty dirs (2 pts)
         assert data["score"] <= 5
 
 
-class TestAuditCategoryFilter:
+class TestCheckCategoryFilter:
     """--category flag should filter to one category."""
 
     def test_category_pyproject(self, gold_project: Path) -> None:
         stdout, _stderr, code = _run(
-            "audit", str(gold_project), "--category", "pyproject"
+            "check", str(gold_project), "--category", "pyproject"
         )
         assert code == 0
         assert "pyproject" in stdout.lower()
 
     def test_invalid_category(self, gold_project: Path) -> None:
         _stdout, _stderr, code = _run(
-            "audit", str(gold_project), "--category", "invalid"
+            "check", str(gold_project), "--category", "invalid"
         )
         assert code != 0
 
 
-class TestAuditFailureReport:
+class TestCheckFailureReport:
     """Failures must include Fix: instructions."""
 
     def test_failures_have_fix(self, tmp_path: Path) -> None:
         # Minimal project — lots of failures
         (tmp_path / "pyproject.toml").write_text('[project]\nname="x"\n')
-        stdout, _stderr, _code = _run("audit", str(tmp_path), "--json")
+        stdout, _stderr, _code = _run("check", str(tmp_path), "--json")
         data = json.loads(stdout)
         for failure in data["failures"]:
             assert failure["fix"] != "", f"{failure['name']} missing fix"
 
 
-class TestAuditSelfTest:
+class TestCheckSelfTest:
     """axm-init itself should score ≥ B."""
 
     def test_self_audit(self) -> None:
         project_root = Path(__file__).resolve().parents[2]
-        stdout, _stderr, _code = _run("audit", str(project_root), "--json")
+        stdout, _stderr, _code = _run("check", str(project_root), "--json")
         data = json.loads(stdout)
-        assert data["score"] >= 75, f"Self-audit score too low: {data['score']}"
+        assert data["score"] >= 75, f"Self-check score too low: {data['score']}"
         assert data["grade"] in ("A", "B")

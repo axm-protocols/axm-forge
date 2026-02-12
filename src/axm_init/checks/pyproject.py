@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from axm_init.models.audit import CheckResult
+from axm_init.models.check import CheckResult
 
 try:
     import tomllib

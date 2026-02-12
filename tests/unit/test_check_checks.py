@@ -58,7 +58,7 @@ from axm_init.checks.tooling import (
     check_precommit_mypy,
     check_precommit_ruff,
 )
-from axm_init.models.audit import CheckResult
+from axm_init.models.check import CheckResult
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Fixtures — gold standard project

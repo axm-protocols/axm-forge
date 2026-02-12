@@ -85,7 +85,7 @@ axm-init reserve my-cool-package --dry-run
 ## `audit` — Audit Project Against AXM Standard
 
 ```
-axm-init audit [OPTIONS] [PATH]
+axm-init check [OPTIONS] [PATH]
 ```
 
 | Option | Short | Type | Default | Description |
@@ -104,11 +104,11 @@ axm-init audit [OPTIONS] [PATH]
 **Example:**
 
 ```bash
-axm-init audit
+axm-init check
 ```
 
 ```
-📋 AXM Audit — my-project
+📋 AXM Check — my-project
    Path: /path/to/my-project
 
   pyproject (30/30)
@@ -128,7 +128,7 @@ axm-init audit
 **JSON output:**
 
 ```bash
-axm-init audit --json
+axm-init check --json
 ```
 
 ```json

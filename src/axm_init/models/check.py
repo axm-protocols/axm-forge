@@ -1,4 +1,4 @@
-"""Audit models — Grade, CheckResult, AuditResult, CategoryScore."""
+"""Check models — Grade, CheckResult, ProjectResult, CategoryScore."""
 
 from __future__ import annotations
 
@@ -66,8 +66,8 @@ class CategoryScore(BaseModel):
         )
 
 
-class AuditResult(BaseModel):
-    """Complete audit result with score and grade."""
+class ProjectResult(BaseModel):
+    """Complete project check result with score and grade."""
 
     project_path: Path
     checks: list[CheckResult]
@@ -77,7 +77,9 @@ class AuditResult(BaseModel):
     failures: list[CheckResult]
 
     @classmethod
-    def from_checks(cls, project_path: Path, checks: list[CheckResult]) -> AuditResult:
+    def from_checks(
+        cls, project_path: Path, checks: list[CheckResult]
+    ) -> ProjectResult:
         """Compute score, grade, and category breakdowns from check results."""
         total_weight = sum(c.weight for c in checks)
         total_earned = sum(c.earned for c in checks)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from axm_init.models.audit import CheckResult
+from axm_init.models.check import CheckResult
 
 
 def _read_precommit(project: Path) -> str | None:
