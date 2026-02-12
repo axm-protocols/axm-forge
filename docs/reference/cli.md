@@ -82,7 +82,7 @@ axm-init reserve my-cool-package --dry-run
 
 ---
 
-## `audit` — Audit Project Against AXM Standard
+## `check` — Check Project Against AXM Standard
 
 ```
 axm-init check [OPTIONS] [PATH]
@@ -90,7 +90,7 @@ axm-init check [OPTIONS] [PATH]
 
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
-| `PATH` | | string | `.` | Directory to audit |
+| `PATH` | | string | `.` | Directory to check |
 | `--json` | | bool | `False` | Output as JSON |
 | `--category` | `-c` | string | *all* | Filter to one category |
 

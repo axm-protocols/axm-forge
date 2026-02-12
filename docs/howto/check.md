@@ -1,6 +1,6 @@
-# Audit Your Project
+# Check Your Project
 
-Run a full quality audit against the AXM gold standard.
+Run a full quality check against the AXM gold standard.
 
 ## Basic Usage
 
@@ -10,7 +10,7 @@ axm-init check
 
 Score your project out of 100 with a grade from **A** (≥90) to **F** (<40).
 
-## Audit a Specific Path
+## Check a Specific Path
 
 ```bash
 axm-init check /path/to/project
@@ -73,7 +73,7 @@ Example:
 
 ## CI Badge
 
-Projects scaffolded with `axm-init init` include an automated **audit badge** powered by GitHub Actions. The badge displays your audit score and updates on every push to `main`.
+Projects scaffolded with `axm-init init` include an automated **check badge** powered by GitHub Actions. The badge displays your check score and updates on every push to `main`.
 
 ### How It Works
 
