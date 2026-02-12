@@ -46,7 +46,7 @@ jobs:
           {
             "schemaVersion": 1,
             "label": "axm-init",
-            "message": "${{ steps.audit.outputs.score }}/100 (${{ steps.audit.outputs.grade }})",
+            "message": "${{ steps.audit.outputs.score }}%",
             "color": "${{ steps.color.outputs.color }}",
             "namedLogo": "python",
             "style": "flat"
