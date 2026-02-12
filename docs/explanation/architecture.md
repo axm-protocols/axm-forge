@@ -13,6 +13,7 @@ graph TD
     subgraph "Core Logic"
         Templates["Template Resolution"]
         Reserver["PyPI Reserver"]
+        Auditor["Auditor"]
     end
 
     subgraph "Adapters"

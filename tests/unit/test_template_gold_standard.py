@@ -359,3 +359,51 @@ class TestTemplateNoChangelog:
 
     def test_no_changelog(self) -> None:
         assert not (TEMPLATE_ROOT / "CHANGELOG.md").exists()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AXM audit badge & workflow tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+DOCS_INDEX = (DOCS_DIR / "index.md.jinja").read_text()
+
+
+class TestTemplateAxmBadge:
+    """README and docs must include the AXM audit badge."""
+
+    def test_readme_has_axm_badge(self) -> None:
+        """README must link to the axm-init.json endpoint badge."""
+        assert "axm-init.json" in README
+
+    def test_docs_index_has_axm_badge(self) -> None:
+        """docs/index.md must link to the axm-init.json endpoint badge."""
+        assert "axm-init.json" in DOCS_INDEX
+
+
+class TestTemplateAxmWorkflow:
+    """Template must include axm-init audit workflow."""
+
+    def test_axm_workflow_exists(self) -> None:
+        """axm-init.yml.jinja must exist in .github/workflows/."""
+        assert (TEMPLATE_ROOT / ".github" / "workflows" / "axm-init.yml.jinja").exists()
+
+    def test_axm_workflow_has_audit_step(self) -> None:
+        """Workflow must run axm_init.cli audit."""
+        wf = (
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-init.yml.jinja"
+        ).read_text()
+        assert "axm_init.cli audit" in wf
+
+    def test_axm_workflow_has_badge_push(self) -> None:
+        """Workflow must push badge to gh-pages."""
+        wf = (
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-init.yml.jinja"
+        ).read_text()
+        assert "peaceiris/actions-gh-pages" in wf
+
+    def test_axm_workflow_fetches_logo(self) -> None:
+        """Workflow must fetch logo from axm-protocols/axm-init repo."""
+        wf = (
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-init.yml.jinja"
+        ).read_text()
+        assert "axm-protocols/axm-init" in wf
