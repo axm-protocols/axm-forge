@@ -17,7 +17,14 @@ dependencies = [
     "loguru>=0.7.3",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
+    "radon>=6.0.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/JarryGabriel/axm-audit"
+Documentation = "https://JarryGabriel.github.io/axm-audit/"
+Repository = "https://github.com/JarryGabriel/axm-audit"
+Issues = "https://github.com/JarryGabriel/axm-audit/issues"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -39,8 +46,11 @@ dev = [
     "mypy>=1.14",
     "pre-commit>=4.0",
     "pip-audit>=2.0",
+    "bandit>=1.9.3",
 ]
 docs = [
+    "mkdocs-gen-files>=0.6.0",
+    "mkdocs-literate-nav>=0.6.2",
     "mkdocs-material>=9.0",
     "mkdocstrings[python]>=0.27",
 ]
@@ -57,6 +67,10 @@ exclude = ["*/_version.py"]
 select = ["E", "F", "I", "N", "UP", "B", "C4", "S", "T20", "RUF"]
 ignore = ["S101"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106", "S108"]
+"src/axm_audit/core/rules/quality.py" = ["S603", "S607"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["axm_audit"]
 
@@ -70,11 +84,22 @@ warn_return_any = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
 show_error_codes = true
+pretty = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["radon.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["axm_audit.core.rules.quality"]
+disallow_untyped_calls = false
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Pytest Configuration
@@ -90,7 +115,10 @@ addopts = [
     "--cov=src/axm_audit",
     "--cov-report=term-missing",
     "--cov-report=xml",
+    "--import-mode=importlib",
 ]
+pythonpath = ["src"]
+filterwarnings = ["ignore::DeprecationWarning"]
 asyncio_mode = "auto"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -99,7 +127,51 @@ asyncio_mode = "auto"
 [tool.coverage.run]
 source = ["src"]
 branch = true
+relative_files = true
 omit = ["*/tests/*"]
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.coverage.report]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Git-Cliff Configuration (Changelog Generation)
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.git-cliff.changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+"""
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {{ commit.message | upper_first }}\
+    {% endfor %}
+{% endfor %}
+"""
+trim = true
+
+[tool.git-cliff.git]
+conventional_commits = true
+filter_unconventional = true
+commit_parsers = [
+    { message = "^chore", skip = true },
+    { message = "^ci", skip = true },
+    { message = "^feat", group = "🚀 Features" },
+    { message = "^fix", group = "🐛 Bug Fixes" },
+    { message = "^doc", group = "📚 Documentation" },
+    { message = "^perf", group = "⚡ Performance" },
+    { message = "^refactor", group = "🔧 Refactor" },
+    { message = "^test", group = "🧪 Tests" },
+]
+tag_pattern = "v[0-9].*"
+

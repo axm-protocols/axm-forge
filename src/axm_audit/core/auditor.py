@@ -35,7 +35,7 @@ RULES_BY_CATEGORY: dict[str, list[type[ProjectRule]]] = {
 
 def _get_structure_rules() -> list[ProjectRule]:
     """Get structure validation rules with required parameters.
-    
+
     Returns:
         List of instantiated structure rules.
     """
@@ -58,7 +58,7 @@ def get_rules_for_category(
 
     Returns:
         List of rule instances to run.
-        
+
     Raises:
         ValueError: If category is not valid.
     """
@@ -108,13 +108,13 @@ def audit_project(
 
     Returns:
         AuditResult containing all check results.
-        
+
     Raises:
         FileNotFoundError: If project_path does not exist.
     """
     if not project_path.exists():
         raise FileNotFoundError(f"Project path does not exist: {project_path}")
-    
+
     rules = get_rules_for_category(category, quick)
     checks = [rule.check(project_path) for rule in rules]
     return AuditResult(checks=checks)

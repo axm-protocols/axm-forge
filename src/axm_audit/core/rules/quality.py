@@ -118,7 +118,7 @@ class TypeCheckRule(ProjectRule):
 
 @dataclass
 class ComplexityRule(ProjectRule):
-    """Run radon and score based on high-complexity function count.
+    """Analyse cyclomatic complexity via radon Python API.
 
     Scoring: 100 - (high_complexity_count * 10), min 0.
     High complexity = CC >= 10 (industry standard).
@@ -131,6 +131,8 @@ class ComplexityRule(ProjectRule):
 
     def check(self, project_path: Path) -> CheckResult:
         """Check project complexity with radon."""
+        from radon.complexity import cc_visit
+
         src_path = project_path / "src"
         if not src_path.exists():
             return CheckResult(
@@ -140,32 +142,27 @@ class ComplexityRule(ProjectRule):
                 severity=Severity.ERROR,
             )
 
-        result = subprocess.run(
-            ["radon", "cc", "-j", str(src_path)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
         high_complexity_count = 0
         all_functions: list[dict[str, str | int]] = []
-        try:
-            data = json.loads(result.stdout) if result.stdout.strip() else {}
-            for file_path, functions in data.items():
-                for fn in functions:
-                    cc = fn.get("complexity", 0)
-                    # CC >= 10 is high complexity (industry standard)
-                    if cc >= 10:
-                        high_complexity_count += 1
-                        all_functions.append(
-                            {
-                                "file": Path(file_path).name,
-                                "function": fn.get("name", "unknown"),
-                                "cc": cc,
-                            }
-                        )
-        except json.JSONDecodeError:
-            pass
+
+        for py_file in src_path.rglob("*.py"):
+            try:
+                source = py_file.read_text(encoding="utf-8")
+                blocks = cc_visit(source)
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+
+            for block in blocks:
+                cc: int = block.complexity
+                if cc >= 10:
+                    high_complexity_count += 1
+                    all_functions.append(
+                        {
+                            "file": py_file.name,
+                            "function": block.name,
+                            "cc": cc,
+                        }
+                    )
 
         # Sort by complexity descending, take top 5
         top_offenders = sorted(all_functions, key=lambda x: x["cc"], reverse=True)[:5]

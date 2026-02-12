@@ -189,7 +189,7 @@ class GodClassRule(ProjectRule):
             )
 
         god_classes = self._find_god_classes(src_path)
-        
+
         score = max(0, 100 - len(god_classes) * 15)
         passed = len(god_classes) == 0
 
@@ -217,15 +217,15 @@ class GodClassRule(ProjectRule):
             for node in ast.walk(tree):
                 if isinstance(node, ast.ClassDef):
                     self._check_class_node(node, path, src_path, god_classes)
-        
+
         return god_classes
 
     def _check_class_node(
-        self, 
-        node: ast.ClassDef, 
-        file_path: Path, 
-        src_root: Path, 
-        results: list[dict[str, str | int]]
+        self,
+        node: ast.ClassDef,
+        file_path: Path,
+        src_root: Path,
+        results: list[dict[str, str | int]],
     ) -> None:
         """Analyze a single class node for god class metrics."""
         # Count lines

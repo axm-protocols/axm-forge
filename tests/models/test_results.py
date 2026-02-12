@@ -1,6 +1,5 @@
 """Tests for audit models."""
 
-import pytest
 
 class TestModels:
     """Test that audit models work correctly in axm-audit."""
@@ -8,16 +7,19 @@ class TestModels:
     def test_audit_result_import(self):
         """Test that AuditResult can be imported."""
         from axm_audit.models import AuditResult
+
         assert AuditResult is not None
 
     def test_check_result_import(self):
         """Test that CheckResult can be imported."""
         from axm_audit.models import CheckResult
+
         assert CheckResult is not None
 
     def test_severity_import(self):
         """Test that Severity can be imported."""
         from axm_audit.models import Severity
+
         assert Severity is not None
 
 
@@ -50,10 +52,10 @@ class TestCheckResult:
     def test_audit_result_creation(self):
         """Test creating an AuditResult instance."""
         from axm_audit.models import AuditResult, CheckResult
-        
+
         check = CheckResult(rule_id="TEST", passed=True, message="Test")
         result = AuditResult(checks=[check])
-        
+
         assert result.total == 1
         assert result.success is True
 
@@ -73,6 +75,7 @@ class TestCheckResult:
     def test_json_serialization(self) -> None:
         """AuditResult should serialize to valid JSON for Agents."""
         import json
+
         from axm_audit.models.results import AuditResult, CheckResult
 
         result = AuditResult(
@@ -86,7 +89,7 @@ class TestCheckResult:
     def test_audit_result_quality_score(self):
         """Test that quality scoring works."""
         from axm_audit.models import AuditResult, CheckResult
-        
+
         checks = [
             CheckResult(
                 rule_id="QUALITY_LINT",
@@ -102,14 +105,14 @@ class TestCheckResult:
             ),
         ]
         result = AuditResult(checks=checks)
-        
+
         assert result.quality_score is not None
         assert 0 <= result.quality_score <= 100
 
     def test_audit_result_grade(self):
         """Test that letter grading works."""
         from axm_audit.models import AuditResult, CheckResult
-        
+
         checks = [
             CheckResult(
                 rule_id="QUALITY_LINT",
@@ -119,5 +122,5 @@ class TestCheckResult:
             )
         ]
         result = AuditResult(checks=checks)
-        
+
         assert result.grade in ["A", "B", "C", "D", "F"]

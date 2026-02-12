@@ -11,7 +11,15 @@
   <a href="https://JarryGabriel.github.io/axm-audit/"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs"></a>
 </p>
 
-> Code auditing and quality rules for AXM
+> Code auditing and quality rules for AXM — 5-layer analysis with composite scoring.
+
+## Features
+
+- **5-layer analysis** — structure, quality (lint + type + complexity), architecture, security, practices
+- **Composite scoring** — weighted formula producing a 0–100 score with letter grade (A–F)
+- **Category filtering** — audit only `structure`, `quality`, `architecture`, or `practice`
+- **Multiple reporters** — JSON for agents, Markdown for humans
+- **Python API** — `audit_project()` returns typed `AuditResult` Pydantic models
 
 ## Installation
 
@@ -22,9 +30,11 @@ uv add axm-audit
 ## Quick Start
 
 ```python
-from axm_audit import hello
+from axm_audit import audit_project
+from pathlib import Path
 
-print(hello())
+result = audit_project(Path("."))
+print(f"Score: {result.quality_score}/100 — Grade {result.grade}")
 ```
 
 ## Development

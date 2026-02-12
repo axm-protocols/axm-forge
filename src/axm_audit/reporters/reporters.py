@@ -82,7 +82,7 @@ class MarkdownReporter(Reporter):
         failed_with_hints = [c for c in result.checks if not c.passed and c.fix_hint]
         if not failed_with_hints:
             return ""
-        
+
         lines = ["", "## Fix Hints"]
         for check in failed_with_hints:
             lines.append(f"- **{check.rule_id}**: {check.fix_hint}")

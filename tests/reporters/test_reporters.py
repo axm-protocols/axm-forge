@@ -1,6 +1,5 @@
 """Tests for reporters."""
 
-import pytest
 
 class TestReporters:
     """Test that reporters work correctly in axm-audit."""
@@ -8,18 +7,21 @@ class TestReporters:
     def test_json_reporter_import(self):
         """Test that JsonReporter can be imported."""
         from axm_audit.reporters import JsonReporter
+
         assert JsonReporter is not None
 
     def test_markdown_reporter_import(self):
         """Test that MarkdownReporter can be imported."""
         from axm_audit.reporters import MarkdownReporter
+
         assert MarkdownReporter is not None
 
     def test_json_reporter_render(self) -> None:
         """JsonReporter outputs valid JSON string."""
         import json
-        from axm_audit.reporters import JsonReporter
+
         from axm_audit.models import AuditResult, CheckResult
+        from axm_audit.reporters import JsonReporter
 
         result = AuditResult(
             checks=[
@@ -36,8 +38,8 @@ class TestReporters:
 
     def test_json_is_pure(self) -> None:
         """JSON output has no Rich formatting or escape codes."""
-        from axm_audit.reporters import JsonReporter
         from axm_audit.models import AuditResult, CheckResult
+        from axm_audit.reporters import JsonReporter
 
         result = AuditResult(
             checks=[CheckResult(rule_id="R1", passed=False, message="FAIL")]
@@ -51,8 +53,8 @@ class TestReporters:
 
     def test_markdown_reporter_render(self) -> None:
         """MarkdownReporter creates readable table."""
-        from axm_audit.reporters import MarkdownReporter
         from axm_audit.models import AuditResult, CheckResult
+        from axm_audit.reporters import MarkdownReporter
 
         result = AuditResult(
             checks=[
@@ -74,8 +76,8 @@ class TestReporters:
 
     def test_markdown_shows_summary(self) -> None:
         """Markdown includes summary statistics."""
-        from axm_audit.reporters import MarkdownReporter
         from axm_audit.models import AuditResult, CheckResult
+        from axm_audit.reporters import MarkdownReporter
 
         result = AuditResult(
             checks=[

@@ -46,3 +46,19 @@ jobs:
       - run: uv python install ${{ matrix.python-version }}
       - run: uv sync --all-groups
       - run: uv run pytest
+
+      - name: Upload Coverage
+        uses: coverallsapp/github-action@v2
+        with:
+          flag-name: py${{ matrix.python-version }}
+          parallel: true
+
+  coverage-finish:
+    needs: test
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Finalize Coverage
+        uses: coverallsapp/github-action@v2
+        with:
+          parallel-finished: true

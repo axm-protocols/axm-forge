@@ -10,7 +10,7 @@ This package provides comprehensive project auditing capabilities including:
 Example:
     >>> from axm_audit import audit_project
     >>> from pathlib import Path
-    >>> 
+    >>>
     >>> result = audit_project(Path("."))
     >>> print(f"Grade: {result.grade}")
     Grade: A
@@ -22,9 +22,9 @@ from axm_audit.models import AuditResult, CheckResult, Severity
 __version__ = "1.0.0"
 
 __all__ = [
-    "audit_project",
-    "get_rules_for_category",
     "AuditResult",
     "CheckResult",
     "Severity",
+    "audit_project",
+    "get_rules_for_category",
 ]
