@@ -80,7 +80,7 @@ def _print_init_result(
         raise SystemExit(1)
 
 
-@app.command()
+@app.command()  # type: ignore[misc]
 def init(
     path: Annotated[
         str,
@@ -150,24 +150,10 @@ def init(
     )
     result = copier_adapter.copy(copier_config)
 
-    # Activate pre-commit hooks in the scaffolded project
-    if result.success:
-        import subprocess
-
-        try:
-            subprocess.run(
-                ["uv", "run", "pre-commit", "install"],
-                cwd=target_path,
-                capture_output=True,
-                check=False,
-            )
-        except FileNotFoundError:
-            pass  # uv/pre-commit not available — skip silently
-
     _print_init_result(result, project_name, target_path, json_output=json_output)
 
 
-@app.command()
+@app.command()  # type: ignore[misc]
 def reserve(
     name: Annotated[
         str,
@@ -233,7 +219,7 @@ def reserve(
             raise SystemExit(1)
 
 
-@app.command()
+@app.command()  # type: ignore[misc]
 def check(
     path: Annotated[
         str,
@@ -273,7 +259,7 @@ def check(
         raise SystemExit(1)
 
 
-@app.command()
+@app.command()  # type: ignore[misc]
 def version() -> None:
     """Show axm-init version."""
     from axm_init import __version__

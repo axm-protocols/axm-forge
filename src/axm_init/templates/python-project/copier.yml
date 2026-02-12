@@ -106,4 +106,6 @@ _tasks:
   # Commit AFTER all deps installed so uv.lock is included
   - command: "cd {{ package_name }} && git add . && git commit -m 'feat: initial scaffold'"
     when: "{{ true }}"
+  - command: "cd {{ package_name }} && uv run pre-commit install"
+    when: "{{ true }}"
   - "echo '✅ Project scaffolded! Run: cd {{ package_name }} && make check'"
