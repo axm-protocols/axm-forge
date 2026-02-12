@@ -86,6 +86,18 @@ Reserve a package name on PyPI with a minimal placeholder.
 | `--dry-run` | | `False` | Skip actual publish |
 | `--json` | | `False` | Output as JSON |
 
+## CI Audit Badge
+
+Projects scaffolded with `axm-init init` include an automated **audit badge** that updates on every push. The badge shows your score and grade using the AXM logo.
+
+```
+push → axm-init audit → badge JSON → gh-pages → shields.io
+```
+
+The badge is already in your README — just push to `main` and it appears after the first CI run.
+
+**Existing projects** can add the badge too — copy `.github/workflows/axm-init.yml` from a scaffolded project and add the badge markup. See the [howto guide](https://axm-protocols.github.io/axm-init/howto/audit/#ci-badge) for details.
+
 ## Development
 
 ```bash

@@ -70,3 +70,35 @@ Example:
    Missing: Development
    Fix:     Add Development section(s) to README.md.
 ```
+
+## CI Badge
+
+Projects scaffolded with `axm-init init` include an automated **audit badge** powered by GitHub Actions. The badge displays your audit score and updates on every push to `main`.
+
+### How It Works
+
+1. **Push to `main`** triggers `.github/workflows/axm-init.yml`
+2. The workflow runs `axm-init audit --json` and extracts the score
+3. A shields.io JSON badge is generated and pushed to `gh-pages`
+4. Your README displays the score via a shields.io endpoint badge
+
+### Badge in Your README
+
+The scaffolded README already includes the badge. It looks like this:
+
+```html
+<a href="https://your-org.github.io/your-project/">
+  <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/your-org/your-project/gh-pages/badges/axm-init.json" alt="axm-init">
+</a>
+```
+
+### Adding to an Existing Project
+
+If your project wasn't scaffolded with `axm-init init`, you can add the badge manually:
+
+1. Copy the workflow from any scaffolded project (`.github/workflows/axm-init.yml`)
+2. Add the badge markup to your README
+3. Push to `main` — the badge appears after the first workflow run
+
+!!! tip "First run"
+    The badge will show "resource not found" until the first workflow run pushes `axm-init.json` to `gh-pages`. Just push to `main` and wait for the action to complete.
