@@ -4,12 +4,12 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-
-from axm_mcp import mcp_app
 from axm.runtime.errors import (
     InvalidURIError,
     SessionNotFoundError,
 )
+
+from axm_mcp import mcp_app
 
 
 @pytest.fixture

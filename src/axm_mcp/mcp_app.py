@@ -10,14 +10,15 @@ This module exposes the four agent-facing tools:
 from pathlib import Path
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
-
 from axm.catalog import ResourceCatalog
 from axm.runtime.errors import (
     InvalidURIError,
     SessionNotFoundError,
 )
 from axm.runtime.orchestrator import ProtocolOrchestrator
+from mcp.server.fastmcp import FastMCP
+
+from axm_mcp.discovery import discover_tools, register_tools
 
 # FastMCP server instance
 mcp = FastMCP("axm-mcp")
@@ -25,6 +26,9 @@ mcp = FastMCP("axm-mcp")
 # Global orchestrator instance (will be initialized with catalog)
 _orchestrator: ProtocolOrchestrator | None = None
 
+# Auto-discover and register tools from installed packages
+_discovered_tools = discover_tools()
+register_tools(mcp, _discovered_tools)
 
 def configure(catalog: ResourceCatalog, sessions_path: Path) -> None:
     """Configure the MCP server with a catalog.
@@ -149,6 +153,7 @@ def read(session_id: str, uri: str) -> Any:
         return orchestrator.read_role(path)
     else:
         raise InvalidURIError(uri, f"unknown scheme '{scheme}'")
+
 
 
 # Entry point for MCP CLI

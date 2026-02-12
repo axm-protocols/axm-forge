@@ -18,6 +18,11 @@ dependencies = [
     "mcp[cli]>=1.25.0",
 ]
 
+[project.optional-dependencies]
+bib = ["axm-bib"]
+formal = ["axm-formal"]
+all = ["axm-bib", "axm-formal"]
+
 [project.scripts]
 axm-mcp = "axm_mcp:main"
 
@@ -44,6 +49,8 @@ dev = [
     "pip-audit>=2.0",
     "types-pyyaml>=6.0.12.20250915",
     "types-jsonschema>=4.26.0.20260202",
+    "axm-bib",
+    "axm-formal",
 ]
 docs = [
     "mkdocs-material>=9.0",
@@ -63,7 +70,7 @@ select = ["E", "F", "I", "N", "UP", "B", "C4", "S", "T20", "RUF"]
 ignore = ["S101", "RUF012"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101"]
+"tests/*" = ["S101", "S108"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_mcp"]
@@ -156,3 +163,5 @@ tag_pattern = "v[0-9].*"
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.uv.sources]
 axm = { workspace = true }
+axm-bib = { workspace = true }
+axm-formal = { workspace = true }

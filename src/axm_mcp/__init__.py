@@ -12,7 +12,6 @@ __all__ = ["__version__", "main"]
 def main() -> None:
     """Entry point for axm-mcp command."""
     import axm
-
     from axm.catalog import ResourceCatalog, ResourceInitializer, UpdateStrategy
 
     from axm_mcp.mcp_app import configure, mcp
