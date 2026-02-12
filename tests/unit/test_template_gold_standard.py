@@ -446,4 +446,3 @@ class TestTemplateAxmAuditWorkflow:
             TEMPLATE_ROOT / ".github" / "workflows" / "axm-audit.yml.jinja"
         ).read_text()
         assert "axm-protocols/axm-audit" in wf
-
