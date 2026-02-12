@@ -17,7 +17,8 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
-      - run: uv pip install pre-commit && pre-commit install
+      - run: uv tool install pre-commit --force
+      - run: uv run pre-commit install
 
       - name: Run AXM Check
         id: check
