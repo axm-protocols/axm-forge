@@ -45,7 +45,7 @@ jobs:
           cat > badges/audit.json <<EOF
           {
             "schemaVersion": 1,
-            "label": "axm audit",
+            "label": "axm-init",
             "message": "${{ steps.audit.outputs.score }}/100 (${{ steps.audit.outputs.grade }})",
             "color": "${{ steps.color.outputs.color }}",
             "namedLogo": "python",
