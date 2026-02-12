@@ -42,17 +42,19 @@ jobs:
       - name: Generate badge JSON
         run: |
           mkdir -p badges
-          LOGO_SVG="data:image/svg+xml;base64,$(base64 -w0 assets/logo.svg)"
-          cat > badges/axm-init.json <<EOF
-          {
-            "schemaVersion": 1,
-            "label": "axm-init",
-            "message": "${{ steps.audit.outputs.score }}%",
-            "color": "${{ steps.color.outputs.color }}",
-            "logoSvg": "${LOGO_SVG}",
-            "style": "flat"
-          }
-          EOF
+          LOGO_SVG=$(cat assets/logo.svg)
+          jq -n \
+            --arg score "${{ steps.audit.outputs.score }}" \
+            --arg color "${{ steps.color.outputs.color }}" \
+            --arg logo "$LOGO_SVG" \
+            '{
+              schemaVersion: 1,
+              label: "axm-init",
+              message: "\($score)%",
+              color: $color,
+              logoSvg: $logo,
+              style: "flat"
+            }' > badges/axm-init.json
 
       - name: Push badge to gh-pages
         uses: peaceiris/actions-gh-pages@v4
