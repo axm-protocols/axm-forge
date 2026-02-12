@@ -41,3 +41,4 @@ PROJECT_SYNTHESIS.md
 build_reservation/
 .docs-sync/
 coverage.json
+src/axm_init/_version.py
