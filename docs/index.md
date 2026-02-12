@@ -7,47 +7,56 @@ hide:
 # axm-audit
 
 <p align="center">
-  <strong>Code auditing and quality rules for AXM</strong>
+  <strong>Code auditing and quality rules for Python projects.</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/JarryGabriel/axm-audit/actions/workflows/ci.yml">
-    <img src="https://github.com/JarryGabriel/axm-audit/actions/workflows/ci.yml/badge.svg" alt="CI" />
-  </a>
-  <a href="https://coveralls.io/github/JarryGabriel/axm-audit?branch=main">
-    <img src="https://coveralls.io/repos/github/JarryGabriel/axm-audit/badge.svg?branch=main" alt="Coverage" />
-  </a>
-  <a href="https://pypi.org/project/axm-audit/">
-    <img src="https://img.shields.io/pypi/v/axm-audit" alt="PyPI" />
-  </a>
+  <a href="https://github.com/axm-protocols/axm-audit/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-audit/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://coveralls.io/github/axm-protocols/axm-audit?branch=main"><img src="https://coveralls.io/repos/github/axm-protocols/axm-audit/badge.svg?branch=main" alt="Coverage" /></a>
+  <a href="https://pypi.org/project/axm-audit/"><img src="https://img.shields.io/pypi/v/axm-audit" alt="PyPI" /></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+" />
   <img src="https://img.shields.io/badge/typed-strict-blue.svg" alt="Typed" />
+  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff" /></a>
+  <a href="https://github.com/astral-sh/uv"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json" alt="uv" /></a>
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" />
 </p>
 
 ---
 
-## Installation
+## What is axm-audit?
 
-```bash
-uv add axm-audit
-```
+`axm-audit` is a Python library that audits project quality across multiple layers. It wraps established tools into a single composite score:
 
-## Quick Start
+| Layer | Tool | Weight |
+|---|---|---|
+| **Linting** | Ruff | 40% |
+| **Type Checking** | MyPy | 35% |
+| **Complexity** | Radon | 25% |
+
+## Quick Example
 
 ```python
-from axm_audit import hello
+from pathlib import Path
+from axm_audit import audit_project
 
-print(hello())
+result = audit_project(Path("."))
+print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
+# Grade: A — 95.0/100
 ```
 
 ## Features
 
-- ✅ **Modern Python** — 3.12+ with strict typing
-- ✅ **Fast** — Optimized for performance
-- ✅ **Tested** — Full coverage with pytest
+- 🔍 **Linting** — Score code quality with Ruff (800+ rules)
+- 🔒 **Type Checking** — Strict mypy analysis via `mypy.api.run()`
+- 📊 **Complexity** — Cyclomatic complexity via radon Python API
+- 🛡️ **Security** — Pattern-based vulnerability detection
+- 🏗️ **Architecture** — Circular imports, god classes, coupling metrics
+- 📐 **Practices** — Docstring coverage, bare except detection
+- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 106+ tests
 
 ---
 
 <div style="text-align: center; margin: 2rem 0;">
-  <a href="getting-started/" class="md-button md-button--primary">Get Started →</a>
+  <a href="tutorials/getting-started/" class="md-button md-button--primary">Get Started →</a>
+  <a href="reference/api/" class="md-button">API Reference</a>
 </div>

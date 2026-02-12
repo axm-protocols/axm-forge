@@ -21,10 +21,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/JarryGabriel/axm-audit"
-Documentation = "https://JarryGabriel.github.io/axm-audit/"
-Repository = "https://github.com/JarryGabriel/axm-audit"
-Issues = "https://github.com/JarryGabriel/axm-audit/issues"
+Homepage = "https://github.com/axm-protocols/axm-audit"
+Documentation = "https://axm-protocols.github.io/axm-audit/"
+Repository = "https://github.com/axm-protocols/axm-audit"
+Issues = "https://github.com/axm-protocols/axm-audit/issues"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

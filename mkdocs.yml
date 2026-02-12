@@ -1,12 +1,14 @@
 site_name: axm-audit
-site_description: Code auditing and quality rules for AXM
-site_url: https://JarryGabriel.github.io/axm-audit
-repo_url: https://github.com/JarryGabriel/axm-audit
-repo_name: JarryGabriel/axm-audit
-copyright: Copyright &copy; 2026 Gabriel Jarry
+site_description: "Code auditing and quality rules for Python projects."
+site_url: https://axm-protocols.github.io/axm-audit
+repo_url: https://github.com/axm-protocols/axm-audit
+repo_name: axm-protocols/axm-audit
+copyright: Copyright &copy; 2026 axm-protocols
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   palette:
     # Light mode
     - media: "(prefers-color-scheme: light)"
@@ -28,11 +30,26 @@ theme:
     - navigation.instant
     - navigation.tabs
     - navigation.top
+    - navigation.sections
     - search.suggest
     - search.highlight
     - content.code.copy
   icon:
     repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Tutorials:
+    - Getting Started: tutorials/getting-started.md
+  - How-To Guides:
+    - Run an Audit: howto/audit.md
+    - Filter by Category: howto/categories.md
+    - Interpret Results: howto/results.md
+  - Reference:
+    - Python API: reference/api/
+  - Explanation:
+    - Architecture: explanation/architecture.md
+    - Scoring: explanation/scoring.md
 
 plugins:
   - search
@@ -44,21 +61,12 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
+          paths: [src]
           options:
-            show_source: true
+            docstring_style: google
             show_root_heading: true
-
-nav:
-  - Home: index.md
-  - Tutorials:
-      - Quick Start: tutorials/quickstart.md
-  - How-To:
-      - Run Audits: howto/audit.md
-      - Filter by Category: howto/categories.md
-  - Reference: reference/
-  - Explanation:
-      - Architecture: explanation/architecture.md
-      - Scoring: explanation/scoring.md
+            show_root_full_path: false
+            heading_level: 3
 
 markdown_extensions:
   - admonition
@@ -70,9 +78,6 @@ markdown_extensions:
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.details
-  - pymdownx.tabbed:
-      alternate_style: true
   - attr_list
   - md_in_html
-  - toc:
-      permalink: true
+  - tables

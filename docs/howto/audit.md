@@ -2,7 +2,7 @@
 
 ## Full Audit
 
-Run all checks across all 5 layers:
+Run all checks across all layers:
 
 ```python
 from pathlib import Path
@@ -51,3 +51,11 @@ if not result.success:
             if check.fix_hint:
                 print(f"   Fix: {check.fix_hint}")
 ```
+
+## Python API
+
+| Function | Description |
+|---|---|
+| `audit_project(path)` | Run all checks |
+| `audit_project(path, category=...)` | Filter to one category |
+| `audit_project(path, quick=True)` | Lint + type only |

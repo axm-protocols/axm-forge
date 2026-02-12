@@ -1,0 +1,67 @@
+# Getting Started
+
+This tutorial walks you through installing `axm-audit` and running your first project audit.
+
+## Prerequisites
+
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+
+## Installation
+
+```bash
+uv add axm-audit
+```
+
+Or with pip:
+
+```bash
+pip install axm-audit
+```
+
+## Step 1: Run an Audit
+
+```python
+from pathlib import Path
+from axm_audit import audit_project
+
+result = audit_project(Path("."))
+print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
+```
+
+The `AuditResult` contains every check result, a composite score, and a letter grade.
+
+## Step 2: Inspect Results
+
+```python
+print(f"Passed: {result.total - result.failed}/{result.total}")
+
+for check in result.checks:
+    icon = "✅" if check.passed else "❌"
+    print(f"{icon} {check.rule_id}: {check.message}")
+
+    if not check.passed and check.fix_hint:
+        print(f"   💡 {check.fix_hint}")
+```
+
+## Step 3: Filter by Category
+
+Focus on a specific area:
+
+```python
+# Quality checks only (lint + type + complexity)
+result = audit_project(Path("."), category="quality")
+
+# Quick mode (lint + type only, fastest)
+result = audit_project(Path("."), quick=True)
+```
+
+!!! tip "Available categories"
+    `quality`, `architecture`, `practice`, `structure`
+
+## Next Steps
+
+- [Filter by category](../howto/categories.md) — all categories and their rules
+- [Interpret results](../howto/results.md) — reporters, scoring, severity levels
+- [Understand the scoring](../explanation/scoring.md) — how the composite score works
+- [Architecture overview](../explanation/architecture.md) — layers and data flow

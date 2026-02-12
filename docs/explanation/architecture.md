@@ -1,63 +1,115 @@
-# 5-Layer Architecture
-
-axm-audit implements the **SOTA 5-layer quality assessment** model (2024-2025 standards) for Python projects.
+# Architecture
 
 ## Overview
 
+`axm-audit` follows a layered architecture with clear separation of concerns:
+
 ```mermaid
 graph TD
-    A["audit_project(path)"] --> B["Layer 1: Linting"]
-    A --> C["Layer 2: Type Checking"]
-    A --> D["Layer 3: Complexity"]
-    A --> E["Layer 4: Security"]
-    A --> F["Layer 5: Architecture"]
-    B --> G["AuditResult"]
-    C --> G
-    D --> G
-    E --> G
-    F --> G
-    G --> H["quality_score + grade"]
+    subgraph "Public API"
+        AuditFn["audit_project(path)"]
+    end
+
+    subgraph "Auditor"
+        Rules["get_rules_for_category()"]
+    end
+
+    subgraph "Rule Categories"
+        Quality["Quality Rules"]
+        Arch["Architecture Rules"]
+        Practice["Practice Rules"]
+        Structure["Structure Rules"]
+    end
+
+    subgraph "Tools"
+        Ruff["Ruff (sys.executable)"]
+        MyPy["mypy.api.run()"]
+        Radon["radon.complexity.cc_visit()"]
+        AST["ast module"]
+        FS["pathlib"]
+    end
+
+    subgraph "Output"
+        Result["AuditResult"]
+        Reporters["JsonReporter / MarkdownReporter"]
+    end
+
+    AuditFn --> Rules
+    Rules --> Quality
+    Rules --> Arch
+    Rules --> Practice
+    Rules --> Structure
+    Quality --> Ruff
+    Quality --> MyPy
+    Quality --> Radon
+    Arch --> AST
+    Practice --> AST
+    Structure --> FS
+    Quality --> Result
+    Arch --> Result
+    Practice --> Result
+    Structure --> Result
+    Result --> Reporters
 ```
 
-## Layer Details
+## Layers
 
-### Layer 1 — Linting (Ruff)
+### 1. Public API
 
-**Weight:** 25% · **Rule:** `LintingRule`
+- **`audit_project()`** — Main entry point (`__init__.py`)
+- **`get_rules_for_category()`** — Get rule instances, optionally filtered
 
-Static analysis with 800+ rules via [Ruff](https://docs.astral.sh/ruff/). Catches style violations, potential bugs, and anti-patterns at 10-100x the speed of traditional linters.
+Both return typed Pydantic models for safe agent consumption.
 
-### Layer 2 — Type Checking (MyPy)
+### 2. Rule Engine
 
-**Weight:** 30% · **Rule:** `TypeCheckRule`
+`get_rules_for_category()` returns rule instances from the `RULES_BY_CATEGORY` registry:
 
-Strict mode type checking via [MyPy](https://mypy.readthedocs.io/). Verifies type annotations, catches `None`-safety issues, and enforces typed interfaces.
+| Category | Rules |
+|---|---|
+| `quality` | `LintingRule`, `TypeCheckRule`, `ComplexityRule` |
+| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule` |
+| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule` |
+| `structure` | `FileExistsRule`, `DirectoryExistsRule` |
 
-### Layer 3 — Complexity (Radon)
+### 3. Tool Integration
 
-**Weight:** 20% · **Rule:** `ComplexityRule`
+Each rule wraps an external tool using Python APIs where possible:
 
-Cyclomatic complexity analysis via [Radon](https://radon.readthedocs.io/). Flags functions with CC ≥ 10 as too complex. Measures maintainability.
+| Rule | Tool | Integration |
+|---|---|---|
+| `LintingRule` | Ruff | `subprocess.run([sys.executable, "-m", "ruff", ...])` |
+| `TypeCheckRule` | MyPy | `mypy.api.run(["--output", "json", ...])` |
+| `ComplexityRule` | Radon | `radon.complexity.cc_visit(source)` |
+| Architecture rules | Python `ast` | Direct AST parsing |
+| Structure rules | `pathlib` | Filesystem checks |
 
-### Layer 4 — Security (Bandit)
+### 4. Models
 
-**Weight:** 15% · **Rule:** `SecurityRule`
+`AuditResult`, `CheckResult`, `Severity` — Pydantic models with `extra = "forbid"` for strict validation.
 
-Vulnerability scanning via [Bandit](https://bandit.readthedocs.io/). Detects hardcoded secrets, SQL injection patterns, unsafe deserialization, and more.
+### 5. Reporters
 
-### Layer 5 — Architecture (AST)
+`JsonReporter` and `MarkdownReporter` render `AuditResult` for different consumers.
 
-**Weight:** 10% (via structure score) · **Rules:** `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`
+## Data Flow
 
-AST-based structural analysis detecting:
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as audit_project()
+    participant Auditor
+    participant Rules
+    participant Tools
 
-- **Circular imports** — dependency cycles between modules
-- **God classes** — classes with too many methods/attributes
-- **High coupling** — excessive inter-module dependencies
-
-## Additional Rule Categories
-
-Beyond the 5 quality layers, axm-audit includes:
-
-- **Structure rules** — verify `pyproject.toml`, `README.md`, `src/`, `tests/` exist
-- **Practice rules** — docstring coverage, bare except detection, security patterns
+    User->>API: audit_project(Path("."))
+    API->>Auditor: get_rules_for_category(category)
+    Auditor-->>API: list[ProjectRule]
+    loop For each rule
+        API->>Rules: rule.check(project_path)
+        Rules->>Tools: Ruff / MyPy / Radon / AST
+        Tools-->>Rules: raw output
+        Rules-->>API: CheckResult
+    end
+    API-->>User: AuditResult (score, grade, checks)
+```
