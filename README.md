@@ -1,6 +1,13 @@
-# axm-audit
+<p align="center">
+  <img src="https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.png" alt="AXM Logo" width="180" />
+</p>
 
-**Code auditing and quality rules for Python projects.**
+<p align="center">
+  <strong>axm-audit — Code auditing and quality rules for Python projects</strong>
+</p>
+
+
+**.**
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm-audit/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-audit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>

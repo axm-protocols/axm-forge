@@ -97,28 +97,35 @@ class DependencyHygieneRule(ProjectRule):
 
     def check(self, project_path: Path) -> CheckResult:
         """Check dependency hygiene with deptry."""
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+
         try:
-            result = run_in_project(
-                ["deptry", ".", "--json-output", "-"],
+            run_in_project(
+                ["deptry", ".", "--json-output", str(tmp_path)],
                 project_path,
                 capture_output=True,
                 text=True,
                 check=False,
             )
-        except FileNotFoundError:
+            if tmp_path.exists() and tmp_path.stat().st_size > 0:
+                issues = json.loads(tmp_path.read_text())
+            else:
+                issues = []
+        except (FileNotFoundError, json.JSONDecodeError):
             return CheckResult(
                 rule_id=self.rule_id,
                 passed=False,
-                message="deptry not available",
+                message="deptry failed or missing",
                 severity=Severity.ERROR,
                 details={"issue_count": 0, "score": 0},
                 fix_hint="Install with: uv add --dev deptry",
             )
-
-        try:
-            issues = json.loads(result.stdout) if result.stdout.strip() else []
-        except json.JSONDecodeError:
-            issues = []
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
 
         issue_count = len(issues)
         score = max(0, 100 - issue_count * 10)
@@ -137,9 +144,13 @@ class DependencyHygieneRule(ProjectRule):
                 "score": score,
                 "top_issues": [
                     {
-                        "code": i.get("error_code", ""),
+                        "code": i.get("error", {}).get("code", "")
+                        if "error" in i
+                        else i.get("error_code", ""),
                         "module": i.get("module", ""),
-                        "message": i.get("message", ""),
+                        "message": i.get("error", {}).get("message", "")
+                        if "error" in i
+                        else i.get("message", ""),
                     }
                     for i in issues[:5]
                 ],

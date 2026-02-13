@@ -7,12 +7,16 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  # MyPy - type checking
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.14.1
+  # MyPy - type checking (local hook uses project venv via uv)
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies: [pydantic, pydantic-settings]
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [src/, tests/]
 
   # Conventional commits
   - repo: https://github.com/compilerla/conventional-pre-commit
