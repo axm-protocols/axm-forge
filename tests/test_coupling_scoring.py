@@ -90,6 +90,7 @@ class TestCouplingFormula:
         (src / "__init__.py").write_text("")
 
         result = rule.check(tmp_path)
+        assert result.details is not None
         score = result.details["score"]
         assert score == 100
         assert result.details["n_over_threshold"] == 0
@@ -109,6 +110,7 @@ class TestCouplingFormula:
         (src / "__init__.py").write_text("")
 
         result = rule.check(tmp_path)
+        assert result.details is not None
         assert result.details["n_over_threshold"] == 2
         assert result.details["score"] == 90  # 100 - 2*5
 
@@ -127,6 +129,7 @@ class TestCouplingFormula:
         (src / "__init__.py").write_text("")
 
         result = rule.check(tmp_path)
+        assert result.details is not None
         assert result.details["score"] == 0
 
     def test_no_src_returns_100(self, tmp_path: Path) -> None:
@@ -135,6 +138,7 @@ class TestCouplingFormula:
 
         rule = CouplingMetricRule()
         result = rule.check(tmp_path)
+        assert result.details is not None
         assert result.details["score"] == 100
 
     def test_over_threshold_lists_modules(self, tmp_path: Path) -> None:
@@ -150,6 +154,7 @@ class TestCouplingFormula:
         (src / "__init__.py").write_text("")
 
         result = rule.check(tmp_path)
+        assert result.details is not None
         over = result.details["over_threshold"]
         assert len(over) == 1
         assert over[0]["fan_out"] == 15

@@ -1,6 +1,12 @@
 """Tests for Quality Rules — RED phase."""
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from axm_audit.models.results import CheckResult
 
 
 class TestLintingRule:
@@ -91,6 +97,112 @@ class TestTypeCheckRule:
         rule = TypeCheckRule()
         assert rule.rule_id == "QUALITY_TYPE"
 
+    def test_typecheck_includes_tests_dir(self, tmp_path: Path) -> None:
+        """TypeCheckRule should include tests/ in checked dirs when present."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "__init__.py").write_text("")
+        (src / "main.py").write_text(
+            'def greet(name: str) -> str:\n    return f"Hello, {name}"\n'
+        )
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "__init__.py").write_text("")
+        (tests / "test_main.py").write_text(
+            "def test_greet() -> None:\n    assert True\n"
+        )
+
+        rule = TypeCheckRule()
+        result = rule.check(tmp_path)
+        assert result.details is not None
+        assert "tests/" in result.details.get("checked", "")
+
+    def test_typecheck_no_tests_dir(self, tmp_path: Path) -> None:
+        """TypeCheckRule should work fine without tests/ directory."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "__init__.py").write_text("")
+        (src / "main.py").write_text(
+            'def greet(name: str) -> str:\n    return f"Hello, {name}"\n'
+        )
+        # No tests/ directory
+
+        rule = TypeCheckRule()
+        result = rule.check(tmp_path)
+        assert result.details is not None
+        assert result.details.get("checked") == "src/"
+
+    def test_typecheck_details_has_errors_key(self, tmp_path: Path) -> None:
+        """details must contain an 'errors' key with a list."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "__init__.py").write_text("")
+        (src / "main.py").write_text(
+            'def greet(name: str) -> str:\n    return f"Hello, {name}"\n'
+        )
+
+        rule = TypeCheckRule()
+        result = rule.check(tmp_path)
+        assert result.details is not None
+        assert "errors" in result.details
+        assert isinstance(result.details["errors"], list)
+
+    def test_typecheck_errors_match_count(self, tmp_path: Path) -> None:
+        """len(details['errors']) must equal error_count."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "bad.py").write_text(
+            'def add(a: int, b: int) -> int:\n    return "not an int"\n'
+        )
+
+        rule = TypeCheckRule()
+        result = rule.check(tmp_path)
+        assert result.details is not None
+        assert len(result.details["errors"]) == result.details["error_count"]
+
+    def test_typecheck_error_entry_schema(self, tmp_path: Path) -> None:
+        """Each error entry must have file, line, message, code keys."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "bad.py").write_text(
+            'def add(a: int, b: int) -> int:\n    return "not an int"\n'
+        )
+
+        rule = TypeCheckRule()
+        result = rule.check(tmp_path)
+        assert result.details is not None
+        for entry in result.details["errors"]:
+            assert "file" in entry
+            assert "line" in entry
+            assert "message" in entry
+            assert "code" in entry
+
+    def test_typecheck_no_errors_empty_list(self, tmp_path: Path) -> None:
+        """When no errors, details['errors'] should be []."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "__init__.py").write_text("")
+        (src / "main.py").write_text(
+            'def greet(name: str) -> str:\n    return f"Hello, {name}"\n'
+        )
+
+        rule = TypeCheckRule()
+        result = rule.check(tmp_path)
+        assert result.details is not None
+        assert result.details["errors"] == []
+
 
 class TestComplexityRule:
     """Tests for ComplexityRule (radon integration)."""
@@ -167,7 +279,7 @@ def complex_fn(x: int, y: int, z: int) -> str:
 class TestAuditResultScoring:
     """Tests for AuditResult quality_score and grade (8-category model)."""
 
-    def _make_check(self, rule_id: str, score: float):
+    def _make_check(self, rule_id: str, score: float) -> CheckResult:
         """Helper to create a CheckResult with a score."""
         from axm_audit.models.results import CheckResult
 

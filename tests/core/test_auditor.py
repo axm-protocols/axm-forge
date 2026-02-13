@@ -138,3 +138,42 @@ class TestGetRulesForCategory:
 
         with pytest.raises(ValueError):
             get_rules_for_category("invalid")
+
+
+class TestAuditParallelExecution:
+    """Tests for parallel rule execution and exception isolation."""
+
+    def test_audit_uses_thread_pool(self, tmp_path, mocker):
+        """Verify rules execute via ThreadPoolExecutor."""
+        import concurrent.futures
+
+        (tmp_path / "pyproject.toml").write_text("[project]\nname='test'")
+        (tmp_path / "src").mkdir()
+
+        spy = mocker.spy(concurrent.futures, "ThreadPoolExecutor")
+
+        from axm_audit import audit_project
+
+        audit_project(tmp_path, quick=True)
+        spy.assert_called_once()
+
+    def test_rule_exception_doesnt_crash_others(self, tmp_path, mocker):
+        """One rule raising should not prevent others from completing."""
+        from axm_audit.core.auditor import audit_project
+        from axm_audit.core.rules.quality import LintingRule
+
+        (tmp_path / "pyproject.toml").write_text("[project]\nname='test'")
+        (tmp_path / "src").mkdir()
+
+        # Make LintingRule crash
+        mocker.patch.object(LintingRule, "check", side_effect=RuntimeError("boom"))
+
+        result = audit_project(tmp_path, category="quality")
+        # Other quality rules still ran (TypeCheckRule, ComplexityRule)
+        assert result.total >= 2
+
+        # The broken rule is marked as failed with crash message
+        lint_checks = [c for c in result.checks if c.rule_id == "QUALITY_LINT"]
+        assert len(lint_checks) == 1
+        assert not lint_checks[0].passed
+        assert "crashed" in lint_checks[0].message.lower()

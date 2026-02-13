@@ -1,10 +1,17 @@
 """Tests for redesigned scoring model — 8-category weighted score."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from axm_audit.models.results import CheckResult
+
 
 class TestScoringRedesign:
     """Tests for the 8-category quality_score redesign."""
 
-    def _make_check(self, rule_id: str, score: float):
+    def _make_check(self, rule_id: str, score: float) -> CheckResult:
         """Helper to create a CheckResult with a score."""
         from axm_audit.models.results import CheckResult
 
@@ -15,7 +22,7 @@ class TestScoringRedesign:
             details={"score": score},
         )
 
-    def _all_categories(self, score: float):
+    def _all_categories(self, score: float) -> list[CheckResult]:
         """Create checks for all 8 categories at a given score."""
         return [
             self._make_check("QUALITY_LINT", score),
