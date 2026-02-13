@@ -18,7 +18,13 @@ mcp = FastMCP("axm-mcp")
 
 # Auto-discover and register tools from installed packages
 _discovered_tools = discover_tools()
-register_tools(mcp, _discovered_tools)
+register_tools(
+    mcp,
+    _discovered_tools,
+    extra_tools={
+        "verify": "One-shot project verification: audit + init check + AST enrichment."
+    },
+)
 
 
 # Register the verify meta-tool

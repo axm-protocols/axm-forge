@@ -61,6 +61,7 @@ def discover_tools() -> dict[str, Any]:
 def register_tools(
     mcp: Any,
     tools: dict[str, Any],
+    extra_tools: dict[str, str] | None = None,
 ) -> None:
     """Register discovered tools as MCP tool callables.
 
@@ -70,13 +71,15 @@ def register_tools(
     Args:
         mcp: FastMCP server instance.
         tools: Dict from discover_tools().
+        extra_tools: Optional dict of manually-registered tool names
+            to their descriptions (for list_tools inclusion).
     """
     for name, tool in tools.items():
         _register_one(mcp, name, tool)
         logger.info("Registered MCP tool: %s", name)
 
     # Register the `list_tools` meta-tool
-    _register_list_tools(mcp, tools)
+    _register_list_tools(mcp, tools, extra_tools or {})
 
 
 def _register_one(mcp: Any, name: str, tool: Any) -> None:
@@ -97,7 +100,11 @@ def _register_one(mcp: Any, name: str, tool: Any) -> None:
     _wrapper.__doc__ = tool.execute.__doc__ or f"Execute {name} tool."
 
 
-def _register_list_tools(mcp: Any, tools: dict[str, Any]) -> None:
+def _register_list_tools(
+    mcp: Any,
+    tools: dict[str, Any],
+    extra_tools: dict[str, str],
+) -> None:
     """Register the list_tools meta-tool."""
 
     @mcp.tool(name="list_tools")  # type: ignore[misc]
@@ -107,6 +114,9 @@ def _register_list_tools(mcp: Any, tools: dict[str, Any]) -> None:
         for name, tool in sorted(tools.items()):
             doc = (tool.execute.__doc__ or "").strip().split("\n")[0]
             tool_list.append({"name": name, "description": doc})
+        for name, desc in sorted(extra_tools.items()):
+            tool_list.append({"name": name, "description": desc})
+        tool_list.sort(key=lambda t: t["name"])
         return {"tools": tool_list, "count": len(tool_list)}
 
     logger.info("Registered meta-tool: list_tools")

@@ -4,12 +4,12 @@ Expose your own Python tool as an MCP-callable function via `axm-mcp`.
 
 ## Prerequisites
 
-Your tool must be a subclass of `AXMTool` from `axm.services.tools.base`.
+Your tool must be a subclass of `AXMTool` from `axm.tools.base`.
 
 ## Step 1: Create the Tool Class
 
 ```python
-from axm.services.tools.base import AXMTool, ToolResult
+from axm.tools.base import AXMTool, ToolResult
 
 class MyTool(AXMTool):
     name = "my_tool"

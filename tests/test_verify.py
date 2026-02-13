@@ -9,7 +9,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from axm.services.tools.base import ToolResult
+from axm.tools.base import ToolResult
 
 
 class TestVerifyToolRegistered:
