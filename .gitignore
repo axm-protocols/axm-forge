@@ -139,3 +139,4 @@ Thumbs.db
 
 # Project-specific
 *.log
+_version.py
