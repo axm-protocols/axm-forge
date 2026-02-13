@@ -49,8 +49,7 @@ class InitReserveTool(AXMTool):
                     return ToolResult(
                         success=False,
                         error=(
-                            "No PyPI token found."
-                            " Set PYPI_TOKEN or configure keyring."
+                            "No PyPI token found. Set PYPI_TOKEN or configure keyring."
                         ),
                     )
             else:
