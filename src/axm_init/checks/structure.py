@@ -160,9 +160,36 @@ def check_license_file(project: Path) -> CheckResult:
     )
 
 
+def _find_uv_lock(project: Path) -> Path | None:
+    """Locate uv.lock: local first, then workspace root.
+
+    In a uv workspace (monorepo), ``uv.lock`` lives at the workspace root,
+    not in each member package.  Walk up parent directories looking for a
+    ``pyproject.toml`` that contains ``[tool.uv.workspace]`` and a sibling
+    ``uv.lock``.
+    """
+    local = project / "uv.lock"
+    if local.exists():
+        return local
+    for parent in project.resolve().parents:
+        candidate = parent / "pyproject.toml"
+        if candidate.exists():
+            try:
+                text = candidate.read_text()
+                if "[tool.uv.workspace]" in text:
+                    lock = parent / "uv.lock"
+                    if lock.exists():
+                        return lock
+                    return None  # workspace root found but no lock
+            except OSError:
+                continue
+    return None
+
+
 def check_uv_lock(project: Path) -> CheckResult:
     """Check 32: uv.lock committed for reproducible builds."""
-    if not (project / "uv.lock").exists():
+    lock = _find_uv_lock(project)
+    if lock is None:
         return CheckResult(
             name="structure.uv_lock",
             category="structure",
@@ -172,12 +199,14 @@ def check_uv_lock(project: Path) -> CheckResult:
             details=["Commit uv.lock for reproducible dependency resolution"],
             fix="Run `uv lock` and commit the generated uv.lock file.",
         )
+    at_root = lock.parent != project.resolve()
+    msg = "uv.lock found (workspace root)" if at_root else "uv.lock found"
     return CheckResult(
         name="structure.uv_lock",
         category="structure",
         passed=True,
         weight=2,
-        message="uv.lock found",
+        message=msg,
         details=[],
         fix="",
     )
