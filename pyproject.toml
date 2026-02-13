@@ -1,7 +1,7 @@
 [project]
 name = "axm-ast"
 dynamic = ["version"]
-description = "Abstract Syntax Tree utilities for AXM Audit"
+description = "AST introspection CLI for AI agents — powered by tree-sitter"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.12"
@@ -15,16 +15,35 @@ classifiers = [
 ]
 
 dependencies = [
+    "cyclopts>=3.0",
     "loguru>=0.7.3",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
+    "tree-sitter>=0.24",
+    "tree-sitter-python>=0.23",
 ]
+
+[project.scripts]
+axm-ast = "axm_ast.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/axm-protocols/axm-ast"
 Documentation = "https://axm-protocols.github.io/axm-ast/"
 Repository = "https://github.com/axm-protocols/axm-ast.git"
 Issues = "https://github.com/axm-protocols/axm-ast/issues"
+
+# ---------------------------------------------------------------------------
+# Entry points — auto-discovered by axm-mcp
+# ---------------------------------------------------------------------------
+[project.entry-points."axm.tools"]
+ast_context  = "axm_ast.tools.context:ContextTool"
+ast_describe = "axm_ast.tools.describe:DescribeTool"
+ast_search   = "axm_ast.tools.search:SearchTool"
+ast_callers  = "axm_ast.tools.callers:CallersTool"
+ast_impact   = "axm_ast.tools.impact:ImpactTool"
+ast_inspect  = "axm_ast.tools.inspect:InspectTool"
+ast_graph    = "axm_ast.tools.graph:GraphTool"
+ast_docs     = "axm_ast.tools.docs:DocsTool"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -69,14 +88,15 @@ docs = [
 target-version = "py312"
 line-length = 88
 src = ["src", "tests"]
-exclude = ["*/_version.py"]
+exclude = ["*/_version.py", "tests/fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "C4", "S", "T20", "RUF"]
-ignore = ["S101"]
+ignore = ["S101", "S603", "S607"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S105", "S106", "S108"]
+"src/axm_ast/cli.py" = ["T201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_ast"]
@@ -98,6 +118,14 @@ show_error_codes = true
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["cyclopts.*", "tree_sitter.*", "tree_sitter_python.*", "axm.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["axm_ast.tools.*"]
+disallow_subclassing_any = false
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Pytest Configuration
