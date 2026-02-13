@@ -100,15 +100,10 @@ class TestGitCommitTool:
             if args[0] == "commit":
                 commit_count += 1
                 if commit_count == 2:
-                    return _fail(
-                        stdout="files were modified by this hook",
-                        stderr="ruff failed",
-                    )
+                    return _fail(stderr="mypy error")
                 return _ok()
             if args[0] == "log":
                 return _ok("abc1234")
-            if args[0] == "diff":
-                return _ok("src/b.py\n")
             return _ok()
 
         mock_git.side_effect = _side_effect
@@ -122,7 +117,6 @@ class TestGitCommitTool:
         assert not result.success
         assert result.data["succeeded"] == 1
         assert result.data["failed_commit"]["index"] == 2
-        assert "src/b.py" in result.data["failed_commit"]["auto_fixed_files"]
 
     def test_empty_files_error(self) -> None:
         result = GitCommitTool().execute(
@@ -158,8 +152,6 @@ class TestGitCommitTool:
             args: list[str], cwd: Any, **kw: Any
         ) -> subprocess.CompletedProcess[str]:
             if args[0] == "commit":
-                assert "-m" in args
-                # Should have two -m flags (message + body)
                 m_count = args.count("-m")
                 assert m_count == 2
                 return _ok()
@@ -179,3 +171,84 @@ class TestGitCommitTool:
             ],
         )
         assert result.success
+
+    # ── Bug fix tests ──────────────────────────────────────────────
+
+    @patch("axm_git.tools.commit.run_git")
+    def test_git_add_uses_dash_a_flag(self, mock_git: MagicMock) -> None:
+        """git add call includes -A and -- flags."""
+        add_calls: list[list[str]] = []
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if args[0] == "add":
+                add_calls.append(args)
+                return _ok()
+            if args[0] == "commit":
+                return _ok()
+            if args[0] == "log":
+                return _ok("abc1234")
+            return _ok()
+
+        mock_git.side_effect = _side_effect
+        GitCommitTool().execute(
+            path="/tmp/test",
+            commits=[{"files": ["a.py"], "message": "fix: a"}],
+        )
+        assert len(add_calls) == 1
+        assert "-A" in add_calls[0]
+        assert "--" in add_calls[0]
+
+    @patch("axm_git.tools.commit.run_git")
+    def test_auto_retry_on_ruff_fix(self, mock_git: MagicMock) -> None:
+        """When pre-commit auto-fixes, re-stage and retry once."""
+        commit_count = 0
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            nonlocal commit_count
+            if args[0] == "add":
+                return _ok()
+            if args[0] == "commit":
+                commit_count += 1
+                if commit_count == 1:
+                    return _fail(stdout="files were modified by this hook")
+                return _ok()  # retry succeeds
+            if args[0] == "log":
+                return _ok("abc1234")
+            return _ok()
+
+        mock_git.side_effect = _side_effect
+        result = GitCommitTool().execute(
+            path="/tmp/test",
+            commits=[{"files": ["a.py"], "message": "fix: a"}],
+        )
+        assert result.success
+        assert result.data["results"][0]["retried"] is True
+        assert commit_count == 2
+
+    @patch("axm_git.tools.commit.run_git")
+    def test_auto_retry_fails_twice(self, mock_git: MagicMock) -> None:
+        """When retry also fails, report error with retried=True."""
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if args[0] == "add":
+                return _ok()
+            if args[0] == "commit":
+                return _fail(stdout="files were modified by this hook")
+            if args[0] == "diff":
+                return _ok("a.py\n")
+            return _ok()
+
+        mock_git.side_effect = _side_effect
+        result = GitCommitTool().execute(
+            path="/tmp/test",
+            commits=[{"files": ["a.py"], "message": "fix: a"}],
+        )
+        assert not result.success
+        assert result.data["failed_commit"]["retried"] is True
+        assert "a.py" in result.data["failed_commit"]["auto_fixed_files"]
