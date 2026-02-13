@@ -62,10 +62,7 @@ class TestAnalyzePackage:
         pkg_dir = tmp_path / "tiny"
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text(
-            '"""Tiny package."""\n'
-            "def hi() -> str:\n"
-            '    """Say hi."""\n'
-            '    return "hi"'
+            '"""Tiny package."""\ndef hi() -> str:\n    """Say hi."""\n    return "hi"'
         )
         pkg = analyze_package(pkg_dir)
         assert len(pkg.modules) == 1

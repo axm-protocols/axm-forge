@@ -94,8 +94,7 @@ class TestDetectStack:
         pyproject = tmp_path / "pyproject.toml"
         content = pyproject.read_text()
         content += (
-            "\n[dependency-groups]\n"
-            'dev = ["pytest>=8.0", "ruff>=0.8", "mypy>=1.14"]\n'
+            '\n[dependency-groups]\ndev = ["pytest>=8.0", "ruff>=0.8", "mypy>=1.14"]\n'
         )
         pyproject.write_text(content)
         stack = detect_stack(tmp_path)
@@ -226,7 +225,7 @@ class TestBuildContext:
 
     def test_build_context_module_list(self, tmp_path: Path) -> None:
         """Context includes module names."""
-        core_src = '"""Core."""\n' "def f() -> None:\n" '    """F."""\n' "    pass\n"
+        core_src = '"""Core."""\ndef f() -> None:\n    """F."""\n    pass\n'
         pkg = _make_pkg(
             tmp_path,
             modules={"core.py": core_src},
@@ -270,7 +269,7 @@ class TestContextEdgeCases:
         pkg = tmp_path / "nspkg"
         pkg.mkdir()
         (pkg / "mod.py").write_text(
-            '"""Module."""\n' "def hello() -> None:\n" '    """Hello."""\n' "    pass\n"
+            '"""Module."""\ndef hello() -> None:\n    """Hello."""\n    pass\n'
         )
         # Should not crash
         from axm_ast.core.analyzer import analyze_package

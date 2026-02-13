@@ -34,8 +34,7 @@ __all__ = ["app"]
 app = cyclopts.App(
     name="axm-ast",
     help=(
-        "AXM AST — Python library introspection"
-        " for AI agents, powered by tree-sitter."
+        "AXM AST — Python library introspection for AI agents, powered by tree-sitter."
     ),
 )
 
@@ -305,8 +304,7 @@ def search(
         cyclopts.Parameter(
             name=["--kind", "-k"],
             help=(
-                "Filter by kind: function, method,"
-                " property, classmethod, staticmethod"
+                "Filter by kind: function, method, property, classmethod, staticmethod"
             ),
         ),
     ] = None,

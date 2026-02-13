@@ -76,7 +76,7 @@ class TestFormatCompressed:
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text('"""Rel pkg."""\n')
         (pkg_dir / "core.py").write_text(
-            '"""Core."""\n' "def helper() -> None:\n" '    """Help."""\n' "    pass\n"
+            '"""Core."""\ndef helper() -> None:\n    """Help."""\n    pass\n'
         )
         (pkg_dir / "cli.py").write_text(
             '"""CLI."""\n'
@@ -130,7 +130,7 @@ class TestFormatCompressed:
         pkg_dir = tmp_path / "nomethod"
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text(
-            '"""No method."""\n' "class Foo:\n" '    """A class."""\n' "    pass\n"
+            '"""No method."""\nclass Foo:\n    """A class."""\n    pass\n'
         )
         pkg = analyze_package(pkg_dir)
         output = format_compressed(pkg)
@@ -148,7 +148,7 @@ class TestCompressEdgeCases:
         pkg_dir = tmp_path / "nodoc"
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text(
-            '"""No doc."""\n' "def bare() -> int:\n" "    return 42\n"
+            '"""No doc."""\ndef bare() -> int:\n    return 42\n'
         )
         pkg = analyze_package(pkg_dir)
         output = format_compressed(pkg)
@@ -159,7 +159,7 @@ class TestCompressEdgeCases:
         pkg_dir = tmp_path / "constonly"
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text(
-            '"""Constants only."""\n' "DEBUG = False\n" "VERSION = '2.0'\n"
+            '"""Constants only."""\nDEBUG = False\nVERSION = \'2.0\'\n'
         )
         pkg = analyze_package(pkg_dir)
         output = format_compressed(pkg)
