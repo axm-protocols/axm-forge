@@ -19,10 +19,10 @@ Commands depend on which AXM packages are installed:
 | `axm init_check` | `axm-init` | Check project conformity |
 | `axm init_reserve` | `axm-init` | Reserve a PyPI package name |
 | `axm audit` | `axm-audit` | Code quality audit |
-| `axm bib_search` | `axm-bib` | Search papers |
-| `axm bib_pdf` | `axm-bib` | Download paper PDFs |
-| `axm protocol_run` | `axm-engine` | Run a protocol |
-| `axm protocol_read` | `axm-engine` | Read a URI |
+| `axm-bib search` | `axm-bib` | Search papers |
+| `axm-bib doi` | `axm-bib` | Resolve DOI to BibTeX |
+| `axm-bib pdf` | `axm-bib` | Download + extract paper PDFs |
+| `axm-bib extract` | `axm-bib` | Extract local PDF to Markdown |
 
 ## Python API
 
