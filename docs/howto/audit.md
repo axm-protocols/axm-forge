@@ -11,6 +11,9 @@ axm-audit audit .
 # JSON output
 axm-audit audit . --json
 
+# Agent-optimized output (compact, actionable)
+axm-audit audit . --agent
+
 # Filter by category
 axm-audit audit . --category quality
 
@@ -54,6 +57,18 @@ import json
 print(json.dumps(format_json(result), indent=2))
 ```
 
+### Agent Output
+
+Optimized for AI agents — passed checks are compact strings (or dicts with actionable details like missing docstrings), failed checks include full context:
+
+```python
+from axm_audit.formatters import format_agent
+
+data = format_agent(result)
+# data["passed"]: list of strings or dicts with details
+# data["failed"]: list of dicts with rule_id, message, details, fix_hint
+```
+
 ### Reporters
 
 Use the legacy reporters:
@@ -88,3 +103,4 @@ if not result.success:
 | `audit_project(path, quick=True)` | Lint + type only |
 | `format_report(result)` | Human-readable report |
 | `format_json(result)` | JSON-serializable dict |
+| `format_agent(result)` | Agent-optimized output (compact passed, detailed failed) |

@@ -45,6 +45,7 @@ nav:
     - Run an Audit: howto/audit.md
     - Filter by Category: howto/categories.md
     - Interpret Results: howto/results.md
+    - Use via MCP: howto/mcp.md
     - CI Badge: howto/ci-badge.md
   - Reference:
     - Python API: reference/api/

@@ -149,7 +149,7 @@ All subprocess-based rules use `run_in_project()` from `core/runner.py`, which d
 
 ### 6. Output
 
-- **Formatters**: `format_report()` (human-readable), `format_json()` (machine-readable)
+- **Formatters**: `format_report()` (human-readable), `format_json()` (machine-readable), `format_agent()` (agent-optimized)
 - **Reporters**: `JsonReporter`, `MarkdownReporter` for rendering `AuditResult`
 
 ## Data Flow

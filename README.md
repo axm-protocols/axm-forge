@@ -100,7 +100,7 @@ for check in result.checks:
 git clone https://github.com/axm-protocols/axm-audit.git
 cd axm-audit
 uv sync --all-groups
-uv run pytest           # 186 tests
+uv run pytest           # 208 tests
 uv run ruff check src/  # lint
 uv run mypy src/        # type check
 ```

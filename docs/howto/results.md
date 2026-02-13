@@ -46,6 +46,42 @@ data = format_json(result)
 print(json.dumps(data, indent=2))
 ```
 
+### Agent Output
+
+`format_agent` minimizes tokens for AI agent consumption. Passed checks are compact strings — unless they carry actionable detail (e.g. missing docstrings), in which case they become dicts with `details` and `fix_hint`:
+
+```python
+from axm_audit.formatters import format_agent
+
+data = format_agent(result)
+```
+
+Example output structure:
+
+```json
+{
+  "score": 85.0,
+  "grade": "B",
+  "passed": [
+    "QUALITY_LINT: Lint score: 100/100 (0 issues)",
+    {
+      "rule_id": "PRACTICE_DOCSTRING",
+      "message": "Docstring coverage: 95% (19/20)",
+      "details": {"coverage": 0.95, "missing": ["module.py:func"]},
+      "fix_hint": "Add docstrings to public functions"
+    }
+  ],
+  "failed": [
+    {
+      "rule_id": "QUALITY_TYPE",
+      "message": "Type score: 70/100 (6 errors)",
+      "details": {"score": 70, "error_count": 6},
+      "fix_hint": "Run: mypy src/"
+    }
+  ]
+}
+```
+
 ## Reporters (Legacy)
 
 ### JSON Reporter
