@@ -8,7 +8,7 @@ check: lint audit test  ## Run all checks
 lint:  ## Linter + type checker
 	uv run ruff check src tests
 	uv run ruff format --check src tests
-	uv run mypy src
+	uv run mypy src tests
 
 format:  ## Auto-format code
 	uv run ruff format src tests
