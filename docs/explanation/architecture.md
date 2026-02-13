@@ -2,44 +2,46 @@
 
 ## Overview
 
-`axm` follows a layered architecture with clear separation of concerns:
+`axm` is a **thin autodiscovery CLI wrapper** that delegates all functionality to installed AXM ecosystem packages. It contains zero business logic.
 
 ```mermaid
 graph TD
-    subgraph "User Interface"
-        CLI["CLI"]
-    end
+    AXM["axm CLI"] -->|"discovers via<br>entry_points"| INIT["axm-init"]
+    AXM -->|"discovers"| AUDIT["axm-audit"]
+    AXM -->|"discovers"| BIB["axm-bib"]
 
-    subgraph "Core Logic"
-        Core["Business Logic"]
-    end
-
-    subgraph "Adapters"
-        Ext["External Services"]
-    end
-
-    CLI --> Core
-    Core --> Ext
+    style AXM fill:#4CAF50,color:#fff
+    style INIT fill:#2196F3,color:#fff
+    style AUDIT fill:#2196F3,color:#fff
+    style BIB fill:#2196F3,color:#fff
 ```
 
-## Layers
+## Autodiscovery Pattern
 
-### 1. CLI
+At startup, `axm` scans the `axm.commands` entry-point group:
 
-Entry point for user commands. Handles input validation and formatted output.
+```python
+for ep in importlib.metadata.entry_points(group="axm.commands"):
+    command_fn = ep.load()
+    app.command(command_fn, name=ep.name)
+```
 
-### 2. Core Logic (`core/`)
+Each AXM package declares its commands in `pyproject.toml`:
 
-Business logic independent of I/O.
+```toml
+[project.entry-points."axm.commands"]
+init = "axm_init.cli:init"
+check = "axm_init.cli:check"
+```
 
-### 3. Adapters (`adapters/`)
-
-Each adapter wraps a single external dependency for testability.
+This is the same pattern used by `axm-mcp` for tool discovery (`axm.tools` group).
 
 ## Design Decisions
 
 | Decision | Rationale |
 |---|---|
-| Hexagonal architecture | Testable core, swappable adapters |
-| Pydantic models | Validation, serialization |
+| Entry-point autodiscovery | No hard dependencies on ecosystem packages |
+| Optional deps (`axm[init]`) | Users install only what they need |
+| `cyclopts` for CLI | Same framework as other AXM CLIs |
 | `src/` layout | PEP 621 best practice, no import conflicts |
+| Zero business logic | All functionality lives in dedicated packages |

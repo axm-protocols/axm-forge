@@ -9,35 +9,51 @@ This tutorial walks you through installing `axm` and running your first command.
 
 ## Installation
 
+Install the CLI with the plugins you need:
+
+=== "Minimal"
+
+    ```bash
+    pip install axm
+    ```
+
+=== "With init & audit"
+
+    ```bash
+    pip install axm[init,audit]
+    ```
+
+=== "Everything"
+
+    ```bash
+    pip install axm[all]
+    ```
+
+## Step 1: Check Available Commands
+
 ```bash
-uv add axm
+axm
 ```
 
-Or with pip:
+Without any plugins, `axm` will show which packages you can install. With plugins:
 
 ```bash
-pip install axm
+axm init my-project     # scaffold a new project
+axm audit .             # run quality checks
 ```
 
-## Step 1: Import and Use
+## Step 2: Optional Dependencies
 
-```python
-from axm import hello
-
-print(hello())
-# Output: Hello from axm!
-```
-
-## Step 2: Run the Tests
-
-```bash
-cd axm
-make check
-```
-
-This runs lint + type check + security audit + tests.
+| Extra | Provides | Commands |
+|---|---|---|
+| `init` | `axm-init` | `axm init`, `axm check` |
+| `audit` | `axm-audit` | `axm audit` |
+| `mcp` | `axm-mcp` | MCP server |
+| `bib` | `axm-bib` | `axm search`, `axm pdf` |
+| `engine` | `axm-engine` | `axm run`, `axm read` |
+| `all` | Everything | All commands |
 
 ## Next Steps
 
-- [CLI Reference](../reference/cli.md) — Full command documentation
-- [Architecture](../explanation/architecture.md) — How the project is structured
+- [Architecture](../explanation/architecture.md) — How autodiscovery works
+- [Add a Command](../howto/index.md) — Register your own CLI command
