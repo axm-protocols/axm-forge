@@ -40,3 +40,5 @@ jobs:
       - run: uv python install 3.12
       - run: uv build
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
