@@ -51,9 +51,7 @@ class TestVerifyViaMCP:
     @patch(f"{_ESBMC}.execute")
     def test_verify_happy_path(self, mock_exec: MagicMock) -> None:
         """esbmc returns success."""
-        mock_exec.return_value = ToolResult(
-            success=True, data={"verified": True}
-        )
+        mock_exec.return_value = ToolResult(success=True, data={"verified": True})
         from axm_mcp.discovery import discover_tools
 
         tools = discover_tools()

@@ -20,9 +20,7 @@ class TestNoAxmImports:
 
     def test_mcp_app_no_axm_import(self) -> None:
         """mcp_app.py must not import from axm."""
-        mcp_app_path = (
-            Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
-        )
+        mcp_app_path = Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
         source = mcp_app_path.read_text()
         tree = ast.parse(source)
 
@@ -54,9 +52,7 @@ class TestNoAxmImports:
 
     def test_init_no_axm_import(self) -> None:
         """__init__.py must not import from axm."""
-        init_path = (
-            Path(__file__).parent.parent / "src" / "axm_mcp" / "__init__.py"
-        )
+        init_path = Path(__file__).parent.parent / "src" / "axm_mcp" / "__init__.py"
         source = init_path.read_text()
         tree = ast.parse(source)
 
@@ -74,30 +70,22 @@ class TestNoHardcodedTools:
     """mcp_app.py must NOT have hardcoded @mcp.tool init/check/resume/read."""
 
     def test_no_hardcoded_init(self) -> None:
-        mcp_app_path = (
-            Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
-        )
+        mcp_app_path = Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
         source = mcp_app_path.read_text()
         assert "def init(" not in source, "init() is still hardcoded in mcp_app.py"
 
     def test_no_hardcoded_check(self) -> None:
-        mcp_app_path = (
-            Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
-        )
+        mcp_app_path = Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
         source = mcp_app_path.read_text()
         assert "def check(" not in source, "check() is still hardcoded in mcp_app.py"
 
     def test_no_hardcoded_resume(self) -> None:
-        mcp_app_path = (
-            Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
-        )
+        mcp_app_path = Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
         source = mcp_app_path.read_text()
         assert "def resume(" not in source, "resume() is still hardcoded in mcp_app.py"
 
     def test_no_hardcoded_read(self) -> None:
-        mcp_app_path = (
-            Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
-        )
+        mcp_app_path = Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
         source = mcp_app_path.read_text()
         assert "def read(" not in source, "read() is still hardcoded in mcp_app.py"
 
@@ -106,18 +94,12 @@ class TestNoConfigure:
     """mcp_app.py must NOT have configure() or get_orchestrator()."""
 
     def test_no_configure(self) -> None:
-        mcp_app_path = (
-            Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
-        )
+        mcp_app_path = Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
         source = mcp_app_path.read_text()
-        assert (
-            "def configure(" not in source
-        ), "configure() is still in mcp_app.py"
+        assert "def configure(" not in source, "configure() is still in mcp_app.py"
 
     def test_no_get_orchestrator(self) -> None:
-        mcp_app_path = (
-            Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
-        )
+        mcp_app_path = Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
         source = mcp_app_path.read_text()
         assert (
             "def get_orchestrator(" not in source
@@ -128,9 +110,7 @@ class TestServerPackageRemoved:
     """server/ package should be removed."""
 
     def test_no_server_package(self) -> None:
-        server_dir = (
-            Path(__file__).parent.parent / "src" / "axm_mcp" / "server"
-        )
+        server_dir = Path(__file__).parent.parent / "src" / "axm_mcp" / "server"
         assert not server_dir.exists(), "server/ package still exists"
 
 

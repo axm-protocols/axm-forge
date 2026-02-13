@@ -1,6 +1,6 @@
 [project]
 name = "axm-mcp"
-version = "1.0.0"
+dynamic = ["version"]
 description = "AXM MCP Server — Runtime execution for the AXM protocol ecosystem"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -16,6 +16,12 @@ classifiers = [
 dependencies = [
     "mcp[cli]>=1.25.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/axm-protocols/axm-mcp"
+Documentation = "https://axm-protocols.github.io/axm-mcp/"
+Repository = "https://github.com/axm-protocols/axm-mcp.git"
+Issues = "https://github.com/axm-protocols/axm-mcp/issues"
 
 [project.optional-dependencies]
 core = ["axm"]
@@ -55,6 +61,8 @@ dev = [
 docs = [
     "mkdocs-material>=9.0",
     "mkdocstrings[python]>=0.27",
+    "mkdocs-gen-files>=0.5",
+    "mkdocs-literate-nav>=0.6",
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -81,9 +89,12 @@ known-first-party = ["axm_mcp"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+pretty = true
 warn_return_any = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
 show_error_codes = true
 
 
@@ -96,17 +107,22 @@ disallow_untyped_defs = false
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 python_files = "test_*.py"
 addopts = [
     "-v",
     "--strict-markers",
     "--strict-config",
     "--tb=short",
+    "--import-mode=importlib",
     "--cov=src/axm_mcp",
     "--cov-report=term-missing",
     "--cov-report=xml",
 ]
 asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Coverage Configuration
@@ -114,7 +130,11 @@ asyncio_mode = "auto"
 [tool.coverage.run]
 source = ["src"]
 branch = true
+relative_files = true
 omit = ["*/tests/*"]
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.coverage.report]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]

@@ -25,9 +25,13 @@ class ToolLike(Protocol):
     """Minimal protocol for AXMTool-compatible objects."""
 
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        """Tool name used for MCP registration."""
+        ...
 
-    def execute(self, **kwargs: Any) -> Any: ...
+    def execute(self, **kwargs: Any) -> Any:
+        """Execute the tool with the given keyword arguments."""
+        ...
 
 
 def discover_tools() -> dict[str, Any]:
@@ -71,11 +75,14 @@ def register_tools(
         _register_one(mcp, name, tool)
         logger.info("Registered MCP tool: %s", name)
 
+    # Register the `list_tools` meta-tool
+    _register_list_tools(mcp, tools)
+
 
 def _register_one(mcp: Any, name: str, tool: Any) -> None:
     """Register a single tool, capturing in closure."""
 
-    @mcp.tool(name=name)  # type: ignore[untyped-decorator]
+    @mcp.tool(name=name)  # type: ignore[misc]
     def _wrapper(**kwargs: Any) -> dict[str, Any]:
         # MCP may wrap args as kwargs={"key": "val"} — unwrap.
         if list(kwargs.keys()) == ["kwargs"] and isinstance(kwargs["kwargs"], dict):
@@ -88,3 +95,18 @@ def _register_one(mcp: Any, name: str, tool: Any) -> None:
 
     # Give the wrapper a useful docstring from the tool class
     _wrapper.__doc__ = tool.execute.__doc__ or f"Execute {name} tool."
+
+
+def _register_list_tools(mcp: Any, tools: dict[str, Any]) -> None:
+    """Register the list_tools meta-tool."""
+
+    @mcp.tool(name="list_tools")  # type: ignore[misc]
+    def _list_tools(**kwargs: Any) -> dict[str, Any]:
+        """List all available AXM tools with their names and descriptions."""
+        tool_list = []
+        for name, tool in sorted(tools.items()):
+            doc = (tool.execute.__doc__ or "").strip().split("\n")[0]
+            tool_list.append({"name": name, "description": doc})
+        return {"tools": tool_list, "count": len(tool_list)}
+
+    logger.info("Registered meta-tool: list_tools")

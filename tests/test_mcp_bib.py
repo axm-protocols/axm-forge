@@ -104,9 +104,7 @@ class TestMCPRegistration:
 
         mock_tool = MagicMock()
         mock_tool.name = "test_register"
-        mock_tool.execute.return_value = ToolResult(
-            success=True, data={"x": 1}
-        )
+        mock_tool.execute.return_value = ToolResult(success=True, data={"x": 1})
 
         ep = MagicMock()
         ep.name = "test_register"
@@ -158,9 +156,7 @@ class TestSearchPaperMCP:
     @patch(f"{_SEARCH_TOOL}.execute")
     def test_search_paper_empty_query(self, mock_exec: MagicMock) -> None:
         """Empty query returns error."""
-        mock_exec.return_value = ToolResult(
-            success=False, error="Query is required"
-        )
+        mock_exec.return_value = ToolResult(success=False, error="Query is required")
         from axm_mcp.discovery import discover_tools
 
         tools = discover_tools()
@@ -170,9 +166,7 @@ class TestSearchPaperMCP:
     @patch(f"{_SEARCH_TOOL}.execute")
     def test_search_paper_api_failure(self, mock_exec: MagicMock) -> None:
         """Network error → success=False."""
-        mock_exec.return_value = ToolResult(
-            success=False, error="Connection refused"
-        )
+        mock_exec.return_value = ToolResult(success=False, error="Connection refused")
         from axm_mcp.discovery import discover_tools
 
         tools = discover_tools()
@@ -232,9 +226,7 @@ class TestDoiToBibtexMCP:
     @patch(f"{_DOI_TOOL}.execute")
     def test_doi_to_bibtex_empty_doi(self, mock_exec: MagicMock) -> None:
         """Empty DOI → error."""
-        mock_exec.return_value = ToolResult(
-            success=False, error="DOI is required"
-        )
+        mock_exec.return_value = ToolResult(success=False, error="DOI is required")
         from axm_mcp.discovery import discover_tools
 
         tools = discover_tools()
@@ -244,9 +236,7 @@ class TestDoiToBibtexMCP:
     @patch(f"{_DOI_TOOL}.execute")
     def test_doi_to_bibtex_not_found(self, mock_exec: MagicMock) -> None:
         """404 DOI → error."""
-        mock_exec.return_value = ToolResult(
-            success=False, error="404 Not Found"
-        )
+        mock_exec.return_value = ToolResult(success=False, error="404 Not Found")
         from axm_mcp.discovery import discover_tools
 
         tools = discover_tools()
@@ -311,9 +301,7 @@ class TestGetPdfMCP:
     @patch(f"{_PDF_TOOL}.execute")
     def test_get_pdf_empty_doi(self, mock_exec: MagicMock) -> None:
         """Empty DOI → error."""
-        mock_exec.return_value = ToolResult(
-            success=False, error="DOI is required"
-        )
+        mock_exec.return_value = ToolResult(success=False, error="DOI is required")
         from axm_mcp.discovery import discover_tools
 
         tools = discover_tools()
