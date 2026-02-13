@@ -16,7 +16,7 @@ Command names must follow the `{domain}_{action}` convention:
 ```toml
 # Example from axm-init
 [project.entry-points."axm.commands"]
-init_scaffold = "axm_init.cli:init"
+init_scaffold = "axm_init.cli:scaffold"
 init_check    = "axm_init.cli:check"
 ```
 
