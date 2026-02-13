@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 import cyclopts
+import pytest
 
 from axm.cli import _EP_GROUP, create_app
 
@@ -35,6 +36,18 @@ class TestCreateApp:
             app = create_app()
         # App should still be created (with default handler)
         assert isinstance(app, cyclopts.App)
+
+    def test_no_commands_handler_exits(self) -> None:
+        """The no-commands fallback writes to stderr and exits."""
+
+        with patch("axm.cli.importlib.metadata.entry_points", return_value=[]):
+            app = create_app()
+
+        # Find and invoke the _no_commands handler
+        with pytest.raises(SystemExit) as exc_info:
+            app([], exit_on_error=False)
+
+        assert exc_info.value.code == 1
 
 
 class TestAutodiscovery:

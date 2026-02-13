@@ -10,9 +10,14 @@
 
 ---
 
-## What is axm?
+## Features
 
-`axm` is a thin CLI wrapper that **autodiscovers commands** from installed AXM packages via entry points. Install only what you need:
+- 🔌 **Autodiscovery** — automatically finds commands from installed AXM packages via entry points
+- 🧩 **Modular** — install only what you need (`axm[init]`, `axm[audit]`, `axm[mcp]`, `axm[bib]`)
+- 🛠️ **Shared interface** — provides `AXMTool` and `ToolResult` base classes for tool development
+- 📦 **Minimal** — only depends on `cyclopts`, everything else is optional
+
+## Installation
 
 ```bash
 pip install axm              # CLI shell only
