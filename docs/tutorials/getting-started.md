@@ -38,19 +38,20 @@ axm
 Without any plugins, `axm` will show which packages you can install. With plugins:
 
 ```bash
-axm init my-project     # scaffold a new project
-axm audit .             # run quality checks
+axm init_scaffold my-project  # scaffold a new project
+axm init_check .              # check project conformity
+axm audit .                   # run quality checks
 ```
 
 ## Step 2: Optional Dependencies
 
 | Extra | Provides | Commands |
 |---|---|---|
-| `init` | `axm-init` | `axm init`, `axm check` |
+| `init` | `axm-init` | `axm init_scaffold`, `axm init_check`, `axm init_reserve` |
 | `audit` | `axm-audit` | `axm audit` |
 | `mcp` | `axm-mcp` | MCP server |
-| `bib` | `axm-bib` | `axm search`, `axm pdf` |
-| `engine` | `axm-engine` | `axm run`, `axm read` |
+| `bib` | `axm-bib` | `axm bib_search`, `axm bib_pdf` |
+| `engine` | `axm-engine` | `axm protocol_run`, `axm protocol_read` |
 | `all` | Everything | All commands |
 
 ## Next Steps

@@ -30,8 +30,8 @@ Each AXM package declares its commands in `pyproject.toml`:
 
 ```toml
 [project.entry-points."axm.commands"]
-init = "axm_init.cli:init"
-check = "axm_init.cli:check"
+init_scaffold = "axm_init.cli:init"
+init_check    = "axm_init.cli:check"
 ```
 
 This is the same pattern used by `axm-mcp` for tool discovery (`axm.tools` group).
@@ -45,3 +45,5 @@ This is the same pattern used by `axm-mcp` for tool discovery (`axm.tools` group
 | `cyclopts` for CLI | Same framework as other AXM CLIs |
 | `src/` layout | PEP 621 best practice, no import conflicts |
 | Zero business logic | All functionality lives in dedicated packages |
+| `{domain}_{action}` naming | One name for CLI and MCP — no mental translation |
+| `AXMTool`/`ToolResult` in `axm` | Shared interface, no private dependency needed |

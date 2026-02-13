@@ -35,9 +35,10 @@ pip install axm[all]         # entire ecosystem
 ## Quick Start
 
 ```bash
-axm                     # list available commands
-axm init my-project     # scaffold a new project (requires axm[init])
-axm audit .             # audit code quality (requires axm[audit])
+axm                          # list available commands
+axm init_scaffold my-project # scaffold a new project (requires axm[init])
+axm init_check .             # check conformity (requires axm[init])
+axm audit .                  # audit code quality (requires axm[audit])
 ```
 
 ## How It Works
