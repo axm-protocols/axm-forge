@@ -1,10 +1,7 @@
-"""axm-git - A modern Python package"""
+"""axm-git — Git workflow automation for AXM agents."""
 
-from axm_git._version import __version__
+from __future__ import annotations
 
-__all__ = ["__version__"]
+from axm_git._version import __version__, __version_tuple__
 
-
-def hello() -> str:
-    """Return a greeting message."""
-    return "Hello from axm-git!"
+__all__ = ["__version__", "__version_tuple__"]

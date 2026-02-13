@@ -1,7 +1,7 @@
 [project]
 name = "axm-git"
 dynamic = ["version"]
-description = "A modern Python package"
+description = "Git workflow automation for AXM agents"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.12"
@@ -15,10 +15,13 @@ classifiers = [
 ]
 
 dependencies = [
-    "loguru>=0.7.3",
-    "pydantic>=2.12.5",
-    "pydantic-settings>=2.12.0",
+    "axm>=0.1.0",
 ]
+
+[project.entry-points."axm.tools"]
+git_tag       = "axm_git.tools.tag:GitTagTool"
+git_preflight = "axm_git.tools.commit_preflight:GitPreflightTool"
+git_commit    = "axm_git.tools.commit:GitCommitTool"
 
 [project.urls]
 Homepage = "https://github.com/axm-protocols/axm-git"
@@ -73,10 +76,10 @@ exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "C4", "S", "T20", "RUF"]
-ignore = ["S101"]
+ignore = ["S101", "S603", "S607"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108"]
+"tests/*" = ["S101", "S105", "S106", "S108", "S603", "S607"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_git"]
