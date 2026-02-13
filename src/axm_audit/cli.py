@@ -17,7 +17,7 @@ from typing import Annotated
 
 import cyclopts
 
-from axm_audit.formatters import format_json, format_report
+from axm_audit.formatters import format_agent, format_json, format_report
 
 __all__ = ["app"]
 
@@ -38,6 +38,10 @@ def audit(
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
     ] = False,
+    agent: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--agent"], help="Compact agent-friendly output"),
+    ] = False,
     category: Annotated[
         str | None,
         cyclopts.Parameter(name=["--category", "-c"], help="Filter to one category"),
@@ -53,7 +57,9 @@ def audit(
 
     result = audit_project(project_path, category=category)
 
-    if json_output:
+    if agent:
+        print(json.dumps(format_agent(result), indent=2))
+    elif json_output:
         print(json.dumps(format_json(result), indent=2))
     else:
         print(format_report(result))

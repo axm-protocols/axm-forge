@@ -201,6 +201,57 @@ def format_json(result: AuditResult) -> dict[str, Any]:
     }
 
 
+def format_agent(result: AuditResult) -> dict[str, Any]:
+    """Agent-optimized output: passed=summary, failed=full detail.
+
+    Minimizes tokens for passing checks while giving full context on
+    failures.  Passed checks that carry actionable detail (e.g. missing
+    docstrings) include a ``details`` dict so the agent can act on them.
+    """
+    passed: list[str | dict[str, Any]] = []
+    for c in result.checks:
+        if not c.passed:
+            continue
+        if _has_actionable_detail(c):
+            passed.append(
+                {
+                    "rule_id": c.rule_id,
+                    "message": c.message,
+                    "details": c.details,
+                    "fix_hint": c.fix_hint,
+                }
+            )
+        else:
+            passed.append(f"{c.rule_id}: {c.message}")
+
+    return {
+        "score": result.quality_score,
+        "grade": result.grade,
+        "passed": passed,
+        "failed": [
+            {
+                "rule_id": c.rule_id,
+                "message": c.message,
+                "details": c.details,
+                "fix_hint": c.fix_hint,
+            }
+            for c in result.checks
+            if not c.passed
+        ],
+    }
+
+
+def _has_actionable_detail(check: CheckResult) -> bool:
+    """Return True if a passing check has items the agent should act on."""
+    if not check.details:
+        return False
+    for key in ("missing", "locations", "matches"):
+        items = check.details.get(key)
+        if items and len(items) > 0:
+            return True
+    return False
+
+
 def _category_for(rule_id: str) -> str:
     """Map a rule_id to its display category."""
     prefixes = {

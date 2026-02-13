@@ -79,8 +79,10 @@ class TypeCheckRule(ProjectRule):
         return "QUALITY_TYPE"
 
     def check(self, project_path: Path) -> CheckResult:
-        """Check project type hints with mypy."""
+        """Check project type hints with mypy on src/ and tests/."""
         src_path = project_path / "src"
+        tests_path = project_path / "tests"
+
         if not src_path.exists():
             return CheckResult(
                 rule_id=self.rule_id,
@@ -89,8 +91,12 @@ class TypeCheckRule(ProjectRule):
                 severity=Severity.ERROR,
             )
 
+        targets = [str(src_path)]
+        if tests_path.exists():
+            targets.append(str(tests_path))
+
         result = run_in_project(
-            ["mypy", "--no-error-summary", "--output", "json", str(src_path)],
+            ["mypy", "--no-error-summary", "--output", "json", *targets],
             project_path,
             capture_output=True,
             text=True,
@@ -98,6 +104,7 @@ class TypeCheckRule(ProjectRule):
         )
 
         error_count = 0
+        errors: list[dict[str, str | int]] = []
         if result.stdout.strip():
             for line in result.stdout.strip().split("\n"):
                 if line.strip():
@@ -105,18 +112,32 @@ class TypeCheckRule(ProjectRule):
                         entry = json.loads(line)
                         if entry.get("severity") == "error":
                             error_count += 1
+                            errors.append(
+                                {
+                                    "file": entry.get("file", ""),
+                                    "line": entry.get("line", 0),
+                                    "message": entry.get("message", ""),
+                                    "code": entry.get("code", ""),
+                                }
+                            )
                     except json.JSONDecodeError:
                         pass
 
         score = max(0, 100 - error_count * 5)
         passed = score >= 80
 
+        checked = "src/ tests/" if tests_path.exists() else "src/"
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
             message=f"Type score: {score}/100 ({error_count} errors)",
             severity=Severity.WARNING if not passed else Severity.INFO,
-            details={"error_count": error_count, "score": score},
+            details={
+                "error_count": error_count,
+                "score": score,
+                "checked": checked,
+                "errors": errors,
+            },
             fix_hint=(
                 "Add type hints to functions and fix type errors"
                 if error_count > 0
@@ -216,15 +237,16 @@ class TestCoverageRule(ProjectRule):
         return "QUALITY_COVERAGE"
 
     def check(self, project_path: Path) -> CheckResult:
-        """Check test coverage with pytest-cov."""
+        """Check test coverage and capture failures with pytest-cov."""
         coverage_file = project_path / "coverage.json"
 
-        # Run pytest with coverage
-        run_in_project(
+        # Run pytest with coverage and short tracebacks
+        result = run_in_project(
             [
                 "pytest",
                 "--cov",
                 "--cov-report=json",
+                "--tb=short",
                 "--no-header",
                 "-q",
             ],
@@ -234,6 +256,9 @@ class TestCoverageRule(ProjectRule):
             check=False,
         )
 
+        # Extract test failures from stdout
+        failures = _extract_test_failures(result.stdout)
+
         # Parse coverage.json
         if not coverage_file.exists():
             return CheckResult(
@@ -241,7 +266,7 @@ class TestCoverageRule(ProjectRule):
                 passed=False,
                 message="No coverage data (pytest-cov not configured)",
                 severity=Severity.WARNING,
-                details={"coverage": 0.0, "score": 0},
+                details={"coverage": 0.0, "score": 0, "failures": failures},
                 fix_hint="Add pytest-cov: uv add --dev pytest-cov",
             )
 
@@ -252,17 +277,90 @@ class TestCoverageRule(ProjectRule):
             coverage_pct = 0.0
 
         score = int(coverage_pct)
-        passed = coverage_pct >= self.min_coverage
+        has_failures = len(failures) > 0
+        passed = coverage_pct >= self.min_coverage and not has_failures
+
+        if has_failures:
+            message = (
+                f"Test coverage: {coverage_pct:.0f}% "
+                f"({len(failures)} test(s) failed)"
+            )
+        else:
+            message = f"Test coverage: {coverage_pct:.0f}% ({score}/100)"
+
+        fix_hints: list[str] = []
+        if has_failures:
+            fix_hints.append("Fix failing tests")
+        if coverage_pct < self.min_coverage:
+            fix_hints.append(f"Increase test coverage to >= {self.min_coverage:.0f}%")
 
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
-            message=f"Test coverage: {coverage_pct:.0f}% ({score}/100)",
+            message=message,
             severity=Severity.WARNING if not passed else Severity.INFO,
-            details={"coverage": coverage_pct, "score": score},
-            fix_hint=(
-                f"Increase test coverage to >= {self.min_coverage:.0f}%"
-                if not passed
-                else None
-            ),
+            details={
+                "coverage": coverage_pct,
+                "score": score,
+                "failures": failures,
+            },
+            fix_hint=("; ".join(fix_hints) if fix_hints else None),
         )
+
+
+def _extract_test_failures(stdout: str) -> list[dict[str, str]]:
+    """Parse pytest stdout for FAILED test names and tracebacks.
+
+    Args:
+        stdout: Raw pytest output.
+
+    Returns:
+        List of dicts with 'test' and 'traceback' keys.
+    """
+    failures: list[dict[str, str]] = []
+    lines = stdout.split("\n")
+
+    # Collect FAILED lines: "FAILED tests/test_foo.py::test_bar - msg"
+    for line in lines:
+        if line.startswith("FAILED "):
+            # Extract test name (before the " - " separator)
+            parts = line[7:].split(" - ", 1)
+            test_name = parts[0].strip()
+            error_msg = parts[1].strip() if len(parts) > 1 else ""
+            failures.append({"test": test_name, "traceback": error_msg})
+
+    # If short traceback blocks exist, try to attach them
+    # Format: "___ test_name ___" followed by traceback lines
+    current_test: str | None = None
+    current_tb: list[str] = []
+    for line in lines:
+        if line.startswith("_") and line.endswith("_"):
+            # Save previous
+            if current_test:
+                _attach_traceback(failures, current_test, current_tb)
+            # Parse test name from "____ test_name ____"
+            current_test = line.strip("_ ").strip()
+            current_tb = []
+        elif current_test:
+            current_tb.append(line)
+
+    # Save last one
+    if current_test:
+        _attach_traceback(failures, current_test, current_tb)
+
+    return failures
+
+
+def _attach_traceback(
+    failures: list[dict[str, str]],
+    test_name: str,
+    tb_lines: list[str],
+) -> None:
+    """Attach traceback lines to the matching failure entry."""
+    tb_text = "\n".join(tb_lines).strip()
+    if not tb_text:
+        return
+    for failure in failures:
+        if test_name in failure["test"]:
+            failure["traceback"] = tb_text
+            return

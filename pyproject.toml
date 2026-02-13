@@ -30,6 +30,9 @@ Documentation = "https://axm-protocols.github.io/axm-audit/"
 Repository = "https://github.com/axm-protocols/axm-audit"
 Issues = "https://github.com/axm-protocols/axm-audit/issues"
 
+[project.entry-points."axm.tools"]
+audit = "axm_audit.tools.audit:AuditTool"
+
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
@@ -107,6 +110,18 @@ ignore_missing_imports = true
 module = ["axm_audit.core.rules.quality"]
 disallow_untyped_calls = false
 
+[[tool.mypy.overrides]]
+module = ["axm.*", "cyclopts.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["axm_audit.tools.*"]
+disallow_subclassing_any = false
+
+[[tool.mypy.overrides]]
+module = ["axm_audit.cli"]
+disallow_untyped_decorators = false
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
@@ -180,4 +195,3 @@ commit_parsers = [
     { message = "^test", group = "🧪 Tests" },
 ]
 tag_pattern = "v[0-9].*"
-

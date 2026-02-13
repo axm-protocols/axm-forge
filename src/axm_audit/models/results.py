@@ -143,14 +143,3 @@ class AuditResult(BaseModel):
         return "F"
 
     model_config = {"extra": "forbid"}
-
-
-class ScaffoldResult(BaseModel):
-    """Result of a project scaffolding operation."""
-
-    success: bool = Field(..., description="Whether scaffolding succeeded")
-    path: str = Field(..., description="Path to created project")
-    message: str = Field(default="", description="Status message")
-    files_created: list[str] = Field(default_factory=list)
-
-    model_config = {"extra": "forbid"}

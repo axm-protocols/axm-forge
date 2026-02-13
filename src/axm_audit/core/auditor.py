@@ -1,8 +1,11 @@
 """Project Auditor — verifies projects against standards.
 
 This module provides the public API for checking project compliance.
+Rules execute in parallel via ThreadPoolExecutor for faster audits.
 """
 
+import concurrent.futures
+import logging
 from pathlib import Path
 
 from axm_audit.core.rules import (
@@ -23,7 +26,9 @@ from axm_audit.core.rules import (
     TypeCheckRule,
 )
 from axm_audit.core.rules.base import ProjectRule
-from axm_audit.models.results import AuditResult
+from axm_audit.models.results import AuditResult, CheckResult, Severity
+
+logger = logging.getLogger(__name__)
 
 # Valid audit categories
 VALID_CATEGORIES = {
@@ -114,12 +119,33 @@ def get_rules_for_category(
     ]
 
 
+def _safe_check(rule: ProjectRule, project_path: Path) -> CheckResult:
+    """Run a single rule with exception handling.
+
+    If the rule raises, returns a failed CheckResult rather than crashing.
+    """
+    try:
+        return rule.check(project_path)
+    except Exception as exc:
+        logger.warning("Rule %s raised: %s", rule.rule_id, exc, exc_info=True)
+        return CheckResult(
+            rule_id=rule.rule_id,
+            passed=False,
+            message=f"Rule crashed: {exc}",
+            severity=Severity.ERROR,
+            fix_hint="Check rule configuration and dependencies",
+        )
+
+
 def audit_project(
     project_path: Path,
     category: str | None = None,
     quick: bool = False,
 ) -> AuditResult:
     """Audit a project against Python 2026 standards.
+
+    Rules execute in parallel via ThreadPoolExecutor for speed.
+    Each rule is isolated — one failure does not prevent others.
 
     Args:
         project_path: Root directory of the project to audit.
@@ -136,5 +162,8 @@ def audit_project(
         raise FileNotFoundError(f"Project path does not exist: {project_path}")
 
     rules = get_rules_for_category(category, quick)
-    checks = [rule.check(project_path) for rule in rules]
+
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        checks = list(pool.map(lambda r: _safe_check(r, project_path), rules))
+
     return AuditResult(checks=checks)

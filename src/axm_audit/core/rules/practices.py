@@ -45,7 +45,7 @@ class DocstringCoverageRule(ProjectRule):
                 "coverage": round(coverage, 2),
                 "total": total,
                 "documented": documented,
-                "missing": missing[:10],  # Top 10 missing
+                "missing": missing,
                 "score": score,
             },
             fix_hint="Add docstrings to public functions" if missing else None,
