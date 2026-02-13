@@ -21,6 +21,9 @@ class GitCommitTool(AXMTool):
     processing stops and the error is returned alongside any commits
     that already succeeded.
 
+    When a pre-commit hook auto-fixes files (e.g. ruff ``--fix``),
+    the tool automatically re-stages and retries the commit once.
+
     Registered as ``git_commit`` via axm.tools entry point.
     """
 
@@ -73,8 +76,8 @@ class GitCommitTool(AXMTool):
                     data={"results": results, "succeeded": len(results)},
                 )
 
-            # Stage files
-            add = run_git(["add", *files], path)
+            # Stage files (-A handles additions, modifications, AND deletions)
+            add = run_git(["add", "-A", "--", *files], path)
             if add.returncode != 0:
                 return ToolResult(
                     success=False,
@@ -89,6 +92,15 @@ class GitCommitTool(AXMTool):
 
             # Attempt commit (pre-commit hooks run automatically)
             commit = run_git(commit_args, path)
+            retried = False
+
+            # If pre-commit auto-fixed files, re-stage and retry once
+            if commit.returncode != 0:
+                output = commit.stdout + commit.stderr
+                if "files were modified by this hook" in output:
+                    run_git(["add", "-A", "--", *files], path)
+                    commit = run_git(commit_args, path)
+                    retried = True
 
             if commit.returncode != 0:
                 output = commit.stdout + commit.stderr
@@ -96,7 +108,6 @@ class GitCommitTool(AXMTool):
                 # Detect auto-fixed files
                 auto_fixed: list[str] = []
                 if "files were modified by this hook" in output:
-                    # Check which staged files were modified
                     diff = run_git(["diff", "--name-only"], path)
                     auto_fixed = [
                         f for f in diff.stdout.strip().splitlines() if f.strip()
@@ -113,6 +124,7 @@ class GitCommitTool(AXMTool):
                             "message": message,
                             "precommit_output": output.strip(),
                             "auto_fixed_files": auto_fixed,
+                            "retried": retried,
                         },
                     },
                 )
@@ -126,6 +138,7 @@ class GitCommitTool(AXMTool):
                     "sha": sha,
                     "message": message,
                     "precommit_passed": True,
+                    "retried": retried,
                 }
             )
 

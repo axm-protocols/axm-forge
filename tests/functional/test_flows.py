@@ -109,3 +109,44 @@ class TestCommitFlow:
         )
         # git add on nonexistent file should fail
         assert not result.success
+
+    def test_commit_deleted_file(self, tmp_path: Path) -> None:
+        """Committing a deleted file works with git add -A."""
+        _init_repo(tmp_path)
+
+        # Create and commit a file
+        target = tmp_path / "to_delete.py"
+        target.write_text("# will be deleted\n")
+        subprocess.run(
+            ["git", "add", "."],
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "chore: add file", "--no-verify"],
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=True,
+        )
+
+        # Delete the file from disk
+        target.unlink()
+
+        # Commit the deletion via git_commit
+        result = GitCommitTool().execute(
+            path=str(tmp_path),
+            commits=[{"files": ["to_delete.py"], "message": "fix: remove dead file"}],
+        )
+        assert result.success
+        assert result.data["total"] == 1
+
+        # Verify the file is no longer tracked
+        ls = subprocess.run(
+            ["git", "ls-files", "to_delete.py"],
+            cwd=str(tmp_path),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert ls.stdout.strip() == ""
