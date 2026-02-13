@@ -12,6 +12,7 @@ repos:
     rev: v1.14.1
     hooks:
       - id: mypy
+        exclude: ^tests/fixtures/
         additional_dependencies: [pydantic, cyclopts]
 
   # Conventional commits
