@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from axm.services.tools.base import AXMTool, ToolResult
+from axm.tools.base import AXMTool, ToolResult
 
 __all__ = ["AuditTool"]
 

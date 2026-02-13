@@ -14,6 +14,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
+    "axm",
     "cyclopts>=3.0",
     "loguru>=0.7.3",
     "pydantic>=2.12.5",
@@ -36,6 +37,9 @@ audit = "axm_audit.tools.audit:AuditTool"
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.uv.sources]
+axm = { workspace = true }
 
 [tool.hatch.version]
 source = "vcs"
