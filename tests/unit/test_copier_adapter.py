@@ -82,3 +82,38 @@ class TestCopierAdapter:
 
         assert result.success is False
         assert "Template not found" in result.message
+
+    def test_copy_suppresses_stdout(self, tmp_path: Path) -> None:
+        """Test that stdout is suppressed during copy.
+
+        Copier post-copy tasks (git init, uv sync) write to stdout.
+        When running inside an MCP server, this corrupts the JSON-RPC
+        transport. The adapter must redirect stdout/stderr.
+        """
+        import sys
+
+        config = CopierConfig(
+            template_path=Path("/templates/python"),
+            destination=tmp_path / "mcp-safe",
+            data={"package_name": "test"},
+        )
+        adapter = CopierAdapter()
+        captured_stdout = ""
+
+        def fake_run_copy(**kwargs: object) -> None:
+            # Simulate copier + post-copy tasks writing to stdout
+            print("Initialized project")  # noqa: T201
+            sys.stdout.write("Installing dependencies...\n")
+
+        with patch("axm_init.adapters.copier.run_copy", side_effect=fake_run_copy):
+            old_stdout = sys.stdout
+            result = adapter.copy(config)
+            # stdout should be restored to original
+            assert sys.stdout is old_stdout
+            captured_stdout = (
+                old_stdout.getvalue() if hasattr(old_stdout, "getvalue") else ""
+            )
+
+        assert result.success is True
+        # The copier output must NOT have leaked to the real stdout
+        assert "Initialized project" not in captured_stdout
