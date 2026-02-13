@@ -49,10 +49,8 @@ axm audit .                   # run quality checks
 |---|---|---|
 | `init` | `axm-init` | `axm init_scaffold`, `axm init_check`, `axm init_reserve` |
 | `audit` | `axm-audit` | `axm audit` |
-| `mcp` | `axm-mcp` | MCP server |
-| `bib` | `axm-bib` | `axm bib_search`, `axm bib_pdf` |
-| `engine` | `axm-engine` | `axm protocol_run`, `axm protocol_read` |
-| `all` | Everything | All commands |
+| `bib` | `axm-bib` | `axm-bib search`, `axm-bib pdf`, `axm-bib doi` |
+| `all` | Everything above | All commands |
 
 ## Next Steps
 
