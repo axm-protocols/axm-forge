@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>AXM CLI — Unified command-line interface for the AXM ecosystem.</strong>
+  <strong>AXM CLI — Unified command-line interface for the AXM ecosystem</strong>
 </p>
 
 
@@ -66,7 +66,7 @@ Each AXM package declares commands via `pyproject.toml`:
 ```toml
 # axm-init/pyproject.toml
 [project.entry-points."axm.commands"]
-init_scaffold = "axm_init.cli:init"
+init_scaffold = "axm_init.cli:scaffold"
 init_check    = "axm_init.cli:check"
 init_reserve  = "axm_init.cli:reserve"
 ```

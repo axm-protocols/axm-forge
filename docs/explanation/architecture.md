@@ -30,7 +30,7 @@ Each AXM package declares its commands in `pyproject.toml`:
 
 ```toml
 [project.entry-points."axm.commands"]
-init_scaffold = "axm_init.cli:init"
+init_scaffold = "axm_init.cli:scaffold"
 init_check    = "axm_init.cli:check"
 ```
 
