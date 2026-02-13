@@ -7,7 +7,11 @@ hide:
 # axm
 
 <p align="center">
-  <strong>Unified CLI for the AXM protocol ecosystem</strong>
+  <img src="https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.png" alt="AXM Logo" width="180" />
+</p>
+
+<p align="center">
+  <strong>AXM CLI — Unified command-line interface for the AXM ecosystem.</strong>
 </p>
 
 <p align="center">
@@ -20,6 +24,9 @@ hide:
   <a href="https://github.com/axm-protocols/axm/actions/workflows/axm-audit.yml">
     <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm/gh-pages/badges/axm-audit.json" alt="axm-audit" />
   </a>
+  <a href="https://coveralls.io/github/axm-protocols/axm">
+    <img src="https://coveralls.io/repos/github/axm-protocols/axm/badge.svg?branch=main" alt="Coverage" />
+  </a>
   <a href="https://pypi.org/project/axm/">
     <img src="https://img.shields.io/pypi/v/axm" alt="PyPI" />
   </a>
@@ -31,12 +38,23 @@ hide:
 
 ## Install
 
-```bash
-pip install axm              # CLI shell only
-pip install axm[init]        # + scaffolding & project checks
-pip install axm[audit]       # + code quality audits
-pip install axm[all]         # entire ecosystem
-```
+=== "uv"
+
+    ```bash
+    uv add axm              # CLI shell only
+    uv add axm[init]        # + scaffolding & project checks
+    uv add axm[audit]       # + code quality audits
+    uv add axm[all]         # entire ecosystem
+    ```
+
+=== "pip"
+
+    ```bash
+    pip install axm              # CLI shell only
+    pip install axm[init]        # + scaffolding & project checks
+    pip install axm[audit]       # + code quality audits
+    pip install axm[all]         # entire ecosystem
+    ```
 
 ## Quick Start
 

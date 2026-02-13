@@ -1,11 +1,18 @@
-# axm
+<p align="center">
+  <img src="https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.png" alt="AXM Logo" width="180" />
+</p>
 
-**AXM CLI — Unified command-line interface for the AXM ecosystem.**
+<p align="center">
+  <strong>AXM CLI — Unified command-line interface for the AXM ecosystem.</strong>
+</p>
+
+
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://axm-protocols.github.io/axm/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm/gh-pages/badges/axm-init.json" alt="axm-init"></a>
   <a href="https://github.com/axm-protocols/axm/actions/workflows/axm-audit.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm/gh-pages/badges/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://coveralls.io/github/axm-protocols/axm"><img src="https://coveralls.io/repos/github/axm-protocols/axm/badge.svg?branch=main" alt="Coverage"></a>
   <a href="https://pypi.org/project/axm/"><img src="https://img.shields.io/pypi/v/axm" alt="PyPI"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
   <a href="https://axm-protocols.github.io/axm/"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs"></a>
@@ -23,12 +30,25 @@
 ## Installation
 
 ```bash
+uv add axm              # CLI shell only
+uv add axm[init]        # + scaffolding & project checks
+uv add axm[audit]       # + code quality audits
+uv add axm[bib]         # + bibliography tools
+uv add axm[all]         # everything
+```
+
+<details>
+<summary>Or with pip</summary>
+
+```bash
 pip install axm              # CLI shell only
 pip install axm[init]        # + scaffolding & project checks
 pip install axm[audit]       # + code quality audits
 pip install axm[bib]         # + bibliography tools
 pip install axm[all]         # everything
 ```
+
+</details>
 
 ## Usage
 
