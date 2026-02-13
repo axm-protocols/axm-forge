@@ -21,22 +21,19 @@ class InitCheckTool(AXMTool):
         """Tool name used for MCP registration."""
         return "init_check"
 
-    def execute(
-        self,
-        *,
-        path: str = ".",
-        category: str | None = None,
-        **kwargs: Any,
-    ) -> ToolResult:
+    def execute(self, **kwargs: Any) -> ToolResult:
         """Check a project against the AXM gold standard.
 
         Args:
-            path: Path to project root.
-            category: Optional category filter.
+            **kwargs: Keyword arguments.
+                path: Path to project root.
+                category: Optional category filter.
 
         Returns:
             ToolResult with check scores and details.
         """
+        path: str = kwargs.get("path", ".")
+        category: str | None = kwargs.get("category")
         try:
             project_path = Path(path).resolve()
             if not project_path.is_dir():

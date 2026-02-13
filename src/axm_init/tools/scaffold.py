@@ -21,32 +21,29 @@ class InitScaffoldTool(AXMTool):
         """Tool name used for MCP registration."""
         return "init_scaffold"
 
-    def execute(
-        self,
-        *,
-        path: str = ".",
-        name: str | None = None,
-        org: str = "",
-        author: str = "",
-        email: str = "",
-        license: str = "MIT",
-        description: str = "",
-        **kwargs: Any,
-    ) -> ToolResult:
+    def execute(self, **kwargs: Any) -> ToolResult:
         """Initialize a new Python project.
 
         Args:
-            path: Path to initialize project.
-            name: Project name (defaults to directory name).
-            org: GitHub org or username.
-            author: Author name.
-            email: Author email.
-            license: License type.
-            description: Project description.
+            **kwargs: Keyword arguments.
+                path: Path to initialize project.
+                name: Project name (defaults to directory name).
+                org: GitHub org or username.
+                author: Author name.
+                email: Author email.
+                license: License type.
+                description: Project description.
 
         Returns:
             ToolResult with created files list.
         """
+        path: str = kwargs.get("path", ".")
+        name: str | None = kwargs.get("name")
+        org: str = kwargs.get("org", "")
+        author: str = kwargs.get("author", "")
+        email: str = kwargs.get("email", "")
+        license_type: str = kwargs.get("license", "MIT")
+        description: str = kwargs.get("description", "")
         if not org or not author or not email:
             return ToolResult(
                 success=False,
@@ -68,7 +65,7 @@ class InitScaffoldTool(AXMTool):
                     "package_name": project_name,
                     "description": description or "A modern Python package",
                     "org": org,
-                    "license": license,
+                    "license": license_type,
                     "license_holder": org,
                     "author_name": author,
                     "author_email": email,

@@ -20,26 +20,23 @@ class InitReserveTool(AXMTool):
         """Tool name used for MCP registration."""
         return "init_reserve"
 
-    def execute(
-        self,
-        *,
-        name: str,
-        author: str = "John Doe",
-        email: str = "john.doe@example.com",
-        dry_run: bool = False,
-        **kwargs: Any,
-    ) -> ToolResult:
+    def execute(self, **kwargs: Any) -> ToolResult:
         """Reserve a package name on PyPI.
 
         Args:
-            name: Package name to reserve.
-            author: Author name for the placeholder package.
-            email: Author email for the placeholder package.
-            dry_run: If True, skip the actual publish step.
+            **kwargs: Keyword arguments.
+                name: Package name to reserve.
+                author: Author name for the placeholder package.
+                email: Author email for the placeholder package.
+                dry_run: If True, skip the actual publish step.
 
         Returns:
             ToolResult with reservation status.
         """
+        name: str = kwargs["name"]
+        author: str = kwargs.get("author", "John Doe")
+        email: str = kwargs.get("email", "john.doe@example.com")
+        dry_run: bool = kwargs.get("dry_run", False)
         try:
             from axm_init.adapters.credentials import CredentialManager
             from axm_init.core.reserver import reserve_pypi
