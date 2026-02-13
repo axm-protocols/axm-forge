@@ -40,7 +40,7 @@ class TestToolResult:
         """ToolResult is immutable."""
         result = ToolResult(success=True)
         with pytest.raises(AttributeError):
-            result.success = False
+            result.success = False  # type: ignore[misc]
 
     def test_equality(self) -> None:
         """Two ToolResults with same fields are equal."""
@@ -58,7 +58,7 @@ class TestToolResult:
 # ── AXMTool ───────────────────────────────────────────────────────────────────
 
 
-class ConcreteTool(AXMTool):  # type: ignore[misc]
+class ConcreteTool(AXMTool):
     """A concrete implementation for testing the ABC."""
 
     @property
@@ -87,28 +87,28 @@ class TestAXMTool:
     def test_cannot_instantiate_abc(self) -> None:
         """AXMTool cannot be instantiated directly."""
         with pytest.raises(TypeError):
-            AXMTool()
+            AXMTool()  # type: ignore[abstract]
 
     def test_must_implement_name(self) -> None:
         """Subclass without name raises TypeError."""
 
-        class NoName(AXMTool):  # type: ignore[misc]
+        class NoName(AXMTool):
             def execute(self, **kwargs: Any) -> ToolResult:
                 return ToolResult(success=True)
 
         with pytest.raises(TypeError):
-            NoName()
+            NoName()  # type: ignore[abstract]
 
     def test_must_implement_execute(self) -> None:
         """Subclass without execute raises TypeError."""
 
-        class NoExecute(AXMTool):  # type: ignore[misc]
+        class NoExecute(AXMTool):
             @property
             def name(self) -> str:
                 return "no-exec"
 
         with pytest.raises(TypeError):
-            NoExecute()
+            NoExecute()  # type: ignore[abstract]
 
 
 # ── Exports ───────────────────────────────────────────────────────────────────
