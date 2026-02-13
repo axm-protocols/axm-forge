@@ -1,4 +1,4 @@
-# Understanding Audit Grades
+# Understanding Check Grades
 
 ## Overview
 
@@ -119,4 +119,4 @@ Changelog management:
 Every failed check includes a **Fix** instruction telling you exactly what to do. Run `axm-init check` iteratively until you reach Grade A.
 
 !!! tip "Quick win"
-    Projects scaffolded with `axm-init init` start at **100/100** by default.
+    Projects scaffolded with `axm-init scaffold` start at **100/100** by default.

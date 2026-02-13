@@ -7,10 +7,10 @@ axm-init --help       Show help
 axm-init --version    Show version
 ```
 
-## `init` — Initialize a Project
+## `scaffold` — Scaffold a Project
 
 ```
-axm-init init [OPTIONS] [PATH]
+axm-init scaffold [OPTIONS] [PATH]
 ```
 
 | Option | Short | Type | Default | Description |
@@ -36,7 +36,7 @@ axm-init init [OPTIONS] [PATH]
 **Example:**
 
 ```bash
-axm-init init my-project --name my-project \
+axm-init scaffold my-project --name my-project \
   --org axm-protocols --author "Your Name" --email "you@example.com"
 ```
 

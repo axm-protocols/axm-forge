@@ -45,9 +45,9 @@ class TestCommandsRegistered:
         """Extract command names from the app."""
         return set(app._commands.keys())
 
-    def test_init_command_exists(self) -> None:
-        """init command is registered."""
-        assert "init" in self._command_names()
+    def test_scaffold_command_exists(self) -> None:
+        """scaffold command is registered."""
+        assert "scaffold" in self._command_names()
 
     def test_reserve_command_exists(self) -> None:
         """reserve command is registered."""
@@ -88,46 +88,46 @@ class TestVersionCommand:
         assert parts[0] == "axm-init"
 
 
-class TestInitCommandOptions:
-    """Tests for init command parameter signatures."""
+class TestScaffoldCommandOptions:
+    """Tests for scaffold command parameter signatures."""
 
     def _capture_help(self) -> str:
-        """Run init --help and return output."""
+        """Run scaffold --help and return output."""
         f = io.StringIO()
         try:
             with redirect_stdout(f):
-                app(["init", "--help"], exit_on_error=False)
+                app(["scaffold", "--help"], exit_on_error=False)
         except SystemExit:
             pass
         return f.getvalue()
 
-    def test_init_help_does_not_crash(self) -> None:
-        """init --help runs without error."""
+    def test_scaffold_help_does_not_crash(self) -> None:
+        """scaffold --help runs without error."""
         output = self._capture_help()
-        assert "init" in output.lower() or "path" in output.lower()
+        assert "scaffold" in output.lower() or "path" in output.lower()
 
-    def test_init_help_shows_org_flag(self) -> None:
-        """init --help shows --org flag."""
+    def test_scaffold_help_shows_org_flag(self) -> None:
+        """scaffold --help shows --org flag."""
         output = self._capture_help()
         assert "--org" in output
 
-    def test_init_help_shows_author_flag(self) -> None:
-        """init --help shows --author flag."""
+    def test_scaffold_help_shows_author_flag(self) -> None:
+        """scaffold --help shows --author flag."""
         output = self._capture_help()
         assert "--author" in output
 
-    def test_init_help_shows_email_flag(self) -> None:
-        """init --help shows --email flag."""
+    def test_scaffold_help_shows_email_flag(self) -> None:
+        """scaffold --help shows --email flag."""
         output = self._capture_help()
         assert "--email" in output
 
-    def test_init_help_no_template_flag(self) -> None:
-        """init --help must NOT show --template flag (removed)."""
+    def test_scaffold_help_no_template_flag(self) -> None:
+        """scaffold --help must NOT show --template flag (removed)."""
         output = self._capture_help()
         assert "--template" not in output
 
     @patch("axm_init.cli.CopierAdapter")
-    def test_init_with_name_option(
+    def test_scaffold_with_name_option(
         self, mock_copier_cls: MagicMock, tmp_path: Path
     ) -> None:
         """--name option is accepted and passed through."""
@@ -141,7 +141,7 @@ class TestInitCommandOptions:
             with redirect_stdout(f):
                 app(
                     [
-                        "init",
+                        "scaffold",
                         str(tmp_path),
                         "--name",
                         "test-project",
@@ -172,7 +172,7 @@ class TestHelpDisplay:
         except SystemExit:
             pass
         output = f.getvalue()
-        assert "init" in output
+        assert "scaffold" in output
         assert "reserve" in output
         assert "version" in output
 

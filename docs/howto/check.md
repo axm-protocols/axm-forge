@@ -81,7 +81,7 @@ Example:
 
 ## CI Badge
 
-Projects scaffolded with `axm-init init` include an automated **check badge** powered by GitHub Actions. The badge displays your check score and updates on every push to `main`.
+Projects scaffolded with `axm-init scaffold` include an automated **check badge** powered by GitHub Actions. The badge displays your check score and updates on every push to `main`.
 
 ### How It Works
 
@@ -102,7 +102,7 @@ The scaffolded README already includes the badge. It looks like this:
 
 ### Adding to an Existing Project
 
-If your project wasn't scaffolded with `axm-init init`, you can add the badge manually:
+If your project wasn't scaffolded with `axm-init scaffold`, you can add the badge manually:
 
 1. Copy the workflow from any scaffolded project (`.github/workflows/axm-init.yml`)
 2. Add the badge markup to your README

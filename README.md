@@ -1,6 +1,11 @@
-# axm-init
+<p align="center">
+  <img src="https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.png" alt="AXM Logo" width="180" />
+</p>
 
-**Python project scaffolding, quality checks & governance CLI.**
+<p align="center">
+  <strong>axm-init — Python project scaffolding, quality checks & governance CLI</strong>
+</p>
+
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm-init/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-init/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -31,7 +36,7 @@ uv add axm-init
 
 ```bash
 # Scaffold a new project
-axm-init init my-project \
+axm-init scaffold my-project \
   --org axm-protocols \
   --author "Your Name" --email "you@example.com"
 
@@ -45,7 +50,7 @@ axm-init reserve my-cool-lib --dry-run
 
 ## CLI Commands
 
-### `axm-init init`
+### `axm-init scaffold`
 
 Scaffold a production-grade Python project (src layout, PEP 621, CI, docs).
 
@@ -89,7 +94,7 @@ Reserve a package name on PyPI with a minimal placeholder.
 
 ## CI Check Badge
 
-Projects scaffolded with `axm-init init` include an automated **check badge** that updates on every push. The badge shows your score and grade using the AXM logo.
+Projects scaffolded with `axm-init scaffold` include an automated **check badge** that updates on every push. The badge shows your score and grade using the AXM logo.
 
 ```
 push → axm-init check → badge JSON → gh-pages → shields.io
@@ -105,7 +110,7 @@ The badge is already in your README — just push to `main` and it appears after
 git clone https://github.com/axm-protocols/axm-init.git
 cd axm-init
 uv sync --all-groups
-uv run pytest           # 380 tests
+uv run pytest           # 382 tests
 uv run ruff check src/  # lint
 ```
 

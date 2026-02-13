@@ -1,4 +1,4 @@
-"""Tests for CLI coverage gaps — reserve JSON success, init failure output."""
+"""Tests for CLI coverage gaps — reserve JSON success, scaffold failure output."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def _run(args: list[str]) -> tuple[str, str, int]:
     return out.getvalue(), err.getvalue(), code
 
 
-INIT_ARGS = [
+SCAFFOLD_ARGS = [
     "--org",
     "test-org",
     "--author",
@@ -95,11 +95,11 @@ class TestReserveJsonSuccess:
         assert "❌" in stderr
 
 
-class TestInitFailurePath:
-    """Cover init command failure output (copier fails)."""
+class TestScaffoldFailurePath:
+    """Cover scaffold command failure output (copier fails)."""
 
     @patch("axm_init.cli.CopierAdapter")
-    def test_init_copier_fails_human(
+    def test_scaffold_copier_fails_human(
         self, mock_copier_cls: MagicMock, tmp_path: Path
     ) -> None:
         """Failed copier prints ❌ error to stderr."""
@@ -110,29 +110,29 @@ class TestInitFailurePath:
             {"success": False, "files_created": [], "message": "Template error"},
         )()
         _, stderr, code = _run(
-            ["init", str(tmp_path), "--name", "fail-pkg", *INIT_ARGS]
+            ["scaffold", str(tmp_path), "--name", "fail-pkg", *SCAFFOLD_ARGS]
         )
         assert code == 1
         assert "❌" in stderr
 
     @patch("axm_init.cli.CopierAdapter")
-    def test_init_json_success(
+    def test_scaffold_json_success(
         self, mock_copier_cls: MagicMock, tmp_path: Path
     ) -> None:
-        """--json with successful init outputs JSON with success=true."""
+        """--json with successful scaffold outputs JSON with success=true."""
         mock_adapter = mock_copier_cls.return_value
         mock_adapter.copy.return_value = type(
             "R", (), {"success": True, "files_created": ["a.py"], "message": "ok"}
         )()
         stdout, _, code = _run(
-            ["init", str(tmp_path), "--name", "my-pkg", "--json", *INIT_ARGS]
+            ["scaffold", str(tmp_path), "--name", "my-pkg", "--json", *SCAFFOLD_ARGS]
         )
         assert code == 0
         data = json.loads(stdout)
         assert data["success"] is True
 
 
-class TestInitPyPIJsonError:
+class TestScaffoldPyPIJsonError:
     """Cover --check-pypi + --json error path (status=ERROR)."""
 
     @patch("axm_init.cli.CopierAdapter")
@@ -151,13 +151,13 @@ class TestInitPyPIJsonError:
         )()
         _stdout, _, code = _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "pkg",
                 "--check-pypi",
                 "--json",
-                *INIT_ARGS,
+                *SCAFFOLD_ARGS,
             ]
         )
         assert code == 0

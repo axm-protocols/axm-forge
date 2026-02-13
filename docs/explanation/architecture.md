@@ -74,7 +74,7 @@ Cyclopts-based commands with input validation and formatted output (text, JSON, 
 
 | Command | Function | Description |
 |---|---|---|
-| `init` | `init()` | Scaffold a new project |
+| `scaffold` | `scaffold()` | Scaffold a new project |
 | `check` | `check()` | Score against AXM standard |
 | `reserve` | `reserve()` | Reserve PyPI package name |
 | `version` | `version()` | Show version |

@@ -1,4 +1,4 @@
-"""Unit tests for CLI commands (check, version, init).
+"""Unit tests for CLI commands (check, version, scaffold).
 
 Tests the CLI layer via the cyclopts app interface.
 """
@@ -182,13 +182,13 @@ class TestVersionCommand:
         assert "axm-init" in stdout
 
 
-# ── init command (mocked) ────────────────────────────────────────────────────
+# ── scaffold command (mocked) ────────────────────────────────────────────────
 
 
-class TestInitCommand:
-    """Tests for `axm-init init` with mocked adapter."""
+class TestScaffoldCommand:
+    """Tests for `axm-init scaffold` with mocked adapter."""
 
-    def test_init_success(self, tmp_path: Path) -> None:
+    def test_scaffold_success(self, tmp_path: Path) -> None:
         target = tmp_path / "new-project"
         mock_result = ScaffoldResult(
             success=True,
@@ -199,7 +199,7 @@ class TestInitCommand:
         with patch("axm_init.cli.CopierAdapter") as mock_cls:
             mock_cls.return_value.copy.return_value = mock_result
             stdout, _stderr, code = _run(
-                "init",
+                "scaffold",
                 str(target),
                 "--org",
                 "test-org",
@@ -211,7 +211,7 @@ class TestInitCommand:
         assert code == 0
         assert "✅" in stdout
 
-    def test_init_json_output(self, tmp_path: Path) -> None:
+    def test_scaffold_json_output(self, tmp_path: Path) -> None:
         target = tmp_path / "new-project"
         mock_result = ScaffoldResult(
             success=True,
@@ -222,7 +222,7 @@ class TestInitCommand:
         with patch("axm_init.cli.CopierAdapter") as mock_cls:
             mock_cls.return_value.copy.return_value = mock_result
             stdout, _stderr, code = _run(
-                "init",
+                "scaffold",
                 str(target),
                 "--org",
                 "test-org",
@@ -236,7 +236,7 @@ class TestInitCommand:
         data = json.loads(stdout)
         assert data["success"] is True
 
-    def test_init_failure(self, tmp_path: Path) -> None:
+    def test_scaffold_failure(self, tmp_path: Path) -> None:
         target = tmp_path / "new-project"
         mock_result = ScaffoldResult(
             success=False,
@@ -247,7 +247,7 @@ class TestInitCommand:
         with patch("axm_init.cli.CopierAdapter") as mock_cls:
             mock_cls.return_value.copy.return_value = mock_result
             _stdout, stderr, code = _run(
-                "init",
+                "scaffold",
                 str(target),
                 "--org",
                 "test-org",

@@ -30,7 +30,8 @@ axm-init version
 Scaffold a fully configured Python project:
 
 ```bash
-axm-init init my-project --name my-project
+axm-init scaffold my-project \
+  --org my-org --author "Your Name" --email "you@example.com"
 ```
 
 You'll see output with all scaffolded files:
@@ -87,7 +88,7 @@ This installs dependencies and runs lint + type check + tests.
 
 ## Next Steps
 
-- [Initialize a project](../howto/init.md) — Options, flags, PyPI check
+- [Scaffold a project](../howto/scaffold.md) — Options, flags, PyPI check
 - [Reserve a package name](../howto/reserve.md) — Claim names on PyPI
 - [Check your project](../howto/check.md) — Quality grade (A–F)
 - [CLI Reference](../reference/cli.md) — Full command documentation

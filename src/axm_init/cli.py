@@ -2,7 +2,7 @@
 
 Usage::
 
-    axm-init init my-project
+    axm-init scaffold my-project
     axm-init reserve my-package --dry-run
     axm-init version
 """
@@ -54,14 +54,14 @@ def _check_pypi_availability(project_name: str, *, json_output: bool) -> None:
         )
 
 
-def _print_init_result(
+def _print_scaffold_result(
     result: Any,
     project_name: str,
     target_path: Path,
     *,
     json_output: bool,
 ) -> None:
-    """Print init result as JSON or human-readable output."""
+    """Print scaffold result as JSON or human-readable output."""
     if json_output:
         print(  # noqa: T201
             json.dumps(
@@ -81,7 +81,7 @@ def _print_init_result(
 
 
 @app.command()
-def init(
+def scaffold(
     path: Annotated[
         str,
         cyclopts.Parameter(help="Path to initialize project"),
@@ -127,7 +127,7 @@ def init(
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
     ] = False,
 ) -> None:
-    """Initialize a new Python project with best practices."""
+    """Scaffold a new Python project with best practices."""
     target_path = Path(path).resolve()
     project_name = name or target_path.name
 
@@ -150,7 +150,7 @@ def init(
     )
     result = copier_adapter.copy(copier_config)
 
-    _print_init_result(result, project_name, target_path, json_output=json_output)
+    _print_scaffold_result(result, project_name, target_path, json_output=json_output)
 
 
 @app.command()

@@ -41,7 +41,7 @@ init_check    = "axm_init.tools.check:InitCheckTool"
 init_reserve  = "axm_init.tools.reserve:InitReserveTool"
 
 [project.entry-points."axm.commands"]
-init_scaffold = "axm_init.cli:init"
+init_scaffold = "axm_init.cli:scaffold"
 init_check    = "axm_init.cli:check"
 init_reserve  = "axm_init.cli:reserve"
 

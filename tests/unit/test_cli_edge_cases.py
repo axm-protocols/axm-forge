@@ -27,8 +27,8 @@ def _run(args: list[str]) -> tuple[str, str, int]:
     return out.getvalue(), err.getvalue(), code
 
 
-# Required args for init (to avoid noise in unrelated tests)
-INIT_ARGS = [
+# Required args for scaffold (to avoid noise in unrelated tests)
+SCAFFOLD_ARGS = [
     "--org",
     "test-org",
     "--author",
@@ -56,22 +56,22 @@ class TestVersionCommand:
         assert parts[0] == "axm-init"
 
 
-class TestInitCommand:
-    """Tests for the init command — edge cases."""
+class TestScaffoldCommand:
+    """Tests for the scaffold command — edge cases."""
 
-    def test_init_no_name_defaults_to_dirname(self, tmp_path: Path) -> None:
+    def test_scaffold_no_name_defaults_to_dirname(self, tmp_path: Path) -> None:
         """When --name is omitted, project name defaults to directory name."""
         target = tmp_path / "my-awesome-project"
         target.mkdir()
-        stdout, _, code = _run(["init", str(target), *INIT_ARGS])
+        stdout, _, code = _run(["scaffold", str(target), *SCAFFOLD_ARGS])
         assert code == 0
         assert "my-awesome-project" in stdout
 
-    def test_init_missing_org_exits(self, tmp_path: Path) -> None:
+    def test_scaffold_missing_org_exits(self, tmp_path: Path) -> None:
         """Missing --org causes exit with error."""
         _, _, code = _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "x",
@@ -83,11 +83,11 @@ class TestInitCommand:
         )
         assert code != 0
 
-    def test_init_missing_author_exits(self, tmp_path: Path) -> None:
+    def test_scaffold_missing_author_exits(self, tmp_path: Path) -> None:
         """Missing --author causes exit with error."""
         _, _, code = _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "x",
@@ -99,11 +99,11 @@ class TestInitCommand:
         )
         assert code != 0
 
-    def test_init_missing_email_exits(self, tmp_path: Path) -> None:
+    def test_scaffold_missing_email_exits(self, tmp_path: Path) -> None:
         """Missing --email causes exit with error."""
         _, _, code = _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "x",
@@ -116,7 +116,7 @@ class TestInitCommand:
         assert code != 0
 
     @patch("axm_init.cli.CopierAdapter")
-    def test_init_license_holder_defaults_to_org(
+    def test_scaffold_license_holder_defaults_to_org(
         self, mock_copier_cls: MagicMock, tmp_path: Path
     ) -> None:
         """When --license-holder is omitted, it defaults to --org value."""
@@ -127,7 +127,7 @@ class TestInitCommand:
 
         _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "test-pkg",
@@ -146,7 +146,7 @@ class TestInitCommand:
         assert config.data["license_holder"] == "my-org"
 
     @patch("axm_init.cli.PyPIAdapter")
-    def test_init_pypi_taken_exits_with_error(
+    def test_scaffold_pypi_taken_exits_with_error(
         self, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
         """--check-pypi with taken name causes exit code 1."""
@@ -157,18 +157,18 @@ class TestInitCommand:
 
         _, _stderr, code = _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "requests",
                 "--check-pypi",
-                *INIT_ARGS,
+                *SCAFFOLD_ARGS,
             ]
         )
         assert code == 1
 
     @patch("axm_init.cli.PyPIAdapter")
-    def test_init_pypi_taken_json_output(
+    def test_scaffold_pypi_taken_json_output(
         self, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
         """--check-pypi + --json outputs JSON error for taken name."""
@@ -179,13 +179,13 @@ class TestInitCommand:
 
         stdout, _, code = _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "requests",
                 "--check-pypi",
                 "--json",
-                *INIT_ARGS,
+                *SCAFFOLD_ARGS,
             ]
         )
         assert code == 1
@@ -193,7 +193,7 @@ class TestInitCommand:
         assert "error" in data
 
     @patch("axm_init.cli.PyPIAdapter")
-    def test_init_pypi_error_continues(
+    def test_scaffold_pypi_error_continues(
         self, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
         """--check-pypi with network error continues (warning only)."""
@@ -204,12 +204,12 @@ class TestInitCommand:
 
         _, _, code = _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "test-pkg",
                 "--check-pypi",
-                *INIT_ARGS,
+                *SCAFFOLD_ARGS,
             ]
         )
         # Should not fail — availability check error is non-blocking
@@ -270,4 +270,4 @@ class TestHelpBehavior:
     def test_no_args_shows_help(self) -> None:
         """Running with no arguments shows help text."""
         stdout, _, _code = _run(["--help"])
-        assert "init" in stdout
+        assert "scaffold" in stdout

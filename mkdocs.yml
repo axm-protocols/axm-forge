@@ -40,7 +40,7 @@ nav:
   - Tutorials:
     - Quick Start: tutorials/quickstart.md
   - How-To Guides:
-    - Initialize a Project: howto/init.md
+    - Scaffold a Project: howto/scaffold.md
     - Reserve a Package: howto/reserve.md
     - Check Your Project: howto/check.md
     - Use via MCP: howto/mcp.md

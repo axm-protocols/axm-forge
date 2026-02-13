@@ -4,11 +4,14 @@ hide:
   - toc
 ---
 
-# axm-init
+<p align="center">
+  <img src="https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.png" alt="AXM Logo" width="180" />
+</p>
 
 <p align="center">
-  <strong>Python project scaffolding CLI with Copier templates.</strong>
+  <strong>axm-init — Python project scaffolding, quality checks & governance CLI</strong>
 </p>
+
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm-init/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-init/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
@@ -29,7 +32,8 @@ hide:
 ## Quick Example
 
 ```bash
-$ axm-init init my-project
+$ axm-init scaffold my-project \
+    --org axm-protocols --author "Your Name" --email "you@example.com"
 
 ✅ Project 'my-project' created at /path/to/my-project
    📄 pyproject.toml
@@ -41,10 +45,9 @@ $ axm-init init my-project
 ## Features
 
 - 🚀 **Scaffold** — Bootstrap projects with Copier templates (`src/` layout, PEP 621)
-- 📋 **Audit** — Score any project against the AXM gold standard (39 checks, A–F grade)
+- 📋 **Check** — Score any project against the AXM gold standard (39 checks, A–F grade)
 - 📦 **Reserve** — Claim a package name on PyPI before you're ready to publish
 - ✅ **Standards** — Pre-configured Ruff, MyPy, Pytest, GitHub Actions
-- 🔄 **Copier-powered** — Production-grade scaffolding with `src/` layout, PEP 621
 - 📊 **JSON output** — Machine-readable output for CI integration
 
 ---

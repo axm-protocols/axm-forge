@@ -1,4 +1,4 @@
-# Initialize a Project
+# Scaffold a Project
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@
 ### 1. Create a new project
 
 ```bash
-axm-init init my-project \
+axm-init scaffold my-project \
   --org axm-protocols \
   --author "Your Name" \
   --email "you@example.com"
@@ -44,7 +44,7 @@ This scaffolds a production-grade Python project with:
 ### 4. Check PyPI availability
 
 ```bash
-axm-init init my-project --org myorg --author A --email e@e.com --check-pypi
+axm-init scaffold my-project --org myorg --author A --email e@e.com --check-pypi
 ```
 
 The `--check-pypi` flag verifies the package name is available before scaffolding.
@@ -52,7 +52,7 @@ The `--check-pypi` flag verifies the package name is available before scaffoldin
 ### 5. JSON output
 
 ```bash
-axm-init init my-project --org myorg --author A --email e@e.com --json
+axm-init scaffold my-project --org myorg --author A --email e@e.com --json
 ```
 
 Outputs structured JSON for CI/automation use.

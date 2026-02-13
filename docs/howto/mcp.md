@@ -7,7 +7,7 @@
 | MCP Tool | Equivalent CLI | Purpose |
 |---|---|---|
 | `init_check` | `axm-init check` | Score a project against the AXM gold standard |
-| `init_scaffold` | `axm-init init` | Scaffold a new Python project |
+| `init_scaffold` | `axm-init scaffold` | Scaffold a new Python project |
 | `init_reserve` | `axm-init reserve` | Reserve a package name on PyPI |
 
 ## Usage
@@ -47,9 +47,9 @@ The tools are registered via `pyproject.toml` entry points:
 
 ```toml
 [project.entry-points."axm.tools"]
-check = "axm_init.tools.check:InitCheckTool"
-scaffold = "axm_init.tools.scaffold:InitScaffoldTool"
-reserve = "axm_init.tools.reserve:InitReserveTool"
+init_check    = "axm_init.tools.check:InitCheckTool"
+init_scaffold = "axm_init.tools.scaffold:InitScaffoldTool"
+init_reserve  = "axm_init.tools.reserve:InitReserveTool"
 ```
 
 `axm-mcp` discovers these automatically at startup.

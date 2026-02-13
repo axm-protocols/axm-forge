@@ -9,8 +9,8 @@ from pathlib import Path
 
 from axm_init.cli import app
 
-# Required args for init
-INIT_ARGS = [
+# Required args for scaffold
+SCAFFOLD_ARGS = [
     "--org",
     "test-org",
     "--author",
@@ -32,33 +32,33 @@ def _run(args: list[str]) -> tuple[str, int]:
     return f.getvalue(), code
 
 
-class TestInitFlow:
-    """End-to-end tests for the init command."""
+class TestScaffoldFlow:
+    """End-to-end tests for the scaffold command."""
 
-    def test_full_init_creates_project(self, tmp_path: Path) -> None:
-        """init creates a project directory with expected files."""
+    def test_full_scaffold_creates_project(self, tmp_path: Path) -> None:
+        """scaffold creates a project directory with expected files."""
         output, code = _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "my-project",
-                *INIT_ARGS,
+                *SCAFFOLD_ARGS,
             ]
         )
         assert code == 0
         assert "my-project" in output
         assert "✅" in output
 
-    def test_init_then_check_structure(self, tmp_path: Path) -> None:
-        """init creates expected scaffolding structure."""
+    def test_scaffold_then_check_structure(self, tmp_path: Path) -> None:
+        """scaffold creates expected scaffolding structure."""
         _output, code = _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "scaffold-test",
-                *INIT_ARGS,
+                *SCAFFOLD_ARGS,
             ]
         )
         assert code == 0
@@ -68,16 +68,16 @@ class TestInitFlow:
         pyproject_files = list(tmp_path.rglob("pyproject.toml"))
         assert len(pyproject_files) > 0, "No pyproject.toml found in scaffolded output"
 
-    def test_init_json_output_is_valid_json(self, tmp_path: Path) -> None:
+    def test_scaffold_json_output_is_valid_json(self, tmp_path: Path) -> None:
         """--json flag produces valid, parseable JSON output."""
         output, code = _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "json-test",
                 "--json",
-                *INIT_ARGS,
+                *SCAFFOLD_ARGS,
             ]
         )
         assert code == 0
@@ -86,32 +86,32 @@ class TestInitFlow:
         assert data["success"] is True
         assert "files" in data
 
-    def test_init_with_description(self, tmp_path: Path) -> None:
+    def test_scaffold_with_description(self, tmp_path: Path) -> None:
         """--description flag passes description to template."""
         _output, code = _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "desc-test",
                 "--description",
                 "My custom description",
-                *INIT_ARGS,
+                *SCAFFOLD_ARGS,
             ]
         )
         assert code == 0
 
-    def test_init_with_license_flag(self, tmp_path: Path) -> None:
+    def test_scaffold_with_license_flag(self, tmp_path: Path) -> None:
         """--license flag is accepted."""
         _output, code = _run(
             [
-                "init",
+                "scaffold",
                 str(tmp_path),
                 "--name",
                 "lic-test",
                 "--license",
                 "Apache-2.0",
-                *INIT_ARGS,
+                *SCAFFOLD_ARGS,
             ]
         )
         assert code == 0
