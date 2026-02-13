@@ -21,6 +21,8 @@ ENV/
 .pytest_cache/
 .coverage
 coverage.xml
+coverage.json
+coverage_html/
 htmlcov/
 .tox/
 
