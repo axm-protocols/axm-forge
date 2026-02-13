@@ -120,6 +120,17 @@ ignore = [
 known-first-party = ["axm_init"]
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Deptry Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.deptry]
+known_first_party = ["axm_init"]
+extend_exclude = ["src/axm_init/templates/.*"]
+
+[tool.deptry.per_rule_ignores]
+DEP003 = ["tomli"]
+DEP004 = ["mkdocs_gen_files", "pytest"]
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
