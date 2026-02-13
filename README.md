@@ -1,51 +1,59 @@
 # axm
 
-**AXM CLI — thin autodiscovery wrapper for the AXM ecosystem**
+**AXM CLI — Unified command-line interface for the AXM ecosystem.**
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/axm-protocols/axm/actions/workflows/axm-init.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm/gh-pages/badges/axm-init.json" alt="axm-init"></a>
-  <a href="https://github.com/axm-protocols/axm/actions/workflows/axm-audit.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm/gh-pages/badges/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://coveralls.io/github/axm-protocols/axm?branch=main"><img src="https://coveralls.io/repos/github/axm-protocols/axm/badge.svg?branch=main" alt="Coverage"></a>
   <a href="https://pypi.org/project/axm/"><img src="https://img.shields.io/pypi/v/axm" alt="PyPI"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
-  <a href="https://axm-protocols.github.io/axm/"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs"></a>
 </p>
 
 ---
 
-## Features
+## What is axm?
 
-- ✅ **Modern Python** — 3.12+ with strict typing
-- ✅ **Fast** — Optimized for performance
-- ✅ **Tested** — Full coverage with pytest
-
-## Installation
+`axm` is a thin CLI wrapper that **autodiscovers commands** from installed AXM packages via entry points. Install only what you need:
 
 ```bash
-uv add axm
+pip install axm              # CLI shell only
+pip install axm[init]        # + scaffolding & project checks
+pip install axm[audit]       # + code quality audits
+pip install axm[mcp]         # + MCP server
+pip install axm[bib]         # + bibliography tools
+pip install axm[all]         # everything
 ```
 
-## Quick Start
+## Usage
 
-```python
-from axm import hello
-
-print(hello())
+```bash
+axm                     # shows available commands
+axm init my-project     # if axm-init is installed
+axm audit .             # if axm-audit is installed
 ```
 
-## CLI Commands
+## How It Works
 
-| Command | Description |
-|---|---|
-| `make install` | Install all dependencies (dev + docs) |
-| `make check` | Run lint + audit + test in one step |
-| `make lint` | Lint with ruff |
-| `make format` | Format with ruff |
-| `make test` | Run pytest |
-| `make audit` | Run pip-audit |
-| `make docs-serve` | Preview docs locally |
-| `make clean` | Remove build artifacts |
+Each AXM package declares commands via `pyproject.toml`:
+
+```toml
+# axm-init/pyproject.toml
+[project.entry-points."axm.commands"]
+init = "axm_init.cli:init"
+check = "axm_init.cli:check"
+```
+
+The `axm` CLI discovers these at startup and exposes them as subcommands.
+
+## Package Structure
+
+```
+axm/
+├── src/axm/
+│   ├── cli.py         # Autodiscovery wrapper (~80 lines)
+│   └── __init__.py
+└── tests/
+    └── test_cli.py
+```
 
 ## Development
 
@@ -53,9 +61,9 @@ print(hello())
 git clone https://github.com/axm-protocols/axm.git
 cd axm
 uv sync --all-groups
-make check
+uv run pytest
 ```
 
 ## License
 
-Apache-2.0 — © 2026 axm-protocols
+Apache License 2.0
