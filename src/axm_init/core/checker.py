@@ -212,3 +212,24 @@ def format_json(result: ProjectResult) -> dict[str, Any]:
             for f in result.failures
         ],
     }
+
+
+def format_agent(result: ProjectResult) -> dict[str, Any]:
+    """Agent-optimized output: passed=summary, failed=full detail.
+
+    Minimizes tokens for passing checks while giving full context on failures.
+    """
+    return {
+        "score": result.score,
+        "grade": result.grade.value,
+        "passed": [f"{c.name}: {c.message}" for c in result.checks if c.passed],
+        "failed": [
+            {
+                "name": f.name,
+                "message": f.message,
+                "details": f.details,
+                "fix": f.fix,
+            }
+            for f in result.failures
+        ],
+    }

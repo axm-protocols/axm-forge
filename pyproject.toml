@@ -34,6 +34,10 @@ Issues = "https://github.com/axm-protocols/axm-init/issues"
 [project.scripts]
 axm-init = "axm_init.cli:main"
 
+[project.entry-points."axm.tools"]
+init_scaffold = "axm_init.tools.scaffold:InitScaffoldTool"
+init_check    = "axm_init.tools.check:InitCheckTool"
+
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
@@ -148,8 +152,12 @@ module = ["tests.*"]
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["copier.*", "cyclopts.*"]
+module = ["copier.*", "cyclopts.*", "axm.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["axm_init.tools.*"]
+disallow_subclassing_any = false
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Coverage Configuration

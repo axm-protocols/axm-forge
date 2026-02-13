@@ -230,13 +230,22 @@ def check(
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
     ] = False,
+    agent: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--agent"], help="Compact agent-friendly output"),
+    ] = False,
     category: Annotated[
         str | None,
         cyclopts.Parameter(name=["--category", "-c"], help="Filter to one category"),
     ] = None,
 ) -> None:
     """Check a project against the AXM gold standard."""
-    from axm_init.core.checker import CheckEngine, format_json, format_report
+    from axm_init.core.checker import (
+        CheckEngine,
+        format_agent,
+        format_json,
+        format_report,
+    )
 
     project_path = Path(path).resolve()
     if not project_path.is_dir():
@@ -250,7 +259,9 @@ def check(
         print(f"❌ {e}", file=sys.stderr)  # noqa: T201
         raise SystemExit(1) from e
 
-    if json_output:
+    if agent:
+        print(json.dumps(format_agent(result), indent=2))  # noqa: T201
+    elif json_output:
         print(json.dumps(format_json(result), indent=2))  # noqa: T201
     else:
         print(format_report(result))  # noqa: T201
