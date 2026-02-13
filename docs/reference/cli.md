@@ -15,14 +15,21 @@ Commands depend on which AXM packages are installed:
 
 | Command | Package | Description |
 |---|---|---|
-| `axm init` | `axm-init` | Scaffold a new project |
-| `axm check` | `axm-init` | Check project conformity |
+| `axm init_scaffold` | `axm-init` | Scaffold a new project |
+| `axm init_check` | `axm-init` | Check project conformity |
+| `axm init_reserve` | `axm-init` | Reserve a PyPI package name |
 | `axm audit` | `axm-audit` | Code quality audit |
-| `axm search` | `axm-bib` | Search papers |
-| `axm pdf` | `axm-bib` | Download paper PDFs |
-| `axm run` | `axm-engine` | Run a protocol |
-| `axm read` | `axm-engine` | Read a URI |
+| `axm bib_search` | `axm-bib` | Search papers |
+| `axm bib_pdf` | `axm-bib` | Download paper PDFs |
+| `axm protocol_run` | `axm-engine` | Run a protocol |
+| `axm protocol_read` | `axm-engine` | Read a URI |
 
 ## Python API
 
 ::: axm.cli.create_app
+
+## Tool Interface
+
+::: axm.tools.base.ToolResult
+
+::: axm.tools.base.AXMTool

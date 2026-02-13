@@ -8,7 +8,16 @@ To expose a CLI command from your AXM package, add an entry point in your `pypro
 
 ```toml
 [project.entry-points."axm.commands"]
-mycommand = "my_package.cli:my_function"
+mypackage_mycommand = "my_package.cli:my_function"
+```
+
+Command names must follow the `{domain}_{action}` convention:
+
+```toml
+# Example from axm-init
+[project.entry-points."axm.commands"]
+init_scaffold = "axm_init.cli:init"
+init_check    = "axm_init.cli:check"
 ```
 
 The function must be a valid `cyclopts` command:

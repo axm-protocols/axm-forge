@@ -26,9 +26,10 @@ pip install axm[all]         # everything
 ## Usage
 
 ```bash
-axm                     # shows available commands
-axm init my-project     # if axm-init is installed
-axm audit .             # if axm-audit is installed
+axm                          # shows available commands
+axm init_scaffold my-project # if axm-init is installed
+axm init_check .             # check project conformity
+axm audit .                  # if axm-audit is installed
 ```
 
 ## How It Works
@@ -38,8 +39,9 @@ Each AXM package declares commands via `pyproject.toml`:
 ```toml
 # axm-init/pyproject.toml
 [project.entry-points."axm.commands"]
-init = "axm_init.cli:init"
-check = "axm_init.cli:check"
+init_scaffold = "axm_init.cli:init"
+init_check    = "axm_init.cli:check"
+init_reserve  = "axm_init.cli:reserve"
 ```
 
 The `axm` CLI discovers these at startup and exposes them as subcommands.
@@ -50,6 +52,9 @@ The `axm` CLI discovers these at startup and exposes them as subcommands.
 axm/
 ├── src/axm/
 │   ├── cli.py         # Autodiscovery wrapper (~80 lines)
+│   ├── tools/
+│   │   ├── base.py    # AXMTool ABC + ToolResult (shared interface)
+│   │   └── __init__.py
 │   └── __init__.py
 └── tests/
     └── test_cli.py
