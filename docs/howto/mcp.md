@@ -8,6 +8,7 @@
 |---|---|---|
 | `init_check` | `axm-init check` | Score a project against the AXM gold standard |
 | `init_scaffold` | `axm-init init` | Scaffold a new Python project |
+| `init_reserve` | `axm-init reserve` | Reserve a package name on PyPI |
 
 ## Usage
 
@@ -33,6 +34,13 @@ result = init_scaffold(
 )
 ```
 
+### Reserve a package name
+
+```python
+# Via axm-mcp
+result = init_reserve(name="my-package", author="Your Name", email="you@example.com")
+```
+
 ## Entry Points
 
 The tools are registered via `pyproject.toml` entry points:
@@ -41,6 +49,7 @@ The tools are registered via `pyproject.toml` entry points:
 [project.entry-points."axm.tools"]
 check = "axm_init.tools.check:InitCheckTool"
 scaffold = "axm_init.tools.scaffold:InitScaffoldTool"
+reserve = "axm_init.tools.reserve:InitReserveTool"
 ```
 
 `axm-mcp` discovers these automatically at startup.

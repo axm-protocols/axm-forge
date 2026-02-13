@@ -23,6 +23,7 @@ dependencies = [
     "cyclopts>=4.5.1",
     "httpx>=0.28.1",
     "copier>=9.11.2",
+    "axm",
 ]
 
 [project.urls]
@@ -37,6 +38,12 @@ axm-init = "axm_init.cli:main"
 [project.entry-points."axm.tools"]
 init_scaffold = "axm_init.tools.scaffold:InitScaffoldTool"
 init_check    = "axm_init.tools.check:InitCheckTool"
+init_reserve  = "axm_init.tools.reserve:InitReserveTool"
+
+[project.entry-points."axm.commands"]
+init_scaffold = "axm_init.cli:init"
+init_check    = "axm_init.cli:check"
+init_reserve  = "axm_init.cli:reserve"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -56,6 +63,9 @@ packages = ["src/axm_init"]
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.uv]
 managed = true
+
+[tool.uv.sources]
+axm = { workspace = true }
 
 [dependency-groups]
 dev = [
