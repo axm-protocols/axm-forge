@@ -1,0 +1,99 @@
+# Describe a Package
+
+Explore a codebase at multiple detail levels depending on your needs.
+
+## Basic Usage
+
+```bash
+axm-ast describe src/mylib
+```
+
+This shows a **summary** view: module names, public functions, and classes.
+
+## Detail Levels
+
+=== "Summary (default)"
+
+    ```bash
+    axm-ast describe src/mylib
+    ```
+
+    Shows module names, public function signatures, and class names.
+
+=== "Detailed"
+
+    ```bash
+    axm-ast describe src/mylib --detail detailed
+    ```
+
+    Adds docstrings, parameters with types, return types, and visibility (🔓/🔒).
+
+=== "Full"
+
+    ```bash
+    axm-ast describe src/mylib --detail full
+    ```
+
+    Everything: imports, variables, private symbols, decorators.
+
+=== "Compressed"
+
+    ```bash
+    axm-ast describe src/mylib --compress
+    ```
+
+    AI-optimized format: signatures + first docstring line + `__all__` + relative imports. No bodies, no absolute imports.
+
+!!! tip "Budget mode"
+    Use `--budget N` to limit output to the N highest-ranked symbols:
+
+    ```bash
+    axm-ast describe src/mylib --budget 10
+    ```
+
+## Ranked Output
+
+Add `--rank` to sort modules and symbols by PageRank importance:
+
+```bash
+axm-ast describe src/mylib --rank
+```
+
+The most-referenced symbols appear first, making it easy to focus on the core architecture.
+
+## JSON Output
+
+```bash
+axm-ast describe src/mylib --json
+```
+
+Returns a JSON object with full module, function, class, and import data — ready for programmatic consumption.
+
+## Inspect a Single Module
+
+For a single file, use `inspect`:
+
+```bash
+axm-ast inspect src/mylib/core/parser.py
+axm-ast inspect src/mylib/core/parser.py --symbol extract_module_info
+```
+
+## Generate Stubs
+
+Create `.pyi`-like stubs for the entire package:
+
+```bash
+axm-ast stub src/mylib
+```
+
+Output:
+
+```python
+# core.analyzer
+"""High-level package analysis engine."""
+
+def analyze_package(path: Path) -> PackageInfo: ...
+def build_import_graph(pkg: PackageInfo) -> dict[str, list[str]]: ...
+class Calculator:
+    def add(self, a: int, b: int) -> int: ...
+```
