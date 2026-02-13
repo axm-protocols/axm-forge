@@ -1,25 +1,25 @@
-site_name: axm-ast
-site_description: Abstract Syntax Tree utilities for AXM Audit
+site_name: AXM AST
+site_description: "AXM AST — Python AST introspection CLI for AI agents, powered by tree-sitter."
 site_url: https://axm-protocols.github.io/axm-ast
 repo_url: https://github.com/axm-protocols/axm-ast
 repo_name: axm-protocols/axm-ast
-copyright: Copyright &copy; 2026 Gabriel Jarry
+copyright: Copyright &copy; 2026 axm-protocols &mdash; Licensed under Apache 2.0
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   palette:
-    # Light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: indigo
-      accent: deep purple
+      primary: teal
+      accent: cyan
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
-    # Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: indigo
+      primary: teal
       accent: cyan
       toggle:
         icon: material/brightness-4
@@ -38,14 +38,18 @@ theme:
 nav:
   - Home: index.md
   - Tutorials:
-    - Getting Started: tutorials/getting-started.md
+    - Quick Start: tutorials/quickstart.md
   - How-To Guides:
-    - howto/index.md
+    - Describe a Package: howto/describe.md
+    - Analyze Change Impact: howto/impact.md
+    - Use in CI: howto/ci.md
+    - Use via MCP: howto/mcp.md
   - Reference:
     - CLI: reference/cli.md
     - Python API: reference/api/
   - Explanation:
     - Architecture: explanation/architecture.md
+    - Output Formats: explanation/formats.md
 
 plugins:
   - search
