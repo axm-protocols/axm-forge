@@ -1,10 +1,10 @@
-"""axm - AXM CLI — thin autodiscovery wrapper for the AXM ecosystem"""
+"""AXM CLI — Unified command-line interface for the AXM ecosystem."""
 
-from axm._version import __version__
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("axm")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
 
 __all__ = ["__version__"]
-
-
-def hello() -> str:
-    """Return a greeting message."""
-    return "Hello from axm!"
