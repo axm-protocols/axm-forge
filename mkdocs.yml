@@ -1,14 +1,15 @@
 site_name: axm-mcp
-site_description: AXM MCP Server — Runtime execution for the AXM protocol ecosystem
-site_url: https://JarryGabriel.github.io/axm-mcp
-repo_url: https://github.com/JarryGabriel/axm-mcp
-repo_name: JarryGabriel/axm-mcp
-copyright: Copyright &copy; 2026 Gabriel Jarry
+site_description: "AXM MCP Server — Runtime execution for the AXM protocol ecosystem."
+site_url: https://axm-protocols.github.io/axm-mcp
+repo_url: https://github.com/axm-protocols/axm-mcp
+repo_name: axm-protocols/axm-mcp
+copyright: Copyright &copy; 2026 axm-protocols &mdash; Licensed under Apache 2.0
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   palette:
-    # Light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: indigo
@@ -16,7 +17,6 @@ theme:
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
-    # Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: indigo
@@ -27,6 +27,7 @@ theme:
   features:
     - navigation.instant
     - navigation.tabs
+    - navigation.sections
     - navigation.top
     - search.suggest
     - search.highlight
@@ -36,13 +37,49 @@ theme:
 
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
+  - Tutorials:
+    - Quick Start: tutorials/quickstart.md
+  - How-To Guides:
+    - Add a New Tool: howto/add-tool.md
+    - Use the Verify Tool: howto/verify.md
+  - Reference:
+    - CLI: reference/cli.md
+    - Python API: reference/api/
+  - Explanation:
+    - Architecture: explanation/architecture.md
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            heading_level: 3
 
 markdown_extensions:
   - admonition
   - pymdownx.highlight:
       anchor_linenums: true
-  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
   - attr_list
   - md_in_html
+  - tables

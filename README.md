@@ -1,25 +1,70 @@
-# AXM MCP Server
+# axm-mcp
 
-> Runtime execution for the AXM protocol ecosystem.
+**MCP server for the AXM protocol ecosystem — auto-discovers and exposes all AXM tools.**
+
+<p align="center">
+  <a href="https://github.com/axm-protocols/axm-mcp/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-mcp/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://axm-protocols.github.io/axm-mcp/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-mcp/gh-pages/badges/axm-init.json" alt="axm-init"></a>
+  <a href="https://github.com/axm-protocols/axm-mcp/actions/workflows/axm-audit.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-mcp/gh-pages/badges/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://coveralls.io/github/axm-protocols/axm-mcp?branch=main"><img src="https://coveralls.io/repos/github/axm-protocols/axm-mcp/badge.svg?branch=main" alt="Coverage"></a>
+  <a href="https://pypi.org/project/axm-mcp/"><img src="https://img.shields.io/pypi/v/axm-mcp" alt="PyPI"></a>
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
+  <a href="https://axm-protocols.github.io/axm-mcp/"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs"></a>
+</p>
+
+---
+
+## Features
+
+- 🔌 **Auto-discovery** — Finds all `axm.tools` entry points from installed packages
+- 🛠️ **MCP bridge** — Exposes discovered tools as Model Context Protocol callables
+- ✅ **Verify** — One-shot project quality check: audit + init check + AST enrichment
+- 📋 **List tools** — Built-in meta-tool to list all available tools and descriptions
 
 ## Installation
 
 ```bash
-uv pip install -e .
+uv add axm-mcp
 ```
+
+With all AXM tools:
+
+```bash
+uv add "axm-mcp[all]"
+```
+
+## Quick Start
+
+```bash
+# Start the MCP server
+axm-mcp
+```
+
+All installed AXM tools are immediately available to any MCP client.
+
+## MCP Tools
+
+| Tool | Package | Description |
+|---|---|---|
+| `list_tools` | built-in | List all available tools |
+| `verify` | built-in | One-shot audit + init check + AST enrichment |
+| `ast_describe` | `axm` | Full API surface of a Python package |
+| `ast_search` | `axm` | Search functions/classes by name, return type, or base class |
+| `ast_impact` | `axm` | Blast radius analysis for a symbol |
+| `audit` | `axm-audit` | Code quality audit (lint, types, complexity, security) |
+| `init_check` | `axm-init` | 39 governance checks against AXM gold standard |
+| `search_paper` | `axm-bib` | Search academic papers by title |
 
 ## Development
 
 ```bash
-uv sync --group dev
-uv run pytest
-uv run mypy src/
-uv run ruff check src/
-```  
+git clone https://github.com/axm-protocols/axm-mcp.git
+cd axm-mcp
+uv sync --all-groups
+uv run pytest           # 59 tests
+uv run ruff check src/  # lint
+```
 
-## Dependencies
+## License
 
-- `axm` — Core schemas, loaders, and catalog
-- `mcp` — MCP SDK for server implementation
-- `loguru` — Logging
-- `pydantic` — Runtime validation
+Apache License 2.0
