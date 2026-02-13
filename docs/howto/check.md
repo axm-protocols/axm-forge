@@ -42,6 +42,14 @@ Use in CI to enforce quality gates:
 axm-init check --json | jq -e '.score >= 90'
 ```
 
+## Agent Output for AI
+
+```bash
+axm-init check --agent
+```
+
+Returns compact JSON optimized for AI agents: passed checks are summarized in one line, failed checks include full detail with fix hints.
+
 ## What Gets Checked (39 Checks)
 
 | Category | Checks | Points |

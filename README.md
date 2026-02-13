@@ -71,6 +71,7 @@ Score a project against the AXM gold standard (39 checks across 7 categories).
 | `PATH` | | `.` | Directory to check |
 | `--category` | `-c` | *all* | Filter to one category |
 | `--json` | | `False` | Output as JSON |
+| `--agent` | | `False` | Compact agent-friendly output |
 
 **Categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`
 
@@ -104,7 +105,7 @@ The badge is already in your README — just push to `main` and it appears after
 git clone https://github.com/axm-protocols/axm-init.git
 cd axm-init
 uv sync --all-groups
-uv run pytest           # 317 tests
+uv run pytest           # 379 tests
 uv run ruff check src/  # lint
 ```
 

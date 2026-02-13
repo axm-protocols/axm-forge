@@ -43,6 +43,7 @@ nav:
     - Initialize a Project: howto/init.md
     - Reserve a Package: howto/reserve.md
     - Check Your Project: howto/check.md
+    - Use via MCP: howto/mcp.md
   - Reference:
     - CLI: reference/cli.md
     - Python API: reference/api/
