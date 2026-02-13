@@ -70,7 +70,7 @@ class TestBuildSymbolGraph:
         pkg_dir = tmp_path / "selfref"
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text(
-            '"""Self ref."""\n' "def foo() -> None:\n" '    """Foo."""\n' "    pass\n"
+            '"""Self ref."""\ndef foo() -> None:\n    """Foo."""\n    pass\n'
         )
         pkg = analyze_package(pkg_dir)
         graph = _build_symbol_graph(pkg)

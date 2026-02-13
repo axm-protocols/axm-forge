@@ -353,7 +353,7 @@ def generate_stubs(pkg: PackageInfo) -> str:
         lines.append(f"# {mod_name}")
         if mod.docstring:
             first_line = mod.docstring.strip().split("\n")[0]
-            lines.append(f'"""{ first_line}"""')
+            lines.append(f'"""{first_line}"""')
         lines.append("")
 
         for fn in mod.functions:

@@ -407,7 +407,7 @@ def _fmt_patterns(patterns: dict[str, Any]) -> str:
     """Format the patterns section."""
     lines = ["📐 Patterns"]
     lines.append(
-        f"  exports: __all__ in" f" {patterns.get('all_exports_count', 0)} modules"
+        f"  exports: __all__ in {patterns.get('all_exports_count', 0)} modules"
     )
     tests = patterns.get("test_count", 0)
     if tests:

@@ -23,7 +23,7 @@ def _make_project(tmp_path: Path) -> Path:
     pkg = tmp_path / "pkg"
     pkg.mkdir()
     (pkg / "__init__.py").write_text(
-        '"""Pkg."""\n' "from .core import helper\n" "\n" '__all__ = ["helper"]\n'
+        '"""Pkg."""\nfrom .core import helper\n\n__all__ = ["helper"]\n'
     )
     (pkg / "core.py").write_text(
         '"""Core module."""\n'
@@ -49,16 +49,10 @@ def _make_project(tmp_path: Path) -> Path:
     tests = tmp_path / "tests"
     tests.mkdir()
     (tests / "test_core.py").write_text(
-        '"""Test core."""\n'
-        "def test_helper() -> None:\n"
-        '    """Test."""\n'
-        "    helper(1)\n"
+        '"""Test core."""\ndef test_helper() -> None:\n    """Test."""\n    helper(1)\n'
     )
     (tests / "test_cli.py").write_text(
-        '"""Test CLI."""\n'
-        "def test_main() -> None:\n"
-        '    """Test."""\n'
-        "    main()\n"
+        '"""Test CLI."""\ndef test_main() -> None:\n    """Test."""\n    main()\n'
     )
     return pkg
 
@@ -83,7 +77,7 @@ class TestFindDefinition:
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text(
-            '"""Pkg."""\n' "class Engine:\n" '    """Engine."""\n' "    pass\n"
+            '"""Pkg."""\nclass Engine:\n    """Engine."""\n    pass\n'
         )
         info = analyze_package(pkg)
         defn = find_definition(info, "Engine")
@@ -187,7 +181,7 @@ class TestImpactEdgeCases:
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text(
-            '"""Pkg."""\n' "def lonely() -> None:\n" '    """Lonely."""\n' "    pass\n"
+            '"""Pkg."""\ndef lonely() -> None:\n    """Lonely."""\n    pass\n'
         )
         result = analyze_impact(pkg, "lonely", project_root=tmp_path)
         assert result["score"] == "LOW"

@@ -192,7 +192,7 @@ def _compress_module(mod: ModuleInfo, pkg: PackageInfo) -> list[str]:
 
     if mod.docstring:
         first_line = mod.docstring.strip().split("\n")[0]
-        lines.append(f'"""{ first_line}"""')
+        lines.append(f'"""{first_line}"""')
 
     lines.extend(_compress_variables(mod))
     lines.extend(_compress_relative_imports(mod))
@@ -257,7 +257,7 @@ def _compress_function(fn: FunctionInfo, indent: int = 0) -> list[str]:
     lines = [f"{pad}{fn.signature}:"]
     if fn.docstring:
         first_line = fn.docstring.strip().split("\n")[0]
-        lines.append(f'{pad}    """{ first_line}"""')
+        lines.append(f'{pad}    """{first_line}"""')
     else:
         lines[-1] += " ..."
     return lines
@@ -269,7 +269,7 @@ def _compress_class(cls: ClassInfo) -> list[str]:
     lines = [f"class {cls.name}{bases}:"]
     if cls.docstring:
         first_line = cls.docstring.strip().split("\n")[0]
-        lines.append(f'    """{ first_line}"""')
+        lines.append(f'    """{first_line}"""')
     if cls.methods:
         for method in cls.methods:
             lines.extend(_compress_function(method, indent=1))

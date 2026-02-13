@@ -26,9 +26,7 @@ def sample_project(tmp_path: Path) -> Path:
     pkg.mkdir(parents=True)
 
     (pkg / "__init__.py").write_text(
-        '"""Demo package."""\n\n'
-        '__all__ = ["greet"]\n\n'
-        "from demo.core import greet\n"
+        '"""Demo package."""\n\n__all__ = ["greet"]\n\nfrom demo.core import greet\n'
     )
     (pkg / "core.py").write_text(
         '"""Core module."""\n\n'

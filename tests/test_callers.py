@@ -22,9 +22,7 @@ class TestExtractCalls:
     def test_simple_function_call(self, tmp_path: Path) -> None:
         """Detects a simple function call."""
         f = tmp_path / "mod.py"
-        f.write_text(
-            '"""Mod."""\n' "def setup() -> None:\n" '    """Set up."""\n' "    foo()\n"
-        )
+        f.write_text('"""Mod."""\ndef setup() -> None:\n    """Set up."""\n    foo()\n')
         mod = extract_module_info(f)
         calls = extract_calls(mod)
         names = [c.symbol for c in calls]
@@ -49,9 +47,7 @@ class TestExtractCalls:
     def test_chained_call(self, tmp_path: Path) -> None:
         """Detects the last name in a chained call a.b.c()."""
         f = tmp_path / "mod.py"
-        f.write_text(
-            '"""Mod."""\n' "def go() -> None:\n" '    """Go."""\n' "    a.b.c()\n"
-        )
+        f.write_text('"""Mod."""\ndef go() -> None:\n    """Go."""\n    a.b.c()\n')
         mod = extract_module_info(f)
         calls = extract_calls(mod)
         names = [c.symbol for c in calls]
@@ -61,10 +57,7 @@ class TestExtractCalls:
         """Call expression text includes arguments."""
         f = tmp_path / "mod.py"
         f.write_text(
-            '"""Mod."""\n'
-            "def go() -> None:\n"
-            '    """Go."""\n'
-            '    greet("world", 42)\n'
+            '"""Mod."""\ndef go() -> None:\n    """Go."""\n    greet("world", 42)\n'
         )
         mod = extract_module_info(f)
         calls = extract_calls(mod)
@@ -75,9 +68,7 @@ class TestExtractCalls:
     def test_nested_calls(self, tmp_path: Path) -> None:
         """Nested calls foo(bar()) produce 2 CallSites."""
         f = tmp_path / "mod.py"
-        f.write_text(
-            '"""Mod."""\n' "def go() -> None:\n" '    """Go."""\n' "    foo(bar())\n"
-        )
+        f.write_text('"""Mod."""\ndef go() -> None:\n    """Go."""\n    foo(bar())\n')
         mod = extract_module_info(f)
         calls = extract_calls(mod)
         names = [c.symbol for c in calls]
@@ -87,7 +78,7 @@ class TestExtractCalls:
     def test_no_calls(self, tmp_path: Path) -> None:
         """Module with no calls returns empty list."""
         f = tmp_path / "mod.py"
-        f.write_text('"""Mod."""\n' "x = 42\n")
+        f.write_text('"""Mod."""\nx = 42\n')
         mod = extract_module_info(f)
         calls = extract_calls(mod)
         assert calls == []
@@ -95,7 +86,7 @@ class TestExtractCalls:
     def test_call_line_number(self, tmp_path: Path) -> None:
         """Call site reports correct line number."""
         f = tmp_path / "mod.py"
-        f.write_text('"""Mod."""\n' "# comment\n" "# comment\n" "foo()\n")
+        f.write_text('"""Mod."""\n# comment\n# comment\nfoo()\n')
         mod = extract_module_info(f)
         calls = extract_calls(mod)
         assert calls[0].line == 4
@@ -103,9 +94,7 @@ class TestExtractCalls:
     def test_context_is_enclosing_function(self, tmp_path: Path) -> None:
         """Context field captures enclosing function name."""
         f = tmp_path / "mod.py"
-        f.write_text(
-            '"""Mod."""\n' "def main() -> None:\n" '    """Entry."""\n' "    setup()\n"
-        )
+        f.write_text('"""Mod."""\ndef main() -> None:\n    """Entry."""\n    setup()\n')
         mod = extract_module_info(f)
         calls = extract_calls(mod)
         assert calls[0].context == "main"
@@ -113,7 +102,7 @@ class TestExtractCalls:
     def test_context_toplevel(self, tmp_path: Path) -> None:
         """Top-level call has context None."""
         f = tmp_path / "mod.py"
-        f.write_text('"""Mod."""\n' "setup()\n")
+        f.write_text('"""Mod."""\nsetup()\n')
         mod = extract_module_info(f)
         calls = extract_calls(mod)
         assert calls[0].context is None
@@ -130,13 +119,10 @@ class TestFindCallers:
         pkg_dir = tmp_path / "pkg"
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text(
-            '"""Pkg."""\n'
-            "def greet() -> str:\n"
-            '    """Greet."""\n'
-            '    return "hi"\n'
+            '"""Pkg."""\ndef greet() -> str:\n    """Greet."""\n    return "hi"\n'
         )
         (pkg_dir / "cli.py").write_text(
-            '"""CLI."""\n' "def main() -> None:\n" '    """Main."""\n' "    greet()\n"
+            '"""CLI."""\ndef main() -> None:\n    """Main."""\n    greet()\n'
         )
         pkg = analyze_package(pkg_dir)
         results = find_callers(pkg, "greet")
@@ -148,7 +134,7 @@ class TestFindCallers:
         pkg_dir = tmp_path / "pkg"
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text(
-            '"""Pkg."""\n' "def lonely() -> None:\n" '    """Lonely."""\n' "    pass\n"
+            '"""Pkg."""\ndef lonely() -> None:\n    """Lonely."""\n    pass\n'
         )
         pkg = analyze_package(pkg_dir)
         results = find_callers(pkg, "lonely")
@@ -160,13 +146,10 @@ class TestFindCallers:
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text('"""Pkg."""\n')
         (pkg_dir / "a.py").write_text(
-            '"""A."""\n' "def use_it() -> None:\n" '    """Use."""\n' "    helper()\n"
+            '"""A."""\ndef use_it() -> None:\n    """Use."""\n    helper()\n'
         )
         (pkg_dir / "b.py").write_text(
-            '"""B."""\n'
-            "def also_use() -> None:\n"
-            '    """Also."""\n'
-            "    helper()\n"
+            '"""B."""\ndef also_use() -> None:\n    """Also."""\n    helper()\n'
         )
         pkg = analyze_package(pkg_dir)
         results = find_callers(pkg, "helper")
@@ -200,10 +183,7 @@ class TestFindCallers:
         pkg_dir = tmp_path / "pkg"
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text(
-            '"""Pkg."""\n'
-            "def wrapper() -> None:\n"
-            '    """Wrap."""\n'
-            "    target()\n"
+            '"""Pkg."""\ndef wrapper() -> None:\n    """Wrap."""\n    target()\n'
         )
         pkg = analyze_package(pkg_dir)
         results = find_callers(pkg, "target")
@@ -262,7 +242,7 @@ class TestCallerEdgeCases:
     def test_lambda_call(self, tmp_path: Path) -> None:
         """Call inside a lambda is captured."""
         f = tmp_path / "mod.py"
-        f.write_text('"""Mod."""\n' "fn = lambda x: process(x)\n")
+        f.write_text('"""Mod."""\nfn = lambda x: process(x)\n')
         mod = extract_module_info(f)
         calls = extract_calls(mod)
         names = [c.symbol for c in calls]
@@ -284,10 +264,10 @@ class TestCallersCLI:
         pkg_dir = tmp_path / "pkg"
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text(
-            '"""Pkg."""\n' "def target() -> None:\n" '    """Target."""\n' "    pass\n"
+            '"""Pkg."""\ndef target() -> None:\n    """Target."""\n    pass\n'
         )
         (pkg_dir / "user.py").write_text(
-            '"""User."""\n' "def main() -> None:\n" '    """Main."""\n' "    target()\n"
+            '"""User."""\ndef main() -> None:\n    """Main."""\n    target()\n'
         )
         with pytest.raises(SystemExit):
             app(["callers", str(pkg_dir), "--symbol", "target"])
@@ -305,10 +285,10 @@ class TestCallersCLI:
         pkg_dir = tmp_path / "pkg"
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text(
-            '"""Pkg."""\n' "def target() -> None:\n" '    """Target."""\n' "    pass\n"
+            '"""Pkg."""\ndef target() -> None:\n    """Target."""\n    pass\n'
         )
         (pkg_dir / "user.py").write_text(
-            '"""User."""\n' "def main() -> None:\n" '    """Main."""\n' "    target()\n"
+            '"""User."""\ndef main() -> None:\n    """Main."""\n    target()\n'
         )
         with pytest.raises(SystemExit):
             app(["callers", str(pkg_dir), "--symbol", "target", "--json"])
@@ -326,7 +306,7 @@ class TestCallersCLI:
         pkg_dir = tmp_path / "pkg"
         pkg_dir.mkdir()
         (pkg_dir / "__init__.py").write_text(
-            '"""Pkg."""\n' "def lonely() -> None:\n" '    """Lonely."""\n' "    pass\n"
+            '"""Pkg."""\ndef lonely() -> None:\n    """Lonely."""\n    pass\n'
         )
         with pytest.raises(SystemExit):
             app(["callers", str(pkg_dir), "--symbol", "lonely"])
