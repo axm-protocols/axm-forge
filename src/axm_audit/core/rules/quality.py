@@ -282,8 +282,7 @@ class TestCoverageRule(ProjectRule):
 
         if has_failures:
             message = (
-                f"Test coverage: {coverage_pct:.0f}% "
-                f"({len(failures)} test(s) failed)"
+                f"Test coverage: {coverage_pct:.0f}% ({len(failures)} test(s) failed)"
             )
         else:
             message = f"Test coverage: {coverage_pct:.0f}% ({score}/100)"
