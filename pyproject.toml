@@ -15,6 +15,7 @@ classifiers = [
 ]
 
 dependencies = [
+    "axm",
     "cyclopts>=3.0",
     "loguru>=0.7.3",
     "pydantic>=2.12.5",
@@ -63,6 +64,9 @@ packages = ["src/axm_ast"]
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.uv]
 managed = true
+
+[tool.uv.sources]
+axm = { workspace = true }
 
 [dependency-groups]
 dev = [
