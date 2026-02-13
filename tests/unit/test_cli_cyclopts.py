@@ -10,7 +10,8 @@ import io
 import subprocess
 import sys
 from contextlib import redirect_stdout
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import cyclopts
 
@@ -126,7 +127,9 @@ class TestInitCommandOptions:
         assert "--template" not in output
 
     @patch("axm_init.cli.CopierAdapter")
-    def test_init_with_name_option(self, mock_copier_cls, tmp_path) -> None:
+    def test_init_with_name_option(
+        self, mock_copier_cls: MagicMock, tmp_path: Path
+    ) -> None:
         """--name option is accepted and passed through."""
         mock_adapter = mock_copier_cls.return_value
         mock_adapter.copy.return_value = type(

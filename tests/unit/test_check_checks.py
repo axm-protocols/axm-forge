@@ -6,9 +6,13 @@ Each check function has a pass and fail case.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from textwrap import dedent
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
+
+if TYPE_CHECKING:
+    from axm_init.models.check import CheckResult
 
 import pytest
 
@@ -941,7 +945,7 @@ class TestCheckPythonVersion:
 class TestAllFailuresHaveFix:
     """Every check function, when failing, must provide a non-empty fix."""
 
-    ALL_CHECKS: ClassVar[list[object]] = [
+    ALL_CHECKS: ClassVar[list[Callable[[Path], CheckResult]]] = [
         check_pyproject_exists,
         check_pyproject_urls,
         check_pyproject_dynamic_version,
@@ -987,8 +991,10 @@ class TestAllFailuresHaveFix:
         ALL_CHECKS,
         ids=[fn.__name__ for fn in ALL_CHECKS],
     )
-    def test_failed_check_has_fix(self, check_fn: object, empty_project: Path) -> None:
+    def test_failed_check_has_fix(
+        self, check_fn: Callable[[Path], CheckResult], empty_project: Path
+    ) -> None:
         # Some checks pass on empty projects (e.g. no_manual_changelog)
-        r: CheckResult = check_fn(empty_project)  # type: ignore[operator]
+        r: CheckResult = check_fn(empty_project)
         if not r.passed:
             assert r.fix != "", f"{r.name} failed but has no fix instruction"

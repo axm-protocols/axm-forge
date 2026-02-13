@@ -5,7 +5,8 @@ from __future__ import annotations
 import io
 import json
 from contextlib import redirect_stderr, redirect_stdout
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from axm_init.cli import app
 from axm_init.core.reserver import ReserveResult
@@ -41,7 +42,9 @@ class TestReserveJsonSuccess:
 
     @patch("axm_init.cli.reserve_pypi")
     @patch("axm_init.cli.CredentialManager")
-    def test_reserve_json_success(self, mock_creds, mock_reserve) -> None:
+    def test_reserve_json_success(
+        self, mock_creds: MagicMock, mock_reserve: MagicMock
+    ) -> None:
         """--json with successful reserve outputs JSON with success=true."""
         mock_creds.return_value.get_pypi_token.return_value = "tok"
         mock_reserve.return_value = ReserveResult(
@@ -57,7 +60,9 @@ class TestReserveJsonSuccess:
 
     @patch("axm_init.cli.reserve_pypi")
     @patch("axm_init.cli.CredentialManager")
-    def test_reserve_json_failure(self, mock_creds, mock_reserve) -> None:
+    def test_reserve_json_failure(
+        self, mock_creds: MagicMock, mock_reserve: MagicMock
+    ) -> None:
         """--json with failed reserve outputs JSON with success=false."""
         mock_creds.return_value.get_pypi_token.return_value = "tok"
         mock_reserve.return_value = ReserveResult(
@@ -74,7 +79,9 @@ class TestReserveJsonSuccess:
 
     @patch("axm_init.cli.reserve_pypi")
     @patch("axm_init.cli.CredentialManager")
-    def test_reserve_human_failure(self, mock_creds, mock_reserve) -> None:
+    def test_reserve_human_failure(
+        self, mock_creds: MagicMock, mock_reserve: MagicMock
+    ) -> None:
         """Failed reserve without --json prints stderr error."""
         mock_creds.return_value.get_pypi_token.return_value = "tok"
         mock_reserve.return_value = ReserveResult(
@@ -92,7 +99,9 @@ class TestInitFailurePath:
     """Cover init command failure output (copier fails)."""
 
     @patch("axm_init.cli.CopierAdapter")
-    def test_init_copier_fails_human(self, mock_copier_cls, tmp_path) -> None:
+    def test_init_copier_fails_human(
+        self, mock_copier_cls: MagicMock, tmp_path: Path
+    ) -> None:
         """Failed copier prints ❌ error to stderr."""
         mock_adapter = mock_copier_cls.return_value
         mock_adapter.copy.return_value = type(
@@ -107,7 +116,9 @@ class TestInitFailurePath:
         assert "❌" in stderr
 
     @patch("axm_init.cli.CopierAdapter")
-    def test_init_json_success(self, mock_copier_cls, tmp_path) -> None:
+    def test_init_json_success(
+        self, mock_copier_cls: MagicMock, tmp_path: Path
+    ) -> None:
         """--json with successful init outputs JSON with success=true."""
         mock_adapter = mock_copier_cls.return_value
         mock_adapter.copy.return_value = type(
@@ -126,7 +137,9 @@ class TestInitPyPIJsonError:
 
     @patch("axm_init.cli.CopierAdapter")
     @patch("axm_init.cli.PyPIAdapter")
-    def test_pypi_error_json_continues(self, mock_pypi, mock_copier, tmp_path) -> None:
+    def test_pypi_error_json_continues(
+        self, mock_pypi: MagicMock, mock_copier: MagicMock, tmp_path: Path
+    ) -> None:
         """--check-pypi + --json with ERROR status still continues."""
         from axm_init.adapters.pypi import AvailabilityStatus
 

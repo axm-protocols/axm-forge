@@ -5,7 +5,8 @@ from __future__ import annotations
 import io
 import json
 from contextlib import redirect_stderr, redirect_stdout
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from axm_init.cli import app
 
@@ -58,7 +59,7 @@ class TestVersionCommand:
 class TestInitCommand:
     """Tests for the init command — edge cases."""
 
-    def test_init_no_name_defaults_to_dirname(self, tmp_path) -> None:
+    def test_init_no_name_defaults_to_dirname(self, tmp_path: Path) -> None:
         """When --name is omitted, project name defaults to directory name."""
         target = tmp_path / "my-awesome-project"
         target.mkdir()
@@ -66,7 +67,7 @@ class TestInitCommand:
         assert code == 0
         assert "my-awesome-project" in stdout
 
-    def test_init_missing_org_exits(self, tmp_path) -> None:
+    def test_init_missing_org_exits(self, tmp_path: Path) -> None:
         """Missing --org causes exit with error."""
         _, _, code = _run(
             [
@@ -82,7 +83,7 @@ class TestInitCommand:
         )
         assert code != 0
 
-    def test_init_missing_author_exits(self, tmp_path) -> None:
+    def test_init_missing_author_exits(self, tmp_path: Path) -> None:
         """Missing --author causes exit with error."""
         _, _, code = _run(
             [
@@ -98,7 +99,7 @@ class TestInitCommand:
         )
         assert code != 0
 
-    def test_init_missing_email_exits(self, tmp_path) -> None:
+    def test_init_missing_email_exits(self, tmp_path: Path) -> None:
         """Missing --email causes exit with error."""
         _, _, code = _run(
             [
@@ -116,7 +117,7 @@ class TestInitCommand:
 
     @patch("axm_init.cli.CopierAdapter")
     def test_init_license_holder_defaults_to_org(
-        self, mock_copier_cls, tmp_path
+        self, mock_copier_cls: MagicMock, tmp_path: Path
     ) -> None:
         """When --license-holder is omitted, it defaults to --org value."""
         mock_adapter = mock_copier_cls.return_value
@@ -145,7 +146,9 @@ class TestInitCommand:
         assert config.data["license_holder"] == "my-org"
 
     @patch("axm_init.cli.PyPIAdapter")
-    def test_init_pypi_taken_exits_with_error(self, mock_cls, tmp_path) -> None:
+    def test_init_pypi_taken_exits_with_error(
+        self, mock_cls: MagicMock, tmp_path: Path
+    ) -> None:
         """--check-pypi with taken name causes exit code 1."""
         from axm_init.adapters.pypi import AvailabilityStatus
 
@@ -165,7 +168,9 @@ class TestInitCommand:
         assert code == 1
 
     @patch("axm_init.cli.PyPIAdapter")
-    def test_init_pypi_taken_json_output(self, mock_cls, tmp_path) -> None:
+    def test_init_pypi_taken_json_output(
+        self, mock_cls: MagicMock, tmp_path: Path
+    ) -> None:
         """--check-pypi + --json outputs JSON error for taken name."""
         from axm_init.adapters.pypi import AvailabilityStatus
 
@@ -188,7 +193,9 @@ class TestInitCommand:
         assert "error" in data
 
     @patch("axm_init.cli.PyPIAdapter")
-    def test_init_pypi_error_continues(self, mock_cls, tmp_path) -> None:
+    def test_init_pypi_error_continues(
+        self, mock_cls: MagicMock, tmp_path: Path
+    ) -> None:
         """--check-pypi with network error continues (warning only)."""
         from axm_init.adapters.pypi import AvailabilityStatus
 
@@ -213,7 +220,7 @@ class TestReserveCommand:
     """Tests for the reserve command — edge cases."""
 
     @patch("axm_init.cli.CredentialManager")
-    def test_reserve_no_token_json_exits(self, mock_cls) -> None:
+    def test_reserve_no_token_json_exits(self, mock_cls: MagicMock) -> None:
         """No token + --json outputs error JSON and exits 1."""
         mock_creds = mock_cls.return_value
         mock_creds.resolve_pypi_token.side_effect = SystemExit(1)
@@ -224,7 +231,7 @@ class TestReserveCommand:
         assert "error" in data
 
     @patch("axm_init.cli.CredentialManager")
-    def test_reserve_resolve_fails_exits(self, mock_cls) -> None:
+    def test_reserve_resolve_fails_exits(self, mock_cls: MagicMock) -> None:
         """resolve_pypi_token raising SystemExit causes CLI exit 1."""
         mock_creds = mock_cls.return_value
         mock_creds.resolve_pypi_token.side_effect = SystemExit(1)
@@ -234,7 +241,9 @@ class TestReserveCommand:
 
     @patch("axm_init.cli.reserve_pypi")
     @patch("axm_init.cli.CredentialManager")
-    def test_reserve_dry_run_succeeds(self, mock_cred_cls, mock_reserve) -> None:
+    def test_reserve_dry_run_succeeds(
+        self, mock_cred_cls: MagicMock, mock_reserve: MagicMock
+    ) -> None:
         """--dry-run skips resolve_pypi_token and succeeds."""
         from axm_init.core.reserver import ReserveResult
 

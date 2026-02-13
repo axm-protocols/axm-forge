@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -46,7 +46,7 @@ class TestPyPIAdapterError:
         assert adapter.check_availability("") == AvailabilityStatus.ERROR
 
     @patch("axm_init.adapters.pypi.httpx.get")
-    def test_unexpected_status_returns_error(self, mock_get) -> None:
+    def test_unexpected_status_returns_error(self, mock_get: MagicMock) -> None:
         """Non-200/404 status code returns ERROR."""
         from axm_init.adapters.pypi import AvailabilityStatus, PyPIAdapter
 

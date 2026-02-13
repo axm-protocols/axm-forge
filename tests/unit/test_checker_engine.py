@@ -212,3 +212,35 @@ class TestFormatJson:
         data = format_json(result)
         assert len(data["failures"]) == 1
         assert data["failures"][0]["fix"] == "Run fix command"
+
+
+class TestFormatAgent:
+    """Tests for format_agent() — compact agent output."""
+
+    def test_format_agent_all_passed(self, tmp_path: Path) -> None:
+        """All passing → failed=[], passed has 1-line strings."""
+        from axm_init.core.checker import format_agent
+
+        result = _make_result(tmp_path, passed=True)
+        output = format_agent(result)
+        assert output["failed"] == []
+        assert len(output["passed"]) > 0
+        assert all(isinstance(p, str) for p in output["passed"])
+
+    def test_format_agent_with_failures(self, tmp_path: Path) -> None:
+        """Failed items must have name, message, details, fix."""
+        from axm_init.core.checker import format_agent
+
+        result = _make_result(tmp_path, passed=False)
+        output = format_agent(result)
+        assert len(output["failed"]) == 1
+        f = output["failed"][0]
+        assert set(f.keys()) >= {"name", "message", "details", "fix"}
+
+    def test_format_agent_has_required_keys(self, tmp_path: Path) -> None:
+        """Agent output must have score, grade, passed, failed."""
+        from axm_init.core.checker import format_agent
+
+        result = _make_result(tmp_path, passed=True)
+        output = format_agent(result)
+        assert set(output.keys()) == {"score", "grade", "passed", "failed"}
