@@ -14,6 +14,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
+    "axm",
     "mcp[cli]>=1.25.0",
 ]
 
@@ -24,10 +25,13 @@ Repository = "https://github.com/axm-protocols/axm-mcp.git"
 Issues = "https://github.com/axm-protocols/axm-mcp/issues"
 
 [project.optional-dependencies]
-core = ["axm"]
-bib = ["axm-bib"]
+core   = ["axm-core", "axm-engine"]
+init   = ["axm-init"]
+audit  = ["axm-audit"]
+ast    = ["axm-ast"]
+bib    = ["axm-bib"]
 formal = ["axm-formal"]
-all = ["axm", "axm-bib", "axm-formal"]
+all    = ["axm-core", "axm-engine", "axm-init", "axm-audit", "axm-ast", "axm-bib", "axm-formal"]
 
 [project.scripts]
 axm-mcp = "axm_mcp:main"
@@ -55,6 +59,8 @@ dev = [
     "pip-audit>=2.0",
     "types-pyyaml>=6.0.12.20250915",
     "types-jsonschema>=4.26.0.20260202",
+    "axm-ast",
+    "axm-audit",
     "axm-bib",
     "axm-formal",
 ]
@@ -182,6 +188,11 @@ tag_pattern = "v[0-9].*"
 # UV Sources (Local Development)
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.uv.sources]
-axm = { workspace = true }
-axm-bib = { workspace = true }
+axm        = { workspace = true }
+axm-core   = { workspace = true }
+axm-engine = { workspace = true }
+axm-init   = { workspace = true }
+axm-audit  = { workspace = true }
+axm-ast    = { workspace = true }
+axm-bib    = { workspace = true }
 axm-formal = { workspace = true }

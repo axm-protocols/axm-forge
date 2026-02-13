@@ -115,20 +115,22 @@ class TestServerPackageRemoved:
 
 
 class TestPyprojectNoDep:
-    """pyproject.toml must NOT list axm as a hard dependency."""
+    """pyproject.toml must NOT list axm-core or axm-engine as hard deps."""
 
-    def test_axm_not_in_dependencies(self) -> None:
+    def test_no_private_hard_dependencies(self) -> None:
         pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
         content = pyproject_path.read_text()
 
-        # Parse to find dependencies section
         import tomllib
 
         data = tomllib.loads(content)
         deps = data.get("project", {}).get("dependencies", [])
 
+        # axm (public thin wrapper) is allowed — axm-core/axm-engine are not
+        private_pkgs = {"axm-core", "axm-engine"}
         for dep in deps:
-            # "axm" alone or "axm>=..." but NOT "axm-bib" or "axm-formal"
             raw = dep.split(">")[0].split("<")[0]
             dep_name = raw.split("=")[0].split("[")[0].strip()
-            assert dep_name != "axm", f"axm is still a hard dependency: {dep}"
+            assert (
+                dep_name not in private_pkgs
+            ), f"Private package is a hard dependency: {dep}"

@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
-from axm.services.tools.base import ToolResult
+from axm.tools.base import ToolResult
 
 # ── _extract_symbols tests ───────────────────────────────────────────────────
 
