@@ -25,15 +25,19 @@ Repository = "https://github.com/axm-protocols/axm-mcp.git"
 Issues = "https://github.com/axm-protocols/axm-mcp/issues"
 
 [project.optional-dependencies]
-core   = ["axm-core", "axm-engine"]
+# Public extras — available on PyPI
 init   = ["axm-init"]
 audit  = ["axm-audit"]
-ast    = ["axm-ast"]
 bib    = ["axm-bib"]
+all    = ["axm-init", "axm-audit", "axm-bib"]
+
+# Internal extras — requires private packages (not on PyPI)
+core   = ["axm-core", "axm-engine"]
+ast    = ["axm-ast"]
 formal = ["axm-formal"]
 edit   = ["axm-edit"]
 git    = ["axm-git"]
-all    = ["axm-core", "axm-engine", "axm-init", "axm-audit", "axm-ast", "axm-bib", "axm-formal", "axm-edit", "axm-git"]
+full   = ["axm-core", "axm-engine", "axm-init", "axm-audit", "axm-ast", "axm-bib", "axm-formal", "axm-edit", "axm-git"]
 
 [project.scripts]
 axm-mcp = "axm_mcp:main"
@@ -61,10 +65,6 @@ dev = [
     "pip-audit>=2.0",
     "types-pyyaml>=6.0.12.20250915",
     "types-jsonschema>=4.26.0.20260202",
-    "axm-ast",
-    "axm-audit",
-    "axm-bib",
-    "axm-formal",
 ]
 docs = [
     "mkdocs-material>=9.0",
