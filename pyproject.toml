@@ -41,8 +41,6 @@ audit = "axm_audit.cli:app"
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
-[tool.uv.sources]
-axm = { workspace = true }
 
 [tool.hatch.version]
 source = "vcs"
