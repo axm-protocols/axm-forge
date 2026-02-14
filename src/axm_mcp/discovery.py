@@ -85,7 +85,7 @@ def register_tools(
 def _register_one(mcp: Any, name: str, tool: Any) -> None:
     """Register a single tool, capturing in closure."""
 
-    @mcp.tool(name=name)  # type: ignore[misc]
+    @mcp.tool(name=name)  # type: ignore[untyped-decorator]
     def _wrapper(**kwargs: Any) -> dict[str, Any]:
         # MCP may wrap args as kwargs={"key": "val"} — unwrap.
         if list(kwargs.keys()) == ["kwargs"] and isinstance(kwargs["kwargs"], dict):
@@ -107,7 +107,7 @@ def _register_list_tools(
 ) -> None:
     """Register the list_tools meta-tool."""
 
-    @mcp.tool(name="list_tools")  # type: ignore[misc]
+    @mcp.tool(name="list_tools")  # type: ignore[untyped-decorator]
     def _list_tools(**kwargs: Any) -> dict[str, Any]:
         """List all available AXM tools with their names and descriptions."""
         tool_list = []

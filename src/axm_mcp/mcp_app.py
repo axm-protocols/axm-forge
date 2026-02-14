@@ -28,7 +28,7 @@ register_tools(
 
 
 # Register the verify meta-tool
-@mcp.tool(name="verify")  # type: ignore[misc]
+@mcp.tool(name="verify")
 def _verify_tool(**kwargs: Any) -> dict[str, Any]:
     """One-shot project verification: audit + init check + AST enrichment.
 

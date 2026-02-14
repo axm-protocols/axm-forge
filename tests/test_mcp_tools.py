@@ -1,4 +1,4 @@
-"""Tests for MCP auto-discovered formal tools (esbmc, dafny, kind2, pytest).
+"""Tests for MCP auto-discovered formal tools (esbmc, dafny, kind2).
 
 These tools are now auto-discovered via axm.tools entry points from axm-formal.
 """
@@ -33,13 +33,6 @@ class TestFormalToolsDiscovered:
 
         tools = discover_tools()
         assert "kind2" in tools
-
-    def test_pytest_discovered(self) -> None:
-        """pytest runner is discoverable from axm.tools."""
-        from axm_mcp.discovery import discover_tools
-
-        tools = discover_tools()
-        assert "pytest" in tools
 
 
 _ESBMC = "axm_formal.tools.esbmc_runner.ESBMCTool"

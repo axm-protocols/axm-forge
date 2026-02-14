@@ -25,7 +25,7 @@ class TestVerifyToolRegistered:
 class TestVerifyProject:
     """Tests for verify_project() orchestration logic."""
 
-    @pytest.fixture()  # type: ignore[misc]
+    @pytest.fixture()
     def mock_tools(self) -> dict[str, MagicMock]:
         """Mock discovered tools dict."""
         audit_tool = MagicMock()
