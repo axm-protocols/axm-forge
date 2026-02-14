@@ -17,12 +17,12 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
-      - run: uv sync --all-groups
+
 
       - name: Run AXM Audit
         id: audit
         run: |
-          RESULT=$(uv run axm-audit audit . --json) || true
+          RESULT=$(uvx axm-audit audit . --json) || true
           SCORE=$(echo "$RESULT" | jq '.score')
           GRADE=$(echo "$RESULT" | jq -r '.grade')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"
