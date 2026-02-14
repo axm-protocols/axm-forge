@@ -3,7 +3,7 @@ name = "axm-init"
 dynamic = ["version"]
 description = "AXM Init — Python project scaffolding CLI with Copier templates."
 readme = "README.md"
-authors = [{ name = "Gabriel Jarry", email = "jarry.gabriel@gmail.com" }]
+authors = [{ name = "Gabriel Jarry", email = "gabriel@axm-protocols.io" }]
 requires-python = ">=3.12"
 license = "Apache-2.0"
 keywords = ["cli", "python", "project", "governance", "scaffolding", "standards"]
@@ -64,7 +64,6 @@ packages = ["src/axm_init"]
 [tool.uv]
 managed = true
 
-[tool.uv.sources]
 
 [dependency-groups]
 dev = [
