@@ -87,12 +87,11 @@ class TestDependencyHygieneRule:
         """No issues → score=100, passed=True."""
         from axm_audit.core.rules.dependencies import DependencyHygieneRule
 
-        mock_result = type(
-            "Result", (), {"stdout": "[]", "stderr": "", "returncode": 0}
-        )()
-
         rule = DependencyHygieneRule()
-        with patch("subprocess.run", return_value=mock_result):
+        with patch(
+            "axm_audit.core.rules.dependencies._run_deptry",
+            return_value=[],
+        ):
             result = rule.check(tmp_path)
 
         assert result.passed is True
@@ -101,8 +100,6 @@ class TestDependencyHygieneRule:
 
     def test_issues_reduce_score(self, tmp_path: Path) -> None:
         """Dependency issues should reduce score by 10 each."""
-        import json
-
         from axm_audit.core.rules.dependencies import DependencyHygieneRule
 
         issues = [
@@ -110,14 +107,12 @@ class TestDependencyHygieneRule:
             {"error_code": "DEP002", "module": "bar", "message": "missing"},
             {"error_code": "DEP003", "module": "baz", "message": "transitive"},
         ]
-        mock_result = type(
-            "Result",
-            (),
-            {"stdout": json.dumps(issues), "stderr": "", "returncode": 1},
-        )()
 
         rule = DependencyHygieneRule()
-        with patch("subprocess.run", return_value=mock_result):
+        with patch(
+            "axm_audit.core.rules.dependencies._run_deptry",
+            return_value=issues,
+        ):
             result = rule.check(tmp_path)
 
         assert result.passed is False
@@ -130,7 +125,10 @@ class TestDependencyHygieneRule:
         from axm_audit.core.rules.dependencies import DependencyHygieneRule
 
         rule = DependencyHygieneRule()
-        with patch("subprocess.run", side_effect=FileNotFoundError):
+        with patch(
+            "axm_audit.core.rules.dependencies._run_deptry",
+            side_effect=FileNotFoundError,
+        ):
             result = rule.check(tmp_path)
 
         assert result.passed is False

@@ -83,6 +83,40 @@ class DependencyAuditRule(ProjectRule):
         )
 
 
+def _run_deptry(project_path: Path) -> list[dict[str, Any]]:
+    """Run deptry and return parsed JSON issues."""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+
+    try:
+        run_in_project(
+            ["deptry", ".", "--json-output", str(tmp_path)],
+            project_path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if tmp_path.exists() and tmp_path.stat().st_size > 0:
+            return json.loads(tmp_path.read_text())  # type: ignore[no-any-return]
+        return []
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+
+def _format_issue(issue: dict[str, Any]) -> dict[str, str]:
+    """Format a single deptry issue for reporting."""
+    if "error" in issue:
+        code = issue["error"].get("code", "")
+        message = issue["error"].get("message", "")
+    else:
+        code = issue.get("error_code", "")
+        message = issue.get("message", "")
+    return {"code": code, "module": issue.get("module", ""), "message": message}
+
+
 @dataclass
 class DependencyHygieneRule(ProjectRule):
     """Check for unused/missing/transitive dependencies via deptry.
@@ -97,23 +131,8 @@ class DependencyHygieneRule(ProjectRule):
 
     def check(self, project_path: Path) -> CheckResult:
         """Check dependency hygiene with deptry."""
-        import tempfile
-
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
-            tmp_path = Path(tmp.name)
-
         try:
-            run_in_project(
-                ["deptry", ".", "--json-output", str(tmp_path)],
-                project_path,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if tmp_path.exists() and tmp_path.stat().st_size > 0:
-                issues = json.loads(tmp_path.read_text())
-            else:
-                issues = []
+            issues = _run_deptry(project_path)
         except (FileNotFoundError, json.JSONDecodeError):
             return CheckResult(
                 rule_id=self.rule_id,
@@ -123,9 +142,6 @@ class DependencyHygieneRule(ProjectRule):
                 details={"issue_count": 0, "score": 0},
                 fix_hint="Install with: uv add --dev deptry",
             )
-        finally:
-            if tmp_path.exists():
-                tmp_path.unlink()
 
         issue_count = len(issues)
         score = max(0, 100 - issue_count * 10)
@@ -142,18 +158,7 @@ class DependencyHygieneRule(ProjectRule):
             details={
                 "issue_count": issue_count,
                 "score": score,
-                "top_issues": [
-                    {
-                        "code": i.get("error", {}).get("code", "")
-                        if "error" in i
-                        else i.get("error_code", ""),
-                        "module": i.get("module", ""),
-                        "message": i.get("error", {}).get("message", "")
-                        if "error" in i
-                        else i.get("message", ""),
-                    }
-                    for i in issues[:5]
-                ],
+                "top_issues": [_format_issue(i) for i in issues[:5]],
             },
             fix_hint=("Run: deptry . to see details" if issue_count > 0 else None),
         )
