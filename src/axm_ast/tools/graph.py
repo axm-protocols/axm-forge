@@ -14,6 +14,8 @@ class GraphTool(AXMTool):
     """Import dependency graph with text/mermaid/json output.
 
     Registered as ``ast_graph`` via axm.tools entry point.
+    Workspace-aware: if path is a uv workspace root, returns
+    inter-package dependency graph.
     """
 
     @property
@@ -27,7 +29,7 @@ class GraphTool(AXMTool):
         """Generate import dependency graph.
 
         Args:
-            path: Path to package directory.
+            path: Path to package or workspace directory.
             format: Output format — 'json', 'mermaid', or 'text'.
 
         Returns:
@@ -38,6 +40,31 @@ class GraphTool(AXMTool):
             if not project_path.is_dir():
                 return ToolResult(
                     success=False, error=f"Not a directory: {project_path}"
+                )
+
+            from axm_ast.core.workspace import detect_workspace
+
+            ws = detect_workspace(project_path)
+            if ws is not None:
+                from axm_ast.core.workspace import (
+                    analyze_workspace,
+                    build_workspace_dep_graph,
+                    format_workspace_graph_mermaid,
+                )
+
+                ws = analyze_workspace(project_path)
+                graph = build_workspace_dep_graph(ws)
+
+                if format == "mermaid":
+                    mermaid_str = format_workspace_graph_mermaid(ws)
+                    return ToolResult(
+                        success=True,
+                        data={"mermaid": mermaid_str, "graph": graph},
+                    )
+
+                return ToolResult(
+                    success=True,
+                    data={"graph": graph},
                 )
 
             from axm_ast.core.analyzer import analyze_package, build_import_graph

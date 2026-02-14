@@ -9,6 +9,7 @@ from axm_ast.models.nodes import (
     PackageInfo,
     ParameterInfo,
     VariableInfo,
+    WorkspaceInfo,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "PackageInfo",
     "ParameterInfo",
     "VariableInfo",
+    "WorkspaceInfo",
 ]

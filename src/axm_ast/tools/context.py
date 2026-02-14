@@ -14,6 +14,8 @@ class ContextTool(AXMTool):
     """One-shot project context: stack, patterns, module ranking.
 
     Registered as ``ast_context`` via axm.tools entry point.
+    Workspace-aware: if path is a uv workspace root, returns
+    workspace-level context with all packages.
     """
 
     @property
@@ -25,7 +27,7 @@ class ContextTool(AXMTool):
         """Dump complete project context for AI agents.
 
         Args:
-            path: Path to package directory.
+            path: Path to package or workspace directory.
 
         Returns:
             ToolResult with project context data.
@@ -36,6 +38,15 @@ class ContextTool(AXMTool):
                 return ToolResult(
                     success=False, error=f"Not a directory: {project_path}"
                 )
+
+            from axm_ast.core.workspace import detect_workspace
+
+            ws = detect_workspace(project_path)
+            if ws is not None:
+                from axm_ast.core.workspace import build_workspace_context
+
+                ctx = build_workspace_context(project_path)
+                return ToolResult(success=True, data=ctx)
 
             from axm_ast.core.context import build_context, format_context_json
 

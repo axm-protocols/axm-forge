@@ -241,7 +241,7 @@ def _print_cls_summary(cls: object) -> None:
 def graph(
     path: Annotated[
         str,
-        cyclopts.Parameter(help="Path to package directory"),
+        cyclopts.Parameter(help="Path to package or workspace directory"),
     ] = ".",
     *,
     fmt: Annotated[
@@ -261,6 +261,33 @@ def graph(
     if not project_path.is_dir():
         print(f"❌ Not a directory: {project_path}", file=sys.stderr)
         raise SystemExit(1)
+
+    from axm_ast.core.workspace import detect_workspace
+
+    ws = detect_workspace(project_path)
+    if ws is not None:
+        from axm_ast.core.workspace import (
+            analyze_workspace,
+            build_workspace_dep_graph,
+            format_workspace_graph_mermaid,
+        )
+
+        ws = analyze_workspace(project_path)
+        graph_data = build_workspace_dep_graph(ws)
+
+        if json_output or fmt == "json":
+            print(json.dumps(graph_data, indent=2))
+        elif fmt == "mermaid":
+            print(format_workspace_graph_mermaid(ws))
+        else:
+            if not graph_data:
+                print("📊 No inter-package dependencies detected")
+            else:
+                print("📊 Workspace Package Graph:")
+                for src, targets in sorted(graph_data.items()):
+                    for t in targets:
+                        print(f"   {src} → {t}")
+        return
 
     pkg = analyze_package(project_path)
 
@@ -349,7 +376,7 @@ def search(
 def callers(
     path: Annotated[
         str,
-        cyclopts.Parameter(help="Path to package directory"),
+        cyclopts.Parameter(help="Path to package or workspace directory"),
     ] = ".",
     *,
     symbol: Annotated[
@@ -370,11 +397,21 @@ def callers(
         print(f"❌ Not a directory: {project_path}", file=sys.stderr)
         raise SystemExit(1)
 
-    pkg = analyze_package(project_path)
+    from axm_ast.core.workspace import detect_workspace
 
-    from axm_ast.core.callers import find_callers
+    ws = detect_workspace(project_path)
+    if ws is not None:
+        from axm_ast.core.callers import find_callers_workspace
+        from axm_ast.core.workspace import analyze_workspace
 
-    results = find_callers(pkg, symbol)
+        ws = analyze_workspace(project_path)
+        results = find_callers_workspace(ws, symbol)
+    else:
+        pkg = analyze_package(project_path)
+
+        from axm_ast.core.callers import find_callers
+
+        results = find_callers(pkg, symbol)
 
     if json_output:
         print(
@@ -397,7 +434,7 @@ def callers(
 def context(
     path: Annotated[
         str,
-        cyclopts.Parameter(help="Path to package directory"),
+        cyclopts.Parameter(help="Path to package or workspace directory"),
     ] = ".",
     *,
     json_output: Annotated[
@@ -410,6 +447,31 @@ def context(
     if not project_path.is_dir():
         print(f"❌ Not a directory: {project_path}", file=sys.stderr)
         raise SystemExit(1)
+
+    from axm_ast.core.workspace import detect_workspace
+
+    ws = detect_workspace(project_path)
+    if ws is not None:
+        from axm_ast.core.workspace import build_workspace_context
+
+        ctx = build_workspace_context(project_path)
+        if json_output:
+            print(json.dumps(ctx, indent=2))
+        else:
+            print(f"🏗️  Workspace: {ctx['workspace']}")
+            print(f"   Packages: {ctx['package_count']}")
+            for pkg in ctx["packages"]:
+                print(
+                    f"   • {pkg['name']} "
+                    f"({pkg['module_count']} modules, "
+                    f"{pkg['function_count']} functions)"
+                )
+            if ctx["package_graph"]:
+                print("\n📊 Package Dependencies:")
+                for src, targets in sorted(ctx["package_graph"].items()):
+                    for t in targets:
+                        print(f"   {src} → {t}")
+        return
 
     from axm_ast.core.context import (
         build_context as _build_context,
@@ -431,7 +493,7 @@ def context(
 def impact(
     path: Annotated[
         str,
-        cyclopts.Parameter(help="Path to package directory"),
+        cyclopts.Parameter(help="Path to package or workspace directory"),
     ] = ".",
     *,
     symbol: Annotated[
@@ -452,9 +514,17 @@ def impact(
         print(f"❌ Not a directory: {project_path}", file=sys.stderr)
         raise SystemExit(1)
 
-    from axm_ast.core.impact import analyze_impact
+    from axm_ast.core.workspace import detect_workspace
 
-    result = analyze_impact(project_path, symbol)
+    ws = detect_workspace(project_path)
+    if ws is not None:
+        from axm_ast.core.impact import analyze_impact_workspace
+
+        result = analyze_impact_workspace(project_path, symbol)
+    else:
+        from axm_ast.core.impact import analyze_impact
+
+        result = analyze_impact(project_path, symbol)
 
     if json_output:
         print(json.dumps(result, indent=2))

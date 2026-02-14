@@ -19,7 +19,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 class TestFormatCompressed:
     """Test the compressed output format."""
 
-    @pytest.fixture()  # type: ignore[misc]
+    @pytest.fixture()
     def pkg(self) -> PackageInfo:
         """Analyze the sample package."""
         return analyze_package(FIXTURES / "sample_pkg")

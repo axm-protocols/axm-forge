@@ -14,6 +14,8 @@ class ImpactTool(AXMTool):
     """Analyze blast radius of changing a symbol.
 
     Registered as ``ast_impact`` via axm.tools entry point.
+    Workspace-aware: if path is a uv workspace root, analyzes
+    impact across all member packages.
     """
 
     @property
@@ -27,7 +29,7 @@ class ImpactTool(AXMTool):
         """Analyze change impact for a symbol.
 
         Args:
-            path: Path to package directory.
+            path: Path to package or workspace directory.
             symbol: Symbol name to analyze (required).
 
         Returns:
@@ -43,9 +45,18 @@ class ImpactTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            from axm_ast.core.impact import analyze_impact
+            from axm_ast.core.workspace import detect_workspace
 
-            impact = analyze_impact(project_path, symbol)
+            ws = detect_workspace(project_path)
+            if ws is not None:
+                from axm_ast.core.impact import analyze_impact_workspace
+
+                impact = analyze_impact_workspace(project_path, symbol)
+            else:
+                from axm_ast.core.impact import analyze_impact
+
+                impact = analyze_impact(project_path, symbol)
+
             # Add "severity" alias for "score" for agent-friendly naming
             impact["severity"] = impact.get("score", "UNKNOWN")
             return ToolResult(success=True, data=impact)
