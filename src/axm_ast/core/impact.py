@@ -13,7 +13,10 @@ Example:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from axm_ast.models.nodes import WorkspaceInfo
 
 from axm_ast.core.analyzer import (
     _module_dotted_name,
@@ -243,6 +246,32 @@ def analyze_impact(
     return result
 
 
+def _collect_workspace_reexports(
+    ws: WorkspaceInfo,
+    symbol: str,
+) -> list[str]:
+    """Collect re-exports of a symbol across all workspace packages."""
+    reexports: list[str] = []
+    for pkg in ws.packages:
+        for mod_reexport in find_reexports(pkg, symbol):
+            reexports.append(f"{pkg.name}::{mod_reexport}")
+    return reexports
+
+
+def _collect_workspace_tests(
+    ws: WorkspaceInfo,
+    symbol: str,
+) -> list[str]:
+    """Collect test files referencing a symbol across the workspace."""
+    test_files: list[str] = []
+    for member_dir in ws.root.iterdir():
+        if not member_dir.is_dir():
+            continue
+        for t in map_tests(symbol, member_dir):
+            test_files.append(str(t.name))
+    return sorted(set(test_files))
+
+
 def analyze_impact_workspace(
     ws_path: Path,
     symbol: str,
@@ -280,23 +309,12 @@ def analyze_impact_workspace(
     # 2. Who calls it? Cross-package.
     callers = find_callers_workspace(ws, symbol)
 
-    # 3. Re-exports across all packages.
-    reexports: list[str] = []
-    for pkg in ws.packages:
-        for mod_reexport in find_reexports(pkg, symbol):
-            reexports.append(f"{pkg.name}::{mod_reexport}")
+    # 3. Re-exports and test files.
+    reexports = _collect_workspace_reexports(ws, symbol)
+    test_files = _collect_workspace_tests(ws, symbol)
 
-    # 4. Test files across all packages.
-    test_files: list[str] = []
-    for member_dir in ws.root.iterdir():
-        if not member_dir.is_dir():
-            continue
-        tests = map_tests(symbol, member_dir)
-        for t in tests:
-            test_files.append(str(t.name))
-
-    # 5. Affected modules.
-    affected_modules = list({c.module for c in callers} | set(reexports))
+    # 4. Build result.
+    affected_modules = sorted({c.module for c in callers} | set(reexports))
 
     result: dict[str, Any] = {
         "symbol": symbol,
@@ -312,8 +330,8 @@ def analyze_impact_workspace(
             for c in callers
         ],
         "reexports": reexports,
-        "affected_modules": sorted(affected_modules),
-        "test_files": sorted(set(test_files)),
+        "affected_modules": affected_modules,
+        "test_files": test_files,
         "score": "LOW",
     }
 

@@ -95,6 +95,39 @@ def _parse_project_name(text: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _is_python_package(path: Path) -> bool:
+    """Check if a directory is a Python package or namespace package."""
+    if not path.is_dir():
+        return False
+    return (path / "__init__.py").exists() or any(path.glob("*.py"))
+
+
+_FLAT_LAYOUT_EXCLUDE = {"tests", "docs", ".venv", ".git", "__pycache__"}
+
+
+def _find_in_src_layout(member_path: Path) -> Path | None:
+    """Search for a Python package under ``src/``."""
+    src_dir = member_path / "src"
+    if not src_dir.is_dir():
+        return None
+    for child in sorted(src_dir.iterdir()):
+        if _is_python_package(child):
+            return child
+    return None
+
+
+def _find_in_flat_layout(member_path: Path) -> Path | None:
+    """Search for a Python package at the member root (flat layout)."""
+    for child in sorted(member_path.iterdir()):
+        if (
+            child.is_dir()
+            and child.name not in _FLAT_LAYOUT_EXCLUDE
+            and (child / "__init__.py").exists()
+        ):
+            return child
+    return None
+
+
 def _find_package_source(member_path: Path) -> Path | None:
     """Find the Python source package directory for a workspace member.
 
@@ -107,25 +140,7 @@ def _find_package_source(member_path: Path) -> Path | None:
     Returns:
         Path to the source package, or None if not found.
     """
-    src_dir = member_path / "src"
-    if src_dir.is_dir():
-        for child in sorted(src_dir.iterdir()):
-            if child.is_dir() and (child / "__init__.py").exists():
-                return child
-            # Namespace package without __init__.py
-            if child.is_dir() and any(child.glob("*.py")):
-                return child
-
-    # Flat layout: look for __init__.py directly
-    for child in sorted(member_path.iterdir()):
-        if (
-            child.is_dir()
-            and child.name not in {"tests", "docs", ".venv", ".git", "__pycache__"}
-            and (child / "__init__.py").exists()
-        ):
-            return child
-
-    return None
+    return _find_in_src_layout(member_path) or _find_in_flat_layout(member_path)
 
 
 def _parse_member_deps(member_path: Path) -> list[str]:
