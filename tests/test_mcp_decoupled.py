@@ -26,12 +26,12 @@ class TestNoAxmImports:
 
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module:
-                assert not node.module.startswith(
-                    "axm."
-                ), f"mcp_app.py imports from axm core: {node.module}"
-                assert (
-                    node.module != "axm"
-                ), f"mcp_app.py imports from axm core: {node.module}"
+                assert not node.module.startswith("axm."), (
+                    f"mcp_app.py imports from axm core: {node.module}"
+                )
+                assert node.module != "axm", (
+                    f"mcp_app.py imports from axm core: {node.module}"
+                )
 
     def test_discovery_no_axm_import(self) -> None:
         """discovery.py must not import from axm."""
@@ -43,12 +43,12 @@ class TestNoAxmImports:
 
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module:
-                assert not node.module.startswith(
-                    "axm."
-                ), f"discovery.py imports from axm core: {node.module}"
-                assert (
-                    node.module != "axm"
-                ), f"discovery.py imports from axm core: {node.module}"
+                assert not node.module.startswith("axm."), (
+                    f"discovery.py imports from axm core: {node.module}"
+                )
+                assert node.module != "axm", (
+                    f"discovery.py imports from axm core: {node.module}"
+                )
 
     def test_init_no_axm_import(self) -> None:
         """__init__.py must not import from axm."""
@@ -58,12 +58,12 @@ class TestNoAxmImports:
 
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module:
-                assert not node.module.startswith(
-                    "axm."
-                ), f"__init__.py imports from axm core: {node.module}"
-                assert (
-                    node.module != "axm"
-                ), f"__init__.py imports from axm core: {node.module}"
+                assert not node.module.startswith("axm."), (
+                    f"__init__.py imports from axm core: {node.module}"
+                )
+                assert node.module != "axm", (
+                    f"__init__.py imports from axm core: {node.module}"
+                )
 
 
 class TestNoHardcodedTools:
@@ -101,9 +101,9 @@ class TestNoConfigure:
     def test_no_get_orchestrator(self) -> None:
         mcp_app_path = Path(__file__).parent.parent / "src" / "axm_mcp" / "mcp_app.py"
         source = mcp_app_path.read_text()
-        assert (
-            "def get_orchestrator(" not in source
-        ), "get_orchestrator() is still in mcp_app.py"
+        assert "def get_orchestrator(" not in source, (
+            "get_orchestrator() is still in mcp_app.py"
+        )
 
 
 class TestServerPackageRemoved:
@@ -131,6 +131,6 @@ class TestPyprojectNoDep:
         for dep in deps:
             raw = dep.split(">")[0].split("<")[0]
             dep_name = raw.split("=")[0].split("[")[0].strip()
-            assert (
-                dep_name not in private_pkgs
-            ), f"Private package is a hard dependency: {dep}"
+            assert dep_name not in private_pkgs, (
+                f"Private package is a hard dependency: {dep}"
+            )
