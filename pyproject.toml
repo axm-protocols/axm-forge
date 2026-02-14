@@ -153,6 +153,17 @@ addopts = [
 filterwarnings = ["error"]
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Deptry Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.deptry]
+pep621_dev_dependency_groups = ["dev", "docs"]
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["loguru", "pydantic-settings"]
+DEP003 = ["axm_ast"]
+DEP004 = ["mkdocs_gen_files"]
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Coverage Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.coverage.run]
