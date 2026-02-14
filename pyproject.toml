@@ -5,7 +5,7 @@ description = "AXM CLI — thin autodiscovery wrapper for the AXM ecosystem"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.12"
-authors = [{ name = "Gabriel Jarry", email = "gabriel@axm.dev" }]
+authors = [{ name = "Gabriel Jarry", email = "gabriel@axm-protocols.io" }]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3.12",
