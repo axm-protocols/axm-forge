@@ -5,7 +5,7 @@ description = "AXM MCP Server — Runtime execution for the AXM protocol ecosyst
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.12"
-authors = [{ name = "Gabriel Jarry", email = "jarry.gabriel@gmail.com" }]
+authors = [{ name = "Gabriel Jarry", email = "gabriel@axm-protocols.io" }]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3.12",
@@ -185,6 +185,17 @@ commit_parsers = [
     { message = "^test", group = "🧪 Tests" },
 ]
 tag_pattern = "v[0-9].*"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Deptry Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.deptry]
+# axm-* packages are optional deps consumed via entry points, not direct imports
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["axm", "axm-core", "axm-engine", "axm-init", "axm-audit", "axm-ast", "axm-bib", "axm-formal", "axm-edit", "axm-git"]
+DEP003 = ["axm_mcp"]
+DEP004 = ["mkdocs_gen_files"]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # UV Sources (Local Development)
