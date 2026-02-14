@@ -42,6 +42,9 @@ hide:
 ```bash
 # CLI
 axm-audit audit .
+
+# Or via the unified AXM CLI
+axm audit .
 ```
 
 ```python

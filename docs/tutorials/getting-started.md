@@ -25,6 +25,9 @@ pip install axm-audit
 
 ```bash
 axm-audit audit .
+
+# Or via the unified AXM CLI
+axm audit .
 ```
 
 ### Python API

@@ -16,10 +16,11 @@ axm-audit audit . --agent
 
 # Filter by category
 axm-audit audit . --category quality
-
-# Quick mode (lint + type only)
-axm-audit audit . --quick
 ```
+
+!!! tip "Unified CLI"
+    If you have the `axm` CLI installed, you can also use `axm audit .` instead
+    of `axm-audit audit .`. The unified CLI auto-discovers all AXM commands.
 
 ## Python API
 
