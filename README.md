@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>axm-git — TO COMPLETE </strong>
+  <strong>axm-git — Deterministic Git workflow tools for AI agents</strong>
 </p>
 
 <p align="center">
@@ -18,11 +18,24 @@
 
 ---
 
+## What it does
+
+Replaces 9+ shell commands with **3 MCP tool calls** for Git operations:
+
+| Tool | Purpose | Replaces |
+|---|---|---|
+| `git_preflight` | Working tree status + diff summary | `git status` + `git diff --stat` |
+| `git_commit` | Batched atomic commits with pre-commit | `git add` + `git commit` × N |
+| `git_tag` | Semver tag (preflight → compute → create → push) | 6+ commands |
+
 ## Features
 
-- ✅ **Modern Python** — 3.12+ with strict typing
-- ✅ **Fast** — Optimized for performance
-- ✅ **Tested** — Full coverage with pytest
+- ✅ **Deleted file support** — `git add -A --` handles additions, modifications, and deletions
+- ✅ **Auto-retry** — Re-stages and retries once when pre-commit hooks auto-fix files (e.g. ruff)
+- ✅ **Conventional Commits** — Automatic semver bump from commit messages (`feat:` → minor, `fix:` → patch)
+- ✅ **CI-aware tagging** — Checks GitHub Actions status before creating tags
+- ✅ **hatch-vcs** — Verifies version sync when using hatch-vcs
+- ✅ **99% test coverage** — 69 tests (unit + functional)
 
 ## Installation
 
@@ -30,26 +43,39 @@
 uv add axm-git
 ```
 
-## Quick Start
+## Usage (MCP)
+
+Tools are auto-discovered via `axm.tools` entry points. Use them through the AXM MCP server:
 
 ```python
-from axm_git import hello
+# Check working tree status
+git_preflight(path="/path/to/repo")
+# → {"success": true, "files": [...], "diff_stat": "...", "clean": false}
 
-print(hello())
+# Batch commits
+git_commit(path="/path/to/repo", commits=[
+    {"files": ["src/foo.py"], "message": "feat: add foo"},
+    {"files": ["tests/test_foo.py"], "message": "test: add foo tests"},
+])
+# → {"success": true, "results": [{"sha": "abc1234", ...}], "total": 2}
+
+# Create semver tag
+git_tag(path="/path/to/repo")
+# → {"success": true, "tag": "v0.2.0", "pushed": true}
 ```
 
-## CLI Commands
+## Architecture
 
-| Command | Description |
-|---|---|
-| `make install` | Install all dependencies (dev + docs) |
-| `make check` | Run lint + audit + test in one step |
-| `make lint` | Lint with ruff |
-| `make format` | Format with ruff |
-| `make test` | Run pytest |
-| `make audit` | Run pip-audit |
-| `make docs-serve` | Preview docs locally |
-| `make clean` | Remove build artifacts |
+```
+src/axm_git/
+├── core/
+│   ├── runner.py      # run_git, run_gh, gh_available, detect_package_name
+│   └── semver.py      # parse_tag, compute_bump, VersionBump
+└── tools/
+    ├── tag.py              # GitTagTool (AXMTool)
+    ├── commit.py           # GitCommitTool (AXMTool)
+    └── commit_preflight.py # GitPreflightTool (AXMTool)
+```
 
 ## Development
 
@@ -59,6 +85,14 @@ cd axm-git
 uv sync --all-groups
 make check
 ```
+
+| Command | Description |
+|---|---|
+| `make check` | Run lint + test in one step |
+| `make lint` | Lint with ruff + mypy |
+| `make format` | Format with ruff |
+| `make test` | Run pytest with coverage |
+| `make docs-serve` | Preview docs locally |
 
 ## License
 

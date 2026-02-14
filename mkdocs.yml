@@ -42,7 +42,7 @@ nav:
   - How-To Guides:
     - howto/index.md
   - Reference:
-    - CLI: reference/cli.md
+    - MCP Tools: reference/cli.md
     - Python API: reference/api/
   - Explanation:
     - Architecture: explanation/architecture.md

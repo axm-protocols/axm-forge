@@ -1,8 +1,12 @@
-# CLI Reference
+# Reference
 
-## Commands
+## MCP Tools
 
-*CLI reference will be documented here as commands are added.*
+| Tool | Entry point | Description |
+|---|---|---|
+| `git_preflight` | `GitPreflightTool` | Working tree status and diff summary |
+| `git_commit` | `GitCommitTool` | Batched atomic commits with pre-commit |
+| `git_tag` | `GitTagTool` | One-shot semver tagging |
 
 ## Python API
 

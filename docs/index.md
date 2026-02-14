@@ -7,18 +7,12 @@ hide:
 # axm-git
 
 <p align="center">
-  <strong>A modern Python package</strong>
+  <strong>Deterministic Git workflow tools for AI agents</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm-git/actions/workflows/ci.yml">
     <img src="https://github.com/axm-protocols/axm-git/actions/workflows/ci.yml/badge.svg" alt="CI" />
-  </a>
-  <a href="https://github.com/axm-protocols/axm-git/actions/workflows/axm-init.yml">
-    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-git/gh-pages/badges/axm-init.json" alt="axm-init" />
-  </a>
-  <a href="https://github.com/axm-protocols/axm-git/actions/workflows/axm-audit.yml">
-    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-git/gh-pages/badges/axm-audit.json" alt="axm-audit" />
   </a>
   <a href="https://coveralls.io/github/axm-protocols/axm-git?branch=main">
     <img src="https://coveralls.io/repos/github/axm-protocols/axm-git/badge.svg?branch=main" alt="Coverage" />
@@ -27,10 +21,19 @@ hide:
     <img src="https://img.shields.io/pypi/v/axm-git" alt="PyPI" />
   </a>
   <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+" />
-  <a href="https://axm-protocols.github.io/axm-git/"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs" /></a>
 </p>
 
 ---
+
+## What it does
+
+Consolidates 9+ shell commands into **3 MCP tool calls** for Git operations:
+
+| Tool | Purpose |
+|---|---|
+| `git_preflight` | Working tree status and diff summary |
+| `git_commit` | Batched atomic commits with pre-commit handling |
+| `git_tag` | One-shot semver tagging (preflight → compute → create → push) |
 
 ## Installation
 
@@ -40,21 +43,18 @@ uv add axm-git
 
 ## Quick Start
 
+Tools are auto-discovered via `axm.tools` entry points:
+
 ```python
-from axm_git import hello
+from axm_git.tools.commit_preflight import GitPreflightTool
 
-print(hello())
+result = GitPreflightTool().execute(path="/path/to/repo")
+print(result.data["files"])  # [{"path": "foo.py", "status": "M"}, ...]
 ```
-
-## Features
-
-- ✅ **Modern Python** — 3.12+ with strict typing
-- ✅ **Fast** — Optimized for performance
-- ✅ **Tested** — Full coverage with pytest
 
 ---
 
 <div style="text-align: center; margin: 2rem 0;">
   <a href="tutorials/getting-started/" class="md-button md-button--primary">Get Started →</a>
-  <a href="reference/cli/" class="md-button">Reference</a>
+  <a href="reference/api/" class="md-button">API Reference</a>
 </div>
