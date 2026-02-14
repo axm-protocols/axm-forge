@@ -155,6 +155,22 @@ def _build_edges(modules: list[ModuleInfo], root: Path) -> list[tuple[str, str]]
     return edges
 
 
+def _resolve_absolute_import(
+    module: str,
+    pkg_name: str,
+    known_names: set[str],
+    src_name: str,
+) -> str | None:
+    """Resolve an absolute import to an internal module name, if applicable."""
+    if module.startswith(pkg_name + "."):
+        internal = module[len(pkg_name) + 1 :]
+        if internal in known_names and internal != src_name:
+            return internal
+    elif module == pkg_name and pkg_name in known_names and pkg_name != src_name:
+        return pkg_name
+    return None
+
+
 def _resolve_import_target(
     imp: ImportInfo,
     mod: ModuleInfo,
@@ -164,16 +180,13 @@ def _resolve_import_target(
 ) -> str | None:
     """Resolve an import to a target module name, if internal."""
     if not imp.is_relative:
-        # Check absolute intra-package imports (e.g. "from pkg.sub import X")
         if imp.module:
-            pkg_name = root.name
-            if imp.module.startswith(pkg_name + "."):
-                internal = imp.module[len(pkg_name) + 1 :]
-                if internal in known_names and internal != src_name:
-                    return internal
-            elif imp.module == pkg_name and pkg_name in known_names:
-                if pkg_name != src_name:
-                    return pkg_name
+            return _resolve_absolute_import(
+                imp.module,
+                root.name,
+                known_names,
+                src_name,
+            )
         return None
 
     if imp.module:
