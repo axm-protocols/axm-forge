@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>axm-git — Deterministic Git workflow tools for AI agents</strong>
+  <strong>axm-git — Deterministic Git workflows for AI agents</strong>
 </p>
 
 <p align="center">
@@ -18,24 +18,11 @@
 
 ---
 
-## What it does
-
-Replaces 9+ shell commands with **3 MCP tool calls** for Git operations:
-
-| Tool | Purpose | Replaces |
-|---|---|---|
-| `git_preflight` | Working tree status + diff summary | `git status` + `git diff --stat` |
-| `git_commit` | Batched atomic commits with pre-commit | `git add` + `git commit` × N |
-| `git_tag` | Semver tag (preflight → compute → create → push) | 6+ commands |
-
 ## Features
 
-- ✅ **Deleted file support** — `git add -A --` handles additions, modifications, and deletions
-- ✅ **Auto-retry** — Re-stages and retries once when pre-commit hooks auto-fix files (e.g. ruff)
-- ✅ **Conventional Commits** — Automatic semver bump from commit messages (`feat:` → minor, `fix:` → patch)
-- ✅ **CI-aware tagging** — Checks GitHub Actions status before creating tags
-- ✅ **hatch-vcs** — Verifies version sync when using hatch-vcs
-- ✅ **99% test coverage** — 69 tests (unit + functional)
+- 🔍 **Preflight** — Structured working tree status with diff summary
+- 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes
+- 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
 
 ## Installation
 
@@ -43,39 +30,67 @@ Replaces 9+ shell commands with **3 MCP tool calls** for Git operations:
 uv add axm-git
 ```
 
-## Usage (MCP)
-
-Tools are auto-discovered via `axm.tools` entry points. Use them through the AXM MCP server:
+## Quick Start
 
 ```python
-# Check working tree status
+# Check what changed
 git_preflight(path="/path/to/repo")
-# → {"success": true, "files": [...], "diff_stat": "...", "clean": false}
+# → {files: [{path: "foo.py", status: "M"}, ...], clean: false}
 
-# Batch commits
+# Commit in batches
 git_commit(path="/path/to/repo", commits=[
     {"files": ["src/foo.py"], "message": "feat: add foo"},
     {"files": ["tests/test_foo.py"], "message": "test: add foo tests"},
 ])
-# → {"success": true, "results": [{"sha": "abc1234", ...}], "total": 2}
+# → {results: [{sha: "abc1234", precommit_passed: true}, ...]}
 
-# Create semver tag
+# Tag a release
 git_tag(path="/path/to/repo")
-# → {"success": true, "tag": "v0.2.0", "pushed": true}
+# → {tag: "v0.2.0", bump: "minor", pushed: true}
 ```
 
-## Architecture
+## MCP Tools
 
-```
-src/axm_git/
-├── core/
-│   ├── runner.py      # run_git, run_gh, gh_available, detect_package_name
-│   └── semver.py      # parse_tag, compute_bump, VersionBump
-└── tools/
-    ├── tag.py              # GitTagTool (AXMTool)
-    ├── commit.py           # GitCommitTool (AXMTool)
-    └── commit_preflight.py # GitPreflightTool (AXMTool)
-```
+### `git_preflight`
+
+Report working tree changes so the agent can plan commits.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `path` | `.` | Project root directory |
+
+Returns: file list with status (`M`, `A`, `D`, `??`), diff stat, clean flag.
+
+### `git_commit`
+
+Execute one or more atomic commits with pre-commit hook handling.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `path` | `.` | Project root directory |
+| `commits` | *required* | List of commit specs (see below) |
+
+Each commit spec:
+
+| Field | Required | Description |
+|---|---|---|
+| `files` | ✅ | Files to stage |
+| `message` | ✅ | Commit summary (Conventional Commits) |
+| `body` | | Extended commit body |
+
+When a pre-commit hook auto-fixes files (e.g. ruff `--fix`), the tool re-stages and retries once automatically.
+
+### `git_tag`
+
+Compute the next semver version from Conventional Commits, create and push the tag.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `path` | `.` | Project root directory |
+| `version` | *auto* | Override the computed version |
+| `push` | `true` | Push tag to remote |
+
+Pipeline: clean tree check → CI status check → semver bump → annotate tag → hatch-vcs verify → push.
 
 ## Development
 
@@ -83,17 +98,10 @@ src/axm_git/
 git clone https://github.com/axm-protocols/axm-git.git
 cd axm-git
 uv sync --all-groups
-make check
+uv run pytest           # 69 tests
+uv run ruff check src/  # lint
 ```
-
-| Command | Description |
-|---|---|
-| `make check` | Run lint + test in one step |
-| `make lint` | Lint with ruff + mypy |
-| `make format` | Format with ruff |
-| `make test` | Run pytest with coverage |
-| `make docs-serve` | Preview docs locally |
 
 ## License
 
-Apache-2.0 — © 2026 axm-protocols
+Apache License 2.0

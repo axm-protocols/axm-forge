@@ -7,7 +7,7 @@ hide:
 # axm-git
 
 <p align="center">
-  <strong>Deterministic Git workflow tools for AI agents</strong>
+  <strong>Deterministic Git workflows for AI agents</strong>
 </p>
 
 <p align="center">
@@ -25,15 +25,11 @@ hide:
 
 ---
 
-## What it does
+## Features
 
-Consolidates 9+ shell commands into **3 MCP tool calls** for Git operations:
-
-| Tool | Purpose |
-|---|---|
-| `git_preflight` | Working tree status and diff summary |
-| `git_commit` | Batched atomic commits with pre-commit handling |
-| `git_tag` | One-shot semver tagging (preflight → compute → create → push) |
+- 🔍 **Preflight** — Structured working tree status with diff summary
+- 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes
+- 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
 
 ## Installation
 
@@ -43,13 +39,20 @@ uv add axm-git
 
 ## Quick Start
 
-Tools are auto-discovered via `axm.tools` entry points:
-
 ```python
-from axm_git.tools.commit_preflight import GitPreflightTool
+# Check what changed
+git_preflight(path="/path/to/repo")
+# → {files: [{path: "foo.py", status: "M"}, ...], clean: false}
 
-result = GitPreflightTool().execute(path="/path/to/repo")
-print(result.data["files"])  # [{"path": "foo.py", "status": "M"}, ...]
+# Commit in batches
+git_commit(path="/path/to/repo", commits=[
+    {"files": ["src/foo.py"], "message": "feat: add foo"},
+    {"files": ["tests/test_foo.py"], "message": "test: add foo tests"},
+])
+
+# Tag a release
+git_tag(path="/path/to/repo")
+# → {tag: "v0.2.0", bump: "minor", pushed: true}
 ```
 
 ---
