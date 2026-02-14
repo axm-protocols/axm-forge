@@ -5,7 +5,7 @@ description = "AST introspection CLI for AI agents — powered by tree-sitter"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.12"
-authors = [{ name = "Gabriel Jarry", email = "jarry.gabriel@gmail.com" }]
+authors = [{ name = "Gabriel Jarry", email = "gabriel@axm-protocols.io" }]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3.12",
@@ -65,8 +65,6 @@ packages = ["src/axm_ast"]
 [tool.uv]
 managed = true
 
-[tool.uv.sources]
-axm = { workspace = true }
 
 [dependency-groups]
 dev = [
