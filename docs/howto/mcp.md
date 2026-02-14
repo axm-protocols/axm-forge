@@ -15,6 +15,17 @@
 | `ast_graph(path)` | `axm-ast graph` | Import dependency graph |
 | `ast_docs(path)` | `axm-ast docs` | Documentation tree dump |
 
+## Workspace Support
+
+All tools with a `path` parameter **auto-detect `uv` workspaces**. When `path` points to a directory with a `pyproject.toml` containing `[tool.uv.workspace]`, the tools automatically switch to workspace mode:
+
+- **`ast_context`** — returns a unified context with all member packages, their dependency graph, and aggregated statistics
+- **`ast_callers`** — searches across all packages, prefixing modules with `pkg_name::` for disambiguation
+- **`ast_impact`** — performs cross-package impact analysis, identifying callers, re-exports, and test files across the workspace
+- **`ast_graph`** — generates an inter-package dependency graph (Mermaid or adjacency list)
+
+No special arguments needed — just point `path` to the workspace root.
+
 ## When to Use What
 
 | Task | Start with | Then use |

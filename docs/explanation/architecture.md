@@ -17,6 +17,7 @@ graph TD
         Callers["Caller Analysis"]
         Context["Context (one-shot)"]
         Impact["Impact Analysis"]
+        Workspace["Workspace"]
         Docs["Docs Discovery"]
         Formatters["Formatters"]
     end
@@ -24,6 +25,7 @@ graph TD
     subgraph "Models (Pydantic)"
         ModuleInfo["ModuleInfo"]
         PackageInfo["PackageInfo"]
+        WorkspaceInfo["WorkspaceInfo"]
         CallSite["CallSite"]
     end
 
@@ -52,6 +54,11 @@ graph TD
     Callers --> CallSite
     Context --> PyProject
     CLI --> Docs
+    CLI --> Workspace
+    Workspace --> Analyzer
+    Workspace --> Callers
+    Workspace --> Impact
+    Workspace --> WorkspaceInfo
     Docs --> FS
 ```
 
@@ -70,9 +77,10 @@ Independent, composable analysis engines:
 | `parser.py` | Tree-sitter AST parsing → `ModuleInfo` | `extract_module_info()` |
 | `analyzer.py` | Package discovery, graph, search, stubs | `analyze_package()` |
 | `ranker.py` | PageRank symbol importance | `rank_symbols()` |
-| `callers.py` | Call-site detection | `find_callers()` |
+| `callers.py` | Call-site detection | `find_callers()`, `find_callers_workspace()` |
 | `context.py` | One-shot project dump | `build_context()` |
-| `impact.py` | Change blast radius | `analyze_impact()` |
+| `impact.py` | Change blast radius | `analyze_impact()`, `analyze_impact_workspace()` |
+| `workspace.py` | Multi-package workspace detection and analysis | `detect_workspace()`, `analyze_workspace()` |
 | `docs.py` | Documentation tree discovery | `discover_docs()` |
 
 ### 3. Formatters (`formatters.py`)
@@ -100,6 +108,7 @@ Pydantic models for structured data exchange between layers:
 | `VariableInfo` | Module-level variable / constant |
 | `ImportInfo` | Import statement (absolute/relative, names) |
 | `CallSite` | Call-site location (module, line, context) |
+| `WorkspaceInfo` | Multi-package workspace (packages, dependency edges) |
 
 ## Design Decisions
 
@@ -109,4 +118,5 @@ Pydantic models for structured data exchange between layers:
 | Pydantic models | Validation, serialization, JSON output for free |
 | PageRank for ranking | Graph-based importance adapts to any project structure |
 | Composable engines | `impact` = `callers` + `analyzer` + `ranker` + test mapping |
+| Workspace auto-detect | `[tool.uv.workspace]` triggers multi-package mode transparently |
 | `src/` layout | PEP 621 best practice, no import conflicts |
