@@ -89,7 +89,7 @@ def analyze_package(path: Path) -> PackageInfo:
     for py_file in py_files:
         modules.append(extract_module_info(py_file))
 
-    # Build dependency edges from relative imports
+    # Build dependency edges from internal imports
     dep_edges = _build_edges(modules, path)
 
     return PackageInfo(
@@ -164,6 +164,16 @@ def _resolve_import_target(
 ) -> str | None:
     """Resolve an import to a target module name, if internal."""
     if not imp.is_relative:
+        # Check absolute intra-package imports (e.g. "from pkg.sub import X")
+        if imp.module:
+            pkg_name = root.name
+            if imp.module.startswith(pkg_name + "."):
+                internal = imp.module[len(pkg_name) + 1 :]
+                if internal in known_names and internal != src_name:
+                    return internal
+            elif imp.module == pkg_name and pkg_name in known_names:
+                if pkg_name != src_name:
+                    return pkg_name
         return None
 
     if imp.module:
