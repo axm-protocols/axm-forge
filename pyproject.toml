@@ -31,7 +31,9 @@ audit  = ["axm-audit"]
 ast    = ["axm-ast"]
 bib    = ["axm-bib"]
 formal = ["axm-formal"]
-all    = ["axm-core", "axm-engine", "axm-init", "axm-audit", "axm-ast", "axm-bib", "axm-formal"]
+edit   = ["axm-edit"]
+git    = ["axm-git"]
+all    = ["axm-core", "axm-engine", "axm-init", "axm-audit", "axm-ast", "axm-bib", "axm-formal", "axm-edit", "axm-git"]
 
 [project.scripts]
 axm-mcp = "axm_mcp:main"
@@ -196,3 +198,4 @@ axm-audit  = { workspace = true }
 axm-ast    = { workspace = true }
 axm-bib    = { workspace = true }
 axm-formal = { workspace = true }
+axm-edit   = { workspace = true }
