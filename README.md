@@ -96,4 +96,4 @@ make check
 
 ## License
 
-MIT — © 2026 axm-protocols
+Apache-2.0 — © 2026 axm-protocols
