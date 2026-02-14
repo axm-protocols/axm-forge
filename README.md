@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>axm-mcp — MCP server for the AXM protocol ecosystem</strong>
+  <strong>axm-mcp — MCP server for the axm-protocols ecosystem</strong>
 </p>
 
 
