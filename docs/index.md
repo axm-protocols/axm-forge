@@ -7,7 +7,7 @@ hide:
 # axm-mcp
 
 <p align="center">
-  <strong>MCP server for the AXM protocol ecosystem.</strong>
+  <strong>MCP server for the axm-protocols ecosystem.</strong>
 </p>
 
 <p align="center">

@@ -1,7 +1,7 @@
 [project]
 name = "axm-mcp"
 dynamic = ["version"]
-description = "AXM MCP Server — Runtime execution for the AXM protocol ecosystem"
+description = "AXM MCP Server — Runtime execution for the axm-protocols ecosystem"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.12"
