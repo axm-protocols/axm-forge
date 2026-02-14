@@ -221,3 +221,25 @@ class PackageInfo(BaseModel):
             else:
                 names.append(self.name)
         return names
+
+
+class WorkspaceInfo(BaseModel):
+    """Multi-package workspace introspection result.
+
+    Aggregates multiple ``PackageInfo`` from a uv workspace.
+
+    Example:
+        >>> ws = WorkspaceInfo(name="my-ws", root=Path("/ws"))
+        >>> len(ws.packages)
+        0
+    """
+
+    name: str = Field(description="Workspace name")
+    root: Path = Field(description="Workspace root directory")
+    packages: list[PackageInfo] = Field(
+        default_factory=list, description="All packages in workspace"
+    )
+    package_edges: list[tuple[str, str]] = Field(
+        default_factory=list,
+        description="Inter-package dependency edges (from_pkg, to_pkg)",
+    )

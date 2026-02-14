@@ -14,6 +14,8 @@ class CallersTool(AXMTool):
     """Find all call-sites of a function via tree-sitter.
 
     Registered as ``ast_callers`` via axm.tools entry point.
+    Workspace-aware: if path is a uv workspace root, searches
+    across all member packages.
     """
 
     @property
@@ -27,7 +29,7 @@ class CallersTool(AXMTool):
         """Find all callers of a symbol.
 
         Args:
-            path: Path to package directory.
+            path: Path to package or workspace directory.
             symbol: Symbol name to search for (required).
 
         Returns:
@@ -43,11 +45,21 @@ class CallersTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            from axm_ast.core.analyzer import analyze_package
-            from axm_ast.core.callers import find_callers
+            from axm_ast.core.workspace import detect_workspace
 
-            pkg = analyze_package(project_path)
-            callers = find_callers(pkg, symbol)
+            ws = detect_workspace(project_path)
+            if ws is not None:
+                from axm_ast.core.callers import find_callers_workspace
+                from axm_ast.core.workspace import analyze_workspace
+
+                ws = analyze_workspace(project_path)
+                callers = find_callers_workspace(ws, symbol)
+            else:
+                from axm_ast.core.analyzer import analyze_package
+                from axm_ast.core.callers import find_callers
+
+                pkg = analyze_package(project_path)
+                callers = find_callers(pkg, symbol)
 
             caller_data = [
                 {

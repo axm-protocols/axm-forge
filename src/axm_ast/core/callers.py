@@ -16,11 +16,12 @@ from __future__ import annotations
 from axm_ast.core.analyzer import _module_dotted_name
 from axm_ast.core.parser import parse_source
 from axm_ast.models.calls import CallSite
-from axm_ast.models.nodes import ModuleInfo, PackageInfo
+from axm_ast.models.nodes import ModuleInfo, PackageInfo, WorkspaceInfo
 
 __all__ = [
     "extract_calls",
     "find_callers",
+    "find_callers_workspace",
 ]
 
 
@@ -203,5 +204,39 @@ def find_callers(
         for call in calls:
             if call.symbol == symbol:
                 all_calls.append(call)
+
+    return all_calls
+
+
+def find_callers_workspace(
+    ws: WorkspaceInfo,
+    symbol: str,
+) -> list[CallSite]:
+    """Find all call-sites of a symbol across a workspace.
+
+    Searches every package in the workspace for calls matching
+    the given symbol name. Module names are prefixed with
+    ``pkg_name::`` for disambiguation.
+
+    Args:
+        ws: Analyzed workspace info.
+        symbol: Name of the function/method to search for.
+
+    Returns:
+        List of CallSite objects where the symbol is called.
+
+    Example:
+        >>> results = find_callers_workspace(ws, "ToolResult")
+        >>> results[0].module
+        'axm_mcp::server'
+    """
+    all_calls: list[CallSite] = []
+
+    for pkg in ws.packages:
+        callers = find_callers(pkg, symbol)
+        for call in callers:
+            # Prefix with package name for cross-package disambiguation
+            call.module = f"{pkg.name}::{call.module}"
+            all_calls.append(call)
 
     return all_calls

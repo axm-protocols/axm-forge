@@ -20,7 +20,7 @@ def _run(args: list[str], capsys: pytest.CaptureFixture[str]) -> str:
     except SystemExit as e:
         if e.code != 0:
             raise
-    return capsys.readouterr().out  # type: ignore[no-any-return]
+    return capsys.readouterr().out
 
 
 class TestDescribeCommand:

@@ -19,11 +19,12 @@ from axm_ast.core.analyzer import (
     _module_dotted_name,
     analyze_package,
 )
-from axm_ast.core.callers import find_callers
+from axm_ast.core.callers import find_callers, find_callers_workspace
 from axm_ast.models.nodes import ModuleInfo, PackageInfo
 
 __all__ = [
     "analyze_impact",
+    "analyze_impact_workspace",
     "find_definition",
     "find_reexports",
     "map_tests",
@@ -236,6 +237,84 @@ def analyze_impact(
         "affected_modules": sorted(affected_modules),
         "test_files": [str(t.name) for t in test_files],
         "score": "LOW",  # placeholder, computed below
+    }
+
+    result["score"] = score_impact(result)
+    return result
+
+
+def analyze_impact_workspace(
+    ws_path: Path,
+    symbol: str,
+) -> dict[str, Any]:
+    """Full impact analysis for a symbol across a workspace.
+
+    Searches all packages for definition, callers, re-exports,
+    and test files. Module names include package prefix.
+
+    Args:
+        ws_path: Path to workspace root.
+        symbol: Name of the symbol to analyze.
+
+    Returns:
+        Complete impact analysis dict (workspace-scoped).
+
+    Example:
+        >>> result = analyze_impact_workspace(Path("/ws"), "ToolResult")
+        >>> result["score"]
+        'HIGH'
+    """
+    from axm_ast.core.workspace import analyze_workspace
+
+    ws = analyze_workspace(ws_path)
+
+    # 1. Where is it defined? Search all packages.
+    definition = None
+    for pkg in ws.packages:
+        defn = find_definition(pkg, symbol)
+        if defn is not None:
+            defn["package"] = pkg.name
+            definition = defn
+            break
+
+    # 2. Who calls it? Cross-package.
+    callers = find_callers_workspace(ws, symbol)
+
+    # 3. Re-exports across all packages.
+    reexports: list[str] = []
+    for pkg in ws.packages:
+        for mod_reexport in find_reexports(pkg, symbol):
+            reexports.append(f"{pkg.name}::{mod_reexport}")
+
+    # 4. Test files across all packages.
+    test_files: list[str] = []
+    for member_dir in ws.root.iterdir():
+        if not member_dir.is_dir():
+            continue
+        tests = map_tests(symbol, member_dir)
+        for t in tests:
+            test_files.append(str(t.name))
+
+    # 5. Affected modules.
+    affected_modules = list({c.module for c in callers} | set(reexports))
+
+    result: dict[str, Any] = {
+        "symbol": symbol,
+        "workspace": ws.name,
+        "definition": definition,
+        "callers": [
+            {
+                "module": c.module,
+                "line": c.line,
+                "context": c.context,
+                "call_expression": c.call_expression,
+            }
+            for c in callers
+        ],
+        "reexports": reexports,
+        "affected_modules": sorted(affected_modules),
+        "test_files": sorted(set(test_files)),
+        "score": "LOW",
     }
 
     result["score"] = score_impact(result)

@@ -19,7 +19,7 @@ SELF_PKG = Path(__file__).resolve().parent.parent / "src" / "axm_ast"
 SELF_ROOT = Path(__file__).resolve().parent.parent
 
 
-@pytest.fixture()  # type: ignore[misc]
+@pytest.fixture()
 def sample_project(tmp_path: Path) -> Path:
     """Create a minimal Python package for tool testing."""
     pkg = tmp_path / "src" / "demo"
