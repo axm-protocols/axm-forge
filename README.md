@@ -1,6 +1,11 @@
-# axm-mcp
+<p align="center">
+  <img src="https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.png" alt="AXM Logo" width="180" />
+</p>
 
-**MCP server for the AXM protocol ecosystem — auto-discovers and exposes all AXM tools.**
+<p align="center">
+  <strong>axm-mcp — MCP server for the AXM protocol ecosystem</strong>
+</p>
+
 
 <p align="center">
   <a href="https://github.com/axm-protocols/axm-mcp/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-mcp/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -48,12 +53,12 @@ All installed AXM tools are immediately available to any MCP client.
 |---|---|---|
 | `list_tools` | built-in | List all available tools |
 | `verify` | built-in | One-shot audit + init check + AST enrichment |
-| `ast_describe` | `axm` | Full API surface of a Python package |
-| `ast_search` | `axm` | Search functions/classes by name, return type, or base class |
-| `ast_impact` | `axm` | Blast radius analysis for a symbol |
 | `audit` | `axm-audit` | Code quality audit (lint, types, complexity, security) |
 | `init_check` | `axm-init` | 39 governance checks against AXM gold standard |
-| `search_paper` | `axm-bib` | Search academic papers by title |
+| `init_scaffold` | `axm-init` | Scaffold a new Python project |
+| `bib_search` | `axm-bib` | Search academic papers by title |
+| `bib_doi` | `axm-bib` | Resolve DOI → BibTeX |
+| `bib_pdf` | `axm-bib` | Download paper PDF |
 
 ## Development
 
@@ -61,7 +66,7 @@ All installed AXM tools are immediately available to any MCP client.
 git clone https://github.com/axm-protocols/axm-mcp.git
 cd axm-mcp
 uv sync --all-groups
-uv run pytest           # 59 tests
+uv run pytest           # 58 tests
 uv run ruff check src/  # lint
 ```
 

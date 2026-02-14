@@ -19,22 +19,18 @@ graph TD
     end
 
     subgraph "Installed Packages"
-        AXM["axm (ast_*)"]
         Audit["axm-audit (audit)"]
         Init["axm-init (init_check, init_scaffold)"]
-        Bib["axm-bib (search_paper, ...)"]
-        Formal["axm-formal (kind2, esbmc, ...)"]
+        Bib["axm-bib (bib_search, bib_doi, bib_pdf)"]
     end
 
     Server --> ListTools
     Server --> Verify
     Server --> Discover
     Discover --> EP
-    EP --> AXM
     EP --> Audit
     EP --> Init
     EP --> Bib
-    EP --> Formal
     Register --> Server
 ```
 
