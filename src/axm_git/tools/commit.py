@@ -12,6 +12,64 @@ from axm_git.core.runner import run_git
 __all__ = ["GitCommitTool"]
 
 
+def _stage_files(files: list[str], path: Path) -> str | None:
+    """Stage files, return error message or None on success."""
+    add = run_git(["add", "-A", "--", *files], path)
+    if add.returncode != 0:
+        return add.stderr.strip()
+    return None
+
+
+def _attempt_commit(
+    commit_args: list[str], files: list[str], path: Path
+) -> tuple[bool, bool, str]:
+    """Attempt commit with auto-retry on pre-commit fix.
+
+    Returns:
+        (success, retried, output)
+    """
+    commit = run_git(commit_args, path)
+    retried = False
+
+    # If pre-commit auto-fixed files, re-stage and retry once
+    if commit.returncode != 0:
+        output = commit.stdout + commit.stderr
+        if "files were modified by this hook" in output:
+            run_git(["add", "-A", "--", *files], path)
+            commit = run_git(commit_args, path)
+            retried = True
+
+    output = commit.stdout + commit.stderr
+    return commit.returncode == 0, retried, output
+
+
+def _build_failure_data(
+    results: list[dict[str, Any]],
+    index: int,
+    message: str,
+    output: str,
+    retried: bool,
+    path: Path,
+) -> dict[str, Any]:
+    """Build failure data dict for a failed commit."""
+    auto_fixed: list[str] = []
+    if "files were modified by this hook" in output:
+        diff = run_git(["diff", "--name-only"], path)
+        auto_fixed = [f for f in diff.stdout.strip().splitlines() if f.strip()]
+
+    return {
+        "results": results,
+        "succeeded": len(results),
+        "failed_commit": {
+            "index": index,
+            "message": message,
+            "precommit_output": output.strip(),
+            "auto_fixed_files": auto_fixed,
+            "retried": retried,
+        },
+    }
+
+
 class GitCommitTool(AXMTool):
     """Execute one or more atomic commits in a single call.
 
@@ -50,10 +108,7 @@ class GitCommitTool(AXMTool):
         commits: list[dict[str, Any]] = kwargs.get("commits", [])
 
         if not commits:
-            return ToolResult(
-                success=False,
-                error="No commits provided",
-            )
+            return ToolResult(success=False, error="No commits provided")
 
         results: list[dict[str, Any]] = []
 
@@ -76,12 +131,12 @@ class GitCommitTool(AXMTool):
                     data={"results": results, "succeeded": len(results)},
                 )
 
-            # Stage files (-A handles additions, modifications, AND deletions)
-            add = run_git(["add", "-A", "--", *files], path)
-            if add.returncode != 0:
+            # Stage files
+            add_err = _stage_files(files, path)
+            if add_err:
                 return ToolResult(
                     success=False,
-                    error=f"Commit {i + 1}: git add failed: {add.stderr.strip()}",
+                    error=f"Commit {i + 1}: git add failed: {add_err}",
                     data={"results": results, "succeeded": len(results)},
                 )
 
@@ -90,43 +145,16 @@ class GitCommitTool(AXMTool):
             if body:
                 commit_args.extend(["-m", body])
 
-            # Attempt commit (pre-commit hooks run automatically)
-            commit = run_git(commit_args, path)
-            retried = False
+            # Attempt commit with auto-retry
+            ok, retried, output = _attempt_commit(commit_args, files, path)
 
-            # If pre-commit auto-fixed files, re-stage and retry once
-            if commit.returncode != 0:
-                output = commit.stdout + commit.stderr
-                if "files were modified by this hook" in output:
-                    run_git(["add", "-A", "--", *files], path)
-                    commit = run_git(commit_args, path)
-                    retried = True
-
-            if commit.returncode != 0:
-                output = commit.stdout + commit.stderr
-
-                # Detect auto-fixed files
-                auto_fixed: list[str] = []
-                if "files were modified by this hook" in output:
-                    diff = run_git(["diff", "--name-only"], path)
-                    auto_fixed = [
-                        f for f in diff.stdout.strip().splitlines() if f.strip()
-                    ]
-
+            if not ok:
                 return ToolResult(
                     success=False,
                     error=f"Commit {i + 1}: pre-commit failed",
-                    data={
-                        "results": results,
-                        "succeeded": len(results),
-                        "failed_commit": {
-                            "index": i + 1,
-                            "message": message,
-                            "precommit_output": output.strip(),
-                            "auto_fixed_files": auto_fixed,
-                            "retried": retried,
-                        },
-                    },
+                    data=_build_failure_data(
+                        results, i + 1, message, output, retried, path
+                    ),
                 )
 
             # Get the SHA of the commit
