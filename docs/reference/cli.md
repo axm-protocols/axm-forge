@@ -65,9 +65,12 @@ axm-ast graph [OPTIONS] [PATH]
 
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
-| `PATH` | | string | `.` | Path to package directory |
+| `PATH` | | string | `.` | Path to package or workspace directory |
 | `--format` | `-f` | string | `text` | Output format: `text`, `mermaid`, `json` |
 | `--json` | | bool | `False` | Output as JSON |
+
+!!! note "Workspace mode"
+    When `PATH` is a `uv` workspace root, generates an inter-package dependency graph instead of an intra-package import graph.
 
 **Example (Mermaid):**
 
@@ -117,9 +120,12 @@ axm-ast callers [OPTIONS] [PATH]
 
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
-| `PATH` | | string | `.` | Path to package directory |
+| `PATH` | | string | `.` | Path to package or workspace directory |
 | `--symbol` | `-s` | string | *required* | Symbol to find callers of |
 | `--json` | | bool | `False` | Output as JSON |
+
+!!! note "Workspace mode"
+    When `PATH` is a `uv` workspace root, searches across all member packages. Module names are prefixed with `pkg_name::` for disambiguation.
 
 **Example:**
 
@@ -146,8 +152,11 @@ axm-ast context [OPTIONS] [PATH]
 
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
-| `PATH` | | string | `.` | Path to package directory |
+| `PATH` | | string | `.` | Path to package or workspace directory |
 | `--json` | | bool | `False` | Output as JSON |
+
+!!! note "Workspace mode"
+    When `PATH` is a `uv` workspace root, returns a unified context with all member packages, their inter-package dependency graph, and aggregated statistics.
 
 **Example:**
 
@@ -179,9 +188,12 @@ axm-ast impact [OPTIONS] [PATH]
 
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
-| `PATH` | | string | `.` | Path to package directory |
+| `PATH` | | string | `.` | Path to package or workspace directory |
 | `--symbol` | `-s` | string | *required* | Symbol to analyze |
 | `--json` | | bool | `False` | Output as JSON |
+
+!!! note "Workspace mode"
+    When `PATH` is a `uv` workspace root, performs cross-package impact analysis — callers, re-exports, and test files from all member packages.
 
 **Example:**
 

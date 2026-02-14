@@ -52,6 +52,7 @@ $ axm-ast context src/mylib
 - 📞 **Callers** — Tree-sitter call-site detection: "who calls this function?"
 - 📋 **Context** — One-shot project dump: stack, patterns, module ranking
 - 💥 **Impact** — Change impact analysis: callers + graph + test mapping
+- 🏗️ **Workspace** — Multi-package workspace support (auto-detects `uv` workspaces)
 - 📖 **Docs** — One-shot documentation tree dump: README + mkdocs + all pages
 - ⭐ **Rank** — PageRank-based symbol importance scoring
 - 📄 **Stub** — `.pyi`-like stub generation

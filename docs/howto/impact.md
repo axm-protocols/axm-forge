@@ -63,6 +63,26 @@ axm-ast impact src/mylib --symbol my_function --json
 }
 ```
 
+## Workspace: Cross-Package Impact
+
+For `uv` workspaces with multiple packages, `impact` automatically performs cross-package analysis:
+
+```bash
+axm-ast impact /path/to/workspace --symbol ToolResult
+```
+
+```
+💥 Impact analysis for 'ToolResult' — HIGH (workspace)
+
+  📍 Defined in: axm::tools.base (L15) [package: axm]
+  📞 Direct callers (12): axm_mcp::server, axm_ast::tools.context, ...
+  🧪 Tests to rerun (5): test_tools, test_server, ...
+  📦 Re-exported in (3): axm, axm_ast, axm_mcp
+```
+
+!!! tip "Automatic detection"
+    No flag needed — if the path contains a `pyproject.toml` with `[tool.uv.workspace]`, workspace mode activates automatically.
+
 ## Workflow: Safe Refactoring
 
 1. **Check impact** before changing a symbol:
