@@ -196,17 +196,3 @@ tag_pattern = "v[0-9].*"
 DEP002 = ["axm", "axm-core", "axm-engine", "axm-init", "axm-audit", "axm-ast", "axm-bib", "axm-formal", "axm-edit", "axm-git"]
 DEP003 = ["axm_mcp"]
 DEP004 = ["mkdocs_gen_files"]
-
-# ─────────────────────────────────────────────────────────────────────────────
-# UV Sources (Local Development)
-# ─────────────────────────────────────────────────────────────────────────────
-[tool.uv.sources]
-axm        = { workspace = true }
-axm-core   = { workspace = true }
-axm-engine = { workspace = true }
-axm-init   = { workspace = true }
-axm-audit  = { workspace = true }
-axm-ast    = { workspace = true }
-axm-bib    = { workspace = true }
-axm-formal = { workspace = true }
-axm-edit   = { workspace = true }
