@@ -16,12 +16,18 @@ classifiers = [
 
 dependencies = [
     "axm>=0.1.0",
+    "axm-engine>=0.1.0",
 ]
 
 [project.entry-points."axm.tools"]
 git_tag       = "axm_git.tools.tag:GitTagTool"
 git_preflight = "axm_git.tools.commit_preflight:GitPreflightTool"
 git_commit    = "axm_git.tools.commit:GitCommitTool"
+
+[project.entry-points."axm.hooks"]
+"git:create-branch" = "axm_git.hooks.create_branch:CreateBranchHook"
+"git:commit-phase"  = "axm_git.hooks.commit_phase:CommitPhaseHook"
+"git:merge-squash"  = "axm_git.hooks.merge_squash:MergeSquashHook"
 
 [project.urls]
 Homepage = "https://github.com/axm-protocols/axm-git"
