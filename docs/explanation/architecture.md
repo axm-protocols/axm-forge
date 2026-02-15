@@ -16,6 +16,12 @@ graph TD
         Preflight["GitPreflightTool"]
     end
 
+    subgraph "Hooks"
+        CB["CreateBranchHook"]
+        CP["CommitPhaseHook"]
+        MS["MergeSquashHook"]
+    end
+
     subgraph "Core"
         Runner["runner.py"]
         Semver["semver.py"]
@@ -26,6 +32,10 @@ graph TD
         GH["gh CLI"]
     end
 
+    subgraph "axm-engine"
+        Registry["HookRegistry"]
+    end
+
     MCP --> Tag
     MCP --> Commit
     MCP --> Preflight
@@ -33,8 +43,14 @@ graph TD
     Tag --> Semver
     Commit --> Runner
     Preflight --> Runner
+    CB --> Runner
+    CP --> Runner
+    MS --> Runner
     Runner --> Git
     Runner --> GH
+    Registry -.->|"entry-point discovery"| CB
+    Registry -.-> CP
+    Registry -.-> MS
 ```
 
 ## Layers
@@ -53,6 +69,14 @@ Shared logic used by multiple tools:
 
 - **`runner.py`** — `run_git()` and `run_gh()` subprocess wrappers, `gh_available()` auth check, `detect_package_name()` from `pyproject.toml`.
 - **`semver.py`** — `parse_tag()` for version parsing, `compute_bump()` for Conventional Commits analysis (returns `VersionBump` with next version + reason).
+
+### 3. Hooks (`hooks/`)
+
+Lifecycle hook actions conforming to the `HookAction` protocol from `axm-engine`. Auto-discovered via `axm.hooks` entry-points:
+
+- **`CreateBranchHook`** — Creates a session branch `{prefix}/{session_id}`. Skips if not a git repo.
+- **`CommitPhaseHook`** — Stages all changes, commits with `[axm] {phase_name}`. Skips if nothing to commit.
+- **`MergeSquashHook`** — Squash-merges the session branch back to the target branch.
 
 ## Design Decisions
 

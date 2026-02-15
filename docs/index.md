@@ -30,6 +30,7 @@ hide:
 - 🔍 **Preflight** — Structured working tree status with diff summary
 - 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes
 - 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
+- 🪝 **Hooks** — Lifecycle hook actions (create-branch, commit-phase, merge-squash) auto-discovered via entry-points
 
 ## Installation
 
