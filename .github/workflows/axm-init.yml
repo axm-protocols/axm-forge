@@ -17,6 +17,7 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
+      - run: uv sync --all-groups
 
       - name: Run AXM Check
         id: check
@@ -31,7 +32,7 @@ jobs:
       - name: Choose badge color
         id: color
         run: |
-          SCORE=${{ steps.check.outputs.score }}
+          SCORE=$(echo "${{ steps.check.outputs.score }}" | cut -d. -f1)
           if [ "$SCORE" -ge 95 ]; then COLOR="brightgreen"
           elif [ "$SCORE" -ge 80 ]; then COLOR="green"
           elif [ "$SCORE" -ge 60 ]; then COLOR="yellow"
