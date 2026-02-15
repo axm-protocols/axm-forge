@@ -66,7 +66,7 @@ All installed AXM tools are immediately available to any MCP client.
 git clone https://github.com/axm-protocols/axm-mcp.git
 cd axm-mcp
 uv sync --all-groups
-uv run pytest           # 58 tests
+uv run pytest           # 68 tests
 uv run ruff check src/  # lint
 ```
 
