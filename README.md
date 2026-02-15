@@ -59,6 +59,7 @@ All installed AXM tools are immediately available to any MCP client.
 | `bib_search` | `axm-bib` | Search academic papers by title |
 | `bib_doi` | `axm-bib` | Resolve DOI → BibTeX |
 | `bib_pdf` | `axm-bib` | Download paper PDF |
+| `bib_extract` | `axm-bib` | Extract text from PDF |
 
 ## Development
 
