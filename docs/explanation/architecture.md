@@ -38,7 +38,7 @@ graph TD
 
 | Module | Key Symbols | Purpose |
 |---|---|---|
-| `mcp_app.py` | `mcp`, `main()` | FastMCP server instance + verify tool registration |
+| `mcp_app.py` | `mcp`, `_verify_tool()`, `main()` | FastMCP server instance + verify tool registration |
 | `discovery.py` | `discover_tools()`, `register_tools()`, `ToolLike` | Entry point scanning + MCP registration |
 | `verify.py` | `verify_project()` | Orchestrate audit + init check + AST enrichment |
 
