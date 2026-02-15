@@ -23,6 +23,7 @@
 - 🔍 **Preflight** — Structured working tree status with diff summary
 - 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes
 - 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
+- 🪝 **Hooks** — Lifecycle hook actions (create-branch, commit-phase, merge-squash) auto-discovered via entry-points
 
 ## Installation
 
@@ -98,7 +99,7 @@ Pipeline: clean tree check → CI status check → semver bump → annotate tag 
 git clone https://github.com/axm-protocols/axm-git.git
 cd axm-git
 uv sync --all-groups
-uv run pytest           # 69 tests
+uv run pytest           # 81 tests
 uv run ruff check src/  # lint
 ```
 
