@@ -27,5 +27,6 @@ All tools registered via `axm.tools` entry points are exposed automatically. Com
 | `bib_search` | `axm-bib` | Search academic papers by title |
 | `bib_doi` | `axm-bib` | Resolve DOI → BibTeX |
 | `bib_pdf` | `axm-bib` | Download paper PDF |
+| `bib_extract` | `axm-bib` | Extract text from PDF |
 
 The exact list depends on which packages are installed. Use `list_tools` to see what's available.
