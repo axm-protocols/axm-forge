@@ -18,7 +18,7 @@ hide:
   <a href="https://github.com/axm-protocols/axm/actions/workflows/ci.yml">
     <img src="https://github.com/axm-protocols/axm/actions/workflows/ci.yml/badge.svg" alt="CI" />
   </a>
-  <a href="https://axm-protocols.github.io/axm-init/">
+  <a href="https://axm-protocols.github.io/axm-init/explanation/check-grades/">
     <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm/gh-pages/badges/axm-init.json" alt="axm-init" />
   </a>
   <a href="https://axm-protocols.github.io/axm-audit/">
