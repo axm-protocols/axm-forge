@@ -2,7 +2,7 @@
 
 ## Overview
 
-`axm-git` provides deterministic MCP tools that wrap Git and GitHub CLI operations. Each tool is a subclass of `AXMTool` (from `axm-core`) and is auto-discovered via Python entry points.
+`axm-git` provides deterministic MCP tools that wrap Git and GitHub CLI operations. Each tool is a subclass of `AXMTool` (from `axm`) and is auto-discovered via Python entry points.
 
 ```mermaid
 graph TD
@@ -25,11 +25,16 @@ graph TD
     subgraph "Core"
         Runner["runner.py"]
         Semver["semver.py"]
+        PhaseCommit["phase_commit.py"]
     end
 
     subgraph "External"
         Git["git CLI"]
         GH["gh CLI"]
+    end
+
+    subgraph "axm"
+        HookBase["hooks.base<br>HookAction / HookResult"]
     end
 
     subgraph "axm-engine"
@@ -45,9 +50,13 @@ graph TD
     Preflight --> Runner
     CB --> Runner
     CP --> Runner
+    CP --> PhaseCommit
     MS --> Runner
     Runner --> Git
     Runner --> GH
+    CB -.-> HookBase
+    CP -.-> HookBase
+    MS -.-> HookBase
     Registry -.->|"entry-point discovery"| CB
     Registry -.-> CP
     Registry -.-> MS
@@ -69,10 +78,13 @@ Shared logic used by multiple tools:
 
 - **`runner.py`** — `run_git()` and `run_gh()` subprocess wrappers, `gh_available()` auth check, `detect_package_name()` from `pyproject.toml`.
 - **`semver.py`** — `parse_tag()` for version parsing, `compute_bump()` for Conventional Commits analysis (returns `VersionBump` with next version + reason).
+- **`phase_commit.py`** — `get_phase_commit()` looks up the commit hash for a given protocol phase name by searching git log.
 
 ### 3. Hooks (`hooks/`)
 
-Lifecycle hook actions conforming to the `HookAction` protocol from `axm-engine`. Auto-discovered via `axm.hooks` entry-points:
+Lifecycle hook actions conforming to the `HookAction` protocol from `axm.hooks.base`. Auto-discovered via `axm.hooks` entry-points.
+
+All hooks accept an `enabled` param (default `True`). Pass `enabled=False` to skip git operations entirely (returns `HookResult.ok(skipped=True, reason="git disabled")`).
 
 - **`CreateBranchHook`** — Creates a session branch `{prefix}/{session_id}`. Skips if not a git repo.
 - **`CommitPhaseHook`** — Stages all changes, commits with `[axm] {phase_name}`. Skips if nothing to commit.
