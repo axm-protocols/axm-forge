@@ -62,3 +62,14 @@ class TestCreateBranchHook:
         result = hook.execute({"session_id": "z"})
         assert result.success
         assert result.metadata["branch"] == "axm/z"
+
+    def test_disabled(self, tmp_git_repo: Path) -> None:
+        """Hook skips when enabled=False."""
+        hook = CreateBranchHook()
+        result = hook.execute(
+            {"working_dir": str(tmp_git_repo), "session_id": "abc123"},
+            enabled=False,
+        )
+        assert result.success
+        assert result.metadata.get("skipped") is True
+        assert result.metadata.get("reason") == "git disabled"

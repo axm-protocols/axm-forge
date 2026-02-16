@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from axm_engine.services.hooks.base import HookResult
+from axm.hooks.base import HookResult
 
 from axm_git.core.runner import run_git
 
@@ -38,6 +38,9 @@ class CommitPhaseHook:
         """
         working_dir = Path(context.get("working_dir", "."))
         phase_name: str = context["phase_name"]
+
+        if not params.get("enabled", True):
+            return HookResult.ok(skipped=True, reason="git disabled")
 
         if not (working_dir / ".git").exists():
             return HookResult.ok(skipped=True, reason="not a git repo")
