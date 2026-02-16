@@ -10,10 +10,21 @@ graph TD
     AXM -->|"discovers"| AUDIT["axm-audit"]
     AXM -->|"discovers"| BIB["axm-bib"]
 
+    subgraph "Base Types"
+        TBase["tools.base<br>AXMTool / ToolResult"]
+        HBase["hooks.base<br>HookAction / HookResult"]
+    end
+
+    GIT["axm-git"] -.->|"imports"| HBase
+    TICKER["axm-ticker"] -.->|"imports"| HBase
+    MCP["axm-mcp"] -.->|"imports"| TBase
+
     style AXM fill:#4CAF50,color:#fff
     style INIT fill:#2196F3,color:#fff
     style AUDIT fill:#2196F3,color:#fff
     style BIB fill:#2196F3,color:#fff
+    style TBase fill:#FF9800,color:#fff
+    style HBase fill:#FF9800,color:#fff
 ```
 
 ## Autodiscovery Pattern
@@ -47,3 +58,4 @@ This is the same pattern used by `axm-mcp` for tool discovery (`axm.tools` group
 | Zero business logic | All functionality lives in dedicated packages |
 | `{domain}_{action}` naming | One name for CLI and MCP — no mental translation |
 | `AXMTool`/`ToolResult` in `axm` | Shared interface, no private dependency needed |
+| `HookAction`/`HookResult` in `axm` | Hooks contract without pulling `axm-engine` deps |
