@@ -45,3 +45,14 @@ class TestCommitPhaseHook:
         )
         assert result.success
         assert result.metadata["skipped"] is True
+
+    def test_disabled(self, tmp_git_repo: Path) -> None:
+        """Hook skips when enabled=False."""
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {"working_dir": str(tmp_git_repo), "phase_name": "plan"},
+            enabled=False,
+        )
+        assert result.success
+        assert result.metadata.get("skipped") is True
+        assert result.metadata.get("reason") == "git disabled"

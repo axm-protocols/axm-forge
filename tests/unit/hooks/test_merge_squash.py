@@ -52,3 +52,18 @@ class TestMergeSquashHook:
             target_branch="nonexistent",
         )
         assert not result.success
+
+    def test_disabled(self, tmp_git_repo: Path) -> None:
+        """Hook skips when enabled=False."""
+        hook = MergeSquashHook()
+        result = hook.execute(
+            {
+                "working_dir": str(tmp_git_repo),
+                "session_id": "abc",
+                "protocol_name": "p",
+            },
+            enabled=False,
+        )
+        assert result.success
+        assert result.metadata.get("skipped") is True
+        assert result.metadata.get("reason") == "git disabled"

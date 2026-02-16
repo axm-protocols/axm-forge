@@ -16,7 +16,6 @@ classifiers = [
 
 dependencies = [
     "axm>=0.1.0",
-    "axm-engine>=0.1.0",
 ]
 
 [project.entry-points."axm.tools"]
