@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Any
 
 from axm_ast.core.analyzer import build_import_graph
+from axm_ast.docstring_parser import parse_docstring
 from axm_ast.models.nodes import (
     ClassInfo,
     FunctionInfo,
@@ -366,7 +367,10 @@ def _format_function_json(fn: FunctionInfo, *, detail: DetailLevel) -> dict[str,
         "is_public": fn.is_public,
     }
     if detail in ("detailed", "full"):
-        result["docstring"] = fn.docstring
+        parsed = parse_docstring(fn.docstring)
+        result["summary"] = parsed.summary
+        result["raises"] = [{"type": exc, "desc": desc} for exc, desc in parsed.raises]
+        result["examples"] = parsed.examples
         result["params"] = [
             {
                 "name": p.name,
@@ -392,7 +396,10 @@ def _format_class_json(cls: ClassInfo, *, detail: DetailLevel) -> dict[str, Any]
         "is_public": cls.is_public,
     }
     if detail in ("detailed", "full"):
-        result["docstring"] = cls.docstring
+        parsed = parse_docstring(cls.docstring)
+        result["summary"] = parsed.summary
+        result["raises"] = [{"type": exc, "desc": desc} for exc, desc in parsed.raises]
+        result["examples"] = parsed.examples
         result["methods"] = [
             _format_function_json(m, detail=detail) for m in cls.methods
         ]
