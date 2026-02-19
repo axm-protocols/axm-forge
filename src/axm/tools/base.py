@@ -15,10 +15,11 @@ Discovery:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["AXMTool", "ToolResult"]
+__all__ = ["AXMTool", "ToolResult", "make_tool_class"]
 
 
 @dataclass(frozen=True)
@@ -69,3 +70,67 @@ class AXMTool(ABC):
         Returns:
             ToolResult with success status and structured data.
         """
+
+
+def _to_class_name(tool_name: str) -> str:
+    """Convert ``word_doc_create`` → ``WordDocCreate``."""
+    return "".join(part.capitalize() for part in tool_name.split("_"))
+
+
+def make_tool_class(
+    tool_name: str,
+    fn: Callable[..., dict[str, Any]],
+) -> type[AXMTool]:
+    """Return an :class:`AXMTool` subclass that wraps a plain function.
+
+    Use this factory when you have many existing functions to expose as
+    AXM tools without writing boilerplate subclasses for each one.  The
+    returned class is instantiable (``cls()``), satisfies the
+    ``ToolLike`` protocol, and can be registered as an ``axm.tools``
+    entry point.
+
+    Args:
+        tool_name: MCP tool name (e.g. ``"word_doc_create"``).
+        fn: Plain callable returning ``dict[str, Any]``.
+
+    Returns:
+        A new :class:`AXMTool` subclass whose ``execute(**kwargs)``
+        delegates to *fn* and wraps the result in a :class:`ToolResult`.
+
+    Example::
+
+        from axm.tools.base import make_tool_class
+
+        def my_fn(*, x: int) -> dict[str, Any]:
+            return {"result": x * 2}
+
+        MyTool = make_tool_class("my_tool", my_fn)
+        assert MyTool().name == "my_tool"
+        assert MyTool().execute(x=3).data == {"result": 6}
+    """
+
+    class _Tool(AXMTool):
+        @property
+        def name(self) -> str:
+            """Return MCP tool name."""
+            return tool_name
+
+        def execute(self, **kwargs: Any) -> ToolResult:
+            """Delegate to the wrapped function.
+
+            Args:
+                **kwargs: Forwarded to the underlying tool function.
+
+            Returns:
+                :class:`ToolResult` wrapping the function output or error.
+            """
+            try:
+                data = fn(**kwargs)
+                return ToolResult(success=True, data=data)
+            except Exception as exc:
+                return ToolResult(success=False, error=str(exc), data={})
+
+    _Tool.__name__ = _to_class_name(tool_name)
+    _Tool.__qualname__ = _to_class_name(tool_name)
+    _Tool.__doc__ = fn.__doc__
+    return _Tool
