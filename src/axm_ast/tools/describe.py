@@ -22,13 +22,22 @@ class DescribeTool(AXMTool):
         return "ast_describe"
 
     def execute(
-        self, *, path: str = ".", compress: bool = False, **kwargs: Any
+        self,
+        *,
+        path: str = ".",
+        compress: bool = False,
+        detail: str = "detailed",
+        **kwargs: Any,
     ) -> ToolResult:
         """Describe a Python package.
 
         Args:
             path: Path to package directory.
             compress: If True, return compressed AI-friendly view.
+            detail: Detail level — ``summary`` (signatures only),
+                ``detailed`` (+ docstrings, params, return types),
+                or ``full`` (+ line numbers, imports, variables).
+                Defaults to ``detailed`` so docstrings are always included.
 
         Returns:
             ToolResult with module descriptions.
@@ -55,7 +64,7 @@ class DescribeTool(AXMTool):
                     },
                 )
 
-            data = format_json(pkg)
+            data = format_json(pkg, detail=detail)
             return ToolResult(
                 success=True,
                 data={
