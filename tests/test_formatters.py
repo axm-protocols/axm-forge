@@ -76,13 +76,13 @@ class TestFormatJson:
     def test_detailed_includes_docstrings(self):
         pkg = analyze_package(SAMPLE_PKG)
         result = format_json(pkg, detail="detailed")
-        # At least one function should have a docstring
-        has_docstring = False
+        # At least one function should have a summary (parsed from docstring)
+        has_summary = False
         for mod in result["modules"]:
             for fn in mod.get("functions", []):
-                if fn.get("docstring"):
-                    has_docstring = True
-        assert has_docstring
+                if fn.get("summary"):
+                    has_summary = True
+        assert has_summary
 
     def test_full_includes_imports(self):
         pkg = analyze_package(SAMPLE_PKG)

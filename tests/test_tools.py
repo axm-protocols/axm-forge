@@ -168,8 +168,8 @@ class TestDescribeTool:
             (f for f in core_mod["functions"] if f["name"] == "greet"), None
         )
         assert greet_fn is not None, "greet function not found"
-        assert "docstring" in greet_fn
-        assert greet_fn["docstring"] == "Say hello."
+        assert "summary" in greet_fn
+        assert greet_fn["summary"] == "Say hello."
 
     def test_execute_summary_excludes_docstrings(self, sample_project: Path) -> None:
         from axm_ast.tools.describe import DescribeTool
@@ -181,8 +181,8 @@ class TestDescribeTool:
         assert result.success is True
         for mod in result.data["modules"]:
             for fn in mod.get("functions", []):
-                msg = f"docstring unexpectedly present in {fn['name']}"
-                assert "docstring" not in fn, msg
+                msg = f"summary unexpectedly present in {fn['name']}"
+                assert "summary" not in fn, msg
 
     def test_execute_full_detail_includes_line_numbers(
         self, sample_project: Path
@@ -218,7 +218,7 @@ class TestDescribeTool:
             (f for f in core_mod["functions"] if f["name"] == "greet"), None
         )
         assert greet_fn is not None
-        assert "docstring" in greet_fn
+        assert "summary" in greet_fn
 
 
 # ===========================================================================
