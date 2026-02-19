@@ -151,6 +151,75 @@ class TestDescribeTool:
         result = tool.execute(path="/nonexistent/path")
         assert result.success is False
 
+    def test_execute_detailed_includes_docstrings(self, sample_project: Path) -> None:
+        from axm_ast.tools.describe import DescribeTool
+
+        tool = DescribeTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), detail="detailed"
+        )
+        assert result.success is True
+        # Find core module with greet function
+        core_mod = next(
+            (m for m in result.data["modules"] if m["name"] == "core"), None
+        )
+        assert core_mod is not None, "core module not found"
+        greet_fn = next(
+            (f for f in core_mod["functions"] if f["name"] == "greet"), None
+        )
+        assert greet_fn is not None, "greet function not found"
+        assert "docstring" in greet_fn
+        assert greet_fn["docstring"] == "Say hello."
+
+    def test_execute_summary_excludes_docstrings(self, sample_project: Path) -> None:
+        from axm_ast.tools.describe import DescribeTool
+
+        tool = DescribeTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), detail="summary"
+        )
+        assert result.success is True
+        for mod in result.data["modules"]:
+            for fn in mod.get("functions", []):
+                msg = f"docstring unexpectedly present in {fn['name']}"
+                assert "docstring" not in fn, msg
+
+    def test_execute_full_detail_includes_line_numbers(
+        self, sample_project: Path
+    ) -> None:
+        from axm_ast.tools.describe import DescribeTool
+
+        tool = DescribeTool()
+        result = tool.execute(path=str(sample_project / "src" / "demo"), detail="full")
+        assert result.success is True
+        core_mod = next(
+            (m for m in result.data["modules"] if m["name"] == "core"), None
+        )
+        assert core_mod is not None
+        greet_fn = next(
+            (f for f in core_mod["functions"] if f["name"] == "greet"), None
+        )
+        assert greet_fn is not None
+        assert "line_start" in greet_fn
+        assert "line_end" in greet_fn
+
+    def test_execute_default_detail_is_detailed(self, sample_project: Path) -> None:
+        from axm_ast.tools.describe import DescribeTool
+
+        tool = DescribeTool()
+        result = tool.execute(path=str(sample_project / "src" / "demo"))
+        assert result.success is True
+        # Default should include docstrings (detail="detailed")
+        core_mod = next(
+            (m for m in result.data["modules"] if m["name"] == "core"), None
+        )
+        assert core_mod is not None
+        greet_fn = next(
+            (f for f in core_mod["functions"] if f["name"] == "greet"), None
+        )
+        assert greet_fn is not None
+        assert "docstring" in greet_fn
+
 
 # ===========================================================================
 # ast_search
