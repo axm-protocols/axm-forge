@@ -15,6 +15,12 @@ Starts the FastMCP server, auto-discovers all installed `axm.tools` entry points
 | `list_tools` | List all discovered tools with names and descriptions |
 | `verify` | One-shot quality check: audit + init check + AST enrichment |
 
+### MCP Resources
+
+| URI | Description |
+|---|---|
+| `axm://tools` | JSON catalog of all registered tools (via `read_resource`) |
+
 ### Discovered Tools
 
 All tools registered via `axm.tools` entry points are exposed automatically. Common tools include:
