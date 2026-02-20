@@ -23,7 +23,8 @@ init   = ["axm-init"]
 audit  = ["axm-audit"]
 bib    = ["axm-bib"]
 mcp    = ["axm-mcp"]
-all    = ["axm-init", "axm-audit", "axm-bib", "axm-mcp"]
+word   = ["axm-word"]
+all    = ["axm-init", "axm-audit", "axm-bib", "axm-mcp", "axm-word"]
 
 [project.scripts]
 axm = "axm.cli:app"
