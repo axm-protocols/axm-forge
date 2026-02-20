@@ -239,12 +239,12 @@ class TestFormatJsonDocstringIntegration:
                     "docstring" not in fn
                 ), f"raw docstring still present in {fn['name']}"
 
-    def test_detailed_raises_is_list(self) -> None:
+    def test_full_raises_is_list(self) -> None:
         from axm_ast.core.analyzer import analyze_package
         from axm_ast.formatters import format_json
 
         pkg = analyze_package(SAMPLE_PKG)
-        data = format_json(pkg, detail="detailed")
+        data = format_json(pkg, detail="full")
         for mod in data["modules"]:
             for fn in mod.get("functions", []):
                 assert isinstance(

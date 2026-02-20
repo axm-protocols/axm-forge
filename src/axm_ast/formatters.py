@@ -27,6 +27,8 @@ __all__ = [
     "format_compressed",
     "format_json",
     "format_mermaid",
+    "format_module_inspect_text",
+    "format_symbol_text",
     "format_text",
 ]
 
@@ -106,8 +108,9 @@ def _format_module_text(
     lines.append(f"  📄 {mod_name}")
 
     if detail in ("detailed", "full") and mod.docstring:
-        first_line = mod.docstring.strip().split("\n")[0]
-        lines.append(f"     {first_line}")
+        summary = parse_docstring(mod.docstring).summary
+        if summary:
+            lines.append(f"     {summary}")
 
     for fn in mod.functions:
         lines.extend(_format_fn_text(fn, detail=detail))
@@ -126,8 +129,9 @@ def _format_fn_text(fn: FunctionInfo, *, detail: DetailLevel) -> list[str]:
     icon = "🔒" if not fn.is_public else "🔓"
     lines = [f"     {icon} {fn.signature}"]
     if detail in ("detailed", "full") and fn.docstring:
-        first_line = fn.docstring.strip().split("\n")[0]
-        lines.append(f"       {first_line}")
+        summary = parse_docstring(fn.docstring).summary
+        if summary:
+            lines.append(f"       {summary}")
     return lines
 
 
@@ -137,8 +141,9 @@ def _format_cls_text(cls: ClassInfo, *, detail: DetailLevel) -> list[str]:
     icon = "🔒" if not cls.is_public else "🔓"
     lines = [f"     {icon} class {cls.name}{bases}"]
     if detail in ("detailed", "full") and cls.docstring:
-        first_line = cls.docstring.strip().split("\n")[0]
-        lines.append(f"       {first_line}")
+        summary = parse_docstring(cls.docstring).summary
+        if summary:
+            lines.append(f"       {summary}")
     if detail == "full":
         for method in cls.methods:
             lines.append(f"       · {method.signature}")
@@ -192,8 +197,9 @@ def _compress_module(mod: ModuleInfo, pkg: PackageInfo) -> list[str]:
     lines.append(f"# {mod_name}")
 
     if mod.docstring:
-        first_line = mod.docstring.strip().split("\n")[0]
-        lines.append(f'"""{first_line}"""')
+        summary = parse_docstring(mod.docstring).summary
+        if summary:
+            lines.append(f'"""{summary}"""')
 
     lines.extend(_compress_variables(mod))
     lines.extend(_compress_relative_imports(mod))
@@ -256,9 +262,9 @@ def _compress_function(fn: FunctionInfo, indent: int = 0) -> list[str]:
     """Format a function in compressed mode."""
     pad = "    " * indent
     lines = [f"{pad}{fn.signature}:"]
-    if fn.docstring:
-        first_line = fn.docstring.strip().split("\n")[0]
-        lines.append(f'{pad}    """{first_line}"""')
+    summary = parse_docstring(fn.docstring).summary if fn.docstring else None
+    if summary:
+        lines.append(f'{pad}    """{summary}"""')
     else:
         lines[-1] += " ..."
     return lines
@@ -269,14 +275,87 @@ def _compress_class(cls: ClassInfo) -> list[str]:
     bases = f"({', '.join(cls.bases)})" if cls.bases else ""
     lines = [f"class {cls.name}{bases}:"]
     if cls.docstring:
-        first_line = cls.docstring.strip().split("\n")[0]
-        lines.append(f'    """{first_line}"""')
+        summary = parse_docstring(cls.docstring).summary
+        if summary:
+            lines.append(f'    """{summary}"""')
     if cls.methods:
         for method in cls.methods:
             lines.extend(_compress_function(method, indent=1))
     elif not cls.docstring:
         lines.append("    ...")
     return lines
+
+
+# ─── Single-symbol formatters (used by CLI inspect) ─────────────────────────
+
+
+def format_symbol_text(symbol: FunctionInfo | ClassInfo) -> str:
+    """Format a single symbol for human-readable inspect output.
+
+    Args:
+        symbol: A function or class info object.
+
+    Returns:
+        Formatted text string.
+    """
+    lines: list[str] = []
+    if isinstance(symbol, FunctionInfo):
+        lines.append(f"🔍 {symbol.signature}")
+        parsed = parse_docstring(symbol.docstring)
+        if parsed.summary:
+            lines.append(f"   {parsed.summary}")
+        if parsed.raises:
+            for exc, desc in parsed.raises:
+                lines.append(f"   raises {exc}: {desc}")
+        if parsed.examples:
+            lines.append("   examples:")
+            for ex in parsed.examples:
+                for ex_line in ex.splitlines():
+                    lines.append(f"     {ex_line}")
+        lines.append(f"   kind: {symbol.kind.value}")
+        lines.append(f"   lines: {symbol.line_start}-{symbol.line_end}")
+    elif isinstance(symbol, ClassInfo):
+        bases = f"({', '.join(symbol.bases)})" if symbol.bases else ""
+        lines.append(f"🔍 class {symbol.name}{bases}")
+        parsed = parse_docstring(symbol.docstring)
+        if parsed.summary:
+            lines.append(f"   {parsed.summary}")
+        for m in symbol.methods:
+            lines.append(f"   · {m.signature}")
+    return "\n".join(lines)
+
+
+def format_module_inspect_text(mod: ModuleInfo) -> str:
+    """Format a single module for human-readable inspect output.
+
+    Args:
+        mod: Module info object.
+
+    Returns:
+        Formatted text string.
+    """
+    lines: list[str] = []
+    lines.append(f"📄 {mod.path.name}")
+    summary = parse_docstring(mod.docstring).summary if mod.docstring else None
+    if summary:
+        lines.append(f"   {summary}")
+    lines.append("")
+
+    for fn in mod.functions:
+        pub = "🔓" if fn.is_public else "🔒"
+        lines.append(f"  {pub} {fn.signature}")
+        fn_summary = parse_docstring(fn.docstring).summary if fn.docstring else None
+        if fn_summary:
+            lines.append(f"     {fn_summary}")
+
+    for cls in mod.classes:
+        pub = "🔓" if cls.is_public else "🔒"
+        bases = f"({', '.join(cls.bases)})" if cls.bases else ""
+        lines.append(f"  {pub} class {cls.name}{bases}")
+        for m in cls.methods:
+            lines.append(f"     · {m.signature}")
+
+    return "\n".join(lines)
 
 
 # ─── JSON formatter ──────────────────────────────────────────────────────────
@@ -369,22 +448,24 @@ def _format_function_json(fn: FunctionInfo, *, detail: DetailLevel) -> dict[str,
     if detail in ("detailed", "full"):
         parsed = parse_docstring(fn.docstring)
         result["summary"] = parsed.summary
-        result["raises"] = [{"type": exc, "desc": desc} for exc, desc in parsed.raises]
-        result["examples"] = parsed.examples
-        result["params"] = [
-            {
-                "name": p.name,
-                "annotation": p.annotation,
-                "default": p.default,
-            }
-            for p in fn.params
-        ]
-        result["return_type"] = fn.return_type
-        result["decorators"] = fn.decorators
-    if detail == "full":
-        result["line_start"] = fn.line_start
-        result["line_end"] = fn.line_end
-        result["is_async"] = fn.is_async
+        if detail == "full":
+            result["raises"] = [
+                {"type": exc, "desc": desc} for exc, desc in parsed.raises
+            ]
+            result["examples"] = parsed.examples
+            result["params"] = [
+                {
+                    "name": p.name,
+                    "annotation": p.annotation,
+                    "default": p.default,
+                }
+                for p in fn.params
+            ]
+            result["return_type"] = fn.return_type
+            result["decorators"] = fn.decorators
+            result["line_start"] = fn.line_start
+            result["line_end"] = fn.line_end
+            result["is_async"] = fn.is_async
     return result
 
 
@@ -398,15 +479,17 @@ def _format_class_json(cls: ClassInfo, *, detail: DetailLevel) -> dict[str, Any]
     if detail in ("detailed", "full"):
         parsed = parse_docstring(cls.docstring)
         result["summary"] = parsed.summary
-        result["raises"] = [{"type": exc, "desc": desc} for exc, desc in parsed.raises]
-        result["examples"] = parsed.examples
         result["methods"] = [
             _format_function_json(m, detail=detail) for m in cls.methods
         ]
-        result["decorators"] = cls.decorators
-    if detail == "full":
-        result["line_start"] = cls.line_start
-        result["line_end"] = cls.line_end
+        if detail == "full":
+            result["raises"] = [
+                {"type": exc, "desc": desc} for exc, desc in parsed.raises
+            ]
+            result["examples"] = parsed.examples
+            result["decorators"] = cls.decorators
+            result["line_start"] = cls.line_start
+            result["line_end"] = cls.line_end
     return result
 
 
