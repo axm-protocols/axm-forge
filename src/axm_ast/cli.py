@@ -26,8 +26,14 @@ from axm_ast.core.analyzer import (
     search_symbols,
 )
 from axm_ast.core.parser import extract_module_info
-from axm_ast.formatters import format_json, format_mermaid, format_text
-from axm_ast.models.nodes import FunctionKind
+from axm_ast.formatters import (
+    format_json,
+    format_mermaid,
+    format_module_inspect_text,
+    format_symbol_text,
+    format_text,
+)
+from axm_ast.models.nodes import FunctionKind, ModuleInfo
 
 __all__ = ["app"]
 
@@ -134,107 +140,39 @@ def inspect(
     mod = extract_module_info(file_path)
 
     if symbol:
-        _print_symbol(mod, symbol, json_output=json_output)
+        _inspect_symbol(mod, symbol, json_output=json_output)
     else:
-        _print_module(mod, json_output=json_output)
+        _inspect_module(mod, json_output=json_output)
 
 
-def _print_symbol(mod: object, name: str, *, json_output: bool) -> None:
-    """Print information about a specific symbol."""
-    from axm_ast.models.nodes import ModuleInfo
-
-    assert isinstance(mod, ModuleInfo)
-
+def _inspect_symbol(mod: ModuleInfo, name: str, *, json_output: bool) -> None:
+    """Find and print a single symbol from a module."""
     for fn in mod.functions:
         if fn.name == name:
-            _print_fn_detail(fn, json_output=json_output)
+            if json_output:
+                print(json.dumps(fn.model_dump(mode="json"), indent=2))
+            else:
+                print(format_symbol_text(fn))
             return
 
     for cls in mod.classes:
         if cls.name == name:
-            _print_cls_detail(cls, json_output=json_output)
+            if json_output:
+                print(json.dumps(cls.model_dump(mode="json"), indent=2))
+            else:
+                print(format_symbol_text(cls))
             return
 
     print(f"❌ Symbol '{name}' not found", file=sys.stderr)
     raise SystemExit(1)
 
 
-def _print_fn_detail(fn: object, *, json_output: bool) -> None:
-    """Print detailed function info."""
-    from axm_ast.models.nodes import FunctionInfo
-
-    assert isinstance(fn, FunctionInfo)
-    if json_output:
-        print(json.dumps(fn.model_dump(mode="json"), indent=2))
-    else:
-        print(f"🔍 {fn.signature}")
-        if fn.docstring:
-            print(f"   {fn.docstring.strip()}")
-        print(f"   kind: {fn.kind.value}")
-        print(f"   lines: {fn.line_start}-{fn.line_end}")
-
-
-def _print_cls_detail(cls: object, *, json_output: bool) -> None:
-    """Print detailed class info."""
-    from axm_ast.models.nodes import ClassInfo
-
-    assert isinstance(cls, ClassInfo)
-    if json_output:
-        print(json.dumps(cls.model_dump(mode="json"), indent=2))
-    else:
-        bases = f"({', '.join(cls.bases)})" if cls.bases else ""
-        print(f"🔍 class {cls.name}{bases}")
-        if cls.docstring:
-            print(f"   {cls.docstring.strip()}")
-        for m in cls.methods:
-            print(f"   · {m.signature}")
-
-
-def _print_module(mod: object, *, json_output: bool) -> None:
+def _inspect_module(mod: ModuleInfo, *, json_output: bool) -> None:
     """Print full module information."""
-    from axm_ast.models.nodes import ModuleInfo
-
-    assert isinstance(mod, ModuleInfo)
-
     if json_output:
         print(json.dumps(mod.model_dump(mode="json"), indent=2))
-        return
-
-    print(f"📄 {mod.path.name}")
-    if mod.docstring:
-        first_line = mod.docstring.strip().split("\n")[0]
-        print(f"   {first_line}")
-    print()
-
-    for fn in mod.functions:
-        _print_fn_summary(fn)
-
-    for cls in mod.classes:
-        _print_cls_summary(cls)
-
-
-def _print_fn_summary(fn: object) -> None:
-    """Print a function summary line."""
-    from axm_ast.models.nodes import FunctionInfo
-
-    assert isinstance(fn, FunctionInfo)
-    pub = "🔓" if fn.is_public else "🔒"
-    print(f"  {pub} {fn.signature}")
-    if fn.docstring:
-        first_line = fn.docstring.strip().split("\n")[0]
-        print(f"     {first_line}")
-
-
-def _print_cls_summary(cls: object) -> None:
-    """Print a class summary line."""
-    from axm_ast.models.nodes import ClassInfo
-
-    assert isinstance(cls, ClassInfo)
-    pub = "🔓" if cls.is_public else "🔒"
-    bases = f"({', '.join(cls.bases)})" if cls.bases else ""
-    print(f"  {pub} class {cls.name}{bases}")
-    for m in cls.methods:
-        print(f"     · {m.signature}")
+    else:
+        print(format_module_inspect_text(mod))
 
 
 @app.command()
