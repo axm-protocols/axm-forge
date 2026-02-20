@@ -23,7 +23,7 @@
 ## Features
 
 - 🔌 **Autodiscovery** — automatically finds commands from installed AXM packages via entry points
-- 🧩 **Modular** — install only what you need (`axm[init]`, `axm[audit]`, `axm[bib]`)
+- 🧩 **Modular** — install only what you need (`axm[init]`, `axm[audit]`, `axm[bib]`, `axm[mcp]`)
 - 🛠️ **Shared interface** — provides `AXMTool` and `ToolResult` base classes for tool development
 - 📦 **Minimal** — only depends on `cyclopts`, everything else is optional
 
@@ -34,6 +34,7 @@ uv add axm              # CLI shell only
 uv add axm[init]        # + scaffolding & project checks
 uv add axm[audit]       # + code quality audits
 uv add axm[bib]         # + bibliography tools
+uv add axm[mcp]         # + MCP server (for AI agents)
 uv add axm[all]         # everything
 ```
 
@@ -45,6 +46,7 @@ pip install axm              # CLI shell only
 pip install axm[init]        # + scaffolding & project checks
 pip install axm[audit]       # + code quality audits
 pip install axm[bib]         # + bibliography tools
+pip install axm[mcp]         # + MCP server (for AI agents)
 pip install axm[all]         # everything
 ```
 

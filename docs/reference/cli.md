@@ -23,6 +23,7 @@ Commands depend on which AXM packages are installed:
 | `axm-bib doi` | `axm-bib` | Resolve DOI to BibTeX |
 | `axm-bib pdf` | `axm-bib` | Download + extract paper PDFs |
 | `axm-bib extract` | `axm-bib` | Extract local PDF to Markdown |
+| `axm-mcp` | `axm-mcp` | MCP server exposing all AXM tools to AI agents |
 
 ## Python API
 

@@ -44,6 +44,7 @@ hide:
     uv add axm              # CLI shell only
     uv add axm[init]        # + scaffolding & project checks
     uv add axm[audit]       # + code quality audits
+    uv add axm[mcp]         # + MCP server (for AI agents)
     uv add axm[all]         # entire ecosystem
     ```
 
@@ -53,6 +54,7 @@ hide:
     pip install axm              # CLI shell only
     pip install axm[init]        # + scaffolding & project checks
     pip install axm[audit]       # + code quality audits
+    pip install axm[mcp]         # + MCP server (for AI agents)
     pip install axm[all]         # entire ecosystem
     ```
 
