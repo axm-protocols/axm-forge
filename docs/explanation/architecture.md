@@ -10,6 +10,7 @@ graph TD
         Server["FastMCP Server"]
         ListTools["list_tools()"]
         Verify["verify()"]
+        Catalog["axm://tools resource"]
     end
 
     subgraph "Discovery"
@@ -26,6 +27,7 @@ graph TD
 
     Server --> ListTools
     Server --> Verify
+    Server --> Catalog
     Server --> Discover
     Discover --> EP
     EP --> Audit
@@ -38,7 +40,7 @@ graph TD
 
 | Module | Key Symbols | Purpose |
 |---|---|---|
-| `mcp_app.py` | `mcp`, `_verify_tool()`, `main()` | FastMCP server instance + verify tool registration |
+| `mcp_app.py` | `mcp`, `_verify_tool()`, `_tool_catalog()`, `main()` | FastMCP server instance + verify tool + tool catalog resource |
 | `discovery.py` | `discover_tools()`, `register_tools()`, `ToolLike` | Entry point scanning + MCP registration |
 | `verify.py` | `verify_project()` | Orchestrate audit + init check + AST enrichment |
 
@@ -56,5 +58,6 @@ graph TD
 
 1. **Startup**: `discover_tools()` scans `axm.tools` entry points
 2. **Registration**: `register_tools()` wraps each tool as an MCP callable
-3. **Execution**: MCP client calls tool → wrapper delegates to `tool.execute(**kwargs)` → returns `ToolResult`
-4. **Verify**: `verify_project()` chains audit → init_check → AST enrichment
+3. **Resource**: `_tool_catalog()` exposes the tool catalog via `axm://tools` MCP resource
+4. **Execution**: MCP client calls tool → wrapper delegates to `tool.execute(**kwargs)` → returns `ToolResult`
+5. **Verify**: `verify_project()` chains audit → init_check → AST enrichment
