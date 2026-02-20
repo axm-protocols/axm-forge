@@ -5,7 +5,7 @@ import inspect
 import logging
 from typing import Any, Protocol, runtime_checkable
 
-__all__ = ["discover_tools", "register_tools"]
+__all__ = ["_collect_dispatcher_params", "discover_tools", "register_tools"]
 
 logger = logging.getLogger(__name__)
 
@@ -29,15 +29,21 @@ class ToolLike(Protocol):
 def discover_tools() -> dict[str, Any]:
     """Discover and instantiate all AXMTool entry points.
 
+    Supports both ``AXMTool`` subclasses (instantiated) and plain
+    dispatcher functions (used as-is).
+
     Returns:
-        Dict mapping tool name → tool instance.
+        Dict mapping tool name → tool instance or callable.
     """
     tools: dict[str, Any] = {}
 
     for ep in importlib.metadata.entry_points(group=_EP_GROUP):
         try:
-            tool_cls = ep.load()
-            tool = tool_cls()
+            obj = ep.load()
+            if isinstance(obj, type):
+                tool = obj()  # AXMTool class → instantiate
+            else:
+                tool = obj  # plain function → use as-is
             tools[ep.name] = tool
             logger.debug("Discovered tool: %s", ep.name)
         except Exception:
@@ -74,40 +80,154 @@ def register_tools(
     _register_list_tools(mcp, tools, extra_tools or {})
 
 
-def _register_one(mcp: Any, name: str, tool: Any) -> None:
+def _find_actions_dict(
+    module: Any | None,
+) -> dict[str, Any] | None:
+    """Find a ``_*_ACTIONS`` dict on *module*."""
+    if module is None:
+        return None
+    for attr_name in dir(module):
+        if attr_name.endswith("_ACTIONS"):
+            candidate = getattr(module, attr_name, None)
+            if isinstance(candidate, dict):
+                return candidate
+    return None
+
+
+def _union_subfn_params(
+    actions_dict: dict[str, Any],
+) -> dict[str, inspect.Parameter]:
+    """Collect all typed params from sub-functions, made optional."""
+    seen: dict[str, inspect.Parameter] = {}
+    for sub_fn in actions_dict.values():
+        try:
+            sub_sig = inspect.signature(sub_fn)
+        except (ValueError, TypeError):
+            continue
+        for p in sub_sig.parameters.values():
+            if p.name == "self" or p.kind == inspect.Parameter.VAR_KEYWORD:
+                continue
+            if p.name not in seen:
+                default = (
+                    p.default if p.default is not inspect.Parameter.empty else None
+                )
+                seen[p.name] = p.replace(default=default)
+    return seen
+
+
+def _collect_dispatcher_params(
+    fn: Any,
+    *,
+    override_module: Any | None = None,
+) -> list[inspect.Parameter] | None:
+    """Collect union of typed params from dispatcher sub-functions.
+
+    A *dispatcher* is a function with ``action: str`` + ``**kwargs``
+    that routes to sub-functions stored in a module-level ``_*_ACTIONS``
+    dict.  This helper introspects all sub-functions and returns the
+    union of their parameters (all made optional).
+
+    Args:
+        fn: The dispatcher function to introspect.
+        override_module: Module to search for ``_*_ACTIONS`` dict.
+            If *None*, uses ``inspect.getmodule(fn)``.
+
+    Returns:
+        List of ``inspect.Parameter`` if *fn* is a dispatcher, else *None*.
+    """
+    try:
+        sig = inspect.signature(fn)
+    except (ValueError, TypeError):
+        return None
+
+    params = list(sig.parameters.values())
+
+    # Detect dispatcher pattern: has 'action' param + VAR_KEYWORD
+    has_action = any(p.name == "action" for p in params)
+    has_varkw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params)
+    if not (has_action and has_varkw):
+        return None
+
+    # Find the _ACTIONS dict by convention
+    module = override_module or inspect.getmodule(fn)
+    actions_dict = _find_actions_dict(module)
+    if not actions_dict:
+        return None
+
+    # Collect + build final: action (required) + sub-fn params (optional)
+    seen = _union_subfn_params(actions_dict)
+    action_param = next(p for p in params if p.name == "action")
+    return [action_param, *sorted(seen.values(), key=lambda p: p.name)]
+
+
+def _register_one(
+    mcp: Any,
+    name: str,
+    tool: Any,
+    *,
+    override_module: Any | None = None,
+) -> None:
     """Register a single tool, capturing in closure.
 
-    Sets the ``execute()`` method's typed signature on the wrapper
+    Supports both ``AXMTool`` instances (with ``.execute()``) and plain
+    dispatcher functions.  Sets the typed signature on the wrapper
     **before** handing it to ``mcp.tool()``, so FastMCP generates the
     correct JSON-Schema for the tool's parameters.
+
+    For *dispatcher* functions (``action`` + ``**kwargs``), introspects
+    sub-functions to build a union of all their typed parameters.
+
+    Args:
+        mcp: FastMCP server instance.
+        name: Tool name for MCP registration.
+        tool: Tool instance or plain function.
+        override_module: For testing — module to search for ``_*_ACTIONS``.
     """
-    exec_fn = tool.execute
+    is_plain = callable(tool) and not hasattr(tool, "execute")
+    exec_fn: Any = tool if is_plain else tool.execute
 
-    def _wrapper(**kwargs: Any) -> dict[str, Any]:
-        # MCP may nest action args inside a "kwargs" key — unwrap & merge.
-        if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
-            nested = kwargs.pop("kwargs")
-            kwargs.update(nested)
-        result = tool.execute(**kwargs)
-        output: dict[str, Any] = {"success": result.success, **result.data}
-        if result.error:
-            output["error"] = result.error
-        return output
+    if is_plain:
 
-    # Copy docstring from the tool's execute method.
+        def _wrapper(**kwargs: Any) -> dict[str, Any]:
+            # MCP may nest action args inside a "kwargs" key — unwrap.
+            if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
+                nested = kwargs.pop("kwargs")
+                kwargs.update(nested)
+            result: dict[str, Any] = tool(**kwargs)
+            return result
+
+    else:
+
+        def _wrapper(**kwargs: Any) -> dict[str, Any]:
+            # MCP may nest action args inside a "kwargs" key — unwrap.
+            if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
+                nested = kwargs.pop("kwargs")
+                kwargs.update(nested)
+            result = tool.execute(**kwargs)
+            output: dict[str, Any] = {"success": result.success, **result.data}
+            if result.error:
+                output["error"] = result.error
+            return output
+
+    # Copy docstring.
     _wrapper.__doc__ = exec_fn.__doc__ or f"Execute {name} tool."
 
-    # Build a signature from execute() minus 'self' and any **kwargs
-    # so FastMCP can introspect the real typed parameters without
-    # generating a spurious required 'kwargs' field in the schema.
+    # For dispatchers (action + **kwargs), build union of sub-fn params.
+    # For regular tools, strip 'self' and **kwargs.
     try:
-        exec_sig = inspect.signature(exec_fn)
-        params = [
-            p
-            for p in exec_sig.parameters.values()
-            if p.name != "self" and p.kind != inspect.Parameter.VAR_KEYWORD
-        ]
-        _wrapper.__signature__ = exec_sig.replace(  # type: ignore[attr-defined]
+        union_params = _collect_dispatcher_params(
+            exec_fn, override_module=override_module
+        )
+        if union_params is not None:
+            params = union_params
+        else:
+            exec_sig = inspect.signature(exec_fn)
+            params = [
+                p
+                for p in exec_sig.parameters.values()
+                if p.name != "self" and p.kind != inspect.Parameter.VAR_KEYWORD
+            ]
+        _wrapper.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
             parameters=params,
             return_annotation=dict[str, Any],
         )
@@ -116,6 +236,15 @@ def _register_one(mcp: Any, name: str, tool: Any) -> None:
 
     # Register AFTER setting the signature so FastMCP sees it.
     mcp.tool(name=name)(_wrapper)
+
+
+def _get_tool_doc(tool: Any) -> str:
+    """Extract the first-line docstring from a tool or plain callable."""
+    if callable(tool) and not hasattr(tool, "execute"):
+        doc = tool.__doc__ or ""
+    else:
+        doc = getattr(tool.execute, "__doc__", None) or ""
+    return doc.strip().split("\n")[0]
 
 
 def _register_list_tools(
@@ -130,8 +259,7 @@ def _register_list_tools(
         """List all available AXM tools with their names and descriptions."""
         tool_list = []
         for name, tool in sorted(tools.items()):
-            doc = (tool.execute.__doc__ or "").strip().split("\n")[0]
-            tool_list.append({"name": name, "description": doc})
+            tool_list.append({"name": name, "description": _get_tool_doc(tool)})
         for name, desc in sorted(extra_tools.items()):
             tool_list.append({"name": name, "description": desc})
         tool_list.sort(key=lambda t: t["name"])
