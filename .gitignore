@@ -44,3 +44,6 @@ site/
 # OS
 .DS_Store
 Thumbs.db
+
+# Auto-generated version file (hatch-vcs)
+src/axm_ast/_version.py
