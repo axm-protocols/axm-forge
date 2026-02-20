@@ -6,6 +6,7 @@ Discovers all AXMTool entry points from installed packages
 Zero imports from axm core — fully decoupled.
 """
 
+import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -39,6 +40,27 @@ def _verify_tool(**kwargs: Any) -> dict[str, Any]:
         kwargs = kwargs["kwargs"]
     path = kwargs.get("path", ".")
     return verify_project(str(path), _discovered_tools)
+
+
+# ── MCP Resource: tool catalog ──────────────────────────────
+@mcp.resource(
+    "axm://tools",
+    name="tool_catalog",
+    description="Catalog of all registered AXM tools with names and descriptions.",
+    mime_type="application/json",
+)
+def _tool_catalog() -> str:
+    """Return JSON catalog of all registered AXM tools."""
+    catalog = []
+    for name, tool in sorted(_discovered_tools.items()):
+        doc = (tool.execute.__doc__ or "").strip().split("\n")[0]
+        catalog.append({"name": name, "description": doc})
+    catalog.append({"name": "verify", "description": "One-shot project verification."})
+    catalog.append(
+        {"name": "list_tools", "description": "List all available AXM tools."}
+    )
+    catalog.sort(key=lambda t: t["name"])
+    return json.dumps({"tools": catalog, "count": len(catalog)}, indent=2)
 
 
 # Entry point for MCP CLI
