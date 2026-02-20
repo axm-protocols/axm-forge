@@ -100,11 +100,7 @@ def _register_one(mcp: Any, name: str, tool: Any) -> None:
     # so FastMCP can introspect the real typed parameters.
     try:
         exec_sig = inspect.signature(exec_fn)
-        params = [
-            p
-            for p in exec_sig.parameters.values()
-            if p.name != "self" and p.kind != inspect.Parameter.VAR_KEYWORD
-        ]
+        params = [p for p in exec_sig.parameters.values() if p.name != "self"]
         _wrapper.__signature__ = exec_sig.replace(  # type: ignore[attr-defined]
             parameters=params,
             return_annotation=dict[str, Any],
