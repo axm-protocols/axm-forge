@@ -22,7 +22,8 @@ dependencies = [
 init   = ["axm-init"]
 audit  = ["axm-audit"]
 bib    = ["axm-bib"]
-all    = ["axm-init", "axm-audit", "axm-bib"]
+mcp    = ["axm-mcp"]
+all    = ["axm-init", "axm-audit", "axm-bib", "axm-mcp"]
 
 [project.scripts]
 axm = "axm.cli:app"

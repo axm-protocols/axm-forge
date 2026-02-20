@@ -29,6 +29,12 @@ Install the CLI with the plugins you need:
     pip install axm[all]
     ```
 
+=== "MCP server"
+
+    ```bash
+    pip install axm[mcp]
+    ```
+
 ## Step 1: Check Available Commands
 
 ```bash
@@ -50,6 +56,7 @@ axm audit .                   # run quality checks
 | `init` | `axm-init` | `axm init_scaffold`, `axm init_check`, `axm init_reserve` |
 | `audit` | `axm-audit` | `axm audit` |
 | `bib` | `axm-bib` | `axm-bib search`, `axm-bib pdf`, `axm-bib doi` |
+| `mcp` | `axm-mcp` | `axm-mcp` (MCP server for AI agents) |
 | `all` | Everything above | All commands |
 
 ## Next Steps

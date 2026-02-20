@@ -39,5 +39,6 @@ After installing your package, `axm mycommand` will be available automatically.
 # Install only what you need
 pip install axm[init]        # scaffolding
 pip install axm[init,audit]  # scaffolding + quality
+pip install axm[mcp]         # MCP server for AI agents
 pip install axm[all]         # everything
 ```
