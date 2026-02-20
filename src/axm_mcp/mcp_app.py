@@ -36,8 +36,9 @@ def _verify_tool(**kwargs: Any) -> dict[str, Any]:
     Args:
         path: Path to project root to verify.
     """
-    if list(kwargs.keys()) == ["kwargs"] and isinstance(kwargs["kwargs"], dict):
-        kwargs = kwargs["kwargs"]
+    if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
+        nested = kwargs.pop("kwargs")
+        kwargs.update(nested)
     path = kwargs.get("path", ".")
     return verify_project(str(path), _discovered_tools)
 

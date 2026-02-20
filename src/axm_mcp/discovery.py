@@ -84,9 +84,10 @@ def _register_one(mcp: Any, name: str, tool: Any) -> None:
     exec_fn = tool.execute
 
     def _wrapper(**kwargs: Any) -> dict[str, Any]:
-        # MCP may wrap args as kwargs={"key": "val"} — unwrap.
-        if list(kwargs.keys()) == ["kwargs"] and isinstance(kwargs["kwargs"], dict):
-            kwargs = kwargs["kwargs"]
+        # MCP may nest action args inside a "kwargs" key — unwrap & merge.
+        if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
+            nested = kwargs.pop("kwargs")
+            kwargs.update(nested)
         result = tool.execute(**kwargs)
         output: dict[str, Any] = {"success": result.success, **result.data}
         if result.error:
