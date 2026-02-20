@@ -1,15 +1,7 @@
-"""Auto-discovery of tool entry points for MCP registration.
-
-Scans ``axm.tools`` entry points from all installed packages
-(e.g. ``axm``, ``axm-bib``, ``axm-formal``) and registers each tool
-as an MCP tool callable.
-
-No imports from axm core — uses duck typing via Protocol.
-"""
-
 from __future__ import annotations
 
 import importlib.metadata
+import inspect
 import logging
 from typing import Any, Protocol, runtime_checkable
 
@@ -83,9 +75,14 @@ def register_tools(
 
 
 def _register_one(mcp: Any, name: str, tool: Any) -> None:
-    """Register a single tool, capturing in closure."""
+    """Register a single tool, capturing in closure.
 
-    @mcp.tool(name=name)  # type: ignore[untyped-decorator]
+    Sets the ``execute()`` method's typed signature on the wrapper
+    **before** handing it to ``mcp.tool()``, so FastMCP generates the
+    correct JSON-Schema for the tool's parameters.
+    """
+    exec_fn = tool.execute
+
     def _wrapper(**kwargs: Any) -> dict[str, Any]:
         # MCP may wrap args as kwargs={"key": "val"} — unwrap.
         if list(kwargs.keys()) == ["kwargs"] and isinstance(kwargs["kwargs"], dict):
@@ -96,8 +93,27 @@ def _register_one(mcp: Any, name: str, tool: Any) -> None:
             output["error"] = result.error
         return output
 
-    # Give the wrapper a useful docstring from the tool class
-    _wrapper.__doc__ = tool.execute.__doc__ or f"Execute {name} tool."
+    # Copy docstring from the tool's execute method.
+    _wrapper.__doc__ = exec_fn.__doc__ or f"Execute {name} tool."
+
+    # Build a signature from execute() minus 'self' and '**kwargs'
+    # so FastMCP can introspect the real typed parameters.
+    try:
+        exec_sig = inspect.signature(exec_fn)
+        params = [
+            p
+            for p in exec_sig.parameters.values()
+            if p.name != "self" and p.kind != inspect.Parameter.VAR_KEYWORD
+        ]
+        _wrapper.__signature__ = exec_sig.replace(  # type: ignore[attr-defined]
+            parameters=params,
+            return_annotation=dict[str, Any],
+        )
+    except (ValueError, TypeError):
+        pass  # Fall back to generic **kwargs if introspection fails
+
+    # Register AFTER setting the signature so FastMCP sees it.
+    mcp.tool(name=name)(_wrapper)
 
 
 def _register_list_tools(

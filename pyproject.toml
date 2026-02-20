@@ -33,8 +33,8 @@ git    = ["axm-git"]
 ast    = ["axm-ast"]
 ticker = ["axm-ticket"]
 engine = ["axm-engine"]
-word   = ["axm-word"]
-all    = ["axm-init", "axm-audit", "axm-bib", "axm-git", "axm-ast", "axm-ticket", "axm-engine", "axm-word"]
+# word   = ["axm-word"]  # standalone MCP server now
+all    = ["axm-init", "axm-audit", "axm-bib", "axm-git", "axm-ast", "axm-ticket", "axm-engine"]
 
 
 [project.scripts]
@@ -191,6 +191,6 @@ tag_pattern = "v[0-9].*"
 # axm-* packages are optional deps consumed via entry points, not direct imports
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["axm", "axm-init", "axm-audit", "axm-bib", "axm-git", "axm-ast", "axm-ticket", "axm-engine", "axm-word"]
+DEP002 = ["axm", "axm-init", "axm-audit", "axm-bib", "axm-git", "axm-ast", "axm-ticket", "axm-engine"]
 DEP003 = ["axm_mcp"]
 DEP004 = ["mkdocs_gen_files"]
