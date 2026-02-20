@@ -29,11 +29,14 @@ class GitPreflightTool(AXMTool):
         Args:
             **kwargs: Keyword arguments.
                 path: Project root (required).
+                diff_lines: Max diff lines to include (default 200, 0 to
+                    disable).
 
         Returns:
-            ToolResult with file list, statuses, and diff stats.
+            ToolResult with file list, statuses, diff stats, and diff content.
         """
         path = Path(kwargs.get("path", ".")).resolve()
+        max_diff_lines: int = int(kwargs.get("diff_lines", 200))
 
         # git status --porcelain
         status = run_git(["status", "--porcelain"], path)
@@ -54,12 +57,26 @@ class GitPreflightTool(AXMTool):
         # git diff --stat
         diff_stat = run_git(["diff", "--stat"], path)
 
+        # git diff -U2 (reduced context, truncated to max_diff_lines)
+        diff_content = ""
+        diff_truncated = False
+        if max_diff_lines > 0:
+            diff_result = run_git(["diff", "-U2"], path)
+            lines = diff_result.stdout.splitlines()
+            if len(lines) > max_diff_lines:
+                diff_content = "\n".join(lines[:max_diff_lines])
+                diff_truncated = True
+            else:
+                diff_content = diff_result.stdout.strip()
+
         return ToolResult(
             success=True,
             data={
                 "files": files,
                 "file_count": len(files),
                 "diff_stat": diff_stat.stdout.strip(),
+                "diff": diff_content,
+                "diff_truncated": diff_truncated,
                 "clean": len(files) == 0,
             },
         )
