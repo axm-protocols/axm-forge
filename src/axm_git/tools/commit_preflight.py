@@ -7,7 +7,7 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_git.core.runner import run_git
+from axm_git.core.runner import not_a_repo_error, run_git
 
 __all__ = ["GitPreflightTool"]
 
@@ -46,10 +46,7 @@ class GitPreflightTool(AXMTool):
         # git status --porcelain
         status = run_git(["status", "--porcelain"], resolved)
         if status.returncode != 0:
-            return ToolResult(
-                success=False,
-                error=f"git status failed: {status.stderr.strip()}",
-            )
+            return not_a_repo_error(status.stderr, resolved)
 
         files = []
         for line in status.stdout.splitlines():

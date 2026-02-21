@@ -7,7 +7,16 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-__all__ = ["detect_package_name", "gh_available", "run_gh", "run_git"]
+from axm.tools.base import ToolResult
+
+__all__ = [
+    "detect_package_name",
+    "gh_available",
+    "not_a_repo_error",
+    "run_gh",
+    "run_git",
+    "suggest_git_repos",
+]
 
 
 def run_git(
@@ -97,3 +106,71 @@ def detect_package_name(project_path: Path) -> str | None:
         return data.get("project", {}).get("name")  # type: ignore[no-any-return]
     except Exception:
         return None
+
+
+def suggest_git_repos(path: Path) -> list[str]:
+    """Find immediate child directories that are git repositories.
+
+    Scans one level deep for subdirectories containing a ``.git`` dir.
+    Returns a sorted list of directory names.  If *path* is itself a
+    git repository (has ``.git/`` at root), returns an empty list.
+
+    Args:
+        path: Directory to scan.
+
+    Returns:
+        Sorted list of child directory names that are git repos.
+    """
+    if (path / ".git").is_dir():
+        return []
+
+    repos: list[str] = []
+    try:
+        children = sorted(path.iterdir())
+    except (PermissionError, FileNotFoundError):
+        return []
+
+    for child in children:
+        if not child.is_dir():
+            continue
+        try:
+            if (child / ".git").is_dir():
+                repos.append(child.name)
+        except PermissionError:
+            continue
+
+    return repos
+
+
+def not_a_repo_error(stderr: str, path: Path) -> ToolResult:
+    """Build a ``ToolResult`` for a failed git command.
+
+    If *stderr* contains ``"not a git repository"`` and *path* has
+    child directories that are git repos, the error message is enriched
+    with suggestions.  Otherwise a standard error is returned.
+
+    Args:
+        stderr: Stderr output from the failed git command.
+        path: Directory that was used as ``cwd``.
+
+    Returns:
+        ``ToolResult(success=False, ...)`` with optional suggestions.
+    """
+    msg = stderr.strip()
+
+    if "not a git repository" not in msg:
+        return ToolResult(success=False, error=msg)
+
+    suggestions = suggest_git_repos(path)
+    if suggestions:
+        hint = ", ".join(suggestions)
+        return ToolResult(
+            success=False,
+            error=(
+                f"{msg}. This directory contains git repos: {hint}. "
+                f"Pass one of these as the path instead."
+            ),
+            data={"suggestions": suggestions},
+        )
+
+    return ToolResult(success=False, error=msg)

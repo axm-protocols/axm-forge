@@ -12,6 +12,7 @@ from axm.tools.base import AXMTool, ToolResult
 from axm_git.core.runner import (
     detect_package_name,
     gh_available,
+    not_a_repo_error,
     run_gh,
     run_git,
 )
@@ -132,6 +133,11 @@ class GitTagTool(AXMTool):
         """
         resolved = Path(path).resolve()
         version_override = version
+
+        # 0. Fail fast with suggestions if not a git repo
+        check = run_git(["rev-parse", "--git-dir"], resolved)
+        if check.returncode != 0:
+            return not_a_repo_error(check.stderr, resolved)
 
         # 1. Check clean tree
         status = run_git(["status", "--short"], resolved)

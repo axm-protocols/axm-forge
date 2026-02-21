@@ -118,7 +118,9 @@ class TestGitCommitTool:
         assert result.data["succeeded"] == 1
         assert result.data["failed_commit"]["index"] == 2
 
-    def test_empty_files_error(self) -> None:
+    @patch("axm_git.tools.commit.run_git")
+    def test_empty_files_error(self, mock_git: MagicMock) -> None:
+        mock_git.return_value = _ok()
         result = GitCommitTool().execute(
             path="/tmp/test",
             commits=[{"files": [], "message": "fix: x"}],
@@ -126,7 +128,9 @@ class TestGitCommitTool:
         assert not result.success
         assert "empty files" in (result.error or "")
 
-    def test_empty_message_error(self) -> None:
+    @patch("axm_git.tools.commit.run_git")
+    def test_empty_message_error(self, mock_git: MagicMock) -> None:
+        mock_git.return_value = _ok()
         result = GitCommitTool().execute(
             path="/tmp/test",
             commits=[{"files": ["a.py"], "message": ""}],
@@ -136,7 +140,14 @@ class TestGitCommitTool:
 
     @patch("axm_git.tools.commit.run_git")
     def test_git_add_failure(self, mock_git: MagicMock) -> None:
-        mock_git.return_value = _fail(stderr="pathspec 'x' did not match any files")
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if args[0] == "rev-parse":
+                return _ok()
+            return _fail(stderr="pathspec 'x' did not match any files")
+
+        mock_git.side_effect = _side_effect
         result = GitCommitTool().execute(
             path="/tmp/test",
             commits=[{"files": ["x.py"], "message": "fix: x"}],
