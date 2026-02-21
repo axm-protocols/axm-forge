@@ -2,7 +2,7 @@
 
 ## Overview
 
-`axm-git` provides deterministic MCP tools that wrap Git and GitHub CLI operations. Each tool is a subclass of `AXMTool` (from `axm`) and is auto-discovered via Python entry points.
+`axm-git` provides deterministic MCP tools that wrap Git and GitHub CLI operations. Each tool satisfies the `AXMTool` protocol (from `axm`) and is auto-discovered via Python entry points.
 
 ```mermaid
 graph TD
@@ -94,7 +94,7 @@ All hooks accept an `enabled` param (default `True`). Pass `enabled=False` to sk
 
 | Decision | Rationale |
 |---|---|
-| `AXMTool` subclass | Consistent interface, auto-discovery via entry points |
+| `AXMTool` protocol | Consistent interface, auto-discovery via entry points |
 | `subprocess` over `gitpython` | Zero dependency, deterministic, same behavior as manual CLI |
 | Auto-retry on pre-commit fix | Agents waste a tool call without it |
 | `git add -A --` | Handles additions, modifications, AND deletions in one command |
