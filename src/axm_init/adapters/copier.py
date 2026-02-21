@@ -74,10 +74,17 @@ class CopierAdapter:
                 os.close(devnull)
                 sys.stdout = old_stdout
                 sys.stderr = old_stderr
+            # Walk destination to collect all created files (AC1: return file list)
+            created: list[str] = sorted(
+                str(p.relative_to(config.destination))
+                for p in config.destination.rglob("*")
+                if p.is_file()
+            )
             return ScaffoldResult(
                 success=True,
                 path=str(config.destination),
                 message="Project scaffolded via Copier",
+                files_created=created,
             )
         except Exception as e:
             return ScaffoldResult(

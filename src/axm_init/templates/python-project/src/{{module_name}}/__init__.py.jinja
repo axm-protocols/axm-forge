@@ -1,10 +1,8 @@
 """{{ package_name }} - {{ description }}"""
 
-from {{ module_name }}._version import __version__
+try:
+    from {{ module_name }}._version import __version__
+except Exception:  # noqa: BLE001
+    __version__ = "0.0.0"
 
 __all__ = ["__version__"]
-
-
-def hello() -> str:
-    """Return a greeting message."""
-    return "Hello from {{ package_name }}!"

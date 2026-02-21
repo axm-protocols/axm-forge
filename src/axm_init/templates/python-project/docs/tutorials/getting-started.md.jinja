@@ -1,6 +1,6 @@
 # Getting Started
 
-This tutorial walks you through installing `{{ package_name }}` and running your first command.
+This tutorial walks you through installing `{{ package_name }}` and verifying your setup.
 
 ## Prerequisites
 
@@ -19,13 +19,12 @@ Or with pip:
 pip install {{ package_name }}
 ```
 
-## Step 1: Import and Use
+## Step 1: Verify Installation
 
 ```python
-from {{ module_name }} import hello
+from {{ module_name }} import __version__
 
-print(hello())
-# Output: Hello from {{ package_name }}!
+print(f"{{ package_name }} v{__version__}")
 ```
 
 ## Step 2: Run the Tests

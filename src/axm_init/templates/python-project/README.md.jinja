@@ -29,9 +29,9 @@ uv add {{ package_name }}
 ## Quick Start
 
 ```python
-from {{ module_name }} import hello
+from {{ module_name }} import __version__
 
-print(hello())
+print(f"{{ package_name }} v{__version__}")
 ```
 
 ## CLI Commands
