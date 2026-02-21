@@ -177,7 +177,20 @@ class ComplexityRule(ProjectRule):
 
     def check(self, project_path: Path) -> CheckResult:
         """Check project complexity with radon."""
-        from radon.complexity import cc_visit
+        try:
+            from radon.complexity import cc_visit
+        except ModuleNotFoundError:
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=False,
+                message="radon is not installed — complexity analysis skipped",
+                severity=Severity.ERROR,
+                details={"score": 0},
+                fix_hint=(
+                    "Ensure axm-audit is properly installed: "
+                    "uv pip install axm-audit"
+                ),
+            )
 
         src_path = project_path / "src"
         if not src_path.exists():

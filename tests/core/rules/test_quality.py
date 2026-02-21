@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from axm_audit.models.results import CheckResult
@@ -319,6 +319,35 @@ def complex_fn(x: int, y: int, z: int) -> str:
 
         rule = ComplexityRule()
         assert rule.rule_id == "QUALITY_COMPLEXITY"
+
+    def test_complexity_missing_radon(self, tmp_path: Path) -> None:
+        """Missing radon should return passed=False with install hint."""
+        import builtins
+        from unittest.mock import patch
+
+        from axm_audit.core.rules.quality import ComplexityRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "simple.py").write_text(
+            "def add(a: int, b: int) -> int:\n    return a + b\n"
+        )
+
+        real_import = builtins.__import__
+
+        def _block_radon(name: str, *args: Any, **kwargs: Any) -> Any:
+            if name == "radon.complexity":
+                raise ModuleNotFoundError("No module named 'radon'")
+            return real_import(name, *args, **kwargs)
+
+        rule = ComplexityRule()
+        with patch("builtins.__import__", side_effect=_block_radon):
+            result = rule.check(tmp_path)
+
+        assert not result.passed
+        assert result.rule_id == "QUALITY_COMPLEXITY"
+        assert result.fix_hint is not None
+        assert "uv pip install" in result.fix_hint
 
 
 class TestAuditResultScoring:
