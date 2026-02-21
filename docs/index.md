@@ -28,8 +28,10 @@ hide:
 ## Features
 
 - 🔍 **Preflight** — Structured working tree status with diff summary
+- 🌿 **Branch** — Create or checkout branches with one call
 - 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes
 - 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
+- 🚀 **Push** — Push with dirty-check, auto-upstream detection, and force support
 - 🪝 **Hooks** — Lifecycle hook actions (create-branch, commit-phase, merge-squash) auto-discovered via entry-points
 
 ## Installation
@@ -45,6 +47,10 @@ uv add axm-git
 git_preflight(path="/path/to/repo")
 # → {files: [{path: "foo.py", status: "M"}, ...], clean: false}
 
+# Create or switch branch
+git_branch(name="feat/new-feature", path="/path/to/repo")
+# → {branch: "feat/new-feature"}
+
 # Commit in batches
 git_commit(path="/path/to/repo", commits=[
     {"files": ["src/foo.py"], "message": "feat: add foo"},
@@ -54,6 +60,10 @@ git_commit(path="/path/to/repo", commits=[
 # Tag a release
 git_tag(path="/path/to/repo")
 # → {tag: "v0.2.0", bump: "minor", pushed: true}
+
+# Push to remote
+git_push(path="/path/to/repo")
+# → {branch: "main", remote: "origin", pushed: true}
 ```
 
 ---

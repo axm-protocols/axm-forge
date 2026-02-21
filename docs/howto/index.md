@@ -58,7 +58,7 @@ result = GitPreflightTool().execute(path="/path/to/monorepo")
 # result.data["suggestions"] == ["axm-ast", "axm-core", "axm-git"]
 ```
 
-This works for all three tools (`git_preflight`, `git_commit`, `git_tag`).
+This works for all tools (`git_preflight`, `git_branch`, `git_commit`, `git_tag`, `git_push`).
 
 ## Use with MCP
 
@@ -66,6 +66,8 @@ All tools are auto-discovered via `axm.tools` entry points. Through the AXM MCP 
 
 ```
 git_preflight(path="/path/to/repo")
+git_branch(name="feat/new", path="/path/to/repo")
 git_commit(path="/path/to/repo", commits=[...])
 git_tag(path="/path/to/repo")
+git_push(path="/path/to/repo")
 ```
