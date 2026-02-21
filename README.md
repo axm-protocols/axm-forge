@@ -90,7 +90,7 @@ for check in result.checks:
 
 | Category | Rules | Count |
 |---|---|---|
-| `quality` | `LintingRule`, `TypeCheckRule`, `ComplexityRule` | 3 |
+| `quality` | `LintingRule`, `FormattingRule`, `TypeCheckRule`, `ComplexityRule` | 4 |
 | `security` | `SecurityRule` (Bandit) | 1 |
 | `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |

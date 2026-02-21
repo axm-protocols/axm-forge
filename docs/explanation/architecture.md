@@ -100,7 +100,7 @@ Both return typed Pydantic models for safe agent consumption.
 
 | Category | Rules | Count |
 |---|---|---|
-| `quality` | `LintingRule`, `TypeCheckRule`, `ComplexityRule` | 3 |
+| `quality` | `LintingRule`, `FormattingRule`, `TypeCheckRule`, `ComplexityRule` | 4 |
 | `security` | `SecurityRule` | 1 |
 | `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
@@ -109,7 +109,7 @@ Both return typed Pydantic models for safe agent consumption.
 | `structure` | `PyprojectCompletenessRule` | 1 |
 | `tooling` | `ToolAvailabilityRule` | 3 instances |
 
-**Total: 17 rule instances across 8 categories.**
+**Total: 18 rule instances across 8 categories.**
 
 ### 3. Tool Integration
 
@@ -118,6 +118,7 @@ All subprocess-based rules use `run_in_project()` from `core/runner.py`, which d
 | Rule | Tool | Integration |
 |---|---|---|
 | `LintingRule` | Ruff | `run_in_project(["ruff", "check", ...])` |
+| `FormattingRule` | Ruff | `run_in_project(["ruff", "format", "--check", ...])` |
 | `TypeCheckRule` | MyPy | `run_in_project(["mypy", ...])` |
 | `ComplexityRule` | Radon | `radon.complexity.cc_visit(source)` |
 | `SecurityRule` | Bandit | `run_in_project(["bandit", ...])` |
@@ -164,7 +165,7 @@ sequenceDiagram
 
     User->>CLI: axm-audit audit . / audit_project(Path("."))
     CLI->>Auditor: get_rules_for_category(category)
-    Auditor-->>CLI: list[ProjectRule] (17 rules)
+    Auditor-->>CLI: list[ProjectRule] (18 rules)
     loop For each rule
         CLI->>Rules: rule.check(project_path)
         Rules->>Tools: Ruff / MyPy / Radon / Bandit / etc.

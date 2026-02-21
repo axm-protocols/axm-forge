@@ -37,6 +37,14 @@ score = max(0, 100 − issue_count × 2)
 
 Pass threshold: ≥ 80 (≤ 10 issues).
 
+### Format Score
+
+```
+score = max(0, 100 − unformatted_count × 5)
+```
+
+Pass threshold: ≥ 80 (≤ 4 unformatted files).
+
 ### Type Score
 
 ```
