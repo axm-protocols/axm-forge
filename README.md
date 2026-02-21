@@ -137,7 +137,7 @@ Pipeline: repo check → dirty check → detect branch → detect upstream → p
 git clone https://github.com/axm-protocols/axm-git.git
 cd axm-git
 uv sync --all-groups
-uv run pytest           # 99 tests
+uv run pytest           # 119 tests
 uv run ruff check src/  # lint
 ```
 

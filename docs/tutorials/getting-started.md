@@ -37,7 +37,22 @@ print(result.data)
 # }
 ```
 
-## Step 2: Commit Changes
+## Step 2: Create a Branch
+
+Use `git_branch` to create or switch to a feature branch:
+
+```python
+from axm_git.tools.branch import GitBranchTool
+
+result = GitBranchTool().execute(name="feat/new-feature", path="/path/to/repo")
+print(result.data)
+# {"branch": "feat/new-feature"}
+```
+
+!!! tip "Checkout existing branch"
+    Pass `checkout_only=True` to switch to an existing branch without creating a new one.
+
+## Step 3: Commit Changes
 
 Use `git_commit` to stage and commit files in batches:
 
@@ -59,7 +74,7 @@ print(result.data["results"])
     If a pre-commit hook (like ruff) auto-fixes a file, `git_commit` automatically
     re-stages and retries the commit once.
 
-## Step 3: Create a Release Tag
+## Step 4: Create a Release Tag
 
 Use `git_tag` to compute the next semver version and push the tag:
 
@@ -79,6 +94,21 @@ The tool automatically:
 3. Analyzes commits since the last tag
 4. Computes the semver bump based on Conventional Commits
 5. Creates and pushes the annotated tag
+
+## Step 5: Push to Remote
+
+Use `git_push` to push the current branch with safety checks:
+
+```python
+from axm_git.tools.push import GitPushTool
+
+result = GitPushTool().execute(path="/path/to/repo")
+print(result.data)
+# {"branch": "feat/new-feature", "remote": "origin",
+#  "pushed": True, "set_upstream": True}
+```
+
+The tool verifies the tree is clean before pushing, and automatically sets the upstream for new branches.
 
 ## Next Steps
 
