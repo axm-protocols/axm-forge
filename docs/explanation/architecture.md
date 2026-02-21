@@ -134,7 +134,7 @@ Pydantic models for structured data exchange between layers:
 
 ### 6. Tools (`tools/`)
 
-MCP tool wrappers for AI agent integration. All tools inherit from `AXMTool` (imported from `axm.tools.base`).
+MCP tool wrappers for AI agent integration. All tools satisfy the `AXMTool` protocol (imported from `axm.tools.base`).
 
 | Tool | Class | Entry Point |
 |---|---|---|
