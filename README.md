@@ -60,6 +60,7 @@ Report working tree changes so the agent can plan commits.
 | Parameter | Default | Description |
 |---|---|---|
 | `path` | `.` | Project root directory |
+| `diff_lines` | `200` | Max diff lines to include (0 to disable) |
 
 Returns: file list with status (`M`, `A`, `D`, `??`), diff stat, clean flag.
 
@@ -89,8 +90,7 @@ Compute the next semver version from Conventional Commits, create and push the t
 | Parameter | Default | Description |
 |---|---|---|
 | `path` | `.` | Project root directory |
-| `version` | *auto* | Override the computed version |
-| `push` | `true` | Push tag to remote |
+| `version` | *auto* | Override the computed version (e.g. `"v1.0.0"`) |
 
 Pipeline: clean tree check → CI status check → semver bump → annotate tag → hatch-vcs verify → push.
 
@@ -100,7 +100,7 @@ Pipeline: clean tree check → CI status check → semver bump → annotate tag 
 git clone https://github.com/axm-protocols/axm-git.git
 cd axm-git
 uv sync --all-groups
-uv run pytest           # 88 tests
+uv run pytest           # 90 tests
 uv run ruff check src/  # lint
 ```
 

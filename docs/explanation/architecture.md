@@ -66,7 +66,7 @@ graph TD
 
 ### 1. Tools (`tools/`)
 
-Each tool exposes a single `execute(**kwargs) → ToolResult` method:
+Each tool exposes an `execute(*, path, ..., **kwargs) → ToolResult` method with explicit typed parameters:
 
 - **`GitTagTool`** — Full tag workflow: check clean tree, check CI, compute semver bump, create tag, verify hatch-vcs, push.
 - **`GitCommitTool`** — Stage files, commit with pre-commit hooks, auto-retry on linter fixes. Supports batched commits.
