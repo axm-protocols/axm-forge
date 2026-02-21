@@ -43,7 +43,7 @@ The `git_tag` tool works without `gh` installed — CI checks are simply skipped
 
 ```python
 result = GitTagTool().execute(path="/path/to/repo")
-# result.data["ci_status"] == "skipped" if gh not available
+# result.data["ci_check"] == "skipped" if gh not available
 ```
 
 ## Use with MCP
