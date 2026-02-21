@@ -46,6 +46,20 @@ result = GitTagTool().execute(path="/path/to/repo")
 # result.data["ci_check"] == "skipped" if gh not available
 ```
 
+## Handle non-git directory errors
+
+When a tool is called on a directory that isn't a git repository but contains git subdirectories (e.g. a monorepo parent), the error includes suggestions:
+
+```python
+result = GitPreflightTool().execute(path="/path/to/monorepo")
+# result.success == False
+# result.error == "fatal: not a git repository. This directory contains
+#   git repos: axm-ast, axm-core, axm-git. Pass one of these as the path instead."
+# result.data["suggestions"] == ["axm-ast", "axm-core", "axm-git"]
+```
+
+This works for all three tools (`git_preflight`, `git_commit`, `git_tag`).
+
 ## Use with MCP
 
 All tools are auto-discovered via `axm.tools` entry points. Through the AXM MCP server, call them as:
