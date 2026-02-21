@@ -83,6 +83,70 @@ class LintingRule(ProjectRule):
 
 
 @dataclass
+class FormattingRule(ProjectRule):
+    """Run ``ruff format --check`` and score based on unformatted file count.
+
+    Scoring: 100 - (unformatted_count * 5), min 0.
+    """
+
+    @property
+    def rule_id(self) -> str:
+        """Unique identifier for this rule."""
+        return "QUALITY_FORMAT"
+
+    def check(self, project_path: Path) -> CheckResult:
+        """Check project formatting with ruff format --check."""
+        src_path = project_path / "src"
+        tests_path = project_path / "tests"
+
+        if not src_path.exists():
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=False,
+                message="src/ directory not found",
+                severity=Severity.ERROR,
+            )
+
+        targets = [str(src_path)]
+        if tests_path.exists():
+            targets.append(str(tests_path))
+
+        result = run_in_project(
+            ["ruff", "format", "--check", *targets],
+            project_path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        # ruff format --check prints one file path per line to stdout
+        unformatted_files = [
+            line.strip()
+            for line in result.stdout.strip().split("\n")
+            if line.strip() and not line.startswith("error")
+        ]
+        unformatted_count = len(unformatted_files)
+
+        score = max(0, 100 - unformatted_count * 5)
+        passed = score >= 80
+
+        checked = "src/ tests/" if tests_path.exists() else "src/"
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=passed,
+            message=f"Format score: {score}/100 ({unformatted_count} unformatted)",
+            severity=Severity.WARNING if not passed else Severity.INFO,
+            details={
+                "unformatted_count": unformatted_count,
+                "unformatted_files": unformatted_files[:20],
+                "score": score,
+                "checked": checked,
+            },
+            fix_hint=(f"Run: ruff format {checked}" if unformatted_count > 0 else None),
+        )
+
+
+@dataclass
 class TypeCheckRule(ProjectRule):
     """Run mypy and score based on error count.
 

@@ -16,6 +16,7 @@ from axm_audit.core.rules import (
     DependencyAuditRule,
     DependencyHygieneRule,
     DocstringCoverageRule,
+    FormattingRule,
     GodClassRule,
     LintingRule,
     PyprojectCompletenessRule,
@@ -45,7 +46,7 @@ VALID_CATEGORIES = {
 # Rule categories for filtering
 RULES_BY_CATEGORY: dict[str, list[type[ProjectRule]]] = {
     "structure": [PyprojectCompletenessRule],
-    "quality": [LintingRule, TypeCheckRule, ComplexityRule],
+    "quality": [LintingRule, FormattingRule, TypeCheckRule, ComplexityRule],
     "architecture": [CircularImportRule, GodClassRule, CouplingMetricRule],
     "practice": [DocstringCoverageRule, BareExceptRule, SecurityPatternRule],
     "security": [SecurityRule],
@@ -103,6 +104,7 @@ def get_rules_for_category(
     return [
         PyprojectCompletenessRule(),
         LintingRule(),
+        FormattingRule(),
         TypeCheckRule(),
         ComplexityRule(),
         SecurityRule(),

@@ -17,6 +17,7 @@ from axm_audit.core.rules.practices import (
 )
 from axm_audit.core.rules.quality import (
     ComplexityRule,
+    FormattingRule,
     LintingRule,
     TestCoverageRule,
     TypeCheckRule,
@@ -33,6 +34,7 @@ __all__ = [
     "DependencyAuditRule",
     "DependencyHygieneRule",
     "DocstringCoverageRule",
+    "FormattingRule",
     "GodClassRule",
     "LintingRule",
     "ProjectRule",
