@@ -24,7 +24,7 @@
 
 - 🔌 **Autodiscovery** — automatically finds commands from installed AXM packages via entry points
 - 🧩 **Modular** — install only what you need (`axm[init]`, `axm[audit]`, `axm[bib]`, `axm[mcp]`)
-- 🛠️ **Shared interface** — provides `AXMTool` and `ToolResult` base classes for tool development
+- 🛠️ **Shared interface** — provides `AXMTool` protocol and `ToolResult` dataclass for tool development
 - 📦 **Minimal** — only depends on `cyclopts`, everything else is optional
 
 ## Installation
@@ -82,7 +82,7 @@ axm/
 ├── src/axm/
 │   ├── cli.py         # Autodiscovery wrapper (~80 lines)
 │   ├── tools/
-│   │   ├── base.py    # AXMTool ABC + ToolResult (shared interface)
+│   │   ├── base.py    # AXMTool Protocol + ToolResult (shared interface)
 │   │   └── __init__.py
 │   └── __init__.py
 └── tests/
