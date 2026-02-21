@@ -48,44 +48,23 @@ class InspectTool(AXMTool):
 
             pkg = analyze_package(project_path)
 
-            # --- Dotted path: resolve class → method ---
+            # --- Dotted path resolution ---
             if "." in symbol:
-                parts = symbol.split(".")
-                class_name = parts[0]
-                method_name = parts[-1]
+                # Strategy: try module.function first, then ClassName.method
+                result = self._resolve_module_symbol(pkg, symbol)
+                if result is not None:
+                    return result
 
-                # Find the class
-                classes = search_symbols(
-                    pkg, name=class_name, returns=None, kind=None, inherits=None
-                )
-                cls = next(
-                    (
-                        c
-                        for c in classes
-                        if hasattr(c, "methods") and c.name == class_name
-                    ),
-                    None,
-                )
-                if cls is None:
-                    return ToolResult(
-                        success=False,
-                        error=f"Class '{class_name}' not found",
-                    )
-
-                # Find the method within the class
-                method = next((m for m in cls.methods if m.name == method_name), None)
-                if method is None:
-                    return ToolResult(
-                        success=False,
-                        error=(
-                            f"Method '{method_name}' not found"
-                            f" in class '{class_name}'"
-                        ),
-                    )
+                result = self._resolve_class_method(pkg, symbol)
+                if result is not None:
+                    return result
 
                 return ToolResult(
-                    success=True,
-                    data={"symbol": self._build_detail(method)},
+                    success=False,
+                    error=(
+                        f"Symbol '{symbol}' not found"
+                        " (tried module.symbol and Class.method)"
+                    ),
                 )
 
             # --- Simple name: function or class ---
@@ -110,6 +89,77 @@ class InspectTool(AXMTool):
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
+
+    def _resolve_module_symbol(self, pkg: Any, dotted: str) -> ToolResult | None:
+        """Try to resolve ``dotted`` as ``module_name.symbol_name``.
+
+        Tries longest module prefix first (e.g. ``core.checker`` before ``core``).
+        Returns None if no module prefix matches.
+        """
+        # Build name → module mapping
+        mod_names = pkg.module_names
+        name_to_mod = dict(zip(mod_names, pkg.modules, strict=True))
+
+        parts = dotted.split(".")
+        # Try longest prefix first: for "a.b.c" try "a.b" then "a"
+        for split_at in range(len(parts) - 1, 0, -1):
+            mod_prefix = ".".join(parts[:split_at])
+            sym_name = ".".join(parts[split_at:])
+            mod = name_to_mod.get(mod_prefix)
+            if mod is None:
+                continue
+            # Found a module — search for the symbol within it
+            for fn in mod.functions:
+                if fn.name == sym_name:
+                    return ToolResult(
+                        success=True,
+                        data={"symbol": self._build_detail(fn)},
+                    )
+            for cls in mod.classes:
+                if cls.name == sym_name:
+                    return ToolResult(
+                        success=True,
+                        data={"symbol": self._build_detail(cls)},
+                    )
+            # Module found but symbol not in it
+            return ToolResult(
+                success=False,
+                error=(f"Symbol '{sym_name}' not found in module '{mod_prefix}'"),
+            )
+        return None
+
+    def _resolve_class_method(self, pkg: Any, dotted: str) -> ToolResult | None:
+        """Try to resolve ``dotted`` as ``ClassName.method_name``.
+
+        Returns None if no class matches.
+        """
+        from axm_ast.core.analyzer import search_symbols
+
+        parts = dotted.split(".")
+        class_name = parts[0]
+        method_name = parts[-1]
+
+        classes = search_symbols(
+            pkg, name=class_name, returns=None, kind=None, inherits=None
+        )
+        cls = next(
+            (c for c in classes if hasattr(c, "methods") and c.name == class_name),
+            None,
+        )
+        if cls is None:
+            return None
+
+        method = next((m for m in cls.methods if m.name == method_name), None)
+        if method is None:
+            return ToolResult(
+                success=False,
+                error=(f"Method '{method_name}' not found" f" in class '{class_name}'"),
+            )
+
+        return ToolResult(
+            success=True,
+            data={"symbol": self._build_detail(method)},
+        )
 
     @staticmethod
     def _build_detail(sym: Any) -> dict[str, Any]:
