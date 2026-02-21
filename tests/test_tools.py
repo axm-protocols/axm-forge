@@ -442,6 +442,69 @@ class TestInspectTool:
         assert result.success is True
         assert result.data["symbol"]["name"] == "greet"
 
+    # --- Module.function resolution (AXM-54) ---
+
+    def test_inspect_module_function(self, sample_project: Path) -> None:
+        """AC1: core.greet resolves to greet in core module."""
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="core.greet"
+        )
+        assert result.success is True
+        assert result.data["symbol"]["name"] == "greet"
+
+    def test_inspect_module_class(self, sample_project: Path) -> None:
+        """AC2: core.Helper resolves to Helper class in core module."""
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="core.Helper"
+        )
+        assert result.success is True
+        assert result.data["symbol"]["name"] == "Helper"
+
+    def test_inspect_module_symbol_not_found(self, sample_project: Path) -> None:
+        """Module found but symbol does not exist in it."""
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="core.nonexistent"
+        )
+        assert result.success is False
+        assert result.error is not None
+        assert "core" in result.error
+        assert "nonexistent" in result.error
+
+    def test_inspect_unknown_module_falls_back_to_class(
+        self, sample_project: Path
+    ) -> None:
+        """AC4: unknown prefix falls back to ClassName.method."""
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        # Helper.run should still work via class method fallback
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="Helper.run"
+        )
+        assert result.success is True
+        assert result.data["symbol"]["name"] == "run"
+
+    def test_inspect_no_match_at_all(self, sample_project: Path) -> None:
+        """No module and no class matches → combined error."""
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="nonexistent.xyz"
+        )
+        assert result.success is False
+        assert result.error is not None
+        assert "not found" in result.error
+
 
 # ===========================================================================
 # ast_graph
