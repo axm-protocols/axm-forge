@@ -114,22 +114,27 @@ class GitTagTool(AXMTool):
         """Tool name used for MCP registration."""
         return "git_tag"
 
-    def execute(self, **kwargs: Any) -> ToolResult:
+    def execute(
+        self,
+        *,
+        path: str = ".",
+        version: str | None = None,
+        **kwargs: Any,
+    ) -> ToolResult:
         """Create and push a semver tag.
 
         Args:
-            **kwargs: Keyword arguments.
-                path: Project root (required).
-                version: Version override (optional, e.g. ``"v1.0.0"``).
+            path: Project root (required).
+            version: Version override (optional, e.g. ``"v1.0.0"``).
 
         Returns:
             ToolResult with tag, version, and push status.
         """
-        path = Path(kwargs.get("path", ".")).resolve()
-        version_override: str | None = kwargs.get("version")
+        resolved = Path(path).resolve()
+        version_override = version
 
         # 1. Check clean tree
-        status = run_git(["status", "--short"], path)
+        status = run_git(["status", "--short"], resolved)
         if status.stdout.strip():
             return ToolResult(
                 success=False,
@@ -138,7 +143,7 @@ class GitTagTool(AXMTool):
             )
 
         # 2. Check CI
-        ci_check = _check_ci(path)
+        ci_check = _check_ci(resolved)
         if ci_check == "red":
             return ToolResult(
                 success=False,
@@ -147,8 +152,8 @@ class GitTagTool(AXMTool):
             )
 
         # 3. Get current tag & commits
-        current_tag = _get_current_tag(path)
-        commits = _get_commits_since(path, current_tag)
+        current_tag = _get_current_tag(resolved)
+        commits = _get_commits_since(resolved, current_tag)
 
         if not commits:
             return ToolResult(
@@ -172,7 +177,7 @@ class GitTagTool(AXMTool):
             breaking = bump_result.breaking
 
         # 5. Create annotated tag
-        tag_result = run_git(["tag", "-a", next_version, "-m", next_version], path)
+        tag_result = run_git(["tag", "-a", next_version, "-m", next_version], resolved)
         if tag_result.returncode != 0:
             return ToolResult(
                 success=False,
@@ -181,12 +186,12 @@ class GitTagTool(AXMTool):
 
         # 6. Verify hatch-vcs (best-effort)
         resolved_version = None
-        pkg_name = detect_package_name(path)
+        pkg_name = detect_package_name(resolved)
         if pkg_name:
-            resolved_version = _verify_hatch_vcs(path, pkg_name)
+            resolved_version = _verify_hatch_vcs(resolved, pkg_name)
 
         # 7. Push tag
-        push = run_git(["push", "origin", next_version], path)
+        push = run_git(["push", "origin", next_version], resolved)
 
         return ToolResult(
             success=True,
