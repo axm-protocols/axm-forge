@@ -10,6 +10,7 @@ import pytest
 from axm_git.tools.branch import GitBranchTool
 from axm_git.tools.commit import GitCommitTool
 from axm_git.tools.commit_preflight import GitPreflightTool
+from axm_git.tools.push import GitPushTool
 
 
 def _init_repo(path: Path) -> None:
@@ -207,3 +208,18 @@ class TestBranchFlow:
         )
         assert result.success
         assert result.data["branch"] == "feat/existing"
+
+
+class TestPushFlow:
+    """Functional tests for git_push."""
+
+    def test_push_dirty_rejected(self, tmp_path: Path) -> None:
+        _init_repo(tmp_path)
+
+        # Modify a file without committing.
+        (tmp_path / "README.md").write_text("# Modified\n")
+
+        result = GitPushTool().execute(path=str(tmp_path))
+        assert not result.success
+        assert "dirty" in (result.error or "").lower()
+        assert "README.md" in result.data["dirty_files"]

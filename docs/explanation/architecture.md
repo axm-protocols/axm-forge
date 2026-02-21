@@ -15,6 +15,7 @@ graph TD
         Commit["GitCommitTool"]
         Preflight["GitPreflightTool"]
         Branch["GitBranchTool"]
+        Push["GitPushTool"]
     end
 
     subgraph "Hooks"
@@ -46,11 +47,13 @@ graph TD
     MCP --> Commit
     MCP --> Preflight
     MCP --> Branch
+    MCP --> Push
     Tag --> Runner
     Tag --> Semver
     Commit --> Runner
     Preflight --> Runner
     Branch --> Runner
+    Push --> Runner
     CB --> Runner
     CP --> Runner
     CP --> PhaseCommit
@@ -75,6 +78,7 @@ Each tool exposes an `execute(*, path, ..., **kwargs) → ToolResult` method wit
 - **`GitCommitTool`** — Stage files, commit with pre-commit hooks, auto-retry on linter fixes. Supports batched commits.
 - **`GitPreflightTool`** — Parse `git status --porcelain` and `git diff --stat` into structured data.
 - **`GitBranchTool`** — Create or checkout a branch. Supports `from_ref` (branch from tag/commit) and `checkout_only` (switch without creating).
+- **`GitPushTool`** — Push with dirty-check guard, auto-upstream detection, custom remote, and force-push support.
 
 ### 2. Core (`core/`)
 
