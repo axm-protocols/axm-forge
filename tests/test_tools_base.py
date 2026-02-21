@@ -58,8 +58,8 @@ class TestToolResult:
 # ── AXMTool ───────────────────────────────────────────────────────────────────
 
 
-class ConcreteTool(AXMTool):
-    """A concrete implementation for testing the ABC."""
+class ConcreteTool:
+    """A concrete implementation for testing the protocol."""
 
     @property
     def name(self) -> str:
@@ -69,8 +69,19 @@ class ConcreteTool(AXMTool):
         return ToolResult(success=True, data=kwargs)
 
 
+class ExplicitParamTool:
+    """A tool with explicit params (the preferred pattern)."""
+
+    @property
+    def name(self) -> str:
+        return "explicit-tool"
+
+    def execute(self, *, value: int = 0, label: str = "") -> ToolResult:
+        return ToolResult(success=True, data={"value": value, "label": label})
+
+
 class TestAXMTool:
-    """Tests for the AXMTool abstract base class."""
+    """Tests for the AXMTool structural protocol."""
 
     def test_concrete_tool_name(self) -> None:
         """Concrete tool returns its name."""
@@ -84,31 +95,26 @@ class TestAXMTool:
         assert result.success is True
         assert result.data == {"path": "/tmp"}
 
-    def test_cannot_instantiate_abc(self) -> None:
-        """AXMTool cannot be instantiated directly."""
-        with pytest.raises(TypeError):
-            AXMTool()  # type: ignore[abstract]
+    def test_isinstance_check(self) -> None:
+        """runtime_checkable Protocol supports isinstance()."""
+        tool = ConcreteTool()
+        assert isinstance(tool, AXMTool)
 
-    def test_must_implement_name(self) -> None:
-        """Subclass without name raises TypeError."""
+    def test_explicit_param_tool(self) -> None:
+        """Tool with explicit params satisfies the protocol."""
+        tool = ExplicitParamTool()
+        assert isinstance(tool, AXMTool)
+        result = tool.execute(value=42, label="test")
+        assert result.success is True
+        assert result.data == {"value": 42, "label": "test"}
 
-        class NoName(AXMTool):
-            def execute(self, **kwargs: Any) -> ToolResult:
-                return ToolResult(success=True)
+    def test_non_tool_fails_isinstance(self) -> None:
+        """Object without name/execute is not an AXMTool."""
 
-        with pytest.raises(TypeError):
-            NoName()  # type: ignore[abstract]
+        class NotATool:
+            pass
 
-    def test_must_implement_execute(self) -> None:
-        """Subclass without execute raises TypeError."""
-
-        class NoExecute(AXMTool):
-            @property
-            def name(self) -> str:
-                return "no-exec"
-
-        with pytest.raises(TypeError):
-            NoExecute()  # type: ignore[abstract]
+        assert not isinstance(NotATool(), AXMTool)
 
 
 # ── Exports ───────────────────────────────────────────────────────────────────
