@@ -21,6 +21,7 @@
 ## Features
 
 - 🔍 **Preflight** — Structured working tree status with diff summary
+- 🌿 **Branch** — Create or checkout branches with one call
 - 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes
 - 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
 - 🧭 **Error Recovery** — When called on a non-git directory, tools suggest nearby git repos
@@ -39,6 +40,10 @@ uv add axm-git
 # Check what changed
 git_preflight(path="/path/to/repo")
 # → {files: [{path: "foo.py", status: "M"}, ...], clean: false}
+
+# Create or switch branch
+git_branch(name="feat/new-feature", path="/path/to/repo")
+# → {branch: "feat/new-feature"}
 
 # Commit in batches
 git_commit(path="/path/to/repo", commits=[
@@ -64,6 +69,19 @@ Report working tree changes so the agent can plan commits.
 | `diff_lines` | `200` | Max diff lines to include (0 to disable) |
 
 Returns: file list with status (`M`, `A`, `D`, `??`), diff stat, clean flag.
+
+### `git_branch`
+
+Create or checkout a git branch.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `name` | *required* | Branch name |
+| `from_ref` | `None` | Ref to branch from (tag, commit, branch) |
+| `checkout_only` | `False` | If `True`, checkout existing branch without creating |
+| `path` | `.` | Project root directory |
+
+Returns: `{branch: "<current branch>"}` on success.
 
 ### `git_commit`
 
