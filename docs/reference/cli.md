@@ -5,6 +5,7 @@
 | Tool | Entry point | Description |
 |---|---|---|
 | `git_preflight` | `GitPreflightTool` | Working tree status and diff summary |
+| `git_branch` | `GitBranchTool` | Create or checkout branches |
 | `git_commit` | `GitCommitTool` | Batched atomic commits with pre-commit |
 | `git_tag` | `GitTagTool` | One-shot semver tagging |
 

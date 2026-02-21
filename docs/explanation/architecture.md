@@ -14,6 +14,7 @@ graph TD
         Tag["GitTagTool"]
         Commit["GitCommitTool"]
         Preflight["GitPreflightTool"]
+        Branch["GitBranchTool"]
     end
 
     subgraph "Hooks"
@@ -44,10 +45,12 @@ graph TD
     MCP --> Tag
     MCP --> Commit
     MCP --> Preflight
+    MCP --> Branch
     Tag --> Runner
     Tag --> Semver
     Commit --> Runner
     Preflight --> Runner
+    Branch --> Runner
     CB --> Runner
     CP --> Runner
     CP --> PhaseCommit
@@ -71,6 +74,7 @@ Each tool exposes an `execute(*, path, ..., **kwargs) → ToolResult` method wit
 - **`GitTagTool`** — Full tag workflow: check clean tree, check CI, compute semver bump, create tag, verify hatch-vcs, push.
 - **`GitCommitTool`** — Stage files, commit with pre-commit hooks, auto-retry on linter fixes. Supports batched commits.
 - **`GitPreflightTool`** — Parse `git status --porcelain` and `git diff --stat` into structured data.
+- **`GitBranchTool`** — Create or checkout a branch. Supports `from_ref` (branch from tag/commit) and `checkout_only` (switch without creating).
 
 ### 2. Core (`core/`)
 
