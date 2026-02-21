@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from axm.tools.base import AXMTool, ToolResult
+from axm.tools.base import ToolResult
 
 __all__ = ["InitReserveTool"]
 
 
-class InitReserveTool(AXMTool):
+class InitReserveTool:
     """Reserve a package name on PyPI.
 
     Registered as ``init_reserve`` via axm.tools entry point.

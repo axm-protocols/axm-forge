@@ -5,12 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from axm.tools.base import AXMTool, ToolResult
+from axm.tools.base import ToolResult
 
 __all__ = ["InitScaffoldTool"]
 
 
-class InitScaffoldTool(AXMTool):
+class InitScaffoldTool:
     """Initialize a new Python project with best practices.
 
     Registered as ``init_scaffold`` via axm.tools entry point.

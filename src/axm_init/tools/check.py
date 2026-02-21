@@ -5,12 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from axm.tools.base import AXMTool, ToolResult
+from axm.tools.base import ToolResult
 
 __all__ = ["InitCheckTool"]
 
 
-class InitCheckTool(AXMTool):
+class InitCheckTool:
     """Check a project against the AXM gold standard.
 
     Registered as ``init_check`` via axm.tools entry point.
