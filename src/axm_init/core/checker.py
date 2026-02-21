@@ -141,8 +141,15 @@ class CheckEngine:
         return ProjectResult.from_checks(self.project_path, results)
 
 
-def format_report(result: ProjectResult) -> str:
-    """Format check result as human-readable report."""
+def format_report(result: ProjectResult, *, verbose: bool = False) -> str:
+    """Format check result as human-readable report.
+
+    Args:
+        result: Project check result.
+        verbose: If True, list every individual check.
+            If False (default), only show summary for passing categories
+            and detail for failures.
+    """
     lines: list[str] = []
     lines.append(f"📋 AXM Check — {result.project_path.name}")
     lines.append(f"   Path: {result.project_path}")
@@ -150,13 +157,26 @@ def format_report(result: ProjectResult) -> str:
 
     # Category breakdown
     for cat_name, cat_score in result.categories.items():
+        cat_checks = [c for c in result.checks if c.category == cat_name]
+        passed_count = sum(1 for c in cat_checks if c.passed)
+        failed_checks = [c for c in cat_checks if not c.passed]
+
         lines.append(f"  {cat_name} ({cat_score.earned}/{cat_score.total})")
-        for check in result.checks:
-            if check.category == cat_name:
+
+        if verbose:
+            # Show every check (original behaviour)
+            for check in cat_checks:
                 status = "✅" if check.passed else "❌"
                 earned = f"{check.earned}/{check.weight}"
                 msg = check.message
                 lines.append(f"    {status} {check.name:<30s} {earned:>5s}  {msg}")
+        else:
+            # Compact: summarise passed, detail only failures
+            if passed_count:
+                lines.append(f"    ✅ {passed_count} checks passed")
+            for check in failed_checks:
+                earned = f"{check.earned}/{check.weight}"
+                lines.append(f"    ❌ {check.name:<30s} {earned:>5s}  {check.message}")
         lines.append("")
 
     # Score
@@ -215,14 +235,15 @@ def format_json(result: ProjectResult) -> dict[str, Any]:
 
 
 def format_agent(result: ProjectResult) -> dict[str, Any]:
-    """Agent-optimized output: passed=summary, failed=full detail.
+    """Agent-optimized output: passed_count=N, failed=full detail.
 
-    Minimizes tokens for passing checks while giving full context on failures.
+    Minimizes tokens by replacing the full passed-check list with a count.
+    Only failures carry actionable detail.
     """
     return {
         "score": result.score,
         "grade": result.grade.value,
-        "passed": [f"{c.name}: {c.message}" for c in result.checks if c.passed],
+        "passed_count": sum(1 for c in result.checks if c.passed),
         "failed": [
             {
                 "name": f.name,

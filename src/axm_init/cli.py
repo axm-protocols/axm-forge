@@ -234,6 +234,12 @@ def check(
         bool,
         cyclopts.Parameter(name=["--agent"], help="Compact agent-friendly output"),
     ] = False,
+    verbose: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--verbose", "-v"], help="Show all checks including passed"
+        ),
+    ] = False,
     category: Annotated[
         str | None,
         cyclopts.Parameter(name=["--category", "-c"], help="Filter to one category"),
@@ -264,7 +270,7 @@ def check(
     elif json_output:
         print(json.dumps(format_json(result), indent=2))  # noqa: T201
     else:
-        print(format_report(result))  # noqa: T201
+        print(format_report(result, verbose=verbose))  # noqa: T201
 
     if result.score < 100:
         raise SystemExit(1)

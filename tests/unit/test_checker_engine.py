@@ -218,14 +218,14 @@ class TestFormatAgent:
     """Tests for format_agent() — compact agent output."""
 
     def test_format_agent_all_passed(self, tmp_path: Path) -> None:
-        """All passing → failed=[], passed has 1-line strings."""
+        """All passing → failed=[], passed_count is count of checks."""
         from axm_init.core.checker import format_agent
 
         result = _make_result(tmp_path, passed=True)
         output = format_agent(result)
         assert output["failed"] == []
-        assert len(output["passed"]) > 0
-        assert all(isinstance(p, str) for p in output["passed"])
+        assert output["passed_count"] == 1
+        assert isinstance(output["passed_count"], int)
 
     def test_format_agent_with_failures(self, tmp_path: Path) -> None:
         """Failed items must have name, message, details, fix."""
@@ -238,9 +238,42 @@ class TestFormatAgent:
         assert set(f.keys()) >= {"name", "message", "details", "fix"}
 
     def test_format_agent_has_required_keys(self, tmp_path: Path) -> None:
-        """Agent output must have score, grade, passed, failed."""
+        """Agent output must have score, grade, passed_count, failed."""
         from axm_init.core.checker import format_agent
 
         result = _make_result(tmp_path, passed=True)
         output = format_agent(result)
-        assert set(output.keys()) == {"score", "grade", "passed", "failed"}
+        assert set(output.keys()) == {"score", "grade", "passed_count", "failed"}
+
+    def test_format_agent_no_passed_key(self, tmp_path: Path) -> None:
+        """Agent output must NOT have a 'passed' key (replaced by count)."""
+        from axm_init.core.checker import format_agent
+
+        result = _make_result(tmp_path, passed=True)
+        output = format_agent(result)
+        assert "passed" not in output
+
+
+class TestFormatReportVerbose:
+    """Tests for format_report() verbose flag."""
+
+    def test_default_hides_individual_passed(self, tmp_path: Path) -> None:
+        """Default output shows summary line, not individual check names."""
+        result = _make_result(tmp_path, passed=True)
+        report = format_report(result)
+        assert "1 checks passed" in report
+        assert "test.check" not in report
+
+    def test_verbose_shows_individual_checks(self, tmp_path: Path) -> None:
+        """Verbose output shows individual check names."""
+        result = _make_result(tmp_path, passed=True)
+        report = format_report(result, verbose=True)
+        assert "test.check" in report
+        assert "✅" in report
+
+    def test_default_always_shows_failures(self, tmp_path: Path) -> None:
+        """Failures are always shown in default mode."""
+        result = _make_result(tmp_path, passed=False)
+        report = format_report(result)
+        assert "❌" in report
+        assert "Run fix command" in report

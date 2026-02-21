@@ -231,3 +231,35 @@ class TestCheckSelfTest:
         data = json.loads(stdout)
         assert data["score"] >= 75, f"Self-check score too low: {data['score']}"
         assert data["grade"] in ("A", "B")
+
+
+class TestCheckVerboseFlag:
+    """--verbose flag restores full listing of passed checks."""
+
+    def test_verbose_shows_all_checks(self, gold_project: Path) -> None:
+        stdout, _stderr, code = _run("check", str(gold_project), "--verbose")
+        assert code == 0
+        # Verbose should list individual check names
+        assert "pyproject.exists" in stdout or "✅" in stdout
+
+    def test_default_hides_individual_checks(self, gold_project: Path) -> None:
+        stdout, _stderr, _code = _run("check", str(gold_project))
+        # Default should show summary counts, not individual check names
+        assert "checks passed" in stdout
+
+
+class TestCheckAgentCompact:
+    """--agent flag uses passed_count instead of passed list."""
+
+    def test_agent_has_passed_count(self, gold_project: Path) -> None:
+        stdout, _stderr, code = _run("check", str(gold_project), "--agent")
+        assert code == 0
+        data = json.loads(stdout)
+        assert "passed_count" in data
+        assert isinstance(data["passed_count"], int)
+        assert data["passed_count"] == 39
+
+    def test_agent_no_passed_list(self, gold_project: Path) -> None:
+        stdout, _stderr, _code = _run("check", str(gold_project), "--agent")
+        data = json.loads(stdout)
+        assert "passed" not in data
