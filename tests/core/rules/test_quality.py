@@ -54,6 +54,51 @@ class TestLintingRule:
         rule = LintingRule()
         assert rule.rule_id == "QUALITY_LINT"
 
+    def test_lint_details_has_issues_key(self, tmp_path: Path) -> None:
+        """details must contain an 'issues' key with a list."""
+        from axm_audit.core.rules.quality import LintingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "__init__.py").write_text('"""Package init."""\n')
+
+        rule = LintingRule()
+        result = rule.check(tmp_path)
+        assert result.details is not None
+        assert "issues" in result.details
+        assert isinstance(result.details["issues"], list)
+
+    def test_lint_issues_match_count(self, tmp_path: Path) -> None:
+        """len(details['issues']) must equal issue_count (up to cap of 20)."""
+        from axm_audit.core.rules.quality import LintingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "bad.py").write_text("import os\nimport sys\n")
+
+        rule = LintingRule()
+        result = rule.check(tmp_path)
+        assert result.details is not None
+        expected = min(result.details["issue_count"], 20)
+        assert len(result.details["issues"]) == expected
+
+    def test_lint_issue_entry_schema(self, tmp_path: Path) -> None:
+        """Each issue entry must have file, line, code, message keys."""
+        from axm_audit.core.rules.quality import LintingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "bad.py").write_text("import os\nimport sys\n")
+
+        rule = LintingRule()
+        result = rule.check(tmp_path)
+        assert result.details is not None
+        for entry in result.details["issues"]:
+            assert "file" in entry
+            assert "line" in entry
+            assert "code" in entry
+            assert "message" in entry
+
 
 class TestTypeCheckRule:
     """Tests for TypeCheckRule (mypy integration)."""

@@ -53,8 +53,26 @@ def _coverage_details(details: dict[str, Any]) -> list[str]:
     return []
 
 
+def _lint_details(details: dict[str, Any]) -> list[str]:
+    """Format individual ruff violations."""
+    return [
+        f"{_INDENT}• [{i['code']}] {i['file']}:{i['line']}: {i['message']}"
+        for i in details.get("issues", [])
+    ]
+
+
+def _type_details(details: dict[str, Any]) -> list[str]:
+    """Format individual mypy errors."""
+    return [
+        f"{_INDENT}• [{e['code']}] {e['file']}:{e['line']}: {e['message']}"
+        for e in details.get("errors", [])
+    ]
+
+
 # Dispatch table: rule_id → detail formatter
 _DETAIL_FORMATTERS: dict[str, Any] = {
+    "QUALITY_LINT": _lint_details,
+    "QUALITY_TYPE": _type_details,
     "QUALITY_COMPLEXITY": _complexity_details,
     "QUALITY_SECURITY": _security_details,
     "DEPS_AUDIT": _vuln_details,
@@ -245,7 +263,7 @@ def _has_actionable_detail(check: CheckResult) -> bool:
     """Return True if a passing check has items the agent should act on."""
     if not check.details:
         return False
-    for key in ("missing", "locations", "matches"):
+    for key in ("missing", "locations", "matches", "issues", "errors"):
         items = check.details.get(key)
         if items and len(items) > 0:
             return True

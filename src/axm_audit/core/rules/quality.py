@@ -55,13 +55,29 @@ class LintingRule(ProjectRule):
         score = max(0, 100 - issue_count * 2)
         passed = score >= 80
 
+        # Store individual violations (capped at 20) for agent mode
+        formatted_issues: list[dict[str, str | int]] = [
+            {
+                "file": i.get("filename", ""),
+                "line": i.get("location", {}).get("row", 0),
+                "code": i.get("code", ""),
+                "message": i.get("message", ""),
+            }
+            for i in issues[:20]
+        ]
+
         checked = "src/ tests/" if tests_path.exists() else "src/"
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
             message=f"Lint score: {score}/100 ({issue_count} issues)",
             severity=Severity.WARNING if not passed else Severity.INFO,
-            details={"issue_count": issue_count, "score": score, "checked": checked},
+            details={
+                "issue_count": issue_count,
+                "score": score,
+                "checked": checked,
+                "issues": formatted_issues,
+            },
             fix_hint=f"Run: ruff check --fix {checked}" if issue_count > 0 else None,
         )
 
