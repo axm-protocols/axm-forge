@@ -24,6 +24,7 @@
 - 🌿 **Branch** — Create or checkout branches with one call
 - 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes
 - 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
+- 🚀 **Push** — Push with dirty-check, auto-upstream detection, and force support
 - 🧭 **Error Recovery** — When called on a non-git directory, tools suggest nearby git repos
 - 🪝 **Hooks** — Lifecycle hook actions (create-branch, commit-phase, merge-squash) with `enabled` guard, auto-discovered via entry-points
 - 🔎 **Phase Lookup** — `get_phase_commit()` retrieves commit hashes for protocol phases
@@ -55,6 +56,10 @@ git_commit(path="/path/to/repo", commits=[
 # Tag a release
 git_tag(path="/path/to/repo")
 # → {tag: "v0.2.0", bump: "minor", pushed: true}
+
+# Push to remote
+git_push(path="/path/to/repo")
+# → {branch: "main", remote: "origin", pushed: true}
 ```
 
 ## MCP Tools
@@ -112,6 +117,19 @@ Compute the next semver version from Conventional Commits, create and push the t
 | `version` | *auto* | Override the computed version (e.g. `"v1.0.0"`) |
 
 Pipeline: clean tree check → CI status check → semver bump → annotate tag → hatch-vcs verify → push.
+
+### `git_push`
+
+Push the current branch to a remote after verifying a clean working tree.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `path` | `.` | Project root directory |
+| `remote` | `origin` | Remote name |
+| `set_upstream` | `True` | Auto-set upstream for new branches |
+| `force` | `False` | Force-push |
+
+Pipeline: repo check → dirty check → detect branch → detect upstream → push.
 
 ## Development
 

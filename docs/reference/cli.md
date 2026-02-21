@@ -8,6 +8,7 @@
 | `git_branch` | `GitBranchTool` | Create or checkout branches |
 | `git_commit` | `GitCommitTool` | Batched atomic commits with pre-commit |
 | `git_tag` | `GitTagTool` | One-shot semver tagging |
+| `git_push` | `GitPushTool` | Push with dirty-check and auto-upstream |
 
 ## Lifecycle Hooks
 
