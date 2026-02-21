@@ -7,7 +7,7 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_git.core.runner import run_git
+from axm_git.core.runner import not_a_repo_error, run_git
 
 __all__ = ["GitCommitTool"]
 
@@ -120,6 +120,11 @@ class GitCommitTool(AXMTool):
 
         if not commit_list:
             return ToolResult(success=False, error="No commits provided")
+
+        # Fail fast with suggestions if not a git repo
+        check = run_git(["rev-parse", "--git-dir"], resolved)
+        if check.returncode != 0:
+            return not_a_repo_error(check.stderr, resolved)
 
         results: list[dict[str, Any]] = []
 
