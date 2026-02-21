@@ -96,29 +96,34 @@ class GitCommitTool(AXMTool):
         """Tool name used for MCP registration."""
         return "git_commit"
 
-    def execute(self, **kwargs: Any) -> ToolResult:
+    def execute(
+        self,
+        *,
+        path: str = ".",
+        commits: list[dict[str, Any]] | None = None,
+        **kwargs: Any,
+    ) -> ToolResult:
         """Execute batched commits.
 
         Args:
-            **kwargs: Keyword arguments.
-                path: Project root (required).
-                commits: List of commit specs, each a dict with keys:
-                    - ``files`` (list[str]): Files to stage.
-                    - ``message`` (str): Commit summary line.
-                    - ``body`` (str, optional): Commit body.
+            path: Project root (required).
+            commits: List of commit specs, each a dict with keys:
+                - ``files`` (list[str]): Files to stage.
+                - ``message`` (str): Commit summary line.
+                - ``body`` (str, optional): Commit body.
 
         Returns:
             ToolResult with list of committed results.
         """
-        path = Path(kwargs.get("path", ".")).resolve()
-        commits: list[dict[str, Any]] = kwargs.get("commits", [])
+        resolved = Path(path).resolve()
+        commit_list: list[dict[str, Any]] = commits or []
 
-        if not commits:
+        if not commit_list:
             return ToolResult(success=False, error="No commits provided")
 
         results: list[dict[str, Any]] = []
 
-        for i, spec in enumerate(commits):
+        for i, spec in enumerate(commit_list):
             files: list[str] = spec.get("files", [])
             message: str = spec.get("message", "")
             body: str | None = spec.get("body")
@@ -138,7 +143,7 @@ class GitCommitTool(AXMTool):
                 )
 
             # Stage files
-            add_err = _stage_files(files, path)
+            add_err = _stage_files(files, resolved)
             if add_err:
                 return ToolResult(
                     success=False,
@@ -152,19 +157,19 @@ class GitCommitTool(AXMTool):
                 commit_args.extend(["-m", body])
 
             # Attempt commit with auto-retry
-            ok, retried, output = _attempt_commit(commit_args, files, path)
+            ok, retried, output = _attempt_commit(commit_args, files, resolved)
 
             if not ok:
                 return ToolResult(
                     success=False,
                     error=f"Commit {i + 1}: pre-commit failed",
                     data=_build_failure_data(
-                        results, i + 1, message, output, retried, path
+                        results, i + 1, message, output, retried, resolved
                     ),
                 )
 
             # Get the SHA of the commit
-            log = run_git(["log", "-1", "--format=%H"], path)
+            log = run_git(["log", "-1", "--format=%H"], resolved)
             sha = log.stdout.strip()[:7]
 
             results.append(
