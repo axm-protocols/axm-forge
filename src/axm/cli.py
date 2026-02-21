@@ -20,7 +20,7 @@ from typing import Any
 
 import cyclopts
 
-__all__ = ["create_app"]
+__all__ = ["create_app", "main"]
 
 logger = logging.getLogger(__name__)
 
@@ -81,5 +81,11 @@ def create_app() -> cyclopts.App:
 
 app = create_app()
 
-if __name__ == "__main__":
+
+def main() -> None:
+    """Main entry point."""
     app()
+
+
+if __name__ == "__main__":
+    main()

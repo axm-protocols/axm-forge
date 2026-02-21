@@ -27,7 +27,7 @@ word   = ["axm-word"]
 all    = ["axm-init", "axm-audit", "axm-bib", "axm-mcp", "axm-word"]
 
 [project.scripts]
-axm = "axm.cli:app"
+axm = "axm.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/axm-protocols/axm"
