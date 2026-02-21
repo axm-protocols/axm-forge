@@ -38,7 +38,19 @@ def sample_project(tmp_path: Path) -> Path:
         '    """A helper class."""\n\n'
         "    def run(self) -> None:\n"
         '        """Run the helper."""\n'
-        "        greet('world')\n"
+        "        greet('world')\n\n"
+        "    @property\n"
+        "    def label(self) -> str:\n"
+        '        """Helper label."""\n'
+        '        return "helper"\n\n'
+        "    @classmethod\n"
+        "    def from_name(cls, name: str) -> 'Helper':\n"
+        '        """Create from name."""\n'
+        "        return cls()\n\n"
+        "    @staticmethod\n"
+        "    def version() -> str:\n"
+        '        """Return version."""\n'
+        '        return "1.0"\n'
     )
 
     # Add a pyproject.toml for context tool
@@ -367,6 +379,68 @@ class TestInspectTool:
         tool = InspectTool()
         result = tool.execute(path=str(sample_project / "src" / "demo"))
         assert result.success is False
+
+    def test_inspect_dotted_method(self, sample_project: Path) -> None:
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="Helper.run"
+        )
+        assert result.success is True
+        assert result.data["symbol"]["name"] == "run"
+
+    def test_inspect_dotted_property(self, sample_project: Path) -> None:
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="Helper.label"
+        )
+        assert result.success is True
+        assert result.data["symbol"]["name"] == "label"
+
+    def test_inspect_dotted_classmethod(self, sample_project: Path) -> None:
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="Helper.from_name"
+        )
+        assert result.success is True
+        assert result.data["symbol"]["name"] == "from_name"
+
+    def test_inspect_dotted_not_found(self, sample_project: Path) -> None:
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="Helper.nonexistent"
+        )
+        assert result.success is False
+        assert result.error is not None
+        assert "nonexistent" in result.error
+        assert "Helper" in result.error
+
+    def test_inspect_class_not_found_dotted(self, sample_project: Path) -> None:
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="Missing.method"
+        )
+        assert result.success is False
+        assert result.error is not None
+        assert "Missing" in result.error
+
+    def test_inspect_toplevel_unchanged(self, sample_project: Path) -> None:
+        """Regression: top-level symbols still work (AC5)."""
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(path=str(sample_project / "src" / "demo"), symbol="greet")
+        assert result.success is True
+        assert result.data["symbol"]["name"] == "greet"
 
 
 # ===========================================================================

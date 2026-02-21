@@ -67,6 +67,64 @@ class TestInspectCommand:
         )
         assert "greet" in output
 
+    def test_inspect_class_method(self, capsys: pytest.CaptureFixture[str]) -> None:
+        output = _run(
+            [
+                "inspect",
+                str(SAMPLE_PKG / "__init__.py"),
+                "--symbol",
+                "Calculator.add",
+            ],
+            capsys,
+        )
+        assert "add" in output
+
+    def test_inspect_classmethod(self, capsys: pytest.CaptureFixture[str]) -> None:
+        output = _run(
+            [
+                "inspect",
+                str(SAMPLE_PKG / "__init__.py"),
+                "--symbol",
+                "Calculator.from_config",
+            ],
+            capsys,
+        )
+        assert "from_config" in output
+
+    def test_inspect_property(self, capsys: pytest.CaptureFixture[str]) -> None:
+        output = _run(
+            [
+                "inspect",
+                str(SAMPLE_PKG / "__init__.py"),
+                "--symbol",
+                "Calculator.name",
+            ],
+            capsys,
+        )
+        assert "name" in output
+
+    def test_inspect_method_not_found(self) -> None:
+        with pytest.raises(SystemExit):
+            app(
+                [
+                    "inspect",
+                    str(SAMPLE_PKG / "__init__.py"),
+                    "--symbol",
+                    "Calculator.nonexistent",
+                ]
+            )
+
+    def test_inspect_class_not_found(self) -> None:
+        with pytest.raises(SystemExit):
+            app(
+                [
+                    "inspect",
+                    str(SAMPLE_PKG / "__init__.py"),
+                    "--symbol",
+                    "NonExistent.method",
+                ]
+            )
+
     def test_inspect_invalid_path(self) -> None:
         with pytest.raises(SystemExit):
             app(["inspect", "/nonexistent.py"])

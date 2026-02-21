@@ -146,7 +146,36 @@ def inspect(
 
 
 def _inspect_symbol(mod: ModuleInfo, name: str, *, json_output: bool) -> None:
-    """Find and print a single symbol from a module."""
+    """Find and print a single symbol from a module.
+
+    Supports dotted paths like ``ClassName.method`` to inspect
+    methods, properties, classmethods, and staticmethods within classes.
+    """
+    # --- Dotted path: resolve class → method ---
+    if "." in name:
+        parts = name.split(".")
+        class_name = parts[0]
+        cls = next((c for c in mod.classes if c.name == class_name), None)
+        if cls is None:
+            print(f"❌ Class '{class_name}' not found", file=sys.stderr)
+            raise SystemExit(1)
+
+        method_name = parts[-1]
+        method = next((m for m in cls.methods if m.name == method_name), None)
+        if method is None:
+            print(
+                f"❌ Method '{method_name}' not found in class '{class_name}'",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
+        if json_output:
+            print(json.dumps(method.model_dump(mode="json"), indent=2))
+        else:
+            print(format_symbol_text(method))
+        return
+
+    # --- Simple name: function or class ---
     for fn in mod.functions:
         if fn.name == name:
             if json_output:
