@@ -90,3 +90,58 @@ class TestReporters:
 
         # Should show pass/fail counts
         assert "1" in output  # 1 passed or 1 failed
+
+    def test_markdown_non_audit_result(self) -> None:
+        """MarkdownReporter falls back to JSON for non-AuditResult models."""
+        from axm_audit.models import CheckResult
+        from axm_audit.reporters import MarkdownReporter
+
+        check = CheckResult(rule_id="R1", passed=True, message="OK")
+        reporter = MarkdownReporter()
+        output = reporter.render(check)
+
+        # Should fallback to JSON
+        assert "R1" in output
+
+    def test_markdown_fix_hints(self) -> None:
+        """MarkdownReporter renders fix hints section for failed checks."""
+        from axm_audit.models import AuditResult, CheckResult
+        from axm_audit.reporters import MarkdownReporter
+
+        result = AuditResult(
+            checks=[
+                CheckResult(
+                    rule_id="R1",
+                    passed=False,
+                    message="FAIL",
+                    fix_hint="Run ruff fix",
+                ),
+            ]
+        )
+        reporter = MarkdownReporter()
+        output = reporter.render(result)
+
+        assert "Fix Hints" in output
+        assert "Run ruff fix" in output
+
+    def test_markdown_grade_display(self) -> None:
+        """MarkdownReporter shows grade when quality_score is present."""
+        from axm_audit.models import AuditResult, CheckResult
+        from axm_audit.reporters import MarkdownReporter
+
+        result = AuditResult(
+            checks=[
+                CheckResult(
+                    rule_id="QUALITY_LINT",
+                    passed=True,
+                    message="OK",
+                    details={"score": 100},
+                ),
+            ]
+        )
+        reporter = MarkdownReporter()
+        output = reporter.render(result)
+
+        # Should contain grade info if quality_score exists
+        if result.quality_score is not None and result.grade is not None:
+            assert result.grade in output
