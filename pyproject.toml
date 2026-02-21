@@ -22,6 +22,8 @@ dependencies = [
 git_tag       = "axm_git.tools.tag:GitTagTool"
 git_preflight = "axm_git.tools.commit_preflight:GitPreflightTool"
 git_commit    = "axm_git.tools.commit:GitCommitTool"
+git_branch    = "axm_git.tools.branch:GitBranchTool"
+git_push      = "axm_git.tools.push:GitPushTool"
 
 [project.entry-points."axm.hooks"]
 "git:create-branch" = "axm_git.hooks.create_branch:CreateBranchHook"
