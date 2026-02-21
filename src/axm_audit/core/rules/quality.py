@@ -187,8 +187,7 @@ class ComplexityRule(ProjectRule):
                 severity=Severity.ERROR,
                 details={"score": 0},
                 fix_hint=(
-                    "Ensure axm-audit is properly installed: "
-                    "uv pip install axm-audit"
+                    "Ensure axm-audit is properly installed: uv pip install axm-audit"
                 ),
             )
 

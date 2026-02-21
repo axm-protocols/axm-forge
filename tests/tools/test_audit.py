@@ -60,7 +60,7 @@ class TestAuditTool:
         src.mkdir()
         (src / "__init__.py").write_text('"""Package."""\n')
         (tmp_path / "pyproject.toml").write_text(
-            "[project]\n" 'name = "test-pkg"\n' 'version = "0.1.0"\n'
+            '[project]\nname = "test-pkg"\nversion = "0.1.0"\n'
         )
 
         tool = AuditTool()
