@@ -26,6 +26,7 @@ from axm_ast.core.callers import find_callers, find_callers_workspace
 from axm_ast.models.nodes import ModuleInfo, PackageInfo
 
 __all__ = [
+    "_find_test_files_by_import",
     "analyze_impact",
     "analyze_impact_workspace",
     "find_definition",
@@ -148,6 +149,55 @@ def map_tests(symbol: str, project_root: Path) -> list[Path]:
     return matching
 
 
+def _find_test_files_by_import(
+    module_name: str,
+    project_root: Path,
+) -> list[Path]:
+    """Find test files that import a given module (import-based heuristic).
+
+    Scans ``tests/`` directory for ``test_*.py`` files whose source
+    contains an import statement referencing *module_name*.  This is a
+    fallback for symbols with no direct callers — the module they live
+    in is often imported by test files even when the symbol name itself
+    does not appear.
+
+    Only ``tests/`` is scanned (bounded scope).  Non-test files are
+    excluded.
+
+    Args:
+        module_name: Bare module name (e.g. ``"models"``, not
+            ``"mypkg.models"``).
+        project_root: Root of the project.
+
+    Returns:
+        Sorted list of test file paths that import the module.
+    """
+    import re
+
+    tests_dir = project_root / "tests"
+    if not tests_dir.is_dir():
+        return []
+
+    # Match import lines:  from <anything>.module_name import ...
+    #                      import <anything>.module_name
+    #                      from module_name import ...
+    pattern = re.compile(
+        rf"(?:from\s+\S*\.?{re.escape(module_name)}\s+import"
+        rf"|import\s+\S*\.?{re.escape(module_name)}(?:\s|$))"
+    )
+
+    matching: list[Path] = []
+    for test_file in sorted(tests_dir.glob("test_*.py")):
+        try:
+            content = test_file.read_text(encoding="utf-8")
+            if pattern.search(content):
+                matching.append(test_file)
+        except OSError:
+            continue
+
+    return matching
+
+
 # ─── Impact scoring ─────────────────────────────────────────────────────────
 
 
@@ -241,6 +291,16 @@ def analyze_impact(
         "test_files": [str(t.name) for t in test_files],
         "score": "LOW",  # placeholder, computed below
     }
+
+    # 6. Import-based heuristic: if no test files reference the symbol
+    #    directly, look for test files that import the symbol's module.
+    if not test_files and definition is not None:
+        # Extract the bare module name from the dotted path
+        # e.g. "core.impact" → "impact", "models" → "models"
+        bare_module = definition["module"].rsplit(".", 1)[-1]
+        import_tests = _find_test_files_by_import(bare_module, project_root)
+        if import_tests:
+            result["test_files_by_import"] = [str(t.name) for t in import_tests]
 
     result["score"] = score_impact(result)
     return result
