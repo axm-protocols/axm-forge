@@ -8,6 +8,7 @@ import pytest
 
 from axm_ast.core.analyzer import analyze_package
 from axm_ast.core.impact import (
+    _find_test_files_by_import,
     analyze_impact,
     find_definition,
     find_reexports,
@@ -214,6 +215,131 @@ class TestImpactEdgeCases:
         )
         result = analyze_impact(pkg, "add", project_root=tmp_path)
         assert len(result["callers"]) >= 1
+
+
+# ─── Import heuristic ───────────────────────────────────────────────────────
+
+
+def _make_import_heuristic_project(tmp_path: Path) -> Path:
+    """Create a project with an untested symbol whose module is imported."""
+    pkg = tmp_path / "src" / "mypkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text('"""Mypkg."""\n')
+    (pkg / "models.py").write_text(
+        '"""Models module."""\n'
+        "class InternalCfg:\n"
+        '    """Internal configuration dataclass."""\n'
+        '    name: str = "default"\n'
+    )
+    (pkg / "cli.py").write_text(
+        '"""CLI module."""\n' "def main() -> None:\n" '    """Main."""\n' "    pass\n"
+    )
+    # Tests directory: imports the models *module* but does NOT mention "InternalCfg"
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "test_models.py").write_text(
+        '"""Test models."""\n'
+        "import mypkg.models\n"
+        "\n"
+        "def test_something() -> None:\n"
+        '    """Test."""\n'
+        "    assert True\n"
+    )
+    # A non-test file that imports the module (should be excluded)
+    (tmp_path / "helper_script.py").write_text(
+        '"""Not a test."""\n' "import mypkg.models\n"
+    )
+    return pkg
+
+
+class TestImportHeuristic:
+    """Test import-based test file heuristic in analyze_impact."""
+
+    def test_import_heuristic_fires(self, tmp_path: Path) -> None:
+        """Heuristic finds test files importing the symbol's module."""
+        _make_import_heuristic_project(tmp_path)
+        # UserConfig has no callers in the package, so map_tests won't find it by name
+        # but test_models.py imports mypkg.models
+        result = _find_test_files_by_import("models", tmp_path)
+        names = [p.name for p in result]
+        assert "test_models.py" in names
+
+    def test_import_heuristic_skipped_in_analyze(self, tmp_path: Path) -> None:
+        """When caller-based test_files is non-empty, heuristic does NOT run."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text(
+            '"""Pkg."""\n' "def helper() -> None:\n" '    """Help."""\n' "    pass\n"
+        )
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        # This test directly references "helper" → map_tests will find it
+        (tests / "test_pkg.py").write_text(
+            '"""Test."""\n'
+            "from pkg import helper\n"
+            "\n"
+            "def test_helper() -> None:\n"
+            '    """Test."""\n'
+            "    helper()\n"
+        )
+        result = analyze_impact(pkg, "helper", project_root=tmp_path)
+        assert "test_pkg.py" in result["test_files"]
+        # Heuristic should not have run
+        assert result.get("test_files_by_import") is None
+
+    def test_import_heuristic_scoped_to_tests(self, tmp_path: Path) -> None:
+        """Non-test files importing the module are not included."""
+        _make_import_heuristic_project(tmp_path)
+        result = _find_test_files_by_import("models", tmp_path)
+        names = [p.name for p in result]
+        # helper_script.py is at project root, not in tests/
+        assert "helper_script.py" not in names
+
+    def test_no_tests_import_module(self, tmp_path: Path) -> None:
+        """Completely untested module returns empty."""
+        pkg = tmp_path / "src" / "mypkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text('"""Pkg."""\n')
+        (pkg / "orphan.py").write_text(
+            '"""Orphan module."""\ndef nobody() -> None:\n    pass\n'
+        )
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_other.py").write_text(
+            '"""Test other."""\ndef test_x() -> None:\n    assert True\n'
+        )
+        result = _find_test_files_by_import("orphan", tmp_path)
+        assert result == []
+
+    def test_wildcard_import_detected(self, tmp_path: Path) -> None:
+        """from module import * is still detected."""
+        pkg = tmp_path / "src" / "mypkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text('"""Pkg."""\n')
+        (pkg / "utils.py").write_text(
+            '"""Utils."""\ndef util_fn() -> None:\n    pass\n'
+        )
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_utils.py").write_text(
+            '"""Test utils."""\nfrom mypkg.utils import *\n\n'
+            "def test_u() -> None:\n    assert True\n"
+        )
+        result = _find_test_files_by_import("utils", tmp_path)
+        names = [p.name for p in result]
+        assert "test_utils.py" in names
+
+    def test_full_analyze_impact_with_heuristic(self, tmp_path: Path) -> None:
+        """Integration: analyze_impact returns test_files_by_import."""
+        pkg = _make_import_heuristic_project(tmp_path)
+        result = analyze_impact(pkg, "InternalCfg", project_root=tmp_path)
+        # InternalCfg has no callers in the package code
+        assert result["callers"] == []
+        # map_tests won't find it (name doesn't appear in test files)
+        assert result["test_files"] == []
+        # But the heuristic should find test_models.py via module import
+        assert "test_files_by_import" in result
+        assert "test_models.py" in result["test_files_by_import"]
 
 
 # ─── Functional: CLI ────────────────────────────────────────────────────────
