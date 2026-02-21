@@ -63,6 +63,22 @@ axm-ast impact src/mylib --symbol my_function --json
 }
 ```
 
+## Import-Based Test Heuristic
+
+When no test files reference a symbol by name (common for dataclasses, config models, or newly added symbols), `impact` falls back to an **import-based heuristic**: it scans `tests/` for files that import the module containing the symbol.
+
+Results appear in a separate key to distinguish them from direct matches:
+
+```json
+{
+  "test_files": [],
+  "test_files_by_import": ["test_models.py", "test_config.py"]
+}
+```
+
+!!! note "When does the heuristic run?"
+    Only when `test_files` is empty **and** the symbol has a known definition. If direct test matches exist, the heuristic is skipped to avoid noise.
+
 ## Workspace: Cross-Package Impact
 
 For `uv` workspaces with multiple packages, `impact` automatically performs cross-package analysis:
