@@ -397,6 +397,195 @@ class TestEdgeCases:
         assert "func_b" not in dead_names
 
 
+# ─── Dict-dispatch detection ────────────────────────────────────────────────
+
+
+class TestDictDispatch:
+    """Functions referenced in dict values should not be flagged."""
+
+    def test_dict_dispatch_not_dead(self, tmp_path: Path) -> None:
+        """Function used as dict value → not flagged as dead."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "handlers.py": (
+                    "def handle_a():\n"
+                    "    return 'a'\n\n"
+                    "def handle_b():\n"
+                    "    return 'b'\n\n"
+                    "HANDLERS = {\n"
+                    '    "a": handle_a,\n'
+                    '    "b": handle_b,\n'
+                    "}\n"
+                ),
+                "main.py": (
+                    "from .handlers import HANDLERS\n\n"
+                    "def dispatch(key: str):\n"
+                    "    handler = HANDLERS.get(key)\n"
+                    "    if handler:\n"
+                    "        handler()\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "handle_a" not in dead_names
+        assert "handle_b" not in dead_names
+
+    def test_list_dispatch_not_dead(self, tmp_path: Path) -> None:
+        """Function used as list element → not flagged."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "pipeline.py": (
+                    "def step_one():\n"
+                    "    pass\n\n"
+                    "def step_two():\n"
+                    "    pass\n\n"
+                    "STEPS = [step_one, step_two]\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "step_one" not in dead_names
+        assert "step_two" not in dead_names
+
+    def test_unreferenced_still_dead(self, tmp_path: Path) -> None:
+        """Function NOT in any dict/list → still flagged."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "handlers.py": (
+                    "def handle_a():\n"
+                    "    return 'a'\n\n"
+                    "def orphan():\n"
+                    "    return 'orphan'\n\n"
+                    "HANDLERS = {\n"
+                    '    "a": handle_a,\n'
+                    "}\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "handle_a" not in dead_names
+        assert "orphan" in dead_names
+
+
+# ─── Entry-point exemption ──────────────────────────────────────────────────
+
+
+class TestEntryPointExemption:
+    """Symbols registered as entry points should not be flagged."""
+
+    def test_entry_point_not_dead(self, tmp_path: Path) -> None:
+        """Class registered in pyproject.toml entry-points → not flagged."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "tools.py": (
+                    "class MyTool:\n    def execute(self):\n        return 'result'\n"
+                ),
+            },
+        )
+        # Create pyproject.toml with entry point
+        pyproject = pkg_path / "pyproject.toml"
+        pyproject.write_text(
+            '[project.entry-points."my.tools"]\nmy_tool = "mypkg.tools:MyTool"\n'
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "MyTool" not in dead_names
+        assert "MyTool.execute" not in dead_names
+
+    def test_no_pyproject_graceful(self, tmp_path: Path) -> None:
+        """Missing pyproject.toml → graceful skip, no crash."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def orphan():\n    pass\n",
+            },
+        )
+        # No pyproject.toml
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "orphan" in dead_names
+
+    def test_entry_point_missing_symbol(self, tmp_path: Path) -> None:
+        """Entry point referencing non-existent class → no crash."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def real_func():\n    pass\n",
+            },
+        )
+        pyproject = pkg_path / "pyproject.toml"
+        pyproject.write_text(
+            '[project.entry-points."my.tools"]\nghost = "mypkg.core:GhostClass"\n'
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        # GhostClass doesn't exist, so no exemption for real_func
+        assert "real_func" in dead_names
+
+
+# ─── Test directory exclusion ────────────────────────────────────────────────
+
+
+class TestIncludeTests:
+    """Test directory exclusion/inclusion control."""
+
+    def test_exclude_tests_default(self, tmp_path: Path) -> None:
+        """Modules in tests/ dir excluded by default."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def main():\n    pass\n",
+            },
+        )
+        # Create tests/fixtures dir inside the package
+        fixtures = pkg_path / "tests" / "fixtures"
+        fixtures.mkdir(parents=True)
+        (fixtures / "__init__.py").write_text("")
+        (fixtures / "sample.py").write_text("def fixture_func():\n    pass\n")
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "fixture_func" not in dead_names
+
+    def test_include_tests_flag(self, tmp_path: Path) -> None:
+        """With include_tests=True, test fixtures ARE scanned."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def main():\n    pass\n",
+            },
+        )
+        fixtures = pkg_path / "tests" / "fixtures"
+        fixtures.mkdir(parents=True)
+        (fixtures / "__init__.py").write_text("")
+        (fixtures / "sample.py").write_text("def fixture_func():\n    pass\n")
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg, include_tests=True)
+        dead_names = {d.name for d in dead}
+        assert "fixture_func" in dead_names
+
+
 # ─── Formatting ──────────────────────────────────────────────────────────────
 
 

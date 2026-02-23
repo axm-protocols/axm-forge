@@ -15,7 +15,9 @@ Example::
 
 from __future__ import annotations
 
+import tomllib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -245,27 +247,91 @@ def _check_override(
     return False
 
 
+# ─── Entry-point exemption ───────────────────────────────────────────────────
+
+
+def _load_entry_point_symbols(pkg_root: Path) -> set[str]:
+    """Parse ``pyproject.toml`` entry-points to find registered symbols.
+
+    Scans ``[project.entry-points]`` for symbol paths like
+    ``"module.path:ClassName"`` and returns the set of class names
+    (and their ``.execute`` method, the AXM convention).
+
+    Args:
+        pkg_root: Root directory of the package (contains ``pyproject.toml``).
+
+    Returns:
+        Set of symbol names that are registered entry points.
+    """
+    pyproject = pkg_root / "pyproject.toml"
+    if not pyproject.exists():
+        return set()
+
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except Exception:
+        return set()
+
+    entry_points = data.get("project", {}).get("entry-points", {})
+    symbols: set[str] = set()
+
+    for _group, entries in entry_points.items():
+        if not isinstance(entries, dict):
+            continue
+        for _name, spec in entries.items():
+            if not isinstance(spec, str):
+                continue
+            # Format: "module.path:ClassName" or "module.path:func"
+            if ":" in spec:
+                symbol_part = spec.split(":", 1)[1]
+                symbols.add(symbol_part)
+                # AXM convention: entry point classes have .execute()
+                symbols.add(f"{symbol_part}.execute")
+
+    return symbols
+
+
+def _is_in_tests_dir(mod_path: Path) -> bool:
+    """Check if a module is inside a ``tests/`` directory."""
+    return "tests" in mod_path.parts
+
+
 # ─── Core detection ──────────────────────────────────────────────────────────
 
 
-def find_dead_code(pkg: PackageInfo) -> list[DeadSymbol]:
+def find_dead_code(
+    pkg: PackageInfo,
+    *,
+    include_tests: bool = False,
+) -> list[DeadSymbol]:
     """Detect unreferenced symbols across a package.
 
     Algorithm:
         1. Enumerate all functions and classes across all modules.
-        2. For each symbol, check if it has any callers.
-        3. Apply exemptions (dunders, tests, exports, decorators, etc.).
+        2. For each symbol, check if it has any callers or references.
+        3. Apply exemptions (dunders, tests, exports, decorators,
+           entry points, etc.).
         4. For methods, check override chains.
 
     Args:
         pkg: Analyzed package from ``analyze_package()``.
+        include_tests: If ``True``, also scan modules inside ``tests/``
+            directories. Defaults to ``False``.
 
     Returns:
         List of dead symbols, sorted by module path then line number.
     """
-    from axm_ast.core.callers import find_callers
+    from axm_ast.core.callers import extract_references, find_callers
 
     dead: list[DeadSymbol] = []
+
+    # Collect data-structure references across all modules.
+    all_refs: set[str] = set()
+    for mod in pkg.modules:
+        all_refs |= extract_references(mod)
+
+    # Load entry-point symbols from pyproject.toml.
+    entry_point_symbols = _load_entry_point_symbols(pkg.root)
 
     for mod in pkg.modules:
         mod_path = str(mod.path)
@@ -275,9 +341,17 @@ def find_dead_code(pkg: PackageInfo) -> list[DeadSymbol]:
         if path_name.startswith("test_") or path_name == "conftest.py":
             continue
 
+        # Skip modules inside tests/ directory unless opted in.
+        if not include_tests and _is_in_tests_dir(mod.path):
+            continue
+
         # ── Top-level functions ──────────────────────────────────────
         for fn in mod.functions:
             if _is_exempt_function(fn, mod):
+                continue
+
+            # Skip if referenced in a data structure (dict dispatch, etc.).
+            if fn.name in all_refs:
                 continue
 
             callers = find_callers(pkg, fn.name)
@@ -293,6 +367,10 @@ def find_dead_code(pkg: PackageInfo) -> list[DeadSymbol]:
 
         # ── Classes ──────────────────────────────────────────────────
         for cls in mod.classes:
+            # Skip entry-point classes.
+            if cls.name in entry_point_symbols:
+                continue
+
             cls_callers = find_callers(pkg, cls.name)
             cls_is_dead = not cls_callers and not _is_exempt_class(cls, mod)
 
@@ -311,6 +389,15 @@ def find_dead_code(pkg: PackageInfo) -> list[DeadSymbol]:
                 if _is_exempt_function(method, mod, parent_class=cls):
                     continue
 
+                # Skip entry-point methods.
+                qualified = f"{cls.name}.{method.name}"
+                if qualified in entry_point_symbols:
+                    continue
+
+                # Skip if referenced in a data structure.
+                if method.name in all_refs:
+                    continue
+
                 method_callers = find_callers(pkg, method.name)
                 if not method_callers:
                     # Check override chain before flagging.
@@ -318,7 +405,7 @@ def find_dead_code(pkg: PackageInfo) -> list[DeadSymbol]:
                         continue
                     dead.append(
                         DeadSymbol(
-                            name=f"{cls.name}.{method.name}",
+                            name=qualified,
                             module_path=mod_path,
                             line=method.line_start,
                             kind="method",

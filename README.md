@@ -24,7 +24,7 @@
 - 📋 **Context** — One-shot project dump: stack, patterns, module ranking
 - 💥 **Impact** — Change impact analysis: callers + graph + test mapping
 - 📖 **Docs** — One-shot documentation tree dump: README + mkdocs + all pages
-- 💀 **Dead code** — Detect unreferenced symbols with smart exemptions
+- 💀 **Dead code** — Detect unreferenced symbols with smart exemptions (dict dispatch, entry points)
 - 🏗️ **Workspace** — Multi-package workspace support (auto-detects `uv` workspaces)
 - ⭐ **Rank** — PageRank-based symbol importance scoring
 - 📄 **Stub** — `.pyi`-like stub generation for any package
@@ -63,6 +63,7 @@ axm-ast graph /path/to/workspace --format mermaid
 # Detect dead code
 axm-ast dead-code src/mylib
 axm-ast dead-code src/mylib --json
+axm-ast dead-code src/mylib --include-tests  # include test fixtures
 
 # Dump all project documentation in one shot
 axm-ast docs .
@@ -135,7 +136,7 @@ for fn in results:
 git clone https://github.com/axm-protocols/axm-ast.git
 cd axm-ast
 uv sync --all-groups
-uv run pytest           # 323 tests
+uv run pytest           # 395 tests
 uv run mypy src/ tests/ # type check
 uv run ruff check src/  # lint
 ```

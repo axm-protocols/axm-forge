@@ -26,6 +26,7 @@ class DeadCodeTool(AXMTool):
 
         Args:
             path: Path to package directory.
+            include_tests: Include test fixtures in scan (default False).
 
         Returns:
             ToolResult with dead symbols list.
@@ -38,8 +39,9 @@ class DeadCodeTool(AXMTool):
             from axm_ast.core.analyzer import analyze_package
             from axm_ast.core.dead_code import find_dead_code
 
+            include_tests = bool(kwargs.get("include_tests", False))
             pkg = analyze_package(pkg_path)
-            dead = find_dead_code(pkg)
+            dead = find_dead_code(pkg, include_tests=include_tests)
 
             return ToolResult(
                 success=True,
