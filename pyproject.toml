@@ -44,7 +44,8 @@ ast_callers  = "axm_ast.tools.callers:CallersTool"
 ast_impact   = "axm_ast.tools.impact:ImpactTool"
 ast_inspect  = "axm_ast.tools.inspect:InspectTool"
 ast_graph    = "axm_ast.tools.graph:GraphTool"
-ast_docs     = "axm_ast.tools.docs:DocsTool"
+ast_docs      = "axm_ast.tools.docs:DocsTool"
+ast_dead_code = "axm_ast.tools.dead_code:DeadCodeTool"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

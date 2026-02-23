@@ -212,6 +212,46 @@ axm-ast impact src/mylib --symbol analyze_package
 
 ---
 
+## `dead-code` — Dead Code Detection
+
+```
+axm-ast dead-code [OPTIONS] [PATH]
+```
+
+| Option | Short | Type | Default | Description |
+|---|---|---|---|---|
+| `PATH` | | string | `.` | Path to package directory |
+| `--json` | | bool | `False` | Output as JSON |
+
+**Exemptions** (not flagged as dead):
+
+- Dunder methods (`__init__`, `__repr__`, etc.)
+- Test functions (`test_*`)
+- `__all__`-exported symbols
+- Decorated functions (entry point heuristic)
+- `@property`, `@abstractmethod` methods
+- Methods on `Protocol` classes
+- Exception subclasses
+
+**Example:**
+
+```bash
+axm-ast dead-code src/mylib
+```
+
+```
+💀 3 dead symbol(s) found:
+
+  📄 src/mylib/utils.py
+    L  12  function    deprecated_fn
+    L  28  method      OldClass.stale_method
+
+  📄 src/mylib/core.py
+    L  45  function    _unused_helper
+```
+
+---
+
 ## `docs` — Documentation Tree Dump
 
 ```
