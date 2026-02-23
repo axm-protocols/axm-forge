@@ -557,6 +557,21 @@ class TestEntryPointExemption:
         dead_names = {d.name for d in dead}
         assert "main" not in dead_names
 
+    def test_scripts_entry_point_src_layout(self, tmp_path: Path) -> None:
+        """[project.scripts] found via parent traversal in src layout."""
+        project_root = tmp_path / "myproject"
+        project_root.mkdir()
+        src = project_root / "src" / "mypkg"
+        src.mkdir(parents=True)
+        (src / "__init__.py").write_text("")
+        (src / "cli.py").write_text("def main():\n    print('hello')\n")
+        pyproject = project_root / "pyproject.toml"
+        pyproject.write_text('[project.scripts]\nmy-cli = "mypkg.cli:main"\n')
+        pkg = analyze_package(src)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "main" not in dead_names
+
 
 # ─── Test directory exclusion ────────────────────────────────────────────────
 

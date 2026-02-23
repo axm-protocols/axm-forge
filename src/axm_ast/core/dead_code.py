@@ -263,8 +263,21 @@ def _load_entry_point_symbols(pkg_root: Path) -> set[str]:
     Returns:
         Set of symbol names that are registered entry points.
     """
-    pyproject = pkg_root / "pyproject.toml"
-    if not pyproject.exists():
+    # Walk up from pkg_root to find pyproject.toml.
+    # pkg_root is typically ``src/pkg_name/`` but pyproject.toml lives
+    # at the project root (1-2 levels up in a src-layout).
+    pyproject: Path | None = None
+    search = pkg_root
+    for _ in range(4):  # max 4 levels up
+        candidate = search / "pyproject.toml"
+        if candidate.exists():
+            pyproject = candidate
+            break
+        if search.parent == search:
+            break
+        search = search.parent
+
+    if pyproject is None:
         return set()
 
     try:
