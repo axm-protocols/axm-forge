@@ -541,6 +541,22 @@ class TestEntryPointExemption:
         # GhostClass doesn't exist, so no exemption for real_func
         assert "real_func" in dead_names
 
+    def test_scripts_entry_point_not_dead(self, tmp_path: Path) -> None:
+        """Function registered in [project.scripts] → not flagged."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "cli.py": "def main():\n    print('hello')\n",
+            },
+        )
+        pyproject = pkg_path / "pyproject.toml"
+        pyproject.write_text('[project.scripts]\nmy-cli = "mypkg.cli:main"\n')
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "main" not in dead_names
+
 
 # ─── Test directory exclusion ────────────────────────────────────────────────
 

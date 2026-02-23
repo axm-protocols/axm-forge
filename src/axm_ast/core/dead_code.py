@@ -272,21 +272,34 @@ def _load_entry_point_symbols(pkg_root: Path) -> set[str]:
     except Exception:
         return set()
 
-    entry_points = data.get("project", {}).get("entry-points", {})
+    project = data.get("project", {})
     symbols: set[str] = set()
 
-    for _group, entries in entry_points.items():
+    def _extract_symbols(spec: str) -> None:
+        """Extract symbol name from a ``module.path:symbol`` spec."""
+        if ":" in spec:
+            symbol_part = spec.split(":", 1)[1]
+            symbols.add(symbol_part)
+            # AXM convention: entry point classes have .execute()
+            symbols.add(f"{symbol_part}.execute")
+
+    # [project.scripts] — CLI entry points (e.g. "axm-word = axm_word.cli:main").
+    for _name, spec in project.get("scripts", {}).items():
+        if isinstance(spec, str):
+            _extract_symbols(spec)
+
+    # [project.gui-scripts] — GUI entry points.
+    for _name, spec in project.get("gui-scripts", {}).items():
+        if isinstance(spec, str):
+            _extract_symbols(spec)
+
+    # [project.entry-points] — plugin/tool entry points.
+    for _group, entries in project.get("entry-points", {}).items():
         if not isinstance(entries, dict):
             continue
         for _name, spec in entries.items():
-            if not isinstance(spec, str):
-                continue
-            # Format: "module.path:ClassName" or "module.path:func"
-            if ":" in spec:
-                symbol_part = spec.split(":", 1)[1]
-                symbols.add(symbol_part)
-                # AXM convention: entry point classes have .execute()
-                symbols.add(f"{symbol_part}.execute")
+            if isinstance(spec, str):
+                _extract_symbols(spec)
 
     return symbols
 
@@ -348,6 +361,10 @@ def find_dead_code(
         # ── Top-level functions ──────────────────────────────────────
         for fn in mod.functions:
             if _is_exempt_function(fn, mod):
+                continue
+
+            # Skip entry-point functions (e.g. main from [project.scripts]).
+            if fn.name in entry_point_symbols:
                 continue
 
             # Skip if referenced in a data structure (dict dispatch, etc.).
