@@ -20,9 +20,77 @@ from axm_ast.models.nodes import ModuleInfo, PackageInfo, WorkspaceInfo
 
 __all__ = [
     "extract_calls",
+    "extract_references",
     "find_callers",
     "find_callers_workspace",
 ]
+
+
+# ─── Reference extraction (non-call usages) ─────────────────────────────────
+
+
+def extract_references(mod: ModuleInfo) -> set[str]:
+    """Extract symbol names used as references (not direct calls).
+
+    Detects identifiers that appear as:
+    - Dict values: ``{"key": my_func}``
+    - List elements: ``[func_a, func_b]``
+    - Tuple elements: ``(func_a, func_b)``
+    - Set elements: ``{func_a, func_b}``
+
+    This catches dynamic dispatch patterns where functions are stored
+    in data structures and called indirectly.
+
+    Args:
+        mod: Parsed module info (with path to source).
+
+    Returns:
+        Set of symbol names referenced in data structures.
+    """
+    source = mod.path.read_text(encoding="utf-8")
+    tree = parse_source(source)
+    refs: set[str] = set()
+    _visit_references(tree.root_node, refs)
+    return refs
+
+
+def _visit_references(node: object, refs: set[str]) -> None:
+    """Recursively find identifiers in dict values, list/tuple/set elements."""
+    node_type = getattr(node, "type", "")
+    children = getattr(node, "children", [])
+
+    if node_type == "pair":
+        _collect_dict_value_ref(children, refs)
+    elif node_type in ("list", "tuple", "set"):
+        _collect_collection_refs(children, refs)
+
+    # Recurse into all children.
+    for child in children:
+        _visit_references(child, refs)
+
+
+def _collect_dict_value_ref(children: list[object], refs: set[str]) -> None:
+    """Extract identifier from the value side of a dict pair."""
+    past_colon = False
+    for child in children:
+        if getattr(child, "type", "") == ":":
+            past_colon = True
+            continue
+        if past_colon:
+            if getattr(child, "type", "") == "identifier":
+                name = _node_text_safe(child)
+                if name:
+                    refs.add(name)
+            return
+
+
+def _collect_collection_refs(children: list[object], refs: set[str]) -> None:
+    """Extract identifier references from list/tuple/set elements."""
+    for child in children:
+        if getattr(child, "type", "") == "identifier":
+            name = _node_text_safe(child)
+            if name:
+                refs.add(name)
 
 
 # ─── Call extraction ─────────────────────────────────────────────────────────

@@ -548,6 +548,13 @@ def dead_code(
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
     ] = False,
+    include_tests: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--include-tests"],
+            help="Include test fixtures in scan",
+        ),
+    ] = False,
 ) -> None:
     """Detect dead (unreferenced) code in a Python package."""
     project_path = Path(path).resolve()
@@ -558,7 +565,7 @@ def dead_code(
     from axm_ast.core.dead_code import find_dead_code, format_dead_code
 
     pkg = analyze_package(project_path)
-    results = find_dead_code(pkg)
+    results = find_dead_code(pkg, include_tests=include_tests)
 
     if json_output:
         print(
