@@ -537,6 +537,51 @@ def _print_impact_list(icon_label: str, items: list[str]) -> None:
     print()
 
 
+@app.command(name="dead-code")
+def dead_code(
+    path: Annotated[
+        str,
+        cyclopts.Parameter(help="Path to package directory"),
+    ] = ".",
+    *,
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--json"], help="Output as JSON"),
+    ] = False,
+) -> None:
+    """Detect dead (unreferenced) code in a Python package."""
+    project_path = Path(path).resolve()
+    if not project_path.is_dir():
+        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
+        raise SystemExit(1)
+
+    from axm_ast.core.dead_code import find_dead_code, format_dead_code
+
+    pkg = analyze_package(project_path)
+    results = find_dead_code(pkg)
+
+    if json_output:
+        print(
+            json.dumps(
+                {
+                    "dead_symbols": [
+                        {
+                            "name": d.name,
+                            "module_path": d.module_path,
+                            "line": d.line,
+                            "kind": d.kind,
+                        }
+                        for d in results
+                    ],
+                    "total": len(results),
+                },
+                indent=2,
+            )
+        )
+    else:
+        print(format_dead_code(results))
+
+
 @app.command()
 def docs(
     path: Annotated[

@@ -24,6 +24,7 @@
 - 📋 **Context** — One-shot project dump: stack, patterns, module ranking
 - 💥 **Impact** — Change impact analysis: callers + graph + test mapping
 - 📖 **Docs** — One-shot documentation tree dump: README + mkdocs + all pages
+- 💀 **Dead code** — Detect unreferenced symbols with smart exemptions
 - 🏗️ **Workspace** — Multi-package workspace support (auto-detects `uv` workspaces)
 - ⭐ **Rank** — PageRank-based symbol importance scoring
 - 📄 **Stub** — `.pyi`-like stub generation for any package
@@ -58,6 +59,10 @@ axm-ast impact src/mylib --symbol my_function
 axm-ast context /path/to/workspace   # all packages at once
 axm-ast callers /path/to/workspace --symbol ToolResult
 axm-ast graph /path/to/workspace --format mermaid
+
+# Detect dead code
+axm-ast dead-code src/mylib
+axm-ast dead-code src/mylib --json
 
 # Dump all project documentation in one shot
 axm-ast docs .
@@ -106,6 +111,7 @@ axm-ast docs . --json   # JSON output
 | `axm-ast callers` | Find all call-sites of a symbol |
 | `axm-ast context` | One-shot project context dump for AI agents |
 | `axm-ast impact` | Change impact analysis for a symbol |
+| `axm-ast dead-code` | Detect unreferenced symbols with smart exemptions |
 | `axm-ast docs` | One-shot documentation tree dump (README + mkdocs + docs/) |
 | `axm-ast stub` | Generate `.pyi`-like stubs |
 | `axm-ast version` | Show version |
