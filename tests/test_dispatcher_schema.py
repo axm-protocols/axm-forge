@@ -198,3 +198,221 @@ class TestDispatcherRegistration:
 
         result = fake_mcp.tools["test_dispatch"](action="list")
         assert result == {"items": []}
+
+
+# ─────────── _extract_docstring_params tests ─────────────────────────
+
+
+class TestExtractDocstringParams:
+    """_extract_docstring_params parses Google-style Args sections."""
+
+    def test_parses_typed_params(self) -> None:
+        """Extracts params with type annotations."""
+        doc = """\
+        Do something.
+
+        Args:
+            path (str): Path to directory.
+            name (str): Project name.
+            limit (int): Max results.
+        """
+        from axm_mcp.discovery import _extract_docstring_params
+
+        params = _extract_docstring_params(doc)
+        names = [p.name for p in params]
+        assert names == ["path", "name", "limit"]
+        assert params[0].annotation is str
+        assert params[2].annotation is int
+
+    def test_parses_untyped_params(self) -> None:
+        """Extracts params without type annotations."""
+        doc = """\
+        Do something.
+
+        Args:
+            path: Path to directory.
+            verbose: Enable verbose mode.
+        """
+        from axm_mcp.discovery import _extract_docstring_params
+
+        params = _extract_docstring_params(doc)
+        assert len(params) == 2
+        assert params[0].name == "path"
+        assert params[0].annotation is inspect.Parameter.empty
+
+    def test_returns_empty_for_no_args(self) -> None:
+        """No Args section → empty list."""
+        doc = """Do something simple."""
+        from axm_mcp.discovery import _extract_docstring_params
+
+        params = _extract_docstring_params(doc)
+        assert params == []
+
+    def test_returns_empty_for_none(self) -> None:
+        """None docstring → empty list."""
+        from axm_mcp.discovery import _extract_docstring_params
+
+        params = _extract_docstring_params(None)
+        assert params == []
+
+    def test_skips_kwargs(self) -> None:
+        """**kwargs line is ignored."""
+        doc = """\
+        Do something.
+
+        Args:
+            path (str): Path to dir.
+            **kwargs: Extra arguments.
+        """
+        from axm_mcp.discovery import _extract_docstring_params
+
+        params = _extract_docstring_params(doc)
+        assert len(params) == 1
+        assert params[0].name == "path"
+
+    def test_stops_at_returns_section(self) -> None:
+        """Args: block ends at Returns: section."""
+        doc = """\
+        Do something.
+
+        Args:
+            path (str): Path to directory.
+
+        Returns:
+            ToolResult with data.
+        """
+        from axm_mcp.discovery import _extract_docstring_params
+
+        params = _extract_docstring_params(doc)
+        assert len(params) == 1
+        assert params[0].name == "path"
+
+    def test_all_params_are_keyword_only(self) -> None:
+        """All extracted params are KEYWORD_ONLY with default=None."""
+        doc = """\
+        Do something.
+
+        Args:
+            path (str): Path.
+            limit (int): Max.
+        """
+        from axm_mcp.discovery import _extract_docstring_params
+
+        params = _extract_docstring_params(doc)
+        for p in params:
+            assert p.kind == inspect.Parameter.KEYWORD_ONLY
+            assert p.default is None
+
+    def test_handles_optional_type_suffix(self) -> None:
+        """Type with ', optional' suffix is cleaned."""
+        doc = """\
+        Do something.
+
+        Args:
+            path (str, optional): Optional path.
+        """
+        from axm_mcp.discovery import _extract_docstring_params
+
+        params = _extract_docstring_params(doc)
+        assert params[0].annotation is str
+
+
+# ─────────── Non-dispatcher (AXMTool) registration ───────────────────
+
+
+class TestNonDispatcherRegistration:
+    """_register_one uses docstring fallback for AXMTool.execute(**kwargs)."""
+
+    def test_axm_tool_with_kwargs_gets_docstring_params(self) -> None:
+        """AXMTool.execute(**kwargs) exposes params from docstring."""
+
+        class FakeTool:
+            @property
+            def name(self) -> str:
+                return "test_tool"
+
+            def execute(self, **kwargs: Any) -> Any:
+                """Do something.
+
+                Args:
+                    path (str): Path to directory.
+                    name (str): Project name.
+
+                Returns:
+                    ToolResult with data.
+                """
+
+                class _R:
+                    success = True
+                    data = kwargs
+                    error = None
+
+                return _R()
+
+        fake_mcp = FakeMCP()
+        tool = FakeTool()
+        _register_one(fake_mcp, "test_tool", tool)
+
+        wrapper = fake_mcp.tools["test_tool"]
+        sig = inspect.signature(wrapper)
+        param_names = list(sig.parameters.keys())
+
+        assert "path" in param_names
+        assert "name" in param_names
+
+    def test_axm_tool_without_docstring_has_no_params(self) -> None:
+        """AXMTool.execute(**kwargs) without docstring → empty params."""
+
+        class BareTool:
+            @property
+            def name(self) -> str:
+                return "bare"
+
+            def execute(self, **kwargs: Any) -> Any:
+                class _R:
+                    success = True
+                    data: dict[str, Any] = {}
+                    error = None
+
+                return _R()
+
+        fake_mcp = FakeMCP()
+        _register_one(fake_mcp, "bare", BareTool())
+
+        wrapper = fake_mcp.tools["bare"]
+        sig = inspect.signature(wrapper)
+        assert len(sig.parameters) == 0
+
+    def test_regular_tool_with_typed_params_not_affected(self) -> None:
+        """Tool with typed execute(self, *, path: str) keeps normal params."""
+
+        class TypedTool:
+            @property
+            def name(self) -> str:
+                return "typed"
+
+            def execute(self, *, path: str, limit: int = 5) -> Any:
+                """Do something.
+
+                Args:
+                    path: Path to directory.
+                    limit: Max results.
+                """
+
+                class _R:
+                    success = True
+                    data = {"path": path, "limit": limit}
+                    error = None
+
+                return _R()
+
+        fake_mcp = FakeMCP()
+        _register_one(fake_mcp, "typed", TypedTool())
+
+        wrapper = fake_mcp.tools["typed"]
+        sig = inspect.signature(wrapper)
+        param_names = list(sig.parameters.keys())
+
+        # Normal introspection should work — params come from signature, not docstring
+        assert "path" in param_names
+        assert "limit" in param_names
