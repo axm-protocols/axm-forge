@@ -37,7 +37,7 @@ This scaffolds a production-grade Python project with:
 | Flag | Short | Default | Description |
 |---|---|---|---|
 | `--name` | `-n` | *dir name* | Project name |
-| `--license` | `-l` | `MIT` | License (MIT, Apache-2.0, EUPL-1.2) |
+| `--license` | `-l` | `Apache-2.0` | License (MIT, Apache-2.0, EUPL-1.2) |
 | `--license-holder` | | *--org* | License holder |
 | `--description` | `-d` | | One-line description |
 

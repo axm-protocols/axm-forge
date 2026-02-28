@@ -20,7 +20,7 @@ axm-init scaffold [OPTIONS] [PATH]
 | `--org` | `-o` | string | *required* | GitHub org or username |
 | `--author` | `-a` | string | *required* | Author name |
 | `--email` | `-e` | string | *required* | Author email |
-| `--license` | `-l` | string | `MIT` | License type (MIT, Apache-2.0, EUPL-1.2) |
+| `--license` | `-l` | string | `Apache-2.0` | License type (MIT, Apache-2.0, EUPL-1.2) |
 | `--license-holder` | | string | *--org* | License holder (defaults to --org) |
 | `--description` | `-d` | string | `""` | Project description |
 | `--check-pypi` | | bool | `False` | Check PyPI name availability first |

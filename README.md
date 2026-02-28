@@ -61,7 +61,7 @@ Scaffold a production-grade Python project (src layout, PEP 621, CI, docs).
 | `--author` | `-a` | *required* | Author name |
 | `--email` | `-e` | *required* | Author email |
 | `--name` | `-n` | *dir name* | Project name |
-| `--license` | `-l` | `MIT` | License (MIT, Apache-2.0, EUPL-1.2) |
+| `--license` | `-l` | `Apache-2.0` | License (MIT, Apache-2.0, EUPL-1.2) |
 | `--license-holder` | | *--org* | License holder |
 | `--description` | `-d` | | One-line description |
 | `--check-pypi` | | `False` | Verify PyPI availability first |
@@ -110,7 +110,7 @@ The badge is already in your README — just push to `main` and it appears after
 git clone https://github.com/axm-protocols/axm-init.git
 cd axm-init
 uv sync --all-groups
-uv run pytest           # 382 tests
+uv run pytest           # 396 tests
 uv run ruff check src/  # lint
 ```
 
