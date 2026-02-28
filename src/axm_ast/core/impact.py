@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 from axm_ast.core.analyzer import _module_dotted_name
 from axm_ast.core.cache import get_package
 from axm_ast.core.callers import find_callers, find_callers_workspace
+from axm_ast.core.git_coupling import git_coupled_files
 from axm_ast.models.nodes import ModuleInfo, PackageInfo
 
 __all__ = [
@@ -32,6 +33,26 @@ __all__ = [
     "map_tests",
     "score_impact",
 ]
+
+
+# ─── Helpers ────────────────────────────────────────────────────────────────
+
+
+def _resolve_module_file(pkg: PackageInfo, mod_name: str) -> Path | None:
+    """Resolve a module dotted name to its absolute file path.
+
+    Args:
+        pkg: Analyzed package info.
+        mod_name: Dotted module name (e.g. ``"core.impact"``).
+
+    Returns:
+        Absolute path to the module file, or None if not found.
+    """
+    for mod in pkg.modules:
+        dotted = _module_dotted_name(mod.path, pkg.root)
+        if dotted == mod_name:
+            return mod.path
+    return None
 
 
 # ─── Definition finder ──────────────────────────────────────────────────────
@@ -203,7 +224,8 @@ def score_impact(result: dict[str, Any]) -> str:
     """Score impact as LOW, MEDIUM, or HIGH.
 
     Args:
-        result: Dict with callers, reexports, affected_modules.
+        result: Dict with callers, reexports, affected_modules,
+            and optionally git_coupled.
 
     Returns:
         Impact level string.
@@ -211,8 +233,9 @@ def score_impact(result: dict[str, Any]) -> str:
     caller_count = len(result.get("callers", []))
     reexport_count = len(result.get("reexports", []))
     module_count = len(result.get("affected_modules", []))
+    coupled_count = len(result.get("git_coupled", []))
 
-    total = caller_count + reexport_count * 2 + module_count
+    total = caller_count + reexport_count * 2 + module_count + coupled_count
 
     if total >= 5:
         return "HIGH"
@@ -287,10 +310,24 @@ def analyze_impact(
         "reexports": reexports,
         "affected_modules": sorted(affected_modules),
         "test_files": [str(t.name) for t in test_files],
+        "git_coupled": [],
         "score": "LOW",  # placeholder, computed below
     }
 
-    # 6. Import-based heuristic: if no test files reference the symbol
+    # 6. Git change coupling: find files that historically co-change.
+    if definition is not None:
+        # Find the actual file path from the module definition.
+        mod_name = definition["module"]
+        file_abs = _resolve_module_file(pkg, mod_name)
+        if file_abs is not None:
+            try:
+                file_rel = file_abs.relative_to(project_root)
+            except ValueError:
+                file_rel = None
+            if file_rel is not None:
+                result["git_coupled"] = git_coupled_files(str(file_rel), project_root)
+
+    # 7. Import-based heuristic: if no test files reference the symbol
     #    directly, look for test files that import the symbol's module.
     if not test_files and definition is not None:
         # Extract the bare module name from the dotted path
@@ -390,8 +427,28 @@ def analyze_impact_workspace(
         "reexports": reexports,
         "affected_modules": affected_modules,
         "test_files": test_files,
+        "git_coupled": [],
         "score": "LOW",
     }
+
+    # Git change coupling for workspace analysis.
+    if definition is not None:
+        mod_name = definition["module"]
+        pkg_name = definition.get("package", "")
+        # Find the package that owns this symbol to resolve the file path.
+        for pkg in ws.packages:
+            if pkg.name == pkg_name:
+                file_abs = _resolve_module_file(pkg, mod_name)
+                if file_abs is not None:
+                    try:
+                        file_rel = file_abs.relative_to(ws_path)
+                    except ValueError:
+                        file_rel = None
+                    if file_rel is not None:
+                        result["git_coupled"] = git_coupled_files(
+                            str(file_rel), ws_path
+                        )
+                break
 
     result["score"] = score_impact(result)
     return result
