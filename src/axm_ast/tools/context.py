@@ -66,8 +66,7 @@ class ContextTool(AXMTool):
                 success=True,
                 data=format_context_json(ctx, slim=slim),
                 hint=(
-                    "Tip: Use ast_describe(modules=[...])"
-                    " to see specific module APIs."
+                    "Tip: Use ast_describe(modules=[...]) to see specific module APIs."
                 ),
             )
         except Exception as exc:
