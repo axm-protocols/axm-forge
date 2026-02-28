@@ -584,6 +584,84 @@ def _print_impact_list(icon_label: str, items: list[str]) -> None:
     print()
 
 
+@app.command(name="diff")
+def diff_cmd(
+    refs: Annotated[
+        str,
+        cyclopts.Parameter(help="Git refs in base..head format"),
+    ],
+    path: Annotated[
+        str,
+        cyclopts.Parameter(help="Path to package directory"),
+    ] = ".",
+    *,
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--json"], help="Output as JSON"),
+    ] = False,
+) -> None:
+    """Structural diff between two branches at symbol level."""
+    if ".." not in refs:
+        print("❌ Expected format: base..head (e.g. main..feature)", file=sys.stderr)
+        raise SystemExit(1)
+
+    parts = refs.split("..", 1)
+    base, head = parts[0], parts[1]
+    if not base or not head:
+        print("❌ Both base and head refs are required", file=sys.stderr)
+        raise SystemExit(1)
+
+    project_path = Path(path).resolve()
+    if not project_path.is_dir():
+        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
+        raise SystemExit(1)
+
+    from axm_ast.core.structural_diff import structural_diff
+
+    result = structural_diff(project_path, base, head)
+
+    if "error" in result:
+        print(f"❌ {result['error']}", file=sys.stderr)
+        raise SystemExit(1)
+
+    if json_output:
+        print(json.dumps(result, indent=2))
+    else:
+        _print_diff(result, base, head)
+
+
+def _print_diff(result: dict, base: str, head: str) -> None:  # type: ignore[type-arg]
+    """Pretty-print structural diff."""
+    added = result["added"]
+    removed = result["removed"]
+    modified = result["modified"]
+    summary = result["summary"]
+
+    total = summary["added"] + summary["removed"] + summary["modified"]
+    print(f"🔀 Structural diff {base}..{head} — {total} change(s)\n")
+
+    if added:
+        print(f"  Symbols added ({len(added)}):")
+        for s in added:
+            print(f"    + {s['name']} ({s['kind']}) — {s['file']}")
+        print()
+
+    if modified:
+        print(f"  Symbols modified ({len(modified)}):")
+        for s in modified:
+            print(f"    ~ {s['name']} ({s['kind']}) — {s['file']}")
+        print()
+
+    if removed:
+        print(f"  Symbols removed ({len(removed)}):")
+        for s in removed:
+            print(f"    - {s['name']} ({s['kind']}) — {s['file']}")
+        print()
+
+    if total == 0:
+        print("  No structural changes detected.")
+
+
 @app.command(name="dead-code")
 def dead_code(
     path: Annotated[
