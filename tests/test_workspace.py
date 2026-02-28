@@ -117,9 +117,7 @@ def workspace_root(tmp_path: Path) -> Path:
     )
 
     # pkg-b: calls `helper()` from pkg-a
-    pkg_b_main = (
-        "from pkg_a.core import helper\n" "\n" "def run():\n" "    return helper()\n"
-    )
+    pkg_b_main = "from pkg_a.core import helper\n\ndef run():\n    return helper()\n"
     _make_member_package(
         tmp_path,
         "pkg-b",

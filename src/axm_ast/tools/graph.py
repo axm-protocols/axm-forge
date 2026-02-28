@@ -97,8 +97,7 @@ class GraphTool(AXMTool):
                 success=True,
                 data={"graph": graph},
                 hint=(
-                    "Tip: Use ast_describe(modules=[...])"
-                    " to explore specific modules."
+                    "Tip: Use ast_describe(modules=[...]) to explore specific modules."
                 ),
             )
         except Exception as exc:
