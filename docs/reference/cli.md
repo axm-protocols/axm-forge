@@ -223,7 +223,10 @@ axm-ast dead-code [OPTIONS] [PATH]
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Path to package directory |
+| `--include-tests` | | bool | `False` | Also scan test modules as targets (not just as consumers) |
 | `--json` | | bool | `False` | Output as JSON |
+
+Dead code detection automatically scans a sibling `tests/` directory for callers and detects lazy imports inside function bodies (`from X import Y` inside `def`). Symbols used exclusively in tests are **not** flagged as dead.
 
 **Exemptions** (not flagged as dead):
 
@@ -234,6 +237,9 @@ axm-ast dead-code [OPTIONS] [PATH]
 - `@property`, `@abstractmethod` methods
 - Methods on `Protocol` classes
 - Exception subclasses
+- `pyproject.toml` entry points (`[project.entry-points]`, `[project.scripts]`)
+- Dict/list dispatch targets (symbols referenced in data structures)
+- Method overrides (inherited from base classes)
 
 **Example:**
 
