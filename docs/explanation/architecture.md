@@ -18,6 +18,7 @@ graph TD
         Callers["Caller Analysis"]
         Context["Context (one-shot)"]
         Impact["Impact Analysis"]
+        GitCoupling["Git Coupling"]
         Workspace["Workspace"]
         Docs["Docs Discovery"]
         Formatters["Formatters"]
@@ -34,6 +35,7 @@ graph TD
         TreeSitter["tree-sitter-python"]
         FS["File System"]
         PyProject["pyproject.toml"]
+        Git["git log"]
     end
 
     CLI --> Cache
@@ -50,6 +52,8 @@ graph TD
     Context --> Ranker
     Impact --> Callers
     Impact --> Cache
+    Impact --> GitCoupling
+    GitCoupling --> Git
     Parser --> TreeSitter
     Parser --> FS
     Parser --> ModuleInfo
@@ -83,7 +87,8 @@ Independent, composable analysis engines:
 | `ranker.py` | PageRank symbol importance | `rank_symbols()` |
 | `callers.py` | Call-site detection | `find_callers()`, `find_callers_workspace()` |
 | `context.py` | One-shot project dump | `build_context()` |
-| `impact.py` | Change blast radius | `analyze_impact()`, `analyze_impact_workspace()` |
+| `impact.py` | Change blast radius (callers + reexports + tests + git coupling) | `analyze_impact()`, `analyze_impact_workspace()` |
+| `git_coupling.py` | Git co-change coupling analysis (6-month history) | `git_coupled_files()` |
 | `workspace.py` | Multi-package workspace detection and analysis | `detect_workspace()`, `analyze_workspace()` |
 | `docs.py` | Documentation tree discovery | `discover_docs()` |
 
@@ -123,7 +128,7 @@ Pydantic models for structured data exchange between layers:
 | tree-sitter for parsing | Fast, incremental, handles broken files gracefully |
 | Pydantic models | Validation, serialization, JSON output for free |
 | PageRank for ranking | Graph-based importance adapts to any project structure |
-| Composable engines | `impact` = `callers` + `analyzer` + `ranker` + test mapping |
+| Composable engines | `impact` = `callers` + `analyzer` + `ranker` + test mapping + git coupling |
 | Session cache | `PackageCache` avoids redundant tree-sitter parsing across chained tool calls |
 | Workspace auto-detect | `[tool.uv.workspace]` triggers multi-package mode transparently |
 | `src/` layout | PEP 621 best practice, no import conflicts |

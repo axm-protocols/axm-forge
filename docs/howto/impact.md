@@ -24,9 +24,9 @@ Output:
 
 | Score | Criteria |
 |---|---|
-| **LOW** | 0–1 callers, no re-exports |
-| **MEDIUM** | 2–4 callers or 1+ affected modules |
-| **HIGH** | 5+ callers, re-exported, or many affected modules |
+| **LOW** | 0-1 callers, no re-exports, no coupled files |
+| **MEDIUM** | 2-4 callers or 1+ affected modules or coupled files |
+| **HIGH** | 5+ callers, re-exported, many affected modules, or many coupled files |
 
 ## Find Callers First
 
@@ -59,9 +59,32 @@ axm-ast impact src/mylib --symbol my_function --json
   "callers": [{"module": "cli", "line": 89, "context": "main"}],
   "affected_modules": ["cli", "core.engine", "core.validator"],
   "test_files": ["test_utils.py", "test_engine.py"],
-  "reexports": ["mylib", "core"]
+  "reexports": ["mylib", "core"],
+  "git_coupled": [
+    {"file": "src/mylib/config.py", "strength": 0.75, "co_changes": 6},
+    {"file": "src/mylib/schema.py", "strength": 0.45, "co_changes": 4}
+  ]
 }
 ```
+
+## Git Change Coupling
+
+`impact` enriches its analysis with **git change coupling** — files that historically co-change with the symbol's file. This reveals hidden dependencies invisible to static analysis (e.g., config files, schemas, docs that always change together).
+
+Formula: `coupling(A, B) = co_changes(A, B) / max(changes(A), changes(B))` over the last 6 months of git history.
+
+Only files with coupling strength ≥ 0.3 **and** ≥ 3 co-changes are included.
+
+```json
+{
+  "git_coupled": [
+    {"file": "src/mylib/config.py", "strength": 0.75, "co_changes": 6}
+  ]
+}
+```
+
+!!! note "Graceful degradation"
+    If the project is not in a git repo or uses a shallow clone, `git_coupled` is simply an empty list — no error is raised.
 
 ## Import-Based Test Heuristic
 
