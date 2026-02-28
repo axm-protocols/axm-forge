@@ -164,7 +164,7 @@ clear_cache()                    # force re-parse on next call
 git clone https://github.com/axm-protocols/axm-ast.git
 cd axm-ast
 uv sync --all-groups
-uv run pytest           # 461 tests
+uv run pytest           # 505 tests
 uv run mypy src/ tests/ # type check
 uv run ruff check src/  # lint
 ```

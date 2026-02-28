@@ -617,6 +617,176 @@ class TestIncludeTests:
         assert "fixture_func" in dead_names
 
 
+# ─── Test caller scanning (AC1) ──────────────────────────────────────────────
+
+
+class TestTestCallerScanning:
+    """Symbols used only in tests/ should NOT be flagged as dead."""
+
+    def test_symbol_used_in_tests_not_dead(self, tmp_path: Path) -> None:
+        """Symbol called only in sibling tests/ → not flagged (AC1)."""
+        # src/mypkg layout
+        src_pkg = tmp_path / "src" / "mypkg"
+        src_pkg.mkdir(parents=True)
+        (src_pkg / "__init__.py").write_text("")
+        (src_pkg / "core.py").write_text(
+            "def _reset_state():\n    pass\n\ndef public_fn():\n    pass\n"
+        )
+
+        # sibling tests/ directory
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "__init__.py").write_text("")
+        (tests_dir / "test_core.py").write_text(
+            "from mypkg.core import _reset_state\n\n"
+            "def test_something():\n    _reset_state()\n"
+        )
+
+        pkg = analyze_package(src_pkg)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        # _reset_state is called in tests → not dead
+        assert "_reset_state" not in dead_names
+
+    def test_symbol_unused_everywhere_still_dead(self, tmp_path: Path) -> None:
+        """Symbol with no callers in src/ or tests/ → still flagged (AC4)."""
+        src_pkg = tmp_path / "src" / "mypkg"
+        src_pkg.mkdir(parents=True)
+        (src_pkg / "__init__.py").write_text("")
+        (src_pkg / "core.py").write_text("def truly_dead():\n    pass\n")
+
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "__init__.py").write_text("")
+        (tests_dir / "test_core.py").write_text(
+            "def test_something():\n    assert True\n"
+        )
+
+        pkg = analyze_package(src_pkg)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "truly_dead" in dead_names
+
+    def test_no_tests_dir_graceful(self, tmp_path: Path) -> None:
+        """Missing tests/ dir → graceful skip, no crash."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def orphan():\n    pass\n",
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "orphan" in dead_names
+
+
+# ─── Lazy import detection (AC2) ─────────────────────────────────────────────
+
+
+class TestLazyImports:
+    """Symbols imported inside function bodies should not be flagged."""
+
+    def test_lazy_import_not_dead(self, tmp_path: Path) -> None:
+        """Symbol imported inside a function body → not flagged (AC2)."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "models.py": "class StampType:\n    pass\n",
+                "executor.py": (
+                    "def run():\n"
+                    "    from .models import StampType\n"
+                    "    return StampType()\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "StampType" not in dead_names
+
+    def test_top_level_import_still_works(self, tmp_path: Path) -> None:
+        """Regular top-level usage is still detected."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "models.py": "class MyModel:\n    pass\n",
+                "service.py": (
+                    "from .models import MyModel\n\n"
+                    "def create():\n    return MyModel()\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "MyModel" not in dead_names
+
+    def test_lazy_import_in_if_block(self, tmp_path: Path) -> None:
+        """Import inside if TYPE_CHECKING → still detected as ref."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "models.py": "class Config:\n    pass\n",
+                "service.py": (
+                    "from typing import TYPE_CHECKING\n\n"
+                    "if TYPE_CHECKING:\n"
+                    "    from .models import Config\n\n"
+                    "def get_config() -> 'Config':\n"
+                    "    from .models import Config\n"
+                    "    return Config()\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "Config" not in dead_names
+
+
+# ─── Exemption preservation (AC5) ────────────────────────────────────────────
+
+
+class TestExemptionPreservation:
+    """Existing exemptions still work after the fix."""
+
+    def test_existing_exemptions_unchanged(self, tmp_path: Path) -> None:
+        """Existing exemptions (dunders, __all__, decorators, protocols) work."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "models.py": (
+                    "from typing import Protocol\n\n"
+                    '__all__ = ["exported_fn"]\n\n'
+                    "def exported_fn():\n    pass\n\n"
+                    "class Foo:\n"
+                    "    def __repr__(self):\n"
+                    "        return 'Foo()'\n\n"
+                    "class Handler(Protocol):\n"
+                    "    def handle(self, data: str) -> str:\n"
+                    "        ...\n\n"
+                    "def test_something():\n    pass\n\n"
+                    "def truly_unused():\n    pass\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        # Still exempt
+        assert "exported_fn" not in dead_names
+        assert "Foo.__repr__" not in dead_names
+        assert "Handler.handle" not in dead_names
+        assert "test_something" not in dead_names
+        # Still flagged
+        assert "truly_unused" in dead_names
+
+
 # ─── Formatting ──────────────────────────────────────────────────────────────
 
 
