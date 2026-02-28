@@ -23,7 +23,7 @@
 
 - 🔍 **Linting** — Ruff analysis (800+ rules)
 - 🔒 **Type Checking** — Strict mypy via `mypy.api.run()`
-- 📊 **Complexity** — Cyclomatic complexity via radon Python API
+- 📊 **Complexity** — Cyclomatic complexity via radon (Python API with subprocess fallback)
 - 🛡️ **Security** — Bandit integration + hardcoded secrets detection
 - 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry)
 - 🧪 **Testing** — Coverage enforcement via pytest-cov
@@ -105,7 +105,7 @@ for check in result.checks:
 git clone https://github.com/axm-protocols/axm-audit.git
 cd axm-audit
 uv sync --all-groups
-uv run pytest           # 236 tests
+uv run pytest           # 238 tests
 uv run ruff check src/  # lint
 uv run mypy src/        # type check
 ```
