@@ -30,11 +30,13 @@ class ToolResult:
         success: Whether the tool execution succeeded.
         data: Structured output data (backend-specific).
         error: Human-readable error message, if any.
+        hint: Optional next-step suggestion for the agent.
     """
 
     success: bool
     data: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
+    hint: str | None = None
 
 
 @runtime_checkable
