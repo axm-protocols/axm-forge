@@ -254,6 +254,41 @@ axm-ast dead-code src/mylib
 
 ---
 
+## `diff` — Structural Branch Diff
+
+```
+axm-ast diff REFS [PATH] [OPTIONS]
+```
+
+| Option | Short | Type | Default | Description |
+|---|---|---|---|---|
+| `REFS` | | string | *required* | Git refs in `base..head` format |
+| `PATH` | | string | `.` | Path to package directory |
+| `--json` | | bool | `False` | Output as JSON |
+
+Compares two git branches at symbol level. Uses git worktrees to checkout both refs and `analyze_package()` on each version, then diffs the symbol sets.
+
+**Example:**
+
+```bash
+axm-ast diff main..feature src/mylib
+```
+
+```
+🔀 Structural diff main..feature — 3 change(s)
+
+  Symbols added (1):
+    + new_func (function) — core.py
+
+  Symbols modified (1):
+    ~ process (function) — engine.py
+
+  Symbols removed (1):
+    - old_helper (function) — utils.py
+```
+
+---
+
 ## `docs` — Documentation Tree Dump
 
 ```

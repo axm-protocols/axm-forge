@@ -14,6 +14,8 @@
 | `ast_inspect(path, symbol)` | `axm-ast inspect` | Full detail on a single symbol |
 | `ast_graph(path)` | `axm-ast graph` | Import dependency graph |
 | `ast_docs(path)` | `axm-ast docs` | Documentation tree dump |
+| `ast_dead_code(path)` | `axm-ast dead-code` | Detect unreferenced symbols |
+| `ast_diff(path, base, head)` | `axm-ast diff` | Structural branch diff at symbol level |
 
 !!! tip "ast_describe detail levels"
     `ast_describe` accepts `detail`: `"toc"` (module names + counts only), `"summary"` (signatures only),
