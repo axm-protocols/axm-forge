@@ -81,4 +81,5 @@ class GitPreflightTool(AXMTool):
                 "diff_truncated": diff_truncated,
                 "clean": len(files) == 0,
             },
+            hint="Tip: Use git_commit(commits=[...]) to stage and commit changes.",
         )
