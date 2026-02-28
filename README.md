@@ -136,7 +136,7 @@ for fn in results:
 git clone https://github.com/axm-protocols/axm-ast.git
 cd axm-ast
 uv sync --all-groups
-uv run pytest           # 395 tests
+uv run pytest           # 406 tests
 uv run mypy src/ tests/ # type check
 uv run ruff check src/  # lint
 ```
