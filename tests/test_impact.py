@@ -232,7 +232,7 @@ def _make_import_heuristic_project(tmp_path: Path) -> Path:
         '    name: str = "default"\n'
     )
     (pkg / "cli.py").write_text(
-        '"""CLI module."""\n' "def main() -> None:\n" '    """Main."""\n' "    pass\n"
+        '"""CLI module."""\ndef main() -> None:\n    """Main."""\n    pass\n'
     )
     # Tests directory: imports the models *module* but does NOT mention "InternalCfg"
     tests = tmp_path / "tests"
@@ -247,7 +247,7 @@ def _make_import_heuristic_project(tmp_path: Path) -> Path:
     )
     # A non-test file that imports the module (should be excluded)
     (tmp_path / "helper_script.py").write_text(
-        '"""Not a test."""\n' "import mypkg.models\n"
+        '"""Not a test."""\nimport mypkg.models\n'
     )
     return pkg
 
@@ -269,7 +269,7 @@ class TestImportHeuristic:
         pkg = tmp_path / "pkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text(
-            '"""Pkg."""\n' "def helper() -> None:\n" '    """Help."""\n' "    pass\n"
+            '"""Pkg."""\ndef helper() -> None:\n    """Help."""\n    pass\n'
         )
         tests = tmp_path / "tests"
         tests.mkdir()
@@ -379,10 +379,10 @@ class TestImpactCLI:
         assert "score" in data
 
     def test_impact_on_real_symbol(self) -> None:
-        """Dogfood on analyze_package."""
+        """Dogfood on get_package (primary entry point after cache migration)."""
         root = Path(__file__).parent.parent
         ast_dir = root / "src" / "axm_ast"
         if ast_dir.exists():
-            result = analyze_impact(ast_dir, "analyze_package", project_root=root)
+            result = analyze_impact(ast_dir, "get_package", project_root=root)
             assert result["score"] == "HIGH"
             assert len(result["callers"]) >= 3

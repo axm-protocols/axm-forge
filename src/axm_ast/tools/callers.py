@@ -55,10 +55,10 @@ class CallersTool(AXMTool):
                 ws = analyze_workspace(project_path)
                 callers = find_callers_workspace(ws, symbol)
             else:
-                from axm_ast.core.analyzer import analyze_package
+                from axm_ast.core.cache import get_package
                 from axm_ast.core.callers import find_callers
 
-                pkg = analyze_package(project_path)
+                pkg = get_package(project_path)
                 callers = find_callers(pkg, symbol)
 
             caller_data = [

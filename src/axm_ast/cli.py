@@ -21,10 +21,10 @@ from typing import Annotated
 import cyclopts
 
 from axm_ast.core.analyzer import (
-    analyze_package,
     generate_stubs,
     search_symbols,
 )
+from axm_ast.core.cache import get_package
 from axm_ast.core.parser import extract_module_info
 from axm_ast.formatters import (
     format_json,
@@ -91,7 +91,7 @@ def describe(
         print(f"❌ Not a directory: {project_path}", file=sys.stderr)
         raise SystemExit(1)
 
-    pkg = analyze_package(project_path)
+    pkg = get_package(project_path)
 
     if compress:
         from axm_ast.formatters import format_compressed
@@ -256,7 +256,7 @@ def graph(
                         print(f"   {src} → {t}")
         return
 
-    pkg = analyze_package(project_path)
+    pkg = get_package(project_path)
 
     if json_output or fmt == "json":
         from axm_ast.core.analyzer import build_import_graph
@@ -317,7 +317,7 @@ def search(
         print(f"❌ Not a directory: {project_path}", file=sys.stderr)
         raise SystemExit(1)
 
-    pkg = analyze_package(project_path)
+    pkg = get_package(project_path)
 
     kind_enum = FunctionKind(kind) if kind else None
     results = search_symbols(
@@ -374,7 +374,7 @@ def callers(
         ws = analyze_workspace(project_path)
         results = find_callers_workspace(ws, symbol)
     else:
-        pkg = analyze_package(project_path)
+        pkg = get_package(project_path)
 
         from axm_ast.core.callers import find_callers
 
@@ -564,7 +564,7 @@ def dead_code(
 
     from axm_ast.core.dead_code import find_dead_code, format_dead_code
 
-    pkg = analyze_package(project_path)
+    pkg = get_package(project_path)
     results = find_dead_code(pkg, include_tests=include_tests)
 
     if json_output:
@@ -634,7 +634,7 @@ def stub(
         print(f"❌ Not a directory: {project_path}", file=sys.stderr)
         raise SystemExit(1)
 
-    pkg = analyze_package(project_path)
+    pkg = get_package(project_path)
     print(generate_stubs(pkg))
 
 

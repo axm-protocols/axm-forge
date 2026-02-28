@@ -36,11 +36,11 @@ class DeadCodeTool(AXMTool):
             if not pkg_path.is_dir():
                 return ToolResult(success=False, error=f"Not a directory: {pkg_path}")
 
-            from axm_ast.core.analyzer import analyze_package
+            from axm_ast.core.cache import get_package
             from axm_ast.core.dead_code import find_dead_code
 
             include_tests = bool(kwargs.get("include_tests", False))
-            pkg = analyze_package(pkg_path)
+            pkg = get_package(pkg_path)
             dead = find_dead_code(pkg, include_tests=include_tests)
 
             return ToolResult(

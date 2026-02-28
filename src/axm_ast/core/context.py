@@ -17,9 +17,9 @@ from typing import Any
 
 from axm_ast.core.analyzer import (
     _module_dotted_name,
-    analyze_package,
     build_import_graph,
 )
+from axm_ast.core.cache import get_package
 from axm_ast.core.ranker import rank_symbols
 from axm_ast.models.nodes import PackageInfo
 
@@ -237,7 +237,7 @@ def build_context(
     Returns:
         Complete context dict with all project info.
     """
-    pkg = analyze_package(path)
+    pkg = get_package(path)
 
     # Infer project root
     if project_root is None:

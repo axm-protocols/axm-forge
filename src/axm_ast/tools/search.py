@@ -50,10 +50,11 @@ class SearchTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            from axm_ast.core.analyzer import analyze_package, search_symbols
+            from axm_ast.core.analyzer import search_symbols
+            from axm_ast.core.cache import get_package
             from axm_ast.models import FunctionKind
 
-            pkg = analyze_package(project_path)
+            pkg = get_package(project_path)
 
             kind_enum = None
             if kind:

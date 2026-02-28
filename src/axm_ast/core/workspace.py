@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from axm_ast.core.analyzer import analyze_package
+from axm_ast.core.cache import get_package
 from axm_ast.models.nodes import PackageInfo, WorkspaceInfo
 
 logger = logging.getLogger(__name__)
@@ -225,7 +225,7 @@ def analyze_workspace(path: Path) -> WorkspaceInfo:
             continue
 
         try:
-            pkg = analyze_package(pkg_src)
+            pkg = get_package(pkg_src)
             packages.append(pkg)
         except Exception:
             logger.warning("Failed to analyze %s, skipping", member, exc_info=True)
