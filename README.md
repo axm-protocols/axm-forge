@@ -45,6 +45,9 @@ axm-ast context src/mylib
 axm-ast describe src/mylib
 axm-ast describe src/mylib --detail full
 axm-ast describe src/mylib --compress
+axm-ast describe src/mylib --detail toc               # table-of-contents
+axm-ast describe src/mylib --modules core,tools        # filter by module
+axm-ast describe src/mylib --detail toc --modules core # combined
 
 # Visualize import graph as Mermaid
 axm-ast graph src/mylib --format mermaid
@@ -105,7 +108,7 @@ axm-ast docs . --json   # JSON output
 
 | Command | Description |
 |---|---|
-| `axm-ast describe` | Introspect a package (summary / detailed / full / compress) |
+| `axm-ast describe` | Introspect a package (toc / summary / detailed / full / compress), optional `--modules` filter |
 | `axm-ast inspect` | Inspect a single module file |
 | `axm-ast graph` | Visualize import dependency graph (text / mermaid / json) |
 | `axm-ast search` | Search symbols by name, return type, kind, or base class |
@@ -147,7 +150,7 @@ clear_cache()                    # force re-parse on next call
 git clone https://github.com/axm-protocols/axm-ast.git
 cd axm-ast
 uv sync --all-groups
-uv run pytest           # 406 tests
+uv run pytest           # 420 tests
 uv run mypy src/ tests/ # type check
 uv run ruff check src/  # lint
 ```

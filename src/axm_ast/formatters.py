@@ -24,15 +24,17 @@ from axm_ast.models.nodes import (
 )
 
 __all__ = [
+    "filter_modules",
     "format_compressed",
     "format_json",
     "format_mermaid",
     "format_module_inspect_text",
     "format_symbol_text",
     "format_text",
+    "format_toc",
 ]
 
-DetailLevel = str  # "summary" | "detailed" | "full"
+DetailLevel = str  # "toc" | "summary" | "detailed" | "full"
 
 
 # ─── Text formatter ──────────────────────────────────────────────────────────
@@ -491,6 +493,78 @@ def _format_class_json(cls: ClassInfo, *, detail: DetailLevel) -> dict[str, Any]
             result["line_start"] = cls.line_start
             result["line_end"] = cls.line_end
     return result
+
+
+# ─── TOC formatter ───────────────────────────────────────────────────────────
+
+
+def format_toc(pkg: PackageInfo) -> list[dict[str, Any]]:
+    """Format package as a table-of-contents — module names and counts only.
+
+    Returns lightweight module summaries WITHOUT individual function/class
+    details.  Useful for agents to decide which modules to drill into.
+
+    Args:
+        pkg: Analyzed package info.
+
+    Returns:
+        List of module dicts with name, docstring, symbol_count,
+        function_count, class_count.
+
+    Example:
+        >>> toc = format_toc(pkg)
+        >>> toc[0]["name"]
+        'core.analyzer'
+    """
+    from axm_ast.core.analyzer import _module_dotted_name
+
+    modules: list[dict[str, Any]] = []
+    for mod in pkg.modules:
+        mod_name = _module_dotted_name(mod.path, pkg.root)
+        summary = parse_docstring(mod.docstring).summary if mod.docstring else None
+        func_count = len(mod.functions)
+        cls_count = len(mod.classes)
+        modules.append(
+            {
+                "name": mod_name,
+                "docstring": summary,
+                "function_count": func_count,
+                "class_count": cls_count,
+                "symbol_count": func_count + cls_count,
+            }
+        )
+    return modules
+
+
+# ─── Module filtering ────────────────────────────────────────────────────────
+
+
+def filter_modules(pkg: PackageInfo, modules: list[str] | None) -> PackageInfo:
+    """Return a shallow copy of *pkg* with modules filtered by name.
+
+    Each term in *modules* is matched as a case-insensitive substring
+    against the dotted module name.  If *modules* is ``None`` or empty,
+    the original package is returned unchanged.
+
+    Args:
+        pkg: Analyzed package info.
+        modules: Substring filters (OR logic).  ``None`` means no filter.
+
+    Returns:
+        PackageInfo with only matching modules (shallow copy).
+    """
+    if not modules:
+        return pkg
+
+    from axm_ast.core.analyzer import _module_dotted_name
+
+    terms = [t.lower() for t in modules]
+    filtered = [
+        mod
+        for mod in pkg.modules
+        if any(t in _module_dotted_name(mod.path, pkg.root).lower() for t in terms)
+    ]
+    return PackageInfo(name=pkg.name, root=pkg.root, modules=filtered)
 
 
 # ─── Mermaid formatter ───────────────────────────────────────────────────────

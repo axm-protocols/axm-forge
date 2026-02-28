@@ -27,6 +27,7 @@ class DescribeTool(AXMTool):
         path: str = ".",
         compress: bool = False,
         detail: str = "detailed",
+        modules: list[str] | None = None,
         **kwargs: Any,
     ) -> ToolResult:
         """Describe a Python package.
@@ -34,10 +35,13 @@ class DescribeTool(AXMTool):
         Args:
             path: Path to package directory.
             compress: If True, return compressed AI-friendly view.
-            detail: Detail level — ``summary`` (signatures only),
+            detail: Detail level — ``toc`` (names + counts only),
+                ``summary`` (signatures only),
                 ``detailed`` (+ docstrings, params, return types),
                 or ``full`` (+ line numbers, imports, variables).
                 Defaults to ``detailed`` so docstrings are always included.
+            modules: Optional list of module name substrings to filter.
+                Case-insensitive.  ``None`` or empty returns all modules.
 
         Returns:
             ToolResult with module descriptions.
@@ -50,9 +54,25 @@ class DescribeTool(AXMTool):
                 )
 
             from axm_ast.core.cache import get_package
-            from axm_ast.formatters import format_compressed, format_json
+            from axm_ast.formatters import (
+                filter_modules,
+                format_compressed,
+                format_json,
+                format_toc,
+            )
 
             pkg = get_package(project_path)
+            pkg = filter_modules(pkg, modules)
+
+            if detail == "toc":
+                toc = format_toc(pkg)
+                return ToolResult(
+                    success=True,
+                    data={
+                        "modules": toc,
+                        "module_count": len(toc),
+                    },
+                )
 
             if compress:
                 text = format_compressed(pkg)
