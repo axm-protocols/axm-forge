@@ -349,6 +349,58 @@ def complex_fn(x: int, y: int, z: int) -> str:
         assert result.fix_hint is not None
         assert "uv pip install" in result.fix_hint
 
+    def test_all_offenders_shown(self, tmp_path: Path) -> None:
+        """top_offenders must include ALL functions with CC >= 10, not top 5."""
+        from axm_audit.core.rules.quality import ComplexityRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+
+        # Generate 8 distinct complex functions (each CC >= 10)
+        # Uses 3 args + boolean ops + deep nesting to ensure CC > 10
+        funcs: list[str] = []
+        for i in range(8):
+            funcs.append(
+                f"def complex_{i}(x: int, y: int, z: int) -> str:\n"
+                f"    if x > 0:\n"
+                f"        if x > 10:\n"
+                f"            if x > 100:\n"
+                f"                if y > 0:\n"
+                f"                    return 'a{i}'\n"
+                f"                else:\n"
+                f"                    return 'b{i}'\n"
+                f"            elif x > 50:\n"
+                f"                return 'c{i}'\n"
+                f"            else:\n"
+                f"                return 'd{i}'\n"
+                f"        elif x > 5:\n"
+                f"            return 'e{i}'\n"
+                f"        else:\n"
+                f"            return 'f{i}'\n"
+                f"    elif x < 0:\n"
+                f"        if x < -10:\n"
+                f"            if z > 0:\n"
+                f"                return 'g{i}'\n"
+                f"            else:\n"
+                f"                return 'h{i}'\n"
+                f"        else:\n"
+                f"            return 'i{i}'\n"
+                f"    else:\n"
+                f"        if y > 0 and z > 0:\n"
+                f"            return 'j{i}'\n"
+                f"        elif y > 0:\n"
+                f"            return 'k{i}'\n"
+                f"        return 'l{i}'\n\n"
+            )
+
+        (src / "many_complex.py").write_text("\n".join(funcs))
+
+        rule = ComplexityRule()
+        result = rule.check(tmp_path)
+        assert result.details is not None
+        assert result.details["high_complexity_count"] == 8
+        assert len(result.details["top_offenders"]) == 8
+
 
 class TestAuditResultScoring:
     """Tests for AuditResult quality_score and grade (8-category model)."""
