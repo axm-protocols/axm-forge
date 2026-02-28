@@ -448,13 +448,46 @@ def _fmt_graph(graph: dict[str, list[str]]) -> str:
     return "\n".join(lines)
 
 
-def format_context_json(ctx: dict[str, Any]) -> dict[str, Any]:
+def format_context_json(
+    ctx: dict[str, Any],
+    *,
+    slim: bool = False,
+) -> dict[str, Any]:
     """Format context as JSON-serializable dict.
 
     Args:
         ctx: Context dict from build_context.
+        slim: If True, return a compact overview (~500 tokens)
+            with top-5 modules by PageRank importance.  Strips
+            the full ``modules`` list and ``dependency_graph``.
 
     Returns:
         JSON-serializable dict.
     """
-    return ctx
+    if not slim:
+        return ctx
+
+    modules: list[dict[str, Any]] = ctx.get("modules", [])
+    top_modules = [
+        {
+            "name": m["name"],
+            "symbol_count": m["symbol_count"],
+            "stars": m["stars"],
+        }
+        for m in modules[:5]
+    ]
+
+    patterns = ctx.get("patterns", {})
+
+    return {
+        "name": ctx.get("name", ""),
+        "python": ctx.get("python", ""),
+        "stack": ctx.get("stack", {}),
+        "patterns": {
+            "module_count": patterns.get("module_count", 0),
+            "function_count": patterns.get("function_count", 0),
+            "class_count": patterns.get("class_count", 0),
+            "layout": patterns.get("layout", ""),
+        },
+        "top_modules": top_modules,
+    }

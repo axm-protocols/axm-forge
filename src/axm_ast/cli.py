@@ -432,6 +432,13 @@ def context(
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
     ] = False,
+    slim: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--slim"],
+            help="Compact overview (~500 tokens) with top-5 modules",
+        ),
+    ] = False,
 ) -> None:
     """Dump complete project context in one shot for AI agents."""
     project_path = Path(path).resolve()
@@ -475,7 +482,23 @@ def context(
     ctx = _build_context(project_path)
 
     if json_output:
-        print(json.dumps(format_context_json(ctx), indent=2))
+        print(json.dumps(format_context_json(ctx, slim=slim), indent=2))
+    elif slim:
+        data = format_context_json(ctx, slim=True)
+        print(f"📋 {data['name']}")
+        print(f"  python: {data['python']}")
+        p = data["patterns"]
+        print(
+            f"  layout: {p['layout']}"
+            f" ({p['module_count']} modules,"
+            f" {p['function_count']} functions,"
+            f" {p['class_count']} classes)"
+        )
+        if data.get("top_modules"):
+            print("\n📦 Top Modules")
+            for m in data["top_modules"]:
+                stars = "★" * m["stars"] + "☆" * (5 - m["stars"])
+                print(f"  {m['name']:30s} {stars}  ({m['symbol_count']} symbols)")
     else:
         print(format_context(ctx))
 

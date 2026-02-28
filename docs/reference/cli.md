@@ -154,6 +154,7 @@ axm-ast context [OPTIONS] [PATH]
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Path to package or workspace directory |
+| `--slim` | | bool | `False` | Compact overview (~500 tokens) with top-5 modules |
 | `--json` | | bool | `False` | Output as JSON |
 
 !!! note "Workspace mode"
