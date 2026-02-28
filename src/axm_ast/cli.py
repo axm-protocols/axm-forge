@@ -84,6 +84,13 @@ def describe(
             help="Compressed output: signatures + docstring summaries",
         ),
     ] = False,
+    modules: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--modules", "-m"],
+            help="Comma-separated module name filters (substring, case-insensitive)",
+        ),
+    ] = None,
 ) -> None:
     """Describe a Python package at the chosen detail level."""
     project_path = Path(path).resolve()
@@ -91,7 +98,24 @@ def describe(
         print(f"❌ Not a directory: {project_path}", file=sys.stderr)
         raise SystemExit(1)
 
+    from axm_ast.formatters import filter_modules, format_toc
+
     pkg = get_package(project_path)
+
+    # Apply module filter
+    mod_filter = [m.strip() for m in modules.split(",")] if modules else None
+    pkg = filter_modules(pkg, mod_filter)
+
+    if detail == "toc":
+        toc = format_toc(pkg)
+        if json_output:
+            print(json.dumps({"modules": toc, "module_count": len(toc)}, indent=2))
+        else:
+            for entry in toc:
+                sym = entry["symbol_count"]
+                doc = f" — {entry['docstring']}" if entry["docstring"] else ""
+                print(f"  {entry['name']} ({sym} symbols){doc}")
+        return
 
     if compress:
         from axm_ast.formatters import format_compressed

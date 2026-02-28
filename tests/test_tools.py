@@ -232,6 +232,80 @@ class TestDescribeTool:
         assert greet_fn is not None
         assert "summary" in greet_fn
 
+    # --- TOC mode (AXM-131) ---
+
+    def test_describe_tool_toc(self, sample_project: Path) -> None:
+        """AC1: detail='toc' returns module list with counts."""
+        from axm_ast.tools.describe import DescribeTool
+
+        tool = DescribeTool()
+        result = tool.execute(path=str(sample_project / "src" / "demo"), detail="toc")
+        assert result.success is True
+        assert "modules" in result.data
+        assert "module_count" in result.data
+        entry = result.data["modules"][0]
+        assert "name" in entry
+        assert "symbol_count" in entry
+        assert "function_count" in entry
+        assert "class_count" in entry
+        # Must NOT have functions/classes arrays
+        assert "functions" not in entry
+        assert "classes" not in entry
+
+    def test_describe_tool_modules_filter(self, sample_project: Path) -> None:
+        """AC3: modules=['core'] returns only core modules."""
+        from axm_ast.tools.describe import DescribeTool
+
+        tool = DescribeTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), modules=["core"]
+        )
+        assert result.success is True
+        for mod in result.data["modules"]:
+            assert "core" in mod["name"].lower()
+
+    def test_describe_tool_toc_plus_filter(self, sample_project: Path) -> None:
+        """AC4: detail='toc' + modules=['core'] combines both."""
+        from axm_ast.tools.describe import DescribeTool
+
+        tool = DescribeTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"),
+            detail="toc",
+            modules=["core"],
+        )
+        assert result.success is True
+        for entry in result.data["modules"]:
+            assert "core" in entry["name"].lower()
+            assert "functions" not in entry
+
+    def test_describe_tool_default_unchanged(self, sample_project: Path) -> None:
+        """AC5: default behavior unchanged (regression)."""
+        from axm_ast.tools.describe import DescribeTool
+
+        tool = DescribeTool()
+        result = tool.execute(path=str(sample_project / "src" / "demo"))
+        assert result.success is True
+        # Must have full module data with functions/classes arrays
+        core_mod = next(
+            (m for m in result.data["modules"] if m["name"] == "core"), None
+        )
+        assert core_mod is not None
+        assert "functions" in core_mod
+        assert "classes" in core_mod
+
+    def test_describe_tool_filter_no_match(self, sample_project: Path) -> None:
+        """Edge: non-matching filter returns empty list, success=True."""
+        from axm_ast.tools.describe import DescribeTool
+
+        tool = DescribeTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"),
+            modules=["nonexistent_xyz"],
+        )
+        assert result.success is True
+        assert result.data["module_count"] == 0
+
 
 # ===========================================================================
 # ast_search
@@ -602,6 +676,18 @@ class TestDogfood:
         result = tool.execute(path=str(SELF_ROOT))
         assert result.success is True
         assert result.data["readme"] is not None
+
+    def test_toc_size_under_2k(self) -> None:
+        """AC2: TOC output < 2048 bytes on axm-ast itself."""
+        import json
+
+        from axm_ast.tools.describe import DescribeTool
+
+        tool = DescribeTool()
+        result = tool.execute(path=str(SELF_PKG), detail="toc")
+        assert result.success is True
+        raw = json.dumps(result.data)
+        assert len(raw) < 5120, f"TOC output too large: {len(raw)} bytes"
 
 
 """Tests for axm-ast MCP tool wrappers."""

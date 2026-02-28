@@ -111,3 +111,98 @@ class TestFormatMermaid:
         pkg = analyze_package(SAMPLE_PKG)
         output = format_mermaid(pkg)
         assert "utils" in output or "sample_pkg" in output
+
+
+# ─── format_toc ──────────────────────────────────────────────────────────────
+
+
+class TestFormatToc:
+    """Tests for TOC output (AXM-131)."""
+
+    def test_toc_returns_module_list(self):
+        """format_toc returns list of dicts with expected keys."""
+        from axm_ast.formatters import format_toc
+
+        pkg = analyze_package(SAMPLE_PKG)
+        toc = format_toc(pkg)
+        assert isinstance(toc, list)
+        assert len(toc) >= 1
+        entry = toc[0]
+        assert "name" in entry
+        assert "docstring" in entry
+        assert "symbol_count" in entry
+        assert "function_count" in entry
+        assert "class_count" in entry
+
+    def test_toc_no_symbols(self):
+        """TOC entries must NOT contain functions or classes arrays."""
+        from axm_ast.formatters import format_toc
+
+        pkg = analyze_package(SAMPLE_PKG)
+        toc = format_toc(pkg)
+        for entry in toc:
+            assert "functions" not in entry
+            assert "classes" not in entry
+
+    def test_toc_counts_correct(self):
+        """symbol_count = function_count + class_count."""
+        from axm_ast.formatters import format_toc
+
+        pkg = analyze_package(SAMPLE_PKG)
+        toc = format_toc(pkg)
+        for entry in toc:
+            assert (
+                entry["symbol_count"] == entry["function_count"] + entry["class_count"]
+            )
+
+
+# ─── filter_modules ──────────────────────────────────────────────────────────
+
+
+class TestFilterModules:
+    """Tests for module filtering (AXM-131)."""
+
+    def test_filter_modules_none(self):
+        """None filter returns all modules."""
+        from axm_ast.formatters import filter_modules
+
+        pkg = analyze_package(SAMPLE_PKG)
+        result = filter_modules(pkg, None)
+        assert len(result.modules) == len(pkg.modules)
+
+    def test_filter_modules_empty_list(self):
+        """Empty list treated as None — returns all modules."""
+        from axm_ast.formatters import filter_modules
+
+        pkg = analyze_package(SAMPLE_PKG)
+        result = filter_modules(pkg, [])
+        assert len(result.modules) == len(pkg.modules)
+
+    def test_filter_modules_substring(self):
+        """Filter by substring returns matching modules only."""
+        from axm_ast.formatters import filter_modules
+
+        pkg = analyze_package(SAMPLE_PKG)
+        result = filter_modules(pkg, ["utils"])
+        assert len(result.modules) >= 1
+        from axm_ast.core.analyzer import _module_dotted_name
+
+        for mod in result.modules:
+            assert "utils" in _module_dotted_name(mod.path, result.root).lower()
+
+    def test_filter_modules_case_insensitive(self):
+        """Case-insensitive matching."""
+        from axm_ast.formatters import filter_modules
+
+        pkg = analyze_package(SAMPLE_PKG)
+        lower = filter_modules(pkg, ["utils"])
+        upper = filter_modules(pkg, ["UTILS"])
+        assert len(lower.modules) == len(upper.modules)
+
+    def test_filter_modules_no_match(self):
+        """Non-matching filter returns empty modules list."""
+        from axm_ast.formatters import filter_modules
+
+        pkg = analyze_package(SAMPLE_PKG)
+        result = filter_modules(pkg, ["nonexistent_xyz"])
+        assert len(result.modules) == 0
