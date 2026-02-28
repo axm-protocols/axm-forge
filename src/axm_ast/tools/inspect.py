@@ -44,9 +44,10 @@ class InspectTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            from axm_ast.core.analyzer import analyze_package, search_symbols
+            from axm_ast.core.analyzer import search_symbols
+            from axm_ast.core.cache import get_package
 
-            pkg = analyze_package(project_path)
+            pkg = get_package(project_path)
 
             # --- Dotted path resolution ---
             if "." in symbol:
@@ -153,7 +154,7 @@ class InspectTool(AXMTool):
         if method is None:
             return ToolResult(
                 success=False,
-                error=(f"Method '{method_name}' not found" f" in class '{class_name}'"),
+                error=(f"Method '{method_name}' not found in class '{class_name}'"),
             )
 
         return ToolResult(

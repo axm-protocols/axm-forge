@@ -67,10 +67,11 @@ class GraphTool(AXMTool):
                     data={"graph": graph},
                 )
 
-            from axm_ast.core.analyzer import analyze_package, build_import_graph
+            from axm_ast.core.analyzer import build_import_graph
+            from axm_ast.core.cache import get_package
             from axm_ast.formatters import format_mermaid
 
-            pkg = analyze_package(project_path)
+            pkg = get_package(project_path)
             graph = build_import_graph(pkg)
 
             if format == "mermaid":

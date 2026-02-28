@@ -49,10 +49,10 @@ class DescribeTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            from axm_ast.core.analyzer import analyze_package
+            from axm_ast.core.cache import get_package
             from axm_ast.formatters import format_compressed, format_json
 
-            pkg = analyze_package(project_path)
+            pkg = get_package(project_path)
 
             if compress:
                 text = format_compressed(pkg)

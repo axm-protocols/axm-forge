@@ -18,10 +18,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from axm_ast.models.nodes import WorkspaceInfo
 
-from axm_ast.core.analyzer import (
-    _module_dotted_name,
-    analyze_package,
-)
+from axm_ast.core.analyzer import _module_dotted_name
+from axm_ast.core.cache import get_package
 from axm_ast.core.callers import find_callers, find_callers_workspace
 from axm_ast.models.nodes import ModuleInfo, PackageInfo
 
@@ -250,7 +248,7 @@ def analyze_impact(
         >>> result["score"]
         'HIGH'
     """
-    pkg = analyze_package(path)
+    pkg = get_package(path)
 
     if project_root is None:
         # Infer: if path is inside src/, go up two levels
