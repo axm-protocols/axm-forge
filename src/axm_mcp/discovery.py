@@ -3,9 +3,15 @@ from __future__ import annotations
 import importlib.metadata
 import inspect
 import logging
+import re
 from typing import Any, Protocol, runtime_checkable
 
-__all__ = ["_collect_dispatcher_params", "discover_tools", "register_tools"]
+__all__ = [
+    "_collect_dispatcher_params",
+    "_extract_docstring_params",
+    "discover_tools",
+    "register_tools",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +119,95 @@ def _union_subfn_params(
                 )
                 seen[p.name] = p.replace(default=default)
     return seen
+
+
+# Regex: matches "    param_name (optional type): description" or
+#        "    param_name: description" in Google-style Args blocks.
+_ARG_LINE_RE = re.compile(
+    r"^\s{4,}(\w+)"  # param name (indented 4+ spaces)
+    r"(?:\s*\(([^)]+)\))?"  # optional (type) in parens
+    r"\s*:"  # colon separator
+    r"\s*(.*)$",  # description (captured but unused)
+)
+
+# Map common docstring type hints to Python annotations.
+_TYPE_MAP: dict[str, type | None] = {
+    "str": str,
+    "int": int,
+    "float": float,
+    "bool": bool,
+    "dict": dict,
+    "list": list,
+    "Path": str,  # paths come as str over MCP
+}
+
+
+def _extract_docstring_params(
+    docstring: str | None,
+) -> list[inspect.Parameter]:
+    """Parse Google-style ``Args:`` section into ``inspect.Parameter`` objects.
+
+    This is the fallback for non-dispatcher tools whose ``execute(**kwargs)``
+    has no typed parameters in the signature but documents them in the
+    docstring.
+
+    Args:
+        docstring: The docstring to parse.
+
+    Returns:
+        List of keyword-only ``inspect.Parameter`` with default ``None``.
+        Empty list if no ``Args:`` section found.
+    """
+    if not docstring:
+        return []
+
+    lines = docstring.splitlines()
+    in_args = False
+    params: list[inspect.Parameter] = []
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Detect start of Args: block
+        if stripped in ("Args:", "Keyword Args:"):
+            in_args = True
+            continue
+
+        # End of Args: block (next section or blank line after content)
+        if in_args and stripped and not stripped.startswith("**") and ":" in stripped:
+            # Check if this is a new top-level section (e.g. "Returns:")
+            if re.match(r"^[A-Z]\w*:\s*$", stripped):
+                break
+
+        if not in_args:
+            continue
+
+        # Skip **kwargs line
+        if stripped.startswith("**"):
+            continue
+
+        # Match param lines
+        match = _ARG_LINE_RE.match(line)
+        if match:
+            name = match.group(1)
+            type_hint = match.group(2)
+
+            annotation: type | Any = inspect.Parameter.empty
+            if type_hint:
+                # Clean up "str, optional" → "str"
+                clean_type = type_hint.split(",")[0].strip()
+                annotation = _TYPE_MAP.get(clean_type, inspect.Parameter.empty)
+
+            params.append(
+                inspect.Parameter(
+                    name,
+                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    default=None,
+                    annotation=annotation,
+                )
+            )
+
+    return params
 
 
 def _collect_dispatcher_params(
@@ -230,6 +325,10 @@ def _register_one(
                 for p in exec_sig.parameters.values()
                 if p.name != "self" and p.kind != inspect.Parameter.VAR_KEYWORD
             ]
+            # Fallback: if params is empty (e.g. execute(**kwargs)),
+            # parse the docstring Args section for parameter info.
+            if not params:
+                params = _extract_docstring_params(exec_fn.__doc__)
         _wrapper.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
             parameters=params,
             return_annotation=dict[str, Any],
