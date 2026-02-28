@@ -13,6 +13,7 @@ graph TD
     subgraph "Core Engines"
         Parser["Parser (tree-sitter)"]
         Analyzer["Analyzer"]
+        Cache["Cache"]
         Ranker["Ranker (PageRank)"]
         Callers["Caller Analysis"]
         Context["Context (one-shot)"]
@@ -35,18 +36,20 @@ graph TD
         PyProject["pyproject.toml"]
     end
 
-    CLI --> Analyzer
+    CLI --> Cache
     CLI --> Context
     CLI --> Impact
     CLI --> Callers
     CLI --> Formatters
+    Cache --> Analyzer
+    Cache --> PackageInfo
     Analyzer --> Parser
     Ranker --> PackageInfo
     Callers --> Parser
-    Context --> Analyzer
+    Context --> Cache
     Context --> Ranker
     Impact --> Callers
-    Impact --> Analyzer
+    Impact --> Cache
     Parser --> TreeSitter
     Parser --> FS
     Parser --> ModuleInfo
@@ -55,7 +58,7 @@ graph TD
     Context --> PyProject
     CLI --> Docs
     CLI --> Workspace
-    Workspace --> Analyzer
+    Workspace --> Cache
     Workspace --> Callers
     Workspace --> Impact
     Workspace --> WorkspaceInfo
@@ -76,6 +79,7 @@ Independent, composable analysis engines:
 |---|---|---|
 | `parser.py` | Tree-sitter AST parsing → `ModuleInfo` | `extract_module_info()` |
 | `analyzer.py` | Package discovery, import graph (absolute + relative), search, stubs | `analyze_package()` |
+| `cache.py` | Thread-safe caching of `PackageInfo` — avoids redundant parsing | `get_package()`, `clear_cache()` |
 | `ranker.py` | PageRank symbol importance | `rank_symbols()` |
 | `callers.py` | Call-site detection | `find_callers()`, `find_callers_workspace()` |
 | `context.py` | One-shot project dump | `build_context()` |
@@ -118,5 +122,6 @@ Pydantic models for structured data exchange between layers:
 | Pydantic models | Validation, serialization, JSON output for free |
 | PageRank for ranking | Graph-based importance adapts to any project structure |
 | Composable engines | `impact` = `callers` + `analyzer` + `ranker` + test mapping |
+| Session cache | `PackageCache` avoids redundant tree-sitter parsing across chained tool calls |
 | Workspace auto-detect | `[tool.uv.workspace]` triggers multi-package mode transparently |
 | `src/` layout | PEP 621 best practice, no import conflicts |

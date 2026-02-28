@@ -130,6 +130,17 @@ for fn in results:
     print(f"{fn.name}: {fn.signature}")
 ```
 
+Use `get_package` instead of `analyze_package` to avoid re-parsing the same
+package multiple times in a session:
+
+```python
+from axm_ast.core import get_package, clear_cache
+
+pkg = get_package("src/mylib")  # parses on first call
+pkg = get_package("src/mylib")  # cache hit — instant
+clear_cache()                    # force re-parse on next call
+```
+
 ## Development
 
 ```bash
