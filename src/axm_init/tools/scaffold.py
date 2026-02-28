@@ -42,7 +42,7 @@ class InitScaffoldTool:
         org: str = kwargs.get("org", "")
         author: str = kwargs.get("author", "")
         email: str = kwargs.get("email", "")
-        license_type: str = kwargs.get("license", "MIT")
+        license_type: str = kwargs.get("license", "Apache-2.0")
         description: str = kwargs.get("description", "")
         if not org or not author or not email:
             return ToolResult(

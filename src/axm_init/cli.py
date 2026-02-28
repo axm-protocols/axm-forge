@@ -106,7 +106,7 @@ def scaffold(
     license: Annotated[
         str,
         cyclopts.Parameter(name=["--license", "-l"], help="License type"),
-    ] = "MIT",
+    ] = "Apache-2.0",
     license_holder: Annotated[
         str | None,
         cyclopts.Parameter(
