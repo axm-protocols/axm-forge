@@ -25,6 +25,7 @@
 - 💥 **Impact** — Change impact analysis: callers + graph + test mapping
 - 📖 **Docs** — One-shot documentation tree dump: README + mkdocs + all pages
 - 💀 **Dead code** — Detect unreferenced symbols with smart exemptions (dict dispatch, entry points)
+- 🔀 **Diff** — Structural branch diff at symbol level (added/modified/removed via git worktrees)
 - 🏗️ **Workspace** — Multi-package workspace support (auto-detects `uv` workspaces)
 - ⭐ **Rank** — PageRank-based symbol importance scoring
 - 📄 **Stub** — `.pyi`-like stub generation for any package
@@ -73,6 +74,10 @@ axm-ast dead-code src/mylib --include-tests  # include test fixtures
 axm-ast docs .
 axm-ast docs . --tree   # tree only
 axm-ast docs . --json   # JSON output
+
+# Structural diff between branches
+axm-ast diff main..feature src/mylib
+axm-ast diff main..feature src/mylib --json
 ```
 
 ### Example: `axm-ast context`
@@ -117,6 +122,7 @@ axm-ast docs . --json   # JSON output
 | `axm-ast context` | One-shot project context dump for AI agents |
 | `axm-ast impact` | Change impact analysis for a symbol |
 | `axm-ast dead-code` | Detect unreferenced symbols with smart exemptions |
+| `axm-ast diff` | Structural branch diff at symbol level (base..head) |
 | `axm-ast docs` | One-shot documentation tree dump (README + mkdocs + docs/) |
 | `axm-ast stub` | Generate `.pyi`-like stubs |
 | `axm-ast version` | Show version |
@@ -151,7 +157,7 @@ clear_cache()                    # force re-parse on next call
 git clone https://github.com/axm-protocols/axm-ast.git
 cd axm-ast
 uv sync --all-groups
-uv run pytest           # 446 tests
+uv run pytest           # 461 tests
 uv run mypy src/ tests/ # type check
 uv run ruff check src/  # lint
 ```

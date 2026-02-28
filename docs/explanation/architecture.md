@@ -19,6 +19,7 @@ graph TD
         Context["Context (one-shot)"]
         Impact["Impact Analysis"]
         GitCoupling["Git Coupling"]
+        StructDiff["Structural Diff"]
         Workspace["Workspace"]
         Docs["Docs Discovery"]
         Formatters["Formatters"]
@@ -54,6 +55,8 @@ graph TD
     Impact --> Cache
     Impact --> GitCoupling
     GitCoupling --> Git
+    StructDiff --> Git
+    StructDiff --> Analyzer
     Parser --> TreeSitter
     Parser --> FS
     Parser --> ModuleInfo
@@ -89,6 +92,7 @@ Independent, composable analysis engines:
 | `context.py` | One-shot project dump | `build_context()` |
 | `impact.py` | Change blast radius (callers + reexports + tests + git coupling) | `analyze_impact()`, `analyze_impact_workspace()` |
 | `git_coupling.py` | Git co-change coupling analysis (6-month history) | `git_coupled_files()` |
+| `structural_diff.py` | Symbol-level branch diff via git worktrees | `structural_diff()` |
 | `workspace.py` | Multi-package workspace detection and analysis | `detect_workspace()`, `analyze_workspace()` |
 | `docs.py` | Documentation tree discovery | `discover_docs()` |
 
