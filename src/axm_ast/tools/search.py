@@ -85,6 +85,7 @@ class SearchTool(AXMTool):
             return ToolResult(
                 success=True,
                 data={"results": symbols, "count": len(symbols)},
+                hint="Tip: Use ast_inspect(symbol) for full source code.",
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

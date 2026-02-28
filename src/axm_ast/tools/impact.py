@@ -59,6 +59,10 @@ class ImpactTool(AXMTool):
 
             # Add "severity" alias for "score" for agent-friendly naming
             impact["severity"] = impact.get("score", "UNKNOWN")
-            return ToolResult(success=True, data=impact)
+            return ToolResult(
+                success=True,
+                data=impact,
+                hint="Tip: Run affected tests, then ast_inspect on high-risk callers.",
+            )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

@@ -50,11 +50,25 @@ class ContextTool(AXMTool):
                 from axm_ast.core.workspace import build_workspace_context
 
                 ctx = build_workspace_context(project_path)
-                return ToolResult(success=True, data=ctx)
+                return ToolResult(
+                    success=True,
+                    data=ctx,
+                    hint=(
+                        "Tip: Use ast_describe(modules=[...])"
+                        " to see specific module APIs."
+                    ),
+                )
 
             from axm_ast.core.context import build_context, format_context_json
 
             ctx = build_context(project_path)
-            return ToolResult(success=True, data=format_context_json(ctx, slim=slim))
+            return ToolResult(
+                success=True,
+                data=format_context_json(ctx, slim=slim),
+                hint=(
+                    "Tip: Use ast_describe(modules=[...])"
+                    " to see specific module APIs."
+                ),
+            )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

@@ -247,6 +247,50 @@ def score_impact(result: dict[str, Any]) -> str:
 # ─── Orchestrator ────────────────────────────────────────────────────────────
 
 
+def _resolve_project_root(path: Path, explicit: Path | None) -> Path:
+    """Infer project root from package path if not given explicitly."""
+    if explicit is not None:
+        return explicit
+    if path.parent.name == "src":
+        return path.parent.parent
+    return path.parent
+
+
+def _add_git_coupling(
+    result: dict[str, Any],
+    definition: dict[str, Any] | None,
+    pkg: PackageInfo,
+    project_root: Path,
+) -> None:
+    """Enrich *result* with git change coupling data."""
+    if definition is None:
+        return
+    mod_name = definition["module"]
+    file_abs = _resolve_module_file(pkg, mod_name)
+    if file_abs is None:
+        return
+    try:
+        file_rel = file_abs.relative_to(project_root)
+    except ValueError:
+        return
+    result["git_coupled"] = git_coupled_files(str(file_rel), project_root)
+
+
+def _add_import_based_tests(
+    result: dict[str, Any],
+    definition: dict[str, Any] | None,
+    test_files: list[Path],
+    project_root: Path,
+) -> None:
+    """Enrich *result* with import-based test file heuristic."""
+    if test_files or definition is None:
+        return
+    bare_module = definition["module"].rsplit(".", 1)[-1]
+    import_tests = _find_test_files_by_import(bare_module, project_root)
+    if import_tests:
+        result["test_files_by_import"] = [str(t.name) for t in import_tests]
+
+
 def analyze_impact(
     path: Path,
     symbol: str,
@@ -272,30 +316,15 @@ def analyze_impact(
         'HIGH'
     """
     pkg = get_package(path)
+    root = _resolve_project_root(path, project_root)
 
-    if project_root is None:
-        # Infer: if path is inside src/, go up two levels
-        if path.parent.name == "src":
-            project_root = path.parent.parent
-        else:
-            project_root = path.parent
-
-    # 1. Where is it defined?
     definition = find_definition(pkg, symbol)
-
-    # 2. Who calls it?
     callers = find_callers(pkg, symbol)
-
-    # 3. Where is it re-exported?
     reexports = find_reexports(pkg, symbol)
-
-    # 4. What tests reference it?
-    test_files = map_tests(symbol, project_root)
-
-    # 5. Affected modules (unique)
+    test_files = map_tests(symbol, root)
     affected_modules = list({c.module for c in callers} | set(reexports))
 
-    result = {
+    result: dict[str, Any] = {
         "symbol": symbol,
         "definition": definition,
         "callers": [
@@ -311,32 +340,11 @@ def analyze_impact(
         "affected_modules": sorted(affected_modules),
         "test_files": [str(t.name) for t in test_files],
         "git_coupled": [],
-        "score": "LOW",  # placeholder, computed below
+        "score": "LOW",
     }
 
-    # 6. Git change coupling: find files that historically co-change.
-    if definition is not None:
-        # Find the actual file path from the module definition.
-        mod_name = definition["module"]
-        file_abs = _resolve_module_file(pkg, mod_name)
-        if file_abs is not None:
-            try:
-                file_rel = file_abs.relative_to(project_root)
-            except ValueError:
-                file_rel = None
-            if file_rel is not None:
-                result["git_coupled"] = git_coupled_files(str(file_rel), project_root)
-
-    # 7. Import-based heuristic: if no test files reference the symbol
-    #    directly, look for test files that import the symbol's module.
-    if not test_files and definition is not None:
-        # Extract the bare module name from the dotted path
-        # e.g. "core.impact" → "impact", "models" → "models"
-        bare_module = definition["module"].rsplit(".", 1)[-1]
-        import_tests = _find_test_files_by_import(bare_module, project_root)
-        if import_tests:
-            result["test_files_by_import"] = [str(t.name) for t in import_tests]
-
+    _add_git_coupling(result, definition, pkg, root)
+    _add_import_based_tests(result, definition, test_files, root)
     result["score"] = score_impact(result)
     return result
 
@@ -367,6 +375,30 @@ def _collect_workspace_tests(
     return sorted(set(test_files))
 
 
+def _add_workspace_git_coupling(
+    result: dict[str, Any],
+    definition: dict[str, Any] | None,
+    ws: WorkspaceInfo,
+    ws_path: Path,
+) -> None:
+    """Enrich *result* with git coupling from the workspace."""
+    if definition is None:
+        return
+    mod_name = definition["module"]
+    pkg_name = definition.get("package", "")
+    for pkg in ws.packages:
+        if pkg.name == pkg_name:
+            file_abs = _resolve_module_file(pkg, mod_name)
+            if file_abs is not None:
+                try:
+                    file_rel = file_abs.relative_to(ws_path)
+                except ValueError:
+                    file_rel = None
+                if file_rel is not None:
+                    result["git_coupled"] = git_coupled_files(str(file_rel), ws_path)
+            break
+
+
 def analyze_impact_workspace(
     ws_path: Path,
     symbol: str,
@@ -392,7 +424,6 @@ def analyze_impact_workspace(
 
     ws = analyze_workspace(ws_path)
 
-    # 1. Where is it defined? Search all packages.
     definition = None
     for pkg in ws.packages:
         defn = find_definition(pkg, symbol)
@@ -401,14 +432,9 @@ def analyze_impact_workspace(
             definition = defn
             break
 
-    # 2. Who calls it? Cross-package.
     callers = find_callers_workspace(ws, symbol)
-
-    # 3. Re-exports and test files.
     reexports = _collect_workspace_reexports(ws, symbol)
     test_files = _collect_workspace_tests(ws, symbol)
-
-    # 4. Build result.
     affected_modules = sorted({c.module for c in callers} | set(reexports))
 
     result: dict[str, Any] = {
@@ -431,24 +457,6 @@ def analyze_impact_workspace(
         "score": "LOW",
     }
 
-    # Git change coupling for workspace analysis.
-    if definition is not None:
-        mod_name = definition["module"]
-        pkg_name = definition.get("package", "")
-        # Find the package that owns this symbol to resolve the file path.
-        for pkg in ws.packages:
-            if pkg.name == pkg_name:
-                file_abs = _resolve_module_file(pkg, mod_name)
-                if file_abs is not None:
-                    try:
-                        file_rel = file_abs.relative_to(ws_path)
-                    except ValueError:
-                        file_rel = None
-                    if file_rel is not None:
-                        result["git_coupled"] = git_coupled_files(
-                            str(file_rel), ws_path
-                        )
-                break
-
+    _add_workspace_git_coupling(result, definition, ws, ws_path)
     result["score"] = score_impact(result)
     return result

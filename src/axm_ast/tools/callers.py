@@ -74,6 +74,10 @@ class CallersTool(AXMTool):
             return ToolResult(
                 success=True,
                 data={"callers": caller_data, "count": len(caller_data)},
+                hint=(
+                    "Tip: Use ast_impact(symbol) for full"
+                    " blast radius including tests."
+                ),
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

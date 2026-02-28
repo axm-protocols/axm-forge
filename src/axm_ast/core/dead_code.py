@@ -153,7 +153,6 @@ def _is_exempt_function(
     - Decorated functions (entry point heuristic)
     - ``@property``, ``@abstractmethod`` (via FunctionKind)
     - Methods on Protocol classes
-    - ``__main__`` guard functions
     """
     from axm_ast.models.nodes import FunctionKind
 
@@ -171,22 +170,12 @@ def _is_exempt_function(
     if mod.all_exports is not None and name in mod.all_exports:
         return True
 
-    # Property / abstractmethod / classmethod / staticmethod.
-    if fn.kind in {
-        FunctionKind.PROPERTY,
-        FunctionKind.ABSTRACT,
-    }:
-        return True
-
-    # Any decorator at all → likely an entry point / framework hook.
-    if fn.decorators:
+    # Property / abstractmethod, or any decorator at all.
+    if fn.kind in {FunctionKind.PROPERTY, FunctionKind.ABSTRACT} or fn.decorators:
         return True
 
     # Methods on a Protocol class → structural typing stubs.
-    if parent_class is not None and _is_protocol_class(parent_class):
-        return True
-
-    return False
+    return parent_class is not None and _is_protocol_class(parent_class)
 
 
 def _is_exempt_class(cls: ClassInfo, mod: ModuleInfo) -> bool:
@@ -250,6 +239,40 @@ def _check_override(
 # ─── Entry-point exemption ───────────────────────────────────────────────────
 
 
+def _find_pyproject_toml(pkg_root: Path) -> Path | None:
+    """Walk up from *pkg_root* (max 4 levels) to find ``pyproject.toml``."""
+    search = pkg_root
+    for _ in range(4):
+        candidate = search / "pyproject.toml"
+        if candidate.exists():
+            return candidate
+        if search.parent == search:
+            break
+        search = search.parent
+    return None
+
+
+def _extract_entry_point_specs(
+    project: dict[str, object],
+) -> list[str]:
+    """Collect all entry-point spec strings from a parsed project table."""
+    specs: list[str] = []
+    for section in ("scripts", "gui-scripts"):
+        section_data = project.get(section, {})
+        if isinstance(section_data, dict):
+            for spec in section_data.values():
+                if isinstance(spec, str):
+                    specs.append(spec)
+    ep_data = project.get("entry-points", {})
+    if isinstance(ep_data, dict):
+        for entries in ep_data.values():
+            if isinstance(entries, dict):
+                for spec in entries.values():
+                    if isinstance(spec, str):
+                        specs.append(spec)
+    return specs
+
+
 def _load_entry_point_symbols(pkg_root: Path) -> set[str]:
     """Parse ``pyproject.toml`` entry-points to find registered symbols.
 
@@ -263,20 +286,7 @@ def _load_entry_point_symbols(pkg_root: Path) -> set[str]:
     Returns:
         Set of symbol names that are registered entry points.
     """
-    # Walk up from pkg_root to find pyproject.toml.
-    # pkg_root is typically ``src/pkg_name/`` but pyproject.toml lives
-    # at the project root (1-2 levels up in a src-layout).
-    pyproject: Path | None = None
-    search = pkg_root
-    for _ in range(4):  # max 4 levels up
-        candidate = search / "pyproject.toml"
-        if candidate.exists():
-            pyproject = candidate
-            break
-        if search.parent == search:
-            break
-        search = search.parent
-
+    pyproject = _find_pyproject_toml(pkg_root)
     if pyproject is None:
         return set()
 
@@ -287,33 +297,11 @@ def _load_entry_point_symbols(pkg_root: Path) -> set[str]:
 
     project = data.get("project", {})
     symbols: set[str] = set()
-
-    def _extract_symbols(spec: str) -> None:
-        """Extract symbol name from a ``module.path:symbol`` spec."""
+    for spec in _extract_entry_point_specs(project):
         if ":" in spec:
             symbol_part = spec.split(":", 1)[1]
             symbols.add(symbol_part)
-            # AXM convention: entry point classes have .execute()
             symbols.add(f"{symbol_part}.execute")
-
-    # [project.scripts] — CLI entry points (e.g. "axm-word = axm_word.cli:main").
-    for _name, spec in project.get("scripts", {}).items():
-        if isinstance(spec, str):
-            _extract_symbols(spec)
-
-    # [project.gui-scripts] — GUI entry points.
-    for _name, spec in project.get("gui-scripts", {}).items():
-        if isinstance(spec, str):
-            _extract_symbols(spec)
-
-    # [project.entry-points] — plugin/tool entry points.
-    for _group, entries in project.get("entry-points", {}).items():
-        if not isinstance(entries, dict):
-            continue
-        for _name, spec in entries.items():
-            if isinstance(spec, str):
-                _extract_symbols(spec)
-
     return symbols
 
 
@@ -323,6 +311,99 @@ def _is_in_tests_dir(mod_path: Path) -> bool:
 
 
 # ─── Core detection ──────────────────────────────────────────────────────────
+
+
+def _scan_functions(
+    mod: ModuleInfo,
+    pkg: PackageInfo,
+    *,
+    entry_points: set[str],
+    all_refs: set[str],
+) -> list[DeadSymbol]:
+    """Scan top-level functions in *mod* and return dead symbols."""
+    from axm_ast.core.callers import find_callers
+
+    dead: list[DeadSymbol] = []
+    mod_path = str(mod.path)
+    for fn in mod.functions:
+        if _is_exempt_function(fn, mod):
+            continue
+        if fn.name in entry_points or fn.name in all_refs:
+            continue
+        if not find_callers(pkg, fn.name):
+            dead.append(
+                DeadSymbol(
+                    name=fn.name,
+                    module_path=mod_path,
+                    line=fn.line_start,
+                    kind="function",
+                )
+            )
+    return dead
+
+
+def _scan_classes(
+    mod: ModuleInfo,
+    pkg: PackageInfo,
+    *,
+    entry_points: set[str],
+    all_refs: set[str],
+) -> list[DeadSymbol]:
+    """Scan classes and their methods in *mod* and return dead symbols."""
+    from axm_ast.core.callers import find_callers
+
+    dead: list[DeadSymbol] = []
+    mod_path = str(mod.path)
+    for cls in mod.classes:
+        if cls.name in entry_points:
+            continue
+        cls_callers = find_callers(pkg, cls.name)
+        if not cls_callers and not _is_exempt_class(cls, mod):
+            dead.append(
+                DeadSymbol(
+                    name=cls.name,
+                    module_path=mod_path,
+                    line=cls.line_start,
+                    kind="class",
+                )
+            )
+        dead.extend(
+            _scan_methods(cls, mod, pkg, entry_points=entry_points, all_refs=all_refs)
+        )
+    return dead
+
+
+def _scan_methods(
+    cls: ClassInfo,
+    mod: ModuleInfo,
+    pkg: PackageInfo,
+    *,
+    entry_points: set[str],
+    all_refs: set[str],
+) -> list[DeadSymbol]:
+    """Scan methods of *cls* and return dead symbols."""
+    from axm_ast.core.callers import find_callers
+
+    dead: list[DeadSymbol] = []
+    mod_path = str(mod.path)
+    for method in cls.methods:
+        if _is_exempt_function(method, mod, parent_class=cls):
+            continue
+        qualified = f"{cls.name}.{method.name}"
+        if qualified in entry_points or method.name in all_refs:
+            continue
+        if not find_callers(pkg, method.name):
+            if _check_override(method.name, cls, pkg):
+                continue
+            dead.append(
+                DeadSymbol(
+                    name=qualified,
+                    module_path=mod_path,
+                    line=method.line_start,
+                    kind="method",
+                )
+            )
+    return dead
 
 
 def find_dead_code(
@@ -347,7 +428,7 @@ def find_dead_code(
     Returns:
         List of dead symbols, sorted by module path then line number.
     """
-    from axm_ast.core.callers import extract_references, find_callers
+    from axm_ast.core.callers import extract_references
 
     dead: list[DeadSymbol] = []
 
@@ -356,91 +437,28 @@ def find_dead_code(
     for mod in pkg.modules:
         all_refs |= extract_references(mod)
 
-    # Load entry-point symbols from pyproject.toml.
-    entry_point_symbols = _load_entry_point_symbols(pkg.root)
+    entry_points = _load_entry_point_symbols(pkg.root)
+
+    # Also exempt framework-detected entry points (decorators, test_, __main__).
+    from axm_ast.core.flows import find_entry_points
+
+    for ep in find_entry_points(pkg):
+        entry_points.add(ep.name)
 
     for mod in pkg.modules:
-        mod_path = str(mod.path)
-
         # Skip test files — they are consumers, not targets.
         path_name = mod.path.name
         if path_name.startswith("test_") or path_name == "conftest.py":
             continue
-
-        # Skip modules inside tests/ directory unless opted in.
         if not include_tests and _is_in_tests_dir(mod.path):
             continue
 
-        # ── Top-level functions ──────────────────────────────────────
-        for fn in mod.functions:
-            if _is_exempt_function(fn, mod):
-                continue
-
-            # Skip entry-point functions (e.g. main from [project.scripts]).
-            if fn.name in entry_point_symbols:
-                continue
-
-            # Skip if referenced in a data structure (dict dispatch, etc.).
-            if fn.name in all_refs:
-                continue
-
-            callers = find_callers(pkg, fn.name)
-            if not callers:
-                dead.append(
-                    DeadSymbol(
-                        name=fn.name,
-                        module_path=mod_path,
-                        line=fn.line_start,
-                        kind="function",
-                    )
-                )
-
-        # ── Classes ──────────────────────────────────────────────────
-        for cls in mod.classes:
-            # Skip entry-point classes.
-            if cls.name in entry_point_symbols:
-                continue
-
-            cls_callers = find_callers(pkg, cls.name)
-            cls_is_dead = not cls_callers and not _is_exempt_class(cls, mod)
-
-            if cls_is_dead:
-                dead.append(
-                    DeadSymbol(
-                        name=cls.name,
-                        module_path=mod_path,
-                        line=cls.line_start,
-                        kind="class",
-                    )
-                )
-
-            # Check methods regardless of class status.
-            for method in cls.methods:
-                if _is_exempt_function(method, mod, parent_class=cls):
-                    continue
-
-                # Skip entry-point methods.
-                qualified = f"{cls.name}.{method.name}"
-                if qualified in entry_point_symbols:
-                    continue
-
-                # Skip if referenced in a data structure.
-                if method.name in all_refs:
-                    continue
-
-                method_callers = find_callers(pkg, method.name)
-                if not method_callers:
-                    # Check override chain before flagging.
-                    if _check_override(method.name, cls, pkg):
-                        continue
-                    dead.append(
-                        DeadSymbol(
-                            name=qualified,
-                            module_path=mod_path,
-                            line=method.line_start,
-                            kind="method",
-                        )
-                    )
+        dead.extend(
+            _scan_functions(mod, pkg, entry_points=entry_points, all_refs=all_refs)
+        )
+        dead.extend(
+            _scan_classes(mod, pkg, entry_points=entry_points, all_refs=all_refs)
+        )
 
     dead.sort(key=lambda d: (d.module_path, d.line))
     return dead
