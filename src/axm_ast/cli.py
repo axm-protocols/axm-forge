@@ -589,6 +589,7 @@ def _print_impact(result: dict) -> None:  # type: ignore[type-arg]
         print()
 
     _print_impact_callers(result.get("callers", []))
+    _print_impact_type_refs(result.get("type_refs", []))
     _print_impact_list("📄 Affected modules", result.get("affected_modules", []))
     _print_impact_list("🧪 Tests to rerun", result.get("test_files", []))
     _print_impact_list("📦 Re-exported in", result.get("reexports", []))
@@ -602,6 +603,19 @@ def _print_impact_callers(callers: list[dict]) -> None:  # type: ignore[type-arg
     for c in callers:
         ctx = f" in {c['context']}()" if c.get("context") else ""
         print(f"    {c['module']}:{c['line']}{ctx}")
+    print()
+
+
+def _print_impact_type_refs(
+    type_refs: list[dict],  # type: ignore[type-arg]
+) -> None:
+    """Print type references section."""
+    if not type_refs:
+        return
+    print(f"  🔗 Type references ({len(type_refs)}):")
+    for ref in type_refs:
+        kind = ref.get("ref_type", "")
+        print(f"    {ref['module']}:{ref['line']} {ref['function']} ({kind})")
     print()
 
 

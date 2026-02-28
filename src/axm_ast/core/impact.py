@@ -12,6 +12,7 @@ Example:
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +31,7 @@ __all__ = [
     "analyze_impact_workspace",
     "find_definition",
     "find_reexports",
+    "find_type_refs",
     "map_tests",
     "score_impact",
 ]
@@ -217,6 +219,129 @@ def _find_test_files_by_import(
     return matching
 
 
+# ─── Type reference detection ───────────────────────────────────────────────
+
+
+def _type_name_pattern(type_name: str) -> re.Pattern[str]:
+    """Build a word-boundary regex pattern for a type name.
+
+    Matches ``TypeName`` as a standalone token inside annotation
+    strings, including compound types like ``list[TypeName]``,
+    ``TypeName | None``, ``Optional[TypeName]``, etc.
+
+    Args:
+        type_name: Exact type name to search for.
+
+    Returns:
+        Compiled regex pattern.
+    """
+    return re.compile(rf"(?<![\w.]){re.escape(type_name)}(?![\w.])")
+
+
+def find_type_refs(
+    pkg: PackageInfo,
+    type_name: str,
+) -> list[dict[str, Any]]:
+    """Find functions that reference a type in their signatures.
+
+    Scans all function parameters, return types, and module-level
+    variable annotations for occurrences of *type_name* using
+    word-boundary matching.
+
+    Handles compound types: ``list[X]``, ``dict[str, X]``,
+    ``X | None``, ``Optional[X]``, nested generics, and
+    string annotations (``"X"``).
+
+    Args:
+        pkg: Analyzed package info.
+        type_name: Exact type name to search for (e.g. ``"MyModel"``).
+
+    Returns:
+        List of dicts with ``function``, ``module``, ``line``,
+        and ``ref_type`` (``"param"``, ``"return"``, or ``"alias"``).
+    """
+    pattern = _type_name_pattern(type_name)
+    refs: list[dict[str, Any]] = []
+
+    for mod in pkg.modules:
+        mod_name = _module_dotted_name(mod.path, pkg.root)
+
+        refs.extend(
+            _scan_functions_for_type(
+                mod.functions,
+                mod_name,
+                pattern,
+            )
+        )
+
+        for cls in mod.classes:
+            refs.extend(
+                _scan_functions_for_type(
+                    cls.methods,
+                    mod_name,
+                    pattern,
+                    class_name=cls.name,
+                )
+            )
+
+        # Module-level type aliases (e.g. ``type Foo = X``).
+        for var in mod.variables:
+            ann = var.annotation or ""
+            val = var.value_repr or ""
+            if pattern.search(ann) or pattern.search(val):
+                refs.append(
+                    {
+                        "function": var.name,
+                        "module": mod_name,
+                        "line": var.line,
+                        "ref_type": "alias",
+                    }
+                )
+
+    return refs
+
+
+def _scan_functions_for_type(
+    functions: list[Any],
+    mod_name: str,
+    pattern: re.Pattern[str],
+    *,
+    class_name: str | None = None,
+) -> list[dict[str, Any]]:
+    """Scan a list of functions for type references in signatures."""
+    refs: list[dict[str, Any]] = []
+    for fn in functions:
+        fn_label = f"{class_name}.{fn.name}" if class_name else fn.name
+        # Check parameters.
+        for param in fn.params:
+            if param.annotation and pattern.search(param.annotation):
+                refs.append(
+                    {
+                        "function": fn_label,
+                        "module": mod_name,
+                        "line": fn.line_start,
+                        "ref_type": "param",
+                    }
+                )
+                break  # One ref per function is enough.
+
+        # Check return type (only if no param match found).
+        if (
+            not any(r["function"] == fn_label for r in refs)
+            and fn.return_type
+            and pattern.search(fn.return_type)
+        ):
+            refs.append(
+                {
+                    "function": fn_label,
+                    "module": mod_name,
+                    "line": fn.line_start,
+                    "ref_type": "return",
+                }
+            )
+    return refs
+
+
 # ─── Impact scoring ─────────────────────────────────────────────────────────
 
 
@@ -225,7 +350,7 @@ def score_impact(result: dict[str, Any]) -> str:
 
     Args:
         result: Dict with callers, reexports, affected_modules,
-            and optionally git_coupled.
+            and optionally git_coupled and type_refs.
 
     Returns:
         Impact level string.
@@ -234,8 +359,15 @@ def score_impact(result: dict[str, Any]) -> str:
     reexport_count = len(result.get("reexports", []))
     module_count = len(result.get("affected_modules", []))
     coupled_count = len(result.get("git_coupled", []))
+    type_ref_count = len(result.get("type_refs", []))
 
-    total = caller_count + reexport_count * 2 + module_count + coupled_count
+    total = (
+        caller_count
+        + reexport_count * 2
+        + module_count
+        + coupled_count
+        + type_ref_count
+    )
 
     if total >= 5:
         return "HIGH"
@@ -322,7 +454,12 @@ def analyze_impact(
     callers = find_callers(pkg, symbol)
     reexports = find_reexports(pkg, symbol)
     test_files = map_tests(symbol, root)
-    affected_modules = list({c.module for c in callers} | set(reexports))
+
+    type_refs = find_type_refs(pkg, symbol)
+    type_ref_modules = {r["module"] for r in type_refs}
+    affected_modules = list(
+        {c.module for c in callers} | set(reexports) | type_ref_modules
+    )
 
     result: dict[str, Any] = {
         "symbol": symbol,
@@ -336,6 +473,7 @@ def analyze_impact(
             }
             for c in callers
         ],
+        "type_refs": type_refs,
         "reexports": reexports,
         "affected_modules": sorted(affected_modules),
         "test_files": [str(t.name) for t in test_files],
