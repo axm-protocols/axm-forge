@@ -126,3 +126,74 @@ class TestPackageCacheEdgeCases:
         cache = PackageCache()
         result = cache.get(pkg)
         assert len(result.modules) == 1
+
+
+# ─── Filesystem change invalidation (AXM-166) ───────────────────────────────
+
+
+class TestPackageCacheFilesystemInvalidation:
+    """Cache invalidates when .py files are added or deleted."""
+
+    def test_cache_hit_unchanged(self, tmp_path: Path) -> None:
+        """No filesystem changes → same cached object returned."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('"""Init."""')
+        (pkg / "mod_a.py").write_text('"""Module A."""')
+
+        cache = PackageCache()
+        first = cache.get(pkg)
+        second = cache.get(pkg)
+        assert first is second  # exact same object — no re-parse
+
+    def test_cache_invalidation_on_delete(self, tmp_path: Path) -> None:
+        """Deleting a .py file → cache invalidates, deleted module absent."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('"""Init."""')
+        mod_b = pkg / "mod_b.py"
+        mod_b.write_text('"""Module B."""\ndef hello() -> str:\n    return "hi"')
+
+        cache = PackageCache()
+        first = cache.get(pkg)
+        module_names = [m.path.stem for m in first.modules]
+        assert "mod_b" in module_names
+
+        # Delete the file
+        mod_b.unlink()
+        second = cache.get(pkg)
+        assert second is not first  # different object — re-parsed
+        module_names_after = [m.path.stem for m in second.modules]
+        assert "mod_b" not in module_names_after
+
+    def test_cache_invalidation_on_add(self, tmp_path: Path) -> None:
+        """Adding a .py file → cache invalidates, new module present."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('"""Init."""')
+
+        cache = PackageCache()
+        first = cache.get(pkg)
+        assert len(first.modules) == 1
+
+        # Add a new file
+        (pkg / "new_mod.py").write_text(
+            '"""New."""\ndef greet() -> str:\n    return "hello"'
+        )
+        second = cache.get(pkg)
+        assert second is not first  # different object — re-parsed
+        module_names = [m.path.stem for m in second.modules]
+        assert "new_mod" in module_names
+
+    def test_clear_cache_full_reset(self, tmp_path: Path) -> None:
+        """clear() still forces full re-parse on next call."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('"""Init."""')
+
+        cache = PackageCache()
+        first = cache.get(pkg)
+        cache.clear()
+        second = cache.get(pkg)
+        assert second is not first  # different object after clear
+        assert first.name == second.name  # same package
