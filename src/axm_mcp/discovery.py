@@ -207,6 +207,9 @@ def _register_one(
             output: dict[str, Any] = {"success": result.success, **result.data}
             if result.error:
                 output["error"] = result.error
+            hint = getattr(result, "hint", None)
+            if hint:
+                output["hint"] = hint
             return output
 
     # Copy docstring.
