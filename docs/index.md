@@ -61,14 +61,14 @@ print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
 
 - 🔍 **Linting** — Ruff analysis (800+ rules)
 - 🔒 **Type Safety** — Strict mypy via `mypy.api.run()`
-- 📊 **Complexity** — Cyclomatic complexity via radon Python API
+- 📊 **Complexity** — Cyclomatic complexity via radon (Python API with subprocess fallback)
 - 🛡️ **Security** — Bandit integration + hardcoded secrets detection
 - 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry)
 - 🧪 **Testing** — Coverage enforcement via pytest-cov
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics
 - 📐 **Practices** — Docstring coverage, bare except detection
 - 🔧 **Tooling** — CLI tool availability checks
-- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 236+ tests
+- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 238+ tests
 
 ---
 

@@ -120,7 +120,7 @@ All subprocess-based rules use `run_in_project()` from `core/runner.py`, which d
 | `LintingRule` | Ruff | `run_in_project(["ruff", "check", ...])` |
 | `FormattingRule` | Ruff | `run_in_project(["ruff", "format", "--check", ...])` |
 | `TypeCheckRule` | MyPy | `run_in_project(["mypy", ...])` |
-| `ComplexityRule` | Radon | `radon.complexity.cc_visit(source)` |
+| `ComplexityRule` | Radon | `radon.complexity.cc_visit(source)` (fallback: `radon cc --json` subprocess) |
 | `SecurityRule` | Bandit | `run_in_project(["bandit", ...])` |
 | `DependencyAuditRule` | pip-audit | `run_in_project(["pip-audit", ...])` |
 | `DependencyHygieneRule` | deptry | `run_in_project(["deptry", ...])` |
