@@ -291,6 +291,37 @@ def _compress_class(cls: ClassInfo) -> list[str]:
 # ─── Single-symbol formatters (used by CLI inspect) ─────────────────────────
 
 
+def _format_function_text(fn: FunctionInfo) -> list[str]:
+    """Format a FunctionInfo for inspect output."""
+    lines = [f"🔍 {fn.signature}"]
+    parsed = parse_docstring(fn.docstring)
+    if parsed.summary:
+        lines.append(f"   {parsed.summary}")
+    if parsed.raises:
+        for exc, desc in parsed.raises:
+            lines.append(f"   raises {exc}: {desc}")
+    if parsed.examples:
+        lines.append("   examples:")
+        for ex in parsed.examples:
+            for ex_line in ex.splitlines():
+                lines.append(f"     {ex_line}")
+    lines.append(f"   kind: {fn.kind.value}")
+    lines.append(f"   lines: {fn.line_start}-{fn.line_end}")
+    return lines
+
+
+def _format_class_text(cls: ClassInfo) -> list[str]:
+    """Format a ClassInfo for inspect output."""
+    bases = f"({', '.join(cls.bases)})" if cls.bases else ""
+    lines = [f"🔍 class {cls.name}{bases}"]
+    parsed = parse_docstring(cls.docstring)
+    if parsed.summary:
+        lines.append(f"   {parsed.summary}")
+    for m in cls.methods:
+        lines.append(f"   · {m.signature}")
+    return lines
+
+
 def format_symbol_text(symbol: FunctionInfo | ClassInfo) -> str:
     """Format a single symbol for human-readable inspect output.
 
@@ -300,31 +331,35 @@ def format_symbol_text(symbol: FunctionInfo | ClassInfo) -> str:
     Returns:
         Formatted text string.
     """
-    lines: list[str] = []
     if isinstance(symbol, FunctionInfo):
-        lines.append(f"🔍 {symbol.signature}")
-        parsed = parse_docstring(symbol.docstring)
-        if parsed.summary:
-            lines.append(f"   {parsed.summary}")
-        if parsed.raises:
-            for exc, desc in parsed.raises:
-                lines.append(f"   raises {exc}: {desc}")
-        if parsed.examples:
-            lines.append("   examples:")
-            for ex in parsed.examples:
-                for ex_line in ex.splitlines():
-                    lines.append(f"     {ex_line}")
-        lines.append(f"   kind: {symbol.kind.value}")
-        lines.append(f"   lines: {symbol.line_start}-{symbol.line_end}")
-    elif isinstance(symbol, ClassInfo):
-        bases = f"({', '.join(symbol.bases)})" if symbol.bases else ""
-        lines.append(f"🔍 class {symbol.name}{bases}")
-        parsed = parse_docstring(symbol.docstring)
-        if parsed.summary:
-            lines.append(f"   {parsed.summary}")
-        for m in symbol.methods:
-            lines.append(f"   · {m.signature}")
+        lines = _format_function_text(symbol)
+    else:
+        lines = _format_class_text(symbol)
     return "\n".join(lines)
+
+
+def _format_module_functions(mod: ModuleInfo) -> list[str]:
+    """Format top-level functions of a module."""
+    lines: list[str] = []
+    for fn in mod.functions:
+        pub = "🔓" if fn.is_public else "🔒"
+        lines.append(f"  {pub} {fn.signature}")
+        fn_summary = parse_docstring(fn.docstring).summary if fn.docstring else None
+        if fn_summary:
+            lines.append(f"     {fn_summary}")
+    return lines
+
+
+def _format_module_classes(mod: ModuleInfo) -> list[str]:
+    """Format classes and their methods of a module."""
+    lines: list[str] = []
+    for cls in mod.classes:
+        pub = "🔓" if cls.is_public else "🔒"
+        bases = f"({', '.join(cls.bases)})" if cls.bases else ""
+        lines.append(f"  {pub} class {cls.name}{bases}")
+        for m in cls.methods:
+            lines.append(f"     · {m.signature}")
+    return lines
 
 
 def format_module_inspect_text(mod: ModuleInfo) -> str:
@@ -336,27 +371,13 @@ def format_module_inspect_text(mod: ModuleInfo) -> str:
     Returns:
         Formatted text string.
     """
-    lines: list[str] = []
-    lines.append(f"📄 {mod.path.name}")
+    lines: list[str] = [f"📄 {mod.path.name}"]
     summary = parse_docstring(mod.docstring).summary if mod.docstring else None
     if summary:
         lines.append(f"   {summary}")
     lines.append("")
-
-    for fn in mod.functions:
-        pub = "🔓" if fn.is_public else "🔒"
-        lines.append(f"  {pub} {fn.signature}")
-        fn_summary = parse_docstring(fn.docstring).summary if fn.docstring else None
-        if fn_summary:
-            lines.append(f"     {fn_summary}")
-
-    for cls in mod.classes:
-        pub = "🔓" if cls.is_public else "🔒"
-        bases = f"({', '.join(cls.bases)})" if cls.bases else ""
-        lines.append(f"  {pub} class {cls.name}{bases}")
-        for m in cls.methods:
-            lines.append(f"     · {m.signature}")
-
+    lines.extend(_format_module_functions(mod))
+    lines.extend(_format_module_classes(mod))
     return "\n".join(lines)
 
 

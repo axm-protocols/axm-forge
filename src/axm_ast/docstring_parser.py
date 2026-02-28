@@ -262,6 +262,16 @@ def _extract_raises_sphinx(text: str) -> list[tuple[str, str]]:
 # ─── Shared helpers ───────────────────────────────────────────────────────────
 
 
+def _flush_raises_entry(
+    result: list[tuple[str, str]],
+    current_type: str | None,
+    current_desc: list[str],
+) -> None:
+    """Append the accumulated raises entry to *result* if valid."""
+    if current_type is not None:
+        result.append((current_type, " ".join(current_desc).strip()))
+
+
 def _parse_raises_body(body: str) -> list[tuple[str, str]]:
     """Parse a Raises section body into (exc_type, description) pairs.
 
@@ -283,24 +293,19 @@ def _parse_raises_body(body: str) -> list[tuple[str, str]]:
         numpy_match = re.match(r"^([A-Za-z][A-Za-z0-9_.]*(?:\[.*?\])?)\s*$", stripped)
 
         if google_match:
-            if current_type:
-                result.append((current_type, " ".join(current_desc).strip()))
+            _flush_raises_entry(result, current_type, current_desc)
             current_type = google_match.group(1).strip()
             current_desc = (
                 [google_match.group(2).strip()] if google_match.group(2).strip() else []
             )
         elif numpy_match and not line.startswith(" "):
-            # NumPy-style: unindented type name on its own line
-            if current_type:
-                result.append((current_type, " ".join(current_desc).strip()))
+            _flush_raises_entry(result, current_type, current_desc)
             current_type = numpy_match.group(1).strip()
             current_desc = []
         elif current_type and stripped:
             current_desc.append(stripped)
 
-    if current_type:
-        result.append((current_type, " ".join(current_desc).strip()))
-
+    _flush_raises_entry(result, current_type, current_desc)
     return result
 
 

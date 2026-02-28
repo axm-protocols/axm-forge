@@ -65,16 +65,8 @@ def _is_binary(file_path: str) -> bool:
     return Path(file_path).suffix.lower() in _BINARY_EXTENSIONS
 
 
-def _parse_git_log(project_root: Path, months: int) -> list[set[str]]:
-    """Parse git log into a list of file-sets per commit.
-
-    Args:
-        project_root: Root of the git repository.
-        months: Number of months of history to analyze.
-
-    Returns:
-        List of sets, each containing the files changed in one commit.
-    """
+def _run_git_log(project_root: Path, months: int) -> str | None:
+    """Run ``git log`` and return stdout, or *None* on failure."""
     try:
         result = subprocess.run(
             [
@@ -91,35 +83,96 @@ def _parse_git_log(project_root: Path, months: int) -> list[set[str]]:
             check=False,
         )
     except FileNotFoundError:
-        # git not installed
-        return []
-
+        return None
     if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def _is_commit_hash(s: str) -> bool:
+    """Check whether *s* looks like a 40-char hex commit hash."""
+    return len(s) == 40 and all(c in "0123456789abcdef" for c in s)
+
+
+def _parse_git_log(project_root: Path, months: int) -> list[set[str]]:
+    """Parse git log into a list of file-sets per commit.
+
+    Args:
+        project_root: Root of the git repository.
+        months: Number of months of history to analyze.
+
+    Returns:
+        List of sets, each containing the files changed in one commit.
+    """
+    stdout = _run_git_log(project_root, months)
+    if stdout is None:
         return []
 
     commits: list[set[str]] = []
     current_files: set[str] = set()
 
-    for line in result.stdout.splitlines():
+    for line in stdout.splitlines():
         stripped = line.strip()
         if not stripped:
             continue
-
-        # Commit hashes are 40 hex chars
-        if len(stripped) == 40 and all(c in "0123456789abcdef" for c in stripped):
+        if _is_commit_hash(stripped):
             if current_files:
                 commits.append(current_files)
             current_files = set()
-        else:
-            # Filter binary files
-            if not _is_binary(stripped):
-                current_files.add(stripped)
+        elif not _is_binary(stripped):
+            current_files.add(stripped)
 
-    # Don't forget the last commit
     if current_files:
         commits.append(current_files)
 
     return commits
+
+
+def _count_co_changes(
+    target: str,
+    commits: list[set[str]],
+) -> tuple[Counter[str], Counter[str]]:
+    """Return (file_changes, co_changes) counters for *target*."""
+    file_changes: Counter[str] = Counter()
+    co_changes: Counter[str] = Counter()
+    for file_set in commits:
+        for f in file_set:
+            file_changes[f] += 1
+        if target in file_set:
+            for f in file_set:
+                if f != target:
+                    co_changes[f] += 1
+    return file_changes, co_changes
+
+
+def _compute_coupling_scores(
+    target: str,
+    commits: list[set[str]],
+    *,
+    min_strength: float,
+    min_co_changes: int,
+) -> list[dict[str, Any]]:
+    """Compute coupling strength between *target* and all co-changed files."""
+    file_changes, co_changes = _count_co_changes(target, commits)
+
+    target_changes = file_changes.get(target, 0)
+    if target_changes == 0:
+        return []
+
+    coupled: list[dict[str, Any]] = []
+    for other_file, co_count in co_changes.items():
+        strength = co_count / max(target_changes, file_changes[other_file])
+        if strength >= min_strength and co_count >= min_co_changes:
+            coupled.append(
+                {
+                    "file": other_file,
+                    "strength": round(strength, 4),
+                    "co_changes": co_count,
+                }
+            )
+
+    coupled.sort(key=lambda x: x["strength"], reverse=True)
+    return coupled
 
 
 def git_coupled_files(
@@ -153,43 +206,13 @@ def git_coupled_files(
         >>> result[0]["file"]
         'src/utils.py'
     """
-    target = str(file_path)
     commits = _parse_git_log(project_root, months)
     if not commits:
         return []
 
-    # Count how many commits each file appears in
-    file_changes: Counter[str] = Counter()
-    # Count how many commits contain both target and another file
-    co_changes: Counter[str] = Counter()
-
-    for file_set in commits:
-        for f in file_set:
-            file_changes[f] += 1
-        if target in file_set:
-            for f in file_set:
-                if f != target:
-                    co_changes[f] += 1
-
-    target_changes = file_changes.get(target, 0)
-    if target_changes == 0:
-        return []
-
-    # Compute coupling strength
-    coupled: list[dict[str, Any]] = []
-    for other_file, co_count in co_changes.items():
-        other_changes = file_changes[other_file]
-        strength = co_count / max(target_changes, other_changes)
-
-        if strength >= min_strength and co_count >= min_co_changes:
-            coupled.append(
-                {
-                    "file": other_file,
-                    "strength": round(strength, 4),
-                    "co_changes": co_count,
-                }
-            )
-
-    # Sort by strength descending
-    coupled.sort(key=lambda x: x["strength"], reverse=True)
-    return coupled
+    return _compute_coupling_scores(
+        str(file_path),
+        commits,
+        min_strength=min_strength,
+        min_co_changes=min_co_changes,
+    )

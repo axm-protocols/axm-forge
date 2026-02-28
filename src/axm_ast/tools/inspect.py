@@ -165,30 +165,25 @@ class InspectTool(AXMTool):
     @staticmethod
     def _build_detail(sym: Any) -> dict[str, Any]:
         """Build detail dict from a FunctionInfo or ClassInfo."""
+        # Declarative field mapping — avoids per-field hasattr branching.
+        _simple_fields = (
+            "signature",
+            "return_type",
+            "docstring",
+            "line",
+            "bases",
+        )
         detail: dict[str, Any] = {"name": sym.name}
-
-        # Function-like
-        if hasattr(sym, "signature"):
-            detail["signature"] = sym.signature
-        if hasattr(sym, "return_type"):
-            detail["return_type"] = sym.return_type
-        if hasattr(sym, "docstring"):
-            detail["docstring"] = sym.docstring
+        for field in _simple_fields:
+            val = getattr(sym, field, None)
+            if val is not None:
+                detail[field] = val
         if hasattr(sym, "parameters"):
             detail["parameters"] = [
                 {"name": p.name, "annotation": p.annotation, "default": p.default}
                 for p in sym.parameters
             ]
-        if hasattr(sym, "line"):
-            detail["line"] = sym.line
-
-        # Class-like
-        if hasattr(sym, "bases"):
-            detail["bases"] = sym.bases
         if hasattr(sym, "methods"):
             detail["methods"] = [m.name for m in sym.methods]
-
-        # Module info
         detail["module"] = getattr(sym, "module", "")
-
         return detail

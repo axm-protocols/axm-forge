@@ -57,6 +57,10 @@ class DiffTool(AXMTool):
             if "error" in result:
                 return ToolResult(success=False, error=result["error"])
 
-            return ToolResult(success=True, data=result)
+            return ToolResult(
+                success=True,
+                data=result,
+                hint="Tip: Use ast_impact(symbol) on changed symbols to assess risk.",
+            )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

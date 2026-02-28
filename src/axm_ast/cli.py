@@ -33,7 +33,7 @@ from axm_ast.formatters import (
     format_symbol_text,
     format_text,
 )
-from axm_ast.models.nodes import FunctionKind, ModuleInfo
+from axm_ast.models.nodes import ClassInfo, FunctionInfo, FunctionKind, ModuleInfo
 
 __all__ = ["app"]
 
@@ -107,14 +107,7 @@ def describe(
     pkg = filter_modules(pkg, mod_filter)
 
     if detail == "toc":
-        toc = format_toc(pkg)
-        if json_output:
-            print(json.dumps({"modules": toc, "module_count": len(toc)}, indent=2))
-        else:
-            for entry in toc:
-                sym = entry["symbol_count"]
-                doc = f" — {entry['docstring']}" if entry["docstring"] else ""
-                print(f"  {entry['name']} ({sym} symbols){doc}")
+        _print_toc(format_toc(pkg), json_output=json_output)
         return
 
     if compress:
@@ -125,6 +118,17 @@ def describe(
         print(json.dumps(format_json(pkg, detail=detail), indent=2))
     else:
         print(format_text(pkg, detail=detail, budget=budget, rank=rank))
+
+
+def _print_toc(toc: list[dict[str, object]], *, json_output: bool) -> None:
+    """Print table-of-contents output."""
+    if json_output:
+        print(json.dumps({"modules": toc, "module_count": len(toc)}, indent=2))
+    else:
+        for entry in toc:
+            sym = entry["symbol_count"]
+            doc = f" — {entry['docstring']}" if entry["docstring"] else ""
+            print(f"  {entry['name']} ({sym} symbols){doc}")
 
 
 @app.command()
@@ -169,55 +173,61 @@ def inspect(
         _inspect_module(mod, json_output=json_output)
 
 
+def _find_and_print_symbol(
+    symbol: FunctionInfo | ClassInfo | ModuleInfo,
+    *,
+    json_output: bool,
+) -> None:
+    """Print a resolved symbol as JSON or text."""
+    if json_output:
+        print(json.dumps(symbol.model_dump(mode="json"), indent=2))
+    else:
+        print(format_symbol_text(symbol))  # type: ignore[arg-type]
+
+
+def _resolve_dotted_symbol(mod: ModuleInfo, name: str) -> FunctionInfo | ClassInfo:
+    """Resolve ``ClassName.method`` to a method object or exit."""
+    parts = name.split(".")
+    class_name = parts[0]
+    cls = next((c for c in mod.classes if c.name == class_name), None)
+    if cls is None:
+        print(f"❌ Class '{class_name}' not found", file=sys.stderr)
+        raise SystemExit(1)
+
+    method_name = parts[-1]
+    method = next((m for m in cls.methods if m.name == method_name), None)
+    if method is None:
+        print(
+            f"❌ Method '{method_name}' not found in class '{class_name}'",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return method
+
+
+def _find_simple_symbol(mod: ModuleInfo, name: str) -> FunctionInfo | ClassInfo:
+    """Find a top-level function or class by *name*, or exit."""
+    for fn in mod.functions:
+        if fn.name == name:
+            return fn
+    for cls in mod.classes:
+        if cls.name == name:
+            return cls
+    print(f"❌ Symbol '{name}' not found", file=sys.stderr)
+    raise SystemExit(1)
+
+
 def _inspect_symbol(mod: ModuleInfo, name: str, *, json_output: bool) -> None:
     """Find and print a single symbol from a module.
 
     Supports dotted paths like ``ClassName.method`` to inspect
     methods, properties, classmethods, and staticmethods within classes.
     """
-    # --- Dotted path: resolve class → method ---
     if "." in name:
-        parts = name.split(".")
-        class_name = parts[0]
-        cls = next((c for c in mod.classes if c.name == class_name), None)
-        if cls is None:
-            print(f"❌ Class '{class_name}' not found", file=sys.stderr)
-            raise SystemExit(1)
-
-        method_name = parts[-1]
-        method = next((m for m in cls.methods if m.name == method_name), None)
-        if method is None:
-            print(
-                f"❌ Method '{method_name}' not found in class '{class_name}'",
-                file=sys.stderr,
-            )
-            raise SystemExit(1)
-
-        if json_output:
-            print(json.dumps(method.model_dump(mode="json"), indent=2))
-        else:
-            print(format_symbol_text(method))
-        return
-
-    # --- Simple name: function or class ---
-    for fn in mod.functions:
-        if fn.name == name:
-            if json_output:
-                print(json.dumps(fn.model_dump(mode="json"), indent=2))
-            else:
-                print(format_symbol_text(fn))
-            return
-
-    for cls in mod.classes:
-        if cls.name == name:
-            if json_output:
-                print(json.dumps(cls.model_dump(mode="json"), indent=2))
-            else:
-                print(format_symbol_text(cls))
-            return
-
-    print(f"❌ Symbol '{name}' not found", file=sys.stderr)
-    raise SystemExit(1)
+        symbol = _resolve_dotted_symbol(mod, name)
+    else:
+        symbol = _find_simple_symbol(mod, name)
+    _find_and_print_symbol(symbol, json_output=json_output)
 
 
 def _inspect_module(mod: ModuleInfo, *, json_output: bool) -> None:
@@ -226,6 +236,20 @@ def _inspect_module(mod: ModuleInfo, *, json_output: bool) -> None:
         print(json.dumps(mod.model_dump(mode="json"), indent=2))
     else:
         print(format_module_inspect_text(mod))
+
+
+def _print_graph_data(
+    graph_data: dict[str, list[str]],
+    label: str,
+) -> None:
+    """Print a graph adjacency list in text format."""
+    if not graph_data:
+        print(f"📊 No {label} detected")
+    else:
+        print(f"📊 {label}:")
+        for src, targets in sorted(graph_data.items()):
+            for t in targets:
+                print(f"   {src} → {t}")
 
 
 @app.command()
@@ -257,49 +281,43 @@ def graph(
 
     ws = detect_workspace(project_path)
     if ws is not None:
-        from axm_ast.core.workspace import (
-            analyze_workspace,
-            build_workspace_dep_graph,
-            format_workspace_graph_mermaid,
-        )
-
-        ws = analyze_workspace(project_path)
-        graph_data = build_workspace_dep_graph(ws)
-
-        if json_output or fmt == "json":
-            print(json.dumps(graph_data, indent=2))
-        elif fmt == "mermaid":
-            print(format_workspace_graph_mermaid(ws))
-        else:
-            if not graph_data:
-                print("📊 No inter-package dependencies detected")
-            else:
-                print("📊 Workspace Package Graph:")
-                for src, targets in sorted(graph_data.items()):
-                    for t in targets:
-                        print(f"   {src} → {t}")
+        _print_workspace_graph(project_path, fmt=fmt, json_output=json_output)
         return
+
+    _print_package_graph(project_path, fmt=fmt, json_output=json_output)
+
+
+def _print_workspace_graph(project_path: Path, *, fmt: str, json_output: bool) -> None:
+    """Print a workspace-level dependency graph."""
+    from axm_ast.core.workspace import (
+        analyze_workspace,
+        build_workspace_dep_graph,
+        format_workspace_graph_mermaid,
+    )
+
+    ws = analyze_workspace(project_path)
+    graph_data = build_workspace_dep_graph(ws)
+
+    if json_output or fmt == "json":
+        print(json.dumps(graph_data, indent=2))
+    elif fmt == "mermaid":
+        print(format_workspace_graph_mermaid(ws))
+    else:
+        _print_graph_data(graph_data, "Workspace Package Graph")
+
+
+def _print_package_graph(project_path: Path, *, fmt: str, json_output: bool) -> None:
+    """Print a package-level import graph."""
+    from axm_ast.core.analyzer import build_import_graph
 
     pkg = get_package(project_path)
 
     if json_output or fmt == "json":
-        from axm_ast.core.analyzer import build_import_graph
-
         print(json.dumps(build_import_graph(pkg), indent=2))
     elif fmt == "mermaid":
         print(format_mermaid(pkg))
     else:
-        # Text format: simple adjacency list
-        from axm_ast.core.analyzer import build_import_graph
-
-        graph_data = build_import_graph(pkg)
-        if not graph_data:
-            print("📊 No internal imports detected")
-        else:
-            print("📊 Import Graph:")
-            for src, targets in sorted(graph_data.items()):
-                for t in targets:
-                    print(f"   {src} → {t}")
+        _print_graph_data(build_import_graph(pkg), "Import Graph")
 
 
 @app.command()
@@ -450,25 +468,7 @@ def context(
 
     ws = detect_workspace(project_path)
     if ws is not None:
-        from axm_ast.core.workspace import build_workspace_context
-
-        ctx = build_workspace_context(project_path)
-        if json_output:
-            print(json.dumps(ctx, indent=2))
-        else:
-            print(f"🏗️  Workspace: {ctx['workspace']}")
-            print(f"   Packages: {ctx['package_count']}")
-            for pkg in ctx["packages"]:
-                print(
-                    f"   • {pkg['name']} "
-                    f"({pkg['module_count']} modules, "
-                    f"{pkg['function_count']} functions)"
-                )
-            if ctx["package_graph"]:
-                print("\n📊 Package Dependencies:")
-                for src, targets in sorted(ctx["package_graph"].items()):
-                    for t in targets:
-                        print(f"   {src} → {t}")
+        _print_workspace_context(project_path, json_output=json_output)
         return
 
     from axm_ast.core.context import (
@@ -484,23 +484,54 @@ def context(
     if json_output:
         print(json.dumps(format_context_json(ctx, slim=slim), indent=2))
     elif slim:
-        data = format_context_json(ctx, slim=True)
-        print(f"📋 {data['name']}")
-        print(f"  python: {data['python']}")
-        p = data["patterns"]
-        print(
-            f"  layout: {p['layout']}"
-            f" ({p['module_count']} modules,"
-            f" {p['function_count']} functions,"
-            f" {p['class_count']} classes)"
-        )
-        if data.get("top_modules"):
-            print("\n📦 Top Modules")
-            for m in data["top_modules"]:
-                stars = "★" * m["stars"] + "☆" * (5 - m["stars"])
-                print(f"  {m['name']:30s} {stars}  ({m['symbol_count']} symbols)")
+        _print_slim_context(format_context_json(ctx, slim=True))
     else:
         print(format_context(ctx))
+
+
+def _print_workspace_context(project_path: Path, *, json_output: bool) -> None:
+    """Print workspace-level context."""
+    from axm_ast.core.workspace import build_workspace_context
+
+    ctx = build_workspace_context(project_path)
+    if json_output:
+        print(json.dumps(ctx, indent=2))
+        return
+    print(f"🏗️  Workspace: {ctx['workspace']}")
+    print(f"   Packages: {ctx['package_count']}")
+    for pkg in ctx["packages"]:
+        print(
+            f"   • {pkg['name']} "
+            f"({pkg['module_count']} modules, "
+            f"{pkg['function_count']} functions)"
+        )
+    if ctx["package_graph"]:
+        print("\n📊 Package Dependencies:")
+        for src, targets in sorted(ctx["package_graph"].items()):
+            for t in targets:
+                print(f"   {src} → {t}")
+
+
+def _print_slim_context(data: dict[str, object]) -> None:
+    """Print a compact slim-mode context summary."""
+    from typing import Any, cast
+
+    d = cast(dict[str, Any], data)
+    print(f"📋 {d['name']}")
+    print(f"  python: {d['python']}")
+    p = d["patterns"]
+    print(
+        f"  layout: {p['layout']}"
+        f" ({p['module_count']} modules,"
+        f" {p['function_count']} functions,"
+        f" {p['class_count']} classes)"
+    )
+    top = d.get("top_modules")
+    if top:
+        print("\n📦 Top Modules")
+        for m in top:
+            stars = "★" * m["stars"] + "☆" * (5 - m["stars"])
+            print(f"  {m['name']:30s} {stars}  ({m['symbol_count']} symbols)")
 
 
 @app.command()
@@ -712,6 +743,83 @@ def dead_code(
         )
     else:
         print(format_dead_code(results))
+
+
+@app.command()
+def flows(
+    path: Annotated[
+        str,
+        cyclopts.Parameter(help="Path to package directory"),
+    ] = ".",
+    *,
+    trace: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--trace", "-t"],
+            help="Entry point name to trace flow from",
+        ),
+    ] = None,
+    max_depth: Annotated[
+        int,
+        cyclopts.Parameter(
+            name=["--max-depth"],
+            help="Maximum BFS depth for flow tracing",
+        ),
+    ] = 5,
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--json"], help="Output as JSON"),
+    ] = False,
+) -> None:
+    """Detect entry points and trace execution flows."""
+    project_path = Path(path).resolve()
+    if not project_path.is_dir():
+        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
+        raise SystemExit(1)
+
+    from axm_ast.core.flows import (
+        find_entry_points,
+        format_flows,
+        trace_flow,
+    )
+
+    pkg = get_package(project_path)
+
+    if trace is not None:
+        steps = trace_flow(pkg, trace, max_depth=max_depth)
+        if json_output:
+            print(
+                json.dumps(
+                    {
+                        "entry": trace,
+                        "steps": [s.model_dump(mode="json") for s in steps],
+                        "count": len(steps),
+                    },
+                    indent=2,
+                )
+            )
+        elif not steps:
+            print(f"📭 No flow found for '{trace}'")
+        else:
+            print(f"🔀 Flow from '{trace}' ({len(steps)} step(s)):\n")
+            for s in steps:
+                indent = "  " * s.depth
+                print(f"  {indent}{s.name} ({s.module}:{s.line})")
+        return
+
+    entries = find_entry_points(pkg)
+    if json_output:
+        print(
+            json.dumps(
+                {
+                    "entry_points": [e.model_dump(mode="json") for e in entries],
+                    "count": len(entries),
+                },
+                indent=2,
+            )
+        )
+    else:
+        print(format_flows(entries))
 
 
 @app.command()
