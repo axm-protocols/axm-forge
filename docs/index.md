@@ -46,7 +46,7 @@ $ axm-ast context src/mylib
 
 ## Features
 
-- 🔬 **Describe** — Full package introspection with 3 detail levels + compressed AI mode
+- 🔬 **Describe** — Full package introspection with 4 detail levels + compressed AI mode + module filtering
 - 📊 **Graph** — Import dependency visualization (text, Mermaid, JSON)
 - 🔍 **Search** — Semantic symbol lookup by name, return type, kind, or base class
 - 📞 **Callers** — Tree-sitter call-site detection: "who calls this function?"
