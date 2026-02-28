@@ -96,6 +96,8 @@ Output formatting with multiple detail levels:
 | `format_text()` | Human-readable text (summary / detailed / full) |
 | `format_compressed()` | AI-friendly compressed view |
 | `format_json()` | Machine-readable JSON |
+| `format_toc()` | Table-of-contents: module names + counts only |
+| `filter_modules()` | Case-insensitive substring filter on module names |
 | `format_mermaid()` | Mermaid dependency graph |
 
 ### 4. Models (`models/`)

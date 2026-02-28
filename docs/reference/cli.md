@@ -18,8 +18,9 @@ axm-ast describe [OPTIONS] [PATH]
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Path to package directory |
-| `--detail` | `-d` | string | `summary` | Detail level: `summary`, `detailed`, `full` |
+| `--detail` | `-d` | string | `summary` | Detail level: `toc`, `summary`, `detailed`, `full` |
 | `--compress` | | bool | `False` | AI-optimized compressed output |
+| `--modules` | `-m` | string | *none* | Comma-separated module name filters (substring, case-insensitive) |
 | `--json` | | bool | `False` | Output as JSON |
 | `--rank` | | bool | `False` | Sort by PageRank importance |
 | `--budget` | `-b` | int | *none* | Limit to top N symbols |
