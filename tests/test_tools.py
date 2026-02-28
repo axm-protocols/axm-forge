@@ -124,6 +124,28 @@ class TestContextTool:
         assert result.success is False
         assert result.error is not None
 
+    # --- Slim mode (AXM-132) ---
+
+    def test_context_tool_slim(self, sample_project: Path) -> None:
+        """AC1+4: slim=True returns compact data with top_modules."""
+        from axm_ast.tools.context import ContextTool
+
+        tool = ContextTool()
+        result = tool.execute(path=str(sample_project / "src" / "demo"), slim=True)
+        assert result.success is True
+        assert "top_modules" in result.data
+        assert "modules" not in result.data
+
+    def test_context_tool_default_unchanged(self, sample_project: Path) -> None:
+        """AC4: default behavior unchanged (regression)."""
+        from axm_ast.tools.context import ContextTool
+
+        tool = ContextTool()
+        result = tool.execute(path=str(sample_project / "src" / "demo"))
+        assert result.success is True
+        assert "modules" in result.data
+        assert "dependency_graph" in result.data
+
 
 # ===========================================================================
 # ast_describe

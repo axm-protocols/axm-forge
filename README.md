@@ -40,6 +40,7 @@ uv add axm-ast
 ```bash
 # One-shot project context for AI agents
 axm-ast context src/mylib
+axm-ast context src/mylib --slim    # compact top-5 overview
 
 # Describe a package at different detail levels
 axm-ast describe src/mylib
@@ -150,7 +151,7 @@ clear_cache()                    # force re-parse on next call
 git clone https://github.com/axm-protocols/axm-ast.git
 cd axm-ast
 uv sync --all-groups
-uv run pytest           # 420 tests
+uv run pytest           # 431 tests
 uv run mypy src/ tests/ # type check
 uv run ruff check src/  # lint
 ```

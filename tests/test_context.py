@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -345,3 +346,118 @@ class TestContextFunctional:
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert isinstance(data, dict)
+
+
+# ─── Slim mode (AXM-132) ────────────────────────────────────────────────────
+
+
+class TestSlimMode:
+    """Tests for context slim mode (AXM-132)."""
+
+    def _ctx(
+        self, tmp_path: Path, *, modules: dict[str, str] | None = None
+    ) -> dict[str, Any]:
+        """Build a context from a temp package."""
+        m = modules or {
+            "core.py": (
+                '"""Core module."""\n'
+                "def greet() -> str:\n"
+                '    """Greet."""\n'
+                '    return "hi"\n'
+                "class Foo:\n"
+                '    """Foo class."""\n'
+                "    pass\n"
+            ),
+            "utils.py": (
+                '"""Utility helpers."""\n'
+                "def helper() -> None:\n"
+                '    """Help."""\n'
+                "    pass\n"
+            ),
+        }
+        pkg = _make_pkg(tmp_path, modules=m)
+        _make_pyproject(tmp_path, ["cyclopts>=3.0"])
+        return build_context(pkg, project_root=tmp_path)
+
+    # --- Unit: format_context_json(slim=True) ---
+
+    def test_slim_has_expected_keys(self, tmp_path: Path) -> None:
+        """AC1: slim output has name, python, stack, patterns, top_modules."""
+        ctx = self._ctx(tmp_path)
+        data = format_context_json(ctx, slim=True)
+        assert "name" in data
+        assert "python" in data
+        assert "stack" in data
+        assert "patterns" in data
+        assert "top_modules" in data
+
+    def test_slim_no_full_modules(self, tmp_path: Path) -> None:
+        """Slim output strips full modules and dependency_graph."""
+        ctx = self._ctx(tmp_path)
+        data = format_context_json(ctx, slim=True)
+        assert "modules" not in data
+        assert "dependency_graph" not in data
+        assert "axm_tools" not in data
+
+    def test_slim_top_modules_count(self, tmp_path: Path) -> None:
+        """top_modules has ≤ 5 entries."""
+        ctx = self._ctx(tmp_path)
+        data = format_context_json(ctx, slim=True)
+        assert len(data["top_modules"]) <= 5
+
+    def test_slim_top_modules_fields(self, tmp_path: Path) -> None:
+        """Each entry has name, symbol_count, stars."""
+        ctx = self._ctx(tmp_path)
+        data = format_context_json(ctx, slim=True)
+        for entry in data["top_modules"]:
+            assert "name" in entry
+            assert "symbol_count" in entry
+            assert "stars" in entry
+
+    def test_slim_patterns_compact(self, tmp_path: Path) -> None:
+        """Slim patterns has only counts + layout."""
+        ctx = self._ctx(tmp_path)
+        data = format_context_json(ctx, slim=True)
+        p = data["patterns"]
+        assert "module_count" in p
+        assert "function_count" in p
+        assert "class_count" in p
+        assert "layout" in p
+
+    def test_default_unchanged(self, tmp_path: Path) -> None:
+        """AC4: default behavior unchanged (regression)."""
+        ctx = self._ctx(tmp_path)
+        data = format_context_json(ctx)
+        assert "modules" in data
+        assert "dependency_graph" in data
+        assert "axm_tools" in data
+
+    # --- Edge cases ---
+
+    def test_small_package(self, tmp_path: Path) -> None:
+        """Package with < 5 modules: top_modules has actual count."""
+        ctx = self._ctx(tmp_path)
+        data = format_context_json(ctx, slim=True)
+        assert len(data["top_modules"]) <= len(ctx["modules"])
+
+    def test_empty_package(self, tmp_path: Path) -> None:
+        """Empty package: top_modules is empty or 1 entry."""
+        pkg = _make_pkg(tmp_path)
+        _make_pyproject(tmp_path, [])
+        ctx = build_context(pkg, project_root=tmp_path)
+        data = format_context_json(ctx, slim=True)
+        assert len(data["top_modules"]) <= 1
+
+    # --- Dogfood ---
+
+    def test_slim_size_under_1k(self) -> None:
+        """AC2: slim output < 1024 bytes on axm-ast itself."""
+        import json
+
+        ast_root = FIXTURES.parent.parent / "src" / "axm_ast"
+        project_root = FIXTURES.parent.parent
+        if ast_root.exists():
+            ctx = build_context(ast_root, project_root=project_root)
+            data = format_context_json(ctx, slim=True)
+            raw = json.dumps(data)
+            assert len(raw) < 1024, f"Slim output too large: {len(raw)} bytes"

@@ -23,11 +23,15 @@ class ContextTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_context"
 
-    def execute(self, *, path: str = ".", **kwargs: Any) -> ToolResult:
+    def execute(
+        self, *, path: str = ".", slim: bool = False, **kwargs: Any
+    ) -> ToolResult:
         """Dump complete project context for AI agents.
 
         Args:
             path: Path to package or workspace directory.
+            slim: If True, return compact overview (~500 tokens)
+                with top-5 modules by PageRank importance.
 
         Returns:
             ToolResult with project context data.
@@ -51,6 +55,6 @@ class ContextTool(AXMTool):
             from axm_ast.core.context import build_context, format_context_json
 
             ctx = build_context(project_path)
-            return ToolResult(success=True, data=format_context_json(ctx))
+            return ToolResult(success=True, data=format_context_json(ctx, slim=slim))
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
