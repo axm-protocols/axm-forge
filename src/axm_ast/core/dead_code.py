@@ -310,6 +310,106 @@ def _is_in_tests_dir(mod_path: Path) -> bool:
     return "tests" in mod_path.parts
 
 
+def _extract_lazy_imports(mod: ModuleInfo) -> set[str]:
+    """Extract symbol names from imports inside function bodies.
+
+    Parses the module source with tree-sitter and finds
+    ``from ... import X`` statements that appear inside function
+    definitions (lazy imports).
+
+    Args:
+        mod: Parsed module info (with path to source).
+
+    Returns:
+        Set of imported symbol names.
+    """
+    from axm_ast.core.parser import parse_source
+
+    try:
+        source = mod.path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return set()
+
+    tree = parse_source(source)
+    refs: set[str] = set()
+    _visit_lazy_imports(tree.root_node, refs, depth=0)
+    return refs
+
+
+def _visit_lazy_imports(
+    node: object,
+    refs: set[str],
+    *,
+    depth: int,
+) -> None:
+    """Recursively find import statements inside function bodies."""
+    node_type = getattr(node, "type", "")
+    children = getattr(node, "children", None) or []
+
+    if node_type in ("function_definition", "decorated_definition"):
+        depth += 1
+
+    # Collect imports that are NOT at module level.
+    if depth > 0 and node_type == "import_from_statement":
+        _collect_import_names(children, refs)
+
+    for child in children:
+        _visit_lazy_imports(child, refs, depth=depth)
+
+
+def _node_identifier_text(node: object) -> str | None:
+    """Extract text from an identifier node, or ``None``."""
+    if getattr(node, "type", "") != "identifier":
+        return None
+    text = getattr(node, "text", b"")
+    if isinstance(text, bytes):
+        return text.decode("utf-8", errors="replace")
+    return None
+
+
+def _collect_import_names(children: list[object], refs: set[str]) -> None:
+    """Collect imported symbol names from an ``import_from_statement``."""
+    for child in children:
+        child_type = getattr(child, "type", "")
+        if child_type == "dotted_name":
+            continue  # module path, not the imported name
+        if child_type == "aliased_import":
+            alias_children = getattr(child, "children", None) or []
+            for ac in alias_children:
+                name = _node_identifier_text(ac)
+                if name is not None:
+                    refs.add(name)
+                    break  # first identifier is the original name
+        elif child_type == "identifier":
+            name = _node_identifier_text(child)
+            if name is not None:
+                refs.add(name)
+
+
+def _find_tests_dir(pkg_root: Path) -> Path | None:
+    """Discover a sibling ``tests/`` directory relative to package root.
+
+    Searches upward from *pkg_root* (max 3 levels) for a sibling
+    ``tests/`` directory.
+
+    Args:
+        pkg_root: Root of the analyzed package (e.g. ``src/mypkg/``).
+
+    Returns:
+        Path to the tests directory, or ``None`` if not found.
+    """
+    search = pkg_root
+    for _ in range(3):
+        parent = search.parent
+        if parent == search:
+            break
+        candidate = parent / "tests"
+        if candidate.is_dir():
+            return candidate
+        search = parent
+    return None
+
+
 # ─── Core detection ──────────────────────────────────────────────────────────
 
 
@@ -319,6 +419,7 @@ def _scan_functions(
     *,
     entry_points: set[str],
     all_refs: set[str],
+    extra_pkg: PackageInfo | None = None,
 ) -> list[DeadSymbol]:
     """Scan top-level functions in *mod* and return dead symbols."""
     from axm_ast.core.callers import find_callers
@@ -330,15 +431,18 @@ def _scan_functions(
             continue
         if fn.name in entry_points or fn.name in all_refs:
             continue
-        if not find_callers(pkg, fn.name):
-            dead.append(
-                DeadSymbol(
-                    name=fn.name,
-                    module_path=mod_path,
-                    line=fn.line_start,
-                    kind="function",
-                )
+        if find_callers(pkg, fn.name):
+            continue
+        if extra_pkg is not None and find_callers(extra_pkg, fn.name):
+            continue
+        dead.append(
+            DeadSymbol(
+                name=fn.name,
+                module_path=mod_path,
+                line=fn.line_start,
+                kind="function",
             )
+        )
     return dead
 
 
@@ -348,6 +452,7 @@ def _scan_classes(
     *,
     entry_points: set[str],
     all_refs: set[str],
+    extra_pkg: PackageInfo | None = None,
 ) -> list[DeadSymbol]:
     """Scan classes and their methods in *mod* and return dead symbols."""
     from axm_ast.core.callers import find_callers
@@ -357,8 +462,10 @@ def _scan_classes(
     for cls in mod.classes:
         if cls.name in entry_points:
             continue
-        cls_callers = find_callers(pkg, cls.name)
-        if not cls_callers and not _is_exempt_class(cls, mod):
+        has_callers = bool(find_callers(pkg, cls.name))
+        if not has_callers and extra_pkg is not None:
+            has_callers = bool(find_callers(extra_pkg, cls.name))
+        if not has_callers and not _is_exempt_class(cls, mod):
             dead.append(
                 DeadSymbol(
                     name=cls.name,
@@ -368,7 +475,14 @@ def _scan_classes(
                 )
             )
         dead.extend(
-            _scan_methods(cls, mod, pkg, entry_points=entry_points, all_refs=all_refs)
+            _scan_methods(
+                cls,
+                mod,
+                pkg,
+                entry_points=entry_points,
+                all_refs=all_refs,
+                extra_pkg=extra_pkg,
+            )
         )
     return dead
 
@@ -380,6 +494,7 @@ def _scan_methods(
     *,
     entry_points: set[str],
     all_refs: set[str],
+    extra_pkg: PackageInfo | None = None,
 ) -> list[DeadSymbol]:
     """Scan methods of *cls* and return dead symbols."""
     from axm_ast.core.callers import find_callers
@@ -392,7 +507,10 @@ def _scan_methods(
         qualified = f"{cls.name}.{method.name}"
         if qualified in entry_points or method.name in all_refs:
             continue
-        if not find_callers(pkg, method.name):
+        has_callers = bool(find_callers(pkg, method.name))
+        if not has_callers and extra_pkg is not None:
+            has_callers = bool(find_callers(extra_pkg, method.name))
+        if not has_callers:
             if _check_override(method.name, cls, pkg):
                 continue
             dead.append(
@@ -419,6 +537,8 @@ def find_dead_code(
         3. Apply exemptions (dunders, tests, exports, decorators,
            entry points, etc.).
         4. For methods, check override chains.
+        5. Also scan a sibling ``tests/`` directory for callers.
+        6. Detect lazy imports inside function bodies.
 
     Args:
         pkg: Analyzed package from ``analyze_package()``.
@@ -436,6 +556,14 @@ def find_dead_code(
     all_refs: set[str] = set()
     for mod in pkg.modules:
         all_refs |= extract_references(mod)
+        all_refs |= _extract_lazy_imports(mod)
+
+    # Discover sibling tests/ directory and merge its callers/refs.
+    test_pkg = _load_test_package(pkg.root)
+    if test_pkg is not None:
+        for mod in test_pkg.modules:
+            all_refs |= extract_references(mod)
+            all_refs |= _extract_lazy_imports(mod)
 
     entry_points = _load_entry_point_symbols(pkg.root)
 
@@ -454,14 +582,46 @@ def find_dead_code(
             continue
 
         dead.extend(
-            _scan_functions(mod, pkg, entry_points=entry_points, all_refs=all_refs)
+            _scan_functions(
+                mod,
+                pkg,
+                entry_points=entry_points,
+                all_refs=all_refs,
+                extra_pkg=test_pkg,
+            )
         )
         dead.extend(
-            _scan_classes(mod, pkg, entry_points=entry_points, all_refs=all_refs)
+            _scan_classes(
+                mod,
+                pkg,
+                entry_points=entry_points,
+                all_refs=all_refs,
+                extra_pkg=test_pkg,
+            )
         )
 
     dead.sort(key=lambda d: (d.module_path, d.line))
     return dead
+
+
+def _load_test_package(pkg_root: Path) -> PackageInfo | None:
+    """Discover and analyze a sibling ``tests/`` directory.
+
+    Args:
+        pkg_root: Root of the analyzed source package.
+
+    Returns:
+        PackageInfo for the tests directory, or ``None`` if not found.
+    """
+    from axm_ast.core.analyzer import analyze_package
+
+    tests_dir = _find_tests_dir(pkg_root)
+    if tests_dir is None:
+        return None
+    try:
+        return analyze_package(tests_dir)
+    except (ValueError, OSError):
+        return None
 
 
 # ─── Formatting ──────────────────────────────────────────────────────────────
