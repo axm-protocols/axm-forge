@@ -44,6 +44,14 @@ This shows a **summary** view: module names, public functions, and classes.
 
     AI-optimized format: signatures + first docstring line + `__all__` + relative imports. No bodies, no absolute imports.
 
+=== "TOC"
+
+    ```bash
+    axm-ast describe src/mylib --detail toc
+    ```
+
+    Table-of-contents view: module names, docstrings, and symbol counts only — no individual function/class details. Use this to decide which modules to drill into.
+
 !!! tip "Budget mode"
     Use `--budget N` to limit output to the N highest-ranked symbols:
 
@@ -60,6 +68,21 @@ axm-ast describe src/mylib --rank
 ```
 
 The most-referenced symbols appear first, making it easy to focus on the core architecture.
+
+## Module Filtering
+
+Filter output to specific modules by name (case-insensitive substring match):
+
+```bash
+# Only core modules
+axm-ast describe src/mylib --modules core
+
+# Multiple filters (comma-separated)
+axm-ast describe src/mylib --modules core,tools
+
+# Combine with TOC for a focused overview
+axm-ast describe src/mylib --detail toc --modules core
+```
 
 ## JSON Output
 

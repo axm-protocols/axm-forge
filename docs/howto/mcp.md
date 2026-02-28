@@ -7,7 +7,7 @@
 | MCP Tool | Equivalent CLI | Purpose |
 |---|---|---|
 | `ast_context(path)` | `axm-ast context` | One-shot project dump (stack, layout, patterns, modules) |
-| `ast_describe(path, detail?)` | `axm-ast describe` | Full API surface (signatures, docstrings, `__all__`) |
+| `ast_describe(path, detail?, compress?, modules?)` | `axm-ast describe` | Full API surface (signatures, docstrings, `__all__`) |
 | `ast_search(path, name?, returns?, kind?, inherits?)` | `axm-ast search` | Semantic symbol lookup |
 | `ast_callers(path, symbol)` | `axm-ast callers` | Find all call-sites of a symbol |
 | `ast_impact(path, symbol)` | `axm-ast impact` | Change blast radius analysis |
@@ -16,10 +16,10 @@
 | `ast_docs(path)` | `axm-ast docs` | Documentation tree dump |
 
 !!! tip "ast_describe detail levels"
-    `ast_describe` accepts an optional `detail` parameter: `"summary"` (signatures only),
+    `ast_describe` accepts `detail`: `"toc"` (module names + counts only), `"summary"` (signatures only),
     `"detailed"` (+ docstrings, params, return types — **default**), or `"full"` (+ line
-    numbers, imports, variables). Use `detail="detailed"` when writing documentation or
-    inspecting in code understanding workflows.
+    numbers, imports, variables). Use `modules=["core"]` to filter by module name substring.
+    Use `compress=True` for an AI-optimized view with signatures and first docstring lines.
 
 
 ## Workspace Support

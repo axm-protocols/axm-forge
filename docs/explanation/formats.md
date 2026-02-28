@@ -52,6 +52,31 @@ axm-ast describe src/mylib --compress
 - Private symbols not in `__all__`
 - Multi-line docstrings
 
+### TOC (table of contents)
+
+Ultra-lightweight overview returning only module names and symbol counts — no individual function or class details.
+
+```bash
+axm-ast describe src/mylib --detail toc
+```
+
+**Includes:**
+
+- Module dotted name
+- Module docstring (first sentence)
+- Function count, class count, total symbol count
+
+**Excludes:**
+
+- Individual function/class details
+- Signatures, parameters, imports, variables
+
+Combine with `--modules` to filter:
+
+```bash
+axm-ast describe src/mylib --detail toc --modules core
+```
+
 ## Graph Formats
 
 ### Text (default)
