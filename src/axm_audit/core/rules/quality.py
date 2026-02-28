@@ -286,8 +286,8 @@ class ComplexityRule(ProjectRule):
                         }
                     )
 
-        # Sort by complexity descending, take top 5
-        top_offenders = sorted(all_functions, key=lambda x: x["cc"], reverse=True)[:5]
+        # Sort by complexity descending — include all offenders
+        top_offenders = sorted(all_functions, key=lambda x: x["cc"], reverse=True)
 
         score = max(0, 100 - high_complexity_count * 10)
         passed = score >= 80
