@@ -90,7 +90,7 @@ for check in result.checks:
 
 | Category | Rules | Count |
 |---|---|---|
-| `quality` | `LintingRule`, `FormattingRule`, `TypeCheckRule`, `ComplexityRule`, `DiffSizeRule` | 5 |
+| `quality` | `LintingRule`, `FormattingRule`, `TypeCheckRule`, `ComplexityRule`, `DiffSizeRule`, `DeadCodeRule` | 6 |
 | `security` | `SecurityRule` (Bandit) | 1 |
 | `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
@@ -105,7 +105,7 @@ for check in result.checks:
 git clone https://github.com/axm-protocols/axm-audit.git
 cd axm-audit
 uv sync --all-groups
-uv run pytest           # 290 tests
+uv run pytest           # 308 tests
 uv run ruff check src/  # lint
 uv run mypy src/        # type check
 ```

@@ -6,6 +6,7 @@ Every audit returns an `AuditResult` with these properties:
 
 | Property | Type | Description |
 |---|---|---|
+| `project_path` | `str \| None` | Path of the audited project |
 | `checks` | `list[CheckResult]` | Individual check results |
 | `success` | `bool` | `True` if all checks passed |
 | `total` | `int` | Total number of checks |
