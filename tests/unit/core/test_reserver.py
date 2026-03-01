@@ -1,4 +1,4 @@
-"""Tests for reserver.py subprocess paths — build, publish, reserve flow."""
+"""Tests for core/reserver.py — models, dry-run, subprocess paths, full flow."""
 
 from __future__ import annotations
 
@@ -12,6 +12,86 @@ from axm_init.core.reserver import (
     publish_package,
     reserve_pypi,
 )
+
+# ── ReserveResult model ─────────────────────────────────────────────────────
+
+
+class TestReserveResult:
+    """Tests for ReserveResult model."""
+
+    def test_reserve_result_success(self) -> None:
+        """ReserveResult captures success state."""
+        from axm_init.core.reserver import ReserveResult
+
+        result = ReserveResult(
+            success=True,
+            package_name="my-package",
+            version="0.0.1.dev0",
+            message="Published successfully",
+        )
+        assert result.success is True
+        assert result.package_name == "my-package"
+
+
+# ── Core reservation logic ──────────────────────────────────────────────────
+
+
+class TestReserver:
+    """Tests for PyPI reservation."""
+
+    def test_create_minimal_package(self, tmp_path: Path) -> None:
+        """Creates minimal package structure for reservation."""
+        from axm_init.core.reserver import create_minimal_package
+
+        create_minimal_package(
+            name="test-pkg",
+            author="Test Author",
+            email="test@example.com",
+            target_path=tmp_path,
+        )
+
+        assert (tmp_path / "pyproject.toml").exists()
+        assert (tmp_path / "README.md").exists()
+        assert (tmp_path / "src" / "test_pkg" / "__init__.py").exists()
+
+    def test_reserve_checks_availability_first(self, tmp_path: Path) -> None:
+        """reserve_pypi checks availability before proceeding."""
+        with patch("axm_init.core.reserver.PyPIAdapter") as mock_adapter:
+            mock_adapter.return_value.check_availability.return_value = (
+                AvailabilityStatus.TAKEN
+            )
+
+            result = reserve_pypi(
+                name="requests",  # Known taken
+                author="Test",
+                email="test@example.com",
+                token="pypi-test",
+                dry_run=True,
+            )
+
+            assert result.success is False
+            assert "taken" in result.message.lower()
+
+    def test_reserve_dry_run_skips_publish(self, tmp_path: Path) -> None:
+        """dry_run=True skips actual publish."""
+        with patch("axm_init.core.reserver.PyPIAdapter") as mock_adapter:
+            mock_adapter.return_value.check_availability.return_value = (
+                AvailabilityStatus.AVAILABLE
+            )
+
+            result = reserve_pypi(
+                name="unique-test-pkg-xyz",
+                author="Test",
+                email="test@example.com",
+                token="pypi-test",
+                dry_run=True,
+            )
+
+            assert result.success is True
+            assert "dry run" in result.message.lower()
+
+
+# ── build_package / publish_package ──────────────────────────────────────────
 
 
 class TestBuildPackage:
@@ -106,6 +186,9 @@ class TestPublishPackage:
         assert env["UV_PUBLISH_TOKEN"] == special_token
 
 
+# ── reserve_pypi full flow ───────────────────────────────────────────────────
+
+
 class TestReservePyPIFlow:
     """Tests for reserve_pypi() full flow — build + publish paths."""
 
@@ -186,9 +269,6 @@ class TestReservePyPIFlow:
         mock_publish: MagicMock,
     ) -> None:
         """Idempotent re-run: our own prior reservation → success."""
-        # First call: AVAILABLE (initial check), second call: AVAILABLE (re-check,
-        # meaning a package with that exact name is not fully registered yet —
-        # our prior dev reservation)
         mock_pypi.return_value.check_availability.side_effect = [
             AvailabilityStatus.AVAILABLE,
             AvailabilityStatus.AVAILABLE,

@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Template root = src/axm_init/templates/python-project/{package_name}/
 TEMPLATE_ROOT = (
-    Path(__file__).resolve().parents[2]
+    Path(__file__).resolve().parents[3]
     / "src"
     / "axm_init"
     / "templates"

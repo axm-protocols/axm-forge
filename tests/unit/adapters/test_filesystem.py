@@ -141,3 +141,62 @@ class TestTransaction:
             tx.rollback()
 
         assert "failed to remove dir" in caplog.text
+
+
+# ── Transaction rollback edge cases ──────────────────────────────────────────
+
+
+class TestFilesystemTransactionRollback:
+    """Cover filesystem.py rollback paths."""
+
+    def test_rollback_removes_files(self, tmp_path: Path) -> None:
+        """Rollback removes created files."""
+        from axm_init.adapters.filesystem import Transaction
+
+        tx = Transaction()
+        test_file = tmp_path / "test.txt"
+        tx.write_file(test_file, "hello")
+        assert test_file.exists()
+
+        tx.rollback()
+        assert not test_file.exists()
+
+    def test_rollback_noop_after_commit(self, tmp_path: Path) -> None:
+        """Rollback does nothing after commit."""
+        from axm_init.adapters.filesystem import Transaction
+
+        tx = Transaction()
+        test_file = tmp_path / "test.txt"
+        tx.write_file(test_file, "hello")
+        tx.commit()
+        tx.rollback()
+        assert test_file.exists()
+
+    def test_transaction_context_manager_rollbacks_on_error(
+        self, tmp_path: Path
+    ) -> None:
+        """Transaction context manager rolls back on exception."""
+        from axm_init.adapters.filesystem import FileSystemAdapter
+
+        fs = FileSystemAdapter()
+        test_file = tmp_path / "will_be_removed.txt"
+
+        with pytest.raises(RuntimeError):
+            with fs.transaction() as tx:
+                tx.write_file(test_file, "temporary")
+                assert test_file.exists()
+                raise RuntimeError("boom")
+
+        assert not test_file.exists()
+
+    def test_rollback_removes_empty_dirs(self, tmp_path: Path) -> None:
+        """Rollback removes empty directories."""
+        from axm_init.adapters.filesystem import Transaction
+
+        tx = Transaction()
+        nested = tmp_path / "a" / "b" / "c"
+        tx.create_dir(nested)
+        assert nested.exists()
+
+        tx.rollback()
+        assert not nested.exists()

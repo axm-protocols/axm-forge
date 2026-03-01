@@ -1,9 +1,4 @@
-"""Tests for scaffold template output — verifies AXM-75 acceptance criteria.
-
-Mocked version: CopierAdapter.copy() is patched so these unit tests
-run in milliseconds instead of ~4.4s each.  The real Copier path is
-covered by the ``@pytest.mark.slow`` functional tests.
-"""
+"""Tests for core/templates.py — API + scaffold template output (AXM-75 AC)."""
 
 from __future__ import annotations
 
@@ -13,9 +8,47 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from axm_init.core.templates import TemplateInfo, get_template_path
 from axm_init.models.results import ScaffoldResult
 
-# ── Helpers ──────────────────────────────────────────────────────────────
+# ── get_template_path / TemplateInfo ─────────────────────────────────────────
+
+
+class TestGetTemplatePath:
+    """Tests for get_template_path()."""
+
+    def test_returns_path(self) -> None:
+        """get_template_path() returns a Path object."""
+        result = get_template_path()
+        assert isinstance(result, Path)
+
+    def test_path_exists(self) -> None:
+        """Returned path points to an existing directory."""
+        result = get_template_path()
+        assert result.exists()
+        assert result.is_dir()
+
+    def test_path_is_python_project(self) -> None:
+        """Returned path is the python-project template."""
+        result = get_template_path()
+        assert result.name == "python-project"
+
+
+class TestTemplateInfo:
+    """TemplateInfo model is still usable."""
+
+    def test_template_info_creation(self, tmp_path: Path) -> None:
+        """TemplateInfo can be instantiated."""
+        info = TemplateInfo(
+            name="python",
+            description="A python project",
+            path=tmp_path,
+        )
+        assert info.name == "python"
+        assert info.path == tmp_path
+
+
+# ── Scaffold template helpers ────────────────────────────────────────────────
 
 
 def _fake_init_py(*, has_hello: bool = False) -> str:
@@ -72,7 +105,7 @@ def _build_scaffold_tree(
     return [str(p.relative_to(root)) for p in root.rglob("*") if p.is_file()]
 
 
-@pytest.fixture
+@pytest.fixture()
 def _mock_scaffold(tmp_path: Path) -> Iterator[tuple[Path, MagicMock]]:
     """Patch CopierAdapter.copy() and scaffold a fake tree.
 
@@ -92,7 +125,7 @@ def _mock_scaffold(tmp_path: Path) -> Iterator[tuple[Path, MagicMock]]:
         yield tmp_path, mock_cls.return_value
 
 
-# ── AC1: scaffold_project() returns a file list ─────────────────────────
+# ── AC1: scaffold_project() returns a file list ─────────────────────────────
 
 
 class TestScaffoldReturnsFileList:
@@ -124,7 +157,7 @@ class TestScaffoldReturnsFileList:
         assert len(result.files_created) > 0
 
 
-# ── AC2: No hello() in __init__.py ──────────────────────────────────────
+# ── AC2: No hello() in __init__.py ──────────────────────────────────────────
 
 
 class TestScaffoldNoHello:
@@ -160,7 +193,7 @@ class TestScaffoldNoHello:
         assert "try" in content, "Should use try/except for version import"
 
 
-# ── AC3: No utils/ directory ────────────────────────────────────────────
+# ── AC3: No utils/ directory ────────────────────────────────────────────────
 
 
 class TestScaffoldNoUtilsDir:
@@ -178,7 +211,7 @@ class TestScaffoldNoUtilsDir:
             )
 
 
-# ── AC4: Doc templates have no hello() reference ────────────────────────
+# ── AC4: Doc templates have no hello() reference ────────────────────────────
 
 
 class TestScaffoldDocsNoHello:
