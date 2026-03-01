@@ -9,19 +9,29 @@ from pathlib import Path
 from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.models.results import CheckResult, Severity
 
+__all__ = ["ToolAvailabilityRule"]
+
+_REQUIRED_TOOLS: list[str] = ["ruff", "mypy", "uv"]
+"""Tools that must be available on PATH for a compliant project."""
+
 
 @dataclass
 @register_rule("tooling")
 class ToolAvailabilityRule(ProjectRule):
     """Check if a required CLI tool is available on PATH."""
 
-    tool_name: str
+    tool_name: str = ""
     critical: bool = True  # If True, severity=ERROR when missing; else WARNING
 
     @property
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return f"TOOL_{self.tool_name.upper()}"
+
+    @classmethod
+    def get_instances(cls) -> list[ProjectRule]:
+        """Return one instance per required tool."""
+        return [cls(tool_name=t) for t in _REQUIRED_TOOLS]
 
     def check(self, project_path: Path) -> CheckResult:
         """Check if the tool is available on the system PATH."""

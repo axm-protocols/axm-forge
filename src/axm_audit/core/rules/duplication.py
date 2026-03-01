@@ -54,11 +54,6 @@ class DuplicationRule(ProjectRule):
         """Unique identifier for this rule."""
         return "ARCH_DUPLICATION"
 
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "architecture"
-
     def check(self, project_path: Path) -> CheckResult:
         """Check for code duplication in the project."""
         early = self.check_src(project_path)
