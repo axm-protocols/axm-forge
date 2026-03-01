@@ -58,6 +58,8 @@ class DeadCodeRule(ProjectRule):
             result = run_in_project(
                 ["uv", "run", "axm-ast", "dead-code", ".", "--json"],
                 project_path,
+                capture_output=True,
+                text=True,
             )
         except RuntimeError:
             return CheckResult(
