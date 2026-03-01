@@ -45,13 +45,16 @@ nav:
     - Run an Audit: howto/audit.md
     - Filter by Category: howto/categories.md
     - Interpret Results: howto/results.md
+    - Write Custom Rules: howto/custom-rules.md
     - Use via MCP: howto/mcp.md
     - CI Badge: howto/ci-badge.md
+    - Troubleshooting: howto/troubleshooting.md
   - Reference:
     - Python API: reference/api/
   - Explanation:
     - Architecture: explanation/architecture.md
     - Scoring: explanation/scoring.md
+    - Glossary: explanation/glossary.md
 
 plugins:
   - search

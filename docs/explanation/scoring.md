@@ -15,6 +15,18 @@ The quality score is a **weighted average** across 8 categories, on a 100-point 
 | Architecture | AST analysis | **10%** |
 | Practices | AST analysis | **5%** |
 
+```mermaid
+pie title Category Weights
+    "Linting" : 20
+    "Type Safety" : 15
+    "Complexity" : 15
+    "Testing" : 15
+    "Security" : 10
+    "Dependencies" : 10
+    "Architecture" : 10
+    "Practices" : 5
+```
+
 Each category produces a score from 0 to 100. The composite score is:
 
 ```

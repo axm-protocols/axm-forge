@@ -4,10 +4,12 @@ hide:
   - toc
 ---
 
-# axm-audit
+<p align="center">
+  <strong>axm-audit</strong>
+</p>
 
 <p align="center">
-  <strong>Code auditing and quality rules for Python projects.</strong>
+  <em>Code auditing and quality rules for Python projects.</em>
 </p>
 
 <p align="center">
@@ -72,7 +74,5 @@ print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
 
 ---
 
-<div style="text-align: center; margin: 2rem 0;">
-  <a href="tutorials/getting-started/" class="md-button md-button--primary">Get Started →</a>
-  <a href="reference/api/" class="md-button">API Reference</a>
-</div>
+[Get Started →](tutorials/getting-started.md){ .md-button .md-button--primary }
+[API Reference](reference/api/){ .md-button }
