@@ -49,6 +49,11 @@ class DependencyAuditRule(ProjectRule):
         """Unique identifier for this rule."""
         return "DEPS_AUDIT"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "deps"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check dependencies for known CVEs."""
         try:
@@ -133,6 +138,11 @@ class DependencyHygieneRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "DEPS_HYGIENE"
+
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "deps"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check dependency hygiene with deptry."""

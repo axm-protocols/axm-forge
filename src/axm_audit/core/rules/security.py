@@ -60,16 +60,18 @@ class SecurityRule(ProjectRule):
         """Unique identifier for this rule."""
         return "QUALITY_SECURITY"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "security"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check project security with Bandit."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=False,
-                message="src/ directory not found",
-                severity=Severity.ERROR,
-            )
 
         data = _run_bandit(src_path, project_path)
         results = data.get("results", [])

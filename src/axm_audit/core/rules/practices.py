@@ -33,12 +33,18 @@ class DocstringCoverageRule(ProjectRule):
         """Unique identifier for this rule."""
         return "PRACTICE_DOCSTRING"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "practices"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check docstring coverage in the project."""
-        src_path = project_path / "src"
-        if not src_path.exists():
-            return self._empty_result()
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
 
+        src_path = project_path / "src"
         documented, missing = self._analyze_docstrings(src_path)
         total = documented + len(missing)
         coverage = documented / total if total > 0 else 1.0
@@ -58,16 +64,6 @@ class DocstringCoverageRule(ProjectRule):
                 "score": score,
             },
             fix_hint="Add docstrings to public functions" if missing else None,
-        )
-
-    def _empty_result(self) -> CheckResult:
-        """Return result when src/ doesn't exist."""
-        return CheckResult(
-            rule_id=self.rule_id,
-            passed=True,
-            message="src/ directory not found",
-            severity=Severity.INFO,
-            details={"coverage": 1.0, "total": 0, "documented": 0, "missing": []},
         )
 
     def _analyze_docstrings(self, src_path: Path) -> tuple[int, list[str]]:
@@ -119,17 +115,18 @@ class BareExceptRule(ProjectRule):
         """Unique identifier for this rule."""
         return "PRACTICE_BARE_EXCEPT"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "practices"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check for bare except clauses in the project."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=True,
-                message="src/ directory not found",
-                severity=Severity.INFO,
-                details={"bare_except_count": 0, "locations": []},
-            )
 
         bare_excepts: list[dict[str, str | int]] = []
         py_files = get_python_files(src_path)
@@ -188,17 +185,18 @@ class SecurityPatternRule(ProjectRule):
         """Unique identifier for this rule."""
         return "PRACTICE_SECURITY"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "practices"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check for hardcoded secrets in the project."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=True,
-                message="src/ directory not found",
-                severity=Severity.INFO,
-                details={"secret_count": 0, "matches": []},
-            )
 
         matches: list[dict[str, str | int]] = []
         py_files = get_python_files(src_path)
@@ -251,17 +249,18 @@ class BlockingIORule(ProjectRule):
         """Unique identifier for this rule."""
         return "PRACTICE_BLOCKING_IO"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "practices"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check for blocking I/O patterns in the project."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=True,
-                message="src/ directory not found",
-                severity=Severity.INFO,
-                details={"violations": []},
-            )
 
         violations: list[dict[str, str | int]] = []
 
@@ -406,17 +405,18 @@ class LoggingPresenceRule(ProjectRule):
         """Unique identifier for this rule."""
         return "PRACTICE_LOGGING"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "practices"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check logging presence in source modules."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=True,
-                message="src/ directory not found",
-                severity=Severity.INFO,
-                details={"without_logging": []},
-            )
 
         without_logging, total_checked = self._scan_logging_coverage(src_path)
 
@@ -514,16 +514,18 @@ class TestMirrorRule(ProjectRule):
         """Unique identifier for this rule."""
         return "PRACTICE_TEST_MIRROR"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "practices"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check test file coverage for source modules."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=True,
-                message="src/ directory not found",
-                severity=Severity.INFO,
-            )
 
         tests_path = project_path / "tests"
         missing = self._find_untested_modules(src_path, tests_path)

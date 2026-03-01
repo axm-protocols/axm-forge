@@ -1,5 +1,7 @@
 """Structure rules — file and directory existence checks."""
 
+from __future__ import annotations
+
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +21,11 @@ class FileExistsRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return f"FILE_EXISTS_{self.file_name}"
+
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "structure"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check if the file exists in the project."""
@@ -46,6 +53,11 @@ class DirectoryExistsRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return f"DIR_EXISTS_{self.dir_name}"
+
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "structure"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check if the directory exists in the project."""
@@ -99,6 +111,11 @@ class PyprojectCompletenessRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "STRUCTURE_PYPROJECT"
+
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "structure"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check pyproject.toml completeness."""

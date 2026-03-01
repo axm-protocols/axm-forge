@@ -52,17 +52,18 @@ class DuplicationRule(ProjectRule):
         """Unique identifier for this rule."""
         return "ARCH_DUPLICATION"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "architecture"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check for code duplication in the project."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=True,
-                message="src/ directory not found",
-                severity=Severity.INFO,
-                details={"dup_count": 0, "clones": [], "score": 100},
-            )
 
         clones = self._find_duplicates(src_path)
         dup_count = len(clones)

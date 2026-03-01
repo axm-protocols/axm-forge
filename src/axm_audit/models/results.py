@@ -36,6 +36,9 @@ class CheckResult(BaseModel):
         default=None, description="Structured data (cycles, metrics)"
     )
     fix_hint: str | None = Field(default=None, description="Actionable fix suggestion")
+    category: str | None = Field(
+        default=None, description="Scoring category (injected by auditor)"
+    )
 
     model_config = {"extra": "forbid"}
 
@@ -93,35 +96,11 @@ class AuditResult(BaseModel):
             "practices": 0.05,
         }
 
-        # Map rule_id prefixes to categories
-        rule_to_category: dict[str, str] = {
-            "QUALITY_LINT": "lint",
-            "QUALITY_FORMAT": "lint",
-            "QUALITY_DIFF_SIZE": "lint",
-            "QUALITY_DEAD_CODE": "lint",
-            "QUALITY_TYPE": "type",
-            "QUALITY_COMPLEXITY": "complexity",
-            "QUALITY_SECURITY": "security",
-            "DEPS_AUDIT": "deps",
-            "DEPS_HYGIENE": "deps",
-            "QUALITY_COVERAGE": "testing",
-            "ARCH_COUPLING": "architecture",
-            "ARCH_CIRCULAR": "architecture",
-            "ARCH_GOD_CLASS": "architecture",
-            "ARCH_DUPLICATION": "architecture",
-            "PRACTICE_DOCSTRING": "practices",
-            "PRACTICE_BARE_EXCEPT": "practices",
-            "PRACTICE_SECURITY": "practices",
-            "PRACTICE_BLOCKING_IO": "practices",
-            "PRACTICE_LOGGING": "practices",
-            "PRACTICE_TEST_MIRROR": "practices",
-        }
-
-        # Collect scores by category
+        # Collect scores by category (read from check.category)
         category_scores: dict[str, list[float]] = {}
         for check in self.checks:
-            cat = rule_to_category.get(check.rule_id)
-            if cat and check.details:
+            cat = check.category
+            if cat and cat in category_weights and check.details:
                 score = check.details.get("score")
                 if score is not None:
                     category_scores.setdefault(cat, []).append(float(score))

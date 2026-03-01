@@ -6,14 +6,39 @@ import pytest
 
 from axm_audit.models.results import AuditResult, CheckResult
 
+# Rule-id → scoring category mapping (must match rule implementations)
+_RULE_CATEGORY: dict[str, str] = {
+    "QUALITY_LINT": "lint",
+    "QUALITY_FORMAT": "lint",
+    "QUALITY_DIFF_SIZE": "lint",
+    "QUALITY_DEAD_CODE": "lint",
+    "QUALITY_TYPE": "type",
+    "QUALITY_COMPLEXITY": "complexity",
+    "QUALITY_SECURITY": "security",
+    "DEPS_AUDIT": "deps",
+    "DEPS_HYGIENE": "deps",
+    "QUALITY_COVERAGE": "testing",
+    "ARCH_COUPLING": "architecture",
+    "ARCH_CIRCULAR": "architecture",
+    "ARCH_GOD_CLASS": "architecture",
+    "ARCH_DUPLICATION": "architecture",
+    "PRACTICE_DOCSTRING": "practices",
+    "PRACTICE_BARE_EXCEPT": "practices",
+    "PRACTICE_SECURITY": "practices",
+    "PRACTICE_BLOCKING_IO": "practices",
+    "PRACTICE_LOGGING": "practices",
+    "PRACTICE_TEST_MIRROR": "practices",
+}
+
 
 def _make_check(rule_id: str, score: float) -> CheckResult:
-    """Helper to create a CheckResult with a score."""
+    """Helper to create a CheckResult with a score and category."""
     return CheckResult(
         rule_id=rule_id,
         passed=True,
         message="",
         details={"score": score},
+        category=_RULE_CATEGORY.get(rule_id),
     )
 
 
@@ -99,19 +124,15 @@ class TestQualityScore:
         result = AuditResult(checks=checks)
         assert result.quality_score == 100.0
 
-    def test_rule_to_category_covers_all_scored_rules(self) -> None:
-        """rule_to_category must have an entry for every rule that produces a score.
+    def test_rule_category_covers_all_scored_rules(self) -> None:
+        """Every rule in the registry must have a category property.
 
         Safeguard: enumerate rule classes from the auditor registry, instantiate
-        each on a dummy path, and verify any that produce a details.score are in
-        the mapping.
+        each, and verify the category property is set and non-empty.
         """
         from axm_audit.core.auditor import RULES_BY_CATEGORY
 
-        # Since rule_to_category is local to the property, we verify indirectly:
-        # for every rule in the registry that could produce a score,
-        # a check with that rule_id + score=100 must contribute to quality_score.
-        for _category, rule_classes in RULES_BY_CATEGORY.items():
+        for category, rule_classes in RULES_BY_CATEGORY.items():
             for cls in rule_classes:
                 has_code = hasattr(cls.__init__, "__code__")
                 rule = (
@@ -121,15 +142,9 @@ class TestQualityScore:
                 )
                 if rule is None:
                     continue
-                rid = rule.rule_id
-                # Skip STRUCTURE_PYPROJECT (binary, no weighted score)
-                # Skip tooling rules (no score)
-                if rid.startswith("STRUCTURE_") or rid.startswith("TOOL_"):
-                    continue
-                # A check with this rule_id and a score should change quality_score
-                single = AuditResult(checks=[_make_check(rid, 50)])
-                assert single.quality_score is not None, (
-                    f"Rule {rid} produces a score but is missing from rule_to_category"
+                assert rule.category, (
+                    f"Rule {rule.rule_id} has empty category "
+                    f"(expected registry category: {category})"
                 )
 
     def test_quality_score_backward_compatible_grades(self) -> None:

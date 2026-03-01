@@ -145,12 +145,18 @@ class CircularImportRule(ProjectRule):
         """Unique identifier for this rule."""
         return "ARCH_CIRCULAR"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "architecture"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check for circular imports in the project."""
-        src_path = project_path / "src"
-        if not src_path.exists():
-            return self._empty_result()
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
 
+        src_path = project_path / "src"
         cycles, score = self._analyze_cycles(src_path)
         passed = len(cycles) == 0
 
@@ -171,16 +177,6 @@ class CircularImportRule(ProjectRule):
         cycles = _tarjan_scc(graph)
         score = max(0, 100 - len(cycles) * 20)
         return cycles, score
-
-    def _empty_result(self) -> CheckResult:
-        """Return result when src/ doesn't exist."""
-        return CheckResult(
-            rule_id=self.rule_id,
-            passed=True,
-            message="src/ directory not found",
-            severity=Severity.INFO,
-            details={"cycles": [], "score": 100},
-        )
 
     def _build_import_graph(self, src_path: Path) -> dict[str, set[str]]:
         """Build the module import graph from source files."""
@@ -215,17 +211,18 @@ class GodClassRule(ProjectRule):
         """Unique identifier for this rule."""
         return "ARCH_GOD_CLASS"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "architecture"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check for god classes in the project."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=True,
-                message="src/ directory not found",
-                severity=Severity.INFO,
-                details={"god_classes": [], "score": 100},
-            )
 
         god_classes = self._find_god_classes(src_path)
 
@@ -359,23 +356,18 @@ class CouplingMetricRule(ProjectRule):
         """Unique identifier for this rule."""
         return "ARCH_COUPLING"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "architecture"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check coupling metrics for the project."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=True,
-                message="src/ directory not found",
-                severity=Severity.INFO,
-                details={
-                    "max_fan_out": 0,
-                    "avg_coupling": 0.0,
-                    "score": 100,
-                    "n_over_threshold": 0,
-                    "over_threshold": [],
-                },
-            )
 
         metrics = _compute_coupling_metrics(src_path, self.fan_out_threshold)
         n_over: int = metrics["n_over_threshold"]
