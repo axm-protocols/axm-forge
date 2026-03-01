@@ -5,12 +5,12 @@ Uses PyPI JSON API to verify if a package name is taken.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 import httpx
 
 
-class AvailabilityStatus(Enum):
+class AvailabilityStatus(StrEnum):
     """Package name availability status."""
 
     AVAILABLE = "available"

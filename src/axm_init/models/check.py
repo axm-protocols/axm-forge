@@ -37,6 +37,8 @@ def compute_grade(score: int | float) -> Grade:
 class CheckResult(BaseModel):
     """Result of a single audit check."""
 
+    model_config = {"extra": "forbid"}
+
     name: str
     category: str
     passed: bool
@@ -55,6 +57,8 @@ class CheckResult(BaseModel):
 class CategoryScore(BaseModel):
     """Aggregated score for a category."""
 
+    model_config = {"extra": "forbid"}
+
     category: str
     earned: int
     total: int
@@ -71,6 +75,8 @@ class CategoryScore(BaseModel):
 
 class ProjectResult(BaseModel):
     """Complete project check result with score and grade."""
+
+    model_config = {"extra": "forbid"}
 
     project_path: Path
     checks: list[CheckResult]

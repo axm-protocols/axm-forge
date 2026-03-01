@@ -16,6 +16,13 @@ class TestAvailabilityStatus:
         assert AvailabilityStatus.TAKEN.value == "taken"
         assert AvailabilityStatus.ERROR.value == "error"
 
+    def test_availability_status_is_str(self) -> None:
+        """StrEnum members are instances of str."""
+        assert isinstance(AvailabilityStatus.AVAILABLE, str)
+        assert isinstance(AvailabilityStatus.TAKEN, str)
+        # Direct string comparison works with StrEnum
+        assert AvailabilityStatus.TAKEN == "taken"  # type: ignore[comparison-overlap]
+
 
 class TestPyPIAdapter:
     """Tests for PyPI availability checking."""

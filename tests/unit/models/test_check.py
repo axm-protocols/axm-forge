@@ -7,6 +7,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Imports (will fail until models/check.py exists)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -117,6 +120,20 @@ class TestCheckResult:
         )
         assert len(c.details) == 2
 
+    def test_extra_forbidden(self) -> None:
+        """CheckResult rejects unknown fields."""
+        with pytest.raises(ValidationError, match="extra"):
+            CheckResult(
+                name="x",
+                category="y",
+                passed=True,
+                weight=1,
+                message="m",
+                details=[],
+                fix="",
+                typo_field="should fail",  # type: ignore[call-arg]
+            )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CategoryScore
@@ -166,6 +183,16 @@ class TestCategoryScore:
         ]
         cs = CategoryScore.from_checks("b", checks)
         assert cs.earned == cs.total == 10
+
+    def test_extra_forbidden(self) -> None:
+        """CategoryScore rejects unknown fields."""
+        with pytest.raises(ValidationError, match="extra"):
+            CategoryScore(
+                category="a",
+                earned=5,
+                total=10,
+                typo="bad",  # type: ignore[call-arg]
+            )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -228,3 +255,16 @@ class TestProjectResult:
         r = ProjectResult.from_checks(Path("."), [])
         assert r.score == 0
         assert r.grade == Grade.F
+
+    def test_extra_forbidden(self) -> None:
+        """ProjectResult rejects unknown fields."""
+        with pytest.raises(ValidationError, match="extra"):
+            ProjectResult(
+                project_path=Path("."),
+                checks=[],
+                score=0,
+                grade=Grade.F,
+                categories={},
+                failures=[],
+                typo="bad",  # type: ignore[call-arg]
+            )

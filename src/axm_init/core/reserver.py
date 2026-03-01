@@ -9,8 +9,9 @@ from __future__ import annotations
 import logging
 import subprocess
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
+
+from pydantic import BaseModel
 
 from axm_init.adapters.pypi import AvailabilityStatus, PyPIAdapter
 
@@ -41,9 +42,10 @@ build-backend = "hatchling.build"
 README_TEMPLATE = "# {name}\n\nPackage name reserved. Implementation coming soon.\n"
 
 
-@dataclass
-class ReserveResult:
+class ReserveResult(BaseModel):
     """Result of PyPI reservation operation."""
+
+    model_config = {"extra": "forbid"}
 
     success: bool
     package_name: str

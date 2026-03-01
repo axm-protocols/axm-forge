@@ -6,6 +6,9 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+from pydantic import ValidationError
+
 from axm_init.adapters.pypi import AvailabilityStatus
 from axm_init.core.reserver import (
     build_package,
@@ -31,6 +34,37 @@ class TestReserveResult:
         )
         assert result.success is True
         assert result.package_name == "my-package"
+
+    def test_reserve_result_model_dump(self) -> None:
+        """ReserveResult supports Pydantic model_dump()."""
+        from axm_init.core.reserver import ReserveResult
+
+        result = ReserveResult(
+            success=True,
+            package_name="my-pkg",
+            version="0.0.1.dev0",
+            message="ok",
+        )
+        data = result.model_dump()
+        assert data == {
+            "success": True,
+            "package_name": "my-pkg",
+            "version": "0.0.1.dev0",
+            "message": "ok",
+        }
+
+    def test_reserve_result_extra_forbidden(self) -> None:
+        """ReserveResult rejects unknown fields."""
+        from axm_init.core.reserver import ReserveResult
+
+        with pytest.raises(ValidationError, match="extra"):
+            ReserveResult(
+                success=True,
+                package_name="pkg",
+                version="0.0.1",
+                message="ok",
+                typo_field="should fail",  # type: ignore[call-arg]
+            )
 
 
 # ── Core reservation logic ──────────────────────────────────────────────────
