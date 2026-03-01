@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import ast
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from axm_audit.core.rules.architecture import _get_python_files, _parse_file_safe
+from axm_audit.core.rules._helpers import get_python_files, parse_file_safe
 from axm_audit.core.rules.base import ProjectRule
 from axm_audit.models.results import CheckResult, Severity
+
+logger = logging.getLogger(__name__)
 
 # HTTP libraries whose calls should have a timeout= kwarg
 _HTTP_LIBRARIES = {"requests", "httpx"}
@@ -76,8 +79,8 @@ class DocstringCoverageRule(ProjectRule):
         documented = 0
         missing: list[str] = []
 
-        for path in _get_python_files(src_path):
-            tree = _parse_file_safe(path)
+        for path in get_python_files(src_path):
+            tree = parse_file_safe(path)
             if tree is None:
                 continue
 
@@ -129,10 +132,10 @@ class BareExceptRule(ProjectRule):
             )
 
         bare_excepts: list[dict[str, str | int]] = []
-        py_files = _get_python_files(src_path)
+        py_files = get_python_files(src_path)
 
         for path in py_files:
-            tree = _parse_file_safe(path)
+            tree = parse_file_safe(path)
             if tree is None:
                 continue
 
@@ -198,7 +201,7 @@ class SecurityPatternRule(ProjectRule):
             )
 
         matches: list[dict[str, str | int]] = []
-        py_files = _get_python_files(src_path)
+        py_files = get_python_files(src_path)
 
         for path in py_files:
             try:
@@ -262,8 +265,8 @@ class BlockingIORule(ProjectRule):
 
         violations: list[dict[str, str | int]] = []
 
-        for path in _get_python_files(src_path):
-            tree = _parse_file_safe(path)
+        for path in get_python_files(src_path):
+            tree = parse_file_safe(path)
             if tree is None:
                 continue
             rel = str(path.relative_to(src_path))
@@ -331,32 +334,7 @@ class BlockingIORule(ProjectRule):
             ):
                 continue
 
-            # Direct call: requests.get(...) / httpx.post(...)
-            value = node.func.value
-            is_http = isinstance(value, ast.Name) and value.id in _HTTP_LIBRARIES
-
-            # Chained call: httpx.AsyncClient().get(...)
-            # value is a Call node whose func is Attribute(attr="AsyncClient",
-            # value=Name(id="httpx"))
-            if not is_http and isinstance(value, ast.Call):
-                func = value.func
-                if (
-                    isinstance(func, ast.Attribute)
-                    and func.attr in {"Client", "AsyncClient"}
-                    and isinstance(func.value, ast.Name)
-                    and func.value.id in _HTTP_LIBRARIES
-                ):
-                    is_http = True
-
-            # Attribute chain: httpx.something.get(...)
-            if not is_http and isinstance(value, ast.Attribute):
-                inner = value
-                while isinstance(inner, ast.Attribute):
-                    inner = inner.value  # type: ignore[assignment]
-                if isinstance(inner, ast.Name) and inner.id in _HTTP_LIBRARIES:
-                    is_http = True
-
-            if not is_http:
+            if not _is_http_call(node.func.value):
                 continue
 
             has_timeout = any(kw.arg == "timeout" for kw in node.keywords)
@@ -368,6 +346,40 @@ class BlockingIORule(ProjectRule):
                         "issue": "HTTP call without timeout",
                     }
                 )
+
+
+def _is_http_call(value: ast.expr) -> bool:
+    """Determine whether an AST call target belongs to an HTTP library.
+
+    Recognises three patterns:
+    - Direct: ``requests.get(...)`` / ``httpx.post(...)``
+    - Chained client: ``httpx.AsyncClient().get(...)``
+    - Attribute chain: ``httpx.something.get(...)``
+    """
+    # Direct call: requests.get(...)
+    if isinstance(value, ast.Name) and value.id in _HTTP_LIBRARIES:
+        return True
+
+    # Chained call: httpx.AsyncClient().get(...)
+    if isinstance(value, ast.Call):
+        func = value.func
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr in {"Client", "AsyncClient"}
+            and isinstance(func.value, ast.Name)
+            and func.value.id in _HTTP_LIBRARIES
+        ):
+            return True
+
+    # Attribute chain: httpx.something.get(...)
+    if isinstance(value, ast.Attribute):
+        inner: ast.expr = value
+        while isinstance(inner, ast.Attribute):
+            inner = inner.value
+        if isinstance(inner, ast.Name) and inner.id in _HTTP_LIBRARIES:
+            return True
+
+    return False
 
 
 @dataclass
@@ -400,14 +412,14 @@ class LoggingPresenceRule(ProjectRule):
         without_logging: list[str] = []
         total_checked = 0
 
-        for path in _get_python_files(src_path):
+        for path in get_python_files(src_path):
             rel = str(path.relative_to(src_path))
 
             # Exempt special files
             if path.name in {"__init__.py", "_version.py"}:
                 continue
 
-            tree = _parse_file_safe(path)
+            tree = parse_file_safe(path)
             if tree is None:
                 continue
 

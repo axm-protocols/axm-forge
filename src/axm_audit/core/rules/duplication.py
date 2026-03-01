@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+from axm_audit.core.rules._helpers import get_python_files as _get_python_files
+from axm_audit.core.rules._helpers import parse_file_safe as _parse_file_safe
 from axm_audit.core.rules.base import ProjectRule
 from axm_audit.models.results import CheckResult, Severity
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["DuplicationRule"]
 
@@ -18,21 +23,6 @@ _MIN_DUP_LINES = 6
 
 # A group must have at least this many identical entries to be a clone
 _MIN_CLONE_GROUP = 2
-
-
-def _get_python_files(directory: Path) -> list[Path]:
-    """Get all Python files in a directory recursively."""
-    if not directory.exists():
-        return []
-    return list(directory.rglob("*.py"))
-
-
-def _parse_file_safe(path: Path) -> ast.Module | None:
-    """Parse a Python file, returning None on error."""
-    try:
-        return ast.parse(path.read_text(), filename=str(path))
-    except (SyntaxError, UnicodeDecodeError):
-        return None
 
 
 def _normalize_ast(node: ast.AST) -> str:
