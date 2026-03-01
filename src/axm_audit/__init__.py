@@ -19,15 +19,15 @@ Example:
     Score: 95.0/100 — Grade A
 """
 
+from axm_audit._version import __version__
 from axm_audit.core.auditor import audit_project, get_rules_for_category
 from axm_audit.models import AuditResult, CheckResult, Severity
-
-__version__ = "1.0.0"
 
 __all__ = [
     "AuditResult",
     "CheckResult",
     "Severity",
+    "__version__",
     "audit_project",
     "get_rules_for_category",
 ]
