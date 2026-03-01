@@ -8,6 +8,7 @@ from axm_audit.core.rules.architecture import (
 from axm_audit.core.rules.base import ProjectRule
 from axm_audit.core.rules.complexity import ComplexityRule
 from axm_audit.core.rules.coverage import TestCoverageRule
+from axm_audit.core.rules.dead_code import DeadCodeRule
 from axm_audit.core.rules.dependencies import (
     DependencyAuditRule,
     DependencyHygieneRule,
@@ -37,6 +38,7 @@ __all__ = [
     "CircularImportRule",
     "ComplexityRule",
     "CouplingMetricRule",
+    "DeadCodeRule",
     "DependencyAuditRule",
     "DependencyHygieneRule",
     "DiffSizeRule",

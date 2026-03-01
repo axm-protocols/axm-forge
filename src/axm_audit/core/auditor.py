@@ -14,6 +14,7 @@ from axm_audit.core.rules import (
     CircularImportRule,
     ComplexityRule,
     CouplingMetricRule,
+    DeadCodeRule,
     DependencyAuditRule,
     DependencyHygieneRule,
     DiffSizeRule,
@@ -57,6 +58,7 @@ RULES_BY_CATEGORY: dict[str, list[type[ProjectRule]]] = {
         TypeCheckRule,
         ComplexityRule,
         DiffSizeRule,
+        DeadCodeRule,
     ],
     "architecture": [
         CircularImportRule,
@@ -131,6 +133,7 @@ def get_rules_for_category(
         TypeCheckRule(),
         ComplexityRule(),
         DiffSizeRule(),
+        DeadCodeRule(),
         SecurityRule(),
         DependencyAuditRule(),
         DependencyHygieneRule(),
