@@ -48,71 +48,89 @@ def _extract_imports(tree: ast.Module) -> list[str]:
     return imports
 
 
+class _TarjanState:
+    """Mutable state container for the iterative Tarjan algorithm."""
+
+    __slots__ = ("counter", "index", "lowlink", "on_stack", "sccs", "stack")
+
+    def __init__(self) -> None:
+        self.counter = 0
+        self.stack: list[str] = []
+        self.lowlink: dict[str, int] = {}
+        self.index: dict[str, int] = {}
+        self.on_stack: dict[str, bool] = {}
+        self.sccs: list[list[str]] = []
+
+    def enter(self, node: str) -> None:
+        """Register a node as visited and push it onto the SCC stack."""
+        self.index[node] = self.lowlink[node] = self.counter
+        self.counter += 1
+        self.stack.append(node)
+        self.on_stack[node] = True
+
+    def pop_scc(self, root: str) -> None:
+        """Pop nodes from the stack to form an SCC rooted at *root*."""
+        scc: list[str] = []
+        while True:
+            w = self.stack.pop()
+            self.on_stack[w] = False
+            scc.append(w)
+            if w == root:
+                break
+        if len(scc) > 1:
+            self.sccs.append(scc)
+
+
+def _try_advance(
+    state: _TarjanState,
+    node: str,
+    neighbors: Iterator[str],
+    graph: dict[str, set[str]],
+    call_stack: list[tuple[str, Iterator[str]]],
+) -> bool:
+    """Try to advance to an unvisited neighbor, returning True if advanced."""
+    for neighbor in neighbors:
+        if neighbor not in state.index:
+            state.enter(neighbor)
+            call_stack.append((neighbor, iter(graph.get(neighbor, set()))))
+            return True
+        if state.on_stack.get(neighbor, False):
+            state.lowlink[node] = min(state.lowlink[node], state.index[neighbor])
+    return False
+
+
 def _tarjan_scc(graph: dict[str, set[str]]) -> list[list[str]]:
     """Find strongly connected components using iterative Tarjan's algorithm.
 
     Uses an explicit call stack instead of recursion to avoid hitting
     Python's recursion limit on large graphs (>1000 modules).
     """
-    index_counter = 0
-    stack: list[str] = []
-    lowlink: dict[str, int] = {}
-    index: dict[str, int] = {}
-    on_stack: dict[str, bool] = {}
-    sccs: list[list[str]] = []
+    state = _TarjanState()
 
     for root in graph:
-        if root in index:
+        if root in state.index:
             continue
 
-        # Explicit call stack: each frame is (node, neighbors_iterator).
         call_stack: list[tuple[str, Iterator[str]]] = []
-
-        # "Enter" the root node.
-        index[root] = lowlink[root] = index_counter
-        index_counter += 1
-        stack.append(root)
-        on_stack[root] = True
+        state.enter(root)
         call_stack.append((root, iter(graph.get(root, set()))))
 
         while call_stack:
             node, neighbors = call_stack[-1]
 
-            advanced = False
-            for neighbor in neighbors:
-                if neighbor not in index:
-                    # "Recurse" into unvisited neighbor.
-                    index[neighbor] = lowlink[neighbor] = index_counter
-                    index_counter += 1
-                    stack.append(neighbor)
-                    on_stack[neighbor] = True
-                    call_stack.append((neighbor, iter(graph.get(neighbor, set()))))
-                    advanced = True
-                    break
-                if on_stack.get(neighbor, False):
-                    lowlink[node] = min(lowlink[node], index[neighbor])
-
-            if advanced:
+            if _try_advance(state, node, neighbors, graph, call_stack):
                 continue
 
             # All neighbors processed — "return" from this frame.
-            if lowlink[node] == index[node]:
-                scc: list[str] = []
-                while True:
-                    w = stack.pop()
-                    on_stack[w] = False
-                    scc.append(w)
-                    if w == node:
-                        break
-                if len(scc) > 1:
-                    sccs.append(scc)
+            if state.lowlink[node] == state.index[node]:
+                state.pop_scc(node)
 
             call_stack.pop()
             if call_stack:
                 parent = call_stack[-1][0]
-                lowlink[parent] = min(lowlink[parent], lowlink[node])
+                state.lowlink[parent] = min(state.lowlink[parent], state.lowlink[node])
 
-    return sccs
+    return state.sccs
 
 
 @dataclass

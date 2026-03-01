@@ -82,30 +82,12 @@ class DuplicationRule(ProjectRule):
 
     def _find_duplicates(self, src_path: Path) -> list[dict[str, str]]:
         """Hash function bodies and find duplicates."""
-        # Map hash → list of (file, function_name, lineno)
-        seen: dict[str, list[tuple[str, str, int]]] = defaultdict(list)
-
-        for path in _get_python_files(src_path):
-            tree = _parse_file_safe(path)
-            if tree is None:
-                continue
-            rel = str(path.relative_to(src_path))
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-                    continue
-                # Skip small functions
-                end = getattr(node, "end_lineno", None) or node.lineno
-                if end - node.lineno + 1 < self.min_lines:
-                    continue
-                body_str = _normalize_ast(node)
-                h = hashlib.md5(body_str.encode(), usedforsecurity=False).hexdigest()
-                seen[h].append((rel, node.name, node.lineno))
+        seen = self._collect_function_hashes(src_path)
 
         clones: list[dict[str, str]] = []
         for entries in seen.values():
             if len(entries) < _MIN_CLONE_GROUP:
                 continue
-            # Report all pairs in the group
             first = entries[0]
             for other in entries[1:]:
                 clones.append(
@@ -115,3 +97,36 @@ class DuplicationRule(ProjectRule):
                     }
                 )
         return clones
+
+    def _collect_function_hashes(
+        self,
+        src_path: Path,
+    ) -> dict[str, list[tuple[str, str, int]]]:
+        """Scan source files and hash each function body."""
+        seen: dict[str, list[tuple[str, str, int]]] = defaultdict(list)
+
+        for path in _get_python_files(src_path):
+            tree = _parse_file_safe(path)
+            if tree is None:
+                continue
+            rel = str(path.relative_to(src_path))
+            self._hash_functions_in_tree(tree, rel, seen)
+
+        return seen
+
+    def _hash_functions_in_tree(
+        self,
+        tree: ast.Module,
+        rel: str,
+        seen: dict[str, list[tuple[str, str, int]]],
+    ) -> None:
+        """Hash each function body in a single AST and add to *seen*."""
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            end = getattr(node, "end_lineno", None) or node.lineno
+            if end - node.lineno + 1 < self.min_lines:
+                continue
+            body_str = _normalize_ast(node)
+            h = hashlib.md5(body_str.encode(), usedforsecurity=False).hexdigest()
+            seen[h].append((rel, node.name, node.lineno))
