@@ -6,12 +6,15 @@ the package name before full implementation.
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from axm_init.adapters.pypi import AvailabilityStatus, PyPIAdapter
+
+logger = logging.getLogger(__name__)
 
 # Placeholder version for reservation
 RESERVE_VERSION = "0.0.1.dev0"

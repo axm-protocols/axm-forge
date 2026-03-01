@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -54,6 +55,8 @@ from axm_init.checks.tooling import (
     check_precommit_ruff,
 )
 from axm_init.models.check import CheckResult, ProjectResult
+
+logger = logging.getLogger(__name__)
 
 # Registry: category -> list of check functions
 ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = {

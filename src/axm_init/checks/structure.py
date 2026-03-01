@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from axm_init.models.check import CheckResult
+
+logger = logging.getLogger(__name__)
 
 
 def check_src_layout(project: Path) -> CheckResult:

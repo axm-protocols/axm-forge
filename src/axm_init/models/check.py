@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel, computed_field
+
+logger = logging.getLogger(__name__)
 
 
 class Grade(StrEnum):

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from axm_init.models.check import CheckResult
+
+logger = logging.getLogger(__name__)
 
 try:
     import tomllib

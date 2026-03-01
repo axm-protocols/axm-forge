@@ -10,6 +10,7 @@ Usage::
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Annotated, Any
@@ -23,6 +24,8 @@ from axm_init.core.reserver import reserve_pypi
 from axm_init.core.templates import get_template_path
 
 __all__ = ["app"]
+
+logger = logging.getLogger(__name__)
 
 app = cyclopts.App(
     name="axm-init",
