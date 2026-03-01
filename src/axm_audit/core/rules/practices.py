@@ -1,5 +1,7 @@
 """Practice rules — code quality patterns via AST and regex."""
 
+from __future__ import annotations
+
 import ast
 import re
 from dataclasses import dataclass, field
@@ -8,6 +10,10 @@ from pathlib import Path
 from axm_audit.core.rules.architecture import _get_python_files, _parse_file_safe
 from axm_audit.core.rules.base import ProjectRule
 from axm_audit.models.results import CheckResult, Severity
+
+# HTTP libraries whose calls should have a timeout= kwarg
+_HTTP_LIBRARIES = {"requests", "httpx"}
+_HTTP_METHODS = {"get", "post", "put", "delete", "patch", "head", "options"}
 
 
 @dataclass
@@ -226,3 +232,233 @@ class SecurityPatternRule(ProjectRule):
             if not passed
             else None,
         )
+
+
+@dataclass
+class BlockingIORule(ProjectRule):
+    """Detect blocking I/O anti-patterns.
+
+    Finds:
+    - ``time.sleep()`` inside ``async def`` functions.
+    - HTTP calls (``requests.*`` / ``httpx.*``) without ``timeout=`` kwarg.
+    """
+
+    @property
+    def rule_id(self) -> str:
+        """Unique identifier for this rule."""
+        return "PRACTICE_BLOCKING_IO"
+
+    def check(self, project_path: Path) -> CheckResult:
+        """Check for blocking I/O patterns in the project."""
+        src_path = project_path / "src"
+        if not src_path.exists():
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=True,
+                message="src/ directory not found",
+                severity=Severity.INFO,
+                details={"violations": []},
+            )
+
+        violations: list[dict[str, str | int]] = []
+
+        for path in _get_python_files(src_path):
+            tree = _parse_file_safe(path)
+            if tree is None:
+                continue
+            rel = str(path.relative_to(src_path))
+            self._check_async_sleep(tree, rel, violations)
+            self._check_http_no_timeout(tree, rel, violations)
+
+        count = len(violations)
+        passed = count == 0
+        score = max(0, 100 - count * 15)
+
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=passed,
+            message=f"{count} blocking-IO violation(s) found",
+            severity=Severity.WARNING if not passed else Severity.INFO,
+            details={"violations": violations, "score": score},
+            fix_hint=(
+                "Use asyncio.sleep() instead of time.sleep() in async context; "
+                "add timeout= to HTTP calls"
+            )
+            if not passed
+            else None,
+        )
+
+    # -- private helpers -------------------------------------------------------
+
+    @staticmethod
+    def _check_async_sleep(
+        tree: ast.Module,
+        rel: str,
+        violations: list[dict[str, str | int]],
+    ) -> None:
+        """Find ``time.sleep()`` inside ``async def`` bodies."""
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.AsyncFunctionDef):
+                continue
+            for child in ast.walk(node):
+                if (
+                    isinstance(child, ast.Call)
+                    and isinstance(child.func, ast.Attribute)
+                    and child.func.attr == "sleep"
+                    and isinstance(child.func.value, ast.Name)
+                    and child.func.value.id == "time"
+                ):
+                    violations.append(
+                        {
+                            "file": rel,
+                            "line": child.lineno,
+                            "issue": "time.sleep in async",
+                        }
+                    )
+
+    @staticmethod
+    def _check_http_no_timeout(
+        tree: ast.Module,
+        rel: str,
+        violations: list[dict[str, str | int]],
+    ) -> None:
+        """Find HTTP calls without ``timeout=`` keyword argument."""
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in _HTTP_METHODS
+            ):
+                continue
+
+            # Direct call: requests.get(...) / httpx.post(...)
+            value = node.func.value
+            is_http = isinstance(value, ast.Name) and value.id in _HTTP_LIBRARIES
+
+            # Chained call: httpx.AsyncClient().get(...)
+            # value is a Call node whose func is Attribute(attr="AsyncClient",
+            # value=Name(id="httpx"))
+            if not is_http and isinstance(value, ast.Call):
+                func = value.func
+                if (
+                    isinstance(func, ast.Attribute)
+                    and func.attr in {"Client", "AsyncClient"}
+                    and isinstance(func.value, ast.Name)
+                    and func.value.id in _HTTP_LIBRARIES
+                ):
+                    is_http = True
+
+            # Attribute chain: httpx.something.get(...)
+            if not is_http and isinstance(value, ast.Attribute):
+                inner = value
+                while isinstance(inner, ast.Attribute):
+                    inner = inner.value  # type: ignore[assignment]
+                if isinstance(inner, ast.Name) and inner.id in _HTTP_LIBRARIES:
+                    is_http = True
+
+            if not is_http:
+                continue
+
+            has_timeout = any(kw.arg == "timeout" for kw in node.keywords)
+            if not has_timeout:
+                violations.append(
+                    {
+                        "file": rel,
+                        "line": node.lineno,
+                        "issue": "HTTP call without timeout",
+                    }
+                )
+
+
+@dataclass
+class LoggingPresenceRule(ProjectRule):
+    """Verify that substantial source modules import logging.
+
+    Exempts ``__init__.py``, ``_version.py``, and modules with fewer
+    than 5 top-level definitions (functions + classes).
+    """
+
+    min_defs: int = 5
+
+    @property
+    def rule_id(self) -> str:
+        """Unique identifier for this rule."""
+        return "PRACTICE_LOGGING"
+
+    def check(self, project_path: Path) -> CheckResult:
+        """Check logging presence in source modules."""
+        src_path = project_path / "src"
+        if not src_path.exists():
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=True,
+                message="src/ directory not found",
+                severity=Severity.INFO,
+                details={"without_logging": []},
+            )
+
+        without_logging: list[str] = []
+        total_checked = 0
+
+        for path in _get_python_files(src_path):
+            rel = str(path.relative_to(src_path))
+
+            # Exempt special files
+            if path.name in {"__init__.py", "_version.py"}:
+                continue
+
+            tree = _parse_file_safe(path)
+            if tree is None:
+                continue
+
+            # Count top-level definitions
+            top_defs = sum(
+                1
+                for node in ast.iter_child_nodes(tree)
+                if isinstance(
+                    node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+                )
+            )
+            if top_defs < self.min_defs:
+                continue
+
+            total_checked += 1
+
+            if not self._has_logging_import(tree):
+                without_logging.append(rel)
+
+        if total_checked == 0:
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=True,
+                message="No substantial modules to check",
+                severity=Severity.INFO,
+                details={"without_logging": [], "score": 100},
+            )
+
+        covered = total_checked - len(without_logging)
+        coverage = covered / total_checked
+        score = int(coverage * 100)
+        passed = len(without_logging) == 0
+
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=passed,
+            message=f"Logging coverage: {coverage:.0%} ({covered}/{total_checked})",
+            severity=Severity.WARNING if not passed else Severity.INFO,
+            details={"without_logging": without_logging, "score": score},
+            fix_hint="Add import logging to modules" if not passed else None,
+        )
+
+    @staticmethod
+    def _has_logging_import(tree: ast.Module) -> bool:
+        """Check if the module imports ``logging`` or ``structlog``."""
+        for node in ast.iter_child_nodes(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in {"logging", "structlog"}:
+                        return True
+            elif isinstance(node, ast.ImportFrom):
+                if node.module in {"logging", "structlog"}:
+                    return True
+        return False

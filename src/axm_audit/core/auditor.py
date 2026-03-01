@@ -10,6 +10,7 @@ from pathlib import Path
 
 from axm_audit.core.rules import (
     BareExceptRule,
+    BlockingIORule,
     CircularImportRule,
     ComplexityRule,
     CouplingMetricRule,
@@ -19,6 +20,7 @@ from axm_audit.core.rules import (
     FormattingRule,
     GodClassRule,
     LintingRule,
+    LoggingPresenceRule,
     PyprojectCompletenessRule,
     SecurityPatternRule,
     SecurityRule,
@@ -48,7 +50,13 @@ RULES_BY_CATEGORY: dict[str, list[type[ProjectRule]]] = {
     "structure": [PyprojectCompletenessRule],
     "quality": [LintingRule, FormattingRule, TypeCheckRule, ComplexityRule],
     "architecture": [CircularImportRule, GodClassRule, CouplingMetricRule],
-    "practice": [DocstringCoverageRule, BareExceptRule, SecurityPatternRule],
+    "practice": [
+        DocstringCoverageRule,
+        BareExceptRule,
+        SecurityPatternRule,
+        BlockingIORule,
+        LoggingPresenceRule,
+    ],
     "security": [SecurityRule],
     "dependencies": [DependencyAuditRule, DependencyHygieneRule],
     "testing": [TestCoverageRule],
@@ -117,6 +125,8 @@ def get_rules_for_category(
         DocstringCoverageRule(),
         BareExceptRule(),
         SecurityPatternRule(),
+        BlockingIORule(),
+        LoggingPresenceRule(),
         *_get_tooling_rules(),
     ]
 
