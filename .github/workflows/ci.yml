@@ -50,6 +50,8 @@ jobs:
           git config --global user.name "CI Bot"
           git config --global user.email "ci@example.com"
       - run: uv run pytest --cov=src --cov-report=xml
+      - name: Slow tests (Copier end-to-end)
+        run: uv run pytest -m slow --no-cov
 
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2
@@ -66,4 +68,3 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           parallel-finished: true
-
