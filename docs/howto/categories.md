@@ -6,7 +6,7 @@ Focus your audit on specific areas instead of running all checks.
 
 | Category | Rules | Focus |
 |---|---|---|
-| `quality` | `LintingRule`, `FormattingRule`, `TypeCheckRule`, `ComplexityRule`, `DiffSizeRule` | Code quality (Ruff, mypy, radon, git) |
+| `quality` | `LintingRule`, `FormattingRule`, `TypeCheckRule`, `ComplexityRule`, `DiffSizeRule`, `DeadCodeRule` | Code quality (Ruff, mypy, radon, git) |
 | `security` | `SecurityRule` | Vulnerability detection (Bandit) |
 | `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | Supply chain (pip-audit, deptry) |
 | `testing` | `TestCoverageRule` | Coverage enforcement (pytest-cov) |
@@ -45,7 +45,7 @@ result = audit_project(Path("."), quick=True)
 ```python
 from axm_audit import get_rules_for_category
 
-# All rules (23 instances)
+# All rules (24 instances)
 rules = get_rules_for_category(None)
 
 # Single category
