@@ -11,7 +11,7 @@ Every audit returns an `AuditResult` with these properties:
 | `success` | `bool` | `True` if all checks passed |
 | `total` | `int` | Total number of checks |
 | `failed` | `int` | Number of failed checks |
-| `quality_score` | `float \| None` | Composite score 0–100 (8-category weighted). `None` when auditing a single category with `--category` |
+| `quality_score` | `float \| None` | Composite score 0–100 (10-category weighted). `None` when auditing a single category with `--category` |
 | `grade` | `str \| None` | Letter grade A–F. `None` when `quality_score` is `None` |
 
 ## CheckResult Object

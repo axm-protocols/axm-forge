@@ -7,7 +7,7 @@
 ```mermaid
 graph TB
     API["CLI / audit_project()"] --> Auditor["get_rules_for_category()"]
-    Auditor --> Rules["24 Rules · 8 Categories"]
+    Auditor --> Rules["24 Rules · 10 Categories"]
     Rules -->|subprocess| Runner["run_in_project()"]
     Rules -->|direct| AST["ast · radon · tomllib"]
     Runner --> Tools["Ruff · mypy · Bandit\npip-audit · deptry · pytest-cov"]
@@ -27,20 +27,22 @@ Both return typed Pydantic models for safe agent consumption.
 
 ### 2. Rule Engine
 
-`get_rules_for_category()` returns rule instances from the `RULES_BY_CATEGORY` registry:
+`get_rules_for_category()` returns rule instances from the auto-discovery registry (populated by `@register_rule` decorators):
 
 | Category | Rules | Count |
 |---|---|---|
-| `quality` | `LintingRule`, `FormattingRule`, `TypeCheckRule`, `ComplexityRule`, `DiffSizeRule`, `DeadCodeRule` | 6 |
-| `security` | `SecurityRule` | 1 |
-| `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
+| `lint` | `LintingRule`, `FormattingRule`, `DiffSizeRule`, `DeadCodeRule` | 4 |
+| `type` | `TypeCheckRule` | 1 |
+| `complexity` | `ComplexityRule` | 1 |
+| `security` | `SecurityRule`, `SecurityPatternRule` | 2 |
+| `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
-| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule`, `BlockingIORule`, `LoggingPresenceRule`, `TestMirrorRule` | 6 |
+| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `LoggingPresenceRule`, `TestMirrorRule` | 5 |
 | `structure` | `PyprojectCompletenessRule` | 1 |
 | `tooling` | `ToolAvailabilityRule` | 3 instances |
 
-**Total: 24 rule instances across 8 categories.**
+**Total: 24 rule instances across 10 categories.**
 
 ### 3. Tool Integration
 
@@ -62,7 +64,7 @@ All subprocess-based rules use `run_in_project()` from `core/runner.py`, which d
 
 ### 4. Scoring
 
-8-category weighted composite (see [Scoring & Grades](scoring.md)):
+10-category weighted composite (see [Scoring & Grades](scoring.md)):
 
 | Category | Weight |
 |---|---|
@@ -95,7 +97,7 @@ sequenceDiagram
 
     User->>CLI: axm-audit audit . / audit_project(Path("."))
     CLI->>Auditor: get_rules_for_category(category)
-    Auditor-->>CLI: list[ProjectRule] (24 rules)
+    Auditor-->>CLI: list[ProjectRule]
     loop For each rule
         CLI->>Rules: rule.check(project_path)
         Rules->>Tools: Ruff / MyPy / Radon / Bandit / etc.

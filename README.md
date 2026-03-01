@@ -19,7 +19,7 @@
 
 ---
 
-`axm-audit` audits Python project quality across **8 weighted categories**, producing a composite **0–100 score** with an **A–F grade**. It works as a **CLI**, **Python API**, and **MCP tool** for AI agents.
+`axm-audit` audits Python project quality across **10 scored categories**, producing a composite **0–100 score** with an **A–F grade**. It works as a **CLI**, **Python API**, and **MCP tool** for AI agents.
 
 📖 **[Full documentation](https://axm-protocols.github.io/axm-audit/)**
 
@@ -34,7 +34,7 @@
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
 - 📐 **Practices** — Docstring coverage, bare except detection, hardcoded secrets, blocking I/O, logging presence, test mirroring
 - 🔧 **Tooling** — CLI tool availability checks
-- 📈 **Composite Scoring** — Weighted 8-category 0–100 score with A–F grade
+- 📈 **Composite Scoring** — Weighted 10-category 0–100 score with A–F grade
 
 ## Installation
 
@@ -57,7 +57,7 @@ axm-audit audit . --json
 axm-audit audit . --agent
 
 # Filter by category
-axm-audit audit . --category quality
+axm-audit audit . --category lint
 ```
 
 ### Python API
@@ -95,7 +95,7 @@ See the [MCP how-to guide](https://axm-protocols.github.io/axm-audit/howto/mcp/)
 
 ## Scoring Model
 
-8-category weighted composite on a 100-point scale:
+10-category weighted composite on a 100-point scale:
 
 | Category | Weight | Tool |
 |---|---|---|
@@ -112,12 +112,14 @@ See the [MCP how-to guide](https://axm-protocols.github.io/axm-audit/howto/mcp/)
 
 | Category | Rules | Count |
 |---|---|---|
-| `quality` | `LintingRule`, `FormattingRule`, `TypeCheckRule`, `ComplexityRule`, `DiffSizeRule`, `DeadCodeRule` | 6 |
-| `security` | `SecurityRule` (Bandit) | 1 |
-| `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
+| `lint` | `LintingRule`, `FormattingRule`, `DiffSizeRule`, `DeadCodeRule` | 4 |
+| `type` | `TypeCheckRule` | 1 |
+| `complexity` | `ComplexityRule` | 1 |
+| `security` | `SecurityRule` (Bandit), `SecurityPatternRule` | 2 |
+| `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
-| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule`, `BlockingIORule`, `LoggingPresenceRule`, `TestMirrorRule` | 6 |
+| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `LoggingPresenceRule`, `TestMirrorRule` | 5 |
 | `structure` | `PyprojectCompletenessRule` | 1 |
 | `tooling` | `ToolAvailabilityRule` | 3 |
 
@@ -127,7 +129,7 @@ See the [MCP how-to guide](https://axm-protocols.github.io/axm-audit/howto/mcp/)
 git clone https://github.com/axm-protocols/axm-audit.git
 cd axm-audit
 uv sync --all-groups
-uv run pytest           # 357 tests
+uv run pytest           # 363 tests
 uv run ruff check src/  # lint
 uv run mypy src/        # type check
 ```

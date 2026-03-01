@@ -15,7 +15,7 @@ axm-audit audit . --json
 axm-audit audit . --agent
 
 # Filter by category
-axm-audit audit . --category quality
+axm-audit audit . --category lint
 ```
 
 !!! tip "Unified CLI"

@@ -32,7 +32,7 @@ axm-audit audit . --category tooling
 1. Filter to a specific category instead of running all checks:
 
     ```bash
-    axm-audit audit . --category quality
+    axm-audit audit . --category lint
     ```
 
 2. Use quick mode (lint + type only):

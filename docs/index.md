@@ -26,7 +26,7 @@ hide:
 
 ## What is axm-audit?
 
-`axm-audit` is a Python library and CLI that audits project quality across 8 scored categories, producing a composite 0–100 score:
+`axm-audit` is a Python library and CLI that audits project quality across 10 scored categories, producing a composite 0–100 score:
 
 | Category | Tool | Weight |
 |---|---|---|
@@ -70,7 +70,7 @@ print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
 - 📐 **Practices** — Docstring coverage, bare except detection, blocking I/O, logging presence, test mirroring
 - 🔧 **Tooling** — CLI tool availability checks
-- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 336+ tests
+- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 363 tests
 
 ---
 
