@@ -141,9 +141,9 @@ class TestScaffoldNoHello:
         assert len(pkg_init) >= 1, f"Expected package __init__.py, found: {init_files}"
 
         content = pkg_init[0].read_text()
-        assert (
-            "def hello" not in content
-        ), f"hello() function should not be in __init__.py: {content}"
+        assert "def hello" not in content, (
+            f"hello() function should not be in __init__.py: {content}"
+        )
 
     def test_scaffold_version_import(self, tmp_path: Path) -> None:
         """__init__.py contains version import with try/except."""
@@ -173,9 +173,9 @@ class TestScaffoldNoUtilsDir:
         src_dirs = list(tmp_path.rglob("src"))
         if src_dirs:
             utils_dirs = list(src_dirs[0].rglob("utils"))
-            assert (
-                len(utils_dirs) == 0
-            ), f"utils/ should not exist in src/: {utils_dirs}"
+            assert len(utils_dirs) == 0, (
+                f"utils/ should not exist in src/: {utils_dirs}"
+            )
 
 
 # ── AC4: Doc templates have no hello() reference ────────────────────────
