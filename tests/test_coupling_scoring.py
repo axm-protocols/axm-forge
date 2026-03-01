@@ -66,6 +66,25 @@ class TestExtractImports:
         imports = _extract_imports(tree)
         assert set(imports) == {"os", "sys", "pathlib"}
 
+    def test_future_import_excluded(self) -> None:
+        """'from __future__ import annotations' is a directive, not a dependency."""
+        from axm_audit.core.rules.architecture import _extract_imports
+
+        code = "from __future__ import annotations\nimport os\nfrom pathlib import Path"
+        tree = ast.parse(code)
+        imports = _extract_imports(tree)
+        assert "__future__" not in imports
+        assert set(imports) == {"os", "pathlib"}
+
+    def test_future_import_only(self) -> None:
+        """Module with only __future__ import has 0 fan-out."""
+        from axm_audit.core.rules.architecture import _extract_imports
+
+        code = "from __future__ import annotations"
+        tree = ast.parse(code)
+        imports = _extract_imports(tree)
+        assert imports == []
+
 
 # ---------------------------------------------------------------------------
 # 2. Coupling formula: 100 - N(>10) * 5
@@ -159,6 +178,31 @@ class TestCouplingFormula:
         assert len(over) == 1
         assert over[0]["fan_out"] == 15
         assert "big" in over[0]["module"]
+
+    def test_init_py_excluded_from_coupling(self, tmp_path: Path) -> None:
+        """__init__.py re-export files are exempt from fan-out analysis.
+
+        Their purpose is to aggregate submodule exports, so high fan-out
+        is structural — not a coupling smell.
+        """
+        from axm_audit.core.rules.architecture import CouplingMetricRule
+
+        rule = CouplingMetricRule(fan_out_threshold=5)
+        src = tmp_path / "src" / "pkg"
+        src.mkdir(parents=True)
+
+        # __init__.py with 10 re-exports — should be ignored
+        init_imports = "\n".join(f"from pkg.sub_{i} import X{i}" for i in range(10))
+        (src / "__init__.py").write_text(init_imports)
+
+        # Regular module with 3 imports — under threshold
+        (src / "core.py").write_text("import os\nimport sys\nimport json")
+
+        result = rule.check(tmp_path)
+        assert result.details is not None
+        # __init__.py excluded → only core.py counted (3 imports, under 5)
+        assert result.details["n_over_threshold"] == 0
+        assert result.details["score"] == 100
 
 
 # ---------------------------------------------------------------------------
