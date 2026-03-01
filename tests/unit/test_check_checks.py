@@ -111,7 +111,7 @@ GOLD_PYPROJECT = dedent("""\
     check_untyped_defs = true
 
     [tool.ruff.lint]
-    select = ["E", "F", "W", "I", "UP", "B", "SIM", "S", "RUF"]
+    select = ["E", "F", "W", "I", "UP", "B", "SIM", "S", "BLE", "PLR", "N", "RUF"]
 
     [tool.ruff.lint.per-file-ignores]
     "tests/*" = ["S101"]
@@ -842,23 +842,53 @@ class TestCheckPyprojectRuffRules:
         r = check_pyproject_ruff_rules(tmp_path)
         assert r.passed is False
 
-    def test_fail_missing_rules(self, tmp_path: Path) -> None:
-        toml = '[project]\nname="x"\n[tool.ruff.lint]\nselect = ["E", "F"]\n'
+    def test_fail_missing_new_rules(self, tmp_path: Path) -> None:
+        """Old 5-rule set should now fail — missing S, BLE, PLR, N."""
+        toml = (
+            '[project]\nname="x"\n[tool.ruff.lint]\n'
+            'select = ["E", "F", "I", "UP", "B"]\n'
+        )
         (tmp_path / "pyproject.toml").write_text(toml)
         r = check_pyproject_ruff_rules(tmp_path)
         assert r.passed is False
         missing = str(r.details)
-        assert "I" in missing or "UP" in missing or "B" in missing
+        assert "S" in missing
+        assert "BLE" in missing
+        assert "PLR" in missing
+        assert "N" in missing
+
+    def test_pass_with_all(self, tmp_path: Path) -> None:
+        """select = ['ALL'] includes everything — should pass."""
+        toml = '[project]\nname="x"\n[tool.ruff.lint]\nselect = ["ALL"]\n'
+        (tmp_path / "pyproject.toml").write_text(toml)
+        r = check_pyproject_ruff_rules(tmp_path)
+        assert r.passed is True
 
     def test_pass_with_extend_select(self, tmp_path: Path) -> None:
         toml = (
             '[project]\nname="x"\n[tool.ruff.lint]\n'
-            'select = ["E", "F"]\n'
-            'extend-select = ["I", "UP", "B"]\n'
+            'select = ["E", "F", "S"]\n'
+            'extend-select = ["I", "UP", "B", "BLE", "PLR", "N"]\n'
         )
         (tmp_path / "pyproject.toml").write_text(toml)
         r = check_pyproject_ruff_rules(tmp_path)
         assert r.passed is True
+
+    def test_fail_subset_of_new_rules(self, tmp_path: Path) -> None:
+        """Only S and N added — should fail listing BLE, PLR."""
+        toml = (
+            '[project]\nname="x"\n[tool.ruff.lint]\n'
+            'select = ["E", "F", "I", "UP", "B", "S", "N"]\n'
+        )
+        (tmp_path / "pyproject.toml").write_text(toml)
+        r = check_pyproject_ruff_rules(tmp_path)
+        assert r.passed is False
+        missing = str(r.details)
+        assert "BLE" in missing
+        assert "PLR" in missing
+        # S and N should NOT be in missing
+        # (they're in the details string as context, check the sorted list)
+        assert r.message == "Missing 2 essential ruff rule(s)"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

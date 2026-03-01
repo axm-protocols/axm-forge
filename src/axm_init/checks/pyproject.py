@@ -384,13 +384,13 @@ def check_pyproject_ruff_rules(project: Path) -> CheckResult:
             weight=2,
             message="pyproject.toml not found or unparsable",
             details=[],
-            fix="Add [tool.ruff.lint] select with E, F, I, UP, B.",
+            fix="Add [tool.ruff.lint] select with E, F, I, UP, B, S, BLE, PLR, N.",
         )
     ruff_lint = data.get("tool", {}).get("ruff", {}).get("lint", {})
     select = set(ruff_lint.get("select", []))
     extend = set(ruff_lint.get("extend-select", []))
     all_rules = select | extend
-    required = {"E", "F", "I", "UP", "B"}
+    required = {"E", "F", "I", "UP", "B", "S", "BLE", "PLR", "N"}
     # "ALL" includes everything
     if "ALL" in all_rules:
         missing: set[str] = set()

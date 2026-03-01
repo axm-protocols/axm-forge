@@ -71,7 +71,7 @@ GOLD_PYPROJECT = dedent("""\
     check_untyped_defs = true
 
     [tool.ruff.lint]
-    select = ["E", "F", "W", "I", "UP", "B", "SIM", "S", "RUF"]
+    select = ["E", "F", "W", "I", "UP", "B", "SIM", "S", "BLE", "PLR", "N", "RUF"]
     [tool.ruff.lint.per-file-ignores]
     "tests/*" = ["S101"]
     [tool.ruff.lint.isort]

@@ -100,7 +100,9 @@ select = [
     "N",   # pep8-naming
     "UP",  # pyupgrade
     "B",   # flake8-bugbear
+    "BLE", # flake8-blind-except
     "C4",  # flake8-comprehensions
+    "PLR", # pylint refactor (magic numbers)
     "S",   # flake8-bandit (security)
     "T20", # flake8-print
     "RUF", # ruff-specific
@@ -112,7 +114,14 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108"]  # Allow assert, test tokens, tmp paths
+"tests/*" = ["S101", "S105", "S106", "S108", "PLR2004", "BLE001"]
+"src/axm_init/checks/*" = ["PLR2004", "BLE001"]
+"src/axm_init/adapters/*" = ["BLE001", "PLR2004"]
+"src/axm_init/core/checker.py" = ["PLR2004"]
+"src/axm_init/core/reserver.py" = ["PLR0911"]
+"src/axm_init/models/check.py" = ["PLR2004"]
+"src/axm_init/tools/*" = ["BLE001"]
+"src/axm_init/cli.py" = ["PLR0913", "PLR5501", "PLR2004"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_init"]

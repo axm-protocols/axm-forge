@@ -64,7 +64,7 @@ def gold_project(tmp_path: Path) -> Path:
         "\n[tool.mypy]\nstrict = true\npretty = true\n"
         "disallow_incomplete_defs = true\ncheck_untyped_defs = true\n"
         "\n[tool.ruff.lint]\n"
-        'select = ["E","F","W","I","UP","B","SIM","S","RUF"]\n'
+        'select = ["E","F","W","I","UP","B","SIM","S","BLE","PLR","N","RUF"]\n'
         "[tool.ruff.lint.per-file-ignores]\n"
         '"tests/*" = ["S101"]\n'
         "[tool.ruff.lint.isort]\n"
