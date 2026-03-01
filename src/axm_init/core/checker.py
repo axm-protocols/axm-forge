@@ -6,6 +6,7 @@ import importlib
 import inspect
 import logging
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -13,15 +14,18 @@ from axm_init.models.check import CheckResult, ProjectResult
 
 logger = logging.getLogger(__name__)
 
-# Category → module path. Order determines report order.
+# Category → module path.  Order determines report order.
+# Each module exposes ``check_*`` functions discovered by ``_discover_checks()``.
+# All check functions share the signature ``(Path) -> CheckResult``.
+# Categories and their checks define the 39-point governance scoring model.
 _CHECK_MODULES: dict[str, str] = {
-    "pyproject": "axm_init.checks.pyproject",
-    "ci": "axm_init.checks.ci",
-    "tooling": "axm_init.checks.tooling",
-    "docs": "axm_init.checks.docs",
-    "structure": "axm_init.checks.structure",
-    "deps": "axm_init.checks.deps",
-    "changelog": "axm_init.checks.changelog",
+    "pyproject": "axm_init.checks.pyproject",  # 9 checks — pyproject.toml fields
+    "ci": "axm_init.checks.ci",  # 7 checks — CI workflows
+    "tooling": "axm_init.checks.tooling",  # 7 checks — dev tooling
+    "docs": "axm_init.checks.docs",  # 5 checks — documentation
+    "structure": "axm_init.checks.structure",  # 7 checks — project layout
+    "deps": "axm_init.checks.deps",  # 2 checks — dependency hygiene
+    "changelog": "axm_init.checks.changelog",  # 2 checks — changelog presence
 }
 
 
@@ -64,9 +68,10 @@ class CheckEngine:
             checks_to_run = ALL_CHECKS
 
         results: list[CheckResult] = []
-        for check_fns in checks_to_run.values():
-            for fn in check_fns:
-                results.append(fn(self.project_path))
+        all_fns = [fn for check_fns in checks_to_run.values() for fn in check_fns]
+
+        with ThreadPoolExecutor() as pool:
+            results = list(pool.map(lambda fn: fn(self.project_path), all_fns))
 
         return ProjectResult.from_checks(self.project_path, results)
 

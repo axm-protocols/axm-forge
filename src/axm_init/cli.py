@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 import sys
 from pathlib import Path
 from typing import Annotated, Any
@@ -31,6 +32,20 @@ app = cyclopts.App(
     name="axm-init",
     help="AXM Init — Python project scaffolding with Copier templates.",
 )
+
+
+def _git_config_get(key: str) -> str:
+    """Read a value from git config, return empty string on failure."""
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", key],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.stdout.strip() if result.returncode == 0 else ""
+    except FileNotFoundError:
+        return ""
 
 
 def _check_pypi_availability(project_name: str, *, json_output: bool) -> None:
@@ -167,11 +182,11 @@ def reserve(
     author: Annotated[
         str,
         cyclopts.Parameter(name=["--author", "-a"], help="Author name"),
-    ] = "John Doe",
+    ] = "",
     email: Annotated[
         str,
         cyclopts.Parameter(name=["--email", "-e"], help="Author email"),
-    ] = "john.doe@example.com",
+    ] = "",
     dry_run: Annotated[
         bool,
         cyclopts.Parameter(name=["--dry-run"], help="Skip actual publish"),
@@ -182,6 +197,8 @@ def reserve(
     ] = False,
 ) -> None:
     """Reserve a package name on PyPI."""
+    author = author or _git_config_get("user.name")
+    email = email or _git_config_get("user.email")
     creds = CredentialManager()
 
     if not dry_run:

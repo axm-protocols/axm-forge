@@ -102,11 +102,23 @@ class CopierAdapter:
                 )
             finally:
                 _cleanup_fds()
-            # Walk destination to collect all created files
+            # Walk destination to collect created files, excluding noise
+            # from post-copy tasks (.git, .venv, __pycache__, node_modules).
+            _excluded = {
+                ".git",
+                ".venv",
+                "__pycache__",
+                "node_modules",
+                ".mypy_cache",
+            }
             created: list[str] = sorted(
                 str(p.relative_to(config.destination))
                 for p in config.destination.rglob("*")
                 if p.is_file()
+                and not any(
+                    part in _excluded or part.startswith(".")
+                    for part in p.relative_to(config.destination).parts[:-1]
+                )
             )
             return ScaffoldResult(
                 success=True,
