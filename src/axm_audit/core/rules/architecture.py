@@ -36,6 +36,9 @@ def _extract_imports(tree: ast.Module) -> list[str]:
 
     Counts source modules, not individual imported symbols. For example,
     ``from foo import A, B`` counts as a single import of ``foo``.
+
+    ``__future__`` imports are excluded — they are language directives,
+    not real dependencies.
     """
     imports: list[str] = []
     for node in tree.body:
@@ -43,7 +46,7 @@ def _extract_imports(tree: ast.Module) -> list[str]:
             for alias in node.names:
                 imports.append(alias.name)
         elif isinstance(node, ast.ImportFrom):
-            if node.module:
+            if node.module and node.module != "__future__":
                 imports.append(node.module)
     return imports
 
@@ -292,11 +295,18 @@ def _compute_coupling_metrics(
     src_path: Path,
     threshold: int = 10,
 ) -> dict[str, Any]:
-    """Compute fan-in/fan-out coupling metrics for all modules."""
+    """Compute fan-in/fan-out coupling metrics for all modules.
+
+    ``__init__.py`` files are excluded — their purpose is to re-export
+    symbols from submodules, so their fan-out is structurally high
+    and not indicative of poor coupling.
+    """
     fan_out: dict[str, int] = {}
     fan_in: dict[str, int] = defaultdict(int)
 
     for path in get_python_files(src_path):
+        if path.name == "__init__.py":
+            continue
         tree = parse_file_safe(path)
         if tree is None:
             continue
