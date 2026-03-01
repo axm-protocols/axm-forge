@@ -70,6 +70,7 @@ class InitScaffoldTool:
                     "author_name": author,
                     "author_email": email,
                 },
+                trust_template=True,  # Internal AXM template is trusted
             )
             result = copier_adapter.copy(copier_config)
 

@@ -111,14 +111,22 @@ def build_package(path: Path) -> tuple[bool, str]:
 def publish_package(path: Path, token: str) -> tuple[bool, str]:
     """Publish package to PyPI using uv publish.
 
+    The token is passed via the ``UV_PUBLISH_TOKEN`` environment variable
+    instead of ``--token`` CLI argument to avoid exposure via ``ps`` or
+    ``/proc/<pid>/cmdline``.
+
     Returns:
         (success, error_message)
     """
+    import os
+
+    env = {**os.environ, "UV_PUBLISH_TOKEN": token}
     result = subprocess.run(
-        ["uv", "publish", "--token", token],
+        ["uv", "publish"],
         cwd=path,
         capture_output=True,
         text=True,
+        env=env,
     )
     if result.returncode != 0:
         return False, result.stderr

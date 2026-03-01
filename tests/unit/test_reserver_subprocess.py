@@ -61,6 +61,50 @@ class TestPublishPackage:
         assert ok is False
         assert "auth error" in err
 
+    @patch("axm_init.core.reserver.subprocess.run")
+    def test_publish_uses_env_not_cli_arg(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """Token must be passed via UV_PUBLISH_TOKEN env var, not --token CLI arg."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["uv", "publish"], returncode=0, stdout="", stderr=""
+        )
+        publish_package(tmp_path, "pypi-secret-token-123")
+
+        call_args = mock_run.call_args
+        cmd = call_args.args[0] if call_args.args else call_args.kwargs.get("args", [])
+        # --token must NOT appear in the command line
+        assert "--token" not in cmd
+        assert "pypi-secret-token-123" not in cmd
+        # Token must be in the environment variable
+        env = call_args.kwargs.get("env", {})
+        assert env["UV_PUBLISH_TOKEN"] == "pypi-secret-token-123"
+
+    @patch("axm_init.core.reserver.subprocess.run")
+    def test_publish_empty_token(self, mock_run: MagicMock, tmp_path: Path) -> None:
+        """Empty token is still passed via env var — uv handles the error."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["uv", "publish"], returncode=0, stdout="", stderr=""
+        )
+        publish_package(tmp_path, "")
+
+        env = mock_run.call_args.kwargs.get("env", {})
+        assert env["UV_PUBLISH_TOKEN"] == ""
+
+    @patch("axm_init.core.reserver.subprocess.run")
+    def test_publish_token_special_chars(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """Token with special chars ($, !, spaces) passes safely via env."""
+        special_token = "pypi-$ecret! with spaces"
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["uv", "publish"], returncode=0, stdout="", stderr=""
+        )
+        publish_package(tmp_path, special_token)
+
+        env = mock_run.call_args.kwargs.get("env", {})
+        assert env["UV_PUBLISH_TOKEN"] == special_token
+
 
 class TestReservePyPIFlow:
     """Tests for reserve_pypi() full flow — build + publish paths."""

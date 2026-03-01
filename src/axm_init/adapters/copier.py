@@ -1,5 +1,8 @@
 """Copier adapter for template-based scaffolding."""
 
+from __future__ import annotations
+
+import logging
 import os
 import sys
 from io import StringIO
@@ -11,6 +14,8 @@ from pydantic import BaseModel
 
 from axm_init.models.results import ScaffoldResult
 
+logger = logging.getLogger(__name__)
+
 
 class CopierConfig(BaseModel):
     """Configuration for Copier execution."""
@@ -20,6 +25,7 @@ class CopierConfig(BaseModel):
     data: dict[str, Any]
     defaults: bool = True
     overwrite: bool = False
+    trust_template: bool = False
 
     model_config = {"extra": "forbid"}
 
@@ -56,6 +62,11 @@ class CopierAdapter:
             old_fd_err = os.dup(2)
             os.dup2(devnull, 1)
             os.dup2(devnull, 2)
+            if config.trust_template:
+                logger.warning(
+                    "Running Copier with unsafe=True — template may execute "
+                    "arbitrary post-copy tasks."
+                )
             try:
                 run_copy(
                     src_path=str(config.template_path),
@@ -63,7 +74,7 @@ class CopierAdapter:
                     data=config.data,
                     defaults=config.defaults,
                     overwrite=config.overwrite,
-                    unsafe=True,  # Skip interactive prompts for tasks
+                    unsafe=config.trust_template,
                 )
             finally:
                 # Restore original stdout/stderr

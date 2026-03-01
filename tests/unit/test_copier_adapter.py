@@ -1,5 +1,8 @@
 """Tests for Copier adapter."""
 
+from __future__ import annotations
+
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -26,6 +29,15 @@ class TestCopierConfig:
         )
         assert config.defaults is True
         assert config.overwrite is False
+
+    def test_copier_unsafe_defaults_false(self, tmp_path: Path) -> None:
+        """trust_template defaults to False."""
+        config = CopierConfig(
+            template_path=Path("/templates/python"),
+            destination=tmp_path / "project",
+            data={"package_name": "test"},
+        )
+        assert config.trust_template is False
 
 
 class TestCopierAdapter:
@@ -66,6 +78,82 @@ class TestCopierAdapter:
             "package_name": "my-pkg",
             "description": "A test package",
         }
+
+    def test_copier_copy_respects_trust_flag(self, tmp_path: Path) -> None:
+        """unsafe=False is passed to run_copy when trust_template=False."""
+        config = CopierConfig(
+            template_path=Path("/templates/python"),
+            destination=tmp_path / "untrusted",
+            data={"package_name": "test"},
+            trust_template=False,
+        )
+        adapter = CopierAdapter()
+
+        with patch("axm_init.adapters.copier.run_copy") as mock_run:
+            mock_run.return_value = MagicMock()
+            adapter.copy(config)
+
+        call_kwargs = mock_run.call_args.kwargs
+        assert call_kwargs["unsafe"] is False
+
+    def test_copier_copy_passes_unsafe_true(self, tmp_path: Path) -> None:
+        """unsafe=True is passed to run_copy when trust_template=True."""
+        config = CopierConfig(
+            template_path=Path("/templates/python"),
+            destination=tmp_path / "trusted",
+            data={"package_name": "test"},
+            trust_template=True,
+        )
+        adapter = CopierAdapter()
+
+        with patch("axm_init.adapters.copier.run_copy") as mock_run:
+            mock_run.return_value = MagicMock()
+            adapter.copy(config)
+
+        call_kwargs = mock_run.call_args.kwargs
+        assert call_kwargs["unsafe"] is True
+
+    def test_copier_copy_warns_when_unsafe(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A warning is logged when trust_template=True."""
+        config = CopierConfig(
+            template_path=Path("/templates/python"),
+            destination=tmp_path / "warn-test",
+            data={"package_name": "test"},
+            trust_template=True,
+        )
+        adapter = CopierAdapter()
+
+        with (
+            patch("axm_init.adapters.copier.run_copy") as mock_run,
+            caplog.at_level(logging.WARNING, logger="axm_init.adapters.copier"),
+        ):
+            mock_run.return_value = MagicMock()
+            adapter.copy(config)
+
+        assert any("unsafe=True" in r.message for r in caplog.records)
+
+    def test_copier_copy_no_warning_when_safe(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """No warning is logged when trust_template=False."""
+        config = CopierConfig(
+            template_path=Path("/templates/python"),
+            destination=tmp_path / "safe-test",
+            data={"package_name": "test"},
+            trust_template=False,
+        )
+        adapter = CopierAdapter()
+
+        with (
+            patch("axm_init.adapters.copier.run_copy") as mock_run,
+            caplog.at_level(logging.WARNING, logger="axm_init.adapters.copier"),
+        ):
+            mock_run.return_value = MagicMock()
+            adapter.copy(config)
+
+        assert not any("unsafe" in r.message.lower() for r in caplog.records)
 
     def test_copy_handles_copier_error(self, tmp_path: Path) -> None:
         """Test graceful handling of Copier errors."""
