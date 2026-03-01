@@ -484,3 +484,28 @@ class TestDiffSizeRule:
 
         rule = DiffSizeRule()
         assert rule.rule_id == "QUALITY_DIFF_SIZE"
+
+
+class TestGetAuditTargets:
+    """Tests for _get_audit_targets() helper (AXM-203)."""
+
+    def test_with_tests_dir(self, tmp_path: Path) -> None:
+        """Return both src and tests when tests/ exists."""
+        from axm_audit.core.rules.quality import _get_audit_targets
+
+        (tmp_path / "src").mkdir()
+        (tmp_path / "tests").mkdir()
+
+        targets, checked = _get_audit_targets(tmp_path)
+        assert targets == [str(tmp_path / "src"), str(tmp_path / "tests")]
+        assert checked == "src/ tests/"
+
+    def test_without_tests_dir(self, tmp_path: Path) -> None:
+        """Return only src when tests/ does not exist."""
+        from axm_audit.core.rules.quality import _get_audit_targets
+
+        (tmp_path / "src").mkdir()
+
+        targets, checked = _get_audit_targets(tmp_path)
+        assert targets == [str(tmp_path / "src")]
+        assert checked == "src/"
