@@ -40,7 +40,7 @@ Configuration completeness of `pyproject.toml`:
 | `pyproject.pytest` | 4 | strict-markers, strict-config, import-mode, pythonpath, filterwarnings |
 | `pyproject.coverage` | 4 | branch, relative_files, xml output, exclude_lines |
 | `pyproject.classifiers` | 1 | Development Status, Python version, Typing :: Typed |
-| `pyproject.ruff_rules` | 2 | Essential rules: E, F, I, UP, B |
+| `pyproject.ruff_rules` | 2 | Essential rules: E, F, I, UP, B, S, BLE, PLR, N |
 
 ### ci (18 pts)
 
