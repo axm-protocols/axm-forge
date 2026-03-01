@@ -58,8 +58,8 @@ axm-init reserve [OPTIONS] NAME
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
 | `NAME` | | string | *required* | Package name to reserve |
-| `--author` | `-a` | string | `John Doe` | Author name |
-| `--email` | `-e` | string | `john.doe@example.com` | Author email |
+| `--author` | `-a` | string | *git config* | Author name |
+| `--email` | `-e` | string | *git config* | Author email |
 | `--dry-run` | | bool | `False` | Skip actual publish |
 | `--json` | | bool | `False` | Output as JSON |
 

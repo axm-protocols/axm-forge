@@ -87,8 +87,8 @@ Reserve a package name on PyPI with a minimal placeholder.
 | Option | Short | Default | Description |
 |---|---|---|---|
 | `NAME` | | *required* | Package name to reserve |
-| `--author` | `-a` | `John Doe` | Author name |
-| `--email` | `-e` | `john.doe@example.com` | Author email |
+| `--author` | `-a` | *git config* | Author name |
+| `--email` | `-e` | *git config* | Author email |
 | `--dry-run` | | `False` | Skip actual publish |
 | `--json` | | `False` | Output as JSON |
 
