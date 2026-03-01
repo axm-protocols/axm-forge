@@ -87,10 +87,13 @@ Reserve a package name on PyPI with a minimal placeholder.
 | Option | Short | Default | Description |
 |---|---|---|---|
 | `NAME` | | *required* | Package name to reserve |
-| `--author` | `-a` | *git config* | Author name |
-| `--email` | `-e` | *git config* | Author email |
+| `--author` | `-a` | *git config* | Author name (**required**) |
+| `--email` | `-e` | *git config* | Author email (**required**) |
 | `--dry-run` | | `False` | Skip actual publish |
 | `--json` | | `False` | Output as JSON |
+
+> **Note:** `--author` and `--email` fall back to `git config user.name` / `user.email`.
+> If both are empty, `axm-init` exits with an error.
 
 ## CI Check Badge
 
@@ -110,7 +113,7 @@ The badge is already in your README — just push to `main` and it appears after
 git clone https://github.com/axm-protocols/axm-init.git
 cd axm-init
 uv sync --all-groups
-uv run pytest           # 439 tests (fast subset, ~8s)
+uv run pytest           # 440 tests (fast subset, ~8s)
 uv run pytest -m slow   # real Copier scaffold tests (~15s)
 uv run ruff check src/  # lint
 ```

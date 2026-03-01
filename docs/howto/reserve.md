@@ -27,6 +27,8 @@ This publishes a minimal placeholder package (`0.0.1.dev0`) to secure the name.
 !!! tip "Author defaults"
     If `--author` and `--email` are omitted, `axm-init` reads `git config user.name`
     and `git config user.email` from your local git configuration.
+    If neither flag is provided and git config is unavailable, the command exits with
+    an error — author and email are **required** to publish valid package metadata.
 
 ## Dry Run
 

@@ -65,7 +65,13 @@ axm-init reserve [OPTIONS] NAME
 
 **Default resolution for `--author` / `--email`:**
 If omitted, resolved from `git config user.name` / `git config user.email`.
-If git is not configured, defaults to empty string.
+If git config is not available and neither flag is provided, `axm-init` exits with
+code 1 and a descriptive error message (text or JSON depending on `--json`).
+
+**Validation rules:**
+
+- Empty `--author` or `--email` after git config fallback → exit code 1
+- Placeholder values (`John Doe`, `john.doe@example.com`) are rejected by the MCP tool layer
 
 **Token resolution:**
 

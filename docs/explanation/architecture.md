@@ -95,6 +95,7 @@ Business logic independent of I/O:
 
 | Module | Category | # Checks |
 |---|---|---|
+| `_utils.py` | *(internal)* | Shared utilities (`_load_toml`) |
 | `pyproject.py` | pyproject | 9 |
 | `ci.py` | CI | 7 |
 | `tooling.py` | tooling | 7 |
