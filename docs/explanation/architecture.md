@@ -105,11 +105,11 @@ Both return typed Pydantic models for safe agent consumption.
 | `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
-| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule`, `BlockingIORule`, `LoggingPresenceRule` | 5 |
+| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule`, `BlockingIORule`, `LoggingPresenceRule`, `TestMirrorRule` | 6 |
 | `structure` | `PyprojectCompletenessRule` | 1 |
 | `tooling` | `ToolAvailabilityRule` | 3 instances |
 
-**Total: 22 rule instances across 8 categories.**
+**Total: 23 rule instances across 8 categories.**
 
 ### 3. Tool Integration
 
@@ -165,7 +165,7 @@ sequenceDiagram
 
     User->>CLI: axm-audit audit . / audit_project(Path("."))
     CLI->>Auditor: get_rules_for_category(category)
-    Auditor-->>CLI: list[ProjectRule] (22 rules)
+    Auditor-->>CLI: list[ProjectRule] (23 rules)
     loop For each rule
         CLI->>Rules: rule.check(project_path)
         Rules->>Tools: Ruff / MyPy / Radon / Bandit / etc.

@@ -11,7 +11,7 @@ Focus your audit on specific areas instead of running all checks.
 | `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | Supply chain (pip-audit, deptry) |
 | `testing` | `TestCoverageRule` | Coverage enforcement (pytest-cov) |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | Structural analysis (AST) |
-| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule`, `BlockingIORule`, `LoggingPresenceRule` | Best practices |
+| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule`, `BlockingIORule`, `LoggingPresenceRule`, `TestMirrorRule` | Best practices |
 | `structure` | `PyprojectCompletenessRule` | pyproject.toml completeness |
 | `tooling` | `ToolAvailabilityRule` | CLI tool availability |
 
@@ -45,7 +45,7 @@ result = audit_project(Path("."), quick=True)
 ```python
 from axm_audit import get_rules_for_category
 
-# All rules (22 instances)
+# All rules (23 instances)
 rules = get_rules_for_category(None)
 
 # Single category
