@@ -59,6 +59,33 @@ class TestRunInProject:
             assert kwargs["capture_output"] is True
             assert kwargs["text"] is True
 
+    def test_run_in_project_timeout(self, tmp_path: Path) -> None:
+        """TimeoutExpired is caught and results in a clear error."""
+        from axm_audit.core.runner import run_in_project
+
+        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(
+                cmd=["ruff", "check"], timeout=10
+            )
+            result = run_in_project(["ruff", "check"], tmp_path, timeout=10)
+
+            assert result.returncode == 124
+            assert "timed out after 10s" in result.stderr
+            assert result.stdout == ""
+
+    def test_run_in_project_default_timeout(self, tmp_path: Path) -> None:
+        """Default timeout of 300s is passed to subprocess.run."""
+        from axm_audit.core.runner import run_in_project
+
+        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="", stderr=""
+            )
+            run_in_project(["ruff", "check"], tmp_path)
+
+            kwargs = mock_run.call_args[1]
+            assert kwargs["timeout"] == 300
+
 
 # ── Tests for rule integration ───────────────────────────────────────
 
