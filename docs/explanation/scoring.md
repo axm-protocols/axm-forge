@@ -75,11 +75,10 @@ High complexity = cyclomatic complexity ≥ 10. Pass threshold: ≥ 80 (≤ 2 co
 
 ### Security Score
 
-```
-score = max(0, 100 − high_count × 15 − medium_count × 5)
-```
+Average of two sub-scores:
 
-Uses Bandit to detect vulnerabilities. Pass threshold: ≥ 80.
+- **Bandit**: `max(0, 100 − high_count × 15 − medium_count × 5)` — vulnerability scanning
+- **Hardcoded secrets**: `max(0, 100 − count × 25)` — regex pattern detection
 
 ### Dependencies Score
 
@@ -107,11 +106,10 @@ Average of four sub-scores:
 
 ### Practices Score
 
-Average of six sub-scores:
+Average of five sub-scores:
 
 - **Docstring coverage**: `int(coverage_pct × 100)`
 - **Bare excepts**: `max(0, 100 − count × 20)`
-- **Hardcoded secrets**: `max(0, 100 − count × 25)`
 - **Blocking I/O**: `max(0, 100 − count × 15)` — detects `time.sleep` in async contexts and HTTP calls without `timeout` parameter
 - **Logging presence**: `int(coverage_pct × 100)`
 - **Test mirroring**: `max(0, 100 − missing_count × 15)`
