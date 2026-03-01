@@ -139,3 +139,68 @@ class TestCouplingMetricRule:
 
         rule = CouplingMetricRule()
         assert rule.rule_id == "ARCH_COUPLING"
+
+
+class TestTarjanSCC:
+    """Direct tests for the iterative _tarjan_scc algorithm."""
+
+    def test_tarjan_iterative_simple_cycle(self) -> None:
+        """A→B→A graph detects SCC [A, B]."""
+        from axm_audit.core.rules.architecture import _tarjan_scc
+
+        graph = {"A": {"B"}, "B": {"A"}}
+        sccs = _tarjan_scc(graph)
+        assert len(sccs) == 1
+        assert set(sccs[0]) == {"A", "B"}
+
+    def test_tarjan_iterative_no_cycle(self) -> None:
+        """A→B→C linear chain produces no SCCs."""
+        from axm_audit.core.rules.architecture import _tarjan_scc
+
+        graph = {"A": {"B"}, "B": {"C"}, "C": set()}
+        sccs = _tarjan_scc(graph)
+        assert sccs == []
+
+    def test_tarjan_iterative_multiple_sccs(self) -> None:
+        """Two independent cycles both detected."""
+        from axm_audit.core.rules.architecture import _tarjan_scc
+
+        graph = {
+            "A": {"B"},
+            "B": {"A"},
+            "C": {"D"},
+            "D": {"C"},
+        }
+        sccs = _tarjan_scc(graph)
+        assert len(sccs) == 2
+        scc_sets = [set(scc) for scc in sccs]
+        assert {"A", "B"} in scc_sets
+        assert {"C", "D"} in scc_sets
+
+    def test_tarjan_deep_chain_no_recursion_error(self) -> None:
+        """2000-node linear chain completes without RecursionError."""
+        from axm_audit.core.rules.architecture import _tarjan_scc
+
+        n = 2000
+        graph: dict[str, set[str]] = {}
+        for i in range(n):
+            graph[f"n{i}"] = {f"n{i + 1}"} if i < n - 1 else set()
+        # Should not raise RecursionError
+        sccs = _tarjan_scc(graph)
+        assert sccs == []
+
+    def test_tarjan_self_loop(self) -> None:
+        """A→A self-loop is not reported (len=1 filtered)."""
+        from axm_audit.core.rules.architecture import _tarjan_scc
+
+        graph = {"A": {"A"}}
+        sccs = _tarjan_scc(graph)
+        assert sccs == []
+
+    def test_tarjan_disconnected_nodes(self) -> None:
+        """Nodes with no edges produce no SCCs."""
+        from axm_audit.core.rules.architecture import _tarjan_scc
+
+        graph: dict[str, set[str]] = {"A": set(), "B": set(), "C": set()}
+        sccs = _tarjan_scc(graph)
+        assert sccs == []

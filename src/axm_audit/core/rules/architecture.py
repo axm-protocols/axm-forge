@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import logging
 from collections import defaultdict
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -48,43 +49,68 @@ def _extract_imports(tree: ast.Module) -> list[str]:
 
 
 def _tarjan_scc(graph: dict[str, set[str]]) -> list[list[str]]:
-    """Find strongly connected components using Tarjan's algorithm."""
-    index_counter = [0]
+    """Find strongly connected components using iterative Tarjan's algorithm.
+
+    Uses an explicit call stack instead of recursion to avoid hitting
+    Python's recursion limit on large graphs (>1000 modules).
+    """
+    index_counter = 0
     stack: list[str] = []
     lowlink: dict[str, int] = {}
     index: dict[str, int] = {}
     on_stack: dict[str, bool] = {}
     sccs: list[list[str]] = []
 
-    def strongconnect(node: str) -> None:
-        """Process a node for SCC detection using Tarjan's algorithm."""
-        index[node] = index_counter[0]
-        lowlink[node] = index_counter[0]
-        index_counter[0] += 1
-        stack.append(node)
-        on_stack[node] = True
+    for root in graph:
+        if root in index:
+            continue
 
-        for neighbor in graph.get(node, set()):
-            if neighbor not in index:
-                strongconnect(neighbor)
-                lowlink[node] = min(lowlink[node], lowlink[neighbor])
-            elif on_stack.get(neighbor, False):
-                lowlink[node] = min(lowlink[node], index[neighbor])
+        # Explicit call stack: each frame is (node, neighbors_iterator).
+        call_stack: list[tuple[str, Iterator[str]]] = []
 
-        if lowlink[node] == index[node]:
-            scc: list[str] = []
-            while True:
-                w = stack.pop()
-                on_stack[w] = False
-                scc.append(w)
-                if w == node:
+        # "Enter" the root node.
+        index[root] = lowlink[root] = index_counter
+        index_counter += 1
+        stack.append(root)
+        on_stack[root] = True
+        call_stack.append((root, iter(graph.get(root, set()))))
+
+        while call_stack:
+            node, neighbors = call_stack[-1]
+
+            advanced = False
+            for neighbor in neighbors:
+                if neighbor not in index:
+                    # "Recurse" into unvisited neighbor.
+                    index[neighbor] = lowlink[neighbor] = index_counter
+                    index_counter += 1
+                    stack.append(neighbor)
+                    on_stack[neighbor] = True
+                    call_stack.append((neighbor, iter(graph.get(neighbor, set()))))
+                    advanced = True
                     break
-            if len(scc) > 1:
-                sccs.append(scc)
+                if on_stack.get(neighbor, False):
+                    lowlink[node] = min(lowlink[node], index[neighbor])
 
-    for node in graph:
-        if node not in index:
-            strongconnect(node)
+            if advanced:
+                continue
+
+            # All neighbors processed — "return" from this frame.
+            if lowlink[node] == index[node]:
+                scc: list[str] = []
+                while True:
+                    w = stack.pop()
+                    on_stack[w] = False
+                    scc.append(w)
+                    if w == node:
+                        break
+                if len(scc) > 1:
+                    sccs.append(scc)
+
+            call_stack.pop()
+            if call_stack:
+                parent = call_stack[-1][0]
+                lowlink[parent] = min(lowlink[parent], lowlink[node])
 
     return sccs
 
