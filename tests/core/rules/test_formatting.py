@@ -52,7 +52,7 @@ class TestFormattingRule:
             rule = FormattingRule()
             result = rule.check(tmp_path)
 
-        assert result.passed is True  # score 85 >= 80
+        assert result.passed is False  # score 85 < 90
         assert result.details is not None
         assert result.details["unformatted_count"] == 3
         assert result.details["score"] == 85

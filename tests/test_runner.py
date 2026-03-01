@@ -92,9 +92,9 @@ class TestRulesUseRunInProject:
 
     def test_coverage_uses_run_in_project(self, tmp_path: Path) -> None:
         """TestCoverageRule should call run_in_project."""
-        from axm_audit.core.rules.quality import TestCoverageRule
+        from axm_audit.core.rules.coverage import TestCoverageRule
 
-        with patch("axm_audit.core.rules.quality.run_in_project") as mock:
+        with patch("axm_audit.core.rules.coverage.run_in_project") as mock:
             mock.return_value = MagicMock(stdout="", stderr="", returncode=0)
             TestCoverageRule().check(tmp_path)
             mock.assert_called_once()

@@ -194,14 +194,14 @@ class TestExtractTestFailures:
 
     def test_no_failures(self) -> None:
         """Empty stdout → no failures."""
-        from axm_audit.core.rules.quality import _extract_test_failures
+        from axm_audit.core.rules.coverage import _extract_test_failures
 
         assert _extract_test_failures("") == []
         assert _extract_test_failures("3 passed\n") == []
 
     def test_single_failure(self) -> None:
         """FAILED line parsed correctly."""
-        from axm_audit.core.rules.quality import _extract_test_failures
+        from axm_audit.core.rules.coverage import _extract_test_failures
 
         stdout = "FAILED tests/test_foo.py::test_bar - AssertionError\n1 failed\n"
         failures = _extract_test_failures(stdout)
@@ -211,7 +211,7 @@ class TestExtractTestFailures:
 
     def test_multiple_failures(self) -> None:
         """Multiple FAILED lines parsed."""
-        from axm_audit.core.rules.quality import _extract_test_failures
+        from axm_audit.core.rules.coverage import _extract_test_failures
 
         stdout = (
             "FAILED tests/test_a.py::test_one - err1\n"
