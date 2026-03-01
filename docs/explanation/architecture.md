@@ -44,7 +44,7 @@ graph TD
 
     subgraph "Output"
         Result["AuditResult"]
-        Formatters["format_report / format_json"]
+        Formatters["format_report / format_json / format_agent"]
         Reporters["JsonReporter / MarkdownReporter"]
     end
 
