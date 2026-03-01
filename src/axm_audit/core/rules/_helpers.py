@@ -60,16 +60,17 @@ class ASTCache:
         return self._cache[resolved]
 
 
-# ── Thread-local accessor ────────────────────────────────────────────
+# ── Module-level cache accessor ──────────────────────────────────────
 
-_thread_local = threading.local()
+_active_cache: ASTCache | None = None
 
 
 def set_ast_cache(cache: ASTCache | None) -> None:
-    """Store *cache* on the current thread-local for rule access."""
-    _thread_local.ast_cache = cache
+    """Set the module-level ``ASTCache`` for rule access."""
+    global _active_cache
+    _active_cache = cache
 
 
 def get_ast_cache() -> ASTCache | None:
-    """Return the thread-local ``ASTCache``, or ``None`` outside audits."""
-    return getattr(_thread_local, "ast_cache", None)
+    """Return the active ``ASTCache``, or ``None`` outside audits."""
+    return _active_cache
