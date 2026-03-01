@@ -474,3 +474,111 @@ class LoggingPresenceRule(ProjectRule):
                 if node.module in {"logging", "structlog"}:
                     return True
         return False
+
+
+# ── Test mirror ───────────────────────────────────────────────────────
+
+# Files exempt from the 1:1 test requirement
+_TEST_MIRROR_EXEMPT = {"__init__.py", "_version.py", "conftest.py", "py.typed"}
+
+
+@dataclass
+class TestMirrorRule(ProjectRule):
+    """Check that every source module has a corresponding test file.
+
+    For each ``src/<pkg>/foo.py``, looks for ``tests/**/test_foo.py``
+    anywhere in the test tree (supports flat and nested layouts).
+
+    Scoring: 100 - (missing_count * 15), min 0.
+    """
+
+    @property
+    def rule_id(self) -> str:
+        """Unique identifier for this rule."""
+        return "PRACTICE_TEST_MIRROR"
+
+    def check(self, project_path: Path) -> CheckResult:
+        """Check test file coverage for source modules."""
+        src_path = project_path / "src"
+        if not src_path.exists():
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=True,
+                message="src/ directory not found",
+                severity=Severity.INFO,
+            )
+
+        tests_path = project_path / "tests"
+        missing = self._find_untested_modules(src_path, tests_path)
+
+        if not missing:
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=True,
+                message="All source modules have test files",
+                severity=Severity.INFO,
+            )
+
+        score = max(0, 100 - len(missing) * 15)
+        passed = score >= 90  # noqa: PLR2004
+
+        hint_files = ", ".join(f"tests/test_{m}" for m in missing[:5])
+        if len(missing) > 5:  # noqa: PLR2004
+            hint_files += f" (+{len(missing) - 5} more)"
+
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=passed,
+            message=f"{len(missing)} source module(s) without tests",
+            severity=Severity.WARNING if not passed else Severity.INFO,
+            details={"missing": missing, "score": score},
+            fix_hint=f"Create test files: {hint_files}",
+        )
+
+    @staticmethod
+    def _collect_source_modules(src_path: Path) -> list[str]:
+        """Collect non-exempt Python module basenames from ``src/``."""
+        pkg_dirs = [
+            d for d in src_path.iterdir() if d.is_dir() and d.name != "__pycache__"
+        ]
+        modules: list[str] = []
+        for pkg_dir in pkg_dirs:
+            for py_file in pkg_dir.rglob("*.py"):
+                if py_file.name not in _TEST_MIRROR_EXEMPT:
+                    modules.append(py_file.name)
+        return modules
+
+    @staticmethod
+    def _collect_test_basenames(tests_path: Path) -> set[str]:
+        """Collect all ``test_*.py`` basenames from the test tree."""
+        if not tests_path.exists():
+            return set()
+        return {f.name for f in tests_path.rglob("test_*.py")}
+
+    @classmethod
+    def _find_untested_modules(
+        cls,
+        src_path: Path,
+        tests_path: Path,
+    ) -> list[str]:
+        """Find source modules without corresponding test files.
+
+        Args:
+            src_path: The ``src/`` directory.
+            tests_path: The ``tests/`` directory.
+
+        Returns:
+            List of module basenames (e.g. ``["foo.py", "bar.py"]``)
+            that have no matching ``test_*.py`` file.
+        """
+        source_modules = cls._collect_source_modules(src_path)
+        if not source_modules:
+            return []
+
+        test_basenames = cls._collect_test_basenames(tests_path)
+
+        return [
+            name
+            for name in sorted(set(source_modules))
+            if f"test_{name}" not in test_basenames
+        ]

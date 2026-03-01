@@ -27,6 +27,7 @@ from axm_audit.core.rules import (
     SecurityPatternRule,
     SecurityRule,
     TestCoverageRule,
+    TestMirrorRule,
     ToolAvailabilityRule,
     TypeCheckRule,
 )
@@ -69,6 +70,7 @@ RULES_BY_CATEGORY: dict[str, list[type[ProjectRule]]] = {
         SecurityPatternRule,
         BlockingIORule,
         LoggingPresenceRule,
+        TestMirrorRule,
     ],
     "security": [SecurityRule],
     "dependencies": [DependencyAuditRule, DependencyHygieneRule],
@@ -142,6 +144,7 @@ def get_rules_for_category(
         SecurityPatternRule(),
         BlockingIORule(),
         LoggingPresenceRule(),
+        TestMirrorRule(),
         *_get_tooling_rules(),
     ]
 

@@ -108,6 +108,7 @@ class AuditResult(BaseModel):
             "PRACTICE_SECURITY": "practices",
             "PRACTICE_BLOCKING_IO": "practices",
             "PRACTICE_LOGGING": "practices",
+            "PRACTICE_TEST_MIRROR": "practices",
         }
 
         # Collect scores by category
