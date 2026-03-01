@@ -162,3 +162,15 @@ class ProjectRule(ABC):
             severity=Severity.INFO,
             details={"score": 100},
         )
+
+    @classmethod
+    def get_instances(cls) -> list[ProjectRule]:
+        """Instantiate this rule.
+
+        Override in subclasses that require constructor parameters
+        (e.g. ``ToolAvailabilityRule``).
+
+        Returns:
+            List of rule instances — ``[cls()]`` by default.
+        """
+        return [cls()]

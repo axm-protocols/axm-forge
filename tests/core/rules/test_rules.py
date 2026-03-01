@@ -161,7 +161,6 @@ class TestRuleRegistryDeduplication:
         """AC: all-rules derived from get_registry()."""
         import axm_audit.core.rules  # noqa: F401
         from axm_audit import get_rules_for_category
-        from axm_audit.core.auditor import _get_tooling_rules
         from axm_audit.core.rules.base import get_registry
 
         all_rules = get_rules_for_category(None)
@@ -170,11 +169,9 @@ class TestRuleRegistryDeduplication:
         # Build expected set from registry
         registry = get_registry()
         expected_types: set[type] = set()
-        for cat, rule_classes in registry.items():
-            if cat == "tooling":
-                expected_types.update(type(r) for r in _get_tooling_rules())
-            else:
-                expected_types.update(rule_classes)
+        for _cat, rule_classes in registry.items():
+            for cls in rule_classes:
+                expected_types.update(type(r) for r in cls.get_instances())
 
         assert all_rule_types == expected_types, (
             f"Mismatch: extra={all_rule_types - expected_types}, "
@@ -185,17 +182,14 @@ class TestRuleRegistryDeduplication:
         """AC: all-rules path has no manual enumeration — count matches registry."""
         import axm_audit.core.rules  # noqa: F401
         from axm_audit import get_rules_for_category
-        from axm_audit.core.auditor import _get_tooling_rules
         from axm_audit.core.rules.base import get_registry
 
         all_rules = get_rules_for_category(None)
 
-        # Expected count: sum of all registry rule classes,
-        # with tooling expanded to 3 instances
+        # Expected count: sum of get_instances() for every registered class
         registry = get_registry()
         expected_count = sum(
-            len(_get_tooling_rules()) if cat == "tooling" else len(classes)
-            for cat, classes in registry.items()
+            len(cls.get_instances()) for classes in registry.values() for cls in classes
         )
         assert len(all_rules) == expected_count
 
@@ -224,3 +218,44 @@ class TestRuleRegistryDeduplication:
         assert len(rules) == expected_count, (
             f"Category '{category}': expected {expected_count}, got {len(rules)}"
         )
+
+
+class TestGetInstances:
+    """Tests for get_instances() classmethod (AXM-202)."""
+
+    def test_get_instances_default(self) -> None:
+        """Default get_instances() returns [cls()]."""
+        from axm_audit.core.rules.quality import LintingRule
+
+        instances = LintingRule.get_instances()
+        assert len(instances) == 1
+        assert isinstance(instances[0], LintingRule)
+
+    def test_get_instances_tooling(self) -> None:
+        """ToolAvailabilityRule.get_instances() returns 3 tool instances."""
+        from axm_audit.core.rules.tooling import ToolAvailabilityRule
+
+        instances = ToolAvailabilityRule.get_instances()
+        assert len(instances) == 3
+        tool_names = {
+            r.tool_name  # type: ignore[attr-defined]
+            for r in instances
+        }
+        assert tool_names == {"ruff", "mypy", "uv"}
+
+    def test_duplication_rule_category_from_registry(self) -> None:
+        """DuplicationRule category comes from @register_rule, not override."""
+        from axm_audit.core.rules.duplication import DuplicationRule
+
+        rule = DuplicationRule()
+        assert rule.category == "architecture"
+
+    def test_build_all_rules_includes_tooling(self) -> None:
+        """_build_all_rules() includes TOOL_RUFF, TOOL_MYPY, TOOL_UV."""
+        from axm_audit.core.auditor import _build_all_rules
+
+        rules = _build_all_rules()
+        rule_ids = {r.rule_id for r in rules}
+        assert "TOOL_RUFF" in rule_ids
+        assert "TOOL_MYPY" in rule_ids
+        assert "TOOL_UV" in rule_ids

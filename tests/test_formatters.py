@@ -96,6 +96,52 @@ class TestFormatReport:
         report = format_report(result)
         assert "unknown" in report
 
+    def test_format_categories_uses_check_category(self) -> None:
+        """Categories should group by check.category, not rule_id prefix."""
+        from axm_audit.formatters import format_report
+        from axm_audit.models.results import AuditResult, CheckResult
+
+        result = AuditResult(
+            checks=[
+                CheckResult(
+                    rule_id="QUALITY_LINT",
+                    passed=True,
+                    message="OK",
+                    details={"score": 100},
+                    category="lint",
+                ),
+                CheckResult(
+                    rule_id="QUALITY_TYPE",
+                    passed=True,
+                    message="OK",
+                    details={"score": 100},
+                    category="type",
+                ),
+            ]
+        )
+        report = format_report(result)
+        # Report should contain the category names from check.category
+        assert "lint" in report
+        assert "type" in report
+
+    def test_format_categories_none_category_grouped_as_other(self) -> None:
+        """Check with category=None should be grouped under 'other'."""
+        from axm_audit.formatters import format_report
+        from axm_audit.models.results import AuditResult, CheckResult
+
+        result = AuditResult(
+            checks=[
+                CheckResult(
+                    rule_id="CUSTOM_CHECK",
+                    passed=True,
+                    message="OK",
+                    category=None,
+                ),
+            ]
+        )
+        report = format_report(result)
+        assert "other" in report
+
 
 class TestFormatJson:
     """Tests for format_json function."""

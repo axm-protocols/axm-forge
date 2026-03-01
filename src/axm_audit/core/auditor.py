@@ -16,7 +16,6 @@ from pathlib import Path
 
 from axm_audit.core.rules._helpers import ASTCache, set_ast_cache
 from axm_audit.core.rules.base import ProjectRule, get_registry
-from axm_audit.core.rules.tooling import ToolAvailabilityRule
 from axm_audit.models.results import AuditResult, CheckResult, Severity
 
 logger = logging.getLogger(__name__)
@@ -36,19 +35,6 @@ VALID_CATEGORIES = {
 }
 
 
-_REQUIRED_TOOLS: list[str] = ["ruff", "mypy", "uv"]
-"""Tools that must be available on PATH for a compliant project."""
-
-
-def _get_tooling_rules() -> list[ProjectRule]:
-    """Get tooling availability rules with required parameters.
-
-    Returns:
-        List of instantiated tooling rules.
-    """
-    return [ToolAvailabilityRule(tool_name=t) for t in _REQUIRED_TOOLS]
-
-
 def _ensure_registry_loaded() -> None:
     """Import all rule modules so ``@register_rule`` decorators fire."""
     import axm_audit.core.rules  # noqa: F401
@@ -60,11 +46,9 @@ def _build_all_rules() -> list[ProjectRule]:
     registry = get_registry()
 
     rules: list[ProjectRule] = []
-    for cat, rule_classes in registry.items():
-        if cat == "tooling":
-            rules.extend(_get_tooling_rules())
-        else:
-            rules.extend(cls() for cls in rule_classes)
+    for _cat, rule_classes in registry.items():
+        for cls in rule_classes:
+            rules.extend(cls.get_instances())
     return rules
 
 
@@ -100,12 +84,12 @@ def get_rules_for_category(
     if not category:
         return _build_all_rules()
 
-    if category == "tooling":
-        return _get_tooling_rules()
-
     registry = get_registry()
     rule_classes = registry.get(category, [])
-    return [cls() for cls in rule_classes]
+    rules: list[ProjectRule] = []
+    for cls in rule_classes:
+        rules.extend(cls.get_instances())
+    return rules
 
 
 def _safe_check(rule: ProjectRule, project_path: Path) -> CheckResult:

@@ -112,7 +112,7 @@ def _format_categories(result: AuditResult) -> list[str]:
     """Format category breakdown section."""
     groups: dict[str, list[CheckResult]] = {}
     for check in result.checks:
-        cat = _category_for(check.rule_id)
+        cat = check.category or "other"
         groups.setdefault(cat, []).append(check)
 
     lines: list[str] = []
@@ -272,19 +272,3 @@ def _has_actionable_detail(check: CheckResult) -> bool:
         if items and len(items) > 0:
             return True
     return False
-
-
-def _category_for(rule_id: str) -> str:
-    """Map a rule_id to its display category."""
-    prefixes = {
-        "QUALITY_": "quality",
-        "DEPS_": "dependencies",
-        "PRACTICE_": "practices",
-        "ARCH_": "architecture",
-        "TOOL_": "tooling",
-        "STRUCTURE_": "structure",
-    }
-    for prefix, category in prefixes.items():
-        if rule_id.startswith(prefix):
-            return category
-    return "other"
