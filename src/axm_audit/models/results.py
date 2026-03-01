@@ -91,6 +91,8 @@ class AuditResult(BaseModel):
         # Map rule_id prefixes to categories
         rule_to_category: dict[str, str] = {
             "QUALITY_LINT": "lint",
+            "QUALITY_FORMAT": "lint",
+            "QUALITY_DIFF_SIZE": "lint",
             "QUALITY_TYPE": "type",
             "QUALITY_COMPLEXITY": "complexity",
             "QUALITY_SECURITY": "security",
@@ -100,9 +102,12 @@ class AuditResult(BaseModel):
             "ARCH_COUPLING": "architecture",
             "ARCH_CIRCULAR": "architecture",
             "ARCH_GOD_CLASS": "architecture",
+            "ARCH_DUPLICATION": "architecture",
             "PRACTICE_DOCSTRING": "practices",
             "PRACTICE_BARE_EXCEPT": "practices",
             "PRACTICE_SECURITY": "practices",
+            "PRACTICE_BLOCKING_IO": "practices",
+            "PRACTICE_LOGGING": "practices",
         }
 
         # Collect scores by category
