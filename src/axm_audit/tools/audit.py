@@ -49,5 +49,5 @@ class AuditTool(AXMTool):
 
             result = audit_project(project_path, category=category)
             return ToolResult(success=True, data=format_agent(result))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))
