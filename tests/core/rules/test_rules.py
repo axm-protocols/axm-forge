@@ -150,3 +150,67 @@ class TestRulesRegistration:
         assert not result.passed
         assert "crashed" in result.message.lower()
         assert result.fix_hint is not None
+
+
+class TestRuleRegistryDeduplication:
+    """Tests for RULES_BY_CATEGORY-derived rule registry (AXM-178)."""
+
+    def test_all_rules_derived_from_categories(self) -> None:
+        """AC: all-rules derived from RULES_BY_CATEGORY."""
+        from axm_audit import get_rules_for_category
+        from axm_audit.core.auditor import RULES_BY_CATEGORY, _get_tooling_rules
+
+        all_rules = get_rules_for_category(None)
+        all_rule_types = {type(r) for r in all_rules}
+
+        # Build expected set from RULES_BY_CATEGORY
+        expected_types: set[type] = set()
+        for cat, rule_classes in RULES_BY_CATEGORY.items():
+            if cat == "tooling":
+                expected_types.update(type(r) for r in _get_tooling_rules())
+            else:
+                expected_types.update(rule_classes)
+
+        assert all_rule_types == expected_types, (
+            f"Mismatch: extra={all_rule_types - expected_types}, "
+            f"missing={expected_types - all_rule_types}"
+        )
+
+    def test_no_manual_rule_enumeration(self) -> None:
+        """AC: all-rules path has no manual enumeration — count matches categories."""
+        from axm_audit import get_rules_for_category
+        from axm_audit.core.auditor import RULES_BY_CATEGORY, _get_tooling_rules
+
+        all_rules = get_rules_for_category(None)
+
+        # Expected count: sum of all category rule classes,
+        # with tooling expanded to 3 instances
+        expected_count = sum(
+            len(_get_tooling_rules()) if cat == "tooling" else len(classes)
+            for cat, classes in RULES_BY_CATEGORY.items()
+        )
+        assert len(all_rules) == expected_count
+
+    @pytest.mark.parametrize(
+        "category,expected_count",
+        [
+            ("structure", 1),
+            ("quality", 6),
+            ("architecture", 4),
+            ("practice", 6),
+            ("security", 1),
+            ("dependencies", 2),
+            ("testing", 1),
+            ("tooling", 3),
+        ],
+    )
+    def test_category_filter_unchanged(
+        self, category: str, expected_count: int
+    ) -> None:
+        """Regression: each category returns the exact rule count."""
+        from axm_audit import get_rules_for_category
+
+        rules = get_rules_for_category(category)
+        assert len(rules) == expected_count, (
+            f"Category '{category}': expected {expected_count}, got {len(rules)}"
+        )
