@@ -89,3 +89,30 @@ class TestGitHubAdapter:
             result = adapter.enable_pages("myorg/myrepo")
 
             assert result is True
+
+    def test_check_auth_no_gh(self) -> None:
+        """check_auth returns False when gh is not installed."""
+        from axm_init.adapters.github import GitHubAdapter
+
+        adapter = GitHubAdapter()
+
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert adapter.check_auth() is False
+
+    def test_set_secret_no_gh(self) -> None:
+        """set_secret returns False when gh is not installed."""
+        from axm_init.adapters.github import GitHubAdapter
+
+        adapter = GitHubAdapter()
+
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert adapter.set_secret("myorg/myrepo", "PYPI_API_TOKEN", "xxx") is False
+
+    def test_enable_pages_no_gh(self) -> None:
+        """enable_pages returns False when gh is not installed."""
+        from axm_init.adapters.github import GitHubAdapter
+
+        adapter = GitHubAdapter()
+
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert adapter.enable_pages("myorg/myrepo") is False

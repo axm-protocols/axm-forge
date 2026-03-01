@@ -47,12 +47,15 @@ class GitHubAdapter:
         Returns:
             True if authenticated.
         """
-        result = subprocess.run(
-            ["gh", "auth", "status"],
-            capture_output=True,
-            text=True,
-        )
-        return result.returncode == 0
+        try:
+            result = subprocess.run(
+                ["gh", "auth", "status"],
+                capture_output=True,
+                text=True,
+            )
+            return result.returncode == 0
+        except FileNotFoundError:
+            return False
 
     def create_repo(
         self,
@@ -106,13 +109,16 @@ class GitHubAdapter:
         Returns:
             True if successful.
         """
-        result = subprocess.run(
-            ["gh", "secret", "set", name, "--repo", repo],
-            input=value,
-            text=True,
-            capture_output=True,
-        )
-        return result.returncode == 0
+        try:
+            result = subprocess.run(
+                ["gh", "secret", "set", name, "--repo", repo],
+                input=value,
+                text=True,
+                capture_output=True,
+            )
+            return result.returncode == 0
+        except FileNotFoundError:
+            return False
 
     def enable_pages(self, repo: str) -> bool:
         """Enable GitHub Pages for a repository.
@@ -123,17 +129,20 @@ class GitHubAdapter:
         Returns:
             True if successful.
         """
-        result = subprocess.run(
-            [
-                "gh",
-                "api",
-                f"repos/{repo}/pages",
-                "--method",
-                "POST",
-                "--field",
-                "build_type=workflow",
-            ],
-            capture_output=True,
-            text=True,
-        )
-        return result.returncode == 0
+        try:
+            result = subprocess.run(
+                [
+                    "gh",
+                    "api",
+                    f"repos/{repo}/pages",
+                    "--method",
+                    "POST",
+                    "--field",
+                    "build_type=workflow",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            return result.returncode == 0
+        except FileNotFoundError:
+            return False
