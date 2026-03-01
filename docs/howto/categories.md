@@ -6,12 +6,12 @@ Focus your audit on specific areas instead of running all checks.
 
 | Category | Rules | Focus |
 |---|---|---|
-| `quality` | `LintingRule`, `FormattingRule`, `TypeCheckRule`, `ComplexityRule` | Code quality (Ruff, mypy, radon) |
+| `quality` | `LintingRule`, `FormattingRule`, `TypeCheckRule`, `ComplexityRule`, `DiffSizeRule` | Code quality (Ruff, mypy, radon, git) |
 | `security` | `SecurityRule` | Vulnerability detection (Bandit) |
 | `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | Supply chain (pip-audit, deptry) |
 | `testing` | `TestCoverageRule` | Coverage enforcement (pytest-cov) |
-| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule` | Structural analysis (AST) |
-| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule` | Best practices |
+| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | Structural analysis (AST) |
+| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule`, `BlockingIORule`, `LoggingPresenceRule` | Best practices |
 | `structure` | `PyprojectCompletenessRule` | pyproject.toml completeness |
 | `tooling` | `ToolAvailabilityRule` | CLI tool availability |
 
@@ -45,7 +45,7 @@ result = audit_project(Path("."), quick=True)
 ```python
 from axm_audit import get_rules_for_category
 
-# All rules (18 instances)
+# All rules (22 instances)
 rules = get_rules_for_category(None)
 
 # Single category
