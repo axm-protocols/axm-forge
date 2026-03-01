@@ -193,5 +193,4 @@ class GitCommitTool(AXMTool):
                 "total": len(results),
                 "succeeded": len(results),
             },
-            hint="Tip: Use git_push or verify() before pushing.",
         )
