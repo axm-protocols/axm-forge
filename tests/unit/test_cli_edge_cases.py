@@ -59,8 +59,16 @@ class TestVersionCommand:
 class TestScaffoldCommand:
     """Tests for the scaffold command — edge cases."""
 
-    def test_scaffold_no_name_defaults_to_dirname(self, tmp_path: Path) -> None:
+    @patch("axm_init.cli.CopierAdapter")
+    def test_scaffold_no_name_defaults_to_dirname(
+        self, mock_copier_cls: MagicMock, tmp_path: Path
+    ) -> None:
         """When --name is omitted, project name defaults to directory name."""
+        mock_adapter = mock_copier_cls.return_value
+        mock_adapter.copy.return_value = type(
+            "R", (), {"success": True, "files_created": [], "message": "ok"}
+        )()
+
         target = tmp_path / "my-awesome-project"
         target.mkdir()
         stdout, _, code = _run(["scaffold", str(target), *SCAFFOLD_ARGS])

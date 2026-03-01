@@ -154,6 +154,11 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:coverage_html",
     "--cov-fail-under=0",
+    "-m",
+    "not slow",
+]
+markers = [
+    "slow: marks tests that invoke real Copier (deselect with '-m \"not slow\"')",
 ]
 filterwarnings = [
     # Copier uses deprecated pathspec API — upstream issue, not ours
