@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -205,3 +206,63 @@ class TestCopierAdapter:
         assert result.success is True
         # The copier output must NOT have leaked to the real stdout
         assert "Initialized project" not in captured_stdout
+
+    def test_copy_fd_cleanup_on_dup_failure(self, tmp_path: Path) -> None:
+        """No fd leak when os.dup fails partway through acquisition.
+
+        Simulates fd limit exhaustion: os.dup(1) succeeds but os.dup(2)
+        raises OSError.  The previously acquired fd must still be closed.
+        """
+        config = CopierConfig(
+            template_path=Path("/templates/python"),
+            destination=tmp_path / "fd-leak-test",
+            data={"package_name": "test"},
+        )
+        adapter = CopierAdapter()
+
+        original_dup = os.dup
+        call_count = 0
+
+        def _dup_that_fails_second(fd: int) -> int:
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                raise OSError("fd limit reached")
+            return original_dup(fd)
+
+        with (
+            patch(
+                "axm_init.adapters.copier.os.dup",
+                side_effect=_dup_that_fails_second,
+            ),
+            patch("axm_init.adapters.copier.os.open", return_value=99),
+            patch("axm_init.adapters.copier.os.dup2"),
+            patch("axm_init.adapters.copier.os.close") as mock_close,
+        ):
+            result = adapter.copy(config)
+
+        assert result.success is False
+        assert "fd limit" in result.message.lower()
+        # devnull (99) and the first dup'd fd must have been closed
+        closed_fds = [c.args[0] for c in mock_close.call_args_list]
+        assert 99 in closed_fds  # devnull was cleaned up
+
+    def test_copy_fd_cleanup_on_copier_failure(self, tmp_path: Path) -> None:
+        """stdout/stderr are restored after run_copy raises."""
+        import sys
+
+        config = CopierConfig(
+            template_path=Path("/templates/python"),
+            destination=tmp_path / "restore-test",
+            data={"package_name": "test"},
+        )
+        adapter = CopierAdapter()
+        original_stdout = sys.stdout
+
+        with patch("axm_init.adapters.copier.run_copy") as mock_run:
+            mock_run.side_effect = RuntimeError("Template error")
+            result = adapter.copy(config)
+
+        assert result.success is False
+        # stdio must be fully restored after the error
+        assert sys.stdout is original_stdout

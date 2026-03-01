@@ -44,19 +44,43 @@ class CopierAdapter:
         uv sync, pre-commit install) don't pollute the parent process
         stdio — critical when running inside an MCP server.
 
+        File descriptors are individually guarded so that a failure at
+        any point (e.g. fd limit reached) cannot leak previously
+        acquired descriptors.
+
         Args:
             config: Copier configuration with template path, destination, and data.
 
         Returns:
             ScaffoldResult with success status and path.
         """
+        old_stdout, old_stderr = sys.stdout, sys.stderr
+        devnull = -1
+        old_fd_out = -1
+        old_fd_err = -1
+
+        def _cleanup_fds() -> None:
+            """Close any fds that were successfully acquired (idempotent)."""
+            nonlocal devnull, old_fd_out, old_fd_err
+            if old_fd_out != -1:
+                os.dup2(old_fd_out, 1)
+                os.close(old_fd_out)
+                old_fd_out = -1
+            if old_fd_err != -1:
+                os.dup2(old_fd_err, 2)
+                os.close(old_fd_err)
+                old_fd_err = -1
+            if devnull != -1:
+                os.close(devnull)
+                devnull = -1
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+
         try:
             # Redirect stdout/stderr to prevent subprocess output from
             # corrupting MCP JSON-RPC stdio transport.
-            old_stdout, old_stderr = sys.stdout, sys.stderr
             sys.stdout = StringIO()
             sys.stderr = StringIO()
-            # Also suppress subprocess output via devnull fd
             devnull = os.open(os.devnull, os.O_WRONLY)
             old_fd_out = os.dup(1)
             old_fd_err = os.dup(2)
@@ -77,15 +101,8 @@ class CopierAdapter:
                     unsafe=config.trust_template,
                 )
             finally:
-                # Restore original stdout/stderr
-                os.dup2(old_fd_out, 1)
-                os.dup2(old_fd_err, 2)
-                os.close(old_fd_out)
-                os.close(old_fd_err)
-                os.close(devnull)
-                sys.stdout = old_stdout
-                sys.stderr = old_stderr
-            # Walk destination to collect all created files (AC1: return file list)
+                _cleanup_fds()
+            # Walk destination to collect all created files
             created: list[str] = sorted(
                 str(p.relative_to(config.destination))
                 for p in config.destination.rglob("*")
@@ -98,6 +115,7 @@ class CopierAdapter:
                 files_created=created,
             )
         except Exception as e:
+            _cleanup_fds()
             return ScaffoldResult(
                 success=False,
                 path=str(config.destination),
