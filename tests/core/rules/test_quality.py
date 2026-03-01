@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from axm_audit.models.results import CheckResult
@@ -252,8 +252,32 @@ class TestTypeCheckRule:
 class TestAuditResultScoring:
     """Tests for AuditResult quality_score and grade (8-category model)."""
 
+    # Rule-id → scoring category mapping
+    _RULE_CATEGORY: ClassVar[dict[str, str]] = {
+        "QUALITY_LINT": "lint",
+        "QUALITY_FORMAT": "lint",
+        "QUALITY_DIFF_SIZE": "lint",
+        "QUALITY_DEAD_CODE": "lint",
+        "QUALITY_TYPE": "type",
+        "QUALITY_COMPLEXITY": "complexity",
+        "QUALITY_SECURITY": "security",
+        "DEPS_AUDIT": "deps",
+        "DEPS_HYGIENE": "deps",
+        "QUALITY_COVERAGE": "testing",
+        "ARCH_COUPLING": "architecture",
+        "ARCH_CIRCULAR": "architecture",
+        "ARCH_GOD_CLASS": "architecture",
+        "ARCH_DUPLICATION": "architecture",
+        "PRACTICE_DOCSTRING": "practices",
+        "PRACTICE_BARE_EXCEPT": "practices",
+        "PRACTICE_SECURITY": "practices",
+        "PRACTICE_BLOCKING_IO": "practices",
+        "PRACTICE_LOGGING": "practices",
+        "PRACTICE_TEST_MIRROR": "practices",
+    }
+
     def _make_check(self, rule_id: str, score: float) -> CheckResult:
-        """Helper to create a CheckResult with a score."""
+        """Helper to create a CheckResult with a score and category."""
         from axm_audit.models.results import CheckResult
 
         return CheckResult(
@@ -261,6 +285,7 @@ class TestAuditResultScoring:
             passed=True,
             message="",
             details={"score": score},
+            category=self._RULE_CATEGORY.get(rule_id),
         )
 
     def test_quality_score_weighted_average(self) -> None:

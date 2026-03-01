@@ -22,12 +22,12 @@ class TestSecurityRule:
         assert rule.rule_id == "QUALITY_SECURITY"
 
     def test_no_src_directory(self, tmp_path: Path) -> None:
-        """Should return error if src/ doesn't exist."""
+        """Should return passing result if src/ doesn't exist."""
         rule = SecurityRule()
         result = rule.check(tmp_path)
 
-        assert not result.passed
-        assert result.severity == Severity.ERROR
+        assert result.passed
+        assert result.severity == Severity.INFO
         assert "src/ directory not found" in result.message
 
     def test_no_issues_perfect_score(

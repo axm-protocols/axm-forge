@@ -98,13 +98,13 @@ class TestFormattingRule:
         assert result.fix_hint is None
 
     def test_no_src_directory(self, tmp_path: Path) -> None:
-        """Missing src/ directory returns failure."""
+        """Missing src/ directory returns passing result."""
         from axm_audit.core.rules.quality import FormattingRule
 
         rule = FormattingRule()
         result = rule.check(tmp_path)
 
-        assert result.passed is False
+        assert result.passed is True
         assert "src/ directory not found" in result.message
 
     def test_includes_tests_directory(self, tmp_path: Path) -> None:

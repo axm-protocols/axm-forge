@@ -40,16 +40,18 @@ class ComplexityRule(ProjectRule):
         """Unique identifier for this rule."""
         return "QUALITY_COMPLEXITY"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "complexity"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check project complexity with radon."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=False,
-                message="src/ directory not found",
-                severity=Severity.ERROR,
-            )
 
         # Try Python API first, fall back to subprocess
         cc_visit = _try_import_radon()

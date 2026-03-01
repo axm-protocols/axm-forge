@@ -18,6 +18,7 @@ class TestFormatReport:
                     passed=True,
                     message="Lint score: 100/100 (0 issues)",
                     details={"score": 100},
+                    category="lint",
                 ),
             ]
         )

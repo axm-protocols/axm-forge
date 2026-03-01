@@ -12,13 +12,39 @@ from axm_audit.models.results import AuditResult, CheckResult
 # ---------------------------------------------------------------------------
 
 
+# Rule-id → scoring category mapping
+_RULE_CATEGORY: dict[str, str] = {
+    "QUALITY_LINT": "lint",
+    "QUALITY_FORMAT": "lint",
+    "QUALITY_DIFF_SIZE": "lint",
+    "QUALITY_DEAD_CODE": "lint",
+    "QUALITY_TYPE": "type",
+    "QUALITY_COMPLEXITY": "complexity",
+    "QUALITY_SECURITY": "security",
+    "DEPS_AUDIT": "deps",
+    "DEPS_HYGIENE": "deps",
+    "QUALITY_COVERAGE": "testing",
+    "ARCH_COUPLING": "architecture",
+    "ARCH_CIRCULAR": "architecture",
+    "ARCH_GOD_CLASS": "architecture",
+    "ARCH_DUPLICATION": "architecture",
+    "PRACTICE_DOCSTRING": "practices",
+    "PRACTICE_BARE_EXCEPT": "practices",
+    "PRACTICE_SECURITY": "practices",
+    "PRACTICE_BLOCKING_IO": "practices",
+    "PRACTICE_LOGGING": "practices",
+    "PRACTICE_TEST_MIRROR": "practices",
+}
+
+
 def _make_check(rule_id: str, score: float) -> CheckResult:
-    """Helper to create a CheckResult with a score."""
+    """Helper to create a CheckResult with a score and category."""
     return CheckResult(
         rule_id=rule_id,
         passed=True,
         message="",
         details={"score": score},
+        category=_RULE_CATEGORY.get(rule_id),
     )
 
 

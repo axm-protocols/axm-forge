@@ -144,9 +144,12 @@ def _safe_check(rule: ProjectRule, project_path: Path) -> CheckResult:
     """Run a single rule with exception handling.
 
     If the rule raises, returns a failed CheckResult rather than crashing.
+    Injects ``rule.category`` into the returned CheckResult.
     """
     try:
-        return rule.check(project_path)
+        result = rule.check(project_path)
+        result.category = rule.category
+        return result
     except Exception as exc:  # noqa: BLE001
         logger.warning("Rule %s raised: %s", rule.rule_id, exc, exc_info=True)
         return CheckResult(
@@ -155,6 +158,7 @@ def _safe_check(rule: ProjectRule, project_path: Path) -> CheckResult:
             message=f"Rule crashed: {exc}",
             severity=Severity.ERROR,
             fix_hint="Check rule configuration and dependencies",
+            category=rule.category,
         )
 
 

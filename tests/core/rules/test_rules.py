@@ -142,6 +142,10 @@ class TestRulesRegistration:
             def rule_id(self) -> str:
                 return "TEST_CRASH"
 
+            @property
+            def category(self) -> str:
+                return "testing"
+
             def check(self, project_path: Path) -> CheckResult:
                 msg = "intentional crash"
                 raise RuntimeError(msg)

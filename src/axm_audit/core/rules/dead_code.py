@@ -29,6 +29,11 @@ class DeadCodeRule(ProjectRule):
         """Unique identifier for this rule."""
         return "QUALITY_DEAD_CODE"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "lint"
+
     def _skip(self, reason: str) -> CheckResult:
         """Return graceful skip result."""
         return CheckResult(

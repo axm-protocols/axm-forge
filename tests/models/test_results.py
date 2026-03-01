@@ -96,12 +96,14 @@ class TestCheckResult:
                 passed=True,
                 message="Pass",
                 details={"score": 90.0},
+                category="lint",
             ),
             CheckResult(
                 rule_id="QUALITY_TYPE",
                 passed=False,
                 message="Fail",
                 details={"score": 50.0},
+                category="type",
             ),
         ]
         result = AuditResult(checks=checks)
@@ -119,6 +121,7 @@ class TestCheckResult:
                 passed=True,
                 message="Pass",
                 details={"score": 95.0},
+                category="lint",
             )
         ]
         result = AuditResult(checks=checks)

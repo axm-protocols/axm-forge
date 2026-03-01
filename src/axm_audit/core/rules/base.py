@@ -4,10 +4,12 @@ This module contains the abstract base class for all rules.
 It has no dependencies on concrete rule implementations to avoid circular imports.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from axm_audit.models.results import CheckResult
+from axm_audit.models.results import CheckResult, Severity
 
 # ── Shared scoring constants ──────────────────────────────────────────
 #
@@ -67,6 +69,16 @@ class ProjectRule(ABC):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
 
+    @property
+    @abstractmethod
+    def category(self) -> str:
+        """Scoring category for this rule.
+
+        Must be one of: ``lint``, ``type``, ``complexity``, ``security``,
+        ``deps``, ``testing``, ``architecture``, ``practices``,
+        ``structure``, ``tooling``.
+        """
+
     @abstractmethod
     def check(self, project_path: Path) -> CheckResult:
         """Execute the check against a project.
@@ -77,3 +89,27 @@ class ProjectRule(ABC):
         Returns:
             CheckResult with pass/fail status and message.
         """
+
+    def check_src(self, project_path: Path) -> CheckResult | None:
+        """Return an early ``CheckResult`` if ``src/`` does not exist.
+
+        Call this at the top of ``check()`` to eliminate boilerplate::
+
+            early = self.check_src(project_path)
+            if early is not None:
+                return early
+
+        Returns:
+            ``None`` if ``src/`` exists (rule should continue).
+            A passing ``CheckResult`` if ``src/`` is missing.
+        """
+        src_path = project_path / "src"
+        if src_path.exists():
+            return None
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=True,
+            message="src/ directory not found",
+            severity=Severity.INFO,
+            details={"score": 100},
+        )

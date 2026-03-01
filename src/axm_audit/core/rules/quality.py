@@ -28,18 +28,19 @@ class LintingRule(ProjectRule):
         """Unique identifier for this rule."""
         return "QUALITY_LINT"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "lint"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check project linting with ruff on src/ and tests/."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
         tests_path = project_path / "tests"
-
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=False,
-                message="src/ directory not found",
-                severity=Severity.ERROR,
-            )
 
         targets = [str(src_path)]
         if tests_path.exists():
@@ -101,18 +102,19 @@ class FormattingRule(ProjectRule):
         """Unique identifier for this rule."""
         return "QUALITY_FORMAT"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "lint"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check project formatting with ruff format --check."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
         tests_path = project_path / "tests"
-
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=False,
-                message="src/ directory not found",
-                severity=Severity.ERROR,
-            )
 
         targets = [str(src_path)]
         if tests_path.exists():
@@ -175,18 +177,19 @@ class TypeCheckRule(ProjectRule):
         """Unique identifier for this rule."""
         return "QUALITY_TYPE"
 
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "type"
+
     def check(self, project_path: Path) -> CheckResult:
         """Check project type hints with mypy on src/ and tests/."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
         src_path = project_path / "src"
         tests_path = project_path / "tests"
-
-        if not src_path.exists():
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=False,
-                message="src/ directory not found",
-                severity=Severity.ERROR,
-            )
 
         targets = [str(src_path)]
         if tests_path.exists():
@@ -282,6 +285,11 @@ class DiffSizeRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "QUALITY_DIFF_SIZE"
+
+    @property
+    def category(self) -> str:
+        """Scoring category for this rule."""
+        return "lint"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check uncommitted diff size."""
