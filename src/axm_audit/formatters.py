@@ -193,7 +193,7 @@ def format_report(result: AuditResult) -> str:
     """Format audit result as human-readable category-grouped report."""
     lines: list[str] = [
         "📋 axm-audit — Quality Audit",
-        f"   Path: {result.checks[0].rule_id if result.checks else '?'}",
+        f"   Path: {result.project_path or 'unknown'}",
         "",
     ]
     lines.extend(_format_categories(result))
