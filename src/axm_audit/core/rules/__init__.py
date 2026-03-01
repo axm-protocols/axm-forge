@@ -5,7 +5,7 @@ from axm_audit.core.rules.architecture import (
     CouplingMetricRule,
     GodClassRule,
 )
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules.base import ProjectRule, get_registry, register_rule
 from axm_audit.core.rules.complexity import ComplexityRule
 from axm_audit.core.rules.coverage import TestCoverageRule
 from axm_audit.core.rules.dead_code import DeadCodeRule
@@ -56,4 +56,6 @@ __all__ = [
     "TestMirrorRule",
     "ToolAvailabilityRule",
     "TypeCheckRule",
+    "get_registry",
+    "register_rule",
 ]

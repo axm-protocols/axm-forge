@@ -6,11 +6,12 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.models.results import CheckResult, Severity
 
 
 @dataclass
+@register_rule("tooling")
 class ToolAvailabilityRule(ProjectRule):
     """Check if a required CLI tool is available on PATH."""
 

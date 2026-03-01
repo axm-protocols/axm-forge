@@ -9,9 +9,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+from axm_audit.core.rules._helpers import get_ast_cache as _get_ast_cache
 from axm_audit.core.rules._helpers import get_python_files as _get_python_files
 from axm_audit.core.rules._helpers import parse_file_safe as _parse_file_safe
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.models.results import CheckResult, Severity
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ def _normalize_ast(node: ast.AST) -> str:
 
 
 @dataclass
+@register_rule("architecture")
 class DuplicationRule(ProjectRule):
     """Detect copy-pasted code via AST structure hashing.
 
@@ -107,7 +109,8 @@ class DuplicationRule(ProjectRule):
         seen: dict[str, list[tuple[str, str, int]]] = defaultdict(list)
 
         for path in _get_python_files(src_path):
-            tree = _parse_file_safe(path)
+            _cache = _get_ast_cache()
+            tree = _cache.get_or_parse(path) if _cache else _parse_file_safe(path)
             if tree is None:
                 continue
             rel = str(path.relative_to(src_path))

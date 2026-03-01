@@ -9,7 +9,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule
+from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
@@ -17,6 +17,7 @@ __all__ = ["DiffSizeRule", "FormattingRule", "LintingRule", "TypeCheckRule"]
 
 
 @dataclass
+@register_rule("quality")
 class LintingRule(ProjectRule):
     """Run ruff and score based on issue count.
 
@@ -91,6 +92,7 @@ class LintingRule(ProjectRule):
 
 
 @dataclass
+@register_rule("quality")
 class FormattingRule(ProjectRule):
     """Run ``ruff format --check`` and score based on unformatted file count.
 
@@ -166,6 +168,7 @@ class FormattingRule(ProjectRule):
 
 
 @dataclass
+@register_rule("quality")
 class TypeCheckRule(ProjectRule):
     """Run mypy and score based on error count.
 
@@ -272,6 +275,7 @@ _DIFF_MAX = 800
 
 
 @dataclass
+@register_rule("quality")
 class DiffSizeRule(ProjectRule):
     """Warn when uncommitted changes are too large.
 

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule
+from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
@@ -38,6 +38,7 @@ def _parse_vulns(data: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
 
 
 @dataclass
+@register_rule("dependencies")
 class DependencyAuditRule(ProjectRule):
     """Scan dependencies for known vulnerabilities via pip-audit.
 
@@ -128,6 +129,7 @@ def _format_issue(issue: dict[str, Any]) -> dict[str, str]:
 
 
 @dataclass
+@register_rule("dependencies")
 class DependencyHygieneRule(ProjectRule):
     """Check for unused/missing/transitive dependencies via deptry.
 
