@@ -42,6 +42,23 @@ def _git_config_get(key: str) -> str:
         return ""
 
 
+def _require_identity(author: str, email: str, json_output: bool) -> None:
+    """Fail early if author or email are empty after fallback."""
+    if author and email:
+        return
+    missing = []
+    if not author:
+        missing.append("--author")
+    if not email:
+        missing.append("--email")
+    msg = f"Missing {', '.join(missing)} (not set and git config unavailable)"
+    if json_output:
+        print(json.dumps({"error": msg}))  # noqa: T201
+    else:
+        print(f"❌ {msg}", file=sys.stderr)  # noqa: T201
+    raise SystemExit(1)
+
+
 def _check_pypi_availability(project_name: str, *, json_output: bool) -> None:
     """Check PyPI availability and exit(1) if name is taken."""
     from axm_init.adapters.pypi import AvailabilityStatus, PyPIAdapter
@@ -201,6 +218,8 @@ def reserve(
 
     author = author or _git_config_get("user.name")
     email = email or _git_config_get("user.email")
+    _require_identity(author, email, json_output)
+
     creds = CredentialManager()
 
     if not dry_run:

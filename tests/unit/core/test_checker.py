@@ -330,7 +330,7 @@ class TestCLILazyImports:
         # Remove from cache if present
         cached = {m: sys.modules.pop(m, None) for m in lazy_modules}
         # Also remove cli to force re-evaluation
-        sys.modules.pop("axm_init.cli", None)
+        original_cli = sys.modules.pop("axm_init.cli", None)
         try:
             import importlib
 
@@ -340,7 +340,10 @@ class TestCLILazyImports:
                     f"{mod} was eagerly imported by axm_init.cli"
                 )
         finally:
-            # Restore cache
+            # Restore cache — including CLI itself to avoid breaking
+            # @patch("axm_init.cli.X") in subsequent tests
+            if original_cli is not None:
+                sys.modules["axm_init.cli"] = original_cli
             for m, v in cached.items():
                 if v is not None:
                     sys.modules[m] = v

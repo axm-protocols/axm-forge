@@ -738,6 +738,35 @@ class TestReserveCommand:
         mock_creds.resolve_pypi_token.assert_not_called()
 
 
+class TestReserveValidation:
+    """Tests for author/email validation in CLI reserve command."""
+
+    @patch("axm_init.cli._git_config_get", return_value="")
+    def test_cli_reserve_no_author_exits(self, _mock_git: MagicMock) -> None:
+        """Missing --author with no git config → exit 1."""
+        _, stderr, code = _run("reserve", "test-pkg", "--dry-run")
+        assert code == 1
+        assert "--author" in stderr
+
+    @patch("axm_init.cli._git_config_get")
+    def test_cli_reserve_no_email_exits(self, mock_git: MagicMock) -> None:
+        """Author set but no email → exit 1 with email message."""
+        # Return author on first call, empty on second (email)
+        mock_git.side_effect = ["Real Author", ""]
+        _, stderr, code = _run("reserve", "test-pkg", "--dry-run")
+        assert code == 1
+        assert "--email" in stderr
+
+    @patch("axm_init.cli._git_config_get", return_value="")
+    def test_cli_reserve_no_author_json_exits(self, _mock_git: MagicMock) -> None:
+        """Missing author + --json → JSON error output."""
+        stdout, _, code = _run("reserve", "test-pkg", "--dry-run", "--json")
+        assert code == 1
+        data = json.loads(stdout)
+        assert "error" in data
+        assert "--author" in data["error"]
+
+
 # ── help display ─────────────────────────────────────────────────────────────
 
 

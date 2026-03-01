@@ -8,6 +8,23 @@ from axm.tools.base import ToolResult
 
 __all__ = ["InitReserveTool"]
 
+_PLACEHOLDERS = {"john doe", "john.doe@example.com"}
+
+
+def _validate_identity(author: str, email: str) -> ToolResult | None:
+    """Check author/email are non-empty and not placeholder values."""
+    if not author or author.lower() in _PLACEHOLDERS:
+        return ToolResult(
+            success=False,
+            error="'author' is required (placeholder values are not accepted)",
+        )
+    if not email or email.lower() in _PLACEHOLDERS:
+        return ToolResult(
+            success=False,
+            error="'email' is required (placeholder values are not accepted)",
+        )
+    return None
+
 
 class InitReserveTool:
     """Reserve a package name on PyPI.
@@ -36,9 +53,14 @@ class InitReserveTool:
         if "name" not in kwargs:
             return ToolResult(success=False, error="'name' is required")
         name: str = kwargs["name"]
-        author: str = kwargs.get("author", "John Doe")
-        email: str = kwargs.get("email", "john.doe@example.com")
+        author: str = kwargs.get("author", "")
+        email: str = kwargs.get("email", "")
         dry_run: bool = kwargs.get("dry_run", False)
+
+        error = _validate_identity(author, email)
+        if error:
+            return error
+
         try:
             from axm_init.adapters.credentials import CredentialManager
             from axm_init.core.reserver import reserve_pypi

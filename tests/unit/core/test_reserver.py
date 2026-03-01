@@ -124,6 +124,94 @@ class TestReserver:
             assert result.success is True
             assert "dry run" in result.message.lower()
 
+    @patch("axm_init.core.reserver.publish_package")
+    @patch("axm_init.core.reserver.build_package")
+    @patch("axm_init.core.reserver.PyPIAdapter")
+    def test_reserve_race_condition(
+        self,
+        mock_adapter_cls: MagicMock,
+        mock_build: MagicMock,
+        mock_publish: MagicMock,
+    ) -> None:
+        """Race condition: recheck returns TAKEN → success=False."""
+        adapter = mock_adapter_cls.return_value
+        # First check: AVAILABLE, recheck after "already exists": TAKEN
+        adapter.check_availability.side_effect = [
+            AvailabilityStatus.AVAILABLE,
+            AvailabilityStatus.TAKEN,
+        ]
+        mock_build.return_value = (True, "")
+        mock_publish.return_value = (False, "File already exists")
+
+        result = reserve_pypi(
+            name="race-pkg",
+            author="Test",
+            email="test@example.com",
+            token="pypi-test",
+        )
+
+        assert result.success is False
+        assert "taken by another user" in result.message.lower()
+
+    @patch("axm_init.core.reserver.publish_package")
+    @patch("axm_init.core.reserver.build_package")
+    @patch("axm_init.core.reserver.PyPIAdapter")
+    def test_reserve_idempotent_rerun(
+        self,
+        mock_adapter_cls: MagicMock,
+        mock_build: MagicMock,
+        mock_publish: MagicMock,
+    ) -> None:
+        """Idempotent re-run: recheck returns AVAILABLE → success=True."""
+        adapter = mock_adapter_cls.return_value
+        # First check: AVAILABLE, recheck after "already exists": AVAILABLE
+        adapter.check_availability.side_effect = [
+            AvailabilityStatus.AVAILABLE,
+            AvailabilityStatus.AVAILABLE,
+        ]
+        mock_build.return_value = (True, "")
+        mock_publish.return_value = (False, "File already exists")
+
+        result = reserve_pypi(
+            name="idem-pkg",
+            author="Test",
+            email="test@example.com",
+            token="pypi-test",
+        )
+
+        assert result.success is True
+        assert "already reserved" in result.message.lower()
+
+    @patch("axm_init.core.reserver.publish_package")
+    @patch("axm_init.core.reserver.build_package")
+    @patch("axm_init.core.reserver.PyPIAdapter")
+    def test_reserve_recheck_error_fails_safe(
+        self,
+        mock_adapter_cls: MagicMock,
+        mock_build: MagicMock,
+        mock_publish: MagicMock,
+    ) -> None:
+        """Network error on recheck → fail-safe (success=True, idempotent)."""
+        adapter = mock_adapter_cls.return_value
+        # First check: AVAILABLE, recheck after "already exists": ERROR
+        adapter.check_availability.side_effect = [
+            AvailabilityStatus.AVAILABLE,
+            AvailabilityStatus.ERROR,
+        ]
+        mock_build.return_value = (True, "")
+        mock_publish.return_value = (False, "File already exists")
+
+        result = reserve_pypi(
+            name="err-pkg",
+            author="Test",
+            email="test@example.com",
+            token="pypi-test",
+        )
+
+        # ERROR on recheck = can't confirm race, assume idempotent
+        assert result.success is True
+        assert "already reserved" in result.message.lower()
+
 
 # ── build_package / publish_package ──────────────────────────────────────────
 
