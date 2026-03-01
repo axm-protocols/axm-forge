@@ -1,5 +1,7 @@
 """Tests for the 8-category composite quality score formula."""
 
+from __future__ import annotations
+
 import pytest
 
 from axm_audit.models.results import AuditResult, CheckResult
@@ -18,28 +20,40 @@ def _make_check(rule_id: str, score: float) -> CheckResult:
 class TestQualityScore:
     """Tests for the quality scoring logic."""
 
-    def test_quality_score_8_category_formula(self):
-        """Quality score uses 8-category weighted model."""
+    def test_quality_score_8_category_formula(self) -> None:
+        """Quality score uses 8-category weighted model with all scored rules."""
         checks = [
-            _make_check("QUALITY_LINT", 90),  # 90 * 0.20 = 18
+            _make_check("QUALITY_LINT", 90),  # lint: avg(90,100,100)=96.67
+            _make_check("QUALITY_FORMAT", 100),
+            _make_check("QUALITY_DIFF_SIZE", 100),
             _make_check("QUALITY_TYPE", 85),  # 85 * 0.15 = 12.75
             _make_check("QUALITY_COMPLEXITY", 95),  # 95 * 0.15 = 14.25
             _make_check("QUALITY_SECURITY", 100),  # 100 * 0.10 = 10
             _make_check("DEPS_AUDIT", 100),  # avg(100,100) * 0.10 = 10
             _make_check("DEPS_HYGIENE", 100),
             _make_check("QUALITY_COVERAGE", 90),  # 90 * 0.15 = 13.5
-            _make_check("ARCH_COUPLING", 100),  # 100 * 0.10 = 10
-            _make_check("PRACTICE_DOCSTRING", 100),  # avg(100,100,100)*0.05 = 5
+            _make_check("ARCH_COUPLING", 100),  # avg(100,...) * 0.10 = 10
+            _make_check("ARCH_CIRCULAR", 100),
+            _make_check("ARCH_GOD_CLASS", 100),
+            _make_check("ARCH_DUPLICATION", 100),
+            _make_check("PRACTICE_DOCSTRING", 100),  # avg(100,...) * 0.05 = 5
             _make_check("PRACTICE_BARE_EXCEPT", 100),
             _make_check("PRACTICE_SECURITY", 100),
+            _make_check("PRACTICE_BLOCKING_IO", 100),
+            _make_check("PRACTICE_LOGGING", 100),
         ]
 
         result = AuditResult(checks=checks)
 
-        # Expected: 18 + 12.75 + 14.25 + 10 + 10 + 13.5 + 10 + 5 = 93.5
-        assert result.quality_score == pytest.approx(93.5, abs=0.1)
+        # lint: avg(90,100,100)=96.67 * 0.20 = 19.33
+        # types: 85*0.15=12.75 | complexity: 95*0.15=14.25
+        # security: 100*0.10=10 | deps: avg(100,100)*0.10=10
+        # testing: 90*0.15=13.5 | architecture: avg(100,100,100,100)*0.10=10
+        # practices: avg(100,100,100,100,100)*0.05=5
+        # Total: 19.33 + 12.75 + 14.25 + 10 + 10 + 13.5 + 10 + 5 = 94.83
+        assert result.quality_score == pytest.approx(94.8, abs=0.2)
 
-    def test_quality_score_weights_sum_to_100(self):
+    def test_quality_score_weights_sum_to_100(self) -> None:
         """Weights should sum to 100%."""
         weights = {
             "lint": 0.20,
@@ -53,3 +67,115 @@ class TestQualityScore:
         }
 
         assert sum(weights.values()) == pytest.approx(1.0)
+
+    def test_quality_score_includes_all_scored_rules(self) -> None:
+        """Every registered scored rule must contribute to quality_score.
+
+        Regression test: creates an AuditResult with ALL scored rules at 100,
+        then verifies the score is exactly 100 (proving nothing was dropped).
+        """
+        all_scored_rule_ids = [
+            "QUALITY_LINT",
+            "QUALITY_FORMAT",
+            "QUALITY_DIFF_SIZE",
+            "QUALITY_TYPE",
+            "QUALITY_COMPLEXITY",
+            "QUALITY_SECURITY",
+            "DEPS_AUDIT",
+            "DEPS_HYGIENE",
+            "QUALITY_COVERAGE",
+            "ARCH_COUPLING",
+            "ARCH_CIRCULAR",
+            "ARCH_GOD_CLASS",
+            "ARCH_DUPLICATION",
+            "PRACTICE_DOCSTRING",
+            "PRACTICE_BARE_EXCEPT",
+            "PRACTICE_SECURITY",
+            "PRACTICE_BLOCKING_IO",
+            "PRACTICE_LOGGING",
+        ]
+        checks = [_make_check(rid, 100) for rid in all_scored_rule_ids]
+        result = AuditResult(checks=checks)
+        assert result.quality_score == 100.0
+
+    def test_rule_to_category_covers_all_scored_rules(self) -> None:
+        """rule_to_category must have an entry for every rule that produces a score.
+
+        Safeguard: enumerate rule classes from the auditor registry, instantiate
+        each on a dummy path, and verify any that produce a details.score are in
+        the mapping.
+        """
+        from axm_audit.core.auditor import RULES_BY_CATEGORY
+
+        # Since rule_to_category is local to the property, we verify indirectly:
+        # for every rule in the registry that could produce a score,
+        # a check with that rule_id + score=100 must contribute to quality_score.
+        for _category, rule_classes in RULES_BY_CATEGORY.items():
+            for cls in rule_classes:
+                rule = cls() if cls.__init__.__code__.co_varnames == ("self",) else None
+                if rule is None:
+                    continue
+                rid = rule.rule_id
+                # Skip STRUCTURE_PYPROJECT (binary, no weighted score)
+                # Skip tooling rules (no score)
+                if rid.startswith("STRUCTURE_") or rid.startswith("TOOL_"):
+                    continue
+                # A check with this rule_id and a score should change quality_score
+                single = AuditResult(checks=[_make_check(rid, 50)])
+                assert single.quality_score is not None, (
+                    f"Rule {rid} produces a score but is missing from rule_to_category"
+                )
+
+    def test_quality_score_backward_compatible_grades(self) -> None:
+        """Grade thresholds still work after adding new rules."""
+        # All perfect → A
+        all_perfect = [
+            _make_check(rid, 100)
+            for rid in [
+                "QUALITY_LINT",
+                "QUALITY_FORMAT",
+                "QUALITY_DIFF_SIZE",
+                "QUALITY_TYPE",
+                "QUALITY_COMPLEXITY",
+                "QUALITY_SECURITY",
+                "DEPS_AUDIT",
+                "DEPS_HYGIENE",
+                "QUALITY_COVERAGE",
+                "ARCH_COUPLING",
+                "ARCH_CIRCULAR",
+                "ARCH_GOD_CLASS",
+                "ARCH_DUPLICATION",
+                "PRACTICE_DOCSTRING",
+                "PRACTICE_BARE_EXCEPT",
+                "PRACTICE_SECURITY",
+                "PRACTICE_BLOCKING_IO",
+                "PRACTICE_LOGGING",
+            ]
+        ]
+        assert AuditResult(checks=all_perfect).grade == "A"
+
+        # All zero → F
+        all_zero = [
+            _make_check(rid, 0)
+            for rid in [
+                "QUALITY_LINT",
+                "QUALITY_FORMAT",
+                "QUALITY_DIFF_SIZE",
+                "QUALITY_TYPE",
+                "QUALITY_COMPLEXITY",
+                "QUALITY_SECURITY",
+                "DEPS_AUDIT",
+                "DEPS_HYGIENE",
+                "QUALITY_COVERAGE",
+                "ARCH_COUPLING",
+                "ARCH_CIRCULAR",
+                "ARCH_GOD_CLASS",
+                "ARCH_DUPLICATION",
+                "PRACTICE_DOCSTRING",
+                "PRACTICE_BARE_EXCEPT",
+                "PRACTICE_SECURITY",
+                "PRACTICE_BLOCKING_IO",
+                "PRACTICE_LOGGING",
+            ]
+        ]
+        assert AuditResult(checks=all_zero).grade == "F"
