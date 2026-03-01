@@ -85,7 +85,7 @@ Business logic independent of I/O:
 
 | Module | Key Symbols | Purpose |
 |---|---|---|
-| `checker.py` | `CheckEngine`, `format_report()`, `format_json()`, `format_agent()` | Run checks, format output |
+| `checker.py` | `CheckEngine`, `format_report()`, `format_json()`, `format_agent()` | Run checks (dynamic discovery via `importlib`), format output |
 | `templates.py` | `TemplateInfo`, `get_template_path()` | Template catalog and resolution |
 | `reserver.py` | `ReserveResult`, `reserve_pypi()` | PyPI name reservation workflow |
 
@@ -111,9 +111,9 @@ Each adapter wraps a single external dependency:
 |---|---|---|
 | `CopierAdapter` | `copier.run_copy()` | Template-based scaffolding |
 | `PyPIAdapter` | PyPI JSON API | Package name availability check |
-| `CredentialManager` | `PYPI_API_TOKEN` / `~/.pypirc` | Token retrieval and validation |
-| `FileSystemAdapter` | `pathlib` | File operations with rollback |
-| `GitHubAdapter` | `gh` CLI | Repo creation, secrets, Pages |
+| `CredentialManager` | `PYPI_API_TOKEN` / `~/.pypirc` | Token retrieval, validation, and persistence (returns `False` on `PermissionError`) |
+| `FileSystemAdapter` | `pathlib` | File operations with rollback (logs warnings on cleanup failures) |
+| `GitHubAdapter` | `gh` CLI | Repo creation, secrets, Pages (graceful `False` when `gh` is missing) |
 | `detect_makefile_targets()` | `Makefile` | Detect available make targets |
 
 ### 5. Models (`models/`)
@@ -151,3 +151,4 @@ MCP tool wrappers for AI agent integration. All tools satisfy the `AXMTool` prot
 | Copier for scaffolding | Jinja2 templates, supports project updates |
 | `src/` layout | PEP 621 best practice, no import conflicts |
 | Pure check functions | Each check is `(Path) → CheckResult`, easy to test and extend |
+| Dynamic check registry | `checker.py` discovers checks via `importlib`/`inspect`, reducing coupling |

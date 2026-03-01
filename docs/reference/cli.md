@@ -93,6 +93,7 @@ axm-init check [OPTIONS] [PATH]
 | `PATH` | | string | `.` | Directory to check |
 | `--json` | | bool | `False` | Output as JSON |
 | `--agent` | | bool | `False` | Compact agent-friendly output |
+| `--verbose` | `-v` | bool | `False` | Show all checks including passed |
 | `--category` | `-c` | string | *all* | Filter to one category |
 
 **Available categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`

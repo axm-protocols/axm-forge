@@ -50,6 +50,14 @@ axm-init check --agent
 
 Returns compact JSON optimized for AI agents: passed checks are summarized in one line, failed checks include full detail with fix hints.
 
+## Verbose Output
+
+```bash
+axm-init check --verbose
+```
+
+Shows all checks including passed ones. By default, only failures are displayed.
+
 ## What Gets Checked (39 Checks)
 
 | Category | Checks | Points |
