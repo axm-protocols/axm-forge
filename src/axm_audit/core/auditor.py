@@ -128,7 +128,7 @@ def _safe_check(rule: ProjectRule, project_path: Path) -> CheckResult:
     """
     try:
         return rule.check(project_path)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Rule %s raised: %s", rule.rule_id, exc, exc_info=True)
         return CheckResult(
             rule_id=rule.rule_id,

@@ -5,6 +5,12 @@ from typing import Any
 
 from pydantic import BaseModel, Field, computed_field
 
+# ── Grade thresholds ──────────────────────────────────────────────────
+_GRADE_A: int = 90
+_GRADE_B: int = 80
+_GRADE_C: int = 70
+_GRADE_D: int = 60
+
 
 class Severity(StrEnum):
     """Severity level for check results."""
@@ -132,13 +138,13 @@ class AuditResult(BaseModel):
         score = self.quality_score
         if score is None:
             return None
-        if score >= 90:
+        if score >= _GRADE_A:
             return "A"
-        if score >= 80:
+        if score >= _GRADE_B:
             return "B"
-        if score >= 70:
+        if score >= _GRADE_C:
             return "C"
-        if score >= 60:
+        if score >= _GRADE_D:
             return "D"
         return "F"
 

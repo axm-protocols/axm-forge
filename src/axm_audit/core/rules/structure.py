@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule
 from axm_audit.models.results import CheckResult, Severity
 
 
@@ -130,15 +130,17 @@ class PyprojectCompletenessRule(ProjectRule):
 
         return CheckResult(
             rule_id=self.rule_id,
-            passed=score >= 80,
+            passed=score >= PASS_THRESHOLD,
             message=f"pyproject.toml completeness: {present}/{_TOTAL_FIELDS} fields",
-            severity=Severity.WARNING if score < 80 else Severity.INFO,
+            severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
             details={
                 "fields_present": present,
                 "total_fields": _TOTAL_FIELDS,
                 "score": score,
             },
             fix_hint=(
-                "Add missing PEP 621 fields to [project]" if score < 80 else None
+                "Add missing PEP 621 fields to [project]"
+                if score < PASS_THRESHOLD
+                else None
             ),
         )

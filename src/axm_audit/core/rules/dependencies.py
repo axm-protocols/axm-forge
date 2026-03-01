@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
@@ -64,13 +64,13 @@ class DependencyAuditRule(ProjectRule):
 
         return CheckResult(
             rule_id=self.rule_id,
-            passed=score >= 80,
+            passed=score >= PASS_THRESHOLD,
             message=(
                 "No known vulnerabilities"
                 if vuln_count == 0
                 else f"{vuln_count} vulnerable package(s) found"
             ),
-            severity=Severity.WARNING if score < 80 else Severity.INFO,
+            severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
             details={
                 "vuln_count": vuln_count,
                 "score": score,
@@ -148,13 +148,13 @@ class DependencyHygieneRule(ProjectRule):
 
         return CheckResult(
             rule_id=self.rule_id,
-            passed=score >= 80,
+            passed=score >= PASS_THRESHOLD,
             message=(
                 "Clean dependencies (0 issues)"
                 if issue_count == 0
                 else f"{issue_count} dependency issue(s) found"
             ),
-            severity=Severity.WARNING if score < 80 else Severity.INFO,
+            severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
             details={
                 "issue_count": issue_count,
                 "score": score,

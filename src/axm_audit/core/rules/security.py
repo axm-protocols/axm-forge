@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
@@ -77,12 +77,12 @@ class SecurityRule(ProjectRule):
 
         return CheckResult(
             rule_id=self.rule_id,
-            passed=score >= 80,
+            passed=score >= PASS_THRESHOLD,
             message=(
                 f"Security score: {score}/100 "
                 f"({high} high, {med} medium severity issues)"
             ),
-            severity=Severity.WARNING if score < 80 else Severity.INFO,
+            severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
             details={
                 "high_count": high,
                 "medium_count": med,

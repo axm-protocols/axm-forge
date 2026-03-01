@@ -16,9 +16,7 @@ classifiers = [
 dependencies = [
     "axm",
     "cyclopts>=3.0",
-    "loguru>=0.7.3",
     "pydantic>=2.12.5",
-    "pydantic-settings>=2.12.0",
     "radon>=6.0.1",
 ]
 
@@ -76,17 +74,24 @@ line-length = 88
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "C4", "S", "T20", "RUF"]
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "PLR", "S", "T20", "RUF"]
 ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108"]
+"tests/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
 "src/axm_audit/core/rules/quality.py" = ["S603", "S607"]
 "src/axm_audit/core/rules/dependencies.py" = ["S603", "S607"]
 "src/axm_audit/cli.py" = ["T201"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_audit"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Deptry Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.deptry.per_rule_ignores]
+DEP003 = ["axm_audit"]
+DEP004 = ["mkdocs_gen_files"]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MyPy Configuration

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from axm_audit.core.rules.base import PERFECT_SCORE
 from axm_audit.models.results import AuditResult, CheckResult
 
 _GRADE_EMOJI = {"A": "🏆", "B": "✅", "C": "⚠️", "D": "🔧", "F": "❌"}
@@ -48,7 +49,7 @@ def _hygiene_details(details: dict[str, Any]) -> list[str]:
 def _coverage_details(details: dict[str, Any]) -> list[str]:
     """Format coverage details."""
     cov = details.get("coverage")
-    if cov is not None and cov < 100:
+    if cov is not None and cov < PERFECT_SCORE:
         return [f"{_INDENT}• Coverage: {cov:.1f}% → target: 100%"]
     return []
 
@@ -91,7 +92,7 @@ def _format_check_details(check: CheckResult) -> list[str]:
         return []
 
     score = check.details.get("score")
-    if score is not None and score >= 100:
+    if score is not None and score >= PERFECT_SCORE:
         return []
 
     formatter = _DETAIL_FORMATTERS.get(check.rule_id)
@@ -138,7 +139,7 @@ def _is_improvable(check: CheckResult) -> bool:
     if not check.passed or not check.details:
         return False
     score = check.details.get("score")
-    return score is not None and score < 100
+    return score is not None and score < PERFECT_SCORE
 
 
 def _format_one_improvement(check: CheckResult) -> list[str]:

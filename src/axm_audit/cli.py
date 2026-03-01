@@ -17,6 +17,7 @@ from typing import Annotated
 
 import cyclopts
 
+from axm_audit.core.rules.base import PERFECT_SCORE
 from axm_audit.formatters import format_agent, format_json, format_report
 
 __all__ = ["app"]
@@ -64,7 +65,7 @@ def audit(
     else:
         print(format_report(result))
 
-    if result.quality_score is not None and result.quality_score < 100:
+    if result.quality_score is not None and result.quality_score < PERFECT_SCORE:
         raise SystemExit(1)
 
 
