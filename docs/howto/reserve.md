@@ -4,7 +4,7 @@ Reserve a package name on PyPI before your project is ready for release.
 
 ## Prerequisites
 
-You need a PyPI API token. `axm-init` resolves it automatically:
+You need a PyPI API token. `axm-init` resolves it automatically (first match wins):
 
 | Priority | Source |
 |---|---|
@@ -45,3 +45,12 @@ axm-init reserve my-package-name --json
 ```
 
 Returns structured JSON for CI integration. Exits with code 1 and JSON error if no token is configured (no interactive prompt in JSON mode).
+
+## Troubleshooting
+
+| Error | Cause | Fix |
+|---|---|---|
+| `Name already taken on PyPI` | Package name is already registered | Choose a different name, or check if you own it at `pypi.org/project/<name>/` |
+| `Author and email are required` | Neither `--author`/`--email` flags nor `git config` values found | Pass `--author "Name" --email "email@example.com"` explicitly |
+| `No PyPI token configured` | None of the 3 token sources returned a value | Set `PYPI_API_TOKEN` env var or run interactively to be prompted |
+| `Build failed` | Package build error (rare) | Check that `uv` and `hatchling` are installed: `uv pip install hatchling` |

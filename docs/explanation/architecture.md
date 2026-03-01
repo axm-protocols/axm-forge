@@ -87,7 +87,7 @@ Business logic independent of I/O:
 |---|---|---|
 | `checker.py` | `CheckEngine`, `format_report()`, `format_json()`, `format_agent()` | Run checks (dynamic discovery via `importlib`), format output |
 | `templates.py` | `TemplateInfo`, `get_template_path()` | Template catalog and resolution |
-| `reserver.py` | `reserve_pypi()` | PyPI name reservation workflow |
+| `reserver.py` | `ReserveResult`, `reserve_pypi()`, `create_minimal_package()`, `build_package()`, `publish_package()` | PyPI name reservation workflow and result model |
 
 ### 3. Checks (`checks/`)
 
@@ -95,7 +95,7 @@ Business logic independent of I/O:
 
 | Module | Category | # Checks |
 |---|---|---|
-| `_utils.py` | *(internal)* | Shared utilities (`_load_toml`, `@requires_toml` decorator) |
+| `_utils.py` | *(internal)* | Shared utilities: `_load_toml` for TOML parsing, `@requires_toml` decorator that loads `pyproject.toml` once and short-circuits with a failure if missing |
 | `pyproject.py` | pyproject | 9 |
 | `ci.py` | CI | 7 |
 | `tooling.py` | tooling | 7 |
@@ -110,11 +110,11 @@ Each adapter wraps a single external dependency:
 
 | Adapter | Wraps | Purpose |
 |---|---|---|
-| `CopierAdapter` | `copier.run_copy()` | Template-based scaffolding |
-| `PyPIAdapter` | PyPI JSON API | Package name availability check |
+| `CopierAdapter` / `CopierConfig` | `copier.run_copy()` | Template-based scaffolding (`CopierConfig` is the Pydantic input model) |
+| `PyPIAdapter` / `AvailabilityStatus` | PyPI JSON API | Package name availability check |
 | `CredentialManager` | `PYPI_API_TOKEN` / `~/.pypirc` | Token retrieval, validation, and persistence (returns `False` on `PermissionError`) |
-| `FileSystemAdapter` | `pathlib` | File operations with rollback (logs warnings on cleanup failures) |
-| `GitHubAdapter` | `gh` CLI | Repo creation, secrets, Pages (graceful `False` when `gh` is missing) |
+| `FileSystemAdapter` / `Transaction` | `pathlib` | File operations with rollback (logs warnings on cleanup failures) |
+| `GitHubAdapter` / `RepoCreateResult` | `gh` CLI | Repo creation, secrets, Pages (graceful `False` when `gh` is missing) |
 | `detect_makefile_targets()` | `Makefile` | Detect available make targets |
 
 ### 5. Models (`models/`)
@@ -128,8 +128,8 @@ Pydantic models for structured data exchange between layers:
 | `ProjectResult` | `check.py` | Full project check result |
 | `Grade` | `check.py` | A–F grade enum |
 | `ScaffoldResult` | `results.py` | Outcome of a scaffolding operation |
-| `ReserveResult` | `results.py` | Outcome of a PyPI reservation |
-| `CopierConfig` | `copier.py` | Input configuration for Copier |
+| `ProjectConfig` | `project.py` | Input configuration for scaffolding |
+| `ProjectMetadata` | `project.py` | Metadata extracted from an existing project |
 
 ### 6. Tools (`tools/`)
 

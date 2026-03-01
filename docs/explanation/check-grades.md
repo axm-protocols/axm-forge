@@ -16,13 +16,13 @@
 
 ## Scoring System
 
-Each of the 39 checks has a **weight** (1–4 points), totaling **102 points**.
+Each of the 39 checks has a **weight** (1–4 points), totaling **102 raw points**.
 
 ```
-Score = (earned points / total points) × 100
+Score = (earned points / 102) × 100
 ```
 
-The score maps to a grade using the boundaries above.
+The result is a normalized score from 0 to 100. For example, earning 99 out of 102 raw points gives a score of 97. The score maps to a grade using the boundaries above.
 
 ## The 7 Categories
 

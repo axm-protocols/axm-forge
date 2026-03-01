@@ -20,8 +20,8 @@
 ### Check a project
 
 ```python
-# Via axm-mcp
-result = init_check(path="/path/to/project")
+# MCP tool call (not importable — dispatched by axm-mcp)
+result = mcp_axm_mcp_init_check(path="/path/to/project")
 ```
 
 Returns the same structured output as `axm-init check --agent` — passed checks summarized, failed checks with full detail and fix hints.
@@ -29,8 +29,8 @@ Returns the same structured output as `axm-init check --agent` — passed checks
 ### Scaffold a project
 
 ```python
-# Via axm-mcp
-result = init_scaffold(
+# MCP tool call (not importable — dispatched by axm-mcp)
+result = mcp_axm_mcp_init_scaffold(
     path="/path/to/new-project",
     name="my-project",
     org="my-org",
@@ -42,8 +42,8 @@ result = init_scaffold(
 ### Reserve a package name
 
 ```python
-# Via axm-mcp
-result = init_reserve(name="my-package", author="Your Name", email="you@example.com")
+# MCP tool call (not importable — dispatched by axm-mcp)
+result = mcp_axm_mcp_init_reserve(name="my-package", author="Your Name", email="you@example.com")
 ```
 
 ## Entry Points

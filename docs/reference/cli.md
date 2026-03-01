@@ -123,8 +123,8 @@ axm-init check
 📋 AXM Check — my-project
    Path: /path/to/my-project
 
-  pyproject (30/30)
-    ✅ pyproject.exists                 5/5  pyproject.toml found
+  pyproject (27/27)
+    ✅ pyproject.exists                 4/4  pyproject.toml found
     ...
 
   Score: 97/100 — Grade A 🏆
@@ -148,7 +148,7 @@ axm-init check --json
   "project": "/path/to/my-project",
   "score": 97,
   "grade": "A",
-  "categories": { "pyproject": { "earned": 30, "total": 30 } },
+  "categories": { "pyproject": { "earned": 27, "total": 27 } },
   "failures": [
     { "name": "docs.readme", "weight": 3, "fix": "Add Development..." }
   ]

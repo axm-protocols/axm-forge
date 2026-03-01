@@ -88,7 +88,17 @@ cd my-project
 make ci
 ```
 
-This installs dependencies and runs lint + type check + tests.
+`make ci` runs the full quality pipeline in sequence: **Ruff lint → MyPy type-check → Pytest**. It's equivalent to:
+
+```bash
+uv run ruff check src/ tests/
+uv run mypy src/ tests/
+uv run pytest
+```
+
+If everything passes, your project is ready for development.
+
+![Quickstart demo](../assets/quickstart.gif)
 
 ## Next Steps
 

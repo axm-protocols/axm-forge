@@ -57,3 +57,12 @@ axm-init scaffold my-project --org myorg --author A --email e@e.com --json
 ```
 
 Outputs structured JSON for CI/automation use.
+
+## Troubleshooting
+
+| Error | Cause | Fix |
+|---|---|---|
+| `Missing required option --org` | Required flag not provided | Pass `--org`, `--author`, and `--email` explicitly |
+| `Name 'X' is not available on PyPI` | `--check-pypi` detected a taken name | Choose a different project name or drop `--check-pypi` |
+| `Target directory already exists` | Non-empty destination directory | Use an empty directory or remove existing files first |
+| `Copier template error` | Template engine failure (rare) | Ensure `copier` is installed: `uv pip install copier` |
