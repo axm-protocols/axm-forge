@@ -37,6 +37,8 @@ from axm_audit.models.results import CheckResult
 # │ PRACTICE_BARE_EXCEPT│ 20      │ per bare except          │
 # │ PRACTICE_SECURITY   │ 25      │ per hardcoded secret     │
 # │ PRACTICE_BLOCKING_IO│ 15      │ per blocking I/O call    │
+# │                     │         │ (time.sleep in async +   │
+# │                     │         │  HTTP without timeout)   │
 # │ PRACTICE_LOGGING    │ ratio   │ logging coverage %       │
 # │ PRACTICE_TEST_MIRROR│ 15      │ per untested module      │
 # │ STRUCTURE_PYPROJECT │ binary  │ field presence checks    │

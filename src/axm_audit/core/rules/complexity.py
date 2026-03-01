@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -18,6 +19,8 @@ from axm_audit.core.rules.base import (
 from axm_audit.models.results import CheckResult, Severity
 
 __all__ = ["ComplexityRule"]
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -115,7 +118,12 @@ class ComplexityRule(ProjectRule):
             data: dict[str, list[dict[str, object]]] = (
                 json.loads(proc.stdout) if proc.stdout.strip() else {}
             )
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning(
+                "radon cc --json failed: %s",
+                exc,
+                exc_info=True,
+            )
             return CheckResult(
                 rule_id=self.rule_id,
                 passed=False,
