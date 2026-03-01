@@ -152,3 +152,4 @@ MCP tool wrappers for AI agent integration. All tools satisfy the `AXMTool` prot
 | `src/` layout | PEP 621 best practice, no import conflicts |
 | Pure check functions | Each check is `(Path) → CheckResult`, easy to test and extend |
 | Dynamic check registry | `checker.py` discovers checks via `importlib`/`inspect`, reducing coupling |
+| Parallel check execution | `ThreadPoolExecutor` — checks are I/O-bound and independent |

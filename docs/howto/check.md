@@ -56,7 +56,17 @@ Returns compact JSON optimized for AI agents: passed checks are summarized in on
 axm-init check --verbose
 ```
 
-Shows all checks including passed ones. By default, only failures are displayed.
+Shows every individual check with its status and weight:
+
+```
+pyproject (27/27)
+    ✅ pyproject.exists               4/4  pyproject.toml found
+    ✅ pyproject.urls                  3/3  All 4 URLs present
+    ✅ pyproject.dynamic_version       3/3  Dynamic version with hatch-vcs
+    ...
+```
+
+By default, only failures are displayed.
 
 ## What Gets Checked (39 Checks)
 

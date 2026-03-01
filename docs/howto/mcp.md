@@ -12,6 +12,11 @@
 
 ## Usage
 
+!!! note "MCP dispatch"
+    The examples below show the **logical API** — the parameters and return values.
+    In practice, AI agents call these via MCP tool dispatch (e.g. `mcp_axm-mcp_init_check`),
+    not direct Python imports.
+
 ### Check a project
 
 ```python

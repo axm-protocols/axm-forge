@@ -69,6 +69,10 @@ my-project/
     └── index.md
 ```
 
+!!! note
+    The actual scaffolded project contains additional files (CI workflows, pre-commit config,
+    Makefile, docs setup). The tree above shows the essential structure.
+
 !!! note "What's included"
     The scaffolded project comes pre-configured with:
 

@@ -63,6 +63,10 @@ axm-init reserve [OPTIONS] NAME
 | `--dry-run` | | bool | `False` | Skip actual publish |
 | `--json` | | bool | `False` | Output as JSON |
 
+**Default resolution for `--author` / `--email`:**
+If omitted, resolved from `git config user.name` / `git config user.email`.
+If git is not configured, defaults to empty string.
+
 **Token resolution:**
 
 1. `PYPI_API_TOKEN` environment variable
