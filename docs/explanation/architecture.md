@@ -87,7 +87,7 @@ Business logic independent of I/O:
 |---|---|---|
 | `checker.py` | `CheckEngine`, `format_report()`, `format_json()`, `format_agent()` | Run checks (dynamic discovery via `importlib`), format output |
 | `templates.py` | `TemplateInfo`, `get_template_path()` | Template catalog and resolution |
-| `reserver.py` | `ReserveResult`, `reserve_pypi()` | PyPI name reservation workflow |
+| `reserver.py` | `reserve_pypi()` | PyPI name reservation workflow |
 
 ### 3. Checks (`checks/`)
 
@@ -95,7 +95,7 @@ Business logic independent of I/O:
 
 | Module | Category | # Checks |
 |---|---|---|
-| `_utils.py` | *(internal)* | Shared utilities (`_load_toml`) |
+| `_utils.py` | *(internal)* | Shared utilities (`_load_toml`, `@requires_toml` decorator) |
 | `pyproject.py` | pyproject | 9 |
 | `ci.py` | CI | 7 |
 | `tooling.py` | tooling | 7 |
@@ -128,10 +128,8 @@ Pydantic models for structured data exchange between layers:
 | `ProjectResult` | `check.py` | Full project check result |
 | `Grade` | `check.py` | A–F grade enum |
 | `ScaffoldResult` | `results.py` | Outcome of a scaffolding operation |
-| `ProjectConfig` | `project.py` | Input project configuration |
-| `ProjectMetadata` | `project.py` | Extracted project metadata |
+| `ReserveResult` | `results.py` | Outcome of a PyPI reservation |
 | `CopierConfig` | `copier.py` | Input configuration for Copier |
-| `ReserveResult` | `reserver.py` | Outcome of a PyPI reservation |
 
 ### 6. Tools (`tools/`)
 
