@@ -28,7 +28,7 @@
 - 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry)
 - 🧪 **Testing** — Coverage enforcement via pytest-cov
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
-- 📐 **Practices** — Docstring coverage, bare except detection, blocking I/O, logging presence
+- 📐 **Practices** — Docstring coverage, bare except detection, hardcoded secrets, blocking I/O, logging presence, test mirroring
 - 🔧 **Tooling** — CLI tool availability checks
 - 📈 **Composite Scoring** — Weighted 8-category 0–100 score with A–F grade
 
@@ -95,7 +95,7 @@ for check in result.checks:
 | `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
-| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule`, `BlockingIORule`, `LoggingPresenceRule` | 5 |
+| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule`, `BlockingIORule`, `LoggingPresenceRule`, `TestMirrorRule` | 6 |
 | `structure` | `PyprojectCompletenessRule` | 1 |
 | `tooling` | `ToolAvailabilityRule` | 3 |
 
