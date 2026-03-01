@@ -1,4 +1,6 @@
-"""Tests for Makefile adapter — RED phase."""
+"""Tests for Makefile adapter."""
+
+from __future__ import annotations
 
 from pathlib import Path
 

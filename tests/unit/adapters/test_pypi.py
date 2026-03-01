@@ -1,4 +1,6 @@
-"""Tests for PyPIAdapter — RED phase."""
+"""Tests for PyPIAdapter."""
+
+from __future__ import annotations
 
 
 class TestAvailabilityStatus:

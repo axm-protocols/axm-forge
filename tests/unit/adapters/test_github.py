@@ -1,4 +1,6 @@
-"""Tests for GitHub Adapter — RED phase."""
+"""Tests for GitHub Adapter."""
+
+from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 

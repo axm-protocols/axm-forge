@@ -1,4 +1,6 @@
-"""Tests for FileSystemAdapter — RED phase."""
+"""Tests for FileSystemAdapter."""
+
+from __future__ import annotations
 
 import logging
 from pathlib import Path
