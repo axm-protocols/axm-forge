@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from axm_audit.models.results import Severity
+
 
 class TestDocstringCoverageRule:
     """Tests for DocstringCoverageRule."""
@@ -175,6 +177,191 @@ api_key = "sk-1234567890"
 
         rule = SecurityPatternRule()
         assert rule.rule_id == "PRACTICE_SECURITY"
+
+
+# ─── BlockingIORule ──────────────────────────────────────────────────────────
+
+
+class TestBlockingIORule:
+    """Tests for BlockingIORule."""
+
+    def test_pass_no_blocking(self, tmp_path: Path) -> None:
+        """Module with async def using asyncio.sleep should pass."""
+        from axm_audit.core.rules.practices import BlockingIORule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "ok.py").write_text("""\
+import asyncio
+
+async def f():
+    await asyncio.sleep(1)
+""")
+
+        rule = BlockingIORule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+
+    def test_fail_sleep_in_async(self, tmp_path: Path) -> None:
+        """time.sleep inside async def should fail."""
+        from axm_audit.core.rules.practices import BlockingIORule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "bad.py").write_text("""\
+import time
+
+async def handler():
+    time.sleep(1)
+""")
+
+        rule = BlockingIORule()
+        result = rule.check(tmp_path)
+        assert result.passed is False
+        assert result.details is not None
+        violations = result.details["violations"]
+        assert len(violations) == 1
+        assert violations[0]["issue"] == "time.sleep in async"
+
+    def test_fail_no_timeout(self, tmp_path: Path) -> None:
+        """requests.get without timeout should fail."""
+        from axm_audit.core.rules.practices import BlockingIORule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "bad.py").write_text("""\
+import requests
+
+def fetch():
+    requests.get("https://example.com")
+""")
+
+        rule = BlockingIORule()
+        result = rule.check(tmp_path)
+        assert result.passed is False
+        assert result.details is not None
+        violations = result.details["violations"]
+        assert len(violations) == 1
+        assert violations[0]["issue"] == "HTTP call without timeout"
+
+    def test_pass_with_timeout(self, tmp_path: Path) -> None:
+        """requests.get with timeout should pass."""
+        from axm_audit.core.rules.practices import BlockingIORule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "ok.py").write_text("""\
+import requests
+
+def fetch():
+    requests.get("https://example.com", timeout=30)
+""")
+
+        rule = BlockingIORule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+
+    def test_httpx_async_client_no_timeout(self, tmp_path: Path) -> None:
+        """httpx.AsyncClient().get() without timeout should fail."""
+        from axm_audit.core.rules.practices import BlockingIORule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "bad.py").write_text("""\
+import httpx
+
+async def fetch():
+    httpx.AsyncClient().get("https://example.com")
+""")
+
+        rule = BlockingIORule()
+        result = rule.check(tmp_path)
+        assert result.passed is False
+        assert result.details is not None
+        assert len(result.details["violations"]) >= 1
+
+    def test_rule_id_format(self) -> None:
+        """Rule ID should be PRACTICE_BLOCKING_IO."""
+        from axm_audit.core.rules.practices import BlockingIORule
+
+        rule = BlockingIORule()
+        assert rule.rule_id == "PRACTICE_BLOCKING_IO"
+
+
+# ─── LoggingPresenceRule ─────────────────────────────────────────────────────
+
+
+class TestLoggingPresenceRule:
+    """Tests for LoggingPresenceRule."""
+
+    def test_pass_all_log(self, tmp_path: Path) -> None:
+        """All substantial modules importing logging should pass."""
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        src = tmp_path / "src" / "pkg"
+        src.mkdir(parents=True)
+        funcs = "\n".join(f"def func_{i}():\n    pass\n" for i in range(6))
+        (src / "mod.py").write_text(f"import logging\n\n{funcs}")
+
+        rule = LoggingPresenceRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+
+    def test_fail_no_logging(self, tmp_path: Path) -> None:
+        """Substantial module without logging import should fail."""
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        src = tmp_path / "src" / "pkg"
+        src.mkdir(parents=True)
+        funcs = "\n".join(f"def func_{i}():\n    pass\n" for i in range(6))
+        (src / "mod.py").write_text(funcs)
+
+        rule = LoggingPresenceRule()
+        result = rule.check(tmp_path)
+        assert result.passed is False
+        assert result.details is not None
+        assert len(result.details["without_logging"]) == 1
+
+    def test_exempt_small_module(self, tmp_path: Path) -> None:
+        """Module with < 5 definitions should be exempt."""
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        src = tmp_path / "src" / "pkg"
+        src.mkdir(parents=True)
+        (src / "small.py").write_text("def a():\n    pass\n\ndef b():\n    pass\n")
+
+        rule = LoggingPresenceRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+
+    def test_no_src_directory(self, tmp_path: Path) -> None:
+        """Empty project without src/ should pass with INFO."""
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        rule = LoggingPresenceRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+        assert result.severity == Severity.INFO
+
+    def test_from_logging_import(self, tmp_path: Path) -> None:
+        """'from logging import getLogger' should count as logging present."""
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        src = tmp_path / "src" / "pkg"
+        src.mkdir(parents=True)
+        funcs = "\n".join(f"def func_{i}():\n    pass\n" for i in range(6))
+        (src / "mod.py").write_text(f"from logging import getLogger\n\n{funcs}")
+
+        rule = LoggingPresenceRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+
+    def test_rule_id_format(self) -> None:
+        """Rule ID should be PRACTICE_LOGGING."""
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        rule = LoggingPresenceRule()
+        assert rule.rule_id == "PRACTICE_LOGGING"
 
 
 # ─── Docstring detail coverage ───────────────────────────────────────────────

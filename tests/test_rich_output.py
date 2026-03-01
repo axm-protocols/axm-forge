@@ -312,13 +312,6 @@ class TestFormatReportRichOutput:
 class TestLegacyRemoval:
     """Tests that legacy structure rules are removed."""
 
-    def test_total_rules_count(self) -> None:
-        """Should have 17 total rules (was 20, removed 3 structure)."""
-        from axm_audit.core.auditor import get_rules_for_category
-
-        rules = get_rules_for_category(None)
-        assert len(rules) == 18
-
     def test_no_file_exists_rules(self) -> None:
         """FILE_EXISTS rules should not be in the rule set."""
         from axm_audit.core.auditor import get_rules_for_category

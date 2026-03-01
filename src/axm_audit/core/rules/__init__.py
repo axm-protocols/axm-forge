@@ -14,7 +14,9 @@ from axm_audit.core.rules.dependencies import (
 )
 from axm_audit.core.rules.practices import (
     BareExceptRule,
+    BlockingIORule,
     DocstringCoverageRule,
+    LoggingPresenceRule,
     SecurityPatternRule,
 )
 from axm_audit.core.rules.quality import (
@@ -28,6 +30,7 @@ from axm_audit.core.rules.tooling import ToolAvailabilityRule
 
 __all__ = [
     "BareExceptRule",
+    "BlockingIORule",
     "CircularImportRule",
     "ComplexityRule",
     "CouplingMetricRule",
@@ -37,6 +40,7 @@ __all__ = [
     "FormattingRule",
     "GodClassRule",
     "LintingRule",
+    "LoggingPresenceRule",
     "ProjectRule",
     "PyprojectCompletenessRule",
     "SecurityPatternRule",
