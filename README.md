@@ -19,6 +19,10 @@
 
 ---
 
+`axm-audit` audits Python project quality across **8 weighted categories**, producing a composite **0–100 score** with an **A–F grade**. It works as a **CLI**, **Python API**, and **MCP tool** for AI agents.
+
+📖 **[Full documentation](https://axm-protocols.github.io/axm-audit/)**
+
 ## Features
 
 - 🔍 **Linting** — Ruff analysis (800+ rules)
@@ -49,6 +53,9 @@ axm-audit audit .
 # JSON output
 axm-audit audit . --json
 
+# Agent-optimized output (compact, actionable)
+axm-audit audit . --agent
+
 # Filter by category
 axm-audit audit . --category quality
 ```
@@ -70,6 +77,21 @@ for check in result.checks:
         if check.fix_hint:
             print(f"     Fix: {check.fix_hint}")
 ```
+
+### MCP (AI Agent)
+
+`axm-audit` is available as an MCP tool via [`axm-mcp`](https://github.com/axm-protocols/axm-mcp). AI agents can call `audit(path)` or `verify(path)` directly:
+
+```python
+# Agent-optimized output: passed checks as compact strings,
+# failed checks as dicts with rule_id, message, details, fix_hint
+from axm_audit.formatters import format_agent
+
+data = format_agent(result)
+# data["score"], data["grade"], data["passed"], data["failed"]
+```
+
+See the [MCP how-to guide](https://axm-protocols.github.io/axm-audit/howto/mcp/) for details.
 
 ## Scoring Model
 
@@ -112,4 +134,4 @@ uv run mypy src/        # type check
 
 ## License
 
-Apache 2.0
+MIT
