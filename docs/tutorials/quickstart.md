@@ -98,8 +98,6 @@ uv run pytest
 
 If everything passes, your project is ready for development.
 
-![Quickstart demo](../assets/quickstart.gif)
-
 ## Next Steps
 
 - [Scaffold a project](../howto/scaffold.md) — Options, flags, PyPI check
