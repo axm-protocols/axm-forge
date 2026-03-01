@@ -6,6 +6,7 @@ It scans ``src/axm_init/`` for Python modules and generates a
 
 See: https://mkdocstrings.github.io/recipes/#automatic-code-reference-pages
 """
+
 from pathlib import Path
 
 import mkdocs_gen_files
