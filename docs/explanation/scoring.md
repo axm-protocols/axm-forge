@@ -86,19 +86,22 @@ Uses `pytest-cov` to measure line coverage. Pass threshold: ≥ 80%.
 
 ### Architecture Score
 
-```
-score = max(0, 100 − N(modules > threshold) × 5)
-```
+Average of four sub-scores:
 
-Counts the number of modules whose fan-out exceeds the threshold (default: 10 imports). Each module over the threshold deducts 5 points. Circular imports and god classes also contribute to this category.
+- **Circular imports**: `max(0, 100 − cycle_count × 20)`
+- **God classes**: `max(0, 100 − god_class_count × 15)`
+- **Coupling**: `max(0, 100 − N(modules > threshold) × 5)` — fan-out exceeding 10 imports
+- **Duplication**: `max(0, 100 − duplicate_pair_count × 10)`
 
 ### Practices Score
 
-Average of three sub-scores:
+Average of five sub-scores:
 
 - **Docstring coverage**: `int(coverage_pct × 100)`
 - **Bare excepts**: `max(0, 100 − count × 20)`
-- **Hardcoded secrets**: `max(0, 100 − count × 20)`
+- **Hardcoded secrets**: `max(0, 100 − count × 25)`
+- **Blocking I/O**: `max(0, 100 − count × 15)`
+- **Logging presence**: `int(coverage_pct × 100)`
 
 ## Grading Scale
 
