@@ -6,6 +6,8 @@ from axm_audit.core.rules.architecture import (
     GodClassRule,
 )
 from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules.complexity import ComplexityRule
+from axm_audit.core.rules.coverage import TestCoverageRule
 from axm_audit.core.rules.dependencies import (
     DependencyAuditRule,
     DependencyHygieneRule,
@@ -16,10 +18,8 @@ from axm_audit.core.rules.practices import (
     SecurityPatternRule,
 )
 from axm_audit.core.rules.quality import (
-    ComplexityRule,
     FormattingRule,
     LintingRule,
-    TestCoverageRule,
     TypeCheckRule,
 )
 from axm_audit.core.rules.security import SecurityRule

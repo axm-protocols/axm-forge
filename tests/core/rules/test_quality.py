@@ -254,7 +254,7 @@ class TestComplexityRule:
 
     def test_simple_functions_high_score(self, tmp_path: Path) -> None:
         """Simple functions should score high."""
-        from axm_audit.core.rules.quality import ComplexityRule
+        from axm_audit.core.rules.complexity import ComplexityRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -269,7 +269,7 @@ class TestComplexityRule:
 
     def test_complex_functions_reduce_score(self, tmp_path: Path) -> None:
         """High complexity functions should reduce score."""
-        from axm_audit.core.rules.quality import ComplexityRule
+        from axm_audit.core.rules.complexity import ComplexityRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -315,14 +315,14 @@ def complex_fn(x: int, y: int, z: int) -> str:
 
     def test_rule_id_format(self) -> None:
         """Rule ID should be QUALITY_COMPLEXITY."""
-        from axm_audit.core.rules.quality import ComplexityRule
+        from axm_audit.core.rules.complexity import ComplexityRule
 
         rule = ComplexityRule()
         assert rule.rule_id == "QUALITY_COMPLEXITY"
 
     def test_complexity_rule_radon_in_project(self, tmp_path: Path) -> None:
         """When radon Python API is importable, use it directly."""
-        from axm_audit.core.rules.quality import ComplexityRule
+        from axm_audit.core.rules.complexity import ComplexityRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -342,7 +342,7 @@ def complex_fn(x: int, y: int, z: int) -> str:
         import json as _json
         from unittest.mock import MagicMock, patch
 
-        from axm_audit.core.rules.quality import ComplexityRule
+        from axm_audit.core.rules.complexity import ComplexityRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -372,7 +372,7 @@ def complex_fn(x: int, y: int, z: int) -> str:
 
         with (
             patch(
-                "axm_audit.core.rules.quality._try_import_radon",
+                "axm_audit.core.rules.complexity._try_import_radon",
                 return_value=None,
             ),
             patch("shutil.which", return_value="/usr/bin/radon"),
@@ -390,7 +390,7 @@ def complex_fn(x: int, y: int, z: int) -> str:
         """When neither API nor binary is available, return clear error."""
         from unittest.mock import patch
 
-        from axm_audit.core.rules.quality import ComplexityRule
+        from axm_audit.core.rules.complexity import ComplexityRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -400,7 +400,7 @@ def complex_fn(x: int, y: int, z: int) -> str:
 
         with (
             patch(
-                "axm_audit.core.rules.quality._try_import_radon",
+                "axm_audit.core.rules.complexity._try_import_radon",
                 return_value=None,
             ),
             patch("shutil.which", return_value=None),
@@ -417,7 +417,7 @@ def complex_fn(x: int, y: int, z: int) -> str:
 
     def test_all_offenders_shown(self, tmp_path: Path) -> None:
         """top_offenders must include ALL functions with CC >= 10, not top 5."""
-        from axm_audit.core.rules.quality import ComplexityRule
+        from axm_audit.core.rules.complexity import ComplexityRule
 
         src = tmp_path / "src"
         src.mkdir()
