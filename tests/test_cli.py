@@ -47,6 +47,52 @@ class TestFormatReport:
         assert "✅" in report
         assert "❌" in report
 
+    def test_format_report_shows_project_path(self) -> None:
+        """Report header should display the actual project path."""
+        from axm_audit.formatters import format_report
+        from axm_audit.models.results import AuditResult, CheckResult
+
+        result = AuditResult(
+            project_path="/tmp/my-project",
+            checks=[
+                CheckResult(
+                    rule_id="QUALITY_LINT",
+                    passed=True,
+                    message="OK",
+                    details={"score": 100},
+                ),
+            ],
+        )
+        report = format_report(result)
+        assert "/tmp/my-project" in report
+
+    def test_format_report_no_checks(self) -> None:
+        """Empty checks list should not crash, still shows path."""
+        from axm_audit.formatters import format_report
+        from axm_audit.models.results import AuditResult
+
+        result = AuditResult(project_path="/tmp/p", checks=[])
+        report = format_report(result)
+        assert "/tmp/p" in report
+
+    def test_format_report_no_path_fallback(self) -> None:
+        """Missing project_path falls back to 'unknown'."""
+        from axm_audit.formatters import format_report
+        from axm_audit.models.results import AuditResult, CheckResult
+
+        result = AuditResult(
+            checks=[
+                CheckResult(
+                    rule_id="QUALITY_LINT",
+                    passed=True,
+                    message="OK",
+                    details={"score": 100},
+                ),
+            ],
+        )
+        report = format_report(result)
+        assert "unknown" in report
+
 
 class TestFormatJson:
     """Tests for format_json function."""

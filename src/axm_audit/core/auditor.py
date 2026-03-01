@@ -199,4 +199,4 @@ def audit_project(
     with concurrent.futures.ThreadPoolExecutor() as pool:
         checks = list(pool.map(lambda r: _safe_check(r, project_path), rules))
 
-    return AuditResult(checks=checks)
+    return AuditResult(project_path=str(project_path), checks=checks)

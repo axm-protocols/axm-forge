@@ -44,6 +44,9 @@ class AuditResult(BaseModel):
     Contains all individual check results and computed summary.
     """
 
+    project_path: str | None = Field(
+        default=None, description="Path to the audited project"
+    )
     checks: list[CheckResult] = Field(default_factory=list)
 
     @computed_field  # type: ignore[prop-decorator]
