@@ -33,6 +33,8 @@ class InitReserveTool:
         Returns:
             ToolResult with reservation status.
         """
+        if "name" not in kwargs:
+            return ToolResult(success=False, error="'name' is required")
         name: str = kwargs["name"]
         author: str = kwargs.get("author", "John Doe")
         email: str = kwargs.get("email", "john.doe@example.com")

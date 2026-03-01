@@ -3,6 +3,8 @@
 Uses PyPI JSON API to verify if a package name is taken.
 """
 
+from __future__ import annotations
+
 from enum import Enum
 
 import httpx
