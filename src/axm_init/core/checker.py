@@ -2,118 +2,45 @@
 
 from __future__ import annotations
 
+import importlib
+import inspect
 import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from axm_init.checks.changelog import check_gitcliff_config, check_no_manual_changelog
-from axm_init.checks.ci import (
-    check_ci_coverage_upload,
-    check_ci_lint_job,
-    check_ci_security_job,
-    check_ci_test_job,
-    check_ci_workflow_exists,
-    check_dependabot,
-    check_trusted_publishing,
-)
-from axm_init.checks.deps import check_dev_deps, check_docs_deps
-from axm_init.checks.docs import (
-    check_diataxis_nav,
-    check_docs_gen_ref_pages,
-    check_docs_plugins,
-    check_mkdocs_exists,
-    check_readme,
-)
-from axm_init.checks.pyproject import (
-    check_pyproject_classifiers,
-    check_pyproject_coverage,
-    check_pyproject_dynamic_version,
-    check_pyproject_exists,
-    check_pyproject_mypy,
-    check_pyproject_pytest,
-    check_pyproject_ruff,
-    check_pyproject_ruff_rules,
-    check_pyproject_urls,
-)
-from axm_init.checks.structure import (
-    check_contributing,
-    check_license_file,
-    check_py_typed,
-    check_python_version,
-    check_src_layout,
-    check_tests_dir,
-    check_uv_lock,
-)
-from axm_init.checks.tooling import (
-    check_makefile,
-    check_precommit_basic,
-    check_precommit_conventional,
-    check_precommit_exists,
-    check_precommit_installed,
-    check_precommit_mypy,
-    check_precommit_ruff,
-)
 from axm_init.models.check import CheckResult, ProjectResult
 
 logger = logging.getLogger(__name__)
 
-# Registry: category -> list of check functions
-ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = {
-    "pyproject": [
-        check_pyproject_exists,
-        check_pyproject_urls,
-        check_pyproject_dynamic_version,
-        check_pyproject_mypy,
-        check_pyproject_ruff,
-        check_pyproject_pytest,
-        check_pyproject_coverage,
-        check_pyproject_classifiers,
-        check_pyproject_ruff_rules,
-    ],
-    "ci": [
-        check_ci_workflow_exists,
-        check_ci_lint_job,
-        check_ci_test_job,
-        check_ci_security_job,
-        check_ci_coverage_upload,
-        check_trusted_publishing,
-        check_dependabot,
-    ],
-    "tooling": [
-        check_precommit_exists,
-        check_precommit_ruff,
-        check_precommit_mypy,
-        check_precommit_conventional,
-        check_precommit_basic,
-        check_precommit_installed,
-        check_makefile,
-    ],
-    "docs": [
-        check_mkdocs_exists,
-        check_diataxis_nav,
-        check_docs_plugins,
-        check_docs_gen_ref_pages,
-        check_readme,
-    ],
-    "structure": [
-        check_src_layout,
-        check_py_typed,
-        check_tests_dir,
-        check_contributing,
-        check_license_file,
-        check_uv_lock,
-        check_python_version,
-    ],
-    "deps": [
-        check_dev_deps,
-        check_docs_deps,
-    ],
-    "changelog": [
-        check_gitcliff_config,
-        check_no_manual_changelog,
-    ],
+# Category → module path. Order determines report order.
+_CHECK_MODULES: dict[str, str] = {
+    "pyproject": "axm_init.checks.pyproject",
+    "ci": "axm_init.checks.ci",
+    "tooling": "axm_init.checks.tooling",
+    "docs": "axm_init.checks.docs",
+    "structure": "axm_init.checks.structure",
+    "deps": "axm_init.checks.deps",
+    "changelog": "axm_init.checks.changelog",
 }
+
+
+def _discover_checks() -> dict[str, list[Callable[[Path], CheckResult]]]:
+    """Build check registry by discovering ``check_*`` functions in modules."""
+    registry: dict[str, list[Callable[[Path], CheckResult]]] = {}
+    for category, module_path in _CHECK_MODULES.items():
+        mod = importlib.import_module(module_path)
+        fns: list[Callable[[Path], CheckResult]] = [
+            obj
+            for name, obj in inspect.getmembers(mod, inspect.isfunction)
+            if name.startswith("check_") and not name.startswith("_")
+        ]
+        registry[category] = fns
+    return registry
+
+
+# Registry: category -> list of check functions
+ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = _discover_checks()
 
 VALID_CATEGORIES = set(ALL_CHECKS.keys())
 
