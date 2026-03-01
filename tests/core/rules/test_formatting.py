@@ -146,6 +146,50 @@ class TestFormattingRule:
         assert result.details["unformatted_count"] == 30
         assert len(result.details["unformatted_files"]) == 20  # capped
 
+    def test_format_uses_returncode(self, tmp_path: Path) -> None:
+        """AC: rc=0 with non-empty stdout still scores 100."""
+        from axm_audit.core.rules.quality import FormattingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+
+        # rc=0 but stdout has noise (e.g. info messages)
+        mock_result = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="All checks passed!\n",
+            stderr="",
+        )
+        with patch(_PATCH, return_value=mock_result):
+            rule = FormattingRule()
+            result = rule.check(tmp_path)
+
+        assert result.passed is True
+        assert result.details is not None
+        assert result.details["score"] == 100
+        assert result.details["unformatted_count"] == 0
+
+    def test_format_ignores_warnings(self, tmp_path: Path) -> None:
+        """AC: warning lines in stdout not counted as unformatted."""
+        from axm_audit.core.rules.quality import FormattingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+
+        mock_result = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="warning: deprecated config\nsrc/bad.py\n",
+            stderr="",
+        )
+        with patch(_PATCH, return_value=mock_result):
+            rule = FormattingRule()
+            result = rule.check(tmp_path)
+
+        assert result.details is not None
+        assert result.details["unformatted_count"] == 1
+        assert result.details["unformatted_files"] == ["src/bad.py"]
+
 
 class TestFormattingRuleIntegration:
     """Functional tests for FormattingRule via audit_project."""

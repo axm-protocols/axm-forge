@@ -126,12 +126,18 @@ class FormattingRule(ProjectRule):
             check=False,
         )
 
-        # ruff format --check prints one file path per line to stdout
-        unformatted_files = [
-            line.strip()
-            for line in result.stdout.strip().split("\n")
-            if line.strip() and not line.startswith("error")
-        ]
+        # Primary signal: returncode == 0 means all files formatted
+        if result.returncode == 0:
+            unformatted_files: list[str] = []
+        else:
+            # ruff format --check prints one file path per line to stdout
+            unformatted_files = [
+                line.strip()
+                for line in result.stdout.strip().split("\n")
+                if line.strip()
+                and not line.startswith("error")
+                and not line.startswith("warning")
+            ]
         unformatted_count = len(unformatted_files)
 
         score = max(0, 100 - unformatted_count * 5)
