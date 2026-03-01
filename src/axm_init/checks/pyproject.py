@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
-from axm_init.checks._utils import _load_toml
+from axm_init.checks._utils import _load_toml, requires_toml
 from axm_init.models.check import CheckResult
 
 logger = logging.getLogger(__name__)
@@ -46,20 +47,15 @@ def check_pyproject_exists(project: Path) -> CheckResult:
     )
 
 
-def check_pyproject_urls(project: Path) -> CheckResult:
+@requires_toml(
+    check_name="pyproject.urls",
+    category="pyproject",
+    weight=3,
+    fix="Create pyproject.toml with [project.urls] section.",
+)
+def check_pyproject_urls(project: Path, data: dict[str, Any]) -> CheckResult:
     """Check 2: [project.urls] with 4 keys."""
-    data = _load_toml(project)
     required = {"Homepage", "Documentation", "Repository", "Issues"}
-    if data is None:
-        return CheckResult(
-            name="pyproject.urls",
-            category="pyproject",
-            passed=False,
-            weight=3,
-            message="pyproject.toml not found or unparsable",
-            details=[],
-            fix="Create pyproject.toml with [project.urls] section.",
-        )
     urls = data.get("project", {}).get("urls", {})
     present = set(urls.keys()) & required
     missing = required - present
@@ -89,19 +85,14 @@ def check_pyproject_urls(project: Path) -> CheckResult:
     )
 
 
-def check_pyproject_dynamic_version(project: Path) -> CheckResult:
+@requires_toml(
+    check_name="pyproject.dynamic_version",
+    category="pyproject",
+    weight=3,
+    fix="Create pyproject.toml with dynamic version using hatch-vcs.",
+)
+def check_pyproject_dynamic_version(project: Path, data: dict[str, Any]) -> CheckResult:
     """Check 3: dynamic = ['version'] + hatch-vcs."""
-    data = _load_toml(project)
-    if data is None:
-        return CheckResult(
-            name="pyproject.dynamic_version",
-            category="pyproject",
-            passed=False,
-            weight=3,
-            message="pyproject.toml not found or unparsable",
-            details=[],
-            fix="Create pyproject.toml with dynamic version using hatch-vcs.",
-        )
     dynamic = data.get("project", {}).get("dynamic", [])
     requires = data.get("build-system", {}).get("requires", [])
     has_dynamic = "version" in dynamic
@@ -132,19 +123,14 @@ def check_pyproject_dynamic_version(project: Path) -> CheckResult:
     )
 
 
-def check_pyproject_mypy(project: Path) -> CheckResult:
+@requires_toml(
+    check_name="pyproject.mypy",
+    category="pyproject",
+    weight=3,
+    fix="Create pyproject.toml with [tool.mypy] section.",
+)
+def check_pyproject_mypy(project: Path, data: dict[str, Any]) -> CheckResult:
     """Check 4: strict + pretty + disallow_incomplete_defs + check_untyped_defs."""
-    data = _load_toml(project)
-    if data is None:
-        return CheckResult(
-            name="pyproject.mypy",
-            category="pyproject",
-            passed=False,
-            weight=3,
-            message="pyproject.toml not found or unparsable",
-            details=[],
-            fix="Create pyproject.toml with [tool.mypy] section.",
-        )
     mypy = data.get("tool", {}).get("mypy", {})
     required = {
         "strict": True,
@@ -178,19 +164,14 @@ def check_pyproject_mypy(project: Path) -> CheckResult:
     )
 
 
-def check_pyproject_ruff(project: Path) -> CheckResult:
+@requires_toml(
+    check_name="pyproject.ruff",
+    category="pyproject",
+    weight=3,
+    fix="Create pyproject.toml with [tool.ruff.lint] section.",
+)
+def check_pyproject_ruff(project: Path, data: dict[str, Any]) -> CheckResult:
     """Check 5: per-file-ignores + known-first-party."""
-    data = _load_toml(project)
-    if data is None:
-        return CheckResult(
-            name="pyproject.ruff",
-            category="pyproject",
-            passed=False,
-            weight=3,
-            message="pyproject.toml not found or unparsable",
-            details=[],
-            fix="Create pyproject.toml with [tool.ruff.lint] section.",
-        )
     ruff_lint = data.get("tool", {}).get("ruff", {}).get("lint", {})
     problems = []
     if "per-file-ignores" not in ruff_lint:
@@ -219,19 +200,14 @@ def check_pyproject_ruff(project: Path) -> CheckResult:
     )
 
 
-def check_pyproject_pytest(project: Path) -> CheckResult:
+@requires_toml(
+    check_name="pyproject.pytest",
+    category="pyproject",
+    weight=4,
+    fix="Create pyproject.toml with [tool.pytest.ini_options].",
+)
+def check_pyproject_pytest(project: Path, data: dict[str, Any]) -> CheckResult:
     """Check 6: pytest config completeness."""
-    data = _load_toml(project)
-    if data is None:
-        return CheckResult(
-            name="pyproject.pytest",
-            category="pyproject",
-            passed=False,
-            weight=4,
-            message="pyproject.toml not found or unparsable",
-            details=[],
-            fix="Create pyproject.toml with [tool.pytest.ini_options].",
-        )
     pytest_cfg = data.get("tool", {}).get("pytest", {}).get("ini_options", {})
     addopts = " ".join(pytest_cfg.get("addopts", []))
     problems = []
@@ -266,19 +242,14 @@ def check_pyproject_pytest(project: Path) -> CheckResult:
     )
 
 
-def check_pyproject_coverage(project: Path) -> CheckResult:
+@requires_toml(
+    check_name="pyproject.coverage",
+    category="pyproject",
+    weight=4,
+    fix="Create pyproject.toml with [tool.coverage] sections.",
+)
+def check_pyproject_coverage(project: Path, data: dict[str, Any]) -> CheckResult:
     """Check 7: branch, relative_files, xml output, exclude_lines."""
-    data = _load_toml(project)
-    if data is None:
-        return CheckResult(
-            name="pyproject.coverage",
-            category="pyproject",
-            passed=False,
-            weight=4,
-            message="pyproject.toml not found or unparsable",
-            details=[],
-            fix="Create pyproject.toml with [tool.coverage] sections.",
-        )
     cov = data.get("tool", {}).get("coverage", {})
     run_cfg = cov.get("run", {})
     problems = []
@@ -311,19 +282,14 @@ def check_pyproject_coverage(project: Path) -> CheckResult:
     )
 
 
-def check_pyproject_classifiers(project: Path) -> CheckResult:
+@requires_toml(
+    check_name="pyproject.classifiers",
+    category="pyproject",
+    weight=1,
+    fix="Add classifiers to [project] in pyproject.toml.",
+)
+def check_pyproject_classifiers(project: Path, data: dict[str, Any]) -> CheckResult:
     """Check 36: required classifiers (Dev Status, Python, Typed)."""
-    data = _load_toml(project)
-    if data is None:
-        return CheckResult(
-            name="pyproject.classifiers",
-            category="pyproject",
-            passed=False,
-            weight=1,
-            message="pyproject.toml not found or unparsable",
-            details=[],
-            fix="Add classifiers to [project] in pyproject.toml.",
-        )
     classifiers = data.get("project", {}).get("classifiers", [])
     required_prefixes = {
         "Development Status": "Development Status ::",
@@ -359,19 +325,14 @@ def check_pyproject_classifiers(project: Path) -> CheckResult:
     )
 
 
-def check_pyproject_ruff_rules(project: Path) -> CheckResult:
+@requires_toml(
+    check_name="pyproject.ruff_rules",
+    category="pyproject",
+    weight=2,
+    fix="Add [tool.ruff.lint] select with E, F, I, UP, B, S, BLE, PLR, N.",
+)
+def check_pyproject_ruff_rules(project: Path, data: dict[str, Any]) -> CheckResult:
     """Check 37: essential ruff rule codes activated."""
-    data = _load_toml(project)
-    if data is None:
-        return CheckResult(
-            name="pyproject.ruff_rules",
-            category="pyproject",
-            passed=False,
-            weight=2,
-            message="pyproject.toml not found or unparsable",
-            details=[],
-            fix="Add [tool.ruff.lint] select with E, F, I, UP, B, S, BLE, PLR, N.",
-        )
     ruff_lint = data.get("tool", {}).get("ruff", {}).get("lint", {})
     select = set(ruff_lint.get("select", []))
     extend = set(ruff_lint.get("extend-select", []))

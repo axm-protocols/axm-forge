@@ -3,24 +3,20 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from axm_init.checks._utils import _load_toml
+from axm_init.checks._utils import requires_toml
 from axm_init.models.check import CheckResult
 
 
-def check_dev_deps(project: Path) -> CheckResult:
+@requires_toml(
+    check_name="deps.dev_group",
+    category="deps",
+    weight=3,
+    fix="Create pyproject.toml with [dependency-groups] dev group.",
+)
+def check_dev_deps(project: Path, data: dict[str, Any]) -> CheckResult:
     """Check 29: dev deps include pytest, ruff, mypy, pre-commit."""
-    data = _load_toml(project)
-    if data is None:
-        return CheckResult(
-            name="deps.dev_group",
-            category="deps",
-            passed=False,
-            weight=3,
-            message="pyproject.toml not found or unparsable",
-            details=[],
-            fix="Create pyproject.toml with [dependency-groups] dev group.",
-        )
     dev = data.get("dependency-groups", {}).get("dev", [])
     dev_str = " ".join(str(d) for d in dev).lower()
     required = ["pytest", "ruff", "mypy", "pre-commit"]
@@ -46,19 +42,14 @@ def check_dev_deps(project: Path) -> CheckResult:
     )
 
 
-def check_docs_deps(project: Path) -> CheckResult:
+@requires_toml(
+    check_name="deps.docs_group",
+    category="deps",
+    weight=2,
+    fix="Create pyproject.toml with [dependency-groups] docs group.",
+)
+def check_docs_deps(project: Path, data: dict[str, Any]) -> CheckResult:
     """Check 30: docs deps include key packages."""
-    data = _load_toml(project)
-    if data is None:
-        return CheckResult(
-            name="deps.docs_group",
-            category="deps",
-            passed=False,
-            weight=2,
-            message="pyproject.toml not found or unparsable",
-            details=[],
-            fix="Create pyproject.toml with [dependency-groups] docs group.",
-        )
     docs = data.get("dependency-groups", {}).get("docs", [])
     docs_str = " ".join(str(d) for d in docs).lower()
     required = [

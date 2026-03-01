@@ -14,8 +14,7 @@ import cyclopts
 import pytest
 
 from axm_init.cli import app
-from axm_init.core.reserver import ReserveResult
-from axm_init.models.results import ScaffoldResult
+from axm_init.models.results import ReserveResult, ScaffoldResult
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 

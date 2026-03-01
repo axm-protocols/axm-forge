@@ -25,7 +25,10 @@ class PyPIAdapter:
     """
 
     PYPI_URL = "https://pypi.org/pypi/{name}/json"
-    TIMEOUT = 10.0
+    DEFAULT_TIMEOUT = 10.0
+
+    def __init__(self, *, timeout: float = DEFAULT_TIMEOUT) -> None:
+        self.timeout = timeout
 
     def check_availability(self, name: str) -> AvailabilityStatus:
         """Check if a package name is available on PyPI.
@@ -41,7 +44,7 @@ class PyPIAdapter:
 
         try:
             url = self.PYPI_URL.format(name=name.lower().strip())
-            response = httpx.get(url, timeout=self.TIMEOUT, follow_redirects=True)
+            response = httpx.get(url, timeout=self.timeout, follow_redirects=True)
 
             if response.status_code == 404:
                 return AvailabilityStatus.AVAILABLE

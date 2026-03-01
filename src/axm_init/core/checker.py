@@ -67,7 +67,7 @@ class CheckEngine:
         results: list[CheckResult] = []
         all_fns = [fn for check_fns in checks_to_run.values() for fn in check_fns]
 
-        with ThreadPoolExecutor() as pool:
+        with ThreadPoolExecutor(max_workers=8) as pool:
             results = list(pool.map(lambda fn: fn(self.project_path), all_fns))
 
         return ProjectResult.from_checks(self.project_path, results)

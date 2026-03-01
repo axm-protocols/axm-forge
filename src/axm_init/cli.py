@@ -69,7 +69,7 @@ def _check_pypi_availability(project_name: str, *, json_output: bool) -> None:
     if status == AvailabilityStatus.TAKEN:
         if json_output:
             print(  # noqa: T201
-                f'{{"error": "Package name \'{project_name}\' is taken on PyPI"}}'
+                json.dumps({"error": f"Package name '{project_name}' is taken on PyPI"})
             )
         else:
             print(  # noqa: T201

@@ -11,9 +11,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from pydantic import BaseModel
-
 from axm_init.adapters.pypi import AvailabilityStatus, PyPIAdapter
+from axm_init.models.results import ReserveResult
 
 logger = logging.getLogger(__name__)
 
@@ -40,17 +39,6 @@ build-backend = "hatchling.build"
 """
 
 README_TEMPLATE = "# {name}\n\nPackage name reserved. Implementation coming soon.\n"
-
-
-class ReserveResult(BaseModel):
-    """Result of PyPI reservation operation."""
-
-    model_config = {"extra": "forbid"}
-
-    success: bool
-    package_name: str
-    version: str
-    message: str
 
 
 def create_minimal_package(

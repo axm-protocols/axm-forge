@@ -24,7 +24,7 @@ class TestReserveResult:
 
     def test_reserve_result_success(self) -> None:
         """ReserveResult captures success state."""
-        from axm_init.core.reserver import ReserveResult
+        from axm_init.models.results import ReserveResult
 
         result = ReserveResult(
             success=True,
@@ -37,7 +37,7 @@ class TestReserveResult:
 
     def test_reserve_result_model_dump(self) -> None:
         """ReserveResult supports Pydantic model_dump()."""
-        from axm_init.core.reserver import ReserveResult
+        from axm_init.models.results import ReserveResult
 
         result = ReserveResult(
             success=True,
@@ -55,7 +55,7 @@ class TestReserveResult:
 
     def test_reserve_result_extra_forbidden(self) -> None:
         """ReserveResult rejects unknown fields."""
-        from axm_init.core.reserver import ReserveResult
+        from axm_init.models.results import ReserveResult
 
         with pytest.raises(ValidationError, match="extra"):
             ReserveResult(
