@@ -187,10 +187,11 @@ def reserve(
     if not dry_run:
         try:
             token = creds.resolve_pypi_token(interactive=not json_output)
-        except SystemExit:
+        except SystemExit as e:
             if json_output:
                 print('{"error": "No PyPI token found"}')  # noqa: T201
-            raise SystemExit(1) from None
+            logger.debug("PyPI token resolution failed", exc_info=True)
+            raise SystemExit(1) from e
     else:
         token = creds.get_pypi_token() or ""
 

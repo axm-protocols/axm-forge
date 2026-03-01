@@ -6,10 +6,13 @@ atomic multi-file operations used during project scaffolding.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -47,13 +50,19 @@ class Transaction:
 
         # Remove files first
         for f in reversed(self.created_files):
-            if f.exists():
-                f.unlink()
+            try:
+                if f.exists():
+                    f.unlink()
+            except OSError as exc:
+                logger.warning("Rollback: failed to remove file %s: %s", f, exc)
 
         # Remove directories (reverse order for nested)
         for d in reversed(self.created_dirs):
-            if d.exists() and not any(d.iterdir()):
-                d.rmdir()
+            try:
+                if d.exists() and not any(d.iterdir()):
+                    d.rmdir()
+            except OSError as exc:
+                logger.warning("Rollback: failed to remove dir %s: %s", d, exc)
 
 
 class FileSystemAdapter:

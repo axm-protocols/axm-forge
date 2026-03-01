@@ -52,3 +52,13 @@ password = pypi-from-file
         assert manager.validate_token("pypi-abc123") is True
         assert manager.validate_token("invalid-token") is False
         assert manager.validate_token("") is False
+
+    def test_save_pypi_token_permission_error(self, tmp_path: Path) -> None:
+        """save_pypi_token returns False on PermissionError."""
+        from axm_init.adapters.credentials import CredentialManager
+
+        manager = CredentialManager(pypirc_path=tmp_path / ".pypirc")
+
+        with patch.object(Path, "write_text", side_effect=PermissionError("read-only")):
+            result = manager.save_pypi_token("pypi-test")
+            assert result is False

@@ -1,6 +1,10 @@
 """Tests for FileSystemAdapter — RED phase."""
 
+import logging
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 
 class TestFileSystemAdapter:
@@ -97,3 +101,41 @@ class TestTransaction:
         with adapter.transaction() as tx:
             tx.write_file(tmp_path / "tracked.txt", "data")
             assert len(tx.created_files) == 1
+
+    def test_rollback_logs_on_unlink_failure(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Rollback logs warning when file unlink fails."""
+        from axm_init.adapters.filesystem import Transaction
+
+        tx = Transaction()
+        target = tmp_path / "stuck.txt"
+        target.write_text("data")
+        tx.created_files.append(target)
+
+        with (
+            patch.object(Path, "unlink", side_effect=OSError("Permission denied")),
+            caplog.at_level(logging.WARNING),
+        ):
+            tx.rollback()
+
+        assert "failed to remove file" in caplog.text
+
+    def test_rollback_logs_on_rmdir_failure(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Rollback logs warning when rmdir fails."""
+        from axm_init.adapters.filesystem import Transaction
+
+        tx = Transaction()
+        target = tmp_path / "stuck_dir"
+        target.mkdir()
+        tx.created_dirs.append(target)
+
+        with (
+            patch.object(Path, "rmdir", side_effect=OSError("Permission denied")),
+            caplog.at_level(logging.WARNING),
+        ):
+            tx.rollback()
+
+        assert "failed to remove dir" in caplog.text

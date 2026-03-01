@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import configparser
 import getpass
+import logging
 import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -82,11 +85,17 @@ class CredentialManager:
         config.set("pypi", "username", "__token__")
         config.set("pypi", "password", token)
 
-        with open(self.pypirc_path, "w") as f:
-            config.write(f)
+        try:
+            import io
 
-        # Set restrictive permissions
-        self.pypirc_path.chmod(0o600)
+            buf = io.StringIO()
+            config.write(buf)
+            self.pypirc_path.write_text(buf.getvalue())
+            # Set restrictive permissions
+            self.pypirc_path.chmod(0o600)
+        except (PermissionError, OSError) as exc:
+            logger.warning("Failed to save %s: %s", self.pypirc_path, exc)
+            return False
         return True
 
     def resolve_pypi_token(self, *, interactive: bool = True) -> str:
