@@ -276,7 +276,7 @@ class TestScaffoldCommand:
             files_created=["pyproject.toml", "README.md"],
             message="ok",
         )
-        with patch("axm_init.cli.CopierAdapter") as mock_cls:
+        with patch("axm_init.adapters.copier.CopierAdapter") as mock_cls:
             mock_cls.return_value.copy.return_value = mock_result
             stdout, _stderr, code = _run(
                 "scaffold",
@@ -299,7 +299,7 @@ class TestScaffoldCommand:
             files_created=["pyproject.toml"],
             message="ok",
         )
-        with patch("axm_init.cli.CopierAdapter") as mock_cls:
+        with patch("axm_init.adapters.copier.CopierAdapter") as mock_cls:
             mock_cls.return_value.copy.return_value = mock_result
             stdout, _stderr, code = _run(
                 "scaffold",
@@ -324,7 +324,7 @@ class TestScaffoldCommand:
             files_created=[],
             message="Copy failed",
         )
-        with patch("axm_init.cli.CopierAdapter") as mock_cls:
+        with patch("axm_init.adapters.copier.CopierAdapter") as mock_cls:
             mock_cls.return_value.copy.return_value = mock_result
             _stdout, stderr, code = _run(
                 "scaffold",
@@ -346,7 +346,7 @@ class TestScaffoldCommand:
 class TestScaffoldEdgeCases:
     """Tests for scaffold command edge cases."""
 
-    @patch("axm_init.cli.CopierAdapter")
+    @patch("axm_init.adapters.copier.CopierAdapter")
     def test_scaffold_no_name_defaults_to_dirname(
         self, mock_copier_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -404,7 +404,7 @@ class TestScaffoldEdgeCases:
         )
         assert code != 0
 
-    @patch("axm_init.cli.CopierAdapter")
+    @patch("axm_init.adapters.copier.CopierAdapter")
     def test_scaffold_license_holder_defaults_to_org(
         self, mock_copier_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -432,7 +432,7 @@ class TestScaffoldEdgeCases:
         config = call_args[0][0]
         assert config.data["license_holder"] == "my-org"
 
-    @patch("axm_init.cli.PyPIAdapter")
+    @patch("axm_init.adapters.pypi.PyPIAdapter")
     def test_scaffold_pypi_taken_exits_with_error(
         self, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -452,7 +452,7 @@ class TestScaffoldEdgeCases:
         )
         assert code == 1
 
-    @patch("axm_init.cli.PyPIAdapter")
+    @patch("axm_init.adapters.pypi.PyPIAdapter")
     def test_scaffold_pypi_taken_json_output(
         self, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -475,7 +475,7 @@ class TestScaffoldEdgeCases:
         data = json.loads(stdout)
         assert "error" in data
 
-    @patch("axm_init.cli.PyPIAdapter")
+    @patch("axm_init.adapters.pypi.PyPIAdapter")
     def test_scaffold_pypi_error_continues(
         self, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -529,7 +529,7 @@ class TestScaffoldCommandOptions:
         """scaffold --help must NOT show --template flag (removed)."""
         assert "--template" not in self._capture_help()
 
-    @patch("axm_init.cli.CopierAdapter")
+    @patch("axm_init.adapters.copier.CopierAdapter")
     def test_scaffold_with_name_option(
         self, mock_copier_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -560,7 +560,7 @@ class TestScaffoldCommandOptions:
 class TestScaffoldFailurePath:
     """Cover scaffold command failure output (copier fails)."""
 
-    @patch("axm_init.cli.CopierAdapter")
+    @patch("axm_init.adapters.copier.CopierAdapter")
     def test_scaffold_copier_fails_human(
         self, mock_copier_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -581,7 +581,7 @@ class TestScaffoldFailurePath:
         assert code == 1
         assert "❌" in stderr
 
-    @patch("axm_init.cli.CopierAdapter")
+    @patch("axm_init.adapters.copier.CopierAdapter")
     def test_scaffold_json_success(
         self, mock_copier_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -606,8 +606,8 @@ class TestScaffoldFailurePath:
 class TestScaffoldPyPIJsonError:
     """Cover --check-pypi + --json error path (status=ERROR)."""
 
-    @patch("axm_init.cli.CopierAdapter")
-    @patch("axm_init.cli.PyPIAdapter")
+    @patch("axm_init.adapters.copier.CopierAdapter")
+    @patch("axm_init.adapters.pypi.PyPIAdapter")
     def test_pypi_error_json_continues(
         self, mock_pypi: MagicMock, mock_copier: MagicMock, tmp_path: Path
     ) -> None:
@@ -638,8 +638,8 @@ class TestScaffoldPyPIJsonError:
 class TestReserveJsonSuccess:
     """Cover reserve command JSON output for success path."""
 
-    @patch("axm_init.cli.reserve_pypi")
-    @patch("axm_init.cli.CredentialManager")
+    @patch("axm_init.core.reserver.reserve_pypi")
+    @patch("axm_init.adapters.credentials.CredentialManager")
     def test_reserve_json_success(
         self, mock_creds: MagicMock, mock_reserve: MagicMock
     ) -> None:
@@ -656,8 +656,8 @@ class TestReserveJsonSuccess:
         data = json.loads(stdout)
         assert data["success"] is True
 
-    @patch("axm_init.cli.reserve_pypi")
-    @patch("axm_init.cli.CredentialManager")
+    @patch("axm_init.core.reserver.reserve_pypi")
+    @patch("axm_init.adapters.credentials.CredentialManager")
     def test_reserve_json_failure(
         self, mock_creds: MagicMock, mock_reserve: MagicMock
     ) -> None:
@@ -674,8 +674,8 @@ class TestReserveJsonSuccess:
         data = json.loads(stdout)
         assert data["success"] is False
 
-    @patch("axm_init.cli.reserve_pypi")
-    @patch("axm_init.cli.CredentialManager")
+    @patch("axm_init.core.reserver.reserve_pypi")
+    @patch("axm_init.adapters.credentials.CredentialManager")
     def test_reserve_human_failure(
         self, mock_creds: MagicMock, mock_reserve: MagicMock
     ) -> None:
@@ -695,7 +695,7 @@ class TestReserveJsonSuccess:
 class TestReserveCommand:
     """Tests for the reserve command — edge cases."""
 
-    @patch("axm_init.cli.CredentialManager")
+    @patch("axm_init.adapters.credentials.CredentialManager")
     def test_reserve_no_token_json_exits(self, mock_cls: MagicMock) -> None:
         """No token + --json outputs error JSON and exits 1."""
         mock_creds = mock_cls.return_value
@@ -706,7 +706,7 @@ class TestReserveCommand:
         data = json.loads(stdout)
         assert "error" in data
 
-    @patch("axm_init.cli.CredentialManager")
+    @patch("axm_init.adapters.credentials.CredentialManager")
     def test_reserve_resolve_fails_exits(self, mock_cls: MagicMock) -> None:
         """resolve_pypi_token raising SystemExit causes CLI exit 1."""
         mock_creds = mock_cls.return_value
@@ -715,8 +715,8 @@ class TestReserveCommand:
         _, _, code = _run("reserve", "test-pkg")
         assert code == 1
 
-    @patch("axm_init.cli.reserve_pypi")
-    @patch("axm_init.cli.CredentialManager")
+    @patch("axm_init.core.reserver.reserve_pypi")
+    @patch("axm_init.adapters.credentials.CredentialManager")
     def test_reserve_dry_run_succeeds(
         self, mock_cred_cls: MagicMock, mock_reserve: MagicMock
     ) -> None:

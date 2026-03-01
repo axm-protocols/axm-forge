@@ -4,28 +4,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
+from axm_init.checks._utils import _load_toml
 from axm_init.models.check import CheckResult
 
 logger = logging.getLogger(__name__)
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore[no-redef]
-
-
-def _load_toml(project: Path) -> dict[str, Any] | None:
-    """Load pyproject.toml, return None if missing/corrupt."""
-    path = project / "pyproject.toml"
-    if not path.exists():
-        return None
-    try:
-        with path.open("rb") as f:
-            return tomllib.load(f)
-    except Exception:
-        return None
 
 
 def check_pyproject_exists(project: Path) -> CheckResult:

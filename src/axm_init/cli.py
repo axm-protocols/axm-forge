@@ -18,12 +18,6 @@ from typing import Annotated, Any
 
 import cyclopts
 
-from axm_init.adapters.copier import CopierAdapter, CopierConfig
-from axm_init.adapters.credentials import CredentialManager
-from axm_init.adapters.pypi import AvailabilityStatus, PyPIAdapter
-from axm_init.core.reserver import reserve_pypi
-from axm_init.core.templates import get_template_path
-
 __all__ = ["app"]
 
 logger = logging.getLogger(__name__)
@@ -50,6 +44,8 @@ def _git_config_get(key: str) -> str:
 
 def _check_pypi_availability(project_name: str, *, json_output: bool) -> None:
     """Check PyPI availability and exit(1) if name is taken."""
+    from axm_init.adapters.pypi import AvailabilityStatus, PyPIAdapter
+
     adapter = PyPIAdapter()
     status = adapter.check_availability(project_name)
 
@@ -146,6 +142,9 @@ def scaffold(
     ] = False,
 ) -> None:
     """Scaffold a new Python project with best practices."""
+    from axm_init.adapters.copier import CopierAdapter, CopierConfig
+    from axm_init.core.templates import get_template_path
+
     target_path = Path(path).resolve()
     project_name = name or target_path.name
 
@@ -197,6 +196,9 @@ def reserve(
     ] = False,
 ) -> None:
     """Reserve a package name on PyPI."""
+    from axm_init.adapters.credentials import CredentialManager
+    from axm_init.core.reserver import reserve_pypi
+
     author = author or _git_config_get("user.name")
     email = email or _git_config_get("user.email")
     creds = CredentialManager()

@@ -3,25 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
+from axm_init.checks._utils import _load_toml
 from axm_init.models.check import CheckResult
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore[no-redef]
-
-
-def _load_toml(project: Path) -> dict[str, Any] | None:
-    path = project / "pyproject.toml"
-    if not path.exists():
-        return None
-    try:
-        with path.open("rb") as f:
-            return tomllib.load(f)
-    except Exception:
-        return None
 
 
 def check_dev_deps(project: Path) -> CheckResult:

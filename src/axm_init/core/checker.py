@@ -5,41 +5,38 @@ from __future__ import annotations
 import importlib
 import inspect
 import logging
+import pkgutil
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+import axm_init.checks as _checks_pkg
 from axm_init.models.check import CheckResult, ProjectResult
 
 logger = logging.getLogger(__name__)
 
-# Category → module path.  Order determines report order.
-# Each module exposes ``check_*`` functions discovered by ``_discover_checks()``.
-# All check functions share the signature ``(Path) -> CheckResult``.
-# Categories and their checks define the 39-point governance scoring model.
-_CHECK_MODULES: dict[str, str] = {
-    "pyproject": "axm_init.checks.pyproject",  # 9 checks — pyproject.toml fields
-    "ci": "axm_init.checks.ci",  # 7 checks — CI workflows
-    "tooling": "axm_init.checks.tooling",  # 7 checks — dev tooling
-    "docs": "axm_init.checks.docs",  # 5 checks — documentation
-    "structure": "axm_init.checks.structure",  # 7 checks — project layout
-    "deps": "axm_init.checks.deps",  # 2 checks — dependency hygiene
-    "changelog": "axm_init.checks.changelog",  # 2 checks — changelog presence
-}
-
 
 def _discover_checks() -> dict[str, list[Callable[[Path], CheckResult]]]:
-    """Build check registry by discovering ``check_*`` functions in modules."""
+    """Auto-discover ``check_*`` functions from all modules in ``axm_init.checks``.
+
+    Scans every public module in the ``checks`` package (skipping private
+    ``_``-prefixed modules) and collects all public ``check_*`` functions.
+    The module name becomes the category key.
+    """
     registry: dict[str, list[Callable[[Path], CheckResult]]] = {}
-    for category, module_path in _CHECK_MODULES.items():
+    for info in pkgutil.iter_modules(_checks_pkg.__path__):
+        if info.name.startswith("_"):
+            continue  # Skip private modules like _utils
+        module_path = f"axm_init.checks.{info.name}"
         mod = importlib.import_module(module_path)
         fns: list[Callable[[Path], CheckResult]] = [
             obj
             for name, obj in inspect.getmembers(mod, inspect.isfunction)
             if name.startswith("check_") and not name.startswith("_")
         ]
-        registry[category] = fns
+        if fns:
+            registry[info.name] = fns
     return registry
 
 

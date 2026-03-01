@@ -5,11 +5,12 @@ Covers the orchestration engine and both output formatters.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
 
-from axm_init.core.checker import CheckEngine, format_json, format_report
+from axm_init.core.checker import ALL_CHECKS, CheckEngine, format_json, format_report
 from axm_init.models.check import CheckResult, Grade, ProjectResult
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -277,3 +278,69 @@ class TestFormatReportVerbose:
         report = format_report(result)
         assert "❌" in report
         assert "Run fix command" in report
+
+
+# ── Auto-discovery tests ─────────────────────────────────────────────────────
+
+
+class TestCheckDiscovery:
+    """Tests for auto-discovery of check modules."""
+
+    def test_check_discovery_finds_all(self) -> None:
+        """Auto-discovery finds 39 checks across 7 categories."""
+        total = sum(len(fns) for fns in ALL_CHECKS.values())
+        assert total == 39
+        assert len(ALL_CHECKS) == 7
+
+    def test_discovery_categories(self) -> None:
+        """All expected categories are discovered."""
+        expected = {
+            "pyproject",
+            "ci",
+            "tooling",
+            "docs",
+            "structure",
+            "deps",
+            "changelog",
+        }
+        assert set(ALL_CHECKS.keys()) == expected
+
+    def test_discovery_skips_private_modules(self) -> None:
+        """Private modules like _utils are not included."""
+        assert "_utils" not in ALL_CHECKS
+
+
+# ── CLI lazy import tests ────────────────────────────────────────────────────
+
+
+class TestCLILazyImports:
+    """Verify CLI adapter imports are lazy."""
+
+    def test_cli_scaffold_lazy(self) -> None:
+        """Importing axm_init.cli does not eagerly import adapters/core."""
+        # Force reimport by checking that the modules are NOT loaded
+        # as a side-effect of importing cli
+        lazy_modules = [
+            "axm_init.adapters.copier",
+            "axm_init.adapters.credentials",
+            "axm_init.adapters.pypi",
+            "axm_init.core.reserver",
+            "axm_init.core.templates",
+        ]
+        # Remove from cache if present
+        cached = {m: sys.modules.pop(m, None) for m in lazy_modules}
+        # Also remove cli to force re-evaluation
+        sys.modules.pop("axm_init.cli", None)
+        try:
+            import importlib
+
+            importlib.import_module("axm_init.cli")
+            for mod in lazy_modules:
+                assert mod not in sys.modules, (
+                    f"{mod} was eagerly imported by axm_init.cli"
+                )
+        finally:
+            # Restore cache
+            for m, v in cached.items():
+                if v is not None:
+                    sys.modules[m] = v
