@@ -93,6 +93,7 @@ class AuditResult(BaseModel):
             "QUALITY_LINT": "lint",
             "QUALITY_FORMAT": "lint",
             "QUALITY_DIFF_SIZE": "lint",
+            "QUALITY_DEAD_CODE": "lint",
             "QUALITY_TYPE": "type",
             "QUALITY_COMPLEXITY": "complexity",
             "QUALITY_SECURITY": "security",

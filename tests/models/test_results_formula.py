@@ -79,6 +79,7 @@ class TestQualityScore:
             "QUALITY_FORMAT",
             "QUALITY_DIFF_SIZE",
             "QUALITY_TYPE",
+            "QUALITY_DEAD_CODE",
             "QUALITY_COMPLEXITY",
             "QUALITY_SECURITY",
             "DEPS_AUDIT",
@@ -112,7 +113,12 @@ class TestQualityScore:
         # a check with that rule_id + score=100 must contribute to quality_score.
         for _category, rule_classes in RULES_BY_CATEGORY.items():
             for cls in rule_classes:
-                rule = cls() if cls.__init__.__code__.co_varnames == ("self",) else None
+                has_code = hasattr(cls.__init__, "__code__")
+                rule = (
+                    cls()
+                    if not has_code or cls.__init__.__code__.co_varnames == ("self",)
+                    else None
+                )
                 if rule is None:
                     continue
                 rid = rule.rule_id
@@ -136,6 +142,7 @@ class TestQualityScore:
                 "QUALITY_FORMAT",
                 "QUALITY_DIFF_SIZE",
                 "QUALITY_TYPE",
+                "QUALITY_DEAD_CODE",
                 "QUALITY_COMPLEXITY",
                 "QUALITY_SECURITY",
                 "DEPS_AUDIT",
@@ -162,6 +169,7 @@ class TestQualityScore:
                 "QUALITY_FORMAT",
                 "QUALITY_DIFF_SIZE",
                 "QUALITY_TYPE",
+                "QUALITY_DEAD_CODE",
                 "QUALITY_COMPLEXITY",
                 "QUALITY_SECURITY",
                 "DEPS_AUDIT",
