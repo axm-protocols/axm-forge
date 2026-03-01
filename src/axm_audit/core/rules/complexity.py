@@ -15,6 +15,7 @@ from axm_audit.core.rules.base import (
     COMPLEXITY_THRESHOLD,
     PASS_THRESHOLD,
     ProjectRule,
+    register_rule,
 )
 from axm_audit.models.results import CheckResult, Severity
 
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+@register_rule("quality")
 class ComplexityRule(ProjectRule):
     """Analyse cyclomatic complexity via radon Python API.
 

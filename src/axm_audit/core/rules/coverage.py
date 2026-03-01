@@ -7,7 +7,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+@register_rule("testing")
 class TestCoverageRule(ProjectRule):
     """Check test coverage via pytest-cov.
 

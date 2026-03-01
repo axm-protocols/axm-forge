@@ -127,12 +127,13 @@ class TestQualityScore:
     def test_rule_category_covers_all_scored_rules(self) -> None:
         """Every rule in the registry must have a category property.
 
-        Safeguard: enumerate rule classes from the auditor registry, instantiate
-        each, and verify the category property is set and non-empty.
+        Safeguard: enumerate rule classes from the auto-discovery registry,
+        instantiate each, and verify the category property is set and non-empty.
         """
-        from axm_audit.core.auditor import RULES_BY_CATEGORY
+        import axm_audit.core.rules  # noqa: F401
+        from axm_audit.core.rules.base import get_registry
 
-        for category, rule_classes in RULES_BY_CATEGORY.items():
+        for category, rule_classes in get_registry().items():
             for cls in rule_classes:
                 has_code = hasattr(cls.__init__, "__code__")
                 rule = (

@@ -8,8 +8,12 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from axm_audit.core.rules._helpers import get_python_files, parse_file_safe
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules._helpers import (
+    get_ast_cache,
+    get_python_files,
+    parse_file_safe,
+)
+from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.models.results import CheckResult, Severity
 
 logger = logging.getLogger(__name__)
@@ -20,6 +24,7 @@ _HTTP_METHODS = {"get", "post", "put", "delete", "patch", "head", "options"}
 
 
 @dataclass
+@register_rule("practice")
 class DocstringCoverageRule(ProjectRule):
     """Calculate docstring coverage for public functions.
 
@@ -76,7 +81,8 @@ class DocstringCoverageRule(ProjectRule):
         missing: list[str] = []
 
         for path in get_python_files(src_path):
-            tree = parse_file_safe(path)
+            cache = get_ast_cache()
+            tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
             if tree is None:
                 continue
 
@@ -107,6 +113,7 @@ class DocstringCoverageRule(ProjectRule):
 
 
 @dataclass
+@register_rule("practice")
 class BareExceptRule(ProjectRule):
     """Detect bare except clauses (except: without type)."""
 
@@ -132,7 +139,8 @@ class BareExceptRule(ProjectRule):
         py_files = get_python_files(src_path)
 
         for path in py_files:
-            tree = parse_file_safe(path)
+            cache = get_ast_cache()
+            tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
             if tree is None:
                 continue
 
@@ -168,6 +176,7 @@ class BareExceptRule(ProjectRule):
 
 
 @dataclass
+@register_rule("practice")
 class SecurityPatternRule(ProjectRule):
     """Detect hardcoded secrets via regex patterns."""
 
@@ -236,6 +245,7 @@ class SecurityPatternRule(ProjectRule):
 
 
 @dataclass
+@register_rule("practice")
 class BlockingIORule(ProjectRule):
     """Detect blocking I/O anti-patterns.
 
@@ -265,7 +275,8 @@ class BlockingIORule(ProjectRule):
         violations: list[dict[str, str | int]] = []
 
         for path in get_python_files(src_path):
-            tree = parse_file_safe(path)
+            cache = get_ast_cache()
+            tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
             if tree is None:
                 continue
             rel = str(path.relative_to(src_path))
@@ -391,6 +402,7 @@ def _is_http_call(value: ast.expr) -> bool:
 
 
 @dataclass
+@register_rule("practice")
 class LoggingPresenceRule(ProjectRule):
     """Verify that substantial source modules import logging.
 
@@ -467,7 +479,8 @@ class LoggingPresenceRule(ProjectRule):
         total_checked = 0
 
         for path in get_python_files(src_path):
-            tree = parse_file_safe(path)
+            cache = get_ast_cache()
+            tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
             if tree is None:
                 continue
             if not self._should_check_module(path, tree):
@@ -500,6 +513,7 @@ _TEST_MIRROR_EXEMPT = {"__init__.py", "_version.py", "conftest.py", "py.typed"}
 
 
 @dataclass
+@register_rule("practice")
 class TestMirrorRule(ProjectRule):
     """Check that every source module has a corresponding test file.
 

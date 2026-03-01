@@ -2,37 +2,21 @@
 
 This module provides the public API for checking project compliance.
 Rules execute in parallel via ThreadPoolExecutor for faster audits.
+
+Rule discovery is automatic: every rule decorated with
+``@register_rule`` is picked up via ``get_registry()``.
 """
+
+from __future__ import annotations
 
 import concurrent.futures
 import logging
+import traceback as _traceback
 from pathlib import Path
 
-from axm_audit.core.rules import (
-    BareExceptRule,
-    BlockingIORule,
-    CircularImportRule,
-    ComplexityRule,
-    CouplingMetricRule,
-    DeadCodeRule,
-    DependencyAuditRule,
-    DependencyHygieneRule,
-    DiffSizeRule,
-    DocstringCoverageRule,
-    DuplicationRule,
-    FormattingRule,
-    GodClassRule,
-    LintingRule,
-    LoggingPresenceRule,
-    PyprojectCompletenessRule,
-    SecurityPatternRule,
-    SecurityRule,
-    TestCoverageRule,
-    TestMirrorRule,
-    ToolAvailabilityRule,
-    TypeCheckRule,
-)
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules._helpers import ASTCache, set_ast_cache
+from axm_audit.core.rules.base import ProjectRule, get_registry
+from axm_audit.core.rules.tooling import ToolAvailabilityRule
 from axm_audit.models.results import AuditResult, CheckResult, Severity
 
 logger = logging.getLogger(__name__)
@@ -49,37 +33,6 @@ VALID_CATEGORIES = {
     "tooling",
 }
 
-# Rule categories for filtering
-RULES_BY_CATEGORY: dict[str, list[type[ProjectRule]]] = {
-    "structure": [PyprojectCompletenessRule],
-    "quality": [
-        LintingRule,
-        FormattingRule,
-        TypeCheckRule,
-        ComplexityRule,
-        DiffSizeRule,
-        DeadCodeRule,
-    ],
-    "architecture": [
-        CircularImportRule,
-        GodClassRule,
-        CouplingMetricRule,
-        DuplicationRule,
-    ],
-    "practice": [
-        DocstringCoverageRule,
-        BareExceptRule,
-        SecurityPatternRule,
-        BlockingIORule,
-        LoggingPresenceRule,
-        TestMirrorRule,
-    ],
-    "security": [SecurityRule],
-    "dependencies": [DependencyAuditRule, DependencyHygieneRule],
-    "testing": [TestCoverageRule],
-    "tooling": [ToolAvailabilityRule],
-}
-
 
 _REQUIRED_TOOLS: list[str] = ["ruff", "mypy", "uv"]
 """Tools that must be available on PATH for a compliant project."""
@@ -94,10 +47,18 @@ def _get_tooling_rules() -> list[ProjectRule]:
     return [ToolAvailabilityRule(tool_name=t) for t in _REQUIRED_TOOLS]
 
 
+def _ensure_registry_loaded() -> None:
+    """Import all rule modules so ``@register_rule`` decorators fire."""
+    import axm_audit.core.rules  # noqa: F401
+
+
 def _build_all_rules() -> list[ProjectRule]:
-    """Instantiate all rules from every category."""
+    """Instantiate all rules from the auto-discovery registry."""
+    _ensure_registry_loaded()
+    registry = get_registry()
+
     rules: list[ProjectRule] = []
-    for cat, rule_classes in RULES_BY_CATEGORY.items():
+    for cat, rule_classes in registry.items():
         if cat == "tooling":
             rules.extend(_get_tooling_rules())
         else:
@@ -120,7 +81,11 @@ def get_rules_for_category(
     Raises:
         ValueError: If category is not valid.
     """
+    _ensure_registry_loaded()
+
     if quick:
+        from axm_audit.core.rules.quality import LintingRule, TypeCheckRule
+
         return [LintingRule(), TypeCheckRule()]
 
     # Validate category
@@ -136,7 +101,8 @@ def get_rules_for_category(
     if category == "tooling":
         return _get_tooling_rules()
 
-    rule_classes = RULES_BY_CATEGORY.get(category, [])
+    registry = get_registry()
+    rule_classes = registry.get(category, [])
     return [cls() for cls in rule_classes]
 
 
@@ -145,12 +111,14 @@ def _safe_check(rule: ProjectRule, project_path: Path) -> CheckResult:
 
     If the rule raises, returns a failed CheckResult rather than crashing.
     Injects ``rule.category`` into the returned CheckResult.
+    Includes traceback in ``details`` on failure for debugging.
     """
     try:
         result = rule.check(project_path)
         result.category = rule.category
         return result
     except Exception as exc:  # noqa: BLE001
+        tb = _traceback.format_exc()[-500:]
         logger.warning("Rule %s raised: %s", rule.rule_id, exc, exc_info=True)
         return CheckResult(
             rule_id=rule.rule_id,
@@ -159,6 +127,7 @@ def _safe_check(rule: ProjectRule, project_path: Path) -> CheckResult:
             severity=Severity.ERROR,
             fix_hint="Check rule configuration and dependencies",
             category=rule.category,
+            details={"traceback": tb},
         )
 
 
@@ -171,6 +140,7 @@ def audit_project(
 
     Rules execute in parallel via ThreadPoolExecutor for speed.
     Each rule is isolated — one failure does not prevent others.
+    An ``ASTCache`` is shared across rules to avoid redundant parsing.
 
     Args:
         project_path: Root directory of the project to audit.
@@ -188,7 +158,12 @@ def audit_project(
 
     rules = get_rules_for_category(category, quick)
 
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        checks = list(pool.map(lambda r: _safe_check(r, project_path), rules))
+    cache = ASTCache()
+    set_ast_cache(cache)
+    try:
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            checks = list(pool.map(lambda r: _safe_check(r, project_path), rules))
+    finally:
+        set_ast_cache(None)
 
     return AuditResult(project_path=str(project_path), checks=checks)

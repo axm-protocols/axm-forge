@@ -105,3 +105,87 @@ class TestScoringConstants:
         from axm_audit.core.rules.base import PERFECT_SCORE
 
         assert PERFECT_SCORE == 100
+
+
+class TestRegisterRule:
+    """Tests for @register_rule decorator."""
+
+    def test_register_rule_populates_registry(self) -> None:
+        """Decorated class appears in the registry."""
+        from axm_audit.core.rules.base import _RULE_REGISTRY, ProjectRule, register_rule
+
+        @register_rule("_test_cat")
+        class _DummyRule(ProjectRule):
+            @property
+            def rule_id(self) -> str:
+                return "DUMMY"
+
+            @property
+            def category(self) -> str:
+                return "testing"
+
+            def check(self, project_path: Path) -> CheckResult:
+                return CheckResult(rule_id=self.rule_id, passed=True, message="ok")
+
+        assert _DummyRule in _RULE_REGISTRY["_test_cat"]
+        # Cleanup
+        _RULE_REGISTRY["_test_cat"].remove(_DummyRule)
+        if not _RULE_REGISTRY["_test_cat"]:
+            del _RULE_REGISTRY["_test_cat"]
+
+    def test_registry_deduplication(self) -> None:
+        """Registering the same class twice doesn't duplicate it."""
+        from axm_audit.core.rules.base import _RULE_REGISTRY, ProjectRule, register_rule
+
+        @register_rule("_test_dedup")
+        class _DedupeRule(ProjectRule):
+            @property
+            def rule_id(self) -> str:
+                return "DEDUPE"
+
+            @property
+            def category(self) -> str:
+                return "testing"
+
+            def check(self, project_path: Path) -> CheckResult:
+                return CheckResult(rule_id=self.rule_id, passed=True, message="ok")
+
+        # Register again manually
+        register_rule("_test_dedup")(_DedupeRule)
+
+        assert _RULE_REGISTRY["_test_dedup"].count(_DedupeRule) == 1
+        # Cleanup
+        _RULE_REGISTRY["_test_dedup"].remove(_DedupeRule)
+        if not _RULE_REGISTRY["_test_dedup"]:
+            del _RULE_REGISTRY["_test_dedup"]
+
+
+class TestGetRegistry:
+    """Tests for get_registry()."""
+
+    def test_registry_has_all_categories(self) -> None:
+        """Registry contains all expected auditor categories after import."""
+        import axm_audit.core.rules  # noqa: F401
+        from axm_audit.core.rules.base import get_registry
+
+        reg = get_registry()
+        expected = {
+            "quality",
+            "architecture",
+            "practice",
+            "security",
+            "dependencies",
+            "testing",
+            "structure",
+            "tooling",
+        }
+        assert expected == set(reg.keys())
+
+    def test_registry_total_rule_count(self) -> None:
+        """Registry contains 24 total rule classes."""
+        import axm_audit.core.rules  # noqa: F401
+        from axm_audit.core.rules.base import get_registry
+
+        reg = get_registry()
+        total = sum(len(v) for v in reg.values())
+        assert total == 22

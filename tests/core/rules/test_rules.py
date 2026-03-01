@@ -157,19 +157,22 @@ class TestRulesRegistration:
 
 
 class TestRuleRegistryDeduplication:
-    """Tests for RULES_BY_CATEGORY-derived rule registry (AXM-178)."""
+    """Tests for auto-discovery registry (AXM-198)."""
 
-    def test_all_rules_derived_from_categories(self) -> None:
-        """AC: all-rules derived from RULES_BY_CATEGORY."""
+    def test_all_rules_derived_from_registry(self) -> None:
+        """AC: all-rules derived from get_registry()."""
+        import axm_audit.core.rules  # noqa: F401
         from axm_audit import get_rules_for_category
-        from axm_audit.core.auditor import RULES_BY_CATEGORY, _get_tooling_rules
+        from axm_audit.core.auditor import _get_tooling_rules
+        from axm_audit.core.rules.base import get_registry
 
         all_rules = get_rules_for_category(None)
         all_rule_types = {type(r) for r in all_rules}
 
-        # Build expected set from RULES_BY_CATEGORY
+        # Build expected set from registry
+        registry = get_registry()
         expected_types: set[type] = set()
-        for cat, rule_classes in RULES_BY_CATEGORY.items():
+        for cat, rule_classes in registry.items():
             if cat == "tooling":
                 expected_types.update(type(r) for r in _get_tooling_rules())
             else:
@@ -181,17 +184,20 @@ class TestRuleRegistryDeduplication:
         )
 
     def test_no_manual_rule_enumeration(self) -> None:
-        """AC: all-rules path has no manual enumeration — count matches categories."""
+        """AC: all-rules path has no manual enumeration — count matches registry."""
+        import axm_audit.core.rules  # noqa: F401
         from axm_audit import get_rules_for_category
-        from axm_audit.core.auditor import RULES_BY_CATEGORY, _get_tooling_rules
+        from axm_audit.core.auditor import _get_tooling_rules
+        from axm_audit.core.rules.base import get_registry
 
         all_rules = get_rules_for_category(None)
 
-        # Expected count: sum of all category rule classes,
+        # Expected count: sum of all registry rule classes,
         # with tooling expanded to 3 instances
+        registry = get_registry()
         expected_count = sum(
             len(_get_tooling_rules()) if cat == "tooling" else len(classes)
-            for cat, classes in RULES_BY_CATEGORY.items()
+            for cat, classes in registry.items()
         )
         assert len(all_rules) == expected_count
 

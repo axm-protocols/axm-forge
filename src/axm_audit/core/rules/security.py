@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule
+from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
@@ -49,6 +49,7 @@ def _extract_top_issues(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 @dataclass
+@register_rule("security")
 class SecurityRule(ProjectRule):
     """Run Bandit and score based on vulnerability severity.
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule
+from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
 from axm_audit.models.results import CheckResult, Severity
 
 
@@ -99,6 +99,7 @@ def _count_fields(project: dict[str, Any]) -> int:
 
 
 @dataclass
+@register_rule("structure")
 class PyprojectCompletenessRule(ProjectRule):
     """Validate PEP 621 field completeness in pyproject.toml.
 

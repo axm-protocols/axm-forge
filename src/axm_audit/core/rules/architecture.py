@@ -10,8 +10,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from axm_audit.core.rules._helpers import get_python_files, parse_file_safe
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules._helpers import (
+    get_ast_cache,
+    get_python_files,
+    parse_file_safe,
+)
+from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.models.results import CheckResult, Severity
 
 logger = logging.getLogger(__name__)
@@ -137,6 +141,7 @@ def _tarjan_scc(graph: dict[str, set[str]]) -> list[list[str]]:
 
 
 @dataclass
+@register_rule("architecture")
 class CircularImportRule(ProjectRule):
     """Detect circular imports via import graph + Tarjan's SCC algorithm."""
 
@@ -185,7 +190,8 @@ class CircularImportRule(ProjectRule):
         for path in get_python_files(src_path):
             if path.name == "__init__.py":
                 continue
-            tree = parse_file_safe(path)
+            cache = get_ast_cache()
+            tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
             if tree is None:
                 continue
             module_name = _get_module_name(path, src_path)
@@ -200,6 +206,7 @@ class CircularImportRule(ProjectRule):
 
 
 @dataclass
+@register_rule("architecture")
 class GodClassRule(ProjectRule):
     """Detect god classes (too many lines or methods)."""
 
@@ -246,7 +253,8 @@ class GodClassRule(ProjectRule):
         py_files = get_python_files(src_path)
 
         for path in py_files:
-            tree = parse_file_safe(path)
+            cache = get_ast_cache()
+            tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
             if tree is None:
                 continue
 
@@ -304,7 +312,8 @@ def _compute_coupling_metrics(
     for path in get_python_files(src_path):
         if path.name == "__init__.py":
             continue
-        tree = parse_file_safe(path)
+        cache = get_ast_cache()
+        tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
         if tree is None:
             continue
         module_name = _get_module_name(path, src_path)
@@ -342,6 +351,7 @@ def _compute_coupling_metrics(
 
 
 @dataclass
+@register_rule("architecture")
 class CouplingMetricRule(ProjectRule):
     """Measure module coupling via fan-in/fan-out analysis.
 

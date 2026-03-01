@@ -7,7 +7,7 @@ import logging
 import subprocess
 from pathlib import Path
 
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["DeadCodeRule"]
 
 
+@register_rule("quality")
 class DeadCodeRule(ProjectRule):
     """Detect dead (unreferenced) code using axm-ast.
 

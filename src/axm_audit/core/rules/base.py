@@ -1,6 +1,7 @@
 """Base class for project rules — dependency-free module.
 
-This module contains the abstract base class for all rules.
+This module contains the abstract base class for all rules,
+the ``@register_rule`` decorator, and the shared ``_RULE_REGISTRY``.
 It has no dependencies on concrete rule implementations to avoid circular imports.
 """
 
@@ -8,8 +9,50 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from axm_audit.models.results import CheckResult, Severity
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+# ── Auto-discovery registry ───────────────────────────────────────────
+#
+# Rule classes decorate themselves with ``@register_rule("quality")``
+# at import time.  The auditor reads ``get_registry()`` instead of a
+# hardcoded dict.
+
+_RULE_REGISTRY: dict[str, list[type[ProjectRule]]] = {}
+
+
+def register_rule(category: str) -> Callable[[type[ProjectRule]], type[ProjectRule]]:
+    """Class decorator that registers a rule in the auto-discovery registry.
+
+    Args:
+        category: Auditor category (e.g. ``"quality"``, ``"practice"``).
+
+    Returns:
+        The unmodified class — the decorator only appends to the registry.
+    """
+
+    def _decorator(cls: type[ProjectRule]) -> type[ProjectRule]:
+        bucket = _RULE_REGISTRY.setdefault(category, [])
+        if cls not in bucket:
+            bucket.append(cls)
+        return cls
+
+    return _decorator
+
+
+def get_registry() -> dict[str, list[type[ProjectRule]]]:
+    """Return the current rule registry (read-only view).
+
+    Callers must ensure that rule modules have been imported before
+    calling this function so that ``@register_rule`` decorators have
+    fired.
+    """
+    return _RULE_REGISTRY
+
 
 # ── Shared scoring constants ──────────────────────────────────────────
 #
