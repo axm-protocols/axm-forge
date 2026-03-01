@@ -1,6 +1,9 @@
 """Dependency rules — vulnerability scanning and hygiene checks."""
 
+from __future__ import annotations
+
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -8,6 +11,8 @@ from typing import Any
 from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
+
+logger = logging.getLogger(__name__)
 
 
 def _run_pip_audit(project_path: Path) -> dict[str, Any] | list[Any]:

@@ -3,28 +3,17 @@
 from __future__ import annotations
 
 import ast
+import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from axm_audit.core.rules._helpers import get_python_files, parse_file_safe
 from axm_audit.core.rules.base import ProjectRule
 from axm_audit.models.results import CheckResult, Severity
 
-
-def _get_python_files(directory: Path) -> list[Path]:
-    """Get all Python files in a directory recursively."""
-    if not directory.exists():
-        return []
-    return list(directory.rglob("*.py"))
-
-
-def _parse_file_safe(path: Path) -> ast.Module | None:
-    """Parse a Python file, returning None on error."""
-    try:
-        return ast.parse(path.read_text(), filename=str(path))
-    except (SyntaxError, UnicodeDecodeError):
-        return None
+logger = logging.getLogger(__name__)
 
 
 def _get_module_name(path: Path, src_root: Path) -> str:
@@ -150,10 +139,10 @@ class CircularImportRule(ProjectRule):
         """Build the module import graph from source files."""
         graph: dict[str, set[str]] = defaultdict(set)
 
-        for path in _get_python_files(src_path):
+        for path in get_python_files(src_path):
             if path.name == "__init__.py":
                 continue
-            tree = _parse_file_safe(path)
+            tree = parse_file_safe(path)
             if tree is None:
                 continue
             module_name = _get_module_name(path, src_path)
@@ -210,10 +199,10 @@ class GodClassRule(ProjectRule):
     def _find_god_classes(self, src_path: Path) -> list[dict[str, str | int]]:
         """Identify god classes in the source directory."""
         god_classes: list[dict[str, str | int]] = []
-        py_files = _get_python_files(src_path)
+        py_files = get_python_files(src_path)
 
         for path in py_files:
-            tree = _parse_file_safe(path)
+            tree = parse_file_safe(path)
             if tree is None:
                 continue
 
@@ -263,8 +252,8 @@ def _compute_coupling_metrics(
     fan_out: dict[str, int] = {}
     fan_in: dict[str, int] = defaultdict(int)
 
-    for path in _get_python_files(src_path):
-        tree = _parse_file_safe(path)
+    for path in get_python_files(src_path):
+        tree = parse_file_safe(path)
         if tree is None:
             continue
         module_name = _get_module_name(path, src_path)

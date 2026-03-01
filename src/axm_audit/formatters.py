@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from axm_audit.core.rules.base import PERFECT_SCORE
 from axm_audit.models.results import AuditResult, CheckResult
+
+logger = logging.getLogger(__name__)
 
 _GRADE_EMOJI = {"A": "🏆", "B": "✅", "C": "⚠️", "D": "🔧", "F": "❌"}
 
