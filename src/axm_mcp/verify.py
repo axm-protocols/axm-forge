@@ -112,6 +112,13 @@ def _enrich_failure(
     if success_count == 0:
         return None
 
+    total_callers = len(all_callers)
+    if total_callers > 10:
+        all_callers = all_callers[:10]
+        all_callers.append(
+            {"note": f"... and {total_callers - 10} more callers omitted for brevity"}
+        )
+
     return {
         "affected_modules": list(dict.fromkeys(symbols)),
         "callers": all_callers,

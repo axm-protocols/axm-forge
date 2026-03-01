@@ -329,3 +329,28 @@ class TestEnrichFailure:
 
         context = _enrich_failure(tools, "/tmp/proj", failure)
         assert context is None
+
+    def test_truncates_callers_if_too_many(self) -> None:
+        """More than 10 callers → truncated to 10 + 1 note dict."""
+        from axm_mcp.verify import _enrich_failure
+
+        callers = [{"file": "f.py", "line": i} for i in range(15)]
+        tools = self._make_tools(
+            [
+                ToolResult(
+                    success=True,
+                    data={"callers": callers, "test_files": [], "score": 0.5},
+                )
+            ]
+        )
+
+        failure = {
+            "rule_id": "QUALITY_TYPE",
+            "details": {"errors": [{"file": "src/foo.py", "line": 1, "message": "e"}]},
+        }
+
+        context = _enrich_failure(tools, "/tmp/proj", failure)
+        assert context is not None
+        assert len(context["callers"]) == 11  # 10 callers + 1 note
+        assert "omitted for brevity" in context["callers"][-1].get("note", "")
+        assert context["callers"][0] == {"file": "f.py", "line": 0}
