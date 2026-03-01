@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,6 +12,8 @@ from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
 __all__ = ["TestCoverageRule"]
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
