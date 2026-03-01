@@ -18,9 +18,10 @@ if TYPE_CHECKING:
 
 # ── Auto-discovery registry ───────────────────────────────────────────
 #
-# Rule classes decorate themselves with ``@register_rule("quality")``
+# Rule classes decorate themselves with ``@register_rule("lint")``
 # at import time.  The auditor reads ``get_registry()`` instead of a
-# hardcoded dict.
+# hardcoded dict.  The decorator also injects ``_registered_category``
+# so that ``ProjectRule.category`` resolves without a manual property.
 
 _RULE_REGISTRY: dict[str, list[type[ProjectRule]]] = {}
 
@@ -28,14 +29,19 @@ _RULE_REGISTRY: dict[str, list[type[ProjectRule]]] = {}
 def register_rule(category: str) -> Callable[[type[ProjectRule]], type[ProjectRule]]:
     """Class decorator that registers a rule in the auto-discovery registry.
 
+    Also injects ``_registered_category`` on the class so that
+    ``ProjectRule.category`` resolves automatically.
+
     Args:
-        category: Auditor category (e.g. ``"quality"``, ``"practice"``).
+        category: Unified category (e.g. ``"lint"``, ``"security"``).
 
     Returns:
-        The unmodified class — the decorator only appends to the registry.
+        The unmodified class — the decorator only appends to the registry
+        and sets the ``_registered_category`` attribute.
     """
 
     def _decorator(cls: type[ProjectRule]) -> type[ProjectRule]:
+        cls._registered_category = category  # type: ignore[attr-defined]
         bucket = _RULE_REGISTRY.setdefault(category, [])
         if cls not in bucket:
             bucket.append(cls)
@@ -113,14 +119,14 @@ class ProjectRule(ABC):
         """Unique identifier for this rule."""
 
     @property
-    @abstractmethod
     def category(self) -> str:
-        """Scoring category for this rule.
+        """Scoring category, auto-injected by ``@register_rule``.
 
-        Must be one of: ``lint``, ``type``, ``complexity``, ``security``,
+        Valid values: ``lint``, ``type``, ``complexity``, ``security``,
         ``deps``, ``testing``, ``architecture``, ``practices``,
         ``structure``, ``tooling``.
         """
+        return getattr(self, "_registered_category", "")
 
     @abstractmethod
     def check(self, project_path: Path) -> CheckResult:

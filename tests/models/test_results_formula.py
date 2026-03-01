@@ -24,7 +24,7 @@ _RULE_CATEGORY: dict[str, str] = {
     "ARCH_DUPLICATION": "architecture",
     "PRACTICE_DOCSTRING": "practices",
     "PRACTICE_BARE_EXCEPT": "practices",
-    "PRACTICE_SECURITY": "practices",
+    "PRACTICE_SECURITY": "security",
     "PRACTICE_BLOCKING_IO": "practices",
     "PRACTICE_LOGGING": "practices",
     "PRACTICE_TEST_MIRROR": "practices",
@@ -72,9 +72,9 @@ class TestQualityScore:
 
         # lint: avg(90,100,100)=96.67 * 0.20 = 19.33
         # types: 85*0.15=12.75 | complexity: 95*0.15=14.25
-        # security: 100*0.10=10 | deps: avg(100,100)*0.10=10
+        # security: avg(100,100)*0.10=10 | deps: avg(100,100)*0.10=10
         # testing: 90*0.15=13.5 | architecture: avg(100,100,100,100)*0.10=10
-        # practices: avg(100,100,100,100,100)*0.05=5
+        # practices: avg(100,100,100,100)*0.05=5
         # Total: 19.33 + 12.75 + 14.25 + 10 + 10 + 13.5 + 10 + 5 = 94.83
         assert result.quality_score == pytest.approx(94.8, abs=0.2)
 

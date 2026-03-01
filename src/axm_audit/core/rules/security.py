@@ -61,11 +61,6 @@ class SecurityRule(ProjectRule):
         """Unique identifier for this rule."""
         return "QUALITY_SECURITY"
 
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "security"
-
     def check(self, project_path: Path) -> CheckResult:
         """Check project security with Bandit."""
         early = self.check_src(project_path)

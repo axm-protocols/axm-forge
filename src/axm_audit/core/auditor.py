@@ -21,15 +21,17 @@ from axm_audit.models.results import AuditResult, CheckResult, Severity
 
 logger = logging.getLogger(__name__)
 
-# Valid audit categories
+# Valid audit categories — aligned with scoring weights
 VALID_CATEGORIES = {
-    "structure",
-    "quality",
-    "architecture",
-    "practice",
+    "lint",
+    "type",
+    "complexity",
     "security",
-    "dependencies",
+    "deps",
     "testing",
+    "architecture",
+    "practices",
+    "structure",
     "tooling",
 }
 

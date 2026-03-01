@@ -26,12 +26,12 @@ class TestProjectRule:
         assert hasattr(ProjectRule, "rule_id")
 
     def test_has_category_property(self) -> None:
-        """ProjectRule declares abstract category property."""
+        """category is concrete, auto-injected by @register_rule."""
         from axm_audit.core.rules.base import ProjectRule
 
         assert hasattr(ProjectRule, "category")
-        # Verify it's abstract — included in __abstractmethods__
-        assert "category" in ProjectRule.__abstractmethods__
+        # category is no longer abstract — it reads from _registered_category
+        assert "category" not in ProjectRule.__abstractmethods__
 
     def test_has_check_method(self) -> None:
         """ProjectRule declares abstract check method."""
@@ -46,13 +46,11 @@ class TestProjectRule:
         (tmp_path / "src").mkdir()
 
         class _ConcreteRule(ProjectRule):
+            _registered_category = "testing"
+
             @property
             def rule_id(self) -> str:
                 return "TEST_RULE"
-
-            @property
-            def category(self) -> str:
-                return "testing"
 
             def check(self, project_path: Path) -> CheckResult:
                 return CheckResult(rule_id=self.rule_id, passed=True, message="ok")
@@ -65,13 +63,11 @@ class TestProjectRule:
         from axm_audit.core.rules.base import ProjectRule
 
         class _ConcreteRule(ProjectRule):
+            _registered_category = "testing"
+
             @property
             def rule_id(self) -> str:
                 return "TEST_RULE"
-
-            @property
-            def category(self) -> str:
-                return "testing"
 
             def check(self, project_path: Path) -> CheckResult:
                 return CheckResult(rule_id=self.rule_id, passed=True, message="ok")
@@ -120,10 +116,6 @@ class TestRegisterRule:
             def rule_id(self) -> str:
                 return "DUMMY"
 
-            @property
-            def category(self) -> str:
-                return "testing"
-
             def check(self, project_path: Path) -> CheckResult:
                 return CheckResult(rule_id=self.rule_id, passed=True, message="ok")
 
@@ -142,10 +134,6 @@ class TestRegisterRule:
             @property
             def rule_id(self) -> str:
                 return "DEDUPE"
-
-            @property
-            def category(self) -> str:
-                return "testing"
 
             def check(self, project_path: Path) -> CheckResult:
                 return CheckResult(rule_id=self.rule_id, passed=True, message="ok")
@@ -170,11 +158,13 @@ class TestGetRegistry:
 
         reg = get_registry()
         expected = {
-            "quality",
+            "lint",
+            "type",
+            "complexity",
             "architecture",
-            "practice",
+            "practices",
             "security",
-            "dependencies",
+            "deps",
             "testing",
             "structure",
             "tooling",

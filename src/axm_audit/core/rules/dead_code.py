@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["DeadCodeRule"]
 
 
-@register_rule("quality")
+@register_rule("lint")
 class DeadCodeRule(ProjectRule):
     """Detect dead (unreferenced) code using axm-ast.
 
@@ -29,11 +29,6 @@ class DeadCodeRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "QUALITY_DEAD_CODE"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "lint"
 
     def _skip(self, reason: str) -> CheckResult:
         """Return graceful skip result."""

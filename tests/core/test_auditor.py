@@ -57,13 +57,15 @@ class TestAuditProjectFunction:
     @pytest.mark.parametrize(
         "category",
         [
-            "structure",
-            "quality",
-            "architecture",
-            "practice",
+            "lint",
+            "type",
+            "complexity",
             "security",
-            "dependencies",
+            "deps",
             "testing",
+            "architecture",
+            "practices",
+            "structure",
             "tooling",
         ],
     )
@@ -108,13 +110,15 @@ class TestGetRulesForCategory:
     @pytest.mark.parametrize(
         "category,expected_min",
         [
-            ("structure", 1),
-            ("quality", 1),
-            ("architecture", 1),
-            ("practice", 1),
+            ("lint", 1),
+            ("type", 1),
+            ("complexity", 1),
             ("security", 1),
-            ("dependencies", 1),
+            ("deps", 1),
             ("testing", 1),
+            ("architecture", 1),
+            ("practices", 1),
+            ("structure", 1),
             ("tooling", 1),
         ],
     )
@@ -168,8 +172,8 @@ class TestAuditParallelExecution:
         # Make LintingRule crash
         mocker.patch.object(LintingRule, "check", side_effect=RuntimeError("boom"))
 
-        result = audit_project(tmp_path, category="quality")
-        # Other quality rules still ran (TypeCheckRule, ComplexityRule)
+        result = audit_project(tmp_path, category="lint")
+        # Other lint rules still ran (FormattingRule, DiffSizeRule, DeadCodeRule)
         assert result.total >= 2
 
         # The broken rule is marked as failed with crash message
@@ -196,7 +200,7 @@ class TestAuditParallelExecution:
         long_msg = "x" * 1000
         mocker.patch.object(LintingRule, "check", side_effect=RuntimeError(long_msg))
 
-        result = audit_project(tmp_path, category="quality")
+        result = audit_project(tmp_path, category="lint")
         lint_checks = [c for c in result.checks if c.rule_id == "QUALITY_LINT"]
         assert len(lint_checks) == 1
         details = lint_checks[0].details

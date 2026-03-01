@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-@register_rule("quality")
+@register_rule("complexity")
 class ComplexityRule(ProjectRule):
     """Analyse cyclomatic complexity via radon Python API.
 
@@ -41,11 +41,6 @@ class ComplexityRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "QUALITY_COMPLEXITY"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "complexity"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check project complexity with radon."""

@@ -38,7 +38,7 @@ def _parse_vulns(data: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
 
 
 @dataclass
-@register_rule("dependencies")
+@register_rule("deps")
 class DependencyAuditRule(ProjectRule):
     """Scan dependencies for known vulnerabilities via pip-audit.
 
@@ -49,11 +49,6 @@ class DependencyAuditRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "DEPS_AUDIT"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "deps"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check dependencies for known CVEs."""
@@ -129,7 +124,7 @@ def _format_issue(issue: dict[str, Any]) -> dict[str, str]:
 
 
 @dataclass
-@register_rule("dependencies")
+@register_rule("deps")
 class DependencyHygieneRule(ProjectRule):
     """Check for unused/missing/transitive dependencies via deptry.
 
@@ -140,11 +135,6 @@ class DependencyHygieneRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "DEPS_HYGIENE"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "deps"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check dependency hygiene with deptry."""

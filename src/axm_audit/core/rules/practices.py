@@ -24,7 +24,7 @@ _HTTP_METHODS = {"get", "post", "put", "delete", "patch", "head", "options"}
 
 
 @dataclass
-@register_rule("practice")
+@register_rule("practices")
 class DocstringCoverageRule(ProjectRule):
     """Calculate docstring coverage for public functions.
 
@@ -37,11 +37,6 @@ class DocstringCoverageRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "PRACTICE_DOCSTRING"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "practices"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check docstring coverage in the project."""
@@ -113,7 +108,7 @@ class DocstringCoverageRule(ProjectRule):
 
 
 @dataclass
-@register_rule("practice")
+@register_rule("practices")
 class BareExceptRule(ProjectRule):
     """Detect bare except clauses (except: without type)."""
 
@@ -121,11 +116,6 @@ class BareExceptRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "PRACTICE_BARE_EXCEPT"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "practices"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check for bare except clauses in the project."""
@@ -176,7 +166,7 @@ class BareExceptRule(ProjectRule):
 
 
 @dataclass
-@register_rule("practice")
+@register_rule("security")
 class SecurityPatternRule(ProjectRule):
     """Detect hardcoded secrets via regex patterns."""
 
@@ -193,11 +183,6 @@ class SecurityPatternRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "PRACTICE_SECURITY"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "practices"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check for hardcoded secrets in the project."""
@@ -245,7 +230,7 @@ class SecurityPatternRule(ProjectRule):
 
 
 @dataclass
-@register_rule("practice")
+@register_rule("practices")
 class BlockingIORule(ProjectRule):
     """Detect blocking I/O anti-patterns.
 
@@ -258,11 +243,6 @@ class BlockingIORule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "PRACTICE_BLOCKING_IO"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "practices"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check for blocking I/O patterns in the project."""
@@ -402,7 +382,7 @@ def _is_http_call(value: ast.expr) -> bool:
 
 
 @dataclass
-@register_rule("practice")
+@register_rule("practices")
 class LoggingPresenceRule(ProjectRule):
     """Verify that substantial source modules import logging.
 
@@ -416,11 +396,6 @@ class LoggingPresenceRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "PRACTICE_LOGGING"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "practices"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check logging presence in source modules."""
@@ -513,7 +488,7 @@ _TEST_MIRROR_EXEMPT = {"__init__.py", "_version.py", "conftest.py", "py.typed"}
 
 
 @dataclass
-@register_rule("practice")
+@register_rule("practices")
 class TestMirrorRule(ProjectRule):
     """Check that every source module has a corresponding test file.
 
@@ -527,11 +502,6 @@ class TestMirrorRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "PRACTICE_TEST_MIRROR"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "practices"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check test file coverage for source modules."""

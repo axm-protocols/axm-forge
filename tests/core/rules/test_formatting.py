@@ -205,6 +205,6 @@ class TestFormattingRuleIntegration:
             '[project]\nname = "test-pkg"\nversion = "0.1.0"\n'
         )
 
-        result = audit_project(tmp_path, category="quality")
+        result = audit_project(tmp_path, category="lint")
         rule_ids = [c.rule_id for c in result.checks]
         assert "QUALITY_FORMAT" in rule_ids
