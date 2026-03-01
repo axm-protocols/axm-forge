@@ -28,7 +28,7 @@ Technical terms used throughout the `axm-audit` documentation.
 
 | Term | Definition |
 |---|---|
-| **Composite score** | The weighted average of all 8 category scores, producing a single 0–100 quality metric |
+| **Composite score** | The weighted average of all 10 category scores, producing a single 0–100 quality metric |
 | **Pass threshold** | The minimum score (90/100) for an individual check to be marked as passing |
 | **Severity** | The impact level of a finding: `error` (blocks pass), `warning` (non-blocking), `info` (informational) |
 | **ProjectRule** | The abstract base class that all audit rules inherit from. Defines the `rule_id` property and `check()` method |

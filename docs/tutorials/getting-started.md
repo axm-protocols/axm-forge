@@ -61,21 +61,21 @@ Focus on a specific area:
 
 ```bash
 # CLI
-axm-audit audit . --category quality
+axm-audit audit . --category lint
 axm-audit audit . --category security
 ```
 
 ```python
 # Python API
-result = audit_project(Path("."), category="quality")
+result = audit_project(Path("."), category="lint")
 
 # Quick mode (lint + type only, fastest)
 result = audit_project(Path("."), quick=True)
 ```
 
 !!! tip "Available categories"
-    `quality`, `security`, `dependencies`, `testing`,
-    `architecture`, `practice`, `structure`, `tooling`
+    `lint`, `type`, `complexity`, `security`, `deps`,
+    `testing`, `architecture`, `practices`, `structure`, `tooling`
 
 ## Step 4: Get JSON Output
 

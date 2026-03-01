@@ -6,12 +6,14 @@ Focus your audit on specific areas instead of running all checks.
 
 | Category | Rules | Focus |
 |---|---|---|
-| `quality` | `LintingRule`, `FormattingRule`, `TypeCheckRule`, `ComplexityRule`, `DiffSizeRule`, `DeadCodeRule` | Code quality (Ruff, mypy, radon, git) |
-| `security` | `SecurityRule` | Vulnerability detection (Bandit) |
-| `dependencies` | `DependencyAuditRule`, `DependencyHygieneRule` | Supply chain (pip-audit, deptry) |
+| `lint` | `LintingRule`, `FormattingRule`, `DiffSizeRule`, `DeadCodeRule` | Code quality (Ruff, git) |
+| `type` | `TypeCheckRule` | Type safety (mypy) |
+| `complexity` | `ComplexityRule` | Cyclomatic complexity (radon) |
+| `security` | `SecurityRule`, `SecurityPatternRule` | Vulnerability detection (Bandit + patterns) |
+| `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | Supply chain (pip-audit, deptry) |
 | `testing` | `TestCoverageRule` | Coverage enforcement (pytest-cov) |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | Structural analysis (AST) |
-| `practice` | `DocstringCoverageRule`, `BareExceptRule`, `SecurityPatternRule`, `BlockingIORule`, `LoggingPresenceRule`, `TestMirrorRule` | Best practices |
+| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `LoggingPresenceRule`, `TestMirrorRule` | Best practices |
 | `structure` | `PyprojectCompletenessRule` | pyproject.toml completeness |
 | `tooling` | `ToolAvailabilityRule` | CLI tool availability |
 
@@ -19,9 +21,9 @@ Focus your audit on specific areas instead of running all checks.
 
 ```bash
 # Filter to one category
-axm-audit audit . --category quality
+axm-audit audit . --category lint
 axm-audit audit . --category security
-axm-audit audit . --category dependencies
+axm-audit audit . --category deps
 ```
 
 ## Python API
@@ -30,8 +32,8 @@ axm-audit audit . --category dependencies
 from pathlib import Path
 from axm_audit import audit_project
 
-# Quality checks only
-result = audit_project(Path("."), category="quality")
+# Lint checks only
+result = audit_project(Path("."), category="lint")
 
 # Security checks only
 result = audit_project(Path("."), category="security")
@@ -49,7 +51,7 @@ from axm_audit import get_rules_for_category
 rules = get_rules_for_category(None)
 
 # Single category
-rules = get_rules_for_category("quality")
+rules = get_rules_for_category("lint")
 
 # Quick mode (lint + type only)
 rules = get_rules_for_category(None, quick=True)

@@ -85,11 +85,22 @@ class MyToolRule(ProjectRule):
 
 ## Registering your rule
 
-To include your rule in audit runs, add it to the category registry in `core/auditor.py`:
+Use the `@register_rule` decorator to add your rule to the auto-discovery registry:
 
 ```python
-RULES_BY_CATEGORY["custom"] = [MyRule()]
+from axm_audit.core.rules.base import register_rule, ProjectRule
+
+@register_rule("custom")
+class MyRule(ProjectRule):
+    @property
+    def rule_id(self) -> str:
+        return "CUSTOM_MY_CHECK"
+
+    def check(self, project_path: Path) -> CheckResult:
+        ...
 ```
+
+The decorator registers the rule and auto-injects the `category` property.
 
 Or run it standalone:
 

@@ -2,7 +2,7 @@
 
 ## Composite Quality Score
 
-The quality score is a **weighted average** across 8 categories, on a 100-point scale:
+The quality score is a **weighted average** across 10 categories, on a 100-point scale:
 
 | Category | Tool | Weight |
 |---|---|---|
