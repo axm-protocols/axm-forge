@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,15 +34,31 @@ class TestCoverageRule(ProjectRule):
         return "QUALITY_COVERAGE"
 
     def check(self, project_path: Path) -> CheckResult:
-        """Check test coverage and capture failures with pytest-cov."""
-        coverage_file = project_path / "coverage.json"
+        """Check test coverage and capture failures with pytest-cov.
 
-        # Run pytest with coverage and short tracebacks
+        Coverage data is written to a temp file and cleaned up after
+        parsing to avoid leaving stale ``coverage.json`` in the
+        audited project root.
+        """
+        # Write coverage to a temp file to avoid polluting the project
+        tmp = tempfile.NamedTemporaryFile(
+            suffix=".json", prefix="axm_cov_", delete=False
+        )
+        coverage_path = Path(tmp.name)
+        tmp.close()
+
+        try:
+            return self._run_and_parse(project_path, coverage_path)
+        finally:
+            coverage_path.unlink(missing_ok=True)
+
+    def _run_and_parse(self, project_path: Path, coverage_path: Path) -> CheckResult:
+        """Run pytest-cov and parse the coverage report."""
         result = run_in_project(
             [
                 "pytest",
                 "--cov",
-                "--cov-report=json",
+                f"--cov-report=json:{coverage_path}",
                 "--tb=short",
                 "--no-header",
                 "-q",
@@ -55,8 +72,8 @@ class TestCoverageRule(ProjectRule):
         # Extract test failures from stdout
         failures = _extract_test_failures(result.stdout)
 
-        # Parse coverage.json
-        if not coverage_file.exists():
+        # Parse coverage data
+        if not coverage_path.exists():
             return CheckResult(
                 rule_id=self.rule_id,
                 passed=False,
@@ -67,7 +84,7 @@ class TestCoverageRule(ProjectRule):
             )
 
         try:
-            data = json.loads(coverage_file.read_text())
+            data = json.loads(coverage_path.read_text())
             coverage_pct = data.get("totals", {}).get("percent_covered", 0.0)
         except (json.JSONDecodeError, OSError):
             coverage_pct = 0.0

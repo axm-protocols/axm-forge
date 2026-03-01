@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import shutil
 import subprocess
@@ -14,6 +15,23 @@ from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
 __all__ = ["DiffSizeRule", "FormattingRule", "LintingRule", "TypeCheckRule"]
+
+logger = logging.getLogger(__name__)
+
+
+def _get_audit_targets(project_path: Path) -> tuple[list[str], str]:
+    """Build the list of directories to audit and a human-readable label.
+
+    Returns:
+        ``(targets, checked)`` — e.g. ``(["src", "tests"], "src/ tests/")``.
+    """
+    src_path = project_path / "src"
+    tests_path = project_path / "tests"
+    targets = [str(src_path)]
+    if tests_path.exists():
+        targets.append(str(tests_path))
+    checked = "src/ tests/" if tests_path.exists() else "src/"
+    return targets, checked
 
 
 @dataclass
@@ -34,13 +52,7 @@ class LintingRule(ProjectRule):
         early = self.check_src(project_path)
         if early is not None:
             return early
-
-        src_path = project_path / "src"
-        tests_path = project_path / "tests"
-
-        targets = [str(src_path)]
-        if tests_path.exists():
-            targets.append(str(tests_path))
+        targets, checked = _get_audit_targets(project_path)
 
         result = run_in_project(
             ["ruff", "check", "--output-format=json", *targets],
@@ -70,7 +82,6 @@ class LintingRule(ProjectRule):
             for i in issues[:20]
         ]
 
-        checked = "src/ tests/" if tests_path.exists() else "src/"
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -105,12 +116,7 @@ class FormattingRule(ProjectRule):
         if early is not None:
             return early
 
-        src_path = project_path / "src"
-        tests_path = project_path / "tests"
-
-        targets = [str(src_path)]
-        if tests_path.exists():
-            targets.append(str(tests_path))
+        targets, checked = _get_audit_targets(project_path)
 
         result = run_in_project(
             ["ruff", "format", "--check", *targets],
@@ -126,7 +132,6 @@ class FormattingRule(ProjectRule):
         score = max(0, 100 - unformatted_count * 5)
         passed = score >= PASS_THRESHOLD
 
-        checked = "src/ tests/" if tests_path.exists() else "src/"
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -176,12 +181,7 @@ class TypeCheckRule(ProjectRule):
         if early is not None:
             return early
 
-        src_path = project_path / "src"
-        tests_path = project_path / "tests"
-
-        targets = [str(src_path)]
-        if tests_path.exists():
-            targets.append(str(tests_path))
+        targets, checked = _get_audit_targets(project_path)
 
         result = run_in_project(
             ["mypy", "--no-error-summary", "--output", "json", *targets],
@@ -196,7 +196,6 @@ class TypeCheckRule(ProjectRule):
         score = max(0, 100 - error_count * 5)
         passed = score >= PASS_THRESHOLD
 
-        checked = "src/ tests/" if tests_path.exists() else "src/"
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,

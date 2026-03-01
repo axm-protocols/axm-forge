@@ -13,7 +13,12 @@ from axm_audit.models.results import CheckResult, Severity
 
 @dataclass
 class FileExistsRule(ProjectRule):
-    """Rule that checks if a required file exists."""
+    """Rule that checks if a required file exists.
+
+    Not decorated with ``@register_rule`` — this rule is consumed by
+    ``axm-init`` checklist checks, not auto-discovered during audits.
+    The ``category`` property is set manually for the same reason.
+    """
 
     file_name: str
 
@@ -45,7 +50,12 @@ class FileExistsRule(ProjectRule):
 
 @dataclass
 class DirectoryExistsRule(ProjectRule):
-    """Rule that checks if a required directory exists."""
+    """Rule that checks if a required directory exists.
+
+    Not decorated with ``@register_rule`` — this rule is consumed by
+    ``axm-init`` checklist checks, not auto-discovered during audits.
+    The ``category`` property is set manually for the same reason.
+    """
 
     dir_name: str
 
