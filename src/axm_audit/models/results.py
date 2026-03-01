@@ -1,5 +1,7 @@
 """Result models for Agent-friendly JSON output."""
 
+from __future__ import annotations
+
 from enum import StrEnum
 from typing import Any
 

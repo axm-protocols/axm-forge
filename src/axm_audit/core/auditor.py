@@ -81,17 +81,17 @@ RULES_BY_CATEGORY: dict[str, list[type[ProjectRule]]] = {
 }
 
 
+_REQUIRED_TOOLS: list[str] = ["ruff", "mypy", "uv"]
+"""Tools that must be available on PATH for a compliant project."""
+
+
 def _get_tooling_rules() -> list[ProjectRule]:
     """Get tooling availability rules with required parameters.
 
     Returns:
         List of instantiated tooling rules.
     """
-    return [
-        ToolAvailabilityRule(tool_name="ruff"),
-        ToolAvailabilityRule(tool_name="mypy"),
-        ToolAvailabilityRule(tool_name="uv"),
-    ]
+    return [ToolAvailabilityRule(tool_name=t) for t in _REQUIRED_TOOLS]
 
 
 def get_rules_for_category(

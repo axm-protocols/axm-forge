@@ -420,6 +420,42 @@ def complex_fn(x: int, y: int, z: int) -> str:
         assert result.fix_hint is not None
         assert "uv sync" in result.fix_hint
 
+    def test_complexity_logs_oserror(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """OSError from radon subprocess is logged before returning error."""
+        import logging
+        from unittest.mock import patch
+
+        from axm_audit.core.rules.complexity import ComplexityRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "simple.py").write_text(
+            "def add(a: int, b: int) -> int:\n    return a + b\n"
+        )
+
+        with (
+            patch(
+                "axm_audit.core.rules.complexity._try_import_radon",
+                return_value=None,
+            ),
+            patch("shutil.which", return_value="/usr/bin/radon"),
+            patch(
+                "subprocess.run",
+                side_effect=OSError("mocked permission denied"),
+            ),
+            caplog.at_level(logging.WARNING, logger="axm_audit.core.rules.complexity"),
+        ):
+            rule = ComplexityRule()
+            result = rule.check(tmp_path)
+
+        assert not result.passed
+        assert result.details is not None
+        assert result.details["score"] == 0
+        assert "radon cc --json failed" in caplog.text
+        assert "mocked permission denied" in caplog.text
+
     def test_all_offenders_shown(self, tmp_path: Path) -> None:
         """top_offenders must include ALL functions with CC >= 10, not top 5."""
         from axm_audit.core.rules.complexity import ComplexityRule
