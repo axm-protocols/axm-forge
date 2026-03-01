@@ -29,6 +29,11 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
 
+# Verify action versions are current before using:
+# - actions/checkout: https://github.com/actions/checkout/releases
+# - astral-sh/setup-uv: https://github.com/astral-sh/setup-uv/releases
+# - peaceiris/actions-gh-pages: https://github.com/peaceiris/actions-gh-pages/releases
+
       - name: Run AXM Audit
         id: audit
         run: |
@@ -62,6 +67,9 @@ jobs:
               color: $color,
               style: "flat"
             }' > badges/axm-audit.json
+
+      - name: Validate docs
+        run: uvx --with mkdocs-material --with mkdocstrings[python] --with mkdocs-gen-files --with mkdocs-literate-nav mkdocs build --strict
 
       - name: Push badge to gh-pages
         uses: peaceiris/actions-gh-pages@v4

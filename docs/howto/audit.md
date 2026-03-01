@@ -70,19 +70,7 @@ data = format_agent(result)
 # data["failed"]: list of dicts with rule_id, message, details, fix_hint
 ```
 
-### Reporters
 
-Use the legacy reporters:
-
-```python
-from axm_audit.reporters import JsonReporter, MarkdownReporter
-
-# JSON
-print(JsonReporter().render(result))
-
-# Markdown
-print(MarkdownReporter().render(result))
-```
 
 ## Check for Failures
 

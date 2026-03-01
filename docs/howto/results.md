@@ -11,8 +11,8 @@ Every audit returns an `AuditResult` with these properties:
 | `success` | `bool` | `True` if all checks passed |
 | `total` | `int` | Total number of checks |
 | `failed` | `int` | Number of failed checks |
-| `quality_score` | `float \| None` | Composite score 0–100 (8-category weighted) |
-| `grade` | `str \| None` | Letter grade A–F |
+| `quality_score` | `float \| None` | Composite score 0–100 (8-category weighted). `None` when auditing a single category with `--category` |
+| `grade` | `str \| None` | Letter grade A–F. `None` when `quality_score` is `None` |
 
 ## CheckResult Object
 
@@ -83,25 +83,7 @@ Example output structure:
 }
 ```
 
-## Reporters (Legacy)
 
-### JSON Reporter
-
-```python
-from axm_audit.reporters import JsonReporter
-
-reporter = JsonReporter()
-print(reporter.render(result))
-```
-
-### Markdown Reporter
-
-```python
-from axm_audit.reporters import MarkdownReporter
-
-reporter = MarkdownReporter()
-print(reporter.render(result))
-```
 
 ## Scoring
 

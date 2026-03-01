@@ -45,7 +45,6 @@ graph TD
     subgraph "Output"
         Result["AuditResult"]
         Formatters["format_report / format_json / format_agent"]
-        Reporters["JsonReporter / MarkdownReporter"]
     end
 
     CLI --> AuditFn
@@ -81,7 +80,6 @@ graph TD
     Structure --> Result
     Tooling --> Result
     Result --> Formatters
-    Result --> Reporters
 ```
 
 ## Layers
@@ -151,7 +149,6 @@ All subprocess-based rules use `run_in_project()` from `core/runner.py`, which d
 ### 6. Output
 
 - **Formatters**: `format_report()` (human-readable), `format_json()` (machine-readable), `format_agent()` (agent-optimized)
-- **Reporters**: `JsonReporter`, `MarkdownReporter` for rendering `AuditResult`
 
 ## Data Flow
 
