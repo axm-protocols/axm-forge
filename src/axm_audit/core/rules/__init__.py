@@ -19,6 +19,7 @@ from axm_audit.core.rules.practices import (
     DocstringCoverageRule,
     LoggingPresenceRule,
     SecurityPatternRule,
+    TestMirrorRule,
 )
 from axm_audit.core.rules.quality import (
     DiffSizeRule,
@@ -50,6 +51,7 @@ __all__ = [
     "SecurityPatternRule",
     "SecurityRule",
     "TestCoverageRule",
+    "TestMirrorRule",
     "ToolAvailabilityRule",
     "TypeCheckRule",
 ]

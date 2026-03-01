@@ -481,3 +481,116 @@ class TestFormatAgentActionable:
 
         assert len(output["passed"]) == 1
         assert isinstance(output["passed"][0], str)
+
+
+# ─── TestMirrorRule ──────────────────────────────────────────────────────────
+
+
+class TestTestMirrorRule:
+    """Tests for TestMirrorRule — 1:1 source-to-test file mapping."""
+
+    def test_pass_all_modules_tested(self, tmp_path: Path) -> None:
+        """All source modules with matching test files should pass."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "a.py").write_text("def hello(): pass\n")
+        (pkg / "b.py").write_text("def world(): pass\n")
+
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_a.py").write_text("def test_a(): pass\n")
+        (tests / "test_b.py").write_text("def test_b(): pass\n")
+
+        rule = TestMirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+        assert result.fix_hint is None
+
+    def test_fail_missing_tests(self, tmp_path: Path) -> None:
+        """Missing test file should fail with details listing the module."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "a.py").write_text("def hello(): pass\n")
+        (pkg / "b.py").write_text("def world(): pass\n")
+
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_a.py").write_text("def test_a(): pass\n")
+        # No test_b.py!
+
+        rule = TestMirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is False
+        assert result.details is not None
+        assert "b.py" in result.details["missing"]
+        assert result.fix_hint is not None
+        assert "test_b.py" in result.fix_hint
+
+    def test_exempt_init_and_version(self, tmp_path: Path) -> None:
+        """__init__.py and _version.py should be exempt from test requirement."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "_version.py").write_text("__version__ = '0.1'\n")
+        (pkg / "a.py").write_text("def hello(): pass\n")
+
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_a.py").write_text("def test_a(): pass\n")
+
+        rule = TestMirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+
+    def test_nested_test_dirs(self, tmp_path: Path) -> None:
+        """Test files in nested directories (tests/core/) should match."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "foo.py").write_text("def foo(): pass\n")
+
+        tests = tmp_path / "tests" / "core"
+        tests.mkdir(parents=True)
+        (tests / "test_foo.py").write_text("def test_foo(): pass\n")
+
+        rule = TestMirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+
+    def test_no_src_directory(self, tmp_path: Path) -> None:
+        """Empty project without src/ should pass with INFO."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        rule = TestMirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+        assert result.severity == Severity.INFO
+
+    def test_empty_src_only_init(self, tmp_path: Path) -> None:
+        """Package with only __init__.py should pass (all exempt)."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+
+        rule = TestMirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+
+    def test_rule_id_format(self) -> None:
+        """Rule ID should be PRACTICE_TEST_MIRROR."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        rule = TestMirrorRule()
+        assert rule.rule_id == "PRACTICE_TEST_MIRROR"

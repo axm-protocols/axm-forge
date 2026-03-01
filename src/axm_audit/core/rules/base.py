@@ -38,6 +38,7 @@ from axm_audit.models.results import CheckResult
 # │ PRACTICE_SECURITY   │ 25      │ per hardcoded secret     │
 # │ PRACTICE_BLOCKING_IO│ 15      │ per blocking I/O call    │
 # │ PRACTICE_LOGGING    │ ratio   │ logging coverage %       │
+# │ PRACTICE_TEST_MIRROR│ 15      │ per untested module      │
 # │ STRUCTURE_PYPROJECT │ binary  │ field presence checks    │
 # └─────────────────────┴─────────┴──────────────────────────┘
 #
