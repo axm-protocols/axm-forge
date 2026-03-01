@@ -4,7 +4,7 @@ Usage::
 
     axm-audit audit .
     axm-audit audit --json
-    axm-audit audit --category quality
+    axm-audit audit --category lint
     axm-audit version
 """
 

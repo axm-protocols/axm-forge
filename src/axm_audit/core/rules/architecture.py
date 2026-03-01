@@ -150,11 +150,6 @@ class CircularImportRule(ProjectRule):
         """Unique identifier for this rule."""
         return "ARCH_CIRCULAR"
 
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "architecture"
-
     def check(self, project_path: Path) -> CheckResult:
         """Check for circular imports in the project."""
         early = self.check_src(project_path)
@@ -217,11 +212,6 @@ class GodClassRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "ARCH_GOD_CLASS"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "architecture"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check for god classes in the project."""
@@ -365,11 +355,6 @@ class CouplingMetricRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "ARCH_COUPLING"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "architecture"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check coupling metrics for the project."""

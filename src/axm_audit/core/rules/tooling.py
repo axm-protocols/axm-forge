@@ -23,11 +23,6 @@ class ToolAvailabilityRule(ProjectRule):
         """Unique identifier for this rule."""
         return f"TOOL_{self.tool_name.upper()}"
 
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "tooling"
-
     def check(self, project_path: Path) -> CheckResult:
         """Check if the tool is available on the system PATH."""
         _ = project_path  # Not used for tool availability checks

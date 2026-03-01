@@ -17,7 +17,7 @@ __all__ = ["DiffSizeRule", "FormattingRule", "LintingRule", "TypeCheckRule"]
 
 
 @dataclass
-@register_rule("quality")
+@register_rule("lint")
 class LintingRule(ProjectRule):
     """Run ruff and score based on issue count.
 
@@ -28,11 +28,6 @@ class LintingRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "QUALITY_LINT"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "lint"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check project linting with ruff on src/ and tests/."""
@@ -92,7 +87,7 @@ class LintingRule(ProjectRule):
 
 
 @dataclass
-@register_rule("quality")
+@register_rule("lint")
 class FormattingRule(ProjectRule):
     """Run ``ruff format --check`` and score based on unformatted file count.
 
@@ -103,11 +98,6 @@ class FormattingRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "QUALITY_FORMAT"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "lint"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check project formatting with ruff format --check."""
@@ -168,7 +158,7 @@ class FormattingRule(ProjectRule):
 
 
 @dataclass
-@register_rule("quality")
+@register_rule("type")
 class TypeCheckRule(ProjectRule):
     """Run mypy and score based on error count.
 
@@ -179,11 +169,6 @@ class TypeCheckRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "QUALITY_TYPE"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "type"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check project type hints with mypy on src/ and tests/."""
@@ -275,7 +260,7 @@ _DIFF_MAX = 800
 
 
 @dataclass
-@register_rule("quality")
+@register_rule("lint")
 class DiffSizeRule(ProjectRule):
     """Warn when uncommitted changes are too large.
 
@@ -289,11 +274,6 @@ class DiffSizeRule(ProjectRule):
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "QUALITY_DIFF_SIZE"
-
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "lint"
 
     def check(self, project_path: Path) -> CheckResult:
         """Check uncommitted diff size."""

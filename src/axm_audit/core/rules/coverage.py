@@ -32,11 +32,6 @@ class TestCoverageRule(ProjectRule):
         """Unique identifier for this rule."""
         return "QUALITY_COVERAGE"
 
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "testing"
-
     def check(self, project_path: Path) -> CheckResult:
         """Check test coverage and capture failures with pytest-cov."""
         coverage_file = project_path / "coverage.json"

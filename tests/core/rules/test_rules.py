@@ -87,10 +87,10 @@ class TestRulesRegistration:
         assert len(tooling_ids) >= 3
 
     def test_category_filter_includes_new_rules(self) -> None:
-        """Practice category includes BlockingIORule and LoggingPresenceRule."""
+        """Practices category includes BlockingIORule and LoggingPresenceRule."""
         from axm_audit import get_rules_for_category
 
-        practice_rules = get_rules_for_category("practice")
+        practice_rules = get_rules_for_category("practices")
         rule_ids = {r.rule_id for r in practice_rules}
 
         assert "PRACTICE_BLOCKING_IO" in rule_ids
@@ -138,13 +138,11 @@ class TestRulesRegistration:
         from axm_audit.models.results import CheckResult
 
         class CrashingRule(ProjectRule):
+            _registered_category = "testing"
+
             @property
             def rule_id(self) -> str:
                 return "TEST_CRASH"
-
-            @property
-            def category(self) -> str:
-                return "testing"
 
             def check(self, project_path: Path) -> CheckResult:
                 msg = "intentional crash"
@@ -204,13 +202,15 @@ class TestRuleRegistryDeduplication:
     @pytest.mark.parametrize(
         "category,expected_count",
         [
-            ("structure", 1),
-            ("quality", 6),
-            ("architecture", 4),
-            ("practice", 6),
-            ("security", 1),
-            ("dependencies", 2),
+            ("lint", 4),
+            ("type", 1),
+            ("complexity", 1),
+            ("security", 2),
+            ("deps", 2),
             ("testing", 1),
+            ("architecture", 4),
+            ("practices", 5),
+            ("structure", 1),
             ("tooling", 3),
         ],
     )

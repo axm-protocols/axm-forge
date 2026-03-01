@@ -113,11 +113,6 @@ class PyprojectCompletenessRule(ProjectRule):
         """Unique identifier for this rule."""
         return "STRUCTURE_PYPROJECT"
 
-    @property
-    def category(self) -> str:
-        """Scoring category for this rule."""
-        return "structure"
-
     def check(self, project_path: Path) -> CheckResult:
         """Check pyproject.toml completeness."""
         pyproject_path = project_path / "pyproject.toml"
