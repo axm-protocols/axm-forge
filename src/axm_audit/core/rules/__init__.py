@@ -12,6 +12,7 @@ from axm_audit.core.rules.dependencies import (
     DependencyAuditRule,
     DependencyHygieneRule,
 )
+from axm_audit.core.rules.duplication import DuplicationRule
 from axm_audit.core.rules.practices import (
     BareExceptRule,
     BlockingIORule,
@@ -20,6 +21,7 @@ from axm_audit.core.rules.practices import (
     SecurityPatternRule,
 )
 from axm_audit.core.rules.quality import (
+    DiffSizeRule,
     FormattingRule,
     LintingRule,
     TypeCheckRule,
@@ -36,7 +38,9 @@ __all__ = [
     "CouplingMetricRule",
     "DependencyAuditRule",
     "DependencyHygieneRule",
+    "DiffSizeRule",
     "DocstringCoverageRule",
+    "DuplicationRule",
     "FormattingRule",
     "GodClassRule",
     "LintingRule",

@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,7 +13,7 @@ from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
-__all__ = ["FormattingRule", "LintingRule", "TypeCheckRule"]
+__all__ = ["DiffSizeRule", "FormattingRule", "LintingRule", "TypeCheckRule"]
 
 
 @dataclass
@@ -227,4 +230,133 @@ class TypeCheckRule(ProjectRule):
                 if error_count > 0
                 else None
             ),
+        )
+
+
+# Regex for git diff --stat summary line:
+# "N files changed, X insertions(+), Y deletions(-)"
+_DIFF_STAT_RE = re.compile(
+    r"(\d+)\s+files?\s+changed"
+    r"(?:,\s*(\d+)\s+insertions?\(\+\))?"
+    r"(?:,\s*(\d+)\s+deletions?\(-\))?",
+)
+
+# Thresholds for DiffSizeRule scoring
+_DIFF_IDEAL = 200
+_DIFF_MAX = 800
+
+
+@dataclass
+class DiffSizeRule(ProjectRule):
+    """Warn when uncommitted changes are too large.
+
+    Encourages smaller, focused commits/PRs.
+
+    Scoring: 100 if < 200 lines changed, linear degrade to 0 at 800 lines.
+    Gracefully skips if not in a git repository or git is not installed.
+    """
+
+    @property
+    def rule_id(self) -> str:
+        """Unique identifier for this rule."""
+        return "QUALITY_DIFF_SIZE"
+
+    def check(self, project_path: Path) -> CheckResult:
+        """Check uncommitted diff size."""
+        if shutil.which("git") is None:
+            return self._skip("git not installed")
+
+        if not self._is_git_repo(project_path):
+            return self._skip("not a git repo")
+
+        return self._measure_diff(project_path)
+
+    # -- private helpers -------------------------------------------------------
+
+    def _skip(self, reason: str) -> CheckResult:
+        """Return graceful skip result."""
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=True,
+            message=f"{reason} — diff size check skipped",
+            severity=Severity.INFO,
+            details={"lines_changed": 0, "score": 100},
+        )
+
+    @staticmethod
+    def _is_git_repo(project_path: Path) -> bool:
+        """Check whether *project_path* is inside a git repository."""
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--git-dir"],
+                cwd=str(project_path),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            return result.returncode == 0
+        except OSError:
+            return False
+
+    def _measure_diff(self, project_path: Path) -> CheckResult:
+        """Run ``git diff --stat HEAD`` and score the result."""
+        try:
+            result = subprocess.run(
+                ["git", "diff", "--stat", "HEAD"],
+                cwd=str(project_path),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError:
+            return self._skip("git command failed")
+
+        stdout = result.stdout.strip()
+        if not stdout:
+            # No uncommitted changes
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=True,
+                message="No uncommitted changes",
+                severity=Severity.INFO,
+                details={"lines_changed": 0, "score": 100},
+            )
+
+        lines_changed = self._parse_stat(stdout)
+        score = self._compute_score(lines_changed)
+        passed = score >= PASS_THRESHOLD
+
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=passed,
+            message=f"Diff size: {lines_changed} lines changed (score {score}/100)",
+            severity=Severity.WARNING if not passed else Severity.INFO,
+            details={"lines_changed": lines_changed, "score": score},
+            fix_hint=(
+                "Consider splitting into smaller commits (< 200 lines ideal)"
+                if not passed
+                else None
+            ),
+        )
+
+    @staticmethod
+    def _parse_stat(stdout: str) -> int:
+        """Extract total lines changed from ``git diff --stat`` output."""
+        last_line = stdout.strip().split("\n")[-1]
+        match = _DIFF_STAT_RE.search(last_line)
+        if not match:
+            return 0
+        insertions = int(match.group(2) or 0)
+        deletions = int(match.group(3) or 0)
+        return insertions + deletions
+
+    @staticmethod
+    def _compute_score(lines_changed: int) -> int:
+        """Compute score from lines changed: 100→0 over [200, 800]."""
+        if lines_changed <= _DIFF_IDEAL:
+            return 100
+        if lines_changed >= _DIFF_MAX:
+            return 0
+        return int(
+            100 - (lines_changed - _DIFF_IDEAL) * 100 / (_DIFF_MAX - _DIFF_IDEAL)
         )
