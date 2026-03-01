@@ -154,17 +154,45 @@ class TestReservePyPIFlow:
     @patch("axm_init.core.reserver.build_package")
     @patch("axm_init.core.reserver.create_minimal_package")
     @patch("axm_init.core.reserver.PyPIAdapter")
-    def test_reserve_publish_already_exists(
+    def test_reserve_race_condition(
         self,
         mock_pypi: MagicMock,
         mock_create: MagicMock,
         mock_build: MagicMock,
         mock_publish: MagicMock,
     ) -> None:
-        """Publish 'already exists' error is treated as success."""
-        mock_pypi.return_value.check_availability.return_value = (
-            AvailabilityStatus.AVAILABLE
-        )
+        """Race condition: name taken between check and publish → failure."""
+        # First call: AVAILABLE (initial check), second call: TAKEN (re-check)
+        mock_pypi.return_value.check_availability.side_effect = [
+            AvailabilityStatus.AVAILABLE,
+            AvailabilityStatus.TAKEN,
+        ]
+        mock_build.return_value = (True, "")
+        mock_publish.return_value = (False, "File already exists")
+
+        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token")
+        assert result.success is False
+        assert "taken by another user" in result.message.lower()
+
+    @patch("axm_init.core.reserver.publish_package")
+    @patch("axm_init.core.reserver.build_package")
+    @patch("axm_init.core.reserver.create_minimal_package")
+    @patch("axm_init.core.reserver.PyPIAdapter")
+    def test_reserve_idempotent_rerun(
+        self,
+        mock_pypi: MagicMock,
+        mock_create: MagicMock,
+        mock_build: MagicMock,
+        mock_publish: MagicMock,
+    ) -> None:
+        """Idempotent re-run: our own prior reservation → success."""
+        # First call: AVAILABLE (initial check), second call: AVAILABLE (re-check,
+        # meaning a package with that exact name is not fully registered yet —
+        # our prior dev reservation)
+        mock_pypi.return_value.check_availability.side_effect = [
+            AvailabilityStatus.AVAILABLE,
+            AvailabilityStatus.AVAILABLE,
+        ]
         mock_build.return_value = (True, "")
         mock_publish.return_value = (False, "File already exists")
 

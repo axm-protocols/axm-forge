@@ -201,6 +201,26 @@ def reserve_pypi(
         success, error = publish_package(temp_path, token)
         if not success:
             if "already exists" in error.lower():
+                # Re-check to distinguish idempotent re-run from race condition.
+                # If we reach here, initial check was AVAILABLE. Re-check now:
+                # - TAKEN  → someone else published between check and publish
+                # - AVAILABLE/ERROR → our own prior reservation (idempotent)
+                recheck = adapter.check_availability(name)
+                if recheck == AvailabilityStatus.TAKEN:
+                    logger.warning(
+                        "Race condition: '%s' was taken between availability "
+                        "check and publish",
+                        name,
+                    )
+                    return ReserveResult(
+                        success=False,
+                        package_name=name,
+                        version=RESERVE_VERSION,
+                        message=(
+                            f"Package '{name}' was taken by another user "
+                            "between availability check and publish"
+                        ),
+                    )
                 return ReserveResult(
                     success=True,
                     package_name=name,
