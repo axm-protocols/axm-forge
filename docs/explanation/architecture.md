@@ -5,81 +5,14 @@
 `axm-audit` follows a layered architecture with clear separation of concerns:
 
 ```mermaid
-graph TD
-    subgraph "Public API"
-        CLI["CLI (cyclopts)"]
-        AuditFn["audit_project(path)"]
-    end
-
-    subgraph "Auditor"
-        Rules["get_rules_for_category()"]
-    end
-
-    subgraph "Rule Categories"
-        Quality["Quality Rules"]
-        Security["Security Rules"]
-        Deps["Dependency Rules"]
-        Testing["Testing Rules"]
-        Arch["Architecture Rules"]
-        Practice["Practice Rules"]
-        Structure["Structure Rules"]
-        Tooling["Tooling Rules"]
-    end
-
-    subgraph "Runner"
-        RunInProject["run_in_project()"]
-    end
-
-    subgraph "Tools"
-        Ruff["Ruff"]
-        MyPy["mypy"]
-        Radon["radon"]
-        Bandit["Bandit"]
-        PipAudit["pip-audit"]
-        Deptry["deptry"]
-        PytestCov["pytest-cov"]
-        AST["ast module"]
-        Tomllib["tomllib"]
-    end
-
-    subgraph "Output"
-        Result["AuditResult"]
-        Formatters["format_report / format_json / format_agent"]
-    end
-
-    CLI --> AuditFn
-    AuditFn --> Rules
-    Rules --> Quality
-    Rules --> Security
-    Rules --> Deps
-    Rules --> Testing
-    Rules --> Arch
-    Rules --> Practice
-    Rules --> Structure
-    Rules --> Tooling
-    Quality --> RunInProject
-    Security --> RunInProject
-    Deps --> RunInProject
-    Testing --> RunInProject
-    RunInProject --> Ruff
-    RunInProject --> MyPy
-    RunInProject --> Bandit
-    RunInProject --> PipAudit
-    RunInProject --> Deptry
-    RunInProject --> PytestCov
-    Quality -.-> Radon
-    Arch --> AST
-    Practice --> AST
-    Structure --> Tomllib
-    Quality --> Result
-    Security --> Result
-    Deps --> Result
-    Testing --> Result
-    Arch --> Result
-    Practice --> Result
-    Structure --> Result
-    Tooling --> Result
-    Result --> Formatters
+graph TB
+    API["CLI / audit_project()"] --> Auditor["get_rules_for_category()"]
+    Auditor --> Rules["24 Rules · 8 Categories"]
+    Rules -->|subprocess| Runner["run_in_project()"]
+    Rules -->|direct| AST["ast · radon · tomllib"]
+    Runner --> Tools["Ruff · mypy · Bandit\npip-audit · deptry · pytest-cov"]
+    Rules --> Result["AuditResult"]
+    Result --> Fmt["format_report · format_json · format_agent"]
 ```
 
 ## Layers
