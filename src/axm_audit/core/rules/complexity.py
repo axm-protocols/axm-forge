@@ -82,10 +82,12 @@ class ComplexityRule(ProjectRule):
                 cc: int = block.complexity
                 if cc >= COMPLEXITY_THRESHOLD:
                     high_complexity_count += 1
+                    classname = getattr(block, "classname", "")
+                    name = f"{classname}.{block.name}" if classname else block.name
                     all_functions.append(
                         {
                             "file": py_file.name,
-                            "function": block.name,
+                            "function": name,
                             "cc": cc,
                         }
                     )
@@ -143,10 +145,13 @@ class ComplexityRule(ProjectRule):
                 cc = int(raw_cc) if isinstance(raw_cc, int | float | str) else 0
                 if cc >= COMPLEXITY_THRESHOLD:
                     high_complexity_count += 1
+                    raw_name = str(block.get("name", ""))
+                    classname = str(block.get("classname", ""))
+                    name = f"{classname}.{raw_name}" if classname else raw_name
                     all_functions.append(
                         {
                             "file": file_name,
-                            "function": str(block.get("name", "")),
+                            "function": name,
                             "cc": cc,
                         }
                     )
