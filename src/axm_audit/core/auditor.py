@@ -94,6 +94,17 @@ def _get_tooling_rules() -> list[ProjectRule]:
     return [ToolAvailabilityRule(tool_name=t) for t in _REQUIRED_TOOLS]
 
 
+def _build_all_rules() -> list[ProjectRule]:
+    """Instantiate all rules from every category."""
+    rules: list[ProjectRule] = []
+    for cat, rule_classes in RULES_BY_CATEGORY.items():
+        if cat == "tooling":
+            rules.extend(_get_tooling_rules())
+        else:
+            rules.extend(cls() for cls in rule_classes)
+    return rules
+
+
 def get_rules_for_category(
     category: str | None, quick: bool = False
 ) -> list[ProjectRule]:
@@ -119,20 +130,14 @@ def get_rules_for_category(
             f"Valid categories: {', '.join(sorted(VALID_CATEGORIES))}"
         )
 
-    if category:
-        if category == "tooling":
-            return _get_tooling_rules()
-        rule_classes = RULES_BY_CATEGORY.get(category, [])
-        return [cls() for cls in rule_classes]
+    if not category:
+        return _build_all_rules()
 
-    # All rules — derived from RULES_BY_CATEGORY to avoid duplication
-    rules: list[ProjectRule] = []
-    for cat, rule_classes in RULES_BY_CATEGORY.items():
-        if cat == "tooling":
-            rules.extend(_get_tooling_rules())
-        else:
-            rules.extend(cls() for cls in rule_classes)
-    return rules
+    if category == "tooling":
+        return _get_tooling_rules()
+
+    rule_classes = RULES_BY_CATEGORY.get(category, [])
+    return [cls() for cls in rule_classes]
 
 
 def _safe_check(rule: ProjectRule, project_path: Path) -> CheckResult:

@@ -41,7 +41,31 @@ class DeadCodeRule(ProjectRule):
 
     def check(self, project_path: Path) -> CheckResult:
         """Check for dead code using axm-ast dead-code via subprocess."""
-        # Check if axm-ast is available in the environment
+        availability = self._check_availability(project_path)
+        if availability is not None:
+            return availability
+
+        result = self._run_analysis(project_path)
+        if isinstance(result, CheckResult):
+            return result
+
+        dead_symbols = self._parse_dead_symbols(result)
+        if dead_symbols is None:
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=False,
+                message="Failed to parse axm-ast output",
+                severity=Severity.ERROR,
+                details={
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "score": 0.0,
+                },
+            )
+        return self._build_result(dead_symbols)
+
+    def _check_availability(self, project_path: Path) -> CheckResult | None:
+        """Return a skip result if axm-ast is not available, else None."""
         try:
             subprocess.run(
                 ["uv", "run", "axm-ast", "--help"],  # noqa: S607
@@ -52,10 +76,15 @@ class DeadCodeRule(ProjectRule):
             )
         except (subprocess.CalledProcessError, FileNotFoundError):
             return self._skip("axm-ast is not available in the environment")
+        return None
 
-        # 2. Run the actual analysis
+    def _run_analysis(
+        self,
+        project_path: Path,
+    ) -> subprocess.CompletedProcess[str] | CheckResult:
+        """Run axm-ast dead-code and return the result or a failure."""
         try:
-            result = run_in_project(
+            return run_in_project(
                 ["uv", "run", "axm-ast", "dead-code", ".", "--json"],
                 project_path,
                 capture_output=True,
@@ -71,34 +100,28 @@ class DeadCodeRule(ProjectRule):
                 fix_hint="Check if the project environment is valid",
             )
 
-        # The CLI writes JSON to stdout
+    def _parse_dead_symbols(
+        self,
+        result: subprocess.CompletedProcess[str],
+    ) -> list[dict[str, str]] | None:
+        """Parse JSON output from axm-ast, returning the dead symbols list.
+
+        Returns ``None`` when the output is not valid JSON.
+        """
         try:
-            # We expect a string back from run_in_project.stdout
             out = result.stdout or "[]"
-            # axm-ast dead-code returns: {"total": 1, "dead_symbols": [...]}
             data = json.loads(out)
         except json.JSONDecodeError:
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=False,
-                message="Failed to parse axm-ast output",
-                severity=Severity.ERROR,
-                details={
-                    "stdout": result.stdout,
-                    "stderr": result.stderr,
-                    "score": 0.0,
-                },
-            )
+            return None
 
-        # Extract symbols array from wrapped JSON output
         if isinstance(data, dict):
-            dead_symbols = data.get("dead_symbols", [])
-        else:
-            dead_symbols = data if isinstance(data, list) else []
+            symbols: list[dict[str, str]] = data.get("dead_symbols", [])
+            return symbols
+        return data if isinstance(data, list) else []
 
+    def _build_result(self, dead_symbols: list[dict[str, str]]) -> CheckResult:
+        """Build a CheckResult from the dead symbols list."""
         dead_count = len(dead_symbols)
-
-        # 3. Score
         score = max(0.0, 100.0 - (dead_count * 5.0))
         passed = dead_count == 0
 
@@ -108,7 +131,7 @@ class DeadCodeRule(ProjectRule):
             else f"Found {dead_count} dead (unreferenced) symbol(s)."
         )
 
-        details = {
+        details: dict[str, object] = {
             "score": score,
             "dead_count": dead_count,
             "symbols": dead_symbols,

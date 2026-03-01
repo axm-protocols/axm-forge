@@ -126,18 +126,7 @@ class FormattingRule(ProjectRule):
             check=False,
         )
 
-        # Primary signal: returncode == 0 means all files formatted
-        if result.returncode == 0:
-            unformatted_files: list[str] = []
-        else:
-            # ruff format --check prints one file path per line to stdout
-            unformatted_files = [
-                line.strip()
-                for line in result.stdout.strip().split("\n")
-                if line.strip()
-                and not line.startswith("error")
-                and not line.startswith("warning")
-            ]
+        unformatted_files = self._parse_unformatted_files(result)
         unformatted_count = len(unformatted_files)
 
         score = max(0, 100 - unformatted_count * 5)
@@ -157,6 +146,21 @@ class FormattingRule(ProjectRule):
             },
             fix_hint=(f"Run: ruff format {checked}" if unformatted_count > 0 else None),
         )
+
+    @staticmethod
+    def _parse_unformatted_files(
+        result: subprocess.CompletedProcess[str],
+    ) -> list[str]:
+        """Extract unformatted file paths from ruff format --check output."""
+        if result.returncode == 0:
+            return []
+        return [
+            line.strip()
+            for line in result.stdout.strip().split("\n")
+            if line.strip()
+            and not line.startswith("error")
+            and not line.startswith("warning")
+        ]
 
 
 @dataclass
@@ -196,25 +200,7 @@ class TypeCheckRule(ProjectRule):
             check=False,
         )
 
-        error_count = 0
-        errors: list[dict[str, str | int]] = []
-        if result.stdout.strip():
-            for line in result.stdout.strip().split("\n"):
-                if line.strip():
-                    try:
-                        entry = json.loads(line)
-                        if entry.get("severity") == "error":
-                            error_count += 1
-                            errors.append(
-                                {
-                                    "file": entry.get("file", ""),
-                                    "line": entry.get("line", 0),
-                                    "message": entry.get("message", ""),
-                                    "code": entry.get("code", ""),
-                                }
-                            )
-                    except json.JSONDecodeError:
-                        pass
+        error_count, errors = self._parse_mypy_errors(result.stdout)
 
         score = max(0, 100 - error_count * 5)
         passed = score >= PASS_THRESHOLD
@@ -237,6 +223,36 @@ class TypeCheckRule(ProjectRule):
                 else None
             ),
         )
+
+    @staticmethod
+    def _parse_mypy_errors(
+        stdout: str,
+    ) -> tuple[int, list[dict[str, str | int]]]:
+        """Parse mypy JSON output and extract errors."""
+        error_count = 0
+        errors: list[dict[str, str | int]] = []
+        if not stdout.strip():
+            return error_count, errors
+
+        for line in stdout.strip().split("\n"):
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if entry.get("severity") != "error":
+                continue
+            error_count += 1
+            errors.append(
+                {
+                    "file": entry.get("file", ""),
+                    "line": entry.get("line", 0),
+                    "message": entry.get("message", ""),
+                    "code": entry.get("code", ""),
+                }
+            )
+        return error_count, errors
 
 
 # Regex for git diff --stat summary line:

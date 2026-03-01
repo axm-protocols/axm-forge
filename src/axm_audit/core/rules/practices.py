@@ -348,6 +348,34 @@ class BlockingIORule(ProjectRule):
                 )
 
 
+def _is_direct_http_name(value: ast.expr) -> bool:
+    """Match ``requests.get(...)`` — direct attribute on a library name."""
+    return isinstance(value, ast.Name) and value.id in _HTTP_LIBRARIES
+
+
+def _is_chained_client_call(value: ast.expr) -> bool:
+    """Match ``httpx.AsyncClient().get(...)`` — constructor call chain."""
+    if not isinstance(value, ast.Call):
+        return False
+    func = value.func
+    return (
+        isinstance(func, ast.Attribute)
+        and func.attr in {"Client", "AsyncClient"}
+        and isinstance(func.value, ast.Name)
+        and func.value.id in _HTTP_LIBRARIES
+    )
+
+
+def _is_http_attribute_chain(value: ast.expr) -> bool:
+    """Match ``httpx.something.get(...)`` — nested attribute access."""
+    if not isinstance(value, ast.Attribute):
+        return False
+    inner: ast.expr = value
+    while isinstance(inner, ast.Attribute):
+        inner = inner.value
+    return isinstance(inner, ast.Name) and inner.id in _HTTP_LIBRARIES
+
+
 def _is_http_call(value: ast.expr) -> bool:
     """Determine whether an AST call target belongs to an HTTP library.
 
@@ -356,30 +384,11 @@ def _is_http_call(value: ast.expr) -> bool:
     - Chained client: ``httpx.AsyncClient().get(...)``
     - Attribute chain: ``httpx.something.get(...)``
     """
-    # Direct call: requests.get(...)
-    if isinstance(value, ast.Name) and value.id in _HTTP_LIBRARIES:
-        return True
-
-    # Chained call: httpx.AsyncClient().get(...)
-    if isinstance(value, ast.Call):
-        func = value.func
-        if (
-            isinstance(func, ast.Attribute)
-            and func.attr in {"Client", "AsyncClient"}
-            and isinstance(func.value, ast.Name)
-            and func.value.id in _HTTP_LIBRARIES
-        ):
-            return True
-
-    # Attribute chain: httpx.something.get(...)
-    if isinstance(value, ast.Attribute):
-        inner: ast.expr = value
-        while isinstance(inner, ast.Attribute):
-            inner = inner.value
-        if isinstance(inner, ast.Name) and inner.id in _HTTP_LIBRARIES:
-            return True
-
-    return False
+    return (
+        _is_direct_http_name(value)
+        or _is_chained_client_call(value)
+        or _is_http_attribute_chain(value)
+    )
 
 
 @dataclass
@@ -409,35 +418,7 @@ class LoggingPresenceRule(ProjectRule):
                 details={"without_logging": []},
             )
 
-        without_logging: list[str] = []
-        total_checked = 0
-
-        for path in get_python_files(src_path):
-            rel = str(path.relative_to(src_path))
-
-            # Exempt special files
-            if path.name in {"__init__.py", "_version.py"}:
-                continue
-
-            tree = parse_file_safe(path)
-            if tree is None:
-                continue
-
-            # Count top-level definitions
-            top_defs = sum(
-                1
-                for node in ast.iter_child_nodes(tree)
-                if isinstance(
-                    node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
-                )
-            )
-            if top_defs < self.min_defs:
-                continue
-
-            total_checked += 1
-
-            if not self._has_logging_import(tree):
-                without_logging.append(rel)
+        without_logging, total_checked = self._scan_logging_coverage(src_path)
 
         if total_checked == 0:
             return CheckResult(
@@ -461,6 +442,42 @@ class LoggingPresenceRule(ProjectRule):
             details={"without_logging": without_logging, "score": score},
             fix_hint="Add import logging to modules" if not passed else None,
         )
+
+    def _should_check_module(
+        self,
+        path: Path,
+        tree: ast.Module,
+    ) -> bool:
+        """Determine if a module is substantial enough to require logging."""
+        if path.name in {"__init__.py", "_version.py"}:
+            return False
+        top_defs = sum(
+            1
+            for node in ast.iter_child_nodes(tree)
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+        )
+        return top_defs >= self.min_defs
+
+    def _scan_logging_coverage(
+        self,
+        src_path: Path,
+    ) -> tuple[list[str], int]:
+        """Scan modules and return (without_logging, total_checked)."""
+        without_logging: list[str] = []
+        total_checked = 0
+
+        for path in get_python_files(src_path):
+            tree = parse_file_safe(path)
+            if tree is None:
+                continue
+            if not self._should_check_module(path, tree):
+                continue
+
+            total_checked += 1
+            if not self._has_logging_import(tree):
+                without_logging.append(str(path.relative_to(src_path)))
+
+        return without_logging, total_checked
 
     @staticmethod
     def _has_logging_import(tree: ast.Module) -> bool:

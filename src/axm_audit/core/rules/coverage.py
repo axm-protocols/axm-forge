@@ -99,6 +99,39 @@ class TestCoverageRule(ProjectRule):
         )
 
 
+def _collect_failed_lines(lines: list[str]) -> list[dict[str, str]]:
+    """Parse FAILED lines from pytest output."""
+    failures: list[dict[str, str]] = []
+    for line in lines:
+        if not line.startswith("FAILED "):
+            continue
+        parts = line[7:].split(" - ", 1)
+        test_name = parts[0].strip()
+        error_msg = parts[1].strip() if len(parts) > 1 else ""
+        failures.append({"test": test_name, "traceback": error_msg})
+    return failures
+
+
+def _collect_tracebacks(
+    lines: list[str],
+    failures: list[dict[str, str]],
+) -> None:
+    """Attach traceback blocks to previously collected failures."""
+    current_test: str | None = None
+    current_tb: list[str] = []
+    for line in lines:
+        if line.startswith("_") and line.endswith("_"):
+            if current_test:
+                _attach_traceback(failures, current_test, current_tb)
+            current_test = line.strip("_ ").strip()
+            current_tb = []
+        elif current_test:
+            current_tb.append(line)
+
+    if current_test:
+        _attach_traceback(failures, current_test, current_tb)
+
+
 def _extract_test_failures(stdout: str) -> list[dict[str, str]]:
     """Parse pytest stdout for FAILED test names and tracebacks.
 
@@ -108,37 +141,9 @@ def _extract_test_failures(stdout: str) -> list[dict[str, str]]:
     Returns:
         List of dicts with 'test' and 'traceback' keys.
     """
-    failures: list[dict[str, str]] = []
     lines = stdout.split("\n")
-
-    # Collect FAILED lines: "FAILED tests/test_foo.py::test_bar - msg"
-    for line in lines:
-        if line.startswith("FAILED "):
-            # Extract test name (before the " - " separator)
-            parts = line[7:].split(" - ", 1)
-            test_name = parts[0].strip()
-            error_msg = parts[1].strip() if len(parts) > 1 else ""
-            failures.append({"test": test_name, "traceback": error_msg})
-
-    # If short traceback blocks exist, try to attach them
-    # Format: "___ test_name ___" followed by traceback lines
-    current_test: str | None = None
-    current_tb: list[str] = []
-    for line in lines:
-        if line.startswith("_") and line.endswith("_"):
-            # Save previous
-            if current_test:
-                _attach_traceback(failures, current_test, current_tb)
-            # Parse test name from "____ test_name ____"
-            current_test = line.strip("_ ").strip()
-            current_tb = []
-        elif current_test:
-            current_tb.append(line)
-
-    # Save last one
-    if current_test:
-        _attach_traceback(failures, current_test, current_tb)
-
+    failures = _collect_failed_lines(lines)
+    _collect_tracebacks(lines, failures)
     return failures
 
 
