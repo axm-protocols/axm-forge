@@ -141,6 +141,44 @@ class CheckEngine:
         return ProjectResult.from_checks(self.project_path, results)
 
 
+def _format_category_checks(
+    checks: list[CheckResult],
+    *,
+    verbose: bool,
+) -> list[str]:
+    """Format check lines for a single category."""
+    lines: list[str] = []
+    if verbose:
+        for check in checks:
+            status = "✅" if check.passed else "❌"
+            earned = f"{check.earned}/{check.weight}"
+            lines.append(
+                f"    {status} {check.name:<30s} {earned:>5s}  {check.message}"
+            )
+    else:
+        passed_count = sum(1 for c in checks if c.passed)
+        if passed_count:
+            lines.append(f"    ✅ {passed_count} checks passed")
+        for check in checks:
+            if not check.passed:
+                earned = f"{check.earned}/{check.weight}"
+                lines.append(f"    ❌ {check.name:<30s} {earned:>5s}  {check.message}")
+    return lines
+
+
+def _format_failures(failures: list[CheckResult]) -> list[str]:
+    """Format the failure detail block."""
+    lines: list[str] = [f"  📝 Failures ({len(failures)}):", ""]
+    for f in failures:
+        lines.append(f"  ❌ {f.name} ({f.weight} pts)")
+        lines.append(f"     Problem: {f.message}")
+        for detail in f.details:
+            lines.append(f"     {detail}")
+        lines.append(f"     Fix:     {f.fix}")
+        lines.append("")
+    return lines
+
+
 def format_report(result: ProjectResult, *, verbose: bool = False) -> str:
     """Format check result as human-readable report.
 
@@ -150,33 +188,17 @@ def format_report(result: ProjectResult, *, verbose: bool = False) -> str:
             If False (default), only show summary for passing categories
             and detail for failures.
     """
-    lines: list[str] = []
-    lines.append(f"📋 AXM Check — {result.project_path.name}")
-    lines.append(f"   Path: {result.project_path}")
-    lines.append("")
+    lines: list[str] = [
+        f"📋 AXM Check — {result.project_path.name}",
+        f"   Path: {result.project_path}",
+        "",
+    ]
 
     # Category breakdown
     for cat_name, cat_score in result.categories.items():
         cat_checks = [c for c in result.checks if c.category == cat_name]
-        passed_count = sum(1 for c in cat_checks if c.passed)
-        failed_checks = [c for c in cat_checks if not c.passed]
-
         lines.append(f"  {cat_name} ({cat_score.earned}/{cat_score.total})")
-
-        if verbose:
-            # Show every check (original behaviour)
-            for check in cat_checks:
-                status = "✅" if check.passed else "❌"
-                earned = f"{check.earned}/{check.weight}"
-                msg = check.message
-                lines.append(f"    {status} {check.name:<30s} {earned:>5s}  {msg}")
-        else:
-            # Compact: summarise passed, detail only failures
-            if passed_count:
-                lines.append(f"    ✅ {passed_count} checks passed")
-            for check in failed_checks:
-                earned = f"{check.earned}/{check.weight}"
-                lines.append(f"    ❌ {check.name:<30s} {earned:>5s}  {check.message}")
+        lines.extend(_format_category_checks(cat_checks, verbose=verbose))
         lines.append("")
 
     # Score
@@ -187,15 +209,7 @@ def format_report(result: ProjectResult, *, verbose: bool = False) -> str:
 
     # Failures
     if result.failures:
-        lines.append(f"  📝 Failures ({len(result.failures)}):")
-        lines.append("")
-        for f in result.failures:
-            lines.append(f"  ❌ {f.name} ({f.weight} pts)")
-            lines.append(f"     Problem: {f.message}")
-            for detail in f.details:
-                lines.append(f"     {detail}")
-            lines.append(f"     Fix:     {f.fix}")
-            lines.append("")
+        lines.extend(_format_failures(result.failures))
 
     return "\n".join(lines)
 
