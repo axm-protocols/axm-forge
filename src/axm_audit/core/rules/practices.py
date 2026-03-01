@@ -46,6 +46,14 @@ class DocstringCoverageRule(ProjectRule):
 
         src_path = project_path / "src"
         documented, missing = self._analyze_docstrings(src_path)
+        return self._build_result(documented, missing)
+
+    def _build_result(
+        self,
+        documented: int,
+        missing: list[str],
+    ) -> CheckResult:
+        """Build CheckResult from docstring analysis."""
         total = documented + len(missing)
         coverage = documented / total if total > 0 else 1.0
         passed = coverage >= self.min_coverage

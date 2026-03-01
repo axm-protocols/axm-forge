@@ -286,16 +286,10 @@ class GodClassRule(ProjectRule):
             )
 
 
-def _compute_coupling_metrics(
+def _build_fan_metrics(
     src_path: Path,
-    threshold: int = 10,
-) -> dict[str, Any]:
-    """Compute fan-in/fan-out coupling metrics for all modules.
-
-    ``__init__.py`` files are excluded — their purpose is to re-export
-    symbols from submodules, so their fan-out is structurally high
-    and not indicative of poor coupling.
-    """
+) -> tuple[dict[str, int], dict[str, int]]:
+    """Build fan-in/fan-out dicts from source files."""
     fan_out: dict[str, int] = {}
     fan_in: dict[str, int] = defaultdict(int)
 
@@ -314,6 +308,46 @@ def _compute_coupling_metrics(
         for imp in imports:
             fan_in[imp] += 1
 
+    return fan_out, fan_in
+
+
+def _build_coupling_result(
+    fan_out: dict[str, int],
+    fan_in: dict[str, int],
+    threshold: int,
+) -> dict[str, Any]:
+    """Compute coupling summary from fan metrics."""
+    over = sorted(
+        (
+            {"module": name, "fan_out": fo}
+            for name, fo in fan_out.items()
+            if fo > threshold
+        ),
+        key=lambda x: x.get("fan_out", 0),  # type: ignore[return-value,arg-type]
+        reverse=True,
+    )
+
+    return {
+        "max_fan_out": max(fan_out.values()),
+        "max_fan_in": max(fan_in.values()) if fan_in else 0,
+        "avg_coupling": sum(fan_out.values()) / len(fan_out),
+        "n_over_threshold": len(over),
+        "over_threshold": over,
+    }
+
+
+def _compute_coupling_metrics(
+    src_path: Path,
+    threshold: int = 10,
+) -> dict[str, Any]:
+    """Compute fan-in/fan-out coupling metrics for all modules.
+
+    ``__init__.py`` files are excluded — their purpose is to re-export
+    symbols from submodules, so their fan-out is structurally high
+    and not indicative of poor coupling.
+    """
+    fan_out, fan_in = _build_fan_metrics(src_path)
+
     if not fan_out:
         return {
             "max_fan_out": 0,
@@ -323,21 +357,7 @@ def _compute_coupling_metrics(
             "over_threshold": [],
         }
 
-    over_unsorted = [
-        {"module": name, "fan_out": fo}
-        for name, fo in fan_out.items()
-        if fo > threshold
-    ]
-    over_unsorted.sort(key=lambda x: x.get("fan_out", 0), reverse=True)  # type: ignore[return-value,arg-type]
-    over = over_unsorted
-
-    return {
-        "max_fan_out": max(fan_out.values()),
-        "max_fan_in": max(fan_in.values()) if fan_in else 0,
-        "avg_coupling": sum(fan_out.values()) / len(fan_out),
-        "n_over_threshold": len(over),
-        "over_threshold": over,
-    }
+    return _build_coupling_result(fan_out, fan_in, threshold)
 
 
 @dataclass
