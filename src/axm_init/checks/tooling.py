@@ -1,4 +1,4 @@
-"""Audit checks for developer tooling (6 checks, 14 pts)."""
+"""Audit checks for developer tooling (7 checks, 16 pts)."""
 
 from __future__ import annotations
 
