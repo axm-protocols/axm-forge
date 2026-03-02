@@ -16,7 +16,12 @@ logger = logging.getLogger(__name__)
 
 
 def _run_pip_audit(project_path: Path) -> dict[str, Any] | list[Any]:
-    """Run pip-audit and return parsed JSON output."""
+    """Run pip-audit and return parsed JSON output.
+
+    Raises:
+        RuntimeError: If pip-audit exits with an error and produces
+            no parseable output.
+    """
     result = run_in_project(
         ["pip-audit", "--format=json", "--output=-"],
         project_path,
@@ -25,9 +30,18 @@ def _run_pip_audit(project_path: Path) -> dict[str, Any] | list[Any]:
         check=False,
     )
     try:
-        return json.loads(result.stdout) if result.stdout.strip() else {}
+        if result.stdout.strip():
+            data: dict[str, Any] | list[Any] = json.loads(result.stdout)
+            return data
     except json.JSONDecodeError:
-        return {}
+        pass
+
+    if result.returncode != 0:
+        stderr = result.stderr.strip() if result.stderr else "unknown error"
+        msg = f"pip-audit failed (rc={result.returncode}): {stderr}"
+        raise RuntimeError(msg)
+
+    return {}
 
 
 def _parse_vulns(data: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
@@ -63,6 +77,15 @@ class DependencyAuditRule(ProjectRule):
                 details={"vuln_count": 0, "score": 0},
                 fix_hint="Install with: uv add --dev pip-audit",
             )
+        except RuntimeError as exc:
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=False,
+                message=str(exc),
+                severity=Severity.ERROR,
+                details={"vuln_count": 0, "score": 0},
+                fix_hint="Check pip-audit installation: uv run pip-audit --version",
+            )
 
         vulns = _parse_vulns(data)
         vuln_count = len(vulns)
@@ -90,14 +113,19 @@ class DependencyAuditRule(ProjectRule):
 
 
 def _run_deptry(project_path: Path) -> list[dict[str, Any]]:
-    """Run deptry and return parsed JSON issues."""
+    """Run deptry and return parsed JSON issues.
+
+    Raises:
+        RuntimeError: If deptry exits with a non-zero return code and
+            produces no JSON output file.
+    """
     import tempfile
 
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
         tmp_path = Path(tmp.name)
 
     try:
-        run_in_project(
+        result = run_in_project(
             ["deptry", ".", "--json-output", str(tmp_path)],
             project_path,
             capture_output=True,
@@ -106,6 +134,12 @@ def _run_deptry(project_path: Path) -> list[dict[str, Any]]:
         )
         if tmp_path.exists() and tmp_path.stat().st_size > 0:
             return json.loads(tmp_path.read_text())  # type: ignore[no-any-return]
+
+        if result.returncode != 0:
+            stderr = result.stderr.strip() if result.stderr else "unknown error"
+            msg = f"deptry failed (rc={result.returncode}): {stderr}"
+            raise RuntimeError(msg)
+
         return []
     finally:
         if tmp_path.exists():
@@ -140,14 +174,25 @@ class DependencyHygieneRule(ProjectRule):
         """Check dependency hygiene with deptry."""
         try:
             issues = _run_deptry(project_path)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except FileNotFoundError:
             return CheckResult(
                 rule_id=self.rule_id,
                 passed=False,
-                message="deptry failed or missing",
+                message="deptry not available",
                 severity=Severity.ERROR,
                 details={"issue_count": 0, "score": 0},
                 fix_hint="Install with: uv add --dev deptry",
+            )
+        except (RuntimeError, json.JSONDecodeError) as exc:
+            is_runtime = isinstance(exc, RuntimeError)
+            msg = f"deptry failed: {exc}" if is_runtime else "deptry output parse error"
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=False,
+                message=msg,
+                severity=Severity.ERROR,
+                details={"issue_count": 0, "score": 0},
+                fix_hint="Check deptry installation: uv run deptry --version",
             )
 
         issue_count = len(issues)

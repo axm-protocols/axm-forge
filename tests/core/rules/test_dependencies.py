@@ -1,7 +1,9 @@
 """Tests for Dependency Rules — DependencyAuditRule + DependencyHygieneRule."""
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+from axm_audit.models.results import Severity
 
 
 class TestDependencyAuditRule:
@@ -79,6 +81,26 @@ class TestDependencyAuditRule:
 
         assert DependencyAuditRule().rule_id == "DEPS_AUDIT"
 
+    def test_pip_audit_crash_not_false_positive(self, tmp_path: Path) -> None:
+        """pip-audit crash (non-zero rc, empty stdout) must NOT pass."""
+        from axm_audit.core.rules.dependencies import DependencyAuditRule
+
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+        mock_result.stderr = "pip-audit: internal error"
+        mock_result.returncode = 2
+
+        rule = DependencyAuditRule()
+        with patch("subprocess.run", return_value=mock_result):
+            result = rule.check(tmp_path)
+
+        assert not result.passed
+        assert "pip-audit failed" in result.message
+        assert "rc=2" in result.message
+        assert result.severity == Severity.ERROR
+        assert result.details is not None
+        assert result.details["score"] == 0
+
 
 class TestDependencyHygieneRule:
     """Tests for DependencyHygieneRule (deptry integration)."""
@@ -132,6 +154,7 @@ class TestDependencyHygieneRule:
             result = rule.check(tmp_path)
 
         assert result.passed is False
+        assert "deptry not available" in result.message
         assert result.details is not None
         assert result.details["score"] == 0
         assert result.fix_hint is not None
@@ -141,3 +164,20 @@ class TestDependencyHygieneRule:
         from axm_audit.core.rules.dependencies import DependencyHygieneRule
 
         assert DependencyHygieneRule().rule_id == "DEPS_HYGIENE"
+
+    def test_deptry_crash_not_false_positive(self, tmp_path: Path) -> None:
+        """deptry crash (RuntimeError) must NOT produce false positive."""
+        from axm_audit.core.rules.dependencies import DependencyHygieneRule
+
+        rule = DependencyHygieneRule()
+        with patch(
+            "axm_audit.core.rules.dependencies._run_deptry",
+            side_effect=RuntimeError("deptry failed (rc=1): segfault"),
+        ):
+            result = rule.check(tmp_path)
+
+        assert not result.passed
+        assert "deptry failed" in result.message
+        assert result.severity == Severity.ERROR
+        assert result.details is not None
+        assert result.details["score"] == 0
