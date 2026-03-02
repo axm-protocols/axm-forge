@@ -89,7 +89,12 @@ axm/
 │   │   └── __init__.py
 │   └── __init__.py
 └── tests/
-    └── test_cli.py
+    ├── hooks/
+    │   └── test_base.py
+    ├── tools/
+    │   └── test_base.py
+    ├── test_cli.py
+    └── test_version.py
 ```
 
 ## Development
