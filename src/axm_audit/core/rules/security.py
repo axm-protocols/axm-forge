@@ -48,6 +48,33 @@ def _extract_top_issues(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def _build_security_result(rule_id: str, results: list[dict[str, Any]]) -> CheckResult:
+    """Build a CheckResult from Bandit scan results."""
+    high = sum(1 for r in results if r.get("issue_severity") == "HIGH")
+    med = sum(1 for r in results if r.get("issue_severity") == "MEDIUM")
+    score = max(0, 100 - (high * 15 + med * 5))
+
+    return CheckResult(
+        rule_id=rule_id,
+        passed=score >= PASS_THRESHOLD,
+        message=(
+            f"Security score: {score}/100 ({high} high, {med} medium severity issues)"
+        ),
+        severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
+        details={
+            "high_count": high,
+            "medium_count": med,
+            "score": score,
+            "top_issues": _extract_top_issues(results),
+        },
+        fix_hint=(
+            "Review and fix security vulnerabilities. Run: bandit -r src/ for details"
+            if high > 0 or med > 0
+            else None
+        ),
+    )
+
+
 @dataclass
 @register_rule("security")
 class SecurityRule(ProjectRule):
@@ -69,30 +96,16 @@ class SecurityRule(ProjectRule):
 
         src_path = project_path / "src"
 
-        data = _run_bandit(src_path, project_path)
-        results = data.get("results", [])
-        high = sum(1 for r in results if r.get("issue_severity") == "HIGH")
-        med = sum(1 for r in results if r.get("issue_severity") == "MEDIUM")
-        score = max(0, 100 - (high * 15 + med * 5))
+        try:
+            data = _run_bandit(src_path, project_path)
+        except FileNotFoundError:
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=False,
+                message="bandit not available",
+                severity=Severity.ERROR,
+                details={"high_count": 0, "medium_count": 0, "score": 0},
+                fix_hint="Install with: uv add --dev bandit",
+            )
 
-        return CheckResult(
-            rule_id=self.rule_id,
-            passed=score >= PASS_THRESHOLD,
-            message=(
-                f"Security score: {score}/100 "
-                f"({high} high, {med} medium severity issues)"
-            ),
-            severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
-            details={
-                "high_count": high,
-                "medium_count": med,
-                "score": score,
-                "top_issues": _extract_top_issues(results),
-            },
-            fix_hint=(
-                "Review and fix security vulnerabilities. "
-                "Run: bandit -r src/ for details"
-                if high > 0 or med > 0
-                else None
-            ),
-        )
+        return _build_security_result(self.rule_id, data.get("results", []))
