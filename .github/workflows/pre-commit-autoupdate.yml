@@ -23,13 +23,12 @@ jobs:
       - run: pip install pre-commit
       - run: pre-commit autoupdate
 
-      # Sync ruff hook version into the scaffold template
+      # Sync all hook versions into the scaffold template
       - name: Sync scaffold template
         run: |
-          ROOT_REV=$(grep -A1 'ruff-pre-commit' .pre-commit-config.yaml | grep 'rev:' | awk '{print $2}')
           TEMPLATE=src/axm_init/templates/python-project/.pre-commit-config.yaml
           if [ -f "$TEMPLATE" ]; then
-            sed -i '/ruff-pre-commit/{n;s|rev: v[0-9]*\.[0-9]*\.[0-9]*|rev: '"${ROOT_REV}"'|}' "$TEMPLATE"
+            pre-commit autoupdate --config "$TEMPLATE"
           fi
 
       - uses: peter-evans/create-pull-request@v7
