@@ -202,6 +202,7 @@ class TestSecurityRule:
 
         mock_result = MagicMock()
         mock_result.stdout = "invalid json"
+        mock_result.returncode = 1
 
         mock_run = MagicMock(return_value=mock_result)
         monkeypatch.setattr(subprocess, "run", mock_run)
@@ -239,3 +240,57 @@ class TestSecurityRule:
         assert "uv add --dev bandit" in result.fix_hint
         assert result.details is not None
         assert result.details["score"] == 0
+
+    def test_bandit_crash_not_false_positive(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Bandit crash (rc>=2, empty stdout) must NOT produce false positive."""
+        src_path = tmp_path / "src"
+        src_path.mkdir()
+
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+        mock_result.stderr = "bandit: error: configuration problem"
+        mock_result.returncode = 2
+
+        monkeypatch.setattr(subprocess, "run", MagicMock(return_value=mock_result))
+
+        rule = SecurityRule()
+        result = rule.check(tmp_path)
+
+        assert not result.passed
+        assert "bandit failed" in result.message
+        assert "rc=2" in result.message
+        assert result.severity == Severity.ERROR
+        assert result.details is not None
+        assert result.details["score"] == 0
+
+    def test_bandit_issues_rc1_still_reported(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Bandit rc=1 with valid JSON still reports issues normally."""
+        src_path = tmp_path / "src"
+        src_path.mkdir()
+
+        mock_result = MagicMock()
+        mock_result.stdout = json.dumps(
+            {
+                "results": [
+                    {"issue_severity": "HIGH", "issue_text": "exec() call"},
+                ],
+            }
+        )
+        mock_result.returncode = 1
+
+        monkeypatch.setattr(subprocess, "run", MagicMock(return_value=mock_result))
+
+        rule = SecurityRule()
+        result = rule.check(tmp_path)
+
+        assert result.details is not None
+        assert result.details["high_count"] == 1
+        assert result.details["score"] == 85  # 100 - 15

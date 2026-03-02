@@ -11,9 +11,17 @@ from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
+# Bandit exit codes: 0 = clean, 1 = issues found, >= 2 = internal error.
+_BANDIT_ERROR_RC = 2
+
 
 def _run_bandit(src_path: Path, project_path: Path) -> dict[str, Any]:
-    """Run Bandit and return parsed JSON output."""
+    """Run Bandit and return parsed JSON output.
+
+    Raises:
+        RuntimeError: If bandit exits with rc >= 2 (error) and produces
+            no parseable output.  rc=0 means clean, rc=1 means issues found.
+    """
     result = run_in_project(
         ["bandit", "-r", "-f", "json", str(src_path)],
         project_path,
@@ -22,9 +30,19 @@ def _run_bandit(src_path: Path, project_path: Path) -> dict[str, Any]:
         text=True,
     )
     try:
-        return json.loads(result.stdout) if result.stdout.strip() else {}
+        if result.stdout.strip():
+            data: dict[str, Any] = json.loads(result.stdout)
+            return data
     except json.JSONDecodeError:
-        return {}
+        pass
+
+    # rc=0 or rc=1 with empty stdout is fine (no issues / banner only)
+    if result.returncode >= _BANDIT_ERROR_RC:
+        stderr = result.stderr.strip() if result.stderr else "unknown error"
+        msg = f"bandit failed (rc={result.returncode}): {stderr}"
+        raise RuntimeError(msg)
+
+    return {}
 
 
 def _extract_top_issues(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -106,6 +124,15 @@ class SecurityRule(ProjectRule):
                 severity=Severity.ERROR,
                 details={"high_count": 0, "medium_count": 0, "score": 0},
                 fix_hint="Install with: uv add --dev bandit",
+            )
+        except RuntimeError as exc:
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=False,
+                message=str(exc),
+                severity=Severity.ERROR,
+                details={"high_count": 0, "medium_count": 0, "score": 0},
+                fix_hint="Check bandit installation: uv run bandit --version",
             )
 
         return _build_security_result(self.rule_id, data.get("results", []))
