@@ -17,13 +17,11 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
-      - run: uv tool install pre-commit --force
-      - run: uv run pre-commit install
 
       - name: Run AXM Check
         id: check
         run: |
-          RESULT=$(uvx axm-init check . --json)
+          RESULT=$(uvx axm-init check . --json) || true
           SCORE=$(echo "$RESULT" | jq '.score')
           GRADE=$(echo "$RESULT" | jq -r '.grade')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"
