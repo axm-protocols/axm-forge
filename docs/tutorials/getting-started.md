@@ -14,25 +14,25 @@ Install the CLI with the plugins you need:
 === "Minimal"
 
     ```bash
-    pip install axm
+    uv pip install axm
     ```
 
 === "With init & audit"
 
     ```bash
-    pip install axm[init,audit]
+    uv pip install axm[init,audit]
     ```
 
 === "Everything"
 
     ```bash
-    pip install axm[all]
+    uv pip install axm[all]
     ```
 
 === "MCP server"
 
     ```bash
-    pip install axm[mcp]
+    uv pip install axm[mcp]
     ```
 
 ## Step 1: Check Available Commands
