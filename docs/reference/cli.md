@@ -34,3 +34,9 @@ Commands depend on which AXM packages are installed:
 ::: axm.tools.base.ToolResult
 
 ::: axm.tools.base.AXMTool
+
+## Hook Interface
+
+::: axm.hooks.base.HookResult
+
+::: axm.hooks.base.HookAction
