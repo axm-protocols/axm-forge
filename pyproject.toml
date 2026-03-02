@@ -23,8 +23,8 @@ init   = ["axm-init"]
 audit  = ["axm-audit"]
 bib    = ["axm-bib"]
 mcp    = ["axm-mcp"]
-word   = ["axm-word"]
-all    = ["axm-init", "axm-audit", "axm-bib", "axm-mcp"]  # axm-word not yet on PyPI
+all    = ["axm-init", "axm-audit", "axm-bib", "axm-mcp"]
+# word = ["axm-word"]  # uncomment when axm-word is published on PyPI
 
 [project.scripts]
 axm = "axm.cli:main"
