@@ -72,8 +72,10 @@ class TestAutodiscovery:
         ):
             app = create_app()
 
-        # The command should be discoverable
+        # The command should be registered and callable
         assert isinstance(app, cyclopts.App)
+        registered_names = list(app)
+        assert "fake" in registered_names
 
     def test_failed_entry_point_logged_not_fatal(self) -> None:
         """A broken entry point logs a warning but doesn't crash."""
