@@ -61,18 +61,18 @@ def create_app() -> cyclopts.App:
             """No commands available. Install AXM packages to add commands.
 
             Examples:
-                pip install axm[init]     # adds: axm init, axm check
-                pip install axm[audit]    # adds: axm audit
-                pip install axm[all]      # adds all commands
+                uv pip install axm[init]     # adds: axm init, axm check
+                uv pip install axm[audit]    # adds: axm audit
+                uv pip install axm[all]      # adds all commands
             """
             import sys
 
             sys.stderr.write(
                 "No commands available.\n\n"
                 "Install AXM packages to add commands:\n"
-                "  pip install axm[init]   → axm init, axm check\n"
-                "  pip install axm[audit]  → axm audit\n"
-                "  pip install axm[all]    → all commands\n"
+                "  uv pip install axm[init]   → axm init, axm check\n"
+                "  uv pip install axm[audit]  → axm audit\n"
+                "  uv pip install axm[all]    → all commands\n"
             )
             sys.exit(1)
 

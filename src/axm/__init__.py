@@ -1,5 +1,7 @@
 """AXM CLI — Unified command-line interface for the AXM ecosystem."""
 
+from __future__ import annotations
+
 from importlib.metadata import PackageNotFoundError, version
 
 try:
