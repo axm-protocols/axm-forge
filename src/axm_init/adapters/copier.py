@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import logging
 import os
 import sys
@@ -36,6 +38,39 @@ class CopierAdapter:
     Wraps Copier's run_copy function with a Pydantic-based interface
     and returns structured ScaffoldResult.
     """
+
+    @staticmethod
+    def _do_copy(config: CopierConfig) -> None:
+        """Run copier, offloading to a thread if an event loop is active.
+
+        Copier (via prompt_toolkit) calls ``asyncio.run()`` internally.
+        When we are already inside an async event loop (e.g. MCP server),
+        this raises ``RuntimeError: asyncio.run() cannot be called from
+        a running event loop``.  The fix: detect the running loop and
+        execute the blocking copy in a **separate thread** which gets
+        its own event loop context.
+        """
+
+        def _run() -> None:
+            run_copy(
+                src_path=str(config.template_path),
+                dst_path=config.destination,
+                data=config.data,
+                defaults=config.defaults,
+                overwrite=config.overwrite,
+                unsafe=config.trust_template,
+            )
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No event loop — safe to call directly (CLI context).
+            _run()
+        else:
+            # Inside an event loop (MCP server) — offload to a thread.
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(_run)
+                future.result()  # propagate exceptions
 
     def copy(self, config: CopierConfig) -> ScaffoldResult:
         """Execute Copier copy operation.
@@ -92,14 +127,7 @@ class CopierAdapter:
                     "arbitrary post-copy tasks."
                 )
             try:
-                run_copy(
-                    src_path=str(config.template_path),
-                    dst_path=config.destination,
-                    data=config.data,
-                    defaults=config.defaults,
-                    overwrite=config.overwrite,
-                    unsafe=config.trust_template,
-                )
+                self._do_copy(config)
             finally:
                 _cleanup_fds()
             # Walk destination to collect created files, excluding noise
