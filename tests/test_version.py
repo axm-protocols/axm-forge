@@ -1,8 +1,10 @@
 """Test package version is accessible."""
 
-from axm import __version__
+from __future__ import annotations
 
-_MIN_SEMVER_PARTS = 3
+import re
+
+from axm import __version__
 
 
 def test_version_is_string() -> None:
@@ -12,6 +14,7 @@ def test_version_is_string() -> None:
 
 
 def test_version_format() -> None:
-    """Version should follow semver pattern."""
-    parts = __version__.replace("a", ".").replace("b", ".").split(".")
-    assert len(parts) >= _MIN_SEMVER_PARTS
+    """Version should follow semver pattern (major.minor.patch with optional suffix)."""
+    assert re.match(
+        r"^\d+\.\d+\.\d+", __version__
+    ), f"Version '{__version__}' does not match semver pattern"

@@ -93,6 +93,17 @@ ignore = ["S101"]
 known-first-party = ["axm"]
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Deptry Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.deptry]
+ignore = ["DEP004"]
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["axm-init", "axm-audit", "axm-bib", "axm-mcp"]
+DEP003 = ["axm"]
+DEP004 = ["mkdocs_gen_files"]
+
+# ─────────────────────────────────────────────────────────────────────────────
 # MyPy Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.mypy]
@@ -127,7 +138,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:coverage_html",
     "--cov-report=xml",
-    "--cov-fail-under=0",
+    "--cov-fail-under=90",
 ]
 filterwarnings = ["error"]
 
