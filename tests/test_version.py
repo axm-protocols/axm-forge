@@ -2,6 +2,8 @@
 
 from axm import __version__
 
+_MIN_SEMVER_PARTS = 3
+
 
 def test_version_is_string() -> None:
     """Version should be a valid string."""
@@ -12,4 +14,4 @@ def test_version_is_string() -> None:
 def test_version_format() -> None:
     """Version should follow semver pattern."""
     parts = __version__.replace("a", ".").replace("b", ".").split(".")
-    assert len(parts) >= 3
+    assert len(parts) >= _MIN_SEMVER_PARTS

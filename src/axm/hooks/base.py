@@ -4,13 +4,15 @@ HookResult represents hook execution outcomes.
 HookAction defines the protocol for hook implementations.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 __all__ = ["HookAction", "HookResult"]
 
 
-@dataclass
+@dataclass(frozen=True)
 class HookResult:
     """Result of a hook execution.
 
@@ -25,16 +27,17 @@ class HookResult:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def ok(cls, **metadata: Any) -> "HookResult":
+    def ok(cls, **metadata: Any) -> HookResult:
         """Create a successful result."""
         return cls(success=True, metadata=metadata)
 
     @classmethod
-    def fail(cls, error: str, **metadata: Any) -> "HookResult":
+    def fail(cls, error: str, **metadata: Any) -> HookResult:
         """Create a failed result."""
         return cls(success=False, error=error, metadata=metadata)
 
 
+@runtime_checkable
 class HookAction(Protocol):
     """Protocol for hook implementations.
 

@@ -5,6 +5,8 @@ Re-exports:
     ToolResult: Immutable result of a tool execution.
 """
 
+from __future__ import annotations
+
 from axm.tools.base import AXMTool, ToolResult
 
 __all__ = ["AXMTool", "ToolResult"]

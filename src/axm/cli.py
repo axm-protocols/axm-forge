@@ -47,7 +47,7 @@ def create_app() -> cyclopts.App:
             app.command(command_fn, name=ep.name)
             discovered += 1
             logger.debug("Discovered command: %s (from %s)", ep.name, ep.dist)
-        except Exception:
+        except Exception:  # noqa: BLE001 — EP loading can fail in many ways
             logger.warning(
                 "Failed to load command '%s' from entry point",
                 ep.name,
