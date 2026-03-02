@@ -213,3 +213,29 @@ class TestSecurityRule:
         assert result.details is not None
         assert result.details["score"] == 100
         assert result.passed
+
+    def test_bandit_not_found_graceful(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Should return graceful failure when bandit binary is unavailable."""
+        src_path = tmp_path / "src"
+        src_path.mkdir()
+
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            MagicMock(side_effect=FileNotFoundError("bandit")),
+        )
+
+        rule = SecurityRule()
+        result = rule.check(tmp_path)
+
+        assert not result.passed
+        assert "bandit not available" in result.message
+        assert result.severity == Severity.ERROR
+        assert result.fix_hint is not None
+        assert "uv add --dev bandit" in result.fix_hint
+        assert result.details is not None
+        assert result.details["score"] == 0
