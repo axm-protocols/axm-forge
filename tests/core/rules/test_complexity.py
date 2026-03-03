@@ -430,3 +430,74 @@ def my_func(x: int, y: int, z: int) -> str:
         assert "top_func" in names
         # No bare "check"
         assert "check" not in names
+
+    def test_type_alias_doesnt_crash(self, tmp_path: Path) -> None:
+        """Projects using ``type X = ...`` syntax pass without crash (API path)."""
+        from axm_audit.core.rules.complexity import ComplexityRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "mod.py").write_text(
+            "from __future__ import annotations\n\n"
+            "type Foo = int | str\n\n"
+            "def add(a: int, b: int) -> int:\n"
+            "    return a + b\n"
+        )
+
+        rule = ComplexityRule()
+        result = rule.check(tmp_path)
+
+        assert result.rule_id == "QUALITY_COMPLEXITY"
+        assert result.details is not None
+        # Must not crash — score should be valid
+        assert isinstance(result.details["score"], int)
+        assert result.details["score"] >= 0
+
+    def test_type_alias_subprocess_fallback(self, tmp_path: Path) -> None:
+        """Subprocess path skips string entries produced by radon for type aliases."""
+        import json as _json
+        from unittest.mock import MagicMock, patch
+
+        from axm_audit.core.rules.complexity import ComplexityRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "mod.py").write_text("pass\n")
+
+        # radon cc --json produces a bare string for type aliases
+        radon_output = _json.dumps(
+            {
+                str(src / "mod.py"): [
+                    "type Foo = int | str",
+                    {
+                        "type": "function",
+                        "name": "add",
+                        "complexity": 1,
+                        "lineno": 4,
+                        "col_offset": 0,
+                        "endline": 5,
+                    },
+                ]
+            }
+        )
+
+        mock_proc = MagicMock()
+        mock_proc.stdout = radon_output
+        mock_proc.returncode = 0
+
+        with (
+            patch(
+                "axm_audit.core.rules.complexity._try_import_radon",
+                return_value=None,
+            ),
+            patch("shutil.which", return_value="/usr/bin/radon"),
+            patch("subprocess.run", return_value=mock_proc),
+        ):
+            rule = ComplexityRule()
+            result = rule.check(tmp_path)
+
+        assert result.rule_id == "QUALITY_COMPLEXITY"
+        assert result.passed
+        assert result.details is not None
+        assert isinstance(result.details["score"], int)
+        assert result.details["score"] >= 90
