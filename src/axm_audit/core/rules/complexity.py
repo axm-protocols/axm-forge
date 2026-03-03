@@ -78,6 +78,8 @@ class ComplexityRule(ProjectRule):
                 continue
 
             for block in blocks:
+                if not hasattr(block, "complexity"):
+                    continue
                 cc: int = block.complexity
                 if cc >= COMPLEXITY_THRESHOLD:
                     high_complexity_count += 1
@@ -140,6 +142,8 @@ class ComplexityRule(ProjectRule):
         for file_path, blocks in data.items():
             file_name = Path(file_path).name
             for block in blocks:
+                if not isinstance(block, dict):
+                    continue
                 raw_cc = block.get("complexity", 0)
                 cc = int(raw_cc) if isinstance(raw_cc, int | float | str) else 0
                 if cc >= COMPLEXITY_THRESHOLD:
