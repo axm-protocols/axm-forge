@@ -9,6 +9,8 @@ from typing import Any, Protocol, runtime_checkable
 __all__ = [
     "_collect_dispatcher_params",
     "_extract_docstring_params",
+    "_log_external_step",
+    "_register_one",
     "discover_tools",
     "register_tools",
 ]
@@ -255,6 +257,35 @@ def _collect_dispatcher_params(
     return [action_param, *sorted(seen.values(), key=lambda p: p.name)]
 
 
+def _log_external_step(
+    tool_name: str,
+    tool_args: dict[str, Any],
+    success: bool,
+    result_str: str,
+    duration_ms: int,
+) -> None:
+    """Log a non-protocol tool call in the active session trace.
+
+    No-op if no session is active, tracing is disabled, or axm-engine
+    is not installed. Errors are silently swallowed — tracing must
+    never break tool execution.
+    """
+    try:
+        from axm_engine.runtime.orchestrator import get_orchestrator
+
+        orch = get_orchestrator()
+        orch.log_external_step(
+            tool_name=tool_name,
+            tool_args=tool_args,
+            result_success=success,
+            result_length=len(result_str),
+            result_hash="",  # let orchestrator compute
+            duration_ms=duration_ms,
+        )
+    except Exception:  # noqa: S110
+        pass  # tracing must never break tool execution
+
+
 def _register_one(
     mcp: Any,
     name: str,
@@ -278,8 +309,13 @@ def _register_one(
         tool: Tool instance or plain function.
         override_module: For testing — module to search for ``_*_ACTIONS``.
     """
+    import time
+
     is_plain = callable(tool) and not hasattr(tool, "execute")
     exec_fn: Any = tool if is_plain else tool.execute
+
+    # Protocol tools already trace via orchestrator.run_tool()
+    _should_trace = not name.startswith("protocol_")
 
     if is_plain:
 
@@ -288,7 +324,14 @@ def _register_one(
             if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
                 nested = kwargs.pop("kwargs")
                 kwargs.update(nested)
+            start_ns = time.perf_counter_ns()
             result: dict[str, Any] = tool(**kwargs)
+            duration_ms = (time.perf_counter_ns() - start_ns) // 1_000_000
+            if _should_trace:
+                try:
+                    _log_external_step(name, kwargs, True, str(result), duration_ms)
+                except Exception:  # noqa: S110
+                    pass
             return result
 
     else:
@@ -298,13 +341,22 @@ def _register_one(
             if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
                 nested = kwargs.pop("kwargs")
                 kwargs.update(nested)
+            start_ns = time.perf_counter_ns()
             result = tool.execute(**kwargs)
+            duration_ms = (time.perf_counter_ns() - start_ns) // 1_000_000
             output: dict[str, Any] = {"success": result.success, **result.data}
             if result.error:
                 output["error"] = result.error
             hint = getattr(result, "hint", None)
             if hint:
                 output["hint"] = hint
+            if _should_trace:
+                try:
+                    _log_external_step(
+                        name, kwargs, result.success, str(output), duration_ms
+                    )
+                except Exception:  # noqa: S110
+                    pass
             return output
 
     # Copy docstring.

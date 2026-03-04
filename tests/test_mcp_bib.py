@@ -2,9 +2,8 @@
 
 Tests cover:
 - Tool discovery from axm.tools entry points
-- search_paper: happy path, empty query, API failure, limit param
-- doi_to_bibtex: happy path, empty DOI, 404
-- get_pdf: happy path, not open access, empty DOI
+- bib_search: happy path, empty query, API failure, limit param
+- bib_pdf: happy path, not open access, empty ref
 """
 
 from __future__ import annotations
@@ -28,7 +27,9 @@ def _make_ep(name: str, tool_instance: Any | None = None) -> MagicMock:
         tool_instance.name = name
     ep = MagicMock()
     ep.name = name
-    ep.load.return_value = MagicMock(return_value=tool_instance)
+    # Use spec=type so isinstance(obj, type) returns True in discover_tools
+    mock_cls = MagicMock(spec=type, return_value=tool_instance)
+    ep.load.return_value = mock_cls
     return ep
 
 
@@ -45,7 +46,7 @@ class TestToolDiscovery:
         """Discovers and instantiates tools from axm.tools group."""
         from axm_mcp.discovery import discover_tools
 
-        mock_tool_cls = MagicMock()
+        mock_tool_cls = MagicMock(spec=type)
         mock_tool_instance = MagicMock()
         mock_tool_instance.name = "fake_tool"
         mock_tool_cls.return_value = mock_tool_instance
@@ -81,13 +82,13 @@ class TestToolDiscovery:
         tool_a.name = "tool_a"
         ep_a = MagicMock()
         ep_a.name = "tool_a"
-        ep_a.load.return_value = MagicMock(return_value=tool_a)
+        ep_a.load.return_value = MagicMock(spec=type, return_value=tool_a)
 
         tool_b = MagicMock()
         tool_b.name = "tool_b"
         ep_b = MagicMock()
         ep_b.name = "tool_b"
-        ep_b.load.return_value = MagicMock(return_value=tool_b)
+        ep_b.load.return_value = MagicMock(spec=type, return_value=tool_b)
 
         mock_eps.return_value = [ep_a, ep_b]
 
@@ -125,7 +126,7 @@ class TestMCPRegistration:
 
         ep = MagicMock()
         ep.name = "test_register"
-        ep.load.return_value = MagicMock(return_value=mock_tool)
+        ep.load.return_value = MagicMock(spec=type, return_value=mock_tool)
         mock_eps.return_value = [ep]
 
         tools = discover_tools()
@@ -217,76 +218,6 @@ class TestBibSearchMCP:
         tools = discover_tools()
         tools["bib_search"].execute(query="test", limit=3)
         tool.execute.assert_called_once_with(query="test", limit=3)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# bib_doi MCP tool (mocked discovery)
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-class TestBibDoiMCP:
-    """MCP bib_doi tool tests."""
-
-    @patch(_DISCOVER)
-    def test_bib_doi_tool_exists(self, mock_eps: MagicMock) -> None:
-        """bib_doi is discoverable."""
-        from axm_mcp.discovery import discover_tools
-
-        mock_eps.return_value = [_make_ep("bib_doi")]
-        tools = discover_tools()
-        assert "bib_doi" in tools
-
-    @patch(_DISCOVER)
-    def test_bib_doi_happy_path(self, mock_eps: MagicMock) -> None:
-        """Returns bibtex + key."""
-        from axm_mcp.discovery import discover_tools
-
-        tool = MagicMock()
-        tool.name = "bib_doi"
-        tool.execute.return_value = ToolResult(
-            success=True,
-            data={
-                "bibtex": "@article{test, title={X}}",
-                "key": "test2024",
-                "doi": "10.1/x",
-                "entry_type": "article",
-            },
-        )
-        mock_eps.return_value = [_make_ep("bib_doi", tool)]
-
-        tools = discover_tools()
-        result = tools["bib_doi"].execute(doi="10.1/x")
-        assert result.success
-        assert "@article" in result.data["bibtex"]
-
-    @patch(_DISCOVER)
-    def test_bib_doi_empty_doi(self, mock_eps: MagicMock) -> None:
-        """Empty DOI → error."""
-        from axm_mcp.discovery import discover_tools
-
-        tool = MagicMock()
-        tool.name = "bib_doi"
-        tool.execute.return_value = ToolResult(success=False, error="DOI is required")
-        mock_eps.return_value = [_make_ep("bib_doi", tool)]
-
-        tools = discover_tools()
-        result = tools["bib_doi"].execute(doi="")
-        assert not result.success
-
-    @patch(_DISCOVER)
-    def test_bib_doi_not_found(self, mock_eps: MagicMock) -> None:
-        """404 DOI → error."""
-        from axm_mcp.discovery import discover_tools
-
-        tool = MagicMock()
-        tool.name = "bib_doi"
-        tool.execute.return_value = ToolResult(success=False, error="404 Not Found")
-        mock_eps.return_value = [_make_ep("bib_doi", tool)]
-
-        tools = discover_tools()
-        result = tools["bib_doi"].execute(doi="10.9999/nope")
-        assert not result.success
-        assert "404" in (result.error or "")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
