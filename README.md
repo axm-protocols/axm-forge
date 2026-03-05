@@ -26,7 +26,7 @@
 ## Features
 
 - 🔍 **Linting** — Ruff analysis (800+ rules)
-- 🔒 **Type Checking** — Strict mypy via `mypy.api.run()`
+- 🔒 **Type Checking** — Strict mypy (per-project `pyproject.toml` config)
 - 📊 **Complexity** — Cyclomatic complexity via radon (Python API with subprocess fallback)
 - 🛡️ **Security** — Bandit integration + hardcoded secrets detection
 - 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry)

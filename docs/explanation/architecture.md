@@ -46,7 +46,7 @@ Both return typed Pydantic models for safe agent consumption.
 
 ### 3. Tool Integration
 
-All subprocess-based rules use `run_in_project()` from `core/runner.py`, which detects the target project's `.venv/` and executes tools via `uv run --directory` to ensure the correct environment is used. All subprocess calls have a **300-second timeout** (configurable) — on timeout, a synthetic result with `returncode=124` is returned to prevent indefinite hangs.
+All subprocess-based rules use `run_in_project()` from `core/runner.py`, which detects the target project's `.venv/` and executes tools via `uv run --directory` to ensure the correct environment is used. Rules pass `with_packages=[...]` to inject audit dependencies (ruff, mypy, bandit, etc.) at runtime — the target project does **not** need these tools in its own environment. All subprocess calls have a **300-second timeout** (configurable) — on timeout, a synthetic result with `returncode=124` is returned to prevent indefinite hangs.
 
 | Rule | Tool | Integration |
 |---|---|---|
