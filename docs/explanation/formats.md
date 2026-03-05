@@ -77,6 +77,42 @@ Combine with `--modules` to filter:
 axm-ast describe src/mylib --detail toc --modules core
 ```
 
+## Detail Levels (`docs`)
+
+The `docs` command also supports progressive disclosure via `--detail`:
+
+### Full (default)
+
+Returns complete content for README, mkdocs.yml, and all doc pages. Same as the original behavior.
+
+```bash
+axm-ast docs .
+```
+
+### TOC
+
+Heading tree + line count per page (~500 tokens). Use this to decide which pages to drill into.
+
+```bash
+axm-ast docs . --detail toc
+```
+
+### Summary
+
+Headings + first sentence per section. A budget-friendly overview with enough context to identify stale sections.
+
+```bash
+axm-ast docs . --detail summary
+```
+
+### Page filter
+
+Combine any detail level with `--pages` to narrow the scope:
+
+```bash
+axm-ast docs . --detail summary --pages architecture,howto
+```
+
 ## Graph Formats
 
 ### Text (default)
