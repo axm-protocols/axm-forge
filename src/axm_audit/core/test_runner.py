@@ -18,6 +18,7 @@ from axm_audit.core.runner import run_in_project
 __all__ = [
     "FailureDetail",
     "TestReport",
+    "_parse_collector_errors",
     "run_tests",
 ]
 
@@ -83,7 +84,7 @@ def _parse_failures(tests: list[dict[str, Any]]) -> list[FailureDetail]:
             continue
 
         nodeid: str = test.get("nodeid", "unknown")
-        call_info: dict[str, Any] = test.get("call", {})
+        call_info: dict[str, Any] = test.get("call") or test.get("setup") or {}
         crash: dict[str, Any] = call_info.get("crash", {})
         tb_text: str = call_info.get("longrepr", "")
 
@@ -106,6 +107,49 @@ def _parse_failures(tests: list[dict[str, Any]]) -> list[FailureDetail]:
                 message=message,
                 file=crash.get("path", ""),
                 line=crash.get("lineno", 0),
+                traceback=short_tb,
+            )
+        )
+    return failures
+
+
+def _parse_collector_errors(
+    collectors: list[dict[str, Any]],
+) -> list[FailureDetail]:
+    """Extract ``FailureDetail`` items from pytest-json-report collectors list.
+
+    Collector errors occur before test discovery completes (e.g.
+    ``SyntaxError`` in a test file, broken imports).
+    """
+    failures: list[FailureDetail] = []
+    for collector in collectors:
+        longrepr = collector.get("longrepr", "")
+        if not longrepr:
+            continue
+
+        nodeid: str = collector.get("nodeid", "unknown")
+
+        # Truncate traceback
+        tb_lines = longrepr.strip().splitlines()
+        if len(tb_lines) > _MAX_TB_LINES:
+            tb_lines = tb_lines[-_MAX_TB_LINES:]
+        short_tb = "\n".join(tb_lines)
+
+        # Extract error type from last line (e.g. "SyntaxError: invalid syntax")
+        last_line = longrepr.strip().splitlines()[-1] if longrepr.strip() else ""
+        error_type = "CollectionError"
+        message = last_line
+        if ":" in last_line:
+            error_type = last_line.split(":")[0].strip()
+            message = last_line
+
+        failures.append(
+            FailureDetail(
+                test=nodeid,
+                error_type=error_type,
+                message=message,
+                file=nodeid if nodeid != "unknown" else "",
+                line=0,
                 traceback=short_tb,
             )
         )
@@ -151,7 +195,7 @@ def _build_pytest_cmd(
         "pytest",
         "--json-report",
         f"--json-report-file={report_path}",
-        "--json-report-omit=collectors,log,keywords",
+        "--json-report-omit=log,keywords",
         "--tb=short",
         "--no-header",
         "-q",
@@ -265,6 +309,8 @@ def run_tests(
         # Populate failures for modes that need them
         if mode != "compact":
             result.failures = _parse_failures(tests_list)
+            collectors_list: list[dict[str, Any]] = report_data.get("collectors", [])
+            result.failures.extend(_parse_collector_errors(collectors_list))
 
         # Populate coverage delta for delta mode
         if mode == "delta" and last_coverage is not None:
