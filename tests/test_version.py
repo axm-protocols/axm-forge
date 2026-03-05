@@ -15,6 +15,6 @@ def test_version_is_string() -> None:
 
 def test_version_format() -> None:
     """Version should follow semver pattern (major.minor.patch with optional suffix)."""
-    assert re.match(
-        r"^\d+\.\d+\.\d+", __version__
-    ), f"Version '{__version__}' does not match semver pattern"
+    assert re.match(r"^\d+\.\d+\.\d+", __version__), (
+        f"Version '{__version__}' does not match semver pattern"
+    )
