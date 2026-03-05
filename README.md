@@ -23,7 +23,7 @@
 - 📞 **Callers** — "Who calls this function?" via tree-sitter call-site detection
 - 📋 **Context** — One-shot project dump: stack, patterns, module ranking
 - 💥 **Impact** — Change impact analysis: callers + graph + test mapping
-- 📖 **Docs** — One-shot documentation tree dump: README + mkdocs + all pages
+- 📖 **Docs** — One-shot documentation tree dump with progressive disclosure (toc/summary/full) and page filtering
 - 💀 **Dead code** — Detect unreferenced symbols with smart exemptions (dict dispatch, entry points, test callers, lazy imports)
 - 🚀 **Flows** — Entry point detection (cyclopts, click, Flask, FastAPI, pytest, `__main__`) and BFS execution flow tracing
 - 🔀 **Diff** — Structural branch diff at symbol level (added/modified/removed via git worktrees)
@@ -73,8 +73,11 @@ axm-ast dead-code src/mylib --include-tests  # also scan test modules as targets
 
 # Dump all project documentation in one shot
 axm-ast docs .
-axm-ast docs . --tree   # tree only
-axm-ast docs . --json   # JSON output
+axm-ast docs . --detail toc              # heading scan (~500 tokens)
+axm-ast docs . --detail summary          # headings + first sentences
+axm-ast docs . --pages architecture      # filter by page name
+axm-ast docs . --tree                    # tree only
+axm-ast docs . --json                    # JSON output
 
 # Structural diff between branches
 axm-ast diff main..feature src/mylib

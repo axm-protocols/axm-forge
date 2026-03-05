@@ -304,46 +304,34 @@ axm-ast docs [OPTIONS] [PATH]
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Project root directory |
+| `--detail` | `-d` | string | `full` | Detail level: `toc`, `summary`, `full` |
+| `--pages` | `-p` | string | *none* | Comma-separated page name substrings to filter |
 | `--json` | | bool | `False` | Output as JSON |
 | `--tree` | | bool | `False` | Only show directory tree |
 
-**Example:**
+### Detail levels
+
+| Level | Returns | Use case |
+|---|---|---|
+| `toc` | Heading tree + line count per page (~500 tokens) | Quick scan, decide which pages to read |
+| `summary` | Headings + first sentence per section | Budget-friendly overview with context |
+| `full` | Complete page content (default) | Full doc sync, initial exploration |
+
+**Examples:**
 
 ```bash
+# Full content (default, same as before)
 axm-ast docs .
+
+# Heading scan only
+axm-ast docs . --detail toc
+
+# Summary with page filter
+axm-ast docs . --detail summary --pages architecture,howto
+
+# Tree-only mode
+axm-ast docs . --tree
 ```
-
-```
-📖 README.md
-────────────────────────────────────────
-# mylib
-Python AST introspection CLI...
-
-⚙️  mkdocs.yml
-────────────────────────────────────────
-site_name: mylib
-...
-
-📁 Documentation tree
-────────────────────────────────────────
-docs/
-├── howto
-│   ├── describe.md
-│   └── impact.md
-├── reference
-│   └── cli.md
-├── tutorials
-│   └── quickstart.md
-└── index.md
-
-📄 docs/index.md
-────────────────────────────────────────
-# Home
-...
-```
-
-!!! tip "Tree-only mode"
-    Use `--tree` to see the documentation structure without file contents.
 
 ---
 
