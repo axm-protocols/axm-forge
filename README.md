@@ -58,6 +58,9 @@ axm-audit audit . --agent
 
 # Filter by category
 axm-audit audit . --category lint
+
+# Run tests with structured output (agent-optimized)
+axm-audit test . --mode=compact
 ```
 
 ### Python API
@@ -129,7 +132,7 @@ See the [MCP how-to guide](https://axm-protocols.github.io/axm-audit/howto/mcp/)
 git clone https://github.com/axm-protocols/axm-audit.git
 cd axm-audit
 uv sync --all-groups
-uv run pytest           # 384 tests
+uv run pytest           # 414 tests
 uv run ruff check src/  # lint
 uv run mypy src/        # type check
 ```
