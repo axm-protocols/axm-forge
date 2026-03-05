@@ -13,7 +13,7 @@
 | `ast_impact(path, symbol)` | `axm-ast impact` | Change blast radius analysis |
 | `ast_inspect(path, symbol)` | `axm-ast inspect` | Full detail on a single symbol |
 | `ast_graph(path)` | `axm-ast graph` | Import dependency graph |
-| `ast_docs(path)` | `axm-ast docs` | Documentation tree dump |
+| `ast_docs(path, detail?, pages?)` | `axm-ast docs` | Documentation tree dump |
 | `ast_dead_code(path)` | `axm-ast dead-code` | Detect unreferenced symbols |
 | `ast_diff(path, base, head)` | `axm-ast diff` | Structural branch diff at symbol level |
 
@@ -22,6 +22,12 @@
     `"detailed"` (+ docstrings, params, return types — **default**), or `"full"` (+ line
     numbers, imports, variables). Use `modules=["core"]` to filter by module name substring.
     Use `compress=True` for an AI-optimized view with signatures and first docstring lines.
+
+!!! tip "ast_docs detail levels"
+    `ast_docs` accepts `detail`: `"toc"` (heading tree + line count per page, ~500 tokens),
+    `"summary"` (headings + first sentence per section), or `"full"` (complete content — **default**).
+    Use `pages=["architecture", "howto"]` to filter pages by name substring.
+    Combine both: `ast_docs(detail="toc", pages=["arch"])` for minimal token scan.
 
 
 ## Workspace Support

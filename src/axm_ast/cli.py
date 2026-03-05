@@ -843,6 +843,20 @@ def docs(
         cyclopts.Parameter(help="Project root directory"),
     ] = ".",
     *,
+    detail: Annotated[
+        str,
+        cyclopts.Parameter(
+            name=["--detail", "-d"],
+            help="Detail level: toc, summary, full",
+        ),
+    ] = "full",
+    pages_filter: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--pages", "-p"],
+            help="Comma-separated page name substrings to filter",
+        ),
+    ] = None,
     json_output: Annotated[
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
@@ -860,7 +874,8 @@ def docs(
 
     from axm_ast.core.docs import discover_docs, format_docs, format_docs_json
 
-    result = discover_docs(project_path)
+    pages = [p.strip() for p in pages_filter.split(",")] if pages_filter else None
+    result = discover_docs(project_path, detail=detail, pages=pages)
 
     if json_output:
         print(json.dumps(format_docs_json(result), indent=2))
