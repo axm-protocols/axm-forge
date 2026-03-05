@@ -70,7 +70,7 @@ print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
 - 📐 **Practices** — Docstring coverage, bare except detection, blocking I/O, logging presence, test mirroring
 - 🔧 **Tooling** — CLI tool availability checks
-- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 414 tests
+- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 429 tests
 
 ---
 
