@@ -5,6 +5,7 @@ Usage::
     axm-audit audit .
     axm-audit audit --json
     axm-audit audit --category lint
+    axm-audit test . --mode=compact
     axm-audit version
 """
 
