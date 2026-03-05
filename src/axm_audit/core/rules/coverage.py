@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import logging
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from axm_audit.core.rules.base import ProjectRule, register_rule
-from axm_audit.core.runner import run_in_project
+from axm_audit.core.test_runner import TestReport
 from axm_audit.models.results import CheckResult, Severity
 
 __all__ = ["TestCoverageRule"]
@@ -36,44 +34,28 @@ class TestCoverageRule(ProjectRule):
     def check(self, project_path: Path) -> CheckResult:
         """Check test coverage and capture failures with pytest-cov.
 
-        Coverage data is written to a temp file and cleaned up after
-        parsing to avoid leaving stale ``coverage.json`` in the
-        audited project root.
+        Delegates to ``run_tests(mode='compact')`` from the shared
+        test runner for structured output, then converts the result
+        to a ``CheckResult``.
         """
-        # Write coverage to a temp file to avoid polluting the project
-        tmp = tempfile.NamedTemporaryFile(
-            suffix=".json", prefix="axm_cov_", delete=False
-        )
-        coverage_path = Path(tmp.name)
-        tmp.close()
+        from axm_audit.core.test_runner import run_tests
 
-        try:
-            return self._run_and_parse(project_path, coverage_path)
-        finally:
-            coverage_path.unlink(missing_ok=True)
+        report = run_tests(project_path, mode="compact", stop_on_first=False)
+        return self._report_to_result(report)
 
-    def _run_and_parse(self, project_path: Path, coverage_path: Path) -> CheckResult:
-        """Run pytest-cov and parse the coverage report."""
-        result = run_in_project(
-            [
-                "pytest",
-                "--cov",
-                f"--cov-report=json:{coverage_path}",
-                "--tb=short",
-                "--no-header",
-                "-q",
-            ],
-            project_path,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+    def _report_to_result(self, report: TestReport) -> CheckResult:
+        """Convert a ``TestReport`` to a ``CheckResult``."""
+        coverage_pct = report.coverage if report.coverage is not None else 0.0
+        score = int(coverage_pct)
+        has_failures = report.failed > 0 or report.errors > 0
+        passed = coverage_pct >= self.min_coverage and not has_failures
 
-        # Extract test failures from stdout
-        failures = _extract_test_failures(result.stdout)
+        # Build failure details for backwards-compatible format
+        failures: list[dict[str, str]] = [
+            {"test": f.test, "traceback": f.message} for f in report.failures
+        ]
 
-        # Parse coverage data
-        if not coverage_path.exists():
+        if report.coverage is None:
             return CheckResult(
                 rule_id=self.rule_id,
                 passed=False,
@@ -83,19 +65,10 @@ class TestCoverageRule(ProjectRule):
                 fix_hint="Add pytest-cov: uv add --dev pytest-cov",
             )
 
-        try:
-            data = json.loads(coverage_path.read_text())
-            coverage_pct = data.get("totals", {}).get("percent_covered", 0.0)
-        except (json.JSONDecodeError, OSError):
-            coverage_pct = 0.0
-
-        score = int(coverage_pct)
-        has_failures = len(failures) > 0
-        passed = coverage_pct >= self.min_coverage and not has_failures
-
         if has_failures:
+            total_fails = report.failed + report.errors
             message = (
-                f"Test coverage: {coverage_pct:.0f}% ({len(failures)} test(s) failed)"
+                f"Test coverage: {coverage_pct:.0f}% ({total_fails} test(s) failed)"
             )
         else:
             message = f"Test coverage: {coverage_pct:.0f}% ({score}/100)"
