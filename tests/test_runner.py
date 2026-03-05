@@ -6,6 +6,68 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+# ── Tests for _find_venv helper ──────────────────────────────────────
+
+
+class TestFindVenv:
+    """Tests for the _find_venv workspace-aware venv locator."""
+
+    def test_finds_local_venv(self, tmp_path: Path) -> None:
+        """Returns .venv when present directly in project_path."""
+        from axm_audit.core.runner import _find_venv
+
+        (tmp_path / "pyproject.toml").touch()
+        venv_bin = tmp_path / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python").touch()
+
+        result = _find_venv(tmp_path)
+        assert result == tmp_path / ".venv"
+
+    def test_finds_workspace_root_venv(self, tmp_path: Path) -> None:
+        """Returns workspace-root .venv when subpackage has no local .venv."""
+        from axm_audit.core.runner import _find_venv
+
+        # Simulate: workspace_root/pyproject.toml + .venv
+        workspace_root = tmp_path / "workspace"
+        workspace_root.mkdir()
+        (workspace_root / "pyproject.toml").touch()
+        venv_bin = workspace_root / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python").touch()
+
+        # Subpackage is a DIRECT child (uv workspace members are flat siblings)
+        subpackage = workspace_root / "my-lib"
+        subpackage.mkdir()
+        (subpackage / "pyproject.toml").touch()
+
+        result = _find_venv(subpackage)
+        assert result == workspace_root / ".venv"
+
+    def test_returns_none_when_no_venv(self, tmp_path: Path) -> None:
+        """Returns None when no .venv exists anywhere in the project tree."""
+        from axm_audit.core.runner import _find_venv
+
+        (tmp_path / "pyproject.toml").touch()
+        # No .venv created
+
+        result = _find_venv(tmp_path)
+        assert result is None
+
+    def test_stops_at_missing_pyproject(self, tmp_path: Path) -> None:
+        """Does not walk above directories without pyproject.toml."""
+        from axm_audit.core.runner import _find_venv
+
+        # project has pyproject.toml but no .venv
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "pyproject.toml").touch()
+        # tmp_path itself has no pyproject.toml — walk should stop
+
+        result = _find_venv(project)
+        assert result is None
+
+
 # ── Tests for run_in_project helper ──────────────────────────────────
 
 
@@ -20,6 +82,7 @@ class TestRunInProject:
         venv_bin = tmp_path / ".venv" / "bin"
         venv_bin.mkdir(parents=True)
         (venv_bin / "python").touch()
+        (tmp_path / "pyproject.toml").touch()
 
         with patch("axm_audit.core.runner.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(
@@ -30,6 +93,42 @@ class TestRunInProject:
             args = mock_run.call_args[0][0]
             assert args[:4] == ["uv", "run", "--directory", str(tmp_path)]
             assert args[4:] == ["ruff", "check", "src"]
+
+    def test_workspace_subpackage_uses_uv_run(self, tmp_path: Path) -> None:
+        """Workspace member uses uv run when .venv is at monorepo root.
+
+        Regression test for AXM-290: audit_test returned 0 tests for
+        workspace subpackages because run_in_project only checked for
+        .venv in project_path directly, missing workspace-root venvs.
+        """
+        from axm_audit.core.runner import run_in_project
+
+        # Simulate uv monorepo: root has .venv, subpackage does not
+        workspace_root = tmp_path / "axm-protocols"
+        workspace_root.mkdir()
+        (workspace_root / "pyproject.toml").touch()
+        venv_bin = workspace_root / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python").touch()
+
+        sub = workspace_root / "axm-commons"
+        sub.mkdir()
+        (sub / "pyproject.toml").touch()
+        # No .venv in sub — must walk up to workspace_root
+
+        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="", stderr=""
+            )
+            run_in_project(["pytest", "--no-header"], sub)
+
+            args = mock_run.call_args[0][0]
+            # Must use uv run (not bare cmd)
+            assert args[0] == "uv"
+            assert "--directory" in args
+            # --directory must point to the *subpackage*, not workspace root
+            dir_idx = args.index("--directory")
+            assert args[dir_idx + 1] == str(sub)
 
     def test_without_venv_falls_back_to_bare_cmd(self, tmp_path: Path) -> None:
         """When no .venv exists, should run cmd directly with cwd."""
