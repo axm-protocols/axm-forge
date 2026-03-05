@@ -17,6 +17,33 @@ _DEFAULT_TIMEOUT: int = 300
 """Default subprocess timeout in seconds (5 minutes)."""
 
 
+def _find_venv(project_path: Path) -> Path | None:
+    """Locate the nearest ``.venv`` directory for a project.
+
+    Checks ``project_path`` first, then walks up the directory tree to
+    support **uv monorepo workspaces** where the shared ``.venv`` lives
+    at the workspace root rather than inside the individual package.
+
+    Args:
+        project_path: Root of the project being audited.
+
+    Returns:
+        The ``.venv`` directory if found, or ``None`` if no virtual
+        environment exists in the project or any of its ancestors.
+    """
+    current = project_path.resolve()
+    # Walk up until we hit the filesystem root
+    for directory in (current, *current.parents):
+        venv_python = directory / ".venv" / "bin" / "python"
+        if venv_python.exists():
+            return directory / ".venv"
+        # Stop at filesystem root or if there's no parent pyproject.toml
+        # (i.e. we've left the project tree)
+        if not (directory / "pyproject.toml").exists():
+            break
+    return None
+
+
 def run_in_project(
     cmd: list[str],
     project_path: Path,
@@ -27,9 +54,11 @@ def run_in_project(
 ) -> subprocess.CompletedProcess[str]:
     """Run a command in the target project's environment.
 
-    If the project has a ``.venv/``, uses ``uv run --directory`` to execute
-    the command inside that venv. Otherwise falls back to running the
-    command directly with ``cwd`` set to the project path.
+    Locates the nearest ``.venv/`` — either in ``project_path`` itself
+    or in an ancestor directory (for uv monorepo workspace members).
+    Uses ``uv run --directory`` to execute the command within the
+    correct environment.  Falls back to running the command directly
+    with ``cwd`` set when no virtual environment is found.
 
     Args:
         cmd: Command and arguments to run.
@@ -38,7 +67,7 @@ def run_in_project(
             Defaults to 300 (5 minutes).
         with_packages: Optional packages to inject at runtime via
             ``uv run --with <pkg>``.  Only effective when a ``.venv/``
-            exists (i.e. when ``uv run`` is used).  Allows audit tools
+            is found (i.e. when ``uv run`` is used).  Allows audit tools
             to be available in the target project without requiring
             them as declared dependencies.
         **kwargs: Extra arguments forwarded to ``subprocess.run``.
@@ -47,9 +76,9 @@ def run_in_project(
         CompletedProcess result.  On timeout, returns a synthetic result
         with ``returncode=124`` and the timeout message in ``stderr``.
     """
-    venv_python = project_path / ".venv" / "bin" / "python"
+    venv = _find_venv(project_path)
 
-    if venv_python.exists():
+    if venv is not None:
         with_flags: list[str] = []
         for pkg in with_packages or []:
             with_flags.extend(["--with", pkg])
