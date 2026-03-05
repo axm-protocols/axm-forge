@@ -25,6 +25,7 @@ def _run_bandit(src_path: Path, project_path: Path) -> dict[str, Any]:
     result = run_in_project(
         ["bandit", "-r", "-f", "json", str(src_path)],
         project_path,
+        with_packages=["bandit"],
         capture_output=True,
         check=False,
         text=True,

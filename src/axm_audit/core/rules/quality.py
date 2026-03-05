@@ -57,6 +57,7 @@ class LintingRule(ProjectRule):
         result = run_in_project(
             ["ruff", "check", "--output-format=json", *targets],
             project_path,
+            with_packages=["ruff"],
             capture_output=True,
             text=True,
             check=False,
@@ -121,6 +122,7 @@ class FormattingRule(ProjectRule):
         result = run_in_project(
             ["ruff", "format", "--check", *targets],
             project_path,
+            with_packages=["ruff"],
             capture_output=True,
             text=True,
             check=False,
@@ -186,6 +188,7 @@ class TypeCheckRule(ProjectRule):
         result = run_in_project(
             ["mypy", "--no-error-summary", "--output", "json", *targets],
             project_path,
+            with_packages=["mypy"],
             capture_output=True,
             text=True,
             check=False,
