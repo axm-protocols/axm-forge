@@ -26,6 +26,8 @@ class DocsTool(AXMTool):
 
         Args:
             path: Project root directory.
+            **kwargs: Optional ``detail`` (toc/summary/full) and
+                ``pages`` (list of name substrings to filter).
 
         Returns:
             ToolResult with documentation data.
@@ -37,9 +39,13 @@ class DocsTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
+            detail: str = kwargs.get("detail", "full")
+            pages_raw = kwargs.get("pages")
+            pages: list[str] | None = list(pages_raw) if pages_raw else None
+
             from axm_ast.core.docs import discover_docs, format_docs_json
 
-            result = discover_docs(project_path)
+            result = discover_docs(project_path, detail=detail, pages=pages)
             return ToolResult(success=True, data=format_docs_json(result))
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

@@ -283,3 +283,170 @@ class TestCliDocs:
         assert "axm-ast" in result["readme"]["content"]
         assert result["mkdocs"] is not None
         assert len(result["pages"]) >= 5  # we have 8+ pages
+
+
+# ─── Unit: detail levels ─────────────────────────────────────────────────────
+
+
+class TestDetailLevels:
+    """Test progressive disclosure detail levels."""
+
+    def test_docs_toc_returns_headings_only(self, tmp_path: Path) -> None:
+        """detail=toc returns headings + line_count, no content."""
+        _make_project(
+            tmp_path,
+            readme=None,
+            mkdocs=None,
+            docs={
+                "index.md": "# Home\n\nWelcome.\n\n## Setup\n\nInstall it.\n",
+                "guide.md": "# Guide\n\n## Getting Started\n\nHello.\n",
+                "ref.md": "# Reference\n\n## API\n\nDetails.\n",
+            },
+        )
+        result = discover_docs(tmp_path, detail="toc")
+        pages = result["pages"]
+        assert len(pages) == 3
+        for page in pages:
+            assert "headings" in page
+            assert "line_count" in page
+            assert "content" not in page
+        # Check heading structure
+        index_page = next(p for p in pages if "index" in p["path"])
+        assert len(index_page["headings"]) == 2
+        assert index_page["headings"][0] == {"level": 1, "text": "Home"}
+        assert index_page["headings"][1] == {"level": 2, "text": "Setup"}
+
+    def test_docs_summary_returns_first_sentences(self, tmp_path: Path) -> None:
+        """detail=summary returns headings + summaries per section."""
+        _make_project(
+            tmp_path,
+            readme=None,
+            mkdocs=None,
+            docs={
+                "index.md": (
+                    "# Home\n\nWelcome to the project.\n\n"
+                    "## Setup\n\nInstall with pip.\n"
+                ),
+                "guide.md": "# Guide\n\nThis is the guide.\n",
+                "ref.md": "# Reference\n\nAPI details here.\n",
+            },
+        )
+        result = discover_docs(tmp_path, detail="summary")
+        pages = result["pages"]
+        assert len(pages) == 3
+        for page in pages:
+            assert "headings" in page
+            assert "summaries" in page
+            assert "line_count" in page
+            assert "content" not in page
+        index_page = next(p for p in pages if "index" in p["path"])
+        assert "Home" in index_page["summaries"]
+        assert index_page["summaries"]["Home"] == "Welcome to the project."
+        assert index_page["summaries"]["Setup"] == "Install with pip."
+
+    def test_docs_full_returns_content(self, tmp_path: Path) -> None:
+        """detail=full returns content (same as current behavior)."""
+        _make_project(
+            tmp_path,
+            readme=None,
+            mkdocs=None,
+            docs={"index.md": "# Home\n\nWelcome.\n"},
+        )
+        result = discover_docs(tmp_path, detail="full")
+        pages = result["pages"]
+        assert len(pages) == 1
+        assert "content" in pages[0]
+        assert "# Home" in pages[0]["content"]
+
+    def test_docs_default_detail_is_full(self, tmp_path: Path) -> None:
+        """No detail param → same output as current (full content)."""
+        _make_project(
+            tmp_path,
+            readme=None,
+            mkdocs=None,
+            docs={"index.md": "# Home\n\nWelcome.\n"},
+        )
+        result = discover_docs(tmp_path)
+        pages = result["pages"]
+        assert len(pages) == 1
+        assert "content" in pages[0]
+
+
+# ─── Unit: pages filter ──────────────────────────────────────────────────────
+
+
+class TestPagesFilter:
+    """Test page name filtering."""
+
+    def test_docs_pages_filter(self, tmp_path: Path) -> None:
+        """Only matching pages returned, README/mkdocs always present."""
+        _make_project(
+            tmp_path,
+            docs={
+                "index.md": "# Home\n",
+                "architecture.md": "# Architecture\n",
+                "howto/deploy.md": "# Deploy\n",
+                "howto/install.md": "# Install\n",
+                "reference/api.md": "# API\n",
+            },
+        )
+        result = discover_docs(tmp_path, pages=["architecture"])
+        paths = [p["path"] for p in result["pages"]]
+        assert any("architecture" in p for p in paths)
+        assert not any("index.md" in p for p in paths)
+        assert not any("deploy" in p for p in paths)
+        # README and mkdocs are always included (separate keys)
+        assert result["readme"] is not None
+        assert result["mkdocs"] is not None
+
+    def test_docs_pages_filter_case_insensitive(self, tmp_path: Path) -> None:
+        """pages filter is case-insensitive."""
+        _make_project(
+            tmp_path,
+            readme=None,
+            mkdocs=None,
+            docs={"architecture.md": "# Architecture\n"},
+        )
+        result = discover_docs(tmp_path, pages=["ARCH"])
+        paths = [p["path"] for p in result["pages"]]
+        assert any("architecture" in p for p in paths)
+
+
+# ─── Edge cases ──────────────────────────────────────────────────────────────
+
+
+class TestEdgeCases:
+    """Test edge cases for progressive disclosure."""
+
+    def test_docs_empty_docs_dir_with_detail(self, tmp_path: Path) -> None:
+        """Empty docs dir → empty pages, README/mkdocs still returned."""
+        _make_project(tmp_path, docs=None)
+        (tmp_path / "docs").mkdir()
+        result = discover_docs(tmp_path, detail="toc")
+        assert result["pages"] == []
+        assert result["readme"] is not None
+        assert result["mkdocs"] is not None
+
+    def test_docs_page_with_no_headings(self, tmp_path: Path) -> None:
+        """Page with no headings → headings: [], still included."""
+        _make_project(
+            tmp_path,
+            readme=None,
+            mkdocs=None,
+            docs={"plain.md": "Just some body text.\nNo headings here.\n"},
+        )
+        result = discover_docs(tmp_path, detail="toc")
+        assert len(result["pages"]) == 1
+        assert result["pages"][0]["headings"] == []
+        assert result["pages"][0]["line_count"] > 0
+
+    def test_docs_pages_filter_matches_nothing(self, tmp_path: Path) -> None:
+        """Filter matches nothing → empty pages, README/mkdocs still returned."""
+        _make_project(
+            tmp_path,
+            docs={"index.md": "# Home\n"},
+        )
+        result = discover_docs(tmp_path, pages=["nonexistent"])
+        assert result["pages"] == []
+        assert result["readme"] is not None
+        assert result["mkdocs"] is not None
