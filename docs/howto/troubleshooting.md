@@ -6,20 +6,19 @@ Common issues and their solutions when running `axm-audit`.
 
 **Symptom**: `FileNotFoundError` or `command not found` for tools like `ruff`, `mypy`, `bandit`.
 
-**Solution**: Install the required tools in your project's virtual environment:
+**Note**: Since v0.5, `axm-audit` **auto-injects** its audit dependencies (ruff, mypy, bandit, pip-audit, deptry, pytest-cov) via `with_packages` — you **do not** need to install them in your project's environment. If you still see this error, it likely means `uv` itself is not available.
+
+**Solution**: Ensure `uv` is installed and on your PATH:
 
 ```bash
-uv add --dev ruff mypy bandit radon pip-audit deptry
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Or check tool availability first:
+Or check tool availability:
 
 ```bash
 axm-audit audit . --category tooling
 ```
-
-!!! tip
-    `axm-audit` uses `run_in_project()` which detects your project's `.venv/` and runs tools via `uv run --directory`. Make sure tools are installed in the **project's** environment, not globally.
 
 ## Timeout errors
 

@@ -62,7 +62,7 @@ print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
 ## Features
 
 - 🔍 **Linting** — Ruff analysis (800+ rules)
-- 🔒 **Type Safety** — Strict mypy via `mypy.api.run()`
+- 🔒 **Type Safety** — Strict mypy (per-project `pyproject.toml` config)
 - 📊 **Complexity** — Cyclomatic complexity via radon (Python API with subprocess fallback)
 - 🛡️ **Security** — Bandit integration + hardcoded secrets detection
 - 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry)
@@ -70,7 +70,7 @@ print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
 - 📐 **Practices** — Docstring coverage, bare except detection, blocking I/O, logging presence, test mirroring
 - 🔧 **Tooling** — CLI tool availability checks
-- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 429 tests
+- ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 429 tests, 93% coverage
 
 ---
 
