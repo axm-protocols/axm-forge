@@ -2,58 +2,45 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
+from axm_audit.core.test_runner import TestReport
 from axm_audit.models.results import CheckResult
 
 
 class TestTestCoverageRule:
     """Tests for TestCoverageRule."""
 
-    def _make_mock_result(self, stdout: str = "", returncode: int = 0) -> object:
-        """Create a mock subprocess result."""
-        return type(
-            "Result", (), {"stdout": stdout, "stderr": "", "returncode": returncode}
-        )()
-
     def _run_with_coverage(
         self,
         tmp_path: Path,
-        coverage_data: dict[str, Any] | None = None,
-        stdout: str = "",
+        report: TestReport | None = None,
     ) -> CheckResult:
-        """Run TestCoverageRule with mocked subprocess and optional coverage data.
+        """Run TestCoverageRule with a mocked run_tests return.
 
-        When *coverage_data* is provided, the mock ``subprocess.run`` side-
-        effect writes the JSON to the temp file that the rule creates,
-        simulating what ``pytest-cov`` does in production.
+        When *report* is provided, the mock ``run_tests`` returns it
+        directly. If None, returns a default all-pass report.
         """
         from axm_audit.core.rules.coverage import TestCoverageRule
 
-        mock_result = self._make_mock_result(stdout=stdout)
-
-        def _mock_run(cmd: list[str], **kwargs: object) -> object:
-            """Mock subprocess that writes coverage data to the temp file."""
-            if coverage_data is not None:
-                # Find the --cov-report=json:<path> argument
-                for arg in cmd:
-                    if arg.startswith("--cov-report=json:"):
-                        cov_path = Path(arg.split(":", 1)[1])
-                        cov_path.write_text(json.dumps(coverage_data))
-                        break
-            return mock_result
+        if report is None:
+            report = TestReport(passed=42, failed=0, duration=5.0, coverage=95.0)
 
         rule = TestCoverageRule()
-        with patch("subprocess.run", side_effect=_mock_run):
+        with patch("axm_audit.core.test_runner.run_tests", return_value=report):
             return rule.check(tmp_path)
 
     def test_good_coverage_passes(self, tmp_path: Path) -> None:
         """90% coverage → score=90, passed=True."""
         result = self._run_with_coverage(
-            tmp_path, coverage_data={"totals": {"percent_covered": 90.0}}
+            tmp_path,
+            report=TestReport(
+                passed=42,
+                failed=0,
+                duration=5.0,
+                coverage=90.0,
+            ),
         )
         assert result.passed is True
         assert result.details is not None
@@ -62,15 +49,29 @@ class TestTestCoverageRule:
     def test_low_coverage_fails(self, tmp_path: Path) -> None:
         """50% coverage → score=50, passed=False."""
         result = self._run_with_coverage(
-            tmp_path, coverage_data={"totals": {"percent_covered": 50.0}}
+            tmp_path,
+            report=TestReport(
+                passed=42,
+                failed=0,
+                duration=5.0,
+                coverage=50.0,
+            ),
         )
         assert result.passed is False
         assert result.details is not None
         assert result.details["score"] == 50
 
     def test_no_coverage_file(self, tmp_path: Path) -> None:
-        """No coverage data written → score=0, passed=False."""
-        result = self._run_with_coverage(tmp_path, coverage_data=None)
+        """No coverage data → score=0, passed=False."""
+        result = self._run_with_coverage(
+            tmp_path,
+            report=TestReport(
+                passed=42,
+                failed=0,
+                duration=5.0,
+                coverage=None,
+            ),
+        )
         assert result.passed is False
         assert result.details is not None
         assert result.details["score"] == 0
@@ -81,21 +82,31 @@ class TestTestCoverageRule:
 
         assert TestCoverageRule().rule_id == "QUALITY_COVERAGE"
 
-    def test_coverage_rule_no_leftover_files(self, tmp_path: Path) -> None:
-        """After check(), no coverage.json should remain in the project root."""
-        self._run_with_coverage(
-            tmp_path, coverage_data={"totals": {"percent_covered": 95.0}}
+    def test_failures_cause_fail(self, tmp_path: Path) -> None:
+        """Tests with failures should cause passed=False even with good coverage."""
+        result = self._run_with_coverage(
+            tmp_path,
+            report=TestReport(
+                passed=40,
+                failed=2,
+                duration=5.0,
+                coverage=95.0,
+            ),
         )
-        assert not (tmp_path / "coverage.json").exists()
+        assert result.passed is False
+        assert result.details is not None
+        assert "2 test(s) failed" in result.message
 
-    def test_coverage_json_preexisting_not_affected(self, tmp_path: Path) -> None:
-        """Stale coverage.json in project root should not be touched."""
-        stale = tmp_path / "coverage.json"
-        stale.write_text('{"stale": true}')
-
-        self._run_with_coverage(
-            tmp_path, coverage_data={"totals": {"percent_covered": 95.0}}
+    def test_errors_cause_fail(self, tmp_path: Path) -> None:
+        """Tests with errors should cause passed=False."""
+        result = self._run_with_coverage(
+            tmp_path,
+            report=TestReport(
+                passed=40,
+                failed=0,
+                errors=1,
+                duration=5.0,
+                coverage=95.0,
+            ),
         )
-        # Stale file should still exist — rule uses its own temp file
-        assert stale.exists()
-        assert json.loads(stale.read_text()) == {"stale": True}
+        assert result.passed is False
