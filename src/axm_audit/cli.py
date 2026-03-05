@@ -70,6 +70,71 @@ def audit(
 
 
 @app.command()
+def test(
+    path: Annotated[
+        str,
+        cyclopts.Parameter(help="Path to project to test"),
+    ] = ".",
+    *,
+    mode: Annotated[
+        str,
+        cyclopts.Parameter(
+            name=["--mode"],
+            help="Output mode: compact, failures, delta, targeted",
+        ),
+    ] = "failures",
+    files: Annotated[
+        list[str] | None,
+        cyclopts.Parameter(
+            name=["--files"],
+            help="Specific test files to run",
+        ),
+    ] = None,
+    markers: Annotated[
+        list[str] | None,
+        cyclopts.Parameter(
+            name=["-m", "--markers"],
+            help="Pytest markers to filter",
+        ),
+    ] = None,
+    stop_on_first: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["-x", "--stop-on-first"],
+            help="Stop on first failure",
+        ),
+    ] = True,
+    agent: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--agent"], help="Alias for --mode=compact"),
+    ] = False,
+) -> None:
+    """Run tests with agent-optimized structured output."""
+    import dataclasses
+
+    from axm_audit.core.test_runner import run_tests
+
+    project_path = Path(path).resolve()
+    if not project_path.is_dir():
+        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
+        raise SystemExit(1)
+
+    effective_mode = "compact" if agent else mode
+    report = run_tests(
+        project_path,
+        mode=effective_mode,  # type: ignore[arg-type]
+        files=files,
+        markers=markers,
+        stop_on_first=stop_on_first,
+    )
+
+    print(json.dumps(dataclasses.asdict(report), indent=2))
+
+    if report.failed > 0 or report.errors > 0:
+        raise SystemExit(1)
+
+
+@app.command()
 def version() -> None:
     """Show axm-audit version."""
     from axm_audit import __version__

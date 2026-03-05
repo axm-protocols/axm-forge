@@ -31,6 +31,7 @@ Issues = "https://github.com/axm-protocols/axm-audit/issues"
 
 [project.entry-points."axm.tools"]
 audit = "axm_audit.tools.audit:AuditTool"
+audit_test = "axm_audit.tools.audit_test:AuditTestTool"
 
 [project.entry-points."axm.commands"]
 audit = "axm_audit.cli:app"
@@ -51,6 +52,7 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=4.0",
     "pytest-asyncio>=0.24",
+    "pytest-json-report>=1.5",
     "pytest-mock>=3.0",
     "ruff>=0.8",
     "mypy>=1.14",
@@ -81,7 +83,8 @@ ignore = ["S101"]
 "tests/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
 "src/axm_audit/core/rules/quality.py" = ["S603", "S607"]
 "src/axm_audit/core/rules/dependencies.py" = ["S603", "S607"]
-"src/axm_audit/cli.py" = ["T201"]
+"src/axm_audit/cli.py" = ["T201", "PLR0913"]
+"src/axm_audit/core/test_runner.py" = ["PLR0913"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_audit"]
