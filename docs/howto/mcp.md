@@ -37,6 +37,21 @@ Use `verify` instead of `audit` for a combined quality + governance check:
 
 This runs `audit` + `init_check` + AST enrichment in a single call.
 
+### Agent-optimized test runner
+
+Use `audit_test` for structured, token-efficient test feedback:
+
+```json
+{"tool": "audit_test", "kwargs": {"path": "/path/to/project", "mode": "failures"}}
+```
+
+| Mode | ~Tokens | Use case |
+|---|---|---|
+| `compact` | 30 | Fast-feedback loops (pass/fail + counts) |
+| `failures` | 30-200 | First run, debugging (includes failure details) |
+| `delta` | 100-300 | Post-refactor coverage comparison |
+| `targeted` | 50-150 | Impact-scoped tests with `files` or `markers` |
+
 ## Output Format
 
 The MCP tool returns the same structure as `axm-audit audit . --agent`:
