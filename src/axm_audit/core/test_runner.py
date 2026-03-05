@@ -257,7 +257,7 @@ def run_tests(
             errors=summary.get("error", 0),
             skipped=summary.get("skipped", 0),
             warnings=summary.get("warnings", 0),
-            duration=summary.get("duration", 0.0),
+            duration=report_data.get("duration", 0.0),
             coverage=total_cov,
         )
 
