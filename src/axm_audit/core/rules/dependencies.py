@@ -25,6 +25,7 @@ def _run_pip_audit(project_path: Path) -> dict[str, Any] | list[Any]:
     result = run_in_project(
         ["pip-audit", "--format=json", "--output=-"],
         project_path,
+        with_packages=["pip-audit"],
         capture_output=True,
         text=True,
         check=False,
@@ -128,6 +129,7 @@ def _run_deptry(project_path: Path) -> list[dict[str, Any]]:
         result = run_in_project(
             ["deptry", ".", "--json-output", str(tmp_path)],
             project_path,
+            with_packages=["deptry"],
             capture_output=True,
             text=True,
             check=False,

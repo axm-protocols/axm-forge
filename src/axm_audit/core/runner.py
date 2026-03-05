@@ -22,6 +22,7 @@ def run_in_project(
     project_path: Path,
     *,
     timeout: int = _DEFAULT_TIMEOUT,
+    with_packages: list[str] | None = None,
     **kwargs: Any,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command in the target project's environment.
@@ -35,6 +36,11 @@ def run_in_project(
         project_path: Root of the project being audited.
         timeout: Maximum seconds to wait before killing the subprocess.
             Defaults to 300 (5 minutes).
+        with_packages: Optional packages to inject at runtime via
+            ``uv run --with <pkg>``.  Only effective when a ``.venv/``
+            exists (i.e. when ``uv run`` is used).  Allows audit tools
+            to be available in the target project without requiring
+            them as declared dependencies.
         **kwargs: Extra arguments forwarded to ``subprocess.run``.
 
     Returns:
@@ -44,7 +50,10 @@ def run_in_project(
     venv_python = project_path / ".venv" / "bin" / "python"
 
     if venv_python.exists():
-        full_cmd = ["uv", "run", "--directory", str(project_path), *cmd]
+        with_flags: list[str] = []
+        for pkg in with_packages or []:
+            with_flags.extend(["--with", pkg])
+        full_cmd = ["uv", "run", *with_flags, "--directory", str(project_path), *cmd]
     else:
         full_cmd = cmd
         kwargs.setdefault("cwd", str(project_path))

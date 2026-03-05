@@ -86,6 +86,75 @@ class TestRunInProject:
             kwargs = mock_run.call_args[1]
             assert kwargs["timeout"] == 300
 
+    def test_with_packages_inserts_flags(self, tmp_path: Path) -> None:
+        """with_packages adds --with flags between 'uv run' and '--directory'."""
+        from axm_audit.core.runner import run_in_project
+
+        # Create a fake .venv
+        venv_bin = tmp_path / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python").touch()
+
+        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="", stderr=""
+            )
+            run_in_project(
+                ["pytest", "--json-report"],
+                tmp_path,
+                with_packages=["pytest-json-report", "pytest-cov"],
+            )
+
+            args = mock_run.call_args[0][0]
+            assert args == [
+                "uv",
+                "run",
+                "--with",
+                "pytest-json-report",
+                "--with",
+                "pytest-cov",
+                "--directory",
+                str(tmp_path),
+                "pytest",
+                "--json-report",
+            ]
+
+    def test_with_packages_ignored_without_venv(self, tmp_path: Path) -> None:
+        """with_packages has no effect when no .venv exists (bare cmd)."""
+        from axm_audit.core.runner import run_in_project
+
+        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="", stderr=""
+            )
+            run_in_project(
+                ["pytest", "--json-report"],
+                tmp_path,
+                with_packages=["pytest-json-report"],
+            )
+
+            args = mock_run.call_args[0][0]
+            assert args == ["pytest", "--json-report"]
+            assert "--with" not in args
+
+    def test_with_packages_none_no_effect(self, tmp_path: Path) -> None:
+        """with_packages=None produces same command as before."""
+        from axm_audit.core.runner import run_in_project
+
+        # Create a fake .venv
+        venv_bin = tmp_path / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python").touch()
+
+        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="", stderr=""
+            )
+            run_in_project(["ruff", "check"], tmp_path, with_packages=None)
+
+            args = mock_run.call_args[0][0]
+            assert args == ["uv", "run", "--directory", str(tmp_path), "ruff", "check"]
+
 
 # ── Tests for rule integration ───────────────────────────────────────
 
@@ -176,3 +245,112 @@ class TestNoSysExecutable:
             assert "sys.executable" not in content, (
                 f"{py_file.name} still uses sys.executable"
             )
+
+
+# ── Tests for with_packages injection in rules ──────────────────────
+
+
+class TestWithPackagesInjection:
+    """Verify each rule passes the correct with_packages to run_in_project."""
+
+    def test_linting_injects_ruff(self, tmp_path: Path) -> None:
+        """LintingRule passes with_packages=["ruff"]."""
+        from axm_audit.core.rules.quality import LintingRule
+
+        (tmp_path / "src").mkdir()
+
+        with patch("axm_audit.core.rules.quality.run_in_project") as mock:
+            mock.return_value = MagicMock(stdout="[]", stderr="", returncode=0)
+            LintingRule().check(tmp_path)
+            assert mock.call_args[1]["with_packages"] == ["ruff"]
+
+    def test_formatting_injects_ruff(self, tmp_path: Path) -> None:
+        """FormattingRule passes with_packages=["ruff"]."""
+        from axm_audit.core.rules.quality import FormattingRule
+
+        (tmp_path / "src").mkdir()
+
+        with patch("axm_audit.core.rules.quality.run_in_project") as mock:
+            mock.return_value = MagicMock(stdout="", stderr="", returncode=0)
+            FormattingRule().check(tmp_path)
+            assert mock.call_args[1]["with_packages"] == ["ruff"]
+
+    def test_typecheck_injects_mypy(self, tmp_path: Path) -> None:
+        """TypeCheckRule passes with_packages=["mypy"]."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        (tmp_path / "src").mkdir()
+
+        with patch("axm_audit.core.rules.quality.run_in_project") as mock:
+            mock.return_value = MagicMock(stdout="", stderr="", returncode=0)
+            TypeCheckRule().check(tmp_path)
+            assert mock.call_args[1]["with_packages"] == ["mypy"]
+
+    def test_security_injects_bandit(self, tmp_path: Path) -> None:
+        """SecurityRule passes with_packages=["bandit"]."""
+        from axm_audit.core.rules.security import SecurityRule
+
+        (tmp_path / "src").mkdir()
+
+        with patch("axm_audit.core.rules.security.run_in_project") as mock:
+            mock.return_value = MagicMock(stdout="{}", stderr="", returncode=0)
+            SecurityRule().check(tmp_path)
+            assert mock.call_args[1]["with_packages"] == ["bandit"]
+
+    def test_pip_audit_injects_pip_audit(self, tmp_path: Path) -> None:
+        """DependencyAuditRule passes with_packages=["pip-audit"]."""
+        from axm_audit.core.rules.dependencies import DependencyAuditRule
+
+        with patch("axm_audit.core.rules.dependencies.run_in_project") as mock:
+            mock.return_value = MagicMock(stdout="{}", stderr="", returncode=0)
+            DependencyAuditRule().check(tmp_path)
+            assert mock.call_args[1]["with_packages"] == ["pip-audit"]
+
+    def test_deptry_injects_deptry(self, tmp_path: Path) -> None:
+        """DependencyHygieneRule passes with_packages=["deptry"]."""
+        from axm_audit.core.rules.dependencies import DependencyHygieneRule
+
+        with patch("axm_audit.core.rules.dependencies.run_in_project") as mock:
+            mock.return_value = MagicMock(stdout="[]", stderr="", returncode=0)
+            DependencyHygieneRule().check(tmp_path)
+            assert mock.call_args[1]["with_packages"] == ["deptry"]
+
+    def test_run_tests_injects_pytest_plugins(self, tmp_path: Path) -> None:
+        """run_tests passes with_packages=["pytest-json-report", "pytest-cov"]."""
+        import json
+
+        from axm_audit.core.test_runner import run_tests
+
+        passing_report = {
+            "summary": {
+                "passed": 1,
+                "failed": 0,
+                "error": 0,
+                "skipped": 0,
+                "warnings": 0,
+                "duration": 0.1,
+            },
+            "tests": [],
+        }
+        coverage_data = {
+            "totals": {"percent_covered": 90.0},
+            "files": {},
+        }
+
+        def _side_effect(
+            cmd: list[str], project_path: Path, **kwargs: object
+        ) -> MagicMock:
+            for arg in cmd:
+                if arg.startswith("--json-report-file="):
+                    Path(arg.split("=", 1)[1]).write_text(json.dumps(passing_report))
+                if arg.startswith("--cov-report=json:"):
+                    Path(arg.split(":", 1)[1]).write_text(json.dumps(coverage_data))
+            return MagicMock(returncode=0)
+
+        with patch("axm_audit.core.test_runner.run_in_project") as mock:
+            mock.side_effect = _side_effect
+            run_tests(tmp_path, mode="compact")
+            assert mock.call_args[1]["with_packages"] == [
+                "pytest-json-report",
+                "pytest-cov",
+            ]
