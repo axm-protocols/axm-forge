@@ -234,6 +234,7 @@ def run_tests(
         run_in_project(
             cmd,
             project_path,
+            with_packages=["pytest-json-report", "pytest-cov"],
             capture_output=True,
             text=True,
             check=False,
