@@ -21,13 +21,21 @@ class DocsTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_docs"
 
-    def execute(self, *, path: str = ".", **kwargs: Any) -> ToolResult:
+    def execute(
+        self,
+        *,
+        path: str = ".",
+        detail: str = "full",
+        pages: list[str] | None = None,
+        **kwargs: Any,
+    ) -> ToolResult:
         """Dump project documentation.
 
         Args:
             path: Project root directory.
-            **kwargs: Optional ``detail`` (toc/summary/full) and
-                ``pages`` (list of name substrings to filter).
+            detail: Detail level — ``toc``, ``summary``, or ``full``.
+            pages: Page name substrings to filter (case-insensitive).
+            **kwargs: Reserved for future use.
 
         Returns:
             ToolResult with documentation data.
@@ -38,10 +46,6 @@ class DocsTool(AXMTool):
                 return ToolResult(
                     success=False, error=f"Not a directory: {project_path}"
                 )
-
-            detail: str = kwargs.get("detail", "full")
-            pages_raw = kwargs.get("pages")
-            pages: list[str] | None = list(pages_raw) if pages_raw else None
 
             from axm_ast.core.docs import discover_docs, format_docs_json
 
