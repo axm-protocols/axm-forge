@@ -21,7 +21,13 @@ class DeadCodeTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_dead_code"
 
-    def execute(self, *, path: str = ".", **kwargs: Any) -> ToolResult:
+    def execute(
+        self,
+        *,
+        path: str = ".",
+        include_tests: bool = False,
+        **kwargs: Any,
+    ) -> ToolResult:
         """Find dead code in a Python package.
 
         Args:
@@ -39,7 +45,6 @@ class DeadCodeTool(AXMTool):
             from axm_ast.core.cache import get_package
             from axm_ast.core.dead_code import find_dead_code
 
-            include_tests = bool(kwargs.get("include_tests", False))
             pkg = get_package(pkg_path)
             dead = find_dead_code(pkg, include_tests=include_tests)
 
