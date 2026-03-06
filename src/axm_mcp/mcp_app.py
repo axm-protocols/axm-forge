@@ -11,8 +11,9 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from axm_mcp.discovery import discover_tools, register_tools
+from axm_mcp.discovery import _get_tool_doc, discover_tools, register_tools
 from axm_mcp.verify import verify_project
+from axm_mcp.web_fetch import fetch_page
 
 # FastMCP server instance
 mcp = FastMCP("axm-mcp")
@@ -23,7 +24,8 @@ register_tools(
     mcp,
     _discovered_tools,
     extra_tools={
-        "verify": "One-shot project verification: audit + init check + AST enrichment."
+        "verify": "One-shot project verification: audit + init check + AST enrichment.",
+        "web_fetch": "Fetch web page content with anti-bot bypass via Scrapling.",
     },
 )
 
@@ -43,6 +45,22 @@ def _verify_tool(**kwargs: Any) -> dict[str, Any]:
     return verify_project(str(path), _discovered_tools)
 
 
+# Register the web_fetch tool
+@mcp.tool(name="web_fetch")
+def _web_fetch_tool(
+    url: str,
+    mode: str = "auto",
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Fetch web page content with anti-bot bypass via Scrapling.
+
+    Args:
+        url: URL to fetch (required).
+        mode: Fetching mode — auto, basic, dynamic, or stealth.
+    """
+    return fetch_page(url=url, mode=mode)
+
+
 # ── MCP Resource: tool catalog ──────────────────────────────
 @mcp.resource(
     "axm://tools",
@@ -54,7 +72,7 @@ def _tool_catalog() -> str:
     """Return JSON catalog of all registered AXM tools."""
     catalog = []
     for name, tool in sorted(_discovered_tools.items()):
-        doc = (tool.execute.__doc__ or "").strip().split("\n")[0]
+        doc = _get_tool_doc(tool)
         catalog.append({"name": name, "description": doc})
     catalog.append({"name": "verify", "description": "One-shot project verification."})
     catalog.append(
