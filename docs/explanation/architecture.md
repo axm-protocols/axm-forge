@@ -88,7 +88,7 @@ Business logic independent of I/O:
 | Module | Key Symbols | Purpose |
 |---|---|---|
 | `checker.py` | `CheckEngine`, `format_report()`, `format_json()`, `format_agent()` | Run checks (dynamic discovery via `importlib`), format output |
-| `templates.py` | `TemplateInfo`, `TemplateType`, `get_template_path()` | Template catalog, type dispatch (standalone/workspace), and resolution |
+| `templates.py` | `TemplateInfo`, `TemplateType`, `get_template_path()` | Template catalog, type dispatch (standalone/workspace/member), and resolution |
 | `reserver.py` | `ReserveResult`, `reserve_pypi()`, `create_minimal_package()`, `build_package()`, `publish_package()` | PyPI name reservation workflow and result model |
 
 ### 3. Checks (`checks/`)
@@ -120,6 +120,7 @@ Each adapter wraps a single external dependency:
 | `FileSystemAdapter` / `Transaction` | `pathlib` | File operations with rollback (logs warnings on cleanup failures) |
 | `GitHubAdapter` / `RepoCreateResult` | `gh` CLI | Repo creation, secrets, Pages (graceful `False` when `gh` is missing) |
 | `detect_makefile_targets()` | `Makefile` | Detect available make targets |
+| `patch_all()` | `pyproject.toml`, `Makefile`, CI workflows | Workspace root file patching after member scaffold |
 
 ### 5. Models (`models/`)
 

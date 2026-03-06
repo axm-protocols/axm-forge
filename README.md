@@ -151,7 +151,7 @@ The badge is already in your README — just push to `main` and it appears after
 git clone https://github.com/axm-protocols/axm-init.git
 cd axm-init
 uv sync --all-groups
-uv run pytest           # 495 tests (fast subset, ~8s)
+uv run pytest           # 534 tests (fast subset, ~8s)
 uv run pytest -m slow   # real Copier scaffold tests (~15s)
 uv run ruff check src/  # lint
 ```
