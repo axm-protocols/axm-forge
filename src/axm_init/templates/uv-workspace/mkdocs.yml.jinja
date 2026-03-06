@@ -1,0 +1,16 @@
+site_name: "{{ workspace_name }}"
+site_url: "https://{{ org }}.github.io/{{ workspace_name }}"
+repo_url: "https://github.com/{{ org }}/{{ workspace_name }}"
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+
+plugins:
+  - search
+  - monorepo
+
+nav:
+  - Home: index.md

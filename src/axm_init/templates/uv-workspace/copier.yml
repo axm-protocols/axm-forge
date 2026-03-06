@@ -1,0 +1,94 @@
+# Copier configuration for UV workspace scaffold
+# Usage: axm-init scaffold --workspace --name my-workspace --org myorg
+
+_min_copier_version: "9.0.0"
+_templates_suffix: .jinja
+_exclude:
+  - "licences"
+  - "copier.yml"
+
+# =============================================================================
+# Questions
+# =============================================================================
+
+workspace_name:
+  type: str
+  help: "Workspace name (lowercase, hyphens allowed)"
+  validator: "{% if not workspace_name | regex_search('^[a-z][a-z0-9-]*$') %}Invalid name - use lowercase letters, numbers, and hyphens{% endif %}"
+
+description:
+  type: str
+  help: "One-line description"
+  default: "A modern Python workspace"
+
+license:
+  type: str
+  help: "License type"
+  choices:
+    - MIT
+    - Apache-2.0
+    - EUPL-1.2
+  default: Apache-2.0
+
+license_holder:
+  type: str
+  help: "Person or organization that holds the license"
+
+org:
+  type: str
+  help: "GitHub organization or username"
+
+author_name:
+  type: str
+  help: "Author name"
+
+author_email:
+  type: str
+  help: "Author email"
+
+python_min_version:
+  type: str
+  help: "Minimum Python version"
+  choices:
+    - "3.11"
+    - "3.12"
+    - "3.13"
+  default: "3.12"
+
+# =============================================================================
+# Computed values
+# =============================================================================
+
+year:
+  type: str
+  default: "2026"
+  when: false
+
+license_folder:
+  type: str
+  default: "{% if license == 'MIT' %}mit{% elif license == 'Apache-2.0' %}apache-2.0{% else %}eupl{% endif %}"
+  when: false
+
+python_matrix:
+  type: str
+  default: "{% if python_min_version == '3.11' %}[\"3.11\", \"3.12\", \"3.13\"]{% elif python_min_version == '3.12' %}[\"3.12\", \"3.13\"]{% else %}[\"3.13\"]{% endif %}"
+  when: false
+
+# =============================================================================
+# Post-generation tasks
+# =============================================================================
+
+_tasks:
+  - command: "cp {{ _copier_conf.src_path }}/licences/{{ license_folder }}/* ./"
+    when: "{{ true }}"
+  - command: "git init && git branch -M main"
+    when: "{{ true }}"
+  - command: "uv python pin {{ python_min_version }}"
+    when: "{{ true }}"
+  - command: "uv sync"
+    when: "{{ true }}"
+  - command: "git add . && git commit -m 'feat: initial workspace scaffold'"
+    when: "{{ true }}"
+  - command: "uv run pre-commit install"
+    when: "{{ true }}"
+  - "echo '✅ Workspace scaffolded! Run: cd {{ workspace_name }} && make test-all'"
