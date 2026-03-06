@@ -23,7 +23,7 @@
 ## Features
 
 - 🚀 **Scaffold** — Bootstrap production-grade Python projects, workspaces, and member packages
-- 📋 **Check** — Score any project against the AXM gold standard (44 checks, A–F grade)
+- 📋 **Check** — Score any project against the AXM gold standard (49 checks, A–F grade)
 - 📦 **Reserve** — Claim a package name on PyPI before you're ready to publish
 
 ## Installation
@@ -73,7 +73,7 @@ Scaffold a production-grade Python project (src layout, PEP 621, CI, docs).
 
 ### `axm-init check`
 
-Score a project against the AXM gold standard (44 checks across 8 categories).
+Score a project against the AXM gold standard (49 checks across 8 categories).
 
 | Option | Short | Default | Description |
 |---|---|---|---|
@@ -143,7 +143,7 @@ push → axm-init check → badge JSON → gh-pages → shields.io
 
 The badge is already in your README — just push to `main` and it appears after the first CI run.
 
-**Existing projects** can add the badge too — copy `.github/workflows/axm-init.yml` from a scaffolded project and add the badge markup. See the [howto guide](https://axm-protocols.github.io/axm-init/howto/check/#ci-badge) for details.
+**Existing projects** can add the badge too — copy `.github/workflows/axm-quality.yml` from a scaffolded project and add the badge markup. See the [howto guide](https://axm-protocols.github.io/axm-init/howto/check/#ci-badge) for details.
 
 ## Development
 
