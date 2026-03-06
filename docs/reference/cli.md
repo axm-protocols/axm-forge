@@ -23,6 +23,7 @@ axm-init scaffold [OPTIONS] [PATH]
 | `--license` | `-l` | string | `Apache-2.0` | License type (MIT, Apache-2.0, EUPL-1.2) |
 | `--license-holder` | | string | *--org* | License holder (defaults to --org) |
 | `--description` | `-d` | string | `""` | Project description |
+| `--workspace` | `-w` | bool | `False` | Scaffold a UV workspace instead of a standalone package |
 | `--check-pypi` | | bool | `False` | Check PyPI name availability first |
 | `--json` | | bool | `False` | Output as JSON |
 
@@ -106,7 +107,7 @@ axm-init check [OPTIONS] [PATH]
 | `--verbose` | `-v` | bool | `False` | Show all checks including passed |
 | `--category` | `-c` | string | *all* | Filter to one category |
 
-**Available categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`
+**Available categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`, `workspace`
 
 **Exit codes:**
 

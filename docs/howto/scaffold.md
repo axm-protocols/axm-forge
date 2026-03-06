@@ -41,8 +41,24 @@ This scaffolds a production-grade Python project with:
 | `--license` | `-l` | `Apache-2.0` | License (MIT, Apache-2.0, EUPL-1.2) |
 | `--license-holder` | | *--org* | License holder |
 | `--description` | `-d` | | One-line description |
+| `--workspace` | `-w` | `False` | Scaffold a UV workspace instead |
 
-### 4. Check PyPI availability
+### 4. Scaffold a workspace
+
+```bash
+axm-init scaffold my-workspace --workspace \\
+  --org myorg --author "Your Name" --email "you@example.com"
+```
+
+The `--workspace` flag generates a UV workspace with:
+
+- Root `pyproject.toml` with `[tool.uv.workspace]` and `members = ["packages/*"]`
+- Shared `Makefile` (`test-all`, `lint-all`, `docs-serve`)
+- `mkdocs.yml` with `monorepo` plugin
+- CI workflow using `--package` matrix for per-member testing
+- Pre-commit, cliff.toml, dependabot, and 6 GitHub Actions workflows
+
+### 5. Check PyPI availability
 
 ```bash
 axm-init scaffold my-project --org myorg --author A --email e@e.com --check-pypi
@@ -50,7 +66,7 @@ axm-init scaffold my-project --org myorg --author A --email e@e.com --check-pypi
 
 The `--check-pypi` flag verifies the package name is available before scaffolding.
 
-### 5. JSON output
+### 6. JSON output
 
 ```bash
 axm-init scaffold my-project --org myorg --author A --email e@e.com --json

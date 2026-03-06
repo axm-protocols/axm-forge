@@ -25,6 +25,7 @@ graph TD
         StructureChecks["structure checks"]
         DepsChecks["deps checks"]
         ChangelogChecks["changelog checks"]
+        WorkspaceChecks["workspace checks"]
     end
 
     subgraph "Adapters"
@@ -56,6 +57,7 @@ graph TD
     CheckEngine --> StructureChecks
     CheckEngine --> DepsChecks
     CheckEngine --> ChangelogChecks
+    CheckEngine --> WorkspaceChecks
     Reserver --> PyPI
     Reserver --> Copier
     Templates --> Copier
@@ -86,12 +88,12 @@ Business logic independent of I/O:
 | Module | Key Symbols | Purpose |
 |---|---|---|
 | `checker.py` | `CheckEngine`, `format_report()`, `format_json()`, `format_agent()` | Run checks (dynamic discovery via `importlib`), format output |
-| `templates.py` | `TemplateInfo`, `get_template_path()` | Template catalog and resolution |
+| `templates.py` | `TemplateInfo`, `TemplateType`, `get_template_path()` | Template catalog, type dispatch (standalone/workspace), and resolution |
 | `reserver.py` | `ReserveResult`, `reserve_pypi()`, `create_minimal_package()`, `build_package()`, `publish_package()` | PyPI name reservation workflow and result model |
 
 ### 3. Checks (`checks/`)
 
-39 checks across 7 categories, each a pure function `(Path) → CheckResult`:
+44 checks across 8 categories, each a pure function `(Path) → CheckResult`:
 
 | Module | Category | # Checks |
 |---|---|---|
@@ -103,6 +105,8 @@ Business logic independent of I/O:
 | `structure.py` | structure | 7 |
 | `deps.py` | deps | 2 |
 | `changelog.py` | changelog | 2 |
+| `workspace.py` | workspace | 5 |
+| `_workspace.py` | *(internal)* | Context detection: `detect_project_context()`, `find_workspace_root()`, `get_workspace_members()` |
 
 ### 4. Adapters (`adapters/`)
 
