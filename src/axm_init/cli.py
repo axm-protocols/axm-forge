@@ -149,6 +149,13 @@ def scaffold(
         str,
         cyclopts.Parameter(name=["--description", "-d"], help="Description"),
     ] = "",
+    workspace: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--workspace", "-w"],
+            help="Scaffold a UV workspace instead of a standalone package",
+        ),
+    ] = False,
     check_pypi: Annotated[
         bool,
         cyclopts.Parameter(name=["--check-pypi"], help="Check PyPI availability"),
@@ -160,19 +167,27 @@ def scaffold(
 ) -> None:
     """Scaffold a new Python project with best practices."""
     from axm_init.adapters.copier import CopierAdapter, CopierConfig
-    from axm_init.core.templates import get_template_path
+    from axm_init.core.templates import TemplateType, get_template_path
 
     target_path = Path(path).resolve()
     project_name = name or target_path.name
+    template_type = TemplateType.WORKSPACE if workspace else TemplateType.STANDALONE
 
     if check_pypi:
         _check_pypi_availability(project_name, json_output=json_output)
 
-    copier_adapter = CopierAdapter()
-    copier_config = CopierConfig(
-        template_path=get_template_path(),
-        destination=target_path,
-        data={
+    if workspace:
+        data = {
+            "workspace_name": project_name,
+            "description": description or "A modern Python workspace",
+            "org": org,
+            "license": license,
+            "license_holder": license_holder or org,
+            "author_name": author,
+            "author_email": email,
+        }
+    else:
+        data = {
             "package_name": project_name,
             "description": description or "A modern Python package",
             "org": org,
@@ -180,7 +195,13 @@ def scaffold(
             "license_holder": license_holder or org,
             "author_name": author,
             "author_email": email,
-        },
+        }
+
+    copier_adapter = CopierAdapter()
+    copier_config = CopierConfig(
+        template_path=get_template_path(template_type),
+        destination=target_path,
+        data=data,
         trust_template=True,  # Internal AXM template is trusted
     )
     result = copier_adapter.copy(copier_config)

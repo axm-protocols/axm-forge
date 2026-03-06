@@ -1,0 +1,41 @@
+# {{ workspace_name }}
+
+{{ description }}
+
+## Structure
+
+```
+{{ workspace_name }}/
+├── packages/          # Workspace members
+├── docs/              # Shared documentation
+├── mkdocs.yml         # MkDocs with monorepo plugin
+└── pyproject.toml     # UV workspace root
+```
+
+## Development
+
+```bash
+# Install all dependencies
+uv sync
+
+# Run all tests
+make test-all
+
+# Lint all packages
+make lint-all
+
+# Serve docs
+make docs-serve
+```
+
+## Adding a new package
+
+```bash
+mkdir -p packages/my-package/src/my_package packages/my-package/tests
+# Add pyproject.toml to the new package
+# It will be auto-discovered by UV workspace
+```
+
+## License
+
+[{{ license }}](LICENSE) — © {{ year }} {{ license_holder }}

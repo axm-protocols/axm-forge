@@ -1,5 +1,10 @@
-"""Template path for python-project scaffold."""
+"""Template path resolution for Copier scaffold templates."""
 
+from __future__ import annotations
+
+__all__ = ["TemplateInfo", "TemplateType", "get_template_path"]
+
+from enum import StrEnum
 from importlib.resources import files
 from pathlib import Path
 
@@ -19,10 +24,29 @@ class TemplateInfo(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-def get_template_path() -> Path:
-    """Return path to the python-project Copier template.
+class TemplateType(StrEnum):
+    """Available scaffold template types."""
+
+    STANDALONE = "standalone"
+    WORKSPACE = "workspace"
+
+
+_TEMPLATE_DIRS: dict[TemplateType, str] = {
+    TemplateType.STANDALONE: "python-project",
+    TemplateType.WORKSPACE: "uv-workspace",
+}
+
+
+def get_template_path(
+    template_type: TemplateType = TemplateType.STANDALONE,
+) -> Path:
+    """Return path to a bundled Copier template.
+
+    Args:
+        template_type: Type of template to look up.
 
     Returns:
-        Path to the bundled python-project template directory.
+        Path to the bundled template directory.
     """
-    return Path(str(TEMPLATES_PKG / "python-project"))
+    dir_name = _TEMPLATE_DIRS[template_type]
+    return Path(str(TEMPLATES_PKG / dir_name))
