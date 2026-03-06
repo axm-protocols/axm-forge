@@ -14,6 +14,7 @@ __all__ = [
     "patch_mkdocs",
     "patch_publish",
     "patch_pyproject",
+    "patch_testpaths",
 ]
 
 import logging
@@ -260,6 +261,82 @@ def patch_publish(root: Path, member_name: str) -> None:
     logger.info("Patched publish.yml with tag pattern %s", tag_pattern)
 
 
+def patch_testpaths(root: Path, member_name: str) -> None:
+    """Ensure root testpaths includes ``packages/<member_name>/tests``.
+
+    Adds the test directory of *member_name* to
+    ``[tool.pytest.ini_options].testpaths`` in the root ``pyproject.toml``.
+    Creates the section if it doesn't exist.
+    Idempotent — skips if path already listed.
+
+    Args:
+        root: Workspace root directory.
+        member_name: Name of the new member package.
+
+    Raises:
+        FileNotFoundError: If ``pyproject.toml`` is missing.
+    """
+    pyproject = root / "pyproject.toml"
+    content = pyproject.read_text()
+
+    test_path = f"packages/{member_name}/tests"
+    if test_path in content:
+        logger.info("testpaths already contains %s — skipping", test_path)
+        return
+
+    # Check if [tool.pytest.ini_options] section exists
+    if "[tool.pytest.ini_options]" in content:
+        # Check if testpaths key exists
+        if "testpaths" in content:
+            # Add to existing testpaths array
+            # Find the testpaths line and add the new path
+            lines = content.splitlines(keepends=True)
+            new_lines: list[str] = []
+            in_testpaths = False
+
+            for line in lines:
+                new_lines.append(line)
+                stripped = line.strip()
+
+                if stripped.startswith("testpaths") and "=" in stripped:
+                    in_testpaths = True
+                    # If it's a single-line list, we need to insert before ]
+                    if "]" in stripped:
+                        # Single-line: testpaths = ["a", "b"]
+                        bracket_pos = line.rindex("]")
+                        new_entry = f'    "{test_path}",\n'
+                        new_lines[-1] = (
+                            line[:bracket_pos].rstrip().rstrip(",")
+                            + ",\n"
+                            + new_entry
+                            + line[bracket_pos:]
+                        )
+                        in_testpaths = False
+                    continue
+
+                if in_testpaths and "]" in stripped:
+                    # End of multi-line testpaths — insert before ]
+                    indent = "    "
+                    new_lines.insert(len(new_lines) - 1, f'{indent}"{test_path}",\n')
+                    in_testpaths = False
+
+            content = "".join(new_lines)
+        else:
+            # Add testpaths key to existing section
+            content = content.replace(
+                "[tool.pytest.ini_options]",
+                f'[tool.pytest.ini_options]\ntestpaths = [\n    "{test_path}",\n]',
+            )
+    else:
+        # Create the entire section
+        content += (
+            f'\n[tool.pytest.ini_options]\ntestpaths = [\n    "{test_path}",\n]\n'
+        )
+
+    pyproject.write_text(content)
+    logger.info("Patched testpaths with %s", test_path)
+
+
 def patch_all(root: Path, member_name: str) -> list[str]:
     """Run all workspace patches for *member_name*.
 
@@ -279,6 +356,7 @@ def patch_all(root: Path, member_name: str) -> list[str]:
         ("Makefile", patch_makefile),
         ("mkdocs.yml", patch_mkdocs),
         ("pyproject.toml", patch_pyproject),
+        ("pyproject.toml (testpaths)", patch_testpaths),
         (".github/workflows/ci.yml", patch_ci),
         (".github/workflows/publish.yml", patch_publish),
     ]

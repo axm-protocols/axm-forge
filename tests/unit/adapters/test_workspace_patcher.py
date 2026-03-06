@@ -13,6 +13,7 @@ from axm_init.adapters.workspace_patcher import (
     patch_mkdocs,
     patch_publish,
     patch_pyproject,
+    patch_testpaths,
 )
 
 
@@ -164,15 +165,63 @@ class TestPatchPublish:
         assert content1 == content2
 
 
+class TestPatchTestpaths:
+    """Tests for patch_testpaths."""
+
+    def test_adds_testpath(self, workspace_root: Path) -> None:
+        """Adds member test path to pyproject.toml."""
+        patch_testpaths(workspace_root, "my-lib")
+
+        content = (workspace_root / "pyproject.toml").read_text()
+        assert "packages/my-lib/tests" in content
+        assert "[tool.pytest.ini_options]" in content
+
+    def test_idempotent(self, workspace_root: Path) -> None:
+        """Calling twice doesn't duplicate the entry."""
+        patch_testpaths(workspace_root, "my-lib")
+        content1 = (workspace_root / "pyproject.toml").read_text()
+        patch_testpaths(workspace_root, "my-lib")
+        content2 = (workspace_root / "pyproject.toml").read_text()
+        assert content1 == content2
+
+    def test_creates_section_if_absent(self, workspace_root: Path) -> None:
+        """Creates [tool.pytest.ini_options] if missing."""
+        content = (workspace_root / "pyproject.toml").read_text()
+        assert "[tool.pytest.ini_options]" not in content
+
+        patch_testpaths(workspace_root, "my-lib")
+
+        content = (workspace_root / "pyproject.toml").read_text()
+        assert "[tool.pytest.ini_options]" in content
+        assert "packages/my-lib/tests" in content
+
+    def test_adds_to_existing_testpaths(self, workspace_root: Path) -> None:
+        """Appends to existing testpaths array."""
+        pyproject = workspace_root / "pyproject.toml"
+        content = pyproject.read_text()
+        content += (
+            "\n[tool.pytest.ini_options]\n"
+            'testpaths = [\n    "packages/existing/tests",\n]\n'
+        )
+        pyproject.write_text(content)
+
+        patch_testpaths(workspace_root, "my-lib")
+
+        result = pyproject.read_text()
+        assert "packages/existing/tests" in result
+        assert "packages/my-lib/tests" in result
+
+
 class TestPatchAll:
     """Tests for patch_all orchestrator."""
 
     def test_patches_all_files(self, workspace_root: Path) -> None:
         patched = patch_all(workspace_root, "my-lib")
-        assert len(patched) == 5
+        assert len(patched) == 6
         assert "Makefile" in patched
         assert "mkdocs.yml" in patched
         assert "pyproject.toml" in patched
+        assert "pyproject.toml (testpaths)" in patched
 
     def test_skips_missing_files(self, tmp_path: Path) -> None:
         """When no root files exist, patch_all returns empty list."""
