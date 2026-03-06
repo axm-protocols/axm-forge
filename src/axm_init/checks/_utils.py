@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,8 @@ try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
+
+logger = logging.getLogger(__name__)
 
 
 def _load_toml(project: Path) -> dict[str, Any] | None:
@@ -76,3 +79,57 @@ def requires_toml(
         return wrapper
 
     return decorator
+
+
+def load_exclusions(project: Path) -> set[str]:
+    """Load per-package check exclusions from pyproject.toml.
+
+    Reads the ``[tool.axm-init].exclude`` key and returns check name
+    prefixes that should be auto-passed for this package.
+
+    Example config::
+
+        [tool.axm-init]
+        exclude = ["cli", "changelog", "deps.entry_points"]
+
+    Args:
+        project: Path to the project root containing ``pyproject.toml``.
+
+    Returns:
+        Set of check name prefixes to exclude.  Empty set if no
+        exclusions are configured.
+    """
+    data = _load_toml(project)
+    if data is None:
+        return set()
+
+    axm_init_config: dict[str, Any] = data.get("tool", {}).get("axm-init", {})
+    if not axm_init_config:
+        return set()
+
+    raw = axm_init_config.get("exclude")
+    if raw is None:
+        return set()
+
+    # Handle string → wrap in list
+    if isinstance(raw, str):
+        raw = [raw]
+
+    if not isinstance(raw, list):
+        logger.warning(
+            "Invalid [tool.axm-init].exclude value (expected list): %r",
+            raw,
+        )
+        return set()
+
+    exclusions: set[str] = set()
+    for item in raw:
+        if isinstance(item, str) and item:
+            exclusions.add(item)
+        else:
+            logger.warning(
+                "Invalid exclusion entry in [tool.axm-init].exclude: %r",
+                item,
+            )
+
+    return exclusions
