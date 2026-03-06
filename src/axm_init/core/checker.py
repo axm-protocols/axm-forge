@@ -12,9 +12,51 @@ from pathlib import Path
 from typing import Any
 
 import axm_init.checks as _checks_pkg
+from axm_init.checks._utils import load_exclusions
+from axm_init.checks._workspace import (
+    ProjectContext,
+    detect_context,
+    find_workspace_root,
+)
 from axm_init.models.check import CheckResult, ProjectResult
 
 logger = logging.getLogger(__name__)
+
+# Checks to skip for workspace roots (they are package-level concerns).
+SKIP_FOR_WORKSPACE: frozenset[str] = frozenset(
+    {
+        "structure.src_layout",
+        "structure.py_typed",
+        "structure.tests_dir",
+        "pyproject.pyproject_urls",
+        "pyproject.pyproject_dynamic_version",
+        "pyproject.pyproject_classifiers",
+        "deps.dev_deps",
+        "deps.docs_deps",
+        "pyproject.pyproject_pytest",
+        "pyproject.pyproject_coverage",
+    }
+)
+
+# CI/tooling checks that should be redirected to workspace root for members.
+REDIRECT_FOR_MEMBER: frozenset[str] = frozenset(
+    {
+        "ci.ci_workflow_exists",
+        "ci.trusted_publishing",
+        "ci.dependabot",
+        "ci.ci_lint_job",
+        "ci.ci_security_job",
+        "ci.ci_coverage_upload",
+        "ci.ci_test_job",
+        "tooling.precommit_exists",
+        "tooling.precommit_ruff",
+        "tooling.precommit_mypy",
+        "tooling.precommit_conventional",
+        "tooling.precommit_basic",
+        "tooling.makefile",
+        "tooling.precommit_installed",
+    }
+)
 
 
 def _discover_checks() -> dict[str, list[Callable[[Path], CheckResult]]]:
@@ -40,6 +82,49 @@ def _discover_checks() -> dict[str, list[Callable[[Path], CheckResult]]]:
     return registry
 
 
+def _get_check_name(fn: Callable[[Path], CheckResult]) -> str | None:
+    """Infer check name by calling the function on a dummy path.
+
+    We use the function's module and name to build the check name
+    following the convention: ``category.function_name_without_check_``.
+    """
+    module = getattr(fn, "__module__", "")
+    category = module.rsplit(".", 1)[-1] if module else ""
+    fn_name = getattr(fn, "__name__", "")
+    if fn_name.startswith("check_"):
+        return f"{category}.{fn_name[6:]}"
+    return None
+
+
+def _make_excluded_result(check_name: str, category: str) -> CheckResult:
+    """Create an auto-pass result for an excluded check."""
+    return CheckResult(
+        name=check_name,
+        category=category,
+        passed=True,
+        weight=0,
+        message="Excluded by config",
+        details=[],
+        fix="",
+    )
+
+
+def _redirect_to_root(
+    fn: Callable[[Path], CheckResult],
+    workspace_root: Path,
+) -> Callable[[Path], CheckResult]:
+    """Wrap a check function to run against the workspace root."""
+
+    def wrapper(_project: Path) -> CheckResult:
+        """Delegate check to workspace root."""
+        return fn(workspace_root)
+
+    # Preserve function metadata for check name inference
+    wrapper.__name__ = fn.__name__
+    wrapper.__module__ = fn.__module__
+    return wrapper
+
+
 # Registry: category -> list of check functions
 ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = _discover_checks()
 
@@ -52,6 +137,52 @@ class CheckEngine:
     def __init__(self, project_path: Path, *, category: str | None = None) -> None:
         self.project_path = project_path.resolve()
         self.category = category
+        self.context = detect_context(self.project_path)
+        self.workspace_root = find_workspace_root(self.project_path)
+
+    def _is_excluded(self, check_name: str, exclusions: set[str]) -> bool:
+        """Check if a check name matches any exclusion prefix."""
+        return any(check_name.startswith(prefix) for prefix in exclusions)
+
+    def _filter_checks(
+        self,
+        checks_to_run: dict[str, list[Callable[[Path], CheckResult]]],
+        exclusions: set[str],
+    ) -> tuple[list[Callable[[Path], CheckResult]], list[CheckResult], list[str]]:
+        """Apply context-aware filtering, exclusions, and redirects."""
+        all_fns: list[Callable[[Path], CheckResult]] = []
+        excluded_results: list[CheckResult] = []
+        excluded_names: list[str] = []
+
+        for category, fns in checks_to_run.items():
+            for fn in fns:
+                check_name = _get_check_name(fn)
+
+                # Apply exclusions
+                if check_name and self._is_excluded(check_name, exclusions):
+                    excluded_results.append(_make_excluded_result(check_name, category))
+                    excluded_names.append(check_name)
+                    continue
+
+                # Skip inapplicable checks for workspace root
+                if (
+                    self.context == ProjectContext.WORKSPACE
+                    and check_name in SKIP_FOR_WORKSPACE
+                ):
+                    continue
+
+                # Redirect CI/tooling checks to workspace root for members
+                if (
+                    self.context == ProjectContext.MEMBER
+                    and check_name in REDIRECT_FOR_MEMBER
+                    and self.workspace_root is not None
+                ):
+                    all_fns.append(_redirect_to_root(fn, self.workspace_root))
+                    continue
+
+                all_fns.append(fn)
+
+        return all_fns, excluded_results, excluded_names
 
     def run(self) -> ProjectResult:
         """Run all checks (or filtered by category) and return result."""
@@ -64,13 +195,23 @@ class CheckEngine:
         else:
             checks_to_run = ALL_CHECKS
 
-        results: list[CheckResult] = []
-        all_fns = [fn for check_fns in checks_to_run.values() for fn in check_fns]
+        exclusions = load_exclusions(self.project_path)
+        all_fns, excluded_results, excluded_names = self._filter_checks(
+            checks_to_run, exclusions
+        )
 
         with ThreadPoolExecutor(max_workers=8) as pool:
             results = list(pool.map(lambda fn: fn(self.project_path), all_fns))
 
-        return ProjectResult.from_checks(self.project_path, results)
+        results.extend(excluded_results)
+
+        return ProjectResult.from_checks(
+            self.project_path,
+            results,
+            context=self.context.value,
+            workspace_root=self.workspace_root,
+            excluded_checks=excluded_names,
+        )
 
 
 def _format_category_checks(
@@ -123,8 +264,15 @@ def format_report(result: ProjectResult, *, verbose: bool = False) -> str:
     lines: list[str] = [
         f"📋 AXM Check — {result.project_path.name}",
         f"   Path: {result.project_path}",
-        "",
     ]
+
+    if result.context:
+        ctx_line = f"   Context: {result.context.upper()}"
+        if result.workspace_root:
+            ctx_line += f" (root: {result.workspace_root})"
+        lines.append(ctx_line)
+
+    lines.append("")
 
     # Category breakdown
     for cat_name, cat_score in result.categories.items():
@@ -152,6 +300,9 @@ def format_json(result: ProjectResult) -> dict[str, Any]:
         "project": str(result.project_path),
         "score": result.score,
         "grade": result.grade.value,
+        "context": result.context,
+        "workspace_root": str(result.workspace_root) if result.workspace_root else None,
+        "excluded_checks": result.excluded_checks,
         "categories": {
             cat: {"earned": cs.earned, "total": cs.total}
             for cat, cs in result.categories.items()
@@ -189,6 +340,7 @@ def format_agent(result: ProjectResult) -> dict[str, Any]:
     return {
         "score": result.score,
         "grade": result.grade.value,
+        "context": result.context,
         "passed_count": sum(1 for c in result.checks if c.passed),
         "failed": [
             {
