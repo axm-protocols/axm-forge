@@ -252,6 +252,8 @@ class TestFormatAgent:
             "score",
             "grade",
             "context",
+            "workspace_root",
+            "excluded_checks",
             "passed_count",
             "failed",
         }
@@ -424,6 +426,101 @@ class TestEngineMember:
         engine = CheckEngine(member)
         assert engine.context == ProjectContext.MEMBER
         assert engine.workspace_root == ws_root
+
+
+class TestWorkspaceSkipsNewEntries:
+    """Workspace root skips pyproject.mypy, ruff, ruff_rules, changelog.gitcliff."""
+
+    def test_workspace_skips_pyproject_mypy(self, gold_project: Path) -> None:
+        """Workspace root must not report pyproject.mypy failure."""
+        pyproject = gold_project / "pyproject.toml"
+        content = pyproject.read_text()
+        content += '\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+        pyproject.write_text(content)
+
+        engine = CheckEngine(gold_project)
+        result = engine.run()
+        check_names = {c.name for c in result.checks}
+        assert "pyproject.pyproject_mypy" not in check_names
+
+    def test_workspace_skips_ruff_config(self, gold_project: Path) -> None:
+        """Workspace root must not report pyproject.ruff or ruff_rules."""
+        pyproject = gold_project / "pyproject.toml"
+        content = pyproject.read_text()
+        content += '\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+        pyproject.write_text(content)
+
+        engine = CheckEngine(gold_project)
+        result = engine.run()
+        check_names = {c.name for c in result.checks}
+        assert "pyproject.pyproject_ruff" not in check_names
+        assert "pyproject.pyproject_ruff_rules" not in check_names
+
+    def test_workspace_skips_gitcliff(self, gold_project: Path) -> None:
+        """Workspace root must not report changelog.gitcliff."""
+        pyproject = gold_project / "pyproject.toml"
+        content = pyproject.read_text()
+        content += '\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+        pyproject.write_text(content)
+
+        engine = CheckEngine(gold_project)
+        result = engine.run()
+        check_names = {c.name for c in result.checks}
+        assert "changelog.gitcliff_config" not in check_names
+
+
+class TestMemberRedirectsStructure:
+    """Member structure checks redirect to workspace root."""
+
+    @pytest.fixture()
+    def ws_with_member(self, tmp_path: Path) -> tuple[Path, Path]:
+        """Workspace root (with LICENSE, .python-version, CONTRIBUTING) + member."""
+        ws_root = tmp_path / "ws"
+        ws_root.mkdir()
+        (ws_root / "pyproject.toml").write_text(
+            '[project]\nname = "ws"\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+        )
+        (ws_root / "LICENSE").write_text("MIT\n")
+        (ws_root / ".python-version").write_text("3.12\n")
+        (ws_root / "CONTRIBUTING.md").write_text("# Contributing\n")
+
+        member = ws_root / "packages" / "pkg-a"
+        member.mkdir(parents=True)
+        (member / "pyproject.toml").write_text('[project]\nname = "pkg-a"\n')
+        return ws_root, member
+
+    def test_member_redirects_license(self, ws_with_member: tuple[Path, Path]) -> None:
+        """Member without LICENSE passes when workspace root has it."""
+        _ws_root, member = ws_with_member
+        engine = CheckEngine(member)
+        result = engine.run()
+        license_checks = [c for c in result.checks if c.name == "structure.license"]
+        assert len(license_checks) == 1
+        assert license_checks[0].passed
+
+    def test_member_redirects_python_version(
+        self, ws_with_member: tuple[Path, Path]
+    ) -> None:
+        """Member without .python-version passes when workspace root has it."""
+        _ws_root, member = ws_with_member
+        engine = CheckEngine(member)
+        result = engine.run()
+        pv_checks = [c for c in result.checks if c.name == "structure.python_version"]
+        assert len(pv_checks) == 1
+        assert pv_checks[0].passed
+
+    def test_member_redirects_contributing(
+        self, ws_with_member: tuple[Path, Path]
+    ) -> None:
+        """Member without CONTRIBUTING passes when workspace root has it."""
+        _ws_root, member = ws_with_member
+        engine = CheckEngine(member)
+        result = engine.run()
+        contrib_checks = [
+            c for c in result.checks if c.name == "structure.contributing"
+        ]
+        assert len(contrib_checks) == 1
+        assert contrib_checks[0].passed
 
 
 class TestEngineExclusion:
