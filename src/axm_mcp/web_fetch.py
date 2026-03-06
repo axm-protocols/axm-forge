@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Lazy-loaded at module level for mockability in tests.
 try:
-    from scrapling.fetchers import (  # type: ignore[import-not-found]
+    from scrapling.fetchers import (
         DynamicFetcher,
         Fetcher,
         StealthyFetcher,
@@ -28,13 +28,16 @@ try:
 
     _HAS_SCRAPLING = True
 except ImportError:
-    Fetcher = None
-    DynamicFetcher = None
-    StealthyFetcher = None
+    Fetcher = None  # type: ignore[assignment,misc]
+    DynamicFetcher = None  # type: ignore[assignment,misc]
+    StealthyFetcher = None  # type: ignore[assignment,misc]
     _HAS_SCRAPLING = False
 
 
-def fetch_page(
+_MAX_TEXT_CHARS = 50_000
+
+
+async def fetch_page(
     *,
     url: str,
     mode: str = "auto",
@@ -71,9 +74,9 @@ def fetch_page(
             case "auto" | "basic":
                 page = Fetcher.get(url)
             case "dynamic":
-                page = DynamicFetcher.fetch(url)
+                page = await DynamicFetcher.async_fetch(url)
             case "stealth":
-                page = StealthyFetcher.fetch(url)
+                page = await StealthyFetcher.async_fetch(url)
             case _:
                 return {
                     "success": False,
@@ -83,7 +86,9 @@ def fetch_page(
                 }
 
         title: str = page.css("title::text").get() or ""
-        text: str = page.get_text() or ""
+        text: str = page.get_all_text() or ""
+        if len(text) > _MAX_TEXT_CHARS:
+            text = text[:_MAX_TEXT_CHARS] + "\n... [truncated]"
         status: int = getattr(page, "status", 200)
 
         return {

@@ -21,7 +21,7 @@ def _make_ep(name: str, tool_instance: Any | None = None) -> MagicMock:
         tool_instance.name = name
     ep = MagicMock()
     ep.name = name
-    ep.load.return_value = MagicMock(return_value=tool_instance)
+    ep.load.return_value = MagicMock(spec=type, return_value=tool_instance)
     return ep
 
 

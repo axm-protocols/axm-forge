@@ -47,7 +47,7 @@ def _verify_tool(**kwargs: Any) -> dict[str, Any]:
 
 # Register the web_fetch tool
 @mcp.tool(name="web_fetch")
-def _web_fetch_tool(
+async def _web_fetch_tool(
     url: str,
     mode: str = "auto",
     **kwargs: Any,
@@ -58,7 +58,7 @@ def _web_fetch_tool(
         url: URL to fetch (required).
         mode: Fetching mode — auto, basic, dynamic, or stealth.
     """
-    return fetch_page(url=url, mode=mode)
+    return await fetch_page(url=url, mode=mode)
 
 
 # ── MCP Resource: tool catalog ──────────────────────────────
