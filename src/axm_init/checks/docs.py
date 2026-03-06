@@ -1,4 +1,4 @@
-"""Audit checks for documentation (5 checks, 14 pts)."""
+"""Audit checks for documentation (6 checks, 16 pts)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,15 @@ from pathlib import Path
 from axm_init.models.check import CheckResult
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "check_diataxis_nav",
+    "check_docs_gen_ref_pages",
+    "check_docs_plugins",
+    "check_mkdocs_exists",
+    "check_readme",
+    "check_readme_badges",
+]
 
 
 def check_mkdocs_exists(project: Path) -> CheckResult:
@@ -179,6 +188,46 @@ def check_readme(project: Path) -> CheckResult:
         passed=True,
         weight=3,
         message="README follows standard",
+        details=[],
+        fix="",
+    )
+
+
+def check_readme_badges(project: Path) -> CheckResult:
+    """Check 24: README has axm-audit + axm-init badges."""
+    path = project / "README.md"
+    if not path.exists():
+        return CheckResult(
+            name="docs.readme_badges",
+            category="docs",
+            passed=False,
+            weight=2,
+            message="README.md not found",
+            details=[],
+            fix="Create README.md with axm-audit and axm-init badges.",
+        )
+    content = path.read_text()
+    required = {
+        "axm-audit": "axm-audit" in content,
+        "axm-init": "axm-init" in content,
+    }
+    missing = [b for b, present in required.items() if not present]
+    if missing:
+        return CheckResult(
+            name="docs.readme_badges",
+            category="docs",
+            passed=False,
+            weight=2,
+            message=f"README missing {len(missing)} badge(s)",
+            details=[f"Missing: {', '.join(missing)}"],
+            fix=f"Add {', '.join(missing)} badge(s) to README.md.",
+        )
+    return CheckResult(
+        name="docs.readme_badges",
+        category="docs",
+        passed=True,
+        weight=2,
+        message="README has axm-audit + axm-init badges",
         details=[],
         fix="",
     )
