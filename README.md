@@ -22,7 +22,7 @@
 
 ## Features
 
-- 🚀 **Scaffold** — Bootstrap production-grade Python projects with Copier templates
+- 🚀 **Scaffold** — Bootstrap production-grade Python projects, workspaces, and member packages
 - 📋 **Check** — Score any project against the AXM gold standard (44 checks, A–F grade)
 - 📦 **Reserve** — Claim a package name on PyPI before you're ready to publish
 
@@ -65,8 +65,11 @@ Scaffold a production-grade Python project (src layout, PEP 621, CI, docs).
 | `--license-holder` | | *--org* | License holder |
 | `--description` | `-d` | | One-line description |
 | `--workspace` | `-w` | `False` | Scaffold a UV workspace instead of a standalone package |
+| `--member` | `-m` | | Scaffold a member sub-package with this name |
 | `--check-pypi` | | `False` | Verify PyPI availability first |
 | `--json` | | `False` | Output as JSON |
+
+> **Note:** `--workspace` and `--member` are mutually exclusive.
 
 ### `axm-init check`
 
@@ -95,6 +98,40 @@ Reserve a package name on PyPI with a minimal placeholder.
 
 > **Note:** `--author` and `--email` fall back to `git config user.name` / `user.email`.
 > If both are empty, `axm-init` exits with an error.
+
+## Workspace Support
+
+`axm-init` detects three **project contexts** and adapts checks accordingly:
+
+| Context | Detection | Behavior |
+|---|---|---|
+| **STANDALONE** | No `[tool.uv.workspace]` | All checks enabled |
+| **WORKSPACE** | Has `[tool.uv.workspace]` at root | CI, tooling, and workspace checks enabled |
+| **MEMBER** | Is a `packages/*/` sub-directory | CI checks excluded (handled at workspace root) |
+
+### Per-Package Check Exclusions
+
+Workspace members can exclude inapplicable checks via `pyproject.toml`:
+
+```toml
+[tool.axm-init]
+exclude = ["ci.ci_workflow_exists", "tooling.makefile"]
+```
+
+### Scaffold Modes
+
+```bash
+# Standalone package (default)
+axm-init scaffold my-project --org myorg --author A --email e@e.com
+
+# UV workspace
+axm-init scaffold my-workspace --workspace --org myorg --author A --email e@e.com
+
+# Member sub-package (run from inside workspace)
+axm-init scaffold --member my-lib --org myorg --author A --email e@e.com
+```
+
+The `--member` flag auto-detects the workspace root, creates the package under `packages/<name>/`, and patches root files (Makefile, mkdocs.yml, pyproject.toml, CI workflows).
 
 ## CI Check Badge
 
