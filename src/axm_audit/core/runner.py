@@ -6,6 +6,7 @@ execute in *that* project's virtual environment, not axm-audit's own.
 
 from __future__ import annotations
 
+import itertools
 import logging
 import subprocess
 from pathlib import Path
@@ -16,6 +17,11 @@ logger = logging.getLogger(__name__)
 _DEFAULT_TIMEOUT: int = 300
 """Default subprocess timeout in seconds (5 minutes)."""
 
+_MAX_VENV_SEARCH_DEPTH: int = 5
+"""Maximum number of ancestor directories to check when searching for a
+``.venv``.  Covers workspace layouts like ``workspace/packages/pkg/``
+(3 levels) with margin.  Prevents walking into unrelated directories."""
+
 
 def _find_venv(project_path: Path) -> Path | None:
     """Locate the nearest ``.venv`` directory for a project.
@@ -24,23 +30,26 @@ def _find_venv(project_path: Path) -> Path | None:
     support **uv monorepo workspaces** where the shared ``.venv`` lives
     at the workspace root rather than inside the individual package.
 
+    The search is bounded to :data:`_MAX_VENV_SEARCH_DEPTH` levels to
+    avoid accidentally picking up an unrelated ``.venv`` higher in the
+    file system.
+
     Args:
         project_path: Root of the project being audited.
 
     Returns:
         The ``.venv`` directory if found, or ``None`` if no virtual
-        environment exists in the project or any of its ancestors.
+        environment exists in the project or any of its ancestors
+        (within the bounded depth).
     """
     current = project_path.resolve()
-    # Walk up until we hit the filesystem root
-    for directory in (current, *current.parents):
+    # Walk up at most _MAX_VENV_SEARCH_DEPTH levels
+    for directory in itertools.islice(
+        (current, *current.parents), _MAX_VENV_SEARCH_DEPTH
+    ):
         venv_python = directory / ".venv" / "bin" / "python"
         if venv_python.exists():
             return directory / ".venv"
-        # Stop at filesystem root or if there's no parent pyproject.toml
-        # (i.e. we've left the project tree)
-        if not (directory / "pyproject.toml").exists():
-            break
     return None
 
 

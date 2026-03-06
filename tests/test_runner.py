@@ -54,17 +54,75 @@ class TestFindVenv:
         result = _find_venv(tmp_path)
         assert result is None
 
-    def test_stops_at_missing_pyproject(self, tmp_path: Path) -> None:
-        """Does not walk above directories without pyproject.toml."""
+    def test_find_venv_packages_layout(self, tmp_path: Path) -> None:
+        """Finds workspace-root .venv through intermediate dir without pyproject.toml.
+
+        Regression test for AXM-300: _find_venv stopped at intermediate
+        directories (e.g. ``packages/``) that lack a ``pyproject.toml``,
+        never reaching the workspace root where ``.venv`` lives.
+        """
         from axm_audit.core.runner import _find_venv
 
-        # project has pyproject.toml but no .venv
-        project = tmp_path / "project"
-        project.mkdir()
-        (project / "pyproject.toml").touch()
-        # tmp_path itself has no pyproject.toml — walk should stop
+        # workspace/
+        # ├── .venv/bin/python
+        # ├── pyproject.toml
+        # └── packages/          ← no pyproject.toml
+        #     └── my-pkg/
+        #         └── pyproject.toml
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / "pyproject.toml").touch()
+        venv_bin = workspace / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python").touch()
 
-        result = _find_venv(project)
+        packages = workspace / "packages"
+        packages.mkdir()
+        # No pyproject.toml in packages/
+
+        pkg = packages / "my-pkg"
+        pkg.mkdir()
+        (pkg / "pyproject.toml").touch()
+
+        result = _find_venv(pkg)
+        assert result == workspace / ".venv"
+
+    def test_find_venv_flat_workspace(self, tmp_path: Path) -> None:
+        """Finds workspace-root .venv in flat workspace layout (no packages/ dir)."""
+        from axm_audit.core.runner import _find_venv
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        (workspace / "pyproject.toml").touch()
+        venv_bin = workspace / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python").touch()
+
+        pkg = workspace / "my-lib"
+        pkg.mkdir()
+        (pkg / "pyproject.toml").touch()
+
+        result = _find_venv(pkg)
+        assert result == workspace / ".venv"
+
+    def test_find_venv_bounded_depth(self, tmp_path: Path) -> None:
+        """Returns None when .venv is beyond _MAX_VENV_SEARCH_DEPTH levels up."""
+        from axm_audit.core.runner import _MAX_VENV_SEARCH_DEPTH, _find_venv
+
+        # Create a .venv at the top, then nest deeper than the limit
+        top = tmp_path / "top"
+        top.mkdir()
+        venv_bin = top / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python").touch()
+
+        # Build a path _MAX_VENV_SEARCH_DEPTH levels deep (beyond the limit)
+        deep = top
+        for i in range(_MAX_VENV_SEARCH_DEPTH):
+            deep = deep / f"level{i}"
+            deep.mkdir()
+
+        result = _find_venv(deep)
         assert result is None
 
 
@@ -129,6 +187,47 @@ class TestRunInProject:
             # --directory must point to the *subpackage*, not workspace root
             dir_idx = args.index("--directory")
             assert args[dir_idx + 1] == str(sub)
+
+    def test_workspace_packages_member_uses_uv_run(self, tmp_path: Path) -> None:
+        """Workspace member under packages/ uses uv run.
+
+        Regression test for AXM-300: _find_venv stopped at the
+        intermediate ``packages/`` directory (no ``pyproject.toml``),
+        causing run_in_project to fall back to bare pytest.
+        """
+        from axm_audit.core.runner import run_in_project
+
+        # workspace/
+        # ├── .venv/bin/python
+        # ├── pyproject.toml
+        # └── packages/          ← no pyproject.toml
+        #     └── axm-word/
+        #         └── pyproject.toml
+        workspace = tmp_path / "axm-office"
+        workspace.mkdir()
+        (workspace / "pyproject.toml").touch()
+        venv_bin = workspace / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python").touch()
+
+        packages = workspace / "packages"
+        packages.mkdir()
+
+        pkg = packages / "axm-word"
+        pkg.mkdir()
+        (pkg / "pyproject.toml").touch()
+
+        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="", stderr=""
+            )
+            run_in_project(["pytest", "--no-header"], pkg)
+
+            args = mock_run.call_args[0][0]
+            assert args[0] == "uv"
+            assert "--directory" in args
+            dir_idx = args.index("--directory")
+            assert args[dir_idx + 1] == str(pkg)
 
     def test_without_venv_falls_back_to_bare_cmd(self, tmp_path: Path) -> None:
         """When no .venv exists, should run cmd directly with cwd."""
