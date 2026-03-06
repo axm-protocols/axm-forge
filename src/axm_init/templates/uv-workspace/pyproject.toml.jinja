@@ -37,11 +37,3 @@ fail_under = 80
 python_version = "{{ python_min_version }}"
 strict = true
 warn_unused_configs = true
-
-[tool.git-cliff.changelog]
-header = "# Changelog\n\n"
-body = "{% for group, commits in commits | group_by(attribute=\"group\") %}\n## {{ group }}\n{% for commit in commits %}\n- {{ commit.message }}{% endfor %}\n{% endfor %}"
-trim = true
-
-[tool.git-cliff.git]
-conventional_commits = true

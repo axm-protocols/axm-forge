@@ -46,11 +46,11 @@ def check_packages_layout(project: Path) -> CheckResult:
         return CheckResult(
             name="workspace.packages_layout",
             category="workspace",
-            passed=False,
+            passed=True,
             weight=3,
-            message="No workspace members found",
-            details=["Expected members under packages/ subdirectory"],
-            fix="Add [tool.uv.workspace] members config.",
+            message="No members yet (workspace configured)",
+            details=[],
+            fix="",
         )
 
     bad = [d.name for d in member_dirs if "packages" not in d.parts]
@@ -83,11 +83,11 @@ def check_members_consistent(project: Path) -> CheckResult:
         return CheckResult(
             name="workspace.members_consistent",
             category="workspace",
-            passed=False,
+            passed=True,
             weight=2,
-            message="No workspace members found",
+            message="No members yet (workspace configured)",
             details=[],
-            fix="Add [tool.uv.workspace] members config.",
+            fix="",
         )
 
     issues: list[str] = []

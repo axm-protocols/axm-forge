@@ -158,3 +158,84 @@ class TestVersionFlow:
         # Should not contain error messages
         assert "Error" not in output
         assert "Traceback" not in output
+
+
+# ── Module-scoped workspace scaffold fixture ─────────────────────────────
+
+
+@pytest.fixture(scope="module")
+def scaffolded_workspace(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Scaffold a workspace *once* for the whole module via real Copier.
+
+    All TestWorkspaceScaffoldFlow tests assert read-only against this directory.
+    """
+    target = tmp_path_factory.mktemp("ws_func")
+    args = [
+        "scaffold",
+        str(target),
+        "--name",
+        "func-test-workspace",
+        "--workspace",
+        "--description",
+        "Test workspace",
+        *SCAFFOLD_ARGS,
+    ]
+    f = io.StringIO()
+    try:
+        with redirect_stdout(f):
+            app(args, exit_on_error=False)
+    except SystemExit:
+        pass
+    return target
+
+
+# ── Slow workspace scaffold tests ───────────────────────────────────────
+
+
+@pytest.mark.slow
+class TestWorkspaceScaffoldFlow:
+    """End-to-end tests for the workspace scaffold command (real Copier)."""
+
+    def test_scaffold_creates_workspace(self, scaffolded_workspace: Path) -> None:
+        """scaffold --workspace creates a directory with expected files."""
+        assert scaffolded_workspace.exists()
+        assert (scaffolded_workspace / "pyproject.toml").is_file()
+
+    def test_workspace_has_uv_workspace_config(
+        self, scaffolded_workspace: Path
+    ) -> None:
+        """Generated pyproject.toml has [tool.uv.workspace]."""
+        content = (scaffolded_workspace / "pyproject.toml").read_text()
+        assert "[tool.uv.workspace]" in content
+
+    def test_workspace_has_mkdocs_monorepo(self, scaffolded_workspace: Path) -> None:
+        """Generated mkdocs.yml uses monorepo plugin."""
+        mkdocs = scaffolded_workspace / "mkdocs.yml"
+        assert mkdocs.is_file()
+        assert "monorepo" in mkdocs.read_text()
+
+    def test_workspace_has_ci_package_flag(self, scaffolded_workspace: Path) -> None:
+        """Generated CI uses --package strategy."""
+        ci = scaffolded_workspace / ".github" / "workflows" / "ci.yml"
+        assert ci.is_file()
+        assert "--package" in ci.read_text()
+
+    def test_workspace_check_scores_100(self, scaffolded_workspace: Path) -> None:
+        """AC7: check on generated workspace scores 100% on workspace checks."""
+        from axm_init.core.checker import CheckEngine
+
+        engine = CheckEngine(scaffolded_workspace)
+        result = engine.run()
+
+        ws_checks = [c for c in result.checks if c.category == "workspace"]
+        assert len(ws_checks) > 0, "No workspace checks ran"
+        failed = [c for c in ws_checks if not c.passed]
+        assert not failed, f"Workspace checks failed: {[c.name for c in failed]}"
+
+    def test_workspace_has_pre_commit(self, scaffolded_workspace: Path) -> None:
+        """Generated workspace has .pre-commit-config.yaml."""
+        assert (scaffolded_workspace / ".pre-commit-config.yaml").is_file()
+
+    def test_workspace_has_contributing(self, scaffolded_workspace: Path) -> None:
+        """Generated workspace has CONTRIBUTING.md."""
+        assert (scaffolded_workspace / "CONTRIBUTING.md").is_file()

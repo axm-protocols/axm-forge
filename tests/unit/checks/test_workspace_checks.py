@@ -45,13 +45,13 @@ class TestPackagesLayout:
         assert result.passed
         assert result.weight == 3
 
-    def test_missing_members(self, tmp_path: Path) -> None:
-        """No members found fails."""
+    def test_no_members_passes(self, tmp_path: Path) -> None:
+        """No members is valid (workspace just configured)."""
         (tmp_path / "pyproject.toml").write_text(
             '[project]\nname = "ws"\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
         )
         result = check_packages_layout(tmp_path)
-        assert not result.passed
+        assert result.passed
 
     def test_members_outside_packages(self, tmp_path: Path) -> None:
         """Members not under packages/ fails."""
@@ -89,13 +89,13 @@ class TestMembersConsistent:
         assert not result.passed
         assert any("tests/" in d for d in result.details)
 
-    def test_no_members(self, tmp_path: Path) -> None:
-        """No members fails."""
+    def test_no_members_passes(self, tmp_path: Path) -> None:
+        """No members is valid (workspace just configured)."""
         (tmp_path / "pyproject.toml").write_text(
             '[project]\nname = "ws"\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
         )
         result = check_members_consistent(tmp_path)
-        assert not result.passed
+        assert result.passed
 
 
 # ── check_monorepo_plugin ────────────────────────────────────────────────────
