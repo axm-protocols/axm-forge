@@ -84,10 +84,19 @@ class ProjectResult(BaseModel):
     grade: Grade
     categories: dict[str, CategoryScore]
     failures: list[CheckResult]
+    context: str | None = None
+    workspace_root: Path | None = None
+    excluded_checks: list[str] = []
 
     @classmethod
     def from_checks(
-        cls, project_path: Path, checks: list[CheckResult]
+        cls,
+        project_path: Path,
+        checks: list[CheckResult],
+        *,
+        context: str | None = None,
+        workspace_root: Path | None = None,
+        excluded_checks: list[str] | None = None,
     ) -> ProjectResult:
         """Compute score, grade, and category breakdowns from check results."""
         total_weight = sum(c.weight for c in checks)
@@ -113,4 +122,7 @@ class ProjectResult(BaseModel):
             grade=compute_grade(score),
             categories=categories,
             failures=failures,
+            context=context,
+            workspace_root=workspace_root,
+            excluded_checks=excluded_checks or [],
         )
