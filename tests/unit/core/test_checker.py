@@ -299,8 +299,8 @@ class TestCheckDiscovery:
     def test_check_discovery_finds_all(self) -> None:
         """Auto-discovery finds 39 checks across 7 categories."""
         total = sum(len(fns) for fns in ALL_CHECKS.values())
-        assert total == 39
-        assert len(ALL_CHECKS) == 7
+        assert total == 44
+        assert len(ALL_CHECKS) == 8
 
     def test_discovery_categories(self) -> None:
         """All expected categories are discovered."""
@@ -312,6 +312,7 @@ class TestCheckDiscovery:
             "structure",
             "deps",
             "changelog",
+            "workspace",
         }
         assert set(ALL_CHECKS.keys()) == expected
 

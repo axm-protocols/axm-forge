@@ -164,6 +164,10 @@ class CheckEngine:
                     excluded_names.append(check_name)
                     continue
 
+                # Workspace-only checks: skip for non-workspace contexts
+                if category == "workspace" and self.context != ProjectContext.WORKSPACE:
+                    continue
+
                 # Skip inapplicable checks for workspace root
                 if (
                     self.context == ProjectContext.WORKSPACE
