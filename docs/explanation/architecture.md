@@ -10,6 +10,7 @@ graph TD
         Server["FastMCP Server"]
         ListTools["list_tools()"]
         Verify["verify()"]
+        WebFetch["web_fetch()"]
         Catalog["axm://tools resource"]
     end
 
@@ -27,6 +28,7 @@ graph TD
 
     Server --> ListTools
     Server --> Verify
+    Server --> WebFetch
     Server --> Catalog
     Server --> Discover
     Discover --> EP
@@ -40,9 +42,10 @@ graph TD
 
 | Module | Key Symbols | Purpose |
 |---|---|---|
-| `mcp_app.py` | `mcp`, `_verify_tool()`, `_tool_catalog()`, `main()` | FastMCP server instance + verify tool + tool catalog resource |
+| `mcp_app.py` | `mcp`, `_verify_tool()`, `_web_fetch_tool()`, `_tool_catalog()`, `main()` | FastMCP server instance + built-in tools + tool catalog resource |
 | `discovery.py` | `discover_tools()`, `register_tools()`, `ToolLike` | Entry point scanning + MCP registration |
 | `verify.py` | `verify_project()` | Orchestrate audit + init check + AST enrichment |
+| `web_fetch.py` | `fetch_page()` | Anti-bot web page fetching via Scrapling (basic / dynamic / stealth) |
 
 ## Design Decisions
 
