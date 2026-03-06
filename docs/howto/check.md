@@ -28,6 +28,7 @@ axm-init check --category docs
 axm-init check --category structure
 axm-init check --category deps
 axm-init check --category changelog
+axm-init check --category workspace
 ```
 
 ## JSON Output for CI
@@ -68,7 +69,7 @@ pyproject (27/27)
 
 By default, only failures are displayed.
 
-## What Gets Checked (39 Checks)
+## What Gets Checked (44 Checks)
 
 | Category | Checks | Points |
 |----------|--------|--------|

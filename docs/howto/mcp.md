@@ -6,8 +6,8 @@
 
 | MCP Tool | Equivalent CLI | Purpose |
 |---|---|---|
-| `init_check` | `axm-init check` | Score a project against the AXM gold standard |
-| `init_scaffold` | `axm-init scaffold` | Scaffold a new Python project |
+| `init_check` | `axm-init check` | Score a project, returns context (standalone/workspace/member) |
+| `init_scaffold` | `axm-init scaffold` | Scaffold a project, workspace, or member package |
 | `init_reserve` | `axm-init reserve` | Reserve a package name on PyPI |
 
 ## Usage
@@ -36,6 +36,7 @@ result = mcp_axm_mcp_init_scaffold(
     org="my-org",
     author="Your Name",
     email="you@example.com",
+    workspace=True,   # or member="my-lib"
 )
 ```
 
