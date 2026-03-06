@@ -1,14 +1,14 @@
-"""Dead code rule — detects unreferenced symbols via axm-ast subproccess."""
+"""Dead code rule — detects unreferenced symbols via axm-ast subprocess."""
 
 from __future__ import annotations
 
 import json
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 
 from axm_audit.core.rules.base import ProjectRule, register_rule
-from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
 logger = logging.getLogger(__name__)
@@ -66,16 +66,8 @@ class DeadCodeRule(ProjectRule):
         return self._build_result(dead_symbols)
 
     def _check_availability(self, project_path: Path) -> CheckResult | None:
-        """Return a skip result if axm-ast is not available, else None."""
-        try:
-            subprocess.run(
-                ["uv", "run", "axm-ast", "--help"],  # noqa: S607
-                cwd=project_path,
-                capture_output=True,
-                check=True,
-                text=True,
-            )
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        """Return a skip result if axm-ast is not on the PATH, else None."""
+        if shutil.which("axm-ast") is None:
             return self._skip("axm-ast is not available in the environment")
         return None
 
@@ -83,22 +75,23 @@ class DeadCodeRule(ProjectRule):
         self,
         project_path: Path,
     ) -> subprocess.CompletedProcess[str] | CheckResult:
-        """Run axm-ast dead-code and return the result or a failure."""
+        """Run axm-ast dead-code directly (resolved from PATH, not target venv)."""
         try:
-            return run_in_project(
-                ["uv", "run", "axm-ast", "dead-code", ".", "--json"],
-                project_path,
+            return subprocess.run(  # noqa: S603
+                ["axm-ast", "dead-code", str(project_path), "--json"],  # noqa: S607
                 capture_output=True,
                 text=True,
+                check=False,
+                timeout=300,
             )
-        except RuntimeError:
+        except (FileNotFoundError, subprocess.TimeoutExpired):
             return CheckResult(
                 rule_id=self.rule_id,
                 passed=False,
                 message="Failed to execute axm-ast",
                 severity=Severity.ERROR,
                 details={"score": 0.0},
-                fix_hint="Check if the project environment is valid",
+                fix_hint="Ensure axm-ast is installed in the audit environment",
             )
 
     def _parse_dead_symbols(
