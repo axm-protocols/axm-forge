@@ -24,6 +24,7 @@ axm-init scaffold [OPTIONS] [PATH]
 | `--license-holder` | | string | *--org* | License holder (defaults to --org) |
 | `--description` | `-d` | string | `""` | Project description |
 | `--workspace` | `-w` | bool | `False` | Scaffold a UV workspace instead of a standalone package |
+| `--member` | `-m` | string | `None` | Scaffold a member sub-package with this name |
 | `--check-pypi` | | bool | `False` | Check PyPI name availability first |
 | `--json` | | bool | `False` | Output as JSON |
 
@@ -32,7 +33,9 @@ axm-init scaffold [OPTIONS] [PATH]
 - Missing `--name` → defaults to target directory name
 - Missing `--org`, `--author`, or `--email` → exit code 1
 - `--license-holder` omitted → defaults to `--org` value
+- `--workspace` and `--member` are mutually exclusive → exit code 1
 - `--check-pypi` with taken name → exit code 1
+- `--member` outside a workspace → exit code 1
 
 **Example:**
 
@@ -46,6 +49,27 @@ axm-init scaffold my-project --name my-project \
    📄 pyproject.toml
    📄 src/my_project/__init__.py
    📄 tests/__init__.py
+```
+
+**Workspace example:**
+
+```bash
+axm-init scaffold --workspace --name my-workspace \\
+  --org axm-protocols --author "Your Name" --email "you@example.com"
+```
+
+**Member example** (run from inside a workspace):
+
+```bash
+axm-init scaffold --member my-lib \\
+  --org axm-protocols --author "Your Name" --email "you@example.com"
+```
+
+```
+✅ Member 'my-lib' created at /path/to/workspace/packages/my-lib
+   📄 pyproject.toml
+   📄 src/my_lib/__init__.py
+   🔧 Patched root files: Makefile, mkdocs.yml, pyproject.toml
 ```
 
 ---
@@ -136,6 +160,24 @@ axm-init check
      Problem: README missing 1 section(s)
      Missing: Development
      Fix:     Add Development section(s) to README.md.
+```
+
+**Check output with workspace context:**
+
+```bash
+axm-init check
+```
+
+```
+📋 AXM Check — my-workspace
+   Path: /path/to/my-workspace
+   Context: WORKSPACE
+
+  pyproject (27/27)
+    ✅ pyproject.exists                 4/4  pyproject.toml found
+    ...
+
+  Score: 100/100 — Grade A 🏆
 ```
 
 **JSON output:**

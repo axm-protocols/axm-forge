@@ -79,6 +79,11 @@ By default, only failures are displayed.
 | **structure** | src/ layout, py.typed, tests/, CONTRIBUTING, LICENSE, uv.lock, .python-version | 17 |
 | **deps** | dev group, docs group | 5 |
 | **changelog** | git-cliff config, no manual CHANGELOG | 5 |
+| **workspace** | workspace root, members glob, shared Makefile | 12 |
+
+### Workspace Context
+
+`axm-init check` auto-detects the project context (STANDALONE, WORKSPACE, or MEMBER) and displays it in the report header. Workspace members have CI checks excluded automatically, and per-package exclusions can be configured via `[tool.axm-init].exclude`.
 
 ## Reading the Report
 
