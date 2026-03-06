@@ -2,7 +2,7 @@
 
 ## Overview
 
-`axm-init check` scores your project against the AXM gold standard — a set of 44 checks derived from the best practices embedded in the project template and CI configurations.
+`axm-init check` scores your project against the AXM gold standard — a set of 49 checks derived from the best practices embedded in the project template and CI configurations.
 
 ## Grade Scale
 
@@ -16,13 +16,13 @@
 
 ## Scoring System
 
-Each of the 44 checks has a **weight** (1–4 points), totaling **114 raw points** (102 base + 12 workspace).
+Each of the 49 checks has a **weight** (1–4 points), totaling **123 raw points** (104 base + 19 workspace).
 
 ```
-Score = (earned points / 102) × 100
+Score = (earned points / 104) × 100
 ```
 
-The result is a normalized score from 0 to 100. For example, earning 99 out of 102 raw points gives a score of 97. The score maps to a grade using the boundaries above.
+The result is a normalized score from 0 to 100. For example, earning 101 out of 104 raw points gives a score of 97. The score maps to a grade using the boundaries above.
 
 ## The 8 Categories
 
@@ -70,7 +70,7 @@ Developer tooling configuration:
 | `tooling.precommit_installed` | 2 | Pre-commit hooks activated in `.git/hooks/` |
 | `tooling.makefile` | 4 | All standard targets (install, check, lint, format, test, audit, clean, docs-serve) |
 
-### docs (14 pts)
+### docs (16 pts)
 
 Documentation setup:
 
@@ -81,6 +81,7 @@ Documentation setup:
 | `docs.plugins` | 3 | gen-files, literate-nav, mkdocstrings |
 | `docs.gen_ref_pages` | 2 | `docs/gen_ref_pages.py` for auto API docs |
 | `docs.readme` | 3 | Features, Installation, Development, License sections |
+| `docs.readme_badges` | 2 | axm-audit + axm-init badges in README |
 
 ### structure (17 pts)
 
@@ -114,7 +115,7 @@ Changelog management:
 | `changelog.gitcliff` | 3 | `[tool.git-cliff]` in pyproject.toml |
 | `changelog.no_manual` | 2 | No manual CHANGELOG.md (git-cliff auto-generates) |
 
-### workspace (12 pts)
+### workspace (19 pts)
 
 Workspace-specific checks — only run when the project context is `WORKSPACE`:
 
@@ -125,6 +126,10 @@ Workspace-specific checks — only run when the project context is `WORKSPACE`:
 | `workspace.monorepo_plugin` | 3 | Root `mkdocs.yml` uses the `monorepo` plugin |
 | `workspace.matrix_packages` | 2 | CI uses `--package` for per-member testing |
 | `workspace.requires_python_compat` | 2 | Coherent `requires-python` across members |
+| `workspace.root_name_collision` | 3 | Root project name does not collide with member names |
+| `workspace.pytest_importmode` | 2 | Root pytest config has `import_mode = "importlib"` |
+| `workspace.pytest_testpaths` | 2 | Root testpaths references member test directories |
+| `workspace.quality_workflow` | 2 | `.github/workflows/axm-quality.yml` with per-package audit |
 
 !!! note "Context-aware"
     Workspace checks are automatically skipped for standalone projects and workspace members.
