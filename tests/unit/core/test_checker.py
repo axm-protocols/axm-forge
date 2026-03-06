@@ -468,13 +468,25 @@ class TestWorkspaceSkipsNewEntries:
         check_names = {c.name for c in result.checks}
         assert "changelog.gitcliff_config" not in check_names
 
+    def test_workspace_skips_diataxis_nav(self, gold_project: Path) -> None:
+        """Workspace root must not report docs.diataxis_nav."""
+        pyproject = gold_project / "pyproject.toml"
+        content = pyproject.read_text()
+        content += '\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+        pyproject.write_text(content)
+
+        engine = CheckEngine(gold_project)
+        result = engine.run()
+        check_names = {c.name for c in result.checks}
+        assert "docs.diataxis_nav" not in check_names
+
 
 class TestMemberRedirectsStructure:
     """Member structure checks redirect to workspace root."""
 
     @pytest.fixture()
     def ws_with_member(self, tmp_path: Path) -> tuple[Path, Path]:
-        """Workspace root (with LICENSE, .python-version, CONTRIBUTING) + member."""
+        """Workspace root with full tooling + bare member."""
         ws_root = tmp_path / "ws"
         ws_root.mkdir()
         (ws_root / "pyproject.toml").write_text(
@@ -483,6 +495,19 @@ class TestMemberRedirectsStructure:
         (ws_root / "LICENSE").write_text("MIT\n")
         (ws_root / ".python-version").write_text("3.12\n")
         (ws_root / "CONTRIBUTING.md").write_text("# Contributing\n")
+        (ws_root / "Makefile").write_text(
+            ".PHONY: install check test format lint audit clean docs-serve\n"
+            "install:\n\techo\ncheck:\n\techo\ntest:\n\techo\nformat:\n\techo\n"
+            "lint:\n\techo\naudit:\n\techo\nclean:\n\techo\ndocs-serve:\n\techo\n"
+        )
+        hooks_dir = ws_root / ".git" / "hooks"
+        hooks_dir.mkdir(parents=True)
+        (hooks_dir / "pre-commit").write_text("#!/bin/sh\n")
+        gh_dir = ws_root / ".github"
+        gh_dir.mkdir(parents=True)
+        (gh_dir / "dependabot.yml").write_text(
+            "version: 2\nupdates:\n  - package-ecosystem: pip\n"
+        )
 
         member = ws_root / "packages" / "pkg-a"
         member.mkdir(parents=True)
@@ -521,6 +546,39 @@ class TestMemberRedirectsStructure:
         ]
         assert len(contrib_checks) == 1
         assert contrib_checks[0].passed
+
+    def test_member_redirects_makefile(self, ws_with_member: tuple[Path, Path]) -> None:
+        """Member without Makefile passes when workspace root has it."""
+        _ws_root, member = ws_with_member
+        engine = CheckEngine(member)
+        result = engine.run()
+        makefile_checks = [c for c in result.checks if c.name == "tooling.makefile"]
+        assert len(makefile_checks) == 1
+        assert makefile_checks[0].passed
+
+    def test_member_redirects_precommit_installed(
+        self, ws_with_member: tuple[Path, Path]
+    ) -> None:
+        """Member without .git/hooks/pre-commit passes when workspace root has it."""
+        _ws_root, member = ws_with_member
+        engine = CheckEngine(member)
+        result = engine.run()
+        precommit_checks = [
+            c for c in result.checks if c.name == "tooling.precommit_installed"
+        ]
+        assert len(precommit_checks) == 1
+        assert precommit_checks[0].passed
+
+    def test_member_redirects_dependabot(
+        self, ws_with_member: tuple[Path, Path]
+    ) -> None:
+        """Member without .github/dependabot.yml passes when workspace root has it."""
+        _ws_root, member = ws_with_member
+        engine = CheckEngine(member)
+        result = engine.run()
+        dependabot_checks = [c for c in result.checks if c.name == "ci.dependabot"]
+        assert len(dependabot_checks) == 1
+        assert dependabot_checks[0].passed
 
 
 class TestEngineExclusion:
