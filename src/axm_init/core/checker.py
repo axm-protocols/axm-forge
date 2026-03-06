@@ -31,6 +31,10 @@ SKIP_FOR_WORKSPACE: frozenset[str] = frozenset(
         "pyproject.pyproject_urls",
         "pyproject.pyproject_dynamic_version",
         "pyproject.pyproject_classifiers",
+        "pyproject.pyproject_mypy",
+        "pyproject.pyproject_ruff",
+        "pyproject.pyproject_ruff_rules",
+        "changelog.gitcliff_config",
         "deps.dev_deps",
         "deps.docs_deps",
         "pyproject.pyproject_pytest",
@@ -55,6 +59,9 @@ REDIRECT_FOR_MEMBER: frozenset[str] = frozenset(
         "tooling.precommit_basic",
         "tooling.makefile",
         "tooling.precommit_installed",
+        "structure.license_file",
+        "structure.python_version",
+        "structure.contributing",
     }
 )
 
