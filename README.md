@@ -23,7 +23,7 @@
 ## Features
 
 - 🚀 **Scaffold** — Bootstrap production-grade Python projects with Copier templates
-- 📋 **Check** — Score any project against the AXM gold standard (39 checks, A–F grade)
+- 📋 **Check** — Score any project against the AXM gold standard (44 checks, A–F grade)
 - 📦 **Reserve** — Claim a package name on PyPI before you're ready to publish
 
 ## Installation
@@ -64,12 +64,13 @@ Scaffold a production-grade Python project (src layout, PEP 621, CI, docs).
 | `--license` | `-l` | `Apache-2.0` | License (MIT, Apache-2.0, EUPL-1.2) |
 | `--license-holder` | | *--org* | License holder |
 | `--description` | `-d` | | One-line description |
+| `--workspace` | `-w` | `False` | Scaffold a UV workspace instead of a standalone package |
 | `--check-pypi` | | `False` | Verify PyPI availability first |
 | `--json` | | `False` | Output as JSON |
 
 ### `axm-init check`
 
-Score a project against the AXM gold standard (39 checks across 7 categories).
+Score a project against the AXM gold standard (44 checks across 8 categories).
 
 | Option | Short | Default | Description |
 |---|---|---|---|
@@ -78,7 +79,7 @@ Score a project against the AXM gold standard (39 checks across 7 categories).
 | `--json` | | `False` | Output as JSON |
 | `--agent` | | `False` | Compact agent-friendly output |
 
-**Categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`
+**Categories:** `pyproject`, `ci`, `tooling`, `docs`, `structure`, `deps`, `changelog`, `workspace`
 
 ### `axm-init reserve`
 
@@ -113,7 +114,7 @@ The badge is already in your README — just push to `main` and it appears after
 git clone https://github.com/axm-protocols/axm-init.git
 cd axm-init
 uv sync --all-groups
-uv run pytest           # 436 tests (fast subset, ~8s)
+uv run pytest           # 495 tests (fast subset, ~8s)
 uv run pytest -m slow   # real Copier scaffold tests (~15s)
 uv run ruff check src/  # lint
 ```
