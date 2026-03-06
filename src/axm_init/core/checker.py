@@ -345,6 +345,8 @@ def format_agent(result: ProjectResult) -> dict[str, Any]:
         "score": result.score,
         "grade": result.grade.value,
         "context": result.context,
+        "workspace_root": str(result.workspace_root) if result.workspace_root else None,
+        "excluded_checks": result.excluded_checks,
         "passed_count": sum(1 for c in result.checks if c.passed),
         "failed": [
             {
