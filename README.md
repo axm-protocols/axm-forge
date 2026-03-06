@@ -24,6 +24,7 @@
 - 🔌 **Auto-discovery** — Finds all `axm.tools` entry points from installed packages
 - 🛠️ **MCP bridge** — Exposes discovered tools as Model Context Protocol callables
 - ✅ **Verify** — One-shot project quality check: audit + init check + AST enrichment
+- 🌐 **Web fetch** — Anti-bot web page fetching via Scrapling (basic / dynamic / stealth)
 - 📋 **List tools** — Built-in meta-tool to list all available tools and descriptions
 - 📂 **Tool catalog resource** — `axm://tools` MCP resource for passive tool discovery
 
@@ -54,6 +55,7 @@ All installed AXM tools are immediately available to any MCP client.
 |---|---|---|
 | `list_tools` | built-in | List all available tools |
 | `verify` | built-in | One-shot audit + init check + AST enrichment |
+| `web_fetch` | built-in | Fetch web pages with anti-bot bypass (basic / dynamic / stealth) |
 | `axm://tools` | built-in | MCP resource — passive tool catalog (via `read_resource`) |
 | `audit` | `axm-audit` | Code quality audit (lint, types, complexity, security) |
 | `init_check` | `axm-init` | 39 governance checks against AXM gold standard |
@@ -69,7 +71,7 @@ All installed AXM tools are immediately available to any MCP client.
 git clone https://github.com/axm-protocols/axm-mcp.git
 cd axm-mcp
 uv sync --all-groups
-uv run pytest           # 72 tests
+uv run pytest           # 79 tests
 uv run ruff check src/  # lint
 ```
 
