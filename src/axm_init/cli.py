@@ -14,7 +14,7 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, NoReturn
 
 import cyclopts
 
@@ -156,6 +156,13 @@ def scaffold(
             help="Scaffold a UV workspace instead of a standalone package",
         ),
     ] = False,
+    member: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--member", "-m"],
+            help="Scaffold a member sub-package inside an existing workspace",
+        ),
+    ] = False,
     check_pypi: Annotated[
         bool,
         cyclopts.Parameter(name=["--check-pypi"], help="Check PyPI availability"),
@@ -169,12 +176,34 @@ def scaffold(
     from axm_init.adapters.copier import CopierAdapter, CopierConfig
     from axm_init.core.templates import TemplateType, get_template_path
 
+    if workspace and member:
+        msg = "--workspace and --member are mutually exclusive"
+        if json_output:
+            print(json.dumps({"error": msg}))  # noqa: T201
+        else:
+            print(f"❌ {msg}", file=sys.stderr)  # noqa: T201
+        raise SystemExit(1)
+
     target_path = Path(path).resolve()
     project_name = name or target_path.name
-    template_type = TemplateType.WORKSPACE if workspace else TemplateType.STANDALONE
 
     if check_pypi:
         _check_pypi_availability(project_name, json_output=json_output)
+
+    if member:
+        _scaffold_member(
+            target_path,
+            project_name,
+            org=org,
+            author=author,
+            email=email,
+            license_type=license,
+            description=description,
+            json_output=json_output,
+        )
+        return
+
+    template_type = TemplateType.WORKSPACE if workspace else TemplateType.STANDALONE
 
     if workspace:
         data = {
@@ -207,6 +236,136 @@ def scaffold(
     result = copier_adapter.copy(copier_config)
 
     _print_scaffold_result(result, project_name, target_path, json_output=json_output)
+
+
+def _fail(msg: str, *, json_output: bool) -> NoReturn:
+    """Print error and exit."""
+    if json_output:
+        print(json.dumps({"error": msg}))  # noqa: T201
+    else:
+        print(f"❌ {msg}", file=sys.stderr)  # noqa: T201
+    raise SystemExit(1)
+
+
+def _resolve_workspace_root(target_path: Path) -> Path | None:
+    """Resolve workspace root from *target_path*, or return ``None``."""
+    from axm_init.checks._workspace import (
+        ProjectContext,
+        detect_context,
+        find_workspace_root,
+    )
+
+    context = detect_context(target_path)
+    if context == ProjectContext.WORKSPACE:
+        return target_path
+    if context == ProjectContext.MEMBER:
+        return find_workspace_root(target_path)
+    return None
+
+
+def _read_workspace_name(workspace_root: Path) -> str:
+    """Read project name from workspace root pyproject.toml."""
+    import tomllib
+
+    root_pyproject = workspace_root / "pyproject.toml"
+    if root_pyproject.is_file():
+        with open(root_pyproject, "rb") as f:
+            data = tomllib.load(f)
+        name: str = data.get("project", {}).get("name", workspace_root.name)
+        return name
+    return workspace_root.name
+
+
+def _scaffold_member(
+    target_path: Path,
+    member_name: str,
+    *,
+    org: str,
+    author: str,
+    email: str,
+    license_type: str,
+    description: str,
+    json_output: bool,
+) -> None:
+    """Scaffold a member sub-package inside an existing UV workspace.
+
+    Args:
+        target_path: Current working directory (must be inside a workspace).
+        member_name: Name of the new member package.
+        org: GitHub org or username.
+        author: Author name.
+        email: Author email.
+        license_type: License type.
+        description: Package description.
+        json_output: Whether to output JSON.
+    """
+    from axm_init.adapters.copier import CopierAdapter, CopierConfig
+    from axm_init.adapters.workspace_patcher import patch_all
+    from axm_init.core.templates import TemplateType, get_template_path
+
+    # 1. Detect workspace root
+    workspace_root = _resolve_workspace_root(target_path)
+    if workspace_root is None:
+        _fail(
+            "Not inside a UV workspace — use --member from a workspace directory",
+            json_output=json_output,
+        )
+
+    # 2. Check for duplicate
+    member_dir = workspace_root / "packages" / member_name
+    if member_dir.exists():
+        _fail(
+            f"Member '{member_name}' already exists at {member_dir}",
+            json_output=json_output,
+        )
+
+    # 3. Scaffold member
+    data = {
+        "member_name": member_name,
+        "description": description or "A workspace member package",
+        "org": org,
+        "license": license_type,
+        "author_name": author,
+        "author_email": email,
+        "workspace_name": _read_workspace_name(workspace_root),
+    }
+
+    copier_adapter = CopierAdapter()
+    copier_config = CopierConfig(
+        template_path=get_template_path(TemplateType.MEMBER),
+        destination=member_dir,
+        data=data,
+        trust_template=True,
+    )
+    result = copier_adapter.copy(copier_config)
+
+    if not result.success:
+        _print_scaffold_result(result, member_name, member_dir, json_output=json_output)
+        return
+
+    # 4. Patch root files
+    patched = patch_all(workspace_root, member_name)
+
+    if json_output:
+        print(  # noqa: T201
+            json.dumps(
+                {
+                    "success": True,
+                    "member": member_name,
+                    "path": str(member_dir),
+                    "files": [str(f) for f in result.files_created],
+                    "patched_root_files": patched,
+                }
+            )
+        )
+    else:
+        print(f"✅ Member '{member_name}' created at {member_dir}")  # noqa: T201
+        for f in result.files_created:
+            print(f"   📄 {f}")  # noqa: T201
+        if patched:
+            print(  # noqa: T201
+                f"   🔧 Patched root files: {', '.join(patched)}"
+            )
 
 
 @app.command()

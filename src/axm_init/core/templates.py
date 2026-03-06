@@ -29,11 +29,13 @@ class TemplateType(StrEnum):
 
     STANDALONE = "standalone"
     WORKSPACE = "workspace"
+    MEMBER = "member"
 
 
 _TEMPLATE_DIRS: dict[TemplateType, str] = {
     TemplateType.STANDALONE: "python-project",
     TemplateType.WORKSPACE: "uv-workspace",
+    TemplateType.MEMBER: "workspace-member",
 }
 
 

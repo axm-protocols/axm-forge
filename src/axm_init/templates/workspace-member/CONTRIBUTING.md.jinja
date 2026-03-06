@@ -1,0 +1,23 @@
+# Contributing to {{ member_name }}
+
+This package is part of the **{{ workspace_name }}** workspace.
+
+## Development Setup
+
+```bash
+# Clone the workspace repository
+git clone https://github.com/{{ org }}/{{ workspace_name }}.git
+cd {{ workspace_name }}
+
+# Install all dependencies
+uv sync
+
+# Run tests
+uv run pytest --package {{ member_name }}
+```
+
+## Guidelines
+
+- Follow the coding conventions defined in the workspace root
+- Run `make check` from the workspace root before submitting
+- Use conventional commits: `feat({{ member_name }}): description`
