@@ -157,12 +157,12 @@ def scaffold(
         ),
     ] = False,
     member: Annotated[
-        bool,
+        str | None,
         cyclopts.Parameter(
             name=["--member", "-m"],
-            help="Scaffold a member sub-package inside an existing workspace",
+            help="Scaffold a member sub-package with this name",
         ),
-    ] = False,
+    ] = None,
     check_pypi: Annotated[
         bool,
         cyclopts.Parameter(name=["--check-pypi"], help="Check PyPI availability"),
@@ -176,7 +176,7 @@ def scaffold(
     from axm_init.adapters.copier import CopierAdapter, CopierConfig
     from axm_init.core.templates import TemplateType, get_template_path
 
-    if workspace and member:
+    if workspace and member is not None:
         msg = "--workspace and --member are mutually exclusive"
         if json_output:
             print(json.dumps({"error": msg}))  # noqa: T201
@@ -190,10 +190,10 @@ def scaffold(
     if check_pypi:
         _check_pypi_availability(project_name, json_output=json_output)
 
-    if member:
+    if member is not None:
         _scaffold_member(
             target_path,
-            project_name,
+            member,
             org=org,
             author=author,
             email=email,
