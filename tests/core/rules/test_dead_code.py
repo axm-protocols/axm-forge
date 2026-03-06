@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -31,14 +32,15 @@ class TestDeadCodeRule:
         self, rule: DeadCodeRule, mocker: MockerFixture, tmp_path: Path
     ) -> None:
         """Score should be 90/100 and passed=False for 2 dead symbols."""
-        import json
-
         from axm_audit.models.results import Severity
 
-        mocker.patch("subprocess.run")  # Mock the axm-ast verification check
+        # axm-ast is found on PATH
+        mocker.patch("shutil.which", return_value="/usr/bin/axm-ast")
 
-        # Mock the run_in_project call
-        mock_run = mocker.patch("axm_audit.core.rules.dead_code.run_in_project")
+        # Mock the direct subprocess.run call for analysis
+        mock_run = mocker.patch(
+            "axm_audit.core.rules.dead_code.subprocess.run",
+        )
         mock_result = mocker.Mock()
         mock_result.stdout = json.dumps(
             [
@@ -65,9 +67,11 @@ class TestDeadCodeRule:
         """Score should be 100/100 and passed=True for 0 dead symbols."""
         from axm_audit.models.results import Severity
 
-        mocker.patch("subprocess.run")
+        mocker.patch("shutil.which", return_value="/usr/bin/axm-ast")
 
-        mock_run = mocker.patch("axm_audit.core.rules.dead_code.run_in_project")
+        mock_run = mocker.patch(
+            "axm_audit.core.rules.dead_code.subprocess.run",
+        )
         mock_result = mocker.Mock()
         mock_result.stdout = "[]"
         mock_result.returncode = 0
@@ -85,13 +89,11 @@ class TestDeadCodeRule:
     def test_dead_code_skipped_not_available(
         self, rule: DeadCodeRule, mocker: MockerFixture, tmp_path: Path
     ) -> None:
-        """Should skip gracefully if axm-ast is not available."""
+        """Should skip gracefully if axm-ast is not on PATH."""
         from axm_audit.models.results import Severity
 
-        # Cause subprocess.run to raise an error
-        mocker.patch(
-            "subprocess.run", side_effect=FileNotFoundError("Mocked not found")
-        )
+        # shutil.which returns None → axm-ast not found
+        mocker.patch("shutil.which", return_value=None)
 
         result = rule.check(tmp_path)
 
@@ -109,9 +111,11 @@ class TestDeadCodeRule:
         """Should handle JSON parsing errors gracefully."""
         from axm_audit.models.results import Severity
 
-        mocker.patch("subprocess.run")
+        mocker.patch("shutil.which", return_value="/usr/bin/axm-ast")
 
-        mock_run = mocker.patch("axm_audit.core.rules.dead_code.run_in_project")
+        mock_run = mocker.patch(
+            "axm_audit.core.rules.dead_code.subprocess.run",
+        )
         mock_result = mocker.Mock()
         mock_result.stdout = "Not a JSON output"
         mock_result.returncode = 0
@@ -124,3 +128,27 @@ class TestDeadCodeRule:
         assert result.details["score"] == 0.0
         assert result.severity == Severity.ERROR
         assert "parse" in result.message.lower()
+
+    def test_dead_code_subprocess_args(
+        self, rule: DeadCodeRule, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        """Should call axm-ast directly with project_path as argument."""
+        mocker.patch("shutil.which", return_value="/usr/bin/axm-ast")
+
+        mock_run = mocker.patch(
+            "axm_audit.core.rules.dead_code.subprocess.run",
+        )
+        mock_result = mocker.Mock()
+        mock_result.stdout = "[]"
+        mock_result.returncode = 0
+        mock_run.return_value = mock_result
+
+        rule.check(tmp_path)
+
+        mock_run.assert_called_once_with(
+            ["axm-ast", "dead-code", str(tmp_path), "--json"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+        )
