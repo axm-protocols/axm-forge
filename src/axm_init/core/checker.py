@@ -39,6 +39,7 @@ SKIP_FOR_WORKSPACE: frozenset[str] = frozenset(
         "deps.docs_deps",
         "pyproject.pyproject_pytest",
         "pyproject.pyproject_coverage",
+        "docs.diataxis_nav",
     }
 )
 
