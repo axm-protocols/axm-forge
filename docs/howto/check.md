@@ -69,18 +69,18 @@ pyproject (27/27)
 
 By default, only failures are displayed.
 
-## What Gets Checked (44 Checks)
+## What Gets Checked (49 Checks)
 
 | Category | Checks | Points |
 |----------|--------|--------|
 | **pyproject** | exists, urls, dynamic_version, mypy, ruff, pytest, coverage, classifiers, ruff_rules | 27 |
 | **ci** | workflow, lint job, test job, security job, coverage upload, trusted publishing, dependabot | 18 |
 | **tooling** | pre-commit (×5), hooks installed, Makefile targets | 16 |
-| **docs** | mkdocs.yml, Diátaxis nav, plugins, gen_ref_pages, README | 14 |
+| **docs** | mkdocs.yml, Diátaxis nav, plugins, gen_ref_pages, README, README badges | 16 |
 | **structure** | src/ layout, py.typed, tests/, CONTRIBUTING, LICENSE, uv.lock, .python-version | 17 |
 | **deps** | dev group, docs group | 5 |
 | **changelog** | git-cliff config, no manual CHANGELOG | 5 |
-| **workspace** | workspace root, members glob, shared Makefile | 12 |
+| **workspace** | packages layout, members consistent, monorepo plugin, matrix packages, requires-python compat, root name collision, pytest importmode, pytest testpaths, quality workflow | 19 |
 
 ### Workspace Context
 
@@ -109,7 +109,7 @@ Projects scaffolded with `axm-init scaffold` include an automated **check badge*
 
 ### How It Works
 
-1. **Push to `main`** triggers `.github/workflows/axm-init.yml`
+1. **Push to `main`** triggers `.github/workflows/axm-quality.yml`
 2. The workflow runs `axm-init check --json` and extracts the score
 3. A shields.io JSON badge is generated and pushed to `gh-pages`
 4. Your README displays the score via a shields.io endpoint badge
@@ -128,7 +128,7 @@ The scaffolded README already includes the badge. It looks like this:
 
 If your project wasn't scaffolded with `axm-init scaffold`, you can add the badge manually:
 
-1. Copy the workflow from any scaffolded project (`.github/workflows/axm-init.yml`)
+1. Copy the workflow from any scaffolded project (`.github/workflows/axm-quality.yml`)
 2. Add the badge markup to your README
 3. Push to `main` — the badge appears after the first workflow run
 
