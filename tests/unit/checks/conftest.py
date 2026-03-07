@@ -268,7 +268,7 @@ def gold_project(tmp_path: Path) -> Path:
     # tests
     test_dir = tmp_path / "tests"
     test_dir.mkdir()
-    (test_dir / "test_version.py").write_text("def test_v(): pass\n")
+    (test_dir / "test_version.py").write_text("def test_v() -> None: pass\n")
     # docs
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()

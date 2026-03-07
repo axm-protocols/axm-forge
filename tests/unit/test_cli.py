@@ -138,7 +138,7 @@ def gold_project(tmp_path: Path) -> Path:
     (pkg / "py.typed").write_text("")
     tests_dir = tmp_path / "tests"
     tests_dir.mkdir()
-    (tests_dir / "test_x.py").write_text("def test_x(): pass\n")
+    (tests_dir / "test_x.py").write_text("def test_x() -> None: pass\n")
     docs = tmp_path / "docs"
     docs.mkdir()
     (docs / "gen_ref_pages.py").write_text("")
@@ -474,15 +474,20 @@ class TestScaffoldEdgeCases:
         data = json.loads(stdout)
         assert "error" in data
 
+    @patch("axm_init.adapters.copier.CopierAdapter")
     @patch("axm_init.adapters.pypi.PyPIAdapter")
     def test_scaffold_pypi_error_continues(
-        self, mock_cls: MagicMock, tmp_path: Path
+        self, mock_cls: MagicMock, mock_copier_cls: MagicMock, tmp_path: Path
     ) -> None:
         """--check-pypi with network error continues (warning only)."""
         from axm_init.adapters.pypi import AvailabilityStatus
 
         mock_adapter = mock_cls.return_value
         mock_adapter.check_availability.return_value = AvailabilityStatus.ERROR
+        mock_copier_adapter = mock_copier_cls.return_value
+        mock_copier_adapter.copy.return_value = type(
+            "R", (), {"success": True, "files_created": [], "message": "ok"}
+        )()
 
         _, _, code = _run(
             "scaffold",
