@@ -57,6 +57,24 @@ score = max(0, 100 − unformatted_count × 5)
 
 Pass threshold: ≥ 80 (≤ 4 unformatted files).
 
+### Diff Size Score
+
+```
+score = 100                    if lines ≤ ideal
+score = 0                      if lines ≥ max
+score = 100 − (lines − ideal) × 100 / (max − ideal)   otherwise
+```
+
+Defaults: `ideal = 400`, `max = 1200`. Configurable via `pyproject.toml`:
+
+```toml
+[tool.axm-audit]
+diff_size_ideal = 400   # lines — perfect score ceiling
+diff_size_max = 1200    # lines — zero score floor
+```
+
+Pass threshold: ≥ 80 (≤ 560 lines with defaults).
+
 ### Type Score
 
 ```
