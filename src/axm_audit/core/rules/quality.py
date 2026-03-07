@@ -7,6 +7,7 @@ import logging
 import re
 import shutil
 import subprocess
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -257,8 +258,46 @@ _DIFF_STAT_RE = re.compile(
 )
 
 # Thresholds for DiffSizeRule scoring
-_DIFF_IDEAL = 200
-_DIFF_MAX = 800
+_DIFF_IDEAL = 400
+_DIFF_MAX = 1200
+
+
+def _read_diff_config(project_path: Path) -> tuple[int, int]:
+    """Read diff-size thresholds from ``[tool.axm-audit]`` in pyproject.toml.
+
+    Returns:
+        ``(ideal, max_lines)`` — falls back to module defaults on any error.
+    """
+    pyproject = project_path / "pyproject.toml"
+    if not pyproject.exists():
+        return _DIFF_IDEAL, _DIFF_MAX
+
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return _DIFF_IDEAL, _DIFF_MAX
+
+    section = data.get("tool", {}).get("axm-audit", {})
+
+    raw_ideal = section.get("diff_size_ideal", _DIFF_IDEAL)
+    raw_max = section.get("diff_size_max", _DIFF_MAX)
+
+    try:
+        ideal = int(raw_ideal)
+    except (TypeError, ValueError):
+        ideal = _DIFF_IDEAL
+
+    try:
+        max_lines = int(raw_max)
+    except (TypeError, ValueError):
+        max_lines = _DIFF_MAX
+
+    if ideal < 0:
+        ideal = _DIFF_IDEAL
+    if max_lines < 0:
+        max_lines = _DIFF_MAX
+
+    return ideal, max_lines
 
 
 @dataclass
@@ -268,7 +307,10 @@ class DiffSizeRule(ProjectRule):
 
     Encourages smaller, focused commits/PRs.
 
-    Scoring: 100 if < 200 lines changed, linear degrade to 0 at 800 lines.
+    Scoring: 100 if ≤ *ideal* lines changed, linear degrade to 0 at *max*
+    lines.  Defaults: ideal=400, max=1200.  Overridable via
+    ``[tool.axm-audit]`` in ``pyproject.toml``.
+
     Gracefully skips if not in a git repository or git is not installed.
     """
 
@@ -338,8 +380,9 @@ class DiffSizeRule(ProjectRule):
                 details={"lines_changed": 0, "score": 100},
             )
 
+        ideal, max_lines = _read_diff_config(project_path)
         lines_changed = self._parse_stat(stdout)
-        score = self._compute_score(lines_changed)
+        score = self._compute_score(lines_changed, ideal, max_lines)
         passed = score >= PASS_THRESHOLD
 
         return CheckResult(
@@ -349,7 +392,7 @@ class DiffSizeRule(ProjectRule):
             severity=Severity.WARNING if not passed else Severity.INFO,
             details={"lines_changed": lines_changed, "score": score},
             fix_hint=(
-                "Consider splitting into smaller commits (< 200 lines ideal)"
+                f"Consider splitting into smaller commits (< {ideal} lines ideal)"
                 if not passed
                 else None
             ),
@@ -367,12 +410,14 @@ class DiffSizeRule(ProjectRule):
         return insertions + deletions
 
     @staticmethod
-    def _compute_score(lines_changed: int) -> int:
-        """Compute score from lines changed: 100→0 over [200, 800]."""
-        if lines_changed <= _DIFF_IDEAL:
+    def _compute_score(
+        lines_changed: int,
+        ideal: int = _DIFF_IDEAL,
+        max_lines: int = _DIFF_MAX,
+    ) -> int:
+        """Compute score from lines changed: 100→0 over [ideal, max_lines]."""
+        if lines_changed <= ideal:
             return 100
-        if lines_changed >= _DIFF_MAX:
+        if lines_changed >= max_lines:
             return 0
-        return int(
-            100 - (lines_changed - _DIFF_IDEAL) * 100 / (_DIFF_MAX - _DIFF_IDEAL)
-        )
+        return int(100 - (lines_changed - ideal) * 100 / (max_lines - ideal))

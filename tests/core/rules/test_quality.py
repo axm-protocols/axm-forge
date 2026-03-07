@@ -402,7 +402,7 @@ class TestDiffSizeRule:
         assert result.details["score"] == 100
 
     def test_fail_large_diff(self, tmp_path: Path) -> None:
-        """Large diff (600 lines) should fail with reduced score."""
+        """Large diff (1100 lines) should fail with reduced score."""
         from unittest.mock import MagicMock, patch
 
         from axm_audit.core.rules.quality import DiffSizeRule
@@ -410,7 +410,7 @@ class TestDiffSizeRule:
         rev_parse = MagicMock(returncode=0)
         diff_stat = MagicMock(
             returncode=0,
-            stdout=" 10 files changed, 400 insertions(+), 200 deletions(-)\n",
+            stdout=" 20 files changed, 700 insertions(+), 400 deletions(-)\n",
         )
 
         with (
@@ -422,8 +422,8 @@ class TestDiffSizeRule:
 
         assert result.passed is False
         assert result.details is not None
-        assert result.details["lines_changed"] == 600
-        assert result.details["score"] == 33
+        assert result.details["lines_changed"] == 1100
+        assert result.details["score"] == 12
         assert result.fix_hint is not None
 
     def test_skip_not_git_repo(self, tmp_path: Path) -> None:
@@ -484,6 +484,106 @@ class TestDiffSizeRule:
 
         rule = DiffSizeRule()
         assert rule.rule_id == "QUALITY_DIFF_SIZE"
+
+    # -- _compute_score with new defaults --
+
+    def test_compute_score_new_defaults(self) -> None:
+        """300 lines is under new ideal (400) → score 100."""
+        from axm_audit.core.rules.quality import DiffSizeRule
+
+        assert DiffSizeRule._compute_score(300) == 100
+
+    def test_compute_score_boundary(self) -> None:
+        """Exactly at ideal (400) → score 100."""
+        from axm_audit.core.rules.quality import DiffSizeRule
+
+        assert DiffSizeRule._compute_score(400) == 100
+
+    def test_compute_score_midrange(self) -> None:
+        """800 lines → 50 (midpoint of [400, 1200])."""
+        from axm_audit.core.rules.quality import DiffSizeRule
+
+        assert DiffSizeRule._compute_score(800) == 50
+
+    def test_compute_score_over_max(self) -> None:
+        """1200 lines (at max) → score 0."""
+        from axm_audit.core.rules.quality import DiffSizeRule
+
+        assert DiffSizeRule._compute_score(1200) == 0
+
+    # -- Config-reading tests --
+
+    def test_config_override_ideal(self, tmp_path: Path) -> None:
+        """pyproject.toml with diff_size_ideal=300 → rule uses 300."""
+        from axm_audit.core.rules.quality import _read_diff_config
+
+        (tmp_path / "pyproject.toml").write_text(
+            "[tool.axm-audit]\ndiff_size_ideal = 300\n"
+        )
+        ideal, max_lines = _read_diff_config(tmp_path)
+        assert ideal == 300
+        assert max_lines == 1200  # default
+
+    def test_config_override_max(self, tmp_path: Path) -> None:
+        """pyproject.toml with diff_size_max=1000 → rule uses 1000."""
+        from axm_audit.core.rules.quality import _read_diff_config
+
+        (tmp_path / "pyproject.toml").write_text(
+            "[tool.axm-audit]\ndiff_size_max = 1000\n"
+        )
+        ideal, max_lines = _read_diff_config(tmp_path)
+        assert ideal == 400  # default
+        assert max_lines == 1000
+
+    def test_no_config_uses_defaults(self, tmp_path: Path) -> None:
+        """pyproject.toml without [tool.axm-audit] → defaults."""
+        from axm_audit.core.rules.quality import _read_diff_config
+
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "demo"\n')
+        ideal, max_lines = _read_diff_config(tmp_path)
+        assert ideal == 400
+        assert max_lines == 1200
+
+    def test_partial_config(self, tmp_path: Path) -> None:
+        """Only diff_size_ideal set → diff_size_max uses default."""
+        from axm_audit.core.rules.quality import _read_diff_config
+
+        (tmp_path / "pyproject.toml").write_text(
+            "[tool.axm-audit]\ndiff_size_ideal = 250\n"
+        )
+        ideal, max_lines = _read_diff_config(tmp_path)
+        assert ideal == 250
+        assert max_lines == 1200
+
+    def test_invalid_config_value(self, tmp_path: Path) -> None:
+        """Non-numeric diff_size_ideal → falls back to default."""
+        from axm_audit.core.rules.quality import _read_diff_config
+
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.axm-audit]\ndiff_size_ideal = "abc"\n'
+        )
+        ideal, max_lines = _read_diff_config(tmp_path)
+        assert ideal == 400
+        assert max_lines == 1200
+
+    def test_negative_threshold(self, tmp_path: Path) -> None:
+        """Negative diff_size_ideal → falls back to default."""
+        from axm_audit.core.rules.quality import _read_diff_config
+
+        (tmp_path / "pyproject.toml").write_text(
+            "[tool.axm-audit]\ndiff_size_ideal = -10\n"
+        )
+        ideal, max_lines = _read_diff_config(tmp_path)
+        assert ideal == 400
+        assert max_lines == 1200
+
+    def test_missing_pyproject(self, tmp_path: Path) -> None:
+        """No pyproject.toml at all → defaults apply."""
+        from axm_audit.core.rules.quality import _read_diff_config
+
+        ideal, max_lines = _read_diff_config(tmp_path)
+        assert ideal == 400
+        assert max_lines == 1200
 
 
 class TestGetAuditTargets:
