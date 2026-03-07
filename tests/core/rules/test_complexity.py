@@ -501,3 +501,48 @@ def my_func(x: int, y: int, z: int) -> str:
         assert result.details is not None
         assert isinstance(result.details["score"], int)
         assert result.details["score"] >= 90
+
+    def test_process_radon_output_helper(self, tmp_path: Path) -> None:
+        """Tests that _process_radon_output correctly extracts metrics."""
+        from axm_audit.core.rules.complexity import ComplexityRule
+
+        data: dict[str, list[dict[str, object]]] = {
+            "file1.py": [
+                {
+                    "type": "function",
+                    "name": "simple",
+                    "classname": "",
+                    "complexity": 2,
+                },
+                {
+                    "type": "method",
+                    "name": "complex_method",
+                    "classname": "MyClass",
+                    "complexity": 15,
+                },
+            ],
+            "file2.py": [
+                {
+                    "type": "function",
+                    "name": "another_complex",
+                    "classname": "",
+                    "complexity": 20,
+                },
+                "ignore_this_string_block",  # type: ignore[list-item]
+            ],
+        }
+
+        rule = ComplexityRule()
+        result = rule._process_radon_output(data)
+
+        assert result.passed is False
+        assert result.details is not None
+        assert result.details["high_complexity_count"] == 2
+        assert result.details["score"] == 80
+
+        offenders = result.details["top_offenders"]
+        assert len(offenders) == 2
+        assert offenders[0]["function"] == "another_complex"
+        assert offenders[0]["cc"] == 20
+        assert offenders[1]["function"] == "MyClass.complex_method"
+        assert offenders[1]["cc"] == 15

@@ -136,6 +136,12 @@ class ComplexityRule(ProjectRule):
                 fix_hint="Check radon installation",
             )
 
+        return self._process_radon_output(data)
+
+    def _process_radon_output(
+        self, data: dict[str, list[dict[str, object]]]
+    ) -> CheckResult:
+        """Process JSON output from radon cc."""
         high_complexity_count = 0
         all_functions: list[dict[str, str | int]] = []
 

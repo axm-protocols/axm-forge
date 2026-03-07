@@ -58,6 +58,23 @@ class TestTestCoverageRule:
             ),
         )
         assert result.passed is False
+
+    def test_fix_hints_both(self, tmp_path: Path) -> None:
+        """Tests that fix hints include both failures and coverage increase."""
+        result = self._run_with_coverage(
+            tmp_path,
+            report=TestReport(
+                passed=40,
+                failed=1,
+                errors=0,
+                duration=5.0,
+                coverage=50.0,
+            ),
+        )
+        assert result.passed is False
+        assert result.fix_hint is not None
+        assert "Fix failing tests" in result.fix_hint
+        assert "Increase test coverage" in result.fix_hint
         assert result.details is not None
         assert result.details["score"] == 50
 

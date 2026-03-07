@@ -133,6 +133,32 @@ except:
         rule = BareExceptRule()
         assert rule.rule_id == "PRACTICE_BARE_EXCEPT"
 
+    def test_find_bare_excepts_helper(self, tmp_path: Path) -> None:
+        """Tests that _find_bare_excepts correctly extracts locations."""
+        import ast
+
+        from axm_audit.core.rules.practices import BareExceptRule
+
+        src_path = tmp_path / "src"
+        src_path.mkdir()
+
+        file_path = src_path / "bad.py"
+        file_path.write_text("""
+try:
+    risky_operation()
+except:
+    pass  # Bare except!
+""")
+
+        tree = ast.parse(file_path.read_text())
+        rule = BareExceptRule()
+        bare_excepts: list[dict[str, str | int]] = []
+        rule._find_bare_excepts(tree, file_path, src_path, bare_excepts)
+
+        assert len(bare_excepts) == 1
+        assert bare_excepts[0]["file"] == "bad.py"
+        assert bare_excepts[0]["line"] == 4
+
 
 class TestSecurityPatternRule:
     """Tests for SecurityPatternRule."""

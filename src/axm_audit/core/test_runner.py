@@ -18,7 +18,6 @@ from axm_audit.core.runner import run_in_project
 __all__ = [
     "FailureDetail",
     "TestReport",
-    "_parse_collector_errors",
     "run_tests",
 ]
 
@@ -286,8 +285,6 @@ def run_tests(
 
         # Parse JSON report
         report_data = _parse_json_report(report_path)
-        summary = report_data.get("summary", {})
-        tests_list: list[dict[str, Any]] = report_data.get("tests", [])
 
         # Parse coverage
         total_cov: float | None = None
@@ -295,39 +292,60 @@ def run_tests(
         if coverage_path is not None:
             total_cov, per_file_cov = _parse_coverage(coverage_path)
 
-        # Build report
-        result = TestReport(
-            passed=summary.get("passed", 0),
-            failed=summary.get("failed", 0),
-            errors=summary.get("error", 0),
-            skipped=summary.get("skipped", 0),
-            warnings=summary.get("warnings", 0),
-            duration=report_data.get("duration", 0.0),
-            coverage=total_cov,
+        return _build_test_report(
+            report_data=report_data,
+            total_cov=total_cov,
+            per_file_cov=per_file_cov,
+            mode=mode,
+            last_coverage=last_coverage,
         )
-
-        # Populate failures for modes that need them
-        if mode != "compact":
-            result.failures = _parse_failures(tests_list)
-            collectors_list: list[dict[str, Any]] = report_data.get("collectors", [])
-            result.failures.extend(_parse_collector_errors(collectors_list))
-
-        # Populate coverage delta for delta mode
-        if mode == "delta" and last_coverage is not None:
-            delta: dict[str, float] = {}
-            all_files = set(per_file_cov) | set(last_coverage)
-            for fpath in sorted(all_files):
-                old = last_coverage.get(fpath, 0.0)
-                new = per_file_cov.get(fpath, 0.0)
-                if old != new:
-                    delta[fpath] = round(new - old, 1)
-            result.coverage_by_file = delta
-        elif mode == "delta":
-            result.coverage_by_file = per_file_cov
-
-        return result
 
     finally:
         report_path.unlink(missing_ok=True)
         if coverage_path is not None:
             coverage_path.unlink(missing_ok=True)
+
+
+def _build_test_report(
+    *,
+    report_data: dict[str, Any],
+    total_cov: float | None,
+    per_file_cov: dict[str, float],
+    mode: TestMode,
+    last_coverage: dict[str, float] | None,
+) -> TestReport:
+    """Build the final TestReport object from parsed data."""
+    summary = report_data.get("summary", {})
+    tests_list: list[dict[str, Any]] = report_data.get("tests", [])
+
+    # Build report
+    result = TestReport(
+        passed=summary.get("passed", 0),
+        failed=summary.get("failed", 0),
+        errors=summary.get("error", 0),
+        skipped=summary.get("skipped", 0),
+        warnings=summary.get("warnings", 0),
+        duration=report_data.get("duration", 0.0),
+        coverage=total_cov,
+    )
+
+    # Populate failures for modes that need them
+    if mode != "compact":
+        result.failures = _parse_failures(tests_list)
+        collectors_list: list[dict[str, Any]] = report_data.get("collectors", [])
+        result.failures.extend(_parse_collector_errors(collectors_list))
+
+    # Populate coverage delta for delta mode
+    if mode == "delta" and last_coverage is not None:
+        delta: dict[str, float] = {}
+        all_files = set(per_file_cov) | set(last_coverage)
+        for fpath in sorted(all_files):
+            old = last_coverage.get(fpath, 0.0)
+            new = per_file_cov.get(fpath, 0.0)
+            if old != new:
+                delta[fpath] = round(new - old, 1)
+        result.coverage_by_file = delta
+    elif mode == "delta":
+        result.coverage_by_file = per_file_cov
+
+    return result
