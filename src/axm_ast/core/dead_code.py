@@ -18,7 +18,7 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from axm_ast.models.nodes import (
@@ -252,24 +252,30 @@ def _find_pyproject_toml(pkg_root: Path) -> Path | None:
     return None
 
 
+def _collect_flat_specs(
+    project: dict[str, object],
+    key: str,
+    specs: list[str],
+) -> None:
+    """Collect string values from a flat dict section of project config."""
+    section_data = project.get(key, {})
+    if isinstance(section_data, dict):
+        for spec in section_data.values():
+            if isinstance(spec, str):
+                specs.append(spec)
+
+
 def _extract_entry_point_specs(
     project: dict[str, object],
 ) -> list[str]:
     """Collect all entry-point spec strings from a parsed project table."""
     specs: list[str] = []
-    for section in ("scripts", "gui-scripts"):
-        section_data = project.get(section, {})
-        if isinstance(section_data, dict):
-            for spec in section_data.values():
-                if isinstance(spec, str):
-                    specs.append(spec)
+    _collect_flat_specs(project, "scripts", specs)
+    _collect_flat_specs(project, "gui-scripts", specs)
     ep_data = project.get("entry-points", {})
     if isinstance(ep_data, dict):
         for entries in ep_data.values():
-            if isinstance(entries, dict):
-                for spec in entries.values():
-                    if isinstance(spec, str):
-                        specs.append(spec)
+            _collect_flat_specs({"_": entries}, "_", specs)
     return specs
 
 
@@ -292,7 +298,7 @@ def _load_entry_point_symbols(pkg_root: Path) -> set[str]:
 
     try:
         data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-    except Exception:
+    except (tomllib.TOMLDecodeError, OSError):
         return set()
 
     project = data.get("project", {})
@@ -413,13 +419,18 @@ def _find_tests_dir(pkg_root: Path) -> Path | None:
 # ─── Core detection ──────────────────────────────────────────────────────────
 
 
+class _ScanContext(NamedTuple):
+    """Bundled scan state passed to _scan_functions/_scan_classes/_scan_methods."""
+
+    entry_points: set[str]
+    all_refs: set[str]
+    extra_pkg: PackageInfo | None
+
+
 def _scan_functions(
     mod: ModuleInfo,
     pkg: PackageInfo,
-    *,
-    entry_points: set[str],
-    all_refs: set[str],
-    extra_pkg: PackageInfo | None = None,
+    ctx: _ScanContext,
 ) -> list[DeadSymbol]:
     """Scan top-level functions in *mod* and return dead symbols."""
     from axm_ast.core.callers import find_callers
@@ -429,11 +440,11 @@ def _scan_functions(
     for fn in mod.functions:
         if _is_exempt_function(fn, mod):
             continue
-        if fn.name in entry_points or fn.name in all_refs:
+        if fn.name in ctx.entry_points or fn.name in ctx.all_refs:
             continue
         if find_callers(pkg, fn.name):
             continue
-        if extra_pkg is not None and find_callers(extra_pkg, fn.name):
+        if ctx.extra_pkg is not None and find_callers(ctx.extra_pkg, fn.name):
             continue
         dead.append(
             DeadSymbol(
@@ -449,10 +460,7 @@ def _scan_functions(
 def _scan_classes(
     mod: ModuleInfo,
     pkg: PackageInfo,
-    *,
-    entry_points: set[str],
-    all_refs: set[str],
-    extra_pkg: PackageInfo | None = None,
+    ctx: _ScanContext,
 ) -> list[DeadSymbol]:
     """Scan classes and their methods in *mod* and return dead symbols."""
     from axm_ast.core.callers import find_callers
@@ -460,11 +468,11 @@ def _scan_classes(
     dead: list[DeadSymbol] = []
     mod_path = str(mod.path)
     for cls in mod.classes:
-        if cls.name in entry_points:
+        if cls.name in ctx.entry_points:
             continue
         has_callers = bool(find_callers(pkg, cls.name))
-        if not has_callers and extra_pkg is not None:
-            has_callers = bool(find_callers(extra_pkg, cls.name))
+        if not has_callers and ctx.extra_pkg is not None:
+            has_callers = bool(find_callers(ctx.extra_pkg, cls.name))
         if not has_callers and not _is_exempt_class(cls, mod):
             dead.append(
                 DeadSymbol(
@@ -474,16 +482,7 @@ def _scan_classes(
                     kind="class",
                 )
             )
-        dead.extend(
-            _scan_methods(
-                cls,
-                mod,
-                pkg,
-                entry_points=entry_points,
-                all_refs=all_refs,
-                extra_pkg=extra_pkg,
-            )
-        )
+        dead.extend(_scan_methods(cls, mod, pkg, ctx))
     return dead
 
 
@@ -491,10 +490,7 @@ def _scan_methods(
     cls: ClassInfo,
     mod: ModuleInfo,
     pkg: PackageInfo,
-    *,
-    entry_points: set[str],
-    all_refs: set[str],
-    extra_pkg: PackageInfo | None = None,
+    ctx: _ScanContext,
 ) -> list[DeadSymbol]:
     """Scan methods of *cls* and return dead symbols."""
     from axm_ast.core.callers import find_callers
@@ -505,11 +501,11 @@ def _scan_methods(
         if _is_exempt_function(method, mod, parent_class=cls):
             continue
         qualified = f"{cls.name}.{method.name}"
-        if qualified in entry_points or method.name in all_refs:
+        if qualified in ctx.entry_points or method.name in ctx.all_refs:
             continue
         has_callers = bool(find_callers(pkg, method.name))
-        if not has_callers and extra_pkg is not None:
-            has_callers = bool(find_callers(extra_pkg, method.name))
+        if not has_callers and ctx.extra_pkg is not None:
+            has_callers = bool(find_callers(ctx.extra_pkg, method.name))
         if not has_callers:
             if _check_override(method.name, cls, pkg):
                 continue
@@ -522,6 +518,35 @@ def _scan_methods(
                 )
             )
     return dead
+
+
+def _gather_all_refs(
+    pkg: PackageInfo,
+    test_pkg: PackageInfo | None,
+) -> set[str]:
+    """Collect data-structure references and lazy imports from all modules.
+
+    Merges references from both the source package and an optional
+    sibling test package.
+
+    Args:
+        pkg: Analyzed source package.
+        test_pkg: Optional analyzed test package.
+
+    Returns:
+        Set of all referenced symbol names.
+    """
+    from axm_ast.core.callers import extract_references
+
+    all_refs: set[str] = set()
+    for mod in pkg.modules:
+        all_refs |= extract_references(mod)
+        all_refs |= _extract_lazy_imports(mod)
+    if test_pkg is not None:
+        for mod in test_pkg.modules:
+            all_refs |= extract_references(mod)
+            all_refs |= _extract_lazy_imports(mod)
+    return all_refs
 
 
 def find_dead_code(
@@ -548,22 +573,10 @@ def find_dead_code(
     Returns:
         List of dead symbols, sorted by module path then line number.
     """
-    from axm_ast.core.callers import extract_references
-
     dead: list[DeadSymbol] = []
 
-    # Collect data-structure references across all modules.
-    all_refs: set[str] = set()
-    for mod in pkg.modules:
-        all_refs |= extract_references(mod)
-        all_refs |= _extract_lazy_imports(mod)
-
-    # Discover sibling tests/ directory and merge its callers/refs.
     test_pkg = _load_test_package(pkg.root)
-    if test_pkg is not None:
-        for mod in test_pkg.modules:
-            all_refs |= extract_references(mod)
-            all_refs |= _extract_lazy_imports(mod)
+    all_refs = _gather_all_refs(pkg, test_pkg)
 
     entry_points = _load_entry_point_symbols(pkg.root)
 
@@ -573,6 +586,12 @@ def find_dead_code(
     for ep in find_entry_points(pkg):
         entry_points.add(ep.name)
 
+    ctx = _ScanContext(
+        entry_points=entry_points,
+        all_refs=all_refs,
+        extra_pkg=test_pkg,
+    )
+
     for mod in pkg.modules:
         # Skip test files — they are consumers, not targets.
         path_name = mod.path.name
@@ -581,24 +600,8 @@ def find_dead_code(
         if not include_tests and _is_in_tests_dir(mod.path):
             continue
 
-        dead.extend(
-            _scan_functions(
-                mod,
-                pkg,
-                entry_points=entry_points,
-                all_refs=all_refs,
-                extra_pkg=test_pkg,
-            )
-        )
-        dead.extend(
-            _scan_classes(
-                mod,
-                pkg,
-                entry_points=entry_points,
-                all_refs=all_refs,
-                extra_pkg=test_pkg,
-            )
-        )
+        dead.extend(_scan_functions(mod, pkg, ctx))
+        dead.extend(_scan_classes(mod, pkg, ctx))
 
     dead.sort(key=lambda d: (d.module_path, d.line))
     return dead

@@ -324,19 +324,25 @@ def _build_module_summaries(
     return summaries
 
 
+_STAR_THRESHOLD_5 = 5.0
+_STAR_THRESHOLD_4 = 3.0
+_STAR_THRESHOLD_3 = 1.5
+_STAR_THRESHOLD_2 = 0.5
+
+
 def _score_to_stars(score: float, symbol_count: int) -> int:
     """Convert PageRank score + symbol count to 1-5 stars."""
     if symbol_count == 0:
         return 1
     # Combine score and symbol count
     combined = score * 100 + symbol_count * 0.5
-    if combined > 5:
+    if combined > _STAR_THRESHOLD_5:
         return 5
-    if combined > 3:
+    if combined > _STAR_THRESHOLD_4:
         return 4
-    if combined > 1.5:
+    if combined > _STAR_THRESHOLD_3:
         return 3
-    if combined > 0.5:
+    if combined > _STAR_THRESHOLD_2:
         return 2
     return 1
 

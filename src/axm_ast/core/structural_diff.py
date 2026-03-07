@@ -214,6 +214,35 @@ def _compute_diff(
     }
 
 
+def _validate_diff_inputs(
+    pkg_path: Path,
+    base: str,
+    head: str,
+) -> dict[str, str] | tuple[Path, Path]:
+    """Validate inputs for structural diff.
+
+    Returns:
+        On success: (project_root, pkg_rel) tuple.
+        On error: dict with ``error`` key.
+    """
+    try:
+        project_root = _find_project_root(pkg_path)
+    except RuntimeError as exc:
+        return {"error": str(exc)}
+
+    if not _validate_ref(project_root, base):
+        return {"error": f"Invalid git ref: {base}"}
+    if not _validate_ref(project_root, head):
+        return {"error": f"Invalid git ref: {head}"}
+
+    try:
+        pkg_rel = pkg_path.relative_to(project_root)
+    except ValueError:
+        return {"error": "Package path is not inside the git repository"}
+
+    return project_root, pkg_rel
+
+
 def structural_diff(
     pkg_path: Path,
     base: str,
@@ -242,25 +271,11 @@ def structural_diff(
     """
     pkg_path = pkg_path.resolve()
 
-    # 1. Find project root.
-    try:
-        project_root = _find_project_root(pkg_path)
-    except RuntimeError as exc:
-        return {"error": str(exc)}
+    validated = _validate_diff_inputs(pkg_path, base, head)
+    if isinstance(validated, dict):
+        return validated
+    project_root, pkg_rel = validated
 
-    # 2. Validate refs.
-    if not _validate_ref(project_root, base):
-        return {"error": f"Invalid git ref: {base}"}
-    if not _validate_ref(project_root, head):
-        return {"error": f"Invalid git ref: {head}"}
-
-    # 3. Compute package relative path (for worktree).
-    try:
-        pkg_rel = pkg_path.relative_to(project_root)
-    except ValueError:
-        return {"error": "Package path is not inside the git repository"}
-
-    # 4. Extract symbols at both refs via worktrees.
     head_symbols = _extract_symbols_at_ref(project_root, pkg_rel, head)
     if isinstance(head_symbols, str):
         return {"error": head_symbols}
@@ -269,5 +284,4 @@ def structural_diff(
     if isinstance(base_symbols, str):
         return {"error": base_symbols}
 
-    # 5. Compute diff.
     return _compute_diff(base_symbols, head_symbols)
