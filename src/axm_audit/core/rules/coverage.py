@@ -73,11 +73,7 @@ class TestCoverageRule(ProjectRule):
         else:
             message = f"Test coverage: {coverage_pct:.0f}% ({score}/100)"
 
-        fix_hints: list[str] = []
-        if has_failures:
-            fix_hints.append("Fix failing tests")
-        if coverage_pct < self.min_coverage:
-            fix_hints.append(f"Increase test coverage to >= {self.min_coverage:.0f}%")
+        fix_hints = self._generate_fix_hints(has_failures, coverage_pct)
 
         return CheckResult(
             rule_id=self.rule_id,
@@ -89,8 +85,19 @@ class TestCoverageRule(ProjectRule):
                 "score": score,
                 "failures": failures,
             },
-            fix_hint=("; ".join(fix_hints) if fix_hints else None),
+            fix_hint=fix_hints,
         )
+
+    def _generate_fix_hints(
+        self, has_failures: bool, coverage_pct: float
+    ) -> str | None:
+        """Generate fix hints based on failures and coverage."""
+        fix_hints: list[str] = []
+        if has_failures:
+            fix_hints.append("Fix failing tests")
+        if coverage_pct < self.min_coverage:
+            fix_hints.append(f"Increase test coverage to >= {self.min_coverage:.0f}%")
+        return "; ".join(fix_hints) if fix_hints else None
 
 
 def _collect_failed_lines(lines: list[str]) -> list[dict[str, str]]:
