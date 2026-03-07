@@ -138,6 +138,60 @@ def patch_pyproject(root: Path, member_name: str) -> None:
         logger.info("pyproject.toml already contains %s — skipping", member_name)
 
 
+def _insert_into_yaml_list(
+    lines: list[str],
+    item_to_insert: str,
+    list_marker: str | None = None,
+    default_indent: str = "          ",
+) -> list[str]:
+    """Insert an item into a YAML list after the last element.
+
+    If list_marker is provided, insertion begins only after encountering it.
+    """
+    new_lines: list[str] = []
+    in_list = False
+    inserted = False
+
+    for line in lines:
+        new_lines.append(line)
+        stripped = line.strip()
+
+        if list_marker and list_marker in line and not inserted:
+            in_list = True
+            continue
+
+        if (
+            not list_marker
+            and not in_list
+            and not inserted
+            and stripped.startswith("- ")
+        ):
+            in_list = True
+
+        if in_list and stripped.startswith("- "):
+            continue
+
+        if in_list and not stripped.startswith("- ") and not inserted:
+            indent = default_indent
+            for prev_line in reversed(new_lines[:-1]):
+                if prev_line.strip().startswith("- "):
+                    indent = prev_line[: len(prev_line) - len(prev_line.lstrip())]
+                    break
+            new_lines.insert(len(new_lines) - 1, f"{indent}- {item_to_insert}\n")
+            in_list = False
+            inserted = True
+
+    if not inserted and in_list:
+        indent = default_indent
+        for prev_line in reversed(new_lines):
+            if prev_line.strip().startswith("- "):
+                indent = prev_line[: len(prev_line) - len(prev_line.lstrip())]
+                break
+        new_lines.append(f"{indent}- {item_to_insert}\n")
+
+    return new_lines
+
+
 def patch_ci(root: Path, member_name: str) -> None:
     """Add *member_name* to CI matrix package list.
 
@@ -159,47 +213,8 @@ def patch_ci(root: Path, member_name: str) -> None:
         logger.info("ci.yml already contains %s — skipping", member_name)
         return
 
-    # Find the package list in the matrix and add the new member
-    # Pattern: lines under "package:" in the matrix section
-    # Insert after the last "- " entry under package:
     lines = content.splitlines(keepends=True)
-    new_lines: list[str] = []
-    in_package_list = False
-    inserted = False
-
-    for line in lines:
-        new_lines.append(line)
-        stripped = line.strip()
-
-        if "package:" in line and not inserted:
-            in_package_list = True
-            continue
-
-        if in_package_list and stripped.startswith("- "):
-            # Check if next line is NOT a list item → insert after this one
-            continue
-
-        if in_package_list and not stripped.startswith("- ") and not inserted:
-            # We've passed the last item in the package list
-            # Find indentation from the previous list item
-            indent = ""
-            for prev_line in reversed(new_lines[:-1]):
-                if prev_line.strip().startswith("- "):
-                    indent = prev_line[: len(prev_line) - len(prev_line.lstrip())]
-                    break
-            new_lines.insert(len(new_lines) - 1, f"{indent}- {member_name}\n")
-            in_package_list = False
-            inserted = True
-
-    if not inserted and in_package_list:
-        # Package list was at end of file
-        indent = "          "
-        for prev_line in reversed(new_lines):
-            if prev_line.strip().startswith("- "):
-                indent = prev_line[: len(prev_line) - len(prev_line.lstrip())]
-                break
-        new_lines.append(f"{indent}- {member_name}\n")
-
+    new_lines = _insert_into_yaml_list(lines, member_name, list_marker="package:")
     ci_yml.write_text("".join(new_lines))
     logger.info("Patched ci.yml matrix with %s", member_name)
 
@@ -229,27 +244,9 @@ def patch_publish(root: Path, member_name: str) -> None:
     # If there's a tags section, add the pattern there
     if "tags:" in content:
         lines = content.splitlines(keepends=True)
-        new_lines: list[str] = []
-        in_tags = False
-
-        for line in lines:
-            new_lines.append(line)
-            if "tags:" in line:
-                in_tags = True
-                continue
-
-            if in_tags and line.strip().startswith("- "):
-                continue
-
-            if in_tags and not line.strip().startswith("- "):
-                indent = "      "
-                for prev_line in reversed(new_lines[:-1]):
-                    if prev_line.strip().startswith("- "):
-                        indent = prev_line[: len(prev_line) - len(prev_line.lstrip())]
-                        break
-                new_lines.insert(len(new_lines) - 1, f'{indent}- "{tag_pattern}"\n')
-                in_tags = False
-
+        new_lines = _insert_into_yaml_list(
+            lines, f'"{tag_pattern}"', list_marker="tags:", default_indent="      "
+        )
         content = "".join(new_lines)
     else:
         # No tags section — add push.tags trigger

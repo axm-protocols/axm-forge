@@ -147,7 +147,7 @@ def gold_project(tmp_path: Path) -> Path:
     (pkg / "py.typed").write_text("")
     tests = tmp_path / "tests"
     tests.mkdir()
-    (tests / "test_x.py").write_text("def test_x(): pass\n")
+    (tests / "test_x.py").write_text("def test_x() -> None: pass\n")
     docs = tmp_path / "docs"
     docs.mkdir()
     (docs / "gen_ref_pages.py").write_text("")
