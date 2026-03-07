@@ -29,10 +29,10 @@ all    = ["axm-init", "axm-audit", "axm-bib", "axm-mcp"]
 axm = "axm.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/axm-protocols/axm"
+Homepage = "https://github.com/axm-protocols/axm-nexus"
 Documentation = "https://axm-protocols.github.io/axm/"
-Repository = "https://github.com/axm-protocols/axm.git"
-Issues = "https://github.com/axm-protocols/axm/issues"
+Repository = "https://github.com/axm-protocols/axm-nexus.git"
+Issues = "https://github.com/axm-protocols/axm-nexus/issues"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
