@@ -47,7 +47,7 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = "mcp/v(?P<version>.*)"
-raw-options = { root = "../.." }
+raw-options = { root = "../..", git_describe_command = "git describe --dirty --tags --long --match mcp/v*" }
 fallback-version = "0.1.0.dev0"
 
 [tool.hatch.build.hooks.vcs]
