@@ -142,16 +142,7 @@ class BareExceptRule(ProjectRule):
             if tree is None:
                 continue
 
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ExceptHandler):
-                    # type is None means bare except:
-                    if node.type is None:
-                        bare_excepts.append(
-                            {
-                                "file": str(path.relative_to(src_path)),
-                                "line": node.lineno,
-                            }
-                        )
+            self._find_bare_excepts(tree, path, src_path, bare_excepts)
 
         count = len(bare_excepts)
         passed = count == 0
@@ -171,6 +162,25 @@ class BareExceptRule(ProjectRule):
             if not passed
             else None,
         )
+
+    def _find_bare_excepts(
+        self,
+        tree: ast.Module,
+        path: Path,
+        src_path: Path,
+        bare_excepts: list[dict[str, str | int]],
+    ) -> None:
+        """Find bare except clauses in a syntax tree."""
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ExceptHandler):
+                # type is None means bare except:
+                if node.type is None:
+                    bare_excepts.append(
+                        {
+                            "file": str(path.relative_to(src_path)),
+                            "line": node.lineno,
+                        }
+                    )
 
 
 @dataclass
