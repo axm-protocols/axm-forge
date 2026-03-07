@@ -133,8 +133,6 @@ Pydantic models for structured data exchange between layers:
 | `ProjectResult` | `check.py` | Full project check result |
 | `Grade` | `check.py` | A–F grade enum |
 | `ScaffoldResult` | `results.py` | Outcome of a scaffolding operation |
-| `ProjectConfig` | `project.py` | Input configuration for scaffolding |
-| `ProjectMetadata` | `project.py` | Metadata extracted from an existing project |
 
 ### 6. Tools (`tools/`)
 
