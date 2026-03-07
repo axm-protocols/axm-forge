@@ -375,7 +375,7 @@ def _extract_scoped_calls(
 ) -> list[CallSite]:
     """Extract calls within a function's byte range."""
     calls: list[CallSite] = []
-    _visit_scoped_calls(root, module_name, source, func_range, calls, None)
+    _visit_scoped_calls(root, module_name, source, func_range, calls)
     return calls
 
 
@@ -385,7 +385,6 @@ def _visit_scoped_calls(
     source: str,
     func_range: _FunctionRange,
     calls: list[CallSite],
-    context: str | None,
 ) -> None:
     """Visit calls within a byte range, skipping nodes outside scope."""
     node_start = getattr(node, "start_byte", 0)
@@ -395,19 +394,17 @@ def _visit_scoped_calls(
     if node_end < func_range.start_byte or node_start > func_range.end_byte:
         return
 
-    current_context = _update_context(node, context)
+    context = _update_context(node, None)
 
     if _is_call_node(node):
-        call_site = _extract_call_site(node, module_name, source, current_context)
+        call_site = _extract_call_site(node, module_name, source, context)
         if call_site is not None:
             # Don't include self-calls (the function calling itself recursively)
             if call_site.symbol != func_range.name:
                 calls.append(call_site)
 
     for child in getattr(node, "children", []):
-        _visit_scoped_calls(
-            child, module_name, source, func_range, calls, current_context
-        )
+        _visit_scoped_calls(child, module_name, source, func_range, calls)
 
 
 # ─── Flow tracing (BFS) ─────────────────────────────────────────────────────

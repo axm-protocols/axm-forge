@@ -44,52 +44,55 @@ class InspectTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            from axm_ast.core.analyzer import search_symbols
-            from axm_ast.core.cache import get_package
-
-            pkg = get_package(project_path)
-
-            # --- Dotted path resolution ---
-            if "." in symbol:
-                # Strategy: try module.function first, then ClassName.method
-                result = self._resolve_module_symbol(pkg, symbol)
-                if result is not None:
-                    return result
-
-                result = self._resolve_class_method(pkg, symbol)
-                if result is not None:
-                    return result
-
-                return ToolResult(
-                    success=False,
-                    error=(
-                        f"Symbol '{symbol}' not found"
-                        " (tried module.symbol and Class.method)"
-                    ),
-                )
-
-            # --- Simple name: function or class ---
-            results = search_symbols(
-                pkg,
-                name=symbol,
-                returns=None,
-                kind=None,
-                inherits=None,
-            )
-
-            if not results:
-                return ToolResult(
-                    success=False,
-                    error=f"Symbol '{symbol}' not found",
-                )
-
-            sym = results[0]
-            return ToolResult(
-                success=True,
-                data={"symbol": self._build_detail(sym)},
-            )
+            return self._inspect_symbol(project_path, symbol)
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
+
+    def _inspect_symbol(self, project_path: Path, symbol: str) -> ToolResult:
+        """Core symbol inspection logic."""
+        from axm_ast.core.analyzer import search_symbols
+        from axm_ast.core.cache import get_package
+
+        pkg = get_package(project_path)
+
+        # --- Dotted path resolution ---
+        if "." in symbol:
+            result = self._resolve_module_symbol(pkg, symbol)
+            if result is not None:
+                return result
+
+            result = self._resolve_class_method(pkg, symbol)
+            if result is not None:
+                return result
+
+            return ToolResult(
+                success=False,
+                error=(
+                    f"Symbol '{symbol}' not found"
+                    " (tried module.symbol and Class.method)"
+                ),
+            )
+
+        # --- Simple name: function or class ---
+        results = search_symbols(
+            pkg,
+            name=symbol,
+            returns=None,
+            kind=None,
+            inherits=None,
+        )
+
+        if not results:
+            return ToolResult(
+                success=False,
+                error=f"Symbol '{symbol}' not found",
+            )
+
+        sym = results[0]
+        return ToolResult(
+            success=True,
+            data={"symbol": self._build_detail(sym)},
+        )
 
     def _resolve_module_symbol(self, pkg: Any, dotted: str) -> ToolResult | None:
         """Try to resolve ``dotted`` as ``module_name.symbol_name``.

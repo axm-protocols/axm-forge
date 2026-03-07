@@ -35,6 +35,8 @@ __all__ = [
     "parse_source",
 ]
 
+_MAX_VALUE_REPR_LEN = 80
+
 # ─── Language & Parser singleton ─────────────────────────────────────────────
 
 PY_LANGUAGE = Language(tspython.language())
@@ -479,8 +481,8 @@ def _extract_assignment(node: Node) -> VariableInfo | None:
     annotation = _node_text(type_node)
     value_repr = _node_text(right)
     # Truncate long values
-    if value_repr and len(value_repr) > 80:
-        value_repr = value_repr[:77] + "..."
+    if value_repr and len(value_repr) > _MAX_VALUE_REPR_LEN:
+        value_repr = value_repr[: _MAX_VALUE_REPR_LEN - 3] + "..."
 
     return VariableInfo(
         name=name,

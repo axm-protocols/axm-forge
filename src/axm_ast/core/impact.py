@@ -26,7 +26,6 @@ from axm_ast.core.git_coupling import git_coupled_files
 from axm_ast.models.nodes import ModuleInfo, PackageInfo
 
 __all__ = [
-    "_find_test_files_by_import",
     "analyze_impact",
     "analyze_impact_workspace",
     "find_definition",
@@ -301,6 +300,13 @@ def find_type_refs(
     return refs
 
 
+def _match_param_type(fn: Any, pattern: re.Pattern[str]) -> bool:
+    """Check whether any parameter annotation matches *pattern*."""
+    return any(
+        param.annotation and pattern.search(param.annotation) for param in fn.params
+    )
+
+
 def _scan_functions_for_type(
     functions: list[Any],
     mod_name: str,
@@ -312,37 +318,28 @@ def _scan_functions_for_type(
     refs: list[dict[str, Any]] = []
     for fn in functions:
         fn_label = f"{class_name}.{fn.name}" if class_name else fn.name
-        # Check parameters.
-        for param in fn.params:
-            if param.annotation and pattern.search(param.annotation):
-                refs.append(
-                    {
-                        "function": fn_label,
-                        "module": mod_name,
-                        "line": fn.line_start,
-                        "ref_type": "param",
-                    }
-                )
-                break  # One ref per function is enough.
-
-        # Check return type (only if no param match found).
-        if (
-            not any(r["function"] == fn_label for r in refs)
-            and fn.return_type
-            and pattern.search(fn.return_type)
-        ):
-            refs.append(
-                {
-                    "function": fn_label,
-                    "module": mod_name,
-                    "line": fn.line_start,
-                    "ref_type": "return",
-                }
-            )
+        if _match_param_type(fn, pattern):
+            ref_type = "param"
+        elif fn.return_type and pattern.search(fn.return_type):
+            ref_type = "return"
+        else:
+            continue
+        refs.append(
+            {
+                "function": fn_label,
+                "module": mod_name,
+                "line": fn.line_start,
+                "ref_type": ref_type,
+            }
+        )
     return refs
 
 
 # ─── Impact scoring ─────────────────────────────────────────────────────────
+
+
+_IMPACT_HIGH_THRESHOLD = 5
+_IMPACT_MEDIUM_THRESHOLD = 2
 
 
 def score_impact(result: dict[str, Any]) -> str:
@@ -369,9 +366,9 @@ def score_impact(result: dict[str, Any]) -> str:
         + type_ref_count
     )
 
-    if total >= 5:
+    if total >= _IMPACT_HIGH_THRESHOLD:
         return "HIGH"
-    if total >= 2:
+    if total >= _IMPACT_MEDIUM_THRESHOLD:
         return "MEDIUM"
     return "LOW"
 

@@ -22,6 +22,8 @@ from typing import Any
 
 __all__ = ["git_coupled_files"]
 
+_COMMIT_HASH_LEN = 40
+
 # Binary / non-source extensions to filter out from coupling results.
 _BINARY_EXTENSIONS = frozenset(
     {
@@ -91,7 +93,7 @@ def _run_git_log(project_root: Path, months: int) -> str | None:
 
 def _is_commit_hash(s: str) -> bool:
     """Check whether *s* looks like a 40-char hex commit hash."""
-    return len(s) == 40 and all(c in "0123456789abcdef" for c in s)
+    return len(s) == _COMMIT_HASH_LEN and all(c in "0123456789abcdef" for c in s)
 
 
 def _parse_git_log(project_root: Path, months: int) -> list[set[str]]:

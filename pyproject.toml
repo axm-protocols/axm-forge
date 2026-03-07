@@ -97,12 +97,13 @@ src = ["src", "tests"]
 exclude = ["*/_version.py", "tests/fixtures"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "C4", "S", "T20", "RUF"]
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "S", "T20", "PLR", "RUF"]
 ignore = ["S101", "S603", "S607"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108"]
-"src/axm_ast/cli.py" = ["T201"]
+"tests/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
+"src/axm_ast/cli.py" = ["T201", "PLR0913"]
+"src/axm_ast/tools/*" = ["BLE001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_ast"]

@@ -26,6 +26,8 @@ __all__ = [
 ]
 
 
+_MAX_CALL_EXPRESSION_LEN = 80
+
 # ─── Reference extraction (non-call usages) ─────────────────────────────────
 
 
@@ -179,8 +181,8 @@ def _extract_call_site(
     # Build call expression text
     call_text = _node_text_safe(node)
     # Truncate long call expressions
-    if len(call_text) > 80:
-        call_text = call_text[:77] + "..."
+    if len(call_text) > _MAX_CALL_EXPRESSION_LEN:
+        call_text = call_text[: _MAX_CALL_EXPRESSION_LEN - 3] + "..."
 
     start_point = getattr(node, "start_point", (0, 0))
     line = start_point[0] + 1  # tree-sitter uses 0-indexed

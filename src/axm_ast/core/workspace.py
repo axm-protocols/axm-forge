@@ -227,7 +227,7 @@ def analyze_workspace(path: Path) -> WorkspaceInfo:
         try:
             pkg = get_package(pkg_src)
             packages.append(pkg)
-        except Exception:
+        except (OSError, ValueError):
             logger.warning("Failed to analyze %s, skipping", member, exc_info=True)
 
     # Build inter-package dependency edges

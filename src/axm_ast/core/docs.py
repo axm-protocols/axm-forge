@@ -166,6 +166,26 @@ def _find_mkdocs(root: Path) -> dict[str, str] | None:
     return None
 
 
+def _build_page_entry(detail: str, content: str, rel: str) -> dict[str, Any]:
+    """Build a page entry dict based on the requested detail level."""
+    match detail:
+        case "toc":
+            return {
+                "path": rel,
+                "headings": extract_headings(content),
+                "line_count": content.count("\n") + 1,
+            }
+        case "summary":
+            return {
+                "path": rel,
+                "headings": extract_headings(content),
+                "summaries": _extract_first_sentences(content),
+                "line_count": content.count("\n") + 1,
+            }
+        case _:
+            return {"path": rel, "content": content}
+
+
 def _find_docs_pages(
     root: Path,
     *,
@@ -189,31 +209,11 @@ def _find_docs_pages(
     for path in sorted(docs_dir.rglob("*.md")):
         rel = str(path.relative_to(root))
 
-        # Apply pages filter
         if pages_lower and not any(sub in rel.lower() for sub in pages_lower):
             continue
 
         content = path.read_text(encoding="utf-8")
-
-        if detail == "toc":
-            result.append(
-                {
-                    "path": rel,
-                    "headings": extract_headings(content),
-                    "line_count": content.count("\n") + 1,
-                }
-            )
-        elif detail == "summary":
-            result.append(
-                {
-                    "path": rel,
-                    "headings": extract_headings(content),
-                    "summaries": _extract_first_sentences(content),
-                    "line_count": content.count("\n") + 1,
-                }
-            )
-        else:  # full
-            result.append({"path": rel, "content": content})
+        result.append(_build_page_entry(detail, content, rel))
 
     return result
 
