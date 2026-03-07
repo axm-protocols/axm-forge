@@ -178,3 +178,29 @@ class TestPatchAll:
         """When no root files exist, patch_all returns empty list."""
         patched = patch_all(tmp_path, "my-lib")
         assert patched == []
+
+    def test_missing_file_raises_ci(self, tmp_path: Path) -> None:
+        """patch_ci raises FileNotFoundError if ci.yml is missing."""
+        from axm_init.adapters.workspace_patcher import patch_ci
+
+        with pytest.raises(FileNotFoundError):
+            patch_ci(tmp_path, "my-lib")
+
+    def test_missing_file_raises_publish(self, tmp_path: Path) -> None:
+        """patch_publish raises FileNotFoundError if publish.yml is missing."""
+        from axm_init.adapters.workspace_patcher import patch_publish
+
+        with pytest.raises(FileNotFoundError):
+            patch_publish(tmp_path, "my-lib")
+
+    def test_publish_no_tags_section(self, tmp_path: Path) -> None:
+        """patch_publish adds tags section if missing."""
+        from axm_init.adapters.workspace_patcher import patch_publish
+
+        publish_file = tmp_path / ".github" / "workflows" / "publish.yml"
+        publish_file.parent.mkdir(parents=True, exist_ok=True)
+        publish_file.write_text("name: Publish\n\njobs:\n  build:\n")
+        patch_publish(tmp_path, "my-lib")
+        content = publish_file.read_text()
+        assert "tags:" in content
+        assert "my-lib/v*" in content

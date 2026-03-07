@@ -205,26 +205,16 @@ def scaffold(
 
     template_type = TemplateType.WORKSPACE if workspace else TemplateType.STANDALONE
 
-    if workspace:
-        data = {
-            "workspace_name": project_name,
-            "description": description or "A modern Python workspace",
-            "org": org,
-            "license": license,
-            "license_holder": license_holder or org,
-            "author_name": author,
-            "author_email": email,
-        }
-    else:
-        data = {
-            "package_name": project_name,
-            "description": description or "A modern Python package",
-            "org": org,
-            "license": license,
-            "license_holder": license_holder or org,
-            "author_name": author,
-            "author_email": email,
-        }
+    data = _build_scaffold_data(
+        workspace=workspace,
+        project_name=project_name,
+        description=description,
+        org=org,
+        license_type=license,
+        license_holder=license_holder or org,
+        author=author,
+        email=email,
+    )
 
     copier_adapter = CopierAdapter()
     copier_config = CopierConfig(
@@ -236,6 +226,39 @@ def scaffold(
     result = copier_adapter.copy(copier_config)
 
     _print_scaffold_result(result, project_name, target_path, json_output=json_output)
+
+
+def _build_scaffold_data(
+    *,
+    workspace: bool,
+    project_name: str,
+    description: str,
+    org: str,
+    license_type: str,
+    license_holder: str,
+    author: str,
+    email: str,
+) -> dict[str, str]:
+    """Build data dict for copier template."""
+    if workspace:
+        return {
+            "workspace_name": project_name,
+            "description": description or "A modern Python workspace",
+            "org": org,
+            "license": license_type,
+            "license_holder": license_holder or org,
+            "author_name": author,
+            "author_email": email,
+        }
+    return {
+        "package_name": project_name,
+        "description": description or "A modern Python package",
+        "org": org,
+        "license": license_type,
+        "license_holder": license_holder or org,
+        "author_name": author,
+        "author_email": email,
+    }
 
 
 def _fail(msg: str, *, json_output: bool) -> NoReturn:
