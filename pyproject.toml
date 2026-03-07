@@ -20,10 +20,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/axm-protocols/axm-mcp"
+Homepage = "https://github.com/axm-protocols/axm-nexus-mcp"
 Documentation = "https://axm-protocols.github.io/axm-mcp/"
-Repository = "https://github.com/axm-protocols/axm-mcp.git"
-Issues = "https://github.com/axm-protocols/axm-mcp/issues"
+Repository = "https://github.com/axm-protocols/axm-nexus-mcp.git"
+Issues = "https://github.com/axm-protocols/axm-nexus-mcp/issues"
 
 # Optional dependencies — only packages published on PyPI
 # axm-word and scrapling are excluded until published
