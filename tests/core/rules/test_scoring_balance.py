@@ -33,14 +33,14 @@ class TestScoringBalance:
         assert 100 - 10 * 10 == 0
 
     def test_diff_size_rule_linear(self) -> None:
-        """DiffSize: linear 100→0 over [200,800] lines changed."""
+        """DiffSize: linear 100→0 over [400,1200] lines changed."""
         from axm_audit.core.rules.quality import DiffSizeRule
 
         assert DiffSizeRule._compute_score(0) == 100
-        assert DiffSizeRule._compute_score(200) == 100
-        assert DiffSizeRule._compute_score(500) == 50
-        assert DiffSizeRule._compute_score(800) == 0
-        assert DiffSizeRule._compute_score(1000) == 0
+        assert DiffSizeRule._compute_score(400) == 100
+        assert DiffSizeRule._compute_score(800) == 50
+        assert DiffSizeRule._compute_score(1200) == 0
+        assert DiffSizeRule._compute_score(1500) == 0
 
     # ── Security rules ────────────────────────────────────────────────
 
