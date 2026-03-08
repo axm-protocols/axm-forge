@@ -1,8 +1,8 @@
 """Workspace patcher — patch root files after member scaffold.
 
 Provides idempotent patching functions for workspace root files
-(Makefile, mkdocs.yml, pyproject.toml, ci.yml, publish.yml) when
-a new member sub-package is added via ``scaffold --member``.
+(Makefile, mkdocs.yml, pyproject.toml, ci.yml, publish.yml, release.yml)
+when a new member sub-package is added via ``scaffold --member``.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ __all__ = [
     "patch_mkdocs",
     "patch_publish",
     "patch_pyproject",
+    "patch_release",
     "patch_testpaths",
 ]
 
@@ -261,6 +262,72 @@ def patch_publish(root: Path, member_name: str) -> None:
     logger.info("Patched publish.yml with tag pattern %s", tag_pattern)
 
 
+def patch_release(root: Path, member_name: str) -> None:
+    """Add tag trigger and detect block for *member_name* in release.yml.
+
+    Adds a ``<member_name>/v*`` tag pattern and a corresponding
+    detect block (elif branch) to the release workflow so git-cliff
+    scopes changelogs per-package.
+    Idempotent — skips if already present.
+
+    Args:
+        root: Workspace root directory.
+        member_name: Name of the new member package.
+
+    Raises:
+        FileNotFoundError: If ``release.yml`` is missing.
+    """
+    release_yml = root / ".github" / "workflows" / "release.yml"
+    content = release_yml.read_text()
+
+    tag_pattern = f"{member_name}/v*"
+    if tag_pattern in content:
+        logger.info("release.yml already contains %s — skipping", member_name)
+        return
+
+    # 1. Add tag pattern to the tags: section
+    if "tags:" in content:
+        lines = content.splitlines(keepends=True)
+        new_lines: list[str] = []
+        in_tags = False
+
+        for line in lines:
+            new_lines.append(line)
+            if "tags:" in line:
+                in_tags = True
+                continue
+
+            if in_tags and line.strip().startswith("- "):
+                continue
+
+            if in_tags and not line.strip().startswith("- "):
+                indent = "      "
+                for prev_line in reversed(new_lines[:-1]):
+                    if prev_line.strip().startswith("- "):
+                        indent = prev_line[: len(prev_line) - len(prev_line.lstrip())]
+                        break
+                new_lines.insert(len(new_lines) - 1, f'{indent}- "{tag_pattern}"\n')
+                in_tags = False
+
+        content = "".join(new_lines)
+
+    # 2. Add detect elif block before the "else" in the detect step
+    pkg_dir = f"packages/{member_name}"
+    detect_block = (
+        f'          elif [[ "$TAG" == {member_name}/* ]]; then\n'
+        f'            echo "package={member_name}" >> "$GITHUB_OUTPUT"\n'
+        f'            echo "package-dir={pkg_dir}" >> "$GITHUB_OUTPUT"\n'
+    )
+    if "else" in content:
+        content = content.replace(
+            "          else\n",
+            detect_block + "          else\n",
+        )
+
+    release_yml.write_text(content)
+    logger.info("Patched release.yml with tag pattern + detect for %s", member_name)
+
+
 def patch_testpaths(root: Path, member_name: str) -> None:
     """Ensure root testpaths includes ``packages/<member_name>/tests``.
 
@@ -359,6 +426,7 @@ def patch_all(root: Path, member_name: str) -> list[str]:
         ("pyproject.toml (testpaths)", patch_testpaths),
         (".github/workflows/ci.yml", patch_ci),
         (".github/workflows/publish.yml", patch_publish),
+        (".github/workflows/release.yml", patch_release),
     ]
 
     for name, fn in patchers:
