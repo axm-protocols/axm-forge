@@ -1,0 +1,61 @@
+[project]
+name = "axm-forge-workspace"
+version = "0.0.0"
+requires-python = ">=3.12"
+description = "AXM Forge workspace — axm-ast, axm-audit, axm-init, and axm-git under one roof"
+license = { text = "Apache-2.0" }
+readme = "README.md"
+authors = [{ name = "Gabriel Jarry", email = "gabriel@axm-protocols.io" }]
+keywords = ["axm", "ast", "audit", "scaffolding", "git", "quality"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: Apache Software License",
+]
+dependencies = [
+    "axm-ast",
+    "axm-audit",
+    "axm-init",
+    "axm-git",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.0",
+    "ruff>=0.8",
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.0",
+    "mypy>=1.14",
+    "pip-audit>=2.0",
+]
+docs = [
+    "mkdocs-material>=9.0",
+    "mkdocs-monorepo-plugin>=1.1",
+    "mkdocstrings[python]>=0.27",
+    "mkdocs-gen-files>=0.5",
+    "mkdocs-literate-nav>=0.6",
+]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+axm-ast = { workspace = true }
+axm-audit = { workspace = true }
+axm-init = { workspace = true }
+axm-git = { workspace = true }
+
+[tool.pytest.ini_options]
+import_mode = "importlib"
+testpaths = [
+    "packages/axm-ast/tests",
+    "packages/axm-audit/tests",
+    "packages/axm-init/tests",
+    "packages/axm-git/tests",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["PLR2004"]
