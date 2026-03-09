@@ -1,0 +1,60 @@
+# Copier configuration for workspace member sub-package scaffold
+# Usage: axm-init scaffold --member my-package
+
+_min_copier_version: "9.0.0"
+_templates_suffix: .jinja
+_exclude:
+  - "copier.yml"
+
+# =============================================================================
+# Questions
+# =============================================================================
+
+member_name:
+  type: str
+  help: "Member package name (lowercase, hyphens allowed)"
+  validator: "{% if not member_name | regex_search('^[a-z][a-z0-9-]*$') %}Invalid name - use lowercase letters, numbers, and hyphens{% endif %}"
+
+description:
+  type: str
+  help: "One-line description"
+  default: "A workspace member package"
+
+author_name:
+  type: str
+  help: "Author name"
+
+author_email:
+  type: str
+  help: "Author email"
+
+org:
+  type: str
+  help: "GitHub organization or username"
+
+license:
+  type: str
+  help: "License type"
+  choices:
+    - MIT
+    - Apache-2.0
+    - EUPL-1.2
+  default: Apache-2.0
+
+workspace_name:
+  type: str
+  help: "Parent workspace name (for URLs)"
+
+# =============================================================================
+# Computed values
+# =============================================================================
+
+module_name:
+  type: str
+  default: "{{ member_name | replace('-', '_') }}"
+  when: false
+
+year:
+  type: str
+  default: "2026"
+  when: false

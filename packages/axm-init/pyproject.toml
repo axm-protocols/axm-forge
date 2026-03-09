@@ -1,0 +1,251 @@
+[project]
+name = "axm-init"
+dynamic = ["version"]
+description = "AXM Init — Python project scaffolding CLI with Copier templates."
+readme = "README.md"
+authors = [{ name = "Gabriel Jarry", email = "gabriel@axm-protocols.io" }]
+requires-python = ">=3.12"
+license = "Apache-2.0"
+keywords = ["cli", "python", "project", "governance", "scaffolding", "standards"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "pydantic>=2.0.0",
+    "cyclopts>=4.5.1",
+    "httpx>=0.28.1",
+    "copier>=9.11.2",
+    "axm",
+]
+
+[project.urls]
+Homepage = "https://github.com/axm-protocols/axm-init"
+Documentation = "https://axm-protocols.github.io/axm-init/"
+Repository = "https://github.com/axm-protocols/axm-init.git"
+Issues = "https://github.com/axm-protocols/axm-init/issues"
+
+[project.scripts]
+axm-init = "axm_init.cli:main"
+
+[project.entry-points."axm.tools"]
+init_scaffold = "axm_init.tools.scaffold:InitScaffoldTool"
+init_check    = "axm_init.tools.check:InitCheckTool"
+init_reserve  = "axm_init.tools.reserve:InitReserveTool"
+
+[project.entry-points."axm.commands"]
+init_scaffold = "axm_init.cli:scaffold"
+init_check    = "axm_init.cli:check"
+init_reserve  = "axm_init.cli:reserve"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/axm_init/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/axm_init"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UV Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.uv]
+managed = true
+
+
+[dependency-groups]
+dev = [
+    "mypy>=1.14.1",
+    "pip-audit>=2.7.3",
+    "pre-commit>=4.5.1",
+    "pytest>=8.3.5",
+    "pytest-cov>=5.0.0",
+    "pytest-mock>=3.0",
+    "radon>=6.0.1",
+    "ruff>=0.14.10",
+]
+docs = [
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=1.0.0",
+    "mkdocs-gen-files>=0.5",
+    "mkdocs-literate-nav>=0.6",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ruff Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["src", "tests"]
+exclude = ["*/_version.py"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "BLE", # flake8-blind-except
+    "C4",  # flake8-comprehensions
+    "PLR", # pylint refactor (magic numbers)
+    "S",   # flake8-bandit (security)
+    "T20", # flake8-print
+    "RUF", # ruff-specific
+]
+ignore = [
+    "S101",  # Allow assert in tests
+    "S603",  # subprocess call in controlled CLI
+    "S607",  # partial path for uv/gh CLI tools
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106", "S108", "PLR2004", "BLE001"]
+"src/axm_init/checks/*" = ["PLR2004", "BLE001"]
+"src/axm_init/adapters/*" = ["BLE001", "PLR2004"]
+"src/axm_init/core/checker.py" = ["PLR2004"]
+"src/axm_init/core/reserver.py" = ["PLR0911"]
+"src/axm_init/models/check.py" = ["PLR2004"]
+"src/axm_init/tools/*" = ["BLE001"]
+"src/axm_init/cli.py" = ["PLR0913", "PLR5501", "PLR2004"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["axm_init"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Deptry Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.deptry]
+known_first_party = ["axm_init"]
+extend_exclude = ["src/axm_init/templates/.*"]
+
+[tool.deptry.per_rule_ignores]
+DEP003 = ["tomli"]
+DEP004 = ["mkdocs_gen_files", "pytest"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pytest Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+python_files = "test_*.py"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "--import-mode=importlib",
+    "--cov=src/axm_init",
+    "--cov-report=term-missing",
+    "--cov-report=html:coverage_html",
+    "--cov-fail-under=0",
+    "-m",
+    "not slow",
+]
+markers = [
+    "slow: marks tests that invoke real Copier (deselect with '-m \"not slow\"')",
+]
+filterwarnings = [
+    # Copier uses deprecated pathspec API — upstream issue, not ours
+    "ignore::DeprecationWarning:pathspec.*",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MyPy Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+show_error_codes = true
+pretty = true
+exclude = ["src/axm_init/templates/"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["copier.*", "cyclopts.*", "axm.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["axm_init.tools.*"]
+disallow_subclassing_any = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Coverage Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["src/axm_init"]
+branch = true
+relative_files = true
+omit = ["*/tests/*", "*/templates/*"]
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Git-Cliff Configuration (Changelog Generation)
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.git-cliff.changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+"""
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {{ commit.message | upper_first }}\
+    {% endfor %}
+{% endfor %}
+"""
+trim = true
+
+[tool.git-cliff.git]
+conventional_commits = true
+filter_unconventional = true
+commit_parsers = [
+    { message = "^chore", skip = true },
+    { message = "^ci", skip = true },
+    { message = "^feat", group = "🚀 Features" },
+    { message = "^fix", group = "🐛 Bug Fixes" },
+    { message = "^doc", group = "📚 Documentation" },
+    { message = "^perf", group = "⚡ Performance" },
+    { message = "^refactor", group = "🔧 Refactor" },
+    { message = "^test", group = "🧪 Tests" },
+]
+tag_pattern = "v[0-9].*"

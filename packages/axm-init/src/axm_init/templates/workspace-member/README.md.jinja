@@ -1,0 +1,31 @@
+# {{ member_name }}
+
+{{ description }}
+
+<p align="center">
+  <a href="https://github.com/{{ org }}/{{ workspace_name }}/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ workspace_name }}/gh-pages/badges/{{ member_name }}/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://github.com/{{ org }}/{{ workspace_name }}/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ workspace_name }}/gh-pages/badges/{{ member_name }}/axm-init.json" alt="axm-init"></a>
+  <a href="https://github.com/{{ org }}/{{ workspace_name }}/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ workspace_name }}/gh-pages/badges/{{ member_name }}/coverage.json" alt="Coverage"></a>
+</p>
+
+---
+
+```bash
+uv add {{ member_name }}
+```
+
+## Development
+
+This package is part of the **{{ workspace_name }}** workspace.
+
+```bash
+# Run tests for this package
+uv run pytest --package {{ member_name }}
+
+# Run from workspace root
+make test-{{ member_name }}
+```
+
+## License
+
+{{ license }} — © {{ year }} {{ author_name }}

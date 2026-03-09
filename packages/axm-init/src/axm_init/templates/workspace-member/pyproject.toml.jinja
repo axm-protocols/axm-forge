@@ -1,0 +1,54 @@
+[project]
+name = "{{ member_name }}"
+dynamic = ["version"]
+description = "{{ description }}"
+readme = "README.md"
+license = { text = "{{ license }}" }
+requires-python = ">=3.12"
+authors = [{ name = "{{ author_name }}", email = "{{ author_email }}" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/{{ org }}/{{ workspace_name }}"
+Repository = "https://github.com/{{ org }}/{{ workspace_name }}.git"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+raw-options = { root = "../..", tag-pattern = "{{ member_name }}/v*" }
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/{{ module_name }}/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ module_name }}"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Testing (inherits workspace-level ruff/mypy config)
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = [
+    "-q",
+    "--import-mode=importlib",
+    "--cov=src/{{ module_name }}",
+    "--cov-report=term-missing",
+]
+
+[tool.coverage.run]
+source = ["src/{{ module_name }}"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
