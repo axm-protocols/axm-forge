@@ -1,0 +1,101 @@
+site_name: axm-forge
+site_description: AXM developer tools workspace — AST introspection, code auditing, project scaffolding, and git automation.
+site_url: https://forge.axm-protocols.io
+repo_url: https://github.com/axm-protocols/axm-forge
+repo_name: axm-protocols/axm-forge
+copyright: Copyright &copy; 2026 axm-protocols
+
+theme:
+  name: material
+  logo: docs/assets/logo.svg
+  favicon: docs/assets/logo.svg
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.path
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+
+extra_css:
+  - docs/assets/custom.css
+
+nav:
+  - Home:
+    - index.md
+  - Packages:
+    - packages/index.md
+    - axm-ast: '!include ./packages/axm-ast/mkdocs.yml'
+    - axm-audit: '!include ./packages/axm-audit/mkdocs.yml'
+    - axm-init: '!include ./packages/axm-init/mkdocs.yml'
+    - axm-git: '!include ./packages/axm-git/mkdocs.yml'
+  - Contributing:
+    - contributing.md
+
+plugins:
+  - monorepo
+  - search
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - packages/axm-ast/src
+            - packages/axm-audit/src
+            - packages/axm-init/src
+            - packages/axm-git/src
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            heading_level: 3
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - tables
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg

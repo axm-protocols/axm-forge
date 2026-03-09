@@ -1,0 +1,89 @@
+/* AXM custom theme — colors derived from logo.svg gradients */
+
+/* ── Mode jour ── */
+[data-md-color-scheme="default"] {
+    --md-primary-fg-color: #092268;
+    --md-primary-fg-color--light: #1a3a8f;
+    --md-primary-fg-color--dark: #061a4d;
+    --md-primary-bg-color: #ffffff;
+    --md-accent-fg-color: #158DC4;
+}
+
+/* ── Mode nuit ── */
+[data-md-color-scheme="slate"] {
+    --md-primary-fg-color: #74A6F2;
+    --md-primary-fg-color--light: #8fb8f5;
+    --md-primary-fg-color--dark: #5a8fd9;
+    --md-accent-fg-color: #0DCEE8;
+}
+
+/* ── Header: centre la recherche ── */
+.md-header__inner {
+    display: flex !important;
+    align-items: center !important;
+}
+
+.md-header__title {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    margin-right: 2rem !important;
+}
+
+.md-search {
+    flex: 1 !important;
+    max-width: 600px !important;
+    margin: 0 auto !important;
+    order: 2 !important;
+}
+
+.md-header__option {
+    order: 3 !important;
+    margin-left: auto !important;
+}
+
+.md-header__source {
+    order: 4 !important;
+    margin-left: 1rem !important;
+}
+
+/* ── Layout: pleine largeur ── */
+.md-grid {
+    max-width: 100% !important;
+    width: 95% !important;
+}
+
+/* ── Tabs: souligné en couleur pour l'onglet actif ── */
+.md-tabs__link {
+    font-weight: 400;
+    opacity: 0.7;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.md-tabs__link:hover {
+    opacity: 1;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.md-tabs__link--active,
+.md-tabs__item--active .md-tabs__link {
+    font-weight: 700 !important;
+    opacity: 1 !important;
+    border-bottom: 2px solid var(--md-accent-fg-color) !important;
+}
+
+/* ── Sidebar: effet uniquement sur la page active (pas les catégories) ── */
+.md-nav__link--active {
+    background: rgba(21, 141, 196, 0.1) !important;
+    border-radius: 6px !important;
+    padding-left: 0.6rem !important;
+    border-left: 3px solid var(--md-accent-fg-color) !important;
+    font-weight: 600 !important;
+    color: var(--md-accent-fg-color) !important;
+}
+
+/* Hover sur sidebar — items feuilles seulement */
+.md-nav__link:hover {
+    background: rgba(21, 141, 196, 0.05);
+    border-radius: 6px;
+}
