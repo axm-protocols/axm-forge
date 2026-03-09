@@ -51,6 +51,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "vcs"
+tag-pattern = "init/v(?P<version>.*)"
+raw-options = { root = "../..", git_describe_command = "git describe --dirty --tags --long --match init/v*" }
+fallback-version = "0.1.0.dev0"
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/axm_init/_version.py"
@@ -248,4 +251,5 @@ commit_parsers = [
     { message = "^refactor", group = "🔧 Refactor" },
     { message = "^test", group = "🧪 Tests" },
 ]
-tag_pattern = "v[0-9].*"
+tag_pattern = "init/v[0-9].*"
+include_path = "packages/axm-init/**"
