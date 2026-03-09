@@ -1,0 +1,210 @@
+[project]
+name = "axm-audit"
+dynamic = ["version"]
+description = "Code auditing and quality rules for AXM"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.12"
+authors = [{ name = "AXM Protocols", email = "gabriel@axm-protocols.io" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = [
+    "axm",
+    "cyclopts>=3.0",
+    "pydantic>=2.12.5",
+    "radon>=6.0.1",
+]
+
+[project.scripts]
+axm-audit = "axm_audit.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/axm-protocols/axm-audit"
+Documentation = "https://axm-protocols.github.io/axm-audit/"
+Repository = "https://github.com/axm-protocols/axm-audit"
+Issues = "https://github.com/axm-protocols/axm-audit/issues"
+
+[project.entry-points."axm.tools"]
+audit = "axm_audit.tools.audit:AuditTool"
+audit_test = "axm_audit.tools.audit_test:AuditTestTool"
+
+[project.entry-points."axm.commands"]
+audit = "axm_audit.cli:app"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/axm_audit/_version.py"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "pytest-asyncio>=0.24",
+    "pytest-json-report>=1.5",
+    "pytest-mock>=3.0",
+    "ruff>=0.8",
+    "mypy>=1.14",
+    "pre-commit>=4.0",
+    "pip-audit>=2.0",
+    "bandit>=1.9.3",
+]
+docs = [
+    "mkdocs-gen-files>=0.6.0",
+    "mkdocs-literate-nav>=0.6.2",
+    "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=0.27",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ruff Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+exclude = ["*/_version.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "PLR", "S", "T20", "RUF"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
+"src/axm_audit/core/rules/quality.py" = ["S603", "S607"]
+"src/axm_audit/core/rules/dependencies.py" = ["S603", "S607"]
+"src/axm_audit/cli.py" = ["T201", "PLR0913"]
+"src/axm_audit/core/test_runner.py" = ["PLR0913"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["axm_audit"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Deptry Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.deptry.per_rule_ignores]
+DEP003 = ["axm_audit"]
+DEP004 = ["mkdocs_gen_files"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MyPy Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+show_error_codes = true
+pretty = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["radon.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["axm_audit.core.rules.quality"]
+disallow_untyped_calls = false
+
+[[tool.mypy.overrides]]
+module = ["axm.*", "cyclopts.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["axm_audit.tools.*"]
+disallow_subclassing_any = false
+
+[[tool.mypy.overrides]]
+module = ["axm_audit.cli"]
+disallow_untyped_decorators = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pytest Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "--cov=src/axm_audit",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--import-mode=importlib",
+]
+pythonpath = ["src"]
+filterwarnings = ["ignore::DeprecationWarning"]
+asyncio_mode = "auto"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Coverage Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["src"]
+branch = true
+relative_files = true
+omit = ["*/tests/*"]
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Git-Cliff Configuration (Changelog Generation)
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.git-cliff.changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+"""
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {{ commit.message | upper_first }}\
+    {% endfor %}
+{% endfor %}
+"""
+trim = true
+
+[tool.git-cliff.git]
+conventional_commits = true
+filter_unconventional = true
+commit_parsers = [
+    { message = "^chore", skip = true },
+    { message = "^ci", skip = true },
+    { message = "^feat", group = "🚀 Features" },
+    { message = "^fix", group = "🐛 Bug Fixes" },
+    { message = "^doc", group = "📚 Documentation" },
+    { message = "^perf", group = "⚡ Performance" },
+    { message = "^refactor", group = "🔧 Refactor" },
+    { message = "^test", group = "🧪 Tests" },
+]
+tag_pattern = "v[0-9].*"
