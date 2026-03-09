@@ -1,0 +1,61 @@
+# {{ package_name }}
+
+**{{ description }}**
+
+<p align="center">
+  <a href="https://github.com/{{ org }}/{{ package_name }}/actions/workflows/ci.yml"><img src="https://github.com/{{ org }}/{{ package_name }}/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/{{ org }}/{{ package_name }}/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ package_name }}/gh-pages/badges/axm-init.json" alt="axm-init"></a>
+  <a href="https://github.com/{{ org }}/{{ package_name }}/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ package_name }}/gh-pages/badges/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://github.com/{{ org }}/{{ package_name }}/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ package_name }}/gh-pages/badges/coverage.json" alt="Coverage"></a>
+  <a href="https://pypi.org/project/{{ package_name }}/"><img src="https://img.shields.io/pypi/v/{{ package_name }}" alt="PyPI"></a>
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
+  <a href="https://{{ org }}.github.io/{{ package_name }}/"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs"></a>
+</p>
+
+---
+
+## Features
+
+- ✅ **Modern Python** — 3.12+ with strict typing
+- ✅ **Fast** — Optimized for performance
+- ✅ **Tested** — Full coverage with pytest
+
+## Installation
+
+```bash
+uv add {{ package_name }}
+```
+
+## Quick Start
+
+```python
+from {{ module_name }} import __version__
+
+print(f"{{ package_name }} v{__version__}")
+```
+
+## CLI Commands
+
+| Command | Description |
+|---|---|
+| `make install` | Install all dependencies (dev + docs) |
+| `make check` | Run lint + audit + test in one step |
+| `make lint` | Lint with ruff |
+| `make format` | Format with ruff |
+| `make test` | Run pytest |
+| `make audit` | Run pip-audit |
+| `make docs-serve` | Preview docs locally |
+| `make clean` | Remove build artifacts |
+
+## Development
+
+```bash
+git clone https://github.com/{{ org }}/{{ package_name }}.git
+cd {{ package_name }}
+uv sync --all-groups
+make check
+```
+
+## License
+
+{{ license }} — © {{ year }} {{ license_holder }}
