@@ -1,0 +1,88 @@
+site_name: AXM AST
+site_description: "AXM AST — Python AST introspection CLI for AI agents, powered by tree-sitter."
+site_url: https://axm-protocols.github.io/axm-ast
+repo_url: https://github.com/axm-protocols/axm-ast
+repo_name: axm-protocols/axm-ast
+copyright: Copyright &copy; 2026 axm-protocols &mdash; Licensed under Apache 2.0
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Tutorials:
+    - Quick Start: tutorials/quickstart.md
+  - How-To Guides:
+    - Describe a Package: howto/describe.md
+    - Analyze Change Impact: howto/impact.md
+    - Use in CI: howto/ci.md
+    - Use via MCP: howto/mcp.md
+  - Reference:
+    - CLI: reference/cli.md
+    - Python API: reference/api/
+  - Explanation:
+    - Architecture: explanation/architecture.md
+    - Output Formats: explanation/formats.md
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            heading_level: 3
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - tables

@@ -1,0 +1,597 @@
+"""Change impact analysis — who is affected when you modify a symbol.
+
+Composes ``callers``, ``graph``, and ``search`` into a single
+"what breaks if I change X?" answer.
+
+Example:
+    >>> from axm_ast.core.impact import analyze_impact
+    >>> result = analyze_impact(Path("src/axm_ast"), "analyze_package")
+    >>> print(result["score"])
+    'HIGH'
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from axm_ast.models.nodes import WorkspaceInfo
+
+from axm_ast.core.analyzer import _module_dotted_name
+from axm_ast.core.cache import get_package
+from axm_ast.core.callers import find_callers, find_callers_workspace
+from axm_ast.core.git_coupling import git_coupled_files
+from axm_ast.models.nodes import ModuleInfo, PackageInfo
+
+__all__ = [
+    "analyze_impact",
+    "analyze_impact_workspace",
+    "find_definition",
+    "find_reexports",
+    "find_type_refs",
+    "map_tests",
+    "score_impact",
+]
+
+
+# ─── Helpers ────────────────────────────────────────────────────────────────
+
+
+def _resolve_module_file(pkg: PackageInfo, mod_name: str) -> Path | None:
+    """Resolve a module dotted name to its absolute file path.
+
+    Args:
+        pkg: Analyzed package info.
+        mod_name: Dotted module name (e.g. ``"core.impact"``).
+
+    Returns:
+        Absolute path to the module file, or None if not found.
+    """
+    for mod in pkg.modules:
+        dotted = _module_dotted_name(mod.path, pkg.root)
+        if dotted == mod_name:
+            return mod.path
+    return None
+
+
+# ─── Definition finder ──────────────────────────────────────────────────────
+
+
+def find_definition(pkg: PackageInfo, symbol: str) -> dict[str, Any] | None:
+    """Locate where a symbol is defined.
+
+    Args:
+        pkg: Analyzed package info.
+        symbol: Name of the function/class to find.
+
+    Returns:
+        Dict with module, line, kind — or None if not found.
+    """
+    for mod in pkg.modules:
+        mod_name = _module_dotted_name(mod.path, pkg.root)
+
+        for fn in mod.functions:
+            if fn.name == symbol:
+                return {
+                    "module": mod_name,
+                    "line": fn.line_start,
+                    "kind": "function",
+                    "signature": fn.signature,
+                }
+
+        for cls in mod.classes:
+            if cls.name == symbol:
+                return {
+                    "module": mod_name,
+                    "line": cls.line_start,
+                    "kind": "class",
+                    "name": cls.name,
+                }
+
+    return None
+
+
+# ─── Re-export detection ────────────────────────────────────────────────────
+
+
+def find_reexports(pkg: PackageInfo, symbol: str) -> list[str]:
+    """Find modules that re-export a symbol via __all__ or imports.
+
+    Args:
+        pkg: Analyzed package info.
+        symbol: Name to search for in exports.
+
+    Returns:
+        List of module names that re-export the symbol.
+    """
+    reexports: list[str] = []
+
+    for mod in pkg.modules:
+        mod_name = _module_dotted_name(mod.path, pkg.root)
+        if _is_defined_in_module(mod, symbol):
+            continue
+        if _is_reexported_via_all(mod, symbol):
+            reexports.append(mod_name)
+        elif _is_reexported_via_import(mod, symbol):
+            reexports.append(mod_name)
+
+    return reexports
+
+
+def _is_defined_in_module(mod: ModuleInfo, symbol: str) -> bool:
+    """Check if symbol is defined (not just imported) in a module."""
+    return any(fn.name == symbol for fn in mod.functions) or any(
+        cls.name == symbol for cls in mod.classes
+    )
+
+
+def _is_reexported_via_all(mod: ModuleInfo, symbol: str) -> bool:
+    """Check if symbol appears in module's __all__."""
+    return bool(mod.all_exports and symbol in mod.all_exports)
+
+
+def _is_reexported_via_import(mod: ModuleInfo, symbol: str) -> bool:
+    """Check if symbol is imported in the module."""
+    return any(imp.names and symbol in imp.names for imp in mod.imports)
+
+
+# ─── Test file detection ────────────────────────────────────────────────────
+
+
+def map_tests(symbol: str, project_root: Path) -> list[Path]:
+    """Find test files that reference a given symbol.
+
+    Scans ``tests/`` directory for test_*.py files containing
+    the symbol name.
+
+    Args:
+        symbol: Name to search for in test files.
+        project_root: Root of the project.
+
+    Returns:
+        List of test file paths that reference the symbol.
+    """
+    tests_dir = project_root / "tests"
+    if not tests_dir.is_dir():
+        return []
+
+    matching: list[Path] = []
+    for test_file in sorted(tests_dir.glob("test_*.py")):
+        try:
+            content = test_file.read_text(encoding="utf-8")
+            if symbol in content:
+                matching.append(test_file)
+        except OSError:
+            continue
+
+    return matching
+
+
+def _find_test_files_by_import(
+    module_name: str,
+    project_root: Path,
+) -> list[Path]:
+    """Find test files that import a given module (import-based heuristic).
+
+    Scans ``tests/`` directory for ``test_*.py`` files whose source
+    contains an import statement referencing *module_name*.  This is a
+    fallback for symbols with no direct callers — the module they live
+    in is often imported by test files even when the symbol name itself
+    does not appear.
+
+    Only ``tests/`` is scanned (bounded scope).  Non-test files are
+    excluded.
+
+    Args:
+        module_name: Bare module name (e.g. ``"models"``, not
+            ``"mypkg.models"``).
+        project_root: Root of the project.
+
+    Returns:
+        Sorted list of test file paths that import the module.
+    """
+    import re
+
+    tests_dir = project_root / "tests"
+    if not tests_dir.is_dir():
+        return []
+
+    # Match import lines:  from <anything>.module_name import ...
+    #                      import <anything>.module_name
+    #                      from module_name import ...
+    pattern = re.compile(
+        rf"(?:from\s+\S*\.?{re.escape(module_name)}\s+import"
+        rf"|import\s+\S*\.?{re.escape(module_name)}(?:\s|$))"
+    )
+
+    matching: list[Path] = []
+    for test_file in sorted(tests_dir.glob("test_*.py")):
+        try:
+            content = test_file.read_text(encoding="utf-8")
+            if pattern.search(content):
+                matching.append(test_file)
+        except OSError:
+            continue
+
+    return matching
+
+
+# ─── Type reference detection ───────────────────────────────────────────────
+
+
+def _type_name_pattern(type_name: str) -> re.Pattern[str]:
+    """Build a word-boundary regex pattern for a type name.
+
+    Matches ``TypeName`` as a standalone token inside annotation
+    strings, including compound types like ``list[TypeName]``,
+    ``TypeName | None``, ``Optional[TypeName]``, etc.
+
+    Args:
+        type_name: Exact type name to search for.
+
+    Returns:
+        Compiled regex pattern.
+    """
+    return re.compile(rf"(?<![\w.]){re.escape(type_name)}(?![\w.])")
+
+
+def find_type_refs(
+    pkg: PackageInfo,
+    type_name: str,
+) -> list[dict[str, Any]]:
+    """Find functions that reference a type in their signatures.
+
+    Scans all function parameters, return types, and module-level
+    variable annotations for occurrences of *type_name* using
+    word-boundary matching.
+
+    Handles compound types: ``list[X]``, ``dict[str, X]``,
+    ``X | None``, ``Optional[X]``, nested generics, and
+    string annotations (``"X"``).
+
+    Args:
+        pkg: Analyzed package info.
+        type_name: Exact type name to search for (e.g. ``"MyModel"``).
+
+    Returns:
+        List of dicts with ``function``, ``module``, ``line``,
+        and ``ref_type`` (``"param"``, ``"return"``, or ``"alias"``).
+    """
+    pattern = _type_name_pattern(type_name)
+    refs: list[dict[str, Any]] = []
+
+    for mod in pkg.modules:
+        mod_name = _module_dotted_name(mod.path, pkg.root)
+
+        refs.extend(
+            _scan_functions_for_type(
+                mod.functions,
+                mod_name,
+                pattern,
+            )
+        )
+
+        for cls in mod.classes:
+            refs.extend(
+                _scan_functions_for_type(
+                    cls.methods,
+                    mod_name,
+                    pattern,
+                    class_name=cls.name,
+                )
+            )
+
+        # Module-level type aliases (e.g. ``type Foo = X``).
+        for var in mod.variables:
+            ann = var.annotation or ""
+            val = var.value_repr or ""
+            if pattern.search(ann) or pattern.search(val):
+                refs.append(
+                    {
+                        "function": var.name,
+                        "module": mod_name,
+                        "line": var.line,
+                        "ref_type": "alias",
+                    }
+                )
+
+    return refs
+
+
+def _match_param_type(fn: Any, pattern: re.Pattern[str]) -> bool:
+    """Check whether any parameter annotation matches *pattern*."""
+    return any(
+        param.annotation and pattern.search(param.annotation) for param in fn.params
+    )
+
+
+def _scan_functions_for_type(
+    functions: list[Any],
+    mod_name: str,
+    pattern: re.Pattern[str],
+    *,
+    class_name: str | None = None,
+) -> list[dict[str, Any]]:
+    """Scan a list of functions for type references in signatures."""
+    refs: list[dict[str, Any]] = []
+    for fn in functions:
+        fn_label = f"{class_name}.{fn.name}" if class_name else fn.name
+        if _match_param_type(fn, pattern):
+            ref_type = "param"
+        elif fn.return_type and pattern.search(fn.return_type):
+            ref_type = "return"
+        else:
+            continue
+        refs.append(
+            {
+                "function": fn_label,
+                "module": mod_name,
+                "line": fn.line_start,
+                "ref_type": ref_type,
+            }
+        )
+    return refs
+
+
+# ─── Impact scoring ─────────────────────────────────────────────────────────
+
+
+_IMPACT_HIGH_THRESHOLD = 5
+_IMPACT_MEDIUM_THRESHOLD = 2
+
+
+def score_impact(result: dict[str, Any]) -> str:
+    """Score impact as LOW, MEDIUM, or HIGH.
+
+    Args:
+        result: Dict with callers, reexports, affected_modules,
+            and optionally git_coupled and type_refs.
+
+    Returns:
+        Impact level string.
+    """
+    caller_count = len(result.get("callers", []))
+    reexport_count = len(result.get("reexports", []))
+    module_count = len(result.get("affected_modules", []))
+    coupled_count = len(result.get("git_coupled", []))
+    type_ref_count = len(result.get("type_refs", []))
+
+    total = (
+        caller_count
+        + reexport_count * 2
+        + module_count
+        + coupled_count
+        + type_ref_count
+    )
+
+    if total >= _IMPACT_HIGH_THRESHOLD:
+        return "HIGH"
+    if total >= _IMPACT_MEDIUM_THRESHOLD:
+        return "MEDIUM"
+    return "LOW"
+
+
+# ─── Orchestrator ────────────────────────────────────────────────────────────
+
+
+def _resolve_project_root(path: Path, explicit: Path | None) -> Path:
+    """Infer project root from package path if not given explicitly."""
+    if explicit is not None:
+        return explicit
+    if path.parent.name == "src":
+        return path.parent.parent
+    return path.parent
+
+
+def _add_git_coupling(
+    result: dict[str, Any],
+    definition: dict[str, Any] | None,
+    pkg: PackageInfo,
+    project_root: Path,
+) -> None:
+    """Enrich *result* with git change coupling data."""
+    if definition is None:
+        return
+    mod_name = definition["module"]
+    file_abs = _resolve_module_file(pkg, mod_name)
+    if file_abs is None:
+        return
+    try:
+        file_rel = file_abs.relative_to(project_root)
+    except ValueError:
+        return
+    result["git_coupled"] = git_coupled_files(str(file_rel), project_root)
+
+
+def _add_import_based_tests(
+    result: dict[str, Any],
+    definition: dict[str, Any] | None,
+    test_files: list[Path],
+    project_root: Path,
+) -> None:
+    """Enrich *result* with import-based test file heuristic."""
+    if test_files or definition is None:
+        return
+    bare_module = definition["module"].rsplit(".", 1)[-1]
+    import_tests = _find_test_files_by_import(bare_module, project_root)
+    if import_tests:
+        result["test_files_by_import"] = [str(t.name) for t in import_tests]
+
+
+def analyze_impact(
+    path: Path,
+    symbol: str,
+    *,
+    project_root: Path | None = None,
+) -> dict[str, Any]:
+    """Full impact analysis for a symbol.
+
+    Combines definition location, callers, re-exports, tests,
+    and an impact score.
+
+    Args:
+        path: Path to the package directory.
+        symbol: Name of the symbol to analyze.
+        project_root: Project root (for test detection).
+
+    Returns:
+        Complete impact analysis dict.
+
+    Example:
+        >>> result = analyze_impact(Path("src/axm_ast"), "analyze_package")
+        >>> result["score"]
+        'HIGH'
+    """
+    pkg = get_package(path)
+    root = _resolve_project_root(path, project_root)
+
+    definition = find_definition(pkg, symbol)
+    callers = find_callers(pkg, symbol)
+    reexports = find_reexports(pkg, symbol)
+    test_files = map_tests(symbol, root)
+
+    type_refs = find_type_refs(pkg, symbol)
+    type_ref_modules = {r["module"] for r in type_refs}
+    affected_modules = list(
+        {c.module for c in callers} | set(reexports) | type_ref_modules
+    )
+
+    result: dict[str, Any] = {
+        "symbol": symbol,
+        "definition": definition,
+        "callers": [
+            {
+                "module": c.module,
+                "line": c.line,
+                "context": c.context,
+                "call_expression": c.call_expression,
+            }
+            for c in callers
+        ],
+        "type_refs": type_refs,
+        "reexports": reexports,
+        "affected_modules": sorted(affected_modules),
+        "test_files": [str(t.name) for t in test_files],
+        "git_coupled": [],
+        "score": "LOW",
+    }
+
+    _add_git_coupling(result, definition, pkg, root)
+    _add_import_based_tests(result, definition, test_files, root)
+    result["score"] = score_impact(result)
+    return result
+
+
+def _collect_workspace_reexports(
+    ws: WorkspaceInfo,
+    symbol: str,
+) -> list[str]:
+    """Collect re-exports of a symbol across all workspace packages."""
+    reexports: list[str] = []
+    for pkg in ws.packages:
+        for mod_reexport in find_reexports(pkg, symbol):
+            reexports.append(f"{pkg.name}::{mod_reexport}")
+    return reexports
+
+
+def _collect_workspace_tests(
+    ws: WorkspaceInfo,
+    symbol: str,
+) -> list[str]:
+    """Collect test files referencing a symbol across the workspace."""
+    test_files: list[str] = []
+    for member_dir in ws.root.iterdir():
+        if not member_dir.is_dir():
+            continue
+        for t in map_tests(symbol, member_dir):
+            test_files.append(str(t.name))
+    return sorted(set(test_files))
+
+
+def _add_workspace_git_coupling(
+    result: dict[str, Any],
+    definition: dict[str, Any] | None,
+    ws: WorkspaceInfo,
+    ws_path: Path,
+) -> None:
+    """Enrich *result* with git coupling from the workspace."""
+    if definition is None:
+        return
+    mod_name = definition["module"]
+    pkg_name = definition.get("package", "")
+    for pkg in ws.packages:
+        if pkg.name == pkg_name:
+            file_abs = _resolve_module_file(pkg, mod_name)
+            if file_abs is not None:
+                try:
+                    file_rel = file_abs.relative_to(ws_path)
+                except ValueError:
+                    file_rel = None
+                if file_rel is not None:
+                    result["git_coupled"] = git_coupled_files(str(file_rel), ws_path)
+            break
+
+
+def analyze_impact_workspace(
+    ws_path: Path,
+    symbol: str,
+) -> dict[str, Any]:
+    """Full impact analysis for a symbol across a workspace.
+
+    Searches all packages for definition, callers, re-exports,
+    and test files. Module names include package prefix.
+
+    Args:
+        ws_path: Path to workspace root.
+        symbol: Name of the symbol to analyze.
+
+    Returns:
+        Complete impact analysis dict (workspace-scoped).
+
+    Example:
+        >>> result = analyze_impact_workspace(Path("/ws"), "ToolResult")
+        >>> result["score"]
+        'HIGH'
+    """
+    from axm_ast.core.workspace import analyze_workspace
+
+    ws = analyze_workspace(ws_path)
+
+    definition = None
+    for pkg in ws.packages:
+        defn = find_definition(pkg, symbol)
+        if defn is not None:
+            defn["package"] = pkg.name
+            definition = defn
+            break
+
+    callers = find_callers_workspace(ws, symbol)
+    reexports = _collect_workspace_reexports(ws, symbol)
+    test_files = _collect_workspace_tests(ws, symbol)
+    affected_modules = sorted({c.module for c in callers} | set(reexports))
+
+    result: dict[str, Any] = {
+        "symbol": symbol,
+        "workspace": ws.name,
+        "definition": definition,
+        "callers": [
+            {
+                "module": c.module,
+                "line": c.line,
+                "context": c.context,
+                "call_expression": c.call_expression,
+            }
+            for c in callers
+        ],
+        "reexports": reexports,
+        "affected_modules": affected_modules,
+        "test_files": test_files,
+        "git_coupled": [],
+        "score": "LOW",
+    }
+
+    _add_workspace_git_coupling(result, definition, ws, ws_path)
+    result["score"] = score_impact(result)
+    return result
