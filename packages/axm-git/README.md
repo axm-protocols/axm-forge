@@ -7,13 +7,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/axm-protocols/axm-git/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-git/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://axm-protocols.github.io/axm-init/explanation/check-grades/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-git/gh-pages/badges/axm-init.json" alt="axm-init"></a>
-  <a href="https://axm-protocols.github.io/axm-audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-git/gh-pages/badges/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://coveralls.io/github/axm-protocols/axm-git?branch=main"><img src="https://coveralls.io/repos/github/axm-protocols/axm-git/badge.svg?branch=main" alt="Coverage"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-git/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-git/axm-init.json" alt="axm-init"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-git/coverage.json" alt="Coverage"></a>
   <a href="https://pypi.org/project/axm-git/"><img src="https://img.shields.io/pypi/v/axm-git" alt="PyPI"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
-  <a href="https://axm-protocols.github.io/axm-git/"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs"></a>
+  <a href="https://forge.axm-protocols.io/git/"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs"></a>
 </p>
 
 ---
@@ -133,14 +133,17 @@ Pipeline: repo check → dirty check → detect branch → detect upstream → p
 
 ## Development
 
+This package is part of the [**axm-forge**](https://github.com/axm-protocols/axm-forge) workspace.
+
 ```bash
-git clone https://github.com/axm-protocols/axm-git.git
-cd axm-git
+git clone https://github.com/axm-protocols/axm-forge.git
+cd axm-forge
 uv sync --all-groups
-uv run pytest           # 119 tests
-uv run ruff check src/  # lint
+uv run --package axm-git --directory packages/axm-git pytest -x -q
 ```
+
+📖 **[Full documentation](https://forge.axm-protocols.io/git/)**
 
 ## License
 
-Apache License 2.0
+Apache-2.0 — © 2026 axm-protocols
