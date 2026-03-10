@@ -52,9 +52,9 @@ jobs:
           HELPERS
 
           # Pre-fetch logos once
-          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-audit/main/assets/logo.svg \
+          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.svg \
             > /tmp/audit-logo.svg || true
-          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.svg \
+          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.svg \
             > /tmp/init-logo.svg || true
 
       # ── Per-package tests (coverage) ────────────────────────────────
