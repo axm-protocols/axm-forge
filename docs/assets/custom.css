@@ -109,3 +109,8 @@
     background: rgba(21, 141, 196, 0.05);
     border-radius: 6px;
 }
+
+/* ── Mermaid: force le texte blanc dans les nœuds colorés ── */
+.mermaid .node .nodeLabel {
+    color: #ffffff !important;
+}
