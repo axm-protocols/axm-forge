@@ -8,20 +8,20 @@
 
 
 <p align="center">
-  <a href="https://github.com/axm-protocols/axm-audit/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-audit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://axm-protocols.github.io/axm-init/explanation/check-grades/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-audit/gh-pages/badges/axm-init.json" alt="axm-init"></a>
-  <a href="https://axm-protocols.github.io/axm-audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-audit/gh-pages/badges/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://coveralls.io/github/axm-protocols/axm-audit?branch=main"><img src="https://coveralls.io/repos/github/axm-protocols/axm-audit/badge.svg?branch=main" alt="Coverage"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-audit/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-audit/axm-init.json" alt="axm-init"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-audit/coverage.json" alt="Coverage"></a>
   <a href="https://pypi.org/project/axm-audit/"><img src="https://img.shields.io/pypi/v/axm-audit" alt="PyPI"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
-  <a href="https://axm-protocols.github.io/axm-audit/"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs"></a>
+  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs"></a>
 </p>
 
 ---
 
 `axm-audit` audits Python project quality across **10 scored categories**, producing a composite **0–100 score** with an **A–F grade**. It works as a **CLI**, **Python API**, and **MCP tool** for AI agents.
 
-📖 **[Full documentation](https://axm-protocols.github.io/axm-audit/)**
+📖 **[Full documentation](https://forge.axm-protocols.io/audit/)**
 
 ## Features
 
@@ -83,7 +83,7 @@ for check in result.checks:
 
 ### MCP (AI Agent)
 
-`axm-audit` is available as an MCP tool via [`axm-mcp`](https://github.com/axm-protocols/axm-mcp). AI agents can call `audit(path)` or `verify(path)` directly:
+`axm-audit` is available as an MCP tool via [`axm-mcp`](https://github.com/axm-protocols/axm-nexus/tree/main/packages/axm-mcp). AI agents can call `audit(path)` or `verify(path)` directly:
 
 ```python
 # Agent-optimized output: passed checks as compact strings,
@@ -94,7 +94,7 @@ data = format_agent(result)
 # data["score"], data["grade"], data["passed"], data["failed"]
 ```
 
-See the [MCP how-to guide](https://axm-protocols.github.io/axm-audit/howto/mcp/) for details.
+See the [MCP how-to guide](https://forge.axm-protocols.io/audit/howto/mcp/) for details.
 
 ## Scoring Model
 
@@ -128,15 +128,15 @@ See the [MCP how-to guide](https://axm-protocols.github.io/axm-audit/howto/mcp/)
 
 ## Development
 
+This package is part of the [**axm-forge**](https://github.com/axm-protocols/axm-forge) workspace.
+
 ```bash
-git clone https://github.com/axm-protocols/axm-audit.git
-cd axm-audit
+git clone https://github.com/axm-protocols/axm-forge.git
+cd axm-forge
 uv sync --all-groups
-uv run pytest           # 453 tests
-uv run ruff check src/  # lint
-uv run mypy src/        # type check
+uv run --package axm-audit --directory packages/axm-audit pytest -x -q
 ```
 
 ## License
 
-Apache 2.0
+Apache-2.0 — © 2026 axm-protocols
