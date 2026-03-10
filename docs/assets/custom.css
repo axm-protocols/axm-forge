@@ -29,6 +29,13 @@
     margin-right: 2rem !important;
 }
 
+/* ── Header: affiche le site_name à côté du logo ── */
+.md-header__topic .md-ellipsis {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #ffffff !important;
+}
+
 .md-search {
     flex: 1 !important;
     max-width: 600px !important;
