@@ -1,4 +1,4 @@
-.PHONY: install check test test-all test-ast test-audit test-init test-git lint format audit ci docs-serve docs-build clean help
+.PHONY: install check test test-all test-ast test-audit test-init test-git lint format security axm-audit axm-init quality ci docs-serve docs-build clean help
 
 # 🚀 Workspace Management
 
@@ -45,14 +45,30 @@ format:  ## Auto-format code
 	uv run ruff format .
 	uv run ruff check --fix .
 
-audit:  ## Security audit
+security:  ## Security audit (pip-audit)
 	uv run pip-audit
 
 check: lint test-all  ## Lint + type-check + tests
 
 test: test-all  ## Run all workspace tests (alias)
 
-ci: install check  ## Full CI pipeline
+# 🏅 AXM Quality Gates (mirrors CI axm-quality.yml)
+
+axm-audit:  ## Run axm-audit on each package
+	@for pkg in axm-ast axm-audit axm-init axm-git; do \
+		echo "\n🔍 Auditing $$pkg..."; \
+		uvx axm-audit audit packages/$$pkg --json || exit 1; \
+	done
+
+axm-init:  ## Run axm-init check on each package
+	@for pkg in axm-ast axm-audit axm-init axm-git; do \
+		echo "\n🏗️ Checking $$pkg..."; \
+		uvx axm-init check packages/$$pkg --json || exit 1; \
+	done
+
+quality: axm-audit axm-init  ## Full AXM quality gate (pre-push)
+
+ci: install check quality  ## Full CI pipeline
 
 # 📚 Documentation
 
@@ -75,3 +91,4 @@ help:  ## Show help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 .DEFAULT_GOAL := help
+
