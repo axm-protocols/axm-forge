@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,8 @@ from axm.tools.base import AXMTool, ToolResult
 from axm_git.core.runner import not_a_repo_error, run_git
 
 __all__ = ["GitCommitTool"]
+
+logger = logging.getLogger(__name__)
 
 
 def _stage_files(files: list[str], path: Path) -> str | None:
@@ -41,6 +44,7 @@ def _attempt_commit(
     if commit.returncode != 0:
         output = commit.stdout + commit.stderr
         if "files were modified by this hook" in output:
+            logger.warning("Pre-commit auto-fixed files, re-staging and retrying")
             run_git(["add", "-A", "--", *files], path)
             commit = run_git(commit_args, path)
             retried = True
@@ -49,8 +53,9 @@ def _attempt_commit(
     return commit.returncode == 0, retried, output
 
 
-def _build_failure_data(
+def _build_failure_data(  # noqa: PLR0913
     results: list[dict[str, Any]],
+    *,
     index: int,
     message: str,
     output: str,
@@ -169,7 +174,12 @@ class GitCommitTool(AXMTool):
                     success=False,
                     error=f"Commit {i + 1}: pre-commit failed",
                     data=_build_failure_data(
-                        results, i + 1, message, output, retried, resolved
+                        results,
+                        index=i + 1,
+                        message=message,
+                        output=output,
+                        retried=retried,
+                        path=resolved,
                     ),
                 )
 
