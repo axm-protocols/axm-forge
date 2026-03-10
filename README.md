@@ -47,15 +47,15 @@ make check
 
 ```mermaid
 graph TD
-    classDef ast fill:#092268,color:#ffffff,stroke:#1a3a8f
-    classDef audit fill:#1a3a8f,color:#ffffff,stroke:#2a4a9f
-    classDef init fill:#158DC4,color:#ffffff,stroke:#1a9dd4
-    classDef git fill:#607D8B,color:#ffffff,stroke:#708D9B
+    classDef ast fill:#5C6BC0,stroke:#3949AB
+    classDef audit fill:#42A5F5,stroke:#1E88E5
+    classDef init fill:#26C6DA,stroke:#00ACC1
+    classDef git fill:#78909C,stroke:#546E7A
 
-    AST["axm-ast\nAST introspection"]:::ast
-    AUDIT["axm-audit\nCode auditing"]:::audit --> AST
-    INIT["axm-init\nScaffolding"]:::init
-    GIT["axm-git\nGit automation"]:::git
+    AST["axm-ast<br/>AST introspection"]:::ast
+    AUDIT["axm-audit<br/>Code auditing"]:::audit --> AST
+    INIT["axm-init<br/>Scaffolding"]:::init
+    GIT["axm-git<br/>Git automation"]:::git
 ```
 
 ## Development
