@@ -124,6 +124,7 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
 show_error_codes = true
+exclude = ["tests/fixtures/"]
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]
