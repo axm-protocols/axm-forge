@@ -22,7 +22,7 @@
 
 ## Philosophy
 
-AXM Forge provides the **developer toolchain** for the AXM ecosystem. Instead of relying on generic text search and manual inspection, Forge gives agents — and humans — deterministic, AST-powered tools that understand code semantically.
+AXM Forge provides the **developer toolchain** for the AXM ecosystem. Every tool returns structured, deterministic results — designed for AI agents that need precise answers, not text to parse.
 
 <div class="grid cards" markdown>
 
@@ -36,7 +36,7 @@ AXM Forge provides the **developer toolchain** for the AXM ecosystem. Instead of
 
     ---
 
-    40+ rules covering lint, types, coverage, complexity, security, and project governance. One `verify()` call replaces an entire CI pipeline. Scores and grades make quality measurable and comparable.
+    40+ rules covering lint, types, coverage, complexity, security, and project governance — all in a single `verify()` call. Scores and grades make quality measurable and comparable.
 
 -   :material-cube-outline:{ .lg .middle } **Automated Scaffolding**
 
