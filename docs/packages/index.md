@@ -5,12 +5,6 @@ hide:
 
 # Packages
 
-<p align="center">
-  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-</p>
-
----
-
 <div class="grid cards" markdown>
 
 -   :material-file-tree:{ .lg .middle } **axm-ast**
