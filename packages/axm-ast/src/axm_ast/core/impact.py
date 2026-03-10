@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from axm_ast.models.nodes import WorkspaceInfo
 
-from axm_ast.core.analyzer import _module_dotted_name
+from axm_ast.core.analyzer import module_dotted_name
 from axm_ast.core.cache import get_package
 from axm_ast.core.callers import find_callers, find_callers_workspace
 from axm_ast.core.git_coupling import git_coupled_files
@@ -50,7 +50,7 @@ def _resolve_module_file(pkg: PackageInfo, mod_name: str) -> Path | None:
         Absolute path to the module file, or None if not found.
     """
     for mod in pkg.modules:
-        dotted = _module_dotted_name(mod.path, pkg.root)
+        dotted = module_dotted_name(mod.path, pkg.root)
         if dotted == mod_name:
             return mod.path
     return None
@@ -70,7 +70,7 @@ def find_definition(pkg: PackageInfo, symbol: str) -> dict[str, Any] | None:
         Dict with module, line, kind — or None if not found.
     """
     for mod in pkg.modules:
-        mod_name = _module_dotted_name(mod.path, pkg.root)
+        mod_name = module_dotted_name(mod.path, pkg.root)
 
         for fn in mod.functions:
             if fn.name == symbol:
@@ -109,7 +109,7 @@ def find_reexports(pkg: PackageInfo, symbol: str) -> list[str]:
     reexports: list[str] = []
 
     for mod in pkg.modules:
-        mod_name = _module_dotted_name(mod.path, pkg.root)
+        mod_name = module_dotted_name(mod.path, pkg.root)
         if _is_defined_in_module(mod, symbol):
             continue
         if _is_reexported_via_all(mod, symbol):
@@ -263,7 +263,7 @@ def find_type_refs(
     refs: list[dict[str, Any]] = []
 
     for mod in pkg.modules:
-        mod_name = _module_dotted_name(mod.path, pkg.root)
+        mod_name = module_dotted_name(mod.path, pkg.root)
 
         refs.extend(
             _scan_functions_for_type(

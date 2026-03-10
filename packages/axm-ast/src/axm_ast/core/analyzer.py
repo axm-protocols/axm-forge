@@ -31,6 +31,7 @@ __all__ = [
     "build_import_graph",
     "generate_stubs",
     "get_public_api",
+    "module_dotted_name",
     "search_symbols",
 ]
 
@@ -124,8 +125,16 @@ def _discover_py_files(root: Path) -> list[Path]:
     return results
 
 
-def _module_dotted_name(mod_path: Path, root: Path) -> str:
-    """Convert a module file path to a dotted name relative to root."""
+def module_dotted_name(mod_path: Path, root: Path) -> str:
+    """Convert a module file path to a dotted name relative to root.
+
+    Args:
+        mod_path: Absolute path to a ``.py`` file.
+        root: Package root directory.
+
+    Returns:
+        Dotted module name (e.g. ``"core.parser"``).
+    """
     try:
         rel = mod_path.relative_to(root)
     except ValueError:
@@ -140,7 +149,7 @@ def _build_edges(modules: list[ModuleInfo], root: Path) -> list[tuple[str, str]]
     """Build internal import dependency edges."""
     path_to_name: dict[Path, str] = {}
     for mod in modules:
-        path_to_name[mod.path] = _module_dotted_name(mod.path, root)
+        path_to_name[mod.path] = module_dotted_name(mod.path, root)
 
     known_names = set(path_to_name.values())
     edges: list[tuple[str, str]] = []
@@ -193,7 +202,7 @@ def _resolve_import_target(
         return imp.module if imp.module in known_names else None
 
     # from . import X — importing from parent package
-    parent_name = _module_dotted_name(mod.path.parent / "__init__.py", root)
+    parent_name = module_dotted_name(mod.path.parent / "__init__.py", root)
     if parent_name in known_names and parent_name != src_name:
         return parent_name
     return None
@@ -372,7 +381,7 @@ def generate_stubs(pkg: PackageInfo) -> str:
     lines: list[str] = []
 
     for mod in pkg.modules:
-        mod_name = _module_dotted_name(mod.path, pkg.root)
+        mod_name = module_dotted_name(mod.path, pkg.root)
         lines.append(f"# {mod_name}")
         if mod.docstring:
             first_line = mod.docstring.strip().split("\n")[0]
