@@ -103,10 +103,10 @@ def _format_module_text(
     rank: bool = False,
 ) -> list[str]:
     """Format a single module as text lines."""
-    from axm_ast.core.analyzer import _module_dotted_name
+    from axm_ast.core.analyzer import module_dotted_name
 
     lines: list[str] = []
-    mod_name = _module_dotted_name(mod.path, pkg.root)
+    mod_name = module_dotted_name(mod.path, pkg.root)
     lines.append(f"  📄 {mod_name}")
 
     if detail in ("detailed", "full") and mod.docstring:
@@ -192,10 +192,10 @@ def format_compressed(pkg: PackageInfo) -> str:
 
 def _compress_module(mod: ModuleInfo, pkg: PackageInfo) -> list[str]:
     """Compress a single module."""
-    from axm_ast.core.analyzer import _module_dotted_name
+    from axm_ast.core.analyzer import module_dotted_name
 
     lines: list[str] = []
-    mod_name = _module_dotted_name(mod.path, pkg.root)
+    mod_name = module_dotted_name(mod.path, pkg.root)
     lines.append(f"# {mod_name}")
 
     if mod.docstring:
@@ -425,10 +425,10 @@ def _format_module_json(
     detail: DetailLevel,
 ) -> dict[str, Any]:
     """Format a single module as a JSON dict."""
-    from axm_ast.core.analyzer import _module_dotted_name
+    from axm_ast.core.analyzer import module_dotted_name
 
     result: dict[str, Any] = {
-        "name": _module_dotted_name(mod.path, pkg.root),
+        "name": module_dotted_name(mod.path, pkg.root),
         "path": str(mod.path),
     }
 
@@ -537,11 +537,11 @@ def format_toc(pkg: PackageInfo) -> list[dict[str, Any]]:
         >>> toc[0]["name"]
         'core.analyzer'
     """
-    from axm_ast.core.analyzer import _module_dotted_name
+    from axm_ast.core.analyzer import module_dotted_name
 
     modules: list[dict[str, Any]] = []
     for mod in pkg.modules:
-        mod_name = _module_dotted_name(mod.path, pkg.root)
+        mod_name = module_dotted_name(mod.path, pkg.root)
         summary = parse_docstring(mod.docstring).summary if mod.docstring else None
         func_count = len(mod.functions)
         cls_count = len(mod.classes)
@@ -577,13 +577,13 @@ def filter_modules(pkg: PackageInfo, modules: list[str] | None) -> PackageInfo:
     if not modules:
         return pkg
 
-    from axm_ast.core.analyzer import _module_dotted_name
+    from axm_ast.core.analyzer import module_dotted_name
 
     terms = [t.lower() for t in modules]
     filtered = [
         mod
         for mod in pkg.modules
-        if any(t in _module_dotted_name(mod.path, pkg.root).lower() for t in terms)
+        if any(t in module_dotted_name(mod.path, pkg.root).lower() for t in terms)
     ]
     return PackageInfo(name=pkg.name, root=pkg.root, modules=filtered)
 
@@ -609,10 +609,10 @@ def format_mermaid(pkg: PackageInfo) -> str:
     lines = ["graph TD"]
 
     # Add all modules as nodes
-    from axm_ast.core.analyzer import _module_dotted_name
+    from axm_ast.core.analyzer import module_dotted_name
 
     for mod in pkg.modules:
-        name = _module_dotted_name(mod.path, pkg.root)
+        name = module_dotted_name(mod.path, pkg.root)
         safe_name = name.replace(".", "_")
         lines.append(f'    {safe_name}["{name}"]')
 

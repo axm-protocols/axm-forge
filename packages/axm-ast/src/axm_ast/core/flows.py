@@ -22,7 +22,7 @@ from typing import NamedTuple
 
 from pydantic import BaseModel
 
-from axm_ast.core.analyzer import _module_dotted_name
+from axm_ast.core.analyzer import module_dotted_name
 from axm_ast.core.callers import (
     _extract_call_site,
     _is_call_node,
@@ -119,7 +119,7 @@ def find_entry_points(pkg: PackageInfo) -> list[EntryPoint]:
     entries: list[EntryPoint] = []
 
     for mod in pkg.modules:
-        mod_name = _module_dotted_name(mod.path, pkg.root)
+        mod_name = module_dotted_name(mod.path, pkg.root)
         entries.extend(_scan_module_entries(mod, mod_name))
 
     entries.sort(key=lambda e: (e.module, e.line))
@@ -318,7 +318,7 @@ def find_callees(pkg: PackageInfo, symbol: str) -> list[CallSite]:
     all_callees: list[CallSite] = []
 
     for mod in pkg.modules:
-        mod_name = _module_dotted_name(mod.path, pkg.root)
+        mod_name = module_dotted_name(mod.path, pkg.root)
         source = mod.path.read_text(encoding="utf-8")
         tree = parse_source(source)
 
@@ -485,11 +485,11 @@ def _find_symbol_location(pkg: PackageInfo, symbol: str) -> tuple[str | None, in
     for mod in pkg.modules:
         for fn in iterchain(mod.functions, *(c.methods for c in mod.classes)):
             if fn.name == symbol:
-                mod_name = _module_dotted_name(mod.path, pkg.root)
+                mod_name = module_dotted_name(mod.path, pkg.root)
                 return mod_name, fn.line_start
         for cls in mod.classes:
             if cls.name == symbol:
-                mod_name = _module_dotted_name(mod.path, pkg.root)
+                mod_name = module_dotted_name(mod.path, pkg.root)
                 return mod_name, cls.line_start
     return None, 0
 

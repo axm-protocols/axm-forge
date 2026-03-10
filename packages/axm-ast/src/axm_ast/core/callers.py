@@ -13,7 +13,7 @@ Example:
 
 from __future__ import annotations
 
-from axm_ast.core.analyzer import _module_dotted_name
+from axm_ast.core.analyzer import module_dotted_name
 from axm_ast.core.parser import parse_source
 from axm_ast.models.calls import CallSite
 from axm_ast.models.nodes import ModuleInfo, PackageInfo, WorkspaceInfo
@@ -252,7 +252,8 @@ def find_callers(
     """Find all call-sites of a given symbol across a package.
 
     Searches every module in the package for calls matching
-    the given symbol name.
+    the given symbol name.  Uses cached call-sites when available
+    to avoid re-parsing files on repeated queries.
 
     Args:
         pkg: Analyzed package info.
@@ -266,14 +267,29 @@ def find_callers(
         >>> results[0].module
         'cli'
     """
+    from axm_ast.core.cache import get_calls
+
+    # Use cached call-sites when possible
+    try:
+        calls_by_module = get_calls(pkg.root)
+    except (ValueError, OSError):
+        # Fallback for programmatic PackageInfo without a real root
+        calls_by_module = None
+
     all_calls: list[CallSite] = []
 
-    for mod in pkg.modules:
-        mod_name = _module_dotted_name(mod.path, pkg.root)
-        calls = extract_calls(mod, module_name=mod_name)
-        for call in calls:
-            if call.symbol == symbol:
-                all_calls.append(call)
+    if calls_by_module is not None:
+        for mod_calls in calls_by_module.values():
+            for call in mod_calls:
+                if call.symbol == symbol:
+                    all_calls.append(call)
+    else:
+        for mod in pkg.modules:
+            mod_name = module_dotted_name(mod.path, pkg.root)
+            calls = extract_calls(mod, module_name=mod_name)
+            for call in calls:
+                if call.symbol == symbol:
+                    all_calls.append(call)
 
     return all_calls
 
