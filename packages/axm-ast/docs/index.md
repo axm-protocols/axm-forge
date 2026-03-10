@@ -59,7 +59,7 @@ $ axm-ast context src/mylib
 - [Quick Start Tutorial](tutorials/quickstart.md)
 - [Describe a Package](howto/describe.md)
 - [Analyze Change Impact](howto/impact.md)
-- [Use in CI](howto/ci.md)
+- [How-To Guides](howto/)
 - [Use via MCP](howto/mcp.md)
 - [Architecture](explanation/architecture.md)
 - [Output Formats](explanation/formats.md)
