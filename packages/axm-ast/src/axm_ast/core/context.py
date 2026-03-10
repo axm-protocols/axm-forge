@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import Any
 
 from axm_ast.core.analyzer import (
-    _module_dotted_name,
     build_import_graph,
+    module_dotted_name,
 )
 from axm_ast.core.cache import get_package
 from axm_ast.core.ranker import rank_symbols
@@ -292,7 +292,7 @@ def _build_module_summaries(
     summaries: list[dict[str, Any]] = []
 
     for mod in pkg.modules:
-        mod_name = _module_dotted_name(mod.path, pkg.root)
+        mod_name = module_dotted_name(mod.path, pkg.root)
 
         # Collect symbols with scores
         sym_scores: list[float] = []

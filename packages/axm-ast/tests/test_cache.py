@@ -197,3 +197,100 @@ class TestPackageCacheFilesystemInvalidation:
         second = cache.get(pkg)
         assert second is not first  # different object after clear
         assert first.name == second.name  # same package
+
+
+# ─── Content modification invalidation (F4) ─────────────────────────────────
+
+
+class TestPackageCacheMtimeInvalidation:
+    """Cache invalidates when .py file content is modified (F4)."""
+
+    def test_cache_invalidation_on_modify(self, tmp_path: Path) -> None:
+        """Modifying a .py file's content → cache invalidates, re-parses."""
+        import time
+
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('"""Init."""')
+        mod = pkg / "mod.py"
+        mod.write_text(
+            '"""Mod."""\ndef hello() -> str:\n    """Hello."""\n    return "hi"'
+        )
+
+        cache = PackageCache()
+        first = cache.get(pkg)
+        assert any(f.name == "hello" for m in first.modules for f in m.functions)
+
+        # Modify the file content (sleep ensures mtime changes)
+        time.sleep(0.05)
+        mod.write_text(
+            '"""Mod."""\ndef goodbye() -> str:\n    """Goodbye."""\n    return "bye"'
+        )
+
+        second = cache.get(pkg)
+        assert second is not first  # different object — re-parsed
+        func_names = [f.name for m in second.modules for f in m.functions]
+        assert "goodbye" in func_names
+        assert "hello" not in func_names
+
+
+# ─── Call-site caching (F8) ──────────────────────────────────────────────────
+
+
+class TestPackageCacheGetCalls:
+    """Tests for get_calls() — cached call-site extraction (F8)."""
+
+    def test_get_calls_returns_dict(self, tmp_path: Path) -> None:
+        """get_calls() returns a dict keyed by module name."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text(
+            '"""Pkg."""\ndef greet() -> str:\n    """Greet."""\n    return "hi"'
+        )
+        (pkg / "cli.py").write_text(
+            '"""CLI."""\ndef main() -> None:\n    """Main."""\n    greet()'
+        )
+
+        cache = PackageCache()
+        calls = cache.get_calls(pkg)
+        assert isinstance(calls, dict)
+        assert len(calls) >= 1
+
+    def test_get_calls_caching(self, tmp_path: Path) -> None:
+        """get_calls() returns the same object on second call (cached)."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text(
+            '"""Pkg."""\ndef greet() -> str:\n    """Greet."""\n    return "hi"'
+        )
+
+        cache = PackageCache()
+        first = cache.get_calls(pkg)
+        second = cache.get_calls(pkg)
+        assert first is second  # exact same dict — no re-extraction
+
+    def test_get_calls_invalidation_on_modify(self, tmp_path: Path) -> None:
+        """Modifying a file evicts both PackageInfo and call-sites."""
+        import time
+
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('"""Pkg."""')
+        mod = pkg / "mod.py"
+        mod.write_text('"""Mod."""\ndef setup() -> None:\n    """Setup."""\n    foo()')
+
+        cache = PackageCache()
+        first_calls = cache.get_calls(pkg)
+        # Verify foo() is found
+        all_symbols = [c.symbol for calls in first_calls.values() for c in calls]
+        assert "foo" in all_symbols
+
+        # Modify file
+        time.sleep(0.05)
+        mod.write_text('"""Mod."""\ndef setup() -> None:\n    """Setup."""\n    bar()')
+
+        second_calls = cache.get_calls(pkg)
+        assert second_calls is not first_calls  # re-extracted
+        all_symbols = [c.symbol for calls in second_calls.values() for c in calls]
+        assert "bar" in all_symbols
+        assert "foo" not in all_symbols

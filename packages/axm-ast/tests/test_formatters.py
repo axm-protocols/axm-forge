@@ -185,10 +185,10 @@ class TestFilterModules:
         pkg = analyze_package(SAMPLE_PKG)
         result = filter_modules(pkg, ["utils"])
         assert len(result.modules) >= 1
-        from axm_ast.core.analyzer import _module_dotted_name
+        from axm_ast.core.analyzer import module_dotted_name
 
         for mod in result.modules:
-            assert "utils" in _module_dotted_name(mod.path, result.root).lower()
+            assert "utils" in module_dotted_name(mod.path, result.root).lower()
 
     def test_filter_modules_case_insensitive(self):
         """Case-insensitive matching."""
