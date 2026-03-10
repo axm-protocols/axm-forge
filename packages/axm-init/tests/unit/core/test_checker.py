@@ -121,7 +121,10 @@ def gold_project(tmp_path: Path) -> Path:
     )
     # Files
     (tmp_path / "README.md").write_text(
-        "# test-pkg\n\n**desc**\n\n---\n\n## Features\n\n"
+        "# test-pkg\n\n"
+        "[![axm-audit](https://img.shields.io/badge/axm--audit-A-green)](.)\n"
+        "[![axm-init](https://img.shields.io/badge/axm--init-A-green)](.)\n\n"
+        "**desc**\n\n---\n\n## Features\n\n"
         "## Installation\n\n## Quick Start\n\n## Development\n\n## License\n"
     )
     (tmp_path / "CONTRIBUTING.md").write_text("# Contributing\n")
@@ -152,12 +155,12 @@ class TestCheckEngineRun:
     """Tests for CheckEngine.run()."""
 
     def test_run_all_categories(self, gold_project: Path) -> None:
-        """Gold project scores 100 with all 39 checks."""
+        """Gold project scores 100 with all 40 checks."""
         engine = CheckEngine(gold_project)
         result = engine.run()
         assert result.score == 100
         assert result.grade == Grade.A
-        assert len(result.checks) == 39
+        assert len(result.checks) == 40
 
     def test_run_single_category(self, gold_project: Path) -> None:
         """Filtering to tooling returns only tooling checks."""
@@ -299,9 +302,9 @@ class TestCheckDiscovery:
     """Tests for auto-discovery of check modules."""
 
     def test_check_discovery_finds_all(self) -> None:
-        """Auto-discovery finds 39 checks across 7 categories."""
+        """Auto-discovery finds 49 checks across 8 categories."""
         total = sum(len(fns) for fns in ALL_CHECKS.values())
-        assert total == 44
+        assert total == 49
         assert len(ALL_CHECKS) == 8
 
     def test_discovery_categories(self) -> None:
@@ -369,12 +372,12 @@ class TestEngineStandalone:
     """Standalone context must be fully regression-safe."""
 
     def test_engine_standalone_unchanged(self, gold_project: Path) -> None:
-        """Standalone gold project still gets 39 checks, score 100."""
+        """Standalone gold project still gets 40 checks, score 100."""
         engine = CheckEngine(gold_project)
         result = engine.run()
         assert result.score == 100
         assert result.grade == Grade.A
-        assert len(result.checks) == 39
+        assert len(result.checks) == 40
         assert result.context == "standalone"
         assert result.workspace_root is None
         assert result.excluded_checks == []
@@ -612,7 +615,7 @@ class TestEngineExclusion:
         engine = CheckEngine(gold_project)
         result = engine.run()
         assert result.score == 100
-        assert len(result.checks) == 39
+        assert len(result.checks) == 40
 
 
 class TestProjectResultContext:
