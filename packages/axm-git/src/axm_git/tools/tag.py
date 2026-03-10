@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 import subprocess
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +22,8 @@ from axm_git.core.runner import (
 from axm_git.core.semver import compute_bump
 
 __all__ = ["GitTagTool"]
+
+logger = logging.getLogger(__name__)
 
 
 def _check_ci(path: Path) -> str:
@@ -54,10 +59,40 @@ def _check_ci(path: Path) -> str:
         return "error"
 
 
-def _get_current_tag(path: Path) -> str | None:
-    """Return the latest semver tag or ``None``."""
+def _get_tag_prefix(path: Path) -> str:
+    """Read tag prefix from pyproject.toml ``tag-pattern`` (e.g. ``git/``).
+
+    Returns the prefix string (e.g. ``"git/"``) or ``""`` if none.
+    """
+    pyproject = path / "pyproject.toml"
+    if not pyproject.exists():
+        return ""
+    try:
+        with open(pyproject, "rb") as f:
+            data = tomllib.load(f)
+        pattern = (
+            data.get("tool", {})
+            .get("hatch", {})
+            .get("version", {})
+            .get("tag-pattern", "")
+        )
+        # Extract prefix before "v" from patterns like "git/v(?P<version>.*)"
+        m = re.match(r"^(.+?)v\(", pattern)
+        return m.group(1) if m else ""
+    except (OSError, tomllib.TOMLDecodeError):
+        return ""
+
+
+def _get_current_tag(path: Path, prefix: str = "") -> str | None:
+    """Return the latest semver tag or ``None``.
+
+    Args:
+        path: Repository root.
+        prefix: Tag prefix (e.g. ``"git/"``).  If empty, matches plain ``v*`` tags.
+    """
     result = run_git(["tag", "--sort=-v:refname"], path)
-    tags = [t for t in result.stdout.strip().splitlines() if t.startswith("v")]
+    full_prefix = f"{prefix}v"
+    tags = [t for t in result.stdout.strip().splitlines() if t.startswith(full_prefix)]
     return tags[0] if tags else None
 
 
@@ -100,6 +135,70 @@ def _verify_hatch_vcs(path: Path, pkg_name: str) -> str | None:
     return None
 
 
+def _preflight(
+    path: Path, *, tag_prefix: str = ""
+) -> ToolResult | tuple[str, str | None, list[str]]:
+    """Run preflight checks: repo, clean tree, CI, tag, commits.
+
+    Returns:
+        ``ToolResult`` on failure, or ``(ci_check, current_tag, commits)`` on success.
+    """
+    check = run_git(["rev-parse", "--git-dir"], path)
+    if check.returncode != 0:
+        return not_a_repo_error(check.stderr, path)
+
+    status = run_git(["status", "--short"], path)
+    if status.stdout.strip():
+        return ToolResult(
+            success=False,
+            error="Uncommitted changes — commit first",
+            data={"dirty_files": status.stdout.strip().splitlines()},
+        )
+
+    ci_check = _check_ci(path)
+    if ci_check == "red":
+        return ToolResult(
+            success=False,
+            error="CI is red — fix before tagging",
+            data={"ci_check": ci_check},
+        )
+
+    current_tag = _get_current_tag(path, prefix=tag_prefix)
+    commits = _get_commits_since(path, current_tag)
+
+    if not commits:
+        return ToolResult(
+            success=False,
+            error="No commits since last tag",
+            data={"current_tag": current_tag or "none"},
+        )
+
+    return ci_check, current_tag, commits
+
+
+def _resolve_version(
+    version_override: str | None,
+    current_tag: str | None,
+    commits: list[str],
+) -> tuple[str, str, bool]:
+    """Resolve the next version tag.
+
+    Returns:
+        ``(next_version, bump_type, breaking)``.
+    """
+    if version_override:
+        v = (
+            version_override
+            if version_override.startswith("v")
+            else f"v{version_override}"
+        )
+        return v, "override", False
+
+    base = current_tag or "v0.0.0"
+    bump_result = compute_bump(commits, base)
+    return bump_result.next, bump_result.bump, bump_result.breaking
+
+
 class GitTagTool(AXMTool):
     """Create a semver release tag in one call.
 
@@ -132,72 +231,42 @@ class GitTagTool(AXMTool):
             ToolResult with tag, version, and push status.
         """
         resolved = Path(path).resolve()
-        version_override = version
+        tag_prefix = _get_tag_prefix(resolved)
 
-        # 0. Fail fast with suggestions if not a git repo
-        check = run_git(["rev-parse", "--git-dir"], resolved)
-        if check.returncode != 0:
-            return not_a_repo_error(check.stderr, resolved)
+        # 1. Preflight: repo, clean tree, CI, commits
+        result = _preflight(resolved, tag_prefix=tag_prefix)
+        if isinstance(result, ToolResult):
+            return result
+        ci_check, current_tag, commits = result
 
-        # 1. Check clean tree
-        status = run_git(["status", "--short"], resolved)
-        if status.stdout.strip():
-            return ToolResult(
-                success=False,
-                error="Uncommitted changes — commit first",
-                data={"dirty_files": status.stdout.strip().splitlines()},
-            )
+        # 2. Compute version
+        next_version, bump_type, breaking = _resolve_version(
+            version, current_tag, commits
+        )
+        logger.info(
+            "Tagging %s (bump=%s, breaking=%s)",
+            next_version,
+            bump_type,
+            breaking,
+        )
 
-        # 2. Check CI
-        ci_check = _check_ci(resolved)
-        if ci_check == "red":
-            return ToolResult(
-                success=False,
-                error="CI is red — fix before tagging",
-                data={"ci_check": ci_check},
-            )
-
-        # 3. Get current tag & commits
-        current_tag = _get_current_tag(resolved)
-        commits = _get_commits_since(resolved, current_tag)
-
-        if not commits:
-            return ToolResult(
-                success=False,
-                error="No commits since last tag",
-                data={"current_tag": current_tag or "none"},
-            )
-
-        # 4. Compute version
-        if version_override:
-            next_version = version_override
-            if not next_version.startswith("v"):
-                next_version = f"v{next_version}"
-            bump_type = "override"
-            breaking = False
-        else:
-            base = current_tag or "v0.0.0"
-            bump_result = compute_bump(commits, base)
-            next_version = bump_result.next
-            bump_type = bump_result.bump
-            breaking = bump_result.breaking
-
-        # 5. Create annotated tag
-        tag_result = run_git(["tag", "-a", next_version, "-m", next_version], resolved)
+        # 3. Create annotated tag
+        full_tag = f"{tag_prefix}{next_version}"
+        tag_result = run_git(["tag", "-a", full_tag, "-m", full_tag], resolved)
         if tag_result.returncode != 0:
             return ToolResult(
                 success=False,
                 error=f"Failed to create tag: {tag_result.stderr.strip()}",
             )
 
-        # 6. Verify hatch-vcs (best-effort)
+        # 4. Verify hatch-vcs (best-effort)
         resolved_version = None
         pkg_name = detect_package_name(resolved)
         if pkg_name:
             resolved_version = _verify_hatch_vcs(resolved, pkg_name)
 
-        # 7. Push tag
-        push = run_git(["push", "origin", next_version], resolved)
+        # 5. Push tag
+        push = run_git(["push", "origin", full_tag], resolved)
 
         return ToolResult(
             success=True,
