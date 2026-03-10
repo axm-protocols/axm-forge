@@ -125,7 +125,10 @@ def gold_project(tmp_path: Path) -> Path:
         "version: 2\nupdates:\n  - package-ecosystem: pip\n"
     )
     (tmp_path / "README.md").write_text(
-        "# test-pkg\n\n**desc**\n\n---\n\n## Features\n\n"
+        "# test-pkg\n\n"
+        "[![axm-audit](https://img.shields.io/badge/axm--audit-A-green)](.)\n"
+        "[![axm-init](https://img.shields.io/badge/axm--init-A-green)](.)\n\n"
+        "**desc**\n\n---\n\n## Features\n\n"
         "## Installation\n\n## Quick Start\n\n## Development\n\n## License\n"
     )
     (tmp_path / "CONTRIBUTING.md").write_text("# Contributing\n")
