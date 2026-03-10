@@ -1,0 +1,57 @@
+repos:
+  # Ruff - linting and formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # MyPy - type checking (local hook uses project venv via uv)
+  - repo: local
+    hooks:
+      - id: mypy-ast
+        name: mypy (axm-ast)
+        entry: uv run --package axm-ast mypy --config-file packages/axm-ast/pyproject.toml
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [packages/axm-ast/src/, packages/axm-ast/tests/]
+      - id: mypy-audit
+        name: mypy (axm-audit)
+        entry: uv run --package axm-audit mypy --config-file packages/axm-audit/pyproject.toml
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [packages/axm-audit/src/, packages/axm-audit/tests/]
+      - id: mypy-init
+        name: mypy (axm-init)
+        entry: uv run --package axm-init mypy --config-file packages/axm-init/pyproject.toml
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [packages/axm-init/src/, packages/axm-init/tests/]
+      - id: mypy-git
+        name: mypy (axm-git)
+        entry: uv run --package axm-git mypy --config-file packages/axm-git/pyproject.toml
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [packages/axm-git/src/, packages/axm-git/tests/]
+
+  # Conventional commits
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.6.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+
+  # Basic checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-added-large-files
