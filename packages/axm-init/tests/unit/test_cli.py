@@ -645,10 +645,11 @@ class TestScaffoldPyPIJsonError:
 class TestReserveJsonSuccess:
     """Cover reserve command JSON output for success path."""
 
+    @patch("axm_init.cli._git_config_get", return_value="test-value")
     @patch("axm_init.core.reserver.reserve_pypi")
     @patch("axm_init.adapters.credentials.CredentialManager")
     def test_reserve_json_success(
-        self, mock_creds: MagicMock, mock_reserve: MagicMock
+        self, mock_creds: MagicMock, mock_reserve: MagicMock, _mock_git: MagicMock
     ) -> None:
         """--json with successful reserve outputs JSON with success=true."""
         mock_creds.return_value.get_pypi_token.return_value = "tok"
@@ -663,10 +664,11 @@ class TestReserveJsonSuccess:
         data = json.loads(stdout)
         assert data["success"] is True
 
+    @patch("axm_init.cli._git_config_get", return_value="test-value")
     @patch("axm_init.core.reserver.reserve_pypi")
     @patch("axm_init.adapters.credentials.CredentialManager")
     def test_reserve_json_failure(
-        self, mock_creds: MagicMock, mock_reserve: MagicMock
+        self, mock_creds: MagicMock, mock_reserve: MagicMock, _mock_git: MagicMock
     ) -> None:
         """--json with failed reserve outputs JSON with success=false."""
         mock_creds.return_value.get_pypi_token.return_value = "tok"
@@ -722,10 +724,11 @@ class TestReserveCommand:
         _, _, code = _run("reserve", "test-pkg")
         assert code == 1
 
+    @patch("axm_init.cli._git_config_get", return_value="test-value")
     @patch("axm_init.core.reserver.reserve_pypi")
     @patch("axm_init.adapters.credentials.CredentialManager")
     def test_reserve_dry_run_succeeds(
-        self, mock_cred_cls: MagicMock, mock_reserve: MagicMock
+        self, mock_cred_cls: MagicMock, mock_reserve: MagicMock, _mock_git: MagicMock
     ) -> None:
         """--dry-run skips resolve_pypi_token and succeeds."""
         mock_creds = mock_cred_cls.return_value
