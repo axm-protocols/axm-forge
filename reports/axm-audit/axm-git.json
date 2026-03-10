@@ -1,8 +1,8 @@
 {
-  "score": 88.6,
-  "grade": "B",
+  "score": 92.0,
+  "grade": "A",
   "total": 24,
-  "failed": 4,
+  "failed": 3,
   "success": false,
   "checks": [
     {
@@ -26,11 +26,11 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 0 modules above threshold (max fan-out: 7)",
+      "message": "Coupling: 0 modules above threshold (max fan-out: 10)",
       "details": {
-        "max_fan_out": 7,
+        "max_fan_out": 10,
         "max_fan_in": 10,
-        "avg_coupling": 3.92,
+        "avg_coupling": 4.33,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -48,37 +48,27 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 70/100 (3 high-complexity functions)",
+      "passed": true,
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
       "details": {
-        "high_complexity_count": 3,
+        "high_complexity_count": 1,
         "top_offenders": [
-          {
-            "file": "tag.py",
-            "function": "GitTagTool.execute",
-            "cc": 12
-          },
-          {
-            "file": "semver.py",
-            "function": "compute_bump",
-            "cc": 10
-          },
           {
             "file": "commit.py",
             "function": "GitCommitTool.execute",
             "cc": 10
           }
         ],
-        "score": 70
+        "score": 90
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 97% (97/100)",
+      "message": "Test coverage: 96% (95/100)",
       "details": {
-        "coverage": 97.06362153344209,
-        "score": 97,
+        "coverage": 95.83333333333333,
+        "score": 95,
         "failures": []
       }
     },
@@ -176,13 +166,12 @@
     {
       "rule_id": "PRACTICE_LOGGING",
       "passed": false,
-      "message": "Logging coverage: 0% (0/2)",
+      "message": "Logging coverage: 67% (2/3)",
       "details": {
         "without_logging": [
-          "axm_git/core/runner.py",
-          "axm_git/tools/tag.py"
+          "axm_git/core/semver.py"
         ],
-        "score": 0
+        "score": 66
       }
     },
     {
@@ -222,35 +211,35 @@
             "code": "B404",
             "message": "Consider possible security implications associated with the subprocess module.",
             "file": "runner.py",
-            "line": 6
+            "line": 7
           },
           {
             "severity": "LOW",
             "code": "B404",
             "message": "Consider possible security implications associated with the subprocess module.",
             "file": "tag.py",
-            "line": 6
+            "line": 8
           },
           {
             "severity": "LOW",
             "code": "B607",
             "message": "Starting a process with a partial executable path",
             "file": "runner.py",
-            "line": 40
+            "line": 43
           },
           {
             "severity": "LOW",
             "code": "B603",
             "message": "subprocess call - check for execution of untrusted input.",
             "file": "runner.py",
-            "line": 40
+            "line": 43
           },
           {
             "severity": "LOW",
             "code": "B607",
             "message": "Starting a process with a partial executable path",
             "file": "runner.py",
-            "line": 51
+            "line": 54
           }
         ]
       }

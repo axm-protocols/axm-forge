@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-git",
-  "score": 91,
+  "score": 96,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
@@ -19,11 +19,11 @@
       "total": 5
     },
     "docs": {
-      "earned": 11,
+      "earned": 14,
       "total": 14
     },
     "pyproject": {
-      "earned": 25,
+      "earned": 27,
       "total": 27
     },
     "structure": {
@@ -143,10 +143,10 @@
     {
       "name": "docs.plugins",
       "category": "docs",
-      "passed": false,
-      "earned": 0,
+      "passed": true,
+      "earned": 3,
       "weight": 3,
-      "message": "Missing 3 plugin(s)"
+      "message": "All plugins configured"
     },
     {
       "name": "docs.mkdocs_exists",
@@ -223,10 +223,10 @@
     {
       "name": "pyproject.ruff_rules",
       "category": "pyproject",
-      "passed": false,
-      "earned": 0,
+      "passed": true,
+      "earned": 2,
       "weight": 2,
-      "message": "Missing 2 essential ruff rule(s)"
+      "message": "Essential ruff rules activated"
     },
     {
       "name": "pyproject.urls",
@@ -358,24 +358,6 @@
         "CI should upload coverage to Coveralls or Codecov"
       ],
       "fix": "Add coverallsapp/github-action or codecov/codecov-action step."
-    },
-    {
-      "name": "docs.plugins",
-      "weight": 3,
-      "message": "Missing 3 plugin(s)",
-      "details": [
-        "Missing: gen-files, literate-nav, mkdocstrings"
-      ],
-      "fix": "Add gen-files, literate-nav, mkdocstrings to mkdocs.yml plugins."
-    },
-    {
-      "name": "pyproject.ruff_rules",
-      "weight": 2,
-      "message": "Missing 2 essential ruff rule(s)",
-      "details": [
-        "Missing: BLE, PLR"
-      ],
-      "fix": "Add BLE, PLR to [tool.ruff.lint] select."
     },
     {
       "name": "tooling.precommit_installed",
