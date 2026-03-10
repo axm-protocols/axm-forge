@@ -110,7 +110,14 @@
     border-radius: 6px;
 }
 
-/* ── Mermaid: force le texte blanc dans les nœuds colorés ── */
-.mermaid .node .nodeLabel {
+/* ── Mermaid: force le texte blanc dans les nœuds colorés (mode clair) ── */
+[data-md-color-scheme="default"] .mermaid .node .nodeLabel,
+[data-md-color-scheme="default"] .mermaid .node .label div,
+[data-md-color-scheme="default"] .mermaid .node .label span {
     color: #ffffff !important;
+}
+
+[data-md-color-scheme="default"] .mermaid .node text,
+[data-md-color-scheme="default"] .mermaid .node tspan {
+    fill: #ffffff !important;
 }
