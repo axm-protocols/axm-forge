@@ -388,60 +388,62 @@ class TestTemplateAxmBadge:
 
 
 class TestTemplateAxmWorkflow:
-    """Template must include axm-init check workflow."""
+    """Template must include axm-quality workflow with axm-init check."""
 
     def test_axm_workflow_exists(self) -> None:
-        """axm-init.yml.jinja must exist in .github/workflows/."""
-        assert (TEMPLATE_ROOT / ".github" / "workflows" / "axm-init.yml.jinja").exists()
+        """axm-quality.yml.jinja must exist in .github/workflows/."""
+        assert (
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
+        ).exists()
 
     def test_axm_workflow_has_check_step(self) -> None:
         """Workflow must run axm-init check via uvx."""
         wf = (
-            TEMPLATE_ROOT / ".github" / "workflows" / "axm-init.yml.jinja"
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
         ).read_text()
         assert "uvx axm-init check" in wf
 
     def test_axm_workflow_has_badge_push(self) -> None:
         """Workflow must push badge to gh-pages."""
         wf = (
-            TEMPLATE_ROOT / ".github" / "workflows" / "axm-init.yml.jinja"
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
         ).read_text()
         assert "peaceiris/actions-gh-pages" in wf
 
     def test_axm_workflow_fetches_logo(self) -> None:
         """Workflow must fetch logo from axm-protocols/axm-init repo."""
         wf = (
-            TEMPLATE_ROOT / ".github" / "workflows" / "axm-init.yml.jinja"
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
         ).read_text()
         assert "axm-protocols/axm-init" in wf
 
 
 class TestTemplateAxmAuditWorkflow:
-    """Template must include axm-audit quality workflow."""
+    """Template must include axm-audit steps in axm-quality workflow."""
 
     def test_axm_audit_workflow_exists(self) -> None:
-        """axm-audit.yml.jinja must exist in .github/workflows/."""
+        """axm-quality.yml.jinja must exist in .github/workflows/."""
         assert (
-            TEMPLATE_ROOT / ".github" / "workflows" / "axm-audit.yml.jinja"
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
         ).exists()
 
     def test_axm_audit_workflow_has_audit_step(self) -> None:
         """Workflow must run axm-audit via uvx."""
         wf = (
-            TEMPLATE_ROOT / ".github" / "workflows" / "axm-audit.yml.jinja"
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
         ).read_text()
         assert "uvx axm-audit audit" in wf
 
     def test_axm_audit_workflow_has_badge_push(self) -> None:
         """Workflow must push badge to gh-pages."""
         wf = (
-            TEMPLATE_ROOT / ".github" / "workflows" / "axm-audit.yml.jinja"
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
         ).read_text()
         assert "peaceiris/actions-gh-pages" in wf
 
     def test_axm_audit_workflow_fetches_logo(self) -> None:
         """Workflow must fetch logo from axm-protocols/axm-audit repo."""
         wf = (
-            TEMPLATE_ROOT / ".github" / "workflows" / "axm-audit.yml.jinja"
+            TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
         ).read_text()
         assert "axm-protocols/axm-audit" in wf
