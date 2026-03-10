@@ -1,30 +1,22 @@
----
-hide:
-  - navigation
-  - toc
----
-
 <p align="center">
-  <strong>axm-audit</strong>
+  <img src="https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.png" alt="AXM Logo" width="140" />
 </p>
 
-<p align="center">
-  <em>Code auditing and quality rules for Python projects.</em>
-</p>
+<h1 align="center">axm-audit</h1>
+<p align="center"><strong>Code auditing and quality rules for Python projects.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/axm-protocols/axm-audit/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-audit/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://axm-protocols.github.io/axm-init/explanation/check-grades/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-audit/gh-pages/badges/axm-init.json" alt="axm-init" /></a>
-  <a href="https://axm-protocols.github.io/axm-audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-audit/gh-pages/badges/axm-audit.json" alt="axm-audit" /></a>
-  <a href="https://coveralls.io/github/axm-protocols/axm-audit?branch=main"><img src="https://coveralls.io/repos/github/axm-protocols/axm-audit/badge.svg?branch=main" alt="Coverage" /></a>
-  <a href="https://pypi.org/project/axm-audit/"><img src="https://img.shields.io/pypi/v/axm-audit" alt="PyPI" /></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-audit/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-audit/axm-init.json" alt="axm-init"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-audit/coverage.json" alt="Coverage"></a>
+  <a href="https://pypi.org/project/axm-audit/"><img src="https://img.shields.io/pypi/v/axm-audit" alt="PyPI"></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+" />
-  <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License" />
 </p>
 
 ---
 
-## What is axm-audit?
+## What it does
 
 `axm-audit` is a Python library and CLI that audits project quality across 10 scored categories, producing a composite 0–100 score:
 
@@ -72,7 +64,16 @@ print(f"Grade: {result.grade} — {result.quality_score:.1f}/100")
 - 🔧 **Tooling** — CLI tool availability checks
 - ⚡ **Fast & Typed** — Direct Python APIs, strict mypy, 429 tests, 93% coverage
 
----
+## Learn More
 
-[Get Started →](tutorials/getting-started.md){ .md-button .md-button--primary }
-[API Reference](reference/api/){ .md-button }
+- [Getting Started Tutorial](tutorials/getting-started.md)
+- [Run an Audit](howto/audit.md)
+- [Audit Categories](howto/categories.md)
+- [CI Badge](howto/ci-badge.md)
+- [Custom Rules](howto/custom-rules.md)
+- [Use via MCP](howto/mcp.md)
+- [Read Results](howto/results.md)
+- [Troubleshooting](howto/troubleshooting.md)
+- [Architecture](explanation/architecture.md)
+- [Scoring](explanation/scoring.md)
+- [Glossary](explanation/glossary.md)

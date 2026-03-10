@@ -1,29 +1,24 @@
----
-hide:
-  - navigation
-  - toc
----
-
-# axm-git
-
 <p align="center">
-  <strong>Deterministic Git workflows for AI agents</strong>
+  <img src="https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.png" alt="AXM Logo" width="140" />
 </p>
 
+<h1 align="center">axm-git</h1>
+<p align="center"><strong>Deterministic Git workflows for AI agents.</strong></p>
+
 <p align="center">
-  <a href="https://github.com/axm-protocols/axm-git/actions/workflows/ci.yml">
-    <img src="https://github.com/axm-protocols/axm-git/actions/workflows/ci.yml/badge.svg" alt="CI" />
-  </a>
-  <a href="https://coveralls.io/github/axm-protocols/axm-git?branch=main">
-    <img src="https://coveralls.io/repos/github/axm-protocols/axm-git/badge.svg?branch=main" alt="Coverage" />
-  </a>
-  <a href="https://pypi.org/project/axm-git/">
-    <img src="https://img.shields.io/pypi/v/axm-git" alt="PyPI" />
-  </a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-git/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-git/axm-init.json" alt="axm-init"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-git/coverage.json" alt="Coverage"></a>
+  <a href="https://pypi.org/project/axm-git/"><img src="https://img.shields.io/pypi/v/axm-git" alt="PyPI"></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+" />
 </p>
 
 ---
+
+## What it does
+
+`axm-git` provides deterministic, structured Git operations designed for AI agents. Instead of parsing raw `git` CLI output, agents get typed JSON responses with clear success/failure semantics and automatic retry on pre-commit hook fixes.
 
 ## Features
 
@@ -66,9 +61,8 @@ git_push(path="/path/to/repo")
 # → {branch: "main", remote: "origin", pushed: true}
 ```
 
----
+## Learn More
 
-<div style="text-align: center; margin: 2rem 0;">
-  <a href="tutorials/getting-started/" class="md-button md-button--primary">Get Started →</a>
-  <a href="reference/api/" class="md-button">API Reference</a>
-</div>
+- [Getting Started Tutorial](tutorials/getting-started.md)
+- [Architecture](explanation/architecture.md)
+- [CLI Reference](reference/cli.md)

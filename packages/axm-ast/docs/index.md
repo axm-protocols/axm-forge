@@ -1,27 +1,22 @@
----
-hide:
-  - navigation
-  - toc
----
-
-# axm-ast
-
 <p align="center">
-  <strong>Python AST introspection CLI for AI agents, powered by tree-sitter.</strong>
+  <img src="https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.png" alt="AXM Logo" width="140" />
 </p>
 
+<h1 align="center">axm-ast</h1>
+<p align="center"><strong>Python AST introspection CLI for AI agents, powered by tree-sitter.</strong></p>
+
 <p align="center">
-  <a href="https://github.com/axm-protocols/axm-ast/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-ast/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://axm-protocols.github.io/axm-init/explanation/check-grades/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-ast/gh-pages/badges/axm-init.json" alt="axm-init" /></a>
-  <a href="https://axm-protocols.github.io/axm-audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-ast/gh-pages/badges/axm-audit.json" alt="axm-audit" /></a>
-  <a href="https://coveralls.io/github/axm-protocols/axm-ast?branch=main"><img src="https://coveralls.io/repos/github/axm-protocols/axm-ast/badge.svg?branch=main" alt="Coverage" /></a>
-  <a href="https://pypi.org/project/axm-ast/"><img src="https://img.shields.io/pypi/v/axm-ast" alt="PyPI" /></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ast/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ast/axm-init.json" alt="axm-init"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ast/coverage.json" alt="Coverage"></a>
+  <a href="https://pypi.org/project/axm-ast/"><img src="https://img.shields.io/pypi/v/axm-ast" alt="PyPI"></a>
   <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+" />
 </p>
 
 ---
 
-## What is axm-ast?
+## What it does
 
 `axm-ast` gives AI agents (and humans) instant, structured access to any Python codebase. One command and your agent knows every function, class, import, and dependency — no manual exploration needed.
 
@@ -59,9 +54,13 @@ $ axm-ast context src/mylib
 - ⭐ **Rank** — PageRank-based symbol importance scoring
 - 📄 **Stub** — `.pyi`-like stub generation
 
----
+## Learn More
 
-<div style="text-align: center; margin: 2rem 0;">
-  <a href="tutorials/quickstart/" class="md-button md-button--primary">Get Started →</a>
-  <a href="reference/cli/" class="md-button">CLI Reference</a>
-</div>
+- [Quick Start Tutorial](tutorials/quickstart.md)
+- [Describe a Package](howto/describe.md)
+- [Analyze Change Impact](howto/impact.md)
+- [Use in CI](howto/ci.md)
+- [Use via MCP](howto/mcp.md)
+- [Architecture](explanation/architecture.md)
+- [Output Formats](explanation/formats.md)
+- [CLI Reference](reference/cli.md)

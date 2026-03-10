@@ -7,8 +7,8 @@ copyright: Copyright &copy; 2026 axm-protocols
 
 theme:
   name: material
-  logo: docs/assets/logo.svg
-  favicon: docs/assets/logo.svg
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   palette:
     # Light mode
     - media: "(prefers-color-scheme: light)"
@@ -43,7 +43,7 @@ theme:
     repo: fontawesome/brands/github
 
 extra_css:
-  - docs/assets/custom.css
+  - assets/custom.css
 
 nav:
   - Home:

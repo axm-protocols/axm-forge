@@ -8,7 +8,7 @@ nav:
   - How-To Guides:
     - Describe a Package: howto/describe.md
     - Analyze Change Impact: howto/impact.md
-    - Use in CI: howto/ci.md
+
     - Use via MCP: howto/mcp.md
   - Reference:
     - CLI: reference/cli.md
