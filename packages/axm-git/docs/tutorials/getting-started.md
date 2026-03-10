@@ -83,8 +83,9 @@ from axm_git.tools.tag import GitTagTool
 
 result = GitTagTool().execute(path="/path/to/repo")
 print(result.data)
-# {"tag": "v0.2.0", "previous": "v0.1.0", "bump": "minor",
-#  "reason": "feat: add foo module", "pushed": True}
+# {"tag": "v0.2.0", "bump": "minor", "breaking": False,
+#  "current_tag": "v0.1.0", "commits_included": 3,
+#  "pushed": True, "ci_check": "green"}
 ```
 
 The tool automatically:
