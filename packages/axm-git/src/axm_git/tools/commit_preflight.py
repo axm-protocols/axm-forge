@@ -11,6 +11,8 @@ from axm_git.core.runner import not_a_repo_error, run_git
 
 __all__ = ["GitPreflightTool"]
 
+_MIN_STATUS_LINE_LEN = 4  # git porcelain format: "XY filename"
+
 
 class GitPreflightTool(AXMTool):
     """Report working tree changes so the agent can plan commits.
@@ -50,7 +52,7 @@ class GitPreflightTool(AXMTool):
 
         files = []
         for line in status.stdout.splitlines():
-            if len(line) < 4:
+            if len(line) < _MIN_STATUS_LINE_LEN:
                 continue
             code = line[:2].strip()
             filepath = line[3:]

@@ -50,6 +50,49 @@ def parse_tag(tag: str) -> tuple[int, int, int]:
     return int(m.group(1)), int(m.group(2)), int(m.group(3))
 
 
+def _classify_commits(
+    commits: list[str],
+) -> tuple[bool, bool]:
+    """Scan commits for breaking changes and features.
+
+    Returns:
+        ``(has_breaking, has_feat)``.
+    """
+    has_breaking = False
+    has_feat = False
+    for commit in commits:
+        msg = commit.split(" ", 1)[1] if " " in commit else commit
+        if _BREAKING_RE.match(msg) or "BREAKING CHANGE:" in msg:
+            has_breaking = True
+        elif _FEAT_RE.match(msg):
+            has_feat = True
+    return has_breaking, has_feat
+
+
+def _next_version(
+    major: int, minor: int, patch: int, *, has_breaking: bool, has_feat: bool
+) -> tuple[str, str]:
+    """Compute bump type and next version string.
+
+    Returns:
+        ``(bump, next_version)``.
+    """
+    if has_breaking:
+        bump = "major" if major > 0 else "minor"
+    elif has_feat:
+        bump = "minor"
+    else:
+        bump = "patch"
+
+    match bump:
+        case "major":
+            return bump, f"v{major + 1}.0.0"
+        case "minor":
+            return bump, f"v{major}.{minor + 1}.0"
+        case _:
+            return bump, f"v{major}.{minor}.{patch + 1}"
+
+
 def compute_bump(commits: list[str], current_tag: str) -> VersionBump:
     """Compute the next semver version from commit messages.
 
@@ -71,35 +114,10 @@ def compute_bump(commits: list[str], current_tag: str) -> VersionBump:
         VersionBump with computed next version.
     """
     major, minor, patch = parse_tag(current_tag)
-
-    has_breaking = False
-    has_feat = False
-
-    for commit in commits:
-        # Strip leading hash if present (e.g. "abc1234 feat: ...")
-        msg = commit.split(" ", 1)[1] if " " in commit else commit
-
-        if _BREAKING_RE.match(msg) or "BREAKING CHANGE:" in msg:
-            has_breaking = True
-        elif _FEAT_RE.match(msg):
-            has_feat = True
-
-    if has_breaking:
-        if major == 0:
-            bump = "minor"
-            next_version = f"v0.{minor + 1}.0"
-        else:
-            bump = "major"
-            next_version = f"v{major + 1}.0.0"
-    elif has_feat:
-        bump = "minor"
-        if major == 0:
-            next_version = f"v0.{minor + 1}.0"
-        else:
-            next_version = f"v{major}.{minor + 1}.0"
-    else:
-        bump = "patch"
-        next_version = f"v{major}.{minor}.{patch + 1}"
+    has_breaking, has_feat = _classify_commits(commits)
+    bump, next_version = _next_version(
+        major, minor, patch, has_breaking=has_breaking, has_feat=has_feat
+    )
 
     return VersionBump(
         current=current_tag,

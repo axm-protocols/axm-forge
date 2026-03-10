@@ -11,13 +11,19 @@ from axm_git.core.runner import not_a_repo_error, run_git
 
 __all__ = ["GitPushTool"]
 
+_MIN_STATUS_LINE_LEN = 4  # git porcelain format: "XY filename"
+
 
 def _check_dirty(resolved: Path) -> ToolResult | None:
     """Return a failure ToolResult if the tree is dirty, else None."""
     status = run_git(["status", "--porcelain"], resolved)
     if status.returncode != 0:
         return ToolResult(success=False, error=status.stderr.strip())
-    dirty_files = [line[3:] for line in status.stdout.splitlines() if len(line) >= 4]
+    dirty_files = [
+        line[3:]
+        for line in status.stdout.splitlines()
+        if len(line) >= _MIN_STATUS_LINE_LEN
+    ]
     if dirty_files:
         return ToolResult(
             success=False,
