@@ -1,0 +1,390 @@
+{
+  "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-git",
+  "score": 91,
+  "grade": "A",
+  "context": "member",
+  "workspace_root": "/home/runner/work/axm-forge/axm-forge",
+  "excluded_checks": [],
+  "categories": {
+    "changelog": {
+      "earned": 5,
+      "total": 5
+    },
+    "ci": {
+      "earned": 16,
+      "total": 18
+    },
+    "deps": {
+      "earned": 5,
+      "total": 5
+    },
+    "docs": {
+      "earned": 11,
+      "total": 14
+    },
+    "pyproject": {
+      "earned": 25,
+      "total": 27
+    },
+    "structure": {
+      "earned": 17,
+      "total": 17
+    },
+    "tooling": {
+      "earned": 14,
+      "total": 16
+    }
+  },
+  "checks": [
+    {
+      "name": "changelog.gitcliff",
+      "category": "changelog",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "git-cliff configured"
+    },
+    {
+      "name": "changelog.no_manual",
+      "category": "changelog",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "No manual CHANGELOG.md"
+    },
+    {
+      "name": "ci.coverage_upload",
+      "category": "ci",
+      "passed": false,
+      "earned": 0,
+      "weight": 2,
+      "message": "No coverage upload in CI"
+    },
+    {
+      "name": "ci.lint_job",
+      "category": "ci",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Lint job present"
+    },
+    {
+      "name": "ci.security_job",
+      "category": "ci",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Security audit job present"
+    },
+    {
+      "name": "ci.test_job",
+      "category": "ci",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Test job present"
+    },
+    {
+      "name": "ci.workflow_exists",
+      "category": "ci",
+      "passed": true,
+      "earned": 4,
+      "weight": 4,
+      "message": "CI workflow found"
+    },
+    {
+      "name": "ci.dependabot",
+      "category": "ci",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Dependabot configured"
+    },
+    {
+      "name": "ci.trusted_publishing",
+      "category": "ci",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Trusted Publishing (OIDC) configured"
+    },
+    {
+      "name": "deps.dev_group",
+      "category": "deps",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Dev deps complete"
+    },
+    {
+      "name": "deps.docs_group",
+      "category": "deps",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Docs deps complete"
+    },
+    {
+      "name": "docs.diataxis_nav",
+      "category": "docs",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Full Di\u00e1taxis nav structure"
+    },
+    {
+      "name": "docs.gen_ref_pages",
+      "category": "docs",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "gen_ref_pages.py found"
+    },
+    {
+      "name": "docs.plugins",
+      "category": "docs",
+      "passed": false,
+      "earned": 0,
+      "weight": 3,
+      "message": "Missing 3 plugin(s)"
+    },
+    {
+      "name": "docs.mkdocs_exists",
+      "category": "docs",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "mkdocs.yml found"
+    },
+    {
+      "name": "docs.readme",
+      "category": "docs",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "README follows standard"
+    },
+    {
+      "name": "pyproject.classifiers",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 1,
+      "weight": 1,
+      "message": "Required classifiers present"
+    },
+    {
+      "name": "pyproject.coverage",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 4,
+      "weight": 4,
+      "message": "Coverage fully configured"
+    },
+    {
+      "name": "pyproject.dynamic_version",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Dynamic version with hatch-vcs"
+    },
+    {
+      "name": "pyproject.exists",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 4,
+      "weight": 4,
+      "message": "pyproject.toml found"
+    },
+    {
+      "name": "pyproject.mypy",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "MyPy fully configured"
+    },
+    {
+      "name": "pyproject.pytest",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 4,
+      "weight": 4,
+      "message": "Pytest fully configured"
+    },
+    {
+      "name": "pyproject.ruff",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Ruff fully configured"
+    },
+    {
+      "name": "pyproject.ruff_rules",
+      "category": "pyproject",
+      "passed": false,
+      "earned": 0,
+      "weight": 2,
+      "message": "Missing 2 essential ruff rule(s)"
+    },
+    {
+      "name": "pyproject.urls",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "All 4 URLs present"
+    },
+    {
+      "name": "structure.contributing",
+      "category": "structure",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "CONTRIBUTING.md found"
+    },
+    {
+      "name": "structure.license",
+      "category": "structure",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "LICENSE file found"
+    },
+    {
+      "name": "structure.py_typed",
+      "category": "structure",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "py.typed marker found"
+    },
+    {
+      "name": "structure.python_version",
+      "category": "structure",
+      "passed": true,
+      "earned": 1,
+      "weight": 1,
+      "message": ".python-version found"
+    },
+    {
+      "name": "structure.src_layout",
+      "category": "structure",
+      "passed": true,
+      "earned": 4,
+      "weight": 4,
+      "message": "src/ layout with 1 package(s)"
+    },
+    {
+      "name": "structure.tests_dir",
+      "category": "structure",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "14 test file(s) found"
+    },
+    {
+      "name": "structure.uv_lock",
+      "category": "structure",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "uv.lock found (workspace root)"
+    },
+    {
+      "name": "tooling.makefile",
+      "category": "tooling",
+      "passed": true,
+      "earned": 4,
+      "weight": 4,
+      "message": "Makefile complete"
+    },
+    {
+      "name": "tooling.precommit_basic",
+      "category": "tooling",
+      "passed": true,
+      "earned": 1,
+      "weight": 1,
+      "message": "Basic hooks present"
+    },
+    {
+      "name": "tooling.precommit_conventional",
+      "category": "tooling",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Conventional commits hook present"
+    },
+    {
+      "name": "tooling.precommit_exists",
+      "category": "tooling",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": ".pre-commit-config.yaml found"
+    },
+    {
+      "name": "tooling.precommit_installed",
+      "category": "tooling",
+      "passed": false,
+      "earned": 0,
+      "weight": 2,
+      "message": "Pre-commit hooks not installed"
+    },
+    {
+      "name": "tooling.precommit_mypy",
+      "category": "tooling",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "MyPy hook present"
+    },
+    {
+      "name": "tooling.precommit_ruff",
+      "category": "tooling",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Ruff hook present"
+    }
+  ],
+  "failures": [
+    {
+      "name": "ci.coverage_upload",
+      "weight": 2,
+      "message": "No coverage upload in CI",
+      "details": [
+        "CI should upload coverage to Coveralls or Codecov"
+      ],
+      "fix": "Add coverallsapp/github-action or codecov/codecov-action step."
+    },
+    {
+      "name": "docs.plugins",
+      "weight": 3,
+      "message": "Missing 3 plugin(s)",
+      "details": [
+        "Missing: gen-files, literate-nav, mkdocstrings"
+      ],
+      "fix": "Add gen-files, literate-nav, mkdocstrings to mkdocs.yml plugins."
+    },
+    {
+      "name": "pyproject.ruff_rules",
+      "weight": 2,
+      "message": "Missing 2 essential ruff rule(s)",
+      "details": [
+        "Missing: BLE, PLR"
+      ],
+      "fix": "Add BLE, PLR to [tool.ruff.lint] select."
+    },
+    {
+      "name": "tooling.precommit_installed",
+      "weight": 2,
+      "message": "Pre-commit hooks not installed",
+      "details": [
+        ".pre-commit-config.yaml exists but hooks are not activated"
+      ],
+      "fix": "Run 'pre-commit install' to activate hooks."
+    }
+  ]
+}

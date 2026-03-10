@@ -1,0 +1,301 @@
+{
+  "project": "/home/runner/work/axm-forge/axm-forge",
+  "score": 90,
+  "grade": "A",
+  "context": "workspace",
+  "workspace_root": null,
+  "excluded_checks": [],
+  "categories": {
+    "changelog": {
+      "earned": 2,
+      "total": 2
+    },
+    "ci": {
+      "earned": 16,
+      "total": 18
+    },
+    "docs": {
+      "earned": 8,
+      "total": 11
+    },
+    "pyproject": {
+      "earned": 4,
+      "total": 4
+    },
+    "structure": {
+      "earned": 8,
+      "total": 8
+    },
+    "tooling": {
+      "earned": 14,
+      "total": 16
+    },
+    "workspace": {
+      "earned": 10,
+      "total": 10
+    }
+  },
+  "checks": [
+    {
+      "name": "changelog.no_manual",
+      "category": "changelog",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "No manual CHANGELOG.md"
+    },
+    {
+      "name": "ci.coverage_upload",
+      "category": "ci",
+      "passed": false,
+      "earned": 0,
+      "weight": 2,
+      "message": "No coverage upload in CI"
+    },
+    {
+      "name": "ci.lint_job",
+      "category": "ci",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Lint job present"
+    },
+    {
+      "name": "ci.security_job",
+      "category": "ci",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Security audit job present"
+    },
+    {
+      "name": "ci.test_job",
+      "category": "ci",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Test job present"
+    },
+    {
+      "name": "ci.workflow_exists",
+      "category": "ci",
+      "passed": true,
+      "earned": 4,
+      "weight": 4,
+      "message": "CI workflow found"
+    },
+    {
+      "name": "ci.dependabot",
+      "category": "ci",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Dependabot configured"
+    },
+    {
+      "name": "ci.trusted_publishing",
+      "category": "ci",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Trusted Publishing (OIDC) configured"
+    },
+    {
+      "name": "docs.gen_ref_pages",
+      "category": "docs",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "gen_ref_pages.py found"
+    },
+    {
+      "name": "docs.plugins",
+      "category": "docs",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "All plugins configured"
+    },
+    {
+      "name": "docs.mkdocs_exists",
+      "category": "docs",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "mkdocs.yml found"
+    },
+    {
+      "name": "docs.readme",
+      "category": "docs",
+      "passed": false,
+      "earned": 0,
+      "weight": 3,
+      "message": "README missing 2 section(s)"
+    },
+    {
+      "name": "pyproject.exists",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 4,
+      "weight": 4,
+      "message": "pyproject.toml found"
+    },
+    {
+      "name": "structure.contributing",
+      "category": "structure",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "CONTRIBUTING.md found"
+    },
+    {
+      "name": "structure.license",
+      "category": "structure",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "LICENSE file found"
+    },
+    {
+      "name": "structure.python_version",
+      "category": "structure",
+      "passed": true,
+      "earned": 1,
+      "weight": 1,
+      "message": ".python-version found"
+    },
+    {
+      "name": "structure.uv_lock",
+      "category": "structure",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "uv.lock found"
+    },
+    {
+      "name": "tooling.makefile",
+      "category": "tooling",
+      "passed": true,
+      "earned": 4,
+      "weight": 4,
+      "message": "Makefile complete"
+    },
+    {
+      "name": "tooling.precommit_basic",
+      "category": "tooling",
+      "passed": true,
+      "earned": 1,
+      "weight": 1,
+      "message": "Basic hooks present"
+    },
+    {
+      "name": "tooling.precommit_conventional",
+      "category": "tooling",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Conventional commits hook present"
+    },
+    {
+      "name": "tooling.precommit_exists",
+      "category": "tooling",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": ".pre-commit-config.yaml found"
+    },
+    {
+      "name": "tooling.precommit_installed",
+      "category": "tooling",
+      "passed": false,
+      "earned": 0,
+      "weight": 2,
+      "message": "Pre-commit hooks not installed"
+    },
+    {
+      "name": "tooling.precommit_mypy",
+      "category": "tooling",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "MyPy hook present"
+    },
+    {
+      "name": "tooling.precommit_ruff",
+      "category": "tooling",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Ruff hook present"
+    },
+    {
+      "name": "workspace.matrix_packages",
+      "category": "workspace",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "CI uses --package strategy"
+    },
+    {
+      "name": "workspace.members_consistent",
+      "category": "workspace",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "4 member(s) consistent"
+    },
+    {
+      "name": "workspace.monorepo_plugin",
+      "category": "workspace",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "monorepo plugin configured"
+    },
+    {
+      "name": "workspace.packages_layout",
+      "category": "workspace",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "4 member(s) in packages/"
+    },
+    {
+      "name": "workspace.requires_python_compat",
+      "category": "workspace",
+      "passed": true,
+      "earned": 1,
+      "weight": 1,
+      "message": "All members: >=3.12"
+    }
+  ],
+  "failures": [
+    {
+      "name": "ci.coverage_upload",
+      "weight": 2,
+      "message": "No coverage upload in CI",
+      "details": [
+        "CI should upload coverage to Coveralls or Codecov"
+      ],
+      "fix": "Add coverallsapp/github-action or codecov/codecov-action step."
+    },
+    {
+      "name": "docs.readme",
+      "weight": 3,
+      "message": "README missing 2 section(s)",
+      "details": [
+        "Missing: Features, Installation"
+      ],
+      "fix": "Add Features, Installation section(s) to README.md."
+    },
+    {
+      "name": "tooling.precommit_installed",
+      "weight": 2,
+      "message": "Pre-commit hooks not installed",
+      "details": [
+        ".pre-commit-config.yaml exists but hooks are not activated"
+      ],
+      "fix": "Run 'pre-commit install' to activate hooks."
+    }
+  ]
+}

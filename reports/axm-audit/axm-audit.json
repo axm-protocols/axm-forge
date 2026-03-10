@@ -1,0 +1,277 @@
+{
+  "score": 93.8,
+  "grade": "A",
+  "total": 24,
+  "failed": 2,
+  "success": false,
+  "checks": [
+    {
+      "rule_id": "ARCH_CIRCULAR",
+      "passed": true,
+      "message": "0 circular import(s) found",
+      "details": {
+        "cycles": [],
+        "score": 100
+      }
+    },
+    {
+      "rule_id": "ARCH_GOD_CLASS",
+      "passed": true,
+      "message": "0 god class(es) found",
+      "details": {
+        "god_classes": [],
+        "score": 100
+      }
+    },
+    {
+      "rule_id": "ARCH_COUPLING",
+      "passed": false,
+      "message": "Coupling: 1 module(s) above threshold (-5 pts)",
+      "details": {
+        "max_fan_out": 11,
+        "max_fan_in": 19,
+        "avg_coupling": 6.14,
+        "score": 95,
+        "n_over_threshold": 1,
+        "over_threshold": [
+          {
+            "module": "axm_audit.core.rules.quality",
+            "fan_out": 11
+          }
+        ]
+      }
+    },
+    {
+      "rule_id": "ARCH_DUPLICATION",
+      "passed": true,
+      "message": "0 duplicate block(s) found",
+      "details": {
+        "dup_count": 0,
+        "clones": [],
+        "score": 100
+      }
+    },
+    {
+      "rule_id": "QUALITY_COMPLEXITY",
+      "passed": true,
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "details": {
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "score": 100
+      }
+    },
+    {
+      "rule_id": "QUALITY_COVERAGE",
+      "passed": true,
+      "message": "Test coverage: 93% (93/100)",
+      "details": {
+        "coverage": 93.19787985865725,
+        "score": 93,
+        "failures": []
+      }
+    },
+    {
+      "rule_id": "QUALITY_DEAD_CODE",
+      "passed": true,
+      "message": "No dead code detected.",
+      "details": {
+        "score": 100.0,
+        "dead_count": 0,
+        "symbols": []
+      }
+    },
+    {
+      "rule_id": "QUALITY_LINT",
+      "passed": true,
+      "message": "Lint score: 100/100 (0 issues)",
+      "details": {
+        "issue_count": 0,
+        "score": 100,
+        "checked": "src/ tests/",
+        "issues": []
+      }
+    },
+    {
+      "rule_id": "QUALITY_FORMAT",
+      "passed": true,
+      "message": "Format score: 100/100 (0 unformatted)",
+      "details": {
+        "unformatted_count": 0,
+        "unformatted_files": [],
+        "score": 100,
+        "checked": "src/ tests/"
+      }
+    },
+    {
+      "rule_id": "QUALITY_DIFF_SIZE",
+      "passed": true,
+      "message": "Diff size: 4 lines changed (score 100/100)",
+      "details": {
+        "lines_changed": 4,
+        "score": 100
+      }
+    },
+    {
+      "rule_id": "DEPS_AUDIT",
+      "passed": true,
+      "message": "No known vulnerabilities",
+      "details": {
+        "vuln_count": 0,
+        "score": 100,
+        "top_vulns": []
+      }
+    },
+    {
+      "rule_id": "DEPS_HYGIENE",
+      "passed": false,
+      "message": "deptry failed or missing",
+      "details": {
+        "issue_count": 0,
+        "score": 0
+      }
+    },
+    {
+      "rule_id": "PRACTICE_DOCSTRING",
+      "passed": true,
+      "message": "Docstring coverage: 100% (85/85)",
+      "details": {
+        "coverage": 1.0,
+        "total": 85,
+        "documented": 85,
+        "missing": [],
+        "score": 100
+      }
+    },
+    {
+      "rule_id": "PRACTICE_BARE_EXCEPT",
+      "passed": true,
+      "message": "0 bare except(s) found",
+      "details": {
+        "bare_except_count": 0,
+        "locations": [],
+        "score": 100
+      }
+    },
+    {
+      "rule_id": "PRACTICE_BLOCKING_IO",
+      "passed": true,
+      "message": "0 blocking-IO violation(s) found",
+      "details": {
+        "violations": [],
+        "score": 100
+      }
+    },
+    {
+      "rule_id": "PRACTICE_LOGGING",
+      "passed": true,
+      "message": "Logging coverage: 100% (9/9)",
+      "details": {
+        "without_logging": [],
+        "score": 100
+      }
+    },
+    {
+      "rule_id": "PRACTICE_TEST_MIRROR",
+      "passed": true,
+      "message": "All source modules have test files",
+      "details": null
+    },
+    {
+      "rule_id": "PRACTICE_SECURITY",
+      "passed": true,
+      "message": "0 potential secret(s) found",
+      "details": {
+        "secret_count": 0,
+        "matches": [],
+        "score": 100
+      }
+    },
+    {
+      "rule_id": "QUALITY_SECURITY",
+      "passed": true,
+      "message": "Security score: 100/100 (0 high, 0 medium severity issues)",
+      "details": {
+        "high_count": 0,
+        "medium_count": 0,
+        "score": 100,
+        "top_issues": [
+          {
+            "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "complexity.py",
+            "line": 8
+          },
+          {
+            "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "dead_code.py",
+            "line": 8
+          },
+          {
+            "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "quality.py",
+            "line": 9
+          },
+          {
+            "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "runner.py",
+            "line": 11
+          },
+          {
+            "severity": "LOW",
+            "code": "B607",
+            "message": "Starting a process with a partial executable path",
+            "file": "dead_code.py",
+            "line": 80
+          }
+        ]
+      }
+    },
+    {
+      "rule_id": "QUALITY_TYPE",
+      "passed": true,
+      "message": "Type score: 100/100 (0 errors)",
+      "details": {
+        "error_count": 0,
+        "score": 100,
+        "checked": "src/ tests/",
+        "errors": []
+      }
+    },
+    {
+      "rule_id": "STRUCTURE_PYPROJECT",
+      "passed": true,
+      "message": "pyproject.toml completeness: 9/9 fields",
+      "details": {
+        "fields_present": 9,
+        "total_fields": 9,
+        "score": 100
+      }
+    },
+    {
+      "rule_id": "TOOL_RUFF",
+      "passed": true,
+      "message": "ruff found",
+      "details": null
+    },
+    {
+      "rule_id": "TOOL_MYPY",
+      "passed": true,
+      "message": "mypy found",
+      "details": null
+    },
+    {
+      "rule_id": "TOOL_UV",
+      "passed": true,
+      "message": "uv found",
+      "details": null
+    }
+  ]
+}
