@@ -8,13 +8,13 @@
 
 
 <p align="center">
-  <a href="https://github.com/axm-protocols/axm-init/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-init/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://axm-protocols.github.io/axm-init/explanation/check-grades/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-init/gh-pages/badges/axm-init.json" alt="axm-init"></a>
-  <a href="https://axm-protocols.github.io/axm-audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-init/gh-pages/badges/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://coveralls.io/github/axm-protocols/axm-init?branch=main"><img src="https://coveralls.io/repos/github/axm-protocols/axm-init/badge.svg?branch=main" alt="Coverage"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml"><img src="https://github.com/axm-protocols/axm-forge/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-init/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-init/axm-init.json" alt="axm-init"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-init/coverage.json" alt="Coverage"></a>
   <a href="https://pypi.org/project/axm-init/"><img src="https://img.shields.io/pypi/v/axm-init" alt="PyPI"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
-  <a href="https://axm-protocols.github.io/axm-init/"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs"></a>
+  <a href="https://forge.axm-protocols.io/init/"><img src="https://img.shields.io/badge/docs-live-brightgreen" alt="Docs"></a>
 </p>
 
 
@@ -143,19 +143,21 @@ push → axm-init check → badge JSON → gh-pages → shields.io
 
 The badge is already in your README — just push to `main` and it appears after the first CI run.
 
-**Existing projects** can add the badge too — copy `.github/workflows/axm-quality.yml` from a scaffolded project and add the badge markup. See the [howto guide](https://axm-protocols.github.io/axm-init/howto/check/#ci-badge) for details.
+**Existing projects** can add the badge too — copy `.github/workflows/axm-quality.yml` from a scaffolded project and add the badge markup. See the [howto guide](https://forge.axm-protocols.io/init/howto/check/#ci-badge) for details.
 
 ## Development
 
+This package is part of the [**axm-forge**](https://github.com/axm-protocols/axm-forge) workspace.
+
 ```bash
-git clone https://github.com/axm-protocols/axm-init.git
-cd axm-init
+git clone https://github.com/axm-protocols/axm-forge.git
+cd axm-forge
 uv sync --all-groups
-uv run pytest           # 534 tests (fast subset, ~8s)
-uv run pytest -m slow   # real Copier scaffold tests (~15s)
-uv run ruff check src/  # lint
+uv run --package axm-init --directory packages/axm-init pytest -x -q
 ```
+
+📖 **[Full documentation](https://forge.axm-protocols.io/init/)**
 
 ## License
 
-Apache License 2.0
+Apache-2.0 — © 2026 axm-protocols
