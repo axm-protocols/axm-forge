@@ -50,8 +50,8 @@ graph TD
     classDef init fill:#158DC4,color:#ffffff,stroke:#1a9dd4
     classDef git fill:#607D8B,color:#ffffff,stroke:#708D9B
 
-    AST["axm-ast<br/><i>AST introspection</i>"]:::ast
-    AUDIT["axm-audit<br/><i>Code auditing</i>"]:::audit --> AST
-    INIT["axm-init<br/><i>Scaffolding</i>"]:::init
-    GIT["axm-git<br/><i>Git automation</i>"]:::git
+    AST["axm-ast\nAST introspection"]:::ast
+    AUDIT["axm-audit\nCode auditing"]:::audit --> AST
+    INIT["axm-init\nScaffolding"]:::init
+    GIT["axm-git\nGit automation"]:::git
 ```
