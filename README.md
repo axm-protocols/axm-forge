@@ -18,10 +18,10 @@
 
 ## Philosophy
 
-AXM Forge provides the **developer toolchain** for the AXM ecosystem. Instead of relying on generic text search and manual inspection, Forge gives agents — and humans — deterministic, AST-powered tools that understand code semantically.
+AXM Forge provides the **developer toolchain** for the AXM ecosystem. Every tool returns structured, deterministic results — designed for AI agents that need precise answers, not text to parse.
 
 - 🌳 **AST-Powered Introspection** — Tree-sitter based analysis that understands Python at the structural level. Find callers, measure blast radius, and trace import graphs — all without grep noise.
-- 🛡️ **Codified Quality Gates** — 40+ rules covering lint, types, coverage, complexity, security, and project governance. One `verify()` call replaces an entire CI pipeline.
+- 🛡️ **Codified Quality Gates** — 40+ rules covering lint, types, coverage, complexity, security, and project governance — all in a single `verify()` call.
 - 📦 **Automated Scaffolding** — Generate projects, workspaces, and workspace members that pass all 39 governance checks from day one.
 - 🔀 **Git Workflow Automation** — Structured commits with auto-staging, pre-commit retry, and conventional commit enforcement. Semver tagging and push — all through agent-friendly MCP tools.
 
