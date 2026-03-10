@@ -30,10 +30,25 @@
 }
 
 /* ── Header: affiche le site_name à côté du logo ── */
-.md-header__topic .md-ellipsis {
+.md-header__ellipsis {
+    overflow: visible !important;
+}
+
+.md-header__topic:first-child {
+    position: static !important;
+    transform: none !important;
+    opacity: 1 !important;
+}
+
+.md-header__topic:first-child .md-ellipsis {
     font-size: 1.1rem;
     font-weight: 700;
     color: #ffffff !important;
+}
+
+/* Masque le topic secondaire (titre de page) pour ne garder que le site name */
+.md-header__topic:last-child {
+    display: none !important;
 }
 
 .md-search {
