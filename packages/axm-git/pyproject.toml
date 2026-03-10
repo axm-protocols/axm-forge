@@ -85,11 +85,11 @@ src = ["src", "tests"]
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "C4", "S", "T20", "RUF"]
-ignore = ["S101", "S603", "S607"]
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "S", "T20", "PLR", "RUF"]
+ignore = ["S101", "S603", "S607", "PLR0911"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108", "S603", "S607"]
+"tests/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "PLR2004"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_git"]

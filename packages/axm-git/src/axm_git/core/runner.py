@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
 
 from axm.tools.base import ToolResult
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "detect_package_name",
@@ -104,7 +107,7 @@ def detect_package_name(project_path: Path) -> str | None:
         with open(pyproject, "rb") as f:
             data = tomllib.load(f)
         return data.get("project", {}).get("name")  # type: ignore[no-any-return]
-    except Exception:
+    except (OSError, KeyError, ValueError):
         return None
 
 
