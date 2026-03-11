@@ -101,7 +101,7 @@ def _collect_collection_refs(children: list[object], refs: set[str]) -> None:
 
 
 def _collect_kwarg_ref(children: list[object], refs: set[str]) -> None:
-    """Extract identifier from the value side of a keyword argument or default parameter.
+    """Extract identifier from the value side of a kwarg or default param.
 
     Handles ``keyword_argument`` (``f(callback=my_func)``) and
     ``default_parameter`` (``def foo(fn=my_func)``) nodes.
