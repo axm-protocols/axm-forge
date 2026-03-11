@@ -180,6 +180,8 @@ def _resolve_version(
     version_override: str | None,
     current_tag: str | None,
     commits: list[str],
+    *,
+    tag_prefix: str = "",
 ) -> tuple[str, str, bool]:
     """Resolve the next version tag.
 
@@ -195,6 +197,8 @@ def _resolve_version(
         return v, "override", False
 
     base = current_tag or "v0.0.0"
+    if tag_prefix and base.startswith(tag_prefix):
+        base = base[len(tag_prefix) :]
     bump_result = compute_bump(commits, base)
     return bump_result.next, bump_result.bump, bump_result.breaking
 
@@ -241,7 +245,7 @@ class GitTagTool(AXMTool):
 
         # 2. Compute version
         next_version, bump_type, breaking = _resolve_version(
-            version, current_tag, commits
+            version, current_tag, commits, tag_prefix=tag_prefix
         )
         logger.info(
             "Tagging %s (bump=%s, breaking=%s)",
