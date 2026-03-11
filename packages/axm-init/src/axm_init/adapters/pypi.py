@@ -5,6 +5,8 @@ Uses PyPI JSON API to verify if a package name is taken.
 
 from __future__ import annotations
 
+__all__ = ["AvailabilityStatus", "PyPIAdapter"]
+
 from enum import StrEnum
 
 import httpx

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["CategoryScore", "CheckResult", "Grade", "ProjectResult", "compute_grade"]
+
 import logging
 from enum import StrEnum
 from pathlib import Path
