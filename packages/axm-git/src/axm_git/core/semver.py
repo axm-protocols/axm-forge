@@ -99,8 +99,6 @@ def _next_version(
 def compute_bump(commits: list[str], current_tag: str) -> VersionBump:
     """Compute the next semver version from commit messages.
 
-    logger.info("Computing version bump from %s", current_tag)
-
     Rules (pre-1.0, i.e. major == 0):
         - ``feat!:`` or ``BREAKING CHANGE:`` → **minor** bump
         - ``feat:`` → **minor** bump
@@ -118,6 +116,7 @@ def compute_bump(commits: list[str], current_tag: str) -> VersionBump:
     Returns:
         VersionBump with computed next version.
     """
+    logger.info("Computing version bump from %s", current_tag)
     major, minor, patch = parse_tag(current_tag)
     has_breaking, has_feat = _classify_commits(commits)
     bump, next_version = _next_version(
