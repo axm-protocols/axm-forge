@@ -109,14 +109,19 @@ class AuditResult(BaseModel):
             return None
 
         # Weighted average: avg each category, then weight
+        # Normalize by sum of present weights so filtered audits
+        # (e.g. category="lint") are not penalized for missing categories.
         total = 0.0
+        weight_sum = 0.0
         for cat, weight in category_weights.items():
             scores = category_scores.get(cat, [])
             if scores:
                 total += (sum(scores) / len(scores)) * weight
-            # Missing categories contribute 0
+                weight_sum += weight
 
-        return round(total, 1)
+        if weight_sum <= 0:
+            return None
+        return round(total / weight_sum, 1)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
