@@ -1,8 +1,8 @@
 {
-  "score": 92.0,
+  "score": 92.8,
   "grade": "A",
   "total": 24,
-  "failed": 3,
+  "failed": 1,
   "success": false,
   "checks": [
     {
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 10,
         "max_fan_in": 10,
-        "avg_coupling": 4.33,
+        "avg_coupling": 4.42,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -67,7 +67,7 @@
       "passed": true,
       "message": "Test coverage: 96% (95/100)",
       "details": {
-        "coverage": 95.83333333333333,
+        "coverage": 95.85253456221199,
         "score": 95,
         "failures": []
       }
@@ -165,27 +165,18 @@
     },
     {
       "rule_id": "PRACTICE_LOGGING",
-      "passed": false,
-      "message": "Logging coverage: 67% (2/3)",
+      "passed": true,
+      "message": "Logging coverage: 100% (3/3)",
       "details": {
-        "without_logging": [
-          "axm_git/core/semver.py"
-        ],
-        "score": 66
+        "without_logging": [],
+        "score": 100
       }
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
-      "passed": false,
-      "message": "3 source module(s) without tests",
-      "details": {
-        "missing": [
-          "commit.py",
-          "commit_preflight.py",
-          "tag.py"
-        ],
-        "score": 55
-      }
+      "passed": true,
+      "message": "All source modules have test files",
+      "details": null
     },
     {
       "rule_id": "PRACTICE_SECURITY",
