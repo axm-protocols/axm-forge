@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["VersionBump", "compute_bump", "parse_tag"]
 
@@ -113,6 +116,7 @@ def compute_bump(commits: list[str], current_tag: str) -> VersionBump:
     Returns:
         VersionBump with computed next version.
     """
+    logger.info("Computing version bump from %s", current_tag)
     major, minor, patch = parse_tag(current_tag)
     has_breaking, has_feat = _classify_commits(commits)
     bump, next_version = _next_version(
