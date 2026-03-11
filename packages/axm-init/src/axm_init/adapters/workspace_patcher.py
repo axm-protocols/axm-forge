@@ -140,6 +140,44 @@ def patch_pyproject(root: Path, member_name: str) -> None:
         logger.info("pyproject.toml already contains %s — skipping", member_name)
 
 
+def _detect_yaml_indent(lines: list[str], default: str = "          ") -> str:
+    """Return the indentation of the last YAML list item in *lines*."""
+    for line in reversed(lines):
+        if line.strip().startswith("- "):
+            return line[: len(line) - len(line.lstrip())]
+    return default
+
+
+def _find_yaml_list_range(
+    lines: list[str],
+    list_marker: str | None,
+) -> tuple[int, int] | None:
+    """Find the (start, end) indices of a YAML list.
+
+    *start* is the index of the first ``- `` item.
+    *end* is the index of the line **after** the last ``- `` item.
+    If *list_marker* is given, the search begins only after that marker.
+    Returns ``None`` if no list is found.
+    """
+    searching = list_marker is None
+    first = -1
+    last = -1
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not searching and list_marker and list_marker in line:
+            searching = True
+            continue
+        if searching and stripped.startswith("- "):
+            if first == -1:
+                first = i
+            last = i
+
+    if first == -1:
+        return None
+    return first, last + 1
+
+
 def _insert_into_yaml_list(
     lines: list[str],
     item_to_insert: str,
@@ -148,50 +186,18 @@ def _insert_into_yaml_list(
 ) -> list[str]:
     """Insert an item into a YAML list after the last element.
 
-    If list_marker is provided, insertion begins only after encountering it.
+    If *list_marker* is provided, insertion begins only after
+    encountering it.  Uses a 2-pass approach: first locate the
+    list boundaries, then insert at the correct position.
     """
-    new_lines: list[str] = []
-    in_list = False
-    inserted = False
+    bounds = _find_yaml_list_range(lines, list_marker)
+    if bounds is None:
+        return list(lines)
 
-    for line in lines:
-        new_lines.append(line)
-        stripped = line.strip()
-
-        if list_marker and list_marker in line and not inserted:
-            in_list = True
-            continue
-
-        if (
-            not list_marker
-            and not in_list
-            and not inserted
-            and stripped.startswith("- ")
-        ):
-            in_list = True
-
-        if in_list and stripped.startswith("- "):
-            continue
-
-        if in_list and not stripped.startswith("- ") and not inserted:
-            indent = default_indent
-            for prev_line in reversed(new_lines[:-1]):
-                if prev_line.strip().startswith("- "):
-                    indent = prev_line[: len(prev_line) - len(prev_line.lstrip())]
-                    break
-            new_lines.insert(len(new_lines) - 1, f"{indent}- {item_to_insert}\n")
-            in_list = False
-            inserted = True
-
-    if not inserted and in_list:
-        indent = default_indent
-        for prev_line in reversed(new_lines):
-            if prev_line.strip().startswith("- "):
-                indent = prev_line[: len(prev_line) - len(prev_line.lstrip())]
-                break
-        new_lines.append(f"{indent}- {item_to_insert}\n")
-
-    return new_lines
+    _, end = bounds
+    indent = _detect_yaml_indent(lines[:end], default=default_indent)
+    new_line = f"{indent}- {item_to_insert}\n"
+    return [*lines[:end], new_line, *lines[end:]]
 
 
 def patch_ci(root: Path, member_name: str) -> None:
@@ -285,31 +291,16 @@ def patch_release(root: Path, member_name: str) -> None:
         logger.info("release.yml already contains %s — skipping", member_name)
         return
 
-    # 1. Add tag pattern to the tags: section
+    # 1. Add tag pattern — reuse the shared YAML list inserter
     if "tags:" in content:
         lines = content.splitlines(keepends=True)
-        new_lines: list[str] = []
-        in_tags = False
-
-        for line in lines:
-            new_lines.append(line)
-            if "tags:" in line:
-                in_tags = True
-                continue
-
-            if in_tags and line.strip().startswith("- "):
-                continue
-
-            if in_tags and not line.strip().startswith("- "):
-                indent = "      "
-                for prev_line in reversed(new_lines[:-1]):
-                    if prev_line.strip().startswith("- "):
-                        indent = prev_line[: len(prev_line) - len(prev_line.lstrip())]
-                        break
-                new_lines.insert(len(new_lines) - 1, f'{indent}- "{tag_pattern}"\n')
-                in_tags = False
-
-        content = "".join(new_lines)
+        lines = _insert_into_yaml_list(
+            lines,
+            f'"{tag_pattern}"',
+            list_marker="tags:",
+            default_indent="      ",
+        )
+        content = "".join(lines)
 
     # 2. Add detect elif block before the "else" in the detect step
     pkg_dir = f"packages/{member_name}"
@@ -326,6 +317,62 @@ def patch_release(root: Path, member_name: str) -> None:
 
     release_yml.write_text(content)
     logger.info("Patched release.yml with tag pattern + detect for %s", member_name)
+
+
+def _insert_into_toml_array(
+    content: str,
+    value: str,
+    key: str = "testpaths",
+    section: str = "[tool.pytest.ini_options]",
+) -> str:
+    """Insert *value* into a TOML array, creating the section if needed.
+
+    Handles three cases:
+    1. Section + key exist → append to array (single-line or multi-line).
+    2. Section exists, key missing → add key with new array.
+    3. Section missing → append entire section + key + array.
+    """
+    if section not in content:
+        return content + f'\n{section}\n{key} = [\n    "{value}",\n]\n'
+
+    if key not in content:
+        return content.replace(
+            section,
+            f'{section}\n{key} = [\n    "{value}",\n]',
+        )
+
+    return _append_to_toml_array_lines(content, value, key)
+
+
+def _append_to_toml_array_lines(content: str, value: str, key: str) -> str:
+    """Append *value* to an existing TOML array (single-line or multi-line)."""
+    lines = content.splitlines(keepends=True)
+    result: list[str] = []
+    in_array = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        if stripped.startswith(key) and "=" in stripped:
+            if "]" in stripped:
+                # Single-line: testpaths = ["a", "b"]
+                pos = line.rindex("]")
+                result.append(
+                    line[:pos].rstrip().rstrip(",")
+                    + ",\n"
+                    + f'    "{value}",\n'
+                    + line[pos:]
+                )
+                continue
+            in_array = True
+
+        if in_array and "]" in stripped:
+            result.append(f'    "{value}",\n')
+            in_array = False
+
+        result.append(line)
+
+    return "".join(result)
 
 
 def patch_testpaths(root: Path, member_name: str) -> None:
@@ -351,55 +398,7 @@ def patch_testpaths(root: Path, member_name: str) -> None:
         logger.info("testpaths already contains %s — skipping", test_path)
         return
 
-    # Check if [tool.pytest.ini_options] section exists
-    if "[tool.pytest.ini_options]" in content:
-        # Check if testpaths key exists
-        if "testpaths" in content:
-            # Add to existing testpaths array
-            # Find the testpaths line and add the new path
-            lines = content.splitlines(keepends=True)
-            new_lines: list[str] = []
-            in_testpaths = False
-
-            for line in lines:
-                new_lines.append(line)
-                stripped = line.strip()
-
-                if stripped.startswith("testpaths") and "=" in stripped:
-                    in_testpaths = True
-                    # If it's a single-line list, we need to insert before ]
-                    if "]" in stripped:
-                        # Single-line: testpaths = ["a", "b"]
-                        bracket_pos = line.rindex("]")
-                        new_entry = f'    "{test_path}",\n'
-                        new_lines[-1] = (
-                            line[:bracket_pos].rstrip().rstrip(",")
-                            + ",\n"
-                            + new_entry
-                            + line[bracket_pos:]
-                        )
-                        in_testpaths = False
-                    continue
-
-                if in_testpaths and "]" in stripped:
-                    # End of multi-line testpaths — insert before ]
-                    indent = "    "
-                    new_lines.insert(len(new_lines) - 1, f'{indent}"{test_path}",\n')
-                    in_testpaths = False
-
-            content = "".join(new_lines)
-        else:
-            # Add testpaths key to existing section
-            content = content.replace(
-                "[tool.pytest.ini_options]",
-                f'[tool.pytest.ini_options]\ntestpaths = [\n    "{test_path}",\n]',
-            )
-    else:
-        # Create the entire section
-        content += (
-            f'\n[tool.pytest.ini_options]\ntestpaths = [\n    "{test_path}",\n]\n'
-        )
-
+    content = _insert_into_toml_array(content, test_path)
     pyproject.write_text(content)
     logger.info("Patched testpaths with %s", test_path)
 
