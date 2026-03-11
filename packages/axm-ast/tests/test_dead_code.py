@@ -478,6 +478,72 @@ class TestDictDispatch:
         assert "handle_a" not in dead_names
         assert "orphan" in dead_names
 
+    def test_kwarg_reference_not_dead(self, tmp_path: Path) -> None:
+        """Function passed as keyword argument → not flagged as dead."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "helpers.py": (
+                    "def _collate_flight_samples(batch):\n"
+                    "    return batch\n"
+                ),
+                "main.py": (
+                    "from .helpers import _collate_flight_samples\n\n"
+                    "class DataLoader:\n"
+                    "    def __init__(self, collate_fn=None):\n"
+                    "        self.collate_fn = collate_fn\n\n"
+                    "def run():\n"
+                    "    loader = DataLoader(collate_fn=_collate_flight_samples)\n"
+                    "    return loader\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "_collate_flight_samples" not in dead_names
+
+    def test_default_param_reference(self, tmp_path: Path) -> None:
+        """Function used as default parameter value → not flagged."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "utils.py": (
+                    "def _default_sort(items):\n"
+                    "    return sorted(items)\n\n"
+                    "def process(data, sort_fn=_default_sort):\n"
+                    "    return sort_fn(data)\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "_default_sort" not in dead_names
+
+    def test_data_structure_refs_unchanged(self, tmp_path: Path) -> None:
+        """Dict dispatch still works after kwarg fix (regression)."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "dispatch.py": (
+                    "def func_a():\n"
+                    "    return 'a'\n\n"
+                    "def func_b():\n"
+                    "    return 'b'\n\n"
+                    "dispatch = {'a': func_a, 'b': func_b}\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "func_a" not in dead_names
+        assert "func_b" not in dead_names
+
 
 # ─── Entry-point exemption ──────────────────────────────────────────────────
 

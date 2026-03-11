@@ -39,15 +39,18 @@ def extract_references(mod: ModuleInfo) -> set[str]:
     - List elements: ``[func_a, func_b]``
     - Tuple elements: ``(func_a, func_b)``
     - Set elements: ``{func_a, func_b}``
+    - Keyword arguments: ``DataLoader(collate_fn=my_func)``
+    - Default parameters: ``def foo(callback=my_func)``
 
     This catches dynamic dispatch patterns where functions are stored
-    in data structures and called indirectly.
+    in data structures, passed as keyword arguments, or used as default
+    parameter values.
 
     Args:
         mod: Parsed module info (with path to source).
 
     Returns:
-        Set of symbol names referenced in data structures.
+        Set of symbol names referenced in non-call positions.
     """
     source = mod.path.read_text(encoding="utf-8")
     tree = parse_source(source)
@@ -57,7 +60,7 @@ def extract_references(mod: ModuleInfo) -> set[str]:
 
 
 def _visit_references(node: object, refs: set[str]) -> None:
-    """Recursively find identifiers in dict values, list/tuple/set elements."""
+    """Recursively find identifiers in non-call reference positions."""
     node_type = getattr(node, "type", "")
     children = getattr(node, "children", [])
 
@@ -65,6 +68,8 @@ def _visit_references(node: object, refs: set[str]) -> None:
         _collect_dict_value_ref(children, refs)
     elif node_type in ("list", "tuple", "set"):
         _collect_collection_refs(children, refs)
+    elif node_type in ("keyword_argument", "default_parameter"):
+        _collect_kwarg_ref(children, refs)
 
     # Recurse into all children.
     for child in children:
@@ -93,6 +98,27 @@ def _collect_collection_refs(children: list[object], refs: set[str]) -> None:
             name = _node_text_safe(child)
             if name:
                 refs.add(name)
+
+
+def _collect_kwarg_ref(children: list[object], refs: set[str]) -> None:
+    """Extract identifier from the value side of a keyword argument or default parameter.
+
+    Handles ``keyword_argument`` (``f(callback=my_func)``) and
+    ``default_parameter`` (``def foo(fn=my_func)``) nodes.
+    The structure is ``name = value``; we extract the value if
+    it is a bare identifier (not a call or literal).
+    """
+    past_eq = False
+    for child in children:
+        if getattr(child, "type", "") == "=":
+            past_eq = True
+            continue
+        if past_eq:
+            if getattr(child, "type", "") == "identifier":
+                name = _node_text_safe(child)
+                if name:
+                    refs.add(name)
+            return
 
 
 # ─── Call extraction ─────────────────────────────────────────────────────────
