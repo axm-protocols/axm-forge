@@ -203,3 +203,57 @@ class TestQualityScore:
             ]
         ]
         assert AuditResult(checks=all_zero).grade == "F"
+
+    def test_category_filter_score_normalization(self) -> None:
+        """Category-filtered audit normalizes by present weights only.
+
+        Simulates audit(category="lint") where only lint-related rules run.
+        Bug: was returning ~17 (dividing by all 8 weights). Fix: ~96.
+        """
+        # Only lint-category checks (lint weight = 0.20)
+        checks = [
+            _make_check("QUALITY_LINT", 94),  # lint
+            _make_check("QUALITY_FORMAT", 100),  # lint
+            _make_check("QUALITY_DEAD_CODE", 95),  # lint
+        ]
+        result = AuditResult(checks=checks)
+        # avg(94, 100, 95) = 96.33 → normalized by lint weight only → 96.3
+        assert result.quality_score is not None
+        assert result.quality_score == pytest.approx(96.3, abs=0.1)
+        assert result.grade == "A"
+
+    def test_full_score_unchanged(self) -> None:
+        """Full audit (all 8 categories) returns same score as before fix.
+
+        Regression: ensures normalization doesn't change full-audit behavior.
+        """
+        checks = [
+            _make_check("QUALITY_LINT", 90),
+            _make_check("QUALITY_FORMAT", 100),
+            _make_check("QUALITY_DIFF_SIZE", 100),
+            _make_check("QUALITY_TYPE", 85),
+            _make_check("QUALITY_COMPLEXITY", 95),
+            _make_check("QUALITY_SECURITY", 100),
+            _make_check("DEPS_AUDIT", 100),
+            _make_check("DEPS_HYGIENE", 100),
+            _make_check("QUALITY_COVERAGE", 90),
+            _make_check("ARCH_COUPLING", 100),
+            _make_check("ARCH_CIRCULAR", 100),
+            _make_check("ARCH_GOD_CLASS", 100),
+            _make_check("ARCH_DUPLICATION", 100),
+            _make_check("PRACTICE_DOCSTRING", 100),
+            _make_check("PRACTICE_BARE_EXCEPT", 100),
+            _make_check("PRACTICE_SECURITY", 100),
+            _make_check("PRACTICE_BLOCKING_IO", 100),
+            _make_check("PRACTICE_LOGGING", 100),
+        ]
+        result = AuditResult(checks=checks)
+        # weight_sum=1.0 so total/weight_sum == total → same as before
+        assert result.quality_score == pytest.approx(94.8, abs=0.2)
+
+    def test_single_category_perfect(self) -> None:
+        """Single category scoring 100 returns exactly 100.0."""
+        checks = [_make_check("QUALITY_COVERAGE", 100)]  # testing category
+        result = AuditResult(checks=checks)
+        assert result.quality_score == 100.0
+
