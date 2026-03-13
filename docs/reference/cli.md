@@ -35,6 +35,11 @@ Commands depend on which AXM packages are installed:
 
 ::: axm.tools.base.AXMTool
 
+!!! tip "Agent hints"
+    Tools can set an `agent_hint` class attribute (one-liner string) to provide
+    LLM-optimized descriptions that propagate to MCP tool listings. When empty
+    (default), the `execute()` docstring is used instead.
+
 ## Hook Interface
 
 ::: axm.hooks.base.HookResult
