@@ -23,16 +23,13 @@ class ContextTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_context"
 
-    def execute(
-        self, *, path: str = ".", slim: bool = False, depth: int = 0, **kwargs: Any
-    ) -> ToolResult:
+    def execute(self, *, path: str = ".", depth: int = 1, **kwargs: Any) -> ToolResult:
         """Dump complete project context for AI agents.
 
         Args:
             path: Path to package or workspace directory.
-            slim: If True, return compact overview.
-            depth: Recursion depth for slim mode (0=top-5,
-                1=sub-packages, 2=modules, 3+=symbols).
+            depth: Detail level (0=top-5, 1=sub-packages,
+                2=modules, 3+=symbols, None=full).
 
         Returns:
             ToolResult with project context data.
@@ -65,7 +62,7 @@ class ContextTool(AXMTool):
             ctx = build_context(project_path)
             return ToolResult(
                 success=True,
-                data=format_context_json(ctx, slim=slim, depth=depth),
+                data=format_context_json(ctx, depth=depth),
                 hint=(
                     "Tip: Use ast_describe(modules=[...]) to see specific module APIs."
                 ),

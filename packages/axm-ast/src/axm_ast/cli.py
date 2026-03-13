@@ -450,20 +450,13 @@ def context(
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
     ] = False,
-    slim: Annotated[
-        bool,
-        cyclopts.Parameter(
-            name=["--slim"],
-            help="Compact overview (~500 tokens) with top-5 modules",
-        ),
-    ] = False,
     depth: Annotated[
-        int,
+        int | None,
         cyclopts.Parameter(
-            name=["--depth"],
-            help="Recursion depth for slim mode",
+            name=["--depth", "-d"],
+            help="Detail level: 0=top-5, 1=sub-packages, 2=modules, 3=symbols",
         ),
-    ] = 0,
+    ] = None,
 ) -> None:
     """Dump complete project context in one shot for AI agents."""
     project_path = Path(path).resolve()
@@ -489,9 +482,9 @@ def context(
     ctx = _build_context(project_path)
 
     if json_output:
-        print(json.dumps(format_context_json(ctx, slim=slim, depth=depth), indent=2))
-    elif slim:
-        _print_slim_context(format_context_json(ctx, slim=True, depth=depth))
+        print(json.dumps(format_context_json(ctx, depth=depth), indent=2))
+    elif depth is not None:
+        _print_compact_context(format_context_json(ctx, depth=depth))
     else:
         print(format_context(ctx))
 
@@ -522,8 +515,8 @@ def _print_workspace_context(project_path: Path, *, json_output: bool) -> None:
 _DISPLAY_SYMS = 5
 
 
-def _print_slim_context(data: dict[str, object]) -> None:
-    """Print a compact slim-mode context summary."""
+def _print_compact_context(data: dict[str, object]) -> None:
+    """Print a compact context summary."""
     from typing import Any, cast
 
     d = cast(dict[str, Any], data)
