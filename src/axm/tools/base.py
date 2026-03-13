@@ -47,12 +47,19 @@ class AXMTool(Protocol):
     - ``name`` (property): unique tool identifier
     - ``execute(...)`` : deterministic execution with explicit params
 
+    Optionally provide:
+    - ``agent_hint`` (class attribute): concise one-liner optimized
+      for LLM consumption: what the tool does, key params, and what
+      it replaces.  Falls back to ``execute.__doc__`` if empty.
+
     Uses structural typing (PEP 544) — no inheritance required.
     ``@runtime_checkable`` enables ``isinstance()`` checks.
 
     Example::
 
         class MyTool:
+            agent_hint = "Frobnicate widgets — use width param."
+
             @property
             def name(self) -> str:
                 return "my-tool"
@@ -60,6 +67,8 @@ class AXMTool(Protocol):
             def execute(self, *, value: int = 0) -> ToolResult:
                 return ToolResult(success=True, data={"result": value})
     """
+
+    agent_hint: str = ""
 
     @property
     def name(self) -> str:
