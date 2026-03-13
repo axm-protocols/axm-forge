@@ -76,3 +76,8 @@ All tools return JSON. The structure matches the `--json` CLI output for the cor
 
 !!! tip "Tool Discovery"
     Use `list_tools()` in the MCP server to see all available tools with descriptions.
+
+!!! info "Agent hints"
+    Each tool carries an `agent_hint` class attribute — a concise, LLM-optimized
+    one-liner that propagates to MCP tool descriptions. When building system prompts,
+    `agent_hint` provides richer guidance than raw docstrings.
