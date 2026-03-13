@@ -16,6 +16,12 @@ class DescribeTool(AXMTool):
     Registered as ``ast_describe`` via axm.tools entry point.
     """
 
+    agent_hint: str = (
+        "Show module API: signatures, docstrings, classes, __all__."
+        " Use detail=toc for overview, modules=[...] to filter."
+        " Replaces 10+ view_file."
+    )
+
     @property
     def name(self) -> str:
         """Return tool name for registry lookup."""

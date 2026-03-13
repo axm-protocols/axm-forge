@@ -18,6 +18,12 @@ class CallersTool(AXMTool):
     across all member packages.
     """
 
+    agent_hint: str = (
+        "Find all call-sites of a symbol"
+        " — precise caller list with file, line, and enclosing function."
+        " Not grep noise."
+    )
+
     @property
     def name(self) -> str:
         """Return tool name for registry lookup."""
