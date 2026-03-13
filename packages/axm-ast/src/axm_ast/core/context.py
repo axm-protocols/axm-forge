@@ -458,35 +458,30 @@ def _fmt_graph(graph: dict[str, list[str]]) -> str:
 def format_context_json(
     ctx: dict[str, Any],
     *,
-    slim: bool = False,
-    depth: int = 0,
+    depth: int | None = None,
 ) -> dict[str, Any]:
     """Format context as JSON-serializable dict.
 
+    The *depth* parameter controls the level of detail returned:
+
+    - ``None``: full context with all modules and dependency graph.
+    - ``0``: top-5 modules by PageRank (~100 tokens).
+    - ``1``: sub-packages with aggregate counts (~500 tokens).
+    - ``2``: modules within sub-packages (~2000 tokens).
+    - ``3+``: all modules with symbol names listed.
+
     Args:
         ctx: Context dict from build_context.
-        slim: If True, return a compact overview.  When combined
-            with *depth*, controls the level of detail:
-
-            - ``depth=0`` (default): top-5 modules by PageRank
-              (~100 tokens).
-            - ``depth=1``: sub-packages with aggregate counts
-              (~500-1000 tokens).
-            - ``depth=2``: modules within sub-packages with counts
-              (~2000 tokens).
-            - ``depth>=3``: modules with symbol names listed.
-
-        depth: Recursion depth for slim mode.  Ignored when
-            ``slim=False``.
+        depth: Detail level.  ``None`` returns the full context.
 
     Returns:
         JSON-serializable dict.
     """
-    if not slim:
+    if depth is None:
         return ctx
 
     patterns = ctx.get("patterns", {})
-    base = {
+    base: dict[str, Any] = {
         "name": ctx.get("name", ""),
         "python": ctx.get("python", ""),
         "stack": ctx.get("stack", {}),
@@ -501,7 +496,7 @@ def format_context_json(
     modules: list[dict[str, Any]] = ctx.get("modules", [])
 
     if depth == 0:
-        # Legacy slim: top-5 modules by PageRank
+        # Compact: top-5 modules by PageRank
         base["top_modules"] = [
             {
                 "name": m["name"],
@@ -511,10 +506,11 @@ def format_context_json(
             for m in modules[:5]
         ]
         base["hint"] = (
-            "Tip: Use ast_describe(modules=[...]) to see specific module APIs."
+            "Tip: Use ast_context(depth=1) for sub-package map, "
+            "or ast_describe(modules=[...]) for API details."
         )
     else:
-        # Depth-aware: group by sub-package
+        # depth >= 1: group by sub-package
         base["packages"] = _group_by_subpackage(modules, depth)
         base["hint"] = (
             "Tip: Use ast_context(path='<pkg>/sub', depth=1) to drill "
