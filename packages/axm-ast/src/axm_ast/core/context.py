@@ -328,6 +328,7 @@ _STAR_THRESHOLD_5 = 5.0
 _STAR_THRESHOLD_4 = 3.0
 _STAR_THRESHOLD_3 = 1.5
 _STAR_THRESHOLD_2 = 0.5
+_MAX_LEAF_SYMBOLS = 20
 
 
 def _score_to_stars(score: float, symbol_count: int) -> int:
@@ -458,14 +459,25 @@ def format_context_json(
     ctx: dict[str, Any],
     *,
     slim: bool = False,
+    depth: int = 0,
 ) -> dict[str, Any]:
     """Format context as JSON-serializable dict.
 
     Args:
         ctx: Context dict from build_context.
-        slim: If True, return a compact overview (~500 tokens)
-            with top-5 modules by PageRank importance.  Strips
-            the full ``modules`` list and ``dependency_graph``.
+        slim: If True, return a compact overview.  When combined
+            with *depth*, controls the level of detail:
+
+            - ``depth=0`` (default): top-5 modules by PageRank
+              (~100 tokens).
+            - ``depth=1``: sub-packages with aggregate counts
+              (~500-1000 tokens).
+            - ``depth=2``: modules within sub-packages with counts
+              (~2000 tokens).
+            - ``depth>=3``: modules with symbol names listed.
+
+        depth: Recursion depth for slim mode.  Ignored when
+            ``slim=False``.
 
     Returns:
         JSON-serializable dict.
@@ -473,19 +485,8 @@ def format_context_json(
     if not slim:
         return ctx
 
-    modules: list[dict[str, Any]] = ctx.get("modules", [])
-    top_modules = [
-        {
-            "name": m["name"],
-            "symbol_count": m["symbol_count"],
-            "stars": m["stars"],
-        }
-        for m in modules[:5]
-    ]
-
     patterns = ctx.get("patterns", {})
-
-    return {
+    base = {
         "name": ctx.get("name", ""),
         "python": ctx.get("python", ""),
         "stack": ctx.get("stack", {}),
@@ -495,5 +496,82 @@ def format_context_json(
             "class_count": patterns.get("class_count", 0),
             "layout": patterns.get("layout", ""),
         },
-        "top_modules": top_modules,
     }
+
+    modules: list[dict[str, Any]] = ctx.get("modules", [])
+
+    if depth == 0:
+        # Legacy slim: top-5 modules by PageRank
+        base["top_modules"] = [
+            {
+                "name": m["name"],
+                "symbol_count": m["symbol_count"],
+                "stars": m["stars"],
+            }
+            for m in modules[:5]
+        ]
+        base["hint"] = (
+            "Tip: Use ast_describe(modules=[...]) to see specific module APIs."
+        )
+    else:
+        # Depth-aware: group by sub-package
+        base["packages"] = _group_by_subpackage(modules, depth)
+        base["hint"] = (
+            "Tip: Use ast_context(path='<pkg>/sub', depth=1) to drill "
+            "into a sub-package, or ast_inspect(symbol='X') for source."
+        )
+
+    return base
+
+
+def _group_by_subpackage(
+    modules: list[dict[str, Any]],
+    depth: int,
+) -> dict[str, Any]:
+    """Group modules by sub-package prefix at the given depth.
+
+    Args:
+        modules: Module summaries from build_context (each has
+            'name', 'symbols', 'symbol_count', 'stars').
+        depth: How many dotted-name segments to use as the
+            grouping key.  ``1`` groups by top-level sub-package,
+            ``2`` by two-level prefix, etc.
+
+    Returns:
+        Dict mapping group key → summary dict with counts and
+        optional symbol names (at the leaf level).
+    """
+    groups: dict[str, list[dict[str, Any]]] = {}
+
+    for mod in modules:
+        parts = mod["name"].split(".")
+        # Group key = first `depth` segments
+        key = ".".join(parts[: min(depth, len(parts))])
+        groups.setdefault(key, []).append(mod)
+
+    result: dict[str, Any] = {}
+    for key in sorted(groups):
+        members = groups[key]
+        total_symbols = sum(m.get("symbol_count", 0) for m in members)
+
+        entry: dict[str, Any] = {
+            "modules": len(members),
+            "symbols": total_symbols,
+        }
+
+        # At the leaf level (single module or depth exceeds nesting),
+        # list the actual symbol names for navigation
+        is_leaf = all(len(m["name"].split(".")) <= depth for m in members)
+        if is_leaf:
+            # Flatten symbol names from all leaf modules
+            all_syms: list[str] = []
+            for m in members:
+                all_syms.extend(m.get("symbols", []))
+            if all_syms:
+                entry["symbol_names"] = all_syms[:_MAX_LEAF_SYMBOLS]
+                if len(all_syms) > _MAX_LEAF_SYMBOLS:
+                    entry["symbol_names_truncated"] = len(all_syms)
+
+        result[key] = entry
+
+    return result
