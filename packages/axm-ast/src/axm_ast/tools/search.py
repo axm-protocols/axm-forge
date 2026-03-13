@@ -16,6 +16,12 @@ class SearchTool(AXMTool):
     Registered as ``ast_search`` via axm.tools entry point.
     """
 
+    agent_hint: str = (
+        "Find symbols by name, return type, kind, or base class"
+        " — AST-precise, replaces grep."
+        " Ask 'functions returning X' or 'classes inheriting Y'."
+    )
+
     @property
     def name(self) -> str:
         """Return tool name for registry lookup."""

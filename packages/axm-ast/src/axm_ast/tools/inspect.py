@@ -16,6 +16,12 @@ class InspectTool(AXMTool):
     Registered as ``ast_inspect`` via axm.tools entry point.
     """
 
+    agent_hint: str = (
+        "Get full source code of a symbol by name,"
+        " without knowing the file."
+        " Supports dotted paths like ClassName.method."
+    )
+
     @property
     def name(self) -> str:
         """Return tool name for registry lookup."""
