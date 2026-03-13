@@ -348,11 +348,11 @@ class TestContextFunctional:
         assert isinstance(data, dict)
 
 
-# ─── Slim mode (AXM-132) ────────────────────────────────────────────────────
+# ─── Depth mode ──────────────────────────────────────────────────────────────
 
 
-class TestSlimMode:
-    """Tests for context slim mode (AXM-132)."""
+class TestDepthMode:
+    """Tests for context depth parameter."""
 
     def _ctx(
         self, tmp_path: Path, *, modules: dict[str, str] | None = None
@@ -379,85 +379,102 @@ class TestSlimMode:
         _make_pyproject(tmp_path, ["cyclopts>=3.0"])
         return build_context(pkg, project_root=tmp_path)
 
-    # --- Unit: format_context_json(slim=True) ---
+    # --- Unit: depth=0 (top-5 modules) ---
 
-    def test_slim_has_expected_keys(self, tmp_path: Path) -> None:
-        """AC1: slim output has name, python, stack, patterns, top_modules."""
+    def test_depth0_has_expected_keys(self, tmp_path: Path) -> None:
+        """depth=0 has name, python, stack, patterns, top_modules."""
         ctx = self._ctx(tmp_path)
-        data = format_context_json(ctx, slim=True)
+        data = format_context_json(ctx, depth=0)
         assert "name" in data
         assert "python" in data
         assert "stack" in data
         assert "patterns" in data
         assert "top_modules" in data
 
-    def test_slim_no_full_modules(self, tmp_path: Path) -> None:
-        """Slim output strips full modules and dependency_graph."""
+    def test_depth0_no_full_modules(self, tmp_path: Path) -> None:
+        """depth=0 strips full modules and dependency_graph."""
         ctx = self._ctx(tmp_path)
-        data = format_context_json(ctx, slim=True)
+        data = format_context_json(ctx, depth=0)
         assert "modules" not in data
         assert "dependency_graph" not in data
         assert "axm_tools" not in data
 
-    def test_slim_top_modules_count(self, tmp_path: Path) -> None:
+    def test_depth0_top_modules_count(self, tmp_path: Path) -> None:
         """top_modules has ≤ 5 entries."""
         ctx = self._ctx(tmp_path)
-        data = format_context_json(ctx, slim=True)
+        data = format_context_json(ctx, depth=0)
         assert len(data["top_modules"]) <= 5
 
-    def test_slim_top_modules_fields(self, tmp_path: Path) -> None:
+    def test_depth0_top_modules_fields(self, tmp_path: Path) -> None:
         """Each entry has name, symbol_count, stars."""
         ctx = self._ctx(tmp_path)
-        data = format_context_json(ctx, slim=True)
+        data = format_context_json(ctx, depth=0)
         for entry in data["top_modules"]:
             assert "name" in entry
             assert "symbol_count" in entry
             assert "stars" in entry
 
-    def test_slim_patterns_compact(self, tmp_path: Path) -> None:
-        """Slim patterns has only counts + layout."""
+    def test_depth0_patterns_compact(self, tmp_path: Path) -> None:
+        """Compact patterns has only counts + layout."""
         ctx = self._ctx(tmp_path)
-        data = format_context_json(ctx, slim=True)
+        data = format_context_json(ctx, depth=0)
         p = data["patterns"]
         assert "module_count" in p
         assert "function_count" in p
         assert "class_count" in p
         assert "layout" in p
 
-    def test_default_unchanged(self, tmp_path: Path) -> None:
-        """AC4: default behavior unchanged (regression)."""
+    def test_depth_none_full_context(self, tmp_path: Path) -> None:
+        """depth=None returns full context (regression)."""
         ctx = self._ctx(tmp_path)
         data = format_context_json(ctx)
         assert "modules" in data
         assert "dependency_graph" in data
         assert "axm_tools" in data
 
+    # --- depth=1 (sub-packages) ---
+
+    def test_depth1_has_packages(self, tmp_path: Path) -> None:
+        """depth=1 returns packages dict."""
+        ctx = self._ctx(tmp_path)
+        data = format_context_json(ctx, depth=1)
+        assert "packages" in data
+        assert "top_modules" not in data
+
+    def test_depth1_package_has_counts(self, tmp_path: Path) -> None:
+        """Each package entry has modules and symbols counts."""
+        ctx = self._ctx(tmp_path)
+        data = format_context_json(ctx, depth=1)
+        for info in data["packages"].values():
+            assert "modules" in info
+            assert "symbols" in info
+
     # --- Edge cases ---
 
-    def test_small_package(self, tmp_path: Path) -> None:
+    def test_small_package_depth0(self, tmp_path: Path) -> None:
         """Package with < 5 modules: top_modules has actual count."""
         ctx = self._ctx(tmp_path)
-        data = format_context_json(ctx, slim=True)
+        data = format_context_json(ctx, depth=0)
         assert len(data["top_modules"]) <= len(ctx["modules"])
 
-    def test_empty_package(self, tmp_path: Path) -> None:
+    def test_empty_package_depth0(self, tmp_path: Path) -> None:
         """Empty package: top_modules is empty or 1 entry."""
         pkg = _make_pkg(tmp_path)
         _make_pyproject(tmp_path, [])
         ctx = build_context(pkg, project_root=tmp_path)
-        data = format_context_json(ctx, slim=True)
+        data = format_context_json(ctx, depth=0)
         assert len(data["top_modules"]) <= 1
 
     # --- Dogfood ---
 
-    def test_slim_size_under_1k(self) -> None:
-        """AC2: slim output < 1024 bytes on axm-ast itself."""
+    def test_depth0_size_under_1k(self) -> None:
+        """depth=0 output < 1024 bytes on axm-ast itself."""
         import json
 
         ast_root = FIXTURES.parent.parent / "src" / "axm_ast"
         project_root = FIXTURES.parent.parent
         if ast_root.exists():
             ctx = build_context(ast_root, project_root=project_root)
-            data = format_context_json(ctx, slim=True)
+            data = format_context_json(ctx, depth=0)
             raw = json.dumps(data)
-            assert len(raw) < 1024, f"Slim output too large: {len(raw)} bytes"
+            assert len(raw) < 1024, f"depth=0 output too large: {len(raw)} bytes"
