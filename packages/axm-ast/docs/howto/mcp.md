@@ -16,6 +16,7 @@
 | `ast_docs(path, detail?, pages?)` | `axm-ast docs` | Documentation tree dump |
 | `ast_dead_code(path)` | `axm-ast dead-code` | Detect unreferenced symbols |
 | `ast_diff(path, base, head)` | `axm-ast diff` | Structural branch diff at symbol level |
+| `ast_flows(path, entry?, detail?, max_depth?, cross_module?)` | `axm-ast flows` | Entry point detection and BFS flow tracing |
 
 !!! tip "ast_describe detail levels"
     `ast_describe` accepts `detail`: `"toc"` (module names + counts only), `"summary"` (signatures only),
@@ -28,6 +29,11 @@
     `"summary"` (headings + first sentence per section), or `"full"` (complete content — **default**).
     Use `pages=["architecture", "howto"]` to filter pages by name substring.
     Combine both: `ast_docs(detail="toc", pages=["arch"])` for minimal token scan.
+
+!!! tip "ast_flows detail levels"
+    `ast_flows` with `entry` accepts `detail`: `"trace"` (default, names + positions only)
+    or `"source"` (includes function source code for each step). Use `cross_module=True`
+    to follow imports into other modules. Use `max_depth` to control BFS depth (default 5).
 
 
 ## Workspace Support

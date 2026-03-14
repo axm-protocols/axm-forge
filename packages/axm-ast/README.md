@@ -25,7 +25,7 @@
 - 💥 **Impact** — Change impact analysis: callers + graph + test mapping
 - 📖 **Docs** — One-shot documentation tree dump with progressive disclosure (toc/summary/full) and page filtering
 - 💀 **Dead code** — Detect unreferenced symbols with smart exemptions (dict dispatch, entry points, test callers, lazy imports)
-- 🚀 **Flows** — Entry point detection (cyclopts, click, Flask, FastAPI, pytest, `__main__`) and BFS execution flow tracing
+- 🚀 **Flows** — Entry point detection (cyclopts, click, Flask, FastAPI, pytest, `__main__`), BFS execution flow tracing with cross-module resolution and optional source code enrichment (`detail=source`)
 - 🔀 **Diff** — Structural branch diff at symbol level (added/modified/removed via git worktrees)
 - 🏗️ **Workspace** — Multi-package workspace support (auto-detects `uv` workspaces)
 - ⭐ **Rank** — PageRank-based symbol importance scoring
@@ -86,6 +86,7 @@ axm-ast diff main..feature src/mylib --json
 # Detect entry points and trace execution flows
 axm-ast flows src/mylib
 axm-ast flows src/mylib --trace main          # BFS flow from entry point
+axm-ast flows src/mylib --trace main --detail source  # include function source code
 axm-ast flows src/mylib --trace main --json
 ```
 
@@ -131,7 +132,7 @@ axm-ast flows src/mylib --trace main --json
 | `axm-ast context` | One-shot project context dump for AI agents |
 | `axm-ast impact` | Change impact analysis for a symbol |
 | `axm-ast dead-code` | Detect unreferenced symbols with smart exemptions |
-| `axm-ast flows` | Detect entry points and trace execution flows |
+| `axm-ast flows` | Detect entry points and trace execution flows (`--detail source` for code enrichment) |
 | `axm-ast diff` | Structural branch diff at symbol level (base..head) |
 | `axm-ast docs` | One-shot documentation tree dump (README + mkdocs + docs/) |
 | `axm-ast stub` | Generate `.pyi`-like stubs |
