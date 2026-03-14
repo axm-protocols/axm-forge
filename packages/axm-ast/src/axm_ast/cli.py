@@ -440,6 +440,54 @@ def callers(
 
 
 @app.command()
+def callees(
+    path: Annotated[
+        str,
+        cyclopts.Parameter(help="Path to package directory"),
+    ] = ".",
+    *,
+    symbol: Annotated[
+        str,
+        cyclopts.Parameter(
+            name=["--symbol", "-s"],
+            help="Symbol name to find callees of",
+        ),
+    ],
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--json"], help="Output as JSON"),
+    ] = False,
+) -> None:
+    """Find all functions/methods called by a given symbol."""
+    project_path = Path(path).resolve()
+    if not project_path.is_dir():
+        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
+        raise SystemExit(1)
+
+    pkg = get_package(project_path)
+
+    from axm_ast.core.flows import find_callees
+
+    results = find_callees(pkg, symbol)
+
+    if json_output:
+        print(
+            json.dumps(
+                [r.model_dump(mode="json") for r in results],
+                indent=2,
+            )
+        )
+    elif not results:
+        print(f"📭 No callees found for '{symbol}'")
+    else:
+        print(f"📞 {len(results)} callee(s) of '{symbol}':\n")
+        for r in results:
+            ctx = f" in {r.context}()" if r.context else ""
+            print(f"  {r.module}:{r.line} → {r.symbol}{ctx}")
+            print(f"    {r.call_expression}")
+
+
+@app.command()
 def context(
     path: Annotated[
         str,
