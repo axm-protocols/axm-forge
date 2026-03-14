@@ -295,6 +295,52 @@ axm-ast diff main..feature src/mylib
 
 ---
 
+## `flows` — Entry Points & Execution Flow Tracing
+
+```
+axm-ast flows [OPTIONS] [PATH]
+```
+
+| Option | Short | Type | Default | Description |
+|---|---|---|---|---|
+| `PATH` | | string | `.` | Path to package directory |
+| `--trace` | `-t` | string | *none* | Entry point name to trace BFS flow from |
+| `--max-depth` | | int | `5` | Maximum BFS depth for flow tracing |
+| `--cross-module` | | bool | `False` | Resolve imports and trace into external modules |
+| `--detail` | `-d` | string | `trace` | Detail level: `trace` (names only) or `source` (include function source code) |
+| `--json` | | bool | `False` | Output as JSON |
+
+Without `--trace`, detects entry points (cyclopts, click, Flask, FastAPI, pytest, `__main__`, `__all__` exports). With `--trace`, performs BFS call-graph traversal from the named symbol.
+
+!!! note "Cross-module resolution"
+    With `--cross-module`, the tracer resolves `from X import Y` statements and traces into the target module. When the target is a **sibling package** (e.g. `tests/` importing from `django/`), the tracer walks up to the **project root** (detected via `.git`, `pyproject.toml`, `setup.py`) as a fallback search path.
+
+**Examples:**
+
+```bash
+# Detect all entry points
+axm-ast flows src/mylib
+
+# Trace BFS flow from an entry point
+axm-ast flows src/mylib --trace main
+
+# Cross-module trace with source code
+axm-ast flows tests/ --trace test_response --cross-module --detail source
+
+# JSON output for CI/agents
+axm-ast flows src/mylib --trace main --json
+```
+
+```
+🔀 Flow from 'test_response' (3 step(s)):
+
+  depth 0  test_response   (test_http:3)
+  depth 1  HttpResponse    (test_http:4) → mylib.http
+  depth 1  assertEqual     (test_http:5)
+```
+
+---
+
 ## `docs` — Documentation Tree Dump
 
 ```
