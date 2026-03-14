@@ -1090,3 +1090,79 @@ class TestTraceSourceHook:
         result = hook.execute({"working_dir": str(tmp_path)})
         assert not result.success
         assert "entry" in (result.error or "").lower()
+
+    def test_trace_source_hook_path_param(self, tmp_path: Path) -> None:
+        """path param overrides working_dir from context."""
+        from axm_ast.hooks.trace_source import TraceSourceHook
+
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def main():\n    pass\n",
+            },
+        )
+        hook = TraceSourceHook()
+        # working_dir points to tmp_path (no package), but path param is correct
+        result = hook.execute(
+            {"working_dir": str(tmp_path)},
+            entry="main",
+            path=str(pkg_path),
+        )
+        assert result.success
+        assert "trace" in result.metadata
+        assert result.metadata["trace"][0]["name"] == "main"
+
+
+class TestImpactHook:
+    """ImpactHook execution tests."""
+
+    def test_impact_hook_execute(self, tmp_path: Path) -> None:
+        """Valid path + symbol → HookResult.ok with impact data."""
+        from axm_ast.hooks.impact import ImpactHook
+
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": (
+                    "def helper():\n    return 42\n\ndef main():\n    helper()\n"
+                ),
+            },
+        )
+        hook = ImpactHook()
+        result = hook.execute({"working_dir": str(pkg_path)}, symbol="helper")
+        assert result.success
+        assert "impact" in result.metadata
+        impact = result.metadata["impact"]
+        assert "symbol" in impact
+        assert impact["symbol"] == "helper"
+
+    def test_impact_hook_no_symbol(self) -> None:
+        """Missing symbol param → HookResult.fail."""
+        from axm_ast.hooks.impact import ImpactHook
+
+        hook = ImpactHook()
+        result = hook.execute({})
+        assert not result.success
+        assert "symbol" in (result.error or "").lower()
+
+    def test_impact_hook_path_param(self, tmp_path: Path) -> None:
+        """path param overrides working_dir from context."""
+        from axm_ast.hooks.impact import ImpactHook
+
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def main():\n    pass\n",
+            },
+        )
+        hook = ImpactHook()
+        result = hook.execute(
+            {"working_dir": "/nonexistent"},
+            symbol="main",
+            path=str(pkg_path),
+        )
+        assert result.success
+        assert "impact" in result.metadata
