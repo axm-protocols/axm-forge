@@ -39,7 +39,8 @@ class TraceSourceHook:
         if not entry:
             return HookResult.fail("Missing required param 'entry'")
 
-        working_dir = Path(context.get("working_dir", "."))
+        path = params.get("path") or context.get("working_dir", ".")
+        working_dir = Path(path)
         if not working_dir.is_dir():
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
