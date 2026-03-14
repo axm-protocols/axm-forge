@@ -635,25 +635,6 @@ def _path_to_dotted(path: Path, root: Path) -> str:
     return ".".join(parts) if parts else path.stem
 
 
-def _parse_module_cached(path: Path, cache: dict[Path, PackageInfo]) -> PackageInfo:
-    """Parse a single file into a minimal PackageInfo, with caching."""
-    if path in cache:
-        return cache[path]
-
-    from axm_ast.core.analyzer import analyze_package
-
-    # Determine the package root for the target module
-    pkg_root = path.parent
-    # Walk up to find the top-level package (directory without __init__.py
-    # in its parent)
-    while (pkg_root.parent / "__init__.py").is_file():
-        pkg_root = pkg_root.parent
-
-    mini_pkg = analyze_package(pkg_root)
-    cache[path] = mini_pkg
-    return mini_pkg
-
-
 def trace_flow(
     pkg: PackageInfo,
     entry: str,
@@ -810,6 +791,79 @@ def _enrich_steps_with_source(steps: list[FlowStep], pkg: PackageInfo) -> None:
             step.source = loc.source
 
 
+def _follow_reexport(
+    resolved_path: Path,
+    resolved_dotted: str,
+    symbol: str,
+    original_pkg: PackageInfo,
+    *,
+    with_source: bool = False,
+) -> tuple[_SymbolLocation | None, Path, str]:
+    """Follow one level of re-export in *resolved_path*.
+
+    Handles the common ``__init__.py`` pattern::
+
+        from .response import HttpResponse   # re-export
+
+    Returns ``(loc, actual_path, actual_dotted)`` or ``(None, -, -)``
+    if the symbol cannot be found.
+    """
+    try:
+        raw = resolved_path.read_bytes()
+        tree = parse_source(raw.decode("utf-8", errors="replace"))
+    except Exception:  # noqa: BLE001
+        return None, resolved_path, resolved_dotted
+
+    for node in getattr(tree.root_node, "children", []):
+        if getattr(node, "type", "") != "import_from_statement":
+            continue
+
+        # Position-based parsing: before the 'import' keyword we find the
+        # module path, after it we find the imported names.  Tree-sitter
+        # parses both as 'dotted_name' so we cannot distinguish by type.
+        seen_import_kw = False
+        import_module = ""
+        imported: list[str] = []
+
+        for child in getattr(node, "children", []):
+            ct = getattr(child, "type", "")
+            text = _node_text_safe(child)
+            if ct == "import":
+                seen_import_kw = True
+            elif not seen_import_kw and ct in (
+                "dotted_name",
+                "relative_import",
+            ):
+                import_module = text
+            elif seen_import_kw and ct in ("dotted_name", "identifier"):
+                imported.append(text)
+
+        if symbol not in imported:
+            continue
+
+        if not import_module:
+            continue
+
+        # Resolve relative imports (e.g. ".response" → "django.http.response")
+        if import_module.startswith("."):
+            base_parts = resolved_dotted.split(".")
+            dots = len(import_module) - len(import_module.lstrip("."))
+            rel_name = import_module.lstrip(".")
+            base = ".".join(base_parts[: max(1, len(base_parts) - dots + 1)])
+            import_module = f"{base}.{rel_name}" if rel_name else base
+
+        # Try to find the file for this module
+        target_path, target_dotted = _module_to_path(import_module, original_pkg.root)
+        if target_path is None or not target_path.is_file():
+            continue
+
+        loc = _locate_symbol(target_path, symbol, with_source=with_source)
+        if loc is not None:
+            return loc, target_path, target_dotted or import_module
+
+    return None, resolved_path, resolved_dotted
+
+
 def _resolve_cross_module_callees(  # noqa: PLR0913
     callees: list[CallSite],
     current_mod: str,
@@ -855,6 +909,16 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
         # Lightweight symbol lookup — tree-sitter on the single file,
         # no full package parse, no BFS continuation into external code.
         loc = _locate_symbol(resolved_path, symbol, with_source=(detail == "source"))
+        if loc is None:
+            # Symbol not defined here — follow re-exports (e.g.
+            # __init__.py that does ``from .response import HttpResponse``)
+            loc, resolved_path, resolved_dotted = _follow_reexport(
+                resolved_path,
+                resolved_dotted,
+                symbol,
+                original_pkg,
+                with_source=(detail == "source"),
+            )
         if loc is None:
             continue
 

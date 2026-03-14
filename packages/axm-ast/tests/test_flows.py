@@ -847,6 +847,50 @@ class TestCrossModuleSiblingPackage:
         assert resolved.source is not None
         assert "class HttpResponse" in resolved.source
 
+    def test_reexport_resolution(self, tmp_path: Path) -> None:
+        """Re-export via __init__.py is followed to the actual definition."""
+        project = tmp_path / "reexport_proj"
+        project.mkdir()
+        (project / ".git").mkdir()  # project root marker
+
+        # mylib/http/ package with re-export
+        http_pkg = project / "mylib" / "http"
+        http_pkg.mkdir(parents=True)
+        (project / "mylib" / "__init__.py").write_text("")
+        (http_pkg / "__init__.py").write_text(
+            "from mylib.http.response import HttpResponse\n"
+        )
+        (http_pkg / "response.py").write_text(
+            "class HttpResponse:\n"
+            "    def __init__(self, content=b''):\n"
+            "        self.content = content\n"
+        )
+
+        # Tests package
+        tests = project / "tests"
+        tests.mkdir()
+        (tests / "__init__.py").write_text("")
+        (tests / "test_http.py").write_text(
+            "from mylib.http import HttpResponse\n\n"
+            "def test_response():\n"
+            "    r = HttpResponse(b'hello')\n"
+            "    assert r.content == b'hello'\n"
+        )
+
+        tests_pkg = analyze_package(tests)
+        steps = trace_flow(
+            tests_pkg,
+            "test_response",
+            cross_module=True,
+            detail="source",
+        )
+        resolved = [s for s in steps if s.name == "HttpResponse" and s.resolved_module]
+        assert len(resolved) == 1
+        # Should point to the actual definition, not __init__.py
+        assert resolved[0].resolved_module == "mylib.http.response"
+        assert resolved[0].source is not None
+        assert "class HttpResponse" in resolved[0].source
+
     def test_no_marker_no_fallback(self, tmp_path: Path) -> None:
         """Without .git marker, project root fallback doesn't fire."""
         # Place tests deep enough that standard root/root.parent search
