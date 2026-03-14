@@ -7,6 +7,7 @@ from pathlib import Path
 from axm_ast.core.analyzer import analyze_package
 from axm_ast.core.flows import (
     EntryPoint,
+    FlowStep,
     find_callees,
     find_entry_points,
     format_flows,
@@ -763,3 +764,175 @@ class TestEdgeBuiltinCalls:
         assert len(steps) >= 1
         for s in steps:
             assert s.resolved_module is None
+
+
+# ─── detail=source tests (AXM-410) ──────────────────────────────────────────
+
+
+class TestFlowStepSourceField:
+    """FlowStep model accepts optional source field."""
+
+    def test_flowstep_source_default_none(self) -> None:
+        """FlowStep without source → defaults to None."""
+        step = FlowStep(name="f", module="m", line=1, depth=0, chain=["f"])
+        assert step.source is None
+
+    def test_flowstep_source_explicit(self) -> None:
+        """FlowStep with explicit source → stored."""
+        step = FlowStep(
+            name="f", module="m", line=1, depth=0, chain=["f"], source="def f(): pass"
+        )
+        assert step.source == "def f(): pass"
+
+
+class TestDetailSource:
+    """trace_flow(detail='source') fills source code."""
+
+    def test_trace_flow_detail_source(self, tmp_path: Path) -> None:
+        """Each step has .source with the function body."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": (
+                    "def helper():\n    return 42\n\ndef main():\n    helper()\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        steps = trace_flow(pkg, "main", detail="source")
+        main_step = next(s for s in steps if s.name == "main")
+        helper_step = next(s for s in steps if s.name == "helper")
+        assert main_step.source is not None
+        assert "def main" in main_step.source
+        assert "helper()" in main_step.source
+        assert helper_step.source is not None
+        assert "def helper" in helper_step.source
+        assert "return 42" in helper_step.source
+
+    def test_trace_flow_detail_trace(self, tmp_path: Path) -> None:
+        """detail='trace' → source is None for all steps."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def main():\n    pass\n",
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        steps = trace_flow(pkg, "main", detail="trace")
+        for step in steps:
+            assert step.source is None
+
+    def test_trace_flow_detail_default(self, tmp_path: Path) -> None:
+        """Default detail → same as 'trace' (source is None)."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def main():\n    pass\n",
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        steps = trace_flow(pkg, "main")
+        for step in steps:
+            assert step.source is None
+
+
+class TestDetailSourceMissingModule:
+    """Source extraction with unresolvable module → None (no crash)."""
+
+    def test_source_missing_module(self, tmp_path: Path) -> None:
+        """Trace with stdlib callee → source=None for unresolvable."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "mod.py": (
+                    "import os\n\ndef test_func():\n    os.path.join('a', 'b')\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        steps = trace_flow(pkg, "test_func", detail="source")
+        # Entry point should have source
+        entry = next(s for s in steps if s.name == "test_func")
+        assert entry.source is not None
+        assert "def test_func" in entry.source
+
+
+class TestFlowsToolDetail:
+    """FlowsTool passes detail param through."""
+
+    def test_flowstool_passes_detail(self, tmp_path: Path) -> None:
+        """FlowsTool with detail='source' → steps contain source."""
+        from axm_ast.tools.flows import FlowsTool
+
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def main():\n    pass\n",
+            },
+        )
+        tool = FlowsTool()
+        result = tool.execute(path=str(pkg_path), entry="main", detail="source")
+        assert result.success
+        assert result.data is not None
+        steps = result.data["steps"]
+        assert len(steps) >= 1
+        assert "source" in steps[0]
+        assert "def main" in steps[0]["source"]
+
+    def test_flowstool_default_no_source(self, tmp_path: Path) -> None:
+        """FlowsTool default → steps do not contain source key."""
+        from axm_ast.tools.flows import FlowsTool
+
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def main():\n    pass\n",
+            },
+        )
+        tool = FlowsTool()
+        result = tool.execute(path=str(pkg_path), entry="main")
+        assert result.success
+        assert result.data is not None
+        steps = result.data["steps"]
+        assert len(steps) >= 1
+        assert "source" not in steps[0]
+
+
+class TestTraceSourceHook:
+    """TraceSourceHook execution tests."""
+
+    def test_trace_source_hook_execute(self, tmp_path: Path) -> None:
+        """Valid context with working_dir → HookResult.ok with trace."""
+        from axm_ast.hooks.trace_source import TraceSourceHook
+
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def main():\n    pass\n",
+            },
+        )
+        hook = TraceSourceHook()
+        result = hook.execute({"working_dir": str(pkg_path)}, entry="main")
+        assert result.success
+        assert "trace" in result.metadata
+        trace = result.metadata["trace"]
+        assert len(trace) >= 1
+        assert trace[0]["name"] == "main"
+        assert "source" in trace[0]
+        assert "def main" in trace[0]["source"]
+
+    def test_trace_source_hook_no_entry(self, tmp_path: Path) -> None:
+        """Missing entry param → HookResult.fail."""
+        from axm_ast.hooks.trace_source import TraceSourceHook
+
+        hook = TraceSourceHook()
+        result = hook.execute({"working_dir": str(tmp_path)})
+        assert not result.success
+        assert "entry" in (result.error or "").lower()

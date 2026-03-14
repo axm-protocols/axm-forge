@@ -32,6 +32,8 @@ class FlowsTool(AXMTool):
         Args:
             path: Path to package directory.
             entry: Optional entry point name to trace from.
+            detail: Level of detail — ``"trace"`` (default) or
+                ``"source"`` (includes function source code).
 
         Returns:
             ToolResult with entry points or flow steps.
@@ -49,11 +51,13 @@ class FlowsTool(AXMTool):
             if entry is not None:
                 max_depth = int(kwargs.get("max_depth", 5))
                 cross_module = bool(kwargs.get("cross_module", False))
+                detail = str(kwargs.get("detail", "trace"))
                 steps = trace_flow(
                     pkg,
                     entry,
                     max_depth=max_depth,
                     cross_module=cross_module,
+                    detail=detail,
                 )
                 step_dicts = []
                 for s in steps:
@@ -66,6 +70,8 @@ class FlowsTool(AXMTool):
                     }
                     if s.resolved_module is not None:
                         d["resolved_module"] = s.resolved_module
+                    if s.source is not None:
+                        d["source"] = s.source
                     step_dicts.append(d)
                 return ToolResult(
                     success=True,

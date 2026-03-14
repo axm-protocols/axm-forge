@@ -70,6 +70,10 @@ class FlowStep(BaseModel):
         default=None,
         description="Dotted module path when resolved across modules",
     )
+    source: str | None = Field(
+        default=None,
+        description="Source code of the symbol (when detail='source')",
+    )
 
 
 # ─── Decorator patterns ─────────────────────────────────────────────────────
@@ -624,6 +628,7 @@ def trace_flow(
     *,
     max_depth: int = 5,
     cross_module: bool = False,
+    detail: str = "trace",
 ) -> list[FlowStep]:
     """Trace execution flow from an entry point via BFS.
 
@@ -636,6 +641,9 @@ def trace_flow(
         max_depth: Maximum BFS depth (default 5).
         cross_module: If True, resolve imports and continue BFS
             into external modules on-demand.
+        detail: Level of detail — ``"trace"`` (default) returns
+            names and positions only; ``"source"`` enriches each
+            step with the function's source code.
 
     Returns:
         List of FlowStep objects ordered by depth then discovery.
@@ -714,7 +722,40 @@ def trace_flow(
             parse_cache,
         )
 
+    if detail == "source":
+        _enrich_steps_with_source(steps, pkg)
+
     return steps
+
+
+def _enrich_steps_with_source(steps: list[FlowStep], pkg: PackageInfo) -> None:
+    """Fill ``step.source`` for every step in *steps* in-place.
+
+    Reads each module file and uses ``_find_function_nodes()`` to locate
+    the exact byte range of the function.  Missing files and unresolvable
+    modules yield ``source=None`` (no crash).
+    """
+    # Cache: module_path → source_bytes
+    source_cache: dict[Path, bytes] = {}
+
+    for step in steps:
+        try:
+            mod = _find_module_for_symbol(pkg, step.name)
+            if mod is None:
+                continue
+            if mod.path not in source_cache:
+                source_cache[mod.path] = mod.path.read_bytes()
+            raw = source_cache[mod.path]
+            tree = parse_source(raw.decode("utf-8", errors="replace"))
+            ranges = _find_function_nodes(tree.root_node, step.name)
+            if ranges:
+                fr = ranges[0]
+                # frozen model — use model_copy to set source
+                step.source = raw[fr.start_byte : fr.end_byte].decode(
+                    "utf-8", errors="replace"
+                )
+        except Exception:  # noqa: BLE001, S112
+            continue  # graceful: leave source=None
 
 
 def _resolve_cross_module_callees(  # noqa: PLR0913
