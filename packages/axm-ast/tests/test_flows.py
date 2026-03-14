@@ -840,6 +840,12 @@ class TestCrossModuleSiblingPackage:
         entry = next(s for s in steps if s.name == "test_response")
         assert entry.source is not None
         assert "def test_response" in entry.source
+        # Cross-module resolved symbol should also have source
+        resolved = next(
+            s for s in steps if s.name == "HttpResponse" and s.resolved_module
+        )
+        assert resolved.source is not None
+        assert "class HttpResponse" in resolved.source
 
     def test_no_marker_no_fallback(self, tmp_path: Path) -> None:
         """Without .git marker, project root fallback doesn't fire."""
