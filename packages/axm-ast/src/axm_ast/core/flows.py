@@ -16,11 +16,13 @@ Example::
 
 from __future__ import annotations
 
+import sys
 from collections import deque
 from itertools import chain as iterchain
+from pathlib import Path
 from typing import NamedTuple
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from axm_ast.core.analyzer import module_dotted_name
 from axm_ast.core.callers import (
@@ -31,7 +33,7 @@ from axm_ast.core.callers import (
 )
 from axm_ast.core.parser import parse_source
 from axm_ast.models.calls import CallSite
-from axm_ast.models.nodes import ModuleInfo, PackageInfo
+from axm_ast.models.nodes import ImportInfo, ModuleInfo, PackageInfo
 
 __all__ = [
     "EntryPoint",
@@ -64,6 +66,10 @@ class FlowStep(BaseModel):
     line: int
     depth: int
     chain: list[str]
+    resolved_module: str | None = Field(
+        default=None,
+        description="Dotted module path when resolved across modules",
+    )
 
 
 # ─── Decorator patterns ─────────────────────────────────────────────────────
@@ -410,11 +416,214 @@ def _visit_scoped_calls(
 # ─── Flow tracing (BFS) ─────────────────────────────────────────────────────
 
 
+# Stdlib module names (Python 3.10+)
+_STDLIB_MODULES: frozenset[str] = frozenset(getattr(sys, "stdlib_module_names", set()))
+
+# Common builtins that appear as call targets but have no module.
+_BUILTIN_NAMES: frozenset[str] = frozenset(
+    {
+        "len",
+        "print",
+        "isinstance",
+        "issubclass",
+        "type",
+        "int",
+        "str",
+        "float",
+        "bool",
+        "list",
+        "dict",
+        "set",
+        "tuple",
+        "range",
+        "enumerate",
+        "zip",
+        "map",
+        "filter",
+        "sorted",
+        "reversed",
+        "any",
+        "all",
+        "min",
+        "max",
+        "sum",
+        "abs",
+        "round",
+        "repr",
+        "hash",
+        "id",
+        "super",
+        "object",
+        "next",
+        "iter",
+        "getattr",
+        "setattr",
+        "hasattr",
+        "delattr",
+        "callable",
+        "open",
+        "vars",
+        "dir",
+    }
+)
+
+
+def _is_stdlib_or_builtin(name: str) -> bool:
+    """Check if a name refers to a stdlib module or a builtin."""
+    if name in _BUILTIN_NAMES:
+        return True
+    top = name.split(".")[0]
+    return top in _STDLIB_MODULES
+
+
+def _find_module_for_symbol(pkg: PackageInfo, symbol: str) -> ModuleInfo | None:
+    """Find the ModuleInfo containing *symbol* in *pkg*."""
+    for mod in pkg.modules:
+        for fn in iterchain(mod.functions, *(c.methods for c in mod.classes)):
+            if fn.name == symbol:
+                return mod
+        for cls in mod.classes:
+            if cls.name == symbol:
+                return mod
+    return None
+
+
+def _resolve_import(
+    mod: ModuleInfo, symbol: str, pkg: PackageInfo
+) -> tuple[Path | None, str]:
+    """Resolve an imported *symbol* to the file containing its definition.
+
+    Handles ``from X import Y`` and ``import X`` patterns, including
+    relative imports.
+
+    Returns:
+        ``(file_path, dotted_module)`` or ``(None, "")`` if unresolvable.
+    """
+    for imp in mod.imports:
+        if symbol in imp.names:
+            # from X import Y
+            return _resolve_import_info(imp, symbol, mod, pkg)
+        if imp.alias == symbol and imp.module:
+            # import X as alias
+            return _module_to_path(imp.module, pkg.root)
+    return None, ""
+
+
+def _resolve_import_info(
+    imp: ImportInfo, symbol: str, mod: ModuleInfo, pkg: PackageInfo
+) -> tuple[Path | None, str]:
+    """Resolve a single ImportInfo to a file path."""
+    if imp.is_relative:
+        return _resolve_relative_import(imp, mod, pkg)
+
+    if imp.module is None:
+        return None, ""
+
+    # Try direct module: from foo.bar import Baz → foo/bar.py
+    path, dotted = _module_to_path(imp.module, pkg.root)
+    if path is not None:
+        return path, dotted
+
+    # Try sub-module: from foo import bar → foo/bar.py
+    sub_mod = f"{imp.module}.{symbol}"
+    path, dotted = _module_to_path(sub_mod, pkg.root)
+    if path is not None:
+        return path, dotted
+
+    return None, ""
+
+
+def _resolve_relative_import(
+    imp: ImportInfo, mod: ModuleInfo, pkg: PackageInfo
+) -> tuple[Path | None, str]:
+    """Resolve a relative import like ``from .utils import helper``."""
+    base = mod.path.parent
+    # Go up `level - 1` directories (level=1 means current package)
+    for _ in range(imp.level - 1):
+        base = base.parent
+
+    if imp.module:
+        parts = imp.module.split(".")
+        target = base / Path(*parts)
+    else:
+        target = base
+
+    # Try as a .py file
+    py_file = target.with_suffix(".py")
+    if py_file.is_file():
+        dotted = _path_to_dotted(py_file, pkg.root)
+        return py_file, dotted
+
+    # Try as a package (__init__.py)
+    init_file = target / "__init__.py"
+    if init_file.is_file():
+        dotted = _path_to_dotted(init_file, pkg.root)
+        return init_file, dotted
+
+    return None, ""
+
+
+def _module_to_path(dotted: str, root: Path) -> tuple[Path | None, str]:
+    """Convert a dotted module name to a file path relative to *root*.
+
+    Searches parent directories of *root* to find the module.
+    """
+    parts = dotted.split(".")
+
+    # Search from root's parent (the containing directory)
+    for search_base in [root.parent, root]:
+        target = search_base / Path(*parts)
+
+        # Try as .py file
+        py_file = target.with_suffix(".py")
+        if py_file.is_file():
+            return py_file, dotted
+
+        # Try as package
+        init_file = target / "__init__.py"
+        if init_file.is_file():
+            return init_file, dotted
+
+    return None, ""
+
+
+def _path_to_dotted(path: Path, root: Path) -> str:
+    """Convert a file path to a dotted module name."""
+    try:
+        rel = path.relative_to(root.parent)
+    except ValueError:
+        return path.stem
+    parts = list(rel.with_suffix("").parts)
+    if parts and parts[-1] == "__init__":
+        parts = parts[:-1]
+    return ".".join(parts) if parts else path.stem
+
+
+def _parse_module_cached(path: Path, cache: dict[Path, PackageInfo]) -> PackageInfo:
+    """Parse a single file into a minimal PackageInfo, with caching."""
+    if path in cache:
+        return cache[path]
+
+    from axm_ast.core.analyzer import analyze_package
+
+    # Determine the package root for the target module
+    pkg_root = path.parent
+    # Walk up to find the top-level package (directory without __init__.py
+    # in its parent)
+    while (pkg_root.parent / "__init__.py").is_file():
+        pkg_root = pkg_root.parent
+
+    mini_pkg = analyze_package(pkg_root)
+    cache[path] = mini_pkg
+    return mini_pkg
+
+
 def trace_flow(
     pkg: PackageInfo,
     entry: str,
     *,
     max_depth: int = 5,
+    cross_module: bool = False,
 ) -> list[FlowStep]:
     """Trace execution flow from an entry point via BFS.
 
@@ -425,6 +634,8 @@ def trace_flow(
         pkg: Analyzed package info.
         entry: Name of the entry point function to trace from.
         max_depth: Maximum BFS depth (default 5).
+        cross_module: If True, resolve imports and continue BFS
+            into external modules on-demand.
 
     Returns:
         List of FlowStep objects ordered by depth then discovery.
@@ -440,9 +651,14 @@ def trace_flow(
         return []
 
     steps: list[FlowStep] = []
-    visited: set[str] = {entry}
-    queue: deque[tuple[str, int, list[str]]] = deque()
-    queue.append((entry, 0, [entry]))
+    # Use (module, symbol) tuples to handle same-named symbols
+    # in different modules.
+    visited: set[tuple[str, str]] = {(entry_mod, entry)}
+    # Queue: (symbol, depth, chain, source_pkg, source_module_dotted)
+    queue: deque[tuple[str, int, list[str], PackageInfo, str]] = deque()
+    queue.append((entry, 0, [entry], pkg, entry_mod))
+    # BFS-scoped cache for on-demand module parsing
+    parse_cache: dict[Path, PackageInfo] = {}
 
     # Add the entry point itself
     steps.append(
@@ -456,15 +672,16 @@ def trace_flow(
     )
 
     while queue:
-        current, depth, current_chain = queue.popleft()
+        current, depth, current_chain, current_pkg, current_mod = queue.popleft()
 
         if depth >= max_depth:
             continue
 
-        callees = find_callees(pkg, current)
+        callees = find_callees(current_pkg, current)
         for callee in callees:
-            if callee.symbol not in visited:
-                visited.add(callee.symbol)
+            callee_key = (callee.module, callee.symbol)
+            if callee_key not in visited:
+                visited.add(callee_key)
                 new_chain = [*current_chain, callee.symbol]
                 steps.append(
                     FlowStep(
@@ -475,9 +692,102 @@ def trace_flow(
                         chain=new_chain,
                     )
                 )
-                queue.append((callee.symbol, depth + 1, new_chain))
+                queue.append(
+                    (callee.symbol, depth + 1, new_chain, current_pkg, callee.module)
+                )
+
+        if not cross_module:
+            continue
+
+        # Cross-module resolution: find symbols that were imported
+        # but not defined locally.
+        _resolve_cross_module_callees(
+            callees,
+            current_mod,
+            current_pkg,
+            pkg,
+            depth,
+            current_chain,
+            visited,
+            queue,
+            steps,
+            parse_cache,
+        )
 
     return steps
+
+
+def _resolve_cross_module_callees(  # noqa: PLR0913
+    callees: list[CallSite],
+    current_mod: str,
+    current_pkg: PackageInfo,
+    original_pkg: PackageInfo,
+    depth: int,
+    current_chain: list[str],
+    visited: set[tuple[str, str]],
+    queue: deque[tuple[str, int, list[str], PackageInfo, str]],
+    steps: list[FlowStep],
+    parse_cache: dict[Path, PackageInfo],
+) -> None:
+    """Try to resolve callees that are imported from other modules."""
+    for callee in callees:
+        symbol = callee.symbol
+        if _is_stdlib_or_builtin(symbol):
+            continue
+
+        # Find the module where the current function lives
+        source_mod = _find_module_for_symbol(current_pkg, callee.context or "")
+        if source_mod is None:
+            # Try to find by current_mod name
+            for m in current_pkg.modules:
+                mod_name = module_dotted_name(m.path, current_pkg.root)
+                if mod_name == current_mod:
+                    source_mod = m
+                    break
+        if source_mod is None:
+            continue
+
+        # Check if the callee is already defined in the package
+        if _find_module_for_symbol(current_pkg, symbol) is not None:
+            continue
+
+        # Try to resolve the import
+        resolved_path, resolved_dotted = _resolve_import(
+            source_mod, symbol, original_pkg
+        )
+        if resolved_path is None or not resolved_path.is_file():
+            continue
+
+        # Parse the target module on-demand
+        try:
+            target_pkg = _parse_module_cached(resolved_path, parse_cache)
+        except Exception:  # noqa: BLE001, S112
+            continue
+
+        # Find the symbol in the resolved package
+        target_mod, target_line = _find_symbol_location(target_pkg, symbol)
+        if target_mod is None:
+            continue
+
+        resolved_key = (resolved_dotted, symbol)
+        if resolved_key in visited:
+            continue
+        visited.add(resolved_key)
+
+        new_chain = [*current_chain, callee.symbol]
+        steps.append(
+            FlowStep(
+                name=symbol,
+                module=target_mod,
+                line=target_line,
+                depth=depth + 1,
+                chain=new_chain,
+                resolved_module=resolved_dotted,
+            )
+        )
+
+        # Continue BFS into the resolved module
+        queue.append((symbol, depth + 1, new_chain, target_pkg, target_mod))
 
 
 def _find_symbol_location(pkg: PackageInfo, symbol: str) -> tuple[str | None, int]:
