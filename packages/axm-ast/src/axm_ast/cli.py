@@ -849,6 +849,13 @@ def flows(
             help="Resolve imports and trace into external modules",
         ),
     ] = False,
+    detail: Annotated[
+        str,
+        cyclopts.Parameter(
+            name=["--detail", "-d"],
+            help="Detail level: trace (default) or source (include function source)",
+        ),
+    ] = "trace",
     json_output: Annotated[
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
@@ -874,6 +881,7 @@ def flows(
             trace,
             max_depth=max_depth,
             cross_module=cross_module,
+            detail=detail,
         )
         if json_output:
             print(
