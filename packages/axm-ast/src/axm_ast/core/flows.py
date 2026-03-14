@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import sys
 from collections import deque
+from dataclasses import dataclass
 from itertools import chain as iterchain
 from pathlib import Path
 from typing import NamedTuple
@@ -760,28 +761,43 @@ def trace_flow(
     return steps
 
 
-def _extract_symbol_source(path: Path, symbol: str) -> str | None:
-    """Read source of *symbol* from *path*.  Returns ``None`` on failure."""
+@dataclass
+class _SymbolLocation:
+    """Lightweight symbol location from tree-sitter (no full pkg parse)."""
+
+    line: int
+    source: str | None = None
+
+
+def _locate_symbol(
+    path: Path, symbol: str, *, with_source: bool = False
+) -> _SymbolLocation | None:
+    """Find *symbol* in *path* via tree-sitter.  Returns line (+ source).
+
+    This avoids the heavyweight ``analyze_package`` path — it only parses
+    the single file, making cross-module resolution O(1) per symbol.
+    """
     try:
         raw = path.read_bytes()
         tree = parse_source(raw.decode("utf-8", errors="replace"))
         ranges = _find_function_nodes(tree.root_node, symbol)
-        if ranges:
-            return raw[ranges[0].start_byte : ranges[0].end_byte].decode(
-                "utf-8", errors="replace"
-            )
+        if not ranges:
+            return None
+        fr = ranges[0]
+        source = None
+        if with_source:
+            source = raw[fr.start_byte : fr.end_byte].decode("utf-8", errors="replace")
+        return _SymbolLocation(line=fr.line, source=source)
     except Exception:  # noqa: BLE001
         return None
-    return None
 
 
 def _enrich_steps_with_source(steps: list[FlowStep], pkg: PackageInfo) -> None:
     """Fill ``step.source`` for every step in *steps* in-place.
 
-    Reads each module file and uses ``_extract_symbol_source()`` to locate
-    the exact byte range of the function.  Missing files and unresolvable
-    modules yield ``source=None`` (no crash).  Steps that already have
-    ``source`` set (e.g. from cross-module resolution) are skipped.
+    Uses ``_locate_symbol()`` to read each module file and extract the
+    function source.  Steps that already have ``source`` set (e.g. from
+    cross-module resolution) are skipped.
     """
     for step in steps:
         if step.source is not None:
@@ -789,7 +805,9 @@ def _enrich_steps_with_source(steps: list[FlowStep], pkg: PackageInfo) -> None:
         mod = _find_module_for_symbol(pkg, step.name)
         if mod is None:
             continue
-        step.source = _extract_symbol_source(mod.path, step.name)
+        loc = _locate_symbol(mod.path, step.name, with_source=True)
+        if loc is not None:
+            step.source = loc.source
 
 
 def _resolve_cross_module_callees(  # noqa: PLR0913
@@ -834,15 +852,10 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
         if resolved_path is None or not resolved_path.is_file():
             continue
 
-        # Parse the target module on-demand
-        try:
-            target_pkg = _parse_module_cached(resolved_path, parse_cache)
-        except Exception:  # noqa: BLE001, S112
-            continue
-
-        # Find the symbol in the resolved package
-        target_mod, target_line = _find_symbol_location(target_pkg, symbol)
-        if target_mod is None:
+        # Lightweight symbol lookup — tree-sitter on the single file,
+        # no full package parse, no BFS continuation into external code.
+        loc = _locate_symbol(resolved_path, symbol, with_source=(detail == "source"))
+        if loc is None:
             continue
 
         resolved_key = (resolved_dotted, symbol)
@@ -851,26 +864,17 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
         visited.add(resolved_key)
 
         new_chain = [*current_chain, callee.symbol]
-
-        # Extract source if requested — we have the resolved path
-        source = None
-        if detail == "source":
-            source = _extract_symbol_source(resolved_path, symbol)
-
         steps.append(
             FlowStep(
                 name=symbol,
-                module=target_mod,
-                line=target_line,
+                module=resolved_dotted,
+                line=loc.line,
                 depth=depth + 1,
                 chain=new_chain,
                 resolved_module=resolved_dotted,
-                source=source,
+                source=loc.source,
             )
         )
-
-        # Continue BFS into the resolved module
-        queue.append((symbol, depth + 1, new_chain, target_pkg, target_mod))
 
 
 def _find_symbol_location(pkg: PackageInfo, symbol: str) -> tuple[str | None, int]:
