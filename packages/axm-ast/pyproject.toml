@@ -50,6 +50,9 @@ ast_dead_code = "axm_ast.tools.dead_code:DeadCodeTool"
 ast_diff      = "axm_ast.tools.diff:DiffTool"
 ast_flows     = "axm_ast.tools.flows:FlowsTool"
 
+[project.entry-points."axm.hooks"]
+"ast:trace-source" = "axm_ast.hooks.trace_source:TraceSourceHook"
+
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
