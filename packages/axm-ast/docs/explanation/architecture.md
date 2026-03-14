@@ -96,6 +96,7 @@ Independent, composable analysis engines:
 | `workspace.py` | Multi-package workspace detection and analysis | `detect_workspace()`, `analyze_workspace()` |
 | `docs.py` | Documentation tree discovery | `discover_docs()` |
 | `dead_code.py` | Dead code detection with test/lazy-import scanning | `find_dead_code()` |
+| `flows.py` | Entry point detection, BFS flow tracing, source enrichment | `find_entry_points()`, `trace_flow()` |
 
 ### 3. Formatters (`formatters.py`)
 
@@ -125,6 +126,14 @@ Pydantic models for structured data exchange between layers:
 | `ImportInfo` | Import statement (absolute/relative, names) |
 | `CallSite` | Call-site location (module, line, context) |
 | `WorkspaceInfo` | Multi-package workspace (packages, dependency edges) |
+
+### 5. Hooks (`hooks/`)
+
+Protocol hooks registered via `axm.hooks` entry points. These are called by `axm-engine` as pre/post-hooks in protocol execution.
+
+| Hook | Entry Point | Purpose |
+|---|---|---|
+| `TraceSourceHook` | `ast:trace-source` | Run `trace_flow(detail="source")` and inject trace into session context |
 
 ## Design Decisions
 
