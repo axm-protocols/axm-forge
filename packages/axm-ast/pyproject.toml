@@ -52,6 +52,7 @@ ast_flows     = "axm_ast.tools.flows:FlowsTool"
 
 [project.entry-points."axm.hooks"]
 "ast:trace-source" = "axm_ast.hooks.trace_source:TraceSourceHook"
+"ast:impact"        = "axm_ast.hooks.impact:ImpactHook"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
