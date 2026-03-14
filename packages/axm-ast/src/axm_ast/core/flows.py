@@ -355,7 +355,7 @@ def _walk_for_functions(
     """Recursively walk AST to find function definitions with given name."""
     node_type = getattr(node, "type", "")
 
-    if node_type == "function_definition":
+    if node_type in ("function_definition", "class_definition"):
         for child in getattr(node, "children", []):
             if getattr(child, "type", "") == "identifier":
                 name = _node_text_safe(child)
@@ -751,6 +751,7 @@ def trace_flow(
             queue,
             steps,
             parse_cache,
+            detail=detail,
         )
 
     if detail == "source":
@@ -759,34 +760,36 @@ def trace_flow(
     return steps
 
 
+def _extract_symbol_source(path: Path, symbol: str) -> str | None:
+    """Read source of *symbol* from *path*.  Returns ``None`` on failure."""
+    try:
+        raw = path.read_bytes()
+        tree = parse_source(raw.decode("utf-8", errors="replace"))
+        ranges = _find_function_nodes(tree.root_node, symbol)
+        if ranges:
+            return raw[ranges[0].start_byte : ranges[0].end_byte].decode(
+                "utf-8", errors="replace"
+            )
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
 def _enrich_steps_with_source(steps: list[FlowStep], pkg: PackageInfo) -> None:
     """Fill ``step.source`` for every step in *steps* in-place.
 
-    Reads each module file and uses ``_find_function_nodes()`` to locate
+    Reads each module file and uses ``_extract_symbol_source()`` to locate
     the exact byte range of the function.  Missing files and unresolvable
-    modules yield ``source=None`` (no crash).
+    modules yield ``source=None`` (no crash).  Steps that already have
+    ``source`` set (e.g. from cross-module resolution) are skipped.
     """
-    # Cache: module_path → source_bytes
-    source_cache: dict[Path, bytes] = {}
-
     for step in steps:
-        try:
-            mod = _find_module_for_symbol(pkg, step.name)
-            if mod is None:
-                continue
-            if mod.path not in source_cache:
-                source_cache[mod.path] = mod.path.read_bytes()
-            raw = source_cache[mod.path]
-            tree = parse_source(raw.decode("utf-8", errors="replace"))
-            ranges = _find_function_nodes(tree.root_node, step.name)
-            if ranges:
-                fr = ranges[0]
-                # frozen model — use model_copy to set source
-                step.source = raw[fr.start_byte : fr.end_byte].decode(
-                    "utf-8", errors="replace"
-                )
-        except Exception:  # noqa: BLE001, S112
-            continue  # graceful: leave source=None
+        if step.source is not None:
+            continue  # already enriched (cross-module resolution)
+        mod = _find_module_for_symbol(pkg, step.name)
+        if mod is None:
+            continue
+        step.source = _extract_symbol_source(mod.path, step.name)
 
 
 def _resolve_cross_module_callees(  # noqa: PLR0913
@@ -800,6 +803,7 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
     queue: deque[tuple[str, int, list[str], PackageInfo, str]],
     steps: list[FlowStep],
     parse_cache: dict[Path, PackageInfo],
+    detail: str = "trace",
 ) -> None:
     """Try to resolve callees that are imported from other modules."""
     for callee in callees:
@@ -847,6 +851,12 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
         visited.add(resolved_key)
 
         new_chain = [*current_chain, callee.symbol]
+
+        # Extract source if requested — we have the resolved path
+        source = None
+        if detail == "source":
+            source = _extract_symbol_source(resolved_path, symbol)
+
         steps.append(
             FlowStep(
                 name=symbol,
@@ -855,6 +865,7 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
                 depth=depth + 1,
                 chain=new_chain,
                 resolved_module=resolved_dotted,
+                source=source,
             )
         )
 
