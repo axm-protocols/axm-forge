@@ -87,6 +87,7 @@ axm-ast diff main..feature src/mylib --json
 axm-ast flows src/mylib
 axm-ast flows src/mylib --trace main          # BFS flow from entry point
 axm-ast flows src/mylib --trace main --detail source  # include function source code
+axm-ast flows tests/ --trace test_foo --cross-module  # resolve sibling-package imports
 axm-ast flows src/mylib --trace main --json
 ```
 
