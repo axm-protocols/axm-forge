@@ -48,22 +48,32 @@ class FlowsTool(AXMTool):
 
             if entry is not None:
                 max_depth = int(kwargs.get("max_depth", 5))
-                steps = trace_flow(pkg, entry, max_depth=max_depth)
+                cross_module = bool(kwargs.get("cross_module", False))
+                steps = trace_flow(
+                    pkg,
+                    entry,
+                    max_depth=max_depth,
+                    cross_module=cross_module,
+                )
+                step_dicts = []
+                for s in steps:
+                    d: dict[str, object] = {
+                        "name": s.name,
+                        "module": s.module,
+                        "line": s.line,
+                        "depth": s.depth,
+                        "chain": s.chain,
+                    }
+                    if s.resolved_module is not None:
+                        d["resolved_module"] = s.resolved_module
+                    step_dicts.append(d)
                 return ToolResult(
                     success=True,
                     data={
                         "entry": entry,
-                        "steps": [
-                            {
-                                "name": s.name,
-                                "module": s.module,
-                                "line": s.line,
-                                "depth": s.depth,
-                                "chain": s.chain,
-                            }
-                            for s in steps
-                        ],
+                        "steps": step_dicts,
                         "depth": max_depth,
+                        "cross_module": cross_module,
                         "count": len(steps),
                     },
                     hint="Tip: Use ast_impact(symbol) on key nodes for blast radius.",

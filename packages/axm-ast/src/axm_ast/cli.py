@@ -794,6 +794,13 @@ def flows(
             help="Maximum BFS depth for flow tracing",
         ),
     ] = 5,
+    cross_module: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--cross-module"],
+            help="Resolve imports and trace into external modules",
+        ),
+    ] = False,
     json_output: Annotated[
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
@@ -814,7 +821,12 @@ def flows(
     pkg = get_package(project_path)
 
     if trace is not None:
-        steps = trace_flow(pkg, trace, max_depth=max_depth)
+        steps = trace_flow(
+            pkg,
+            trace,
+            max_depth=max_depth,
+            cross_module=cross_module,
+        )
         if json_output:
             print(
                 json.dumps(
