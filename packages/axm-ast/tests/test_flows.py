@@ -766,6 +766,110 @@ class TestEdgeBuiltinCalls:
             assert s.resolved_module is None
 
 
+class TestCrossModuleSiblingPackage:
+    """Sibling-package imports resolved via project-root fallback.
+
+    Simulates Django layout: tests/ imports from django/ at repo root.
+    """
+
+    def _make_sibling_project(self, tmp_path: Path) -> Path:
+        """Create a project with sibling packages and a .git marker.
+
+        Layout::
+
+            project/
+            ├── .git/              ← project root marker
+            ├── mylib/
+            │   ├── __init__.py
+            │   └── http.py        ← defines HttpResponse
+            └── tests/
+                ├── __init__.py
+                └── test_http.py   ← from mylib.http import HttpResponse
+        """
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / ".git").mkdir()  # marker
+
+        # Sibling package: mylib
+        mylib = project / "mylib"
+        mylib.mkdir()
+        (mylib / "__init__.py").write_text("")
+        (mylib / "http.py").write_text(
+            "class HttpResponse:\n"
+            "    def __init__(self, content=b''):\n"
+            "        self.content = content\n"
+        )
+
+        # Tests package
+        tests = project / "tests"
+        tests.mkdir()
+        (tests / "__init__.py").write_text("")
+        (tests / "test_http.py").write_text(
+            "from mylib.http import HttpResponse\n\n"
+            "def test_response():\n"
+            "    r = HttpResponse(b'hello')\n"
+            "    assert r.content == b'hello'\n"
+        )
+        return project
+
+    def test_sibling_package_resolved(self, tmp_path: Path) -> None:
+        """from mylib.http import HttpResponse → resolved via project root."""
+        project = self._make_sibling_project(tmp_path)
+        tests_pkg = analyze_package(project / "tests")
+        steps = trace_flow(tests_pkg, "test_response", cross_module=True)
+        names = [s.name for s in steps]
+        assert "test_response" in names
+        assert "HttpResponse" in names
+        # Should have a resolved step pointing to the sibling package
+        resolved_steps = [
+            s for s in steps if s.name == "HttpResponse" and s.resolved_module
+        ]
+        assert len(resolved_steps) == 1
+        assert resolved_steps[0].resolved_module == "mylib.http"
+
+    def test_sibling_package_with_source(self, tmp_path: Path) -> None:
+        """detail='source' enriches sibling-package symbols."""
+        project = self._make_sibling_project(tmp_path)
+        tests_pkg = analyze_package(project / "tests")
+        steps = trace_flow(
+            tests_pkg,
+            "test_response",
+            cross_module=True,
+            detail="source",
+        )
+        entry = next(s for s in steps if s.name == "test_response")
+        assert entry.source is not None
+        assert "def test_response" in entry.source
+
+    def test_no_marker_no_fallback(self, tmp_path: Path) -> None:
+        """Without .git marker, project root fallback doesn't fire."""
+        # Place tests deep enough that standard root/root.parent search
+        # cannot reach mylib — only the project-root fallback could.
+        project = tmp_path / "bare_project"
+        project.mkdir()
+        # No .git marker!
+
+        mylib = project / "mylib"
+        mylib.mkdir()
+        (mylib / "__init__.py").write_text("")
+        (mylib / "http.py").write_text("class HttpResponse:\n    pass\n")
+
+        # Nest tests under a sub-directory so root.parent != project
+        nested = project / "apps" / "tests"
+        nested.mkdir(parents=True)
+        (nested / "__init__.py").write_text("")
+        (nested / "test_http.py").write_text(
+            "from mylib.http import HttpResponse\n\n"
+            "def test_response():\n"
+            "    HttpResponse()\n"
+        )
+        tests_pkg = analyze_package(nested)
+        steps = trace_flow(tests_pkg, "test_response", cross_module=True)
+        resolved = [s for s in steps if s.resolved_module is not None]
+        # Without project root marker, fallback shouldn't reach mylib
+        assert len(resolved) == 0
+
+
 # ─── detail=source tests (AXM-410) ──────────────────────────────────────────
 
 

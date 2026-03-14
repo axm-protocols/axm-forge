@@ -567,10 +567,29 @@ def _resolve_relative_import(
     return None, ""
 
 
+_PROJECT_MARKERS: tuple[str, ...] = (".git", "pyproject.toml", "setup.py", "setup.cfg")
+
+
+def _find_project_root(start: Path) -> Path:
+    """Walk up from *start* to find the project root.
+
+    Looks for common project markers (``.git``, ``pyproject.toml``,
+    ``setup.py``, ``setup.cfg``).  Returns *start* if no marker is found.
+    """
+    current = start
+    while current != current.parent:
+        if any((current / m).exists() for m in _PROJECT_MARKERS):
+            return current
+        current = current.parent
+    return start
+
+
 def _module_to_path(dotted: str, root: Path) -> tuple[Path | None, str]:
     """Convert a dotted module name to a file path relative to *root*.
 
     Searches parent directories of *root* to find the module.
+    Falls back to searching from the project root (detected via
+    ``.git`` / ``pyproject.toml``) for sibling-package imports.
     """
     parts = dotted.split(".")
 
@@ -584,6 +603,18 @@ def _module_to_path(dotted: str, root: Path) -> tuple[Path | None, str]:
             return py_file, dotted
 
         # Try as package
+        init_file = target / "__init__.py"
+        if init_file.is_file():
+            return init_file, dotted
+
+    # Fallback: walk up to project root for sibling-package imports
+    # (e.g. tests/ importing from django/ in the same repo)
+    project_root = _find_project_root(root)
+    if project_root not in (root, root.parent):
+        target = project_root / Path(*parts)
+        py_file = target.with_suffix(".py")
+        if py_file.is_file():
+            return py_file, dotted
         init_file = target / "__init__.py"
         if init_file.is_file():
             return init_file, dotted
