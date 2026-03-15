@@ -1,8 +1,9 @@
-"""Tests for TraceSourceHook — SWE-bench entry format parsing + scoped analysis."""
+"""Tests for TraceSourceHook and ImpactHook."""
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from axm_ast.hooks.trace_source import TraceSourceHook, _parse_entry, _resolve_scope
@@ -170,3 +171,182 @@ class TestTraceSourceHookExecute:
 
         assert result.success
         mock_analyze.assert_called_once_with(tmp_path)
+
+
+# ── ImpactHook tests ────────────────────────────────────────────────
+
+
+class TestImpactHookExecute:
+    """Tests for ImpactHook — single and multi-symbol analysis."""
+
+    def test_missing_symbol(self) -> None:
+        """Fail when 'symbol' param is missing."""
+        from axm_ast.hooks.impact import ImpactHook
+
+        hook = ImpactHook()
+        result = hook.execute({})
+        assert not result.success
+        assert result.error is not None
+        assert "symbol" in result.error
+
+    def test_invalid_path(self) -> None:
+        """Fail when path doesn't exist."""
+        from axm_ast.hooks.impact import ImpactHook
+
+        hook = ImpactHook()
+        result = hook.execute({}, symbol="Foo", path="/nonexistent/dir")
+        assert not result.success
+        assert result.error is not None
+        assert "not a directory" in result.error
+
+    @patch("axm_ast.core.impact.analyze_impact")
+    def test_single_symbol(
+        self,
+        mock_impact: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Single symbol — passes through directly, no merge."""
+        from axm_ast.hooks.impact import ImpactHook
+
+        mock_impact.return_value = {
+            "symbol": "Foo",
+            "definition": {"file": "foo.py", "line": 10},
+            "callers": [{"name": "bar", "file": "bar.py"}],
+            "type_refs": [],
+            "reexports": [],
+            "affected_modules": ["mod_a"],
+            "test_files": ["test_foo.py"],
+            "git_coupled": [],
+            "score": "MEDIUM",
+        }
+
+        hook = ImpactHook()
+        result = hook.execute({}, symbol="Foo", path=str(tmp_path))
+
+        assert result.success
+        mock_impact.assert_called_once_with(
+            tmp_path, "Foo", project_root=tmp_path.parent
+        )
+        assert result.metadata["impact"]["score"] == "MEDIUM"
+
+    @patch("axm_ast.core.impact.analyze_impact")
+    def test_multi_symbol_newline_split(
+        self,
+        mock_impact: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Newline-separated symbols are split and each analyzed."""
+        from axm_ast.hooks.impact import ImpactHook
+
+        mock_impact.return_value = {
+            "symbol": "X",
+            "definition": {"file": "x.py", "line": 1},
+            "callers": [],
+            "type_refs": [],
+            "reexports": [],
+            "affected_modules": [],
+            "test_files": [],
+            "git_coupled": [],
+            "score": "LOW",
+        }
+
+        hook = ImpactHook()
+        result = hook.execute({}, symbol="A\nB", path=str(tmp_path))
+
+        assert result.success
+        assert mock_impact.call_count == 2
+        calls = [c.args for c in mock_impact.call_args_list]
+        assert calls[0] == (tmp_path, "A")
+        assert calls[1] == (tmp_path, "B")
+
+    @patch("axm_ast.core.impact.analyze_impact")
+    def test_multi_symbol_max_score(
+        self,
+        mock_impact: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Merged score takes the maximum across all symbols."""
+        from axm_ast.hooks.impact import ImpactHook
+
+        def side_effect(_path: Path, sym: str, **_kw: object) -> dict[str, Any]:
+            base: dict[str, Any] = {
+                "definition": None,
+                "callers": [],
+                "type_refs": [],
+                "reexports": [],
+                "affected_modules": [],
+                "test_files": [],
+                "git_coupled": [],
+            }
+            if sym == "A":
+                return {**base, "symbol": "A", "score": "LOW"}
+            return {**base, "symbol": "B", "score": "HIGH"}
+
+        mock_impact.side_effect = side_effect
+
+        hook = ImpactHook()
+        result = hook.execute({}, symbol="A\nB", path=str(tmp_path))
+
+        assert result.success
+        assert result.metadata["impact"]["score"] == "HIGH"
+
+    @patch("axm_ast.core.impact.analyze_impact")
+    def test_multi_symbol_dedup_modules(
+        self,
+        mock_impact: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Affected modules and test files are deduplicated."""
+        from axm_ast.hooks.impact import ImpactHook
+
+        base: dict[str, Any] = {
+            "definition": None,
+            "callers": [],
+            "type_refs": [],
+            "reexports": [],
+            "git_coupled": [],
+            "score": "LOW",
+        }
+        mock_impact.return_value = {
+            **base,
+            "symbol": "X",
+            "affected_modules": ["mod_a", "mod_b"],
+            "test_files": ["test_x.py"],
+        }
+
+        hook = ImpactHook()
+        result = hook.execute({}, symbol="A\nB", path=str(tmp_path))
+
+        assert result.success
+        impact = result.metadata["impact"]
+        # Both returns identical modules — should be deduplicated
+        assert impact["affected_modules"] == ["mod_a", "mod_b"]
+        assert impact["test_files"] == ["test_x.py"]
+
+    @patch("axm_ast.core.impact.analyze_impact")
+    def test_whitespace_handling(
+        self,
+        mock_impact: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Empty lines and trailing whitespace are ignored."""
+        from axm_ast.hooks.impact import ImpactHook
+
+        mock_impact.return_value = {
+            "symbol": "X",
+            "definition": None,
+            "callers": [],
+            "type_refs": [],
+            "reexports": [],
+            "affected_modules": [],
+            "test_files": [],
+            "git_coupled": [],
+            "score": "LOW",
+        }
+
+        hook = ImpactHook()
+        result = hook.execute({}, symbol="A\n  \nB\n", path=str(tmp_path))
+
+        assert result.success
+        # Only A and B should be analyzed, not empty strings
+        assert mock_impact.call_count == 2
