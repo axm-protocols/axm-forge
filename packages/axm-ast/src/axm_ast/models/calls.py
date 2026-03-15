@@ -6,7 +6,7 @@ tree-sitter parsing, used by the caller analysis feature.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CallSite(BaseModel):
@@ -24,6 +24,8 @@ class CallSite(BaseModel):
         >>> cs.module
         'cli'
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     module: str = Field(description="Dotted module name")
     symbol: str = Field(description="Called symbol name")
