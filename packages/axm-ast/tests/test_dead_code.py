@@ -485,8 +485,7 @@ class TestDictDispatch:
             {
                 "__init__.py": "",
                 "helpers.py": (
-                    "def _collate_flight_samples(batch):\n"
-                    "    return batch\n"
+                    "def _collate_flight_samples(batch):\n    return batch\n"
                 ),
                 "main.py": (
                     "from .helpers import _collate_flight_samples\n\n"
