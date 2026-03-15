@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from axm_ast.core.analyzer import analyze_package
 from axm_ast.core.flows import (
@@ -1166,3 +1167,143 @@ class TestImpactHook:
         )
         assert result.success
         assert "impact" in result.metadata
+
+
+# ─── AXM-421: extracted helper tests ────────────────────────────────────────
+
+
+class TestParseImportFromNodeBasic:
+    """_parse_import_from_node extracts module and imported names."""
+
+    def test_basic_import(self) -> None:
+        """``from .response import HttpResponse`` → ('.response', ['HttpResponse'])."""
+        from axm_ast.core.flows import _parse_import_from_node
+        from axm_ast.core.parser import parse_source
+
+        code = "from .response import HttpResponse\n"
+        tree = parse_source(code)
+        nodes = [
+            n
+            for n in getattr(tree.root_node, "children", [])
+            if getattr(n, "type", "") == "import_from_statement"
+        ]
+        assert len(nodes) == 1
+        module, names = _parse_import_from_node(nodes[0])
+        assert module == ".response"
+        assert names == ["HttpResponse"]
+
+
+class TestParseImportFromNodeMulti:
+    """_parse_import_from_node handles multi-name imports."""
+
+    def test_multi_import(self) -> None:
+        """``from .models import A, B`` → ('.models', ['A', 'B'])."""
+        from axm_ast.core.flows import _parse_import_from_node
+        from axm_ast.core.parser import parse_source
+
+        code = "from .models import A, B\n"
+        tree = parse_source(code)
+        nodes = [
+            n
+            for n in getattr(tree.root_node, "children", [])
+            if getattr(n, "type", "") == "import_from_statement"
+        ]
+        assert len(nodes) == 1
+        module, names = _parse_import_from_node(nodes[0])
+        assert module == ".models"
+        assert set(names) == {"A", "B"}
+
+
+class TestResolveRelativeModule:
+    """_resolve_relative_module resolves dotted paths."""
+
+    def test_single_dot(self) -> None:
+        """.response from django.http → django.http.response."""
+        from axm_ast.core.flows import _resolve_relative_module
+
+        result = _resolve_relative_module(".response", "django.http")
+        assert result == "django.http.response"
+
+    def test_double_dot(self) -> None:
+        """..utils from django.http.response → django.utils."""
+        from axm_ast.core.flows import _resolve_relative_module
+
+        result = _resolve_relative_module("..utils", "django.http.response")
+        assert result == "django.http.utils"
+
+    def test_dot_only(self) -> None:
+        """. from django.http → django.http (no rel_name)."""
+        from axm_ast.core.flows import _resolve_relative_module
+
+        result = _resolve_relative_module(".", "django.http")
+        assert result == "django.http"
+
+
+class TestFindCalleesNoReparse:
+    """find_callees does not re-parse the same file twice."""
+
+    def test_no_reparse_with_cache(self, tmp_path: Path) -> None:
+        """Each file read at most once when using _parse_cache."""
+        from unittest.mock import patch
+
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": ("def alpha():\n    pass\n\ndef main():\n    alpha()\n"),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+
+        read_count: dict[str, int] = {}
+        original_read_text = Path.read_text
+
+        def counting_read_text(self: Path, *args: Any, **kwargs: Any) -> str:
+            key = str(self)
+            read_count[key] = read_count.get(key, 0) + 1
+            return original_read_text(self, *args, **kwargs)
+
+        cache: dict[str, tuple[Any, str]] = {}
+        with patch.object(Path, "read_text", counting_read_text):
+            # Call twice with the same cache
+            find_callees(pkg, "main", _parse_cache=cache)
+            find_callees(pkg, "alpha", _parse_cache=cache)
+
+        # Each file should be read at most once
+        for path_str, count in read_count.items():
+            if path_str.endswith(".py"):
+                assert count <= 1, f"{path_str} was read {count} times"
+
+
+class TestExceptionLogging:
+    """except Exception blocks log at DEBUG level."""
+
+    def test_locate_symbol_logs_on_error(self, tmp_path: Path) -> None:
+        """Unreadable file → logger.debug called with exc_info."""
+        import logging
+        from unittest.mock import patch
+
+        from axm_ast.core.flows import _locate_symbol
+
+        bad_file = tmp_path / "bad.py"
+        bad_file.write_text("def foo(): pass\n")
+
+        # Force an OSError to trigger the except Exception block
+        with patch.object(Path, "read_bytes", side_effect=OSError("permission denied")):
+            logger = logging.getLogger("axm_ast.core.flows")
+            messages: list[str] = []
+            handler = logging.Handler()
+            handler.emit = lambda record: messages.append(record.getMessage())  # type: ignore[method-assign]
+            handler.setLevel(logging.DEBUG)
+            old_level = logger.level
+            logger.setLevel(logging.DEBUG)
+            logger.addHandler(handler)
+            try:
+                result = _locate_symbol(bad_file, "foo")
+            finally:
+                logger.removeHandler(handler)
+                logger.setLevel(old_level)
+
+        assert result is None
+        assert len(messages) >= 1
+        assert any("Failed to locate symbol" in m for m in messages)
