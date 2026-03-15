@@ -8,19 +8,19 @@ Explore a codebase at multiple detail levels depending on your needs.
 axm-ast describe src/mylib
 ```
 
-This shows a **summary** view: module names, public functions, and classes.
+This shows a **detailed** view: module names, public functions with docstrings and type annotations, and classes.
 
 ## Detail Levels
 
-=== "Summary (default)"
+=== "Detailed (default)"
 
     ```bash
     axm-ast describe src/mylib
     ```
 
-    Shows module names, public function signatures, and class names.
+    Shows module names, public function signatures with docstrings, parameters with types, return types, and visibility (🔓/🔒).
 
-=== "Detailed"
+=== "Summary"
 
     ```bash
     axm-ast describe src/mylib --detail detailed
@@ -92,31 +92,17 @@ axm-ast describe src/mylib --json
 
 Returns a JSON object with full module, function, class, and import data — ready for programmatic consumption.
 
-## Inspect a Single Module
+## Inspect a Symbol
 
-For a single file, use `inspect`:
-
-```bash
-axm-ast inspect src/mylib/core/parser.py
-axm-ast inspect src/mylib/core/parser.py --symbol extract_module_info
-```
-
-## Generate Stubs
-
-Create `.pyi`-like stubs for the entire package:
+For detailed inspection of a symbol within a package, use `inspect`:
 
 ```bash
-axm-ast stub src/mylib
-```
+# Inspect a function
+axm-ast inspect src/mylib --symbol my_function
 
-Output:
+# Inspect a class method with source code
+axm-ast inspect src/mylib --symbol Calculator.add --source
 
-```python
-# core.analyzer
-"""High-level package analysis engine."""
-
-def analyze_package(path: Path) -> PackageInfo: ...
-def build_import_graph(pkg: PackageInfo) -> dict[str, list[str]]: ...
-class Calculator:
-    def add(self, a: int, b: int) -> int: ...
+# JSON output with file + line numbers
+axm-ast inspect src/mylib --symbol my_function --json
 ```
