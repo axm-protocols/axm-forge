@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import fnmatch
 import importlib.metadata
 import inspect
 import logging
+import os
 import re
 from typing import Any, Protocol, runtime_checkable
 
 __all__ = [
     "_collect_dispatcher_params",
     "_extract_docstring_params",
+    "_is_disabled",
     "_log_external_step",
     "_register_one",
     "discover_tools",
@@ -18,6 +21,15 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 _EP_GROUP = "axm.tools"
+
+
+def _is_disabled(name: str, patterns: list[str]) -> bool:
+    """Check if a tool name matches any disable pattern.
+
+    Supports exact names (``ast_dead_code``) and glob patterns
+    (``bib_*``, ``ticket_*``).
+    """
+    return any(fnmatch.fnmatch(name, pat) for pat in patterns)
 
 
 @runtime_checkable
@@ -40,12 +52,24 @@ def discover_tools() -> dict[str, Any]:
     Supports both ``AXMTool`` subclasses (instantiated) and plain
     dispatcher functions (used as-is).
 
+    Tools can be excluded via the ``AXM_DISABLE_TOOLS`` environment
+    variable — a comma-separated list of tool names or glob patterns
+    (e.g. ``bib_*,ticket_*,ast_dead_code``).
+
     Returns:
         Dict mapping tool name → tool instance or callable.
     """
+    raw = os.environ.get("AXM_DISABLE_TOOLS", "")
+    disable_patterns = [p.strip() for p in raw.split(",") if p.strip()]
+    if disable_patterns:
+        logger.info("AXM_DISABLE_TOOLS: %s", disable_patterns)
+
     tools: dict[str, Any] = {}
 
     for ep in importlib.metadata.entry_points(group=_EP_GROUP):
+        if disable_patterns and _is_disabled(ep.name, disable_patterns):
+            logger.info("Skipping disabled tool: %s", ep.name)
+            continue
         try:
             obj = ep.load()
             if isinstance(obj, type):
