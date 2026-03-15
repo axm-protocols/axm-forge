@@ -21,7 +21,7 @@ analyze_package: Any = None
 trace_flow: Any = None
 
 # SWE-bench format: "test_name (module.path.ClassName)"
-_SWE_RE = re.compile(r"^(\w+)\s*\(([^)]+)\)$")
+_SWE_RE = re.compile(r"^([\w.]+)\s*\(([^)]+)\)")
 
 
 def _parse_entry(entry: str) -> tuple[str, str | None]:
@@ -37,11 +37,18 @@ def _parse_entry(entry: str) -> tuple[str, str | None]:
        → ``("HttpResponse", None)``
 
     Args:
-        entry: Raw entry string from protocol params.
+        entry: Raw entry string from protocol params. (Can be comma-separated list,
+              in which case only the first item is traced.)
 
     Returns:
         Tuple of (symbol_name, test_dir_relative_or_None).
     """
+    entry = entry.strip()
+
+    # If multiple tests are provided (comma-separated), trace the first one
+    if "," in entry:
+        entry = entry.split(",")[0].strip()
+
     # 1. SWE-bench format
     m = _SWE_RE.match(entry)
     if m:
