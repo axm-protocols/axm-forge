@@ -18,7 +18,7 @@ axm-ast describe [OPTIONS] [PATH]
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Path to package directory |
-| `--detail` | `-d` | string | `summary` | Detail level: `toc`, `summary`, `detailed`, `full` |
+| `--detail` | `-d` | string | `detailed` | Detail level: `toc`, `summary`, `detailed`, `full` |
 | `--compress` | | bool | `False` | AI-optimized compressed output |
 | `--modules` | `-m` | string | *none* | Comma-separated module name filters (substring, case-insensitive) |
 | `--json` | | bool | `False` | Output as JSON |
@@ -44,17 +44,36 @@ def build_import_graph(pkg: PackageInfo) -> dict[str, list[str]]:
 
 ---
 
-## `inspect` — Inspect a Single Module
+## `inspect` — Inspect a Symbol by Name
 
 ```
-axm-ast inspect [OPTIONS] PATH
+axm-ast inspect [OPTIONS] [PATH]
 ```
 
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
-| `PATH` | | string | *required* | Path to `.py` file |
-| `--symbol` | `-s` | string | *none* | Focus on a specific symbol |
+| `PATH` | | string | `.` | Path to package directory |
+| `--symbol` | `-s` | string | *none* | Symbol name to inspect (supports dotted paths like `Class.method`) |
+| `--source` | | bool | `False` | Include source code in output |
 | `--json` | | bool | `False` | Output as JSON |
+
+Operates on **packages** (not individual files). Supports dotted paths like `ClassName.method`. Returns file path, line numbers, and optionally source code — matching MCP `ast_inspect`.
+
+**Examples:**
+
+```bash
+# List all symbols in a package
+axm-ast inspect src/mylib
+
+# Inspect a specific function
+axm-ast inspect src/mylib --symbol my_function
+
+# Inspect a class method with source code
+axm-ast inspect src/mylib --symbol Calculator.add --source
+
+# JSON output with line info
+axm-ast inspect src/mylib --symbol my_function --json
+```
 
 ---
 
@@ -378,18 +397,6 @@ axm-ast docs . --detail summary --pages architecture,howto
 # Tree-only mode
 axm-ast docs . --tree
 ```
-
----
-
-## `stub` — Generate Stubs
-
-```
-axm-ast stub [OPTIONS] [PATH]
-```
-
-| Option | Short | Type | Default | Description |
-|---|---|---|---|---|
-| `PATH` | | string | `.` | Path to package directory |
 
 ---
 
