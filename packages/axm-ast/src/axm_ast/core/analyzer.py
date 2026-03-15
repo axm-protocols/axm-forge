@@ -2,7 +2,7 @@
 
 This module builds on the tree-sitter parser to provide package-wide
 analysis: module discovery, dependency graphs, public API extraction,
-semantic search, and stub generation.
+and semantic search.
 
 Example:
     >>> from pathlib import Path
@@ -29,7 +29,6 @@ from axm_ast.models.nodes import (
 __all__ = [
     "analyze_package",
     "build_import_graph",
-    "generate_stubs",
     "get_public_api",
     "module_dotted_name",
     "search_symbols",
@@ -358,63 +357,3 @@ def _match_function(
     if kind is not None and fn.kind != kind:
         return False
     return True
-
-
-def generate_stubs(pkg: PackageInfo) -> str:
-    """Generate compact ``.pyi``-like stub output for a package.
-
-    Produces a minimal interface summary that shows only signatures,
-    docstring first lines, and class/function structure — no implementation.
-
-    Args:
-        pkg: Analyzed package info.
-
-    Returns:
-        Stub text as a single string.
-
-    Example:
-        >>> print(generate_stubs(pkg))
-        # sample_pkg/__init__.py
-        def greet(name: str = "world") -> str: ...
-        class Calculator: ...
-    """
-    lines: list[str] = []
-
-    for mod in pkg.modules:
-        mod_name = module_dotted_name(mod.path, pkg.root)
-        lines.append(f"# {mod_name}")
-        if mod.docstring:
-            first_line = mod.docstring.strip().split("\n")[0]
-            lines.append(f'"""{first_line}"""')
-        lines.append("")
-
-        for fn in mod.functions:
-            lines.append(_stub_function(fn, indent=0))
-
-        for cls in mod.classes:
-            lines.append(_stub_class(cls))
-
-        lines.append("")
-
-    return "\n".join(lines)
-
-
-def _stub_function(fn: FunctionInfo, indent: int = 0) -> str:
-    """Generate a stub line for a function."""
-    prefix = "    " * indent
-    return f"{prefix}{fn.signature}: ..."
-
-
-def _stub_class(cls: ClassInfo) -> str:
-    """Generate stub lines for a class."""
-    bases_str = f"({', '.join(cls.bases)})" if cls.bases else ""
-    lines = [f"class {cls.name}{bases_str}:"]
-    if cls.docstring:
-        first_line = cls.docstring.strip().split("\n")[0]
-        lines.append(f'    """{first_line}"""')
-    if cls.methods:
-        for method in cls.methods:
-            lines.append(_stub_function(method, indent=1))
-    else:
-        lines.append("    ...")
-    return "\n".join(lines)

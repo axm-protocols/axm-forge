@@ -22,7 +22,13 @@ class FlowsTool(AXMTool):
         return "ast_flows"
 
     def execute(
-        self, *, path: str = ".", entry: str | None = None, **kwargs: Any
+        self,
+        *,
+        path: str = ".",
+        entry: str | None = None,
+        max_depth: int = 5,
+        cross_module: bool = False,
+        **kwargs: Any,
     ) -> ToolResult:
         """Detect entry points or trace flows from a symbol.
 
@@ -32,6 +38,8 @@ class FlowsTool(AXMTool):
         Args:
             path: Path to package directory.
             entry: Optional entry point name to trace from.
+            max_depth: Maximum BFS depth for flow tracing.
+            cross_module: Resolve imports and trace into external modules.
             detail: Level of detail — ``"trace"`` (default) or
                 ``"source"`` (includes function source code).
 
@@ -49,8 +57,6 @@ class FlowsTool(AXMTool):
             pkg = get_package(pkg_path)
 
             if entry is not None:
-                max_depth = int(kwargs.get("max_depth", 5))
-                cross_module = bool(kwargs.get("cross_module", False))
                 detail = str(kwargs.get("detail", "trace"))
                 steps = trace_flow(
                     pkg,

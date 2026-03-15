@@ -26,10 +26,17 @@ def _run(args: list[str], capsys: pytest.CaptureFixture[str]) -> str:
 class TestDescribeCommand:
     """Tests for axm-ast describe."""
 
-    def test_describe_summary(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_describe_default_is_detailed(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Default detail level is 'detailed', matching MCP DescribeTool."""
         output = _run(["describe", str(SAMPLE_PKG)], capsys)
         assert "sample_pkg" in output
         assert "greet" in output
+
+    def test_describe_summary(self, capsys: pytest.CaptureFixture[str]) -> None:
+        output = _run(["describe", str(SAMPLE_PKG), "--detail", "summary"], capsys)
+        assert "sample_pkg" in output
 
     def test_describe_detailed(self, capsys: pytest.CaptureFixture[str]) -> None:
         output = _run(["describe", str(SAMPLE_PKG), "--detail", "detailed"], capsys)
@@ -49,85 +56,90 @@ class TestDescribeCommand:
 
 
 class TestInspectCommand:
-    """Tests for axm-ast inspect."""
+    """Tests for axm-ast inspect (package-level, matching MCP InspectTool)."""
 
-    def test_inspect_module(self, capsys: pytest.CaptureFixture[str]) -> None:
-        output = _run(["inspect", str(SAMPLE_PKG / "__init__.py")], capsys)
+    def test_inspect_lists_symbols(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Without --symbol, lists all symbols in the package."""
+        output = _run(["inspect", str(SAMPLE_PKG)], capsys)
         assert "greet" in output
 
     def test_inspect_symbol(self, capsys: pytest.CaptureFixture[str]) -> None:
         output = _run(
-            [
-                "inspect",
-                str(SAMPLE_PKG / "__init__.py"),
-                "--symbol",
-                "greet",
-            ],
+            ["inspect", str(SAMPLE_PKG), "--symbol", "greet"],
             capsys,
         )
         assert "greet" in output
 
     def test_inspect_class_method(self, capsys: pytest.CaptureFixture[str]) -> None:
         output = _run(
-            [
-                "inspect",
-                str(SAMPLE_PKG / "__init__.py"),
-                "--symbol",
-                "Calculator.add",
-            ],
+            ["inspect", str(SAMPLE_PKG), "--symbol", "Calculator.add"],
             capsys,
         )
         assert "add" in output
 
     def test_inspect_classmethod(self, capsys: pytest.CaptureFixture[str]) -> None:
         output = _run(
-            [
-                "inspect",
-                str(SAMPLE_PKG / "__init__.py"),
-                "--symbol",
-                "Calculator.from_config",
-            ],
+            ["inspect", str(SAMPLE_PKG), "--symbol", "Calculator.from_config"],
             capsys,
         )
         assert "from_config" in output
 
     def test_inspect_property(self, capsys: pytest.CaptureFixture[str]) -> None:
         output = _run(
-            [
-                "inspect",
-                str(SAMPLE_PKG / "__init__.py"),
-                "--symbol",
-                "Calculator.name",
-            ],
+            ["inspect", str(SAMPLE_PKG), "--symbol", "Calculator.name"],
             capsys,
         )
         assert "name" in output
 
     def test_inspect_method_not_found(self) -> None:
         with pytest.raises(SystemExit):
-            app(
-                [
-                    "inspect",
-                    str(SAMPLE_PKG / "__init__.py"),
-                    "--symbol",
-                    "Calculator.nonexistent",
-                ]
-            )
+            app(["inspect", str(SAMPLE_PKG), "--symbol", "Calculator.nonexistent"])
 
     def test_inspect_class_not_found(self) -> None:
         with pytest.raises(SystemExit):
-            app(
-                [
-                    "inspect",
-                    str(SAMPLE_PKG / "__init__.py"),
-                    "--symbol",
-                    "NonExistent.method",
-                ]
-            )
+            app(["inspect", str(SAMPLE_PKG), "--symbol", "NonExistent.method"])
 
     def test_inspect_invalid_path(self) -> None:
         with pytest.raises(SystemExit):
-            app(["inspect", "/nonexistent.py"])
+            app(["inspect", "/nonexistent/path", "--symbol", "greet"])
+
+    def test_inspect_source_flag(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--source includes source code in output."""
+        output = _run(
+            ["inspect", str(SAMPLE_PKG), "--symbol", "greet", "--source"],
+            capsys,
+        )
+        assert "greet" in output
+        # Source should include the function body
+        assert "Hello" in output or "def greet" in output
+
+    def test_inspect_json_has_line_info(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """--json output includes file, start_line, end_line."""
+        import json
+
+        output = _run(
+            ["inspect", str(SAMPLE_PKG), "--symbol", "greet", "--json"],
+            capsys,
+        )
+        data = json.loads(output)
+        assert "file" in data
+        assert "start_line" in data
+        assert "end_line" in data
+        assert data["start_line"] > 0
+
+    def test_inspect_json_source(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--json --source includes source key."""
+        import json
+
+        output = _run(
+            ["inspect", str(SAMPLE_PKG), "--symbol", "greet", "--source", "--json"],
+            capsys,
+        )
+        data = json.loads(output)
+        assert "source" in data
+        assert "def greet" in data["source"]
 
 
 class TestGraphCommand:
@@ -165,14 +177,17 @@ class TestSearchCommand:
         assert "no results" in output.lower() or output.strip() == ""
 
 
-class TestStubCommand:
-    """Tests for axm-ast stub."""
+class TestContextCommand:
+    """Tests for axm-ast context."""
 
-    def test_stub_output(self, capsys: pytest.CaptureFixture[str]) -> None:
-        output = _run(["stub", str(SAMPLE_PKG)], capsys)
-        assert "def greet" in output
-        assert "class Calculator" in output
-        assert "return" not in output
+    def test_context_slim(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--slim flag produces compact output."""
+        output = _run(["context", str(SAMPLE_PKG), "--slim", "--json"], capsys)
+        import json
+
+        data = json.loads(output)
+        assert "top_modules" in data
+        assert "modules" not in data
 
 
 class TestVersionCommand:
