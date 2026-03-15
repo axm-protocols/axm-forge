@@ -9,7 +9,7 @@ from __future__ import annotations
 import enum
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FunctionKind(enum.StrEnum):
@@ -32,6 +32,8 @@ class ParameterInfo(BaseModel):
         'path'
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(description="Parameter name")
     annotation: str | None = Field(
         default=None, description="Type annotation as string"
@@ -47,6 +49,8 @@ class FunctionInfo(BaseModel):
         >>> fn.is_public
         True
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str = Field(description="Function/method name")
     params: list[ParameterInfo] = Field(default_factory=list, description="Parameters")
@@ -85,6 +89,8 @@ class ClassInfo(BaseModel):
         True
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(description="Class name")
     bases: list[str] = Field(default_factory=list, description="Base class names")
     methods: list[FunctionInfo] = Field(default_factory=list, description="Methods")
@@ -108,6 +114,8 @@ class ImportInfo(BaseModel):
         False
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     module: str | None = Field(
         default=None, description="Module path (None for 'import x')"
     )
@@ -126,6 +134,8 @@ class VariableInfo(BaseModel):
         '__all__'
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(description="Variable name")
     annotation: str | None = Field(default=None, description="Type annotation")
     value_repr: str | None = Field(
@@ -142,6 +152,8 @@ class ModuleInfo(BaseModel):
         >>> len(mod.functions)
         0
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     path: Path = Field(description="File path")
     docstring: str | None = Field(default=None, description="Module-level docstring")
@@ -185,6 +197,8 @@ class PackageInfo(BaseModel):
         >>> len(pkg.modules)
         0
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str = Field(description="Package name")
     root: Path = Field(description="Package root directory")
@@ -233,6 +247,8 @@ class WorkspaceInfo(BaseModel):
         >>> len(ws.packages)
         0
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str = Field(description="Workspace name")
     root: Path = Field(description="Workspace root directory")

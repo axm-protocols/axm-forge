@@ -17,18 +17,62 @@ from typing import Any
 
 from axm.hooks.base import HookResult
 
-__all__ = ["ImpactHook"]
+__all__ = ["ImpactHook", "_merge_impact_reports"]
 
 _SCORE_ORDER: dict[str, int] = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
-_MERGE_KEYS: tuple[str, ...] = (
-    "callers",
-    "type_refs",
-    "reexports",
-    "affected_modules",
-    "test_files",
-    "git_coupled",
+
+# Single source of truth for merge fields.
+# Each entry: (key, dedup) — dedup=True means sorted(set(...)) after merge.
+_MERGE_FIELDS: tuple[tuple[str, bool], ...] = (
+    ("callers", False),
+    ("type_refs", False),
+    ("reexports", False),
+    ("affected_modules", True),
+    ("test_files", True),
+    ("git_coupled", False),
 )
-_DEDUP_KEYS: frozenset[str] = frozenset({"affected_modules", "test_files"})
+
+
+def _merge_impact_reports(
+    symbol: str,
+    reports: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Merge multiple impact reports into a single result.
+
+    Uses max-score semantics and deduplicates ``affected_modules``
+    and ``test_files``.
+
+    Args:
+        symbol: Original (possibly multi-line) symbol string.
+        reports: List of individual impact analysis dicts.
+
+    Returns:
+        Single merged impact dict.
+    """
+    merged: dict[str, Any] = {
+        "symbol": symbol,
+        "definitions": [],
+        "score": "LOW",
+    }
+    for key, _dedup in _MERGE_FIELDS:
+        merged[key] = []
+
+    for report in reports:
+        defn = report.get("definition")
+        if defn:
+            merged["definitions"].append(defn)
+        for key, _dedup in _MERGE_FIELDS:
+            merged[key].extend(report.get(key, []))
+        rpt_score = report.get("score", "LOW")
+        if _SCORE_ORDER.get(rpt_score, 0) > _SCORE_ORDER.get(merged["score"], 0):
+            merged["score"] = rpt_score
+
+    # Deduplicate sortable lists.
+    for key, dedup in _MERGE_FIELDS:
+        if dedup:
+            merged[key] = sorted(set(merged[key]))
+
+    return merged
 
 
 @dataclass
@@ -75,38 +119,16 @@ class ImpactHook:
                 return HookResult.ok(impact=report)
 
             # Multiple symbols — analyze each, merge results.
-            merged: dict[str, Any] = {
-                "symbol": symbol,
-                "definitions": [],
-                "callers": [],
-                "type_refs": [],
-                "reexports": [],
-                "affected_modules": [],
-                "test_files": [],
-                "git_coupled": [],
-                "score": "LOW",
-            }
+            reports: list[dict[str, Any]] = []
             for sym in symbols:
-                report = analyze_impact(
-                    working_dir,
-                    sym,
-                    project_root=working_dir.parent,
+                reports.append(
+                    analyze_impact(
+                        working_dir,
+                        sym,
+                        project_root=working_dir.parent,
+                    )
                 )
-                defn = report.get("definition")
-                if defn:
-                    merged["definitions"].append({"symbol": sym, **defn})
-                for key in _MERGE_KEYS:
-                    merged[key].extend(report.get(key, []))
-                rpt_score = report.get("score", "LOW")
-                if _SCORE_ORDER.get(rpt_score, 0) > _SCORE_ORDER.get(
-                    merged["score"], 0
-                ):
-                    merged["score"] = rpt_score
-
-            # Deduplicate sortable lists.
-            for key in _DEDUP_KEYS:
-                merged[key] = sorted(set(merged[key]))
-
+            merged = _merge_impact_reports(symbol, reports)
             return HookResult.ok(impact=merged)
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Impact analysis failed: {exc}")
