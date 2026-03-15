@@ -601,6 +601,80 @@ class TestInspectTool:
         assert result.error is not None
         assert "not found" in result.error
 
+    # --- Line info and source (AXM-396) ---
+
+    def test_inspect_includes_line_info(self, sample_project: Path) -> None:
+        """AC1: inspect returns file, start_line, end_line for a function."""
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(path=str(sample_project / "src" / "demo"), symbol="greet")
+        assert result.success is True
+        sym = result.data["symbol"]
+        assert "file" in sym
+        assert "start_line" in sym
+        assert "end_line" in sym
+        assert sym["start_line"] > 0
+        assert sym["end_line"] >= sym["start_line"]
+        assert "core.py" in sym["file"]
+
+    def test_inspect_class_line_info(self, sample_project: Path) -> None:
+        """AC1+AC4: class line info spans full class body."""
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="Helper"
+        )
+        assert result.success is True
+        sym = result.data["symbol"]
+        assert sym["start_line"] > 0
+        assert sym["end_line"] > sym["start_line"]  # multi-line class
+
+    def test_inspect_method_line_info(self, sample_project: Path) -> None:
+        """AC4: method line info is for the method only, not the class."""
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        cls_result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="Helper"
+        )
+        method_result = tool.execute(
+            path=str(sample_project / "src" / "demo"), symbol="Helper.run"
+        )
+        assert cls_result.success is True
+        assert method_result.success is True
+        cls_sym = cls_result.data["symbol"]
+        method_sym = method_result.data["symbol"]
+        # Method lines are within class lines
+        assert method_sym["start_line"] >= cls_sym["start_line"]
+        assert method_sym["end_line"] <= cls_sym["end_line"]
+
+    def test_inspect_source_true(self, sample_project: Path) -> None:
+        """AC2: source=True includes source code."""
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"),
+            symbol="greet",
+            source=True,
+        )
+        assert result.success is True
+        sym = result.data["symbol"]
+        assert "source" in sym
+        assert "def greet" in sym["source"]
+        assert "Hello" in sym["source"]
+
+    def test_inspect_source_false_default(self, sample_project: Path) -> None:
+        """AC3: source is absent by default."""
+        from axm_ast.tools.inspect import InspectTool
+
+        tool = InspectTool()
+        result = tool.execute(path=str(sample_project / "src" / "demo"), symbol="greet")
+        assert result.success is True
+        assert "source" not in result.data["symbol"]
+
 
 # ===========================================================================
 # ast_graph
