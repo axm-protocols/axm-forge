@@ -4,10 +4,10 @@ Usage::
 
     axm-ast describe src/mylib
     axm-ast describe src/mylib --detail detailed --json
-    axm-ast inspect src/mylib/core.py --symbol MyClass
+    axm-ast inspect src/mylib --symbol MyClass
+    axm-ast inspect src/mylib --symbol MyClass --source --json
     axm-ast graph src/mylib --format mermaid
     axm-ast search src/mylib --returns str
-    axm-ast stub src/mylib
     axm-ast version
 """
 
@@ -21,19 +21,15 @@ from typing import Annotated
 import cyclopts
 
 from axm_ast.core.analyzer import (
-    generate_stubs,
     search_symbols,
 )
 from axm_ast.core.cache import get_package
-from axm_ast.core.parser import extract_module_info
 from axm_ast.formatters import (
     format_json,
     format_mermaid,
-    format_module_inspect_text,
-    format_symbol_text,
     format_text,
 )
-from axm_ast.models.nodes import ClassInfo, FunctionInfo, FunctionKind, ModuleInfo
+from axm_ast.models.nodes import FunctionKind
 
 __all__ = ["app"]
 
@@ -58,7 +54,7 @@ def describe(
             name=["--detail", "-d"],
             help="Detail level: summary, detailed, full",
         ),
-    ] = "summary",
+    ] = "detailed",
     json_output: Annotated[
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
@@ -135,107 +131,104 @@ def _print_toc(toc: list[dict[str, object]], *, json_output: bool) -> None:
 def inspect(
     path: Annotated[
         str,
-        cyclopts.Parameter(help="Path to a Python file"),
-    ],
+        cyclopts.Parameter(help="Path to package directory"),
+    ] = ".",
     *,
     symbol: Annotated[
         str | None,
         cyclopts.Parameter(
             name=["--symbol", "-s"],
-            help="Filter to a specific symbol name",
+            help="Symbol name to inspect (supports dotted paths like Class.method)",
         ),
     ] = None,
+    source: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--source"],
+            help="Include source code in output",
+        ),
+    ] = False,
     json_output: Annotated[
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
     ] = False,
 ) -> None:
-    """Inspect a specific module or symbol."""
-    file_path = Path(path).resolve()
-    if not file_path.exists():
-        print(f"❌ File not found: {file_path}", file=sys.stderr)
-        raise SystemExit(1)
+    """Inspect a symbol by name across a package.
 
-    # If path is a directory, inspect its __init__.py
-    if file_path.is_dir():
-        init = file_path / "__init__.py"
-        if init.exists():
-            file_path = init
-        else:
-            print(f"❌ No __init__.py in: {file_path}", file=sys.stderr)
-            raise SystemExit(1)
-
-    mod = extract_module_info(file_path)
-
-    if symbol:
-        _inspect_symbol(mod, symbol, json_output=json_output)
-    else:
-        _inspect_module(mod, json_output=json_output)
-
-
-def _find_and_print_symbol(
-    symbol: FunctionInfo | ClassInfo | ModuleInfo,
-    *,
-    json_output: bool,
-) -> None:
-    """Print a resolved symbol as JSON or text."""
-    if json_output:
-        print(json.dumps(symbol.model_dump(mode="json"), indent=2))
-    else:
-        print(format_symbol_text(symbol))  # type: ignore[arg-type]
-
-
-def _resolve_dotted_symbol(mod: ModuleInfo, name: str) -> FunctionInfo | ClassInfo:
-    """Resolve ``ClassName.method`` to a method object or exit."""
-    parts = name.split(".")
-    class_name = parts[0]
-    cls = next((c for c in mod.classes if c.name == class_name), None)
-    if cls is None:
-        print(f"❌ Class '{class_name}' not found", file=sys.stderr)
-        raise SystemExit(1)
-
-    method_name = parts[-1]
-    method = next((m for m in cls.methods if m.name == method_name), None)
-    if method is None:
-        print(
-            f"❌ Method '{method_name}' not found in class '{class_name}'",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    return method
-
-
-def _find_simple_symbol(mod: ModuleInfo, name: str) -> FunctionInfo | ClassInfo:
-    """Find a top-level function or class by *name*, or exit."""
-    for fn in mod.functions:
-        if fn.name == name:
-            return fn
-    for cls in mod.classes:
-        if cls.name == name:
-            return cls
-    print(f"❌ Symbol '{name}' not found", file=sys.stderr)
-    raise SystemExit(1)
-
-
-def _inspect_symbol(mod: ModuleInfo, name: str, *, json_output: bool) -> None:
-    """Find and print a single symbol from a module.
-
-    Supports dotted paths like ``ClassName.method`` to inspect
-    methods, properties, classmethods, and staticmethods within classes.
+    Operates on packages (not individual files). Supports dotted paths
+    like ``ClassName.method`` or ``module.symbol``. Returns file path,
+    line numbers, and optionally source code — matching MCP ``ast_inspect``.
     """
-    if "." in name:
-        symbol = _resolve_dotted_symbol(mod, name)
-    else:
-        symbol = _find_simple_symbol(mod, name)
-    _find_and_print_symbol(symbol, json_output=json_output)
+    project_path = Path(path).resolve()
+    if not project_path.is_dir():
+        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
+        raise SystemExit(1)
 
+    if not symbol:
+        # List all symbols in the package
+        pkg = get_package(project_path)
+        symbols = search_symbols(pkg, name=None, returns=None, kind=None, inherits=None)
+        if json_output:
+            print(
+                json.dumps(
+                    {"symbols": [s.model_dump(mode="json") for s in symbols]},
+                    indent=2,
+                )
+            )
+        else:
+            for s in symbols:
+                sig = getattr(s, "signature", None)
+                if sig:
+                    print(f"  · {sig}")
+                else:
+                    print(f"  · class {s.name}")
+        return
 
-def _inspect_module(mod: ModuleInfo, *, json_output: bool) -> None:
-    """Print full module information."""
+    from axm_ast.tools.inspect import InspectTool
+
+    tool = InspectTool()
+    result = tool.execute(path=str(project_path), symbol=symbol, source=source)
+
+    if not result.success:
+        print(f"❌ {result.error}", file=sys.stderr)
+        raise SystemExit(1)
+
+    sym_data = result.data["symbol"]
     if json_output:
-        print(json.dumps(mod.model_dump(mode="json"), indent=2))
+        print(json.dumps(sym_data, indent=2))
     else:
-        print(format_module_inspect_text(mod))
+        _print_inspect_result(sym_data)
+
+
+def _print_inspect_result(sym: dict) -> None:  # type: ignore[type-arg]
+    """Pretty-print an inspect result."""
+    name = sym.get("name", "?")
+    sig = sym.get("signature", "")
+    file = sym.get("file", "")
+    start = sym.get("start_line", "")
+    end = sym.get("end_line", "")
+
+    if sig:
+        print(f"🔍 {sig}")
+    else:
+        bases = sym.get("bases", [])
+        bases_str = f"({', '.join(bases)})" if bases else ""
+        print(f"🔍 class {name}{bases_str}")
+
+    if file:
+        print(f"   📄 {file}:{start}-{end}")
+
+    doc = sym.get("docstring", "")
+    if doc:
+        print(f"   📝 {doc.split(chr(10))[0]}")
+
+    methods = sym.get("methods", [])
+    if methods:
+        print(f"   Methods: {', '.join(methods)}")
+
+    source = sym.get("source", "")
+    if source:
+        print(f"\n{source}")
 
 
 def _print_graph_data(
@@ -505,12 +498,23 @@ def context(
             help="Detail level: 0=top-5, 1=sub-packages, 2=modules, 3=symbols",
         ),
     ] = None,
+    slim: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--slim"],
+            help="Compact output with top modules only (equivalent to --depth 0)",
+        ),
+    ] = False,
 ) -> None:
     """Dump complete project context in one shot for AI agents."""
     project_path = Path(path).resolve()
     if not project_path.is_dir():
         print(f"❌ Not a directory: {project_path}", file=sys.stderr)
         raise SystemExit(1)
+
+    # --slim is shorthand for --depth 0
+    if slim:
+        depth = 0
 
     from axm_ast.core.workspace import detect_workspace
 
@@ -963,23 +967,6 @@ def docs(
         print(json.dumps(format_docs_json(result), indent=2))
     else:
         print(format_docs(result, tree_only=tree_only))
-
-
-@app.command()
-def stub(
-    path: Annotated[
-        str,
-        cyclopts.Parameter(help="Path to package directory"),
-    ] = ".",
-) -> None:
-    """Generate compact .pyi-like stubs for AI consumption."""
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
-
-    pkg = get_package(project_path)
-    print(generate_stubs(pkg))
 
 
 @app.command()

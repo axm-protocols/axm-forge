@@ -1,7 +1,4 @@
-"""Test analyzer — package analysis, dependency graph, search, stubs.
-
-TDD: Tests written first, then analyzer.py implementation.
-"""
+"""Test analyzer — package analysis, dependency graph, search."""
 
 from pathlib import Path
 
@@ -12,7 +9,6 @@ from axm_ast.core.analyzer import (
     _discover_py_files,
     analyze_package,
     build_import_graph,
-    generate_stubs,
     get_public_api,
     search_symbols,
 )
@@ -152,35 +148,6 @@ class TestSearchSymbols:
         results = search_symbols(pkg, inherits="BaseModel")
         # No class inherits BaseModel in fixtures, should be empty
         assert results == []
-
-
-# ─── generate_stubs ──────────────────────────────────────────────────────────
-
-
-class TestGenerateStubs:
-    """Tests for .pyi-like stub generation."""
-
-    def test_returns_string(self):
-        pkg = analyze_package(SAMPLE_PKG)
-        stubs = generate_stubs(pkg)
-        assert isinstance(stubs, str)
-        assert len(stubs) > 0
-
-    def test_contains_function_signatures(self):
-        pkg = analyze_package(SAMPLE_PKG)
-        stubs = generate_stubs(pkg)
-        assert "def greet" in stubs
-
-    def test_contains_class(self):
-        pkg = analyze_package(SAMPLE_PKG)
-        stubs = generate_stubs(pkg)
-        assert "class Calculator" in stubs
-
-    def test_no_implementation_details(self):
-        """Stubs should not contain function bodies."""
-        pkg = analyze_package(SAMPLE_PKG)
-        stubs = generate_stubs(pkg)
-        assert "return" not in stubs
 
 
 # ─── _discover_py_files (unit tests) ─────────────────────────────────────────
