@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from axm_ast.core.analyzer import find_module_for_symbol, module_dotted_name
 from axm_ast.core.callers import (
@@ -54,6 +54,8 @@ __all__ = [
 class EntryPoint(BaseModel):
     """A detected entry point in the codebase."""
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str
     module: str
     kind: str  # "decorator", "test", "main_guard", "export"
@@ -63,6 +65,8 @@ class EntryPoint(BaseModel):
 
 class FlowStep(BaseModel):
     """A single step in a traced execution flow."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str
     module: str

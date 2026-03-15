@@ -7,6 +7,8 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.models.nodes import ClassInfo, FunctionInfo, PackageInfo
+
 __all__ = ["InspectTool"]
 
 
@@ -114,7 +116,7 @@ class InspectTool(AXMTool):
         )
 
     def _resolve_module_symbol(
-        self, pkg: Any, dotted: str, *, source: bool = False
+        self, pkg: PackageInfo, dotted: str, *, source: bool = False
     ) -> ToolResult | None:
         """Try to resolve ``dotted`` as ``module_name.symbol_name``.
 
@@ -170,7 +172,7 @@ class InspectTool(AXMTool):
         return None
 
     def _resolve_class_method(
-        self, pkg: Any, dotted: str, *, source: bool = False
+        self, pkg: PackageInfo, dotted: str, *, source: bool = False
     ) -> ToolResult | None:
         """Try to resolve ``dotted`` as ``ClassName.method_name``.
 
@@ -186,7 +188,7 @@ class InspectTool(AXMTool):
             pkg, name=class_name, returns=None, kind=None, inherits=None
         )
         cls = next(
-            (c for c in classes if hasattr(c, "methods") and c.name == class_name),
+            (c for c in classes if isinstance(c, ClassInfo) and c.name == class_name),
             None,
         )
         if cls is None:
@@ -214,7 +216,7 @@ class InspectTool(AXMTool):
         )
 
     @staticmethod
-    def _find_symbol_file(pkg: Any, sym: Any) -> str:
+    def _find_symbol_file(pkg: PackageInfo, sym: FunctionInfo | ClassInfo) -> str:
         """Find the relative file path for a symbol within the package."""
         from axm_ast.core.analyzer import find_module_for_symbol
 
@@ -224,7 +226,7 @@ class InspectTool(AXMTool):
         return ""
 
     @staticmethod
-    def _find_symbol_abs_path(pkg: Any, sym: Any) -> str:
+    def _find_symbol_abs_path(pkg: PackageInfo, sym: FunctionInfo | ClassInfo) -> str:
         """Find the absolute file path for a symbol within the package."""
         from axm_ast.core.analyzer import find_module_for_symbol
 
@@ -234,7 +236,7 @@ class InspectTool(AXMTool):
         return ""
 
     @staticmethod
-    def _relative_path(pkg: Any, mod_path: Path) -> str:
+    def _relative_path(pkg: PackageInfo, mod_path: Path) -> str:
         """Compute relative path from package root."""
         try:
             return str(mod_path.relative_to(pkg.root.parent))
@@ -243,43 +245,42 @@ class InspectTool(AXMTool):
 
     @staticmethod
     def _build_detail(
-        sym: Any,
+        sym: FunctionInfo | ClassInfo,
         *,
         file: str = "",
         abs_path: str = "",
         source: bool = False,
     ) -> dict[str, Any]:
         """Build detail dict from a FunctionInfo or ClassInfo."""
-        # Declarative field mapping — avoids per-field hasattr branching.
-        _simple_fields = (
-            "signature",
-            "return_type",
-            "docstring",
-            "bases",
-        )
-        detail: dict[str, Any] = {"name": sym.name}
-        for field in _simple_fields:
-            val = getattr(sym, field, None)
-            if val is not None:
-                detail[field] = val
+        detail: dict[str, Any] = {
+            "name": sym.name,
+            "file": file,
+            "start_line": sym.line_start,
+            "end_line": sym.line_end,
+        }
 
-        # Line info — always included
-        if hasattr(sym, "line_start"):
-            detail["file"] = file
-            detail["start_line"] = sym.line_start
-            detail["end_line"] = sym.line_end
+        if sym.docstring is not None:
+            detail["docstring"] = sym.docstring
 
-        if hasattr(sym, "parameters"):
-            detail["parameters"] = [
-                {"name": p.name, "annotation": p.annotation, "default": p.default}
-                for p in sym.parameters
-            ]
-        if hasattr(sym, "methods"):
-            detail["methods"] = [m.name for m in sym.methods]
-        detail["module"] = getattr(sym, "module", "")
+        if isinstance(sym, FunctionInfo):
+            detail["signature"] = sym.signature
+            if sym.return_type is not None:
+                detail["return_type"] = sym.return_type
+            if sym.params:
+                detail["parameters"] = [
+                    {"name": p.name, "annotation": p.annotation, "default": p.default}
+                    for p in sym.params
+                ]
+        elif isinstance(sym, ClassInfo):
+            if sym.bases:
+                detail["bases"] = sym.bases
+            if sym.methods:
+                detail["methods"] = [m.name for m in sym.methods]
+
+        detail["module"] = ""
 
         # Source code — only when requested
-        if source and abs_path and hasattr(sym, "line_start"):
+        if source and abs_path:
             detail["source"] = InspectTool._read_source(
                 abs_path, sym.line_start, sym.line_end
             )

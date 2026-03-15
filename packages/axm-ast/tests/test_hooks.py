@@ -1,4 +1,4 @@
-"""Tests for TraceSourceHook and ImpactHook."""
+"""Tests for TraceSourceHook, ImpactHook, and merge helpers."""
 
 from __future__ import annotations
 
@@ -171,6 +171,90 @@ class TestTraceSourceHookExecute:
 
         assert result.success
         mock_analyze.assert_called_once_with(tmp_path)
+
+
+# ── _merge_impact_reports tests ─────────────────────────────────────
+
+
+class TestMergeImpactReports:
+    """Tests for _merge_impact_reports helper."""
+
+    def test_single_report(self) -> None:
+        """Single report returned unchanged."""
+        from axm_ast.hooks.impact import _merge_impact_reports
+
+        report: dict[str, Any] = {
+            "symbol": "Foo",
+            "definition": {"file": "foo.py", "line": 10},
+            "callers": [{"name": "bar"}],
+            "type_refs": [],
+            "reexports": [],
+            "affected_modules": ["mod_a"],
+            "test_files": ["test_foo.py"],
+            "git_coupled": [],
+            "score": "MEDIUM",
+        }
+        result = _merge_impact_reports("Foo", [report])
+        assert result["callers"] == [{"name": "bar"}]
+        assert result["score"] == "MEDIUM"
+        assert result["affected_modules"] == ["mod_a"]
+
+    def test_multi_reports_max_score(self) -> None:
+        """Max score wins across multiple reports."""
+        from axm_ast.hooks.impact import _merge_impact_reports
+
+        r1: dict[str, Any] = {
+            "definition": {"file": "a.py", "line": 1},
+            "callers": [{"name": "x"}],
+            "type_refs": [],
+            "reexports": [],
+            "affected_modules": ["mod_a"],
+            "test_files": ["test_a.py"],
+            "git_coupled": [],
+            "score": "LOW",
+        }
+        r2: dict[str, Any] = {
+            "definition": {"file": "b.py", "line": 5},
+            "callers": [{"name": "y"}],
+            "type_refs": [],
+            "reexports": [],
+            "affected_modules": ["mod_b"],
+            "test_files": ["test_b.py"],
+            "git_coupled": [],
+            "score": "HIGH",
+        }
+        result = _merge_impact_reports("A\nB", [r1, r2])
+        assert result["score"] == "HIGH"
+        assert len(result["callers"]) == 2
+        assert len(result["definitions"]) == 2
+
+    def test_dedup_modules_and_tests(self) -> None:
+        """affected_modules and test_files are deduplicated."""
+        from axm_ast.hooks.impact import _merge_impact_reports
+
+        r1: dict[str, Any] = {
+            "definition": None,
+            "callers": [],
+            "type_refs": [],
+            "reexports": [],
+            "affected_modules": ["mod_a", "mod_b"],
+            "test_files": ["test_x.py"],
+            "git_coupled": [],
+            "score": "LOW",
+        }
+        r2: dict[str, Any] = {
+            "definition": None,
+            "callers": [],
+            "type_refs": [],
+            "reexports": [],
+            "affected_modules": ["mod_a", "mod_c"],
+            "test_files": ["test_x.py", "test_y.py"],
+            "git_coupled": [],
+            "score": "LOW",
+        }
+        result = _merge_impact_reports("A\nB", [r1, r2])
+        assert result["affected_modules"] == ["mod_a", "mod_b", "mod_c"]
+        assert result["test_files"] == ["test_x.py", "test_y.py"]
 
 
 # ── ImpactHook tests ────────────────────────────────────────────────

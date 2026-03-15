@@ -1,6 +1,11 @@
 """Test Pydantic models for AST node representations."""
 
+from __future__ import annotations
+
 from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
 
 from axm_ast.models import (
     ClassInfo,
@@ -264,3 +269,65 @@ class TestPackageInfo:
             dependency_edges=[("core", "utils"), ("cli", "core")],
         )
         assert len(pkg.dependency_edges) == 2
+
+
+# ─── Extra forbid ────────────────────────────────────────────────────────────
+
+
+class TestModelExtraForbid:
+    """All Pydantic models reject unknown fields."""
+
+    def test_function_info_rejects_extra(self) -> None:
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            FunctionInfo(name="x", line_start=1, line_end=2, typo="bad")  # type: ignore[call-arg]
+
+    def test_class_info_rejects_extra(self) -> None:
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            ClassInfo(name="X", line_start=1, line_end=2, oops=True)  # type: ignore[call-arg]
+
+    def test_parameter_info_rejects_extra(self) -> None:
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            ParameterInfo(name="x", bad="field")  # type: ignore[call-arg]
+
+    def test_module_info_rejects_extra(self) -> None:
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            ModuleInfo(path=Path("x.py"), nope=1)  # type: ignore[call-arg]
+
+    def test_callsite_rejects_extra(self) -> None:
+        from axm_ast.models.calls import CallSite
+
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            CallSite(
+                module="m",
+                symbol="s",
+                line=1,
+                column=0,
+                call_expression="s()",
+                bogus="x",  # type: ignore[call-arg]
+            )
+
+    def test_entry_point_rejects_extra(self) -> None:
+        from axm_ast.core.flows import EntryPoint
+
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            EntryPoint(
+                name="x",
+                module="m",
+                kind="test",
+                line=1,
+                framework="pytest",
+                extra_field="bad",  # type: ignore[call-arg]
+            )
+
+    def test_flow_step_rejects_extra(self) -> None:
+        from axm_ast.core.flows import FlowStep
+
+        with pytest.raises(ValidationError, match="extra_forbidden"):
+            FlowStep(
+                name="x",
+                module="m",
+                line=1,
+                depth=0,
+                chain=[],
+                whoops=True,  # type: ignore[call-arg]
+            )
