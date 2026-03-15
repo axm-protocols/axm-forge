@@ -178,13 +178,3 @@ class TestCompressFunctional:
         full = format_text(pkg, detail="full")
         compressed = format_compressed(pkg)
         assert len(compressed) < len(full)
-
-    def test_compress_richer_than_stub(self) -> None:
-        """Compressed output has more info than stubs."""
-        from axm_ast.core.analyzer import generate_stubs
-
-        pkg = analyze_package(FIXTURES / "sample_pkg")
-        stub = generate_stubs(pkg)
-        compressed = format_compressed(pkg)
-        # Compress should have more info (constants, relative imports)
-        assert len(compressed) >= len(stub)

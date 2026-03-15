@@ -143,8 +143,9 @@ class TestContextTool:
         tool = ContextTool()
         result = tool.execute(path=str(sample_project / "src" / "demo"))
         assert result.success is True
-        assert "modules" in result.data
-        assert "dependency_graph" in result.data
+        # depth=1 (default) returns 'packages' grouping, not raw 'modules'
+        assert "packages" in result.data
+        assert "patterns" in result.data
 
 
 # ===========================================================================
