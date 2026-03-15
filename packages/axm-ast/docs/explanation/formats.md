@@ -4,20 +4,20 @@
 
 ## Detail Levels (`describe`)
 
-### Summary (default)
+### Detailed (default)
 
-Best for quick orientation. Shows module names, public function signatures, and class names.
+Adds docstrings, parameter types, return types, and visibility indicators (`🔓` public, `🔒` private). This is the default detail level.
 
 ```bash
 axm-ast describe src/mylib
 ```
 
-### Detailed
+### Summary
 
-Adds docstrings, parameter types, return types, and visibility indicators (`🔓` public, `🔒` private).
+Quick orientation. Shows module names, public function signatures, and class names.
 
 ```bash
-axm-ast describe src/mylib --detail detailed
+axm-ast describe src/mylib --detail summary
 ```
 
 ### Full

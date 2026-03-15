@@ -29,7 +29,6 @@
 - 🔀 **Diff** — Structural branch diff at symbol level (added/modified/removed via git worktrees)
 - 🏗️ **Workspace** — Multi-package workspace support (auto-detects `uv` workspaces)
 - ⭐ **Rank** — PageRank-based symbol importance scoring
-- 📄 **Stub** — `.pyi`-like stub generation for any package
 
 ## Installation
 
@@ -126,7 +125,7 @@ axm-ast flows src/mylib --trace main --json
 | Command | Description |
 |---|---|
 | `axm-ast describe` | Introspect a package (toc / summary / detailed / full / compress), optional `--modules` filter |
-| `axm-ast inspect` | Inspect a single module file |
+| `axm-ast inspect` | Inspect a symbol by name across a package (supports dotted paths, `--source` for source code) |
 | `axm-ast graph` | Visualize import dependency graph (text / mermaid / json) |
 | `axm-ast search` | Search symbols by name, return type, kind, or base class |
 | `axm-ast callers` | Find all call-sites of a symbol |
@@ -136,7 +135,6 @@ axm-ast flows src/mylib --trace main --json
 | `axm-ast flows` | Detect entry points and trace execution flows (`--detail source` for code enrichment) |
 | `axm-ast diff` | Structural branch diff at symbol level (base..head) |
 | `axm-ast docs` | One-shot documentation tree dump (README + mkdocs + docs/) |
-| `axm-ast stub` | Generate `.pyi`-like stubs |
 | `axm-ast version` | Show version |
 
 All commands support `--json` for machine-readable output.
