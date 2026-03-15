@@ -17,8 +17,10 @@ class InspectTool(AXMTool):
     """
 
     agent_hint: str = (
-        "Get full source code of a symbol by name,"
+        "Get full detail of a symbol by name,"
         " without knowing the file."
+        " Returns file, start_line, end_line."
+        " Use source=True to include source code."
         " Supports dotted paths like ClassName.method."
     )
 
@@ -36,12 +38,15 @@ class InspectTool(AXMTool):
             path: Path to package directory.
             symbol: Symbol name to inspect (required).
                 Supports dotted paths like ``ClassName.method``.
+            source: If True, include source code in the response.
 
         Returns:
             ToolResult with symbol details.
         """
         if not symbol:
             return ToolResult(success=False, error="symbol parameter is required")
+
+        source = bool(kwargs.get("source", False))
 
         try:
             project_path = Path(path).resolve()
@@ -50,11 +55,13 @@ class InspectTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            return self._inspect_symbol(project_path, symbol)
+            return self._inspect_symbol(project_path, symbol, source=source)
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
 
-    def _inspect_symbol(self, project_path: Path, symbol: str) -> ToolResult:
+    def _inspect_symbol(
+        self, project_path: Path, symbol: str, *, source: bool = False
+    ) -> ToolResult:
         """Core symbol inspection logic."""
         from axm_ast.core.analyzer import search_symbols
         from axm_ast.core.cache import get_package
@@ -63,11 +70,11 @@ class InspectTool(AXMTool):
 
         # --- Dotted path resolution ---
         if "." in symbol:
-            result = self._resolve_module_symbol(pkg, symbol)
+            result = self._resolve_module_symbol(pkg, symbol, source=source)
             if result is not None:
                 return result
 
-            result = self._resolve_class_method(pkg, symbol)
+            result = self._resolve_class_method(pkg, symbol, source=source)
             if result is not None:
                 return result
 
@@ -95,12 +102,20 @@ class InspectTool(AXMTool):
             )
 
         sym = results[0]
+        file_path = self._find_symbol_file(pkg, sym)
+        abs_path = self._find_symbol_abs_path(pkg, sym)
         return ToolResult(
             success=True,
-            data={"symbol": self._build_detail(sym)},
+            data={
+                "symbol": self._build_detail(
+                    sym, file=file_path, abs_path=abs_path, source=source
+                )
+            },
         )
 
-    def _resolve_module_symbol(self, pkg: Any, dotted: str) -> ToolResult | None:
+    def _resolve_module_symbol(
+        self, pkg: Any, dotted: str, *, source: bool = False
+    ) -> ToolResult | None:
         """Try to resolve ``dotted`` as ``module_name.symbol_name``.
 
         Tries longest module prefix first (e.g. ``core.checker`` before ``core``).
@@ -118,18 +133,34 @@ class InspectTool(AXMTool):
             mod = name_to_mod.get(mod_prefix)
             if mod is None:
                 continue
+            file_rel = self._relative_path(pkg, mod.path)
+            abs_mod = str(mod.path)
             # Found a module — search for the symbol within it
             for fn in mod.functions:
                 if fn.name == sym_name:
                     return ToolResult(
                         success=True,
-                        data={"symbol": self._build_detail(fn)},
+                        data={
+                            "symbol": self._build_detail(
+                                fn,
+                                file=file_rel,
+                                abs_path=abs_mod,
+                                source=source,
+                            )
+                        },
                     )
             for cls in mod.classes:
                 if cls.name == sym_name:
                     return ToolResult(
                         success=True,
-                        data={"symbol": self._build_detail(cls)},
+                        data={
+                            "symbol": self._build_detail(
+                                cls,
+                                file=file_rel,
+                                abs_path=abs_mod,
+                                source=source,
+                            )
+                        },
                     )
             # Module found but symbol not in it
             return ToolResult(
@@ -138,7 +169,9 @@ class InspectTool(AXMTool):
             )
         return None
 
-    def _resolve_class_method(self, pkg: Any, dotted: str) -> ToolResult | None:
+    def _resolve_class_method(
+        self, pkg: Any, dotted: str, *, source: bool = False
+    ) -> ToolResult | None:
         """Try to resolve ``dotted`` as ``ClassName.method_name``.
 
         Returns None if no class matches.
@@ -166,20 +199,79 @@ class InspectTool(AXMTool):
                 error=(f"Method '{method_name}' not found in class '{class_name}'"),
             )
 
+        file_path = self._find_symbol_file(pkg, cls)
+        abs_path = self._find_symbol_abs_path(pkg, cls)
         return ToolResult(
             success=True,
-            data={"symbol": self._build_detail(method)},
+            data={
+                "symbol": self._build_detail(
+                    method,
+                    file=file_path,
+                    abs_path=abs_path,
+                    source=source,
+                )
+            },
         )
 
     @staticmethod
-    def _build_detail(sym: Any) -> dict[str, Any]:
+    def _find_symbol_file(pkg: Any, sym: Any) -> str:
+        """Find the relative file path for a symbol within the package."""
+        mod = InspectTool._find_module_for_symbol(pkg, sym)
+        if mod is not None:
+            return InspectTool._relative_path(pkg, mod.path)
+        return ""
+
+    @staticmethod
+    def _find_symbol_abs_path(pkg: Any, sym: Any) -> str:
+        """Find the absolute file path for a symbol within the package."""
+        mod = InspectTool._find_module_for_symbol(pkg, sym)
+        if mod is not None:
+            return str(mod.path)
+        return ""
+
+    @staticmethod
+    def _find_module_for_symbol(pkg: Any, sym: Any) -> Any:
+        """Find the module containing a symbol (identity-first, name-fallback)."""
+        sym_name = sym.name
+        for mod in pkg.modules:
+            for fn in mod.functions:
+                if fn is sym:
+                    return mod
+            for cls in mod.classes:
+                if cls is sym:
+                    return mod
+        # Fallback: search by name (for symbols found via search_symbols)
+        for mod in pkg.modules:
+            for fn in mod.functions:
+                if fn.name == sym_name:
+                    return mod
+            for cls in mod.classes:
+                if cls.name == sym_name:
+                    return mod
+        return None
+
+    @staticmethod
+    def _relative_path(pkg: Any, mod_path: Path) -> str:
+        """Compute relative path from package root."""
+        try:
+            return str(mod_path.relative_to(pkg.root.parent))
+        except ValueError:
+            return str(mod_path)
+
+    @staticmethod
+    def _build_detail(
+        sym: Any,
+        *,
+        file: str = "",
+        abs_path: str = "",
+        source: bool = False,
+    ) -> dict[str, Any]:
         """Build detail dict from a FunctionInfo or ClassInfo."""
         # Declarative field mapping — avoids per-field hasattr branching.
         _simple_fields = (
             "signature",
             "return_type",
             "docstring",
-            "line",
             "bases",
         )
         detail: dict[str, Any] = {"name": sym.name}
@@ -187,6 +279,13 @@ class InspectTool(AXMTool):
             val = getattr(sym, field, None)
             if val is not None:
                 detail[field] = val
+
+        # Line info — always included
+        if hasattr(sym, "line_start"):
+            detail["file"] = file
+            detail["start_line"] = sym.line_start
+            detail["end_line"] = sym.line_end
+
         if hasattr(sym, "parameters"):
             detail["parameters"] = [
                 {"name": p.name, "annotation": p.annotation, "default": p.default}
@@ -195,4 +294,21 @@ class InspectTool(AXMTool):
         if hasattr(sym, "methods"):
             detail["methods"] = [m.name for m in sym.methods]
         detail["module"] = getattr(sym, "module", "")
+
+        # Source code — only when requested
+        if source and abs_path and hasattr(sym, "line_start"):
+            detail["source"] = InspectTool._read_source(
+                abs_path, sym.line_start, sym.line_end
+            )
+
         return detail
+
+    @staticmethod
+    def _read_source(abs_file_path: str, start: int, end: int) -> str:
+        """Read source lines from a file (absolute path)."""
+        try:
+            lines = Path(abs_file_path).read_text().splitlines()
+            # 1-indexed → 0-indexed slice
+            return "\n".join(lines[start - 1 : end])
+        except (OSError, IndexError):
+            return ""
