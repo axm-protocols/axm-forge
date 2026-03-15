@@ -29,6 +29,7 @@ from axm_ast.models.nodes import (
 __all__ = [
     "analyze_package",
     "build_import_graph",
+    "find_module_for_symbol",
     "get_public_api",
     "module_dotted_name",
     "search_symbols",
@@ -142,6 +143,72 @@ def module_dotted_name(mod_path: Path, root: Path) -> str:
     if parts and parts[-1] == "__init__":
         parts = parts[:-1]
     return ".".join(parts) if parts else root.name
+
+
+def find_module_for_symbol(
+    pkg: PackageInfo,
+    symbol: str | FunctionInfo | ClassInfo,
+) -> ModuleInfo | None:
+    """Find the module containing a symbol.
+
+    Supports two lookup modes:
+
+    - **Object** (``FunctionInfo`` / ``ClassInfo``): identity-first match,
+      then name fallback.
+    - **String**: name-based search across functions, methods, and classes.
+
+    Args:
+        pkg: Analyzed package info.
+        symbol: Symbol name or object to locate.
+
+    Returns:
+        The ``ModuleInfo`` containing the symbol, or ``None``.
+    """
+    if not isinstance(symbol, str):
+        # Identity match (when passed an object)
+        result = _find_module_by_identity(pkg, symbol)
+        if result is not None:
+            return result
+        # Fallback to name-based search
+        symbol = symbol.name
+
+    return _find_module_by_name(pkg, symbol)
+
+
+def _find_module_by_identity(
+    pkg: PackageInfo,
+    sym: FunctionInfo | ClassInfo,
+) -> ModuleInfo | None:
+    """Find module by object identity (``is`` comparison)."""
+    for mod in pkg.modules:
+        for fn in mod.functions:
+            if fn is sym:
+                return mod
+        for cls in mod.classes:
+            if cls is sym:
+                return mod
+            for method in cls.methods:
+                if method is sym:
+                    return mod
+    return None
+
+
+def _find_module_by_name(
+    pkg: PackageInfo,
+    name: str,
+) -> ModuleInfo | None:
+    """Find module by symbol name (first match)."""
+    for mod in pkg.modules:
+        for fn in mod.functions:
+            if fn.name == name:
+                return mod
+        for cls in mod.classes:
+            if cls.name == name:
+                return mod
+            for method in cls.methods:
+                if method.name == name:
+                    return mod
+    return None
 
 
 def _build_edges(modules: list[ModuleInfo], root: Path) -> list[tuple[str, str]]:

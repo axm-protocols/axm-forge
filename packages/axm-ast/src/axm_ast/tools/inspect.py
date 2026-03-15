@@ -216,7 +216,9 @@ class InspectTool(AXMTool):
     @staticmethod
     def _find_symbol_file(pkg: Any, sym: Any) -> str:
         """Find the relative file path for a symbol within the package."""
-        mod = InspectTool._find_module_for_symbol(pkg, sym)
+        from axm_ast.core.analyzer import find_module_for_symbol
+
+        mod = find_module_for_symbol(pkg, sym)
         if mod is not None:
             return InspectTool._relative_path(pkg, mod.path)
         return ""
@@ -224,31 +226,12 @@ class InspectTool(AXMTool):
     @staticmethod
     def _find_symbol_abs_path(pkg: Any, sym: Any) -> str:
         """Find the absolute file path for a symbol within the package."""
-        mod = InspectTool._find_module_for_symbol(pkg, sym)
+        from axm_ast.core.analyzer import find_module_for_symbol
+
+        mod = find_module_for_symbol(pkg, sym)
         if mod is not None:
             return str(mod.path)
         return ""
-
-    @staticmethod
-    def _find_module_for_symbol(pkg: Any, sym: Any) -> Any:
-        """Find the module containing a symbol (identity-first, name-fallback)."""
-        sym_name = sym.name
-        for mod in pkg.modules:
-            for fn in mod.functions:
-                if fn is sym:
-                    return mod
-            for cls in mod.classes:
-                if cls is sym:
-                    return mod
-        # Fallback: search by name (for symbols found via search_symbols)
-        for mod in pkg.modules:
-            for fn in mod.functions:
-                if fn.name == sym_name:
-                    return mod
-            for cls in mod.classes:
-                if cls.name == sym_name:
-                    return mod
-        return None
 
     @staticmethod
     def _relative_path(pkg: Any, mod_path: Path) -> str:
