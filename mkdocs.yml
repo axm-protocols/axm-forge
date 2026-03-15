@@ -2,13 +2,10 @@ site_name: mcp
 docs_dir: docs
 
 nav:
-  - Home: index.md
-  - Tutorials:
-    - Quickstart: tutorials/quickstart.md
-  - How-To Guides:
+  - Overview: index.md
+  - Quick Start: tutorials/quickstart.md
+  - How-To:
     - Add a Tool: howto/add-tool.md
-    - Verify: howto/verify.md
-  - Reference:
-    - CLI: reference/cli.md
-  - Explanation:
-    - Architecture: explanation/architecture.md
+    - Verify Setup: howto/verify.md
+  - Architecture: explanation/architecture.md
+  - CLI Reference: reference/cli.md
