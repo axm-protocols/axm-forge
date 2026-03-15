@@ -378,6 +378,97 @@ class TestImpactCLI:
         assert "callers" in data
         assert "score" in data
 
+
+# ─── Dotted symbol resolution ────────────────────────────────────────────────
+
+
+def _make_dotted_project(tmp_path: Path) -> Path:
+    """Create a project with classes, methods, properties, and nested classes."""
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text('"""Pkg."""\n')
+    (pkg / "models.py").write_text(
+        '"""Models."""\n'
+        "class Foo:\n"
+        '    """Foo class."""\n'
+        "\n"
+        "    def bar(self, x: int) -> int:\n"
+        '        """Bar method."""\n'
+        "        return x + 1\n"
+        "\n"
+        "    @property\n"
+        "    def my_prop(self) -> str:\n"
+        '        """A property."""\n'
+        '        return "hello"\n'
+    )
+    (pkg / "nested.py").write_text(
+        '"""Nested classes."""\n'
+        "class Outer:\n"
+        '    """Outer class."""\n'
+        "\n"
+        "    class Inner:\n"
+        '        """Inner class."""\n'
+        "\n"
+        "        def method(self) -> None:\n"
+        '            """Inner method."""\n'
+        "            pass\n"
+    )
+    (pkg / "use.py").write_text(
+        '"""Usage module."""\n'
+        "def call_bar() -> None:\n"
+        '    """Call bar."""\n'
+        "    f = Foo()\n"
+        "    f.bar(42)\n"
+    )
+    return pkg
+
+
+class TestDottedSymbol:
+    """Tests for dotted symbol resolution (Class.method)."""
+
+    def test_impact_dotted_method(self, tmp_path: Path) -> None:
+        """Dotted method returns non-null definition with kind=method."""
+        pkg_dir = _make_dotted_project(tmp_path)
+        result = analyze_impact(pkg_dir, "Foo.bar", project_root=tmp_path)
+        assert result["definition"] is not None
+        assert result["definition"]["kind"] in ("method", "function")
+        assert result["definition"]["line"] > 0
+
+    def test_impact_dotted_callers(self, tmp_path: Path) -> None:
+        """Dotted method finds callers that call instance.method()."""
+        pkg_dir = _make_dotted_project(tmp_path)
+        result = analyze_impact(pkg_dir, "Foo.bar", project_root=tmp_path)
+        assert len(result["callers"]) >= 1
+
+    def test_impact_class_still_works(self, tmp_path: Path) -> None:
+        """Bare class name still works after dotted support."""
+        pkg_dir = _make_dotted_project(tmp_path)
+        result = analyze_impact(pkg_dir, "Foo", project_root=tmp_path)
+        assert result["definition"] is not None
+        assert result["definition"]["kind"] == "class"
+
+    def test_impact_dotted_nonexistent(self, tmp_path: Path) -> None:
+        """Non-existent method returns definition=None without crashing."""
+        pkg_dir = _make_dotted_project(tmp_path)
+        result = analyze_impact(pkg_dir, "Foo.nonexistent", project_root=tmp_path)
+        assert result["definition"] is None
+
+    def test_impact_dotted_property(self, tmp_path: Path) -> None:
+        """Property is resolved like a method."""
+        pkg_dir = _make_dotted_project(tmp_path)
+        result = analyze_impact(pkg_dir, "Foo.my_prop", project_root=tmp_path)
+        assert result["definition"] is not None
+        assert result["definition"]["kind"] == "property"
+
+    def test_impact_dotted_nested(self, tmp_path: Path) -> None:
+        """Nested class method (Outer.Inner.method) — best-effort resolution."""
+        pkg_dir = _make_dotted_project(tmp_path)
+        # Should not crash; best-effort resolution
+        result = analyze_impact(pkg_dir, "Outer.Inner.method", project_root=tmp_path)
+        # We accept either a found definition or None — main thing is no crash
+        assert isinstance(result, dict)
+        assert "definition" in result
+
     def test_impact_on_real_symbol(self) -> None:
         """Dogfood on get_package (primary entry point after cache migration)."""
         root = Path(__file__).parent.parent

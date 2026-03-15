@@ -59,36 +59,102 @@ def _resolve_module_file(pkg: PackageInfo, mod_name: str) -> Path | None:
 # ─── Definition finder ──────────────────────────────────────────────────────
 
 
-def find_definition(pkg: PackageInfo, symbol: str) -> dict[str, Any] | None:
-    """Locate where a symbol is defined.
+def _split_dotted_symbol(symbol: str) -> tuple[str, str] | None:
+    """Split a dotted symbol into (class_name, method_name).
+
+    Returns None for bare (non-dotted) symbols.
+    For deeply nested paths like ``Outer.Inner.method``,
+    returns ``("Outer", "Inner.method")``.
+    """
+    if "." not in symbol:
+        return None
+    parts = symbol.split(".", 1)
+    return parts[0], parts[1]
+
+
+def _find_method_in_class(
+    cls: Any,
+    method_path: str,
+    mod_name: str,
+) -> dict[str, Any] | None:
+    """Search a class body for a method (supports nested paths).
 
     Args:
-        pkg: Analyzed package info.
-        symbol: Name of the function/class to find.
+        cls: ClassInfo node from the AST.
+        method_path: Method name or nested path (e.g. ``"method"``
+            or ``"Inner.method"``).
+        mod_name: Dotted module name for the result dict.
 
     Returns:
         Dict with module, line, kind — or None if not found.
     """
+    # Check if this is a nested path (e.g. "Inner.method")
+    nested = _split_dotted_symbol(method_path)
+    if nested is not None:
+        inner_name, rest = nested
+        # Search nested classes
+        for inner_cls in getattr(cls, "classes", []):
+            if inner_cls.name == inner_name:
+                return _find_method_in_class(inner_cls, rest, mod_name)
+        return None
+
+    # Direct method lookup
+    for method in cls.methods:
+        if method.name == method_path:
+            return {
+                "module": mod_name,
+                "line": method.line_start,
+                "kind": method.kind or "method",
+                "signature": method.signature,
+            }
+    return None
+
+
+def find_definition(pkg: PackageInfo, symbol: str) -> dict[str, Any] | None:
+    """Locate where a symbol is defined.
+
+    Supports dotted paths like ``ClassName.method`` to find
+    methods within class bodies.  For deeply nested paths like
+    ``Outer.Inner.method``, resolution is best-effort.
+
+    Args:
+        pkg: Analyzed package info.
+        symbol: Name of the function/class to find.  May be
+            dotted (e.g. ``"MyClass.my_method"``).
+
+    Returns:
+        Dict with module, line, kind — or None if not found.
+    """
+    dotted = _split_dotted_symbol(symbol)
+
     for mod in pkg.modules:
         mod_name = module_dotted_name(mod.path, pkg.root)
 
-        for fn in mod.functions:
-            if fn.name == symbol:
-                return {
-                    "module": mod_name,
-                    "line": fn.line_start,
-                    "kind": "function",
-                    "signature": fn.signature,
-                }
+        if dotted is not None:
+            class_name, method_path = dotted
+            for cls in mod.classes:
+                if cls.name == class_name:
+                    result = _find_method_in_class(cls, method_path, mod_name)
+                    if result is not None:
+                        return result
+        else:
+            for fn in mod.functions:
+                if fn.name == symbol:
+                    return {
+                        "module": mod_name,
+                        "line": fn.line_start,
+                        "kind": "function",
+                        "signature": fn.signature,
+                    }
 
-        for cls in mod.classes:
-            if cls.name == symbol:
-                return {
-                    "module": mod_name,
-                    "line": cls.line_start,
-                    "kind": "class",
-                    "name": cls.name,
-                }
+            for cls in mod.classes:
+                if cls.name == symbol:
+                    return {
+                        "module": mod_name,
+                        "line": cls.line_start,
+                        "kind": "class",
+                        "name": cls.name,
+                    }
 
     return None
 
@@ -447,12 +513,18 @@ def analyze_impact(
     pkg = get_package(path)
     root = _resolve_project_root(path, project_root)
 
-    definition = find_definition(pkg, symbol)
-    callers = find_callers(pkg, symbol)
-    reexports = find_reexports(pkg, symbol)
-    test_files = map_tests(symbol, root)
+    # For dotted symbols (Class.method), resolve definition with full
+    # path but search callers/tests by the bare method name — that is
+    # what appears in actual source code (self.method(), obj.method()).
+    dotted = _split_dotted_symbol(symbol)
+    lookup_name = dotted[1].split(".")[-1] if dotted else symbol
 
-    type_refs = find_type_refs(pkg, symbol)
+    definition = find_definition(pkg, symbol)
+    callers = find_callers(pkg, lookup_name)
+    reexports = find_reexports(pkg, lookup_name)
+    test_files = map_tests(lookup_name, root)
+
+    type_refs = find_type_refs(pkg, lookup_name)
     type_ref_modules = {r["module"] for r in type_refs}
     affected_modules = list(
         {c.module for c in callers} | set(reexports) | type_ref_modules
@@ -559,6 +631,11 @@ def analyze_impact_workspace(
 
     ws = analyze_workspace(ws_path)
 
+    # For dotted symbols, definition uses full path but lookups
+    # use the bare method name (what appears in source code).
+    dotted = _split_dotted_symbol(symbol)
+    lookup_name = dotted[1].split(".")[-1] if dotted else symbol
+
     definition = None
     for pkg in ws.packages:
         defn = find_definition(pkg, symbol)
@@ -567,9 +644,9 @@ def analyze_impact_workspace(
             definition = defn
             break
 
-    callers = find_callers_workspace(ws, symbol)
-    reexports = _collect_workspace_reexports(ws, symbol)
-    test_files = _collect_workspace_tests(ws, symbol)
+    callers = find_callers_workspace(ws, lookup_name)
+    reexports = _collect_workspace_reexports(ws, lookup_name)
+    test_files = _collect_workspace_tests(ws, lookup_name)
     affected_modules = sorted({c.module for c in callers} | set(reexports))
 
     result: dict[str, Any] = {
