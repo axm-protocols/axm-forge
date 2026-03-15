@@ -16,16 +16,16 @@ Example::
 
 from __future__ import annotations
 
+import logging
 import sys
 from collections import deque
-from dataclasses import dataclass
-from itertools import chain as iterchain
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from pydantic import BaseModel, Field
 
-from axm_ast.core.analyzer import module_dotted_name
+from axm_ast.core.analyzer import find_module_for_symbol, module_dotted_name
 from axm_ast.core.callers import (
     _extract_call_site,
     _is_call_node,
@@ -35,6 +35,8 @@ from axm_ast.core.callers import (
 from axm_ast.core.parser import parse_source
 from axm_ast.models.calls import CallSite
 from axm_ast.models.nodes import ImportInfo, ModuleInfo, PackageInfo
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "EntryPoint",
@@ -308,7 +310,12 @@ def _find_symbol_line(mod: ModuleInfo, name: str) -> int:
 # ─── Callee resolution ──────────────────────────────────────────────────────
 
 
-def find_callees(pkg: PackageInfo, symbol: str) -> list[CallSite]:
+def find_callees(
+    pkg: PackageInfo,
+    symbol: str,
+    *,
+    _parse_cache: dict[str, tuple[Any, str]] | None = None,
+) -> list[CallSite]:
     """Find all functions called by a given symbol (forward call graph).
 
     This is the inverse of ``find_callers``: instead of asking "who calls X?",
@@ -317,6 +324,9 @@ def find_callees(pkg: PackageInfo, symbol: str) -> list[CallSite]:
     Args:
         pkg: Analyzed package info.
         symbol: Name of the function/method to inspect.
+        _parse_cache: Optional cache of ``{path_str: (tree, source)}``
+            to avoid re-parsing the same file.  Shared across BFS
+            iterations in ``trace_flow``.
 
     Returns:
         List of CallSite objects for each call made by the symbol.
@@ -326,12 +336,19 @@ def find_callees(pkg: PackageInfo, symbol: str) -> list[CallSite]:
         >>> for c in callees:
         ...     print(f"  calls {c.symbol} at {c.module}:{c.line}")
     """
+    cache = _parse_cache if _parse_cache is not None else {}
     all_callees: list[CallSite] = []
 
     for mod in pkg.modules:
         mod_name = module_dotted_name(mod.path, pkg.root)
-        source = mod.path.read_text(encoding="utf-8")
-        tree = parse_source(source)
+        path_key = str(mod.path)
+
+        if path_key in cache:
+            tree, source = cache[path_key]
+        else:
+            source = mod.path.read_text(encoding="utf-8")
+            tree = parse_source(source)
+            cache[path_key] = (tree, source)
 
         # Find the function definition node for this symbol
         func_ranges = _find_function_nodes(tree.root_node, symbol)
@@ -481,18 +498,6 @@ def _is_stdlib_or_builtin(name: str) -> bool:
     return top in _STDLIB_MODULES
 
 
-def _find_module_for_symbol(pkg: PackageInfo, symbol: str) -> ModuleInfo | None:
-    """Find the ModuleInfo containing *symbol* in *pkg*."""
-    for mod in pkg.modules:
-        for fn in iterchain(mod.functions, *(c.methods for c in mod.classes)):
-            if fn.name == symbol:
-                return mod
-        for cls in mod.classes:
-            if cls.name == symbol:
-                return mod
-    return None
-
-
 def _resolve_import(
     mod: ModuleInfo, symbol: str, pkg: PackageInfo
 ) -> tuple[Path | None, str]:
@@ -635,6 +640,17 @@ def _path_to_dotted(path: Path, root: Path) -> str:
     return ".".join(parts) if parts else path.stem
 
 
+@dataclass
+class _CrossModuleContext:
+    """BFS state shared across cross-module resolution iterations."""
+
+    visited: set[tuple[str, str]]
+    queue: deque[tuple[str, int, list[str], PackageInfo, str]]
+    steps: list[FlowStep]
+    parse_cache: dict[str, tuple[Any, str]] = field(default_factory=dict)
+    detail: str = "trace"
+
+
 def trace_flow(
     pkg: PackageInfo,
     entry: str,
@@ -678,8 +694,14 @@ def trace_flow(
     # Queue: (symbol, depth, chain, source_pkg, source_module_dotted)
     queue: deque[tuple[str, int, list[str], PackageInfo, str]] = deque()
     queue.append((entry, 0, [entry], pkg, entry_mod))
-    # BFS-scoped cache for on-demand module parsing
-    parse_cache: dict[Path, PackageInfo] = {}
+
+    # Shared BFS context for cross-module resolution
+    ctx = _CrossModuleContext(
+        visited=visited,
+        queue=queue,
+        steps=steps,
+        detail=detail,
+    )
 
     # Add the entry point itself
     steps.append(
@@ -698,7 +720,7 @@ def trace_flow(
         if depth >= max_depth:
             continue
 
-        callees = find_callees(current_pkg, current)
+        callees = find_callees(current_pkg, current, _parse_cache=ctx.parse_cache)
         for callee in callees:
             callee_key = (callee.module, callee.symbol)
             if callee_key not in visited:
@@ -729,11 +751,7 @@ def trace_flow(
             pkg,
             depth,
             current_chain,
-            visited,
-            queue,
-            steps,
-            parse_cache,
-            detail=detail,
+            ctx,
         )
 
     if detail == "source":
@@ -770,6 +788,7 @@ def _locate_symbol(
             source = raw[fr.start_byte : fr.end_byte].decode("utf-8", errors="replace")
         return _SymbolLocation(line=fr.line, source=source)
     except Exception:  # noqa: BLE001
+        logger.debug("Failed to locate symbol %r in %s", symbol, path, exc_info=True)
         return None
 
 
@@ -783,12 +802,63 @@ def _enrich_steps_with_source(steps: list[FlowStep], pkg: PackageInfo) -> None:
     for step in steps:
         if step.source is not None:
             continue  # already enriched (cross-module resolution)
-        mod = _find_module_for_symbol(pkg, step.name)
+        mod = find_module_for_symbol(pkg, step.name)
         if mod is None:
             continue
         loc = _locate_symbol(mod.path, step.name, with_source=True)
         if loc is not None:
             step.source = loc.source
+
+
+def _parse_import_from_node(node: object) -> tuple[str, list[str]]:
+    """Extract module path and imported names from an import_from_statement.
+
+    Uses position-based parsing: children before the ``import`` keyword
+    are the module path, children after are the imported names.
+
+    Args:
+        node: A tree-sitter ``import_from_statement`` node.
+
+    Returns:
+        ``(module_path, [imported_name, ...])``.
+    """
+    seen_import_kw = False
+    import_module = ""
+    imported: list[str] = []
+
+    for child in getattr(node, "children", []):
+        ct = getattr(child, "type", "")
+        text = _node_text_safe(child)
+        if ct == "import":
+            seen_import_kw = True
+        elif not seen_import_kw and ct in ("dotted_name", "relative_import"):
+            import_module = text
+        elif seen_import_kw and ct in ("dotted_name", "identifier"):
+            imported.append(text)
+
+    return import_module, imported
+
+
+def _resolve_relative_module(import_module: str, resolved_dotted: str) -> str:
+    """Resolve a relative import module path to an absolute dotted name.
+
+    Example::
+
+        >>> _resolve_relative_module(".response", "django.http")
+        'django.http.response'
+
+    Args:
+        import_module: The raw import path (e.g. ``".response"``).
+        resolved_dotted: The dotted name of the current module.
+
+    Returns:
+        Absolute dotted module name.
+    """
+    base_parts = resolved_dotted.split(".")
+    dots = len(import_module) - len(import_module.lstrip("."))
+    rel_name = import_module.lstrip(".")
+    base = ".".join(base_parts[: max(1, len(base_parts) - dots + 1)])
+    return f"{base}.{rel_name}" if rel_name else base
 
 
 def _follow_reexport(
@@ -812,45 +882,25 @@ def _follow_reexport(
         raw = resolved_path.read_bytes()
         tree = parse_source(raw.decode("utf-8", errors="replace"))
     except Exception:  # noqa: BLE001
+        logger.debug(
+            "Failed to parse %s for re-export resolution",
+            resolved_path,
+            exc_info=True,
+        )
         return None, resolved_path, resolved_dotted
 
     for node in getattr(tree.root_node, "children", []):
         if getattr(node, "type", "") != "import_from_statement":
             continue
 
-        # Position-based parsing: before the 'import' keyword we find the
-        # module path, after it we find the imported names.  Tree-sitter
-        # parses both as 'dotted_name' so we cannot distinguish by type.
-        seen_import_kw = False
-        import_module = ""
-        imported: list[str] = []
+        import_module, imported = _parse_import_from_node(node)
 
-        for child in getattr(node, "children", []):
-            ct = getattr(child, "type", "")
-            text = _node_text_safe(child)
-            if ct == "import":
-                seen_import_kw = True
-            elif not seen_import_kw and ct in (
-                "dotted_name",
-                "relative_import",
-            ):
-                import_module = text
-            elif seen_import_kw and ct in ("dotted_name", "identifier"):
-                imported.append(text)
-
-        if symbol not in imported:
+        if symbol not in imported or not import_module:
             continue
 
-        if not import_module:
-            continue
-
-        # Resolve relative imports (e.g. ".response" → "django.http.response")
+        # Resolve relative imports
         if import_module.startswith("."):
-            base_parts = resolved_dotted.split(".")
-            dots = len(import_module) - len(import_module.lstrip("."))
-            rel_name = import_module.lstrip(".")
-            base = ".".join(base_parts[: max(1, len(base_parts) - dots + 1)])
-            import_module = f"{base}.{rel_name}" if rel_name else base
+            import_module = _resolve_relative_module(import_module, resolved_dotted)
 
         # Try to find the file for this module
         target_path, target_dotted = _module_to_path(import_module, original_pkg.root)
@@ -871,11 +921,7 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
     original_pkg: PackageInfo,
     depth: int,
     current_chain: list[str],
-    visited: set[tuple[str, str]],
-    queue: deque[tuple[str, int, list[str], PackageInfo, str]],
-    steps: list[FlowStep],
-    parse_cache: dict[Path, PackageInfo],
-    detail: str = "trace",
+    ctx: _CrossModuleContext,
 ) -> None:
     """Try to resolve callees that are imported from other modules."""
     for callee in callees:
@@ -884,7 +930,7 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
             continue
 
         # Find the module where the current function lives
-        source_mod = _find_module_for_symbol(current_pkg, callee.context or "")
+        source_mod = find_module_for_symbol(current_pkg, callee.context or "")
         if source_mod is None:
             # Try to find by current_mod name
             for m in current_pkg.modules:
@@ -896,7 +942,7 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
             continue
 
         # Check if the callee is already defined in the package
-        if _find_module_for_symbol(current_pkg, symbol) is not None:
+        if find_module_for_symbol(current_pkg, symbol) is not None:
             continue
 
         # Try to resolve the import
@@ -908,7 +954,9 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
 
         # Lightweight symbol lookup — tree-sitter on the single file,
         # no full package parse, no BFS continuation into external code.
-        loc = _locate_symbol(resolved_path, symbol, with_source=(detail == "source"))
+        loc = _locate_symbol(
+            resolved_path, symbol, with_source=(ctx.detail == "source")
+        )
         if loc is None:
             # Symbol not defined here — follow re-exports (e.g.
             # __init__.py that does ``from .response import HttpResponse``)
@@ -917,18 +965,18 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
                 resolved_dotted,
                 symbol,
                 original_pkg,
-                with_source=(detail == "source"),
+                with_source=(ctx.detail == "source"),
             )
         if loc is None:
             continue
 
         resolved_key = (resolved_dotted, symbol)
-        if resolved_key in visited:
+        if resolved_key in ctx.visited:
             continue
-        visited.add(resolved_key)
+        ctx.visited.add(resolved_key)
 
         new_chain = [*current_chain, callee.symbol]
-        steps.append(
+        ctx.steps.append(
             FlowStep(
                 name=symbol,
                 module=resolved_dotted,
@@ -944,7 +992,7 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
 def _find_symbol_location(pkg: PackageInfo, symbol: str) -> tuple[str | None, int]:
     """Find the module and line of a symbol in the package."""
     for mod in pkg.modules:
-        for fn in iterchain(mod.functions, *(c.methods for c in mod.classes)):
+        for fn in mod.functions:
             if fn.name == symbol:
                 mod_name = module_dotted_name(mod.path, pkg.root)
                 return mod_name, fn.line_start
@@ -952,6 +1000,10 @@ def _find_symbol_location(pkg: PackageInfo, symbol: str) -> tuple[str | None, in
             if cls.name == symbol:
                 mod_name = module_dotted_name(mod.path, pkg.root)
                 return mod_name, cls.line_start
+            for method in cls.methods:
+                if method.name == symbol:
+                    mod_name = module_dotted_name(mod.path, pkg.root)
+                    return mod_name, method.line_start
     return None, 0
 
 
