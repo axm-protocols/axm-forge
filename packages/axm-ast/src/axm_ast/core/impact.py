@@ -12,6 +12,7 @@ Example:
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -24,6 +25,8 @@ from axm_ast.core.cache import get_package
 from axm_ast.core.callers import find_callers, find_callers_workspace
 from axm_ast.core.git_coupling import git_coupled_files
 from axm_ast.models.nodes import ModuleInfo, PackageInfo
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "analyze_impact",

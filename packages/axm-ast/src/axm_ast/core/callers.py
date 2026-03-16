@@ -13,10 +13,14 @@ Example:
 
 from __future__ import annotations
 
+import logging
+
 from axm_ast.core.analyzer import module_dotted_name
 from axm_ast.core.parser import parse_source
 from axm_ast.models.calls import CallSite
 from axm_ast.models.nodes import ModuleInfo, PackageInfo, WorkspaceInfo
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "extract_calls",

@@ -6,7 +6,11 @@ tree-sitter parsing, used by the caller analysis feature.
 
 from __future__ import annotations
 
+import logging
+
 from pydantic import BaseModel, ConfigDict, Field
+
+logger = logging.getLogger(__name__)
 
 
 class CallSite(BaseModel):

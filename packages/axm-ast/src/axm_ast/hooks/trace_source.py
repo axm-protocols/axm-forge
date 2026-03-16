@@ -7,12 +7,15 @@ the complete trace as ``HookResult`` metadata.  Registered as
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from axm.hooks.base import HookResult
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["TraceSourceHook", "_parse_entry", "_resolve_scope"]
 

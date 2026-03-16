@@ -14,6 +14,7 @@ Usage::
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Annotated, Any
@@ -30,6 +31,8 @@ from axm_ast.formatters import (
     format_text,
 )
 from axm_ast.models.nodes import FunctionKind
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["app"]
 
