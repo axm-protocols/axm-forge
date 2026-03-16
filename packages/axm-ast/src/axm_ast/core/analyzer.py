@@ -26,6 +26,7 @@ from axm_ast.models.nodes import (
     ImportInfo,
     ModuleInfo,
     PackageInfo,
+    SymbolKind,
 )
 
 logger = logging.getLogger(__name__)
@@ -329,7 +330,7 @@ def search_symbols(
     *,
     name: str | None = None,
     returns: str | None = None,
-    kind: FunctionKind | None = None,
+    kind: SymbolKind | None = None,
     inherits: str | None = None,
 ) -> list[FunctionInfo | ClassInfo]:
     """Search for symbols across a package with filters.
@@ -341,7 +342,8 @@ def search_symbols(
         pkg: Analyzed package info.
         name: Filter by symbol name (substring match).
         returns: Filter functions by return type (substring match).
-        kind: Filter functions by FunctionKind.
+        kind: Filter by SymbolKind (function, method, property,
+            classmethod, staticmethod, abstract, class).
         inherits: Filter classes by base class name.
 
     Returns:
@@ -373,26 +375,63 @@ def _search_module(
     *,
     name: str | None,
     returns: str | None,
-    kind: FunctionKind | None,
+    kind: SymbolKind | None,
     inherits: str | None,
 ) -> list[FunctionInfo | ClassInfo]:
     """Search for symbols within a single module."""
     if inherits is not None:
-        return _search_by_inheritance(mod, name, inherits)
+        return _search_by_inheritance(mod, name, inherits, kind)
+
+    # kind="class" → return only classes matching name
+    if kind == SymbolKind.CLASS:
+        # Classes don't have return types, so returns filter → empty
+        if returns is not None:
+            return []
+        return _search_classes_only(mod, name=name)
+
+    # Convert to FunctionKind for function-level filtering
+    fn_kind = FunctionKind(kind.value) if kind is not None else None
 
     results: list[FunctionInfo | ClassInfo] = []
     for fn in mod.functions:
-        if _match_function(fn, name=name, returns=returns, kind=kind):
+        if _match_function(fn, name=name, returns=returns, kind=fn_kind):
             results.append(fn)
 
-    results.extend(_search_classes(mod, name=name, returns=returns, kind=kind))
+    # When filtering by a function kind, don't include classes
+    if fn_kind is None:
+        results.extend(_search_classes(mod, name=name, returns=returns, kind=fn_kind))
+    else:
+        # Still search class methods for the requested kind
+        for cls in mod.classes:
+            for method in cls.methods:
+                if _match_function(method, name=name, returns=returns, kind=fn_kind):
+                    results.append(method)
+    return results
+
+
+def _search_classes_only(
+    mod: ModuleInfo,
+    *,
+    name: str | None,
+) -> list[FunctionInfo | ClassInfo]:
+    """Return only classes, optionally filtered by name."""
+    results: list[FunctionInfo | ClassInfo] = []
+    for cls in mod.classes:
+        if name is None or name in cls.name:
+            results.append(cls)
     return results
 
 
 def _search_by_inheritance(
-    mod: ModuleInfo, name: str | None, inherits: str
+    mod: ModuleInfo,
+    name: str | None,
+    inherits: str,
+    kind: SymbolKind | None = None,
 ) -> list[FunctionInfo | ClassInfo]:
     """Search classes by base class inheritance."""
+    # If kind is set and is not CLASS, no class can match
+    if kind is not None and kind != SymbolKind.CLASS:
+        return []
     results: list[FunctionInfo | ClassInfo] = []
     for cls in mod.classes:
         if inherits in cls.bases and (name is None or name in cls.name):

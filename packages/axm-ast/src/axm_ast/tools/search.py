@@ -46,7 +46,8 @@ class SearchTool(AXMTool):
             path: Path to package directory.
             name: Filter by symbol name (substring match).
             returns: Filter by return type.
-            kind: Filter by kind (function, method, classmethod, etc.).
+            kind: Filter by kind (function, method, property,
+                classmethod, staticmethod, abstract, class).
             inherits: Filter by base class name.
 
         Returns:
@@ -61,18 +62,19 @@ class SearchTool(AXMTool):
 
             from axm_ast.core.analyzer import search_symbols
             from axm_ast.core.cache import get_package
-            from axm_ast.models import FunctionKind
+            from axm_ast.models import SymbolKind
 
             pkg = get_package(project_path)
 
             kind_enum = None
             if kind:
                 try:
-                    kind_enum = FunctionKind(kind)
+                    kind_enum = SymbolKind(kind)
                 except ValueError:
+                    valid = ", ".join(SymbolKind)
                     return ToolResult(
                         success=False,
-                        error=f"Invalid kind: {kind}",
+                        error=f"Invalid kind: {kind}. Valid: {valid}",
                     )
 
             results = search_symbols(

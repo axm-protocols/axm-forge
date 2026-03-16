@@ -120,11 +120,52 @@ class TestSearchByKind:
         names = [s["name"] for s in result.data["results"]]
         assert "is_admin" in names
 
+    def test_filter_by_class(self, tool: SearchTool, search_pkg: Path) -> None:
+        """kind='class' returns only classes, not functions."""
+        result = tool.execute(path=str(search_pkg), kind="class")
+        assert result.success is True
+        names = [s["name"] for s in result.data["results"]]
+        assert "User" in names
+        assert "Admin" in names
+        # Functions must not appear
+        assert "greet" not in names
+        assert "compute" not in names
+
+    def test_filter_by_function(self, tool: SearchTool, search_pkg: Path) -> None:
+        """kind='function' returns only top-level functions, not classes."""
+        result = tool.execute(path=str(search_pkg), kind="function")
+        assert result.success is True
+        names = [s["name"] for s in result.data["results"]]
+        assert "greet" in names
+        assert "compute" in names
+        # Classes must not appear
+        assert "User" not in names
+        assert "Admin" not in names
+
+    def test_filter_by_method(self, tool: SearchTool, search_pkg: Path) -> None:
+        """kind='method' returns no results (fixture has no plain methods)."""
+        result = tool.execute(path=str(search_pkg), kind="method")
+        assert result.success is True
+        # Fixture only has properties, not plain methods
+        names = [s["name"] for s in result.data["results"]]
+        assert "is_admin" not in names  # is_admin is a property, not a method
+
     def test_invalid_kind(self, tool: SearchTool, search_pkg: Path) -> None:
         result = tool.execute(path=str(search_pkg), kind="invalid_kind_xyz")
         assert result.success is False
         assert result.error is not None
         assert "Invalid kind" in result.error
+
+    def test_invalid_kind_lists_valid_values(
+        self, tool: SearchTool, search_pkg: Path
+    ) -> None:
+        """Error message lists all valid kind values."""
+        result = tool.execute(path=str(search_pkg), kind="bogus")
+        assert result.success is False
+        assert result.error is not None
+        assert "class" in result.error
+        assert "function" in result.error
+        assert "method" in result.error
 
 
 # ─── Search by inheritance ───────────────────────────────────────────────────
@@ -171,3 +212,31 @@ class TestSearchEdgeCases:
         result = tool.execute(path=str(search_pkg))
         assert result.success is True
         assert result.data["count"] > 0
+
+    def test_kind_class_with_name(self, tool: SearchTool, search_pkg: Path) -> None:
+        """kind='class' + name filter returns only matching classes."""
+        result = tool.execute(path=str(search_pkg), kind="class", name="User")
+        assert result.success is True
+        names = [s["name"] for s in result.data["results"]]
+        assert "User" in names
+        assert "Admin" not in names
+
+    def test_kind_class_with_inherits(self, tool: SearchTool, search_pkg: Path) -> None:
+        """kind='class' + inherits filter works."""
+        result = tool.execute(path=str(search_pkg), kind="class", inherits="BaseModel")
+        assert result.success is True
+        names = [s["name"] for s in result.data["results"]]
+        assert "User" in names
+        assert "Admin" in names
+
+    def test_kind_class_with_returns(self, tool: SearchTool, search_pkg: Path) -> None:
+        """kind='class' + returns filter gives empty (classes have no return type)."""
+        result = tool.execute(path=str(search_pkg), kind="class", returns="str")
+        assert result.success is True
+        assert result.data["count"] == 0
+
+    def test_kind_class_no_match(self, tool: SearchTool, search_pkg: Path) -> None:
+        """kind='class' with non-matching name returns empty list."""
+        result = tool.execute(path=str(search_pkg), kind="class", name="nonexistent")
+        assert result.success is True
+        assert result.data["count"] == 0
