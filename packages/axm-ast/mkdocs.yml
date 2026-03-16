@@ -1,6 +1,21 @@
 site_name: ast
 docs_dir: docs
 
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: false
+            show_root_heading: true
+
 nav:
   - Overview: index.md
   - Tutorials:
@@ -8,10 +23,11 @@ nav:
   - How-To Guides:
     - Describe a Package: howto/describe.md
     - Analyze Change Impact: howto/impact.md
-
+    - Trace Execution Flows: howto/flows.md
     - Use via MCP: howto/mcp.md
   - Reference:
     - CLI: reference/cli.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Output Formats: explanation/formats.md
+    - Cross-Module Resolution: explanation/cross_module_resolution.md
