@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import cyclopts
 
@@ -39,6 +39,15 @@ app = cyclopts.App(
         "AXM AST — Python library introspection for AI agents, powered by tree-sitter."
     ),
 )
+
+
+def _resolve_dir(path: str) -> Path:
+    """Resolve *path* to an absolute directory, or exit with an error."""
+    resolved = Path(path).resolve()
+    if not resolved.is_dir():
+        print(f"❌ Not a directory: {resolved}", file=sys.stderr)
+        raise SystemExit(1)
+    return resolved
 
 
 @app.command()
@@ -89,10 +98,7 @@ def describe(
     ] = None,
 ) -> None:
     """Describe a Python package at the chosen detail level."""
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
+    project_path = _resolve_dir(path)
 
     from axm_ast.formatters import filter_modules, format_toc
 
@@ -159,10 +165,7 @@ def inspect(
     like ``ClassName.method`` or ``module.symbol``. Returns file path,
     line numbers, and optionally source code — matching MCP ``ast_inspect``.
     """
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
+    project_path = _resolve_dir(path)
 
     if not symbol:
         # List all symbols in the package
@@ -200,7 +203,7 @@ def inspect(
         _print_inspect_result(sym_data)
 
 
-def _print_inspect_result(sym: dict) -> None:  # type: ignore[type-arg]
+def _print_inspect_result(sym: dict[str, Any]) -> None:
     """Pretty-print an inspect result."""
     name = sym.get("name", "?")
     sig = sym.get("signature", "")
@@ -265,10 +268,7 @@ def graph(
     ] = False,
 ) -> None:
     """Display the internal import/dependency graph."""
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
+    project_path = _resolve_dir(path)
 
     from axm_ast.core.workspace import detect_workspace
 
@@ -347,10 +347,7 @@ def search(
     ] = False,
 ) -> None:
     """Search for symbols across a package with filters."""
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
+    project_path = _resolve_dir(path)
 
     pkg = get_package(project_path)
 
@@ -394,10 +391,7 @@ def callers(
     ] = False,
 ) -> None:
     """Find all call-sites of a given symbol across a package."""
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
+    project_path = _resolve_dir(path)
 
     from axm_ast.core.workspace import detect_workspace
 
@@ -452,10 +446,7 @@ def callees(
     ] = False,
 ) -> None:
     """Find all functions/methods called by a given symbol."""
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
+    project_path = _resolve_dir(path)
 
     pkg = get_package(project_path)
 
@@ -507,10 +498,7 @@ def context(
     ] = False,
 ) -> None:
     """Dump complete project context in one shot for AI agents."""
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
+    project_path = _resolve_dir(path)
 
     # --slim is shorthand for --depth 0
     if slim:
@@ -620,10 +608,7 @@ def impact(
     ] = False,
 ) -> None:
     """Analyze the impact of changing a symbol."""
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
+    project_path = _resolve_dir(path)
 
     from axm_ast.core.workspace import detect_workspace
 
@@ -643,7 +628,7 @@ def impact(
         _print_impact(result)
 
 
-def _print_impact(result: dict) -> None:  # type: ignore[type-arg]
+def _print_impact(result: dict[str, Any]) -> None:
     """Pretty-print impact analysis."""
     sym = result["symbol"]
     score = result["score"]
@@ -661,7 +646,7 @@ def _print_impact(result: dict) -> None:  # type: ignore[type-arg]
     _print_impact_list("📦 Re-exported in", result.get("reexports", []))
 
 
-def _print_impact_callers(callers: list[dict]) -> None:  # type: ignore[type-arg]
+def _print_impact_callers(callers: list[dict[str, Any]]) -> None:
     """Print callers section."""
     if not callers:
         return
@@ -673,7 +658,7 @@ def _print_impact_callers(callers: list[dict]) -> None:  # type: ignore[type-arg
 
 
 def _print_impact_type_refs(
-    type_refs: list[dict],  # type: ignore[type-arg]
+    type_refs: list[dict[str, Any]],
 ) -> None:
     """Print type references section."""
     if not type_refs:
@@ -722,10 +707,7 @@ def diff_cmd(
         print("❌ Both base and head refs are required", file=sys.stderr)
         raise SystemExit(1)
 
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
+    project_path = _resolve_dir(path)
 
     from axm_ast.core.structural_diff import structural_diff
 
@@ -741,7 +723,7 @@ def diff_cmd(
         _print_diff(result, base, head)
 
 
-def _print_diff(result: dict, base: str, head: str) -> None:  # type: ignore[type-arg]
+def _print_diff(result: dict[str, Any], base: str, head: str) -> None:
     """Pretty-print structural diff."""
     added = result["added"]
     removed = result["removed"]
@@ -793,10 +775,7 @@ def dead_code(
     ] = False,
 ) -> None:
     """Detect dead (unreferenced) code in a Python package."""
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
+    project_path = _resolve_dir(path)
 
     from axm_ast.core.dead_code import find_dead_code, format_dead_code
 
@@ -866,10 +845,7 @@ def flows(
     ] = False,
 ) -> None:
     """Detect entry points and trace execution flows."""
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
+    project_path = _resolve_dir(path)
 
     from axm_ast.core.flows import (
         find_entry_points,
@@ -953,10 +929,7 @@ def docs(
     ] = False,
 ) -> None:
     """Dump project documentation tree and content in one shot."""
-    project_path = Path(path).resolve()
-    if not project_path.is_dir():
-        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
-        raise SystemExit(1)
+    project_path = _resolve_dir(path)
 
     from axm_ast.core.docs import discover_docs, format_docs, format_docs_json
 
