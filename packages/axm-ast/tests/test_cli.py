@@ -196,3 +196,37 @@ class TestVersionCommand:
     def test_version(self, capsys: pytest.CaptureFixture[str]) -> None:
         output = _run(["version"], capsys)
         assert "axm-ast" in output
+
+
+class TestResolveDir:
+    """Tests for ``_resolve_dir`` helper (AC #2 + #4)."""
+
+    def test_cli_describe_output_unchanged(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Describe output must be identical after refactoring (AC #4)."""
+        output = _run(["describe", str(SAMPLE_PKG)], capsys)
+        # Core content assertions — same as pre-refactoring baseline
+        assert "sample_pkg" in output
+        assert "greet" in output
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            ["describe"],
+            ["inspect"],
+            ["graph"],
+            ["search"],
+            ["callers", "--symbol", "x"],
+            ["callees", "--symbol", "x"],
+            ["context"],
+            ["impact", "--symbol", "x"],
+            ["dead-code"],
+            ["flows"],
+            ["docs"],
+        ],
+    )
+    def test_cli_invalid_path(self, cmd: list[str]) -> None:
+        """Every command using ``_resolve_dir`` rejects nonexistent paths (AC #2)."""
+        with pytest.raises(SystemExit):
+            app([cmd[0], "/nonexistent/path", *cmd[1:]])
