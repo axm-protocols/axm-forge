@@ -12,7 +12,7 @@ from axm_ast.core.analyzer import (
     get_public_api,
     search_symbols,
 )
-from axm_ast.models.nodes import FunctionInfo, FunctionKind
+from axm_ast.models.nodes import ClassInfo, FunctionInfo, FunctionKind, SymbolKind
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SAMPLE_PKG = FIXTURES / "sample_pkg"
@@ -130,12 +130,32 @@ class TestSearchSymbols:
 
     def test_search_by_kind(self):
         pkg = analyze_package(SAMPLE_PKG)
-        results = search_symbols(pkg, kind=FunctionKind.PROPERTY)
+        results = search_symbols(pkg, kind=SymbolKind.PROPERTY)
         assert len(results) >= 1
         assert all(
             isinstance(r, FunctionInfo) and r.kind == FunctionKind.PROPERTY
             for r in results
         )
+
+    def test_search_by_kind_class(self):
+        """kind=CLASS returns only ClassInfo items."""
+        pkg = analyze_package(SAMPLE_PKG)
+        results = search_symbols(pkg, kind=SymbolKind.CLASS)
+        assert len(results) >= 1
+        assert all(isinstance(r, ClassInfo) for r in results)
+
+    def test_search_by_kind_function(self):
+        """kind=FUNCTION returns only FunctionInfo items with kind=FUNCTION."""
+        pkg = analyze_package(SAMPLE_PKG)
+        results = search_symbols(pkg, kind=SymbolKind.FUNCTION)
+        assert len(results) >= 1
+        assert all(
+            isinstance(r, FunctionInfo) and r.kind == FunctionKind.FUNCTION
+            for r in results
+        )
+        names = [r.name for r in results]
+        # No classes should be in results
+        assert "Calculator" not in names
 
     def test_search_no_results(self):
         pkg = analyze_package(SAMPLE_PKG)

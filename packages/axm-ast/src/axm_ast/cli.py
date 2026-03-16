@@ -30,7 +30,7 @@ from axm_ast.formatters import (
     format_mermaid,
     format_text,
 )
-from axm_ast.models.nodes import FunctionKind
+from axm_ast.models.nodes import SymbolKind
 
 logger = logging.getLogger(__name__)
 
@@ -336,7 +336,8 @@ def search(
         cyclopts.Parameter(
             name=["--kind", "-k"],
             help=(
-                "Filter by kind: function, method, property, classmethod, staticmethod"
+                "Filter by kind: function, method, property,"
+                " classmethod, staticmethod, abstract, class"
             ),
         ),
     ] = None,
@@ -354,7 +355,7 @@ def search(
 
     pkg = get_package(project_path)
 
-    kind_enum = FunctionKind(kind) if kind else None
+    kind_enum = SymbolKind(kind) if kind else None
     results = search_symbols(
         pkg, name=name, returns=returns, kind=kind_enum, inherits=inherits
     )

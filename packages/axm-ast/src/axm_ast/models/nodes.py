@@ -26,6 +26,22 @@ class FunctionKind(enum.StrEnum):
     ABSTRACT = "abstract"
 
 
+class SymbolKind(enum.StrEnum):
+    """Filter enum for symbol search — superset of FunctionKind + class.
+
+    Used by ``search_symbols`` and the ``ast_search`` MCP tool to let
+    callers filter results by symbol type.
+    """
+
+    FUNCTION = "function"
+    METHOD = "method"
+    PROPERTY = "property"
+    CLASSMETHOD = "classmethod"
+    STATICMETHOD = "staticmethod"
+    ABSTRACT = "abstract"
+    CLASS = "class"
+
+
 class ParameterInfo(BaseModel):
     """A single function/method parameter.
 
