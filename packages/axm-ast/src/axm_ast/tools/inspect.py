@@ -8,7 +8,7 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_ast.models.nodes import ClassInfo, FunctionInfo, PackageInfo
+from axm_ast.models.nodes import ClassInfo, FunctionInfo, ModuleInfo, PackageInfo
 
 logger = logging.getLogger(__name__)
 
@@ -73,23 +73,8 @@ class InspectTool(AXMTool):
 
         pkg = get_package(project_path)
 
-        # --- Dotted path resolution ---
         if "." in symbol:
-            result = self._resolve_module_symbol(pkg, symbol, source=source)
-            if result is not None:
-                return result
-
-            result = self._resolve_class_method(pkg, symbol, source=source)
-            if result is not None:
-                return result
-
-            return ToolResult(
-                success=False,
-                error=(
-                    f"Symbol '{symbol}' not found"
-                    " (tried module.symbol and Class.method)"
-                ),
-            )
+            return self._inspect_dotted(pkg, symbol, source=source)
 
         # --- Simple name: function or class ---
         results = search_symbols(
@@ -101,6 +86,10 @@ class InspectTool(AXMTool):
         )
 
         if not results:
+            # --- Module fallback ---
+            mod_result = self._inspect_module(pkg, symbol)
+            if mod_result is not None:
+                return mod_result
             return ToolResult(
                 success=False,
                 error=f"Symbol '{symbol}' not found",
@@ -117,6 +106,77 @@ class InspectTool(AXMTool):
                 )
             },
         )
+
+    def _inspect_dotted(
+        self, pkg: PackageInfo, symbol: str, *, source: bool = False
+    ) -> ToolResult:
+        """Resolve a dotted symbol (module, module.symbol, or Class.method)."""
+        # Check module name first (e.g. "sub.helpers" is a module)
+        result = self._inspect_module(pkg, symbol)
+        if result is not None:
+            return result
+
+        result = self._resolve_module_symbol(pkg, symbol, source=source)
+        if result is not None:
+            return result
+
+        result = self._resolve_class_method(pkg, symbol, source=source)
+        if result is not None:
+            return result
+
+        return ToolResult(
+            success=False,
+            error=(
+                f"Symbol '{symbol}' not found"
+                " (tried module name, module.symbol, and Class.method)"
+            ),
+        )
+
+    def _inspect_module(self, pkg: PackageInfo, name: str) -> ToolResult | None:
+        """Try to resolve *name* as a module name and return module metadata.
+
+        Args:
+            pkg: Analyzed package.
+            name: Simple or dotted name to match against module names.
+
+        Returns:
+            ToolResult with module metadata, or None if no match.
+        """
+        mod_names = pkg.module_names
+        name_to_mod: dict[str, ModuleInfo] = dict(
+            zip(mod_names, pkg.modules, strict=True)
+        )
+
+        # Exact match first
+        mod = name_to_mod.get(name)
+
+        if mod is None:
+            # Substring match — only if unambiguous
+            matches = [n for n in mod_names if name in n]
+            if len(matches) == 1:
+                mod = name_to_mod[matches[0]]
+            elif len(matches) > 1:
+                return ToolResult(
+                    success=False,
+                    error=(
+                        f"Multiple modules match '{name}': {', '.join(sorted(matches))}"
+                    ),
+                )
+
+        if mod is None:
+            return None
+
+        file_rel = self._relative_path(pkg, mod.path)
+        detail: dict[str, Any] = {
+            "name": name,
+            "kind": "module",
+            "file": file_rel,
+            "docstring": mod.docstring or "",
+            "functions": [f.name for f in mod.functions],
+            "classes": [c.name for c in mod.classes],
+            "symbol_count": len(mod.functions) + len(mod.classes),
+        }
+        return ToolResult(success=True, data={"symbol": detail})
 
     def _resolve_module_symbol(
         self, pkg: PackageInfo, dotted: str, *, source: bool = False
