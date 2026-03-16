@@ -59,6 +59,8 @@ axm-ast inspect [OPTIONS] [PATH]
 
 Operates on **packages** (not individual files). Supports dotted paths like `ClassName.method`. Returns file path, line numbers, and optionally source code — matching MCP `ast_inspect`.
 
+When `--symbol` matches a **module name** rather than a symbol, returns module-level metadata instead: `kind: "module"`, `functions`, `classes`, `symbol_count`, `docstring`, and `file`.
+
 **Examples:**
 
 ```bash

@@ -105,4 +105,9 @@ axm-ast inspect src/mylib --symbol Calculator.add --source
 
 # JSON output with file + line numbers
 axm-ast inspect src/mylib --symbol my_function --json
+
+# Inspect by module name — returns module metadata instead of a symbol
+axm-ast inspect src/mylib --symbol core.analyzer --json
 ```
+
+When `--symbol` matches a **module name** rather than an individual symbol, `inspect` falls back to returning module-level metadata: `kind`, `functions`, `classes`, `symbol_count`, `docstring`, and `file`. This is useful for a quick overview of a module without running `describe`.

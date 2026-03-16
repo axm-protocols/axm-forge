@@ -210,3 +210,63 @@ class TestInspectEdgeCases:
         (pkg / "__init__.py").write_text("")
         result = tool.execute(path=str(pkg), symbol="anything")
         assert result.success is False
+
+
+# ─── Module fallback ─────────────────────────────────────────────────────────
+
+
+class TestInspectModuleFallback:
+    """Tests for module fallback when symbol not found (AXM-430)."""
+
+    def test_inspect_module_by_name(self, tool: InspectTool, rich_pkg: Path) -> None:
+        """AC1: ast_inspect(symbol='core') returns module metadata."""
+        result = tool.execute(path=str(rich_pkg), symbol="core")
+        assert result.success is True
+        sym = result.data["symbol"]
+        assert sym["kind"] == "module"
+        assert "functions" in sym
+        assert "classes" in sym
+        assert "symbol_count" in sym
+
+    def test_inspect_module_has_file(self, tool: InspectTool, rich_pkg: Path) -> None:
+        """AC2: Module metadata includes a valid relative file path."""
+        result = tool.execute(path=str(rich_pkg), symbol="core")
+        assert result.success is True
+        sym = result.data["symbol"]
+        assert sym["file"]
+        assert "core.py" in sym["file"]
+
+    def test_inspect_module_has_docstring(
+        self, tool: InspectTool, rich_pkg: Path
+    ) -> None:
+        """AC2: Module metadata includes docstring when present."""
+        result = tool.execute(path=str(rich_pkg), symbol="core")
+        assert result.success is True
+        sym = result.data["symbol"]
+        assert sym["docstring"] == "Core module."
+
+    def test_inspect_symbol_still_preferred(
+        self, tool: InspectTool, rich_pkg: Path
+    ) -> None:
+        """AC3: Symbol match takes priority over module fallback."""
+        result = tool.execute(path=str(rich_pkg), symbol="greet")
+        assert result.success is True
+        sym = result.data["symbol"]
+        assert sym["name"] == "greet"
+        assert sym.get("kind") != "module"
+        assert "signature" in sym
+
+    def test_no_match_still_errors(self, tool: InspectTool, rich_pkg: Path) -> None:
+        """Edge: No symbol and no module → error."""
+        result = tool.execute(path=str(rich_pkg), symbol="zzz_nonexistent")
+        assert result.success is False
+        assert result.error is not None
+        assert "not found" in result.error
+
+    def test_inspect_nested_module(self, tool: InspectTool, rich_pkg: Path) -> None:
+        """Module fallback works for nested modules via dotted name."""
+        result = tool.execute(path=str(rich_pkg), symbol="sub.helpers")
+        assert result.success is True
+        sym = result.data["symbol"]
+        assert sym["kind"] == "module"
+        assert "helper_func" in sym["functions"]
