@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -686,6 +687,8 @@ def trace_flow(
         >>> for s in steps:
         ...     print(f"{'  ' * s.depth}{s.name} ({s.module}:{s.line})")
     """
+    t0 = time.perf_counter()
+
     # Find the entry point location
     entry_mod, entry_line = _find_symbol_location(pkg, entry)
     if entry_mod is None:
@@ -760,6 +763,15 @@ def trace_flow(
 
     if detail == "source":
         _enrich_steps_with_source(steps, pkg)
+
+    elapsed = time.perf_counter() - t0
+    logger.debug(
+        "Traced %s in %.2fs (%d steps, depth=%d)",
+        entry,
+        elapsed,
+        len(steps),
+        max_depth,
+    )
 
     return steps
 

@@ -15,6 +15,7 @@ Example::
 
 from __future__ import annotations
 
+import logging
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,6 +28,8 @@ if TYPE_CHECKING:
         ModuleInfo,
         PackageInfo,
     )
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["DeadSymbol", "find_dead_code", "format_dead_code"]
 

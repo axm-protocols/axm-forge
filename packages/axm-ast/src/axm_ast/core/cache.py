@@ -19,6 +19,7 @@ Example::
 
 from __future__ import annotations
 
+import logging
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -28,6 +29,8 @@ from axm_ast.models.nodes import PackageInfo
 
 if TYPE_CHECKING:
     from axm_ast.models.calls import CallSite
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["PackageCache", "clear_cache", "get_calls", "get_package"]
 

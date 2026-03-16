@@ -11,11 +11,14 @@ merged with max-score semantics.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from axm.hooks.base import HookResult
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["ImpactHook", "_merge_impact_reports"]
 

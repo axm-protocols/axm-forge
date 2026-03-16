@@ -12,6 +12,7 @@ Example:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from axm_ast.core.analyzer import build_import_graph
@@ -22,6 +23,8 @@ from axm_ast.models.nodes import (
     ModuleInfo,
     PackageInfo,
 )
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "filter_modules",

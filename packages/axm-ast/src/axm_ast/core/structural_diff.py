@@ -12,12 +12,15 @@ Example:
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
 
 from axm_ast.core.analyzer import analyze_package
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["structural_diff"]
 

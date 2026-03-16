@@ -11,6 +11,7 @@ Example:
 
 from __future__ import annotations
 
+import logging
 import shutil
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,8 @@ from axm_ast.core.analyzer import (
 from axm_ast.core.cache import get_package
 from axm_ast.core.ranker import rank_symbols
 from axm_ast.models.nodes import PackageInfo
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "build_context",

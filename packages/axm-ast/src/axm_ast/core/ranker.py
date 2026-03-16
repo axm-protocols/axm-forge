@@ -13,10 +13,14 @@ Example:
 
 from __future__ import annotations
 
+import logging
+
 from axm_ast.models.nodes import (
     ModuleInfo,
     PackageInfo,
 )
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "rank_symbols",

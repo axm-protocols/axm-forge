@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_ast.models.nodes import ClassInfo, FunctionInfo, PackageInfo
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["InspectTool"]
 

@@ -7,9 +7,12 @@ to understand a Python library without reading its full source code.
 from __future__ import annotations
 
 import enum
+import logging
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
+
+logger = logging.getLogger(__name__)
 
 
 class FunctionKind(enum.StrEnum):

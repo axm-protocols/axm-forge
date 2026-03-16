@@ -15,10 +15,13 @@ Example:
 
 from __future__ import annotations
 
+import logging
 import subprocess
 from collections import Counter
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["git_coupled_files"]
 

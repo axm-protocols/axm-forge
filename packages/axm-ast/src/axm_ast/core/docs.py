@@ -25,9 +25,12 @@ Example::
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "build_docs_tree",

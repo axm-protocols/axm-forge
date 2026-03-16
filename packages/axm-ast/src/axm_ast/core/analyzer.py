@@ -14,6 +14,8 @@ Example:
 
 from __future__ import annotations
 
+import logging
+import time
 from pathlib import Path
 
 from axm_ast.core.parser import extract_module_info
@@ -25,6 +27,8 @@ from axm_ast.models.nodes import (
     ModuleInfo,
     PackageInfo,
 )
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "analyze_package",
@@ -84,6 +88,8 @@ def analyze_package(path: Path) -> PackageInfo:
         msg = f"{path} is not a directory"
         raise ValueError(msg)
 
+    t0 = time.perf_counter()
+
     # Discover all .py files, skipping virtual envs and caches
     py_files = sorted(_discover_py_files(path))
     modules: list[ModuleInfo] = []
@@ -93,12 +99,17 @@ def analyze_package(path: Path) -> PackageInfo:
     # Build dependency edges from internal imports
     dep_edges = _build_edges(modules, path)
 
-    return PackageInfo(
+    pkg = PackageInfo(
         name=path.name,
         root=path,
         modules=modules,
         dependency_edges=dep_edges,
     )
+
+    elapsed = time.perf_counter() - t0
+    logger.debug("Analyzed %s in %.2fs (%d modules)", path.name, elapsed, len(modules))
+
+    return pkg
 
 
 def _discover_py_files(root: Path) -> list[Path]:
