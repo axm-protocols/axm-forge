@@ -108,9 +108,6 @@ def register_tools(
         _register_one(mcp, name, tool)
         logger.info("Registered MCP tool: %s", name)
 
-    # Register the `list_tools` meta-tool
-    _register_list_tools(mcp, tools, extra_tools or {})
-
 
 def _find_actions_dict(
     module: Any | None,
