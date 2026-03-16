@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["ContextTool"]
 

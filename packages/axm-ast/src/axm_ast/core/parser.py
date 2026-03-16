@@ -14,6 +14,7 @@ Example:
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import tree_sitter_python as tspython
@@ -28,6 +29,8 @@ from axm_ast.models.nodes import (
     ParameterInfo,
     VariableInfo,
 )
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "extract_module_info",
