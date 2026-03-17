@@ -147,7 +147,8 @@ class TestPathWarningEdgeCases:
 
         assert not any("implicit path" in r.message.lower() for r in caplog.records)
 
-    def test_empty_string_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+    @pytest.mark.asyncio
+    async def test_empty_string_warns(self, caplog: pytest.LogCaptureFixture) -> None:
         """Empty string path is treated like '.' — warns in HTTP mode."""
         import axm_mcp.discovery as discovery
         from axm_mcp.discovery import _register_one
@@ -163,7 +164,7 @@ class TestPathWarningEdgeCases:
         try:
             discovery._HTTP_MODE = True
             with caplog.at_level(logging.WARNING, logger="axm_mcp.discovery"):
-                wrapper(path="")
+                await wrapper(path="")
         finally:
             discovery._HTTP_MODE = original
 
