@@ -41,11 +41,32 @@ uv add "axm-mcp[all]"
 ## Quick Start
 
 ```bash
-# Start the MCP server
+# Start in stdio mode (default — backward-compatible)
 axm-mcp
+
+# Start as Streamable HTTP server (default port 9427)
+axm-mcp serve
+
+# Check server status
+axm-mcp status
+
+# Stop the running server
+axm-mcp stop
 ```
 
 All installed AXM tools are immediately available to any MCP client.
+
+## CLI Commands
+
+| Command | Description |
+|---|---|
+| `axm-mcp` | Start in **stdio** mode (backward-compatible default) |
+| `axm-mcp serve [--host HOST] [--port PORT]` | Start Streamable HTTP server (default port `9427`) |
+| `axm-mcp status [--host HOST] [--port PORT]` | Check whether the HTTP server is running |
+| `axm-mcp stop` | Send SIGTERM to the running HTTP server |
+
+The HTTP transport exposes a `/health` endpoint returning `{"status": "ok", "tools_count": N}`.
+Port can also be set via the `AXM_MCP_PORT` environment variable.
 
 ## MCP Tools
 

@@ -7,6 +7,6 @@ __all__ = ["__version__", "main"]
 
 def main() -> None:
     """Entry point for axm-mcp command."""
-    from axm_mcp.mcp_app import mcp
+    from axm_mcp.cli import main as _cli_main
 
-    mcp.run()
+    _cli_main()

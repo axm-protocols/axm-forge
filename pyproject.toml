@@ -15,6 +15,7 @@ classifiers = [
 ]
 dependencies = [
     "axm",
+    "cyclopts>=4.5.1",
     "jinja2>=3.0.0",
     "mcp[cli]>=1.25.0",
 ]
