@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import fnmatch
 import importlib.metadata
 import inspect
@@ -8,13 +9,17 @@ import os
 import re
 from typing import Any, Protocol, runtime_checkable
 
+from axm_mcp.concurrency import KeyedLock
+
 __all__ = [
     "_HTTP_MODE",
     "_collect_dispatcher_params",
     "_extract_docstring_params",
+    "_git_lock",
     "_is_disabled",
     "_log_external_step",
     "_register_one",
+    "_session_lock",
     "discover_tools",
     "register_tools",
 ]
@@ -27,6 +32,10 @@ _EP_GROUP = "axm.tools"
 # When True, tools that receive path="." get a warning because "." resolves
 # to the server's CWD, not the conversation's workspace.
 _HTTP_MODE: bool = False
+
+# Per-key locks — active only in HTTP mode (checked at call time).
+_session_lock = KeyedLock()  # protocol_* tools, keyed by session_id
+_git_lock = KeyedLock()  # git_* tools, keyed by repo path
 
 
 def _is_disabled(name: str, patterns: list[str]) -> bool:
@@ -400,6 +409,32 @@ def _register_one(
 
     # Copy docstring.
     _wrapper.__doc__ = exec_fn.__doc__ or f"Execute {name} tool."
+
+    # Wrap with concurrency lock for protocol/git tools in HTTP mode.
+    _lock: KeyedLock | None = None
+    _key_param: str | None = None
+    if name.startswith("protocol_"):
+        _lock = _session_lock
+        _key_param = "session_id"
+    elif name.startswith("git_"):
+        _lock = _git_lock
+        _key_param = "path"
+
+    if _lock is not None:
+        _sync = _wrapper
+        _lk = _lock
+        _kp = _key_param
+
+        async def _wrapper(**kwargs: Any) -> dict[str, Any]:  # type: ignore[misc]
+            if not _HTTP_MODE:
+                return _sync(**kwargs)
+            key = kwargs.get(_kp)  # type: ignore[arg-type]
+            if key is None:
+                return _sync(**kwargs)
+            async with _lk(key):
+                return await asyncio.to_thread(_sync, **kwargs)
+
+        _wrapper.__doc__ = _sync.__doc__
 
     # For dispatchers (action + **kwargs), build union of sub-fn params.
     # For regular tools, strip 'self' and **kwargs.
