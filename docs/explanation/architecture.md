@@ -47,6 +47,8 @@ graph TD
 | `discovery.py` | `discover_tools()`, `register_tools()`, `ToolLike` | Entry point scanning + MCP registration |
 | `verify.py` | `verify_project()` | Orchestrate audit + init check + AST enrichment |
 | `web_fetch.py` | `fetch_page()` | Anti-bot web page fetching via Scrapling (basic / dynamic / stealth) |
+| `lifecycle.py` | `find_binary()`, `generate_plist()`, `install()`, `uninstall()` | launchd service management — install/uninstall axm-mcp as a macOS background service |
+| `plist_template.py` | `PLIST_TEMPLATE` | launchd plist XML template used by `lifecycle.generate_plist()` |
 
 ## Design Decisions
 

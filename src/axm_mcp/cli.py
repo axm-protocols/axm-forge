@@ -127,6 +127,25 @@ def stop(
     print(f"Sent SIGTERM to server (PID {pid})")  # noqa: T201
 
 
+@app.command
+def install(
+    *,
+    port: Annotated[int, cyclopts.Parameter(help="Server port.")] = DEFAULT_PORT,
+) -> None:
+    """Install the MCP server as a launchd service."""
+    from axm_mcp import lifecycle
+
+    lifecycle.install(port)
+
+
+@app.command
+def uninstall() -> None:
+    """Uninstall the launchd service."""
+    from axm_mcp import lifecycle
+
+    lifecycle.uninstall()
+
+
 @app.default
 def _stdio() -> None:
     """Run MCP in stdio mode (backward-compatible default)."""
