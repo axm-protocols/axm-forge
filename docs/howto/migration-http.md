@@ -175,3 +175,32 @@ axm-mcp install
 ### Tools not responding after migration
 
 All path-dependent tools require explicit `path` arguments in HTTP mode (the server has no per-conversation working directory). If a tool returns an error about missing paths, ensure you are passing absolute paths.
+
+### PermissionError — Full Disk Access (macOS)
+
+```
+PermissionError: [Errno 1] Operation not permitted
+```
+
+Found in `~/Library/Logs/axm-mcp/stderr.log`.
+
+**Cause**: macOS blocks launchd background services from accessing `~/Documents`, `~/Desktop`, and `~/Downloads` without Full Disk Access granted to the binary. Because the launchd plist points to a binary inside a `uv` cache or project virtualenv, the OS sandbox denies access to protected directories.
+
+**Fix options** (in order of preference):
+
+1. **Install the binary in `~/.local/bin/`** (recommended) — this path is outside the protected locations and is not subject to the same FDA restrictions:
+
+   ```bash
+   uv tool install axm-mcp
+   axm-mcp install
+   ```
+
+   `uv tool install` places the binary at `~/.local/bin/axm-mcp`, which `axm-mcp install` will detect and use automatically.
+
+2. **Specify the binary path explicitly** — if the binary already lives at an FDA-exempt path, pass it directly:
+
+   ```bash
+   axm-mcp install --binary ~/.local/bin/axm-mcp
+   ```
+
+3. **Grant Full Disk Access** — if you need to keep the current binary location, grant Full Disk Access to your terminal application or directly to the `axm-mcp` binary in **System Settings > Privacy & Security > Full Disk Access**.
