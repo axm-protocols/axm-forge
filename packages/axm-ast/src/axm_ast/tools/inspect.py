@@ -27,6 +27,7 @@ class InspectTool(AXMTool):
         " Returns file, start_line, end_line."
         " Use source=True to include source code."
         " Supports dotted paths like ClassName.method."
+        " You can also pass a list of names via `symbols` for batch inspection."
     )
 
     @property
@@ -35,21 +36,29 @@ class InspectTool(AXMTool):
         return "ast_inspect"
 
     def execute(
-        self, *, path: str = ".", symbol: str | None = None, **kwargs: Any
+        self,
+        *,
+        path: str = ".",
+        symbol: str | None = None,
+        symbols: list[str] | None = None,
+        **kwargs: Any,
     ) -> ToolResult:
         """Inspect a symbol by name.
 
         Args:
             path: Path to package directory.
-            symbol: Symbol name to inspect (required).
+            symbol: Symbol name to inspect (required if symbols is not provided).
                 Supports dotted paths like ``ClassName.method``.
+            symbols: Optional list of symbol names for batch inspection.
             source: If True, include source code in the response.
 
         Returns:
             ToolResult with symbol details.
         """
-        if not symbol:
-            return ToolResult(success=False, error="symbol parameter is required")
+        if not symbol and not symbols:
+            return ToolResult(
+                success=False, error="symbol or symbols parameter is required"
+            )
 
         source = bool(kwargs.get("source", False))
 
@@ -60,7 +69,21 @@ class InspectTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            return self._inspect_symbol(project_path, symbol, source=source)
+            if symbols is not None:
+                if not isinstance(symbols, list):
+                    return ToolResult(
+                        success=False, error="symbols parameter must be a list"
+                    )
+                results: list[dict[str, Any]] = []
+                for sym in symbols:
+                    res = self._inspect_symbol(project_path, sym, source=source)
+                    if res.success and res.data and "symbol" in res.data:
+                        results.append(res.data["symbol"])
+                    else:
+                        results.append({"name": sym, "error": res.error})
+                return ToolResult(success=True, data={"symbols": results})
+
+            return self._inspect_symbol(project_path, symbol, source=source)  # type: ignore[arg-type]
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
 
