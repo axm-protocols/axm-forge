@@ -194,6 +194,44 @@ class TestInspectEdgeCases:
         assert result.error is not None
         assert "required" in result.error
 
+    def test_symbols_invalid_type(self, tool: InspectTool) -> None:
+        result = tool.execute(path=".", symbols="not_a_list")  # type: ignore
+        assert result.success is False
+        assert result.error is not None
+        assert "must be a list" in result.error
+
+    def test_symbols_batch_success(self, tool: InspectTool, rich_pkg: Path) -> None:
+        result = tool.execute(path=str(rich_pkg), symbols=["greet", "MyClass"])
+        assert result.success is True
+        assert "symbols" in result.data
+        symbols = result.data["symbols"]
+        assert len(symbols) == 2
+        assert symbols[0]["name"] == "greet"
+        assert symbols[1]["name"] == "MyClass"
+
+    def test_symbols_batch_partial_missing(
+        self, tool: InspectTool, rich_pkg: Path
+    ) -> None:
+        result = tool.execute(
+            path=str(rich_pkg), symbols=["greet", "missing_xyz", "core"]
+        )
+        assert result.success is True
+        symbols = result.data["symbols"]
+        assert len(symbols) == 3
+
+        # 0: greet (success)
+        assert symbols[0]["name"] == "greet"
+        assert "signature" in symbols[0]
+
+        # 1: missing_xyz (error)
+        assert symbols[1]["name"] == "missing_xyz"
+        assert "error" in symbols[1]
+        assert "not found" in symbols[1]["error"]
+
+        # 2: core (module fallback success)
+        assert symbols[2]["name"] == "core"
+        assert symbols[2]["kind"] == "module"
+
     def test_bad_path(self, tool: InspectTool) -> None:
         result = tool.execute(path="/nonexistent/path", symbol="foo")
         assert result.success is False
