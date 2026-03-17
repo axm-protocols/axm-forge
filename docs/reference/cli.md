@@ -17,6 +17,15 @@ Starts the FastMCP server, auto-discovers all installed `axm.tools` entry points
 
 The HTTP transport exposes a `/health` endpoint that returns `{"status": "ok", "tools_count": N}`.
 
+### Service Management
+
+| Command | Description |
+|---|---|
+| `axm-mcp install` | Install axm-mcp as a launchd service (macOS) |
+| `axm-mcp uninstall` | Remove the launchd service |
+
+`install` locates the `axm-mcp` binary via `find_binary()`, generates a launchd plist from `PLIST_TEMPLATE`, and loads it with `launchctl`. `uninstall` unloads the service and deletes the plist file.
+
 ### Built-in Tools
 
 | Tool | Description |

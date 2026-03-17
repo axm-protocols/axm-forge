@@ -64,9 +64,26 @@ All installed AXM tools are immediately available to any MCP client.
 | `axm-mcp serve [--host HOST] [--port PORT]` | Start Streamable HTTP server (default port `9427`) |
 | `axm-mcp status [--host HOST] [--port PORT]` | Check whether the HTTP server is running |
 | `axm-mcp stop` | Send SIGTERM to the running HTTP server |
+| `axm-mcp install` | Install axm-mcp as a launchd service (macOS) |
+| `axm-mcp uninstall` | Remove the launchd service |
 
 The HTTP transport exposes a `/health` endpoint returning `{"status": "ok", "tools_count": N}`.
 Port can also be set via the `AXM_MCP_PORT` environment variable.
+
+## Service Management (macOS)
+
+`axm-mcp` can run as a persistent background service managed by launchd:
+
+```bash
+# Install and start the service
+axm-mcp install
+
+# Remove the service
+axm-mcp uninstall
+```
+
+`install` locates the `axm-mcp` binary, generates a launchd plist, and loads it via `launchctl`.
+`uninstall` unloads the service and removes the plist file.
 
 ## MCP Tools
 
