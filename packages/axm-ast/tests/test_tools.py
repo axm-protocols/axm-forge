@@ -436,6 +436,73 @@ class TestImpactTool:
         result = tool.execute(path=str(sample_project / "src" / "demo"))
         assert result.success is False
 
+    # --- Batch mode (AXM-462) ---
+
+    def test_symbols_batch_success(self, sample_project: Path) -> None:
+        """AC1/2: Batch with two valid symbols returns severity for each."""
+        from axm_ast.tools.impact import ImpactTool
+
+        tool = ImpactTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"),
+            symbols=["greet", "Helper"],
+        )
+        assert result.success is True
+        assert "symbols" in result.data
+        symbols = result.data["symbols"]
+        assert len(symbols) == 2
+        assert "severity" in symbols[0]
+        assert "severity" in symbols[1]
+
+    def test_symbols_batch_partial_missing(self, sample_project: Path) -> None:
+        """AC2: Batch with one valid + one missing → mixed results."""
+        from axm_ast.tools.impact import ImpactTool
+
+        tool = ImpactTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"),
+            symbols=["greet", "missing_xyz"],
+        )
+        assert result.success is True
+        symbols = result.data["symbols"]
+        assert len(symbols) == 2
+        assert "severity" in symbols[0]
+        assert "error" in symbols[1]
+        assert symbols[1]["symbol"] == "missing_xyz"
+
+    def test_symbols_invalid_type(self) -> None:
+        """AC5: symbols must be a list, else error."""
+        from axm_ast.tools.impact import ImpactTool
+
+        tool = ImpactTool()
+        result = tool.execute(path=".", symbols="not_a_list")  # type: ignore[arg-type]
+        assert result.success is False
+        assert result.error is not None
+        assert "must be a list" in result.error
+
+    def test_symbols_precedence(self, sample_project: Path) -> None:
+        """Edge: Both symbol and symbols → symbols takes precedence."""
+        from axm_ast.tools.impact import ImpactTool
+
+        tool = ImpactTool()
+        result = tool.execute(
+            path=str(sample_project / "src" / "demo"),
+            symbol="greet",
+            symbols=["Helper"],
+        )
+        assert result.success is True
+        assert "symbols" in result.data
+        assert len(result.data["symbols"]) == 1
+
+    def test_symbols_empty_list(self) -> None:
+        """Edge: Empty symbols list falls through to require symbol param."""
+        from axm_ast.tools.impact import ImpactTool
+
+        tool = ImpactTool()
+        result = tool.execute(path=".", symbols=[])
+        assert result.success is False
+        assert "required" in result.error  # type: ignore[operator]
+
 
 # ===========================================================================
 # ast_inspect

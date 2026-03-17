@@ -27,18 +27,24 @@ class ImpactTool(AXMTool):
         return "ast_impact"
 
     def execute(
-        self, *, path: str = ".", symbol: str | None = None, **kwargs: Any
+        self,
+        *,
+        path: str = ".",
+        symbol: str | None = None,
+        symbols: list[str] | None = None,
+        **kwargs: Any,
     ) -> ToolResult:
         """Analyze change impact for a symbol.
 
         Args:
             path: Path to package or workspace directory.
-            symbol: Symbol name to analyze (required).
+            symbol: Symbol name to analyze (required if symbols is not provided).
+            symbols: Optional list of symbol names for batch inspection.
 
         Returns:
             ToolResult with impact analysis.
         """
-        if not symbol:
+        if not symbol and not symbols:
             return ToolResult(success=False, error="symbol parameter is required")
 
         try:
@@ -48,6 +54,28 @@ class ImpactTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
+            if symbols is not None:
+                if not isinstance(symbols, list):
+                    return ToolResult(
+                        success=False, error="symbols parameter must be a list"
+                    )
+                results: list[dict[str, Any]] = []
+                for sym in symbols:
+                    results.append(self._analyze_single(project_path, sym))
+                return ToolResult(success=True, data={"symbols": results})
+
+            return self._analyze_single_result(project_path, symbol)  # type: ignore[arg-type]
+        except Exception as exc:
+            return ToolResult(success=False, error=str(exc))
+
+    def _analyze_single(self, project_path: Path, symbol: str) -> dict[str, Any]:
+        """Run impact analysis for a single symbol.
+
+        Returns:
+            Impact dict with ``severity`` key on success,
+            or ``{"symbol": name, "error": msg}`` on failure.
+        """
+        try:
             from axm_ast.core.workspace import detect_workspace
 
             ws = detect_workspace(project_path)
@@ -60,12 +88,20 @@ class ImpactTool(AXMTool):
 
                 impact = analyze_impact(project_path, symbol)
 
-            # Add "severity" alias for "score" for agent-friendly naming
             impact["severity"] = impact.get("score", "UNKNOWN")
-            return ToolResult(
-                success=True,
-                data=impact,
-                hint="Tip: Run affected tests, then ast_inspect on high-risk callers.",
-            )
+            if impact.get("definition") is None:
+                return {"symbol": symbol, "error": f"Symbol '{symbol}' not found"}
+            return impact
         except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+            return {"symbol": symbol, "error": str(exc)}
+
+    def _analyze_single_result(self, project_path: Path, symbol: str) -> ToolResult:
+        """Run single-symbol impact analysis and return a ToolResult."""
+        result = self._analyze_single(project_path, symbol)
+        if "error" in result:
+            return ToolResult(success=False, error=result["error"])
+        return ToolResult(
+            success=True,
+            data=result,
+            hint="Tip: Run affected tests, then ast_inspect on high-risk callers.",
+        )
