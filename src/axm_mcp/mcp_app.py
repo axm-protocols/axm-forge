@@ -10,6 +10,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+import axm_mcp.discovery as _discovery
 from axm_mcp.discovery import discover_tools, register_tools
 from axm_mcp.verify import verify_project
 
@@ -43,8 +44,13 @@ def _verify_tool(**kwargs: Any) -> dict[str, Any]:
 
 
 # Entry point for MCP CLI
-def main() -> None:
-    """Run the MCP server."""
+def main(*, http: bool = False) -> None:
+    """Run the MCP server.
+
+    Args:
+        http: When True, enable HTTP-mode warnings for implicit paths.
+    """
+    _discovery._HTTP_MODE = http
     mcp.run()
 
 
