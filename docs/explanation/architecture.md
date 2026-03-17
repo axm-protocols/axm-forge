@@ -44,7 +44,8 @@ graph TD
 |---|---|---|
 | `mcp_app.py` | `mcp`, `_verify_tool()`, `_web_fetch_tool()`, `_tool_catalog()`, `main()` | FastMCP server instance + built-in tools + tool catalog resource |
 | `server.py` | `serve()`, `health_check()`, `DEFAULT_PORT` | Streamable HTTP transport — runs the FastMCP instance over HTTP on port 9427 (or `AXM_MCP_PORT`) |
-| `discovery.py` | `discover_tools()`, `register_tools()`, `ToolLike` | Entry point scanning + MCP registration |
+| `concurrency.py` | `KeyedLock` | Per-key asyncio lock manager — prevents concurrent execution of the same session or git operation |
+| `discovery.py` | `discover_tools()`, `register_tools()`, `ToolLike`, `_session_lock`, `_git_lock` | Entry point scanning + MCP registration; `protocol_*` and `git_*` tools wrapped with async keyed locks |
 | `verify.py` | `verify_project()` | Orchestrate audit + init check + AST enrichment |
 | `web_fetch.py` | `fetch_page()` | Anti-bot web page fetching via Scrapling (basic / dynamic / stealth) |
 | `lifecycle.py` | `find_binary()`, `generate_plist()`, `install()`, `uninstall()` | launchd service management — install/uninstall axm-mcp as a macOS background service |
