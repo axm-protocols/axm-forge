@@ -46,17 +46,60 @@ class TestPlistTemplate:
 class TestFindBinary:
     """Cover find_binary() in lifecycle.py."""
 
-    def test_found(self) -> None:
-        """Returns Path when binary exists on PATH."""
-        with patch("axm_mcp.lifecycle.shutil.which", return_value="/usr/bin/axm-mcp"):
+    def test_prefers_global_bin(self, tmp_path: Path) -> None:
+        """Prefers ~/.local/bin/axm-mcp when it exists."""
+        global_bin = tmp_path / ".local" / "bin" / "axm-mcp"
+        global_bin.parent.mkdir(parents=True)
+        global_bin.touch()
+
+        with patch("axm_mcp.lifecycle._GLOBAL_BIN", global_bin):
+            from axm_mcp.lifecycle import find_binary
+
+            result = find_binary()
+            assert result == global_bin
+
+    def test_falls_back_to_which(self, tmp_path: Path) -> None:
+        """Falls back to shutil.which when global bin does not exist."""
+        global_bin = tmp_path / ".local" / "bin" / "axm-mcp"
+
+        with (
+            patch("axm_mcp.lifecycle._GLOBAL_BIN", global_bin),
+            patch("axm_mcp.lifecycle.shutil.which", return_value="/usr/bin/axm-mcp"),
+        ):
             from axm_mcp.lifecycle import find_binary
 
             result = find_binary()
             assert result == Path("/usr/bin/axm-mcp")
 
-    def test_not_found(self) -> None:
+    def test_warns_on_protected_dir(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Warns when resolved binary is under a macOS-protected directory."""
+        global_bin = tmp_path / ".local" / "bin" / "axm-mcp"
+        protected = str(Path.home() / "Documents" / ".venv" / "bin" / "axm-mcp")
+
+        with (
+            patch("axm_mcp.lifecycle._GLOBAL_BIN", global_bin),
+            patch("axm_mcp.lifecycle.shutil.which", return_value=protected),
+        ):
+            from axm_mcp.lifecycle import find_binary
+
+            result = find_binary()
+            assert result == Path(protected)
+            err = capsys.readouterr().err
+            assert "macOS-protected directory" in err
+            assert "uv tool install axm-mcp" in err
+
+    def test_not_found(self, tmp_path: Path) -> None:
         """Exits with error when binary not on PATH."""
-        with patch("axm_mcp.lifecycle.shutil.which", return_value=None):
+        global_bin = tmp_path / ".local" / "bin" / "axm-mcp"
+
+        with (
+            patch("axm_mcp.lifecycle._GLOBAL_BIN", global_bin),
+            patch("axm_mcp.lifecycle.shutil.which", return_value=None),
+        ):
             from axm_mcp.lifecycle import find_binary
 
             with pytest.raises(SystemExit):
@@ -88,6 +131,13 @@ class TestGeneratePlist:
 
             plist = generate_plist(port=8080)
             assert "8080" in plist
+
+    def test_renders_with_explicit_binary(self) -> None:
+        """Plist uses the explicit binary path, skipping find_binary()."""
+        from axm_mcp.lifecycle import generate_plist
+
+        plist = generate_plist(binary=Path("/opt/custom/bin/axm-mcp"))
+        assert "/opt/custom/bin/axm-mcp" in plist
 
 
 class TestInstall:
@@ -195,7 +245,19 @@ class TestCLIInstall:
 
             with pytest.raises(SystemExit, match="0"):
                 app()
-            mock_install.assert_called_once_with(9427)
+            mock_install.assert_called_once_with(9427, binary=None)
+
+    def test_cli_install_with_binary_flag(self) -> None:
+        """axm-mcp install --binary passes path to lifecycle.install."""
+        with (
+            patch("axm_mcp.lifecycle.install") as mock_install,
+            patch("sys.argv", ["axm-mcp", "install", "--binary", "/opt/bin/axm-mcp"]),
+        ):
+            from axm_mcp.cli import app
+
+            with pytest.raises(SystemExit, match="0"):
+                app()
+            mock_install.assert_called_once_with(9427, binary=Path("/opt/bin/axm-mcp"))
 
 
 class TestCLIUninstall:

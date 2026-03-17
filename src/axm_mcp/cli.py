@@ -131,11 +131,15 @@ def stop(
 def install(
     *,
     port: Annotated[int, cyclopts.Parameter(help="Server port.")] = DEFAULT_PORT,
+    binary: Annotated[
+        Path | None,
+        cyclopts.Parameter(help="Explicit binary path for the plist."),
+    ] = None,
 ) -> None:
     """Install the MCP server as a launchd service."""
     from axm_mcp import lifecycle
 
-    lifecycle.install(port)
+    lifecycle.install(port, binary=binary)
 
 
 @app.command

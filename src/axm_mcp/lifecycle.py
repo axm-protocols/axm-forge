@@ -17,19 +17,45 @@ SERVICE_LABEL = "io.axm.mcp-server"
 PLIST_PATH = Path.home() / "Library" / "LaunchAgents" / f"{SERVICE_LABEL}.plist"
 LOG_DIR = Path.home() / "Library" / "Logs" / "axm-mcp"
 
+_GLOBAL_BIN = Path.home() / ".local" / "bin" / "axm-mcp"
+_MACOS_PROTECTED_PREFIXES = (
+    Path.home() / "Documents",
+    Path.home() / "Desktop",
+    Path.home() / "Downloads",
+)
+
+
+def _is_under_protected_dir(path: Path) -> bool:
+    """Return True if *path* is under a macOS-protected directory."""
+    resolved = path.resolve()
+    return any(resolved.is_relative_to(p) for p in _MACOS_PROTECTED_PREFIXES)
+
 
 def find_binary() -> Path:
-    """Locate the ``axm-mcp`` binary on PATH."""
+    """Locate the ``axm-mcp`` binary, preferring ``~/.local/bin``."""
+    if _GLOBAL_BIN.is_file():
+        return _GLOBAL_BIN
+
     path = shutil.which("axm-mcp")
     if path is None:
         print("axm-mcp binary not found on PATH", file=sys.stderr)  # noqa: T201
         raise SystemExit(1)
-    return Path(path)
+
+    resolved = Path(path)
+    if _is_under_protected_dir(resolved):
+        print(  # noqa: T201
+            f"Warning: binary is under a macOS-protected directory ({resolved}).\n"
+            "launchd services may fail with PermissionError.\n"
+            "Fix: run 'uv tool install axm-mcp' or grant Full Disk Access,\n"
+            "or use 'axm-mcp install --binary <path>'.",
+            file=sys.stderr,
+        )
+    return resolved
 
 
-def generate_plist(port: int = DEFAULT_PORT) -> str:
+def generate_plist(port: int = DEFAULT_PORT, *, binary: Path | None = None) -> str:
     """Render the launchd plist with the current binary path."""
-    bin_path = find_binary()
+    bin_path = binary or find_binary()
     return PLIST_TEMPLATE.format(
         bin_path=bin_path,
         port=port,
@@ -37,9 +63,9 @@ def generate_plist(port: int = DEFAULT_PORT) -> str:
     )
 
 
-def install(port: int = DEFAULT_PORT) -> None:
+def install(port: int = DEFAULT_PORT, *, binary: Path | None = None) -> None:
     """Generate the plist, write it, and load it via launchctl."""
-    plist_content = generate_plist(port)
+    plist_content = generate_plist(port, binary=binary)
 
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     PLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
