@@ -11,7 +11,7 @@
 | `ast_search(path, name?, returns?, kind?, inherits?)` | `axm-ast search` | Semantic symbol lookup |
 | `ast_callers(path, symbol)` | `axm-ast callers` | Find all call-sites of a symbol |
 | `ast_impact(path, symbol)` | `axm-ast impact` | Change blast radius analysis |
-| `ast_inspect(path, symbol)` | `axm-ast inspect` | Full detail on a single symbol; falls back to module metadata when `symbol` matches a module name (returns `kind: "module"`, `functions`, `classes`, `symbol_count`, `docstring`, `file`) |
+| `ast_inspect(path, symbol?, symbols?)` | `axm-ast inspect` | Full detail on a single symbol or batch list of `symbols`; falls back to module metadata when `symbol` matches a module name (returns `kind: "module"`, `functions`, `classes`, `symbol_count`, `docstring`, `file`) |
 | `ast_graph(path)` | `axm-ast graph` | Import dependency graph |
 | `ast_docs(path, detail?, pages?)` | `axm-ast docs` | Documentation tree dump |
 | `ast_dead_code(path)` | `axm-ast dead-code` | Detect unreferenced symbols |
