@@ -9,6 +9,7 @@ import re
 from typing import Any, Protocol, runtime_checkable
 
 __all__ = [
+    "_HTTP_MODE",
     "_collect_dispatcher_params",
     "_extract_docstring_params",
     "_is_disabled",
@@ -21,6 +22,11 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 _EP_GROUP = "axm.tools"
+
+# Set to True when the server runs in HTTP/SSE mode (shared process).
+# When True, tools that receive path="." get a warning because "." resolves
+# to the server's CWD, not the conversation's workspace.
+_HTTP_MODE: bool = False
 
 
 def _is_disabled(name: str, patterns: list[str]) -> bool:
@@ -338,6 +344,16 @@ def _register_one(
     # Protocol tools already trace via orchestrator.run_tool()
     _should_trace = not name.startswith("protocol_")
 
+    def _warn_implicit_path(tool_name: str, kwargs: dict[str, Any]) -> None:
+        """Warn when path is '.' or '' in HTTP mode."""
+        if _HTTP_MODE and kwargs.get("path") in (".", ""):
+            logger.warning(
+                "Tool '%s' called with implicit path='.' in HTTP mode. "
+                "Pass an explicit absolute path to avoid operating on the "
+                "wrong directory.",
+                tool_name,
+            )
+
     if is_plain:
 
         def _wrapper(**kwargs: Any) -> dict[str, Any]:
@@ -345,6 +361,7 @@ def _register_one(
             if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
                 nested = kwargs.pop("kwargs")
                 kwargs.update(nested)
+            _warn_implicit_path(name, kwargs)
             start_ns = time.perf_counter_ns()
             result: dict[str, Any] = tool(**kwargs)
             duration_ms = (time.perf_counter_ns() - start_ns) // 1_000_000
@@ -362,6 +379,7 @@ def _register_one(
             if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
                 nested = kwargs.pop("kwargs")
                 kwargs.update(nested)
+            _warn_implicit_path(name, kwargs)
             start_ns = time.perf_counter_ns()
             result = tool.execute(**kwargs)
             duration_ms = (time.perf_counter_ns() - start_ns) // 1_000_000
