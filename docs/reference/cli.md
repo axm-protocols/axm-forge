@@ -8,6 +8,15 @@ axm-mcp
 
 Starts the FastMCP server, auto-discovers all installed `axm.tools` entry points, and exposes them as MCP-callable tools.
 
+### Transport Modes
+
+| Mode | How to start | Default port |
+|---|---|---|
+| **stdio** (default) | `axm-mcp` | — |
+| **Streamable HTTP** | `axm-mcp serve` | `9427` (override via `AXM_MCP_PORT`) |
+
+The HTTP transport exposes a `/health` endpoint that returns `{"status": "ok", "tools_count": N}`.
+
 ### Built-in Tools
 
 | Tool | Description |
