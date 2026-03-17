@@ -56,6 +56,49 @@ axm-mcp stop
 
 All installed AXM tools are immediately available to any MCP client.
 
+## Server Modes
+
+axm-mcp supports two transport modes:
+
+| Mode | Command | Client config | Use case |
+|---|---|---|---|
+| **stdio** | `axm-mcp` | `{"command": "uv", "args": ["run", "axm-mcp"]}` | One process per conversation (legacy) |
+| **HTTP** | `axm-mcp serve` | `{"type": "url", "url": "http://localhost:9427/mcp"}` | Single shared server, persistent cache |
+
+**stdio** forks a new process per conversation. Simple, but duplicates memory and has no shared state.
+
+**HTTP** (Streamable HTTP) runs one persistent server that all conversations share — AST cache, protocol sessions, and tool state are preserved across calls. This is the recommended mode.
+
+### `.mcp.json` configuration
+
+**stdio** (Claude Code):
+
+```json
+{
+  "mcpServers": {
+    "axm-mcp": {
+      "command": "uv",
+      "args": ["run", "axm-mcp"]
+    }
+  }
+}
+```
+
+**HTTP** (Claude Code):
+
+```json
+{
+  "mcpServers": {
+    "axm-mcp": {
+      "type": "url",
+      "url": "http://localhost:9427/mcp"
+    }
+  }
+}
+```
+
+Place this in `~/.claude/.mcp.json` (global) or `.mcp.json` at the project root.
+
 ## CLI Commands
 
 | Command | Description |
@@ -64,7 +107,7 @@ All installed AXM tools are immediately available to any MCP client.
 | `axm-mcp serve [--host HOST] [--port PORT]` | Start Streamable HTTP server (default port `9427`) |
 | `axm-mcp status [--host HOST] [--port PORT]` | Check whether the HTTP server is running |
 | `axm-mcp stop` | Send SIGTERM to the running HTTP server |
-| `axm-mcp install` | Install axm-mcp as a launchd service (macOS) |
+| `axm-mcp install [--port PORT]` | Install axm-mcp as a launchd service (macOS) |
 | `axm-mcp uninstall` | Remove the launchd service |
 
 The HTTP transport exposes a `/health` endpoint returning `{"status": "ok", "tools_count": N}`.
