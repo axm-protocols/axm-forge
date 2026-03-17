@@ -107,7 +107,7 @@ Place this in `~/.claude/.mcp.json` (global) or `.mcp.json` at the project root.
 | `axm-mcp serve [--host HOST] [--port PORT]` | Start Streamable HTTP server (default port `9427`) |
 | `axm-mcp status [--host HOST] [--port PORT]` | Check whether the HTTP server is running |
 | `axm-mcp stop` | Send SIGTERM to the running HTTP server |
-| `axm-mcp install [--port PORT]` | Install axm-mcp as a launchd service (macOS) |
+| `axm-mcp install [--port PORT] [--binary PATH]` | Install axm-mcp as a launchd service (macOS) |
 | `axm-mcp uninstall` | Remove the launchd service |
 
 The HTTP transport exposes a `/health` endpoint returning `{"status": "ok", "tools_count": N}`.
