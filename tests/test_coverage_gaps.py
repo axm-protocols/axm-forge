@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
 from axm_mcp.discovery import _register_list_tools, _register_one
 from axm_mcp.verify import _run_tool
 
@@ -114,11 +116,15 @@ class TestInitMain:
     """Cover main() in __init__.py (lines 10-12)."""
 
     def test_init_main_calls_run(self) -> None:
-        """Package-level main() lazy-imports and runs the server."""
-        with patch("axm_mcp.mcp_app.mcp") as mock_mcp:
+        """Package-level main() routes through CLI to mcp.run() (stdio)."""
+        with (
+            patch("axm_mcp.mcp_app.mcp") as mock_mcp,
+            patch("sys.argv", ["axm-mcp"]),
+        ):
             import axm_mcp
 
-            axm_mcp.main()
+            with pytest.raises(SystemExit, match="0"):
+                axm_mcp.main()
             mock_mcp.run.assert_called_once()
 
 
