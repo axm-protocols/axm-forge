@@ -2,7 +2,7 @@
 
 ## Overview
 
-`axm-mcp` is a thin MCP shell with zero imports from AXM core. It discovers tools at runtime via Python entry points and exposes them over the Model Context Protocol.
+`axm-mcp` is a thin MCP shell with zero imports from AXM core. It discovers tools at runtime via Python entry points and exposes them over the Model Context Protocol. Two transport modes are supported: **stdio** (legacy, one process per conversation) and **Streamable HTTP** (recommended, single shared server).
 
 ```mermaid
 graph TD
@@ -38,6 +38,55 @@ graph TD
     Register --> Server
 ```
 
+## Transport Modes
+
+### stdio (legacy)
+
+The MCP client forks a new `axm-mcp` process per conversation. Each process has its own memory and state.
+
+```mermaid
+graph LR
+    C1[Conversation 1] -->|fork| P1[axm-mcp process]
+    C2[Conversation 2] -->|fork| P2[axm-mcp process]
+    C3[Conversation 3] -->|fork| P3[axm-mcp process]
+    P1 --> T[axm.tools entry points]
+    P2 --> T
+    P3 --> T
+```
+
+### Streamable HTTP (recommended)
+
+A single persistent server on port 9427 handles all conversations. AST cache, protocol sessions, and keyed locks are shared.
+
+```mermaid
+graph LR
+    C1[Conversation 1] -->|HTTP| S[axm-mcp server :9427]
+    C2[Conversation 2] -->|HTTP| S
+    C3[Conversation 3] -->|HTTP| S
+    S --> T[axm.tools entry points]
+    S --> Cache[AST cache]
+    S --> Sessions[Protocol sessions]
+```
+
+### Request flow (HTTP)
+
+```mermaid
+sequenceDiagram
+    participant Client as MCP Client
+    participant Server as axm-mcp server
+    participant FastMCP as FastMCP
+    participant Tool as AXM Tool
+
+    Client->>Server: POST /mcp (tool call)
+    Server->>FastMCP: Route to registered tool
+    FastMCP->>Tool: execute(**kwargs)
+    Tool-->>FastMCP: ToolResult
+    FastMCP-->>Server: MCP response
+    Server-->>Client: JSON response
+
+    Note over Client,Server: GET /health → {"status": "ok", "tools_count": N}
+```
+
 ## Modules
 
 | Module | Key Symbols | Purpose |
@@ -68,3 +117,32 @@ graph TD
 3. **Resource**: `_tool_catalog()` exposes the tool catalog via `axm://tools` MCP resource
 4. **Execution**: MCP client calls tool → wrapper delegates to `tool.execute(**kwargs)` → returns `ToolResult`
 5. **Verify**: `verify_project()` chains audit → init_check → AST enrichment
+
+## Concurrency Model (HTTP mode)
+
+Multiple conversations run concurrently on the same server. To prevent conflicts:
+
+- **Protocol sessions** are serialized per `session_id` via `KeyedLock`
+- **Git operations** are serialized per `repo_path` via `KeyedLock`
+- **Graceful shutdown** drains in-flight requests (5s timeout) before exit
+
+## Service Lifecycle (macOS)
+
+```mermaid
+graph TD
+    Install["axm-mcp install"] --> Plist["Generate plist"]
+    Plist --> Load["launchctl bootstrap"]
+    Load --> Running["Server running on :9427"]
+    Running -->|crash| Restart["Auto-restart (KeepAlive)"]
+    Restart --> Running
+    Running --> Stop["axm-mcp uninstall"]
+    Stop --> Bootout["launchctl bootout"]
+    Bootout --> Removed["Plist removed"]
+```
+
+| Item | Path |
+|---|---|
+| Plist | `~/Library/LaunchAgents/io.axm.mcp-server.plist` |
+| PID file | `~/.axm/mcp-server.pid` |
+| stdout log | `~/Library/Logs/axm-mcp/stdout.log` |
+| stderr log | `~/Library/Logs/axm-mcp/stderr.log` |
