@@ -51,8 +51,10 @@ ast_diff      = "axm_ast.tools.diff:DiffTool"
 ast_flows     = "axm_ast.tools.flows:FlowsTool"
 
 [project.entry-points."axm.hooks"]
-"ast:trace-source" = "axm_ast.hooks.trace_source:TraceSourceHook"
+"ast:trace-source"  = "axm_ast.hooks.trace_source:TraceSourceHook"
 "ast:impact"        = "axm_ast.hooks.impact:ImpactHook"
+"ast:context"       = "axm_ast.hooks.context:ContextHook"
+"ast:flows"         = "axm_ast.hooks.flows:FlowsHook"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
