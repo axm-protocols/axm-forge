@@ -12,6 +12,7 @@ merged with max-score semantics.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -121,16 +122,12 @@ class ImpactHook:
                 )
                 return HookResult.ok(impact=report)
 
-            # Multiple symbols — analyze each, merge results.
-            reports: list[dict[str, Any]] = []
-            for sym in symbols:
-                reports.append(
-                    analyze_impact(
-                        working_dir,
-                        sym,
-                        project_root=working_dir.parent,
-                    )
-                )
+            # Multiple symbols — analyze in parallel (I/O-bound: git log, file reads).
+            def _analyze(sym: str) -> dict[str, Any]:
+                return analyze_impact(working_dir, sym, project_root=working_dir.parent)
+
+            with ThreadPoolExecutor(max_workers=min(len(symbols), 4)) as pool:
+                reports = list(pool.map(_analyze, symbols))
             merged = _merge_impact_reports(symbol, reports)
             return HookResult.ok(impact=merged)
         except Exception as exc:  # noqa: BLE001
