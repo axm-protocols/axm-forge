@@ -21,6 +21,9 @@ __all__ = ["FlowsHook"]
 get_package: Any = None
 trace_flow: Any = None
 find_entry_points: Any = None
+build_callee_index: Any = None
+
+_MAX_UNSCOPED_ENTRIES = 20
 
 
 @dataclass
@@ -30,10 +33,11 @@ class FlowsHook:
     Reads ``working_dir`` from *context*, and ``entry``, ``detail``,
     ``max_depth``, ``cross_module`` from *params*.
 
-    If ``entry`` is not provided, discovers all entry points and traces
-    from all of them. Detail defaults to "trace", but can be "source".
-    If `detail` is "compact", it is mapped to "trace".
-    Injects ``traces`` list into the session context.
+    When ``entry`` contains multiple symbols (newline-separated), each
+    is traced independently using a shared pre-computed callee index.
+
+    If ``entry`` is not provided, discovers entry points and traces
+    them (excluding ``__all__`` exports, capped at 20).
     """
 
     def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
@@ -42,14 +46,13 @@ class FlowsHook:
         Args:
             context: Session context dictionary (must contain ``working_dir``).
             **params:
-                Optional ``entry`` (symbol name). Unfiltered if missing.
+                Optional ``entry`` (symbol name, or newline-separated list).
                 Optional ``detail`` ("source", "trace", or "compact").
                 Optional ``max_depth`` (default 5).
                 Optional ``cross_module`` (default False).
 
         Returns:
             HookResult with ``traces`` dict/list in metadata on success.
-            Or ``flow_trace`` representing the same semantic.
         """
         path = params.get("path") or context.get("working_dir", ".")
         working_dir = Path(path).resolve()
@@ -68,47 +71,104 @@ class FlowsHook:
 
         try:
             # Lazy imports
-            global get_package, trace_flow, find_entry_points
+            global get_package, trace_flow, find_entry_points, build_callee_index
             if get_package is None:
                 from axm_ast.core.cache import get_package as _gp
+                from axm_ast.core.flows import build_callee_index as _bci
                 from axm_ast.core.flows import find_entry_points as _fep
                 from axm_ast.core.flows import trace_flow as _tf
 
                 get_package = _gp
                 find_entry_points = _fep
                 trace_flow = _tf
+                build_callee_index = _bci
 
             pkg = get_package(working_dir)
 
             if entry is not None:
-                steps = trace_flow(
-                    pkg,
-                    entry,
-                    max_depth=max_depth,
-                    cross_module=cross_module,
-                    detail=detail,
-                )
-                return HookResult.ok(
-                    traces=[s.model_dump(exclude_none=True) for s in steps]
-                )
+                return self._trace_entries(pkg, entry, max_depth, cross_module, detail)
 
-            # Detect all entry points and trace them
-            entries = find_entry_points(pkg)
-            traces: dict[str, Any] = {}
-            for e in entries:
-                steps = trace_flow(
-                    pkg,
-                    e.name,
-                    max_depth=max_depth,
-                    cross_module=cross_module,
-                    detail=detail,
-                )
-                if steps:
-                    traces[e.name] = [s.model_dump(exclude_none=True) for s in steps]
-
-            # A dict if entry point not specified, so we have multiple entry flows.
-            # (Matches AC3 expectations: returns flow traces).
-            return HookResult.ok(traces=traces)
+            # No entry specified — discover and trace (with safety caps)
+            return self._trace_all(pkg, max_depth, cross_module, detail)
 
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Flow tracing failed: {exc}")
+
+    @staticmethod
+    def _trace_entries(
+        pkg: Any,
+        entry: str,
+        max_depth: int,
+        cross_module: bool,
+        detail: str,
+    ) -> HookResult:
+        """Trace one or more explicitly-specified entry symbols."""
+        symbols = [s.strip() for s in entry.splitlines() if s.strip()]
+
+        if len(symbols) == 1:
+            steps = trace_flow(
+                pkg,
+                symbols[0],
+                max_depth=max_depth,
+                cross_module=cross_module,
+                detail=detail,
+            )
+            return HookResult.ok(
+                traces=[s.model_dump(exclude_none=True) for s in steps]
+            )
+
+        # Multi-entry: build index once, trace each symbol
+        index = build_callee_index(pkg)
+        traces: dict[str, Any] = {}
+        for sym in symbols:
+            steps = trace_flow(
+                pkg,
+                sym,
+                max_depth=max_depth,
+                cross_module=cross_module,
+                detail=detail,
+                callee_index=index,
+            )
+            if steps:
+                traces[sym] = [s.model_dump(exclude_none=True) for s in steps]
+
+        return HookResult.ok(traces=traces)
+
+    @staticmethod
+    def _trace_all(
+        pkg: Any,
+        max_depth: int,
+        cross_module: bool,
+        detail: str,
+    ) -> HookResult:
+        """Discover entry points and trace them (with safety caps)."""
+        entries = find_entry_points(pkg)
+
+        # Filter out __all__ exports — they're re-exports, not functional entry points
+        entries = [e for e in entries if e.kind != "export"]
+
+        if len(entries) > _MAX_UNSCOPED_ENTRIES:
+            logger.warning(
+                "ast:flows: %d entry points detected without explicit entry param, "
+                "capping to %d. Pass 'entry' to target specific symbols.",
+                len(entries),
+                _MAX_UNSCOPED_ENTRIES,
+            )
+            entries = entries[:_MAX_UNSCOPED_ENTRIES]
+
+        # Build index once for all entries
+        index = build_callee_index(pkg)
+        traces: dict[str, Any] = {}
+        for e in entries:
+            steps = trace_flow(
+                pkg,
+                e.name,
+                max_depth=max_depth,
+                cross_module=cross_module,
+                detail=detail,
+                callee_index=index,
+            )
+            if steps:
+                traces[e.name] = [s.model_dump(exclude_none=True) for s in steps]
+
+        return HookResult.ok(traces=traces)

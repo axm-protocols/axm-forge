@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "EntryPoint",
     "FlowStep",
+    "build_callee_index",
     "find_callees",
     "find_entry_points",
     "format_flows",
@@ -365,6 +366,36 @@ def find_callees(
     return all_callees
 
 
+def build_callee_index(
+    pkg: PackageInfo,
+) -> dict[tuple[str, str], list[CallSite]]:
+    """Pre-compute a callee index for the entire package in one pass.
+
+    Instead of scanning all modules per symbol (O(modules x AST) per BFS step),
+    this builds a ``{(module, symbol): [CallSite]}`` dict in a single pass.
+    BFS then uses O(1) dict lookups.
+
+    Args:
+        pkg: Analyzed package info.
+
+    Returns:
+        Dict mapping ``(module_dotted_name, function_name)`` to callees.
+    """
+    index: dict[tuple[str, str], list[CallSite]] = {}
+
+    for mod in pkg.modules:
+        mod_name = module_dotted_name(mod.path, pkg.root)
+        source = mod.path.read_text(encoding="utf-8")
+        tree = parse_source(source)
+
+        func_ranges = _find_all_function_ranges(tree.root_node)
+        for fr in func_ranges:
+            calls = _extract_scoped_calls(tree.root_node, mod_name, source, fr)
+            index[(mod_name, fr.name)] = calls
+
+    return index
+
+
 def _find_function_nodes(root: object, symbol: str) -> list[_FunctionRange]:
     """Find all function definition byte ranges matching the symbol name."""
     results: list[_FunctionRange] = []
@@ -398,6 +429,38 @@ def _walk_for_functions(
 
     for child in getattr(node, "children", []):
         _walk_for_functions(child, symbol, results)
+
+
+def _find_all_function_ranges(root: object) -> list[_FunctionRange]:
+    """Find all function/class definition byte ranges in an AST."""
+    results: list[_FunctionRange] = []
+    _walk_all_functions(root, results)
+    return results
+
+
+def _walk_all_functions(node: object, results: list[_FunctionRange]) -> None:
+    """Recursively walk AST to collect all function/class definitions."""
+    node_type = getattr(node, "type", "")
+
+    if node_type in ("function_definition", "class_definition"):
+        for child in getattr(node, "children", []):
+            if getattr(child, "type", "") == "identifier":
+                name = _node_text_safe(child)
+                start_byte = getattr(node, "start_byte", 0)
+                end_byte = getattr(node, "end_byte", 0)
+                start_point = getattr(node, "start_point", (0, 0))
+                results.append(
+                    _FunctionRange(
+                        name=name,
+                        start_byte=start_byte,
+                        end_byte=end_byte,
+                        line=start_point[0] + 1,
+                    )
+                )
+                break
+
+    for child in getattr(node, "children", []):
+        _walk_all_functions(child, results)
 
 
 def _extract_scoped_calls(
@@ -656,13 +719,14 @@ class _CrossModuleContext:
     detail: str = "trace"
 
 
-def trace_flow(
+def trace_flow(  # noqa: PLR0913
     pkg: PackageInfo,
     entry: str,
     *,
     max_depth: int = 5,
     cross_module: bool = False,
     detail: str = "trace",
+    callee_index: dict[tuple[str, str], list[CallSite]] | None = None,
 ) -> list[FlowStep]:
     """Trace execution flow from an entry point via BFS.
 
@@ -678,6 +742,9 @@ def trace_flow(
         detail: Level of detail — ``"trace"`` (default) returns
             names and positions only; ``"source"`` enriches each
             step with the function's source code.
+        callee_index: Optional pre-computed index from
+            :func:`build_callee_index`.  When provided, BFS uses
+            O(1) dict lookups instead of scanning all modules.
 
     Returns:
         List of FlowStep objects ordered by depth then discovery.
@@ -727,7 +794,10 @@ def trace_flow(
         if depth >= max_depth:
             continue
 
-        callees = find_callees(current_pkg, current, _parse_cache=ctx.parse_cache)
+        if callee_index is not None:
+            callees = callee_index.get((current_mod, current), [])
+        else:
+            callees = find_callees(current_pkg, current, _parse_cache=ctx.parse_cache)
         for callee in callees:
             callee_key = (callee.module, callee.symbol)
             if callee_key not in visited:
