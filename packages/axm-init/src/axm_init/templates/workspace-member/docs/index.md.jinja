@@ -1,9 +1,56 @@
+---
+hide:
+  - navigation
+  - toc
+---
+
 # {{ member_name }}
 
 <p align="center">
-  <a href="https://github.com/{{ org }}/{{ workspace_name }}/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ workspace_name }}/gh-pages/badges/{{ member_name }}/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://github.com/{{ org }}/{{ workspace_name }}/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ workspace_name }}/gh-pages/badges/{{ member_name }}/axm-init.json" alt="axm-init"></a>
-  <a href="https://github.com/{{ org }}/{{ workspace_name }}/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ workspace_name }}/gh-pages/badges/{{ member_name }}/coverage.json" alt="Coverage"></a>
+  <strong>{{ description }}</strong>
 </p>
 
-::: {{ module_name }}
+<p align="center">
+  <a href="https://github.com/{{ org }}/{{ workspace_name }}/actions/workflows/ci.yml">
+    <img src="https://github.com/{{ org }}/{{ workspace_name }}/actions/workflows/ci.yml/badge.svg" alt="CI" />
+  </a>
+  <a href="https://github.com/{{ org }}/{{ workspace_name }}/actions/workflows/axm-quality.yml">
+    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ workspace_name }}/gh-pages/badges/{{ member_name }}/axm-init.json" alt="axm-init" />
+  </a>
+  <a href="https://github.com/{{ org }}/{{ workspace_name }}/actions/workflows/axm-quality.yml">
+    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ workspace_name }}/gh-pages/badges/{{ member_name }}/axm-audit.json" alt="axm-audit" />
+  </a>
+  <a href="https://github.com/{{ org }}/{{ workspace_name }}/actions/workflows/axm-quality.yml">
+    <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ workspace_name }}/gh-pages/badges/{{ member_name }}/coverage.json" alt="Coverage" />
+  </a>
+  <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+" />
+</p>
+
+---
+
+## Installation
+
+```bash
+uv add {{ member_name }}
+```
+
+## Quick Start
+
+```python
+from {{ module_name }} import __version__
+
+print(f"{{ member_name }} v{__version__}")
+```
+
+## Features
+
+- ✅ **Modern Python** — 3.12+ with strict typing
+- ✅ **Fast** — Optimized for performance
+- ✅ **Tested** — Full coverage with pytest
+
+---
+
+<div style="text-align: center; margin: 2rem 0;">
+  <a href="tutorials/getting-started/" class="md-button md-button--primary">Get Started →</a>
+  <a href="reference/cli/" class="md-button">Reference</a>
+</div>
