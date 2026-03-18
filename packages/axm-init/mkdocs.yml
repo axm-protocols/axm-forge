@@ -4,8 +4,10 @@ docs_dir: docs
 nav:
   - Overview: index.md
   - Tutorials:
+    - Getting Started: tutorials/getting-started.md
     - Quick Start: tutorials/quickstart.md
   - How-To Guides:
+    - index: howto/index.md
     - Scaffold a Project: howto/scaffold.md
     - Check Project Quality: howto/check.md
     - Reserve a Name: howto/reserve.md
