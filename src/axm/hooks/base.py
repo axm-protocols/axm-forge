@@ -36,6 +36,11 @@ class HookResult:
         """Create a failed result."""
         return cls(success=False, error=error, metadata=metadata)
 
+    @classmethod
+    def skip(cls, reason: str = "condition not met") -> HookResult:
+        """Create a skipped result (success, hook intentionally not run)."""
+        return cls(success=True, metadata={"skipped": True, "reason": reason})
+
 
 @runtime_checkable
 class HookAction(Protocol):
