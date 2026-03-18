@@ -238,13 +238,13 @@ class TestDescribeTool:
         assert "line_start" in greet_fn
         assert "line_end" in greet_fn
 
-    def test_execute_default_detail_is_detailed(self, sample_project: Path) -> None:
+    def test_execute_default_detail_is_summary(self, sample_project: Path) -> None:
         from axm_ast.tools.describe import DescribeTool
 
         tool = DescribeTool()
         result = tool.execute(path=str(sample_project / "src" / "demo"))
         assert result.success is True
-        # Default should include docstrings (detail="detailed")
+        # Default should return signatures only (detail="summary"), no docstrings
         core_mod = next(
             (m for m in result.data["modules"] if m["name"] == "core"), None
         )
@@ -253,7 +253,8 @@ class TestDescribeTool:
             (f for f in core_mod["functions"] if f["name"] == "greet"), None
         )
         assert greet_fn is not None
-        assert "summary" in greet_fn
+        assert "signature" in greet_fn
+        assert "summary" not in greet_fn
 
     # --- TOC mode (AXM-131) ---
 
