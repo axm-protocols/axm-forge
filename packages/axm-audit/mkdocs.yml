@@ -6,6 +6,7 @@ nav:
   - Tutorials:
     - Getting Started: tutorials/getting-started.md
   - How-To Guides:
+    - index: howto/index.md
     - Run an Audit: howto/audit.md
     - Audit Categories: howto/categories.md
     - CI Badge: howto/ci-badge.md
@@ -13,6 +14,8 @@ nav:
     - Use via MCP: howto/mcp.md
     - Read Results: howto/results.md
     - Troubleshooting: howto/troubleshooting.md
+  - Reference:
+    - CLI: reference/cli.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Scoring: explanation/scoring.md
