@@ -35,7 +35,7 @@ class DescribeTool(AXMTool):
         *,
         path: str = ".",
         compress: bool = False,
-        detail: str = "detailed",
+        detail: str = "summary",
         modules: list[str] | None = None,
         **kwargs: Any,
     ) -> ToolResult:
@@ -48,7 +48,7 @@ class DescribeTool(AXMTool):
                 ``summary`` (signatures only),
                 ``detailed`` (+ docstrings, params, return types),
                 or ``full`` (+ line numbers, imports, variables).
-                Defaults to ``detailed`` so docstrings are always included.
+                Defaults to ``summary`` (signatures only, no docstrings).
             modules: Optional list of module name substrings to filter.
                 Case-insensitive.  ``None`` or empty returns all modules.
 
