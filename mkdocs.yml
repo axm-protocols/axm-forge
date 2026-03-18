@@ -3,9 +3,13 @@ docs_dir: docs
 
 nav:
   - Overview: index.md
-  - Quick Start: tutorials/quickstart.md
-  - How-To:
+  - Tutorials:
+    - Getting Started: tutorials/getting-started.md
+    - Quick Start: tutorials/quickstart.md
+  - How-To Guides:
+    - index: howto/index.md
     - Add a Tool: howto/add-tool.md
+    - Migrate to HTTP Transport: howto/migration-http.md
     - Verify Setup: howto/verify.md
   - Architecture: explanation/architecture.md
   - CLI Reference: reference/cli.md
