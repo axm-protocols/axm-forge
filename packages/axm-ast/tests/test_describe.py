@@ -111,6 +111,14 @@ class TestDescribeToolFiltering:
 class TestDescribeToolDetailLevels:
     """Tests for various detail levels."""
 
+    def test_describe_default_detail(self, tool: DescribeTool, demo_pkg: Path) -> None:
+        """Default detail (no explicit arg) should behave like summary."""
+        result = tool.execute(path=str(demo_pkg))
+        assert result.success is True
+        for mod in result.data["modules"]:
+            for fn in mod.get("functions", []):
+                assert "summary" not in fn
+
     def test_detailed_includes_docstrings(
         self, tool: DescribeTool, demo_pkg: Path
     ) -> None:
