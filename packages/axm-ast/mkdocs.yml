@@ -19,8 +19,10 @@ plugins:
 nav:
   - Overview: index.md
   - Tutorials:
+    - Getting Started: tutorials/getting-started.md
     - Quick Start: tutorials/quickstart.md
   - How-To Guides:
+    - index: howto/index.md
     - Describe a Package: howto/describe.md
     - Analyze Change Impact: howto/impact.md
     - Trace Execution Flows: howto/flows.md
