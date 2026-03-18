@@ -2,3 +2,30 @@ site_name: "{{ member_name }}"
 
 nav:
   - Home: index.md
+  - Tutorials:
+    - Getting Started: tutorials/getting-started.md
+  - How-To Guides:
+    - howto/index.md
+  - Reference:
+    - CLI: reference/cli.md
+    - Python API: reference/api/
+  - Explanation:
+    - Architecture: explanation/architecture.md
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            heading_level: 3
