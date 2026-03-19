@@ -14,3 +14,4 @@ build/
 .coverage
 htmlcov/
 site/
+_version.py
