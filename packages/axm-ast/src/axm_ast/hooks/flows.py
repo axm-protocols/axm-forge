@@ -112,7 +112,16 @@ class FlowsHook:
     @staticmethod
     def _trace_entries(pkg: Any, entry: str, opts: _TraceOpts) -> HookResult:
         """Trace one or more explicitly-specified entry symbols."""
-        symbols = [s.strip() for s in entry.splitlines() if s.strip()]
+        symbols = list(
+            dict.fromkeys(s.strip() for s in entry.splitlines() if s.strip())
+        )
+
+        # Deduplicate: if "Foo.bar" is in the list, skip "Foo"
+        # (its methods are more specific and avoid full-class BFS expansion)
+        qualified = {s for s in symbols if "." in s}
+        parents = {s.rsplit(".", 1)[0] for s in qualified}
+        symbols = [s for s in symbols if s not in parents]
+
         kw: dict[str, Any] = {
             "max_depth": opts.max_depth,
             "cross_module": opts.cross_module,

@@ -566,6 +566,24 @@ def _is_stdlib_or_builtin(name: str) -> bool:
     return top in _STDLIB_MODULES
 
 
+def _build_package_symbols(pkg: PackageInfo) -> frozenset[str]:
+    """Collect all symbol names defined in the package.
+
+    Used by ``trace_flow`` to distinguish project-defined callees from
+    external/stdlib method calls (e.g. ``logger.info`` → ``info`` is not
+    in the package, so it's external).
+    """
+    names: set[str] = set()
+    for mod in pkg.modules:
+        for fn in mod.functions:
+            names.add(fn.name)
+        for cls in mod.classes:
+            names.add(cls.name)
+            for method in cls.methods:
+                names.add(method.name)
+    return frozenset(names)
+
+
 def _resolve_import(
     mod: ModuleInfo, symbol: str, pkg: PackageInfo
 ) -> tuple[Path | None, str]:
@@ -765,6 +783,11 @@ def trace_flow(  # noqa: PLR0913
     if entry_mod is None:
         return []
 
+    # Pre-compute set of symbols defined in the package so we can
+    # distinguish project callees from stdlib method calls (e.g.
+    # logger.info → "info" is not in pkg_symbols → skip).
+    pkg_symbols = _build_package_symbols(pkg) if exclude_stdlib else frozenset()
+
     steps: list[FlowStep] = []
     # Use (module, symbol) tuples to handle same-named symbols
     # in different modules.
@@ -803,7 +826,9 @@ def trace_flow(  # noqa: PLR0913
         else:
             callees = find_callees(current_pkg, current, _parse_cache=ctx.parse_cache)
         for callee in callees:
-            if exclude_stdlib and _is_stdlib_or_builtin(callee.symbol):
+            if exclude_stdlib and (
+                _is_stdlib_or_builtin(callee.symbol) or callee.symbol not in pkg_symbols
+            ):
                 continue
             callee_key = (callee.module, callee.symbol)
             if callee_key not in visited:
@@ -1081,22 +1106,48 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
         )
 
 
-def _find_symbol_location(pkg: PackageInfo, symbol: str) -> tuple[str | None, int]:
-    """Find the module and line of a symbol in the package."""
+def _find_qualified_location(
+    pkg: PackageInfo, class_name: str, method_name: str
+) -> tuple[str | None, int]:
+    """Find the module and line of a qualified ``ClassName.method`` symbol."""
+    for mod in pkg.modules:
+        for cls in mod.classes:
+            if cls.name != class_name:
+                continue
+            for method in cls.methods:
+                if method.name == method_name:
+                    return module_dotted_name(mod.path, pkg.root), method.line_start
+    return None, 0
+
+
+def _find_short_location(pkg: PackageInfo, symbol: str) -> tuple[str | None, int]:
+    """Find the module and line of a short (unqualified) symbol name."""
     for mod in pkg.modules:
         for fn in mod.functions:
             if fn.name == symbol:
-                mod_name = module_dotted_name(mod.path, pkg.root)
-                return mod_name, fn.line_start
+                return module_dotted_name(mod.path, pkg.root), fn.line_start
         for cls in mod.classes:
             if cls.name == symbol:
-                mod_name = module_dotted_name(mod.path, pkg.root)
-                return mod_name, cls.line_start
+                return module_dotted_name(mod.path, pkg.root), cls.line_start
             for method in cls.methods:
                 if method.name == symbol:
-                    mod_name = module_dotted_name(mod.path, pkg.root)
-                    return mod_name, method.line_start
+                    return module_dotted_name(mod.path, pkg.root), method.line_start
     return None, 0
+
+
+def _find_symbol_location(pkg: PackageInfo, symbol: str) -> tuple[str | None, int]:
+    """Find the module and line of a symbol in the package.
+
+    Supports both short names (``bar``) and qualified names
+    (``Foo.bar``) where the prefix is a class name.
+    """
+    if "." in symbol:
+        class_name, method_name = symbol.rsplit(".", 1)
+        result = _find_qualified_location(pkg, class_name, method_name)
+        if result[0] is not None:
+            return result
+        # Fall through to short-name search if qualified lookup fails
+    return _find_short_location(pkg, symbol)
 
 
 # ─── Formatting ──────────────────────────────────────────────────────────────
