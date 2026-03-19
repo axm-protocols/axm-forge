@@ -44,6 +44,8 @@ class FlowsTool(AXMTool):
             max_depth: Maximum BFS depth for flow tracing.
             cross_module: Resolve imports and trace into external modules.
             detail: Level of detail — ``"trace"`` (default) or
+            exclude_stdlib: If False, include stdlib/builtin callees
+                in the BFS trace.  Default True (exclude them).
                 ``"source"`` (includes function source code).
 
         Returns:
@@ -61,12 +63,14 @@ class FlowsTool(AXMTool):
 
             if entry is not None:
                 detail = str(kwargs.get("detail", "trace"))
+                exclude_stdlib = bool(kwargs.get("exclude_stdlib", True))
                 steps = trace_flow(
                     pkg,
                     entry,
                     max_depth=max_depth,
                     cross_module=cross_module,
                     detail=detail,
+                    exclude_stdlib=exclude_stdlib,
                 )
                 step_dicts = []
                 for s in steps:

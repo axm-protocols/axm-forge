@@ -727,6 +727,7 @@ def trace_flow(  # noqa: PLR0913
     cross_module: bool = False,
     detail: str = "trace",
     callee_index: dict[tuple[str, str], list[CallSite]] | None = None,
+    exclude_stdlib: bool = True,
 ) -> list[FlowStep]:
     """Trace execution flow from an entry point via BFS.
 
@@ -745,6 +746,9 @@ def trace_flow(  # noqa: PLR0913
         callee_index: Optional pre-computed index from
             :func:`build_callee_index`.  When provided, BFS uses
             O(1) dict lookups instead of scanning all modules.
+        exclude_stdlib: If True (default), skip callees whose name
+            matches a stdlib module or Python builtin (e.g. ``len``,
+            ``isinstance``).  Set to False to include them.
 
     Returns:
         List of FlowStep objects ordered by depth then discovery.
@@ -799,6 +803,8 @@ def trace_flow(  # noqa: PLR0913
         else:
             callees = find_callees(current_pkg, current, _parse_cache=ctx.parse_cache)
         for callee in callees:
+            if exclude_stdlib and _is_stdlib_or_builtin(callee.symbol):
+                continue
             callee_key = (callee.module, callee.symbol)
             if callee_key not in visited:
                 visited.add(callee_key)
