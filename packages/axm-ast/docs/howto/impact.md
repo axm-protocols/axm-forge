@@ -45,6 +45,16 @@ axm-ast callers src/mylib --symbol my_function
     my_function(data)
 ```
 
+## Exclude Test Modules
+
+Use `--exclude-tests` to focus the analysis on production code only, filtering out test modules from callers and affected modules:
+
+```bash
+axm-ast impact src/mylib --symbol my_function --exclude-tests
+```
+
+This is useful when you want a clean view of production blast radius without test files inflating the caller count or affected module list. Test files are still listed under `test_files` — they are only removed from the callers/affected-modules sections.
+
 ## JSON for CI
 
 ```bash

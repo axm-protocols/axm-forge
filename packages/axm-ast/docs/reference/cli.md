@@ -213,6 +213,7 @@ axm-ast impact [OPTIONS] [PATH]
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Path to package or workspace directory |
 | `--symbol` | `-s` | string | *required* | Symbol to analyze |
+| `--exclude-tests` | | bool | `False` | Exclude test modules from callers and affected modules |
 | `--json` | | bool | `False` | Output as JSON |
 
 !!! note "Workspace mode"
