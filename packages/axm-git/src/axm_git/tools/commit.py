@@ -18,11 +18,10 @@ logger = logging.getLogger(__name__)
 def _stage_files(files: list[str], path: Path) -> str | None:
     """Stage files, return error message or None on success.
 
-    Runs ``git reset`` first to clear any stale index entries
-    (e.g. from a previous failed pre-commit), then ``git add``
-    to stage the current disk content.
+    Uses ``git add -A`` to stage current disk content for the
+    given paths.  The ``-A`` flag ensures deletions are staged
+    correctly (file removed from disk → staged as delete).
     """
-    run_git(["reset", "HEAD", "--", *files], path)
     add = run_git(["add", "-A", "--", *files], path)
     if add.returncode != 0:
         return add.stderr.strip()
