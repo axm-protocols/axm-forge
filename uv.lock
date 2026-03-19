@@ -176,12 +176,6 @@ docs = [
 name = "axm-forge-workspace"
 version = "0.0.0"
 source = { virtual = "." }
-dependencies = [
-    { name = "axm-ast" },
-    { name = "axm-audit" },
-    { name = "axm-git" },
-    { name = "axm-init" },
-]
 
 [package.dev-dependencies]
 dev = [
@@ -202,12 +196,6 @@ docs = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "axm-ast", editable = "packages/axm-ast" },
-    { name = "axm-audit", editable = "packages/axm-audit" },
-    { name = "axm-git", editable = "packages/axm-git" },
-    { name = "axm-init", editable = "packages/axm-init" },
-]
 
 [package.metadata.requires-dev]
 dev = [
