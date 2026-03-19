@@ -109,6 +109,8 @@ class ImpactHook:
         if not working_dir.is_dir():
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
+        exclude_tests = bool(params.get("exclude_tests", False))
+
         try:
             from axm_ast.core.impact import analyze_impact
 
@@ -119,12 +121,18 @@ class ImpactHook:
                     working_dir,
                     symbols[0],
                     project_root=working_dir.parent,
+                    exclude_tests=exclude_tests,
                 )
                 return HookResult.ok(impact=report)
 
             # Multiple symbols — analyze in parallel (I/O-bound: git log, file reads).
             def _analyze(sym: str) -> dict[str, Any]:
-                return analyze_impact(working_dir, sym, project_root=working_dir.parent)
+                return analyze_impact(
+                    working_dir,
+                    sym,
+                    project_root=working_dir.parent,
+                    exclude_tests=exclude_tests,
+                )
 
             with ThreadPoolExecutor(max_workers=min(len(symbols), 4)) as pool:
                 reports = list(pool.map(_analyze, symbols))
