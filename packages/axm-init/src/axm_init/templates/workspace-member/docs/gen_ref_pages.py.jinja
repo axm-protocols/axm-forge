@@ -1,16 +1,5 @@
 """Auto-generate API reference pages by walking the source tree.
 
-.. note:: Standalone builds only
-
-   In a monorepo workspace, the **workspace-root** ``gen_ref_pages.py``
-   iterates over ``packages/`` and generates API docs for all members.
-   This per-member script is **not executed** during workspace builds
-   (the member ``mkdocs.yml`` is nav-only — no ``plugins:`` block).
-
-   It exists so that a member package can build its docs independently
-   (e.g. ``mkdocs build`` from the member root with a full mkdocs.yml
-   that declares ``mkdocs-gen-files`` in its ``plugins:``).
-
 This script is executed by the mkdocs-gen-files plugin during build.
 It scans ``src/{{ module_name }}/`` for Python modules and generates a
 ``::: module.path`` page for each, which mkdocstrings then renders.
