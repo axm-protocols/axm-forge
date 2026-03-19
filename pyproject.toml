@@ -14,6 +14,12 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: Apache Software License",
 ]
+
+[project.urls]
+Homepage = "https://forge.axm-protocols.io"
+Repository = "https://github.com/axm-protocols/axm-forge"
+Documentation = "https://forge.axm-protocols.io"
+
 dependencies = [
     "axm-ast",
     "axm-audit",

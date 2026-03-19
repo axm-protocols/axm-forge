@@ -1,7 +1,7 @@
 """Unit tests for workspace-member Copier template — gold standard compliance.
 
 These tests read the raw Jinja template files and verify they contain
-the expected Diátaxis configurations, mirroring the python-project template.
+the expected Diátaxis configurations and monorepo compatibility constraints.
 """
 
 from __future__ import annotations
@@ -17,7 +17,10 @@ TEMPLATE_ROOT = (
     / "workspace-member"
 )
 
+COPIER_YML = (TEMPLATE_ROOT / "copier.yml").read_text()
 MKDOCS = (TEMPLATE_ROOT / "mkdocs.yml.jinja").read_text()
+README = (TEMPLATE_ROOT / "README.md.jinja").read_text()
+
 DOCS_DIR = TEMPLATE_ROOT / "docs"
 DOCS_INDEX = (DOCS_DIR / "index.md.jinja").read_text()
 
@@ -28,7 +31,11 @@ DOCS_INDEX = (DOCS_DIR / "index.md.jinja").read_text()
 
 
 class TestMemberDocsStructure:
-    """Workspace-member docs must have Diátaxis directory structure."""
+    """Docs must have Diátaxis directory structure."""
+
+    def test_no_flat_getting_started(self) -> None:
+        """Old flat getting-started.md should NOT exist."""
+        assert not (DOCS_DIR / "getting-started.md.jinja").exists()
 
     def test_tutorials_dir_exists(self) -> None:
         assert (DOCS_DIR / "tutorials").is_dir()
@@ -64,7 +71,7 @@ class TestMemberDocsStructure:
 
 
 class TestMemberMkdocsDiataxis:
-    """Workspace-member mkdocs.yml must have Diátaxis nav structure."""
+    """mkdocs.yml must have Diátaxis nav structure."""
 
     def test_tutorials_section(self) -> None:
         assert "Tutorials:" in MKDOCS
@@ -79,17 +86,12 @@ class TestMemberMkdocsDiataxis:
         assert "Explanation:" in MKDOCS
 
 
-class TestMemberMkdocsPlugins:
-    """Workspace-member mkdocs.yml must have doc generation plugins."""
+class TestMemberMkdocsNavOnly:
+    """Workspace-member mkdocs.yml must NOT have plugins — parent handles them."""
 
-    def test_gen_files_plugin(self) -> None:
-        assert "gen-files" in MKDOCS
-
-    def test_literate_nav_plugin(self) -> None:
-        assert "literate-nav" in MKDOCS
-
-    def test_mkdocstrings_plugin(self) -> None:
-        assert "mkdocstrings" in MKDOCS
+    def test_no_plugins_block(self) -> None:
+        """Plugins are declared in the workspace root mkdocs.yml only."""
+        assert "plugins:" not in MKDOCS
 
 
 class TestMemberMkdocsMonorepoCompat:
@@ -114,7 +116,7 @@ class TestMemberMkdocsMonorepoCompat:
 
 
 class TestMemberDocsIndex:
-    """Workspace-member docs/index.md must follow python-project style."""
+    """docs/index.md must follow workspace-member standard."""
 
     def test_has_member_name_heading(self) -> None:
         assert "{{ member_name }}" in DOCS_INDEX
@@ -145,3 +147,46 @@ class TestMemberDocsIndex:
         """Badge URLs must use workspace_name/member_name path pattern."""
         assert "{{ workspace_name }}" in DOCS_INDEX
         assert "{{ member_name }}/axm-init.json" in DOCS_INDEX
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# README.md.jinja tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestMemberReadme:
+    """README.md must follow workspace-member standard."""
+
+    def test_has_development_section(self) -> None:
+        assert "## Development" in README
+
+    def test_has_license_section(self) -> None:
+        assert "## License" in README
+
+    def test_readme_has_axm_audit_badge(self) -> None:
+        """README must link to the axm-audit.json endpoint badge."""
+        assert "axm-audit.json" in README
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# copier.yml variable tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestMemberCopierVariables:
+    """copier.yml must define all variables used by doc templates."""
+
+    def test_has_member_name(self) -> None:
+        assert "member_name:" in COPIER_YML
+
+    def test_has_module_name(self) -> None:
+        assert "module_name:" in COPIER_YML
+
+    def test_has_workspace_name(self) -> None:
+        assert "workspace_name:" in COPIER_YML
+
+    def test_has_org(self) -> None:
+        assert "org:" in COPIER_YML
+
+    def test_has_description(self) -> None:
+        assert "description:" in COPIER_YML
