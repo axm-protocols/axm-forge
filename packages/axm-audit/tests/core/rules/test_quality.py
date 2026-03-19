@@ -310,7 +310,7 @@ class TestAuditResultScoring:
         assert result.quality_score == 100.0
 
     def test_quality_score_partial(self) -> None:
-        """quality_score with only lint/type/complexity → partial score."""
+        """quality_score with only lint/type/complexity → normalized partial score."""
         from axm_audit.models.results import AuditResult
 
         result = AuditResult(
@@ -320,8 +320,9 @@ class TestAuditResultScoring:
                 self._make_check("QUALITY_COMPLEXITY", 100),  # 100 * 0.15 = 15
             ]
         )
-        # Only 3 of 8 categories present: 16 + 9 + 15 = 40
-        assert result.quality_score == 40.0
+        # 3 categories present, weight_sum = 0.20 + 0.15 + 0.15 = 0.50
+        # Normalized: (16 + 9 + 15) / 0.50 = 80.0
+        assert result.quality_score == 80.0
 
     def test_quality_score_none_without_quality_checks(self) -> None:
         """quality_score is None if no quality checks present."""
