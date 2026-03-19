@@ -309,7 +309,7 @@ class TestImpactHookExecute:
 
         assert result.success
         mock_impact.assert_called_once_with(
-            tmp_path, "Foo", project_root=tmp_path.parent
+            tmp_path, "Foo", project_root=tmp_path.parent, exclude_tests=False
         )
         assert result.metadata["impact"]["score"] == "MEDIUM"
 

@@ -24,13 +24,15 @@ class FlowsTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_flows"
 
-    def execute(
+    def execute(  # noqa: PLR0913
         self,
         *,
         path: str = ".",
         entry: str | None = None,
         max_depth: int = 5,
         cross_module: bool = False,
+        detail: str = "trace",
+        exclude_stdlib: bool = True,
         **kwargs: Any,
     ) -> ToolResult:
         """Detect entry points or trace flows from a symbol.
@@ -44,9 +46,9 @@ class FlowsTool(AXMTool):
             max_depth: Maximum BFS depth for flow tracing.
             cross_module: Resolve imports and trace into external modules.
             detail: Level of detail — ``"trace"`` (default) or
+                ``"source"`` (includes function source code).
             exclude_stdlib: If False, include stdlib/builtin callees
                 in the BFS trace.  Default True (exclude them).
-                ``"source"`` (includes function source code).
 
         Returns:
             ToolResult with entry points or flow steps.
@@ -62,8 +64,6 @@ class FlowsTool(AXMTool):
             pkg = get_package(pkg_path)
 
             if entry is not None:
-                detail = str(kwargs.get("detail", "trace"))
-                exclude_stdlib = bool(kwargs.get("exclude_stdlib", True))
                 steps = trace_flow(
                     pkg,
                     entry,

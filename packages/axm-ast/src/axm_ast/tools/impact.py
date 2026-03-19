@@ -32,6 +32,7 @@ class ImpactTool(AXMTool):
         path: str = ".",
         symbol: str | None = None,
         symbols: list[str] | None = None,
+        exclude_tests: bool = False,
         **kwargs: Any,
     ) -> ToolResult:
         """Analyze change impact for a symbol.
@@ -40,6 +41,7 @@ class ImpactTool(AXMTool):
             path: Path to package or workspace directory.
             symbol: Symbol name to analyze (required if symbols is not provided).
             symbols: Optional list of symbol names for batch inspection.
+            exclude_tests: If True, exclude test files from impact analysis.
 
         Returns:
             ToolResult with impact analysis.
@@ -53,8 +55,6 @@ class ImpactTool(AXMTool):
                 return ToolResult(
                     success=False, error=f"Not a directory: {project_path}"
                 )
-
-            exclude_tests = bool(kwargs.get("exclude_tests", False))
 
             if symbols is not None:
                 if not isinstance(symbols, list):
