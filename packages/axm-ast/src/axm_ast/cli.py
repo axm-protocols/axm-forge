@@ -843,6 +843,13 @@ def flows(
             help="Detail level: trace (default) or source (include function source)",
         ),
     ] = "trace",
+    no_exclude_stdlib: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--no-exclude-stdlib"],
+            help="Include stdlib/builtin callees in flow trace",
+        ),
+    ] = False,
     json_output: Annotated[
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
@@ -866,6 +873,7 @@ def flows(
             max_depth=max_depth,
             cross_module=cross_module,
             detail=detail,
+            exclude_stdlib=not no_exclude_stdlib,
         )
         if json_output:
             print(
