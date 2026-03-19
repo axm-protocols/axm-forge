@@ -27,6 +27,16 @@ _MAX_UNSCOPED_ENTRIES = 20
 
 
 @dataclass
+class _TraceOpts:
+    """Bundled tracing options passed to _trace_entries / _trace_all."""
+
+    max_depth: int = 5
+    cross_module: bool = False
+    detail: str = "trace"
+    exclude_stdlib: bool = True
+
+
+@dataclass
 class FlowsHook:
     """Trace execution flows and detect entry points.
 
@@ -61,13 +71,18 @@ class FlowsHook:
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
         entry = params.get("entry")
-        max_depth = int(params.get("max_depth", 5))
-        cross_module = bool(params.get("cross_module", False))
 
         # detail translation ("compact" comes from spec, maps to "trace")
         detail = str(params.get("detail", "trace"))
         if detail == "compact":
             detail = "trace"
+
+        opts = _TraceOpts(
+            max_depth=int(params.get("max_depth", 5)),
+            cross_module=bool(params.get("cross_module", False)),
+            detail=detail,
+            exclude_stdlib=bool(params.get("exclude_stdlib", True)),
+        )
 
         try:
             # Lazy imports
@@ -86,33 +101,27 @@ class FlowsHook:
             pkg = get_package(working_dir)
 
             if entry is not None:
-                return self._trace_entries(pkg, entry, max_depth, cross_module, detail)
+                return self._trace_entries(pkg, entry, opts)
 
             # No entry specified — discover and trace (with safety caps)
-            return self._trace_all(pkg, max_depth, cross_module, detail)
+            return self._trace_all(pkg, opts)
 
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Flow tracing failed: {exc}")
 
     @staticmethod
-    def _trace_entries(
-        pkg: Any,
-        entry: str,
-        max_depth: int,
-        cross_module: bool,
-        detail: str,
-    ) -> HookResult:
+    def _trace_entries(pkg: Any, entry: str, opts: _TraceOpts) -> HookResult:
         """Trace one or more explicitly-specified entry symbols."""
         symbols = [s.strip() for s in entry.splitlines() if s.strip()]
+        kw: dict[str, Any] = {
+            "max_depth": opts.max_depth,
+            "cross_module": opts.cross_module,
+            "detail": opts.detail,
+            "exclude_stdlib": opts.exclude_stdlib,
+        }
 
         if len(symbols) == 1:
-            steps = trace_flow(
-                pkg,
-                symbols[0],
-                max_depth=max_depth,
-                cross_module=cross_module,
-                detail=detail,
-            )
+            steps = trace_flow(pkg, symbols[0], **kw)
             return HookResult.ok(
                 traces=[s.model_dump(exclude_none=True) for s in steps]
             )
@@ -121,26 +130,14 @@ class FlowsHook:
         index = build_callee_index(pkg)
         traces: dict[str, Any] = {}
         for sym in symbols:
-            steps = trace_flow(
-                pkg,
-                sym,
-                max_depth=max_depth,
-                cross_module=cross_module,
-                detail=detail,
-                callee_index=index,
-            )
+            steps = trace_flow(pkg, sym, callee_index=index, **kw)
             if steps:
                 traces[sym] = [s.model_dump(exclude_none=True) for s in steps]
 
         return HookResult.ok(traces=traces)
 
     @staticmethod
-    def _trace_all(
-        pkg: Any,
-        max_depth: int,
-        cross_module: bool,
-        detail: str,
-    ) -> HookResult:
+    def _trace_all(pkg: Any, opts: _TraceOpts) -> HookResult:
         """Discover entry points and trace them (with safety caps)."""
         entries = find_entry_points(pkg)
 
@@ -158,16 +155,15 @@ class FlowsHook:
 
         # Build index once for all entries
         index = build_callee_index(pkg)
+        kw: dict[str, Any] = {
+            "max_depth": opts.max_depth,
+            "cross_module": opts.cross_module,
+            "detail": opts.detail,
+            "exclude_stdlib": opts.exclude_stdlib,
+        }
         traces: dict[str, Any] = {}
         for e in entries:
-            steps = trace_flow(
-                pkg,
-                e.name,
-                max_depth=max_depth,
-                cross_module=cross_module,
-                detail=detail,
-                callee_index=index,
-            )
+            steps = trace_flow(pkg, e.name, callee_index=index, **kw)
             if steps:
                 traces[e.name] = [s.model_dump(exclude_none=True) for s in steps]
 
