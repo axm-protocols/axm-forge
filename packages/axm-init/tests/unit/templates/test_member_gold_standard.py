@@ -61,8 +61,12 @@ class TestMemberDocsStructure:
     def test_explanation_architecture_exists(self) -> None:
         assert (DOCS_DIR / "explanation" / "architecture.md.jinja").exists()
 
-    def test_gen_ref_pages_exists(self) -> None:
-        assert (DOCS_DIR / "gen_ref_pages.py.jinja").exists()
+    def test_no_gen_ref_pages(self) -> None:
+        """gen_ref_pages is dead code in nav-only members.
+
+        Standalone python-project members handle this themselves.
+        """
+        assert not (DOCS_DIR / "gen_ref_pages.py.jinja").exists()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
