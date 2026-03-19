@@ -330,6 +330,7 @@ axm-ast flows [OPTIONS] [PATH]
 | `--max-depth` | | int | `5` | Maximum BFS depth for flow tracing |
 | `--cross-module` | | bool | `False` | Resolve imports and trace into external modules |
 | `--detail` | `-d` | string | `trace` | Detail level: `trace` (names only) or `source` (include function source code) |
+| `--exclude-stdlib` | | bool | `True` | Exclude stdlib/builtin callees from BFS trace |
 | `--json` | | bool | `False` | Output as JSON |
 
 Without `--trace`, detects entry points (cyclopts, click, Flask, FastAPI, pytest, `__main__`, `__all__` exports). With `--trace`, performs BFS call-graph traversal from the named symbol.
