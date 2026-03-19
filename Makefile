@@ -57,13 +57,13 @@ test: test-all  ## Run all workspace tests (alias)
 axm-audit:  ## Run axm-audit on each package
 	@for pkg in axm-ast axm-audit axm-init axm-git; do \
 		echo "\n🔍 Auditing $$pkg..."; \
-		uvx axm-audit audit packages/$$pkg --json || exit 1; \
+		uv run --package axm-audit axm-audit audit packages/$$pkg --json || exit 1; \
 	done
 
 axm-init:  ## Run axm-init check on each package
 	@for pkg in axm-ast axm-audit axm-init axm-git; do \
 		echo "\n🏗️ Checking $$pkg..."; \
-		uvx axm-init check packages/$$pkg --json || exit 1; \
+		uv run --package axm-init axm-init check packages/$$pkg --json || exit 1; \
 	done
 
 quality: axm-audit axm-init  ## Full AXM quality gate (pre-push)
@@ -91,4 +91,3 @@ help:  ## Show help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 .DEFAULT_GOAL := help
-

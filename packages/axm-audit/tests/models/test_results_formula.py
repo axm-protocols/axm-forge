@@ -256,4 +256,3 @@ class TestQualityScore:
         checks = [_make_check("QUALITY_COVERAGE", 100)]  # testing category
         result = AuditResult(checks=checks)
         assert result.quality_score == 100.0
-
