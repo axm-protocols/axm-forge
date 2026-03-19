@@ -76,6 +76,14 @@ Beyond decorator-based detection, `find_entry_points` also recognizes:
 !!! tip "Adding a new framework"
     Add a new key to `_ENTRY_DECORATOR_PREFIXES` in `core/flows.py`. The key is the framework name; the value is a list of decorator prefix strings. Matching uses `startswith`, so `"router.get"` matches `@router.get("/path")`.
 
+## Stdlib Filtering
+
+By default, stdlib and builtin callees (e.g. `print`, `len`, `os.path.join`) are excluded from BFS traces to reduce noise. Pass `--no-exclude-stdlib` to include them:
+
+```bash
+axm-ast flows src/mylib --entry main --no-exclude-stdlib
+```
+
 ## Depth Control
 
 Limit BFS depth (default 5):
