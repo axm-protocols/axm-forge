@@ -489,11 +489,22 @@ def _add_import_based_tests(
         result["test_files_by_import"] = [str(t.name) for t in import_tests]
 
 
+def _is_test_module(module: str) -> bool:
+    """Check if a module name belongs to a test file.
+
+    Matches modules starting with ``tests.`` or ``test_``, and
+    also matches dotted paths where any segment starts with ``test_``.
+    """
+    parts = module.split(".")
+    return any(p.startswith("test_") or p == "tests" for p in parts)
+
+
 def analyze_impact(
     path: Path,
     symbol: str,
     *,
     project_root: Path | None = None,
+    exclude_tests: bool = False,
 ) -> dict[str, Any]:
     """Full impact analysis for a symbol.
 
@@ -504,6 +515,9 @@ def analyze_impact(
         path: Path to the package directory.
         symbol: Name of the symbol to analyze.
         project_root: Project root (for test detection).
+        exclude_tests: If True, filter test callers and test
+            type_refs from the output.  The impact score is still
+            computed on the full (unfiltered) caller set.
 
     Returns:
         Complete impact analysis dict.
@@ -555,7 +569,17 @@ def analyze_impact(
 
     _add_git_coupling(result, definition, pkg, root)
     _add_import_based_tests(result, definition, test_files, root)
+    # Score on the FULL caller set before any filtering.
     result["score"] = score_impact(result)
+
+    if exclude_tests:
+        result["callers"] = [
+            c for c in result["callers"] if not _is_test_module(c["module"])
+        ]
+        result["type_refs"] = [
+            r for r in result["type_refs"] if not _is_test_module(r["module"])
+        ]
+
     return result
 
 
@@ -612,6 +636,8 @@ def _add_workspace_git_coupling(
 def analyze_impact_workspace(
     ws_path: Path,
     symbol: str,
+    *,
+    exclude_tests: bool = False,
 ) -> dict[str, Any]:
     """Full impact analysis for a symbol across a workspace.
 
@@ -621,6 +647,8 @@ def analyze_impact_workspace(
     Args:
         ws_path: Path to workspace root.
         symbol: Name of the symbol to analyze.
+        exclude_tests: If True, filter test callers from the
+            output.  Score is computed on the full caller set.
 
     Returns:
         Complete impact analysis dict (workspace-scoped).
@@ -674,4 +702,10 @@ def analyze_impact_workspace(
 
     _add_workspace_git_coupling(result, definition, ws, ws_path)
     result["score"] = score_impact(result)
+
+    if exclude_tests:
+        result["callers"] = [
+            c for c in result["callers"] if not _is_test_module(c["module"])
+        ]
+
     return result
