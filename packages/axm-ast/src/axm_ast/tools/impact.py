@@ -54,6 +54,8 @@ class ImpactTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
+            exclude_tests = bool(kwargs.get("exclude_tests", False))
+
             if symbols is not None:
                 if not isinstance(symbols, list):
                     return ToolResult(
@@ -61,14 +63,27 @@ class ImpactTool(AXMTool):
                     )
                 results: list[dict[str, Any]] = []
                 for sym in symbols:
-                    results.append(self._analyze_single(project_path, sym))
+                    results.append(
+                        self._analyze_single(
+                            project_path, sym, exclude_tests=exclude_tests
+                        )
+                    )
                 return ToolResult(success=True, data={"symbols": results})
 
-            return self._analyze_single_result(project_path, symbol)  # type: ignore[arg-type]
+            assert symbol is not None  # already guarded above
+            return self._analyze_single_result(
+                project_path, symbol, exclude_tests=exclude_tests
+            )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
 
-    def _analyze_single(self, project_path: Path, symbol: str) -> dict[str, Any]:
+    def _analyze_single(
+        self,
+        project_path: Path,
+        symbol: str,
+        *,
+        exclude_tests: bool = False,
+    ) -> dict[str, Any]:
         """Run impact analysis for a single symbol.
 
         Returns:
@@ -82,11 +97,15 @@ class ImpactTool(AXMTool):
             if ws is not None:
                 from axm_ast.core.impact import analyze_impact_workspace
 
-                impact = analyze_impact_workspace(project_path, symbol)
+                impact = analyze_impact_workspace(
+                    project_path, symbol, exclude_tests=exclude_tests
+                )
             else:
                 from axm_ast.core.impact import analyze_impact
 
-                impact = analyze_impact(project_path, symbol)
+                impact = analyze_impact(
+                    project_path, symbol, exclude_tests=exclude_tests
+                )
 
             impact["severity"] = impact.get("score", "UNKNOWN")
             if impact.get("definition") is None:
@@ -95,9 +114,15 @@ class ImpactTool(AXMTool):
         except Exception as exc:
             return {"symbol": symbol, "error": str(exc)}
 
-    def _analyze_single_result(self, project_path: Path, symbol: str) -> ToolResult:
+    def _analyze_single_result(
+        self,
+        project_path: Path,
+        symbol: str,
+        *,
+        exclude_tests: bool = False,
+    ) -> ToolResult:
         """Run single-symbol impact analysis and return a ToolResult."""
-        result = self._analyze_single(project_path, symbol)
+        result = self._analyze_single(project_path, symbol, exclude_tests=exclude_tests)
         if "error" in result:
             return ToolResult(success=False, error=result["error"])
         return ToolResult(
