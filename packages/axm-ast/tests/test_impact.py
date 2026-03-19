@@ -9,6 +9,7 @@ import pytest
 from axm_ast.core.analyzer import analyze_package
 from axm_ast.core.impact import (
     _find_test_files_by_import,
+    _is_test_module,
     analyze_impact,
     find_definition,
     find_reexports,
@@ -477,3 +478,154 @@ class TestDottedSymbol:
             result = analyze_impact(ast_dir, "get_package", project_root=root)
             assert result["score"] == "HIGH"
             assert len(result["callers"]) >= 3
+
+
+# ─── exclude_tests ────────────────────────────────────────────────────────────
+
+
+def _make_project_with_test_callers(tmp_path: Path) -> Path:
+    """Create a project where a symbol is called from both prod and test code."""
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text('"""Pkg."""\n')
+    (pkg / "core.py").write_text(
+        '"""Core module."""\n'
+        "def helper(x: int) -> int:\n"
+        '    """Help."""\n'
+        "    return x + 1\n"
+    )
+    (pkg / "cli.py").write_text(
+        '"""CLI."""\ndef main() -> None:\n    """Main."""\n    helper(42)\n'
+    )
+    # Test callers — module names will start with "tests." or "test_"
+    (pkg / "tests").mkdir()
+    (pkg / "tests" / "__init__.py").write_text('"""Tests."""\n')
+    (pkg / "tests" / "test_runner.py").write_text(
+        '"""Test runner."""\n'
+        "def test_helper() -> None:\n"
+        '    """Test."""\n'
+        "    helper(1)\n"
+    )
+    # Also a top-level test_ module
+    (pkg / "test_smoke.py").write_text(
+        '"""Smoke tests."""\ndef smoke() -> None:\n    """Smoke."""\n    helper(99)\n'
+    )
+    return pkg
+
+
+class TestExcludeTests:
+    """Tests for exclude_tests parameter."""
+
+    def test_exclude_tests_filters_test_callers(self, tmp_path: Path) -> None:
+        """Only prod callers remain when exclude_tests=True."""
+        pkg_dir = _make_project_with_test_callers(tmp_path)
+        result = analyze_impact(
+            pkg_dir, "helper", project_root=tmp_path, exclude_tests=True
+        )
+        for caller in result["callers"]:
+            assert not _is_test_module(caller["module"]), (
+                f"Test caller not filtered: {caller['module']}"
+            )
+        # At least the cli caller should remain
+        modules = [c["module"] for c in result["callers"]]
+        assert any("cli" in m for m in modules)
+
+    def test_exclude_tests_preserves_score(self, tmp_path: Path) -> None:
+        """Score is computed on the FULL caller set before filtering."""
+        pkg_dir = _make_project_with_test_callers(tmp_path)
+        result_full = analyze_impact(
+            pkg_dir, "helper", project_root=tmp_path, exclude_tests=False
+        )
+        result_filtered = analyze_impact(
+            pkg_dir, "helper", project_root=tmp_path, exclude_tests=True
+        )
+        assert result_filtered["score"] == result_full["score"]
+
+    def test_exclude_tests_false_keeps_all(self, tmp_path: Path) -> None:
+        """Default (False) preserves all callers including tests."""
+        pkg_dir = _make_project_with_test_callers(tmp_path)
+        result = analyze_impact(
+            pkg_dir, "helper", project_root=tmp_path, exclude_tests=False
+        )
+        modules = [c["module"] for c in result["callers"]]
+        # Should include test callers
+        assert any(_is_test_module(m) for m in modules)
+
+    def test_exclude_tests_filters_type_refs(self, tmp_path: Path) -> None:
+        """Type refs from test modules are filtered."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('"""Pkg."""\n')
+        (pkg / "models.py").write_text(
+            '"""Models."""\nclass MyModel:\n    """A model."""\n    pass\n'
+        )
+        (pkg / "cli.py").write_text(
+            '"""CLI."""\n'
+            "def process(m: MyModel) -> None:\n"
+            '    """Process."""\n'
+            "    pass\n"
+        )
+        (pkg / "test_models.py").write_text(
+            '"""Test models."""\n'
+            "def check(m: MyModel) -> None:\n"
+            '    """Check."""\n'
+            "    pass\n"
+        )
+        result = analyze_impact(
+            pkg, "MyModel", project_root=tmp_path, exclude_tests=True
+        )
+        for ref in result["type_refs"]:
+            assert not _is_test_module(ref["module"]), (
+                f"Test type ref not filtered: {ref['module']}"
+            )
+
+    def test_tool_passes_exclude_tests(self, tmp_path: Path) -> None:
+        """ImpactTool.execute forwards exclude_tests to analyze_impact."""
+        from unittest.mock import patch
+
+        from axm_ast.tools.impact import ImpactTool
+
+        tool = ImpactTool()
+        with patch("axm_ast.tools.impact.ImpactTool._analyze_single") as mock:
+            mock.return_value = {"symbol": "foo", "score": "LOW", "definition": {}}
+            tool.execute(path=str(tmp_path), symbol="foo", exclude_tests=True)
+            mock.assert_called_once_with(tmp_path, "foo", exclude_tests=True)
+
+    def test_all_callers_are_tests(self, tmp_path: Path) -> None:
+        """Symbol only used in tests → empty callers, score still computed."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('"""Pkg."""\n')
+        (pkg / "core.py").write_text(
+            '"""Core."""\ndef internal() -> None:\n    """Internal."""\n    pass\n'
+        )
+        (pkg / "test_core.py").write_text(
+            '"""Test."""\ndef test_it() -> None:\n    """Test."""\n    internal()\n'
+        )
+        result_full = analyze_impact(
+            pkg, "internal", project_root=tmp_path, exclude_tests=False
+        )
+        result_filtered = analyze_impact(
+            pkg, "internal", project_root=tmp_path, exclude_tests=True
+        )
+        assert result_filtered["callers"] == []
+        assert result_filtered["score"] == result_full["score"]
+
+    def test_no_test_callers(self, tmp_path: Path) -> None:
+        """No test callers → output identical with or without flag."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('"""Pkg."""\n')
+        (pkg / "core.py").write_text(
+            '"""Core."""\ndef helper() -> None:\n    """Help."""\n    pass\n'
+        )
+        (pkg / "cli.py").write_text(
+            '"""CLI."""\ndef main() -> None:\n    """Main."""\n    helper()\n'
+        )
+        result_with = analyze_impact(
+            pkg, "helper", project_root=tmp_path, exclude_tests=True
+        )
+        result_without = analyze_impact(
+            pkg, "helper", project_root=tmp_path, exclude_tests=False
+        )
+        assert result_with["callers"] == result_without["callers"]

@@ -610,6 +610,13 @@ def impact(
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
     ] = False,
+    exclude_tests: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--exclude-tests"],
+            help="Filter test callers from impact output",
+        ),
+    ] = False,
 ) -> None:
     """Analyze the impact of changing a symbol."""
     project_path = _resolve_dir(path)
@@ -620,11 +627,13 @@ def impact(
     if ws is not None:
         from axm_ast.core.impact import analyze_impact_workspace
 
-        result = analyze_impact_workspace(project_path, symbol)
+        result = analyze_impact_workspace(
+            project_path, symbol, exclude_tests=exclude_tests
+        )
     else:
         from axm_ast.core.impact import analyze_impact
 
-        result = analyze_impact(project_path, symbol)
+        result = analyze_impact(project_path, symbol, exclude_tests=exclude_tests)
 
     if json_output:
         print(json.dumps(result, indent=2))
