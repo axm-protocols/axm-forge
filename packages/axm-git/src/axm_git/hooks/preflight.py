@@ -12,7 +12,7 @@ from typing import Any
 
 from axm.hooks.base import HookResult
 
-from axm_git.core.runner import run_git
+from axm_git.core.runner import find_git_root, run_git
 
 __all__ = ["PreflightHook"]
 
@@ -48,11 +48,16 @@ class PreflightHook:
         working_dir = Path(path).resolve()
         max_diff_lines: int = int(params.get("diff_lines", 200))
 
-        if not (working_dir / ".git").exists():
+        git_root = find_git_root(working_dir)
+        if git_root is None:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
-        # git status --porcelain
-        status = run_git(["status", "--porcelain"], working_dir)
+        # Scope to package when inside a workspace (git root != working dir)
+        rel = working_dir.resolve().relative_to(git_root.resolve())
+        pathspec = ["--", str(rel)] if str(rel) != "." else []
+
+        # git status --porcelain [-- rel_path]
+        status = run_git(["status", "--porcelain", *pathspec], git_root)
         if status.returncode != 0:
             return HookResult.fail(f"git status failed: {status.stderr}")
 
@@ -64,10 +69,10 @@ class PreflightHook:
             filepath = line[3:]
             files.append({"path": filepath, "status": code})
 
-        # git diff -U2
+        # git diff -U2 [-- rel_path]
         diff_content = ""
         if max_diff_lines > 0:
-            diff_result = run_git(["diff", "-U2"], working_dir)
+            diff_result = run_git(["diff", "-U2", *pathspec], git_root)
             lines = diff_result.stdout.splitlines()
             if len(lines) > max_diff_lines:
                 diff_content = "\n".join(lines[:max_diff_lines])
