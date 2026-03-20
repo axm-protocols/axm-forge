@@ -1,5 +1,5 @@
 {
-  "score": 92.8,
+  "score": 92.9,
   "grade": "A",
   "total": 24,
   "failed": 1,
@@ -29,8 +29,8 @@
       "message": "Coupling: 0 modules above threshold (max fan-out: 10)",
       "details": {
         "max_fan_out": 10,
-        "max_fan_in": 10,
-        "avg_coupling": 4.42,
+        "max_fan_in": 11,
+        "avg_coupling": 4.46,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -54,8 +54,8 @@
         "high_complexity_count": 1,
         "top_offenders": [
           {
-            "file": "commit.py",
-            "function": "GitCommitTool.execute",
+            "file": "preflight.py",
+            "function": "PreflightHook",
             "cc": 10
           }
         ],
@@ -65,10 +65,10 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 96% (95/100)",
+      "message": "Test coverage: 96% (96/100)",
       "details": {
-        "coverage": 95.85253456221199,
-        "score": 95,
+        "coverage": 96.06099110546378,
+        "score": 96,
         "failures": []
       }
     },
@@ -107,9 +107,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 4 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 4,
+        "lines_changed": 0,
         "score": 100
       }
     },
@@ -135,11 +135,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (22/22)",
+      "message": "Docstring coverage: 100% (24/24)",
       "details": {
         "coverage": 1.0,
-        "total": 22,
-        "documented": 22,
+        "total": 24,
+        "documented": 24,
         "missing": [],
         "score": 100
       }
@@ -166,7 +166,7 @@
     {
       "rule_id": "PRACTICE_LOGGING",
       "passed": true,
-      "message": "Logging coverage: 100% (3/3)",
+      "message": "Logging coverage: 100% (4/4)",
       "details": {
         "without_logging": [],
         "score": 100
@@ -216,21 +216,21 @@
             "code": "B607",
             "message": "Starting a process with a partial executable path",
             "file": "runner.py",
-            "line": 43
+            "line": 40
           },
           {
             "severity": "LOW",
             "code": "B603",
             "message": "subprocess call - check for execution of untrusted input.",
             "file": "runner.py",
-            "line": 43
+            "line": 40
           },
           {
             "severity": "LOW",
             "code": "B607",
             "message": "Starting a process with a partial executable path",
             "file": "runner.py",
-            "line": 54
+            "line": 69
           }
         ]
       }

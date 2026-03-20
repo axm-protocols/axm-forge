@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge",
-  "score": 90,
+  "score": 93,
   "grade": "A",
   "context": "workspace",
   "workspace_root": null,
@@ -11,7 +11,7 @@
       "total": 2
     },
     "ci": {
-      "earned": 16,
+      "earned": 18,
       "total": 18
     },
     "docs": {
@@ -47,10 +47,10 @@
     {
       "name": "ci.coverage_upload",
       "category": "ci",
-      "passed": false,
-      "earned": 0,
+      "passed": true,
+      "earned": 2,
       "weight": 2,
-      "message": "No coverage upload in CI"
+      "message": "Coverage upload configured"
     },
     {
       "name": "ci.lint_job",
@@ -270,15 +270,6 @@
     }
   ],
   "failures": [
-    {
-      "name": "ci.coverage_upload",
-      "weight": 2,
-      "message": "No coverage upload in CI",
-      "details": [
-        "CI should upload coverage to Coveralls or Codecov"
-      ],
-      "fix": "Add coverallsapp/github-action or codecov/codecov-action step."
-    },
     {
       "name": "docs.readme",
       "weight": 3,

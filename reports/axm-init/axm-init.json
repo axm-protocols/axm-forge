@@ -11,7 +11,7 @@
       "total": 5
     },
     "ci": {
-      "earned": 16,
+      "earned": 18,
       "total": 18
     },
     "deps": {
@@ -19,7 +19,7 @@
       "total": 5
     },
     "docs": {
-      "earned": 11,
+      "earned": 9,
       "total": 14
     },
     "pyproject": {
@@ -55,10 +55,10 @@
     {
       "name": "ci.coverage_upload",
       "category": "ci",
-      "passed": false,
-      "earned": 0,
+      "passed": true,
+      "earned": 2,
       "weight": 2,
-      "message": "No coverage upload in CI"
+      "message": "Coverage upload configured"
     },
     {
       "name": "ci.lint_job",
@@ -135,10 +135,10 @@
     {
       "name": "docs.gen_ref_pages",
       "category": "docs",
-      "passed": true,
-      "earned": 2,
+      "passed": false,
+      "earned": 0,
       "weight": 2,
-      "message": "gen_ref_pages.py found"
+      "message": "docs/gen_ref_pages.py not found"
     },
     {
       "name": "docs.plugins",
@@ -282,7 +282,7 @@
       "passed": true,
       "earned": 3,
       "weight": 3,
-      "message": "36 test file(s) found"
+      "message": "37 test file(s) found"
     },
     {
       "name": "structure.uv_lock",
@@ -351,13 +351,13 @@
   ],
   "failures": [
     {
-      "name": "ci.coverage_upload",
+      "name": "docs.gen_ref_pages",
       "weight": 2,
-      "message": "No coverage upload in CI",
+      "message": "docs/gen_ref_pages.py not found",
       "details": [
-        "CI should upload coverage to Coveralls or Codecov"
+        "Auto-gen script needed for mkdocstrings API reference"
       ],
-      "fix": "Add coverallsapp/github-action or codecov/codecov-action step."
+      "fix": "Create docs/gen_ref_pages.py for automatic API reference generation."
     },
     {
       "name": "docs.plugins",

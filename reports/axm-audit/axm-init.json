@@ -1,8 +1,8 @@
 {
-  "score": 80.6,
+  "score": 85.8,
   "grade": "B",
   "total": 24,
-  "failed": 5,
+  "failed": 4,
   "success": false,
   "checks": [
     {
@@ -58,24 +58,14 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 20/100 (8 high-complexity functions)",
+      "message": "Complexity score: 50/100 (5 high-complexity functions)",
       "details": {
-        "high_complexity_count": 8,
+        "high_complexity_count": 5,
         "top_offenders": [
-          {
-            "file": "workspace_patcher.py",
-            "function": "_insert_into_yaml_list",
-            "cc": 20
-          },
           {
             "file": "scaffold.py",
             "function": "InitScaffoldTool.execute",
             "cc": 13
-          },
-          {
-            "file": "workspace_patcher.py",
-            "function": "patch_release",
-            "cc": 12
           },
           {
             "file": "checker.py",
@@ -93,64 +83,32 @@
             "cc": 10
           },
           {
-            "file": "workspace_patcher.py",
-            "function": "patch_testpaths",
-            "cc": 10
-          },
-          {
             "file": "check.py",
             "function": "ProjectResult",
             "cc": 10
           }
         ],
-        "score": 20
+        "score": 50
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 91% (91/100)",
+      "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 91.162385720505,
-        "score": 91,
+        "coverage": 92.67431597528685,
+        "score": 92,
         "failures": []
       }
     },
     {
       "rule_id": "QUALITY_DEAD_CODE",
-      "passed": false,
-      "message": "Found 2 dead (unreferenced) symbol(s).",
+      "passed": true,
+      "message": "No dead code detected.",
       "details": {
-        "score": 90.0,
-        "dead_count": 2,
-        "symbols": [
-          {
-            "name": "AvailabilityStatus",
-            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-init/src/axm_init/adapters/pypi.py",
-            "line": 13,
-            "kind": "class"
-          },
-          {
-            "name": "Grade",
-            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-init/src/axm_init/models/check.py",
-            "line": 14,
-            "kind": "class"
-          }
-        ],
-        "top_offenders": [
-          {
-            "name": "AvailabilityStatus",
-            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-init/src/axm_init/adapters/pypi.py",
-            "line": 13,
-            "kind": "class"
-          },
-          {
-            "name": "Grade",
-            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-init/src/axm_init/models/check.py",
-            "line": 14,
-            "kind": "class"
-          }
-        ]
+        "score": 100.0,
+        "dead_count": 0,
+        "symbols": []
       }
     },
     {
@@ -178,9 +136,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 4 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 4,
+        "lines_changed": 0,
         "score": 100
       }
     },

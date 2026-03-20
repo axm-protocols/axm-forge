@@ -1,8 +1,8 @@
 {
-  "score": 93.8,
-  "grade": "A",
+  "score": 89.2,
+  "grade": "B",
   "total": 24,
-  "failed": 2,
+  "failed": 3,
   "success": false,
   "checks": [
     {
@@ -29,8 +29,8 @@
       "message": "Coupling: 1 module(s) above threshold (-5 pts)",
       "details": {
         "max_fan_out": 11,
-        "max_fan_in": 19,
-        "avg_coupling": 6.14,
+        "max_fan_in": 20,
+        "avg_coupling": 6.26,
         "score": 95,
         "n_over_threshold": 1,
         "over_threshold": [
@@ -53,21 +53,37 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": true,
-      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "passed": false,
+      "message": "Complexity score: 70/100 (3 high-complexity functions)",
       "details": {
-        "high_complexity_count": 0,
-        "top_offenders": [],
-        "score": 100
+        "high_complexity_count": 3,
+        "top_offenders": [
+          {
+            "file": "audit_quality.py",
+            "function": "AuditQualityRule",
+            "cc": 13
+          },
+          {
+            "file": "audit_quality.py",
+            "function": "AuditQualityRule.validate",
+            "cc": 12
+          },
+          {
+            "file": "results.py",
+            "function": "AuditResult.quality_score",
+            "cc": 10
+          }
+        ],
+        "score": 70
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 93% (93/100)",
+      "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 93.19787985865725,
-        "score": 93,
+        "coverage": 92.97945205479452,
+        "score": 92,
         "failures": []
       }
     },
@@ -106,9 +122,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 4 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 4,
+        "lines_changed": 0,
         "score": 100
       }
     },
@@ -134,11 +150,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (85/85)",
+      "message": "Docstring coverage: 100% (86/86)",
       "details": {
         "coverage": 1.0,
-        "total": 85,
-        "documented": 85,
+        "total": 86,
+        "documented": 86,
         "missing": [],
         "score": 100
       }
