@@ -259,6 +259,96 @@ class TestCommitFromOutputs:
         assert log.stdout.strip() == "feat: no body"
 
 
+class TestCommitFromOutputsWorkspace:
+    """Tests for from_outputs mode in workspace (nested package) layouts."""
+
+    def test_workspace_from_outputs_stages_correctly(
+        self,
+        tmp_workspace_repo: tuple[Path, Path],
+    ) -> None:
+        """Git-root-relative paths are staged correctly from a nested package."""
+        git_root, pkg_dir = tmp_workspace_repo
+
+        (pkg_dir / "src" / "hello.py").write_text("# changed\n")
+
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {
+                "working_dir": str(pkg_dir),
+                "commit_spec": {
+                    "message": "feat(pkg): update hello",
+                    "files": ["packages/pkg/src/hello.py"],
+                },
+            },
+            from_outputs=True,
+        )
+
+        assert result.success
+        assert result.metadata["commit"]
+        assert result.metadata["message"] == "feat(pkg): update hello"
+
+        log = run_git(["diff", "--name-only", "HEAD~1", "HEAD"], git_root)
+        committed = set(log.stdout.strip().splitlines())
+        assert "packages/pkg/src/hello.py" in committed
+
+    def test_workspace_from_outputs_pkg_relative_path(
+        self,
+        tmp_workspace_repo: tuple[Path, Path],
+    ) -> None:
+        """Working-dir-relative paths also work (git resolves from root)."""
+        _, pkg_dir = tmp_workspace_repo
+
+        (pkg_dir / "src" / "hello.py").write_text("# pkg-relative\n")
+
+        hook = CommitPhaseHook()
+        # Use the full git-root-relative path (the natural path from preflight)
+        result = hook.execute(
+            {
+                "working_dir": str(pkg_dir),
+                "commit_spec": {
+                    "message": "feat(pkg): pkg-relative path",
+                    "files": ["packages/pkg/src/hello.py"],
+                },
+            },
+            from_outputs=True,
+        )
+
+        assert result.success
+        assert result.metadata["commit"]
+
+    def test_workspace_from_outputs_mixed_paths(
+        self,
+        tmp_workspace_repo: tuple[Path, Path],
+    ) -> None:
+        """Mixed git-root-relative paths from different packages."""
+        git_root, pkg_dir = tmp_workspace_repo
+
+        # Create a second file at workspace root level
+        (git_root / "root_file.txt").write_text("root change\n")
+        (pkg_dir / "src" / "hello.py").write_text("# mixed\n")
+
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {
+                "working_dir": str(pkg_dir),
+                "commit_spec": {
+                    "message": "feat: mixed paths",
+                    "files": [
+                        "packages/pkg/src/hello.py",
+                        "root_file.txt",
+                    ],
+                },
+            },
+            from_outputs=True,
+        )
+
+        assert result.success
+        log = run_git(["diff", "--name-only", "HEAD~1", "HEAD"], git_root)
+        committed = set(log.stdout.strip().splitlines())
+        assert "packages/pkg/src/hello.py" in committed
+        assert "root_file.txt" in committed
+
+
 class TestCommitPhaseWorkspace:
     """Tests for CommitPhaseHook in workspace (nested package) layouts."""
 
