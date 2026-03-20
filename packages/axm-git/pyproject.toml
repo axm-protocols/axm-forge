@@ -32,6 +32,9 @@ git_push      = "axm_git.tools.push:GitPushTool"
 "git:preflight"      = "axm_git.hooks.preflight:PreflightHook"
 "git:worktree-add"   = "axm_git.hooks.worktree_add:WorktreeAddHook"
 "git:worktree-remove" = "axm_git.hooks.worktree_remove:WorktreeRemoveHook"
+"git:push"            = "axm_git.hooks.push:PushHook"
+"git:create-pr"       = "axm_git.hooks.create_pr:CreatePRHook"
+"git:await-merge"     = "axm_git.hooks.await_merge:AwaitMergeHook"
 
 [project.urls]
 Homepage = "https://github.com/axm-protocols/axm-git"
