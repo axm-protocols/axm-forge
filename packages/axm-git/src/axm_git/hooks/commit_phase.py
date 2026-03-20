@@ -40,10 +40,13 @@ def _validate_commit_spec(
     return spec, None
 
 
-def _stage_spec_files(files: list[str], working_dir: Path) -> str | None:
-    """Stage each file in *files*, returning an error message on failure."""
+def _stage_spec_files(files: list[str], git_root: Path) -> str | None:
+    """Stage each file in *files*, returning an error message on failure.
+
+    Paths in *files* are expected relative to *git_root*.
+    """
     for filepath in files:
-        add_result = run_git(["add", filepath], working_dir)
+        add_result = run_git(["add", filepath], git_root)
         if add_result.returncode != 0:
             return f"git add failed for {filepath}: {add_result.stderr}"
     return None
@@ -131,12 +134,14 @@ class CommitPhaseHook:
         message: str = spec["message"]
         body: str | None = spec.get("body")
 
-        stage_err = _stage_spec_files(files, working_dir)
+        git_root = find_git_root(working_dir) or working_dir
+
+        stage_err = _stage_spec_files(files, git_root)
         if stage_err:
             return HookResult.fail(stage_err)
 
         # Check if there's anything to commit
-        status = run_git(["diff", "--cached", "--name-only"], working_dir)
+        status = run_git(["diff", "--cached", "--name-only"], git_root)
         if not status.stdout.strip():
             return HookResult.ok(skipped=True, reason="nothing to commit")
 
@@ -145,10 +150,10 @@ class CommitPhaseHook:
         if body:
             commit_cmd.extend(["-m", body])
 
-        result = run_git(commit_cmd, working_dir)
+        result = run_git(commit_cmd, git_root)
         if result.returncode != 0:
             return HookResult.fail(f"git commit failed: {result.stderr}")
 
         # Get commit hash
-        hash_result = run_git(["rev-parse", "--short", "HEAD"], working_dir)
+        hash_result = run_git(["rev-parse", "--short", "HEAD"], git_root)
         return HookResult.ok(commit=hash_result.stdout.strip(), message=message)
