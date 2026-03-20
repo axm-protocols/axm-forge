@@ -1,11 +1,13 @@
 """Git hook actions for AXM lifecycle hooks.
 
-Provides CreateBranchHook, CommitPhaseHook, and MergeSquashHook,
-auto-discovered by ``HookRegistry`` via the ``axm.hooks`` entry-point group.
+Provides CreateBranchHook, CommitPhaseHook, MergeSquashHook, and
+PreflightHook, auto-discovered by ``HookRegistry`` via the
+``axm.hooks`` entry-point group.
 """
 
 from axm_git.hooks.commit_phase import CommitPhaseHook
 from axm_git.hooks.create_branch import CreateBranchHook
 from axm_git.hooks.merge_squash import MergeSquashHook
+from axm_git.hooks.preflight import PreflightHook
 
-__all__ = ["CommitPhaseHook", "CreateBranchHook", "MergeSquashHook"]
+__all__ = ["CommitPhaseHook", "CreateBranchHook", "MergeSquashHook", "PreflightHook"]
