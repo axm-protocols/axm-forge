@@ -126,6 +126,16 @@ See the [MCP how-to guide](https://forge.axm-protocols.io/audit/howto/mcp/) for 
 | `structure` | `PyprojectCompletenessRule` | 1 |
 | `tooling` | `ToolAvailabilityRule` | 3 |
 
+## Witness Rules
+
+`axm-audit` ships a witness rule for use with the `axm.witnesses` entry point group:
+
+| Rule | Entry point key | Default categories |
+|---|---|---|
+| `AuditQualityRule` | `audit_quality` | `lint`, `type` |
+
+`AuditQualityRule` runs `audit_project` for each configured category independently (a lint failure does not prevent type checking) and returns structured agent-friendly feedback via `format_agent`.
+
 ## Development
 
 This package is part of the [**axm-forge**](https://github.com/axm-protocols/axm-forge) workspace.
