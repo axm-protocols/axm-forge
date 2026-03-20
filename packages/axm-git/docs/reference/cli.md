@@ -9,6 +9,8 @@
 | `git_commit` | `GitCommitTool` | Batched atomic commits with pre-commit |
 | `git_tag` | `GitTagTool` | One-shot semver tagging |
 | `git_push` | `GitPushTool` | Push with dirty-check and auto-upstream |
+| `git_worktree` | `GitWorktreeTool` | Add, remove, or list git worktrees |
+| `git_pr` | `GitPRTool` | Create GitHub pull requests with optional auto-merge |
 
 ## Lifecycle Hooks
 

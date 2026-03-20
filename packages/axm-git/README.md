@@ -25,6 +25,8 @@
 - 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes
 - 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
 - 🚀 **Push** — Push with dirty-check, auto-upstream detection, and force support
+- 🌲 **Worktree** — Add, remove, or list git worktrees
+- 🔀 **PR** — Create GitHub pull requests with optional auto-merge
 - 🧭 **Error Recovery** — When called on a non-git directory, tools suggest nearby git repos
 - 🪝 **Hooks** — Lifecycle hook actions (preflight, create-branch, commit-phase, merge-squash, worktree-add, worktree-remove, push, create-pr, await-merge) with `enabled` guard, auto-discovered via entry-points
 - 🔎 **Phase Lookup** — `get_phase_commit()` retrieves commit hashes for protocol phases
@@ -130,6 +132,29 @@ Push the current branch to a remote after verifying a clean working tree.
 | `force` | `False` | Force-push |
 
 Pipeline: repo check → dirty check → detect branch → detect upstream → push.
+
+### `git_worktree`
+
+Add, remove, or list git worktrees.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `path` | `.` | Project root directory |
+| `action` | *required* | `add`, `remove`, or `list` |
+| `worktree_path` | `None` | Path for the new or existing worktree |
+| `branch` | `None` | Branch name for `add` |
+
+### `git_pr`
+
+Create a GitHub pull request with optional auto-merge.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `path` | `.` | Project root directory |
+| `title` | *required* | Pull request title |
+| `body` | `None` | Pull request description |
+| `base` | `None` | Base branch (defaults to repo default) |
+| `auto_merge` | `False` | Enable auto-merge when checks pass |
 
 ## Development
 
