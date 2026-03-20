@@ -28,6 +28,36 @@ def tmp_git_repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def tmp_workspace_repo(tmp_path: Path) -> tuple[Path, Path]:
+    """Create a workspace git repo with a nested package directory.
+
+    Layout::
+
+        tmp_path/workspace/          ← git root
+            .gitkeep
+            packages/pkg/            ← package dir (returned second)
+                src/
+                    hello.py
+
+    Returns:
+        (git_root, package_dir) tuple.
+    """
+    workspace = tmp_path / "workspace"
+    pkg_dir = workspace / "packages" / "pkg"
+    pkg_dir.mkdir(parents=True)
+
+    run_git(["init", "-b", "main"], workspace)
+    run_git(["config", "user.email", "test@test.com"], workspace)
+    run_git(["config", "user.name", "Test"], workspace)
+    (workspace / ".gitkeep").touch()
+    (pkg_dir / "src").mkdir()
+    (pkg_dir / "src" / "hello.py").write_text("# init\n")
+    run_git(["add", "."], workspace)
+    run_git(["commit", "-m", "init"], workspace)
+    return workspace, pkg_dir
+
+
+@pytest.fixture
 def tmp_git_repo_with_branch(tmp_git_repo: Path) -> Path:
     """Create a git repo with a session branch containing one commit.
 

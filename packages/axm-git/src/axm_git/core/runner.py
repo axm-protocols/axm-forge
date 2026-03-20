@@ -14,12 +14,38 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "detect_package_name",
+    "find_git_root",
     "gh_available",
     "not_a_repo_error",
     "run_gh",
     "run_git",
     "suggest_git_repos",
 ]
+
+
+def find_git_root(path: Path) -> Path | None:
+    """Find the git repository root containing *path*.
+
+    Uses ``git rev-parse --show-toplevel`` which walks up the directory
+    tree, supporting mono-repo and workspace layouts where ``.git``
+    lives above the package directory.
+
+    Args:
+        path: Any directory that may be inside a git repository.
+
+    Returns:
+        Repository root as a ``Path``, or ``None`` if *path* is not
+        inside a git repository.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return Path(result.stdout.strip())
 
 
 def run_git(

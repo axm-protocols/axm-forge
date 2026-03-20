@@ -13,7 +13,7 @@ from typing import Any
 
 from axm.hooks.base import HookResult
 
-from axm_git.core.runner import run_git
+from axm_git.core.runner import find_git_root, run_git
 
 __all__ = ["CommitPhaseHook"]
 
@@ -80,7 +80,7 @@ class CommitPhaseHook:
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
 
-        if not (working_dir / ".git").exists():
+        if find_git_root(working_dir) is None:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
         if params.get("from_outputs"):
@@ -97,11 +97,11 @@ class CommitPhaseHook:
         """Legacy mode: stage all and commit with format string."""
         phase_name: str = context["phase_name"]
 
-        # Stage all changes
-        run_git(["add", "-A"], working_dir)
+        # Stage all changes (scoped to working_dir for workspace layouts)
+        run_git(["add", "-A", "."], working_dir)
 
         # Check if there's anything to commit
-        status = run_git(["status", "--porcelain"], working_dir)
+        status = run_git(["status", "--porcelain", "--", "."], working_dir)
         if not status.stdout.strip():
             return HookResult.ok(skipped=True, reason="nothing to commit")
 

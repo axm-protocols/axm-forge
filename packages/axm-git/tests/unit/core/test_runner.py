@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from axm_git.core.runner import (
     detect_package_name,
+    find_git_root,
     gh_available,
     not_a_repo_error,
     run_gh,
@@ -163,3 +164,21 @@ class TestNotARepoError:
         assert "some other error" in (result.error or "")
         # Should NOT scan for repos on unrelated errors
         assert result.data is None or "suggestions" not in result.data
+
+
+class TestFindGitRoot:
+    """Test find_git_root helper."""
+
+    def test_at_repo_root(self, tmp_git_repo: Path) -> None:
+        """Returns the repo root when called on the root itself."""
+        assert find_git_root(tmp_git_repo) == tmp_git_repo
+
+    def test_from_subdirectory(self, tmp_git_repo: Path) -> None:
+        """Walks up from a subdirectory to find the repo root."""
+        subdir = tmp_git_repo / "deep" / "nested"
+        subdir.mkdir(parents=True)
+        assert find_git_root(subdir) == tmp_git_repo
+
+    def test_not_a_repo(self, tmp_path: Path) -> None:
+        """Returns None when path is not inside any git repo."""
+        assert find_git_root(tmp_path) is None

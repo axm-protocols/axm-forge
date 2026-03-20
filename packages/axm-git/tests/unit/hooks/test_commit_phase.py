@@ -253,3 +253,46 @@ class TestCommitFromOutputs:
         assert result.success
         log = run_git(["log", "-1", "--format=%B"], tmp_git_repo)
         assert log.stdout.strip() == "feat: no body"
+
+
+class TestCommitPhaseWorkspace:
+    """Tests for CommitPhaseHook in workspace (nested package) layouts."""
+
+    def test_workspace_package_commits(
+        self,
+        tmp_workspace_repo: tuple[Path, Path],
+    ) -> None:
+        """CommitPhaseHook finds git root and commits from a nested package."""
+        _, pkg_dir = tmp_workspace_repo
+
+        (pkg_dir / "src" / "hello.py").write_text("# changed\n")
+
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {"working_dir": str(pkg_dir), "phase_name": "close"},
+        )
+
+        assert result.success
+        assert result.metadata["commit"]
+        assert result.metadata["message"] == "[axm] close"
+
+    def test_workspace_nothing_to_commit(
+        self,
+        tmp_workspace_repo: tuple[Path, Path],
+    ) -> None:
+        """Skips when package dir is clean (even if workspace root has changes)."""
+        git_root, pkg_dir = tmp_workspace_repo
+
+        # Only change at workspace root — package is clean
+        (git_root / "noise.txt").write_text("workspace noise")
+        run_git(["add", "noise.txt"], git_root)
+        run_git(["commit", "-m", "noise"], git_root)
+
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {"working_dir": str(pkg_dir), "phase_name": "close"},
+        )
+
+        assert result.success
+        assert result.metadata["skipped"] is True
+        assert result.metadata["reason"] == "nothing to commit"

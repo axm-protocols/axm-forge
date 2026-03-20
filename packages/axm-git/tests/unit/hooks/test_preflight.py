@@ -10,6 +10,45 @@ from axm_git.hooks.preflight import PreflightHook
 class TestPreflightHook:
     """Tests for PreflightHook."""
 
+    def test_workspace_package_scoped(
+        self,
+        tmp_workspace_repo: tuple[Path, Path],
+    ) -> None:
+        """Hook scopes status/diff to the package inside a workspace."""
+        git_root, pkg_dir = tmp_workspace_repo
+
+        # Modify a file inside the package
+        (pkg_dir / "src" / "hello.py").write_text("# modified\n")
+        # Add an unrelated file at workspace root (should be excluded)
+        (git_root / "root_change.txt").write_text("workspace noise")
+
+        hook = PreflightHook()
+        result = hook.execute({}, path=str(pkg_dir))
+
+        assert result.success
+        # Only the package file should appear — not root_change.txt
+        paths = [f["path"] for f in result.metadata["files"]]
+        assert any("hello.py" in p for p in paths)
+        assert not any("root_change" in p for p in paths)
+        assert result.metadata["file_count"] == 1
+
+    def test_workspace_package_clean(
+        self,
+        tmp_workspace_repo: tuple[Path, Path],
+    ) -> None:
+        """Hook reports clean when only workspace root has changes."""
+        git_root, pkg_dir = tmp_workspace_repo
+
+        # Change at workspace root only — package is clean
+        (git_root / "root_change.txt").write_text("noise")
+
+        hook = PreflightHook()
+        result = hook.execute({}, path=str(pkg_dir))
+
+        assert result.success
+        assert result.metadata["clean"] is True
+        assert result.metadata["file_count"] == 0
+
     def test_returns_status(self, tmp_git_repo: Path) -> None:
         """Hook returns file list and diff for modified files."""
         # Modify a tracked file to get a diff
