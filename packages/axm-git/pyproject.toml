@@ -24,6 +24,8 @@ git_preflight = "axm_git.tools.commit_preflight:GitPreflightTool"
 git_commit    = "axm_git.tools.commit:GitCommitTool"
 git_branch    = "axm_git.tools.branch:GitBranchTool"
 git_push      = "axm_git.tools.push:GitPushTool"
+git_worktree  = "axm_git.tools.worktree:GitWorktreeTool"
+git_pr        = "axm_git.tools.pr:GitPRTool"
 
 [project.entry-points."axm.hooks"]
 "git:create-branch"  = "axm_git.hooks.create_branch:CreateBranchHook"

@@ -27,6 +27,8 @@
 - 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes
 - 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
 - 🚀 **Push** — Push with dirty-check, auto-upstream detection, and force support
+- 🌲 **Worktree** — Add, remove, or list git worktrees
+- 🔀 **PR** — Create GitHub pull requests with optional auto-merge
 - 🪝 **Hooks** — Lifecycle hook actions (preflight, create-branch, commit-phase, merge-squash, worktree-add, worktree-remove) auto-discovered via entry-points
 
 ## Installation
