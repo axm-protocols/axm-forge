@@ -16,8 +16,9 @@ Hook actions auto-discovered via the `axm.hooks` entry-point group by `HookRegis
 
 | Hook | Entry point | Description |
 |---|---|---|
+| `git:preflight` | `PreflightHook` | Structured working tree status check before a phase |
 | `git:create-branch` | `CreateBranchHook` | Create session branch `{prefix}/{session_id}` |
-| `git:commit-phase` | `CommitPhaseHook` | Stage all + commit with `[axm] {phase}` |
+| `git:commit-phase` | `CommitPhaseHook` | Stage all + commit with `[axm] {phase}`; pass `from_outputs=True` to derive staged files from protocol outputs |
 | `git:merge-squash` | `MergeSquashHook` | Squash-merge session branch back to target |
 
 ## Python API

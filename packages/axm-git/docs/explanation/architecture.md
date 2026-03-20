@@ -19,6 +19,7 @@ graph TD
     end
 
     subgraph "Hooks"
+        PF["PreflightHook"]
         CB["CreateBranchHook"]
         CP["CommitPhaseHook"]
         MS["MergeSquashHook"]
@@ -54,16 +55,19 @@ graph TD
     Preflight --> Runner
     Branch --> Runner
     Push --> Runner
+    PF --> Runner
     CB --> Runner
     CP --> Runner
     CP --> PhaseCommit
     MS --> Runner
     Runner --> Git
     Runner --> GH
+    PF -.-> HookBase
     CB -.-> HookBase
     CP -.-> HookBase
     MS -.-> HookBase
-    Registry -.->|"entry-point discovery"| CB
+    Registry -.->|"entry-point discovery"| PF
+    Registry -.-> CB
     Registry -.-> CP
     Registry -.-> MS
 ```
@@ -94,8 +98,9 @@ Lifecycle hook actions conforming to the `HookAction` protocol from `axm.hooks.b
 
 All hooks accept an `enabled` param (default `True`). Pass `enabled=False` to skip git operations entirely (returns `HookResult.ok(skipped=True, reason="git disabled")`).
 
+- **`PreflightHook`** — Runs a structured working tree status check before a phase begins. Entry point: `git:preflight`.
 - **`CreateBranchHook`** — Creates a session branch `{prefix}/{session_id}`. Skips if not a git repo.
-- **`CommitPhaseHook`** — Stages all changes, commits with `[axm] {phase_name}`. Skips if nothing to commit.
+- **`CommitPhaseHook`** — Stages all changes, commits with `[axm] {phase_name}`. Pass `from_outputs=True` to derive staged files from protocol outputs instead of staging everything. Skips if nothing to commit.
 - **`MergeSquashHook`** — Squash-merges the session branch back to the target branch.
 
 ## Design Decisions
