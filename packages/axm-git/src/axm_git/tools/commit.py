@@ -52,6 +52,25 @@ def _attempt_commit(
     return commit.returncode == 0, retried, output
 
 
+def _validate_commit_spec(
+    spec: dict[str, Any], index: int, results: list[dict[str, Any]]
+) -> ToolResult | None:
+    """Validate a single commit spec, returning a ToolResult error or None."""
+    if not spec.get("files"):
+        return ToolResult(
+            success=False,
+            error=f"Commit {index}: empty files list",
+            data={"results": results, "succeeded": len(results)},
+        )
+    if not spec.get("message"):
+        return ToolResult(
+            success=False,
+            error=f"Commit {index}: empty message",
+            data={"results": results, "succeeded": len(results)},
+        )
+    return None
+
+
 def _build_failure_data(  # noqa: PLR0913
     results: list[dict[str, Any]],
     *,
@@ -133,23 +152,13 @@ class GitCommitTool(AXMTool):
         results: list[dict[str, Any]] = []
 
         for i, spec in enumerate(commit_list):
-            files: list[str] = spec.get("files", [])
-            message: str = spec.get("message", "")
+            validation_err = _validate_commit_spec(spec, i + 1, results)
+            if validation_err:
+                return validation_err
+
+            files: list[str] = spec["files"]
+            message: str = spec["message"]
             body: str | None = spec.get("body")
-
-            if not files:
-                return ToolResult(
-                    success=False,
-                    error=f"Commit {i + 1}: empty files list",
-                    data={"results": results, "succeeded": len(results)},
-                )
-
-            if not message:
-                return ToolResult(
-                    success=False,
-                    error=f"Commit {i + 1}: empty message",
-                    data={"results": results, "succeeded": len(results)},
-                )
 
             # Stage files
             add_err = _stage_files(files, resolved)
