@@ -87,11 +87,9 @@ class TestCommitFromOutputs:
         result = hook.execute(
             {
                 "working_dir": str(tmp_git_repo),
-                "outputs": {
-                    "commit_spec": {
-                        "message": "feat(test): add included",
-                        "files": ["included.txt"],
-                    },
+                "commit_spec": {
+                    "message": "feat(test): add included",
+                    "files": ["included.txt"],
                 },
             },
             from_outputs=True,
@@ -115,12 +113,10 @@ class TestCommitFromOutputs:
         result = hook.execute(
             {
                 "working_dir": str(tmp_git_repo),
-                "outputs": {
-                    "commit_spec": {
-                        "message": "feat(runner): extract",
-                        "body": "Closes: AXM-605",
-                        "files": ["f.txt"],
-                    },
+                "commit_spec": {
+                    "message": "feat(runner): extract",
+                    "body": "Closes: AXM-605",
+                    "files": ["f.txt"],
                 },
             },
             from_outputs=True,
@@ -141,11 +137,9 @@ class TestCommitFromOutputs:
         result = hook.execute(
             {
                 "working_dir": str(tmp_git_repo),
-                "outputs": {
-                    "commit_spec": {
-                        "message": "feat: test hash",
-                        "files": ["f.txt"],
-                    },
+                "commit_spec": {
+                    "message": "feat: test hash",
+                    "files": ["f.txt"],
                 },
             },
             from_outputs=True,
@@ -159,17 +153,6 @@ class TestCommitFromOutputs:
         """Fails with clear message when commit_spec is absent."""
         hook = CommitPhaseHook()
         result = hook.execute(
-            {"working_dir": str(tmp_git_repo), "outputs": {}},
-            from_outputs=True,
-        )
-
-        assert not result.success
-        assert "commit_spec" in (result.error or "")
-
-    def test_missing_outputs_fails(self, tmp_git_repo: Path) -> None:
-        """Fails when outputs key is missing entirely."""
-        hook = CommitPhaseHook()
-        result = hook.execute(
             {"working_dir": str(tmp_git_repo)},
             from_outputs=True,
         )
@@ -177,15 +160,24 @@ class TestCommitFromOutputs:
         assert not result.success
         assert "commit_spec" in (result.error or "")
 
+    def test_commit_spec_not_a_dict_fails(self, tmp_git_repo: Path) -> None:
+        """Fails when commit_spec is not a dict."""
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {"working_dir": str(tmp_git_repo), "commit_spec": "not a dict"},
+            from_outputs=True,
+        )
+
+        assert not result.success
+        assert "commit_spec must be a dict" in (result.error or "")
+
     def test_missing_files_key_fails(self, tmp_git_repo: Path) -> None:
         """Fails when commit_spec has no files key."""
         hook = CommitPhaseHook()
         result = hook.execute(
             {
                 "working_dir": str(tmp_git_repo),
-                "outputs": {
-                    "commit_spec": {"message": "feat: no files"},
-                },
+                "commit_spec": {"message": "feat: no files"},
             },
             from_outputs=True,
         )
@@ -199,11 +191,9 @@ class TestCommitFromOutputs:
         result = hook.execute(
             {
                 "working_dir": str(tmp_git_repo),
-                "outputs": {
-                    "commit_spec": {
-                        "message": "feat: ghost",
-                        "files": ["deleted.py"],
-                    },
+                "commit_spec": {
+                    "message": "feat: ghost",
+                    "files": ["deleted.py"],
                 },
             },
             from_outputs=True,
@@ -218,11 +208,27 @@ class TestCommitFromOutputs:
         result = hook.execute(
             {
                 "working_dir": str(tmp_git_repo),
-                "outputs": {
-                    "commit_spec": {
-                        "message": "feat: clean",
-                        "files": [".gitkeep"],
-                    },
+                "commit_spec": {
+                    "message": "feat: clean",
+                    "files": [".gitkeep"],
+                },
+            },
+            from_outputs=True,
+        )
+
+        assert result.success
+        assert result.metadata["skipped"] is True
+        assert result.metadata["reason"] == "nothing to commit"
+
+    def test_empty_files_list_fails(self, tmp_git_repo: Path) -> None:
+        """Fails when files list is empty."""
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {
+                "working_dir": str(tmp_git_repo),
+                "commit_spec": {
+                    "message": "feat: empty",
+                    "files": [],
                 },
             },
             from_outputs=True,
@@ -240,11 +246,9 @@ class TestCommitFromOutputs:
         result = hook.execute(
             {
                 "working_dir": str(tmp_git_repo),
-                "outputs": {
-                    "commit_spec": {
-                        "message": "feat: no body",
-                        "files": ["f.txt"],
-                    },
+                "commit_spec": {
+                    "message": "feat: no body",
+                    "files": ["f.txt"],
                 },
             },
             from_outputs=True,
