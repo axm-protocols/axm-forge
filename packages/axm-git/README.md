@@ -26,7 +26,7 @@
 - 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
 - 🚀 **Push** — Push with dirty-check, auto-upstream detection, and force support
 - 🧭 **Error Recovery** — When called on a non-git directory, tools suggest nearby git repos
-- 🪝 **Hooks** — Lifecycle hook actions (preflight, create-branch, commit-phase, merge-squash) with `enabled` guard, auto-discovered via entry-points
+- 🪝 **Hooks** — Lifecycle hook actions (preflight, create-branch, commit-phase, merge-squash, worktree-add, worktree-remove) with `enabled` guard, auto-discovered via entry-points
 - 🔎 **Phase Lookup** — `get_phase_commit()` retrieves commit hashes for protocol phases
 
 ## Installation

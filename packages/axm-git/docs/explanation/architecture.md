@@ -23,6 +23,8 @@ graph TD
         CB["CreateBranchHook"]
         CP["CommitPhaseHook"]
         MS["MergeSquashHook"]
+        WA["WorktreeAddHook"]
+        WR["WorktreeRemoveHook"]
     end
 
     subgraph "Core"
@@ -60,16 +62,22 @@ graph TD
     CP --> Runner
     CP --> PhaseCommit
     MS --> Runner
+    WA --> Runner
+    WR --> Runner
     Runner --> Git
     Runner --> GH
     PF -.-> HookBase
     CB -.-> HookBase
     CP -.-> HookBase
     MS -.-> HookBase
+    WA -.-> HookBase
+    WR -.-> HookBase
     Registry -.->|"entry-point discovery"| PF
     Registry -.-> CB
     Registry -.-> CP
     Registry -.-> MS
+    Registry -.-> WA
+    Registry -.-> WR
 ```
 
 ## Layers
@@ -102,6 +110,8 @@ All hooks accept an `enabled` param (default `True`). Pass `enabled=False` to sk
 - **`CreateBranchHook`** — Creates a session branch `{prefix}/{session_id}`. Skips if not a git repo.
 - **`CommitPhaseHook`** — Stages all changes, commits with `[axm] {phase_name}`. Pass `from_outputs=True` to derive staged files from protocol outputs instead of staging everything. Skips if nothing to commit.
 - **`MergeSquashHook`** — Squash-merges the session branch back to the target branch.
+- **`WorktreeAddHook`** — Creates a git worktree + branch for a ticket at `<repo_parent>/<ticket_id>/`, deriving the branch name from ticket metadata. Entry point: `git:worktree-add`.
+- **`WorktreeRemoveHook`** — Removes a worktree previously created by `WorktreeAddHook` using `git worktree remove --force`. Entry point: `git:worktree-remove`.
 
 ## Design Decisions
 
