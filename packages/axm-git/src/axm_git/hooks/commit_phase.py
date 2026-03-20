@@ -21,16 +21,15 @@ _REQUIRED_SPEC_KEYS = {"message", "files"}
 
 
 def _validate_commit_spec(
-    outputs: dict[str, Any] | None,
+    spec: dict[str, Any] | None,
 ) -> tuple[dict[str, Any] | None, str | None]:
-    """Validate and extract commit_spec from outputs.
+    """Validate a ``commit_spec`` dict.
 
     Returns:
         (spec, error_message) — spec is None when error is set.
     """
-    if not outputs or "commit_spec" not in outputs:
-        return None, "from_outputs=True but no commit_spec in context outputs"
-    spec = outputs["commit_spec"]
+    if not spec:
+        return None, "from_outputs=True but no commit_spec in context"
     if not isinstance(spec, dict):
         return None, "commit_spec must be a dict"
     missing = _REQUIRED_SPEC_KEYS - set(spec)
@@ -123,7 +122,7 @@ class CommitPhaseHook:
         working_dir: Path,
     ) -> HookResult:
         """Outputs mode: read commit_spec from context, stage listed files."""
-        spec, err = _validate_commit_spec(context.get("outputs"))
+        spec, err = _validate_commit_spec(context.get("commit_spec"))
         if err:
             return HookResult.fail(err)
         assert spec is not None  # guaranteed by _validate_commit_spec
