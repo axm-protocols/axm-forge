@@ -37,6 +37,7 @@ git_pr        = "axm_git.tools.pr:GitPRTool"
 "git:push"            = "axm_git.hooks.push:PushHook"
 "git:create-pr"       = "axm_git.hooks.create_pr:CreatePRHook"
 "git:await-merge"     = "axm_git.hooks.await_merge:AwaitMergeHook"
+"git:pull-main"       = "axm_git.hooks.pull:PullHook"
 
 [project.urls]
 Homepage = "https://github.com/axm-protocols/axm-git"
