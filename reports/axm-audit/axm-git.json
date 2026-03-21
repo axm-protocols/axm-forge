@@ -1,6 +1,6 @@
 {
-  "score": 91.0,
-  "grade": "A",
+  "score": 89.5,
+  "grade": "B",
   "total": 24,
   "failed": 2,
   "success": false,
@@ -49,22 +49,27 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 80/100 (2 high-complexity functions)",
+      "message": "Complexity score: 70/100 (3 high-complexity functions)",
       "details": {
-        "high_complexity_count": 2,
+        "high_complexity_count": 3,
         "top_offenders": [
+          {
+            "file": "await_merge.py",
+            "function": "AwaitMergeHook",
+            "cc": 12
+          },
+          {
+            "file": "await_merge.py",
+            "function": "AwaitMergeHook.execute",
+            "cc": 11
+          },
           {
             "file": "preflight.py",
             "function": "PreflightHook",
             "cc": 10
-          },
-          {
-            "file": "await_merge.py",
-            "function": "AwaitMergeHook",
-            "cc": 10
           }
         ],
-        "score": 80
+        "score": 70
       }
     },
     {
