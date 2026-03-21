@@ -48,12 +48,12 @@ class TestWorktreeAddHook:
         expected = branch_name_from_ticket(tid, title, labels)
         assert result.metadata["branch"] == expected
 
-    def test_worktree_path_is_sibling(self, tmp_git_repo: Path) -> None:
+    def test_worktree_path_is_under_tmp(self, tmp_git_repo: Path) -> None:
         hook = WorktreeAddHook()
         result = hook.execute(_make_context(tmp_git_repo, ticket_id="AXM-30"))
 
         wt_path = Path(result.metadata["worktree_path"])
-        assert wt_path.parent == tmp_git_repo.parent
+        assert wt_path.parent == Path("/tmp/axm-worktrees")
         assert wt_path.name == "AXM-30"
 
     def test_skip_not_git_repo(self, tmp_path: Path) -> None:

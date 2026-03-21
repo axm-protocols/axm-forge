@@ -1,6 +1,6 @@
 """Worktree-add hook action.
 
-Creates a git worktree at ``<repo_parent>/<ticket_id>/`` with a branch
+Creates a git worktree at ``/tmp/axm-worktrees/<ticket_id>/`` with a branch
 derived from ticket metadata via ``branch_name_from_ticket()``.
 """
 
@@ -23,8 +23,8 @@ class WorktreeAddHook:
     """Create a worktree + branch for a ticket.
 
     Reads ``ticket_id``, ``ticket_title``, ``ticket_labels``, and
-    ``repo_path`` from *context*.  The worktree is placed as a sibling
-    of the repository: ``<repo_parent>/<ticket_id>/``.
+    ``repo_path`` from *context*.  The worktree is placed under
+    ``/tmp/axm-worktrees/<ticket_id>/``.
 
     Skips gracefully when the working directory is not a git repository
     or the worktree already exists.
@@ -54,7 +54,8 @@ class WorktreeAddHook:
         labels: list[str] = context.get("ticket_labels", [])
 
         branch = branch_name_from_ticket(ticket_id, title, labels)
-        worktree_path = repo_path.parent / ticket_id
+        worktree_path = Path("/tmp/axm-worktrees") / ticket_id  # noqa: S108
+        worktree_path.parent.mkdir(parents=True, exist_ok=True)
 
         if worktree_path.exists():
             return HookResult.ok(
