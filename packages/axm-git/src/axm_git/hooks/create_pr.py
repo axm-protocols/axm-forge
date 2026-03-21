@@ -44,7 +44,8 @@ class CreatePRHook:
         Args:
             context: Session context dictionary.
             **params: Optional ``enabled`` (default ``True``),
-                ``base`` (default ``"main"``).
+                ``base`` (default ``"main"``), ``commit_spec``,
+                ``ticket_id``.  Params take precedence over context.
 
         Returns:
             HookResult with ``pr_url`` and ``pr_number`` in metadata.
@@ -62,8 +63,10 @@ class CreatePRHook:
             )
         )
 
-        commit_spec: dict[str, Any] = context.get("commit_spec", {})
-        ticket_id: str = context.get("ticket_id", "")
+        commit_spec: dict[str, Any] = params.get(
+            "commit_spec", context.get("commit_spec", {})
+        )
+        ticket_id: str = params.get("ticket_id", context.get("ticket_id", ""))
         base = params.get("base", "main")
 
         title = _format_pr_title(commit_spec, ticket_id)

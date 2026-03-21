@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_git.core.branch_naming import branch_name_from_ticket
 from axm_git.core.runner import run_git
 from axm_git.hooks.worktree_add import WorktreeAddHook
@@ -83,3 +85,66 @@ class TestWorktreeAddHook:
         assert result.success
         assert result.metadata["skipped"] is True
         assert result.metadata["reason"] == "git disabled"
+
+
+class TestWorktreeAddHookParamsOverride:
+    """Regression tests: params take precedence over context (AXM-665)."""
+
+    def test_params_override_context(self, tmp_git_repo: Path) -> None:
+        """repo_path in **params overrides context value."""
+        hook = WorktreeAddHook()
+        context = _make_context(Path("/nonexistent"), ticket_id="AXM-70")
+        result = hook.execute(
+            context,
+            repo_path=str(tmp_git_repo),
+        )
+
+        assert result.success
+        assert not result.metadata.get("skipped")
+        assert Path(result.metadata["worktree_path"]).exists()
+
+    def test_fallback_to_context(self, tmp_git_repo: Path) -> None:
+        """When params omit repo_path, context value is used (backward compat)."""
+        hook = WorktreeAddHook()
+        result = hook.execute(_make_context(tmp_git_repo, ticket_id="AXM-71"))
+
+        assert result.success
+        assert not result.metadata.get("skipped")
+
+    def test_creates_worktree_from_non_git_cwd(
+        self, tmp_git_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CWD is /tmp (non-git), but repo_path param points to valid repo."""
+        monkeypatch.chdir(Path("/tmp"))
+        assert not Path(".git").exists(), "CWD should not be a git repo"
+
+        hook = WorktreeAddHook()
+        result = hook.execute(
+            {},
+            repo_path=str(tmp_git_repo),
+            ticket_id="AXM-72",
+            ticket_title="fix(git): non-git cwd",
+            ticket_labels=["worktree"],
+        )
+
+        assert result.success
+        assert not result.metadata.get("skipped")
+        assert Path(result.metadata["worktree_path"]).exists()
+
+    def test_all_fields_from_params(self, tmp_git_repo: Path) -> None:
+        """All four fields passed as params, empty context."""
+        hook = WorktreeAddHook()
+        result = hook.execute(
+            {},
+            repo_path=str(tmp_git_repo),
+            ticket_id="AXM-73",
+            ticket_title="feat(git): all params",
+            ticket_labels=["worktree"],
+        )
+
+        assert result.success
+        assert not result.metadata.get("skipped")
+        expected_branch = branch_name_from_ticket(
+            "AXM-73", "feat(git): all params", ["worktree"]
+        )
+        assert result.metadata["branch"] == expected_branch

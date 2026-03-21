@@ -34,9 +34,10 @@ class WorktreeAddHook:
         """Execute the hook action.
 
         Args:
-            context: Session context (must contain ``repo_path``,
-                ``ticket_id``, ``ticket_title``, ``ticket_labels``).
-            **params: Optional ``enabled`` (default ``True``).
+            context: Session context dictionary.
+            **params: Optional ``repo_path``, ``ticket_id``,
+                ``ticket_title``, ``ticket_labels``, ``enabled``
+                (default ``True``).  Params take precedence over context.
 
         Returns:
             HookResult with ``worktree_path`` and ``branch`` in metadata.
@@ -44,14 +45,22 @@ class WorktreeAddHook:
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
 
-        repo_path = Path(context.get("repo_path", "."))
+        repo_path = Path(params.get("repo_path", context.get("repo_path", ".")))
 
         if find_git_root(repo_path) is None:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
-        ticket_id: str = context["ticket_id"]
-        title: str = context["ticket_title"]
-        labels: list[str] = context.get("ticket_labels", [])
+        ticket_id: str = (
+            params["ticket_id"] if "ticket_id" in params else context["ticket_id"]
+        )
+        title: str = (
+            params["ticket_title"]
+            if "ticket_title" in params
+            else context["ticket_title"]
+        )
+        labels: list[str] = params.get(
+            "ticket_labels", context.get("ticket_labels", [])
+        )
 
         branch = branch_name_from_ticket(ticket_id, title, labels)
         worktree_path = Path("/tmp/axm-worktrees") / ticket_id  # noqa: S108
