@@ -14,6 +14,7 @@ from typing import Any
 from axm.hooks.base import HookResult
 
 from axm_git.core.runner import gh_available, run_gh
+from axm_git.hooks._resolve import _resolve_working_dir
 
 __all__ = ["AwaitMergeHook"]
 
@@ -48,12 +49,7 @@ class AwaitMergeHook:
         if not gh_available():
             return HookResult.ok(skipped=True, reason="gh not available")
 
-        working_dir = Path(
-            params.get(
-                "working_dir",
-                context.get("worktree_path", context.get("working_dir", ".")),
-            )
-        )
+        working_dir = _resolve_working_dir(params, context)
 
         pr_ref = context.get("pr_number") or context.get("pr_url")
         if not pr_ref:
