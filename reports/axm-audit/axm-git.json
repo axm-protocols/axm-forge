@@ -1,8 +1,8 @@
 {
-  "score": 92.9,
+  "score": 91.0,
   "grade": "A",
   "total": 24,
-  "failed": 1,
+  "failed": 2,
   "success": false,
   "checks": [
     {
@@ -29,8 +29,8 @@
       "message": "Coupling: 0 modules above threshold (max fan-out: 10)",
       "details": {
         "max_fan_out": 10,
-        "max_fan_in": 11,
-        "avg_coupling": 4.46,
+        "max_fan_in": 19,
+        "avg_coupling": 4.61,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -48,27 +48,32 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": true,
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "passed": false,
+      "message": "Complexity score: 80/100 (2 high-complexity functions)",
       "details": {
-        "high_complexity_count": 1,
+        "high_complexity_count": 2,
         "top_offenders": [
           {
             "file": "preflight.py",
             "function": "PreflightHook",
             "cc": 10
+          },
+          {
+            "file": "await_merge.py",
+            "function": "AwaitMergeHook",
+            "cc": 10
           }
         ],
-        "score": 90
+        "score": 80
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 96% (96/100)",
+      "message": "Test coverage: 95% (95/100)",
       "details": {
-        "coverage": 96.06099110546378,
-        "score": 96,
+        "coverage": 95.03602882305844,
+        "score": 95,
         "failures": []
       }
     },
@@ -135,11 +140,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (24/24)",
+      "message": "Docstring coverage: 100% (36/36)",
       "details": {
         "coverage": 1.0,
-        "total": 24,
-        "documented": 24,
+        "total": 36,
+        "documented": 36,
         "missing": [],
         "score": 100
       }
@@ -191,11 +196,11 @@
     {
       "rule_id": "QUALITY_SECURITY",
       "passed": true,
-      "message": "Security score: 100/100 (0 high, 0 medium severity issues)",
+      "message": "Security score: 95/100 (0 high, 1 medium severity issues)",
       "details": {
         "high_count": 0,
-        "medium_count": 0,
-        "score": 100,
+        "medium_count": 1,
+        "score": 95,
         "top_issues": [
           {
             "severity": "LOW",
@@ -226,11 +231,11 @@
             "line": 40
           },
           {
-            "severity": "LOW",
-            "code": "B607",
-            "message": "Starting a process with a partial executable path",
-            "file": "runner.py",
-            "line": 69
+            "severity": "MEDIUM",
+            "code": "B108",
+            "message": "Probable insecure usage of temp file/directory.",
+            "file": "worktree_add.py",
+            "line": 66
           }
         ]
       }
