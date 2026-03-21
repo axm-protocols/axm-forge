@@ -7,12 +7,12 @@ working-tree state before a protocol phase.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from axm.hooks.base import HookResult
 
 from axm_git.core.runner import find_git_root, run_git
+from axm_git.hooks._resolve import _resolve_working_dir
 
 __all__ = ["PreflightHook"]
 
@@ -44,8 +44,7 @@ class PreflightHook:
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
 
-        path = params.get("path", context.get("working_dir", "."))
-        working_dir = Path(path).resolve()
+        working_dir = _resolve_working_dir(params, context, param_key="path").resolve()
         max_diff_lines: int = int(params.get("diff_lines", 200))
 
         git_root = find_git_root(working_dir)

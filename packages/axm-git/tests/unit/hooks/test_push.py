@@ -143,3 +143,35 @@ class TestPushHook:
         assert result.success
         assert result.metadata["skipped"] is True
         assert result.metadata["reason"] == "not a git repo"
+
+    def test_push_dict_worktree_path(
+        self,
+        tmp_git_repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Dict worktree_path in context is unwrapped without TypeError."""
+        captured_cwd: list[Path] = []
+
+        def fake_run_git(
+            args: list[str], cwd: Path, **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            captured_cwd.append(cwd)
+            if args[0] == "rev-parse":
+                return subprocess.CompletedProcess(
+                    args, 0, stdout="feat/x\n", stderr=""
+                )
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        monkeypatch.setattr("axm_git.hooks.push.run_git", fake_run_git)
+
+        hook = PushHook()
+        result = hook.execute(
+            {
+                "worktree_path": {
+                    "worktree_path": str(tmp_git_repo),
+                    "branch": "feat/x",
+                },
+            },
+        )
+        assert result.success
+        assert captured_cwd[0] == Path(tmp_git_repo)

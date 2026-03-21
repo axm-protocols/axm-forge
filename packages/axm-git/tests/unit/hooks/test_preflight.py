@@ -101,6 +101,26 @@ class TestPreflightHook:
         assert result.metadata["skipped"] is True
         assert result.metadata["reason"] == "git disabled"
 
+    def test_preflight_dict_worktree_path(
+        self,
+        tmp_git_repo: Path,
+    ) -> None:
+        """Dict worktree_path in context is unwrapped without TypeError."""
+        (tmp_git_repo / "f.txt").write_text("x")
+
+        hook = PreflightHook()
+        result = hook.execute(
+            {
+                "worktree_path": {
+                    "worktree_path": str(tmp_git_repo),
+                    "branch": "feat/x",
+                },
+            },
+        )
+
+        assert result.success
+        assert result.metadata["file_count"] == 1
+
     def test_path_from_params(self, tmp_git_repo: Path) -> None:
         """Hook reads path from params over context working_dir."""
         (tmp_git_repo / "f.txt").write_text("x")
