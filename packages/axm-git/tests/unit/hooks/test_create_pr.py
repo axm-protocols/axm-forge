@@ -206,6 +206,43 @@ class TestCreatePRHook:
         assert result.metadata["auto_merge"] is False
         assert result.metadata["pr_url"] == "https://github.com/org/repo/pull/10"
 
+    def test_create_pr_dict_worktree_path(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Dict worktree_path in context is unwrapped without TypeError."""
+        captured_cwd: list[Path] = []
+
+        def fake_run_gh(
+            args: list[str], cwd: Path, **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            captured_cwd.append(cwd)
+            if args[1] == "create":
+                return subprocess.CompletedProcess(
+                    args,
+                    0,
+                    stdout="https://github.com/org/repo/pull/1\n",
+                    stderr="",
+                )
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        monkeypatch.setattr("axm_git.hooks.create_pr.gh_available", lambda: True)
+        monkeypatch.setattr("axm_git.hooks.create_pr.run_gh", fake_run_gh)
+
+        hook = CreatePRHook()
+        result = hook.execute(
+            {
+                "worktree_path": {
+                    "worktree_path": "/tmp/wt",
+                    "branch": "feat/x",
+                },
+                "commit_spec": {"message": "feat: x"},
+                "ticket_id": "AXM-1",
+            },
+        )
+        assert result.success
+        assert captured_cwd[0] == Path("/tmp/wt")
+
 
 class TestCreatePRHookParamsOverride:
     """Regression tests: params take precedence over context (AXM-665)."""

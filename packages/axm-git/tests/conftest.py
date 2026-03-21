@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import shutil
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
 
 from axm_git.core.runner import run_git
+
+_AXM_WORKTREES_DIR = Path("/tmp/axm-worktrees")
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_axm_worktrees() -> Generator[None, None, None]:
+    """Remove any /tmp/axm-worktrees/<id> dirs created during the test."""
+    before = set(_AXM_WORKTREES_DIR.iterdir()) if _AXM_WORKTREES_DIR.exists() else set()
+    yield
+    if _AXM_WORKTREES_DIR.exists():
+        for entry in _AXM_WORKTREES_DIR.iterdir():
+            if entry not in before:
+                shutil.rmtree(entry, ignore_errors=True)
 
 
 @pytest.fixture

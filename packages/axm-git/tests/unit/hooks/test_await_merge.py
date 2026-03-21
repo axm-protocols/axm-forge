@@ -151,6 +151,40 @@ class TestAwaitMergeHook:
         assert result.success
         assert result.metadata["skipped"] is True
 
+    def test_await_merge_dict_worktree_path(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Dict worktree_path in context is unwrapped without TypeError."""
+        captured_cwd: list[Path] = []
+
+        def fake_run_gh(
+            args: list[str], cwd: Path, **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            captured_cwd.append(cwd)
+            return subprocess.CompletedProcess(
+                args, 0, stdout='{"state":"MERGED"}', stderr=""
+            )
+
+        monkeypatch.setattr("axm_git.hooks.await_merge.gh_available", lambda: True)
+        monkeypatch.setattr("axm_git.hooks.await_merge.run_gh", fake_run_gh)
+        monkeypatch.setattr("axm_git.hooks.await_merge.time.sleep", lambda _: None)
+
+        hook = AwaitMergeHook()
+        result = hook.execute(
+            {
+                "worktree_path": {
+                    "worktree_path": "/tmp/wt",
+                    "branch": "feat/x",
+                },
+                "pr_number": "42",
+            },
+            interval=1,
+            timeout=10,
+        )
+        assert result.success
+        assert captured_cwd[0] == Path("/tmp/wt")
+
     def test_await_merge_network_error(
         self,
         monkeypatch: pytest.MonkeyPatch,
