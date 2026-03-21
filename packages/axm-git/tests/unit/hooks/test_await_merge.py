@@ -130,7 +130,7 @@ class TestAwaitMergeHook:
         result = hook.execute({"working_dir": "."})
         assert not result.success
         assert result.error is not None
-        assert "no pr_number" in result.error
+        assert "no pr_number or pr_url" in result.error
 
     def test_await_merge_skip_no_gh(
         self,
@@ -184,6 +184,84 @@ class TestAwaitMergeHook:
         )
         assert result.success
         assert captured_cwd[0] == Path("/tmp/wt")
+
+    def test_pr_ref_from_params_pr_url(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """pr_url passed as param is used (not only context)."""
+        monkeypatch.setattr("axm_git.hooks.await_merge.gh_available", lambda: True)
+        monkeypatch.setattr(
+            "axm_git.hooks.await_merge.run_gh",
+            lambda args, cwd, **kw: subprocess.CompletedProcess(
+                args, 0, stdout='{"state":"MERGED"}', stderr=""
+            ),
+        )
+        monkeypatch.setattr("axm_git.hooks.await_merge.time.sleep", lambda _: None)
+
+        hook = AwaitMergeHook()
+        result = hook.execute(
+            {"working_dir": "."},
+            pr_url="https://github.com/org/repo/pull/99",
+            interval=1,
+            timeout=10,
+        )
+        assert result.success
+        assert result.metadata["merged"] is True
+
+    def test_pr_ref_from_params_pr_number(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """pr_number passed as param is used."""
+        monkeypatch.setattr("axm_git.hooks.await_merge.gh_available", lambda: True)
+        monkeypatch.setattr(
+            "axm_git.hooks.await_merge.run_gh",
+            lambda args, cwd, **kw: subprocess.CompletedProcess(
+                args, 0, stdout='{"state":"MERGED"}', stderr=""
+            ),
+        )
+        monkeypatch.setattr("axm_git.hooks.await_merge.time.sleep", lambda _: None)
+
+        hook = AwaitMergeHook()
+        result = hook.execute(
+            {"working_dir": "."},
+            pr_number="42",
+            interval=1,
+            timeout=10,
+        )
+        assert result.success
+        assert result.metadata["merged"] is True
+
+    def test_params_pr_ref_overrides_context(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Params pr_url wins over context pr_url."""
+        captured_args: list[list[str]] = []
+
+        def fake_run_gh(
+            args: list[str], cwd: Path, **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            captured_args.append(args)
+            return subprocess.CompletedProcess(
+                args, 0, stdout='{"state":"MERGED"}', stderr=""
+            )
+
+        monkeypatch.setattr("axm_git.hooks.await_merge.gh_available", lambda: True)
+        monkeypatch.setattr("axm_git.hooks.await_merge.run_gh", fake_run_gh)
+        monkeypatch.setattr("axm_git.hooks.await_merge.time.sleep", lambda _: None)
+
+        hook = AwaitMergeHook()
+        result = hook.execute(
+            {"working_dir": ".", "pr_url": "context-url"},
+            pr_url="params-url",
+            interval=1,
+            timeout=10,
+        )
+        assert result.success
+        # The gh command should use the params value, not context
+        assert any("params-url" in str(a) for a in captured_args)
 
     def test_await_merge_network_error(
         self,
