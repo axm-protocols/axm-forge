@@ -51,9 +51,14 @@ class AwaitMergeHook:
 
         working_dir = _resolve_working_dir(params, context)
 
-        pr_ref = context.get("pr_number") or context.get("pr_url")
+        pr_ref = (
+            params.get("pr_number")
+            or params.get("pr_url")
+            or context.get("pr_number")
+            or context.get("pr_url")
+        )
         if not pr_ref:
-            return HookResult.fail("no pr_number or pr_url in context")
+            return HookResult.fail("no pr_number or pr_url in params or context")
 
         timeout = int(params.get("timeout", _DEFAULT_TIMEOUT))
         interval = int(params.get("interval", _DEFAULT_INTERVAL))
