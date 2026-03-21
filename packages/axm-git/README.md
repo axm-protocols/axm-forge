@@ -28,7 +28,7 @@
 - 🌲 **Worktree** — Add, remove, or list git worktrees
 - 🔀 **PR** — Create GitHub pull requests with optional auto-merge
 - 🧭 **Error Recovery** — When called on a non-git directory, tools suggest nearby git repos
-- 🪝 **Hooks** — Lifecycle hook actions (preflight, create-branch, commit-phase, merge-squash, worktree-add, worktree-remove, push, create-pr, await-merge) with `enabled` guard, auto-discovered via entry-points
+- 🪝 **Hooks** — Lifecycle hook actions (preflight, create-branch, commit-phase, merge-squash, worktree-add, worktree-remove, push, create-pr, await-merge, pull-main) with `enabled` guard, auto-discovered via entry-points
 - 🔎 **Phase Lookup** — `get_phase_commit()` retrieves commit hashes for protocol phases
 
 ## Installation
