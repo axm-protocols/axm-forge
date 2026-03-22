@@ -68,17 +68,25 @@ def branch_name_from_ticket(
     Returns:
         A URL-safe branch name.
     """
-    branch_type = _resolve_type(labels)
+    branch_type = _resolve_type(labels, title)
     slug = slugify(title)
     return f"{branch_type}/{ticket_id}-{slug}"
 
 
-def _resolve_type(labels: list[str]) -> str:
+_CONVENTIONAL_PREFIX_RE = re.compile(r"^(\w+)(?:\(.*?\))?:\s")
+
+_VALID_TYPES: frozenset[str] = frozenset(LABEL_TO_TYPE.values())
+
+
+def _resolve_type(labels: list[str], title: str = "") -> str:
     """Map ticket labels to a branch type prefix.
 
     Uses a priority scan through *labels*: the first label found
-    in :data:`LABEL_TO_TYPE` wins. Falls back to ``"feat"`` when
-    no labels are provided, or ``"chore"`` when none match.
+    in :data:`LABEL_TO_TYPE` wins.  When no label matches, a
+    conventional commit prefix in *title* (e.g. ``feat(scope): …``)
+    is tried as a second fallback.  Falls back to ``"feat"`` when
+    no labels are provided, or ``"chore"`` when neither labels nor
+    title yield a match.
     """
     if not labels:
         return "feat"
@@ -86,5 +94,9 @@ def _resolve_type(labels: list[str]) -> str:
     for label in labels:
         if label in LABEL_TO_TYPE:
             return LABEL_TO_TYPE[label]
+
+    match = _CONVENTIONAL_PREFIX_RE.match(title)
+    if match and match.group(1) in _VALID_TYPES:
+        return match.group(1)
 
     return "chore"
