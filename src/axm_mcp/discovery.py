@@ -445,7 +445,10 @@ def _register_one(
         if union_params is not None:
             params = union_params
         else:
-            exec_sig = inspect.signature(exec_fn)
+            try:
+                exec_sig = inspect.signature(exec_fn, eval_str=True)
+            except Exception:
+                exec_sig = inspect.signature(exec_fn)
             params = [
                 p
                 for p in exec_sig.parameters.values()
