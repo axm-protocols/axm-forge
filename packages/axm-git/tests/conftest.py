@@ -85,3 +85,16 @@ def tmp_git_repo_with_branch(tmp_git_repo: Path) -> Path:
     run_git(["add", "."], tmp_git_repo)
     run_git(["commit", "-m", "session commit"], tmp_git_repo)
     return tmp_git_repo
+
+
+@pytest.fixture
+def tmp_git_repo_with_named_branch(tmp_git_repo: Path) -> Path:
+    """Create a git repo with a ``feat/x`` branch containing one commit.
+
+    The working tree is left on the ``feat/x`` branch.
+    """
+    run_git(["checkout", "-b", "feat/x"], tmp_git_repo)
+    (tmp_git_repo / "feature_file.txt").write_text("feature work")
+    run_git(["add", "."], tmp_git_repo)
+    run_git(["commit", "-m", "feature commit"], tmp_git_repo)
+    return tmp_git_repo

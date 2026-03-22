@@ -107,9 +107,9 @@ Lifecycle hook actions conforming to the `HookAction` protocol from `axm.hooks.b
 All hooks accept an `enabled` param (default `True`). Pass `enabled=False` to skip git operations entirely (returns `HookResult.ok(skipped=True, reason="git disabled")`).
 
 - **`PreflightHook`** — Runs a structured working tree status check before a phase begins. Entry point: `git:preflight`.
-- **`CreateBranchHook`** — Creates a session branch `{prefix}/{session_id}`. Skips if not a git repo.
+- **`CreateBranchHook`** — Creates a session branch. Accepts `branch`, `ticket_id`, `ticket_title`, and `ticket_labels` params; `_resolve_branch()` derives the final branch name from those inputs. Skips if not a git repo.
 - **`CommitPhaseHook`** — Stages all changes, commits with `[axm] {phase_name}`. Pass `from_outputs=True` to derive staged files from protocol outputs instead of staging everything. Skips if nothing to commit.
-- **`MergeSquashHook`** — Squash-merges the session branch back to the target branch.
+- **`MergeSquashHook`** — Squash-merges a branch back to the target branch. Accepts `branch` and `message` params; `_resolve_branch()` reads the branch from context when `branch` is not explicitly supplied.
 - **`WorktreeAddHook`** — Creates a git worktree + branch for a ticket at `<repo_parent>/<ticket_id>/`, deriving the branch name from ticket metadata. Entry point: `git:worktree-add`.
 - **`WorktreeRemoveHook`** — Removes a worktree previously created by `WorktreeAddHook` using `git worktree remove --force`. Entry point: `git:worktree-remove`.
 
