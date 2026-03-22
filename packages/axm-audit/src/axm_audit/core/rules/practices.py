@@ -448,6 +448,9 @@ class LoggingPresenceRule(ProjectRule):
             fix_hint="Add import logging to modules" if not passed else None,
         )
 
+    # Known pure-data base classes (AST name check).
+    _DATA_BASES: frozenset[str] = frozenset({"BaseModel", "TypedDict", "Enum"})
+
     def _should_check_module(
         self,
         path: Path,
@@ -456,12 +459,29 @@ class LoggingPresenceRule(ProjectRule):
         """Determine if a module is substantial enough to require logging."""
         if path.name in {"__init__.py", "_version.py"}:
             return False
-        top_defs = sum(
-            1
+        top_level = [
+            node
             for node in ast.iter_child_nodes(tree)
             if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
-        )
-        return top_defs >= self.min_defs
+        ]
+        if len(top_level) < self.min_defs:
+            return False
+
+        # Pure data module exemption: skip modules where every top-level
+        # definition is a class inheriting from a single known data base.
+        classes = [n for n in top_level if isinstance(n, ast.ClassDef)]
+        if classes and len(classes) == len(top_level):
+            if all(self._is_pure_data_class(c) for c in classes):
+                return False
+
+        return True
+
+    def _is_pure_data_class(self, node: ast.ClassDef) -> bool:
+        """Check if a class is a pure data definition (single data-base inheritance)."""
+        if len(node.bases) != 1:
+            return False
+        base = node.bases[0]
+        return isinstance(base, ast.Name) and base.id in self._DATA_BASES
 
     def _scan_logging_coverage(
         self,
