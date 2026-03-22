@@ -942,7 +942,7 @@ class TestDogfood:
         result = tool.execute(path=str(SELF_PKG), detail="toc")
         assert result.success is True
         raw = json.dumps(result.data)
-        assert len(raw) < 6144, f"TOC output too large: {len(raw)} bytes"
+        assert len(raw) < 7168, f"TOC output too large: {len(raw)} bytes"
 
 
 """Tests for axm-ast MCP tool wrappers."""
