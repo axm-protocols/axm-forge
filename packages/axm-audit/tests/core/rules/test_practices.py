@@ -390,6 +390,247 @@ class TestLoggingPresenceRule:
         assert rule.rule_id == "PRACTICE_LOGGING"
 
 
+# ─── LoggingPresenceRule — data module exemption ─────────────────────────────
+
+
+class TestLoggingPresenceDataModuleExemption:
+    """Tests for pure data module exemption from PRACTICE_LOGGING."""
+
+    def test_pure_basemodel_module_excluded(self, tmp_path: Path) -> None:
+        """Module with only BaseModel subclasses should be excluded."""
+        import ast
+
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        source = """
+from pydantic import BaseModel
+
+class UserConfig(BaseModel):
+    name: str
+    age: int
+
+class Address(BaseModel):
+    street: str
+    city: str
+
+class Settings(BaseModel):
+    debug: bool
+
+class Metadata(BaseModel):
+    version: str
+
+class Output(BaseModel):
+    result: str
+"""
+        tree = ast.parse(source)
+        rule = LoggingPresenceRule()
+        path = tmp_path / "models.py"
+        path.write_text(source)
+        assert rule._should_check_module(path, tree) is False
+
+    def test_mixed_module_still_checked(self, tmp_path: Path) -> None:
+        """Module with BaseModel + standalone functions should still be checked."""
+        import ast
+
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        source = """
+from pydantic import BaseModel
+
+class UserConfig(BaseModel):
+    name: str
+
+class Address(BaseModel):
+    street: str
+
+def process_user(user: UserConfig) -> str:
+    return user.name
+
+def validate_address(addr: Address) -> bool:
+    return bool(addr.street)
+
+def format_output() -> str:
+    return "done"
+"""
+        tree = ast.parse(source)
+        rule = LoggingPresenceRule()
+        path = tmp_path / "mixed.py"
+        path.write_text(source)
+        assert rule._should_check_module(path, tree) is True
+
+    def test_typed_dict_module_excluded(self, tmp_path: Path) -> None:
+        """Module with only TypedDict classes should be excluded."""
+        import ast
+
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        source = """
+from typing import TypedDict
+
+class UserDict(TypedDict):
+    name: str
+    age: int
+
+class AddressDict(TypedDict):
+    street: str
+    city: str
+
+class ConfigDict(TypedDict):
+    debug: bool
+
+class MetaDict(TypedDict):
+    version: str
+
+class OutputDict(TypedDict):
+    result: str
+"""
+        tree = ast.parse(source)
+        rule = LoggingPresenceRule()
+        path = tmp_path / "types.py"
+        path.write_text(source)
+        assert rule._should_check_module(path, tree) is False
+
+    def test_enum_module_excluded(self, tmp_path: Path) -> None:
+        """Module with only Enum classes should be excluded."""
+        import ast
+
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        source = """
+from enum import Enum
+
+class Color(Enum):
+    RED = 1
+    GREEN = 2
+
+class Status(Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+class Priority(Enum):
+    LOW = 0
+    HIGH = 1
+
+class Direction(Enum):
+    UP = "up"
+    DOWN = "down"
+
+class Mode(Enum):
+    FAST = "fast"
+    SLOW = "slow"
+"""
+        tree = ast.parse(source)
+        rule = LoggingPresenceRule()
+        path = tmp_path / "enums.py"
+        path.write_text(source)
+        assert rule._should_check_module(path, tree) is False
+
+    def test_validator_functions_excluded(self, tmp_path: Path) -> None:
+        """Module with BaseModel + @field_validator helper defs should be excluded."""
+        import ast
+
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        source = """
+from pydantic import BaseModel, field_validator
+
+class UserConfig(BaseModel):
+    name: str
+    age: int
+
+    @field_validator("age")
+    @classmethod
+    def validate_age(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("Age must be positive")
+        return v
+
+class Address(BaseModel):
+    street: str
+    city: str
+
+class Settings(BaseModel):
+    debug: bool
+
+class Metadata(BaseModel):
+    version: str
+
+class Output(BaseModel):
+    result: str
+"""
+        tree = ast.parse(source)
+        rule = LoggingPresenceRule()
+        path = tmp_path / "validated_models.py"
+        path.write_text(source)
+        assert rule._should_check_module(path, tree) is False
+
+    def test_module_level_constants_excluded(self, tmp_path: Path) -> None:
+        """Data module with module-level constants should still be excluded."""
+        import ast
+
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        source = """
+from pydantic import BaseModel
+
+SECTION_MODELS: dict = {"a": 1, "b": 2}
+DEFAULT_TIMEOUT = 30
+
+class UserConfig(BaseModel):
+    name: str
+
+class Address(BaseModel):
+    street: str
+
+class Settings(BaseModel):
+    debug: bool
+
+class Metadata(BaseModel):
+    version: str
+
+class Output(BaseModel):
+    result: str
+"""
+        tree = ast.parse(source)
+        rule = LoggingPresenceRule()
+        path = tmp_path / "constants_models.py"
+        path.write_text(source)
+        assert rule._should_check_module(path, tree) is False
+
+    def test_mixed_inheritance_still_checked(self, tmp_path: Path) -> None:
+        """Class inheriting both BaseModel and a mixin should still be checked."""
+        import ast
+
+        from axm_audit.core.rules.practices import LoggingPresenceRule
+
+        source = """
+from pydantic import BaseModel
+
+class LoggableMixin:
+    pass
+
+class UserConfig(BaseModel, LoggableMixin):
+    name: str
+
+class Address(BaseModel, LoggableMixin):
+    street: str
+
+class Settings(BaseModel, LoggableMixin):
+    debug: bool
+
+class Metadata(BaseModel, LoggableMixin):
+    version: str
+
+class Output(BaseModel, LoggableMixin):
+    result: str
+"""
+        tree = ast.parse(source)
+        rule = LoggingPresenceRule()
+        path = tmp_path / "mixed_inherit.py"
+        path.write_text(source)
+        assert rule._should_check_module(path, tree) is True
+
+
 # ─── Docstring detail coverage ───────────────────────────────────────────────
 
 
