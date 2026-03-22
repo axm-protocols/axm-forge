@@ -168,9 +168,10 @@ class FormattingRule(ProjectRule):
 @dataclass
 @register_rule("type")
 class TypeCheckRule(ProjectRule):
-    """Run mypy and score based on error count.
+    """Run mypy with zero-tolerance for errors.
 
     Scoring: 100 - (error_count * 5), min 0.
+    Pass/fail: any error means failure (matches pre-commit mypy hook).
     """
 
     @property
@@ -198,7 +199,7 @@ class TypeCheckRule(ProjectRule):
         error_count, errors = self._parse_mypy_errors(result.stdout)
 
         score = max(0, 100 - error_count * 5)
-        passed = score >= PASS_THRESHOLD
+        passed = error_count == 0
 
         return CheckResult(
             rule_id=self.rule_id,
