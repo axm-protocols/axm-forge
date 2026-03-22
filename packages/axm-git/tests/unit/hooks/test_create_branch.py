@@ -127,6 +127,20 @@ class TestCreateBranchHook:
         assert result.success
         assert result.metadata["branch"] == "axm/sess-002"
 
+    def test_subdirectory_of_git_repo(self, tmp_git_repo: Path) -> None:
+        """Branch created when working_dir is a subdirectory of a git repo."""
+        subdir = tmp_git_repo / "packages" / "pkg"
+        subdir.mkdir(parents=True)
+        hook = CreateBranchHook()
+        result = hook.execute(
+            {"working_dir": str(subdir), "session_id": "sub123"},
+        )
+        assert result.success
+        assert result.metadata["branch"] == "axm/sub123"
+        # Branch visible from repo root
+        branches = run_git(["branch"], tmp_git_repo)
+        assert "axm/sub123" in branches.stdout
+
     def test_empty_labels(self, tmp_git_repo: Path) -> None:
         """Empty labels list defaults to 'feat' type via branch_name_from_ticket."""
         hook = CreateBranchHook()
