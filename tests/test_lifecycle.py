@@ -109,11 +109,15 @@ class TestFindBinary:
 class TestGeneratePlist:
     """Cover generate_plist() in lifecycle.py."""
 
-    def test_renders_with_defaults(self) -> None:
+    def test_renders_with_defaults(self, tmp_path: Path) -> None:
         """Plist contains correct binary path and default port."""
-        with patch(
-            "axm_mcp.lifecycle.shutil.which",
-            return_value="/usr/local/bin/axm-mcp",
+        fake_global = tmp_path / "axm-mcp"
+        with (
+            patch("axm_mcp.lifecycle._GLOBAL_BIN", fake_global),
+            patch(
+                "axm_mcp.lifecycle.shutil.which",
+                return_value="/usr/local/bin/axm-mcp",
+            ),
         ):
             from axm_mcp.lifecycle import generate_plist
 
@@ -121,11 +125,15 @@ class TestGeneratePlist:
             assert "/usr/local/bin/axm-mcp" in plist
             assert "9427" in plist
 
-    def test_renders_custom_port(self) -> None:
+    def test_renders_custom_port(self, tmp_path: Path) -> None:
         """Plist uses the provided port."""
-        with patch(
-            "axm_mcp.lifecycle.shutil.which",
-            return_value="/usr/local/bin/axm-mcp",
+        fake_global = tmp_path / "axm-mcp"
+        with (
+            patch("axm_mcp.lifecycle._GLOBAL_BIN", fake_global),
+            patch(
+                "axm_mcp.lifecycle.shutil.which",
+                return_value="/usr/local/bin/axm-mcp",
+            ),
         ):
             from axm_mcp.lifecycle import generate_plist
 
