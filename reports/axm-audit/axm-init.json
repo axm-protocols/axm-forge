@@ -96,7 +96,7 @@
       "passed": true,
       "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 92.67431597528685,
+        "coverage": 92.69366197183099,
         "score": 92,
         "failures": []
       }

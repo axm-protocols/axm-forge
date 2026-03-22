@@ -29,7 +29,7 @@
       "message": "Coupling: 1 module(s) above threshold (-5 pts)",
       "details": {
         "max_fan_out": 13,
-        "max_fan_in": 34,
+        "max_fan_in": 36,
         "avg_coupling": 4.97,
         "score": 95,
         "n_over_threshold": 1,
@@ -54,10 +54,15 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 0/100 (11 high-complexity functions)",
+      "message": "Complexity score: 0/100 (17 high-complexity functions)",
       "details": {
-        "high_complexity_count": 11,
+        "high_complexity_count": 17,
         "top_offenders": [
+          {
+            "file": "inspect.py",
+            "function": "InspectTool._build_detail",
+            "cc": 15
+          },
           {
             "file": "flows.py",
             "function": "_resolve_cross_module_callees",
@@ -69,18 +74,28 @@
             "cc": 13
           },
           {
+            "file": "analyzer.py",
+            "function": "_search_module",
+            "cc": 13
+          },
+          {
             "file": "flows.py",
             "function": "trace_flow",
             "cc": 13
           },
           {
-            "file": "inspect.py",
-            "function": "InspectTool._build_detail",
+            "file": "file_header.py",
+            "function": "FileHeaderHook",
             "cc": 12
           },
           {
-            "file": "analyzer.py",
-            "function": "_search_module",
+            "file": "search.py",
+            "function": "SearchTool.execute",
+            "cc": 12
+          },
+          {
+            "file": "file_header.py",
+            "function": "FileHeaderHook.execute",
             "cc": 11
           },
           {
@@ -104,6 +119,21 @@
             "cc": 10
           },
           {
+            "file": "source_body.py",
+            "function": "SourceBodyHook",
+            "cc": 10
+          },
+          {
+            "file": "analyzer.py",
+            "function": "_find_module_by_identity",
+            "cc": 10
+          },
+          {
+            "file": "analyzer.py",
+            "function": "_find_module_by_name",
+            "cc": 10
+          },
+          {
             "file": "impact.py",
             "function": "find_definition",
             "cc": 10
@@ -122,7 +152,7 @@
       "passed": false,
       "message": "Test coverage: 87% (86/100)",
       "details": {
-        "coverage": 86.51434461432744,
+        "coverage": 86.58800066478311,
         "score": 86,
         "failures": []
       }
@@ -190,11 +220,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (110/110)",
+      "message": "Docstring coverage: 100% (112/112)",
       "details": {
         "coverage": 1.0,
-        "total": 110,
-        "documented": 110,
+        "total": 112,
+        "documented": 112,
         "missing": [],
         "score": 100
       }
