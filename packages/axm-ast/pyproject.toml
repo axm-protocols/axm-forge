@@ -55,6 +55,7 @@ ast_flows     = "axm_ast.tools.flows:FlowsTool"
 "ast:impact"        = "axm_ast.hooks.impact:ImpactHook"
 "ast:context"       = "axm_ast.hooks.context:ContextHook"
 "ast:flows"         = "axm_ast.hooks.flows:FlowsHook"
+"ast:source-body"   = "axm_ast.hooks.source_body:SourceBodyHook"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
