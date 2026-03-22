@@ -134,6 +134,7 @@ Protocol hooks registered via `axm.hooks` entry points. These are called by `axm
 | Hook | Entry Point | Purpose |
 |---|---|---|
 | `TraceSourceHook` | `ast:trace-source` | Run `trace_flow(detail="source")` and inject trace into session context |
+| `SourceBodyHook` | `ast:source-body` | Fetch raw source body for a symbol and inject it into session context |
 
 ## Design Decisions
 
