@@ -1,5 +1,5 @@
 {
-  "score": 89.2,
+  "score": 87.8,
   "grade": "B",
   "total": 24,
   "failed": 3,
@@ -54,9 +54,9 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 70/100 (3 high-complexity functions)",
+      "message": "Complexity score: 60/100 (4 high-complexity functions)",
       "details": {
-        "high_complexity_count": 3,
+        "high_complexity_count": 4,
         "top_offenders": [
           {
             "file": "audit_quality.py",
@@ -69,21 +69,26 @@
             "cc": 12
           },
           {
+            "file": "practices.py",
+            "function": "LoggingPresenceRule._should_check_module",
+            "cc": 11
+          },
+          {
             "file": "results.py",
             "function": "AuditResult.quality_score",
             "cc": 10
           }
         ],
-        "score": 70
+        "score": 60
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 93% (92/100)",
+      "message": "Test coverage: 93% (93/100)",
       "details": {
-        "coverage": 92.97945205479452,
-        "score": 92,
+        "coverage": 93.0390492359932,
+        "score": 93,
         "failures": []
       }
     },
