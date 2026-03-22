@@ -28,6 +28,7 @@ git_worktree  = "axm_git.tools.worktree:GitWorktreeTool"
 git_pr        = "axm_git.tools.pr:GitPRTool"
 
 [project.entry-points."axm.hooks"]
+"git:branch-delete"  = "axm_git.hooks.branch_delete:BranchDeleteHook"
 "git:create-branch"  = "axm_git.hooks.create_branch:CreateBranchHook"
 "git:commit-phase"   = "axm_git.hooks.commit_phase:CommitPhaseHook"
 "git:merge-squash"   = "axm_git.hooks.merge_squash:MergeSquashHook"
