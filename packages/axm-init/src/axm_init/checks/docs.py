@@ -130,7 +130,11 @@ def check_docs_plugins(project: Path) -> CheckResult:
 
 def check_docs_gen_ref_pages(project: Path) -> CheckResult:
     """Check 22: docs/gen_ref_pages.py exists."""
-    if not (project / "docs" / "gen_ref_pages.py").exists():
+    found = (project / "docs" / "gen_ref_pages.py").exists()
+    if not found and project.parent.name == "packages":
+        workspace_root = project.parent.parent
+        found = (workspace_root / "docs" / "gen_ref_pages.py").exists()
+    if not found:
         return CheckResult(
             name="docs.gen_ref_pages",
             category="docs",
