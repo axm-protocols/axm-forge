@@ -67,3 +67,67 @@ class TestMergeSquashHook:
         assert result.success
         assert result.metadata.get("skipped") is True
         assert result.metadata.get("reason") == "git disabled"
+
+    def test_merge_squash_branch_from_params(
+        self, tmp_git_repo_with_named_branch: Path
+    ) -> None:
+        """branch param overrides session_id-based naming."""
+        hook = MergeSquashHook()
+        result = hook.execute(
+            {
+                "working_dir": str(tmp_git_repo_with_named_branch),
+                "session_id": "ignored",
+                "protocol_name": "p",
+            },
+            branch="feat/x",
+        )
+        assert result.success
+        assert result.metadata["merged"] == "feat/x"
+
+    def test_merge_squash_branch_from_context(
+        self, tmp_git_repo_with_named_branch: Path
+    ) -> None:
+        """branch from context when not in params."""
+        hook = MergeSquashHook()
+        result = hook.execute(
+            {
+                "working_dir": str(tmp_git_repo_with_named_branch),
+                "session_id": "ignored",
+                "protocol_name": "p",
+                "branch": "feat/x",
+            },
+        )
+        assert result.success
+        assert result.metadata["merged"] == "feat/x"
+
+    def test_merge_squash_custom_message(self, tmp_git_repo_with_branch: Path) -> None:
+        """Custom commit message via message param."""
+        hook = MergeSquashHook()
+        result = hook.execute(
+            {
+                "working_dir": str(tmp_git_repo_with_branch),
+                "session_id": "abc",
+                "protocol_name": "sota-express",
+            },
+            message="feat(git): support ticket-based branch naming [AXM-676]",
+        )
+        assert result.success
+        assert result.metadata["message"] == (
+            "feat(git): support ticket-based branch naming [AXM-676]"
+        )
+
+    def test_merge_squash_session_fallback(
+        self, tmp_git_repo_with_branch: Path
+    ) -> None:
+        """Falls back to {prefix}/{session_id} with no branch param or context."""
+        hook = MergeSquashHook()
+        result = hook.execute(
+            {
+                "working_dir": str(tmp_git_repo_with_branch),
+                "session_id": "abc",
+                "protocol_name": "p",
+            },
+        )
+        assert result.success
+        assert result.metadata["merged"] == "axm/abc"
+        assert result.metadata["message"] == "[AXM] p: abc"

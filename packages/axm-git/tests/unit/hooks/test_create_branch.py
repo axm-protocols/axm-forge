@@ -73,3 +73,68 @@ class TestCreateBranchHook:
         assert result.success
         assert result.metadata.get("skipped") is True
         assert result.metadata.get("reason") == "git disabled"
+
+    def test_create_branch_ticket_based(self, tmp_git_repo: Path) -> None:
+        """Branch name from ticket_id + ticket_title + ticket_labels."""
+        hook = CreateBranchHook()
+        result = hook.execute(
+            {"working_dir": str(tmp_git_repo), "session_id": "ignored"},
+            ticket_id="AXM-42",
+            ticket_title="Add batch mode",
+            ticket_labels=["feature"],
+        )
+        assert result.success
+        assert result.metadata["branch"] == "feat/AXM-42-add-batch-mode"
+
+    def test_create_branch_direct_param(self, tmp_git_repo: Path) -> None:
+        """Direct branch param override."""
+        hook = CreateBranchHook()
+        result = hook.execute(
+            {"working_dir": str(tmp_git_repo), "session_id": "ignored"},
+            branch="custom/name",
+        )
+        assert result.success
+        assert result.metadata["branch"] == "custom/name"
+
+    def test_create_branch_param_overrides_ticket(self, tmp_git_repo: Path) -> None:
+        """branch param takes priority over ticket params."""
+        hook = CreateBranchHook()
+        result = hook.execute(
+            {"working_dir": str(tmp_git_repo), "session_id": "ignored"},
+            branch="override/branch",
+            ticket_id="AXM-42",
+            ticket_title="Add batch mode",
+        )
+        assert result.success
+        assert result.metadata["branch"] == "override/branch"
+
+    def test_create_branch_session_fallback(self, tmp_git_repo: Path) -> None:
+        """Falls back to {prefix}/{session_id} with no branch/ticket params."""
+        hook = CreateBranchHook()
+        result = hook.execute(
+            {"working_dir": str(tmp_git_repo), "session_id": "sess-001"},
+        )
+        assert result.success
+        assert result.metadata["branch"] == "axm/sess-001"
+
+    def test_missing_ticket_title_falls_back(self, tmp_git_repo: Path) -> None:
+        """ticket_id without ticket_title falls back to session_id naming."""
+        hook = CreateBranchHook()
+        result = hook.execute(
+            {"working_dir": str(tmp_git_repo), "session_id": "sess-002"},
+            ticket_id="AXM-99",
+        )
+        assert result.success
+        assert result.metadata["branch"] == "axm/sess-002"
+
+    def test_empty_labels(self, tmp_git_repo: Path) -> None:
+        """Empty labels list defaults to 'feat' type via branch_name_from_ticket."""
+        hook = CreateBranchHook()
+        result = hook.execute(
+            {"working_dir": str(tmp_git_repo), "session_id": "ignored"},
+            ticket_id="AXM-10",
+            ticket_title="Fix something",
+            ticket_labels=[],
+        )
+        assert result.success
+        assert result.metadata["branch"] == "feat/AXM-10-fix-something"
