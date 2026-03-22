@@ -21,6 +21,7 @@ graph TD
     subgraph "Hooks"
         PF["PreflightHook"]
         CB["CreateBranchHook"]
+        BD["BranchDeleteHook"]
         CP["CommitPhaseHook"]
         MS["MergeSquashHook"]
         WA["WorktreeAddHook"]
@@ -64,6 +65,7 @@ graph TD
     MS --> Runner
     WA --> Runner
     WR --> Runner
+    BD --> Runner
     Runner --> Git
     Runner --> GH
     PF -.-> HookBase
@@ -72,12 +74,14 @@ graph TD
     MS -.-> HookBase
     WA -.-> HookBase
     WR -.-> HookBase
+    BD -.-> HookBase
     Registry -.->|"entry-point discovery"| PF
     Registry -.-> CB
     Registry -.-> CP
     Registry -.-> MS
     Registry -.-> WA
     Registry -.-> WR
+    Registry -.-> BD
 ```
 
 ## Layers
@@ -108,6 +112,7 @@ All hooks accept an `enabled` param (default `True`). Pass `enabled=False` to sk
 
 - **`PreflightHook`** — Runs a structured working tree status check before a phase begins. Entry point: `git:preflight`.
 - **`CreateBranchHook`** — Creates a session branch. Accepts `branch`, `ticket_id`, `ticket_title`, and `ticket_labels` params; `_resolve_branch()` derives the final branch name from those inputs. Skips if not a git repo.
+- **`BranchDeleteHook`** — Deletes a branch via `git branch -D`. Branch name resolved from `branch` param then `branch` context key. Entry point: `git:branch-delete`.
 - **`CommitPhaseHook`** — Stages all changes, commits with `[axm] {phase_name}`. Pass `from_outputs=True` to derive staged files from protocol outputs instead of staging everything. Skips if nothing to commit.
 - **`MergeSquashHook`** — Squash-merges a branch back to the target branch. Accepts `branch` and `message` params; `_resolve_branch()` reads the branch from context when `branch` is not explicitly supplied.
 - **`WorktreeAddHook`** — Creates a git worktree + branch for a ticket at `<repo_parent>/<ticket_id>/`, deriving the branch name from ticket metadata. Entry point: `git:worktree-add`.
