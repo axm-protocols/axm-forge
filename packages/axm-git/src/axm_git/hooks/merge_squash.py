@@ -6,12 +6,12 @@ Merges a session branch back to the target branch with ``--squash``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from axm.hooks.base import HookResult
 
 from axm_git.core.runner import run_git
+from axm_git.hooks._resolve import _resolve_working_dir
 
 __all__ = ["MergeSquashHook"]
 
@@ -20,9 +20,11 @@ __all__ = ["MergeSquashHook"]
 class MergeSquashHook:
     """Merge session branch back to main with squash.
 
-    Reads ``session_id`` and ``protocol_name`` from *context*.
-    Optional ``prefix`` (default ``"axm"``) and ``target_branch``
-    (default ``"main"``) can be set via *params*.
+    Branch name priority: ``branch`` param > ``context["branch"]``
+    > ``{prefix}/{session_id}`` fallback.
+
+    Commit message priority: ``message`` param >
+    ``[AXM] {protocol_name}: {session_id}`` fallback.
     """
 
     def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
@@ -31,12 +33,13 @@ class MergeSquashHook:
         Args:
             context: Session context dictionary (must contain
                 ``session_id`` and ``protocol_name``).
-            **params: Optional ``prefix`` and ``target_branch``.
+            **params: Optional ``branch``, ``message``, ``prefix``,
+                and ``target_branch``.
 
         Returns:
             HookResult with ``merged``, ``into``, and ``message`` in metadata.
         """
-        working_dir = Path(context.get("working_dir", "."))
+        working_dir = _resolve_working_dir(params, context)
         session_id: str = context["session_id"]
         protocol_name: str = context["protocol_name"]
 
@@ -46,8 +49,7 @@ class MergeSquashHook:
         if not (working_dir / ".git").exists():
             return HookResult.ok(skipped=True, reason="not a git repo")
 
-        prefix = params.get("prefix", "axm")
-        branch = f"{prefix}/{session_id}"
+        branch = self._resolve_branch(params, context, session_id)
         target = params.get("target_branch", "main")
 
         # Checkout target branch
@@ -61,9 +63,23 @@ class MergeSquashHook:
             return HookResult.fail(f"merge --squash failed: {result.stderr}")
 
         # Commit
-        msg = f"[AXM] {protocol_name}: {session_id}"
+        msg = params.get("message") or f"[AXM] {protocol_name}: {session_id}"
         result = run_git(["commit", "-m", msg], working_dir)
         if result.returncode != 0:
             return HookResult.fail(f"commit failed: {result.stderr}")
 
         return HookResult.ok(merged=branch, into=target, message=msg)
+
+    @staticmethod
+    def _resolve_branch(
+        params: dict[str, Any],
+        context: dict[str, Any],
+        session_id: str,
+    ) -> str:
+        """Resolve branch name from params, context, then fallback."""
+        if branch := params.get("branch"):
+            return str(branch)
+        if branch := context.get("branch"):
+            return str(branch)
+        prefix = params.get("prefix", "axm")
+        return f"{prefix}/{session_id}"

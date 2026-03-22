@@ -19,9 +19,9 @@ Hook actions auto-discovered via the `axm.hooks` entry-point group by `HookRegis
 | Hook | Entry point | Description |
 |---|---|---|
 | `git:preflight` | `PreflightHook` | Structured working tree status check before a phase |
-| `git:create-branch` | `CreateBranchHook` | Create session branch `{prefix}/{session_id}` |
+| `git:create-branch` | `CreateBranchHook` | Create session branch; accepts `branch`, `ticket_id`, `ticket_title`, `ticket_labels` to override or derive branch name |
 | `git:commit-phase` | `CommitPhaseHook` | Stage all + commit with `[axm] {phase}`; pass `from_outputs=True` to derive staged files from protocol outputs |
-| `git:merge-squash` | `MergeSquashHook` | Squash-merge session branch back to target |
+| `git:merge-squash` | `MergeSquashHook` | Squash-merge branch back to target; accepts `branch` and `message` params, reads branch from context when not supplied |
 | `git:worktree-add` | `WorktreeAddHook` | Create a worktree + branch for a ticket at `<repo_parent>/<ticket_id>/` |
 | `git:worktree-remove` | `WorktreeRemoveHook` | Remove a worktree previously created by `WorktreeAddHook` |
 
