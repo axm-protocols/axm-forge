@@ -36,7 +36,8 @@ git    = ["axm-git"]
 ast    = ["axm-ast"]
 ticker = ["axm-ticket"]
 engine = ["axm-engine"]
-all    = ["axm-init", "axm-audit", "axm-bib", "axm-git", "axm-ast", "axm-ticket", "axm-engine"]
+edit   = ["axm-edit"]
+all    = ["axm-init", "axm-audit", "axm-bib", "axm-git", "axm-ast", "axm-ticket", "axm-engine", "axm-edit"]
 
 [project.scripts]
 axm-mcp = "axm_mcp:main"
