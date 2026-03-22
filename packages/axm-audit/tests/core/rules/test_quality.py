@@ -104,7 +104,7 @@ class TestTypeCheckRule:
     """Tests for TypeCheckRule (mypy integration)."""
 
     def test_typed_project_high_score(self, tmp_path: Path) -> None:
-        """Fully typed project should score near 100."""
+        """Fully typed project should score 100 and pass."""
         from axm_audit.core.rules.quality import TypeCheckRule
 
         src = tmp_path / "src"
@@ -117,10 +117,11 @@ class TestTypeCheckRule:
         rule = TypeCheckRule()
         result = rule.check(tmp_path)
         assert result.details is not None
-        assert result.details["score"] >= 80
+        assert result.passed is True
+        assert result.details["score"] == 100
 
     def test_type_errors_reduce_score(self, tmp_path: Path) -> None:
-        """Type errors should reduce score."""
+        """Type errors should fail with zero tolerance."""
         from axm_audit.core.rules.quality import TypeCheckRule
 
         src = tmp_path / "src"
@@ -134,6 +135,7 @@ class TestTypeCheckRule:
         result = rule.check(tmp_path)
         assert result.details is not None
         assert result.details["error_count"] > 0
+        assert result.passed is False
 
     def test_rule_id_format(self) -> None:
         """Rule ID should be QUALITY_TYPE."""
@@ -247,6 +249,71 @@ class TestTypeCheckRule:
         result = rule.check(tmp_path)
         assert result.details is not None
         assert result.details["errors"] == []
+
+    def test_type_check_zero_errors_passes(self, tmp_path: Path) -> None:
+        """Zero mypy errors → passed=True, score=100."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "__init__.py").write_text("")
+        (src / "clean.py").write_text("def double(x: int) -> int:\n    return x * 2\n")
+
+        rule = TypeCheckRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+        assert result.details is not None
+        assert result.details["score"] == 100
+
+    def test_type_check_one_error_fails(self, tmp_path: Path) -> None:
+        """One mypy error → passed=False (zero tolerance)."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "bad.py").write_text(
+            'def add(a: int, b: int) -> int:\n    return "wrong"\n'
+        )
+
+        rule = TypeCheckRule()
+        result = rule.check(tmp_path)
+        assert result.passed is False
+        assert result.details is not None
+        assert result.details["error_count"] == 1
+
+    def test_type_check_two_errors_fails(self, tmp_path: Path) -> None:
+        """Two mypy errors → passed=False (zero tolerance)."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "bad.py").write_text(
+            'def add(a: int, b: int) -> int:\n    return "wrong"\n\n'
+            'def sub(a: int, b: int) -> int:\n    return "also wrong"\n'
+        )
+
+        rule = TypeCheckRule()
+        result = rule.check(tmp_path)
+        assert result.passed is False
+        assert result.details is not None
+        assert result.details["error_count"] == 2
+
+    def test_lint_threshold_unchanged(self, tmp_path: Path) -> None:
+        """Lint rule still uses score threshold — no regression from type fix."""
+        from axm_audit.core.rules.quality import LintingRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "__init__.py").write_text('"""Package."""\n')
+        # Single unused import → small score reduction, still above threshold
+        (src / "mild.py").write_text('"""Mild issue."""\nimport os\n')
+
+        rule = LintingRule()
+        result = rule.check(tmp_path)
+        assert result.details is not None
+        # Lint uses scoring threshold, not zero-tolerance
+        assert result.details["issue_count"] > 0
+        assert result.details["score"] >= 90
 
 
 class TestAuditResultScoring:
