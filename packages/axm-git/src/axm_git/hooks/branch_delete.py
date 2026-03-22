@@ -11,7 +11,7 @@ from typing import Any
 
 from axm.hooks.base import HookResult
 
-from axm_git.core.runner import run_git
+from axm_git.core.runner import find_git_root, run_git
 from axm_git.hooks._resolve import _resolve_working_dir
 
 __all__ = ["BranchDeleteHook"]
@@ -45,14 +45,15 @@ class BranchDeleteHook:
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
 
-        if not (working_dir / ".git").exists():
+        git_root = find_git_root(working_dir)
+        if git_root is None:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
         branch = params.get("branch") or context.get("branch")
         if not branch:
             return HookResult.fail("no branch specified in params or context")
 
-        result = run_git(["branch", "-D", branch], working_dir)
+        result = run_git(["branch", "-D", branch], git_root)
         if result.returncode != 0:
             return HookResult.fail(f"git branch -D failed: {result.stderr}")
 

@@ -132,6 +132,26 @@ class TestBranchDeleteHook:
         assert result.error is not None
         assert "git branch -D failed" in result.error
 
+    def test_subdirectory_of_git_repo(
+        self, tmp_workspace_repo: tuple[Path, Path]
+    ) -> None:
+        """Delete succeeds when working_dir is a subdirectory of a git repo."""
+        git_root, pkg_dir = tmp_workspace_repo
+        run_git(["checkout", "-b", "feat/sub"], git_root)
+        run_git(["checkout", "main"], git_root)
+
+        hook = BranchDeleteHook()
+        result = hook.execute(
+            {"working_dir": str(pkg_dir), "session_id": "s"},
+            branch="feat/sub",
+        )
+        assert result.success
+        assert result.metadata["branch"] == "feat/sub"
+        assert result.metadata["deleted"] is True
+        # Verify branch is gone from repo root
+        branches = run_git(["branch"], git_root)
+        assert "feat/sub" not in branches.stdout
+
     def test_branch_delete_default_working_dir(
         self,
         tmp_git_repo: Path,
