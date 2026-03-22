@@ -10,7 +10,7 @@ from typing import Any
 
 from axm.hooks.base import HookResult
 
-from axm_git.core.runner import run_git
+from axm_git.core.runner import find_git_root, run_git
 from axm_git.hooks._resolve import _resolve_working_dir
 
 __all__ = ["MergeSquashHook"]
@@ -46,25 +46,26 @@ class MergeSquashHook:
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
 
-        if not (working_dir / ".git").exists():
+        git_root = find_git_root(working_dir)
+        if git_root is None:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
         branch = self._resolve_branch(params, context, session_id)
         target = params.get("target_branch", "main")
 
         # Checkout target branch
-        result = run_git(["checkout", target], working_dir)
+        result = run_git(["checkout", target], git_root)
         if result.returncode != 0:
             return HookResult.fail(f"checkout {target} failed: {result.stderr}")
 
         # Merge with squash
-        result = run_git(["merge", "--squash", branch], working_dir)
+        result = run_git(["merge", "--squash", branch], git_root)
         if result.returncode != 0:
             return HookResult.fail(f"merge --squash failed: {result.stderr}")
 
         # Commit
         msg = params.get("message") or f"[AXM] {protocol_name}: {session_id}"
-        result = run_git(["commit", "-m", msg], working_dir)
+        result = run_git(["commit", "-m", msg], git_root)
         if result.returncode != 0:
             return HookResult.fail(f"commit failed: {result.stderr}")
 

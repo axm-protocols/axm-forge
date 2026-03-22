@@ -144,6 +144,32 @@ class TestPushHook:
         assert result.metadata["skipped"] is True
         assert result.metadata["reason"] == "not a git repo"
 
+    def test_subdirectory_of_git_repo(
+        self,
+        tmp_workspace_repo: tuple[Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Push succeeds when working_dir is a subdirectory of a git repo."""
+        git_root, pkg_dir = tmp_workspace_repo
+        captured_cwd: list[Path] = []
+
+        def fake_run_git(
+            args: list[str], cwd: Path, **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            captured_cwd.append(cwd)
+            if args[0] == "rev-parse":
+                return subprocess.CompletedProcess(args, 0, stdout="main\n", stderr="")
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        monkeypatch.setattr("axm_git.hooks.push.run_git", fake_run_git)
+
+        hook = PushHook()
+        result = hook.execute({"working_dir": str(pkg_dir)})
+        assert result.success
+        assert result.metadata["pushed"] is True
+        # run_git should receive git_root, not the package subdir
+        assert all(cwd == git_root for cwd in captured_cwd)
+
     def test_push_dict_worktree_path(
         self,
         tmp_git_repo: Path,

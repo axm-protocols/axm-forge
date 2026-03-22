@@ -116,6 +116,31 @@ class TestMergeSquashHook:
             "feat(git): support ticket-based branch naming [AXM-676]"
         )
 
+    def test_subdirectory_of_git_repo(
+        self, tmp_workspace_repo: tuple[Path, Path]
+    ) -> None:
+        """Merge succeeds when working_dir is a subdirectory of a git repo."""
+        git_root, pkg_dir = tmp_workspace_repo
+        run_git(["checkout", "-b", "axm/sub"], git_root)
+        (pkg_dir / "src" / "change.py").write_text("# new\n")
+        run_git(["add", "."], git_root)
+        run_git(["commit", "-m", "session work"], git_root)
+
+        hook = MergeSquashHook()
+        result = hook.execute(
+            {
+                "working_dir": str(pkg_dir),
+                "session_id": "sub",
+                "protocol_name": "p",
+            },
+        )
+        assert result.success
+        assert result.metadata["merged"] == "axm/sub"
+        assert result.metadata["into"] == "main"
+        # Verify we landed on main at repo root
+        branch = run_git(["branch", "--show-current"], git_root)
+        assert branch.stdout.strip() == "main"
+
     def test_merge_squash_session_fallback(
         self, tmp_git_repo_with_branch: Path
     ) -> None:
