@@ -124,3 +124,36 @@ class TestBranchNameFromTicket:
         """Special characters in title are sanitized."""
         result = branch_name_from_ticket("AXM-7", "Fix: login (v2)!", ["bug"])
         assert result == "fix/AXM-7-fix-login-v2"
+
+    def test_title_prefix_fallback_refactor(self) -> None:
+        """Conventional commit prefix in title used when no label matches."""
+        result = branch_name_from_ticket(
+            "AXM-689",
+            "refactor(market): reduce cyclomatic complexity",
+            ["axm-market"],
+        )
+        assert result.startswith("refactor/")
+
+    def test_title_prefix_fallback_feat(self) -> None:
+        """Feat prefix extracted from title when labels don't match."""
+        result = branch_name_from_ticket(
+            "AXM-100", "feat(market): add X", ["axm-market"]
+        )
+        assert result.startswith("feat/")
+
+    def test_title_prefix_fallback_fix(self) -> None:
+        """Fix prefix extracted from title when labels don't match."""
+        result = branch_name_from_ticket(
+            "AXM-101", "fix(market): broken Y", ["axm-market"]
+        )
+        assert result.startswith("fix/")
+
+    def test_title_no_prefix_falls_to_chore(self) -> None:
+        """No conventional prefix in title still defaults to chore."""
+        result = branch_name_from_ticket("AXM-102", "bump deps", ["axm-market"])
+        assert result.startswith("chore/")
+
+    def test_label_takes_priority_over_title(self) -> None:
+        """Label-based resolution wins over title prefix."""
+        result = branch_name_from_ticket("AXM-103", "refactor(x): something", ["bug"])
+        assert result.startswith("fix/")
