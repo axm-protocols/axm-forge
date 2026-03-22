@@ -35,6 +35,7 @@ def _extract_symbol(
 ) -> dict[str, Any]:
     """Look up *symbol_name* in *pkg* and return its body dict."""
     from axm_ast.core.analyzer import find_module_for_symbol, search_symbols
+    from axm_ast.models.nodes import VariableInfo
 
     matches = search_symbols(
         pkg, name=symbol_name, returns=None, kind=None, inherits=None
@@ -61,6 +62,19 @@ def _extract_symbol(
         rel_path = mod.path.relative_to(pkg_root)
     else:
         rel_path = mod.path
+
+    # VariableInfo has a single `line`, not line_start/line_end.
+    if isinstance(sym, VariableInfo):
+        body = _read_body(mod.path, sym.line, sym.line)
+        return {
+            "symbol": symbol_name,
+            "file": str(rel_path),
+            "start_line": sym.line,
+            "end_line": sym.line,
+            "value_repr": sym.value_repr,
+            "body": body,
+        }
+
     body = _read_body(mod.path, sym.line_start, sym.line_end)
 
     return {

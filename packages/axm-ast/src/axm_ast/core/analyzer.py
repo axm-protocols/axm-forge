@@ -27,6 +27,7 @@ from axm_ast.models.nodes import (
     ModuleInfo,
     PackageInfo,
     SymbolKind,
+    VariableInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -159,7 +160,7 @@ def module_dotted_name(mod_path: Path, root: Path) -> str:
 
 def find_module_for_symbol(
     pkg: PackageInfo,
-    symbol: str | FunctionInfo | ClassInfo,
+    symbol: str | FunctionInfo | ClassInfo | VariableInfo,
 ) -> ModuleInfo | None:
     """Find the module containing a symbol.
 
@@ -189,7 +190,7 @@ def find_module_for_symbol(
 
 def _find_module_by_identity(
     pkg: PackageInfo,
-    sym: FunctionInfo | ClassInfo,
+    sym: FunctionInfo | ClassInfo | VariableInfo,
 ) -> ModuleInfo | None:
     """Find module by object identity (``is`` comparison)."""
     for mod in pkg.modules:
@@ -202,6 +203,9 @@ def _find_module_by_identity(
             for method in cls.methods:
                 if method is sym:
                     return mod
+        for var in mod.variables:
+            if var is sym:
+                return mod
     return None
 
 
@@ -220,6 +224,9 @@ def _find_module_by_name(
             for method in cls.methods:
                 if method.name == name:
                     return mod
+        for var in mod.variables:
+            if var.name == name:
+                return mod
     return None
 
 
@@ -332,7 +339,7 @@ def search_symbols(
     returns: str | None = None,
     kind: SymbolKind | None = None,
     inherits: str | None = None,
-) -> list[FunctionInfo | ClassInfo]:
+) -> list[FunctionInfo | ClassInfo | VariableInfo]:
     """Search for symbols across a package with filters.
 
     All filters are AND-combined. A symbol must match all provided
@@ -343,7 +350,7 @@ def search_symbols(
         name: Filter by symbol name (substring match).
         returns: Filter functions by return type (substring match).
         kind: Filter by SymbolKind (function, method, property,
-            classmethod, staticmethod, abstract, class).
+            classmethod, staticmethod, abstract, class, variable).
         inherits: Filter classes by base class name.
 
     Returns:
@@ -354,7 +361,7 @@ def search_symbols(
         >>> [r.name for r in results]
         ['greet', 'version']
     """
-    results: list[FunctionInfo | ClassInfo] = []
+    results: list[FunctionInfo | ClassInfo | VariableInfo] = []
 
     for mod in pkg.modules:
         results.extend(
@@ -377,10 +384,17 @@ def _search_module(
     returns: str | None,
     kind: SymbolKind | None,
     inherits: str | None,
-) -> list[FunctionInfo | ClassInfo]:
+) -> list[FunctionInfo | ClassInfo | VariableInfo]:
     """Search for symbols within a single module."""
     if inherits is not None:
         return _search_by_inheritance(mod, name, inherits, kind)
+
+    # kind="variable" → return only variables matching name
+    if kind == SymbolKind.VARIABLE:
+        # Variables don't have return types or inheritance
+        if returns is not None:
+            return []
+        return _search_variables(mod, name=name)
 
     # kind="class" → return only classes matching name
     if kind == SymbolKind.CLASS:
@@ -392,7 +406,7 @@ def _search_module(
     # Convert to FunctionKind for function-level filtering
     fn_kind = FunctionKind(kind.value) if kind is not None else None
 
-    results: list[FunctionInfo | ClassInfo] = []
+    results: list[FunctionInfo | ClassInfo | VariableInfo] = []
     for fn in mod.functions:
         if _match_function(fn, name=name, returns=returns, kind=fn_kind):
             results.append(fn)
@@ -400,6 +414,8 @@ def _search_module(
     # When filtering by a function kind, don't include classes
     if fn_kind is None:
         results.extend(_search_classes(mod, name=name, returns=returns, kind=fn_kind))
+        # Include variables when no specific function kind is requested
+        results.extend(_search_variables(mod, name=name))
     else:
         # Still search class methods for the requested kind
         for cls in mod.classes:
@@ -413,12 +429,25 @@ def _search_classes_only(
     mod: ModuleInfo,
     *,
     name: str | None,
-) -> list[FunctionInfo | ClassInfo]:
+) -> list[FunctionInfo | ClassInfo | VariableInfo]:
     """Return only classes, optionally filtered by name."""
-    results: list[FunctionInfo | ClassInfo] = []
+    results: list[FunctionInfo | ClassInfo | VariableInfo] = []
     for cls in mod.classes:
         if name is None or name in cls.name:
             results.append(cls)
+    return results
+
+
+def _search_variables(
+    mod: ModuleInfo,
+    *,
+    name: str | None,
+) -> list[FunctionInfo | ClassInfo | VariableInfo]:
+    """Return module-level variables, optionally filtered by name."""
+    results: list[FunctionInfo | ClassInfo | VariableInfo] = []
+    for var in mod.variables:
+        if name is None or name in var.name:
+            results.append(var)
     return results
 
 
@@ -427,12 +456,12 @@ def _search_by_inheritance(
     name: str | None,
     inherits: str,
     kind: SymbolKind | None = None,
-) -> list[FunctionInfo | ClassInfo]:
+) -> list[FunctionInfo | ClassInfo | VariableInfo]:
     """Search classes by base class inheritance."""
     # If kind is set and is not CLASS, no class can match
     if kind is not None and kind != SymbolKind.CLASS:
         return []
-    results: list[FunctionInfo | ClassInfo] = []
+    results: list[FunctionInfo | ClassInfo | VariableInfo] = []
     for cls in mod.classes:
         if inherits in cls.bases and (name is None or name in cls.name):
             results.append(cls)

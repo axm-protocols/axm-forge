@@ -8,7 +8,13 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_ast.models.nodes import ClassInfo, FunctionInfo, ModuleInfo, PackageInfo
+from axm_ast.models.nodes import (
+    ClassInfo,
+    FunctionInfo,
+    ModuleInfo,
+    PackageInfo,
+    VariableInfo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -302,7 +308,9 @@ class InspectTool(AXMTool):
         )
 
     @staticmethod
-    def _find_symbol_file(pkg: PackageInfo, sym: FunctionInfo | ClassInfo) -> str:
+    def _find_symbol_file(
+        pkg: PackageInfo, sym: FunctionInfo | ClassInfo | VariableInfo
+    ) -> str:
         """Find the relative file path for a symbol within the package."""
         from axm_ast.core.analyzer import find_module_for_symbol
 
@@ -312,7 +320,9 @@ class InspectTool(AXMTool):
         return ""
 
     @staticmethod
-    def _find_symbol_abs_path(pkg: PackageInfo, sym: FunctionInfo | ClassInfo) -> str:
+    def _find_symbol_abs_path(
+        pkg: PackageInfo, sym: FunctionInfo | ClassInfo | VariableInfo
+    ) -> str:
         """Find the absolute file path for a symbol within the package."""
         from axm_ast.core.analyzer import find_module_for_symbol
 
@@ -331,14 +341,29 @@ class InspectTool(AXMTool):
 
     @staticmethod
     def _build_detail(
-        sym: FunctionInfo | ClassInfo,
+        sym: FunctionInfo | ClassInfo | VariableInfo,
         *,
         file: str = "",
         abs_path: str = "",
         source: bool = False,
     ) -> dict[str, Any]:
-        """Build detail dict from a FunctionInfo or ClassInfo."""
-        detail: dict[str, Any] = {
+        """Build detail dict from a FunctionInfo, ClassInfo, or VariableInfo."""
+        if isinstance(sym, VariableInfo):
+            detail: dict[str, Any] = {
+                "name": sym.name,
+                "file": file,
+                "kind": "variable",
+                "start_line": sym.line,
+                "end_line": sym.line,
+                "module": "",
+            }
+            if sym.annotation is not None:
+                detail["annotation"] = sym.annotation
+            if sym.value_repr is not None:
+                detail["value_repr"] = sym.value_repr
+            return detail
+
+        detail = {
             "name": sym.name,
             "file": file,
             "start_line": sym.line_start,

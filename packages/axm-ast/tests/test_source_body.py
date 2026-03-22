@@ -113,6 +113,50 @@ class TestSourceBodyMultiSymbol:
         assert "return 1" in symbols[1]["body"]
 
 
+class TestSourceBodyVariable:
+    """Variable/constant resolution in source_body hook."""
+
+    @patch(f"{_ANALYZER}.find_module_for_symbol")
+    @patch(f"{_ANALYZER}.search_symbols")
+    @patch(f"{_ANALYZER}.analyze_package")
+    def test_source_body_resolves_variable(
+        self,
+        mock_analyze: MagicMock,
+        mock_search: MagicMock,
+        mock_find: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Returns file, line, value_repr, body for a module-level constant."""
+        from axm_ast.models.nodes import VariableInfo
+
+        src = tmp_path / "consts.py"
+        src.write_text("_TOLERANCE: float = 0.01\nMAX = 100\n")
+
+        mock_var = VariableInfo(
+            name="_TOLERANCE", annotation="float", value_repr="0.01", line=1
+        )
+
+        mock_mod = MagicMock()
+        mock_mod.path = src
+
+        mock_pkg = MagicMock()
+        mock_analyze.return_value = mock_pkg
+        mock_search.return_value = [mock_var]
+        mock_find.return_value = mock_mod
+
+        hook = SourceBodyHook()
+        result = hook.execute({}, symbol="_TOLERANCE", path=str(tmp_path))
+
+        assert result.success
+        data = result.metadata["symbols"]
+        assert data["symbol"] == "_TOLERANCE"
+        assert data["file"] == "consts.py"
+        assert data["start_line"] == 1
+        assert data["end_line"] == 1
+        assert data["value_repr"] == "0.01"
+        assert "_TOLERANCE" in data["body"]
+
+
 class TestSourceBodyMissingSymbol:
     """Missing symbol handling — no crash, body=null."""
 
