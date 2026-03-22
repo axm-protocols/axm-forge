@@ -135,6 +135,7 @@ Protocol hooks registered via `axm.hooks` entry points. These are called by `axm
 |---|---|---|
 | `TraceSourceHook` | `ast:trace-source` | Run `trace_flow(detail="source")` and inject trace into session context |
 | `SourceBodyHook` | `ast:source-body` | Fetch raw source body for a symbol and inject it into session context |
+| `FileHeaderHook` | `ast:file-header` | Extract file-level header (module docstring, `__all__`, top-level imports) and inject into session context |
 
 ## Design Decisions
 
