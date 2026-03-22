@@ -23,6 +23,8 @@ def search_pkg(tmp_path: Path) -> Path:
     (pkg / "__init__.py").write_text('"""Search demo."""\n')
     (pkg / "funcs.py").write_text(
         '"""Functions module."""\n\n'
+        "_TOLERANCE: float = 0.01\n"
+        "MAX_RETRIES = 3\n\n\n"
         "def greet(name: str) -> str:\n"
         '    """Say hello."""\n'
         '    return f"Hello {name}"\n\n\n'
@@ -234,6 +236,75 @@ class TestSearchEdgeCases:
         result = tool.execute(path=str(search_pkg), kind="class", returns="str")
         assert result.success is True
         assert result.data["count"] == 0
+
+
+# ─── Variable search ─────────────────────────────────────────────────────────
+
+
+class TestSearchVariables:
+    """Tests for variable/constant search via SearchTool."""
+
+    def test_search_variable_by_name(self, tool: SearchTool, search_pkg: Path) -> None:
+        """kind='variable' + name returns the matching constant."""
+        result = tool.execute(path=str(search_pkg), kind="variable", name="_TOLERANCE")
+        assert result.success is True
+        assert result.data["count"] == 1
+        sym = result.data["results"][0]
+        assert sym["name"] == "_TOLERANCE"
+        assert sym["kind"] == "variable"
+        assert sym["annotation"] == "float"
+        assert sym["value_repr"] == "0.01"
+
+    def test_search_variable_kind_filter(
+        self, tool: SearchTool, search_pkg: Path
+    ) -> None:
+        """kind='variable' returns only variables, no functions or classes."""
+        result = tool.execute(path=str(search_pkg), kind="variable")
+        assert result.success is True
+        names = [s["name"] for s in result.data["results"]]
+        assert "greet" not in names
+        assert "User" not in names
+        # At least the two constants we added
+        assert "_TOLERANCE" in names
+        assert "MAX_RETRIES" in names
+
+    def test_search_kind_none_includes_variables(
+        self, tool: SearchTool, search_pkg: Path
+    ) -> None:
+        """No kind filter returns functions, methods, AND variables."""
+        result = tool.execute(path=str(search_pkg))
+        assert result.success is True
+        names = [s["name"] for s in result.data["results"]]
+        assert "greet" in names
+        assert "_TOLERANCE" in names
+
+    def test_search_variable_with_returns_empty(
+        self, tool: SearchTool, search_pkg: Path
+    ) -> None:
+        """kind='variable' + returns filter gives empty (variables have no return)."""
+        result = tool.execute(path=str(search_pkg), kind="variable", returns="float")
+        assert result.success is True
+        assert result.data["count"] == 0
+
+    def test_search_function_unchanged(
+        self, tool: SearchTool, search_pkg: Path
+    ) -> None:
+        """kind='function' still works correctly after variable support."""
+        result = tool.execute(path=str(search_pkg), kind="function")
+        assert result.success is True
+        names = [s["name"] for s in result.data["results"]]
+        assert "greet" in names
+        assert "_TOLERANCE" not in names
+        assert "User" not in names
+
+    def test_search_class_unchanged(self, tool: SearchTool, search_pkg: Path) -> None:
+        """kind='class' still works correctly after variable support."""
+        result = tool.execute(path=str(search_pkg), kind="class")
+        assert result.success is True
+        names = [s["name"] for s in result.data["results"]]
+        assert "User" in names
+        assert "_TOLERANCE" not in names
+        assert "greet" not in names
 
     def test_kind_class_no_match(self, tool: SearchTool, search_pkg: Path) -> None:
         """kind='class' with non-matching name returns empty list."""

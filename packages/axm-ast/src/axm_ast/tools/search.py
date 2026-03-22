@@ -47,7 +47,7 @@ class SearchTool(AXMTool):
             name: Filter by symbol name (substring match).
             returns: Filter by return type.
             kind: Filter by kind (function, method, property,
-                classmethod, staticmethod, abstract, class).
+                classmethod, staticmethod, abstract, class, variable).
             inherits: Filter by base class name.
 
         Returns:
@@ -91,6 +91,15 @@ class SearchTool(AXMTool):
                     entry["signature"] = sym.signature
                 if hasattr(sym, "return_type"):
                     entry["return_type"] = sym.return_type
+                if hasattr(sym, "value_repr"):
+                    from axm_ast.models.nodes import VariableInfo
+
+                    entry["kind"] = "variable"
+                    if isinstance(sym, VariableInfo):
+                        if sym.annotation:
+                            entry["annotation"] = sym.annotation
+                        if sym.value_repr:
+                            entry["value_repr"] = sym.value_repr
                 symbols.append(entry)
 
             return ToolResult(

@@ -40,6 +40,7 @@ class SymbolKind(enum.StrEnum):
     STATICMETHOD = "staticmethod"
     ABSTRACT = "abstract"
     CLASS = "class"
+    VARIABLE = "variable"
 
 
 class ParameterInfo(BaseModel):

@@ -12,7 +12,13 @@ from axm_ast.core.analyzer import (
     get_public_api,
     search_symbols,
 )
-from axm_ast.models.nodes import ClassInfo, FunctionInfo, FunctionKind, SymbolKind
+from axm_ast.models.nodes import (
+    ClassInfo,
+    FunctionInfo,
+    FunctionKind,
+    SymbolKind,
+    VariableInfo,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SAMPLE_PKG = FIXTURES / "sample_pkg"
@@ -168,6 +174,66 @@ class TestSearchSymbols:
         results = search_symbols(pkg, inherits="BaseModel")
         # No class inherits BaseModel in fixtures, should be empty
         assert results == []
+
+    def test_search_variable_by_name(self) -> None:
+        """search_symbols finds module-level variables by name."""
+        pkg = analyze_package(SAMPLE_PKG)
+        results = search_symbols(pkg, name="MAX_RETRIES")
+        assert len(results) >= 1
+        match = [r for r in results if r.name == "MAX_RETRIES"]
+        assert len(match) == 1
+        assert isinstance(match[0], VariableInfo)
+        assert match[0].line > 0
+
+    def test_search_variable_kind_filter(self) -> None:
+        """kind=VARIABLE returns only variables."""
+        pkg = analyze_package(SAMPLE_PKG)
+        results = search_symbols(pkg, kind=SymbolKind.VARIABLE)
+        assert len(results) >= 1
+        assert all(isinstance(r, VariableInfo) for r in results)
+        names = [r.name for r in results]
+        assert "MAX_RETRIES" in names
+        assert "DEFAULT_NAME" in names
+        # No functions or classes
+        assert "greet" not in names
+        assert "Calculator" not in names
+
+    def test_search_kind_none_includes_variables(self) -> None:
+        """kind=None returns functions, methods, AND variables."""
+        pkg = analyze_package(SAMPLE_PKG)
+        results = search_symbols(pkg)
+        names = [r.name for r in results]
+        assert "greet" in names
+        assert "MAX_RETRIES" in names
+
+    def test_search_function_unchanged(self) -> None:
+        """kind=FUNCTION still returns only functions."""
+        pkg = analyze_package(SAMPLE_PKG)
+        results = search_symbols(pkg, kind=SymbolKind.FUNCTION)
+        assert len(results) >= 1
+        assert all(isinstance(r, FunctionInfo) for r in results)
+        names = [r.name for r in results]
+        assert "greet" in names
+        assert "MAX_RETRIES" not in names
+
+    def test_search_class_unchanged(self) -> None:
+        """kind=CLASS still returns only classes."""
+        pkg = analyze_package(SAMPLE_PKG)
+        results = search_symbols(pkg, kind=SymbolKind.CLASS)
+        assert all(isinstance(r, ClassInfo) for r in results)
+        names = [r.name for r in results]
+        assert "Calculator" in names
+        assert "MAX_RETRIES" not in names
+
+    def test_search_annotated_variable(self) -> None:
+        """Type-annotated constant is resolved with annotation."""
+        pkg = analyze_package(SAMPLE_PKG)
+        results = search_symbols(pkg, name="MAX_RETRIES")
+        match = [r for r in results if r.name == "MAX_RETRIES"]
+        assert len(match) == 1
+        var = match[0]
+        assert isinstance(var, VariableInfo)
+        assert var.annotation == "int"
 
 
 # ─── _discover_py_files (unit tests) ─────────────────────────────────────────
