@@ -95,7 +95,7 @@ Independent, composable analysis engines:
 | `structural_diff.py` | Symbol-level branch diff via git worktrees | `structural_diff()` |
 | `workspace.py` | Multi-package workspace detection and analysis | `detect_workspace()`, `analyze_workspace()` |
 | `docs.py` | Documentation tree discovery | `discover_docs()` |
-| `dead_code.py` | Dead code detection with test/lazy-import scanning | `find_dead_code()` |
+| `dead_code.py` | Dead code detection with test/lazy-import/base-class scanning | `find_dead_code()`, `DeadSymbol` |
 | `flows.py` | Entry point detection, BFS flow tracing, source enrichment | `find_entry_points()`, `trace_flow()` |
 
 ### 3. Formatters (`formatters.py`)
