@@ -23,6 +23,7 @@
 - 📞 **Callers** — "Who calls this function?" via tree-sitter call-site detection
 - 📋 **Context** — One-shot project dump: stack, patterns, module ranking
 - 💥 **Impact** — Change impact analysis: callers + graph + test mapping
+- 📝 **Doc Impact** — Documentation health: doc refs, undocumented symbols, stale signatures
 - 📖 **Docs** — One-shot documentation tree dump with progressive disclosure (toc/summary/full) and page filtering
 - 💀 **Dead code** — Detect unreferenced symbols with smart exemptions (dict dispatch, entry points, test callers, lazy imports)
 - 🚀 **Flows** — Entry point detection (cyclopts, click, Flask, FastAPI, pytest, `__main__`), BFS execution flow tracing with cross-module resolution and optional source code enrichment (`detail=source`)

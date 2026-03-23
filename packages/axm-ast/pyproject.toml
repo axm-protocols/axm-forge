@@ -48,7 +48,8 @@ ast_graph    = "axm_ast.tools.graph:GraphTool"
 ast_docs      = "axm_ast.tools.docs:DocsTool"
 ast_dead_code = "axm_ast.tools.dead_code:DeadCodeTool"
 ast_diff      = "axm_ast.tools.diff:DiffTool"
-ast_flows     = "axm_ast.tools.flows:FlowsTool"
+ast_flows      = "axm_ast.tools.flows:FlowsTool"
+ast_doc_impact = "axm_ast.tools.doc_impact:DocImpactTool"
 
 [project.entry-points."axm.hooks"]
 "ast:trace-source"  = "axm_ast.hooks.trace_source:TraceSourceHook"
