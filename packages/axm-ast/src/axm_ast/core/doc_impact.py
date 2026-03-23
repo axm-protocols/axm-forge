@@ -97,7 +97,7 @@ def _extract_doc_signatures(
     except (OSError, UnicodeDecodeError):
         return results
     in_code_block = False
-    for line in lines:
+    for lineno, line in enumerate(lines, 1):
         if not in_code_block and _CODE_FENCE_RE.match(line):
             in_code_block = True
             continue
@@ -114,6 +114,7 @@ def _extract_doc_signatures(
                         "symbol": m.group(2),
                         "file": rel,
                         "doc_sig": sig,
+                        "line": lineno,
                     }
                 )
     return results
@@ -174,7 +175,7 @@ def find_stale_signatures(
 
     Returns:
         List of dicts with ``symbol``, ``file``, ``doc_sig``,
-        ``actual_sig`` keys.
+        ``actual_sig``, and ``line`` keys.
     """
     ast_sigs = _extract_ast_signatures(root)
     doc_files = _collect_doc_files(root)
