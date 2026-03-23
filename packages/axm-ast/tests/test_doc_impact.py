@@ -138,6 +138,20 @@ class TestFindStaleSignatures:
         assert len(stale) > 0
         assert any(s["symbol"] == "foo" for s in stale)
 
+    def test_stale_signature_has_line(self, tmp_path: Path) -> None:
+        """Stale entry includes line number from the doc file."""
+        root = _make_pkg(
+            tmp_path,
+            src_code=(
+                'def foo(a: int, b: int) -> int:\n    """Add."""\n    return a + b\n'
+            ),
+            readme=("# Project\n\n\n```python\ndef foo(a):\n    ...\n```\n"),
+        )
+        stale = find_stale_signatures(root, ["foo"])
+        assert len(stale) == 1
+        assert stale[0]["symbol"] == "foo"
+        assert stale[0]["line"] == 5
+
     def test_stale_signature_clean(self, tmp_path: Path) -> None:
         """Code block matches AST signature → stale_signatures empty."""
         root = _make_pkg(
