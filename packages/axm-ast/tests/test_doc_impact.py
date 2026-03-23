@@ -210,6 +210,44 @@ class TestAnalyzeDocImpact:
         assert any(s["symbol"] == "stale_func" for s in result["stale_signatures"])
 
 
+# ─── Functional: DocImpactHook ────────────────────────────────────────────
+
+
+class TestDocImpactHook:
+    """Test the engine hook wrapper for doc impact."""
+
+    def test_doc_impact_hook_full_report(self, tmp_path: Path) -> None:
+        """Hook execute with undocumented symbol → metadata contains undocumented."""
+        from axm_ast.hooks.impact import DocImpactHook
+
+        root = _make_pkg(
+            tmp_path,
+            src_code=('def secret() -> None:\n    """Not in docs."""\n    pass\n'),
+            readme="# Project\n\nNo mention of secret here.\n",
+        )
+        hook = DocImpactHook()
+        result = hook.execute(context={}, symbol="secret", path=str(root))
+
+        assert result.success is True
+        assert "undocumented" in result.metadata
+        assert "secret" in result.metadata["undocumented"]
+
+    def test_doc_impact_hook_stale_key_present(self, tmp_path: Path) -> None:
+        """Hook execute with any symbol → stale_signatures key exists in metadata."""
+        from axm_ast.hooks.impact import DocImpactHook
+
+        root = _make_pkg(
+            tmp_path,
+            src_code=('class Foo:\n    """A foo."""\n    pass\n'),
+            readme="# Project\n\nUse `Foo`.\n",
+        )
+        hook = DocImpactHook()
+        result = hook.execute(context={}, symbol="Foo", path=str(root))
+
+        assert result.success is True
+        assert "stale_signatures" in result.metadata
+
+
 # ─── Functional: DocImpactTool ───────────────────────────────────────────────
 
 
