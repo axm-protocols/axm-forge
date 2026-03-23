@@ -434,3 +434,82 @@ class TestImpactHookExecute:
         assert result.success
         # Only A and B should be analyzed, not empty strings
         assert mock_impact.call_count == 2
+
+
+# ── DocImpactHook tests ─────────────────────────────────────────────
+
+
+class TestDocImpactHookExecute:
+    """Tests for DocImpactHook — single and multi-symbol doc impact analysis."""
+
+    def test_missing_symbol(self) -> None:
+        """Fail when 'symbol' param is missing."""
+        from axm_ast.hooks.impact import DocImpactHook
+
+        hook = DocImpactHook()
+        result = hook.execute({})
+        assert not result.success
+        assert result.error is not None
+        assert "symbol" in result.error
+
+    def test_invalid_path(self) -> None:
+        """Fail when path doesn't exist."""
+        from axm_ast.hooks.impact import DocImpactHook
+
+        hook = DocImpactHook()
+        result = hook.execute({}, symbol="Foo", path="/nonexistent/dir")
+        assert not result.success
+        assert result.error is not None
+        assert "not a directory" in result.error
+
+    @patch("axm_ast.core.doc_impact.analyze_doc_impact")
+    def test_doc_impact_hook_execute(
+        self,
+        mock_doc_impact: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Context with path + symbols → HookResult success with doc_refs."""
+        from axm_ast.hooks.impact import DocImpactHook
+
+        mock_doc_impact.return_value = {
+            "doc_refs": {
+                "Foo": [{"file": "README.md", "line": 10}],
+            },
+            "undocumented": [],
+            "stale_signatures": [],
+        }
+
+        hook = DocImpactHook()
+        result = hook.execute({}, symbol="Foo", path=str(tmp_path))
+
+        assert result.success
+        mock_doc_impact.assert_called_once_with(tmp_path, ["Foo"])
+        assert result.metadata["doc_refs"] == {
+            "Foo": [{"file": "README.md", "line": 10}],
+        }
+
+    @patch("axm_ast.core.doc_impact.analyze_doc_impact")
+    def test_doc_impact_hook_multi_symbols(
+        self,
+        mock_doc_impact: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """symbols="Foo\\nBar" → Results for both symbols."""
+        from axm_ast.hooks.impact import DocImpactHook
+
+        mock_doc_impact.return_value = {
+            "doc_refs": {
+                "Foo": [{"file": "README.md", "line": 5}],
+                "Bar": [{"file": "docs/api.md", "line": 12}],
+            },
+            "undocumented": [],
+            "stale_signatures": [],
+        }
+
+        hook = DocImpactHook()
+        result = hook.execute({}, symbol="Foo\nBar", path=str(tmp_path))
+
+        assert result.success
+        mock_doc_impact.assert_called_once_with(tmp_path, ["Foo", "Bar"])
+        assert "Foo" in result.metadata["doc_refs"]
+        assert "Bar" in result.metadata["doc_refs"]

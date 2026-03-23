@@ -140,3 +140,41 @@ class ImpactHook:
             return HookResult.ok(impact=merged)
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Impact analysis failed: {exc}")
+
+
+class DocImpactHook:
+    """Run doc impact analysis on one or more symbols.
+
+    Reads ``path`` from *params* (or ``working_dir`` from context)
+    and ``symbol`` from *params*.  When *symbol* contains newline
+    characters, each line is treated as a separate symbol.
+    """
+
+    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+        """Execute the hook action.
+
+        Args:
+            context: Session context dictionary.
+            **params: Must include ``symbol`` (name to analyze).
+                Optional ``path`` (overrides ``working_dir`` from context).
+
+        Returns:
+            HookResult with ``doc_refs`` dict in metadata on success.
+        """
+        symbol = params.get("symbol")
+        if not symbol:
+            return HookResult.fail("Missing required param 'symbol'")
+
+        path = params.get("path") or context.get("working_dir", ".")
+        working_dir = Path(path)
+        if not working_dir.is_dir():
+            return HookResult.fail(f"working_dir not a directory: {working_dir}")
+
+        try:
+            from axm_ast.core.doc_impact import analyze_doc_impact
+
+            symbols = [s.strip() for s in symbol.splitlines() if s.strip()]
+            report = analyze_doc_impact(working_dir, symbols)
+            return HookResult.ok(doc_refs=report["doc_refs"])
+        except Exception as exc:  # noqa: BLE001
+            return HookResult.fail(f"Doc impact analysis failed: {exc}")
