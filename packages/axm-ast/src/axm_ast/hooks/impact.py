@@ -1,12 +1,14 @@
-"""ImpactHook — blast-radius analysis for one or more symbols.
+"""ImpactHook & DocImpactHook — blast-radius and doc-impact analysis.
 
-Protocol hook that calls ``analyze_impact`` and returns the complete
-impact report as ``HookResult`` metadata.  Registered as
-``ast:impact`` via ``axm.hooks`` entry point.
+Protocol hooks registered via ``axm.hooks`` entry points:
 
-Supports newline-separated symbol lists (e.g. from cross-phase
-context).  Each symbol is analyzed independently and results are
-merged with max-score semantics.
+- ``ast:impact`` → ``ImpactHook`` — calls ``analyze_impact``, returns
+  the complete impact report as ``HookResult`` metadata.  Supports
+  newline-separated symbol lists with max-score merge semantics.
+
+- ``ast:doc-impact`` → ``DocImpactHook`` — calls ``analyze_doc_impact``,
+  returns ``doc_refs`` as ``HookResult`` metadata.  Supports
+  newline-separated symbol lists.
 """
 
 from __future__ import annotations
