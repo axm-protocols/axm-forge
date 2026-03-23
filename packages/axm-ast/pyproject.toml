@@ -58,6 +58,7 @@ ast_doc_impact = "axm_ast.tools.doc_impact:DocImpactTool"
 "ast:flows"         = "axm_ast.hooks.flows:FlowsHook"
 "ast:source-body"   = "axm_ast.hooks.source_body:SourceBodyHook"
 "ast:file-header"   = "axm_ast.hooks.file_header:FileHeaderHook"
+"ast:doc-impact"    = "axm_ast.hooks.impact:DocImpactHook"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
