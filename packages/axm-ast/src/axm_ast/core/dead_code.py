@@ -460,6 +460,15 @@ def _scan_functions(
     return dead
 
 
+def _collect_base_class_names(pkg: PackageInfo) -> set[str]:
+    """Collect all class names used as base classes across the package."""
+    bases: set[str] = set()
+    for mod in pkg.modules:
+        for cls in mod.classes:
+            bases.update(cls.bases)
+    return bases
+
+
 def _scan_classes(
     mod: ModuleInfo,
     pkg: PackageInfo,
@@ -468,10 +477,12 @@ def _scan_classes(
     """Scan classes and their methods in *mod* and return dead symbols."""
     from axm_ast.core.callers import find_callers
 
+    all_bases = _collect_base_class_names(pkg)
+
     dead: list[DeadSymbol] = []
     mod_path = str(mod.path)
     for cls in mod.classes:
-        if cls.name in ctx.entry_points:
+        if cls.name in ctx.entry_points or cls.name in all_bases:
             continue
         has_callers = bool(find_callers(pkg, cls.name))
         if not has_callers and ctx.extra_pkg is not None:
