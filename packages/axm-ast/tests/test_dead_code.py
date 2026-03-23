@@ -221,6 +221,76 @@ class TestExemptProtocol:
         assert "Processor.process" not in dead_names
 
 
+# ─── Unit: mixin base class detection ────────────────────────────────────────
+
+
+class TestMixinBaseClass:
+    """Mixin classes used as base classes should not be flagged as dead."""
+
+    def test_mixin_base_class_not_dead(self, tmp_path: Path) -> None:
+        """Package with class _Mixin + class Foo(_Mixin) → _Mixin not dead."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "mixins.py": (
+                    "class _Mixin:\n    def helper(self):\n        return 42\n"
+                ),
+                "models.py": (
+                    "from .mixins import _Mixin\n\nclass Foo(_Mixin):\n    pass\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "_Mixin" not in dead_names
+
+    def test_unused_mixin_still_dead(self, tmp_path: Path) -> None:
+        """Package with class _Mixin but no class inherits → _Mixin IS dead."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "mixins.py": (
+                    "class _Mixin:\n    def helper(self):\n        return 42\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "_Mixin" in dead_names
+
+    def test_multi_inheritance_not_dead(self, tmp_path: Path) -> None:
+        """class Foo(_MixinA, _MixinB, ABC) → neither mixin flagged."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "mixins.py": (
+                    "class _MixinA:\n"
+                    "    def help_a(self):\n"
+                    "        return 'a'\n\n"
+                    "class _MixinB:\n"
+                    "    def help_b(self):\n"
+                    "        return 'b'\n"
+                ),
+                "models.py": (
+                    "from abc import ABC\n"
+                    "from .mixins import _MixinA, _MixinB\n\n"
+                    "class Foo(_MixinA, _MixinB, ABC):\n"
+                    "    pass\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "_MixinA" not in dead_names
+        assert "_MixinB" not in dead_names
+
+
 # ─── Unit: override checks ──────────────────────────────────────────────────
 
 
