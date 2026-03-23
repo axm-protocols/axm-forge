@@ -161,7 +161,8 @@ class DocImpactHook:
                 Optional ``path`` (overrides ``working_dir`` from context).
 
         Returns:
-            HookResult with ``doc_refs`` dict in metadata on success.
+            HookResult with full report (``doc_refs``, ``undocumented``,
+                ``stale_signatures``) in metadata on success.
         """
         symbol = params.get("symbol")
         if not symbol:
@@ -177,6 +178,6 @@ class DocImpactHook:
 
             symbols = [s.strip() for s in symbol.splitlines() if s.strip()]
             report = analyze_doc_impact(working_dir, symbols)
-            return HookResult.ok(doc_refs=report["doc_refs"])
+            return HookResult.ok(**report)
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Doc impact analysis failed: {exc}")
