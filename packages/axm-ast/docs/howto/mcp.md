@@ -17,6 +17,7 @@
 | `ast_dead_code(path)` | `axm-ast dead-code` | Detect unreferenced symbols |
 | `ast_diff(path, base, head)` | `axm-ast diff` | Structural branch diff at symbol level |
 | `ast_flows(path, entry?, detail?, max_depth?, cross_module?)` | `axm-ast flows` | Entry point detection and BFS flow tracing |
+| `ast_doc_impact(path, symbols)` | — | Doc refs, undocumented symbols, stale signatures |
 
 !!! tip "ast_describe detail levels"
     `ast_describe` accepts `detail`: `"toc"` (module names + counts only), `"summary"` (signatures only),
@@ -54,7 +55,7 @@ No special arguments needed — just point `path` to the workspace root.
 | **Onboarding** | `ast_context` | `ast_describe` |
 | **Writing code** | `ast_describe` → `ast_search` | `ast_impact` before modifying |
 | **Refactoring** | `ast_impact` → `ast_callers` | `ast_graph` for architecture |
-| **Writing docs** | `ast_docs` → `ast_context` | `ast_describe` for API details |
+| **Writing docs** | `ast_docs` → `ast_doc_impact` | `ast_describe` for API details |
 | **Debugging** | `ast_search` → `ast_callers` | `ast_inspect` for detail |
 
 ## Why MCP over `grep_search`?
