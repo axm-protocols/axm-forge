@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
+
     from axm_audit.models.results import CheckResult
 
 
@@ -98,6 +100,97 @@ class TestLintingRule:
             assert "line" in entry
             assert "code" in entry
             assert "message" in entry
+
+
+class TestTypeCheckVenvAlignment:
+    """Tests for AXM-796: gate mypy env must match pre-commit hooks."""
+
+    def test_type_check_uses_project_venv(
+        self, tmp_path: Path, mocker: MockerFixture
+    ) -> None:
+        """TypeCheckRule must NOT inject mypy via --with when project has a venv.
+
+        Pre-commit hooks run mypy from the project's own venv, so the gate
+        must do the same to see identical type errors and honour the same
+        type-stub availability.
+        """
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        # Minimal project layout
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "__init__.py").write_text("")
+        (src / "main.py").write_text("def greet(name: str) -> str:\n    return name\n")
+
+        # Simulate a project venv with mypy already installed
+        venv_bin = tmp_path / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python").touch(mode=0o755)
+
+        # Patch run_in_project to capture the call
+        mock_run = mocker.patch(
+            "axm_audit.core.rules.quality.run_in_project",
+            return_value=mocker.MagicMock(stdout="", returncode=0),
+        )
+
+        rule = TypeCheckRule()
+        rule.check(tmp_path)
+
+        mock_run.assert_called_once()
+        _, kwargs = mock_run.call_args
+        # Gate must NOT inject mypy — it should use the project's own copy
+        with_pkgs = kwargs.get("with_packages") or []
+        assert "mypy" not in with_pkgs, (
+            "TypeCheckRule must use the project venv's mypy, "
+            "not inject via --with; got with_packages={with_pkgs!r}"
+        )
+
+    def test_no_unused_ignore_contradiction(
+        self, tmp_path: Path, mocker: MockerFixture
+    ) -> None:
+        """A `# type: ignore` accepted by pre-commit must not become
+        an 'unused-ignore' error in the gate.
+
+        When the gate uses the same venv as pre-commit, mypy sees
+        identical missing-stub / import errors, so a valid type-ignore
+        comment stays valid.  This test verifies the gate passes when
+        mypy reports zero errors (i.e. the ignore suppressed a real error).
+        """
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        # Minimal project layout
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "__init__.py").write_text("")
+        # File with type: ignore that suppresses a real import error
+        (src / "client.py").write_text(
+            "import somelib  # type: ignore[import-untyped]\n\n"
+            "def call() -> str:\n"
+            "    return somelib.run()\n"
+        )
+
+        # Simulate project venv
+        venv_bin = tmp_path / ".venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python").touch(mode=0o755)
+
+        # Simulate mypy output: zero errors (type: ignore suppressed the
+        # real error, just like pre-commit would see).  If the gate used
+        # a different env, mypy might report "unused-ignore" instead.
+        mocker.patch(
+            "axm_audit.core.rules.quality.run_in_project",
+            return_value=mocker.MagicMock(stdout="", returncode=0),
+        )
+
+        rule = TypeCheckRule()
+        result = rule.check(tmp_path)
+
+        assert result.passed is True
+        assert result.details is not None
+        assert result.details["error_count"] == 0, (
+            "Gate must not produce unused-ignore errors for comments "
+            "that pre-commit accepts"
+        )
 
 
 class TestTypeCheckRule:
