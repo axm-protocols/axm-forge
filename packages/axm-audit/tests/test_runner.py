@@ -473,8 +473,8 @@ class TestWithPackagesInjection:
             FormattingRule().check(tmp_path)
             assert mock.call_args[1]["with_packages"] == ["ruff"]
 
-    def test_typecheck_injects_mypy(self, tmp_path: Path) -> None:
-        """TypeCheckRule passes with_packages=["mypy"]."""
+    def test_typecheck_uses_project_mypy(self, tmp_path: Path) -> None:
+        """TypeCheckRule does NOT inject mypy — uses the project venv's copy."""
         from axm_audit.core.rules.quality import TypeCheckRule
 
         (tmp_path / "src").mkdir()
@@ -482,7 +482,8 @@ class TestWithPackagesInjection:
         with patch("axm_audit.core.rules.quality.run_in_project") as mock:
             mock.return_value = MagicMock(stdout="", stderr="", returncode=0)
             TypeCheckRule().check(tmp_path)
-            assert mock.call_args[1]["with_packages"] == ["mypy"]
+            with_pkgs = mock.call_args[1].get("with_packages") or []
+            assert "mypy" not in with_pkgs
 
     def test_security_injects_bandit(self, tmp_path: Path) -> None:
         """SecurityRule passes with_packages=["bandit"]."""

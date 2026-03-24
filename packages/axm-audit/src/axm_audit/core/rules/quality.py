@@ -190,7 +190,6 @@ class TypeCheckRule(ProjectRule):
         result = run_in_project(
             ["mypy", "--no-error-summary", "--output", "json", *targets],
             project_path,
-            with_packages=["mypy"],
             capture_output=True,
             text=True,
             check=False,
