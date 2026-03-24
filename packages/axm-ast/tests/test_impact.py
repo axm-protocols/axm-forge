@@ -629,3 +629,163 @@ class TestExcludeTests:
             pkg, "helper", project_root=tmp_path, exclude_tests=False
         )
         assert result_with["callers"] == result_without["callers"]
+
+
+# ─── Cross-package blast radius ──────────────────────────────────────────────
+
+
+def _make_workspace(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Create a workspace with two packages: pkg_a depends on pkg_b.
+
+    Layout:
+        workspace/
+        ├── pkg_b/
+        │   ├── __init__.py   (exports shared_model via __all__)
+        │   └── models.py     (defines shared_model)
+        └── pkg_a/
+            ├── __init__.py
+            └── consumer.py   (imports shared_model from pkg_b)
+
+    Returns (workspace, pkg_a, pkg_b).
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    # pkg_b — the provider
+    pkg_b = workspace / "pkg_b"
+    pkg_b.mkdir()
+    (pkg_b / "__init__.py").write_text(
+        '"""Package B."""\nfrom .models import shared_model\n\n'
+        '__all__ = ["shared_model"]\n'
+    )
+    (pkg_b / "models.py").write_text(
+        '"""Models."""\n'
+        "def shared_model(x: int) -> int:\n"
+        '    """Shared model used across packages."""\n'
+        "    return x * 2\n"
+        "\n"
+        "def _private_helper() -> None:\n"
+        '    """Private — not in __all__."""\n'
+        "    pass\n"
+    )
+
+    # pkg_a — the consumer
+    pkg_a = workspace / "pkg_a"
+    pkg_a.mkdir()
+    (pkg_a / "__init__.py").write_text('"""Package A."""\n')
+    (pkg_a / "consumer.py").write_text(
+        '"""Consumer."""\n'
+        "from pkg_b import shared_model\n"
+        "\n"
+        "def process() -> int:\n"
+        '    """Process using shared model."""\n'
+        "    return shared_model(42)\n"
+    )
+
+    return workspace, pkg_a, pkg_b
+
+
+class TestCrossPackageImpact:
+    """Tests for cross-package blast radius detection (AXM-797)."""
+
+    def test_cross_package_deps_detected(self, tmp_path: Path) -> None:
+        """Symbol in __all__ imported by sibling → in cross_package_impact."""
+        workspace, _pkg_a, pkg_b = _make_workspace(tmp_path)
+        result = analyze_impact(pkg_b, "shared_model", project_root=workspace)
+        cross = result.get("cross_package_impact", [])
+        # pkg_a imports shared_model from pkg_b → must appear
+        assert any("pkg_a" in entry for entry in cross), (
+            f"Expected pkg_a in cross_package_impact, got {cross}"
+        )
+
+    def test_no_cross_package_when_symbol_private(self, tmp_path: Path) -> None:
+        """Private symbol (not in __all__) → cross_package_impact empty."""
+        workspace, _pkg_a, pkg_b = _make_workspace(tmp_path)
+        result = analyze_impact(pkg_b, "_private_helper", project_root=workspace)
+        cross = result.get("cross_package_impact", [])
+        assert cross == [], (
+            f"Private symbol should have no cross-package impact, got {cross}"
+        )
+
+    def test_circular_dependency_no_infinite_loop(self, tmp_path: Path) -> None:
+        """Circular dep (pkg_a ↔ pkg_b) terminates without infinite loop."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+
+        # pkg_b imports from pkg_a
+        pkg_b = workspace / "pkg_b"
+        pkg_b.mkdir()
+        (pkg_b / "__init__.py").write_text(
+            '"""Package B."""\nfrom .core import func_b\n\n__all__ = ["func_b"]\n'
+        )
+        (pkg_b / "core.py").write_text(
+            '"""Core B."""\n'
+            "from pkg_a import func_a\n"
+            "\n"
+            "def func_b() -> int:\n"
+            '    """B calls A."""\n'
+            "    return func_a() + 1\n"
+        )
+
+        # pkg_a imports from pkg_b
+        pkg_a = workspace / "pkg_a"
+        pkg_a.mkdir()
+        (pkg_a / "__init__.py").write_text(
+            '"""Package A."""\nfrom .core import func_a\n\n__all__ = ["func_a"]\n'
+        )
+        (pkg_a / "core.py").write_text(
+            '"""Core A."""\n'
+            "from pkg_b import func_b\n"
+            "\n"
+            "def func_a() -> int:\n"
+            '    """A calls B."""\n'
+            "    return func_b() + 1\n"
+        )
+
+        result = analyze_impact(pkg_b, "func_b", project_root=workspace)
+        cross = result.get("cross_package_impact", [])
+        # Both packages should appear (mutual dependency), no hang
+        assert any("pkg_a" in entry for entry in cross), (
+            f"Expected pkg_a in circular cross-package impact, got {cross}"
+        )
+
+    def test_symbol_not_imported_excluded(self, tmp_path: Path) -> None:
+        """pkg_a depends on pkg_b but doesn't import the changed symbol → not listed."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+
+        pkg_b = workspace / "pkg_b"
+        pkg_b.mkdir()
+        (pkg_b / "__init__.py").write_text(
+            '"""Package B."""\n'
+            "from .models import used_func, unused_func\n\n"
+            '__all__ = ["used_func", "unused_func"]\n'
+        )
+        (pkg_b / "models.py").write_text(
+            '"""Models."""\n'
+            "def used_func() -> int:\n"
+            '    """Used by pkg_a."""\n'
+            "    return 1\n"
+            "\n"
+            "def unused_func() -> int:\n"
+            '    """Not imported by pkg_a."""\n'
+            "    return 2\n"
+        )
+
+        pkg_a = workspace / "pkg_a"
+        pkg_a.mkdir()
+        (pkg_a / "__init__.py").write_text('"""Package A."""\n')
+        (pkg_a / "consumer.py").write_text(
+            '"""Consumer."""\n'
+            "from pkg_b import used_func\n"
+            "\n"
+            "def run() -> int:\n"
+            '    """Only uses used_func."""\n'
+            "    return used_func()\n"
+        )
+
+        result = analyze_impact(pkg_b, "unused_func", project_root=workspace)
+        cross = result.get("cross_package_impact", [])
+        assert not any("pkg_a" in entry for entry in cross), (
+            f"pkg_a should NOT appear for unused_func, got {cross}"
+        )

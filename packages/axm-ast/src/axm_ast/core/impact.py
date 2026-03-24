@@ -489,6 +489,58 @@ def _add_import_based_tests(
         result["test_files_by_import"] = [str(t.name) for t in import_tests]
 
 
+def _is_symbol_public(pkg: PackageInfo, symbol: str) -> bool:
+    """Check if symbol is in any module's ``__all__`` within the package."""
+    return any(mod.all_exports and symbol in mod.all_exports for mod in pkg.modules)
+
+
+def _sibling_imports_symbol(
+    sibling_dir: Path,
+    source_pkg: str,
+    symbol: str,
+) -> bool:
+    """Check if any Python file in *sibling_dir* imports *symbol* from *source_pkg*."""
+    pattern = re.compile(
+        rf"\bfrom\s+{re.escape(source_pkg)}\b.*\bimport\b.*\b{re.escape(symbol)}\b"
+    )
+    for py_file in sibling_dir.rglob("*.py"):
+        try:
+            content = py_file.read_text(errors="ignore")
+        except OSError:
+            continue
+        if pattern.search(content):
+            return True
+    return False
+
+
+def _find_cross_package_impact(
+    path: Path,
+    pkg: PackageInfo,
+    symbol: str,
+    project_root: Path,
+) -> list[str]:
+    """Find sibling packages that import a public symbol.
+
+    Only considers symbols exported via ``__all__`` in the source
+    package.  Scans each sibling directory exactly once (no recursion
+    into transitive dependents), so circular dependencies cannot cause
+    infinite loops.
+    """
+    if not _is_symbol_public(pkg, symbol):
+        return []
+
+    pkg_name = path.name
+    cross_impact: list[str] = []
+
+    for sibling in sorted(project_root.iterdir()):
+        if not sibling.is_dir() or sibling.resolve() == path.resolve():
+            continue
+        if _sibling_imports_symbol(sibling, pkg_name, symbol):
+            cross_impact.append(sibling.name)
+
+    return cross_impact
+
+
 def _is_test_module(module: str) -> bool:
     """Check if a module name belongs to a test file.
 
@@ -569,6 +621,13 @@ def analyze_impact(
 
     _add_git_coupling(result, definition, pkg, root)
     _add_import_based_tests(result, definition, test_files, root)
+    if root is not None:
+        result["cross_package_impact"] = _find_cross_package_impact(
+            path,
+            pkg,
+            lookup_name,
+            root,
+        )
     # Score on the FULL caller set before any filtering.
     result["score"] = score_impact(result)
 
