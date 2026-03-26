@@ -861,3 +861,121 @@ class TestTestMirrorRule:
 
         rule = TestMirrorRule()
         assert rule.rule_id == "PRACTICE_TEST_MIRROR"
+
+    # --- AXM-857: private module underscore stripping ---
+
+    def test_private_module_matches_stripped_test(self, tmp_path: Path) -> None:
+        """_facade.py should match test_facade.py (leading _ stripped)."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "_facade.py").write_text("class Facade: pass\n")
+
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_facade.py").write_text("def test_facade(): pass\n")
+
+        rule = TestMirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+        assert result.details is None or "_facade.py" not in result.details.get(
+            "missing", []
+        )
+
+    def test_private_module_matches_exact_test(self, tmp_path: Path) -> None:
+        """_facade.py should also match test__facade.py (exact prefix)."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "_facade.py").write_text("class Facade: pass\n")
+
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test__facade.py").write_text("def test_facade(): pass\n")
+
+        rule = TestMirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+        assert result.details is None or "_facade.py" not in result.details.get(
+            "missing", []
+        )
+
+    def test_public_module_unchanged(self, tmp_path: Path) -> None:
+        """Public module base.py should still match test_base.py unchanged."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "base.py").write_text("class Base: pass\n")
+
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_base.py").write_text("def test_base(): pass\n")
+
+        rule = TestMirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+
+    def test_private_module_no_test(self, tmp_path: Path) -> None:
+        """_facade.py with no matching test should appear in missing."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "_facade.py").write_text("class Facade: pass\n")
+
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        # No test file at all
+
+        rule = TestMirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is False
+        assert result.details is not None
+        assert "_facade.py" in result.details["missing"]
+
+    def test_double_underscore_stripped(self, tmp_path: Path) -> None:
+        """__internal.py should match test_internal.py (all leading _ stripped)."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "__internal.py").write_text("x = 1\n")
+
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_internal.py").write_text("def test_internal(): pass\n")
+
+        rule = TestMirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+        assert result.details is None or "__internal.py" not in result.details.get(
+            "missing", []
+        )
+
+    def test_triple_underscore_stripped(self, tmp_path: Path) -> None:
+        """___triple.py (pathological) should match test_triple.py."""
+        from axm_audit.core.rules.practices import TestMirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "___triple.py").write_text("x = 1\n")
+
+        tests = tmp_path / "tests"
+        tests.mkdir()
+        (tests / "test_triple.py").write_text("def test_triple(): pass\n")
+
+        rule = TestMirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is True
+        assert result.details is None or "___triple.py" not in result.details.get(
+            "missing", []
+        )
