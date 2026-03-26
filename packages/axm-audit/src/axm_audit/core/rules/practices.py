@@ -533,6 +533,10 @@ class TestMirrorRule(ProjectRule):
     For each ``src/<pkg>/foo.py``, looks for ``tests/**/test_foo.py``
     anywhere in the test tree (supports flat and nested layouts).
 
+    Private modules (leading underscores) are matched with the prefix
+    stripped: ``_facade.py`` matches ``test_facade.py`` or
+    ``test__facade.py``.
+
     Scoring: 100 - (missing_count * 15), min 0.
     """
 
@@ -618,8 +622,10 @@ class TestMirrorRule(ProjectRule):
 
         test_basenames = cls._collect_test_basenames(tests_path)
 
-        return [
-            name
-            for name in sorted(set(source_modules))
-            if f"test_{name}" not in test_basenames
-        ]
+        missing: list[str] = []
+        for name in sorted(set(source_modules)):
+            stripped = name.lstrip("_")
+            candidates = {f"test_{stripped}", f"test_{name}"}
+            if not candidates & test_basenames:
+                missing.append(name)
+        return missing
