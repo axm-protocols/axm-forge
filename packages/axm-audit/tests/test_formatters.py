@@ -255,3 +255,85 @@ class TestFormatAgent:
         )
         output = format_agent(result)
         assert set(output.keys()) == {"score", "grade", "passed", "failed"}
+
+    def test_passed_complexity_includes_top_offenders(self) -> None:
+        """Passed complexity check with top_offenders should expose details dict."""
+        from axm_audit.formatters import format_agent
+        from axm_audit.models.results import AuditResult, CheckResult
+
+        result = AuditResult(
+            checks=[
+                CheckResult(
+                    rule_id="QUALITY_COMPLEXITY",
+                    passed=True,
+                    message="Complexity score: 90/100",
+                    details={
+                        "top_offenders": [
+                            {"file": "foo.py", "function": "bar", "cc": 12},
+                        ],
+                        "score": 90,
+                    },
+                    category="complexity",
+                ),
+            ]
+        )
+        output = format_agent(result)
+        # Should be a dict with details, not a plain string
+        assert len(output["passed"]) == 1
+        entry = output["passed"][0]
+        assert isinstance(entry, dict)
+        assert "details" in entry
+        assert entry["details"]["top_offenders"] == [
+            {"file": "foo.py", "function": "bar", "cc": 12},
+        ]
+
+    def test_passed_complexity_no_offenders_is_string(self) -> None:
+        """Passed complexity with empty top_offenders → string-only, no details."""
+        from axm_audit.formatters import format_agent
+        from axm_audit.models.results import AuditResult, CheckResult
+
+        result = AuditResult(
+            checks=[
+                CheckResult(
+                    rule_id="QUALITY_COMPLEXITY",
+                    passed=True,
+                    message="Complexity score: 100/100",
+                    details={
+                        "top_offenders": [],
+                        "score": 100,
+                    },
+                    category="complexity",
+                ),
+            ]
+        )
+        output = format_agent(result)
+        assert len(output["passed"]) == 1
+        assert isinstance(output["passed"][0], str)
+
+    def test_passed_complexity_multiple_offenders_exposes_details(self) -> None:
+        """Passed complexity with 1+ offenders → details dict with offenders."""
+        from axm_audit.formatters import format_agent
+        from axm_audit.models.results import AuditResult, CheckResult
+
+        offenders = [
+            {"file": "a.py", "function": "func_a", "cc": 15},
+            {"file": "b.py", "function": "func_b", "cc": 11},
+        ]
+        result = AuditResult(
+            checks=[
+                CheckResult(
+                    rule_id="QUALITY_COMPLEXITY",
+                    passed=True,
+                    message="Complexity score: 90/100",
+                    details={
+                        "top_offenders": offenders,
+                        "score": 90,
+                    },
+                    category="complexity",
+                ),
+            ]
+        )
+        output = format_agent(result)
+        entry = output["passed"][0]
+        assert isinstance(entry, dict)
+        assert entry["details"]["top_offenders"] == offenders

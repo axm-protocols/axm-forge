@@ -264,10 +264,14 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
 
 
 def _has_actionable_detail(check: CheckResult) -> bool:
-    """Return True if a passing check has items the agent should act on."""
+    """Return True if a passing check carries detail the agent should surface.
+
+    Checks for non-empty list-valued keys: missing, locations, matches,
+    issues, errors, top_offenders.
+    """
     if not check.details:
         return False
-    for key in ("missing", "locations", "matches", "issues", "errors"):
+    for key in ("missing", "locations", "matches", "issues", "errors", "top_offenders"):
         items = check.details.get(key)
         if items and len(items) > 0:
             return True
