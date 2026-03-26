@@ -49,7 +49,7 @@ print(json.dumps(data, indent=2))
 
 ### Agent Output
 
-`format_agent` minimizes tokens for AI agent consumption. Passed checks are compact strings — unless they carry actionable detail (e.g. missing docstrings), in which case they become dicts with `details` and `fix_hint`:
+`format_agent` minimizes tokens for AI agent consumption. Passed checks are compact strings — unless they carry actionable detail (e.g. missing docstrings, complexity top offenders), in which case they become dicts with `details` and `fix_hint`:
 
 ```python
 from axm_audit.formatters import format_agent
