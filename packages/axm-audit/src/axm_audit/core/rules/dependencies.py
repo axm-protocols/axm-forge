@@ -45,6 +45,19 @@ def _run_pip_audit(project_path: Path) -> dict[str, Any] | list[Any]:
     return {}
 
 
+def _summarize_vuln(v: dict[str, Any]) -> dict[str, Any]:
+    """Build a top_vulns summary entry for a single vulnerable package."""
+    vuln_entries = v.get("vulns", [])
+    return {
+        "name": v.get("name", ""),
+        "version": v.get("version", ""),
+        "vuln_ids": [vi.get("id", "") for vi in vuln_entries],
+        "fix_versions": sorted(
+            {fv for vi in vuln_entries for fv in vi.get("fix_versions", [])}
+        ),
+    }
+
+
 def _parse_vulns(data: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
     """Extract vulnerable packages from pip-audit output."""
     if isinstance(data, list):
@@ -104,10 +117,7 @@ class DependencyAuditRule(ProjectRule):
             details={
                 "vuln_count": vuln_count,
                 "score": score,
-                "top_vulns": [
-                    {"name": v.get("name", ""), "version": v.get("version", "")}
-                    for v in vulns[:5]
-                ],
+                "top_vulns": [_summarize_vuln(v) for v in vulns[:5]],
             },
             fix_hint=("Run: pip-audit --fix to remediate" if vuln_count > 0 else None),
         )
