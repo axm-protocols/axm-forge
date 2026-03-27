@@ -1,6 +1,9 @@
 """Tests for Dependency Rules — DependencyAuditRule + DependencyHygieneRule."""
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from axm_audit.models.results import Severity
@@ -100,6 +103,155 @@ class TestDependencyAuditRule:
         assert result.severity == Severity.ERROR
         assert result.details is not None
         assert result.details["score"] == 0
+
+
+class TestDependencyAuditRuleEnriched:
+    """Tests for CVE IDs and fix versions in DEPS_AUDIT output (AXM-861)."""
+
+    def _make_pip_audit_result(self, data: list[Any] | dict[str, Any]) -> object:
+        """Helper: build a mock subprocess result from pip-audit JSON."""
+        import json
+
+        return type(
+            "Result",
+            (),
+            {"stdout": json.dumps(data), "stderr": "", "returncode": 1},
+        )()
+
+    def test_vuln_ids_included(self, tmp_path: Path) -> None:
+        """top_vulns entries must contain vuln_ids with the CVE ID."""
+        from axm_audit.core.rules.dependencies import DependencyAuditRule
+
+        data = [
+            {
+                "name": "requests",
+                "version": "2.28.0",
+                "vulns": [{"id": "CVE-2023-32681", "fix_versions": ["2.31.0"]}],
+            },
+        ]
+        mock_result = self._make_pip_audit_result(data)
+
+        rule = DependencyAuditRule()
+        with patch("subprocess.run", return_value=mock_result):
+            result = rule.check(tmp_path)
+
+        assert result.details is not None
+        top = result.details["top_vulns"][0]
+        assert "vuln_ids" in top
+        assert "CVE-2023-32681" in top["vuln_ids"]
+
+    def test_fix_versions_included(self, tmp_path: Path) -> None:
+        """top_vulns entries must list fix_versions."""
+        from axm_audit.core.rules.dependencies import DependencyAuditRule
+
+        data = [
+            {
+                "name": "requests",
+                "version": "2.28.0",
+                "vulns": [{"id": "CVE-2023-32681", "fix_versions": ["2.31.0"]}],
+            },
+        ]
+        mock_result = self._make_pip_audit_result(data)
+
+        rule = DependencyAuditRule()
+        with patch("subprocess.run", return_value=mock_result):
+            result = rule.check(tmp_path)
+
+        assert result.details is not None
+        top = result.details["top_vulns"][0]
+        assert "fix_versions" in top
+        assert "2.31.0" in top["fix_versions"]
+
+    def test_no_fix_version_available(self, tmp_path: Path) -> None:
+        """When fix_versions is empty, top_vulns entry has fix_versions=[]."""
+        from axm_audit.core.rules.dependencies import DependencyAuditRule
+
+        data = [
+            {
+                "name": "numpy",
+                "version": "1.23.0",
+                "vulns": [{"id": "CVE-2024-00001", "fix_versions": []}],
+            },
+        ]
+        mock_result = self._make_pip_audit_result(data)
+
+        rule = DependencyAuditRule()
+        with patch("subprocess.run", return_value=mock_result):
+            result = rule.check(tmp_path)
+
+        assert result.details is not None
+        top = result.details["top_vulns"][0]
+        assert top["fix_versions"] == []
+
+    def test_multiple_vulns_per_package(self, tmp_path: Path) -> None:
+        """Package with 2+ vulns → vuln_ids aggregates all IDs."""
+        from axm_audit.core.rules.dependencies import DependencyAuditRule
+
+        data = [
+            {
+                "name": "django",
+                "version": "3.2.0",
+                "vulns": [
+                    {"id": "CVE-2023-001", "fix_versions": ["3.2.19"]},
+                    {"id": "CVE-2023-002", "fix_versions": ["3.2.20"]},
+                ],
+            },
+        ]
+        mock_result = self._make_pip_audit_result(data)
+
+        rule = DependencyAuditRule()
+        with patch("subprocess.run", return_value=mock_result):
+            result = rule.check(tmp_path)
+
+        assert result.details is not None
+        top = result.details["top_vulns"][0]
+        assert "CVE-2023-001" in top["vuln_ids"]
+        assert "CVE-2023-002" in top["vuln_ids"]
+
+    def test_missing_fix_versions_key(self, tmp_path: Path) -> None:
+        """Older pip-audit format without fix_versions → default to []."""
+        from axm_audit.core.rules.dependencies import DependencyAuditRule
+
+        data = [
+            {
+                "name": "urllib3",
+                "version": "1.26.0",
+                "vulns": [{"id": "CVE-2024-99999"}],
+            },
+        ]
+        mock_result = self._make_pip_audit_result(data)
+
+        rule = DependencyAuditRule()
+        with patch("subprocess.run", return_value=mock_result):
+            result = rule.check(tmp_path)
+
+        assert result.details is not None
+        top = result.details["top_vulns"][0]
+        assert top["fix_versions"] == []
+
+    def test_empty_vulns_excluded(self, tmp_path: Path) -> None:
+        """Package with empty vulns list is excluded from top_vulns (unchanged)."""
+        from axm_audit.core.rules.dependencies import DependencyAuditRule
+
+        data = [
+            {"name": "safe-pkg", "version": "1.0.0", "vulns": []},
+            {
+                "name": "bad-pkg",
+                "version": "0.9.0",
+                "vulns": [{"id": "CVE-2025-111", "fix_versions": ["1.0.0"]}],
+            },
+        ]
+        mock_result = self._make_pip_audit_result(data)
+
+        rule = DependencyAuditRule()
+        with patch("subprocess.run", return_value=mock_result):
+            result = rule.check(tmp_path)
+
+        assert result.details is not None
+        assert result.details["vuln_count"] == 1
+        names = [v["name"] for v in result.details["top_vulns"]]
+        assert "safe-pkg" not in names
+        assert "bad-pkg" in names
 
 
 class TestDependencyHygieneRule:
