@@ -45,6 +45,11 @@ docs = [
     "mkdocs-literate-nav>=0.6",
 ]
 
+[tool.uv]
+constraint-dependencies = [
+    "requests>=2.33.0",
+]
+
 [tool.uv.workspace]
 members = ["packages/*"]
 

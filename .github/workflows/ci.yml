@@ -40,7 +40,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
       - run: uv sync --all-groups
-      - run: uv run pip-audit
+      - run: uv run pip-audit --ignore-vuln CVE-2026-4539  # pygments ReDoS, no fix yet
 
   test:
     name: Test ${{ matrix.package }} (Python ${{ matrix.python-version }})
