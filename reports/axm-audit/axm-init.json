@@ -1,8 +1,8 @@
 {
-  "score": 85.8,
+  "score": 84.2,
   "grade": "B",
   "total": 24,
-  "failed": 4,
+  "failed": 5,
   "success": false,
   "checks": [
     {
@@ -96,7 +96,7 @@
       "passed": true,
       "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 92.69366197183099,
+        "coverage": 92.68722466960352,
         "score": 92,
         "failures": []
       }
@@ -144,12 +144,21 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": true,
-      "message": "No known vulnerabilities",
+      "passed": false,
+      "message": "2 vulnerable package(s) found",
       "details": {
-        "vuln_count": 0,
-        "score": 100,
-        "top_vulns": []
+        "vuln_count": 2,
+        "score": 70,
+        "top_vulns": [
+          {
+            "name": "pygments",
+            "version": "2.19.2"
+          },
+          {
+            "name": "requests",
+            "version": "2.32.5"
+          }
+        ]
       }
     },
     {

@@ -1,8 +1,8 @@
 {
-  "score": 77.8,
+  "score": 76.2,
   "grade": "C",
   "total": 24,
-  "failed": 4,
+  "failed": 6,
   "success": false,
   "checks": [
     {
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 13,
         "max_fan_in": 36,
-        "avg_coupling": 4.97,
+        "avg_coupling": 4.9,
         "score": 95,
         "n_over_threshold": 1,
         "over_threshold": [
@@ -54,9 +54,9 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 0/100 (17 high-complexity functions)",
+      "message": "Complexity score: 0/100 (18 high-complexity functions)",
       "details": {
-        "high_complexity_count": 17,
+        "high_complexity_count": 18,
         "top_offenders": [
           {
             "file": "inspect.py",
@@ -69,11 +69,6 @@
             "cc": 14
           },
           {
-            "file": "flows.py",
-            "function": "FlowsHook._trace_entries",
-            "cc": 13
-          },
-          {
             "file": "analyzer.py",
             "function": "_search_module",
             "cc": 13
@@ -82,6 +77,16 @@
             "file": "flows.py",
             "function": "trace_flow",
             "cc": 13
+          },
+          {
+            "file": "flows.py",
+            "function": "FlowsHook._trace_entries",
+            "cc": 13
+          },
+          {
+            "file": "impact.py",
+            "function": "analyze_impact",
+            "cc": 12
           },
           {
             "file": "file_header.py",
@@ -94,18 +99,13 @@
             "cc": 12
           },
           {
-            "file": "file_header.py",
-            "function": "FileHeaderHook.execute",
-            "cc": 11
-          },
-          {
             "file": "flows.py",
             "function": "_follow_reexport",
             "cc": 11
           },
           {
-            "file": "impact.py",
-            "function": "analyze_impact",
+            "file": "file_header.py",
+            "function": "FileHeaderHook.execute",
             "cc": 11
           },
           {
@@ -114,13 +114,8 @@
             "cc": 11
           },
           {
-            "file": "flows.py",
-            "function": "FlowsHook",
-            "cc": 10
-          },
-          {
-            "file": "source_body.py",
-            "function": "SourceBodyHook",
+            "file": "impact.py",
+            "function": "find_definition",
             "cc": 10
           },
           {
@@ -134,8 +129,18 @@
             "cc": 10
           },
           {
-            "file": "impact.py",
-            "function": "find_definition",
+            "file": "doc_impact.py",
+            "function": "_extract_doc_signatures",
+            "cc": 10
+          },
+          {
+            "file": "source_body.py",
+            "function": "SourceBodyHook",
+            "cc": 10
+          },
+          {
+            "file": "flows.py",
+            "function": "FlowsHook",
             "cc": 10
           },
           {
@@ -152,7 +157,7 @@
       "passed": false,
       "message": "Test coverage: 87% (86/100)",
       "details": {
-        "coverage": 86.58800066478311,
+        "coverage": 86.75295621604346,
         "score": 86,
         "failures": []
       }
@@ -200,12 +205,21 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": true,
-      "message": "No known vulnerabilities",
+      "passed": false,
+      "message": "2 vulnerable package(s) found",
       "details": {
-        "vuln_count": 0,
-        "score": 100,
-        "top_vulns": []
+        "vuln_count": 2,
+        "score": 70,
+        "top_vulns": [
+          {
+            "name": "pygments",
+            "version": "2.19.2"
+          },
+          {
+            "name": "requests",
+            "version": "2.32.5"
+          }
+        ]
       }
     },
     {
@@ -220,11 +234,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (112/112)",
+      "message": "Docstring coverage: 100% (119/119)",
       "details": {
         "coverage": 1.0,
-        "total": 112,
-        "documented": 112,
+        "total": 119,
+        "documented": 119,
         "missing": [],
         "score": 100
       }
@@ -250,11 +264,13 @@
     },
     {
       "rule_id": "PRACTICE_LOGGING",
-      "passed": true,
-      "message": "Logging coverage: 100% (17/17)",
+      "passed": false,
+      "message": "Logging coverage: 94% (17/18)",
       "details": {
-        "without_logging": [],
-        "score": 100
+        "without_logging": [
+          "axm_ast/core/doc_impact.py"
+        ],
+        "score": 94
       }
     },
     {
