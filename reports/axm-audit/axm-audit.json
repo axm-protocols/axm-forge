@@ -1,5 +1,5 @@
 {
-  "score": 86.3,
+  "score": 87.1,
   "grade": "B",
   "total": 24,
   "failed": 4,
@@ -136,18 +136,14 @@
     {
       "rule_id": "DEPS_AUDIT",
       "passed": false,
-      "message": "2 vulnerable package(s) found",
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 2,
-        "score": 70,
+        "vuln_count": 1,
+        "score": 85,
         "top_vulns": [
           {
             "name": "pygments",
             "version": "2.19.2"
-          },
-          {
-            "name": "requests",
-            "version": "2.32.5"
           }
         ]
       }
