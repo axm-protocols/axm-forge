@@ -1,0 +1,5 @@
+"""Hook actions for axm-audit."""
+
+from __future__ import annotations
+
+__all__: list[str] = []
