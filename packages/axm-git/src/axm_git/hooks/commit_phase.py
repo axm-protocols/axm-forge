@@ -124,7 +124,12 @@ class CommitPhaseHook:
         context: dict[str, Any],
         working_dir: Path,
     ) -> HookResult:
-        """Outputs mode: read commit_spec from context, stage listed files."""
+        """Outputs mode: read commit_spec from context, stage listed files.
+
+        If the commit fails because pre-commit hooks auto-fixed files
+        (stderr contains ``"files were modified"``), the listed files are
+        re-staged and the commit is retried once.
+        """
         spec, err = _validate_commit_spec(context.get("commit_spec"))
         if err:
             return HookResult.fail(err)
@@ -152,7 +157,14 @@ class CommitPhaseHook:
 
         result = run_git(commit_cmd, git_root)
         if result.returncode != 0:
-            return HookResult.fail(f"git commit failed: {result.stderr}")
+            # Pre-commit hooks may auto-fix files; re-stage and retry once
+            if "files were modified" in result.stderr:
+                restage_err = _stage_spec_files(files, git_root)
+                if restage_err:
+                    return HookResult.fail(restage_err)
+                result = run_git(commit_cmd, git_root)
+            if result.returncode != 0:
+                return HookResult.fail(f"git commit failed: {result.stderr}")
 
         # Get commit hash
         hash_result = run_git(["rev-parse", "--short", "HEAD"], git_root)
