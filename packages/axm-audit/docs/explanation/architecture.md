@@ -11,6 +11,7 @@ graph TB
     Rules -->|subprocess| Runner["run_in_project()"]
     Rules -->|direct| AST["ast · radon · tomllib"]
     Runner --> Tools["Ruff · mypy · Bandit\npip-audit · deptry · pytest-cov"]
+    Hooks["AutofixHook"] -->|subprocess| Runner
     Rules --> Result["AuditResult"]
     Result --> Fmt["format_report · format_json · format_agent"]
 ```
@@ -62,7 +63,15 @@ All subprocess-based rules use `run_in_project()` from `core/runner.py`, which d
 | Structure rules | `tomllib` | TOML parsing |
 | `ToolAvailabilityRule` | `shutil.which` | PATH lookup |
 
-### 4. Scoring
+### 4. Hooks
+
+Pre-gate hooks run before quality evaluation to auto-fix common issues:
+
+| Hook | Commands | Behavior |
+|---|---|---|
+| `AutofixHook` | `ruff check --fix .`, `ruff format .` | Runs via `run_in_project()`. Returns `HookResult.ok(fixed=N)` with fix count parsed from ruff stdout. Skips gracefully when ruff is missing (`skipped=True`). Tolerates config errors (returncode 2) without failing. |
+
+### 5. Scoring
 
 10-category weighted composite (see [Scoring & Grades](scoring.md)):
 
@@ -77,11 +86,11 @@ All subprocess-based rules use `run_in_project()` from `core/runner.py`, which d
 | Architecture | 10% |
 | Practices | 5% |
 
-### 5. Models
+### 6. Models
 
 `AuditResult`, `CheckResult`, `Severity` — Pydantic models with `extra = "forbid"` for strict validation.
 
-### 6. Output
+### 7. Output
 
 - **Formatters**: `format_report()` (human-readable), `format_json()` (machine-readable), `format_agent()` (agent-optimized)
 
