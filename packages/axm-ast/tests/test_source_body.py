@@ -206,6 +206,180 @@ class TestSourceBodyMissingParam:
         assert "symbol" in result.error
 
 
+# ── Dotted symbol tests ────────────────────────────────────────────
+
+
+class TestSourceBodyDottedClassMethod:
+    """Dotted symbol: ClassName.method resolution."""
+
+    @patch(f"{_ANALYZER}.find_module_for_symbol")
+    @patch(f"{_ANALYZER}.search_symbols")
+    @patch(f"{_ANALYZER}.analyze_package")
+    def test_source_body_dotted_class_method(
+        self,
+        mock_analyze: MagicMock,
+        mock_search: MagicMock,
+        mock_find: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """ClassName.method returns body with correct file, start_line, end_line."""
+        src = tmp_path / "models.py"
+        src.write_text("class MyClass:\n    def do_work(self) -> None:\n        pass\n")
+
+        mock_method = MagicMock()
+        mock_method.name = "do_work"
+        mock_method.line_start = 2
+        mock_method.line_end = 3
+
+        mock_cls = MagicMock()
+        mock_cls.name = "MyClass"
+        mock_cls.methods = [mock_method]
+
+        mock_mod = MagicMock()
+        mock_mod.path = src
+
+        mock_pkg = MagicMock()
+        mock_analyze.return_value = mock_pkg
+
+        # search_symbols won't find "MyClass.do_work" as a flat name,
+        # but should find "MyClass" when the dotted path is split.
+        def fake_search(pkg: Any, name: str | None, **_kw: Any) -> list[Any]:
+            if name == "MyClass":
+                return [mock_cls]
+            return []
+
+        mock_search.side_effect = fake_search
+        mock_find.return_value = mock_mod
+
+        hook = SourceBodyHook()
+        result = hook.execute({}, symbol="MyClass.do_work", path=str(tmp_path))
+
+        assert result.success
+        data = result.metadata["symbols"]
+        assert data["body"] is not None
+        assert data["file"] == "models.py"
+        assert data["start_line"] == 2
+        assert data["end_line"] == 3
+        assert "def do_work" in data["body"]
+
+
+class TestSourceBodyDottedModuleSymbol:
+    """Dotted symbol: module.function resolution."""
+
+    @patch(f"{_ANALYZER}.find_module_for_symbol")
+    @patch(f"{_ANALYZER}.search_symbols")
+    @patch(f"{_ANALYZER}.analyze_package")
+    def test_source_body_dotted_module_symbol(
+        self,
+        mock_analyze: MagicMock,
+        mock_search: MagicMock,
+        mock_find: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """module.function returns body correctly for module-level symbol."""
+        src = tmp_path / "utils.py"
+        src.write_text("def helper():\n    return 42\n")
+
+        mock_fn = MagicMock()
+        mock_fn.name = "helper"
+        mock_fn.line_start = 1
+        mock_fn.line_end = 2
+
+        mock_mod = MagicMock()
+        mock_mod.path = src
+        mock_mod.name = "utils"
+
+        mock_pkg = MagicMock()
+        mock_pkg.modules = {"utils": mock_mod}
+        mock_analyze.return_value = mock_pkg
+
+        # When split as module.function, search in the resolved module.
+        def fake_search(pkg: Any, name: str | None, **_kw: Any) -> list[Any]:
+            if name == "helper":
+                return [mock_fn]
+            return []
+
+        mock_search.side_effect = fake_search
+        mock_find.return_value = mock_mod
+
+        hook = SourceBodyHook()
+        result = hook.execute({}, symbol="utils.helper", path=str(tmp_path))
+
+        assert result.success
+        data = result.metadata["symbols"]
+        assert data["body"] is not None
+        assert data["file"] == "utils.py"
+        assert data["start_line"] == 1
+        assert data["end_line"] == 2
+        assert "def helper" in data["body"]
+
+
+class TestSourceBodyDottedNotFound:
+    """Dotted symbol: not found returns error."""
+
+    @patch(f"{_ANALYZER}.search_symbols", return_value=[])
+    @patch(f"{_ANALYZER}.analyze_package")
+    def test_source_body_dotted_not_found(
+        self,
+        mock_analyze: MagicMock,
+        _mock_search: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Foo.nonexistent returns error dict with body=None."""
+        mock_pkg = MagicMock()
+        mock_analyze.return_value = mock_pkg
+
+        hook = SourceBodyHook()
+        result = hook.execute({}, symbol="Foo.nonexistent", path=str(tmp_path))
+
+        assert result.success
+        data = result.metadata["symbols"]
+        assert data["body"] is None
+        assert "error" in data
+
+
+class TestSourceBodySimpleNameUnchanged:
+    """Simple (non-dotted) name: existing behavior preserved."""
+
+    @patch(f"{_ANALYZER}.find_module_for_symbol")
+    @patch(f"{_ANALYZER}.search_symbols")
+    @patch(f"{_ANALYZER}.analyze_package")
+    def test_source_body_simple_name_unchanged(
+        self,
+        mock_analyze: MagicMock,
+        mock_search: MagicMock,
+        mock_find: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """A plain name (no dot) resolves exactly as before."""
+        src = tmp_path / "plain.py"
+        src.write_text("def my_function():\n    return True\n")
+
+        mock_fn = MagicMock()
+        mock_fn.name = "my_function"
+        mock_fn.line_start = 1
+        mock_fn.line_end = 2
+
+        mock_mod = MagicMock()
+        mock_mod.path = src
+
+        mock_pkg = MagicMock()
+        mock_analyze.return_value = mock_pkg
+        mock_search.return_value = [mock_fn]
+        mock_find.return_value = mock_mod
+
+        hook = SourceBodyHook()
+        result = hook.execute({}, symbol="my_function", path=str(tmp_path))
+
+        assert result.success
+        data = result.metadata["symbols"]
+        assert data["body"] is not None
+        assert data["file"] == "plain.py"
+        assert data["start_line"] == 1
+        assert data["end_line"] == 2
+        assert "def my_function" in data["body"]
+
+
 # ── Functional tests ───────────────────────────────────────────────
 
 
