@@ -68,8 +68,6 @@ class AXMTool(Protocol):
                 return ToolResult(success=True, data={"result": value})
     """
 
-    agent_hint: str = ""
-
     @property
     def name(self) -> str:
         """Unique tool identifier (e.g., 'esbmc', 'dafny', 'pytest')."""
