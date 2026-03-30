@@ -1,5 +1,5 @@
 {
-  "score": 88.8,
+  "score": 87.2,
   "grade": "B",
   "total": 24,
   "failed": 3,
@@ -49,14 +49,19 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 70/100 (3 high-complexity functions)",
+      "message": "Complexity score: 60/100 (4 high-complexity functions)",
       "details": {
-        "high_complexity_count": 3,
+        "high_complexity_count": 4,
         "top_offenders": [
           {
             "file": "await_merge.py",
             "function": "AwaitMergeHook",
             "cc": 12
+          },
+          {
+            "file": "commit_phase.py",
+            "function": "CommitPhaseHook._commit_from_outputs",
+            "cc": 11
           },
           {
             "file": "await_merge.py",
@@ -69,7 +74,7 @@
             "cc": 10
           }
         ],
-        "score": 70
+        "score": 60
       }
     },
     {
@@ -77,7 +82,7 @@
       "passed": true,
       "message": "Test coverage: 95% (95/100)",
       "details": {
-        "coverage": 95.2851711026616,
+        "coverage": 95.25244913338358,
         "score": 95,
         "failures": []
       }

@@ -1,8 +1,8 @@
 {
-  "score": 87.1,
+  "score": 86.9,
   "grade": "B",
   "total": 24,
-  "failed": 4,
+  "failed": 5,
   "success": false,
   "checks": [
     {
@@ -29,8 +29,8 @@
       "message": "Coupling: 1 module(s) above threshold (-5 pts)",
       "details": {
         "max_fan_out": 11,
-        "max_fan_in": 20,
-        "avg_coupling": 6.26,
+        "max_fan_in": 21,
+        "avg_coupling": 6.25,
         "score": 95,
         "n_over_threshold": 1,
         "over_threshold": [
@@ -87,7 +87,7 @@
       "passed": true,
       "message": "Test coverage: 93% (93/100)",
       "details": {
-        "coverage": 93.07139839459231,
+        "coverage": 93.08621407746772,
         "score": 93,
         "failures": []
       }
@@ -160,11 +160,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (86/86)",
+      "message": "Docstring coverage: 100% (87/87)",
       "details": {
         "coverage": 1.0,
-        "total": 86,
-        "documented": 86,
+        "total": 87,
+        "documented": 87,
         "missing": [],
         "score": 100
       }
@@ -199,9 +199,14 @@
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
-      "passed": true,
-      "message": "All source modules have test files",
-      "details": null
+      "passed": false,
+      "message": "1 source module(s) without tests",
+      "details": {
+        "missing": [
+          "autofix.py"
+        ],
+        "score": 85
+      }
     },
     {
       "rule_id": "PRACTICE_SECURITY",
