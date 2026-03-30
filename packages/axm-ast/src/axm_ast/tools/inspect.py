@@ -340,6 +340,75 @@ class InspectTool(AXMTool):
             return str(mod_path)
 
     @staticmethod
+    def _variable_detail(
+        sym: VariableInfo,
+        *,
+        file: str = "",
+    ) -> dict[str, Any]:
+        """Build detail dict from a VariableInfo."""
+        detail: dict[str, Any] = {
+            "name": sym.name,
+            "file": file,
+            "kind": "variable",
+            "start_line": sym.line,
+            "end_line": sym.line,
+            "module": "",
+        }
+        if sym.annotation is not None:
+            detail["annotation"] = sym.annotation
+        if sym.value_repr is not None:
+            detail["value_repr"] = sym.value_repr
+        return detail
+
+    @staticmethod
+    def _function_detail(
+        sym: FunctionInfo,
+        *,
+        file: str = "",
+    ) -> dict[str, Any]:
+        """Build detail dict from a FunctionInfo."""
+        detail: dict[str, Any] = {
+            "name": sym.name,
+            "file": file,
+            "start_line": sym.line_start,
+            "end_line": sym.line_end,
+        }
+        if sym.docstring is not None:
+            detail["docstring"] = sym.docstring
+        detail["signature"] = sym.signature
+        if sym.return_type is not None:
+            detail["return_type"] = sym.return_type
+        if sym.params:
+            detail["parameters"] = [
+                {"name": p.name, "annotation": p.annotation, "default": p.default}
+                for p in sym.params
+            ]
+        detail["module"] = ""
+        return detail
+
+    @staticmethod
+    def _class_detail(
+        sym: ClassInfo,
+        *,
+        file: str = "",
+    ) -> dict[str, Any]:
+        """Build detail dict from a ClassInfo."""
+        detail: dict[str, Any] = {
+            "name": sym.name,
+            "file": file,
+            "start_line": sym.line_start,
+            "end_line": sym.line_end,
+        }
+        if sym.docstring is not None:
+            detail["docstring"] = sym.docstring
+        if sym.bases:
+            detail["bases"] = sym.bases
+        if sym.methods:
+            detail["methods"] = [m.name for m in sym.methods]
+        detail["module"] = ""
+        return detail
+
+    @staticmethod
     def _build_detail(
         sym: FunctionInfo | ClassInfo | VariableInfo,
         *,
@@ -349,46 +418,12 @@ class InspectTool(AXMTool):
     ) -> dict[str, Any]:
         """Build detail dict from a FunctionInfo, ClassInfo, or VariableInfo."""
         if isinstance(sym, VariableInfo):
-            detail: dict[str, Any] = {
-                "name": sym.name,
-                "file": file,
-                "kind": "variable",
-                "start_line": sym.line,
-                "end_line": sym.line,
-                "module": "",
-            }
-            if sym.annotation is not None:
-                detail["annotation"] = sym.annotation
-            if sym.value_repr is not None:
-                detail["value_repr"] = sym.value_repr
-            return detail
-
-        detail = {
-            "name": sym.name,
-            "file": file,
-            "start_line": sym.line_start,
-            "end_line": sym.line_end,
-        }
-
-        if sym.docstring is not None:
-            detail["docstring"] = sym.docstring
+            return InspectTool._variable_detail(sym, file=file)
 
         if isinstance(sym, FunctionInfo):
-            detail["signature"] = sym.signature
-            if sym.return_type is not None:
-                detail["return_type"] = sym.return_type
-            if sym.params:
-                detail["parameters"] = [
-                    {"name": p.name, "annotation": p.annotation, "default": p.default}
-                    for p in sym.params
-                ]
-        elif isinstance(sym, ClassInfo):
-            if sym.bases:
-                detail["bases"] = sym.bases
-            if sym.methods:
-                detail["methods"] = [m.name for m in sym.methods]
-
-        detail["module"] = ""
+            detail = InspectTool._function_detail(sym, file=file)
+        else:
+            detail = InspectTool._class_detail(sym, file=file)
 
         # Source code — only when requested
         if source and abs_path:
