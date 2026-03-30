@@ -61,7 +61,7 @@ jobs:
       - run: uv run --package ${{ matrix.package }} --directory packages/${{ matrix.package }} pytest --cov
       - name: Upload coverage
         if: matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: packages/${{ matrix.package }}/coverage.xml
           flags: ${{ matrix.package }}
