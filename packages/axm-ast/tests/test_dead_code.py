@@ -14,6 +14,13 @@ from axm_ast.core.dead_code import (
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 
+def _init_git_repo(path: Path) -> None:
+    """Initialise a minimal git repo so .gitignore is respected."""
+    import subprocess
+
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+
+
 def _make_pkg(tmp_path: Path, files: dict[str, str]) -> Path:
     """Create a package from file dict and return path."""
     pkg = tmp_path / "mypkg"
@@ -23,6 +30,33 @@ def _make_pkg(tmp_path: Path, files: dict[str, str]) -> Path:
         filepath.parent.mkdir(parents=True, exist_ok=True)
         filepath.write_text(content)
     return pkg
+
+
+# ─── Unit: gitignore filtering in dead code ──────────────────────────────────
+
+
+class TestDeadCodeExcludesGitignored:
+    """Dead code analysis should only scan tracked (non-gitignored) files."""
+
+    def test_dead_code_excludes_gitignored(self, tmp_path: Path) -> None:
+        """Symbols in gitignored directories are not reported as dead."""
+        pkg = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": "def used():\n    pass\n",
+                "main.py": "from .core import used\n\ndef run():\n    used()\n",
+                "archive/old.py": "def abandoned():\n    pass\n",
+            },
+        )
+        _init_git_repo(pkg)
+        (pkg / ".gitignore").write_text("archive/\n")
+
+        result = analyze_package(pkg)
+        dead = find_dead_code(result)
+        dead_names = {d.name for d in dead}
+        # abandoned() lives in a gitignored dir → must NOT appear
+        assert "abandoned" not in dead_names
 
 
 # ─── Unit: find_dead_code — simple cases ─────────────────────────────────────

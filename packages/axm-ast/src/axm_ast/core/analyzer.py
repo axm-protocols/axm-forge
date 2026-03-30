@@ -15,6 +15,7 @@ Example:
 from __future__ import annotations
 
 import logging
+import subprocess
 import time
 from pathlib import Path
 
@@ -114,12 +115,40 @@ def analyze_package(path: Path) -> PackageInfo:
     return pkg
 
 
+def _find_git_root(path: Path) -> Path | None:
+    """Walk up from *path* to locate the nearest ``.git`` directory."""
+    current = path.resolve()
+    while True:
+        if (current / ".git").is_dir():
+            return current
+        parent = current.parent
+        if parent == current:
+            return None
+        current = parent
+
+
+def _is_gitignored(path: Path, git_root: Path) -> bool:
+    """Return ``True`` if *path* is ignored according to git."""
+    try:
+        result = subprocess.run(
+            ["git", "check-ignore", "-q", str(path)],
+            cwd=git_root,
+            capture_output=True,
+            timeout=5,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
 def _discover_py_files(root: Path) -> list[Path]:
     """Discover ``.py`` files recursively, skipping non-source directories.
 
     Skips virtual environments, caches, VCS directories, and build
-    artifacts defined in ``_SKIP_DIRS``.  Uses ``iterdir()`` instead
-    of ``rglob()`` so that skipped subtrees are never entered.
+    artifacts defined in ``_SKIP_DIRS``.  Additionally, when inside a
+    git repository, directories matched by ``.gitignore`` rules are
+    skipped.  Uses ``iterdir()`` instead of ``rglob()`` so that
+    skipped subtrees are never entered.
 
     Args:
         root: Directory to scan.
@@ -127,12 +156,19 @@ def _discover_py_files(root: Path) -> list[Path]:
     Returns:
         List of discovered ``.py`` file paths.
     """
+    return _discover_py_files_inner(root, _find_git_root(root))
+
+
+def _discover_py_files_inner(root: Path, git_root: Path | None) -> list[Path]:
+    """Recursive helper for :func:`_discover_py_files`."""
     results: list[Path] = []
     for child in sorted(root.iterdir()):
         if child.is_dir():
             if child.name in _SKIP_DIRS or child.name.endswith(".egg-info"):
                 continue
-            results.extend(_discover_py_files(child))
+            if git_root is not None and _is_gitignored(child, git_root):
+                continue
+            results.extend(_discover_py_files_inner(child, git_root))
         elif child.suffix == ".py":
             results.append(child)
     return results
