@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge",
-  "score": 93,
+  "score": 94,
   "grade": "A",
   "context": "workspace",
   "workspace_root": null,
@@ -15,8 +15,8 @@
       "total": 18
     },
     "docs": {
-      "earned": 8,
-      "total": 11
+      "earned": 10,
+      "total": 13
     },
     "pyproject": {
       "earned": 4,
@@ -31,8 +31,8 @@
       "total": 16
     },
     "workspace": {
-      "earned": 10,
-      "total": 10
+      "earned": 19,
+      "total": 19
     }
   },
   "checks": [
@@ -131,6 +131,14 @@
       "earned": 0,
       "weight": 3,
       "message": "README missing 2 section(s)"
+    },
+    {
+      "name": "docs.readme_badges",
+      "category": "docs",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "README has axm-audit + axm-init badges"
     },
     {
       "name": "pyproject.exists",
@@ -261,12 +269,44 @@
       "message": "4 member(s) in packages/"
     },
     {
+      "name": "workspace.pytest_importmode",
+      "category": "workspace",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "import_mode = 'importlib' set"
+    },
+    {
+      "name": "workspace.pytest_testpaths",
+      "category": "workspace",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "testpaths configured (4 path(s))"
+    },
+    {
+      "name": "workspace.quality_workflow",
+      "category": "workspace",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "axm-quality.yml configured with audit + coverage"
+    },
+    {
       "name": "workspace.requires_python_compat",
       "category": "workspace",
       "passed": true,
       "earned": 1,
       "weight": 1,
       "message": "All members: >=3.12"
+    },
+    {
+      "name": "workspace.root_name_collision",
+      "category": "workspace",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Root 'axm-forge-workspace' does not collide with 4 member(s)"
     }
   ],
   "failures": [

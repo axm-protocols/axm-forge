@@ -1,8 +1,8 @@
 {
-  "score": 87.2,
-  "grade": "B",
+  "score": 92.2,
+  "grade": "A",
   "total": 24,
-  "failed": 3,
+  "failed": 2,
   "success": false,
   "checks": [
     {
@@ -138,18 +138,23 @@
         "top_vulns": [
           {
             "name": "pygments",
-            "version": "2.19.2"
+            "version": "2.19.2",
+            "vuln_ids": [
+              "CVE-2026-4539"
+            ],
+            "fix_versions": []
           }
         ]
       }
     },
     {
       "rule_id": "DEPS_HYGIENE",
-      "passed": false,
-      "message": "deptry failed or missing",
+      "passed": true,
+      "message": "Clean dependencies (0 issues)",
       "details": {
         "issue_count": 0,
-        "score": 0
+        "score": 100,
+        "top_issues": []
       }
     },
     {

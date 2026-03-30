@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-git",
-  "score": 96,
+  "score": 98,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
@@ -19,8 +19,8 @@
       "total": 5
     },
     "docs": {
-      "earned": 12,
-      "total": 14
+      "earned": 16,
+      "total": 16
     },
     "pyproject": {
       "earned": 27,
@@ -135,10 +135,10 @@
     {
       "name": "docs.gen_ref_pages",
       "category": "docs",
-      "passed": false,
-      "earned": 0,
+      "passed": true,
+      "earned": 2,
       "weight": 2,
-      "message": "docs/gen_ref_pages.py not found"
+      "message": "gen_ref_pages.py found"
     },
     {
       "name": "docs.plugins",
@@ -163,6 +163,14 @@
       "earned": 3,
       "weight": 3,
       "message": "README follows standard"
+    },
+    {
+      "name": "docs.readme_badges",
+      "category": "docs",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "README has axm-audit + axm-init badges"
     },
     {
       "name": "pyproject.classifiers",
@@ -350,15 +358,6 @@
     }
   ],
   "failures": [
-    {
-      "name": "docs.gen_ref_pages",
-      "weight": 2,
-      "message": "docs/gen_ref_pages.py not found",
-      "details": [
-        "Auto-gen script needed for mkdocstrings API reference"
-      ],
-      "fix": "Create docs/gen_ref_pages.py for automatic API reference generation."
-    },
     {
       "name": "tooling.precommit_installed",
       "weight": 2,

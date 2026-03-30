@@ -1,8 +1,8 @@
 {
-  "score": 77.0,
-  "grade": "C",
+  "score": 82.0,
+  "grade": "B",
   "total": 24,
-  "failed": 6,
+  "failed": 5,
   "success": false,
   "checks": [
     {
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 13,
         "max_fan_in": 36,
-        "avg_coupling": 4.9,
+        "avg_coupling": 4.92,
         "score": 95,
         "n_over_threshold": 1,
         "over_threshold": [
@@ -157,7 +157,7 @@
       "passed": false,
       "message": "Test coverage: 87% (86/100)",
       "details": {
-        "coverage": 86.75295621604346,
+        "coverage": 86.7759388924252,
         "score": 86,
         "failures": []
       }
@@ -213,18 +213,23 @@
         "top_vulns": [
           {
             "name": "pygments",
-            "version": "2.19.2"
+            "version": "2.19.2",
+            "vuln_ids": [
+              "CVE-2026-4539"
+            ],
+            "fix_versions": []
           }
         ]
       }
     },
     {
       "rule_id": "DEPS_HYGIENE",
-      "passed": false,
-      "message": "deptry failed or missing",
+      "passed": true,
+      "message": "Clean dependencies (0 issues)",
       "details": {
         "issue_count": 0,
-        "score": 0
+        "score": 100,
+        "top_issues": []
       }
     },
     {
@@ -305,6 +310,13 @@
             "severity": "LOW",
             "code": "B404",
             "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "analyzer.py",
+            "line": 18
+          },
+          {
+            "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
             "file": "git_coupling.py",
             "line": 19
           },
@@ -321,13 +333,6 @@
             "message": "subprocess call - check for execution of untrusted input.",
             "file": "structural_diff.py",
             "line": 40
-          },
-          {
-            "severity": "LOW",
-            "code": "B607",
-            "message": "Starting a process with a partial executable path",
-            "file": "structural_diff.py",
-            "line": 64
           }
         ]
       }
