@@ -360,6 +360,104 @@ class TestAnalyzePackageSkipDirs:
         assert len(result.modules) < 50
 
 
+# ─── Gitignore-aware filtering ───────────────────────────────────────────────
+
+
+class TestDiscoverGitignore:
+    """Tests for gitignore-aware directory filtering in _discover_py_files."""
+
+    def _init_git_repo(self, path: Path) -> None:
+        """Initialise a minimal git repo so .gitignore is respected."""
+        import subprocess
+
+        subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+
+    def test_discover_skips_gitignored_dirs(self, tmp_path: Path) -> None:
+        """Directories listed in .gitignore are excluded from discovery."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        self._init_git_repo(pkg)
+        (pkg / ".gitignore").write_text("backup/\n")
+        (pkg / "mod.py").write_text("x = 1")
+        backup = pkg / "backup"
+        backup.mkdir()
+        (backup / "old.py").write_text("y = 2")
+
+        found = _discover_py_files(pkg)
+        names = [p.name for p in found]
+        assert "mod.py" in names
+        assert "old.py" not in names
+
+    def test_discover_still_skips_hardcoded_dirs(self, tmp_path: Path) -> None:
+        """Hardcoded _SKIP_DIRS are still skipped even without .gitignore."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "mod.py").write_text("x = 1")
+        cache = pkg / "__pycache__"
+        cache.mkdir()
+        (cache / "mod.cpython-312.py").write_text("")
+
+        found = _discover_py_files(pkg)
+        assert len(found) == 1
+        assert found[0].name == "mod.py"
+
+    def test_discover_works_outside_git_repo(self, tmp_path: Path) -> None:
+        """Without a .git directory, falls back to _SKIP_DIRS only."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "mod.py").write_text("x = 1")
+        # "backup" is NOT in _SKIP_DIRS and there's no git repo
+        backup = pkg / "backup"
+        backup.mkdir()
+        (backup / "extra.py").write_text("y = 2")
+        # hardcoded skip dir still filtered
+        venv = pkg / ".venv"
+        venv.mkdir()
+        (venv / "dep.py").write_text("z = 3")
+
+        found = _discover_py_files(pkg)
+        names = [p.name for p in found]
+        assert "mod.py" in names
+        assert "extra.py" in names  # not gitignored, not in _SKIP_DIRS
+        assert "dep.py" not in names  # hardcoded skip
+
+    def test_nested_gitignore_respected(self, tmp_path: Path) -> None:
+        """A .gitignore at a subdirectory level is respected for that subtree."""
+        pkg = tmp_path / "pkg"
+        sub = pkg / "sub"
+        sub.mkdir(parents=True)
+        self._init_git_repo(pkg)
+        (sub / ".gitignore").write_text("generated/\n")
+        (pkg / "mod.py").write_text("x = 1")
+        (sub / "ok.py").write_text("y = 2")
+        gen = sub / "generated"
+        gen.mkdir()
+        (gen / "auto.py").write_text("z = 3")
+
+        found = _discover_py_files(pkg)
+        names = [p.name for p in found]
+        assert "mod.py" in names
+        assert "ok.py" in names
+        assert "auto.py" not in names
+
+    def test_no_git_dir_graceful_fallback(self, tmp_path: Path) -> None:
+        """Non-git project gracefully falls back to _SKIP_DIRS."""
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "mod.py").write_text("x = 1")
+        # Even with a .gitignore file, no .git → ignore file has no effect
+        (pkg / ".gitignore").write_text("data/\n")
+        data = pkg / "data"
+        data.mkdir()
+        (data / "stuff.py").write_text("y = 2")
+
+        found = _discover_py_files(pkg)
+        names = [p.name for p in found]
+        # No git repo → .gitignore not processed → data/ is discovered
+        assert "stuff.py" in names
+        assert "mod.py" in names
+
+
 # ─── Edge cases ──────────────────────────────────────────────────────────────
 
 
