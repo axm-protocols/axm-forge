@@ -69,7 +69,7 @@ Pre-gate hooks run before quality evaluation to auto-fix common issues:
 
 | Hook | Commands | Behavior |
 |---|---|---|
-| `AutofixHook` | `ruff check --fix .`, `ruff format .` | Runs via `run_in_project()`. Returns `HookResult.ok(fixed=N)` with fix count parsed from ruff stdout. Skips gracefully when ruff is missing (`skipped=True`). Tolerates config errors (returncode 2) without failing. |
+| `AutofixHook` | `ruff check --fix .`, `ruff format .` | Registered as `audit:autofix` in the `axm.hooks` entry-point group. Runs via `run_in_project()`. Returns `HookResult.ok(fixed=N)` with fix count parsed from ruff stdout. Skips gracefully when ruff is missing (`skipped=True`). Tolerates config errors (returncode 2) without failing. |
 
 ### 5. Scoring
 
