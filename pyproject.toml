@@ -36,6 +36,7 @@ git    = ["axm-git"]
 ast    = ["axm-ast"]
 ticker = ["axm-ticket"]
 engine = ["axm-engine"]
+forge  = ["axm-ast", "axm-audit", "axm-init"]
 all    = ["axm-init", "axm-audit", "axm-bib", "axm-git", "axm-ast", "axm-ticket", "axm-engine"]
 
 [project.scripts]
