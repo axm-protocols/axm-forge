@@ -80,6 +80,19 @@ class ExplicitParamTool:
         return ToolResult(success=True, data={"value": value, "label": label})
 
 
+class ToolWithHint:
+    """A tool that provides an explicit agent_hint."""
+
+    agent_hint = "Summarize data — use format param."
+
+    @property
+    def name(self) -> str:
+        return "hint-tool"
+
+    def execute(self, *, format: str = "json") -> ToolResult:
+        return ToolResult(success=True, data={"format": format})
+
+
 class TestAXMTool:
     """Tests for the AXMTool structural protocol."""
 
@@ -107,6 +120,19 @@ class TestAXMTool:
         result = tool.execute(value=42, label="test")
         assert result.success is True
         assert result.data == {"value": 42, "label": "test"}
+
+    def test_tool_with_agent_hint(self) -> None:
+        """Tool with explicit agent_hint satisfies the protocol."""
+        tool = ToolWithHint()
+        assert isinstance(tool, AXMTool)
+        assert tool.agent_hint == "Summarize data — use format param."
+
+    def test_tool_without_agent_hint_isinstance(self) -> None:
+        """Tool without agent_hint still satisfies the protocol."""
+        # ConcreteTool has no agent_hint — isinstance must not require it
+        tool = ConcreteTool()
+        assert isinstance(tool, AXMTool)
+        assert not hasattr(tool, "agent_hint")
 
     def test_non_tool_fails_isinstance(self) -> None:
         """Object without name/execute is not an AXMTool."""
