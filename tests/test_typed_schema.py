@@ -187,20 +187,42 @@ class TestAllExistingToolsRegister:
 
 
 class TestBatchEditSchemaViaMCP:
-    """batch_edit schema must expose typed operation fields."""
+    """batch_edit schema must expose typed operation fields via _register_one."""
 
     def test_batch_edit_schema_via_mcp(self) -> None:
-        """Start MCP-like registration, verify batch_edit schema fields.
+        """Register a batch_edit-like tool and verify typed schema fields.
 
-        After registering all tools, the batch_edit wrapper signature
-        must include the 'operations' parameter with structured types
-        showing op, file, edits fields.
+        Uses a self-contained fake tool with the same signature shape as
+        the real batch_edit (path + operations with union types), so the
+        test doesn't depend on axm-edit being installed.
         """
-        tools = discover_tools()
-        assert "batch_edit" in tools, "batch_edit tool not discovered"
+
+        class FakeBatchEditTool:
+            def execute(
+                self,
+                *,
+                path: str,
+                operations: list[ReplaceOp | CreateOp | DeleteOp],
+            ) -> Any:
+                """Apply batch file operations.
+
+                Args:
+                    path: Project root directory.
+                    operations: List of edit operations.
+
+                Returns:
+                    ToolResult with results.
+                """
+
+                class _R:
+                    success = True
+                    data: dict[str, Any] = {"applied": len(operations)}
+                    error = None
+
+                return _R()
 
         fake_mcp = FakeMCP()
-        register_tools(fake_mcp, tools)
+        _register_one(fake_mcp, "batch_edit", FakeBatchEditTool())
 
         wrapper = fake_mcp.tools["batch_edit"]
         sig = inspect.signature(wrapper)
