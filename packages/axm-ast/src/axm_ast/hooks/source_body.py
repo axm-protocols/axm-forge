@@ -28,6 +28,120 @@ def _read_body(file_path: Path, start: int, end: int) -> str:
     return "".join(lines[start - 1 : end])
 
 
+def _not_found(symbol_name: str) -> dict[str, Any]:
+    """Return a not-found result dict."""
+    return {
+        "symbol": symbol_name,
+        "body": None,
+        "error": f"Symbol '{symbol_name}' not found",
+    }
+
+
+def _build_body(sym: Any, mod: Any, symbol_name: str, pkg_root: Path) -> dict[str, Any]:
+    """Build a body result dict from a resolved symbol and module."""
+    from axm_ast.models.nodes import VariableInfo
+
+    rel = (
+        mod.path.relative_to(pkg_root)
+        if mod.path.is_relative_to(pkg_root)
+        else mod.path
+    )
+    if isinstance(sym, VariableInfo):
+        body = _read_body(mod.path, sym.line, sym.line)
+        return {
+            "symbol": symbol_name,
+            "file": str(rel),
+            "start_line": sym.line,
+            "end_line": sym.line,
+            "value_repr": sym.value_repr,
+            "body": body,
+        }
+    body = _read_body(mod.path, sym.line_start, sym.line_end)
+    return {
+        "symbol": symbol_name,
+        "file": str(rel),
+        "start_line": sym.line_start,
+        "end_line": sym.line_end,
+        "body": body,
+    }
+
+
+def _resolve_dotted(
+    pkg: Any,
+    symbol_name: str,
+    pkg_root: Path,
+) -> dict[str, Any] | None:
+    """Resolve a dotted symbol like ``ClassName.method`` or ``module.func``.
+
+    Returns a body dict on success, or *None* if no resolution matched
+    (so the caller can fall back to flat search).
+    """
+    from axm_ast.core.analyzer import find_module_for_symbol, search_symbols
+
+    parts = symbol_name.split(".")
+    class_name = parts[0]
+    member_name = parts[-1]
+
+    # --- Try ClassName.method ---
+    classes = search_symbols(
+        pkg, name=class_name, returns=None, kind=None, inherits=None
+    )
+    cls = next(
+        (c for c in classes if hasattr(c, "methods") and c.name == class_name),
+        None,
+    )
+    if cls is not None:
+        method = next((m for m in cls.methods if m.name == member_name), None)
+        if method is not None:
+            mod = find_module_for_symbol(pkg, cls)
+            if mod is not None:
+                rel = (
+                    mod.path.relative_to(pkg_root)
+                    if mod.path.is_relative_to(pkg_root)
+                    else mod.path
+                )
+                body = _read_body(mod.path, method.line_start, method.line_end)
+                return {
+                    "symbol": symbol_name,
+                    "file": str(rel),
+                    "start_line": method.line_start,
+                    "end_line": method.line_end,
+                    "body": body,
+                }
+        # Class found but member missing → definitive not-found.
+        return {
+            "symbol": symbol_name,
+            "body": None,
+            "error": f"Symbol '{symbol_name}' not found",
+        }
+
+    # --- Try module.symbol ---
+    mods = pkg.modules
+    if isinstance(mods, dict):
+        name_to_mod = mods
+    else:
+        name_to_mod = dict(zip(pkg.module_names, mods, strict=True))
+    for split_at in range(len(parts) - 1, 0, -1):
+        mod_prefix = ".".join(parts[:split_at])
+        sym_name = ".".join(parts[split_at:])
+        if name_to_mod.get(mod_prefix) is None:
+            continue
+        # Module prefix matched — resolve the symbol part via search.
+        matches = search_symbols(
+            pkg, name=sym_name, returns=None, kind=None, inherits=None
+        )
+        exact = [m for m in matches if m.name == sym_name]
+        if not exact:
+            return _not_found(symbol_name)
+        sym = exact[0]
+        mod = find_module_for_symbol(pkg, sym)
+        if mod is None:
+            return _not_found(symbol_name)
+        return _build_body(sym, mod, symbol_name, pkg_root)
+
+    return None
+
+
 def _extract_symbol(
     pkg: Any,
     symbol_name: str,
@@ -36,6 +150,12 @@ def _extract_symbol(
     """Look up *symbol_name* in *pkg* and return its body dict."""
     from axm_ast.core.analyzer import find_module_for_symbol, search_symbols
     from axm_ast.models.nodes import VariableInfo
+
+    # Dotted name resolution (e.g. "ClassName.method" or "module.func").
+    if "." in symbol_name:
+        result = _resolve_dotted(pkg, symbol_name, pkg_root)
+        if result is not None:
+            return result
 
     matches = search_symbols(
         pkg, name=symbol_name, returns=None, kind=None, inherits=None
