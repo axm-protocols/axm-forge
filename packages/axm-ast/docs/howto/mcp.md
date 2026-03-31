@@ -10,7 +10,7 @@
 | `ast_describe(path, detail?, compress?, modules?)` | `axm-ast describe` | Full API surface (signatures, docstrings, `__all__`) |
 | `ast_search(path, name?, returns?, kind?, inherits?)` | `axm-ast search` | Semantic symbol lookup |
 | `ast_callers(path, symbol)` | `axm-ast callers` | Find all call-sites of a symbol |
-| `ast_impact(path, symbol, exclude_tests?)` | `axm-ast impact` | Change blast radius analysis |
+| `ast_impact(path, symbol, exclude_tests?, detail?)` | `axm-ast impact` | Change blast radius analysis. `detail="compact"` returns a markdown table |
 | `ast_inspect(path, symbol?, symbols?)` | `axm-ast inspect` | Full detail on a single symbol or batch list of `symbols`; falls back to module metadata when `symbol` matches a module name (returns `kind: "module"`, `functions`, `classes`, `symbol_count`, `docstring`, `file`) |
 | `ast_graph(path)` | `axm-ast graph` | Import dependency graph |
 | `ast_docs(path, detail?, pages?)` | `axm-ast docs` | Documentation tree dump |

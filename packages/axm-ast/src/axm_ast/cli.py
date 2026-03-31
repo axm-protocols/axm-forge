@@ -617,28 +617,36 @@ def impact(
             help="Filter test callers from impact output",
         ),
     ] = False,
+    compact: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--compact"],
+            help="Output a compact markdown table summary",
+        ),
+    ] = False,
 ) -> None:
     """Analyze the impact of changing a symbol."""
-    project_path = _resolve_dir(path)
+    from axm_ast.tools.impact import ImpactTool
 
-    from axm_ast.core.workspace import detect_workspace
+    detail = "compact" if compact else None
+    tool = ImpactTool()
+    tool_result = tool.execute(
+        path=path,
+        symbol=symbol,
+        exclude_tests=exclude_tests,
+        detail=detail,
+    )
 
-    ws = detect_workspace(project_path)
-    if ws is not None:
-        from axm_ast.core.impact import analyze_impact_workspace
+    if not tool_result.success:
+        print(tool_result.error, file=sys.stderr)
+        raise SystemExit(1)
 
-        result = analyze_impact_workspace(
-            project_path, symbol, exclude_tests=exclude_tests
-        )
+    if compact:
+        print(tool_result.data["compact"])
+    elif json_output:
+        print(json.dumps(tool_result.data, indent=2))
     else:
-        from axm_ast.core.impact import analyze_impact
-
-        result = analyze_impact(project_path, symbol, exclude_tests=exclude_tests)
-
-    if json_output:
-        print(json.dumps(result, indent=2))
-    else:
-        _print_impact(result)
+        _print_impact(tool_result.data)
 
 
 def _print_impact(result: dict[str, Any]) -> None:
@@ -869,6 +877,7 @@ def flows(
 
     from axm_ast.core.flows import (
         find_entry_points,
+        format_flow_compact,
         format_flows,
         trace_flow,
     )
@@ -899,9 +908,7 @@ def flows(
             print(f"📭 No flow found for '{trace}'")
         else:
             print(f"🔀 Flow from '{trace}' ({len(steps)} step(s)):\n")
-            for s in steps:
-                indent = "  " * s.depth
-                print(f"  {indent}{s.name} ({s.module}:{s.line})")
+            print(format_flow_compact(steps))
         return
 
     entries = find_entry_points(pkg)

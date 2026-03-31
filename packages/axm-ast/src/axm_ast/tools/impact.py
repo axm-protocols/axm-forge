@@ -10,7 +10,7 @@ from axm.tools.base import AXMTool, ToolResult
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["ImpactTool"]
+__all__ = ["ImpactTool", "format_impact_compact"]
 
 
 class ImpactTool(AXMTool):
@@ -33,6 +33,7 @@ class ImpactTool(AXMTool):
         symbol: str | None = None,
         symbols: list[str] | None = None,
         exclude_tests: bool = False,
+        detail: str | None = None,
         **kwargs: Any,
     ) -> ToolResult:
         """Analyze change impact for a symbol.
@@ -42,6 +43,8 @@ class ImpactTool(AXMTool):
             symbol: Symbol name to analyze (required if symbols is not provided).
             symbols: Optional list of symbol names for batch inspection.
             exclude_tests: If True, exclude test files from impact analysis.
+            detail: Output detail level. Use ``"compact"`` for a markdown
+                table summary instead of the full JSON dict.
 
         Returns:
             ToolResult with impact analysis.
@@ -57,25 +60,69 @@ class ImpactTool(AXMTool):
                 )
 
             if symbols is not None:
-                if not isinstance(symbols, list):
-                    return ToolResult(
-                        success=False, error="symbols parameter must be a list"
-                    )
-                results: list[dict[str, Any]] = []
-                for sym in symbols:
-                    results.append(
-                        self._analyze_single(
-                            project_path, sym, exclude_tests=exclude_tests
-                        )
-                    )
-                return ToolResult(success=True, data={"symbols": results})
+                return self._execute_batch(
+                    project_path,
+                    symbols,
+                    exclude_tests,
+                    detail,
+                )
 
             assert symbol is not None  # already guarded above
-            return self._analyze_single_result(
-                project_path, symbol, exclude_tests=exclude_tests
+            return self._execute_single(
+                project_path,
+                symbol,
+                exclude_tests,
+                detail,
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
+
+    def _execute_batch(
+        self,
+        project_path: Path,
+        symbols: list[str],
+        exclude_tests: bool,
+        detail: str | None,
+    ) -> ToolResult:
+        """Run batch impact analysis for multiple symbols."""
+        if not isinstance(symbols, list):
+            return ToolResult(success=False, error="symbols parameter must be a list")
+        results: list[dict[str, Any]] = []
+        for sym in symbols:
+            results.append(
+                self._analyze_single(project_path, sym, exclude_tests=exclude_tests)
+            )
+        if detail == "compact":
+            from axm_ast.hooks.impact import _merge_impact_reports
+
+            merged = _merge_impact_reports("\n".join(symbols), results)
+            return ToolResult(
+                success=True,
+                data={"compact": format_impact_compact(merged)},
+            )
+        return ToolResult(success=True, data={"symbols": results})
+
+    def _execute_single(
+        self,
+        project_path: Path,
+        symbol: str,
+        exclude_tests: bool,
+        detail: str | None,
+    ) -> ToolResult:
+        """Run single-symbol impact analysis with optional compact output."""
+        if detail == "compact":
+            result = self._analyze_single(
+                project_path,
+                symbol,
+                exclude_tests=exclude_tests,
+            )
+            return ToolResult(
+                success=True,
+                data={"compact": format_impact_compact(result)},
+            )
+        return self._analyze_single_result(
+            project_path, symbol, exclude_tests=exclude_tests
+        )
 
     def _analyze_single(
         self,
@@ -130,3 +177,66 @@ class ImpactTool(AXMTool):
             data=result,
             hint="Tip: Run affected tests, then ast_inspect on high-risk callers.",
         )
+
+
+def format_impact_compact(impact: dict[str, Any]) -> str:
+    """Format an impact analysis dict as a compact markdown table.
+
+    Args:
+        impact: Impact dict from ``_analyze_single`` or ``_merge_impact_reports``.
+
+    Returns:
+        Markdown string with symbol table and test-exposure footer.
+    """
+    lines: list[str] = []
+
+    # Header
+    lines.append("| Symbol | Module | Kind | Score | Callers |")
+    lines.append("|--------|--------|------|-------|---------|")
+
+    callers = impact.get("callers", [])
+    caller_count = len(callers)
+    score = impact.get("score") or impact.get("severity", "UNKNOWN")
+
+    # Multi-symbol merged dict uses "definitions" list
+    definitions = impact.get("definitions")
+    if definitions:
+        symbols = [
+            s.strip() for s in impact.get("symbol", "").splitlines() if s.strip()
+        ]
+        for i, defn in enumerate(definitions):
+            sym_name = symbols[i] if i < len(symbols) else "?"
+            module = defn.get("module", "\u2014")
+            kind = defn.get("kind", "\u2014")
+            # Show score and caller count only on first row
+            if i == 0:
+                lines.append(
+                    f"| {sym_name} | {module} | {kind} | {score} | {caller_count} |",
+                )
+            else:
+                lines.append(f"| {sym_name} | {module} | {kind} | | |")
+    else:
+        # Single-symbol dict
+        defn = impact.get("definition")
+        sym_name = impact.get("symbol", "?")
+        if defn is None or impact.get("error"):
+            lines.append(
+                f"| {sym_name} | \u2014 | \u2014 | {score} | not found |",
+            )
+        else:
+            module = defn.get("module", "\u2014")
+            kind = defn.get("kind", "\u2014")
+            caller_str = str(caller_count) if caller_count else "\u2014"
+            lines.append(
+                f"| {sym_name} | {module} | {kind} | {score} | {caller_str} |",
+            )
+
+    # Test exposure footer
+    test_files = impact.get("test_files", [])
+    lines.append("")
+    if test_files:
+        lines.append(f"{len(test_files)} test files affected")
+    else:
+        lines.append("no test coverage")
+
+    return "\n".join(lines)

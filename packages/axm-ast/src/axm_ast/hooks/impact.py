@@ -112,6 +112,7 @@ class ImpactHook:
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
         exclude_tests = bool(params.get("exclude_tests", False))
+        detail = params.get("detail")
 
         try:
             from axm_ast.core.impact import analyze_impact
@@ -125,21 +126,25 @@ class ImpactHook:
                     project_root=working_dir.parent,
                     exclude_tests=exclude_tests,
                 )
-                return HookResult.ok(impact=report)
+            else:
+                # Multiple symbols — parallel (I/O-bound: git log, file reads).
+                def _analyze(sym: str) -> dict[str, Any]:
+                    return analyze_impact(
+                        working_dir,
+                        sym,
+                        project_root=working_dir.parent,
+                        exclude_tests=exclude_tests,
+                    )
 
-            # Multiple symbols — analyze in parallel (I/O-bound: git log, file reads).
-            def _analyze(sym: str) -> dict[str, Any]:
-                return analyze_impact(
-                    working_dir,
-                    sym,
-                    project_root=working_dir.parent,
-                    exclude_tests=exclude_tests,
-                )
+                with ThreadPoolExecutor(max_workers=min(len(symbols), 4)) as pool:
+                    reports = list(pool.map(_analyze, symbols))
+                report = _merge_impact_reports(symbol, reports)
 
-            with ThreadPoolExecutor(max_workers=min(len(symbols), 4)) as pool:
-                reports = list(pool.map(_analyze, symbols))
-            merged = _merge_impact_reports(symbol, reports)
-            return HookResult.ok(impact=merged)
+            if detail == "compact":
+                from axm_ast.tools.impact import format_impact_compact
+
+                return HookResult.ok(impact=format_impact_compact(report))
+            return HookResult.ok(impact=report)
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Impact analysis failed: {exc}")
 
