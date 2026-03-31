@@ -118,7 +118,12 @@ class FlowsHook:
         *,
         compact: bool = False,
     ) -> HookResult:
-        """Trace one or more explicitly-specified entry symbols."""
+        """Trace one or more explicitly-specified entry symbols.
+
+        For multi-symbol traces, callees already seen in a previous
+        symbol's trace are deduplicated (first-wins ordering).
+        Deduplication runs before compact/dict formatting.
+        """
         from axm_ast.core.flows import format_flow_compact
 
         symbols = list(
@@ -149,13 +154,17 @@ class FlowsHook:
         # Multi-entry: build index once, trace each symbol
         index = build_callee_index(pkg)
         traces: dict[str, Any] = {}
+        seen: set[str] = set()
         for sym in symbols:
             steps = trace_flow(pkg, sym, callee_index=index, **kw)
             if steps:
+                # Deduplicate: keep entry symbol, filter already-seen callees
+                deduped = [s for s in steps if s.name == sym or s.name not in seen]
+                seen.update(s.name for s in steps)
                 if compact:
-                    traces[sym] = format_flow_compact(steps)
+                    traces[sym] = format_flow_compact(deduped)
                 else:
-                    traces[sym] = [s.model_dump(exclude_none=True) for s in steps]
+                    traces[sym] = [s.model_dump(exclude_none=True) for s in deduped]
 
         return HookResult.ok(traces=traces)
 

@@ -64,7 +64,7 @@ class TestFormatFlowCompactSingleDepth:
         assert "helper" in result
         # Root at depth 0 has no indent, children at depth 1 have tree chars
         lines = result.strip().splitlines()
-        assert lines[0].strip() == "main"
+        assert lines[0].strip() == "main  (mod:1)"
         # Children should use box-drawing characters
         assert any("├" in line or "└" in line for line in lines[1:])
 
