@@ -72,9 +72,10 @@ class FlowsHook:
 
         entry = params.get("entry")
 
-        # detail translation ("compact" comes from spec, maps to "trace")
         detail = str(params.get("detail", "trace"))
-        if detail == "compact":
+        is_compact = detail == "compact"
+        # Compact still traces normally, then formats the output
+        if is_compact:
             detail = "trace"
 
         opts = _TraceOpts(
@@ -101,17 +102,25 @@ class FlowsHook:
             pkg = get_package(working_dir)
 
             if entry is not None:
-                return self._trace_entries(pkg, entry, opts)
+                return self._trace_entries(pkg, entry, opts, compact=is_compact)
 
             # No entry specified — discover and trace (with safety caps)
-            return self._trace_all(pkg, opts)
+            return self._trace_all(pkg, opts, compact=is_compact)
 
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Flow tracing failed: {exc}")
 
     @staticmethod
-    def _trace_entries(pkg: Any, entry: str, opts: _TraceOpts) -> HookResult:
+    def _trace_entries(
+        pkg: Any,
+        entry: str,
+        opts: _TraceOpts,
+        *,
+        compact: bool = False,
+    ) -> HookResult:
         """Trace one or more explicitly-specified entry symbols."""
+        from axm_ast.core.flows import format_flow_compact
+
         symbols = list(
             dict.fromkeys(s.strip() for s in entry.splitlines() if s.strip())
         )
@@ -131,6 +140,8 @@ class FlowsHook:
 
         if len(symbols) == 1:
             steps = trace_flow(pkg, symbols[0], **kw)
+            if compact:
+                return HookResult.ok(traces=format_flow_compact(steps))
             return HookResult.ok(
                 traces=[s.model_dump(exclude_none=True) for s in steps]
             )
@@ -141,13 +152,23 @@ class FlowsHook:
         for sym in symbols:
             steps = trace_flow(pkg, sym, callee_index=index, **kw)
             if steps:
-                traces[sym] = [s.model_dump(exclude_none=True) for s in steps]
+                if compact:
+                    traces[sym] = format_flow_compact(steps)
+                else:
+                    traces[sym] = [s.model_dump(exclude_none=True) for s in steps]
 
         return HookResult.ok(traces=traces)
 
     @staticmethod
-    def _trace_all(pkg: Any, opts: _TraceOpts) -> HookResult:
+    def _trace_all(
+        pkg: Any,
+        opts: _TraceOpts,
+        *,
+        compact: bool = False,
+    ) -> HookResult:
         """Discover entry points and trace them (with safety caps)."""
+        from axm_ast.core.flows import format_flow_compact
+
         entries = find_entry_points(pkg)
 
         # Filter out __all__ exports — they're re-exports, not functional entry points
@@ -174,6 +195,9 @@ class FlowsHook:
         for e in entries:
             steps = trace_flow(pkg, e.name, callee_index=index, **kw)
             if steps:
-                traces[e.name] = [s.model_dump(exclude_none=True) for s in steps]
+                if compact:
+                    traces[e.name] = format_flow_compact(steps)
+                else:
+                    traces[e.name] = [s.model_dump(exclude_none=True) for s in steps]
 
         return HookResult.ok(traces=traces)

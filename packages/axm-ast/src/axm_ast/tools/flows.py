@@ -45,8 +45,10 @@ class FlowsTool(AXMTool):
             entry: Optional entry point name to trace from.
             max_depth: Maximum BFS depth for flow tracing.
             cross_module: Resolve imports and trace into external modules.
-            detail: Level of detail — ``"trace"`` (default) or
-                ``"source"`` (includes function source code).
+            detail: Level of detail — ``"trace"`` (default),
+                ``"source"`` (includes function source code), or
+                ``"compact"`` (tree-formatted string with
+                box-drawing characters).
             exclude_stdlib: If False, include stdlib/builtin callees
                 in the BFS trace.  Default True (exclude them).
 
@@ -59,7 +61,11 @@ class FlowsTool(AXMTool):
                 return ToolResult(success=False, error=f"Not a directory: {pkg_path}")
 
             from axm_ast.core.cache import get_package
-            from axm_ast.core.flows import find_entry_points, trace_flow
+            from axm_ast.core.flows import (
+                find_entry_points,
+                format_flow_compact,
+                trace_flow,
+            )
 
             pkg = get_package(pkg_path)
 
@@ -72,6 +78,19 @@ class FlowsTool(AXMTool):
                     detail=detail,
                     exclude_stdlib=exclude_stdlib,
                 )
+                if detail == "compact":
+                    compact = format_flow_compact(steps)
+                    return ToolResult(
+                        success=True,
+                        data={
+                            "entry": entry,
+                            "compact": compact,
+                            "count": len(steps),
+                        },
+                        hint="Tip: Use ast_impact(symbol) on key"
+                        " nodes for blast radius.",
+                    )
+
                 step_dicts = []
                 for s in steps:
                     d: dict[str, object] = {
