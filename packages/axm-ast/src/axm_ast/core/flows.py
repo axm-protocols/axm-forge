@@ -45,6 +45,7 @@ __all__ = [
     "build_callee_index",
     "find_callees",
     "find_entry_points",
+    "format_flow_compact",
     "format_flows",
     "trace_flow",
 ]
@@ -1177,5 +1178,44 @@ def format_flows(entry_points: list[EntryPoint]) -> str:
         for ep in eps:
             lines.append(f"    • {ep.name} ({ep.module}:{ep.line}) [{ep.kind}]")
         lines.append("")
+
+    return "\n".join(lines)
+
+
+def format_flow_compact(steps: list[FlowStep]) -> str:
+    """Format flow steps as a compact tree with box-drawing characters.
+
+    Each step is rendered on one line.  Depth-0 is the root (no prefix),
+    deeper levels use box-drawing connectors with
+    indentation proportional to depth.
+
+    Args:
+        steps: Ordered list of FlowSteps (BFS order, ascending depth).
+
+    Returns:
+        Tree-formatted string.  Empty string when *steps* is empty.
+    """
+    if not steps:
+        return ""
+
+    lines: list[str] = []
+    for i, step in enumerate(steps):
+        if step.depth == 0:
+            lines.append(step.name)
+            continue
+
+        # Determine if this is the last sibling at its depth
+        is_last = True
+        for j in range(i + 1, len(steps)):
+            if steps[j].depth < step.depth:
+                break
+            if steps[j].depth == step.depth:
+                is_last = False
+                break
+
+        # Indent: 4 spaces per ancestor level above depth 0
+        indent = "    " * (step.depth - 1)
+        connector = "\u2514\u2500\u2500 " if is_last else "\u251c\u2500\u2500 "
+        lines.append(indent + connector + step.name)
 
     return "\n".join(lines)

@@ -57,14 +57,13 @@ def other_func():
     assert result.success is True
     assert "traces" in result.metadata
 
-    # When entry point is specific, traces are returned as a list
+    # Compact mode returns a formatted string (AXM-939)
     traces = result.metadata["traces"]
-    assert isinstance(traces, list)
+    assert isinstance(traces, str)
 
     # Ensure trace includes target_func and other_func
-    names = [s["name"] for s in traces]
-    assert "target_func" in names
-    assert "other_func" in names
+    assert "target_func" in traces
+    assert "other_func" in traces
 
 
 def test_trace_entries_dedup_class_when_methods_listed(tmp_path: Path) -> None:
