@@ -349,6 +349,136 @@ class TestCommitFromOutputsWorkspace:
         assert "root_file.txt" in committed
 
 
+class TestCommitFileDiagnostics:
+    """Tests for gitignored / missing file diagnostics in from_outputs mode."""
+
+    def test_commit_skips_gitignored_files(self, tmp_git_repo: Path) -> None:
+        """When commit_spec.files contains a gitignored path, the hook warns
+        and skips that file but still commits the remaining valid files."""
+        # Create .gitignore that ignores *.log files
+        (tmp_git_repo / ".gitignore").write_text("*.log\n")
+        run_git(["add", ".gitignore"], tmp_git_repo)
+        run_git(["commit", "-m", "add gitignore"], tmp_git_repo)
+
+        # Create files: one valid, one gitignored
+        (tmp_git_repo / "valid.txt").write_text("keep me")
+        (tmp_git_repo / "debug.log").write_text("ignore me")
+
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {
+                "working_dir": str(tmp_git_repo),
+                "commit_spec": {
+                    "message": "feat: with ignored",
+                    "files": ["valid.txt", "debug.log"],
+                },
+            },
+            from_outputs=True,
+        )
+
+        assert result.success
+        assert result.metadata["commit"]
+
+        # Only valid.txt should be committed
+        log = run_git(["diff", "--name-only", "HEAD~1", "HEAD"], tmp_git_repo)
+        committed = set(log.stdout.strip().splitlines())
+        assert "valid.txt" in committed
+        assert "debug.log" not in committed
+
+        # Warning about the skipped file
+        warnings = result.metadata.get("warnings", [])
+        assert any("debug.log" in w for w in warnings)
+
+    def test_commit_fails_on_missing_file(self, tmp_git_repo: Path) -> None:
+        """When commit_spec.files contains a nonexistent path, the hook
+        returns an error with a clear diagnostic naming the missing file."""
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {
+                "working_dir": str(tmp_git_repo),
+                "commit_spec": {
+                    "message": "feat: ghost",
+                    "files": ["nonexistent.py"],
+                },
+            },
+            from_outputs=True,
+        )
+
+        assert not result.success
+        assert "nonexistent.py" in (result.error or "")
+
+    def test_commit_normal_flow(self, tmp_git_repo: Path) -> None:
+        """When all files in commit_spec.files are valid and exist,
+        the hook stages and commits them successfully."""
+        (tmp_git_repo / "a.py").write_text("# a")
+        (tmp_git_repo / "b.py").write_text("# b")
+
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {
+                "working_dir": str(tmp_git_repo),
+                "commit_spec": {
+                    "message": "feat: normal flow",
+                    "files": ["a.py", "b.py"],
+                },
+            },
+            from_outputs=True,
+        )
+
+        assert result.success
+        assert result.metadata["commit"]
+        assert result.metadata["message"] == "feat: normal flow"
+
+        log = run_git(["diff", "--name-only", "HEAD~1", "HEAD"], tmp_git_repo)
+        committed = set(log.stdout.strip().splitlines())
+        assert "a.py" in committed
+        assert "b.py" in committed
+        assert not result.metadata.get("warnings")
+
+    def test_commit_mixed_valid_ignored(self, tmp_git_repo: Path) -> None:
+        """When commit_spec.files has a mix of valid and gitignored files,
+        the hook stages valid files, warns about ignored ones, and commits."""
+        (tmp_git_repo / ".gitignore").write_text("*.log\nbuild/\n")
+        run_git(["add", ".gitignore"], tmp_git_repo)
+        run_git(["commit", "-m", "add gitignore"], tmp_git_repo)
+
+        # Valid files
+        (tmp_git_repo / "src.py").write_text("# source")
+        (tmp_git_repo / "readme.md").write_text("# readme")
+        # Gitignored files
+        (tmp_git_repo / "app.log").write_text("log entry")
+        (tmp_git_repo / "build").mkdir(exist_ok=True)
+        (tmp_git_repo / "build" / "out.js").write_text("built")
+
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {
+                "working_dir": str(tmp_git_repo),
+                "commit_spec": {
+                    "message": "feat: mixed files",
+                    "files": ["src.py", "readme.md", "app.log", "build/out.js"],
+                },
+            },
+            from_outputs=True,
+        )
+
+        assert result.success
+        assert result.metadata["commit"]
+
+        # Valid files committed
+        log = run_git(["diff", "--name-only", "HEAD~1", "HEAD"], tmp_git_repo)
+        committed = set(log.stdout.strip().splitlines())
+        assert "src.py" in committed
+        assert "readme.md" in committed
+        assert "app.log" not in committed
+        assert "build/out.js" not in committed
+
+        # Warnings about both ignored files
+        warnings = result.metadata.get("warnings", [])
+        assert any("app.log" in w for w in warnings)
+        assert any("build/out.js" in w for w in warnings)
+
+
 class TestCommitPhaseWorkspace:
     """Tests for CommitPhaseHook in workspace (nested package) layouts."""
 
