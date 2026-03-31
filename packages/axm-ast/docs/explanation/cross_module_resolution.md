@@ -22,9 +22,10 @@ flowchart TD
     K -- No --> D
     K -- Yes --> L["_resolve_cross_module_callees"]
     L --> M["For each imported callee"]
-    M --> N{"stdlib / builtin?"}
+    M --> N{"_try_resolve_callee → skip?"}
     N -- Yes --> M
-    N -- No --> O["_resolve_import → (path, dotted)"]
+    N -- No --> N2["_find_source_module"]
+    N2 --> O["_resolve_import → (path, dotted)"]
     O --> P["_locate_symbol(path, name)"]
     P --> Q{"Found?"}
     Q -- Yes --> R["Append FlowStep"]
@@ -79,13 +80,12 @@ Each BFS node produces a `FlowStep` (Pydantic model):
 
 For each callee found in the current BFS node:
 
-1. **Skip builtins** — `_is_stdlib_or_builtin` filters stdlib and built-in symbols.
-2. **Locate context** — Finds the `ModuleInfo` for the calling module via `find_module_for_symbol`.
-3. **Skip internal** — If the callee is already defined in the current package, skip it (handled by the main BFS).
-4. **Resolve import** — `_resolve_import` maps the symbol's import statement to `(resolved_path, resolved_dotted)`.
-5. **Locate symbol** — `_locate_symbol` parses the target file with tree-sitter (single file, no full package traversal).
-6. **Follow re-exports** — If not found, `_follow_reexport` chases `__init__.py` re-exports (one level deep).
-7. **Record** — On success, deduplicates via `visited` and appends a `FlowStep` with `resolved_module` populated.
+1. **Filter callee** — `_try_resolve_callee` skips stdlib/builtins (`_is_stdlib_or_builtin`) and symbols already defined in the current package.
+2. **Locate context** — `_find_source_module` finds the `ModuleInfo` for the calling module, first via `find_module_for_symbol` by context name, then by matching `module_dotted_name` against the current module.
+3. **Resolve import** — `_resolve_import` maps the symbol's import statement to `(resolved_path, resolved_dotted)`.
+4. **Locate symbol** — `_locate_symbol` parses the target file with tree-sitter (single file, no full package traversal).
+5. **Follow re-exports** — If not found, `_follow_reexport` chases `__init__.py` re-exports (one level deep).
+6. **Record** — On success, deduplicates via `visited` and appends a `FlowStep` with `resolved_module` populated.
 
 !!! note "Cross-module steps are not re-enqueued"
     Resolved symbols are added to `steps` but **not** pushed back into the BFS queue. Cross-module resolution adds visibility into external dependencies without recursing into them.
