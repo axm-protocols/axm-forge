@@ -215,6 +215,7 @@ axm-ast impact [OPTIONS] [PATH]
 | `--symbol` | `-s` | string | *required* | Symbol to analyze |
 | `--exclude-tests` | | bool | `False` | Exclude test modules from callers and affected modules |
 | `--json` | | bool | `False` | Output as JSON |
+| `--compact` | | bool | `False` | Output a compact markdown table summary |
 
 !!! note "Workspace mode"
     When `PATH` is a `uv` workspace root, performs cross-package impact analysis — callers, re-exports, and test files from all member packages.
