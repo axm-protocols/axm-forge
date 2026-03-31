@@ -39,6 +39,8 @@ class AuditQualityRule:
     categories: list[str] = field(default_factory=lambda: ["lint", "type"])
     working_dir: str = "."
     guidance: str | None = None
+    scope: str = "."
+    exclude_rules: list[str] = field(default_factory=list)
 
     def validate(self, content: str, **kwargs: Any) -> WitnessResult:
         """Run audit categories and aggregate results.
@@ -90,14 +92,26 @@ class AuditQualityRule:
         merged = AuditResult(checks=all_checks)
         agent_output = format_agent(merged)
 
-        total_failed = merged.failed
+        # Filter excluded rules before counting failures
+        failed_items = agent_output.get("failed", [])
+        if self.exclude_rules and failed_items:
+            failed_items = [
+                item
+                for item in failed_items
+                if not any(
+                    item.get("rule_id", "").startswith(prefix)
+                    for prefix in self.exclude_rules
+                )
+            ]
+            agent_output["failed"] = failed_items
+
+        total_failed = len(failed_items)
         if total_failed == 0:
             return WitnessResult.success(
                 metadata={"audit": agent_output},
             )
 
         # Build structured feedback
-        failed_items = agent_output.get("failed", [])
         why_lines = json.dumps(failed_items, indent=2, ensure_ascii=False)
 
         how = (
