@@ -68,7 +68,7 @@ class GitWorktreeTool(AXMTool):
         """Tool name used for MCP registration."""
         return "git_worktree"
 
-    def execute(  # type: ignore[override]
+    def execute(  # type: ignore[override]  # Tool accepts specific args instead of generic kwargs
         self,
         *,
         action: str,
