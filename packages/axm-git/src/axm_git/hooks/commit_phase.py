@@ -40,14 +40,28 @@ def _validate_commit_spec(
     return spec, None
 
 
-def _stage_spec_files(files: list[str], git_root: Path) -> str | None:
+def _stage_spec_files(
+    files: list[str],
+    git_root: Path,
+    *,
+    warnings: list[str] | None = None,
+) -> str | None:
     """Stage each file in *files*, returning an error message on failure.
 
     Paths in *files* are expected relative to *git_root*.
+    Gitignored files are skipped with a warning appended to *warnings*.
+    Missing files produce a clear diagnostic error.
     """
     for filepath in files:
+        full = git_root / filepath
+        if not full.exists():
+            return f"files not found: {filepath}"
         add_result = run_git(["add", filepath], git_root)
         if add_result.returncode != 0:
+            if "ignored" in add_result.stderr.lower():
+                if warnings is not None:
+                    warnings.append(f"skipped gitignored file: {filepath}")
+                continue
             return f"git add failed for {filepath}: {add_result.stderr}"
     return None
 
@@ -141,7 +155,8 @@ class CommitPhaseHook:
 
         git_root = find_git_root(working_dir) or working_dir
 
-        stage_err = _stage_spec_files(files, git_root)
+        warnings: list[str] = []
+        stage_err = _stage_spec_files(files, git_root, warnings=warnings)
         if stage_err:
             return HookResult.fail(stage_err)
 
@@ -168,4 +183,10 @@ class CommitPhaseHook:
 
         # Get commit hash
         hash_result = run_git(["rev-parse", "--short", "HEAD"], git_root)
-        return HookResult.ok(commit=hash_result.stdout.strip(), message=message)
+        result_kw: dict[str, Any] = {
+            "commit": hash_result.stdout.strip(),
+            "message": message,
+        }
+        if warnings:
+            result_kw["warnings"] = warnings
+        return HookResult.ok(**result_kw)
