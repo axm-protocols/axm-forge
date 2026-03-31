@@ -52,6 +52,8 @@ A dataclass carrying shared mutable BFS state, passed by reference so cross-modu
 | `steps` | `list[FlowStep]` | Ordered results (depth-then-insertion) |
 | `parse_cache` | `dict[str, tuple]` | Avoids re-parsing the same file with tree-sitter |
 | `detail` | `str` | `"trace"` or `"source"` — controls enrichment |
+| `exclude_stdlib` | `bool` | Whether to skip stdlib/builtin callees |
+| `pkg_symbols` | `frozenset[str]` | Package-defined symbol names for stdlib filtering |
 
 ### `FlowStep`
 
@@ -71,7 +73,7 @@ Each BFS node produces a `FlowStep` (Pydantic model):
 
 1. **Symbol resolution** — `_find_symbol_location` maps the entry name to a `(module_dotted, line)` pair. If not found, returns an empty list.
 2. **Queue initialization** — The entry is enqueued at depth 0 and immediately appended to `steps` as the root `FlowStep`.
-3. **Main loop** — Each iteration dequeues a symbol, calls `find_callees` to get direct callees, and for each unvisited callee appends a `FlowStep` and enqueues at `depth + 1`.
+3. **Main loop** — Each iteration dequeues a symbol, resolves callees (from a pre-built index or via `find_callees`), and delegates filtering and enqueuing to `_process_local_callees`, which skips stdlib/visited symbols and appends a `FlowStep` for each new discovery at `depth + 1`.
 4. **Depth cap** — When `depth >= max_depth`, the node is dequeued but its callees are not explored.
 5. **Cross-module** — After same-package callees are processed, `_resolve_cross_module_callees` follows imported symbols into external files.
 6. **Source enrichment** — After the BFS completes, if `detail="source"`, `_enrich_steps_with_source` patches each step with the actual function source text.

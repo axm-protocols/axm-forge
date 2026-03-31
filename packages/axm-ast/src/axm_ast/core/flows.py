@@ -736,6 +736,44 @@ class _CrossModuleContext:
     steps: list[FlowStep]
     parse_cache: dict[str, tuple[Any, str]] = field(default_factory=dict)
     detail: str = "trace"
+    exclude_stdlib: bool = True
+    pkg_symbols: frozenset[str] = field(default_factory=frozenset)
+
+
+def _process_local_callees(  # noqa: PLR0913
+    *,
+    callees: list[CallSite],
+    exclude_stdlib: bool,
+    pkg_symbols: frozenset[str],
+    visited: set[tuple[str, str]],
+    current_chain: list[str],
+    depth: int,
+    steps: list[FlowStep],
+    queue: deque[tuple[str, int, list[str], PackageInfo, str]],
+    current_pkg: PackageInfo,
+) -> None:
+    """Filter stdlib/visited callees and enqueue new discoveries."""
+    for callee in callees:
+        if exclude_stdlib and (
+            _is_stdlib_or_builtin(callee.symbol) or callee.symbol not in pkg_symbols
+        ):
+            continue
+        callee_key = (callee.module, callee.symbol)
+        if callee_key not in visited:
+            visited.add(callee_key)
+            new_chain = [*current_chain, callee.symbol]
+            steps.append(
+                FlowStep(
+                    name=callee.symbol,
+                    module=callee.module,
+                    line=callee.line,
+                    depth=depth + 1,
+                    chain=new_chain,
+                )
+            )
+            queue.append(
+                (callee.symbol, depth + 1, new_chain, current_pkg, callee.module)
+            )
 
 
 def trace_flow(  # noqa: PLR0913
@@ -803,6 +841,8 @@ def trace_flow(  # noqa: PLR0913
         queue=queue,
         steps=steps,
         detail=detail,
+        exclude_stdlib=exclude_stdlib,
+        pkg_symbols=pkg_symbols,
     )
 
     # Add the entry point itself
@@ -826,27 +866,17 @@ def trace_flow(  # noqa: PLR0913
             callees = callee_index.get((current_mod, current), [])
         else:
             callees = find_callees(current_pkg, current, _parse_cache=ctx.parse_cache)
-        for callee in callees:
-            if exclude_stdlib and (
-                _is_stdlib_or_builtin(callee.symbol) or callee.symbol not in pkg_symbols
-            ):
-                continue
-            callee_key = (callee.module, callee.symbol)
-            if callee_key not in visited:
-                visited.add(callee_key)
-                new_chain = [*current_chain, callee.symbol]
-                steps.append(
-                    FlowStep(
-                        name=callee.symbol,
-                        module=callee.module,
-                        line=callee.line,
-                        depth=depth + 1,
-                        chain=new_chain,
-                    )
-                )
-                queue.append(
-                    (callee.symbol, depth + 1, new_chain, current_pkg, callee.module)
-                )
+        _process_local_callees(
+            callees=callees,
+            exclude_stdlib=exclude_stdlib,
+            pkg_symbols=pkg_symbols,
+            visited=visited,
+            current_chain=current_chain,
+            depth=depth,
+            steps=steps,
+            queue=queue,
+            current_pkg=current_pkg,
+        )
 
         if not cross_module:
             continue
