@@ -20,7 +20,7 @@ import pytest
 def _make_impact_dict(
     symbol: str = "greet",
     *,
-    callers: list[dict[str, str]] | None = None,
+    callers: list[dict[str, Any]] | None = None,
     test_files: list[str] | None = None,
     definition: dict[str, Any] | None = None,
     score: str = "MEDIUM",
@@ -54,21 +54,24 @@ class TestFormatImpactCompactSingle:
         impact = _make_impact_dict(
             symbol="greet",
             callers=[
-                {"name": "main", "module": "demo.cli"},
-                {"name": "run", "module": "demo.app"},
+                {"name": "main", "module": "demo.cli", "line": 10},
+                {"name": "run", "module": "demo.app", "line": 20},
                 {"name": "test_greet", "module": "tests.test_core"},
             ],
         )
         result = format_impact_compact(impact)
         assert isinstance(result, str)
-        # Should contain table headers
+        # Table headers
         assert "Symbol" in result
         assert "Score" in result
-        # Should contain the symbol row
+        # Symbol row with definition location
         assert "greet" in result
+        assert "demo.core:10" in result
         assert "MEDIUM" in result
-        # Should summarize callers
-        assert "3" in result
+        # Caller details with module:line
+        assert "demo.cli:10" in result
+        assert "demo.app:20" in result
+        assert "tests.test_core" in result
 
 
 class TestFormatImpactCompactMulti:
@@ -111,13 +114,13 @@ class TestFormatImpactCompactNoCallers:
     """Compact formatting when no callers exist."""
 
     def test_format_impact_compact_no_callers(self) -> None:
-        """Symbol with 0 callers → table shows '—' for callers."""
+        """Symbol with 0 callers → table shows em-dash for callers."""
         from axm_ast.tools.impact import format_impact_compact
 
         impact = _make_impact_dict(symbol="lonely", callers=[], score="LOW")
         result = format_impact_compact(impact)
         assert isinstance(result, str)
-        assert "\u2014" in result or "0" in result  # em-dash or zero indicator
+        assert "\u2014" in result  # em-dash = no callers
         assert "lonely" in result
 
 
@@ -125,7 +128,7 @@ class TestFormatImpactCompactTestExposure:
     """Compact formatting with test file exposure."""
 
     def test_format_impact_compact_test_exposure(self) -> None:
-        """Dict with test_files → footer shows '3 test files affected'."""
+        """Dict with test_files → footer lists file names."""
         from axm_ast.tools.impact import format_impact_compact
 
         impact = _make_impact_dict(
@@ -133,8 +136,9 @@ class TestFormatImpactCompactTestExposure:
         )
         result = format_impact_compact(impact)
         assert isinstance(result, str)
-        assert "3" in result
-        assert "test" in result.lower()
+        assert "test_core.py" in result
+        assert "test_cli.py" in result
+        assert "test_integration.py" in result
 
 
 # ─── Functional: ImpactTool with detail="compact" ────────────────────────────
@@ -298,7 +302,7 @@ class TestImpactCompactEdgeCases:
         impact = _make_impact_dict(test_files=[])
         result = format_impact_compact(impact)
         assert isinstance(result, str)
-        assert "no test" in result.lower() or "0" in result
+        assert "no test coverage" in result
 
     @patch("axm_ast.tools.impact.ImpactTool._analyze_single")
     def test_workspace_mode(self, mock_analyze: MagicMock, tmp_path: Path) -> None:
