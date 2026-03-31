@@ -55,6 +55,26 @@ axm-ast impact src/mylib --symbol my_function --exclude-tests
 
 This is useful when you want a clean view of production blast radius without test files inflating the caller count or affected module list. Test files are still listed under `test_files` — they are only removed from the callers/affected-modules sections.
 
+## Filter Test Callers
+
+Use `--test-filter` for fine-grained control over which test callers appear in the output:
+
+| Mode | Behavior |
+|---|---|
+| `none` | Exclude all test callers (same as `--exclude-tests`) |
+| `all` | Keep all callers including tests (default) |
+| `related` | Keep only tests that **directly** call the symbol |
+
+```bash
+# Only show tests that directly exercise the symbol
+axm-ast impact src/mylib --symbol my_function --test-filter related
+```
+
+The `related` mode is useful for high-impact symbols (e.g., base classes, utility types) that appear in many test files but are only directly tested by a few. It filters out transitive test references to surface the tests most relevant to the change.
+
+!!! note "Precedence"
+    If both `--exclude-tests` and `--test-filter` are set, `--test-filter` takes precedence and a warning is emitted.
+
 ## JSON for CI
 
 ```bash

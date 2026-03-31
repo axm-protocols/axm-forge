@@ -214,6 +214,7 @@ axm-ast impact [OPTIONS] [PATH]
 | `PATH` | | string | `.` | Path to package or workspace directory |
 | `--symbol` | `-s` | string | *required* | Symbol to analyze |
 | `--exclude-tests` | | bool | `False` | Exclude test modules from callers and affected modules |
+| `--test-filter` | | string | `None` | Test caller filter mode: `none`, `all`, or `related` |
 | `--json` | | bool | `False` | Output as JSON |
 | `--compact` | | bool | `False` | Output a compact markdown table summary |
 
