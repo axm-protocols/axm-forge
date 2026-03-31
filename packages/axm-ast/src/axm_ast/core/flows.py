@@ -1032,6 +1032,42 @@ def _follow_reexport(
     return None, resolved_path, resolved_dotted
 
 
+def _find_source_module(
+    pkg: PackageInfo,
+    context: str,
+    current_mod: str,
+) -> ModuleInfo | None:
+    """Find the module where the callee's context function lives.
+
+    First tries :func:`find_module_for_symbol` by *context* name, then
+    falls back to matching modules by dotted name against *current_mod*.
+    """
+    if context:
+        result = find_module_for_symbol(pkg, context)
+        if result is not None:
+            return result
+    for m in pkg.modules:
+        if module_dotted_name(m.path, pkg.root) == current_mod:
+            return m
+    return None
+
+
+def _try_resolve_callee(
+    callee: CallSite,
+    pkg: PackageInfo,
+) -> bool | None:
+    """Check whether *callee* should be resolved cross-module.
+
+    Returns ``None`` when the callee should be skipped (stdlib/builtin
+    or already defined locally in *pkg*).
+    """
+    if _is_stdlib_or_builtin(callee.symbol):
+        return None
+    if find_module_for_symbol(pkg, callee.symbol) is not None:
+        return None
+    return True
+
+
 def _resolve_cross_module_callees(  # noqa: PLR0913
     callees: list[CallSite],
     current_mod: str,
@@ -1043,26 +1079,14 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
 ) -> None:
     """Try to resolve callees that are imported from other modules."""
     for callee in callees:
+        if _try_resolve_callee(callee, current_pkg) is None:
+            continue
+
+        source_mod = _find_source_module(current_pkg, callee.context or "", current_mod)
+        if source_mod is None:
+            continue
+
         symbol = callee.symbol
-        if _is_stdlib_or_builtin(symbol):
-            continue
-
-        # Find the module where the current function lives
-        source_mod = find_module_for_symbol(current_pkg, callee.context or "")
-        if source_mod is None:
-            # Try to find by current_mod name
-            for m in current_pkg.modules:
-                mod_name = module_dotted_name(m.path, current_pkg.root)
-                if mod_name == current_mod:
-                    source_mod = m
-                    break
-        if source_mod is None:
-            continue
-
-        # Check if the callee is already defined in the package
-        if find_module_for_symbol(current_pkg, symbol) is not None:
-            continue
-
         # Try to resolve the import
         resolved_path, resolved_dotted = _resolve_import(
             source_mod, symbol, original_pkg
