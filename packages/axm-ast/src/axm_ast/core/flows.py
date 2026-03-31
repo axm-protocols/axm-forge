@@ -1200,8 +1200,10 @@ def format_flow_compact(steps: list[FlowStep]) -> str:
 
     lines: list[str] = []
     for i, step in enumerate(steps):
+        resolved = f" \u2192 {step.resolved_module}" if step.resolved_module else ""
+        loc = f"  ({step.module}:{step.line}{resolved})" if step.module else ""
         if step.depth == 0:
-            lines.append(step.name)
+            lines.append(step.name + loc)
             continue
 
         # Determine if this is the last sibling at its depth
@@ -1216,6 +1218,6 @@ def format_flow_compact(steps: list[FlowStep]) -> str:
         # Indent: 4 spaces per ancestor level above depth 0
         indent = "    " * (step.depth - 1)
         connector = "\u2514\u2500\u2500 " if is_last else "\u251c\u2500\u2500 "
-        lines.append(indent + connector + step.name)
+        lines.append(indent + connector + step.name + loc)
 
     return "\n".join(lines)

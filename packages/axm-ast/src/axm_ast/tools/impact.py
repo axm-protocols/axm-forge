@@ -179,24 +179,49 @@ class ImpactTool(AXMTool):
         )
 
 
+def _format_callers_compact(callers: list[dict[str, Any]]) -> str:
+    """Format caller list as compact ``module:line`` references."""
+    if not callers:
+        return "\u2014"
+    parts: list[str] = []
+    for c in callers:
+        mod = c.get("module", "?")
+        line = c.get("line")
+        parts.append(f"{mod}:{line}" if line else mod)
+    return ", ".join(parts)
+
+
+def _format_test_files_compact(test_files: list[str], limit: int = 5) -> str:
+    """Format test file list with overflow indicator."""
+    if not test_files:
+        return "no test coverage"
+    names = [f.rsplit("/", 1)[-1] for f in test_files]
+    if len(names) <= limit:
+        return ", ".join(names)
+    shown = ", ".join(names[:limit])
+    return f"{shown} (+{len(names) - limit} more)"
+
+
 def format_impact_compact(impact: dict[str, Any]) -> str:
     """Format an impact analysis dict as a compact markdown table.
+
+    Keeps actionable info (callers with module:line, test files)
+    while dropping redundant fields (affected_modules, type_refs, etc.).
 
     Args:
         impact: Impact dict from ``_analyze_single`` or ``_merge_impact_reports``.
 
     Returns:
-        Markdown string with symbol table and test-exposure footer.
+        Markdown string with symbol table, caller details, and test footer.
     """
     lines: list[str] = []
+    callers = impact.get("callers", [])
+    score = impact.get("score") or impact.get("severity", "UNKNOWN")
+    callers_str = _format_callers_compact(callers)
 
     # Header
-    lines.append("| Symbol | Module | Kind | Score | Callers |")
-    lines.append("|--------|--------|------|-------|---------|")
-
-    callers = impact.get("callers", [])
-    caller_count = len(callers)
-    score = impact.get("score") or impact.get("severity", "UNKNOWN")
+    lines.append("| Symbol | Module:Line | Score | Callers |")
+    lines.append("|--------|------------|-------|---------|")
 
     # Multi-symbol merged dict uses "definitions" list
     definitions = impact.get("definitions")
@@ -206,37 +231,35 @@ def format_impact_compact(impact: dict[str, Any]) -> str:
         ]
         for i, defn in enumerate(definitions):
             sym_name = symbols[i] if i < len(symbols) else "?"
-            module = defn.get("module", "\u2014")
-            kind = defn.get("kind", "\u2014")
-            # Show score and caller count only on first row
+            mod_line = _defn_loc(defn)
             if i == 0:
                 lines.append(
-                    f"| {sym_name} | {module} | {kind} | {score} | {caller_count} |",
+                    f"| {sym_name} | {mod_line} | {score} | {callers_str} |",
                 )
             else:
-                lines.append(f"| {sym_name} | {module} | {kind} | | |")
+                lines.append(f"| {sym_name} | {mod_line} | | |")
     else:
         # Single-symbol dict
         defn = impact.get("definition")
         sym_name = impact.get("symbol", "?")
         if defn is None or impact.get("error"):
-            lines.append(
-                f"| {sym_name} | \u2014 | \u2014 | {score} | not found |",
-            )
+            lines.append(f"| {sym_name} | \u2014 | {score} | not found |")
         else:
-            module = defn.get("module", "\u2014")
-            kind = defn.get("kind", "\u2014")
-            caller_str = str(caller_count) if caller_count else "\u2014"
+            mod_line = _defn_loc(defn)
             lines.append(
-                f"| {sym_name} | {module} | {kind} | {score} | {caller_str} |",
+                f"| {sym_name} | {mod_line} | {score} | {callers_str} |",
             )
 
     # Test exposure footer
     test_files = impact.get("test_files", [])
     lines.append("")
-    if test_files:
-        lines.append(f"{len(test_files)} test files affected")
-    else:
-        lines.append("no test coverage")
+    lines.append(f"Tests: {_format_test_files_compact(test_files)}")
 
     return "\n".join(lines)
+
+
+def _defn_loc(defn: dict[str, Any]) -> str:
+    """Format definition location as ``module:line``."""
+    module = defn.get("module", "\u2014")
+    line = defn.get("line")
+    return f"{module}:{line}" if line else module
