@@ -617,6 +617,13 @@ def impact(
             help="Filter test callers from impact output",
         ),
     ] = False,
+    test_filter: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--test-filter"],
+            help="Test caller filter mode: none, all, or related",
+        ),
+    ] = None,
     compact: Annotated[
         bool,
         cyclopts.Parameter(
@@ -634,6 +641,7 @@ def impact(
         path=path,
         symbol=symbol,
         exclude_tests=exclude_tests,
+        test_filter=test_filter,
         detail=detail,
     )
 

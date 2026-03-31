@@ -45,6 +45,8 @@ class ImpactTool(AXMTool):
             exclude_tests: If True, exclude test files from impact analysis.
             detail: Output detail level. Use ``"compact"`` for a markdown
                 table summary instead of the full JSON dict.
+            **kwargs: Extra options. ``test_filter`` (``"none"``,
+                ``"all"``, ``"related"``) controls test caller filtering.
 
         Returns:
             ToolResult with impact analysis.
@@ -59,12 +61,16 @@ class ImpactTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
+            test_filter: str | None = kwargs.get("test_filter")
+            tf = {"test_filter": test_filter} if test_filter is not None else {}
+
             if symbols is not None:
                 return self._execute_batch(
                     project_path,
                     symbols,
                     exclude_tests,
                     detail,
+                    **tf,
                 )
 
             assert symbol is not None  # already guarded above
@@ -73,6 +79,7 @@ class ImpactTool(AXMTool):
                 symbol,
                 exclude_tests,
                 detail,
+                **tf,
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
@@ -83,14 +90,22 @@ class ImpactTool(AXMTool):
         symbols: list[str],
         exclude_tests: bool,
         detail: str | None,
+        *,
+        test_filter: str | None = None,
     ) -> ToolResult:
         """Run batch impact analysis for multiple symbols."""
         if not isinstance(symbols, list):
             return ToolResult(success=False, error="symbols parameter must be a list")
         results: list[dict[str, Any]] = []
         for sym in symbols:
+            tf = {"test_filter": test_filter} if test_filter is not None else {}
             results.append(
-                self._analyze_single(project_path, sym, exclude_tests=exclude_tests)
+                self._analyze_single(
+                    project_path,
+                    sym,
+                    exclude_tests=exclude_tests,
+                    **tf,
+                )
             )
         if detail == "compact":
             from axm_ast.hooks.impact import _merge_impact_reports
@@ -108,20 +123,27 @@ class ImpactTool(AXMTool):
         symbol: str,
         exclude_tests: bool,
         detail: str | None,
+        *,
+        test_filter: str | None = None,
     ) -> ToolResult:
         """Run single-symbol impact analysis with optional compact output."""
+        tf = {"test_filter": test_filter} if test_filter is not None else {}
         if detail == "compact":
             result = self._analyze_single(
                 project_path,
                 symbol,
                 exclude_tests=exclude_tests,
+                **tf,
             )
             return ToolResult(
                 success=True,
                 data={"compact": format_impact_compact(result)},
             )
         return self._analyze_single_result(
-            project_path, symbol, exclude_tests=exclude_tests
+            project_path,
+            symbol,
+            exclude_tests=exclude_tests,
+            **tf,
         )
 
     def _analyze_single(
@@ -130,6 +152,7 @@ class ImpactTool(AXMTool):
         symbol: str,
         *,
         exclude_tests: bool = False,
+        test_filter: str | None = None,
     ) -> dict[str, Any]:
         """Run impact analysis for a single symbol.
 
@@ -145,13 +168,19 @@ class ImpactTool(AXMTool):
                 from axm_ast.core.impact import analyze_impact_workspace
 
                 impact = analyze_impact_workspace(
-                    project_path, symbol, exclude_tests=exclude_tests
+                    project_path,
+                    symbol,
+                    exclude_tests=exclude_tests,
+                    test_filter=test_filter,
                 )
             else:
                 from axm_ast.core.impact import analyze_impact
 
                 impact = analyze_impact(
-                    project_path, symbol, exclude_tests=exclude_tests
+                    project_path,
+                    symbol,
+                    exclude_tests=exclude_tests,
+                    test_filter=test_filter,
                 )
 
             impact["severity"] = impact.get("score", "UNKNOWN")
@@ -167,9 +196,16 @@ class ImpactTool(AXMTool):
         symbol: str,
         *,
         exclude_tests: bool = False,
+        test_filter: str | None = None,
     ) -> ToolResult:
         """Run single-symbol impact analysis and return a ToolResult."""
-        result = self._analyze_single(project_path, symbol, exclude_tests=exclude_tests)
+        tf = {"test_filter": test_filter} if test_filter is not None else {}
+        result = self._analyze_single(
+            project_path,
+            symbol,
+            exclude_tests=exclude_tests,
+            **tf,
+        )
         if "error" in result:
             return ToolResult(success=False, error=result["error"])
         return ToolResult(

@@ -557,6 +557,7 @@ def analyze_impact(
     *,
     project_root: Path | None = None,
     exclude_tests: bool = False,
+    test_filter: str | None = None,
 ) -> dict[str, Any]:
     """Full impact analysis for a symbol.
 
@@ -570,6 +571,11 @@ def analyze_impact(
         exclude_tests: If True, filter test callers and test
             type_refs from the output.  The impact score is still
             computed on the full (unfiltered) caller set.
+        test_filter: Filter mode for test callers.  ``"none"``
+            excludes all test callers (same as *exclude_tests*),
+            ``"all"`` keeps everything, ``"related"`` keeps only
+            direct test callers.  Takes precedence over
+            *exclude_tests* when both are set.
 
     Returns:
         Complete impact analysis dict.
@@ -631,10 +637,26 @@ def analyze_impact(
     # Score on the FULL caller set before any filtering.
     result["score"] = score_impact(result)
 
-    if exclude_tests:
+    # Resolve effective test filter
+    if test_filter is not None and exclude_tests:
+        import warnings
+
+        warnings.warn(
+            "Both exclude_tests and test_filter set; test_filter takes precedence",
+            stacklevel=2,
+        )
+    effective = (
+        test_filter if test_filter is not None else ("none" if exclude_tests else None)
+    )
+
+    if effective == "none":
         result["callers"] = [
             c for c in result["callers"] if not _is_test_module(c["module"])
         ]
+        result["type_refs"] = [
+            r for r in result["type_refs"] if not _is_test_module(r["module"])
+        ]
+    elif effective == "related":
         result["type_refs"] = [
             r for r in result["type_refs"] if not _is_test_module(r["module"])
         ]
@@ -697,6 +719,7 @@ def analyze_impact_workspace(
     symbol: str,
     *,
     exclude_tests: bool = False,
+    test_filter: str | None = None,
 ) -> dict[str, Any]:
     """Full impact analysis for a symbol across a workspace.
 
@@ -708,6 +731,10 @@ def analyze_impact_workspace(
         symbol: Name of the symbol to analyze.
         exclude_tests: If True, filter test callers from the
             output.  Score is computed on the full caller set.
+        test_filter: Filter mode for test callers.  ``"none"``
+            excludes all, ``"all"`` keeps everything, ``"related"``
+            keeps only direct test callers.  Takes precedence
+            over *exclude_tests* when both are set.
 
     Returns:
         Complete impact analysis dict (workspace-scoped).
@@ -762,7 +789,19 @@ def analyze_impact_workspace(
     _add_workspace_git_coupling(result, definition, ws, ws_path)
     result["score"] = score_impact(result)
 
-    if exclude_tests:
+    # Resolve effective test filter
+    if test_filter is not None and exclude_tests:
+        import warnings
+
+        warnings.warn(
+            "Both exclude_tests and test_filter set; test_filter takes precedence",
+            stacklevel=2,
+        )
+    effective = (
+        test_filter if test_filter is not None else ("none" if exclude_tests else None)
+    )
+
+    if effective == "none":
         result["callers"] = [
             c for c in result["callers"] if not _is_test_module(c["module"])
         ]
