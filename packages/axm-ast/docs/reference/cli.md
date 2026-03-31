@@ -329,7 +329,7 @@ axm-ast flows [OPTIONS] [PATH]
 | `--trace` | `-t` | string | *none* | Entry point name to trace BFS flow from |
 | `--max-depth` | | int | `5` | Maximum BFS depth for flow tracing |
 | `--cross-module` | | bool | `False` | Resolve imports and trace into external modules |
-| `--detail` | `-d` | string | `trace` | Detail level: `trace` (names only) or `source` (include function source code) |
+| `--detail` | `-d` | string | `trace` | Detail level: `trace` (names only), `source` (include function source code), or `compact` (tree with box-drawing chars) |
 | `--exclude-stdlib` | | bool | `True` | Exclude stdlib/builtin callees from BFS trace |
 | `--json` | | bool | `False` | Output as JSON |
 
