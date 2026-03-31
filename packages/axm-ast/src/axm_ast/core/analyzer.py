@@ -425,39 +425,52 @@ def _search_module(
     if inherits is not None:
         return _search_by_inheritance(mod, name, inherits, kind)
 
-    # kind="variable" → return only variables matching name
-    if kind == SymbolKind.VARIABLE:
-        # Variables don't have return types or inheritance
-        if returns is not None:
-            return []
-        return _search_variables(mod, name=name)
+    match kind:
+        case SymbolKind.VARIABLE:
+            return [] if returns is not None else _search_variables(mod, name=name)
+        case SymbolKind.CLASS:
+            return [] if returns is not None else _search_classes_only(mod, name=name)
+        case None:
+            return _search_all(mod, name=name, returns=returns)
+        case _:
+            fn_kind = FunctionKind(kind.value)
+            return _search_by_function_kind(
+                mod, name=name, returns=returns, fn_kind=fn_kind
+            )
 
-    # kind="class" → return only classes matching name
-    if kind == SymbolKind.CLASS:
-        # Classes don't have return types, so returns filter → empty
-        if returns is not None:
-            return []
-        return _search_classes_only(mod, name=name)
 
-    # Convert to FunctionKind for function-level filtering
-    fn_kind = FunctionKind(kind.value) if kind is not None else None
+def _search_all(
+    mod: ModuleInfo,
+    *,
+    name: str | None,
+    returns: str | None,
+) -> list[FunctionInfo | ClassInfo | VariableInfo]:
+    """Search all symbol types (no kind filter)."""
+    results: list[FunctionInfo | ClassInfo | VariableInfo] = []
+    for fn in mod.functions:
+        if _match_function(fn, name=name, returns=returns):
+            results.append(fn)
+    results.extend(_search_classes(mod, name=name, returns=returns, kind=None))
+    results.extend(_search_variables(mod, name=name))
+    return results
 
+
+def _search_by_function_kind(
+    mod: ModuleInfo,
+    *,
+    name: str | None,
+    returns: str | None,
+    fn_kind: FunctionKind,
+) -> list[FunctionInfo | ClassInfo | VariableInfo]:
+    """Search top-level functions and class methods for a specific function kind."""
     results: list[FunctionInfo | ClassInfo | VariableInfo] = []
     for fn in mod.functions:
         if _match_function(fn, name=name, returns=returns, kind=fn_kind):
             results.append(fn)
-
-    # When filtering by a function kind, don't include classes
-    if fn_kind is None:
-        results.extend(_search_classes(mod, name=name, returns=returns, kind=fn_kind))
-        # Include variables when no specific function kind is requested
-        results.extend(_search_variables(mod, name=name))
-    else:
-        # Still search class methods for the requested kind
-        for cls in mod.classes:
-            for method in cls.methods:
-                if _match_function(method, name=name, returns=returns, kind=fn_kind):
-                    results.append(method)
+    for cls in mod.classes:
+        for method in cls.methods:
+            if _match_function(method, name=name, returns=returns, kind=fn_kind):
+                results.append(method)
     return results
 
 
