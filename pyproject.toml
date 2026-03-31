@@ -48,6 +48,7 @@ docs = [
 [tool.uv]
 constraint-dependencies = [
     "requests>=2.33.0",
+    "pygments>=2.20.0",
 ]
 
 [tool.uv.workspace]
