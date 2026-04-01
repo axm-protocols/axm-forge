@@ -52,6 +52,34 @@ def _ensure_flow_imports() -> None:
     build_callee_index = _bci
 
 
+def _build_trace_opts(params: dict[str, Any]) -> tuple[_TraceOpts, bool]:
+    """Build trace options and compact flag from hook parameters."""
+    detail = str(params.get("detail", "trace"))
+    is_compact = detail == "compact"
+    opts = _TraceOpts(
+        max_depth=int(params.get("max_depth", 5)),
+        cross_module=bool(params.get("cross_module", False)),
+        detail="trace" if is_compact else detail,
+        exclude_stdlib=bool(params.get("exclude_stdlib", True)),
+    )
+    return opts, is_compact
+
+
+def _parse_entry_symbols(entry: str) -> list[str]:
+    """Parse a newline-separated entry string into unique symbol names."""
+    return list(dict.fromkeys(s.strip() for s in entry.splitlines() if s.strip()))
+
+
+def _trace_opts_kwargs(opts: _TraceOpts) -> dict[str, Any]:
+    """Convert _TraceOpts to keyword arguments for trace_flow."""
+    return {
+        "max_depth": opts.max_depth,
+        "cross_module": opts.cross_module,
+        "detail": opts.detail,
+        "exclude_stdlib": opts.exclude_stdlib,
+    }
+
+
 @dataclass
 class FlowsHook:
     """Trace execution flows and detect entry points.
@@ -86,15 +114,7 @@ class FlowsHook:
         if not working_dir.is_dir():
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
-        detail = str(params.get("detail", "trace"))
-        is_compact = detail == "compact"
-
-        opts = _TraceOpts(
-            max_depth=int(params.get("max_depth", 5)),
-            cross_module=bool(params.get("cross_module", False)),
-            detail="trace" if is_compact else detail,
-            exclude_stdlib=bool(params.get("exclude_stdlib", True)),
-        )
+        opts, is_compact = _build_trace_opts(params)
 
         try:
             _ensure_flow_imports()
@@ -143,17 +163,9 @@ class FlowsHook:
         """
         from axm_ast.core.flows import format_flow_compact
 
-        symbols = list(
-            dict.fromkeys(s.strip() for s in entry.splitlines() if s.strip())
-        )
+        symbols = _parse_entry_symbols(entry)
         symbols = FlowsHook._deduplicate_entry_symbols(symbols)
-
-        kw: dict[str, Any] = {
-            "max_depth": opts.max_depth,
-            "cross_module": opts.cross_module,
-            "detail": opts.detail,
-            "exclude_stdlib": opts.exclude_stdlib,
-        }
+        kw = _trace_opts_kwargs(opts)
 
         if len(symbols) == 1:
             steps = trace_flow(pkg, symbols[0], **kw)
@@ -166,22 +178,38 @@ class FlowsHook:
                 ),
             )
 
-        # Multi-entry: build index once, trace each symbol
+        return FlowsHook._trace_multi_entries(
+            pkg,
+            symbols,
+            kw,
+            compact,
+            format_flow_compact,
+        )
+
+    @staticmethod
+    def _trace_multi_entries(
+        pkg: Any,
+        symbols: list[str],
+        kw: dict[str, Any],
+        compact: bool,
+        format_fn: Any,
+    ) -> HookResult:
+        """Trace multiple entry symbols with cross-trace deduplication."""
         index = build_callee_index(pkg)
         traces: dict[str, Any] = {}
         seen: set[str] = set()
         for sym in symbols:
             steps = trace_flow(pkg, sym, callee_index=index, **kw)
-            if steps:
-                deduped = [s for s in steps if s.name == sym or s.name not in seen]
-                seen.update(s.name for s in steps)
-                traces[sym] = FlowsHook._format_symbol_traces(
-                    deduped,
-                    sym,
-                    compact,
-                    format_flow_compact,
-                )
-
+            if not steps:
+                continue
+            deduped = [s for s in steps if s.name == sym or s.name not in seen]
+            seen.update(s.name for s in steps)
+            traces[sym] = FlowsHook._format_symbol_traces(
+                deduped,
+                sym,
+                compact,
+                format_fn,
+            )
         return HookResult.ok(traces=traces)
 
     @staticmethod

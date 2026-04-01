@@ -123,6 +123,7 @@ class TestCrossModuleEdgeCases:
         """Both lookups fail → callee silently skipped."""
         from axm_ast.core.flows import (
             _CrossModuleContext,
+            _ResolutionScope,
             _resolve_cross_module_callees,
         )
         from axm_ast.models.calls import CallSite
@@ -130,6 +131,13 @@ class TestCrossModuleEdgeCases:
 
         pkg = PackageInfo(name="test", root=tmp_path, modules=[])
         ctx = _CrossModuleContext(visited=set(), queue=deque(), steps=[])
+        scope = _ResolutionScope(
+            current_mod="nonexistent.mod",
+            current_pkg=pkg,
+            original_pkg=pkg,
+            depth=0,
+            current_chain=["entry"],
+        )
 
         callee = CallSite(
             symbol="unknown_fn",
@@ -139,15 +147,14 @@ class TestCrossModuleEdgeCases:
             context="missing",
             call_expression="unknown_fn()",
         )
-        _resolve_cross_module_callees(
-            [callee], "nonexistent.mod", pkg, pkg, 0, ["entry"], ctx
-        )
+        _resolve_cross_module_callees([callee], scope, ctx)
         assert ctx.steps == []
 
     def test_reexport_missing_target_skipped(self, tmp_path: Path) -> None:
         """_follow_reexport returns None → callee skipped."""
         from axm_ast.core.flows import (
             _CrossModuleContext,
+            _ResolutionScope,
             _resolve_cross_module_callees,
         )
         from axm_ast.models.calls import CallSite
@@ -166,6 +173,13 @@ class TestCrossModuleEdgeCases:
         )
         pkg = PackageInfo(name="test", root=root, modules=[mod])
         ctx = _CrossModuleContext(visited=set(), queue=deque(), steps=[])
+        scope = _ResolutionScope(
+            current_mod="pkg",
+            current_pkg=pkg,
+            original_pkg=pkg,
+            depth=0,
+            current_chain=["entry"],
+        )
 
         callee = CallSite(
             symbol="Widget",
@@ -175,13 +189,14 @@ class TestCrossModuleEdgeCases:
             context="",
             call_expression="Widget()",
         )
-        _resolve_cross_module_callees([callee], "pkg", pkg, pkg, 0, ["entry"], ctx)
+        _resolve_cross_module_callees([callee], scope, ctx)
         assert ctx.steps == []
 
     def test_already_visited_skipped(self, tmp_path: Path) -> None:
         """Same (dotted, symbol) pair seen → skip without duplicate FlowStep."""
         from axm_ast.core.flows import (
             _CrossModuleContext,
+            _ResolutionScope,
             _resolve_cross_module_callees,
         )
         from axm_ast.models.calls import CallSite
@@ -193,6 +208,13 @@ class TestCrossModuleEdgeCases:
             queue=deque(),
             steps=[],
         )
+        scope = _ResolutionScope(
+            current_mod="caller",
+            current_pkg=pkg,
+            original_pkg=pkg,
+            depth=0,
+            current_chain=["entry"],
+        )
 
         callee = CallSite(
             symbol="some_func",
@@ -202,5 +224,5 @@ class TestCrossModuleEdgeCases:
             context="",
             call_expression="some_func()",
         )
-        _resolve_cross_module_callees([callee], "caller", pkg, pkg, 0, ["entry"], ctx)
+        _resolve_cross_module_callees([callee], scope, ctx)
         assert len(ctx.steps) == 0
