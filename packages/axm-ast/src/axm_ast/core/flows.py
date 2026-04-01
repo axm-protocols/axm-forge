@@ -728,6 +728,17 @@ def _path_to_dotted(path: Path, root: Path) -> str:
 
 
 @dataclass
+class _ResolutionScope:
+    """Per-iteration resolution parameters for cross-module callee lookup."""
+
+    current_mod: str
+    current_pkg: PackageInfo
+    original_pkg: PackageInfo
+    depth: int
+    current_chain: list[str]
+
+
+@dataclass
 class _CrossModuleContext:
     """BFS state shared across cross-module resolution iterations."""
 
@@ -885,11 +896,13 @@ def trace_flow(  # noqa: PLR0913
         # but not defined locally.
         _resolve_cross_module_callees(
             callees,
-            current_mod,
-            current_pkg,
-            pkg,
-            depth,
-            current_chain,
+            _ResolutionScope(
+                current_mod=current_mod,
+                current_pkg=current_pkg,
+                original_pkg=pkg,
+                depth=depth,
+                current_chain=current_chain,
+            ),
             ctx,
         )
 
@@ -1039,6 +1052,20 @@ def _try_resolve_reexport_node(
     return None
 
 
+def _parse_source_safe(path: Path) -> Any | None:
+    """Parse a source file, returning the tree or ``None`` on failure."""
+    try:
+        raw = path.read_bytes()
+        return parse_source(raw.decode("utf-8", errors="replace"))
+    except Exception:  # noqa: BLE001
+        logger.debug(
+            "Failed to parse %s for re-export resolution",
+            path,
+            exc_info=True,
+        )
+        return None
+
+
 def _follow_reexport(
     resolved_path: Path,
     resolved_dotted: str,
@@ -1056,15 +1083,8 @@ def _follow_reexport(
     Returns ``(loc, actual_path, actual_dotted)`` or ``(None, -, -)``
     if the symbol cannot be found.
     """
-    try:
-        raw = resolved_path.read_bytes()
-        tree = parse_source(raw.decode("utf-8", errors="replace"))
-    except Exception:  # noqa: BLE001
-        logger.debug(
-            "Failed to parse %s for re-export resolution",
-            resolved_path,
-            exc_info=True,
-        )
+    tree = _parse_source_safe(resolved_path)
+    if tree is None:
         return None, resolved_path, resolved_dotted
 
     for node in getattr(tree.root_node, "children", []):
@@ -1117,25 +1137,29 @@ def _try_resolve_callee(
     return True
 
 
-def _resolve_single_cross_callee(  # noqa: PLR0913
+def _resolve_single_cross_callee(
     callee: CallSite,
-    current_mod: str,
-    current_pkg: PackageInfo,
-    original_pkg: PackageInfo,
-    depth: int,
-    current_chain: list[str],
+    scope: _ResolutionScope,
     ctx: _CrossModuleContext,
 ) -> None:
     """Try to resolve and record a single cross-module callee."""
-    if _try_resolve_callee(callee, current_pkg) is None:
+    if _try_resolve_callee(callee, scope.current_pkg) is None:
         return
 
-    source_mod = _find_source_module(current_pkg, callee.context or "", current_mod)
+    source_mod = _find_source_module(
+        scope.current_pkg,
+        callee.context or "",
+        scope.current_mod,
+    )
     if source_mod is None:
         return
 
     symbol = callee.symbol
-    resolved_path, resolved_dotted = _resolve_import(source_mod, symbol, original_pkg)
+    resolved_path, resolved_dotted = _resolve_import(
+        source_mod,
+        symbol,
+        scope.original_pkg,
+    )
     if resolved_path is None or not resolved_path.is_file():
         return
 
@@ -1145,7 +1169,7 @@ def _resolve_single_cross_callee(  # noqa: PLR0913
             resolved_path,
             resolved_dotted,
             symbol,
-            original_pkg,
+            scope.original_pkg,
             with_source=(ctx.detail == "source"),
         )
     if loc is None:
@@ -1156,13 +1180,13 @@ def _resolve_single_cross_callee(  # noqa: PLR0913
         return
     ctx.visited.add(resolved_key)
 
-    new_chain = [*current_chain, callee.symbol]
+    new_chain = [*scope.current_chain, callee.symbol]
     ctx.steps.append(
         FlowStep(
             name=symbol,
             module=resolved_dotted,
             line=loc.line,
-            depth=depth + 1,
+            depth=scope.depth + 1,
             chain=new_chain,
             resolved_module=resolved_dotted,
             source=loc.source,
@@ -1170,26 +1194,14 @@ def _resolve_single_cross_callee(  # noqa: PLR0913
     )
 
 
-def _resolve_cross_module_callees(  # noqa: PLR0913
+def _resolve_cross_module_callees(
     callees: list[CallSite],
-    current_mod: str,
-    current_pkg: PackageInfo,
-    original_pkg: PackageInfo,
-    depth: int,
-    current_chain: list[str],
+    scope: _ResolutionScope,
     ctx: _CrossModuleContext,
 ) -> None:
     """Try to resolve callees that are imported from other modules."""
     for callee in callees:
-        _resolve_single_cross_callee(
-            callee,
-            current_mod,
-            current_pkg,
-            original_pkg,
-            depth,
-            current_chain,
-            ctx,
-        )
+        _resolve_single_cross_callee(callee, scope, ctx)
 
 
 def _find_qualified_location(
@@ -1284,6 +1296,16 @@ def _is_last_sibling(steps: list[FlowStep], index: int) -> bool:
     return True
 
 
+def _format_step_line(steps: list[FlowStep], i: int, step: FlowStep) -> str:
+    """Render a single FlowStep as a tree line with box-drawing connectors."""
+    loc = _format_step_location(step)
+    if step.depth == 0:
+        return step.name + loc
+    indent = "    " * (step.depth - 1)
+    connector = "└── " if _is_last_sibling(steps, i) else "├── "
+    return indent + connector + step.name + loc
+
+
 def format_flow_compact(steps: list[FlowStep]) -> str:
     """Format flow steps as a compact tree with box-drawing characters.
 
@@ -1299,16 +1321,4 @@ def format_flow_compact(steps: list[FlowStep]) -> str:
     """
     if not steps:
         return ""
-
-    lines: list[str] = []
-    for i, step in enumerate(steps):
-        loc = _format_step_location(step)
-        if step.depth == 0:
-            lines.append(step.name + loc)
-            continue
-
-        indent = "    " * (step.depth - 1)
-        connector = "└── " if _is_last_sibling(steps, i) else "├── "
-        lines.append(indent + connector + step.name + loc)
-
-    return "\n".join(lines)
+    return "\n".join(_format_step_line(steps, i, s) for i, s in enumerate(steps))
