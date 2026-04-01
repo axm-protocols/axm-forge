@@ -66,23 +66,20 @@ def _build_body(sym: Any, mod: Any, symbol_name: str, pkg_root: Path) -> dict[st
     }
 
 
-def _resolve_dotted(
+def _resolve_as_class_method(
     pkg: Any,
+    class_name: str,
+    member_name: str,
     symbol_name: str,
     pkg_root: Path,
 ) -> dict[str, Any] | None:
-    """Resolve a dotted symbol like ``ClassName.method`` or ``module.func``.
+    """Try ``ClassName.method`` resolution.
 
-    Returns a body dict on success, or *None* if no resolution matched
-    (so the caller can fall back to flat search).
+    Returns body dict on success, not-found dict if the class exists
+    but the member is missing, or *None* if no class matched.
     """
     from axm_ast.core.analyzer import find_module_for_symbol, search_symbols
 
-    parts = symbol_name.split(".")
-    class_name = parts[0]
-    member_name = parts[-1]
-
-    # --- Try ClassName.method ---
     classes = search_symbols(
         pkg, name=class_name, returns=None, kind=None, inherits=None
     )
@@ -90,43 +87,62 @@ def _resolve_dotted(
         (c for c in classes if hasattr(c, "methods") and c.name == class_name),
         None,
     )
-    if cls is not None:
-        method = next((m for m in cls.methods if m.name == member_name), None)
-        if method is not None:
-            mod = find_module_for_symbol(pkg, cls)
-            if mod is not None:
-                rel = (
-                    mod.path.relative_to(pkg_root)
-                    if mod.path.is_relative_to(pkg_root)
-                    else mod.path
-                )
-                body = _read_body(mod.path, method.line_start, method.line_end)
-                return {
-                    "symbol": symbol_name,
-                    "file": str(rel),
-                    "start_line": method.line_start,
-                    "end_line": method.line_end,
-                    "body": body,
-                }
-        # Class found but member missing → definitive not-found.
-        return {
-            "symbol": symbol_name,
-            "body": None,
-            "error": f"Symbol '{symbol_name}' not found",
-        }
+    if cls is None:
+        return None
+    method = next((m for m in cls.methods if m.name == member_name), None)
+    if method is not None:
+        mod = find_module_for_symbol(pkg, cls)
+        if mod is not None:
+            rel = (
+                mod.path.relative_to(pkg_root)
+                if mod.path.is_relative_to(pkg_root)
+                else mod.path
+            )
+            body = _read_body(mod.path, method.line_start, method.line_end)
+            return {
+                "symbol": symbol_name,
+                "file": str(rel),
+                "start_line": method.line_start,
+                "end_line": method.line_end,
+                "body": body,
+            }
+    # Class found but member missing → definitive not-found.
+    return _not_found(symbol_name)
 
-    # --- Try module.symbol ---
+
+def _resolve_as_nested_class(
+    pkg: Any,
+    parts: list[str],
+    symbol_name: str,
+    pkg_root: Path,
+) -> dict[str, Any] | None:
+    """Resolve ``Outer.Inner.method`` via outermost class + innermost member."""
+    return _resolve_as_class_method(pkg, parts[0], parts[-1], symbol_name, pkg_root)
+
+
+def _get_module_map(pkg: Any) -> dict[str, Any]:
+    """Build a name → module mapping from a package."""
     mods = pkg.modules
     if isinstance(mods, dict):
-        name_to_mod = mods
-    else:
-        name_to_mod = dict(zip(pkg.module_names, mods, strict=True))
+        return mods
+    return dict(zip(pkg.module_names, mods, strict=True))
+
+
+def _resolve_as_module_symbol(
+    pkg: Any,
+    parts: list[str],
+    symbol_name: str,
+    pkg_root: Path,
+) -> dict[str, Any] | None:
+    """Try ``module.symbol`` resolution with longest-prefix matching."""
+    from axm_ast.core.analyzer import find_module_for_symbol, search_symbols
+
+    name_to_mod = _get_module_map(pkg)
     for split_at in range(len(parts) - 1, 0, -1):
         mod_prefix = ".".join(parts[:split_at])
         sym_name = ".".join(parts[split_at:])
         if name_to_mod.get(mod_prefix) is None:
             continue
-        # Module prefix matched — resolve the symbol part via search.
         matches = search_symbols(
             pkg, name=sym_name, returns=None, kind=None, inherits=None
         )
@@ -138,8 +154,49 @@ def _resolve_dotted(
         if mod is None:
             return _not_found(symbol_name)
         return _build_body(sym, mod, symbol_name, pkg_root)
-
     return None
+
+
+def _validate_source_body_params(
+    context: dict[str, Any],
+    params: dict[str, Any],
+) -> tuple[str | None, Path | None, str | None]:
+    """Extract and validate params for source-body extraction."""
+    symbol = params.get("symbol")
+    if not symbol:
+        return None, None, "Missing required param 'symbol'"
+    path = params.get("path") or context.get("working_dir", ".")
+    working_dir = Path(path).resolve()
+    if not working_dir.is_dir():
+        return None, None, f"working_dir not a directory: {working_dir}"
+    return symbol, working_dir, None
+
+
+def _resolve_dotted(
+    pkg: Any,
+    symbol_name: str,
+    pkg_root: Path,
+) -> dict[str, Any] | None:
+    """Resolve a dotted symbol like ``ClassName.method`` or ``module.func``.
+
+    Returns a body dict on success, or *None* if no resolution matched
+    (so the caller can fall back to flat search).
+    """
+    _max_dotted_parts = 2
+    parts = symbol_name.split(".")
+    if len(parts) > _max_dotted_parts:
+        result = _resolve_as_nested_class(pkg, parts, symbol_name, pkg_root)
+    else:
+        result = _resolve_as_class_method(
+            pkg,
+            parts[0],
+            parts[-1],
+            symbol_name,
+            pkg_root,
+        )
+    if result is not None:
+        return result
+    return _resolve_as_module_symbol(pkg, parts, symbol_name, pkg_root)
 
 
 def _extract_symbol(
@@ -226,14 +283,14 @@ class SourceBodyHook:
         Returns:
             HookResult with ``symbols`` list in metadata on success.
         """
-        symbol = params.get("symbol")
-        if not symbol:
-            return HookResult.fail("Missing required param 'symbol'")
-
-        path = params.get("path") or context.get("working_dir", ".")
-        working_dir = Path(path).resolve()
-        if not working_dir.is_dir():
-            return HookResult.fail(f"working_dir not a directory: {working_dir}")
+        symbol, working_dir, error = _validate_source_body_params(
+            context,
+            params,
+        )
+        if error:
+            return HookResult.fail(error)
+        assert symbol is not None
+        assert working_dir is not None
 
         try:
             from axm_ast.core.analyzer import analyze_package
