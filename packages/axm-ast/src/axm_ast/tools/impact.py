@@ -238,6 +238,39 @@ def _format_test_files_compact(test_files: list[str], limit: int = 5) -> str:
     return f"{shown} (+{len(names) - limit} more)"
 
 
+def _format_multi_symbol_rows(
+    impact: dict[str, Any],
+    definitions: list[Any],
+    score: str,
+    callers_str: str,
+) -> list[str]:
+    """Format rows for a multi-symbol merged impact dict."""
+    lines: list[str] = []
+    symbols = [s.strip() for s in impact.get("symbol", "").splitlines() if s.strip()]
+    for i, defn in enumerate(definitions):
+        sym_name = symbols[i] if i < len(symbols) else "?"
+        mod_line = _defn_loc(defn)
+        if i == 0:
+            lines.append(f"| {sym_name} | {mod_line} | {score} | {callers_str} |")
+        else:
+            lines.append(f"| {sym_name} | {mod_line} | | |")
+    return lines
+
+
+def _format_single_symbol_row(
+    impact: dict[str, Any],
+    score: str,
+    callers_str: str,
+) -> list[str]:
+    """Format row for a single-symbol impact dict."""
+    defn = impact.get("definition")
+    sym_name = impact.get("symbol", "?")
+    if defn is None or impact.get("error"):
+        return [f"| {sym_name} | \u2014 | {score} | not found |"]
+    mod_line = _defn_loc(defn)
+    return [f"| {sym_name} | {mod_line} | {score} | {callers_str} |"]
+
+
 def format_impact_compact(impact: dict[str, Any]) -> str:
     """Format an impact analysis dict as a compact markdown table.
 
@@ -250,43 +283,21 @@ def format_impact_compact(impact: dict[str, Any]) -> str:
     Returns:
         Markdown string with symbol table, caller details, and test footer.
     """
-    lines: list[str] = []
     callers = impact.get("callers", [])
     score = impact.get("score") or impact.get("severity", "UNKNOWN")
     callers_str = _format_callers_compact(callers)
 
-    # Header
-    lines.append("| Symbol | Module:Line | Score | Callers |")
-    lines.append("|--------|------------|-------|---------|")
+    lines: list[str] = [
+        "| Symbol | Module:Line | Score | Callers |",
+        "|--------|------------|-------|---------|",
+    ]
 
-    # Multi-symbol merged dict uses "definitions" list
     definitions = impact.get("definitions")
     if definitions:
-        symbols = [
-            s.strip() for s in impact.get("symbol", "").splitlines() if s.strip()
-        ]
-        for i, defn in enumerate(definitions):
-            sym_name = symbols[i] if i < len(symbols) else "?"
-            mod_line = _defn_loc(defn)
-            if i == 0:
-                lines.append(
-                    f"| {sym_name} | {mod_line} | {score} | {callers_str} |",
-                )
-            else:
-                lines.append(f"| {sym_name} | {mod_line} | | |")
+        lines.extend(_format_multi_symbol_rows(impact, definitions, score, callers_str))
     else:
-        # Single-symbol dict
-        defn = impact.get("definition")
-        sym_name = impact.get("symbol", "?")
-        if defn is None or impact.get("error"):
-            lines.append(f"| {sym_name} | \u2014 | {score} | not found |")
-        else:
-            mod_line = _defn_loc(defn)
-            lines.append(
-                f"| {sym_name} | {mod_line} | {score} | {callers_str} |",
-            )
+        lines.extend(_format_single_symbol_row(impact, score, callers_str))
 
-    # Test exposure footer
     test_files = impact.get("test_files", [])
     lines.append("")
     lines.append(f"Tests: {_format_test_files_compact(test_files)}")

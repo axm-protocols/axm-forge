@@ -81,6 +81,32 @@ def _merge_impact_reports(
     return merged
 
 
+def _parse_impact_params(
+    context: dict[str, Any],
+    params: dict[str, Any],
+) -> tuple[Path, str, list[str], bool, str | None] | HookResult:
+    """Parse and validate ImpactHook parameters.
+
+    Returns:
+        ``(working_dir, symbol, symbols, exclude_tests, detail)`` on success,
+        or a ``HookResult`` on validation failure.
+    """
+    symbol = params.get("symbol")
+    if not symbol:
+        return HookResult.fail("Missing required param 'symbol'")
+
+    path = params.get("path") or context.get("working_dir", ".")
+    working_dir = Path(path)
+    if not working_dir.is_dir():
+        return HookResult.fail(f"working_dir not a directory: {working_dir}")
+
+    exclude_tests = bool(params.get("exclude_tests", False))
+    detail = params.get("detail")
+    symbols = [s.strip() for s in symbol.splitlines() if s.strip()]
+
+    return working_dir, symbol, symbols, exclude_tests, detail
+
+
 @dataclass
 class ImpactHook:
     """Run impact analysis on one or more symbols.
@@ -102,22 +128,13 @@ class ImpactHook:
         Returns:
             HookResult with ``impact`` dict in metadata on success.
         """
-        symbol = params.get("symbol")
-        if not symbol:
-            return HookResult.fail("Missing required param 'symbol'")
-
-        path = params.get("path") or context.get("working_dir", ".")
-        working_dir = Path(path)
-        if not working_dir.is_dir():
-            return HookResult.fail(f"working_dir not a directory: {working_dir}")
-
-        exclude_tests = bool(params.get("exclude_tests", False))
-        detail = params.get("detail")
+        parsed = _parse_impact_params(context, params)
+        if isinstance(parsed, HookResult):
+            return parsed
+        working_dir, symbol, symbols, exclude_tests, detail = parsed
 
         try:
             from axm_ast.core.impact import analyze_impact
-
-            symbols = [s.strip() for s in symbol.splitlines() if s.strip()]
 
             if len(symbols) == 1:
                 report = analyze_impact(
@@ -127,7 +144,7 @@ class ImpactHook:
                     exclude_tests=exclude_tests,
                 )
             else:
-                # Multiple symbols — parallel (I/O-bound: git log, file reads).
+
                 def _analyze(sym: str) -> dict[str, Any]:
                     return analyze_impact(
                         working_dir,
