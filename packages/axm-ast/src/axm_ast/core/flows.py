@@ -1009,6 +1009,36 @@ def _resolve_relative_module(import_module: str, resolved_dotted: str) -> str:
     return f"{base}.{rel_name}" if rel_name else base
 
 
+def _try_resolve_reexport_node(
+    node: Any,
+    symbol: str,
+    resolved_dotted: str,
+    original_pkg: PackageInfo,
+    *,
+    with_source: bool = False,
+) -> tuple[_SymbolLocation, Path, str] | None:
+    """Try to resolve *symbol* through a single import-from AST node."""
+    if getattr(node, "type", "") != "import_from_statement":
+        return None
+
+    import_module, imported = _parse_import_from_node(node)
+    if symbol not in imported or not import_module:
+        return None
+
+    if import_module.startswith("."):
+        import_module = _resolve_relative_module(import_module, resolved_dotted)
+
+    target_path, target_dotted = _module_to_path(import_module, original_pkg.root)
+    if target_path is None or not target_path.is_file():
+        return None
+
+    loc = _locate_symbol(target_path, symbol, with_source=with_source)
+    if loc is not None:
+        return loc, target_path, target_dotted or import_module
+
+    return None
+
+
 def _follow_reexport(
     resolved_path: Path,
     resolved_dotted: str,
@@ -1038,26 +1068,15 @@ def _follow_reexport(
         return None, resolved_path, resolved_dotted
 
     for node in getattr(tree.root_node, "children", []):
-        if getattr(node, "type", "") != "import_from_statement":
-            continue
-
-        import_module, imported = _parse_import_from_node(node)
-
-        if symbol not in imported or not import_module:
-            continue
-
-        # Resolve relative imports
-        if import_module.startswith("."):
-            import_module = _resolve_relative_module(import_module, resolved_dotted)
-
-        # Try to find the file for this module
-        target_path, target_dotted = _module_to_path(import_module, original_pkg.root)
-        if target_path is None or not target_path.is_file():
-            continue
-
-        loc = _locate_symbol(target_path, symbol, with_source=with_source)
-        if loc is not None:
-            return loc, target_path, target_dotted or import_module
+        result = _try_resolve_reexport_node(
+            node,
+            symbol,
+            resolved_dotted,
+            original_pkg,
+            with_source=with_source,
+        )
+        if result is not None:
+            return result
 
     return None, resolved_path, resolved_dotted
 
@@ -1098,6 +1117,59 @@ def _try_resolve_callee(
     return True
 
 
+def _resolve_single_cross_callee(  # noqa: PLR0913
+    callee: CallSite,
+    current_mod: str,
+    current_pkg: PackageInfo,
+    original_pkg: PackageInfo,
+    depth: int,
+    current_chain: list[str],
+    ctx: _CrossModuleContext,
+) -> None:
+    """Try to resolve and record a single cross-module callee."""
+    if _try_resolve_callee(callee, current_pkg) is None:
+        return
+
+    source_mod = _find_source_module(current_pkg, callee.context or "", current_mod)
+    if source_mod is None:
+        return
+
+    symbol = callee.symbol
+    resolved_path, resolved_dotted = _resolve_import(source_mod, symbol, original_pkg)
+    if resolved_path is None or not resolved_path.is_file():
+        return
+
+    loc = _locate_symbol(resolved_path, symbol, with_source=(ctx.detail == "source"))
+    if loc is None:
+        loc, resolved_path, resolved_dotted = _follow_reexport(
+            resolved_path,
+            resolved_dotted,
+            symbol,
+            original_pkg,
+            with_source=(ctx.detail == "source"),
+        )
+    if loc is None:
+        return
+
+    resolved_key = (resolved_dotted, symbol)
+    if resolved_key in ctx.visited:
+        return
+    ctx.visited.add(resolved_key)
+
+    new_chain = [*current_chain, callee.symbol]
+    ctx.steps.append(
+        FlowStep(
+            name=symbol,
+            module=resolved_dotted,
+            line=loc.line,
+            depth=depth + 1,
+            chain=new_chain,
+            resolved_module=resolved_dotted,
+            source=loc.source,
+        )
+    )
+
+
 def _resolve_cross_module_callees(  # noqa: PLR0913
     callees: list[CallSite],
     current_mod: str,
@@ -1109,55 +1181,14 @@ def _resolve_cross_module_callees(  # noqa: PLR0913
 ) -> None:
     """Try to resolve callees that are imported from other modules."""
     for callee in callees:
-        if _try_resolve_callee(callee, current_pkg) is None:
-            continue
-
-        source_mod = _find_source_module(current_pkg, callee.context or "", current_mod)
-        if source_mod is None:
-            continue
-
-        symbol = callee.symbol
-        # Try to resolve the import
-        resolved_path, resolved_dotted = _resolve_import(
-            source_mod, symbol, original_pkg
-        )
-        if resolved_path is None or not resolved_path.is_file():
-            continue
-
-        # Lightweight symbol lookup — tree-sitter on the single file,
-        # no full package parse, no BFS continuation into external code.
-        loc = _locate_symbol(
-            resolved_path, symbol, with_source=(ctx.detail == "source")
-        )
-        if loc is None:
-            # Symbol not defined here — follow re-exports (e.g.
-            # __init__.py that does ``from .response import HttpResponse``)
-            loc, resolved_path, resolved_dotted = _follow_reexport(
-                resolved_path,
-                resolved_dotted,
-                symbol,
-                original_pkg,
-                with_source=(ctx.detail == "source"),
-            )
-        if loc is None:
-            continue
-
-        resolved_key = (resolved_dotted, symbol)
-        if resolved_key in ctx.visited:
-            continue
-        ctx.visited.add(resolved_key)
-
-        new_chain = [*current_chain, callee.symbol]
-        ctx.steps.append(
-            FlowStep(
-                name=symbol,
-                module=resolved_dotted,
-                line=loc.line,
-                depth=depth + 1,
-                chain=new_chain,
-                resolved_module=resolved_dotted,
-                source=loc.source,
-            )
+        _resolve_single_cross_callee(
+            callee,
+            current_mod,
+            current_pkg,
+            original_pkg,
+            depth,
+            current_chain,
+            ctx,
         )
 
 
@@ -1236,6 +1267,23 @@ def format_flows(entry_points: list[EntryPoint]) -> str:
     return "\n".join(lines)
 
 
+def _format_step_location(step: FlowStep) -> str:
+    """Format the location suffix for a flow step."""
+    resolved = f" → {step.resolved_module}" if step.resolved_module else ""
+    return f"  ({step.module}:{step.line}{resolved})" if step.module else ""
+
+
+def _is_last_sibling(steps: list[FlowStep], index: int) -> bool:
+    """Check whether the step at *index* is the last at its depth."""
+    depth = steps[index].depth
+    for j in range(index + 1, len(steps)):
+        if steps[j].depth < depth:
+            break
+        if steps[j].depth == depth:
+            return False
+    return True
+
+
 def format_flow_compact(steps: list[FlowStep]) -> str:
     """Format flow steps as a compact tree with box-drawing characters.
 
@@ -1254,24 +1302,13 @@ def format_flow_compact(steps: list[FlowStep]) -> str:
 
     lines: list[str] = []
     for i, step in enumerate(steps):
-        resolved = f" \u2192 {step.resolved_module}" if step.resolved_module else ""
-        loc = f"  ({step.module}:{step.line}{resolved})" if step.module else ""
+        loc = _format_step_location(step)
         if step.depth == 0:
             lines.append(step.name + loc)
             continue
 
-        # Determine if this is the last sibling at its depth
-        is_last = True
-        for j in range(i + 1, len(steps)):
-            if steps[j].depth < step.depth:
-                break
-            if steps[j].depth == step.depth:
-                is_last = False
-                break
-
-        # Indent: 4 spaces per ancestor level above depth 0
         indent = "    " * (step.depth - 1)
-        connector = "\u2514\u2500\u2500 " if is_last else "\u251c\u2500\u2500 "
+        connector = "└── " if _is_last_sibling(steps, i) else "├── "
         lines.append(indent + connector + step.name + loc)
 
     return "\n".join(lines)
