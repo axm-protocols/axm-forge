@@ -113,6 +113,48 @@ def _find_method_in_class(
     return None
 
 
+def _find_dotted_definition(
+    pkg: PackageInfo,
+    class_name: str,
+    method_path: str,
+) -> dict[str, Any] | None:
+    """Resolve a dotted symbol (Class.method) definition."""
+    for mod in pkg.modules:
+        mod_name = module_dotted_name(mod.path, pkg.root)
+        for cls in mod.classes:
+            if cls.name == class_name:
+                result = _find_method_in_class(cls, method_path, mod_name)
+                if result is not None:
+                    return result
+    return None
+
+
+def _find_plain_definition(
+    pkg: PackageInfo,
+    symbol: str,
+) -> dict[str, Any] | None:
+    """Resolve a plain (non-dotted) symbol definition."""
+    for mod in pkg.modules:
+        mod_name = module_dotted_name(mod.path, pkg.root)
+        for fn in mod.functions:
+            if fn.name == symbol:
+                return {
+                    "module": mod_name,
+                    "line": fn.line_start,
+                    "kind": "function",
+                    "signature": fn.signature,
+                }
+        for cls in mod.classes:
+            if cls.name == symbol:
+                return {
+                    "module": mod_name,
+                    "line": cls.line_start,
+                    "kind": "class",
+                    "name": cls.name,
+                }
+    return None
+
+
 def find_definition(pkg: PackageInfo, symbol: str) -> dict[str, Any] | None:
     """Locate where a symbol is defined.
 
@@ -129,37 +171,9 @@ def find_definition(pkg: PackageInfo, symbol: str) -> dict[str, Any] | None:
         Dict with module, line, kind — or None if not found.
     """
     dotted = _split_dotted_symbol(symbol)
-
-    for mod in pkg.modules:
-        mod_name = module_dotted_name(mod.path, pkg.root)
-
-        if dotted is not None:
-            class_name, method_path = dotted
-            for cls in mod.classes:
-                if cls.name == class_name:
-                    result = _find_method_in_class(cls, method_path, mod_name)
-                    if result is not None:
-                        return result
-        else:
-            for fn in mod.functions:
-                if fn.name == symbol:
-                    return {
-                        "module": mod_name,
-                        "line": fn.line_start,
-                        "kind": "function",
-                        "signature": fn.signature,
-                    }
-
-            for cls in mod.classes:
-                if cls.name == symbol:
-                    return {
-                        "module": mod_name,
-                        "line": cls.line_start,
-                        "kind": "class",
-                        "name": cls.name,
-                    }
-
-    return None
+    if dotted is not None:
+        return _find_dotted_definition(pkg, dotted[0], dotted[1])
+    return _find_plain_definition(pkg, symbol)
 
 
 # ─── Re-export detection ────────────────────────────────────────────────────
@@ -551,6 +565,38 @@ def _is_test_module(module: str) -> bool:
     return any(p.startswith("test_") or p == "tests" for p in parts)
 
 
+def _resolve_effective_filter(
+    test_filter: str | None,
+    exclude_tests: bool,
+) -> str | None:
+    """Resolve effective test filter mode from dual parameters."""
+    if test_filter is not None and exclude_tests:
+        import warnings
+
+        warnings.warn(
+            "Both exclude_tests and test_filter set; test_filter takes precedence",
+            stacklevel=2,
+        )
+    if test_filter is not None:
+        return test_filter
+    return "none" if exclude_tests else None
+
+
+def _apply_test_filter(result: dict[str, Any], effective: str | None) -> None:
+    """Filter test callers/type_refs from result based on effective filter."""
+    if effective == "none":
+        result["callers"] = [
+            c for c in result["callers"] if not _is_test_module(c["module"])
+        ]
+        result["type_refs"] = [
+            r for r in result["type_refs"] if not _is_test_module(r["module"])
+        ]
+    elif effective == "related":
+        result["type_refs"] = [
+            r for r in result["type_refs"] if not _is_test_module(r["module"])
+        ]
+
+
 def analyze_impact(
     path: Path,
     symbol: str,
@@ -637,29 +683,8 @@ def analyze_impact(
     # Score on the FULL caller set before any filtering.
     result["score"] = score_impact(result)
 
-    # Resolve effective test filter
-    if test_filter is not None and exclude_tests:
-        import warnings
-
-        warnings.warn(
-            "Both exclude_tests and test_filter set; test_filter takes precedence",
-            stacklevel=2,
-        )
-    effective = (
-        test_filter if test_filter is not None else ("none" if exclude_tests else None)
-    )
-
-    if effective == "none":
-        result["callers"] = [
-            c for c in result["callers"] if not _is_test_module(c["module"])
-        ]
-        result["type_refs"] = [
-            r for r in result["type_refs"] if not _is_test_module(r["module"])
-        ]
-    elif effective == "related":
-        result["type_refs"] = [
-            r for r in result["type_refs"] if not _is_test_module(r["module"])
-        ]
+    effective = _resolve_effective_filter(test_filter, exclude_tests)
+    _apply_test_filter(result, effective)
 
     return result
 
