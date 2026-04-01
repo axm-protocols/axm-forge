@@ -36,6 +36,22 @@ class _TraceOpts:
     exclude_stdlib: bool = True
 
 
+def _ensure_flow_imports() -> None:
+    """Load lazy imports for flow tracing."""
+    global get_package, trace_flow, find_entry_points, build_callee_index
+    if get_package is not None:
+        return
+    from axm_ast.core.cache import get_package as _gp
+    from axm_ast.core.flows import build_callee_index as _bci
+    from axm_ast.core.flows import find_entry_points as _fep
+    from axm_ast.core.flows import trace_flow as _tf
+
+    get_package = _gp
+    find_entry_points = _fep
+    trace_flow = _tf
+    build_callee_index = _bci
+
+
 @dataclass
 class FlowsHook:
     """Trace execution flows and detect entry points.
@@ -70,45 +86,46 @@ class FlowsHook:
         if not working_dir.is_dir():
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
-        entry = params.get("entry")
-
         detail = str(params.get("detail", "trace"))
         is_compact = detail == "compact"
-        # Compact still traces normally, then formats the output
-        if is_compact:
-            detail = "trace"
 
         opts = _TraceOpts(
             max_depth=int(params.get("max_depth", 5)),
             cross_module=bool(params.get("cross_module", False)),
-            detail=detail,
+            detail="trace" if is_compact else detail,
             exclude_stdlib=bool(params.get("exclude_stdlib", True)),
         )
 
         try:
-            # Lazy imports
-            global get_package, trace_flow, find_entry_points, build_callee_index
-            if get_package is None:
-                from axm_ast.core.cache import get_package as _gp
-                from axm_ast.core.flows import build_callee_index as _bci
-                from axm_ast.core.flows import find_entry_points as _fep
-                from axm_ast.core.flows import trace_flow as _tf
-
-                get_package = _gp
-                find_entry_points = _fep
-                trace_flow = _tf
-                build_callee_index = _bci
-
+            _ensure_flow_imports()
             pkg = get_package(working_dir)
 
+            entry = params.get("entry")
             if entry is not None:
                 return self._trace_entries(pkg, entry, opts, compact=is_compact)
-
-            # No entry specified — discover and trace (with safety caps)
             return self._trace_all(pkg, opts, compact=is_compact)
 
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Flow tracing failed: {exc}")
+
+    @staticmethod
+    def _deduplicate_entry_symbols(symbols: list[str]) -> list[str]:
+        """Remove parent classes when qualified methods are present."""
+        qualified = {s for s in symbols if "." in s}
+        parents = {s.rsplit(".", 1)[0] for s in qualified}
+        return [s for s in symbols if s not in parents]
+
+    @staticmethod
+    def _format_symbol_traces(
+        steps: list[Any],
+        sym: str,
+        compact: bool,
+        format_fn: Any,
+    ) -> Any:
+        """Format traced steps as compact string or dict list."""
+        if compact:
+            return format_fn(steps)
+        return [s.model_dump(exclude_none=True) for s in steps]
 
     @staticmethod
     def _trace_entries(
@@ -129,12 +146,7 @@ class FlowsHook:
         symbols = list(
             dict.fromkeys(s.strip() for s in entry.splitlines() if s.strip())
         )
-
-        # Deduplicate: if "Foo.bar" is in the list, skip "Foo"
-        # (its methods are more specific and avoid full-class BFS expansion)
-        qualified = {s for s in symbols if "." in s}
-        parents = {s.rsplit(".", 1)[0] for s in qualified}
-        symbols = [s for s in symbols if s not in parents]
+        symbols = FlowsHook._deduplicate_entry_symbols(symbols)
 
         kw: dict[str, Any] = {
             "max_depth": opts.max_depth,
@@ -145,10 +157,13 @@ class FlowsHook:
 
         if len(symbols) == 1:
             steps = trace_flow(pkg, symbols[0], **kw)
-            if compact:
-                return HookResult.ok(traces=format_flow_compact(steps))
             return HookResult.ok(
-                traces=[s.model_dump(exclude_none=True) for s in steps]
+                traces=FlowsHook._format_symbol_traces(
+                    steps,
+                    symbols[0],
+                    compact,
+                    format_flow_compact,
+                ),
             )
 
         # Multi-entry: build index once, trace each symbol
@@ -158,13 +173,14 @@ class FlowsHook:
         for sym in symbols:
             steps = trace_flow(pkg, sym, callee_index=index, **kw)
             if steps:
-                # Deduplicate: keep entry symbol, filter already-seen callees
                 deduped = [s for s in steps if s.name == sym or s.name not in seen]
                 seen.update(s.name for s in steps)
-                if compact:
-                    traces[sym] = format_flow_compact(deduped)
-                else:
-                    traces[sym] = [s.model_dump(exclude_none=True) for s in deduped]
+                traces[sym] = FlowsHook._format_symbol_traces(
+                    deduped,
+                    sym,
+                    compact,
+                    format_flow_compact,
+                )
 
         return HookResult.ok(traces=traces)
 
