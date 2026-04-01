@@ -69,11 +69,9 @@ class InspectTool(AXMTool):
         source = bool(kwargs.get("source", False))
 
         try:
-            project_path = Path(path).resolve()
-            if not project_path.is_dir():
-                return ToolResult(
-                    success=False, error=f"Not a directory: {project_path}"
-                )
+            project_path = self._resolve_path(path)
+            if isinstance(project_path, ToolResult):
+                return project_path
 
             if symbols is not None:
                 return self._inspect_batch(project_path, symbols, source=source)
@@ -81,6 +79,14 @@ class InspectTool(AXMTool):
             return self._inspect_symbol(project_path, symbol, source=source)  # type: ignore[arg-type]
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
+
+    @staticmethod
+    def _resolve_path(path: str) -> Path | ToolResult:
+        """Resolve and validate project path."""
+        project_path = Path(path).resolve()
+        if not project_path.is_dir():
+            return ToolResult(success=False, error=f"Not a directory: {project_path}")
+        return project_path
 
     def _inspect_batch(
         self,
@@ -175,17 +181,22 @@ class InspectTool(AXMTool):
         if mod is None or isinstance(mod, ToolResult):
             return mod
 
-        file_rel = self._relative_path(pkg, mod.path)
-        detail: dict[str, Any] = {
+        detail = self._build_module_detail(pkg, mod, name)
+        return ToolResult(success=True, data={"symbol": detail})
+
+    def _build_module_detail(
+        self, pkg: PackageInfo, mod: ModuleInfo, name: str
+    ) -> dict[str, Any]:
+        """Build detail dict for a module."""
+        return {
             "name": name,
             "kind": "module",
-            "file": file_rel,
+            "file": self._relative_path(pkg, mod.path),
             "docstring": mod.docstring or "",
             "functions": [f.name for f in mod.functions],
             "classes": [c.name for c in mod.classes],
             "symbol_count": len(mod.functions) + len(mod.classes),
         }
-        return ToolResult(success=True, data={"symbol": detail})
 
     def _resolve_module(
         self,
