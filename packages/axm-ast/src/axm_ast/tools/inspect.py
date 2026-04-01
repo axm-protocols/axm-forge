@@ -76,22 +76,30 @@ class InspectTool(AXMTool):
                 )
 
             if symbols is not None:
-                if not isinstance(symbols, list):
-                    return ToolResult(
-                        success=False, error="symbols parameter must be a list"
-                    )
-                results: list[dict[str, Any]] = []
-                for sym in symbols:
-                    res = self._inspect_symbol(project_path, sym, source=source)
-                    if res.success and res.data and "symbol" in res.data:
-                        results.append(res.data["symbol"])
-                    else:
-                        results.append({"name": sym, "error": res.error})
-                return ToolResult(success=True, data={"symbols": results})
+                return self._inspect_batch(project_path, symbols, source=source)
 
             return self._inspect_symbol(project_path, symbol, source=source)  # type: ignore[arg-type]
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
+
+    def _inspect_batch(
+        self,
+        project_path: Path,
+        symbols: list[str],
+        *,
+        source: bool,
+    ) -> ToolResult:
+        """Inspect multiple symbols in batch."""
+        if not isinstance(symbols, list):
+            return ToolResult(success=False, error="symbols parameter must be a list")
+        results: list[dict[str, Any]] = []
+        for sym in symbols:
+            res = self._inspect_symbol(project_path, sym, source=source)
+            if res.success and res.data and "symbol" in res.data:
+                results.append(res.data["symbol"])
+            else:
+                results.append({"name": sym, "error": res.error})
+        return ToolResult(success=True, data={"symbols": results})
 
     def _inspect_symbol(
         self, project_path: Path, symbol: str, *, source: bool = False
@@ -162,38 +170,10 @@ class InspectTool(AXMTool):
         )
 
     def _inspect_module(self, pkg: PackageInfo, name: str) -> ToolResult | None:
-        """Try to resolve *name* as a module name and return module metadata.
-
-        Args:
-            pkg: Analyzed package.
-            name: Simple or dotted name to match against module names.
-
-        Returns:
-            ToolResult with module metadata, or None if no match.
-        """
-        mod_names = pkg.module_names
-        name_to_mod: dict[str, ModuleInfo] = dict(
-            zip(mod_names, pkg.modules, strict=True)
-        )
-
-        # Exact match first
-        mod = name_to_mod.get(name)
-
-        if mod is None:
-            # Substring match — only if unambiguous
-            matches = [n for n in mod_names if name in n]
-            if len(matches) == 1:
-                mod = name_to_mod[matches[0]]
-            elif len(matches) > 1:
-                return ToolResult(
-                    success=False,
-                    error=(
-                        f"Multiple modules match '{name}': {', '.join(sorted(matches))}"
-                    ),
-                )
-
-        if mod is None:
-            return None
+        """Try to resolve *name* as a module name and return module metadata."""
+        mod = self._resolve_module(pkg, name)
+        if mod is None or isinstance(mod, ToolResult):
+            return mod
 
         file_rel = self._relative_path(pkg, mod.path)
         detail: dict[str, Any] = {
@@ -206,6 +186,33 @@ class InspectTool(AXMTool):
             "symbol_count": len(mod.functions) + len(mod.classes),
         }
         return ToolResult(success=True, data={"symbol": detail})
+
+    def _resolve_module(
+        self,
+        pkg: PackageInfo,
+        name: str,
+    ) -> ModuleInfo | ToolResult | None:
+        """Resolve a name to a module via exact or substring match."""
+        mod_names = pkg.module_names
+        name_to_mod: dict[str, ModuleInfo] = dict(
+            zip(mod_names, pkg.modules, strict=True)
+        )
+
+        mod = name_to_mod.get(name)
+        if mod is not None:
+            return mod
+
+        matches = [n for n in mod_names if name in n]
+        if len(matches) == 1:
+            return name_to_mod[matches[0]]
+        if len(matches) > 1:
+            return ToolResult(
+                success=False,
+                error=(
+                    f"Multiple modules match '{name}': {', '.join(sorted(matches))}"
+                ),
+            )
+        return None
 
     def _resolve_module_symbol(
         self, pkg: PackageInfo, dotted: str, *, source: bool = False
