@@ -80,7 +80,7 @@ Each BFS node produces a `FlowStep` (Pydantic model):
 
 ## Cross-Module Resolution (`_resolve_cross_module_callees`)
 
-For each callee found in the current BFS node:
+The outer function iterates over callees, delegating each to `_resolve_single_cross_callee`:
 
 1. **Filter callee** — `_try_resolve_callee` skips stdlib/builtins (`_is_stdlib_or_builtin`) and symbols already defined in the current package.
 2. **Locate context** — `_find_source_module` finds the `ModuleInfo` for the calling module, first via `find_module_for_symbol` by context name, then by matching `module_dotted_name` against the current module.
@@ -97,7 +97,7 @@ For each callee found in the current BFS node:
 Handles the common pattern where `__init__.py` re-exports a symbol from a submodule:
 
 1. Parse `resolved_path` (the file where the symbol was expected) with tree-sitter.
-2. Walk top-level `import_from_statement` nodes looking for one that imports the target symbol.
+2. Walk top-level nodes, delegating each to `_try_resolve_reexport_node` which checks if the node is an `import_from_statement` importing the target symbol.
 3. Resolve relative imports via `_resolve_relative_module`.
 4. Map the import module to a file path using `_module_to_path`.
 5. Call `_locate_symbol` on the actual target file.
