@@ -54,34 +54,59 @@ class SearchTool(AXMTool):
             ToolResult with matching symbols.
         """
         try:
-            project_path = Path(path).resolve()
-            if not project_path.is_dir():
-                return ToolResult(
-                    success=False, error=f"Not a directory: {project_path}"
-                )
-
-            from axm_ast.core.analyzer import search_symbols
-            from axm_ast.core.cache import get_package
-
-            pkg = get_package(project_path)
+            pkg = self._load_package(path)
+            if isinstance(pkg, ToolResult):
+                return pkg
 
             kind_enum = self._validate_kind(kind)
             if isinstance(kind_enum, ToolResult):
                 return kind_enum
 
-            results = search_symbols(
-                pkg, name=name, returns=returns, kind=kind_enum, inherits=inherits
-            )
-
-            symbols = [self._format_symbol(sym) for sym in results]
-
-            return ToolResult(
-                success=True,
-                data={"results": symbols, "count": len(symbols)},
-                hint="Tip: Use ast_inspect(symbol) for full source code.",
+            return self._search(
+                pkg,
+                name=name,
+                returns=returns,
+                kind=kind_enum,
+                inherits=inherits,
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
+
+    @staticmethod
+    def _load_package(path: str) -> Any:
+        """Resolve path and load package. Returns PackageInfo or ToolResult on error."""
+        project_path = Path(path).resolve()
+        if not project_path.is_dir():
+            return ToolResult(success=False, error=f"Not a directory: {project_path}")
+        from axm_ast.core.cache import get_package
+
+        return get_package(project_path)
+
+    @staticmethod
+    def _search(
+        pkg: Any,
+        *,
+        name: str | None,
+        returns: str | None,
+        kind: Any,
+        inherits: str | None,
+    ) -> ToolResult:
+        """Run search and format results."""
+        from axm_ast.core.analyzer import search_symbols
+
+        results = search_symbols(
+            pkg,
+            name=name,
+            returns=returns,
+            kind=kind,
+            inherits=inherits,
+        )
+        symbols = [SearchTool._format_symbol(sym) for sym in results]
+        return ToolResult(
+            success=True,
+            data={"results": symbols, "count": len(symbols)},
+            hint="Tip: Use ast_inspect(symbol) for full source code.",
+        )
 
     def _validate_kind(self, kind: str | None) -> Any:
         """Validate kind string.
@@ -101,7 +126,8 @@ class SearchTool(AXMTool):
                 error=f"Invalid kind: {kind}. Valid: {valid}",
             )
 
-    def _format_symbol(self, sym: Any) -> dict[str, Any]:
+    @staticmethod
+    def _format_symbol(sym: Any) -> dict[str, Any]:
         """Format an AST symbol into a serialized dict entry."""
         entry: dict[str, Any] = {
             "name": sym.name,
