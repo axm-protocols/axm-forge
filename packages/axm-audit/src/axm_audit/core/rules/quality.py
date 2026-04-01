@@ -120,6 +120,16 @@ class FormattingRule(ProjectRule):
 
         targets, checked = _get_audit_targets(project_path)
 
+        # Auto-fix formatting before checking
+        run_in_project(
+            ["ruff", "format", *targets],
+            project_path,
+            with_packages=["ruff"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
         result = run_in_project(
             ["ruff", "format", "--check", *targets],
             project_path,
