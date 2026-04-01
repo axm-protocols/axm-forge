@@ -62,45 +62,18 @@ class SearchTool(AXMTool):
 
             from axm_ast.core.analyzer import search_symbols
             from axm_ast.core.cache import get_package
-            from axm_ast.models import SymbolKind
 
             pkg = get_package(project_path)
 
-            kind_enum = None
-            if kind:
-                try:
-                    kind_enum = SymbolKind(kind)
-                except ValueError:
-                    valid = ", ".join(SymbolKind)
-                    return ToolResult(
-                        success=False,
-                        error=f"Invalid kind: {kind}. Valid: {valid}",
-                    )
+            kind_enum = self._validate_kind(kind)
+            if isinstance(kind_enum, ToolResult):
+                return kind_enum
 
             results = search_symbols(
                 pkg, name=name, returns=returns, kind=kind_enum, inherits=inherits
             )
 
-            symbols = []
-            for sym in results:
-                entry: dict[str, Any] = {
-                    "name": sym.name,
-                    "module": getattr(sym, "module", ""),
-                }
-                if hasattr(sym, "signature"):
-                    entry["signature"] = sym.signature
-                if hasattr(sym, "return_type"):
-                    entry["return_type"] = sym.return_type
-                if hasattr(sym, "value_repr"):
-                    from axm_ast.models.nodes import VariableInfo
-
-                    entry["kind"] = "variable"
-                    if isinstance(sym, VariableInfo):
-                        if sym.annotation:
-                            entry["annotation"] = sym.annotation
-                        if sym.value_repr:
-                            entry["value_repr"] = sym.value_repr
-                symbols.append(entry)
+            symbols = [self._format_symbol(sym) for sym in results]
 
             return ToolResult(
                 success=True,
@@ -109,3 +82,42 @@ class SearchTool(AXMTool):
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
+
+    def _validate_kind(self, kind: str | None) -> Any:
+        """Validate kind string.
+
+        Returns SymbolKind on success or ToolResult on error.
+        """
+        if kind is None:
+            return None
+        from axm_ast.models import SymbolKind
+
+        try:
+            return SymbolKind(kind)
+        except ValueError:
+            valid = ", ".join(SymbolKind)
+            return ToolResult(
+                success=False,
+                error=f"Invalid kind: {kind}. Valid: {valid}",
+            )
+
+    def _format_symbol(self, sym: Any) -> dict[str, Any]:
+        """Format an AST symbol into a serialized dict entry."""
+        entry: dict[str, Any] = {
+            "name": sym.name,
+            "module": getattr(sym, "module", ""),
+        }
+        if hasattr(sym, "signature"):
+            entry["signature"] = sym.signature
+        if hasattr(sym, "return_type"):
+            entry["return_type"] = sym.return_type
+        if hasattr(sym, "value_repr"):
+            from axm_ast.models.nodes import VariableInfo
+
+            entry["kind"] = "variable"
+            if isinstance(sym, VariableInfo):
+                if sym.annotation:
+                    entry["annotation"] = sym.annotation
+                if sym.value_repr:
+                    entry["value_repr"] = sym.value_repr
+        return entry
