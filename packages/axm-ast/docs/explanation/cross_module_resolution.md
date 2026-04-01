@@ -41,6 +41,18 @@ flowchart TD
 
 ## Key Data Structures
 
+### `_ResolutionScope`
+
+A dataclass grouping per-iteration parameters for cross-module callee resolution. Created fresh in each BFS iteration and passed through `_resolve_cross_module_callees` → `_resolve_single_cross_callee`:
+
+| Field | Type | Role |
+|---|---|---|
+| `current_mod` | `str` | Dotted name of the module being processed |
+| `current_pkg` | `PackageInfo` | Package the current module belongs to |
+| `original_pkg` | `PackageInfo` | Top-level package (for import resolution) |
+| `depth` | `int` | Current BFS depth |
+| `current_chain` | `list[str]` | Ancestor symbol path from entry to here |
+
 ### `_CrossModuleContext`
 
 A dataclass carrying shared mutable BFS state, passed by reference so cross-module resolution can append steps and update visited sets without return values:
@@ -75,12 +87,12 @@ Each BFS node produces a `FlowStep` (Pydantic model):
 2. **Queue initialization** — The entry is enqueued at depth 0 and immediately appended to `steps` as the root `FlowStep`.
 3. **Main loop** — Each iteration dequeues a symbol, resolves callees (from a pre-built index or via `find_callees`), and delegates filtering and enqueuing to `_process_local_callees`, which skips stdlib/visited symbols and appends a `FlowStep` for each new discovery at `depth + 1`.
 4. **Depth cap** — When `depth >= max_depth`, the node is dequeued but its callees are not explored.
-5. **Cross-module** — After same-package callees are processed, `_resolve_cross_module_callees` follows imported symbols into external files.
+5. **Cross-module** — After same-package callees are processed, `_resolve_cross_module_callees` receives a `_ResolutionScope` (bundling the current module, packages, depth, and chain) and follows imported symbols into external files.
 6. **Source enrichment** — After the BFS completes, if `detail="source"`, `_enrich_steps_with_source` patches each step with the actual function source text.
 
 ## Cross-Module Resolution (`_resolve_cross_module_callees`)
 
-The outer function iterates over callees, delegating each to `_resolve_single_cross_callee`:
+The outer function receives `(callees, scope: _ResolutionScope, ctx: _CrossModuleContext)` and iterates over callees, delegating each to `_resolve_single_cross_callee`:
 
 1. **Filter callee** — `_try_resolve_callee` skips stdlib/builtins (`_is_stdlib_or_builtin`) and symbols already defined in the current package.
 2. **Locate context** — `_find_source_module` finds the `ModuleInfo` for the calling module, first via `find_module_for_symbol` by context name, then by matching `module_dotted_name` against the current module.
@@ -96,7 +108,7 @@ The outer function iterates over callees, delegating each to `_resolve_single_cr
 
 Handles the common pattern where `__init__.py` re-exports a symbol from a submodule:
 
-1. Parse `resolved_path` (the file where the symbol was expected) with tree-sitter.
+1. Parse `resolved_path` via `_parse_source_safe` (the file where the symbol was expected) with tree-sitter. Returns `None` on parse failure.
 2. Walk top-level nodes, delegating each to `_try_resolve_reexport_node` which checks if the node is an `import_from_statement` importing the target symbol.
 3. Resolve relative imports via `_resolve_relative_module`.
 4. Map the import module to a file path using `_module_to_path`.
