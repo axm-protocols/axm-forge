@@ -453,6 +453,88 @@ class TestRunTestsDelta:
         assert "src/pkg/old.py" in report.coverage_by_file  # removed = -50
 
 
+class TestCoverageByFileExposure:
+    """Verify coverage_by_file is populated in compact and failures modes."""
+
+    @patch("axm_audit.core.test_runner.run_in_project")
+    def test_compact_mode_includes_coverage_by_file(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """Compact mode populates coverage_by_file with per-file data."""
+
+        def _side_effect(
+            cmd: list[str], project_path: Path, **kwargs: Any
+        ) -> MagicMock:
+            for arg in cmd:
+                if arg.startswith("--json-report-file="):
+                    rpath = Path(arg.split("=", 1)[1])
+                    rpath.write_text(json.dumps(_PASSING_REPORT))
+            for arg in cmd:
+                if arg.startswith("--cov-report=json:"):
+                    cpath = Path(arg.split(":", 1)[1])
+                    cpath.write_text(json.dumps(_COVERAGE_DATA))
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = _side_effect
+
+        report = run_tests(tmp_path, mode="compact")
+        assert report.coverage_by_file is not None
+        assert report.coverage_by_file["src/pkg/core.py"] == 95.0
+        assert report.coverage_by_file["src/pkg/utils.py"] == 80.0
+
+    @patch("axm_audit.core.test_runner.run_in_project")
+    def test_failures_mode_includes_coverage_by_file(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """Failures mode populates coverage_by_file."""
+
+        def _side_effect(
+            cmd: list[str], project_path: Path, **kwargs: Any
+        ) -> MagicMock:
+            for arg in cmd:
+                if arg.startswith("--json-report-file="):
+                    rpath = Path(arg.split("=", 1)[1])
+                    rpath.write_text(json.dumps(_PASSING_REPORT))
+            for arg in cmd:
+                if arg.startswith("--cov-report=json:"):
+                    cpath = Path(arg.split(":", 1)[1])
+                    cpath.write_text(json.dumps(_COVERAGE_DATA))
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = _side_effect
+
+        report = run_tests(tmp_path, mode="failures")
+        assert report.coverage_by_file is not None
+        assert "src/pkg/core.py" in report.coverage_by_file
+
+    @patch("axm_audit.core.test_runner.run_in_project")
+    def test_delta_mode_unchanged(self, mock_run: MagicMock, tmp_path: Path) -> None:
+        """Delta mode with last_coverage returns deltas, not raw values."""
+
+        def _side_effect(
+            cmd: list[str], project_path: Path, **kwargs: Any
+        ) -> MagicMock:
+            for arg in cmd:
+                if arg.startswith("--json-report-file="):
+                    rpath = Path(arg.split("=", 1)[1])
+                    rpath.write_text(json.dumps(_PASSING_REPORT))
+            for arg in cmd:
+                if arg.startswith("--cov-report=json:"):
+                    cpath = Path(arg.split(":", 1)[1])
+                    cpath.write_text(json.dumps(_COVERAGE_DATA))
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = _side_effect
+
+        last = {"src/pkg/core.py": 90.0, "src/pkg/utils.py": 80.0}
+        report = run_tests(tmp_path, mode="delta", last_coverage=last)
+        assert report.coverage_by_file is not None
+        # Delta: 95.0 - 90.0 = 5.0
+        assert report.coverage_by_file["src/pkg/core.py"] == 5.0
+        # utils unchanged (80.0 - 80.0 = 0.0), should NOT appear in delta
+        assert "src/pkg/utils.py" not in report.coverage_by_file
+
+
 # ---------------------------------------------------------------------------
 # run_tests — targeted mode
 # ---------------------------------------------------------------------------

@@ -345,7 +345,7 @@ def _build_test_report(
             if old != new:
                 delta[fpath] = round(new - old, 1)
         result.coverage_by_file = delta
-    elif mode == "delta":
+    else:
         result.coverage_by_file = per_file_cov
 
     return result
