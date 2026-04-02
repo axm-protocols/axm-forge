@@ -26,6 +26,11 @@ build_callee_index: Any = None
 _MAX_UNSCOPED_ENTRIES = 20
 
 
+def _concat_compact_traces(traces: dict[str, Any]) -> str:
+    """Join per-symbol compact trace strings into a single output."""
+    return "\n".join(f"{sym}:\n{body}" for sym, body in traces.items())
+
+
 @dataclass
 class _TraceOpts:
     """Bundled tracing options passed to _trace_entries / _trace_all."""
@@ -106,7 +111,10 @@ class FlowsHook:
                 Optional ``cross_module`` (default False).
 
         Returns:
-            HookResult with ``traces`` dict/list in metadata on success.
+            HookResult with ``traces`` in metadata on success.
+            When *detail* is ``"compact"``, ``traces`` is a single string
+            (concatenated with entry-name headers for multi-symbol traces).
+            Otherwise, ``traces`` is a dict of symbol → step-dicts.
         """
         path = params.get("path") or context.get("working_dir", ".")
         working_dir = Path(path).resolve()
@@ -210,6 +218,10 @@ class FlowsHook:
                 compact,
                 format_fn,
             )
+        if compact:
+            return HookResult.ok(
+                traces=_concat_compact_traces(traces),
+            )
         return HookResult.ok(traces=traces)
 
     @staticmethod
@@ -253,4 +265,6 @@ class FlowsHook:
                 else:
                     traces[e.name] = [s.model_dump(exclude_none=True) for s in steps]
 
+        if compact:
+            return HookResult.ok(traces=_concat_compact_traces(traces))
         return HookResult.ok(traces=traces)
