@@ -16,7 +16,7 @@ def _call_log_external_step(
     mock_orch: MagicMock,
     result_str: str,
     tool_name: str = "test_tool",
-) -> dict:
+) -> dict[str, object]:
     """Call _log_external_step and return the kwargs passed to log_external_step."""
     with patch(
         "axm_engine.runtime.orchestrator.get_orchestrator",
@@ -31,7 +31,7 @@ def _call_log_external_step(
             result_str=result_str,
             duration_ms=10,
         )
-    return mock_orch.log_external_step.call_args.kwargs
+    return dict(mock_orch.log_external_step.call_args.kwargs)
 
 
 def test_hash_from_content_not_length(mock_orchestrator: MagicMock) -> None:
