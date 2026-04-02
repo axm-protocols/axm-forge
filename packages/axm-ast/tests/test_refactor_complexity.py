@@ -130,7 +130,8 @@ class TestSourceBodySingleSymbol:
         )
 
         assert result.success is True
-        assert result.metadata["symbols"]["symbol"] == "foo"
+        assert isinstance(result.metadata["symbols"], str)
+        assert "def foo(): pass" in result.metadata["symbols"]
 
 
 class TestSourceBodyDottedClassMethod:
