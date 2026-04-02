@@ -50,11 +50,13 @@ class TestSourceBodySingleSymbol:
 
         assert result.success
         data = result.metadata["symbols"]
-        assert data["file"] == "example.py"
-        assert data["start_line"] == 2
-        assert data["end_line"] == 3
-        assert "def my_func():" in data["body"]
-        assert "    pass" in data["body"]
+        assert isinstance(data, str)
+        assert "example.py" in data
+        assert "```python" in data
+        assert "def my_func():" in data
+        assert "    pass" in data
+        assert "start_line" not in data
+        assert "end_line" not in data
 
 
 class TestSourceBodyMultiSymbol:
@@ -105,12 +107,11 @@ class TestSourceBodyMultiSymbol:
 
         assert result.success
         symbols = result.metadata["symbols"]
-        assert isinstance(symbols, list)
-        assert len(symbols) == 2
-        assert symbols[0]["symbol"] == "func_a"
-        assert symbols[1]["symbol"] == "func_b"
-        assert "def func_a():" in symbols[0]["body"]
-        assert "return 1" in symbols[1]["body"]
+        assert isinstance(symbols, str)
+        assert "def func_a():" in symbols
+        assert "return 1" in symbols
+        assert "```python" in symbols
+        assert "mod.py" in symbols
 
 
 class TestSourceBodyVariable:
@@ -149,12 +150,11 @@ class TestSourceBodyVariable:
 
         assert result.success
         data = result.metadata["symbols"]
-        assert data["symbol"] == "_TOLERANCE"
-        assert data["file"] == "consts.py"
-        assert data["start_line"] == 1
-        assert data["end_line"] == 1
-        assert data["value_repr"] == "0.01"
-        assert "_TOLERANCE" in data["body"]
+        assert isinstance(data, str)
+        assert "consts.py" in data
+        assert "_TOLERANCE" in data
+        assert "value_repr" in data or "0.01" in data
+        assert "```python" in data
 
 
 class TestSourceBodyMissingSymbol:
@@ -177,9 +177,8 @@ class TestSourceBodyMissingSymbol:
 
         assert result.success
         data = result.metadata["symbols"]
-        assert data["body"] is None
-        assert "error" in data
-        assert "nonexistent" in data["error"]
+        assert isinstance(data, str)
+        assert "nonexistent" in data
 
 
 class TestSourceBodyMissingPath:
@@ -256,11 +255,10 @@ class TestSourceBodyDottedClassMethod:
 
         assert result.success
         data = result.metadata["symbols"]
-        assert data["body"] is not None
-        assert data["file"] == "models.py"
-        assert data["start_line"] == 2
-        assert data["end_line"] == 3
-        assert "def do_work" in data["body"]
+        assert isinstance(data, str)
+        assert "models.py" in data
+        assert "```python" in data
+        assert "def do_work" in data
 
 
 class TestSourceBodyDottedModuleSymbol:
@@ -307,11 +305,10 @@ class TestSourceBodyDottedModuleSymbol:
 
         assert result.success
         data = result.metadata["symbols"]
-        assert data["body"] is not None
-        assert data["file"] == "utils.py"
-        assert data["start_line"] == 1
-        assert data["end_line"] == 2
-        assert "def helper" in data["body"]
+        assert isinstance(data, str)
+        assert "utils.py" in data
+        assert "```python" in data
+        assert "def helper" in data
 
 
 class TestSourceBodyDottedNotFound:
@@ -334,8 +331,8 @@ class TestSourceBodyDottedNotFound:
 
         assert result.success
         data = result.metadata["symbols"]
-        assert data["body"] is None
-        assert "error" in data
+        assert isinstance(data, str)
+        assert "not found" in data.lower() or "error" in data.lower()
 
 
 class TestSourceBodySimpleNameUnchanged:
@@ -373,11 +370,10 @@ class TestSourceBodySimpleNameUnchanged:
 
         assert result.success
         data = result.metadata["symbols"]
-        assert data["body"] is not None
-        assert data["file"] == "plain.py"
-        assert data["start_line"] == 1
-        assert data["end_line"] == 2
-        assert "def my_function" in data["body"]
+        assert isinstance(data, str)
+        assert "plain.py" in data
+        assert "```python" in data
+        assert "def my_function" in data
 
 
 # ── Functional tests ───────────────────────────────────────────────
@@ -409,9 +405,7 @@ class TestHookOnRealPackage:
 
         assert result.success
         data = result.metadata["symbols"]
-        assert data["body"] is not None
-        assert "class ImpactHook" in data["body"]
-        assert data["file"] == "hooks/impact.py"
-        assert isinstance(data["start_line"], int)
-        assert isinstance(data["end_line"], int)
-        assert data["start_line"] < data["end_line"]
+        assert isinstance(data, str)
+        assert "class ImpactHook" in data
+        assert "hooks/impact.py" in data
+        assert "```python" in data

@@ -282,14 +282,51 @@ def _extract_symbol(
     }
 
 
+def _format_as_markdown(
+    results: list[dict[str, Any]],
+    working_dir: Path,
+) -> str:
+    """Format extraction results as grouped markdown.
+
+    Groups symbol bodies by file path and renders each group as
+    a fenced python code block preceded by the relative file path.
+    """
+    from collections import OrderedDict
+
+    grouped: OrderedDict[str, list[str]] = OrderedDict()
+    for entry in results:
+        body = entry.get("body")
+        if body is None:
+            # Symbol not found — include error as comment
+            err = entry.get("error", "unknown error")
+            snippet = f"# {entry.get('symbol', '?')}: {err}"
+        else:
+            snippet = body
+            if entry.get("value_repr") is not None:
+                snippet += f"  # value_repr: {entry['value_repr']}"
+        file_key = entry.get("file", "<unknown>")
+        grouped.setdefault(file_key, []).append(snippet)
+
+    parts: list[str] = []
+    for filepath, bodies in grouped.items():
+        parts.append(filepath)
+        parts.append("```python")
+        parts.append("\n\n".join(bodies))
+        parts.append("```")
+
+    return "\n".join(parts)
+
+
 def _run_extraction(symbol: str, working_dir: Path) -> HookResult:
     """Run symbol extraction and return a HookResult."""
     pkg = analyze_package(working_dir)
     symbols = [s.strip() for s in symbol.splitlines() if s.strip()]
     results = [_extract_symbol(pkg, sym, working_dir) for sym in symbols]
-    if len(results) == 1:
-        return HookResult.ok(symbols=results[0])
-    return HookResult.ok(symbols=results)
+    file_list = list(
+        dict.fromkeys(entry["file"] for entry in results if entry.get("file"))
+    )
+    formatted = _format_as_markdown(results, working_dir)
+    return HookResult.ok(symbols=formatted, files=file_list)
 
 
 @dataclass
