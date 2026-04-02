@@ -35,6 +35,9 @@ class QualityCheckHook:
 
         Returns:
             HookResult with ``has_violations``, ``violations``, ``summary``.
+            Each violation is expanded from inner error lists when available
+            (``errors`` for type checks, ``issues`` for lint checks).
+            Checks without inner lists produce a single fallback violation.
         """
         working_dir = params.get("working_dir") or context.get("working_dir", ".")
         project_path = Path(working_dir)
@@ -65,16 +68,32 @@ class QualityCheckHook:
         agent_output = format_agent(merged)
 
         failed_items = agent_output.get("failed", [])
-        violations = [
-            {
-                "file": item.get("details", {}).get("file", ""),
-                "line": item.get("details", {}).get("line", 0),
-                "message": item.get("message", ""),
-                "code": item.get("rule_id", ""),
-                "rule_id": item.get("rule_id", ""),
-            }
-            for item in failed_items
-        ]
+        violations: list[dict[str, Any]] = []
+        for item in failed_items:
+            rule_id = item.get("rule_id", "")
+            details = item.get("details") or {}
+            inner = details.get("errors", details.get("issues"))
+            if inner is not None:
+                for entry in inner:
+                    violations.append(
+                        {
+                            "file": entry.get("file", ""),
+                            "line": entry.get("line", 0),
+                            "message": entry.get("message", ""),
+                            "code": entry.get("code", ""),
+                            "rule_id": rule_id,
+                        }
+                    )
+            else:
+                violations.append(
+                    {
+                        "file": "",
+                        "line": 0,
+                        "message": item.get("message", ""),
+                        "code": rule_id,
+                        "rule_id": rule_id,
+                    }
+                )
 
         has_violations = len(violations) > 0
         summary = f"{len(violations)} violation(s)" if has_violations else "clean"
