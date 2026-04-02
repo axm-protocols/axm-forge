@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import importlib
-import inspect
 import logging
 import pkgutil
-from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 import axm_init.checks as _checks_pkg
 from axm_init.checks._utils import load_exclusions
@@ -19,6 +17,10 @@ from axm_init.checks._workspace import (
     find_workspace_root,
 )
 from axm_init.models.check import CheckResult, ProjectResult
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +76,8 @@ def _discover_checks() -> dict[str, list[Callable[[Path], CheckResult]]]:
     ``_``-prefixed modules) and collects all public ``check_*`` functions.
     The module name becomes the category key.
     """
+    import inspect
+
     registry: dict[str, list[Callable[[Path], CheckResult]]] = {}
     for info in pkgutil.iter_modules(_checks_pkg.__path__):
         if info.name.startswith("_"):

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-import concurrent.futures
 import logging
 import os
 import sys
@@ -50,6 +48,8 @@ class CopierAdapter:
         execute the blocking copy in a **separate thread** which gets
         its own event loop context.
         """
+        import asyncio
+        import concurrent.futures
 
         def _run() -> None:
             run_copy(
