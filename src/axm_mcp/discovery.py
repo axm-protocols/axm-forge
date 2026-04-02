@@ -308,6 +308,7 @@ def _log_external_step(
     """
     try:
         from axm_engine.runtime.orchestrator import get_orchestrator
+        from axm_engine.services.tracing.models import hash_content
 
         orch = get_orchestrator()
         orch.log_external_step(
@@ -315,7 +316,7 @@ def _log_external_step(
             tool_args=tool_args,
             result_success=success,
             result_length=len(result_str),
-            result_hash="",  # let orchestrator compute
+            result_hash=hash_content(result_str),
             duration_ms=duration_ms,
             result_output=result_str,
         )
