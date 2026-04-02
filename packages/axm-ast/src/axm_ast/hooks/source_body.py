@@ -17,6 +17,12 @@ from typing import Any
 
 from axm.hooks.base import HookResult
 
+from axm_ast.core.analyzer import (
+    analyze_package,
+    find_module_for_symbol,
+    search_symbols,
+)
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["SourceBodyHook"]
@@ -66,6 +72,32 @@ def _build_body(sym: Any, mod: Any, symbol_name: str, pkg_root: Path) -> dict[st
     }
 
 
+def _build_method_body(
+    pkg: Any,
+    cls: Any,
+    method: Any,
+    symbol_name: str,
+    pkg_root: Path,
+) -> dict[str, Any] | None:
+    """Build body dict for a resolved class method."""
+    mod = find_module_for_symbol(pkg, cls)
+    if mod is None:
+        return None
+    rel = (
+        mod.path.relative_to(pkg_root)
+        if mod.path.is_relative_to(pkg_root)
+        else mod.path
+    )
+    body = _read_body(mod.path, method.line_start, method.line_end)
+    return {
+        "symbol": symbol_name,
+        "file": str(rel),
+        "start_line": method.line_start,
+        "end_line": method.line_end,
+        "body": body,
+    }
+
+
 def _resolve_as_class_method(
     pkg: Any,
     class_name: str,
@@ -78,8 +110,6 @@ def _resolve_as_class_method(
     Returns body dict on success, not-found dict if the class exists
     but the member is missing, or *None* if no class matched.
     """
-    from axm_ast.core.analyzer import find_module_for_symbol, search_symbols
-
     classes = search_symbols(
         pkg, name=class_name, returns=None, kind=None, inherits=None
     )
@@ -90,22 +120,11 @@ def _resolve_as_class_method(
     if cls is None:
         return None
     method = next((m for m in cls.methods if m.name == member_name), None)
-    if method is not None:
-        mod = find_module_for_symbol(pkg, cls)
-        if mod is not None:
-            rel = (
-                mod.path.relative_to(pkg_root)
-                if mod.path.is_relative_to(pkg_root)
-                else mod.path
-            )
-            body = _read_body(mod.path, method.line_start, method.line_end)
-            return {
-                "symbol": symbol_name,
-                "file": str(rel),
-                "start_line": method.line_start,
-                "end_line": method.line_end,
-                "body": body,
-            }
+    if method is None:
+        return _not_found(symbol_name)
+    result = _build_method_body(pkg, cls, method, symbol_name, pkg_root)
+    if result is not None:
+        return result
     # Class found but member missing → definitive not-found.
     return _not_found(symbol_name)
 
@@ -263,6 +282,16 @@ def _extract_symbol(
     }
 
 
+def _run_extraction(symbol: str, working_dir: Path) -> HookResult:
+    """Run symbol extraction and return a HookResult."""
+    pkg = analyze_package(working_dir)
+    symbols = [s.strip() for s in symbol.splitlines() if s.strip()]
+    results = [_extract_symbol(pkg, sym, working_dir) for sym in symbols]
+    if len(results) == 1:
+        return HookResult.ok(symbols=results[0])
+    return HookResult.ok(symbols=results)
+
+
 @dataclass
 class SourceBodyHook:
     """Extract the full source body of one or more symbols.
@@ -293,15 +322,6 @@ class SourceBodyHook:
         assert working_dir is not None
 
         try:
-            from axm_ast.core.analyzer import analyze_package
-
-            pkg = analyze_package(working_dir)
-            symbols = [s.strip() for s in symbol.splitlines() if s.strip()]
-
-            results = [_extract_symbol(pkg, sym, working_dir) for sym in symbols]
-
-            if len(results) == 1:
-                return HookResult.ok(symbols=results[0])
-            return HookResult.ok(symbols=results)
+            return _run_extraction(symbol, working_dir)
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Source body extraction failed: {exc}")
