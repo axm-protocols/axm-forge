@@ -2,4 +2,6 @@
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from axm_audit.hooks.quality_check import QualityCheckHook
+
+__all__: list[str] = ["QualityCheckHook"]
