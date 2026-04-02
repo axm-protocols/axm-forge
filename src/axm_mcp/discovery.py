@@ -317,6 +317,7 @@ def _log_external_step(
             result_length=len(result_str),
             result_hash="",  # let orchestrator compute
             duration_ms=duration_ms,
+            result_output=result_str,
         )
     except Exception:  # noqa: S110
         pass  # tracing must never break tool execution
