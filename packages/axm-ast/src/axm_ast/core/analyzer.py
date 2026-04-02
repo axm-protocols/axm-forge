@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from axm_ast.core.parser import extract_module_info
@@ -224,24 +225,29 @@ def find_module_for_symbol(
     return _find_module_by_name(pkg, symbol)
 
 
+def _search_in_module(
+    mod: ModuleInfo,
+    predicate: Callable[[FunctionInfo | ClassInfo | VariableInfo], bool],
+) -> bool:
+    """Check whether *mod* contains a symbol satisfying *predicate*."""
+    if any(predicate(fn) for fn in mod.functions):
+        return True
+    for cls in mod.classes:
+        if predicate(cls):
+            return True
+        if any(predicate(m) for m in cls.methods):
+            return True
+    return any(predicate(v) for v in mod.variables)
+
+
 def _find_module_by_identity(
     pkg: PackageInfo,
     sym: FunctionInfo | ClassInfo | VariableInfo,
 ) -> ModuleInfo | None:
     """Find module by object identity (``is`` comparison)."""
     for mod in pkg.modules:
-        for fn in mod.functions:
-            if fn is sym:
-                return mod
-        for cls in mod.classes:
-            if cls is sym:
-                return mod
-            for method in cls.methods:
-                if method is sym:
-                    return mod
-        for var in mod.variables:
-            if var is sym:
-                return mod
+        if _search_in_module(mod, lambda s: s is sym):
+            return mod
     return None
 
 
@@ -251,18 +257,8 @@ def _find_module_by_name(
 ) -> ModuleInfo | None:
     """Find module by symbol name (first match)."""
     for mod in pkg.modules:
-        for fn in mod.functions:
-            if fn.name == name:
-                return mod
-        for cls in mod.classes:
-            if cls.name == name:
-                return mod
-            for method in cls.methods:
-                if method.name == name:
-                    return mod
-        for var in mod.variables:
-            if var.name == name:
-                return mod
+        if _search_in_module(mod, lambda s: s.name == name):
+            return mod
     return None
 
 
