@@ -158,10 +158,8 @@ class TestFlowsHookCompactSingle:
         assert result.success is True
         assert "traces" in result.metadata
         traces = result.metadata["traces"]
-        # In compact mode, traces should be a compact string (not dicts)
-        assert isinstance(traces, str) or (
-            isinstance(traces, list) and all(isinstance(t, str) for t in traces)
-        )
+        # Compact mode returns a string (AXM-1009)
+        assert isinstance(traces, str)
 
 
 class TestFlowsHookCompactMulti:
@@ -187,16 +185,11 @@ class TestFlowsHookCompactMulti:
         result = hook.execute(ctx, entry="alpha\nbeta\ngamma", detail="compact")
         assert result.success is True
         traces = result.metadata["traces"]
-        # Multi-entry compact should have section headers
-        if isinstance(traces, dict):
-            assert len(traces) == 3
-            for val in traces.values():
-                assert isinstance(val, str)
-        elif isinstance(traces, str):
-            # Concatenated sections with headers
-            assert "alpha" in traces
-            assert "beta" in traces
-            assert "gamma" in traces
+        # Multi-entry compact returns concatenated string (AXM-1009)
+        assert isinstance(traces, str)
+        assert "alpha" in traces
+        assert "beta" in traces
+        assert "gamma" in traces
 
 
 class TestFlowsToolTraceUnchanged:
