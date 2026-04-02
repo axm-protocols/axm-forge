@@ -38,6 +38,7 @@ audit_quality = "axm_audit.witnesses.audit_quality:AuditQualityRule"
 
 [project.entry-points."axm.hooks"]
 "audit:autofix" = "axm_audit.hooks.autofix:AutofixHook"
+"audit:quality-check" = "axm_audit.hooks.quality_check:QualityCheckHook"
 
 [project.entry-points."axm.commands"]
 audit = "axm_audit.cli:app"
