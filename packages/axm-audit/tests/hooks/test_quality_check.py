@@ -81,8 +81,11 @@ class TestViolationsFound:
         context: dict[str, str],
         mocker: Any,
     ) -> None:
-        """Mock audit_project -> 3 violations => has_violations=True."""
-        violations = [
+        """Mock audit_project -> 3 failed checks without inner lists.
+
+        Expects 3 fallback violations.
+        """
+        failed_items = [
             {
                 "rule_id": "L001",
                 "message": "err1",
@@ -115,7 +118,12 @@ class TestViolationsFound:
         )
         mocker.patch(
             "axm_audit.hooks.quality_check.format_agent",
-            return_value={"failed": violations, "passed": [], "score": 0, "grade": "F"},
+            return_value={
+                "failed": failed_items,
+                "passed": [],
+                "score": 0,
+                "grade": "F",
+            },
         )
 
         result = hook.execute(context)
@@ -126,7 +134,381 @@ class TestViolationsFound:
             assert "file" in v
             assert "line" in v
             assert "message" in v
-            assert "code" in v or "rule_id" in v
+            assert "code" in v
+            assert "rule_id" in v
+
+    def test_type_violations_expanded(
+        self,
+        hook: QualityCheckHook,
+        context: dict[str, str],
+        mocker: Any,
+    ) -> None:
+        """QUALITY_TYPE with 3 errors in details => 3 individual violations."""
+        failed_items = [
+            {
+                "rule_id": "QUALITY_TYPE",
+                "message": "mypy found 3 errors",
+                "details": {
+                    "error_count": 3,
+                    "score": 0.7,
+                    "checked": "mypy",
+                    "errors": [
+                        {
+                            "file": "src/foo.py",
+                            "line": 10,
+                            "message": "Incompatible type",
+                            "code": "assignment",
+                        },
+                        {
+                            "file": "src/bar.py",
+                            "line": 22,
+                            "message": "Missing return",
+                            "code": "return",
+                        },
+                        {
+                            "file": "src/baz.py",
+                            "line": 5,
+                            "message": "Invalid arg",
+                            "code": "arg-type",
+                        },
+                    ],
+                },
+                "fix_hint": "Fix type errors",
+            },
+        ]
+        audit_result = _make_audit_result(
+            [_make_check(passed=False, rule_id="QUALITY_TYPE")]
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.audit_project",
+            return_value=audit_result,
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.format_agent",
+            return_value={
+                "failed": failed_items,
+                "passed": [],
+                "score": 0.7,
+                "grade": "C",
+            },
+        )
+
+        result = hook.execute(context)
+
+        violations = result.metadata["violations"]
+        assert len(violations) == 3
+        assert violations[0]["file"] == "src/foo.py"
+        assert violations[0]["line"] == 10
+        assert violations[0]["message"] == "Incompatible type"
+        assert violations[0]["rule_id"] == "QUALITY_TYPE"
+        assert violations[1]["file"] == "src/bar.py"
+        assert violations[1]["line"] == 22
+        assert violations[2]["file"] == "src/baz.py"
+        assert violations[2]["line"] == 5
+
+    def test_lint_violations_expanded(
+        self,
+        hook: QualityCheckHook,
+        context: dict[str, str],
+        mocker: Any,
+    ) -> None:
+        """QUALITY_LINT with 2 issues in details => 2 individual violations."""
+        failed_items = [
+            {
+                "rule_id": "QUALITY_LINT",
+                "message": "ruff found 2 issues",
+                "details": {
+                    "issue_count": 2,
+                    "score": 0.8,
+                    "checked": "ruff",
+                    "issues": [
+                        {
+                            "file": "src/a.py",
+                            "line": 3,
+                            "code": "E501",
+                            "message": "Line too long",
+                        },
+                        {
+                            "file": "src/b.py",
+                            "line": 15,
+                            "code": "F401",
+                            "message": "Unused import",
+                        },
+                    ],
+                },
+                "fix_hint": "Run ruff --fix",
+            },
+        ]
+        audit_result = _make_audit_result(
+            [_make_check(passed=False, rule_id="QUALITY_LINT")]
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.audit_project",
+            return_value=audit_result,
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.format_agent",
+            return_value={
+                "failed": failed_items,
+                "passed": [],
+                "score": 0.8,
+                "grade": "B",
+            },
+        )
+
+        result = hook.execute(context)
+
+        violations = result.metadata["violations"]
+        assert len(violations) == 2
+        assert violations[0]["file"] == "src/a.py"
+        assert violations[0]["line"] == 3
+        assert violations[0]["code"] == "E501"
+        assert violations[0]["message"] == "Line too long"
+        assert violations[0]["rule_id"] == "QUALITY_LINT"
+        assert violations[1]["file"] == "src/b.py"
+        assert violations[1]["code"] == "F401"
+
+    def test_fallback_no_inner_list(
+        self,
+        hook: QualityCheckHook,
+        context: dict[str, str],
+        mocker: Any,
+    ) -> None:
+        """QUALITY_FORMAT with no errors/issues list => single fallback violation."""
+        failed_items = [
+            {
+                "rule_id": "QUALITY_FORMAT",
+                "message": "3 files unformatted",
+                "details": {"unformatted_count": 3},
+                "fix_hint": "Run ruff format",
+            },
+        ]
+        audit_result = _make_audit_result(
+            [_make_check(passed=False, rule_id="QUALITY_FORMAT")]
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.audit_project",
+            return_value=audit_result,
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.format_agent",
+            return_value={
+                "failed": failed_items,
+                "passed": [],
+                "score": 0.5,
+                "grade": "D",
+            },
+        )
+
+        result = hook.execute(context)
+
+        violations = result.metadata["violations"]
+        assert len(violations) == 1
+        assert violations[0]["message"] == "3 files unformatted"
+        assert violations[0]["file"] == ""
+        assert violations[0]["line"] == 0
+        assert violations[0]["rule_id"] == "QUALITY_FORMAT"
+
+    def test_mixed_categories(
+        self,
+        hook: QualityCheckHook,
+        context: dict[str, str],
+        mocker: Any,
+    ) -> None:
+        """1 QUALITY_TYPE (2 errors) + 1 QUALITY_LINT (3 issues) => 5 violations."""
+        failed_items = [
+            {
+                "rule_id": "QUALITY_TYPE",
+                "message": "mypy found 2 errors",
+                "details": {
+                    "error_count": 2,
+                    "score": 0.8,
+                    "errors": [
+                        {"file": "x.py", "line": 1, "message": "err1", "code": "misc"},
+                        {"file": "y.py", "line": 2, "message": "err2", "code": "misc"},
+                    ],
+                },
+                "fix_hint": None,
+            },
+            {
+                "rule_id": "QUALITY_LINT",
+                "message": "ruff found 3 issues",
+                "details": {
+                    "issue_count": 3,
+                    "score": 0.6,
+                    "issues": [
+                        {"file": "a.py", "line": 10, "code": "E501", "message": "long"},
+                        {
+                            "file": "b.py",
+                            "line": 20,
+                            "code": "F401",
+                            "message": "unused",
+                        },
+                        {
+                            "file": "c.py",
+                            "line": 30,
+                            "code": "I001",
+                            "message": "unsorted",
+                        },
+                    ],
+                },
+                "fix_hint": None,
+            },
+        ]
+        audit_result = _make_audit_result(
+            [
+                _make_check(passed=False, rule_id="QUALITY_TYPE"),
+                _make_check(passed=False, rule_id="QUALITY_LINT"),
+            ]
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.audit_project",
+            return_value=audit_result,
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.format_agent",
+            return_value={
+                "failed": failed_items,
+                "passed": [],
+                "score": 0.5,
+                "grade": "D",
+            },
+        )
+
+        result = hook.execute(context)
+
+        violations = result.metadata["violations"]
+        assert len(violations) == 5
+        assert result.metadata["summary"] == "5 violation(s)"
+
+    def test_empty_errors_list(
+        self,
+        hook: QualityCheckHook,
+        context: dict[str, str],
+        mocker: Any,
+    ) -> None:
+        """Empty errors list => no violations for that check."""
+        failed_items = [
+            {
+                "rule_id": "QUALITY_TYPE",
+                "message": "mypy found 0 errors",
+                "details": {"error_count": 0, "errors": []},
+                "fix_hint": None,
+            },
+        ]
+        audit_result = _make_audit_result(
+            [_make_check(passed=False, rule_id="QUALITY_TYPE")]
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.audit_project",
+            return_value=audit_result,
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.format_agent",
+            return_value={
+                "failed": failed_items,
+                "passed": [],
+                "score": 0.9,
+                "grade": "A",
+            },
+        )
+
+        result = hook.execute(context)
+
+        assert result.metadata["violations"] == []
+        assert result.metadata["has_violations"] is False
+
+    def test_none_details(
+        self,
+        hook: QualityCheckHook,
+        context: dict[str, str],
+        mocker: Any,
+    ) -> None:
+        """None details on failed item => single fallback violation."""
+        failed_items = [
+            {
+                "rule_id": "QUALITY_TYPE",
+                "message": "check failed",
+                "details": None,
+                "fix_hint": None,
+            },
+        ]
+        audit_result = _make_audit_result(
+            [_make_check(passed=False, rule_id="QUALITY_TYPE")]
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.audit_project",
+            return_value=audit_result,
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.format_agent",
+            return_value={
+                "failed": failed_items,
+                "passed": [],
+                "score": 0,
+                "grade": "F",
+            },
+        )
+
+        result = hook.execute(context)
+
+        violations = result.metadata["violations"]
+        assert len(violations) == 1
+        assert violations[0]["message"] == "check failed"
+        assert violations[0]["file"] == ""
+        assert violations[0]["line"] == 0
+
+    def test_mixed_pass_fail(
+        self,
+        hook: QualityCheckHook,
+        context: dict[str, str],
+        mocker: Any,
+    ) -> None:
+        """1 passed + 1 failed check => only failed check's violations."""
+        failed_items = [
+            {
+                "rule_id": "QUALITY_LINT",
+                "message": "1 issue",
+                "details": {
+                    "issue_count": 1,
+                    "issues": [
+                        {
+                            "file": "z.py",
+                            "line": 5,
+                            "code": "E501",
+                            "message": "long line",
+                        },
+                    ],
+                },
+                "fix_hint": None,
+            },
+        ]
+        audit_result = _make_audit_result(
+            [
+                _make_check(passed=True, rule_id="QUALITY_TYPE"),
+                _make_check(passed=False, rule_id="QUALITY_LINT"),
+            ]
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.audit_project",
+            return_value=audit_result,
+        )
+        mocker.patch(
+            "axm_audit.hooks.quality_check.format_agent",
+            return_value={
+                "failed": failed_items,
+                "passed": ["QUALITY_TYPE: ok"],
+                "score": 0.9,
+                "grade": "A",
+            },
+        )
+
+        result = hook.execute(context)
+
+        violations = result.metadata["violations"]
+        assert len(violations) == 1
+        assert violations[0]["file"] == "z.py"
+        assert violations[0]["rule_id"] == "QUALITY_LINT"
 
 
 class TestDefaultCategories:
