@@ -24,6 +24,7 @@ from axm_ast.core.analyzer import module_dotted_name
 from axm_ast.core.cache import get_package
 from axm_ast.core.callers import find_callers, find_callers_workspace
 from axm_ast.core.git_coupling import git_coupled_files
+from axm_ast.core.workspace import analyze_workspace
 from axm_ast.models.nodes import ModuleInfo, PackageInfo
 
 logger = logging.getLogger(__name__)
@@ -739,6 +740,47 @@ def _add_workspace_git_coupling(
             break
 
 
+def _find_workspace_definition(
+    ws: Any,
+    symbol: str,
+) -> dict[str, Any] | None:
+    """Search all workspace packages for *symbol*'s definition."""
+    for pkg in ws.packages:
+        defn = find_definition(pkg, symbol)
+        if defn is not None:
+            defn["package"] = pkg.name
+            return defn
+    return None
+
+
+def _resolve_effective_test_filter(
+    test_filter: str | None,
+    exclude_tests: bool,
+) -> str | None:
+    """Return the effective test-filter mode, warning on conflicts."""
+    if test_filter is not None and exclude_tests:
+        import warnings
+
+        warnings.warn(
+            "Both exclude_tests and test_filter set; test_filter takes precedence",
+            stacklevel=2,
+        )
+    if test_filter is not None:
+        return test_filter
+    return "none" if exclude_tests else None
+
+
+def _apply_caller_test_filter(
+    result: dict[str, Any],
+    effective: str | None,
+) -> None:
+    """Filter test callers from *result* in place."""
+    if effective == "none":
+        result["callers"] = [
+            c for c in result["callers"] if not _is_test_module(c["module"])
+        ]
+
+
 def analyze_impact_workspace(
     ws_path: Path,
     symbol: str,
@@ -769,22 +811,12 @@ def analyze_impact_workspace(
         >>> result["score"]
         'HIGH'
     """
-    from axm_ast.core.workspace import analyze_workspace
-
     ws = analyze_workspace(ws_path)
 
     # For dotted symbols, definition uses full path but lookups
     # use the bare method name (what appears in source code).
     dotted = _split_dotted_symbol(symbol)
     lookup_name = dotted[1].split(".")[-1] if dotted else symbol
-
-    definition = None
-    for pkg in ws.packages:
-        defn = find_definition(pkg, symbol)
-        if defn is not None:
-            defn["package"] = pkg.name
-            definition = defn
-            break
 
     callers = find_callers_workspace(ws, lookup_name)
     reexports = _collect_workspace_reexports(ws, lookup_name)
@@ -794,7 +826,7 @@ def analyze_impact_workspace(
     result: dict[str, Any] = {
         "symbol": symbol,
         "workspace": ws.name,
-        "definition": definition,
+        "definition": _find_workspace_definition(ws, symbol),
         "callers": [
             {
                 "module": c.module,
@@ -811,24 +843,10 @@ def analyze_impact_workspace(
         "score": "LOW",
     }
 
-    _add_workspace_git_coupling(result, definition, ws, ws_path)
+    _add_workspace_git_coupling(result, result["definition"], ws, ws_path)
     result["score"] = score_impact(result)
 
-    # Resolve effective test filter
-    if test_filter is not None and exclude_tests:
-        import warnings
-
-        warnings.warn(
-            "Both exclude_tests and test_filter set; test_filter takes precedence",
-            stacklevel=2,
-        )
-    effective = (
-        test_filter if test_filter is not None else ("none" if exclude_tests else None)
-    )
-
-    if effective == "none":
-        result["callers"] = [
-            c for c in result["callers"] if not _is_test_module(c["module"])
-        ]
+    effective = _resolve_effective_test_filter(test_filter, exclude_tests)
+    _apply_caller_test_filter(result, effective)
 
     return result
