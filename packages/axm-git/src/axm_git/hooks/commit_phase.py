@@ -86,7 +86,8 @@ class CommitPhaseHook:
         Args:
             context: Session context dictionary.
             **params: Optional ``message_format``, ``from_outputs``,
-                ``working_dir``.
+                ``working_dir``, ``skip_hooks`` (default ``True`` for
+                ``from_outputs`` mode — appends ``--no-verify``).
 
         Returns:
             HookResult with ``commit`` hash and ``message`` in metadata.
@@ -100,7 +101,10 @@ class CommitPhaseHook:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
         if params.get("from_outputs"):
-            return self._commit_from_outputs(context, working_dir)
+            skip_hooks = params.get("skip_hooks", True)
+            return self._commit_from_outputs(
+                context, working_dir, skip_hooks=skip_hooks
+            )
 
         return self._commit_legacy(context, working_dir, **params)
 
@@ -137,6 +141,8 @@ class CommitPhaseHook:
         self,
         context: dict[str, Any],
         working_dir: Path,
+        *,
+        skip_hooks: bool = True,
     ) -> HookResult:
         """Outputs mode: read commit_spec from context, stage listed files.
 
@@ -169,6 +175,8 @@ class CommitPhaseHook:
         commit_cmd = ["commit", "-m", message]
         if body:
             commit_cmd.extend(["-m", body])
+        if skip_hooks:
+            commit_cmd.append("--no-verify")
 
         result = run_git(commit_cmd, git_root)
         if result.returncode != 0:
