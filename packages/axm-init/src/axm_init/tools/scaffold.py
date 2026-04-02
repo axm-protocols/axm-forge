@@ -21,6 +21,67 @@ class InitScaffoldTool:
         """Tool name used for MCP registration."""
         return "init_scaffold"
 
+    def _validate_inputs(
+        self,
+        kwargs: dict[str, Any],
+    ) -> tuple[str, str | None, str, str, str, str, str, bool, str | None] | ToolResult:
+        """Extract and validate inputs from kwargs.
+
+        Returns a tuple of validated values or a ToolResult on error.
+        """
+        path: str = kwargs.get("path", ".")
+        name: str | None = kwargs.get("name")
+        org: str = kwargs.get("org", "")
+        author: str = kwargs.get("author", "")
+        email: str = kwargs.get("email", "")
+        license_type: str = kwargs.get("license", "Apache-2.0")
+        description: str = kwargs.get("description", "")
+        workspace: bool = kwargs.get("workspace", False)
+        member: str | None = kwargs.get("member")
+
+        if not org or not author or not email:
+            return ToolResult(
+                success=False,
+                error="org, author, and email are required",
+            )
+
+        return (
+            path,
+            name,
+            org,
+            author,
+            email,
+            license_type,
+            description,
+            workspace,
+            member,
+        )
+
+    def _build_template_data(
+        self,
+        *,
+        project_name: str,
+        workspace: bool,
+        description: str,
+        org: str,
+        license_type: str,
+        author_info: tuple[str, str],
+    ) -> dict[str, str]:
+        """Build template data dict for workspace or standalone scaffold."""
+        name_key = "workspace_name" if workspace else "package_name"
+        default_desc = (
+            "A modern Python workspace" if workspace else "A modern Python package"
+        )
+        return {
+            name_key: project_name,
+            "description": description or default_desc,
+            "org": org,
+            "license": license_type,
+            "license_holder": org,
+            "author_name": author_info[0],
+            "author_email": author_info[1],
+        }
+
     def execute(self, **kwargs: Any) -> ToolResult:
         """Initialize a new Python project.
 
@@ -39,21 +100,13 @@ class InitScaffoldTool:
         Returns:
             ToolResult with created files list.
         """
-        path: str = kwargs.get("path", ".")
-        name: str | None = kwargs.get("name")
-        org: str = kwargs.get("org", "")
-        author: str = kwargs.get("author", "")
-        email: str = kwargs.get("email", "")
-        license_type: str = kwargs.get("license", "Apache-2.0")
-        description: str = kwargs.get("description", "")
-        workspace: bool = kwargs.get("workspace", False)
-        member: str | None = kwargs.get("member")
+        validated = self._validate_inputs(kwargs)
+        if isinstance(validated, ToolResult):
+            return validated
 
-        if not org or not author or not email:
-            return ToolResult(
-                success=False,
-                error="org, author, and email are required",
-            )
+        path, name, org, author, email, license_type, description, workspace, member = (
+            validated
+        )
 
         try:
             target_path = Path(path).resolve()
@@ -79,27 +132,14 @@ class InitScaffoldTool:
             template_type = (
                 TemplateType.WORKSPACE if workspace else TemplateType.STANDALONE
             )
-
-            if workspace:
-                data = {
-                    "workspace_name": project_name,
-                    "description": description or "A modern Python workspace",
-                    "org": org,
-                    "license": license_type,
-                    "license_holder": org,
-                    "author_name": author,
-                    "author_email": email,
-                }
-            else:
-                data = {
-                    "package_name": project_name,
-                    "description": description or "A modern Python package",
-                    "org": org,
-                    "license": license_type,
-                    "license_holder": org,
-                    "author_name": author,
-                    "author_email": email,
-                }
+            data = self._build_template_data(
+                project_name=project_name,
+                workspace=workspace,
+                description=description,
+                org=org,
+                license_type=license_type,
+                author_info=(author, email),
+            )
 
             copier_adapter = CopierAdapter()
             copier_config = CopierConfig(
@@ -122,6 +162,34 @@ class InitScaffoldTool:
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
 
+    @staticmethod
+    def _resolve_workspace_root(target_path: Path) -> Path | None:
+        """Resolve workspace root from target path, or None if not in a workspace."""
+        from axm_init.checks._workspace import (
+            ProjectContext,
+            detect_context,
+            find_workspace_root,
+        )
+
+        context = detect_context(target_path)
+        if context == ProjectContext.WORKSPACE:
+            return target_path
+        if context == ProjectContext.MEMBER:
+            return find_workspace_root(target_path)
+        return None
+
+    @staticmethod
+    def _read_workspace_name(workspace_root: Path) -> str:
+        """Read workspace name from pyproject.toml or fall back to dir name."""
+        import tomllib
+
+        root_pyproject = workspace_root / "pyproject.toml"
+        if root_pyproject.is_file():
+            with open(root_pyproject, "rb") as f:
+                root_data = tomllib.load(f)
+            return str(root_data.get("project", {}).get("name", workspace_root.name))
+        return workspace_root.name
+
     def _scaffold_member(
         self,
         target_path: Path,
@@ -141,33 +209,12 @@ class InitScaffoldTool:
         """
         from axm_init.adapters.copier import CopierAdapter, CopierConfig
         from axm_init.adapters.workspace_patcher import patch_all
-        from axm_init.checks._workspace import (
-            ProjectContext,
-            detect_context,
-            find_workspace_root,
-        )
         from axm_init.core.templates import TemplateType, get_template_path
 
-        # 1. Detect workspace root
-        workspace_root: Path
-        context = detect_context(target_path)
-        if context == ProjectContext.WORKSPACE:
-            workspace_root = target_path
-        elif context == ProjectContext.MEMBER:
-            found = find_workspace_root(target_path)
-            if found is None:
-                return ToolResult(
-                    success=False,
-                    error="Not inside a UV workspace",
-                )
-            workspace_root = found
-        else:
-            return ToolResult(
-                success=False,
-                error="Not inside a UV workspace",
-            )
+        workspace_root = self._resolve_workspace_root(target_path)
+        if workspace_root is None:
+            return ToolResult(success=False, error="Not inside a UV workspace")
 
-        # 2. Check for duplicate
         member_dir = workspace_root / "packages" / member_name
         if member_dir.exists():
             return ToolResult(
@@ -175,17 +222,7 @@ class InitScaffoldTool:
                 error=f"Member '{member_name}' already exists at {member_dir}",
             )
 
-        # 3. Get workspace name
-        import tomllib
-
-        ws_name = workspace_root.name
-        root_pyproject = workspace_root / "pyproject.toml"
-        if root_pyproject.is_file():
-            with open(root_pyproject, "rb") as f:
-                root_data = tomllib.load(f)
-            ws_name = str(root_data.get("project", {}).get("name", workspace_root.name))
-
-        # 4. Scaffold
+        ws_name = self._read_workspace_name(workspace_root)
         data = {
             "member_name": member_name,
             "workspace_name": ws_name,
@@ -209,7 +246,6 @@ class InitScaffoldTool:
                 error=result.message or "Member scaffold failed",
             )
 
-        # 5. Patch root files
         patched = patch_all(workspace_root, member_name)
 
         return ToolResult(
