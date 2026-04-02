@@ -90,7 +90,7 @@ Independent, composable analysis engines:
 | `ranker.py` | PageRank symbol importance | `rank_symbols()` |
 | `callers.py` | Call-site detection | `find_callers()`, `find_callers_workspace()` |
 | `context.py` | One-shot project dump | `build_context()` |
-| `impact.py` | Change blast radius (callers + reexports + tests + git coupling + cross-package) | `analyze_impact()`, `find_definition()`, `analyze_impact_workspace()` |
+| `impact.py` | Change blast radius (callers + reexports + tests + git coupling + cross-package). Workspace analysis delegates to extracted helpers (`_find_workspace_definition`, `_resolve_effective_test_filter`, `_apply_caller_test_filter`) | `analyze_impact()`, `find_definition()`, `analyze_impact_workspace()` |
 | `git_coupling.py` | Git co-change coupling analysis (6-month history) | `git_coupled_files()` |
 | `structural_diff.py` | Symbol-level branch diff via git worktrees | `structural_diff()` |
 | `workspace.py` | Multi-package workspace detection and analysis | `detect_workspace()`, `analyze_workspace()` |
@@ -134,7 +134,7 @@ Protocol hooks registered via `axm.hooks` entry points. These are called by `axm
 | Hook | Entry Point | Purpose |
 |---|---|---|
 | `TraceSourceHook` | `ast:trace-source` | Run `trace_flow(detail="source")` and inject trace into session context |
-| `SourceBodyHook` | `ast:source-body` | Fetch raw source body for a symbol and inject it into session context. Supports dotted names via three resolution strategies: `_resolve_as_class_method` (`Class.method`), `_resolve_as_nested_class` (`Outer.Inner.method`), and `_resolve_as_module_symbol` (`module.func`). |
+| `SourceBodyHook` | `ast:source-body` | Fetch raw source body for a symbol and inject it into session context. Supports dotted names via three resolution strategies: `_resolve_as_class_method` (`Class.method`, delegates to `_build_method_body`), `_resolve_as_nested_class` (`Outer.Inner.method`), and `_resolve_as_module_symbol` (`module.func`). Extraction logic lives in `_run_extraction`. |
 | `FileHeaderHook` | `ast:file-header` | Extract file-level header (module docstring, `__all__`, top-level imports) and inject into session context |
 
 ## Design Decisions
