@@ -307,10 +307,10 @@ def _find_symbol_line(mod: ModuleInfo, name: str) -> int:
     """Find the line number of a symbol in a module."""
     for fn in mod.functions:
         if fn.name == name:
-            return fn.line_start
+            return int(fn.line_start)
     for cls in mod.classes:
         if cls.name == name:
-            return cls.line_start
+            return int(cls.line_start)
     return 1  # Fallback if not found
 
 

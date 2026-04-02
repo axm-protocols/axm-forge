@@ -95,6 +95,7 @@ class TestFunctionInfo:
             line_start=1,
             line_end=5,
         )
+        assert fn.signature is not None
         assert fn.signature.startswith("async def fetch")
 
     def test_extra_fields_forbidden(self) -> None:
