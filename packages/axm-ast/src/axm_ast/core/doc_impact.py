@@ -85,6 +85,22 @@ def _extract_ast_signatures(root: Path) -> dict[str, str]:
     return sigs
 
 
+def _match_signature_line(
+    line: str,
+    lineno: int,
+    symbols: set[str],
+    path: Path,
+    root: Path,
+) -> dict[str, Any] | None:
+    """Return a signature dict if *line* matches a tracked symbol."""
+    m = _DEF_RE.match(line)
+    if not m or m.group(2) not in symbols:
+        return None
+    sig = line.strip().rstrip(":").rstrip()
+    rel = str(path.relative_to(root))
+    return {"symbol": m.group(2), "file": rel, "doc_sig": sig, "line": lineno}
+
+
 def _extract_doc_signatures(
     path: Path,
     symbols: set[str],
@@ -105,18 +121,9 @@ def _extract_doc_signatures(
             in_code_block = False
             continue
         if in_code_block:
-            m = _DEF_RE.match(line)
-            if m and m.group(2) in symbols:
-                sig = line.strip().rstrip(":").rstrip()
-                rel = str(path.relative_to(root))
-                results.append(
-                    {
-                        "symbol": m.group(2),
-                        "file": rel,
-                        "doc_sig": sig,
-                        "line": lineno,
-                    }
-                )
+            hit = _match_signature_line(line, lineno, symbols, path, root)
+            if hit:
+                results.append(hit)
     return results
 
 
