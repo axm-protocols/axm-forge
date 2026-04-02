@@ -75,6 +75,24 @@ class CategoryScore(BaseModel):
         )
 
 
+def _compute_score(checks: list[CheckResult]) -> int:
+    """Compute weighted percentage score from check results."""
+    total_weight = sum(c.weight for c in checks)
+    total_earned = sum(c.earned for c in checks)
+    return round(total_earned / total_weight * 100) if total_weight > 0 else 0
+
+
+def _group_categories(checks: list[CheckResult]) -> dict[str, CategoryScore]:
+    """Group checks by category and compute per-category scores."""
+    cat_map: dict[str, list[CheckResult]] = {}
+    for c in checks:
+        cat_map.setdefault(c.category, []).append(c)
+    return {
+        cat: CategoryScore.from_checks(cat, cat_checks)
+        for cat, cat_checks in cat_map.items()
+    }
+
+
 class ProjectResult(BaseModel):
     """Complete project check result with score and grade."""
 
@@ -101,20 +119,8 @@ class ProjectResult(BaseModel):
         excluded_checks: list[str] | None = None,
     ) -> ProjectResult:
         """Compute score, grade, and category breakdowns from check results."""
-        total_weight = sum(c.weight for c in checks)
-        total_earned = sum(c.earned for c in checks)
-        score = round(total_earned / total_weight * 100) if total_weight > 0 else 0
-
-        # Group by category
-        cat_map: dict[str, list[CheckResult]] = {}
-        for c in checks:
-            cat_map.setdefault(c.category, []).append(c)
-
-        categories = {
-            cat: CategoryScore.from_checks(cat, cat_checks)
-            for cat, cat_checks in cat_map.items()
-        }
-
+        score = _compute_score(checks)
+        categories = _group_categories(checks)
         failures = [c for c in checks if not c.passed]
 
         return cls(

@@ -14,9 +14,13 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated, Any, NoReturn
+from typing import TYPE_CHECKING, Annotated, Any, NoReturn
 
 import cyclopts
+
+if TYPE_CHECKING:
+    from axm_init.adapters.credentials import CredentialManager
+    from axm_init.models.results import ReserveResult
 
 __all__ = ["app"]
 
@@ -57,6 +61,48 @@ def _require_identity(author: str, email: str, json_output: bool) -> None:
     else:
         print(f"❌ {msg}", file=sys.stderr)  # noqa: T201
     raise SystemExit(1)
+
+
+def _resolve_token(
+    creds: CredentialManager,
+    *,
+    dry_run: bool,
+    json_output: bool,
+) -> str:
+    """Resolve PyPI token, handling dry-run and error cases."""
+    if dry_run:
+        return creds.get_pypi_token() or ""
+    try:
+        return str(creds.resolve_pypi_token(interactive=not json_output))
+    except SystemExit as e:
+        if json_output:
+            print('{"error": "No PyPI token found"}')  # noqa: T201
+        logger.debug("PyPI token resolution failed", exc_info=True)
+        raise SystemExit(1) from e
+
+
+def _print_reserve_result(
+    result: ReserveResult, *, name: str, json_output: bool
+) -> None:
+    """Print reserve result in JSON or human-readable format."""
+    if json_output:
+        print(  # noqa: T201
+            json.dumps(
+                {
+                    "success": result.success,
+                    "package_name": result.package_name,
+                    "version": result.version,
+                    "message": result.message,
+                },
+                indent=2,
+            )
+        )
+    elif result.success:
+        print(f"\u2705 {result.message}")  # noqa: T201
+        print(f"   View at: https://pypi.org/project/{name}/")  # noqa: T201
+    else:
+        print(f"\u274c {result.message}", file=sys.stderr)  # noqa: T201
+        raise SystemExit(1)
 
 
 def _check_pypi_availability(project_name: str, *, json_output: bool) -> None:
@@ -423,18 +469,9 @@ def reserve(
     email = email or _git_config_get("user.email")
     _require_identity(author, email, json_output)
 
-    creds = CredentialManager()
-
-    if not dry_run:
-        try:
-            token = creds.resolve_pypi_token(interactive=not json_output)
-        except SystemExit as e:
-            if json_output:
-                print('{"error": "No PyPI token found"}')  # noqa: T201
-            logger.debug("PyPI token resolution failed", exc_info=True)
-            raise SystemExit(1) from e
-    else:
-        token = creds.get_pypi_token() or ""
+    token = _resolve_token(
+        CredentialManager(), dry_run=dry_run, json_output=json_output
+    )
 
     result = reserve_pypi(
         name=name,
@@ -444,25 +481,7 @@ def reserve(
         dry_run=dry_run,
     )
 
-    if json_output:
-        print(  # noqa: T201
-            json.dumps(
-                {
-                    "success": result.success,
-                    "package_name": result.package_name,
-                    "version": result.version,
-                    "message": result.message,
-                },
-                indent=2,
-            )
-        )
-    else:
-        if result.success:
-            print(f"✅ {result.message}")  # noqa: T201
-            print(f"   View at: https://pypi.org/project/{name}/")  # noqa: T201
-        else:
-            print(f"❌ {result.message}", file=sys.stderr)  # noqa: T201
-            raise SystemExit(1)
+    _print_reserve_result(result, name=name, json_output=json_output)
 
 
 @app.command()

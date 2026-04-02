@@ -152,6 +152,23 @@ class CheckEngine:
         """Check if a check name matches any exclusion prefix."""
         return any(check_name.startswith(prefix) for prefix in exclusions)
 
+    def _should_skip(self, check_name: str | None, category: str) -> bool:
+        """Return True if the check should be skipped for context reasons."""
+        if category == "workspace" and self.context != ProjectContext.WORKSPACE:
+            return True
+        return (
+            self.context == ProjectContext.WORKSPACE
+            and check_name in SKIP_FOR_WORKSPACE
+        )
+
+    def _should_redirect(self, check_name: str | None) -> bool:
+        """Return True if the check should be redirected to workspace root."""
+        return (
+            self.context == ProjectContext.MEMBER
+            and check_name in REDIRECT_FOR_MEMBER
+            and self.workspace_root is not None
+        )
+
     def _filter_checks(
         self,
         checks_to_run: dict[str, list[Callable[[Path], CheckResult]]],
@@ -166,33 +183,15 @@ class CheckEngine:
             for fn in fns:
                 check_name = _get_check_name(fn)
 
-                # Apply exclusions
                 if check_name and self._is_excluded(check_name, exclusions):
                     excluded_results.append(_make_excluded_result(check_name, category))
                     excluded_names.append(check_name)
-                    continue
-
-                # Workspace-only checks: skip for non-workspace contexts
-                if category == "workspace" and self.context != ProjectContext.WORKSPACE:
-                    continue
-
-                # Skip inapplicable checks for workspace root
-                if (
-                    self.context == ProjectContext.WORKSPACE
-                    and check_name in SKIP_FOR_WORKSPACE
-                ):
-                    continue
-
-                # Redirect CI/tooling checks to workspace root for members
-                if (
-                    self.context == ProjectContext.MEMBER
-                    and check_name in REDIRECT_FOR_MEMBER
-                    and self.workspace_root is not None
-                ):
-                    all_fns.append(_redirect_to_root(fn, self.workspace_root))
-                    continue
-
-                all_fns.append(fn)
+                elif self._should_skip(check_name, category):
+                    pass
+                elif self._should_redirect(check_name):
+                    all_fns.append(_redirect_to_root(fn, self.workspace_root))  # type: ignore[arg-type]
+                else:
+                    all_fns.append(fn)
 
         return all_fns, excluded_results, excluded_names
 
