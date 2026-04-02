@@ -136,6 +136,17 @@ See the [MCP how-to guide](https://forge.axm-protocols.io/audit/howto/mcp/) for 
 
 `AuditQualityRule` runs `audit_project` for each configured category independently (a lint failure does not prevent type checking) and returns structured agent-friendly feedback via `format_agent`.
 
+## Hooks
+
+`axm-audit` ships hooks for use with the `axm.hooks` entry point group:
+
+| Hook | Entry point key | Description |
+|---|---|---|
+| `AutofixHook` | `audit:autofix` | Run `ruff check --fix` + `ruff format` |
+| `QualityCheckHook` | `audit:quality-check` | Run audit categories and report violations |
+
+`QualityCheckHook` accepts `working_dir` (str) and `categories` (list, default `["lint", "type"]`) via params. It returns `HookResult.ok(has_violations=bool, violations=list[dict], summary=str)` for injection into protocol session context.
+
 ## Development
 
 This package is part of the [**axm-forge**](https://github.com/axm-protocols/axm-forge) workspace.
