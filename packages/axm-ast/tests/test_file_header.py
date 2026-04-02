@@ -111,7 +111,7 @@ class TestFileHeaderBinaryFile:
 
 
 class TestFileHeaderNoSourceBody:
-    """No source_body in context — return empty list."""
+    """No source_body or missing files key — skip gracefully."""
 
     def test_no_source_body(self, tmp_path: Path) -> None:
         """When no files param and no source_body in context, return empty."""
@@ -122,23 +122,42 @@ class TestFileHeaderNoSourceBody:
         headers = result.metadata["headers"]
         assert len(headers) == 0
 
+    def test_missing_files_key_skips(self, tmp_path: Path) -> None:
+        """source_body with symbols but no files key returns skip."""
+        context: dict[str, object] = {
+            "source_body": {"symbols": "class Foo:\n    pass\n"},
+        }
+        hook = FileHeaderHook()
+        result = hook.execute(context, path=str(tmp_path))
+
+        assert result.success
+        assert result.metadata["headers"] == []
+
+    def test_empty_files_list_skips(self, tmp_path: Path) -> None:
+        """source_body with empty files list returns skip."""
+        context: dict[str, object] = {
+            "source_body": {"files": []},
+        }
+        hook = FileHeaderHook()
+        result = hook.execute(context, path=str(tmp_path))
+
+        assert result.success
+        assert result.metadata["headers"] == []
+
 
 class TestFileHeaderFromSourceBody:
-    """Extract files from source_body context."""
+    """Extract files from source_body.files metadata."""
 
-    def test_from_source_body_single(self, tmp_path: Path) -> None:
-        """Extracts file from source_body single-symbol result."""
-        src = tmp_path / "hooks" / "impact.py"
+    def test_reads_files_from_metadata(self, tmp_path: Path) -> None:
+        """Reads file list from source_body['files'] metadata key."""
+        src = tmp_path / "src" / "a.py"
         src.parent.mkdir(parents=True)
         src.write_text("from __future__ import annotations\nimport logging\n")
 
-        context = {
+        context: dict[str, object] = {
             "source_body": {
-                "symbols": {
-                    "symbol": "ImpactHook",
-                    "file": "hooks/impact.py",
-                    "body": "class ImpactHook:\n    pass\n",
-                },
+                "symbols": "class Foo:\n    pass\n",
+                "files": ["src/a.py"],
             },
         }
 
@@ -148,28 +167,7 @@ class TestFileHeaderFromSourceBody:
         assert result.success
         headers = result.metadata["headers"]
         assert len(headers) == 1
-        assert headers[0]["file"] == "hooks/impact.py"
-
-    def test_from_source_body_multi(self, tmp_path: Path) -> None:
-        """Extracts and deduplicates files from multi-symbol result."""
-        mod = tmp_path / "core.py"
-        mod.write_text("class A:\n    pass\nclass B:\n    pass\n")
-
-        context = {
-            "source_body": {
-                "symbols": [
-                    {"symbol": "A", "file": "core.py", "body": "class A:\n    pass\n"},
-                    {"symbol": "B", "file": "core.py", "body": "class B:\n    pass\n"},
-                ],
-            },
-        }
-
-        hook = FileHeaderHook()
-        result = hook.execute(context, path=str(tmp_path))
-
-        assert result.success
-        headers = result.metadata["headers"]
-        assert len(headers) == 1
+        assert headers[0]["file"] == "src/a.py"
 
 
 class TestFileHeaderMissingPath:

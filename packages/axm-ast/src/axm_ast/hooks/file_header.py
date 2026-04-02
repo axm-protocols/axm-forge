@@ -22,20 +22,11 @@ _MAX_HEADER_LINES = 30
 
 
 def _extract_files_from_source_body(source_body: dict[str, Any]) -> list[str]:
-    """Extract unique file paths from a source_body result."""
-    symbols = source_body.get("symbols")
-    if symbols is None:
+    """Extract file paths from source_body metadata."""
+    files = source_body.get("files")
+    if not files:
         return []
-
-    if isinstance(symbols, dict):
-        symbols = [symbols]
-
-    files: list[str] = []
-    for sym in symbols:
-        f = sym.get("file")
-        if f and sym.get("body") is not None:
-            files.append(f)
-    return files
+    return list(files)
 
 
 def _resolve_working_dir(
@@ -62,6 +53,8 @@ def _parse_file_list(
         if not source_body:
             return None
         files = _extract_files_from_source_body(source_body)
+        if not files:
+            return None
 
     if isinstance(files, str):
         files = [f.strip() for f in files.splitlines() if f.strip()]
