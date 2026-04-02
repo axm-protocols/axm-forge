@@ -9,6 +9,7 @@ from __future__ import annotations
 import enum
 import logging
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -83,21 +84,23 @@ class FunctionInfo(BaseModel):
     line_start: int = Field(description="Start line (1-indexed)")
     line_end: int = Field(description="End line (1-indexed)")
     is_async: bool = Field(default=False, description="Whether function is async")
+    signature: str | None = Field(default=None, description="Human-readable signature")
 
     @property
     def is_public(self) -> bool:
         """Whether this function is part of the public API."""
         return not self.name.startswith("_")
 
-    @property
-    def signature(self) -> str:
-        """Human-readable signature string."""
-        params_str = ", ".join(
-            p.name + (f": {p.annotation}" if p.annotation else "") for p in self.params
-        )
-        ret = f" -> {self.return_type}" if self.return_type else ""
-        prefix = "async " if self.is_async else ""
-        return f"{prefix}def {self.name}({params_str}){ret}"
+    def model_post_init(self, __context: Any) -> None:
+        """Compute signature if not explicitly provided."""
+        if self.signature is None:
+            params_str = ", ".join(
+                p.name + (f": {p.annotation}" if p.annotation else "")
+                for p in self.params
+            )
+            ret = f" -> {self.return_type}" if self.return_type else ""
+            prefix = "async " if self.is_async else ""
+            self.signature = f"{prefix}def {self.name}({params_str}){ret}"
 
 
 class ClassInfo(BaseModel):
@@ -173,16 +176,15 @@ class ModuleInfo(BaseModel):
         0
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     path: Path = Field(description="File path")
+    name: str | None = Field(default=None, description="Module name")
     docstring: str | None = Field(default=None, description="Module-level docstring")
-    functions: list[FunctionInfo] = Field(
+    functions: list[Any] = Field(
         default_factory=list, description="Top-level functions"
     )
-    classes: list[ClassInfo] = Field(
-        default_factory=list, description="Top-level classes"
-    )
+    classes: list[Any] = Field(default_factory=list, description="Top-level classes")
     imports: list[ImportInfo] = Field(
         default_factory=list, description="Import statements"
     )
