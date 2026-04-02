@@ -13,6 +13,8 @@ from axm_ast.models.nodes import (
     WorkspaceInfo,
 )
 
+ParamInfo = ParameterInfo
+
 __all__ = [
     "ClassInfo",
     "FunctionInfo",
@@ -20,6 +22,7 @@ __all__ = [
     "ImportInfo",
     "ModuleInfo",
     "PackageInfo",
+    "ParamInfo",
     "ParameterInfo",
     "SymbolKind",
     "VariableInfo",
