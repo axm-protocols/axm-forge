@@ -70,6 +70,6 @@ class TestCheckerLazyImports:
             elif isinstance(node, ast.ImportFrom) and node.module:
                 modules.add(node.module.split(".")[0])
 
-        assert (
-            len(modules) <= 10
-        ), f"checker.py fan-out is {len(modules)} (max 10): {sorted(modules)}"
+        assert len(modules) <= 10, (
+            f"checker.py fan-out is {len(modules)} (max 10): {sorted(modules)}"
+        )

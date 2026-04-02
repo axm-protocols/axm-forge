@@ -41,6 +41,29 @@ class AuditQualityRule:
     guidance: str | None = None
     scope: str = "."
     exclude_rules: list[str] = field(default_factory=list)
+    extra_dirs: list[str] = field(default_factory=list)
+
+    def _audit_extra_dirs(
+        self,
+        categories: list[str],
+        results: list[AuditResult],
+    ) -> None:
+        """Run audit categories on each extra directory."""
+        for extra_dir in self.extra_dirs:
+            extra_path = Path(extra_dir).resolve()
+            if not extra_path.is_dir():
+                logger.info("Skipping extra_dir: %s does not exist", extra_dir)
+                continue
+            for category in categories:
+                try:
+                    result = audit_project(extra_path, category=category)
+                    results.append(result)
+                except Exception:
+                    logger.exception(
+                        "audit_project failed for extra_dir=%s category=%s",
+                        extra_dir,
+                        category,
+                    )
 
     def validate(self, content: str, **kwargs: Any) -> WitnessResult:
         """Run audit categories and aggregate results.
@@ -83,6 +106,9 @@ class AuditQualityRule:
                     how="Check the project structure and audit configuration.",
                 ),
             )
+
+        # Run audits on extra_dirs and aggregate
+        self._audit_extra_dirs(categories, results)
 
         # Aggregate: merge all check results into a single AuditResult
         all_checks = []
