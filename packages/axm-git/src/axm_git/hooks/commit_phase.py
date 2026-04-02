@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from axm.hooks.base import HookResult
 
@@ -64,6 +64,45 @@ def _stage_spec_files(
                 continue
             return f"git add failed for {filepath}: {add_result.stderr}"
     return None
+
+
+def _build_commit_cmd(
+    message: str,
+    body: str | None,
+    *,
+    skip_hooks: bool = True,
+) -> list[str]:
+    """Build the ``git commit`` argument list."""
+    cmd = ["commit", "-m", message]
+    if body:
+        cmd.extend(["-m", body])
+    if skip_hooks:
+        cmd.append("--no-verify")
+    return cmd
+
+
+def _retry_commit_on_autofix(
+    files: list[str],
+    cmd: list[str],
+    git_root: Path,
+    first_result: Any,
+) -> Any:
+    """Handle pre-commit autofix retry for a failed commit.
+
+    If *first_result* stderr contains ``"files were modified"``, re-stage
+    *files* and retry the commit once.  Otherwise return *first_result*
+    unchanged.
+
+    Returns a GitResult-like object (has *returncode*, *stdout*, *stderr*).
+    """
+    if "files were modified" not in first_result.stderr:
+        return first_result
+    restage_err = _stage_spec_files(files, git_root)
+    if restage_err:
+        from types import SimpleNamespace
+
+        return SimpleNamespace(returncode=1, stdout="", stderr=restage_err)
+    return run_git(cmd, git_root)
 
 
 @dataclass
@@ -153,7 +192,8 @@ class CommitPhaseHook:
         spec, err = _validate_commit_spec(context.get("commit_spec"))
         if err:
             return HookResult.fail(err)
-        assert spec is not None  # guaranteed by _validate_commit_spec
+        # spec is guaranteed non-None when err is None
+        spec = cast("dict[str, Any]", spec)
 
         files: list[str] = spec["files"]
         message: str = spec["message"]
@@ -171,21 +211,11 @@ class CommitPhaseHook:
         if not status.stdout.strip():
             return HookResult.ok(skipped=True, reason="nothing to commit")
 
-        # Build commit command
-        commit_cmd = ["commit", "-m", message]
-        if body:
-            commit_cmd.extend(["-m", body])
-        if skip_hooks:
-            commit_cmd.append("--no-verify")
+        commit_cmd = _build_commit_cmd(message, body, skip_hooks=skip_hooks)
 
         result = run_git(commit_cmd, git_root)
         if result.returncode != 0:
-            # Pre-commit hooks may auto-fix files; re-stage and retry once
-            if "files were modified" in result.stderr:
-                restage_err = _stage_spec_files(files, git_root)
-                if restage_err:
-                    return HookResult.fail(restage_err)
-                result = run_git(commit_cmd, git_root)
+            result = _retry_commit_on_autofix(files, commit_cmd, git_root, result)
             if result.returncode != 0:
                 return HookResult.fail(f"git commit failed: {result.stderr}")
 
