@@ -68,8 +68,8 @@ class TestFormatImpactCompactSingle:
         assert "greet" in result
         assert "demo.core:10" in result
         assert "MEDIUM" in result
-        # Caller details: prod callers with module:line, test callers grouped
-        assert "Prod:" in result
+        # New table format: separate Prod / Direct tests / Indirect tests columns
+        assert "Prod" in result
         assert "demo.cli:10" in result
         assert "demo.app:20" in result
         assert "test_core" in result
@@ -79,36 +79,30 @@ class TestFormatImpactCompactMulti:
     """Multi-symbol (merged) compact formatting."""
 
     def test_format_impact_compact_multi(self) -> None:
-        """Merged dict with 4 definitions → table with 4 rows, merged callers."""
+        """List of 4 reports → table with 4 per-symbol rows."""
         from axm_ast.tools.impact import format_impact_compact
 
-        merged: dict[str, Any] = {
-            "symbol": "A\nB\nC\nD",
-            "definitions": [
-                {"module": "mod_a", "line": 1, "kind": "function"},
-                {"module": "mod_b", "line": 5, "kind": "function"},
-                {"module": "mod_c", "line": 10, "kind": "class"},
-                {"module": "mod_d", "line": 20, "kind": "method"},
-            ],
-            "callers": [
-                {"name": "x", "module": "mod_x"},
-                {"name": "y", "module": "mod_y"},
-            ],
-            "type_refs": [],
-            "reexports": [],
-            "affected_modules": ["mod_a", "mod_b", "mod_c", "mod_d"],
-            "test_files": [],
-            "git_coupled": [],
-            "score": "HIGH",
-        }
-        result = format_impact_compact(merged)
+        reports = [
+            _make_impact_dict(
+                symbol=sym,
+                definition={"module": mod, "line": ln, "kind": "function"},
+                callers=[{"name": "x", "module": "mod_x"}],
+            )
+            for sym, mod, ln in [
+                ("A", "mod_a", 1),
+                ("B", "mod_b", 5),
+                ("C", "mod_c", 10),
+                ("D", "mod_d", 20),
+            ]
+        ]
+        result = format_impact_compact(reports)
         assert isinstance(result, str)
         # Should have rows for all definitions
         assert "mod_a" in result
         assert "mod_b" in result
         assert "mod_c" in result
         assert "mod_d" in result
-        assert "HIGH" in result
+        assert "MEDIUM" in result
 
 
 class TestFormatImpactCompactNoCallers:

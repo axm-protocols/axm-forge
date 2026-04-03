@@ -10,8 +10,9 @@ from axm.tools.base import AXMTool, ToolResult
 
 logger = logging.getLogger(__name__)
 
+_COMPACT_LINE_THRESHOLD = 5
 
-__all__ = ["ImpactTool", "format_impact_compact"]
+__all__ = ["ImpactTool", "format_impact_compact", "format_impact_compact_multi"]
 
 
 class ImpactTool(AXMTool):
@@ -260,7 +261,7 @@ def _format_test_group(tests: dict[str, list[int]], cap: int | None) -> str:
         if cap is not None and total > cap:
             shown = ",".join(str(ln) for ln in lines[:cap])
             parts.append(f"{name} (\u00d7{total}: {shown}\u2026)")
-        elif total >= 5:
+        elif total >= _COMPACT_LINE_THRESHOLD:
             shown = ",".join(str(ln) for ln in lines)
             parts.append(f"{name} (\u00d7{total}: {shown})")
         else:
@@ -301,80 +302,98 @@ def _format_test_files_compact(test_files: list[str], limit: int = 5) -> str:
     return f"{shown} (+{len(names) - limit} more)"
 
 
-def _format_multi_symbol_rows(
-    impact: dict[str, Any],
-    definitions: list[Any],
+def _format_symbol_row(
+    report: dict[str, Any],
     score: str,
-    callers_str: str,
-) -> list[str]:
-    """Format rows for a multi-symbol merged impact dict."""
-    lines: list[str] = []
-    symbols = [s.strip() for s in impact.get("symbol", "").splitlines() if s.strip()]
-    for i, defn in enumerate(definitions):
-        sym_name = symbols[i] if i < len(symbols) else "?"
-        mod_line = _defn_loc(defn)
-        if i == 0:
-            lines.append(f"| {sym_name} | {mod_line} | {score} | {callers_str} |")
-        else:
-            lines.append(f"| {sym_name} | {mod_line} | | |")
-    return lines
-
-
-def _format_single_symbol_row(
-    impact: dict[str, Any],
-    score: str,
-    callers_str: str,
-) -> list[str]:
-    """Format row for a single-symbol impact dict."""
-    defn = impact.get("definition")
-    sym_name = impact.get("symbol", "?")
-    if defn is None or impact.get("error"):
-        return [f"| {sym_name} | \u2014 | {score} | not found |"]
+) -> str:
+    """Format a single symbol as one table row with per-symbol callers."""
+    sym_name = report.get("symbol", "?")
+    defn = report.get("definition")
+    if defn is None or report.get("error"):
+        return f"| {sym_name} | \u2014 | {score} | not found | | |"
     mod_line = _defn_loc(defn)
-    return [f"| {sym_name} | {mod_line} | {score} | {callers_str} |"]
+    callers = report.get("callers", [])
+    symbol_module = defn.get("module")
+    prod, direct, indirect = _classify_callers(callers, symbol_module)
+    prod_str = ", ".join(prod) if prod else "\u2014"
+    direct_str = _format_test_group(direct, cap=None) if direct else "\u2014"
+    indirect_str = _format_test_group(indirect, cap=5) if indirect else "\u2014"
+    return (
+        f"| {sym_name} | {mod_line} | {score} "
+        f"| {prod_str} | {direct_str} | {indirect_str} |"
+    )
 
 
-def format_impact_compact(impact: dict[str, Any]) -> str:
-    """Format an impact analysis dict as a compact markdown table.
+def format_impact_compact_multi(
+    reports: list[dict[str, Any]],
+    score: str,
+) -> str:
+    """Format multiple impact reports as a compact table with per-symbol callers.
 
-    Keeps actionable info (callers with module:line, test files)
-    while dropping redundant fields (affected_modules, type_refs, etc.).
+    Each symbol gets its own row with its own Prod / Direct tests / Indirect
+    tests columns.  The global *score* (max across reports) is shown in the
+    first row only.
 
     Args:
-        impact: Impact dict from ``_analyze_single`` or ``_merge_impact_reports``.
+        reports: Individual per-symbol impact dicts.
+        score: Pre-computed max score across all reports.
+
+    Returns:
+        Markdown table string.
+    """
+    lines: list[str] = [
+        "| Symbol | Location | Score | Prod | Direct tests | Indirect tests |",
+        "|--------|----------|-------|------|--------------|----------------|",
+    ]
+    for i, report in enumerate(reports):
+        row_score = score if i == 0 else ""
+        lines.append(_format_symbol_row(report, row_score))
+
+    # Aggregate test_files across all reports
+    seen: set[str] = set()
+    all_test_files: list[str] = []
+    for report in reports:
+        for tf in report.get("test_files", []):
+            if tf not in seen:
+                seen.add(tf)
+                all_test_files.append(tf)
+    lines.append("")
+    lines.append(f"Tests: {_format_test_files_compact(all_test_files)}")
+    return "\n".join(lines)
+
+
+def format_impact_compact(
+    impact: dict[str, Any] | list[dict[str, Any]],
+) -> str:
+    """Format impact analysis as a compact markdown table.
+
+    Accepts either a single impact dict or a list of per-symbol reports.
+    When given a list, each symbol gets its own row with per-symbol callers.
+
+    Args:
+        impact: Single impact dict or list of per-symbol impact dicts.
 
     Returns:
         Markdown string with symbol table, caller details, and test footer.
     """
-    callers = impact.get("callers", [])
+    if isinstance(impact, list):
+        score = _max_score(impact)
+        return format_impact_compact_multi(impact, score)
+
+    # Single-report dict path
     score = impact.get("score") or impact.get("severity", "UNKNOWN")
-    # Extract symbol module from definition for direct/indirect test classification
-    defn = impact.get("definition")
-    definitions = impact.get("definitions")
-    if defn:
-        symbol_module = defn.get("module")
-    elif definitions:
-        symbol_module = definitions[0].get("module")
-    else:
-        symbol_module = None
-    callers_str = _format_callers_compact(callers, symbol_module=symbol_module)
+    return format_impact_compact_multi([impact], score)
 
-    lines: list[str] = [
-        "| Symbol | Module:Line | Score | Callers |",
-        "|--------|------------|-------|---------|",
-    ]
 
-    definitions = impact.get("definitions")
-    if definitions:
-        lines.extend(_format_multi_symbol_rows(impact, definitions, score, callers_str))
-    else:
-        lines.extend(_format_single_symbol_row(impact, score, callers_str))
-
-    test_files = impact.get("test_files", [])
-    lines.append("")
-    lines.append(f"Tests: {_format_test_files_compact(test_files)}")
-
-    return "\n".join(lines)
+def _max_score(reports: list[dict[str, Any]]) -> str:
+    """Compute the max score across a list of impact reports."""
+    score_order = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
+    best = "LOW"
+    for report in reports:
+        rpt_score = report.get("score", "LOW")
+        if score_order.get(rpt_score, 0) > score_order.get(best, 0):
+            best = rpt_score
+    return best
 
 
 def _defn_loc(defn: dict[str, Any]) -> str:
