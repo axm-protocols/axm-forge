@@ -68,10 +68,11 @@ class TestFormatImpactCompactSingle:
         assert "greet" in result
         assert "demo.core:10" in result
         assert "MEDIUM" in result
-        # Caller details with module:line
+        # Caller details: prod callers with module:line, test callers grouped
+        assert "Prod:" in result
         assert "demo.cli:10" in result
         assert "demo.app:20" in result
-        assert "tests.test_core" in result
+        assert "test_core" in result
 
 
 class TestFormatImpactCompactMulti:
