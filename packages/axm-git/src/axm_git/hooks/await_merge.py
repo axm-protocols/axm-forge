@@ -16,10 +16,29 @@ from axm.hooks.base import HookResult
 from axm_git.core.runner import gh_available, run_gh
 from axm_git.hooks._resolve import _resolve_working_dir
 
-__all__ = ["AwaitMergeHook"]
+__all__ = ["AwaitMergeHook", "_resolve_pr_ref"]
 
 _DEFAULT_TIMEOUT = 600  # 10 minutes
 _DEFAULT_INTERVAL = 30  # seconds
+
+
+def _resolve_pr_ref(
+    params: dict[str, Any],
+    context: dict[str, Any],
+) -> Any:
+    """Resolve a PR reference from params or context.
+
+    Checks ``pr_number`` then ``pr_url`` in *params* first,
+    falling back to *context*.  Returns ``None`` when no
+    reference is found.
+    """
+    ref = (
+        params.get("pr_number")
+        or params.get("pr_url")
+        or context.get("pr_number")
+        or context.get("pr_url")
+    )
+    return ref if ref else None
 
 
 @dataclass
@@ -51,12 +70,7 @@ class AwaitMergeHook:
 
         working_dir = _resolve_working_dir(params, context)
 
-        pr_ref = (
-            params.get("pr_number")
-            or params.get("pr_url")
-            or context.get("pr_number")
-            or context.get("pr_url")
-        )
+        pr_ref = _resolve_pr_ref(params, context)
         if not pr_ref:
             return HookResult.fail("no pr_number or pr_url in params or context")
 

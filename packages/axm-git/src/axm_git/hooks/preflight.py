@@ -14,9 +14,24 @@ from axm.hooks.base import HookResult
 from axm_git.core.runner import find_git_root, run_git
 from axm_git.hooks._resolve import _resolve_working_dir
 
-__all__ = ["PreflightHook"]
+__all__ = ["PreflightHook", "_truncate_diff"]
 
 _MIN_STATUS_LINE_LEN = 4  # git porcelain format: "XY filename"
+
+
+def _truncate_diff(stdout: str, max_lines: int) -> str:
+    """Truncate diff output to *max_lines*.
+
+    Returns the first *max_lines* lines joined by newlines,
+    or the stripped original when it fits.  Returns an empty
+    string when *max_lines* is ``0``.
+    """
+    if max_lines <= 0:
+        return ""
+    lines = stdout.splitlines()
+    if len(lines) > max_lines:
+        return "\n".join(lines[:max_lines])
+    return stdout.strip()
 
 
 @dataclass
@@ -72,11 +87,7 @@ class PreflightHook:
         diff_content = ""
         if max_diff_lines > 0:
             diff_result = run_git(["diff", "-U2", *pathspec], git_root)
-            lines = diff_result.stdout.splitlines()
-            if len(lines) > max_diff_lines:
-                diff_content = "\n".join(lines[:max_diff_lines])
-            else:
-                diff_content = diff_result.stdout.strip()
+            diff_content = _truncate_diff(diff_result.stdout, max_diff_lines)
 
         return HookResult.ok(
             files=files,
