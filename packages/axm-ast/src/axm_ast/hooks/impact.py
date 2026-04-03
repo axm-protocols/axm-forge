@@ -155,6 +155,13 @@ class ImpactHook:
 
                 with ThreadPoolExecutor(max_workers=min(len(symbols), 4)) as pool:
                     reports = list(pool.map(_analyze, symbols))
+
+                if detail == "compact":
+                    from axm_ast.tools.impact import format_impact_compact
+
+                    return HookResult.ok(
+                        impact=format_impact_compact(reports),
+                    )
                 report = _merge_impact_reports(symbol, reports)
 
             if detail == "compact":
