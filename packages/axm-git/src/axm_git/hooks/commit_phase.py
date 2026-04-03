@@ -7,6 +7,8 @@ from context for targeted file staging.
 
 from __future__ import annotations
 
+import logging
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -14,6 +16,8 @@ from typing import Any, cast
 from axm.hooks.base import HookResult
 
 from axm_git.core.runner import find_git_root, run_git
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["CommitPhaseHook"]
 
@@ -79,6 +83,33 @@ def _build_commit_cmd(
     if skip_hooks:
         cmd.append("--no-verify")
     return cmd
+
+
+def _format_spec_files(files: list[str], git_root: Path) -> None:
+    """Run ``ruff check --fix`` then ``ruff format`` on *files*.
+
+    Non-fatal: logs warnings on failure but never raises.
+    Resolves paths relative to *git_root* before passing to ruff.
+    """
+    targets = [str(git_root / f) for f in files if f.endswith(".py")]
+    if not targets:
+        return
+
+    for cmd in (
+        ["ruff", "check", "--fix", *targets],
+        ["ruff", "format", *targets],
+    ):
+        try:
+            subprocess.run(
+                cmd,
+                cwd=git_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            logger.debug("ruff not found, skipping pre-commit format")
+            return
 
 
 def _retry_commit_on_autofix(
@@ -200,6 +231,8 @@ class CommitPhaseHook:
         body: str | None = spec.get("body")
 
         git_root = find_git_root(working_dir) or working_dir
+
+        _format_spec_files(files, git_root)
 
         warnings: list[str] = []
         stage_err = _stage_spec_files(files, git_root, warnings=warnings)
