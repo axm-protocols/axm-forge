@@ -317,10 +317,28 @@ def _format_as_markdown(
     return "\n".join(parts)
 
 
+def _dedup_symbols(symbols: list[str]) -> list[str]:
+    """Remove dotted symbols whose parent class is already in the list.
+
+    When both ``Foo`` and ``Foo.method`` appear, the method body is already
+    included in the class body — extracting it separately wastes tokens.
+    """
+    bare: set[str] = {s for s in symbols if "." not in s}
+    seen: dict[str, None] = {}
+    for s in symbols:
+        if "." in s and s.split(".", 1)[0] in bare:
+            key = s.split(".", 1)[0]
+        else:
+            key = s
+        if key not in seen:
+            seen[key] = None
+    return list(seen)
+
+
 def _run_extraction(symbol: str, working_dir: Path) -> HookResult:
     """Run symbol extraction and return a HookResult."""
     pkg = analyze_package(working_dir)
-    symbols = [s.strip() for s in symbol.splitlines() if s.strip()]
+    symbols = _dedup_symbols([s.strip() for s in symbol.splitlines() if s.strip()])
     results = [_extract_symbol(pkg, sym, working_dir) for sym in symbols]
     file_list = list(
         dict.fromkeys(entry["file"] for entry in results if entry.get("file"))
