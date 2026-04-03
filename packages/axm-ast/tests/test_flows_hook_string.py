@@ -64,9 +64,9 @@ class TestHookReturnsStringCompact:
         assert "traces" in result.metadata
         traces = result.metadata["traces"]
         # MUST be a string, not a dict or list
-        assert isinstance(
-            traces, str
-        ), f"Expected traces to be str, got {type(traces).__name__}"
+        assert isinstance(traces, str), (
+            f"Expected traces to be str, got {type(traces).__name__}"
+        )
         # Content should come from format_flow_compact
         assert "main" in traces
 
@@ -90,9 +90,9 @@ class TestHookMultiEntryConcatenated:
         assert result.success is True
         traces = result.metadata["traces"]
         # MUST be a single concatenated string
-        assert isinstance(
-            traces, str
-        ), f"Expected traces to be str, got {type(traces).__name__}"
+        assert isinstance(traces, str), (
+            f"Expected traces to be str, got {type(traces).__name__}"
+        )
         # Must contain header for each entry point
         assert "alpha" in traces
         assert "beta" in traces
@@ -121,9 +121,9 @@ class TestHookCompactEmptyFlow:
         assert result.success is True
         traces = result.metadata["traces"]
         # Should be a string (empty or skip message), not a dict
-        assert isinstance(
-            traces, str
-        ), f"Expected traces to be str, got {type(traces).__name__}"
+        assert isinstance(traces, str), (
+            f"Expected traces to be str, got {type(traces).__name__}"
+        )
 
 
 # ─── Edge: circular / recursive calls ───────────────────────────────────────
@@ -154,8 +154,8 @@ class TestHookCompactCircularCalls:
         assert result.success is True
         traces = result.metadata["traces"]
         # Must be string, not dict
-        assert isinstance(
-            traces, str
-        ), f"Expected traces to be str, got {type(traces).__name__}"
+        assert isinstance(traces, str), (
+            f"Expected traces to be str, got {type(traces).__name__}"
+        )
         # Should contain the entry point
         assert "func_a" in traces
