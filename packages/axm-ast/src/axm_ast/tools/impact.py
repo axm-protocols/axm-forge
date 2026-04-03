@@ -343,7 +343,7 @@ def format_impact_compact_multi(
     """
     lines: list[str] = [
         "| Symbol | Location | Score | Prod | Direct tests | Indirect tests |",
-        "|--------|----------|-------|------|--------------|----------------|",
+        "|--|--|--|--|--|--|",
     ]
     for i, report in enumerate(reports):
         row_score = score if i == 0 else ""
