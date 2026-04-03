@@ -10,6 +10,7 @@ from axm.tools.base import AXMTool, ToolResult
 
 logger = logging.getLogger(__name__)
 
+
 __all__ = ["ImpactTool", "format_impact_compact"]
 
 
@@ -215,16 +216,78 @@ class ImpactTool(AXMTool):
         )
 
 
-def _format_callers_compact(callers: list[dict[str, Any]]) -> str:
-    """Format caller list as compact ``module:line`` references."""
-    if not callers:
-        return "\u2014"
-    parts: list[str] = []
+def _classify_callers(
+    callers: list[dict[str, Any]],
+    symbol_module: str | None,
+) -> tuple[list[str], dict[str, list[int]], dict[str, list[int]]]:
+    """Split callers into prod, direct-test, and indirect-test groups.
+
+    Returns:
+        Tuple of (prod_refs, direct_tests, indirect_tests) where
+        prod_refs are ``module:line`` strings and test dicts map
+        file name to sorted line numbers.
+    """
+    prod: list[str] = []
+    direct: dict[str, list[int]] = {}
+    indirect: dict[str, list[int]] = {}
+    # Extract last component of symbol module for direct-test heuristic
+    mod_suffix = symbol_module.rsplit(".", 1)[-1] if symbol_module else None
+
     for c in callers:
         mod = c.get("module", "?")
         line = c.get("line")
-        parts.append(f"{mod}:{line}" if line else mod)
+        # Extract file-level name (last dotted component)
+        file_name = mod.rsplit(".", 1)[-1]
+        if "test" in file_name:
+            bucket = direct if mod_suffix and mod_suffix in file_name else indirect
+            bucket.setdefault(file_name, []).append(line or 0)
+        else:
+            prod.append(f"{mod}:{line}" if line else mod)
+    return prod, direct, indirect
+
+
+def _format_test_group(tests: dict[str, list[int]], cap: int | None) -> str:
+    """Format a group of test files with optional line cap.
+
+    Args:
+        tests: Mapping of test file name to line numbers.
+        cap: Max lines to show per file, or None for no cap.
+    """
+    parts: list[str] = []
+    for name, lines in tests.items():
+        lines = sorted(lines)
+        total = len(lines)
+        if cap is not None and total > cap:
+            shown = ",".join(str(ln) for ln in lines[:cap])
+            parts.append(f"{name} (\u00d7{total}: {shown}\u2026)")
+        elif total >= 5:
+            shown = ",".join(str(ln) for ln in lines)
+            parts.append(f"{name} (\u00d7{total}: {shown})")
+        else:
+            shown = ",".join(str(ln) for ln in lines)
+            parts.append(f"{name} ({shown})")
     return ", ".join(parts)
+
+
+def _format_callers_compact(
+    callers: list[dict[str, Any]],
+    symbol_module: str | None = None,
+) -> str:
+    """Format caller list with prod/test separation and grouping."""
+    if not callers:
+        return "\u2014"
+    prod, direct, indirect = _classify_callers(callers, symbol_module)
+    sections: list[str] = []
+    if prod:
+        sections.append(f"Prod: {', '.join(prod)}")
+    if direct and indirect:
+        sections.append(f"Direct tests: {_format_test_group(direct, cap=None)}")
+        sections.append(f"Indirect tests: {_format_test_group(indirect, cap=5)}")
+    elif direct:
+        sections.append(f"Tests: {_format_test_group(direct, cap=None)}")
+    elif indirect:
+        sections.append(f"Tests: {_format_test_group(indirect, cap=5)}")
+    return " | ".join(sections)
 
 
 def _format_test_files_compact(test_files: list[str], limit: int = 5) -> str:
@@ -285,7 +348,16 @@ def format_impact_compact(impact: dict[str, Any]) -> str:
     """
     callers = impact.get("callers", [])
     score = impact.get("score") or impact.get("severity", "UNKNOWN")
-    callers_str = _format_callers_compact(callers)
+    # Extract symbol module from definition for direct/indirect test classification
+    defn = impact.get("definition")
+    definitions = impact.get("definitions")
+    if defn:
+        symbol_module = defn.get("module")
+    elif definitions:
+        symbol_module = definitions[0].get("module")
+    else:
+        symbol_module = None
+    callers_str = _format_callers_compact(callers, symbol_module=symbol_module)
 
     lines: list[str] = [
         "| Symbol | Module:Line | Score | Callers |",
