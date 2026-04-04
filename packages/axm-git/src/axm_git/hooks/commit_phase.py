@@ -53,13 +53,17 @@ def _stage_spec_files(
     """Stage each file in *files*, returning an error message on failure.
 
     Paths in *files* are expected relative to *git_root*.
+    Tracked-but-deleted files (git status ``D``) are staged as deletions.
     Gitignored files are skipped with a warning appended to *warnings*.
-    Missing files produce a clear diagnostic error.
+    Truly missing files (never tracked) produce a clear diagnostic error.
     """
     for filepath in files:
         full = git_root / filepath
         if not full.exists():
-            return f"files not found: {filepath}"
+            # Check if the file is tracked-but-deleted (git status D)
+            ls_result = run_git(["ls-files", "-d", filepath], git_root)
+            if not ls_result.stdout.strip():
+                return f"files not found: {filepath}"
         add_result = run_git(["add", filepath], git_root)
         if add_result.returncode != 0:
             if "ignored" in add_result.stderr.lower():
