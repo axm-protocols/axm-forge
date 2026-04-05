@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from axm.tools.base import ToolResult
 
 __all__ = ["InitScaffoldTool"]
+
+
+@dataclass(frozen=True, slots=True)
+class _ProjectMeta:
+    org: str
+    license_type: str
+    author_name: str
+    author_email: str
 
 
 class InitScaffoldTool:
@@ -63,9 +72,7 @@ class InitScaffoldTool:
         project_name: str,
         workspace: bool,
         description: str,
-        org: str,
-        license_type: str,
-        author_info: tuple[str, str],
+        meta: _ProjectMeta,
     ) -> dict[str, str]:
         """Build template data dict for workspace or standalone scaffold."""
         name_key = "workspace_name" if workspace else "package_name"
@@ -75,11 +82,11 @@ class InitScaffoldTool:
         return {
             name_key: project_name,
             "description": description or default_desc,
-            "org": org,
-            "license": license_type,
-            "license_holder": org,
-            "author_name": author_info[0],
-            "author_email": author_info[1],
+            "org": meta.org,
+            "license": meta.license_type,
+            "license_holder": meta.org,
+            "author_name": meta.author_name,
+            "author_email": meta.author_email,
         }
 
     def execute(self, **kwargs: Any) -> ToolResult:
@@ -132,13 +139,17 @@ class InitScaffoldTool:
             template_type = (
                 TemplateType.WORKSPACE if workspace else TemplateType.STANDALONE
             )
+            meta = _ProjectMeta(
+                org=org,
+                license_type=license_type,
+                author_name=author,
+                author_email=email,
+            )
             data = self._build_template_data(
                 project_name=project_name,
                 workspace=workspace,
                 description=description,
-                org=org,
-                license_type=license_type,
-                author_info=(author, email),
+                meta=meta,
             )
 
             copier_adapter = CopierAdapter()
