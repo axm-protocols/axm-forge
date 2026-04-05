@@ -23,7 +23,7 @@ jobs:
       - run: pip install pre-commit
       - run: pre-commit autoupdate
 
-      - uses: peter-evans/create-pull-request@v7
+      - uses: peter-evans/create-pull-request@v8
         with:
           branch: chore/pre-commit-autoupdate
           title: 'chore(deps): pre-commit autoupdate'
