@@ -1,5 +1,5 @@
 {
-  "score": 98.9,
+  "score": 99.0,
   "grade": "A",
   "total": 24,
   "failed": 0,
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 10,
         "max_fan_in": 23,
-        "avg_coupling": 3.7,
+        "avg_coupling": 3.73,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -61,7 +61,7 @@
       "passed": true,
       "message": "Test coverage: 93% (93/100)",
       "details": {
-        "coverage": 93.0597992143169,
+        "coverage": 93.08394954327969,
         "score": 93,
         "failures": []
       }
@@ -79,19 +79,12 @@
     {
       "rule_id": "QUALITY_LINT",
       "passed": true,
-      "message": "Lint score: 98/100 (1 issues)",
+      "message": "Lint score: 100/100 (0 issues)",
       "details": {
-        "issue_count": 1,
-        "score": 98,
+        "issue_count": 0,
+        "score": 100,
         "checked": "src/ tests/",
-        "issues": [
-          {
-            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-init/src/axm_init/tools/scaffold.py",
-            "line": 60,
-            "code": "PLR0913",
-            "message": "Too many arguments in function definition (6 > 5)"
-          }
-        ]
+        "issues": []
       }
     },
     {
