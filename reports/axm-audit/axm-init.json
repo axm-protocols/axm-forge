@@ -1,9 +1,9 @@
 {
-  "score": 90.0,
+  "score": 98.9,
   "grade": "A",
   "total": 24,
-  "failed": 4,
-  "success": false,
+  "failed": 0,
+  "success": true,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -25,24 +25,15 @@
     },
     {
       "rule_id": "ARCH_COUPLING",
-      "passed": false,
-      "message": "Coupling: 2 module(s) above threshold (-10 pts)",
+      "passed": true,
+      "message": "Coupling: 0 modules above threshold (max fan-out: 10)",
       "details": {
-        "max_fan_out": 12,
+        "max_fan_out": 10,
         "max_fan_in": 23,
-        "avg_coupling": 3.83,
-        "score": 90,
-        "n_over_threshold": 2,
-        "over_threshold": [
-          {
-            "module": "axm_init.core.checker",
-            "fan_out": 12
-          },
-          {
-            "module": "axm_init.adapters.copier",
-            "fan_out": 11
-          }
-        ]
+        "avg_coupling": 3.7,
+        "score": 100,
+        "n_over_threshold": 0,
+        "over_threshold": []
       }
     },
     {
@@ -57,47 +48,21 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 50/100 (5 high-complexity functions)",
+      "passed": true,
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 5,
-        "top_offenders": [
-          {
-            "file": "scaffold.py",
-            "function": "InitScaffoldTool.execute",
-            "cc": 13
-          },
-          {
-            "file": "checker.py",
-            "function": "CheckEngine._filter_checks",
-            "cc": 12
-          },
-          {
-            "file": "scaffold.py",
-            "function": "InitScaffoldTool._scaffold_member",
-            "cc": 11
-          },
-          {
-            "file": "cli.py",
-            "function": "reserve",
-            "cc": 10
-          },
-          {
-            "file": "check.py",
-            "function": "ProjectResult",
-            "cc": 10
-          }
-        ],
-        "score": 50
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "score": 100
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 93% (92/100)",
+      "message": "Test coverage: 93% (93/100)",
       "details": {
-        "coverage": 92.68722466960352,
-        "score": 92,
+        "coverage": 93.0597992143169,
+        "score": 93,
         "failures": []
       }
     },
@@ -114,12 +79,19 @@
     {
       "rule_id": "QUALITY_LINT",
       "passed": true,
-      "message": "Lint score: 100/100 (0 issues)",
+      "message": "Lint score: 98/100 (1 issues)",
       "details": {
-        "issue_count": 0,
-        "score": 100,
+        "issue_count": 1,
+        "score": 98,
         "checked": "src/ tests/",
-        "issues": []
+        "issues": [
+          {
+            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-init/src/axm_init/tools/scaffold.py",
+            "line": 60,
+            "code": "PLR0913",
+            "message": "Too many arguments in function definition (6 > 5)"
+          }
+        ]
       }
     },
     {
@@ -144,21 +116,12 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": false,
-      "message": "1 vulnerable package(s) found",
+      "passed": true,
+      "message": "No known vulnerabilities",
       "details": {
-        "vuln_count": 1,
-        "score": 85,
-        "top_vulns": [
-          {
-            "name": "pygments",
-            "version": "2.19.2",
-            "vuln_ids": [
-              "CVE-2026-4539"
-            ],
-            "fix_versions": []
-          }
-        ]
+        "vuln_count": 0,
+        "score": 100,
+        "top_vulns": []
       }
     },
     {
@@ -213,15 +176,9 @@
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
-      "passed": false,
-      "message": "2 source module(s) without tests",
-      "details": {
-        "missing": [
-          "gen_ref_pages.py",
-          "workspace.py"
-        ],
-        "score": 70
-      }
+      "passed": true,
+      "message": "All source modules have test files",
+      "details": null
     },
     {
       "rule_id": "PRACTICE_SECURITY",
@@ -267,15 +224,15 @@
             "severity": "LOW",
             "code": "B607",
             "message": "Starting a process with a partial executable path",
-            "file": "cli.py",
-            "line": 34
+            "file": "github.py",
+            "line": 35
           },
           {
             "severity": "LOW",
             "code": "B603",
             "message": "subprocess call - check for execution of untrusted input.",
-            "file": "cli.py",
-            "line": 34
+            "file": "github.py",
+            "line": 35
           }
         ]
       }

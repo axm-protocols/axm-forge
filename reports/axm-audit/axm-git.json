@@ -1,9 +1,9 @@
 {
-  "score": 92.2,
+  "score": 99.0,
   "grade": "A",
   "total": 24,
-  "failed": 2,
-  "success": false,
+  "failed": 0,
+  "success": true,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 10,
         "max_fan_in": 20,
-        "avg_coupling": 4.67,
+        "avg_coupling": 4.75,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -48,41 +48,20 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 60/100 (4 high-complexity functions)",
+      "passed": true,
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 4,
-        "top_offenders": [
-          {
-            "file": "await_merge.py",
-            "function": "AwaitMergeHook",
-            "cc": 12
-          },
-          {
-            "file": "commit_phase.py",
-            "function": "CommitPhaseHook._commit_from_outputs",
-            "cc": 11
-          },
-          {
-            "file": "await_merge.py",
-            "function": "AwaitMergeHook.execute",
-            "cc": 11
-          },
-          {
-            "file": "preflight.py",
-            "function": "PreflightHook",
-            "cc": 10
-          }
-        ],
-        "score": 60
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "score": 100
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 95% (95/100)",
+      "message": "Test coverage: 96% (95/100)",
       "details": {
-        "coverage": 95.25244913338358,
+        "coverage": 95.60835133189345,
         "score": 95,
         "failures": []
       }
@@ -130,21 +109,12 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": false,
-      "message": "1 vulnerable package(s) found",
+      "passed": true,
+      "message": "No known vulnerabilities",
       "details": {
-        "vuln_count": 1,
-        "score": 85,
-        "top_vulns": [
-          {
-            "name": "pygments",
-            "version": "2.19.2",
-            "vuln_ids": [
-              "CVE-2026-4539"
-            ],
-            "fix_versions": []
-          }
-        ]
+        "vuln_count": 0,
+        "score": 100,
+        "top_vulns": []
       }
     },
     {
@@ -191,7 +161,7 @@
     {
       "rule_id": "PRACTICE_LOGGING",
       "passed": true,
-      "message": "Logging coverage: 100% (4/4)",
+      "message": "Logging coverage: 100% (5/5)",
       "details": {
         "without_logging": [],
         "score": 100
@@ -238,6 +208,13 @@
           },
           {
             "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "commit_phase.py",
+            "line": 11
+          },
+          {
+            "severity": "LOW",
             "code": "B607",
             "message": "Starting a process with a partial executable path",
             "file": "runner.py",
@@ -249,13 +226,6 @@
             "message": "subprocess call - check for execution of untrusted input.",
             "file": "runner.py",
             "line": 40
-          },
-          {
-            "severity": "MEDIUM",
-            "code": "B108",
-            "message": "Probable insecure usage of temp file/directory.",
-            "file": "worktree_add.py",
-            "line": 66
           }
         ]
       }

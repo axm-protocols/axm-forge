@@ -1,8 +1,8 @@
 {
-  "score": 82.0,
-  "grade": "B",
+  "score": 98.3,
+  "grade": "A",
   "total": 24,
-  "failed": 5,
+  "failed": 2,
   "success": false,
   "checks": [
     {
@@ -29,8 +29,8 @@
       "message": "Coupling: 1 module(s) above threshold (-5 pts)",
       "details": {
         "max_fan_out": 13,
-        "max_fan_in": 36,
-        "avg_coupling": 4.92,
+        "max_fan_in": 37,
+        "avg_coupling": 5.0,
         "score": 95,
         "n_over_threshold": 1,
         "over_threshold": [
@@ -53,112 +53,21 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 0/100 (18 high-complexity functions)",
+      "passed": true,
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 18,
-        "top_offenders": [
-          {
-            "file": "inspect.py",
-            "function": "InspectTool._build_detail",
-            "cc": 15
-          },
-          {
-            "file": "flows.py",
-            "function": "_resolve_cross_module_callees",
-            "cc": 14
-          },
-          {
-            "file": "analyzer.py",
-            "function": "_search_module",
-            "cc": 13
-          },
-          {
-            "file": "flows.py",
-            "function": "trace_flow",
-            "cc": 13
-          },
-          {
-            "file": "flows.py",
-            "function": "FlowsHook._trace_entries",
-            "cc": 13
-          },
-          {
-            "file": "impact.py",
-            "function": "analyze_impact",
-            "cc": 12
-          },
-          {
-            "file": "file_header.py",
-            "function": "FileHeaderHook",
-            "cc": 12
-          },
-          {
-            "file": "search.py",
-            "function": "SearchTool.execute",
-            "cc": 12
-          },
-          {
-            "file": "flows.py",
-            "function": "_follow_reexport",
-            "cc": 11
-          },
-          {
-            "file": "file_header.py",
-            "function": "FileHeaderHook.execute",
-            "cc": 11
-          },
-          {
-            "file": "inspect.py",
-            "function": "InspectTool.execute",
-            "cc": 11
-          },
-          {
-            "file": "impact.py",
-            "function": "find_definition",
-            "cc": 10
-          },
-          {
-            "file": "analyzer.py",
-            "function": "_find_module_by_identity",
-            "cc": 10
-          },
-          {
-            "file": "analyzer.py",
-            "function": "_find_module_by_name",
-            "cc": 10
-          },
-          {
-            "file": "doc_impact.py",
-            "function": "_extract_doc_signatures",
-            "cc": 10
-          },
-          {
-            "file": "source_body.py",
-            "function": "SourceBodyHook",
-            "cc": 10
-          },
-          {
-            "file": "flows.py",
-            "function": "FlowsHook",
-            "cc": 10
-          },
-          {
-            "file": "inspect.py",
-            "function": "InspectTool._inspect_module",
-            "cc": 10
-          }
-        ],
-        "score": 0
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "score": 100
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": false,
-      "message": "Test coverage: 87% (86/100)",
+      "passed": true,
+      "message": "Test coverage: 90% (90/100)",
       "details": {
-        "coverage": 86.7759388924252,
-        "score": 86,
+        "coverage": 90.30882352941177,
+        "score": 90,
         "failures": []
       }
     },
@@ -205,21 +114,12 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": false,
-      "message": "1 vulnerable package(s) found",
+      "passed": true,
+      "message": "No known vulnerabilities",
       "details": {
-        "vuln_count": 1,
-        "score": 85,
-        "top_vulns": [
-          {
-            "name": "pygments",
-            "version": "2.19.2",
-            "vuln_ids": [
-              "CVE-2026-4539"
-            ],
-            "fix_versions": []
-          }
-        ]
+        "vuln_count": 0,
+        "score": 100,
+        "top_vulns": []
       }
     },
     {
@@ -235,11 +135,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (119/119)",
+      "message": "Docstring coverage: 100% (137/137)",
       "details": {
         "coverage": 1.0,
-        "total": 119,
-        "documented": 119,
+        "total": 137,
+        "documented": 137,
         "missing": [],
         "score": 100
       }
@@ -266,12 +166,13 @@
     {
       "rule_id": "PRACTICE_LOGGING",
       "passed": false,
-      "message": "Logging coverage: 94% (17/18)",
+      "message": "Logging coverage: 92% (22/24)",
       "details": {
         "without_logging": [
-          "axm_ast/core/doc_impact.py"
+          "axm_ast/tools/inspect_resolve.py",
+          "axm_ast/tools/inspect_detail.py"
         ],
-        "score": 94
+        "score": 91
       }
     },
     {

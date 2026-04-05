@@ -1,8 +1,8 @@
 {
-  "score": 91.9,
-  "grade": "A",
+  "score": 89.5,
+  "grade": "B",
   "total": 24,
-  "failed": 4,
+  "failed": 3,
   "success": false,
   "checks": [
     {
@@ -29,8 +29,8 @@
       "message": "Coupling: 1 module(s) above threshold (-5 pts)",
       "details": {
         "max_fan_out": 11,
-        "max_fan_in": 21,
-        "avg_coupling": 6.25,
+        "max_fan_in": 22,
+        "avg_coupling": 6.28,
         "score": 95,
         "n_over_threshold": 1,
         "over_threshold": [
@@ -54,18 +54,28 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 60/100 (4 high-complexity functions)",
+      "message": "Complexity score: 40/100 (6 high-complexity functions)",
       "details": {
-        "high_complexity_count": 4,
+        "high_complexity_count": 6,
         "top_offenders": [
           {
             "file": "audit_quality.py",
-            "function": "AuditQualityRule",
+            "function": "AuditQualityRule.validate",
+            "cc": 17
+          },
+          {
+            "file": "quality_check.py",
+            "function": "QualityCheckHook",
             "cc": 13
           },
           {
             "file": "audit_quality.py",
-            "function": "AuditQualityRule.validate",
+            "function": "AuditQualityRule",
+            "cc": 12
+          },
+          {
+            "file": "quality_check.py",
+            "function": "QualityCheckHook.execute",
             "cc": 12
           },
           {
@@ -79,16 +89,16 @@
             "cc": 10
           }
         ],
-        "score": 60
+        "score": 40
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 93% (93/100)",
+      "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 93.08621407746772,
-        "score": 93,
+        "coverage": 92.71922767497989,
+        "score": 92,
         "failures": []
       }
     },
@@ -135,21 +145,12 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": false,
-      "message": "1 vulnerable package(s) found",
+      "passed": true,
+      "message": "No known vulnerabilities",
       "details": {
-        "vuln_count": 1,
-        "score": 85,
-        "top_vulns": [
-          {
-            "name": "pygments",
-            "version": "2.19.2",
-            "vuln_ids": [
-              "CVE-2026-4539"
-            ],
-            "fix_versions": []
-          }
-        ]
+        "vuln_count": 0,
+        "score": 100,
+        "top_vulns": []
       }
     },
     {
@@ -165,11 +166,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (87/87)",
+      "message": "Docstring coverage: 100% (88/88)",
       "details": {
         "coverage": 1.0,
-        "total": 87,
-        "documented": 87,
+        "total": 88,
+        "documented": 88,
         "missing": [],
         "score": 100
       }
