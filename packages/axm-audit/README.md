@@ -145,7 +145,7 @@ See the [MCP how-to guide](https://forge.axm-protocols.io/audit/howto/mcp/) for 
 | `AutofixHook` | `audit:autofix` | Run `ruff check --fix` + `ruff format` |
 | `QualityCheckHook` | `audit:quality-check` | Run audit categories and report violations |
 
-`QualityCheckHook` accepts `working_dir` (str) and `categories` (list, default `["lint", "type"]`) via params. It returns `HookResult.ok(has_violations=bool, violations=list[dict], summary=str)` for injection into protocol session context.
+`QualityCheckHook` accepts `working_dir` (str) and `categories` (list, default `["lint", "type"]`) via params. It returns `HookResult.ok(has_violations=bool, violations=list[dict], summary=str)` for injection into protocol session context. Each violation dict includes a `snippet` field with ±5 lines of source around the violation line (line-numbered, with `>` marker), or `None` when the file/line is unresolvable.
 
 ## Development
 
