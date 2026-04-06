@@ -74,6 +74,9 @@ def _visit_references(node: object, refs: set[str]) -> None:
         _collect_collection_refs(children, refs)
     elif node_type in ("keyword_argument", "default_parameter"):
         _collect_kwarg_ref(children, refs)
+    elif node_type == "assignment":
+        # Handle `callback = self.method` — extract attribute ref from RHS.
+        _collect_kwarg_ref(children, refs)
 
     # Recurse into all children.
     for child in children:
@@ -88,20 +91,37 @@ def _collect_dict_value_ref(children: list[object], refs: set[str]) -> None:
             past_colon = True
             continue
         if past_colon:
-            if getattr(child, "type", "") == "identifier":
-                name = _node_text_safe(child)
-                if name:
-                    refs.add(name)
+            name = _extract_ref_name(child)
+            if name:
+                refs.add(name)
             return
 
 
 def _collect_collection_refs(children: list[object], refs: set[str]) -> None:
-    """Extract identifier references from list/tuple/set elements."""
+    """Extract identifier and attribute references from list/tuple/set elements."""
     for child in children:
-        if getattr(child, "type", "") == "identifier":
-            name = _node_text_safe(child)
-            if name:
-                refs.add(name)
+        name = _extract_ref_name(child)
+        if name:
+            refs.add(name)
+
+
+def _extract_ref_name(node: object) -> str | None:
+    """Return the reference name for an identifier or attribute node.
+
+    - ``identifier`` nodes → return the identifier text.
+    - ``attribute`` nodes (e.g. ``self._method``) → return the last
+      identifier segment (the attribute name).
+    - Everything else → ``None``.
+    """
+    node_type = getattr(node, "type", "")
+    if node_type == "identifier":
+        return _node_text_safe(node) or None
+    if node_type == "attribute":
+        # Last child with type "identifier" is the attribute name.
+        for child in reversed(getattr(node, "children", [])):
+            if getattr(child, "type", "") == "identifier":
+                return _node_text_safe(child) or None
+    return None
 
 
 def _collect_kwarg_ref(children: list[object], refs: set[str]) -> None:
@@ -110,7 +130,7 @@ def _collect_kwarg_ref(children: list[object], refs: set[str]) -> None:
     Handles ``keyword_argument`` (``f(callback=my_func)``) and
     ``default_parameter`` (``def foo(fn=my_func)``) nodes.
     The structure is ``name = value``; we extract the value if
-    it is a bare identifier (not a call or literal).
+    it is a bare identifier or attribute (not a call or literal).
     """
     past_eq = False
     for child in children:
@@ -118,10 +138,9 @@ def _collect_kwarg_ref(children: list[object], refs: set[str]) -> None:
             past_eq = True
             continue
         if past_eq:
-            if getattr(child, "type", "") == "identifier":
-                name = _node_text_safe(child)
-                if name:
-                    refs.add(name)
+            name = _extract_ref_name(child)
+            if name:
+                refs.add(name)
             return
 
 
