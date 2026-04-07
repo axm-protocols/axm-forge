@@ -160,7 +160,7 @@ class TestCheckEngineRun:
         result = engine.run()
         assert result.score == 100
         assert result.grade == Grade.A
-        assert len(result.checks) == 40
+        assert len(result.checks) == 39
 
     def test_run_single_category(self, gold_project: Path) -> None:
         """Filtering to tooling returns only tooling checks."""
@@ -304,7 +304,7 @@ class TestCheckDiscovery:
     def test_check_discovery_finds_all(self) -> None:
         """Auto-discovery finds 49 checks across 8 categories."""
         total = sum(len(fns) for fns in ALL_CHECKS.values())
-        assert total == 49
+        assert total == 48
         assert len(ALL_CHECKS) == 8
 
     def test_discovery_categories(self) -> None:
@@ -377,7 +377,7 @@ class TestEngineStandalone:
         result = engine.run()
         assert result.score == 100
         assert result.grade == Grade.A
-        assert len(result.checks) == 40
+        assert len(result.checks) == 39
         assert result.context == "standalone"
         assert result.workspace_root is None
         assert result.excluded_checks == []
@@ -615,7 +615,7 @@ class TestEngineExclusion:
         engine = CheckEngine(gold_project)
         result = engine.run()
         assert result.score == 100
-        assert len(result.checks) == 40
+        assert len(result.checks) == 39
 
 
 class TestProjectResultContext:

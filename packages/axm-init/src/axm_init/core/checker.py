@@ -53,7 +53,6 @@ REDIRECT_FOR_MEMBER: frozenset[str] = frozenset(
         "ci.dependabot",
         "ci.ci_lint_job",
         "ci.ci_security_job",
-        "ci.ci_coverage_upload",
         "ci.ci_test_job",
         "tooling.precommit_exists",
         "tooling.precommit_ruff",

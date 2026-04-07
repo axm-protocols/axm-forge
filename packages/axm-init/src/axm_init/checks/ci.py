@@ -114,32 +114,6 @@ def check_ci_security_job(project: Path) -> CheckResult:
     )
 
 
-def check_ci_coverage_upload(project: Path) -> CheckResult:
-    """Check 12: CI uploads coverage."""
-    content = _read_ci(project)
-    if content is None or (
-        "coveralls" not in content.lower() and "codecov" not in content.lower()
-    ):
-        return CheckResult(
-            name="ci.coverage_upload",
-            category="ci",
-            passed=False,
-            weight=2,
-            message="No coverage upload in CI",
-            details=["CI should upload coverage to Coveralls or Codecov"],
-            fix="Add coverallsapp/github-action or codecov/codecov-action step.",
-        )
-    return CheckResult(
-        name="ci.coverage_upload",
-        category="ci",
-        passed=True,
-        weight=2,
-        message="Coverage upload configured",
-        details=[],
-        fix="",
-    )
-
-
 def _read_publish(project: Path) -> str | None:
     """Read .github/workflows/publish.yml content, or None if missing."""
     path = project / ".github" / "workflows" / "publish.yml"

@@ -10,7 +10,6 @@ import pytest
 
 from axm_init.checks.changelog import check_gitcliff_config, check_no_manual_changelog
 from axm_init.checks.ci import (
-    check_ci_coverage_upload,
     check_ci_lint_job,
     check_ci_security_job,
     check_ci_test_job,
@@ -74,7 +73,6 @@ class TestAllFailuresHaveFix:
         check_ci_lint_job,
         check_ci_test_job,
         check_ci_security_job,
-        check_ci_coverage_upload,
         check_trusted_publishing,
         check_dependabot,
         check_precommit_exists,
