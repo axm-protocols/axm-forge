@@ -482,7 +482,11 @@ def _scan_classes(
     dead: list[DeadSymbol] = []
     mod_path = str(mod.path)
     for cls in mod.classes:
-        if cls.name in ctx.entry_points or cls.name in all_bases:
+        if (
+            cls.name in ctx.entry_points
+            or cls.name in all_bases
+            or cls.name in ctx.all_refs
+        ):
             continue
         has_callers = bool(find_callers(pkg, cls.name))
         if not has_callers and ctx.extra_pkg is not None:

@@ -25,7 +25,7 @@
 - 💥 **Impact** — Change impact analysis: callers + graph + test mapping
 - 📝 **Doc Impact** — Documentation health: doc refs, undocumented symbols, stale signatures
 - 📖 **Docs** — One-shot documentation tree dump with progressive disclosure (toc/summary/full) and page filtering
-- 💀 **Dead code** — Detect unreferenced symbols with smart exemptions (dict dispatch, entry points, test callers, lazy imports)
+- 💀 **Dead code** — Detect unreferenced symbols with smart exemptions (dict dispatch, positional args, entry points, test callers, lazy imports)
 - 🚀 **Flows** — Entry point detection (cyclopts, click, Flask, FastAPI, pytest, `__main__`), BFS execution flow tracing with cross-module resolution and optional source code enrichment (`detail=source`)
 - 🔀 **Diff** — Structural branch diff at symbol level (added/modified/removed via git worktrees)
 - 🏗️ **Workspace** — Multi-package workspace support (auto-detects `uv` workspaces)

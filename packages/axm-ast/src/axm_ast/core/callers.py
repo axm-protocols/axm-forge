@@ -45,10 +45,11 @@ def extract_references(mod: ModuleInfo) -> set[str]:
     - Set elements: ``{func_a, func_b}``
     - Keyword arguments: ``DataLoader(collate_fn=my_func)``
     - Default parameters: ``def foo(callback=my_func)``
+    - Positional arguments: ``register(MyClass)`` (bare identifiers only)
 
     This catches dynamic dispatch patterns where functions are stored
-    in data structures, passed as keyword arguments, or used as default
-    parameter values.
+    in data structures, passed as positional arguments, used as keyword
+    arguments, or used as default parameter values.
 
     Args:
         mod: Parsed module info (with path to source).
@@ -77,6 +78,8 @@ def _visit_references(node: object, refs: set[str]) -> None:
     elif node_type == "assignment":
         # Handle `callback = self.method` — extract attribute ref from RHS.
         _collect_kwarg_ref(children, refs)
+    elif node_type == "argument_list":
+        _collect_argument_refs(children, refs)
 
     # Recurse into all children.
     for child in children:
@@ -100,6 +103,19 @@ def _collect_dict_value_ref(children: list[object], refs: set[str]) -> None:
 def _collect_collection_refs(children: list[object], refs: set[str]) -> None:
     """Extract identifier and attribute references from list/tuple/set elements."""
     for child in children:
+        name = _extract_ref_name(child)
+        if name:
+            refs.add(name)
+
+
+def _collect_argument_refs(children: list[object], refs: set[str]) -> None:
+    """Extract bare identifier/attribute refs from positional args.
+
+    Skips call nodes (tracked by ``find_callers``) and literals.
+    """
+    for child in children:
+        if getattr(child, "type", "") == "call":
+            continue
         name = _extract_ref_name(child)
         if name:
             refs.add(name)
