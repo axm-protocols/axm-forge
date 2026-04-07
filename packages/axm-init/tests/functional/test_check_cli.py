@@ -260,7 +260,7 @@ class TestCheckAgentCompact:
         data = json.loads(stdout)
         assert "passed_count" in data
         assert isinstance(data["passed_count"], int)
-        assert data["passed_count"] == 40
+        assert data["passed_count"] == 39
 
     def test_agent_no_passed_list(self, gold_project: Path) -> None:
         stdout, _stderr, _code = _run("check", str(gold_project), "--agent")

@@ -52,7 +52,6 @@ GitHub Actions CI workflow:
 | `ci.lint_job` | 3 | Lint/type-check job |
 | `ci.test_job` | 3 | Test job with Python matrix |
 | `ci.security_job` | 2 | pip-audit security scanning |
-| `ci.coverage_upload` | 2 | Coveralls or Codecov upload |
 | `ci.trusted_publishing` | 2 | OIDC Trusted Publishing without API token fallback |
 | `ci.dependabot` | 2 | `.github/dependabot.yml` configured |
 
