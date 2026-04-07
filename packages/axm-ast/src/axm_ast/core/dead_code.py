@@ -218,24 +218,47 @@ def _check_override(
     cls: ClassInfo,
     pkg: PackageInfo,
 ) -> bool:
-    """Check if a method overrides a *called* base class method.
+    """Check if a method overrides a base class method that is alive.
 
-    Returns ``True`` if the base method has callers (override is NOT dead).
-    Returns ``False`` if the base method is also dead or not found.
+    Searches the package for base classes of *cls* and checks whether
+    *method_name* exists on any of them. If the base method has callers,
+    the override is considered live. When a base class is external
+    (stdlib or third-party), the override is presumed live unless the
+    method is single-underscore private.
+
+    Args:
+        method_name: Name of the method to check.
+        cls: Class that defines the potential override.
+        pkg: Analyzed package used for base-class and caller lookup.
+
+    Returns:
+        ``True`` if the override is live (has callers or overrides an
+        external base); ``False`` otherwise.
     """
     from axm_ast.core.callers import find_callers
 
+    found_bases: set[str] = set()
     for base_name in cls.bases:
         # Find the base class in the package.
         for mod in pkg.modules:
             for other_cls in mod.classes:
                 if other_cls.name == base_name:
+                    found_bases.add(base_name)
                     # Check if the base class has this method.
                     for base_method in other_cls.methods:
                         if base_method.name == method_name:
                             # Base has the method — check if it's called.
                             callers = find_callers(pkg, method_name)
                             return len(callers) > 0
+
+    # Bases not found in package are external (stdlib/third-party).
+    # Methods overriding external bases are presumed live, unless private.
+    external_bases = set(cls.bases) - found_bases
+    if external_bases:
+        is_private = method_name.startswith("_") and not method_name.startswith("__")
+        if not is_private:
+            return True
+
     return False
 
 
@@ -510,7 +533,21 @@ def _scan_methods(
     pkg: PackageInfo,
     ctx: _ScanContext,
 ) -> list[DeadSymbol]:
-    """Scan methods of *cls* and return dead symbols."""
+    """Scan methods of *cls* and return those that appear dead.
+
+    Iterates over all methods, skipping exempt ones, entry-point
+    registered ones, and those with callers. Methods that override a
+    live base-class method are also kept alive.
+
+    Args:
+        cls: Class whose methods are scanned.
+        mod: Module containing *cls*.
+        pkg: Analyzed package for caller lookup.
+        ctx: Shared scan context (entry points, references, test package).
+
+    Returns:
+        List of dead method symbols found on *cls*.
+    """
     from axm_ast.core.callers import find_callers
 
     dead: list[DeadSymbol] = []
