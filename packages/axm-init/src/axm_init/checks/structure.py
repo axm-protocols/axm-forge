@@ -10,6 +10,27 @@ from axm_init.models.check import CheckResult
 logger = logging.getLogger(__name__)
 
 
+def _find_packages(src: Path) -> list[Path]:
+    """Find top-level packages under *src/*.
+
+    Handles both flat packages (``src/pkg/__init__.py``) and namespace
+    packages (``src/ns/pkg/__init__.py`` with no ``src/ns/__init__.py``).
+
+    Returns the list of directories that contain ``__init__.py`` and whose
+    parent chain back to *src* contains no other ``__init__.py``.
+    """
+    all_pkg_dirs = {p.parent for p in src.rglob("__init__.py")}
+    return [
+        d
+        for d in all_pkg_dirs
+        if not any(
+            (src / ancestor) in all_pkg_dirs
+            for ancestor in d.relative_to(src).parents
+            if ancestor != Path(".")
+        )
+    ]
+
+
 def check_src_layout(project: Path) -> CheckResult:
     """Check 24: src/<pkg>/ layout with __init__.py."""
     src = project / "src"
@@ -23,18 +44,7 @@ def check_src_layout(project: Path) -> CheckResult:
             details=["Expected: src/<package_name>/__init__.py"],
             fix="Migrate to src/ layout: move package into src/<package_name>/.",
         )
-    # Find top-level packages: dirs with __init__.py whose parent chain
-    # back to src/ contains no other __init__.py (handles namespace packages).
-    all_pkg_dirs = {p.parent for p in src.rglob("__init__.py")}
-    packages = [
-        d
-        for d in all_pkg_dirs
-        if not any(
-            (src / ancestor) in all_pkg_dirs
-            for ancestor in d.relative_to(src).parents
-            if ancestor != Path(".")
-        )
-    ]
+    packages = _find_packages(src)
     if not packages:
         return CheckResult(
             name="structure.src_layout",
@@ -70,7 +80,7 @@ def check_py_typed(project: Path) -> CheckResult:
             details=[],
             fix="Create src/<package_name>/py.typed marker file.",
         )
-    packages = [d for d in src.iterdir() if d.is_dir() and (d / "__init__.py").exists()]
+    packages = _find_packages(src)
     for pkg in packages:
         if (pkg / "py.typed").exists():
             return CheckResult(
