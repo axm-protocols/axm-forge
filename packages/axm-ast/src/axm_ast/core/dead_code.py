@@ -418,6 +418,102 @@ def _collect_import_names(children: list[object], refs: set[str]) -> None:
                 refs.add(name)
 
 
+def _extract_lazy_namespace_names(mod: ModuleInfo) -> set[str]:
+    """Extract potential namespace module names from lazy imports.
+
+    Scans function bodies for ``from pkg import name`` patterns where
+    *name* might be a sibling module used as a namespace.  Unlike
+    :func:`_extract_lazy_imports` this also captures names wrapped in
+    ``dotted_name`` nodes (tree-sitter represents ``from X import mod``
+    with a ``dotted_name`` child for *mod*).
+
+    Args:
+        mod: Parsed module info (with path to source).
+
+    Returns:
+        Set of imported names that may correspond to namespace modules.
+    """
+    from axm_ast.core.parser import parse_source
+
+    try:
+        source = mod.path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return set()
+
+    tree = parse_source(source)
+    refs: set[str] = set()
+    _visit_lazy_namespace_imports(tree.root_node, refs, depth=0)
+    return refs
+
+
+def _visit_lazy_namespace_imports(
+    node: object,
+    refs: set[str],
+    *,
+    depth: int,
+) -> None:
+    """Recursively find import-from names inside function bodies."""
+    node_type = getattr(node, "type", "")
+    children = getattr(node, "children", None) or []
+
+    if node_type in ("function_definition", "decorated_definition"):
+        depth += 1
+
+    if depth > 0 and node_type == "import_from_statement":
+        _collect_namespace_import_names(children, refs)
+
+    for child in children:
+        _visit_lazy_namespace_imports(child, refs, depth=depth)
+
+
+def _first_identifier_in_node(node: object) -> str | None:
+    """Extract the first identifier text from a node or its children.
+
+    Handles both bare ``identifier`` nodes and ``dotted_name`` nodes
+    that wrap one or more identifiers.
+    """
+    node_type = getattr(node, "type", "")
+    if node_type == "identifier":
+        return _node_identifier_text(node)
+    if node_type == "dotted_name":
+        for sub in getattr(node, "children", None) or []:
+            name = _node_identifier_text(sub)
+            if name is not None:
+                return name
+    return None
+
+
+def _collect_namespace_import_names(
+    children: list[object],
+    refs: set[str],
+) -> None:
+    """Collect imported names from ``import_from_statement`` children.
+
+    Unlike :func:`_collect_import_names`, this handles ``dotted_name``
+    nodes that appear *after* the ``import`` keyword (tree-sitter wraps
+    the imported name in ``dotted_name`` when it looks like a module).
+    """
+    past_import_kw = False
+    for child in children:
+        child_type = getattr(child, "type", "")
+        if child_type == "import":
+            past_import_kw = True
+            continue
+        if not past_import_kw:
+            continue
+        if child_type == "aliased_import":
+            # First child is the original name.
+            for ac in getattr(child, "children", None) or []:
+                name = _first_identifier_in_node(ac)
+                if name is not None:
+                    refs.add(name)
+                    break
+        else:
+            name = _first_identifier_in_node(child)
+            if name is not None:
+                refs.add(name)
+
+
 def _find_tests_dir(pkg_root: Path) -> Path | None:
     """Discover a sibling ``tests/`` directory relative to package root.
 
@@ -676,6 +772,13 @@ def _find_namespace_modules(pkg: PackageInfo) -> set[Path]:
                 for name in imp.names:
                     if name in mod_stems:
                         namespace_paths.add(mod_stems[name])
+
+    # Second pass: scan function bodies for lazy namespace imports.
+    for mod in pkg.modules:
+        for name in _extract_lazy_namespace_names(mod):
+            if name in mod_stems:
+                namespace_paths.add(mod_stems[name])
+
     return namespace_paths
 
 
