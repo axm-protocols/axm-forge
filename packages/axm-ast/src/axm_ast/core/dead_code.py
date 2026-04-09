@@ -492,6 +492,39 @@ def _collect_base_class_names(pkg: PackageInfo) -> set[str]:
     return bases
 
 
+def _has_intra_module_refs(
+    cls_name: str,
+    cls_line: int,
+    mod: ModuleInfo,
+) -> bool:
+    """Check if *cls_name* is referenced within *mod* outside its definition.
+
+    Scans the module's tree-sitter AST for ``identifier`` nodes matching
+    *cls_name* that are NOT on the class definition line.  This catches
+    attribute access (``ClassName.ATTR``), type annotations
+    (``x: ClassName``), and bare-name assignments (``Alias = ClassName``).
+    """
+    from axm_ast.core.parser import parse_source
+
+    source = mod.path.read_text(encoding="utf-8")
+    tree = parse_source(source)
+
+    stack: list[object] = [tree.root_node]
+    while stack:
+        node = stack.pop()
+        if getattr(node, "type", "") == "identifier":
+            text = getattr(node, "text", b"")
+            if isinstance(text, bytes):
+                text = text.decode("utf-8")
+            if text == cls_name:
+                # Exclude the class definition line itself.
+                start_row = getattr(node, "start_point", (0,))[0]
+                if start_row != cls_line - 1:  # tree-sitter is 0-based
+                    return True
+        stack.extend(getattr(node, "children", []))
+    return False
+
+
 def _scan_classes(
     mod: ModuleInfo,
     pkg: PackageInfo,
@@ -514,7 +547,11 @@ def _scan_classes(
         has_callers = bool(find_callers(pkg, cls.name))
         if not has_callers and ctx.extra_pkg is not None:
             has_callers = bool(find_callers(ctx.extra_pkg, cls.name))
-        if not has_callers and not _is_exempt_class(cls, mod):
+        if (
+            not has_callers
+            and not _is_exempt_class(cls, mod)
+            and not _has_intra_module_refs(cls.name, cls.line_start, mod)
+        ):
             dead.append(
                 DeadSymbol(
                     name=cls.name,
