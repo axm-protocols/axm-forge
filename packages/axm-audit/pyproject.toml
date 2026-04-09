@@ -126,6 +126,10 @@ module = ["tests.*"]
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
+module = ["_registry_helpers"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = ["radon.*"]
 ignore_missing_imports = true
 
@@ -161,7 +165,7 @@ addopts = [
     "--cov-report=xml",
     "--import-mode=importlib",
 ]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 asyncio_mode = "auto"
 

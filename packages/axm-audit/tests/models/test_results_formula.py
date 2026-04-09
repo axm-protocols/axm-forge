@@ -3,31 +3,11 @@
 from __future__ import annotations
 
 import pytest
+from _registry_helpers import build_rule_category_map
 
 from axm_audit.models.results import AuditResult, CheckResult
 
-# Rule-id → scoring category mapping (must match rule implementations)
-_RULE_CATEGORY: dict[str, str] = {
-    "QUALITY_LINT": "lint",
-    "QUALITY_FORMAT": "lint",
-    "QUALITY_DIFF_SIZE": "lint",
-    "QUALITY_DEAD_CODE": "lint",
-    "QUALITY_TYPE": "type",
-    "QUALITY_COMPLEXITY": "complexity",
-    "QUALITY_SECURITY": "security",
-    "DEPS_AUDIT": "deps",
-    "DEPS_HYGIENE": "deps",
-    "QUALITY_COVERAGE": "testing",
-    "ARCH_COUPLING": "architecture",
-    "ARCH_CIRCULAR": "architecture",
-    "ARCH_GOD_CLASS": "architecture",
-    "ARCH_DUPLICATION": "architecture",
-    "PRACTICE_DOCSTRING": "practices",
-    "PRACTICE_BARE_EXCEPT": "practices",
-    "PRACTICE_SECURITY": "security",
-    "PRACTICE_BLOCKING_IO": "practices",
-    "PRACTICE_TEST_MIRROR": "practices",
-}
+_RULE_CATEGORY = build_rule_category_map()
 
 
 def _make_check(rule_id: str, score: float) -> CheckResult:
@@ -97,27 +77,7 @@ class TestQualityScore:
         Regression test: creates an AuditResult with ALL scored rules at 100,
         then verifies the score is exactly 100 (proving nothing was dropped).
         """
-        all_scored_rule_ids = [
-            "QUALITY_LINT",
-            "QUALITY_FORMAT",
-            "QUALITY_DIFF_SIZE",
-            "QUALITY_TYPE",
-            "QUALITY_DEAD_CODE",
-            "QUALITY_COMPLEXITY",
-            "QUALITY_SECURITY",
-            "DEPS_AUDIT",
-            "DEPS_HYGIENE",
-            "QUALITY_COVERAGE",
-            "ARCH_COUPLING",
-            "ARCH_CIRCULAR",
-            "ARCH_GOD_CLASS",
-            "ARCH_DUPLICATION",
-            "PRACTICE_DOCSTRING",
-            "PRACTICE_BARE_EXCEPT",
-            "PRACTICE_SECURITY",
-            "PRACTICE_BLOCKING_IO",
-        ]
-        checks = [_make_check(rid, 100) for rid in all_scored_rule_ids]
+        checks = [_make_check(rid, 100) for rid in _RULE_CATEGORY]
         result = AuditResult(checks=checks)
         assert result.quality_score == 100.0
 
@@ -127,7 +87,6 @@ class TestQualityScore:
         Safeguard: enumerate rule classes from the auto-discovery registry,
         instantiate each, and verify the category property is set and non-empty.
         """
-        import axm_audit.core.rules  # noqa: F401
         from axm_audit.core.rules.base import get_registry
 
         for category, rule_classes in get_registry().items():
@@ -148,55 +107,11 @@ class TestQualityScore:
     def test_quality_score_backward_compatible_grades(self) -> None:
         """Grade thresholds still work after adding new rules."""
         # All perfect → A
-        all_perfect = [
-            _make_check(rid, 100)
-            for rid in [
-                "QUALITY_LINT",
-                "QUALITY_FORMAT",
-                "QUALITY_DIFF_SIZE",
-                "QUALITY_TYPE",
-                "QUALITY_DEAD_CODE",
-                "QUALITY_COMPLEXITY",
-                "QUALITY_SECURITY",
-                "DEPS_AUDIT",
-                "DEPS_HYGIENE",
-                "QUALITY_COVERAGE",
-                "ARCH_COUPLING",
-                "ARCH_CIRCULAR",
-                "ARCH_GOD_CLASS",
-                "ARCH_DUPLICATION",
-                "PRACTICE_DOCSTRING",
-                "PRACTICE_BARE_EXCEPT",
-                "PRACTICE_SECURITY",
-                "PRACTICE_BLOCKING_IO",
-            ]
-        ]
+        all_perfect = [_make_check(rid, 100) for rid in _RULE_CATEGORY]
         assert AuditResult(checks=all_perfect).grade == "A"
 
         # All zero → F
-        all_zero = [
-            _make_check(rid, 0)
-            for rid in [
-                "QUALITY_LINT",
-                "QUALITY_FORMAT",
-                "QUALITY_DIFF_SIZE",
-                "QUALITY_TYPE",
-                "QUALITY_DEAD_CODE",
-                "QUALITY_COMPLEXITY",
-                "QUALITY_SECURITY",
-                "DEPS_AUDIT",
-                "DEPS_HYGIENE",
-                "QUALITY_COVERAGE",
-                "ARCH_COUPLING",
-                "ARCH_CIRCULAR",
-                "ARCH_GOD_CLASS",
-                "ARCH_DUPLICATION",
-                "PRACTICE_DOCSTRING",
-                "PRACTICE_BARE_EXCEPT",
-                "PRACTICE_SECURITY",
-                "PRACTICE_BLOCKING_IO",
-            ]
-        ]
+        all_zero = [_make_check(rid, 0) for rid in _RULE_CATEGORY]
         assert AuditResult(checks=all_zero).grade == "F"
 
     def test_category_filter_score_normalization(self) -> None:

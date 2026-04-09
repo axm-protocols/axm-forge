@@ -4,6 +4,7 @@ import ast
 from pathlib import Path
 
 import pytest
+from _registry_helpers import build_rule_category_map
 
 from axm_audit.models.results import AuditResult, CheckResult
 
@@ -11,29 +12,7 @@ from axm_audit.models.results import AuditResult, CheckResult
 # Helpers
 # ---------------------------------------------------------------------------
 
-
-# Rule-id → scoring category mapping
-_RULE_CATEGORY: dict[str, str] = {
-    "QUALITY_LINT": "lint",
-    "QUALITY_FORMAT": "lint",
-    "QUALITY_DIFF_SIZE": "lint",
-    "QUALITY_DEAD_CODE": "lint",
-    "QUALITY_TYPE": "type",
-    "QUALITY_COMPLEXITY": "complexity",
-    "QUALITY_SECURITY": "security",
-    "DEPS_AUDIT": "deps",
-    "DEPS_HYGIENE": "deps",
-    "QUALITY_COVERAGE": "testing",
-    "ARCH_COUPLING": "architecture",
-    "ARCH_CIRCULAR": "architecture",
-    "ARCH_GOD_CLASS": "architecture",
-    "ARCH_DUPLICATION": "architecture",
-    "PRACTICE_DOCSTRING": "practices",
-    "PRACTICE_BARE_EXCEPT": "practices",
-    "PRACTICE_SECURITY": "practices",
-    "PRACTICE_BLOCKING_IO": "practices",
-    "PRACTICE_TEST_MIRROR": "practices",
-}
+_RULE_CATEGORY = build_rule_category_map()
 
 
 def _make_check(rule_id: str, score: float) -> CheckResult:
@@ -284,10 +263,14 @@ class TestScoringWeights:
             _make_check("DEPS_AUDIT", 100),
             _make_check("QUALITY_COVERAGE", 100),
             _make_check("ARCH_COUPLING", 100),
-            _make_check("PRACTICE_DOCSTRING", 0),  # avg(0,100,100)=66.7 * 5%
+            _make_check("PRACTICE_DOCSTRING", 0),  # practices: avg(0,100)=50 * 5%
             _make_check("PRACTICE_BARE_EXCEPT", 100),
-            _make_check("PRACTICE_SECURITY", 100),
+            _make_check("PRACTICE_SECURITY", 100),  # registry: security category
         ]
         result = AuditResult(checks=checks)
-        # 95% at 100 + 5% at 66.7 = 95 + 3.3 = 98.3
-        assert result.quality_score == pytest.approx(98.3, abs=0.1)
+        # PRACTICE_SECURITY is registered under "security" (not "practices")
+        # security: avg(100,100)=100 * 10% = 10
+        # practices: avg(0,100)=50 * 5% = 2.5
+        # others at 100 = 85
+        # Total: 85 + 10 + 2.5 = 97.5
+        assert result.quality_score == pytest.approx(97.5, abs=0.1)
