@@ -747,6 +747,95 @@ class TestDiffSizeRule:
         assert max_lines == 1200
 
 
+class TestParseMypyErrors:
+    """Tests for TypeCheckRule._parse_mypy_errors — non-dict JSON handling."""
+
+    def test_parse_mypy_errors_string_json(self) -> None:
+        """String JSON line should be skipped, returns (0, [])."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        stdout = '"some status string"\n'
+        count, errors = TypeCheckRule._parse_mypy_errors(stdout)
+        assert count == 0
+        assert errors == []
+
+    def test_parse_mypy_errors_list_json(self) -> None:
+        """List JSON line should be skipped, returns (0, [])."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        stdout = '["a", "b"]\n'
+        count, errors = TypeCheckRule._parse_mypy_errors(stdout)
+        assert count == 0
+        assert errors == []
+
+    def test_parse_mypy_errors_valid_error(self) -> None:
+        """Valid mypy error JSON dict should be parsed correctly."""
+        import json
+
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        entry = {
+            "severity": "error",
+            "file": "src/main.py",
+            "line": 10,
+            "message": "Incompatible return type",
+            "code": "return-value",
+        }
+        stdout = json.dumps(entry) + "\n"
+        count, errors = TypeCheckRule._parse_mypy_errors(stdout)
+        assert count == 1
+        assert len(errors) == 1
+        assert errors[0]["file"] == "src/main.py"
+        assert errors[0]["line"] == 10
+        assert errors[0]["message"] == "Incompatible return type"
+        assert errors[0]["code"] == "return-value"
+
+    def test_parse_mypy_errors_mixed(self) -> None:
+        """Mixed stdout: skips string line, parses valid error."""
+        import json
+
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        error_entry = {
+            "severity": "error",
+            "file": "src/bad.py",
+            "line": 5,
+            "message": "Type mismatch",
+            "code": "assignment",
+        }
+        stdout = '"some status string"\n' + json.dumps(error_entry) + "\n"
+        count, errors = TypeCheckRule._parse_mypy_errors(stdout)
+        assert count == 1
+        assert len(errors) == 1
+        assert errors[0]["file"] == "src/bad.py"
+
+    def test_parse_mypy_errors_empty_stdout(self) -> None:
+        """Empty stdout returns (0, [])."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        count, errors = TypeCheckRule._parse_mypy_errors("")
+        assert count == 0
+        assert errors == []
+
+    def test_parse_mypy_errors_integer_json(self) -> None:
+        """Integer JSON line should be skipped."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        stdout = "42\n"
+        count, errors = TypeCheckRule._parse_mypy_errors(stdout)
+        assert count == 0
+        assert errors == []
+
+    def test_parse_mypy_errors_null_json(self) -> None:
+        """Null JSON line should be skipped."""
+        from axm_audit.core.rules.quality import TypeCheckRule
+
+        stdout = "null\n"
+        count, errors = TypeCheckRule._parse_mypy_errors(stdout)
+        assert count == 0
+        assert errors == []
+
+
 class TestGetAuditTargets:
     """Tests for _get_audit_targets() helper (AXM-203)."""
 

@@ -245,6 +245,8 @@ class TypeCheckRule(ProjectRule):
                 entry = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if not isinstance(entry, dict):
+                continue
             if entry.get("severity") != "error":
                 continue
             error_count += 1
