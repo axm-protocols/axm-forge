@@ -97,7 +97,7 @@ Business logic independent of I/O:
 
 | Module | Category | # Checks |
 |---|---|---|
-| `_utils.py` | *(internal)* | Shared utilities: `_load_toml` for TOML parsing, `@requires_toml` decorator that loads `pyproject.toml` once and short-circuits with a failure if missing. For workspace members, `_load_toml_with_workspace_fallback` merges the workspace root's tool sections as a base layer (member overrides per top-level tool key via `_merge_tool_sections`) |
+| `_utils.py` | *(internal)* | Shared utilities: `_load_toml` for TOML parsing, `@requires_toml` decorator that loads `pyproject.toml` once and short-circuits with a failure if missing. For workspace members, `_load_toml_with_workspace_fallback` deep-merges the workspace root's tool sections as a base layer — `_merge_tool_sections` uses `_deep_merge` to recursively merge nested dicts (member wins on conflicts; lists and non-dict values are replaced, not merged) |
 | `pyproject.py` | pyproject | 9 |
 | `ci.py` | CI | 7 |
 | `tooling.py` | tooling | 7 |

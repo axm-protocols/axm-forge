@@ -30,24 +30,38 @@ def _load_toml(project: Path) -> dict[str, Any] | None:
         return None
 
 
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge *override* into *base*; override wins on conflicts.
+
+    Only ``dict`` values are merged recursively.  All other types (lists,
+    strings, bools, …) are replaced wholesale by the override value.
+    """
+    merged = dict(base)
+    for key, value in override.items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
 def _merge_tool_sections(
     base: dict[str, Any],
     override: dict[str, Any],
 ) -> dict[str, Any]:
-    """Deep-merge tool sections: *override* wins at the leaf-dict level.
+    """Deep-merge tool sections: *override* wins at leaf level.
 
-    For each top-level tool (ruff, mypy, …), if the override defines that
-    tool section, its entire sub-tree replaces the base.  Otherwise the
-    base value is kept.  Non-tool keys always come from *override*.
+    For each tool key (ruff, mypy, coverage, …), nested dicts are merged
+    recursively so that both root and member settings are preserved.
+    Non-dict values use the override if present, else the base.
+    Non-tool keys always come from *override*.
     """
     merged = dict(override)
     base_tool = base.get("tool", {})
     override_tool = override.get("tool", {})
     if not base_tool:
         return merged
-    combined_tool = dict(base_tool)
-    for key, value in override_tool.items():
-        combined_tool[key] = value
+    combined_tool = _deep_merge(base_tool, override_tool)
     merged["tool"] = combined_tool
     return merged
 
