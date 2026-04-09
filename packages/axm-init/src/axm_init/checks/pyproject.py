@@ -123,6 +123,9 @@ def check_pyproject_dynamic_version(project: Path, data: dict[str, Any]) -> Chec
     )
 
 
+STRICT_IMPLIES = {"disallow_incomplete_defs", "check_untyped_defs"}
+
+
 @requires_toml(
     check_name="pyproject.mypy",
     category="pyproject",
@@ -139,6 +142,10 @@ def check_pyproject_mypy(project: Path, data: dict[str, Any]) -> CheckResult:
         "check_untyped_defs": True,
     }
     missing = [k for k, v in required.items() if mypy.get(k) != v]
+    if mypy.get("strict") is True:
+        missing = [
+            k for k in missing if k not in STRICT_IMPLIES or mypy.get(k) is False
+        ]
     present = [k for k in required if k not in missing]
     if missing:
         return CheckResult(
