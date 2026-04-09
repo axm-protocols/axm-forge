@@ -18,7 +18,6 @@ from axm_audit.core.rules.practices import (
     BareExceptRule,
     BlockingIORule,
     DocstringCoverageRule,
-    LoggingPresenceRule,
     SecurityPatternRule,
     TestMirrorRule,
 )
@@ -47,7 +46,6 @@ __all__ = [
     "FormattingRule",
     "GodClassRule",
     "LintingRule",
-    "LoggingPresenceRule",
     "ProjectRule",
     "PyprojectCompletenessRule",
     "SecurityPatternRule",

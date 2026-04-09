@@ -36,7 +36,6 @@ class TestRulesRegistration:
             "PRACTICE_BARE_EXCEPT",
             "PRACTICE_SECURITY",
             "PRACTICE_BLOCKING_IO",
-            "PRACTICE_LOGGING",
         ],
     )
     def test_rule_exists_and_functional(
@@ -57,7 +56,7 @@ class TestRulesRegistration:
         rules = get_rules_for_category(None)
         rule_ids = {r.rule_id for r in rules}
 
-        # 18 non-tooling rule IDs + 3 tooling = 21 total entries
+        # 17 non-tooling rule IDs + 3 tooling = 20 total entries
         expected_non_tooling = {
             "STRUCTURE_PYPROJECT",
             "QUALITY_LINT",
@@ -77,7 +76,6 @@ class TestRulesRegistration:
             "PRACTICE_BARE_EXCEPT",
             "PRACTICE_SECURITY",
             "PRACTICE_BLOCKING_IO",
-            "PRACTICE_LOGGING",
         }
         assert expected_non_tooling.issubset(rule_ids), (
             f"Missing rules: {expected_non_tooling - rule_ids}"
@@ -87,14 +85,14 @@ class TestRulesRegistration:
         assert len(tooling_ids) >= 3
 
     def test_category_filter_includes_new_rules(self) -> None:
-        """Practices category includes BlockingIORule and LoggingPresenceRule."""
+        """Practices category includes BlockingIORule but not LoggingPresenceRule."""
         from axm_audit import get_rules_for_category
 
         practice_rules = get_rules_for_category("practices")
         rule_ids = {r.rule_id for r in practice_rules}
 
         assert "PRACTICE_BLOCKING_IO" in rule_ids
-        assert "PRACTICE_LOGGING" in rule_ids
+        assert "PRACTICE_LOGGING" not in rule_ids
         assert "PRACTICE_DOCSTRING" in rule_ids
 
     def test_quick_mode_skips_new_rules(self) -> None:
@@ -203,7 +201,7 @@ class TestRuleRegistryDeduplication:
             ("deps", 2),
             ("testing", 1),
             ("architecture", 4),
-            ("practices", 5),
+            ("practices", 4),
             ("structure", 1),
             ("tooling", 3),
         ],
