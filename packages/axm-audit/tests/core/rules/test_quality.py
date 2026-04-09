@@ -432,7 +432,6 @@ class TestAuditResultScoring:
         "PRACTICE_BARE_EXCEPT": "practices",
         "PRACTICE_SECURITY": "practices",
         "PRACTICE_BLOCKING_IO": "practices",
-        "PRACTICE_LOGGING": "practices",
         "PRACTICE_TEST_MIRROR": "practices",
     }
 

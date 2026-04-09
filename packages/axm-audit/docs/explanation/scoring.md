@@ -124,12 +124,11 @@ Average of four sub-scores:
 
 ### Practices Score
 
-Average of five sub-scores:
+Average of four sub-scores:
 
 - **Docstring coverage**: `int(coverage_pct × 100)`
 - **Bare excepts**: `max(0, 100 − count × 20)`
 - **Blocking I/O**: `max(0, 100 − count × 15)` — detects `time.sleep` in async contexts and HTTP calls without `timeout` parameter
-- **Logging presence**: `int(coverage_pct × 100)`
 - **Test mirroring**: `max(0, 100 − missing_count × 15)`
 
 ## Grading Scale

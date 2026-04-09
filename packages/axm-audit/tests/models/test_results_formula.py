@@ -26,7 +26,6 @@ _RULE_CATEGORY: dict[str, str] = {
     "PRACTICE_BARE_EXCEPT": "practices",
     "PRACTICE_SECURITY": "security",
     "PRACTICE_BLOCKING_IO": "practices",
-    "PRACTICE_LOGGING": "practices",
     "PRACTICE_TEST_MIRROR": "practices",
 }
 
@@ -65,7 +64,6 @@ class TestQualityScore:
             _make_check("PRACTICE_BARE_EXCEPT", 100),
             _make_check("PRACTICE_SECURITY", 100),
             _make_check("PRACTICE_BLOCKING_IO", 100),
-            _make_check("PRACTICE_LOGGING", 100),
         ]
 
         result = AuditResult(checks=checks)
@@ -118,7 +116,6 @@ class TestQualityScore:
             "PRACTICE_BARE_EXCEPT",
             "PRACTICE_SECURITY",
             "PRACTICE_BLOCKING_IO",
-            "PRACTICE_LOGGING",
         ]
         checks = [_make_check(rid, 100) for rid in all_scored_rule_ids]
         result = AuditResult(checks=checks)
@@ -172,7 +169,6 @@ class TestQualityScore:
                 "PRACTICE_BARE_EXCEPT",
                 "PRACTICE_SECURITY",
                 "PRACTICE_BLOCKING_IO",
-                "PRACTICE_LOGGING",
             ]
         ]
         assert AuditResult(checks=all_perfect).grade == "A"
@@ -199,7 +195,6 @@ class TestQualityScore:
                 "PRACTICE_BARE_EXCEPT",
                 "PRACTICE_SECURITY",
                 "PRACTICE_BLOCKING_IO",
-                "PRACTICE_LOGGING",
             ]
         ]
         assert AuditResult(checks=all_zero).grade == "F"
@@ -245,7 +240,6 @@ class TestQualityScore:
             _make_check("PRACTICE_BARE_EXCEPT", 100),
             _make_check("PRACTICE_SECURITY", 100),
             _make_check("PRACTICE_BLOCKING_IO", 100),
-            _make_check("PRACTICE_LOGGING", 100),
         ]
         result = AuditResult(checks=checks)
         # weight_sum=1.0 so total/weight_sum == total → same as before

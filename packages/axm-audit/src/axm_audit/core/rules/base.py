@@ -90,7 +90,7 @@ def get_registry() -> dict[str, list[type[ProjectRule]]]:
 # │ PRACTICE_BLOCKING_IO│ 15      │ per blocking I/O call    │
 # │                     │         │ (time.sleep in async +   │
 # │                     │         │  HTTP without timeout)   │
-# │ PRACTICE_LOGGING    │ ratio   │ logging coverage %       │
+
 # │ PRACTICE_TEST_MIRROR│ 15      │ per untested module      │
 # │ STRUCTURE_PYPROJECT │ binary  │ field presence checks    │
 # └─────────────────────┴─────────┴──────────────────────────┘

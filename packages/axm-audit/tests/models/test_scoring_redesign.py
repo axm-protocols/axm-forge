@@ -31,7 +31,6 @@ class TestScoringRedesign:
         "PRACTICE_BARE_EXCEPT": "practices",
         "PRACTICE_SECURITY": "practices",
         "PRACTICE_BLOCKING_IO": "practices",
-        "PRACTICE_LOGGING": "practices",
         "PRACTICE_TEST_MIRROR": "practices",
     }
 
@@ -67,7 +66,6 @@ class TestScoringRedesign:
             self._make_check("PRACTICE_BARE_EXCEPT", score),
             self._make_check("PRACTICE_SECURITY", score),
             self._make_check("PRACTICE_BLOCKING_IO", score),
-            self._make_check("PRACTICE_LOGGING", score),
         ]
 
     def test_all_perfect_scores_100(self) -> None:
@@ -100,7 +98,6 @@ class TestScoringRedesign:
                 self._make_check("PRACTICE_BARE_EXCEPT", 100),
                 self._make_check("PRACTICE_SECURITY", 100),
                 self._make_check("PRACTICE_BLOCKING_IO", 100),
-                self._make_check("PRACTICE_LOGGING", 100),
             ]
         )
         # lint: avg(80,100,100)=93.33 * 0.20 = 18.67

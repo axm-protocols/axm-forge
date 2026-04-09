@@ -13,7 +13,7 @@ Focus your audit on specific areas instead of running all checks.
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | Supply chain (pip-audit, deptry) |
 | `testing` | `TestCoverageRule` | Coverage enforcement (pytest-cov) |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | Structural analysis (AST) |
-| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `LoggingPresenceRule`, `TestMirrorRule` | Best practices |
+| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `SecurityPatternRule`, `TestMirrorRule` | Best practices |
 | `structure` | `PyprojectCompletenessRule` | pyproject.toml completeness |
 | `tooling` | `ToolAvailabilityRule` | CLI tool availability |
 

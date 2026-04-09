@@ -39,7 +39,7 @@ Both return typed Pydantic models for safe agent consumption.
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
-| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `LoggingPresenceRule`, `TestMirrorRule` | 5 |
+| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `SecurityPatternRule`, `TestMirrorRule` | 5 |
 | `structure` | `PyprojectCompletenessRule` | 1 |
 | `tooling` | `ToolAvailabilityRule` | 3 instances |
 
