@@ -451,6 +451,7 @@ class _ScanContext(NamedTuple):
     entry_points: set[str]
     all_refs: set[str]
     extra_pkg: PackageInfo | None
+    namespace_modules: set[Path]
 
 
 def _scan_functions(
@@ -463,6 +464,7 @@ def _scan_functions(
 
     dead: list[DeadSymbol] = []
     mod_path = str(mod.path)
+    is_namespace = mod.path in ctx.namespace_modules
     for fn in mod.functions:
         if _is_exempt_function(fn, mod):
             continue
@@ -471,6 +473,10 @@ def _scan_functions(
         if find_callers(pkg, fn.name):
             continue
         if ctx.extra_pkg is not None and find_callers(ctx.extra_pkg, fn.name):
+            continue
+        # Public functions in namespace-imported modules are potentially
+        # called via dynamic attribute access (e.g. mod.func()).
+        if is_namespace and not fn.name.startswith("_"):
             continue
         dead.append(
             DeadSymbol(
@@ -641,6 +647,38 @@ def _gather_all_refs(
     return all_refs
 
 
+def _find_namespace_modules(pkg: PackageInfo) -> set[Path]:
+    """Find modules that are imported as namespace objects somewhere in *pkg*.
+
+    A module is considered a "namespace import" when it appears as:
+    - ``from pkg import mod`` where *mod* resolves to a module file
+    - ``import pkg.mod`` (bare module import)
+
+    Public symbols in such modules may be accessed via attribute access
+    (``mod.func()``) and would not show up in a direct caller search.
+    """
+    namespace_paths: set[Path] = set()
+    # Build lookup: stem → path for all modules in the package.
+    mod_stems: dict[str, Path] = {}
+    for mod in pkg.modules:
+        mod_stems[mod.path.stem] = mod.path
+
+    for mod in pkg.modules:
+        for imp in mod.imports:
+            if not imp.names:
+                # Bare ``import X.Y.mod`` — module is the leaf.
+                if imp.module is not None:
+                    leaf = imp.module.rsplit(".", 1)[-1]
+                    if leaf in mod_stems:
+                        namespace_paths.add(mod_stems[leaf])
+            else:
+                # ``from X import name`` — check if *name* is a module.
+                for name in imp.names:
+                    if name in mod_stems:
+                        namespace_paths.add(mod_stems[name])
+    return namespace_paths
+
+
 def find_dead_code(
     pkg: PackageInfo,
     *,
@@ -678,10 +716,13 @@ def find_dead_code(
     for ep in find_entry_points(pkg):
         entry_points.add(ep.name)
 
+    namespace_modules = _find_namespace_modules(pkg)
+
     ctx = _ScanContext(
         entry_points=entry_points,
         all_refs=all_refs,
         extra_pkg=test_pkg,
+        namespace_modules=namespace_modules,
     )
 
     for mod in pkg.modules:
