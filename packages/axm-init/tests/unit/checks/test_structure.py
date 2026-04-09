@@ -31,6 +31,46 @@ class TestCheckSrcLayout:
         r = check_src_layout(tmp_path)
         assert r.passed is False
 
+    def test_pass_flat_package(self, tmp_path: Path) -> None:
+        """Standard flat package: src/pkg/__init__.py -> PASS, 1 package."""
+        (tmp_path / "src" / "pkg").mkdir(parents=True)
+        (tmp_path / "src" / "pkg" / "__init__.py").touch()
+        r = check_src_layout(tmp_path)
+        assert r.passed is True
+        assert "1 package" in r.message
+
+    def test_pass_namespace_package(self, tmp_path: Path) -> None:
+        """Namespace package: src/ns/pkg/__init__.py (no src/ns/__init__.py) -> PASS, 1 package."""
+        (tmp_path / "src" / "ns" / "pkg").mkdir(parents=True)
+        (tmp_path / "src" / "ns" / "pkg" / "__init__.py").touch()
+        r = check_src_layout(tmp_path)
+        assert r.passed is True
+        assert "1 package" in r.message
+
+    def test_fail_empty_src(self, tmp_path: Path) -> None:
+        """src/ exists but empty -> FAIL."""
+        (tmp_path / "src").mkdir()
+        r = check_src_layout(tmp_path)
+        assert r.passed is False
+        assert "No Python package found" in r.message
+
+    def test_pass_mixed_layout(self, tmp_path: Path) -> None:
+        """Mixed: flat pkg + namespace-nested pkg -> PASS, 2 packages."""
+        (tmp_path / "src" / "flat_pkg").mkdir(parents=True)
+        (tmp_path / "src" / "flat_pkg" / "__init__.py").touch()
+        (tmp_path / "src" / "ns" / "nested").mkdir(parents=True)
+        (tmp_path / "src" / "ns" / "nested" / "__init__.py").touch()
+        r = check_src_layout(tmp_path)
+        assert r.passed is True
+        assert "2 package" in r.message
+
+    def test_pass_deep_namespace(self, tmp_path: Path) -> None:
+        """Deep namespace: src/a/b/c/__init__.py -> PASS."""
+        (tmp_path / "src" / "a" / "b" / "c").mkdir(parents=True)
+        (tmp_path / "src" / "a" / "b" / "c" / "__init__.py").touch()
+        r = check_src_layout(tmp_path)
+        assert r.passed is True
+
 
 class TestCheckPyTyped:
     def test_pass(self, gold_project: Path) -> None:
