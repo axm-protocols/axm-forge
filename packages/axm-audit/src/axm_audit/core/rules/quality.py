@@ -232,7 +232,11 @@ class TypeCheckRule(ProjectRule):
     def _parse_mypy_errors(
         stdout: str,
     ) -> tuple[int, list[dict[str, str | int]]]:
-        """Parse mypy JSON output and extract errors."""
+        """Parse mypy JSON output and extract errors.
+
+        Non-dict JSON lines (strings, arrays, ints, nulls) emitted by
+        ``mypy --output json`` are silently skipped.
+        """
         error_count = 0
         errors: list[dict[str, str | int]] = []
         if not stdout.strip():

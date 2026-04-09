@@ -748,7 +748,10 @@ class TestDiffSizeRule:
 
 
 class TestParseMypyErrors:
-    """Tests for TypeCheckRule._parse_mypy_errors — non-dict JSON handling."""
+    """Tests for _parse_mypy_errors — non-dict JSON handling.
+
+    Ref: AXM-1220.
+    """
 
     def test_parse_mypy_errors_string_json(self) -> None:
         """String JSON line should be skipped, returns (0, [])."""
