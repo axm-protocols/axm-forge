@@ -32,7 +32,7 @@
 - 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry)
 - 🧪 **Testing** — Coverage enforcement via pytest-cov
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
-- 📐 **Practices** — Docstring coverage, bare except detection, hardcoded secrets, blocking I/O, logging presence, test mirroring
+- 📐 **Practices** — Docstring coverage, bare except detection, hardcoded secrets, blocking I/O, test mirroring
 - 🔧 **Tooling** — CLI tool availability checks
 - 📈 **Composite Scoring** — Weighted 10-category 0–100 score with A–F grade
 
@@ -122,7 +122,7 @@ See the [MCP how-to guide](https://forge.axm-protocols.io/audit/howto/mcp/) for 
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
-| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `LoggingPresenceRule`, `TestMirrorRule` | 5 |
+| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `SecurityPatternRule`, `TestMirrorRule` | 5 |
 | `structure` | `PyprojectCompletenessRule` | 1 |
 | `tooling` | `ToolAvailabilityRule` | 3 |
 
