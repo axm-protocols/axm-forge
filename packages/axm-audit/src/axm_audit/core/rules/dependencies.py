@@ -123,6 +123,73 @@ class DependencyAuditRule(ProjectRule):
         )
 
 
+_FLAT_LAYOUT_EXCLUDES = {
+    "tests",
+    "test",
+    "docs",
+    "doc",
+    ".venv",
+    "venv",
+    ".tox",
+    ".nox",
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "__pycache__",
+    "build",
+    "dist",
+    "examples",
+    "experiments",
+    ".eggs",
+    "node_modules",
+}
+
+
+def _detect_first_party_packages(project_path: Path) -> list[str]:
+    """Auto-detect first-party package names from project layout.
+
+    Scans ``src/`` for top-level package directories (including namespace
+    packages). Falls back to scanning the project root when no ``src/``
+    directory exists.
+
+    Returns an empty list if ``[tool.deptry] known_first_party`` is already
+    configured in ``pyproject.toml`` — deptry's own config takes precedence.
+    """
+    pyproject = project_path / "pyproject.toml"
+    if pyproject.exists():
+        try:
+            import tomllib
+
+            data = tomllib.loads(pyproject.read_text())
+            if data.get("tool", {}).get("deptry", {}).get("known_first_party"):
+                return []
+        except Exception:  # noqa: BLE001
+            logger.debug("Failed to parse %s", pyproject, exc_info=True)
+
+    src_dir = project_path / "src"
+    if src_dir.is_dir():
+        scan_root = src_dir
+        exclude = {"__pycache__"}
+    else:
+        scan_root = project_path
+        exclude = _FLAT_LAYOUT_EXCLUDES
+
+    packages: list[str] = []
+    for entry in sorted(scan_root.iterdir()):
+        if not entry.is_dir() or (
+            entry.name.startswith(".") and entry.name not in exclude
+        ):
+            continue
+        if entry.name in exclude:
+            continue
+        # Accept directories that are packages (have __init__.py) or
+        # namespace packages (contain subdirectories with __init__.py)
+        packages.append(entry.name)
+
+    return packages
+
+
 def _run_deptry(project_path: Path) -> list[dict[str, Any]]:
     """Run deptry and return parsed JSON issues.
 
@@ -135,9 +202,14 @@ def _run_deptry(project_path: Path) -> list[dict[str, Any]]:
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
         tmp_path = Path(tmp.name)
 
+    first_party = _detect_first_party_packages(project_path)
+    cmd = ["deptry", ".", "--json-output", str(tmp_path)]
+    for pkg in first_party:
+        cmd.extend(["--known-first-party", pkg])
+
     try:
         result = run_in_project(
-            ["deptry", ".", "--json-output", str(tmp_path)],
+            cmd,
             project_path,
             with_packages=["deptry"],
             capture_output=True,
