@@ -30,6 +30,52 @@ def _load_toml(project: Path) -> dict[str, Any] | None:
         return None
 
 
+def _merge_tool_sections(
+    base: dict[str, Any],
+    override: dict[str, Any],
+) -> dict[str, Any]:
+    """Deep-merge tool sections: *override* wins at the leaf-dict level.
+
+    For each top-level tool (ruff, mypy, …), if the override defines that
+    tool section, its entire sub-tree replaces the base.  Otherwise the
+    base value is kept.  Non-tool keys always come from *override*.
+    """
+    merged = dict(override)
+    base_tool = base.get("tool", {})
+    override_tool = override.get("tool", {})
+    if not base_tool:
+        return merged
+    combined_tool = dict(base_tool)
+    for key, value in override_tool.items():
+        combined_tool[key] = value
+    merged["tool"] = combined_tool
+    return merged
+
+
+def _load_toml_with_workspace_fallback(project: Path) -> dict[str, Any] | None:
+    """Load pyproject.toml, merging workspace root tool sections for members.
+
+    When *project* is a UV workspace member, the workspace root's tool
+    sections are used as a base layer.  The member's own tool sections
+    override on top (per top-level tool key).
+    """
+    from axm_init.checks._workspace import find_workspace_root
+
+    data = _load_toml(project)
+    if data is None:
+        return None
+
+    workspace_root = find_workspace_root(project)
+    if workspace_root is None or workspace_root == project:
+        return data
+
+    root_data = _load_toml(workspace_root)
+    if root_data is None:
+        return data
+
+    return _merge_tool_sections(root_data, data)
+
+
 def requires_toml(
     check_name: str,
     category: str,
@@ -63,7 +109,7 @@ def requires_toml(
         @functools.wraps(fn)
         def wrapper(project: Path) -> CheckResult:
             """Load TOML then delegate to the wrapped check."""
-            data = _load_toml(project)
+            data = _load_toml_with_workspace_fallback(project)
             if data is None:
                 return CheckResult(
                     name=check_name,
