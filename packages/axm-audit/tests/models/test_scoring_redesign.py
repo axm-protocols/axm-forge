@@ -2,37 +2,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
+
+from _registry_helpers import build_rule_category_map
 
 if TYPE_CHECKING:
     from axm_audit.models.results import CheckResult
 
+_RULE_CATEGORY = build_rule_category_map()
+
 
 class TestScoringRedesign:
     """Tests for the 8-category quality_score redesign."""
-
-    # Rule-id → scoring category mapping
-    _RULE_CATEGORY: ClassVar[dict[str, str]] = {
-        "QUALITY_LINT": "lint",
-        "QUALITY_FORMAT": "lint",
-        "QUALITY_DIFF_SIZE": "lint",
-        "QUALITY_DEAD_CODE": "lint",
-        "QUALITY_TYPE": "type",
-        "QUALITY_COMPLEXITY": "complexity",
-        "QUALITY_SECURITY": "security",
-        "DEPS_AUDIT": "deps",
-        "DEPS_HYGIENE": "deps",
-        "QUALITY_COVERAGE": "testing",
-        "ARCH_COUPLING": "architecture",
-        "ARCH_CIRCULAR": "architecture",
-        "ARCH_GOD_CLASS": "architecture",
-        "ARCH_DUPLICATION": "architecture",
-        "PRACTICE_DOCSTRING": "practices",
-        "PRACTICE_BARE_EXCEPT": "practices",
-        "PRACTICE_SECURITY": "practices",
-        "PRACTICE_BLOCKING_IO": "practices",
-        "PRACTICE_TEST_MIRROR": "practices",
-    }
 
     def _make_check(self, rule_id: str, score: float) -> CheckResult:
         """Helper to create a CheckResult with a score and category."""
@@ -43,30 +24,12 @@ class TestScoringRedesign:
             passed=True,
             message="",
             details={"score": score},
-            category=self._RULE_CATEGORY.get(rule_id),
+            category=_RULE_CATEGORY.get(rule_id),
         )
 
     def _all_categories(self, score: float) -> list[CheckResult]:
         """Create checks for all scored categories at a given score."""
-        return [
-            self._make_check("QUALITY_LINT", score),
-            self._make_check("QUALITY_FORMAT", score),
-            self._make_check("QUALITY_DIFF_SIZE", score),
-            self._make_check("QUALITY_TYPE", score),
-            self._make_check("QUALITY_COMPLEXITY", score),
-            self._make_check("QUALITY_SECURITY", score),
-            self._make_check("DEPS_AUDIT", score),
-            self._make_check("DEPS_HYGIENE", score),
-            self._make_check("QUALITY_COVERAGE", score),
-            self._make_check("ARCH_COUPLING", score),
-            self._make_check("ARCH_CIRCULAR", score),
-            self._make_check("ARCH_GOD_CLASS", score),
-            self._make_check("ARCH_DUPLICATION", score),
-            self._make_check("PRACTICE_DOCSTRING", score),
-            self._make_check("PRACTICE_BARE_EXCEPT", score),
-            self._make_check("PRACTICE_SECURITY", score),
-            self._make_check("PRACTICE_BLOCKING_IO", score),
-        ]
+        return [self._make_check(rid, score) for rid in _RULE_CATEGORY]
 
     def test_all_perfect_scores_100(self) -> None:
         """All 8 categories scoring 100 → quality_score=100."""
