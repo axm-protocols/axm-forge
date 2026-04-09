@@ -8,48 +8,13 @@ to rule additions and removals.
 from __future__ import annotations
 
 import pytest
-
-import axm_audit.core.rules  # noqa: F401 — trigger @register_rule
-from axm_audit.core.rules.base import get_registry
-from axm_audit.models.results import AuditResult, CheckResult
-
-# Categories that contribute to quality_score (matches results.py)
-_SCORED_CATEGORIES: frozenset[str] = frozenset(
-    {
-        "lint",
-        "type",
-        "complexity",
-        "security",
-        "deps",
-        "testing",
-        "architecture",
-        "practices",
-    }
+from _registry_helpers import (
+    SCORED_CATEGORIES,
+    build_rule_category_map,
+    scored_rule_ids,
 )
 
-
-def _build_rule_category_map() -> dict[str, str]:
-    """Build rule_id -> category mapping from the live registry.
-
-    Filters to scored categories only (excludes structure, tooling).
-    Handles rules with required constructor params by skipping them.
-    """
-    mapping: dict[str, str] = {}
-    for category, rule_classes in get_registry().items():
-        if category not in _SCORED_CATEGORIES:
-            continue
-        for cls in rule_classes:
-            try:
-                rule = cls()
-            except TypeError:
-                continue
-            mapping[rule.rule_id] = rule.category
-    return mapping
-
-
-def _scored_rule_ids() -> list[str]:
-    """Return all scored rule IDs from the registry."""
-    return list(_build_rule_category_map().keys())
+from axm_audit.models.results import AuditResult, CheckResult
 
 
 def _make_check(
@@ -70,14 +35,14 @@ class TestRegistryDerivedScoring:
 
     def test_all_perfect_scores_100(self) -> None:
         """All scored rules at 100 via registry -> quality_score == 100.0."""
-        category_map = _build_rule_category_map()
+        category_map = build_rule_category_map()
         checks = [_make_check(rid, 100, category_map) for rid in category_map]
         result = AuditResult(checks=checks)
         assert result.quality_score == 100.0
 
     def test_all_zero_scores_grade_f(self) -> None:
         """All scored rules at 0 via registry -> grade == 'F'."""
-        category_map = _build_rule_category_map()
+        category_map = build_rule_category_map()
         checks = [_make_check(rid, 0, category_map) for rid in category_map]
         result = AuditResult(checks=checks)
         assert result.quality_score == pytest.approx(0.0, abs=0.1)
@@ -85,9 +50,9 @@ class TestRegistryDerivedScoring:
 
     def test_registry_covers_all_scored_categories(self) -> None:
         """Registry must provide at least one rule per scored category."""
-        category_map = _build_rule_category_map()
+        category_map = build_rule_category_map()
         covered = set(category_map.values())
-        missing = _SCORED_CATEGORIES - covered
+        missing = SCORED_CATEGORIES - covered
         assert not missing, f"Scored categories missing from registry: {missing}"
 
     def test_rule_addition_no_test_change(self) -> None:
@@ -97,15 +62,15 @@ class TestRegistryDerivedScoring:
         it derives everything from the registry. If a new rule is added,
         it will be automatically included in the checks list.
         """
-        category_map = _build_rule_category_map()
+        category_map = build_rule_category_map()
         assert len(category_map) > 0, "Registry should have at least one scored rule"
         checks = [_make_check(rid, 100, category_map) for rid in category_map]
         result = AuditResult(checks=checks)
         assert result.quality_score == 100.0
 
     def test_scored_rule_ids_non_empty(self) -> None:
-        """_scored_rule_ids must return a non-empty list."""
-        ids = _scored_rule_ids()
+        """scored_rule_ids must return a non-empty list."""
+        ids = scored_rule_ids()
         assert len(ids) > 0
         # Each ID should be a non-empty string
         for rid in ids:

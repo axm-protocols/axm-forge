@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -412,39 +412,19 @@ class TestTypeCheckRule:
 class TestAuditResultScoring:
     """Tests for AuditResult quality_score and grade (8-category model)."""
 
-    # Rule-id → scoring category mapping
-    _RULE_CATEGORY: ClassVar[dict[str, str]] = {
-        "QUALITY_LINT": "lint",
-        "QUALITY_FORMAT": "lint",
-        "QUALITY_DIFF_SIZE": "lint",
-        "QUALITY_DEAD_CODE": "lint",
-        "QUALITY_TYPE": "type",
-        "QUALITY_COMPLEXITY": "complexity",
-        "QUALITY_SECURITY": "security",
-        "DEPS_AUDIT": "deps",
-        "DEPS_HYGIENE": "deps",
-        "QUALITY_COVERAGE": "testing",
-        "ARCH_COUPLING": "architecture",
-        "ARCH_CIRCULAR": "architecture",
-        "ARCH_GOD_CLASS": "architecture",
-        "ARCH_DUPLICATION": "architecture",
-        "PRACTICE_DOCSTRING": "practices",
-        "PRACTICE_BARE_EXCEPT": "practices",
-        "PRACTICE_SECURITY": "practices",
-        "PRACTICE_BLOCKING_IO": "practices",
-        "PRACTICE_TEST_MIRROR": "practices",
-    }
-
     def _make_check(self, rule_id: str, score: float) -> CheckResult:
         """Helper to create a CheckResult with a score and category."""
+        from _registry_helpers import build_rule_category_map
+
         from axm_audit.models.results import CheckResult
 
+        category_map = build_rule_category_map()
         return CheckResult(
             rule_id=rule_id,
             passed=True,
             message="",
             details={"score": score},
-            category=self._RULE_CATEGORY.get(rule_id),
+            category=category_map.get(rule_id),
         )
 
     def test_quality_score_weighted_average(self) -> None:
