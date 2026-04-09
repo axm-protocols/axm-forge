@@ -19,9 +19,22 @@ __all__ = [
 ]
 
 
+def _resolve_mkdocs(project: Path) -> Path | None:
+    """Resolve mkdocs.yml, falling back to workspace root for workspace members."""
+    local = project / "mkdocs.yml"
+    if local.exists():
+        return local
+    if project.parent.name == "packages":
+        workspace_root = project.parent.parent
+        candidate = workspace_root / "mkdocs.yml"
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def check_mkdocs_exists(project: Path) -> CheckResult:
     """Check 19: mkdocs.yml exists."""
-    if not (project / "mkdocs.yml").exists():
+    if not _resolve_mkdocs(project):
         return CheckResult(
             name="docs.mkdocs_exists",
             category="docs",
@@ -44,8 +57,8 @@ def check_mkdocs_exists(project: Path) -> CheckResult:
 
 def check_diataxis_nav(project: Path) -> CheckResult:
     """Check 20: nav has Tutorials + How-To + Reference + Explanation."""
-    path = project / "mkdocs.yml"
-    if not path.exists():
+    path = _resolve_mkdocs(project)
+    if not path:
         return CheckResult(
             name="docs.diataxis_nav",
             category="docs",
@@ -89,8 +102,8 @@ def check_diataxis_nav(project: Path) -> CheckResult:
 
 def check_docs_plugins(project: Path) -> CheckResult:
     """Check 21: gen-files + literate-nav + mkdocstrings."""
-    path = project / "mkdocs.yml"
-    if not path.exists():
+    path = _resolve_mkdocs(project)
+    if not path:
         return CheckResult(
             name="docs.plugins",
             category="docs",
