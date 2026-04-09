@@ -23,8 +23,18 @@ def check_src_layout(project: Path) -> CheckResult:
             details=["Expected: src/<package_name>/__init__.py"],
             fix="Migrate to src/ layout: move package into src/<package_name>/.",
         )
-    # Find at least one package (dir with __init__.py) under src/
-    packages = [d for d in src.iterdir() if d.is_dir() and (d / "__init__.py").exists()]
+    # Find top-level packages: dirs with __init__.py whose parent chain
+    # back to src/ contains no other __init__.py (handles namespace packages).
+    all_pkg_dirs = {p.parent for p in src.rglob("__init__.py")}
+    packages = [
+        d
+        for d in all_pkg_dirs
+        if not any(
+            (src / ancestor) in all_pkg_dirs
+            for ancestor in d.relative_to(src).parents
+            if ancestor != Path(".")
+        )
+    ]
     if not packages:
         return CheckResult(
             name="structure.src_layout",
@@ -35,13 +45,14 @@ def check_src_layout(project: Path) -> CheckResult:
             details=["src/ exists but contains no package with __init__.py"],
             fix="Create src/<package_name>/__init__.py.",
         )
+    pkg_names = sorted(d.relative_to(src).as_posix() for d in packages)
     return CheckResult(
         name="structure.src_layout",
         category="structure",
         passed=True,
         weight=4,
         message=f"src/ layout with {len(packages)} package(s)",
-        details=[],
+        details=[f"packages: {', '.join(pkg_names)}"],
         fix="",
     )
 
