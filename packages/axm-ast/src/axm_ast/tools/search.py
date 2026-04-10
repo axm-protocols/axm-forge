@@ -105,7 +105,6 @@ class SearchTool(AXMTool):
         return ToolResult(
             success=True,
             data={"results": symbols, "count": len(symbols)},
-            hint="Tip: Use ast_inspect(symbol) for full source code.",
         )
 
     def _validate_kind(self, kind: str | None) -> Any:

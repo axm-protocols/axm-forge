@@ -74,10 +74,6 @@ class CalleesTool(AXMTool):
             return ToolResult(
                 success=True,
                 data={"callees": callee_data, "count": len(callee_data)},
-                hint=(
-                    "Tip: Use ast_callers(symbol) for the inverse"
-                    " — who calls this function."
-                ),
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

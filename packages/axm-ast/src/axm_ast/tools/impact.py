@@ -213,7 +213,6 @@ class ImpactTool(AXMTool):
         return ToolResult(
             success=True,
             data=result,
-            hint="Tip: Run affected tests, then ast_inspect on high-risk callers.",
         )
 
 

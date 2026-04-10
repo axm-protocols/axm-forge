@@ -81,7 +81,6 @@ class DescribeTool(AXMTool):
                         "modules": toc,
                         "module_count": len(toc),
                     },
-                    hint="Tip: Use ast_impact(symbol) before modifying any symbol.",
                 )
 
             if compress:
@@ -92,7 +91,6 @@ class DescribeTool(AXMTool):
                         "compressed": text,
                         "module_count": len(pkg.modules),
                     },
-                    hint="Tip: Use ast_impact(symbol) before modifying any symbol.",
                 )
 
             data = format_json(pkg, detail=detail)
@@ -102,7 +100,6 @@ class DescribeTool(AXMTool):
                     "modules": data["modules"],
                     "module_count": len(pkg.modules),
                 },
-                hint="Tip: Use ast_impact(symbol) before modifying any symbol.",
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

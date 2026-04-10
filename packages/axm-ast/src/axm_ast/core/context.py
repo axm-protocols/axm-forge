@@ -508,17 +508,9 @@ def format_context_json(
             }
             for m in modules[:5]
         ]
-        base["hint"] = (
-            "Tip: Use ast_context(depth=1) for sub-package map, "
-            "or ast_describe(modules=[...]) for API details."
-        )
     else:
         # depth >= 1: group by sub-package
         base["packages"] = _group_by_subpackage(modules, depth)
-        base["hint"] = (
-            "Tip: Use ast_context(path='<pkg>/sub', depth=1) to drill "
-            "into a sub-package, or ast_inspect(symbol='X') for source."
-        )
 
     return base
 
