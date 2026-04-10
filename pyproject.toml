@@ -25,6 +25,7 @@ dependencies = [
     "axm-audit",
     "axm-init",
     "axm-git",
+    "axm-smelt",
 ]
 
 [dependency-groups]
@@ -59,6 +60,7 @@ axm-ast = { workspace = true }
 axm-audit = { workspace = true }
 axm-init = { workspace = true }
 axm-git = { workspace = true }
+axm-smelt = { workspace = true }
 
 [tool.pytest.ini_options]
 import_mode = "importlib"
@@ -67,6 +69,7 @@ testpaths = [
     "packages/axm-audit/tests",
     "packages/axm-init/tests",
     "packages/axm-git/tests",
+    "packages/axm-smelt/tests",
 ]
 
 [tool.ruff.lint.per-file-ignores]
