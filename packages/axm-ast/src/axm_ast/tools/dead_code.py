@@ -65,7 +65,6 @@ class DeadCodeTool(AXMTool):
                     ],
                     "total": len(dead),
                 },
-                hint="Tip: Use ast_callers(symbol) to double-check before removal.",
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

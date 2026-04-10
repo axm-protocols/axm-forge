@@ -87,8 +87,6 @@ class FlowsTool(AXMTool):
                             "compact": compact,
                             "count": len(steps),
                         },
-                        hint="Tip: Use ast_impact(symbol) on key"
-                        " nodes for blast radius.",
                     )
 
                 step_dicts = []
@@ -114,7 +112,6 @@ class FlowsTool(AXMTool):
                         "cross_module": cross_module,
                         "count": len(steps),
                     },
-                    hint="Tip: Use ast_impact(symbol) on key nodes for blast radius.",
                 )
 
             entries = find_entry_points(pkg)
@@ -133,7 +130,6 @@ class FlowsTool(AXMTool):
                     ],
                     "count": len(entries),
                 },
-                hint="Tip: Use ast_flows(entry='<name>') to trace a flow.",
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

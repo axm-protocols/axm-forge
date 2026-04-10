@@ -63,19 +63,11 @@ class GraphTool(AXMTool):
                     return ToolResult(
                         success=True,
                         data={"mermaid": mermaid_str, "graph": graph},
-                        hint=(
-                            "Tip: Use ast_describe(modules=[...])"
-                            " to explore specific modules."
-                        ),
                     )
 
                 return ToolResult(
                     success=True,
                     data={"graph": graph},
-                    hint=(
-                        "Tip: Use ast_describe(modules=[...])"
-                        " to explore specific modules."
-                    ),
                 )
 
             from axm_ast.core.analyzer import build_import_graph
@@ -90,18 +82,11 @@ class GraphTool(AXMTool):
                 return ToolResult(
                     success=True,
                     data={"mermaid": mermaid_str, "graph": graph},
-                    hint=(
-                        "Tip: Use ast_describe(modules=[...])"
-                        " to explore specific modules."
-                    ),
                 )
 
             return ToolResult(
                 success=True,
                 data={"graph": graph},
-                hint=(
-                    "Tip: Use ast_describe(modules=[...]) to explore specific modules."
-                ),
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
