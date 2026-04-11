@@ -465,6 +465,43 @@ class TestDepthMode:
         data = format_context_json(ctx, depth=0)
         assert len(data["top_modules"]) <= 1
 
+    # --- python field defaults ---
+
+    def test_python_none_when_not_declared(self, tmp_path: Path) -> None:
+        """python is None when project has no requires-python."""
+        pkg = _make_pkg(tmp_path)
+        _make_pyproject(tmp_path, ["cyclopts>=3.0"])
+        ctx = build_context(pkg, project_root=tmp_path)
+        data = format_context_json(ctx, depth=0)
+        assert data["python"] is None
+
+    def test_python_preserved_when_declared(self, tmp_path: Path) -> None:
+        """python reflects declared requires-python value."""
+        pkg = _make_pkg(tmp_path)
+        _make_pyproject(tmp_path, ["cyclopts>=3.0"])
+        # Inject python version into built context
+        ctx = build_context(pkg, project_root=tmp_path)
+        ctx["python"] = "3.12"
+        data = format_context_json(ctx, depth=0)
+        assert data["python"] == "3.12"
+
+    def test_python_none_consistency_across_depths(self, tmp_path: Path) -> None:
+        """python is None at all depth levels when not declared."""
+        pkg = _make_pkg(tmp_path)
+        _make_pyproject(tmp_path, [])
+        ctx = build_context(pkg, project_root=tmp_path)
+        for d in (0, 1, 2):
+            data = format_context_json(ctx, depth=d)
+            assert data["python"] is None, f"depth={d} returned {data['python']!r}"
+
+    def test_python_depth_none_passthrough(self, tmp_path: Path) -> None:
+        """depth=None returns full context; python passes through as-is."""
+        pkg = _make_pkg(tmp_path)
+        _make_pyproject(tmp_path, [])
+        ctx = build_context(pkg, project_root=tmp_path)
+        data = format_context_json(ctx)  # depth=None
+        assert data["python"] == ctx["python"]
+
     # --- Dogfood ---
 
     def test_depth0_size_under_1k(self) -> None:
