@@ -24,6 +24,7 @@ AXM Forge provides the **developer toolchain** for the AXM ecosystem. Every tool
 - 🛡️ **Codified Quality Gates** — 40+ rules covering lint, types, coverage, complexity, security, and project governance — all in a single `verify()` call.
 - 📦 **Automated Scaffolding** — Generate projects, workspaces, and workspace members that pass all 39 governance checks from day one.
 - 🔀 **Git Workflow Automation** — Structured commits with auto-staging, pre-commit retry, and conventional commit enforcement. Semver tagging and push — all through agent-friendly MCP tools.
+- 🔥 **Token Compaction** — Deterministic text compression that shrinks LLM inputs while preserving semantic content. Compact tool outputs, audit reports, and AST results before they hit context windows.
 
 ## Packages
 
