@@ -126,6 +126,26 @@ See the [MCP how-to guide](https://forge.axm-protocols.io/audit/howto/mcp/) for 
 | `structure` | `PyprojectCompletenessRule` | 1 |
 | `tooling` | `ToolAvailabilityRule` | 3 |
 
+## Configuration
+
+### Coupling Thresholds
+
+The `CouplingMetricRule` reads thresholds from `pyproject.toml`:
+
+```toml
+[tool.axm-audit.coupling]
+fan_out_threshold = 15          # default: 10
+
+[tool.axm-audit.coupling.overrides]
+"my_package.hub" = 20           # allow higher fan-out for hub modules
+"registry" = 25                 # matches any module ending with .registry
+```
+
+- **`fan_out_threshold`** — global fan-out limit (modules above this are flagged)
+- **`overrides`** — per-module thresholds; keys match by exact name or suffix
+
+When no configuration is present, the default threshold of 10 is used.
+
 ## Witness Rules
 
 `axm-audit` ships a witness rule for use with the `axm.witnesses` entry point group:

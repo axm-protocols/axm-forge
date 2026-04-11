@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import logging
+import tomllib
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -311,17 +312,69 @@ def _build_fan_metrics(
     return fan_out, fan_in
 
 
+_COUPLING_DEFAULT_THRESHOLD = 10
+
+
+def _read_coupling_config(project_path: Path) -> tuple[int, dict[str, int]]:
+    """Read coupling thresholds from ``[tool.axm-audit.coupling]`` in pyproject.toml.
+
+    Returns:
+        ``(fan_out_threshold, overrides)`` — falls back to defaults on any error.
+    """
+    pyproject = project_path / "pyproject.toml"
+    if not pyproject.exists():
+        return _COUPLING_DEFAULT_THRESHOLD, {}
+
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return _COUPLING_DEFAULT_THRESHOLD, {}
+
+    section = data.get("tool", {}).get("axm-audit", {}).get("coupling", {})
+
+    raw_threshold = section.get("fan_out_threshold", _COUPLING_DEFAULT_THRESHOLD)
+    try:
+        threshold = int(raw_threshold)
+    except (TypeError, ValueError):
+        threshold = _COUPLING_DEFAULT_THRESHOLD
+
+    if threshold < 0:
+        threshold = _COUPLING_DEFAULT_THRESHOLD
+
+    raw_overrides = section.get("overrides", {})
+    overrides: dict[str, int] = {}
+    if isinstance(raw_overrides, dict):
+        try:
+            overrides = {str(k): int(v) for k, v in raw_overrides.items()}
+        except (TypeError, ValueError):
+            overrides = {}
+
+    return threshold, overrides
+
+
 def _build_coupling_result(
     fan_out: dict[str, int],
     fan_in: dict[str, int],
     threshold: int,
+    overrides: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Compute coupling summary from fan metrics."""
+    _overrides = overrides or {}
+
+    def _effective_threshold(name: str) -> int:
+        """Return the override threshold if *name* matches an override key."""
+        if name in _overrides:
+            return _overrides[name]
+        for key, val in _overrides.items():
+            if name.endswith(f".{key}") or name == key:
+                return val
+        return threshold
+
     over = sorted(
         (
             {"module": name, "fan_out": fo}
             for name, fo in fan_out.items()
-            if fo > threshold
+            if fo > _effective_threshold(name)
         ),
         key=lambda x: x.get("fan_out", 0),  # type: ignore[return-value,arg-type]
         reverse=True,
@@ -339,6 +392,7 @@ def _build_coupling_result(
 def _compute_coupling_metrics(
     src_path: Path,
     threshold: int = 10,
+    overrides: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Compute fan-in/fan-out coupling metrics for all modules.
 
@@ -357,7 +411,7 @@ def _compute_coupling_metrics(
             "over_threshold": [],
         }
 
-    return _build_coupling_result(fan_out, fan_in, threshold)
+    return _build_coupling_result(fan_out, fan_in, threshold, overrides)
 
 
 @dataclass
@@ -384,7 +438,8 @@ class CouplingMetricRule(ProjectRule):
 
         src_path = project_path / "src"
 
-        metrics = _compute_coupling_metrics(src_path, self.fan_out_threshold)
+        threshold, overrides = _read_coupling_config(project_path)
+        metrics = _compute_coupling_metrics(src_path, threshold, overrides)
         n_over: int = metrics["n_over_threshold"]
         over: list[dict[str, Any]] = metrics["over_threshold"]
         avg: float = metrics["avg_coupling"]
