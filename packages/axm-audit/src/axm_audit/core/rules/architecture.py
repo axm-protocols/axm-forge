@@ -377,6 +377,25 @@ _COUPLING_DEFAULT_ORCHESTRATOR_BONUS = 5
 _COUPLING_DEFAULT_SEVERITY_MULTIPLIER = 2
 
 
+def _safe_int(value: Any, default: int) -> int:
+    """Convert *value* to a non-negative ``int``, returning *default* on failure."""
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        return default
+    return result if result >= 0 else default
+
+
+def _parse_overrides(raw: object) -> dict[str, int]:
+    """Parse an overrides mapping, silently dropping invalid entries."""
+    if not isinstance(raw, dict):
+        return {}
+    try:
+        return {str(k): int(v) for k, v in raw.items()}
+    except (TypeError, ValueError):
+        return {}
+
+
 def _read_coupling_config(
     project_path: Path,
 ) -> tuple[int, dict[str, int], int, int]:
@@ -403,41 +422,24 @@ def _read_coupling_config(
 
     section = data.get("tool", {}).get("axm-audit", {}).get("coupling", {})
 
-    raw_threshold = section.get("fan_out_threshold", _COUPLING_DEFAULT_THRESHOLD)
-    try:
-        threshold = int(raw_threshold)
-    except (TypeError, ValueError):
-        threshold = _COUPLING_DEFAULT_THRESHOLD
-
-    if threshold < 0:
-        threshold = _COUPLING_DEFAULT_THRESHOLD
-
-    raw_overrides = section.get("overrides", {})
-    overrides: dict[str, int] = {}
-    if isinstance(raw_overrides, dict):
-        try:
-            overrides = {str(k): int(v) for k, v in raw_overrides.items()}
-        except (TypeError, ValueError):
-            overrides = {}
-
-    raw_bonus = section.get("orchestrator_bonus", _COUPLING_DEFAULT_ORCHESTRATOR_BONUS)
-    try:
-        bonus = int(raw_bonus)
-    except (TypeError, ValueError):
-        bonus = _COUPLING_DEFAULT_ORCHESTRATOR_BONUS
-
-    if bonus < 0:
-        bonus = _COUPLING_DEFAULT_ORCHESTRATOR_BONUS
-
-    raw_multiplier = section.get(
-        "severity_error_multiplier", _COUPLING_DEFAULT_SEVERITY_MULTIPLIER
+    threshold = _safe_int(
+        section.get("fan_out_threshold", _COUPLING_DEFAULT_THRESHOLD),
+        _COUPLING_DEFAULT_THRESHOLD,
     )
-    try:
-        multiplier = int(raw_multiplier)
-    except (TypeError, ValueError):
-        multiplier = _COUPLING_DEFAULT_SEVERITY_MULTIPLIER
-
-    multiplier = max(multiplier, 1)
+    overrides = _parse_overrides(section.get("overrides", {}))
+    bonus = _safe_int(
+        section.get("orchestrator_bonus", _COUPLING_DEFAULT_ORCHESTRATOR_BONUS),
+        _COUPLING_DEFAULT_ORCHESTRATOR_BONUS,
+    )
+    multiplier = max(
+        _safe_int(
+            section.get(
+                "severity_error_multiplier", _COUPLING_DEFAULT_SEVERITY_MULTIPLIER
+            ),
+            _COUPLING_DEFAULT_SEVERITY_MULTIPLIER,
+        ),
+        1,
+    )
 
     return threshold, overrides, bonus, multiplier
 
