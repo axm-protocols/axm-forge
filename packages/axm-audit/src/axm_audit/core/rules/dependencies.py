@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -231,6 +232,77 @@ def _run_deptry(project_path: Path) -> list[dict[str, Any]]:
             tmp_path.unlink()
 
 
+def _normalize_pkg(name: str) -> str:
+    """Normalize a package name to underscore form for comparison."""
+    return name.lower().replace("-", "_").replace(".", "_")
+
+
+def _entry_point_packages(project_path: Path) -> set[str]:
+    """Extract package names consumed via ``[project.entry-points]``."""
+    pyproject = project_path / "pyproject.toml"
+    if not pyproject.exists():
+        return set()
+    try:
+        import tomllib
+
+        data = tomllib.loads(pyproject.read_text())
+    except Exception:  # noqa: BLE001
+        return set()
+
+    entry_points = data.get("project", {}).get("entry-points", {})
+    packages: set[str] = set()
+    for group in entry_points.values():
+        if not isinstance(group, dict):
+            continue
+        for value in group.values():
+            # value like "axm_init.tool:InitTool" — root module is the package
+            module_path = value.split(":")[0]
+            root = module_path.split(".")[0]
+            packages.add(_normalize_pkg(root))
+    return packages
+
+
+def _optional_dep_packages(project_path: Path) -> set[str]:
+    """Extract package names from ``[project.optional-dependencies]``."""
+    pyproject = project_path / "pyproject.toml"
+    if not pyproject.exists():
+        return set()
+    try:
+        import tomllib
+
+        data = tomllib.loads(pyproject.read_text())
+    except Exception:  # noqa: BLE001
+        return set()
+
+    optional_deps = data.get("project", {}).get("optional-dependencies", {})
+    packages: set[str] = set()
+    for reqs in optional_deps.values():
+        for req in reqs:
+            # Strip version specifiers: take everything before [, >, <, =, ;, ~, !
+            name = re.split(r"[>=<!\[;~]", req, maxsplit=1)[0].strip()
+            if name:
+                packages.add(_normalize_pkg(name))
+    return packages
+
+
+def _filter_false_positives(
+    issues: list[dict[str, Any]], project_path: Path
+) -> list[dict[str, Any]]:
+    """Remove DEP002 false positives for entry-point and optional-dep packages."""
+    allowed = _entry_point_packages(project_path) | _optional_dep_packages(project_path)
+    if not allowed:
+        return issues
+
+    filtered: list[dict[str, Any]] = []
+    for issue in issues:
+        code = issue.get("error", {}).get("code", "") or issue.get("error_code", "")
+        module = _normalize_pkg(issue.get("module", ""))
+        if code == "DEP002" and module in allowed:
+            continue
+        filtered.append(issue)
+    return filtered
+
+
 def _format_issue(issue: dict[str, Any]) -> dict[str, str]:
     """Format a single deptry issue for reporting."""
     if "error" in issue:
@@ -280,6 +352,7 @@ class DependencyHygieneRule(ProjectRule):
                 fix_hint="Check deptry installation: uv run deptry --version",
             )
 
+        issues = _filter_false_positives(issues, project_path)
         issue_count = len(issues)
         score = max(0, 100 - issue_count * 10)
 
