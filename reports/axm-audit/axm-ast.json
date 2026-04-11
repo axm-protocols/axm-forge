@@ -1,9 +1,9 @@
 {
-  "score": 98.3,
+  "score": 98.5,
   "grade": "A",
-  "total": 24,
-  "failed": 2,
-  "success": false,
+  "total": 23,
+  "failed": 0,
+  "success": true,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -25,20 +25,15 @@
     },
     {
       "rule_id": "ARCH_COUPLING",
-      "passed": false,
-      "message": "Coupling: 1 module(s) above threshold (-5 pts)",
+      "passed": true,
+      "message": "Coupling: 0 modules above threshold (max fan-out: 13)",
       "details": {
         "max_fan_out": 13,
         "max_fan_in": 37,
         "avg_coupling": 5.0,
-        "score": 95,
-        "n_over_threshold": 1,
-        "over_threshold": [
-          {
-            "module": "axm_ast.core.flows",
-            "fan_out": 13
-          }
-        ]
+        "score": 100,
+        "n_over_threshold": 0,
+        "over_threshold": []
       }
     },
     {
@@ -161,18 +156,6 @@
       "details": {
         "violations": [],
         "score": 100
-      }
-    },
-    {
-      "rule_id": "PRACTICE_LOGGING",
-      "passed": false,
-      "message": "Logging coverage: 92% (22/24)",
-      "details": {
-        "without_logging": [
-          "axm_ast/tools/inspect_detail.py",
-          "axm_ast/tools/inspect_resolve.py"
-        ],
-        "score": 91
       }
     },
     {

@@ -1,8 +1,8 @@
 {
-  "score": 98.5,
+  "score": 98.6,
   "grade": "A",
-  "total": 24,
-  "failed": 2,
+  "total": 23,
+  "failed": 1,
   "success": false,
   "checks": [
     {
@@ -25,22 +25,28 @@
     },
     {
       "rule_id": "ARCH_COUPLING",
-      "passed": false,
-      "message": "Coupling: 2 module(s) above threshold (-10 pts)",
+      "passed": true,
+      "message": "Coupling: 2 module(s) above threshold (-6 pts)",
       "details": {
         "max_fan_out": 11,
         "max_fan_in": 22,
         "avg_coupling": 6.32,
-        "score": 90,
+        "score": 94,
         "n_over_threshold": 2,
         "over_threshold": [
           {
             "module": "axm_audit.core.rules.quality",
-            "fan_out": 11
+            "fan_out": 11,
+            "role": "leaf",
+            "effective_threshold": 10,
+            "severity": "warning"
           },
           {
             "module": "axm_audit.core.rules.architecture",
-            "fan_out": 11
+            "fan_out": 11,
+            "role": "leaf",
+            "effective_threshold": 10,
+            "severity": "warning"
           }
         ]
       }
@@ -139,11 +145,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (86/86)",
+      "message": "Docstring coverage: 100% (40/40)",
       "details": {
         "coverage": 1.0,
-        "total": 86,
-        "documented": 86,
+        "total": 40,
+        "documented": 40,
         "missing": [],
         "score": 100
       }
@@ -164,15 +170,6 @@
       "message": "0 blocking-IO violation(s) found",
       "details": {
         "violations": [],
-        "score": 100
-      }
-    },
-    {
-      "rule_id": "PRACTICE_LOGGING",
-      "passed": true,
-      "message": "Logging coverage: 100% (9/9)",
-      "details": {
-        "without_logging": [],
         "score": 100
       }
     },

@@ -1,8 +1,8 @@
 {
-  "score": 91.6,
+  "score": 96.8,
   "grade": "A",
-  "total": 24,
-  "failed": 4,
+  "total": 23,
+  "failed": 2,
   "success": false,
   "checks": [
     {
@@ -119,36 +119,16 @@
     },
     {
       "rule_id": "DEPS_HYGIENE",
-      "passed": false,
-      "message": "52 dependency issue(s) found",
+      "passed": true,
+      "message": "1 dependency issue(s) found",
       "details": {
-        "issue_count": 52,
-        "score": 0,
+        "issue_count": 1,
+        "score": 90,
         "top_issues": [
           {
             "code": "DEP004",
             "module": "mkdocs_gen_files",
             "message": "'mkdocs_gen_files' imported but declared as a dev dependency"
-          },
-          {
-            "code": "DEP003",
-            "module": "axm_smelt",
-            "message": "'axm_smelt' imported but it is a transitive dependency"
-          },
-          {
-            "code": "DEP003",
-            "module": "axm_smelt",
-            "message": "'axm_smelt' imported but it is a transitive dependency"
-          },
-          {
-            "code": "DEP003",
-            "module": "axm_smelt",
-            "message": "'axm_smelt' imported but it is a transitive dependency"
-          },
-          {
-            "code": "DEP003",
-            "module": "axm_smelt",
-            "message": "'axm_smelt' imported but it is a transitive dependency"
           }
         ]
       }
@@ -156,18 +136,14 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": false,
-      "message": "Docstring coverage: 55% (30/55)",
+      "message": "Docstring coverage: 51% (21/41)",
       "details": {
-        "coverage": 0.55,
-        "total": 55,
-        "documented": 30,
+        "coverage": 0.51,
+        "total": 41,
+        "documented": 21,
         "missing": [
-          "axm_smelt/core/models.py:text",
-          "axm_smelt/core/models.py:parsed",
           "axm_smelt/strategies/round_numbers.py:name",
           "axm_smelt/strategies/round_numbers.py:category",
-          "axm_smelt/strategies/base.py:name",
-          "axm_smelt/strategies/base.py:category",
           "axm_smelt/strategies/drop_nulls.py:name",
           "axm_smelt/strategies/drop_nulls.py:category",
           "axm_smelt/strategies/flatten.py:name",
@@ -178,7 +154,6 @@
           "axm_smelt/strategies/tabular.py:category",
           "axm_smelt/strategies/compact_tables.py:name",
           "axm_smelt/strategies/compact_tables.py:category",
-          "axm_smelt/strategies/compact_tables.py:apply",
           "axm_smelt/strategies/collapse_whitespace.py:name",
           "axm_smelt/strategies/collapse_whitespace.py:category",
           "axm_smelt/strategies/strip_quotes.py:name",
@@ -188,7 +163,7 @@
           "axm_smelt/strategies/strip_html_comments.py:name",
           "axm_smelt/strategies/strip_html_comments.py:category"
         ],
-        "score": 54
+        "score": 51
       }
     },
     {
@@ -208,20 +183,6 @@
       "details": {
         "violations": [],
         "score": 100
-      }
-    },
-    {
-      "rule_id": "PRACTICE_LOGGING",
-      "passed": false,
-      "message": "Logging coverage: 0% (0/4)",
-      "details": {
-        "without_logging": [
-          "axm_smelt/cli.py",
-          "axm_smelt/core/pipeline.py",
-          "axm_smelt/core/detector.py",
-          "axm_smelt/strategies/tabular.py"
-        ],
-        "score": 0
       }
     },
     {

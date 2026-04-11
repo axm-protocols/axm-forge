@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-smelt",
-  "score": 95,
+  "score": 98,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
@@ -11,15 +11,15 @@
       "total": 5
     },
     "ci": {
-      "earned": 18,
-      "total": 18
+      "earned": 16,
+      "total": 16
     },
     "deps": {
       "earned": 5,
       "total": 5
     },
     "docs": {
-      "earned": 13,
+      "earned": 16,
       "total": 16
     },
     "pyproject": {
@@ -51,14 +51,6 @@
       "earned": 2,
       "weight": 2,
       "message": "No manual CHANGELOG.md"
-    },
-    {
-      "name": "ci.coverage_upload",
-      "category": "ci",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "Coverage upload configured"
     },
     {
       "name": "ci.lint_job",
@@ -143,10 +135,10 @@
     {
       "name": "docs.plugins",
       "category": "docs",
-      "passed": false,
-      "earned": 0,
+      "passed": true,
+      "earned": 3,
       "weight": 3,
-      "message": "Missing 3 plugin(s)"
+      "message": "All plugins configured"
     },
     {
       "name": "docs.mkdocs_exists",
@@ -358,15 +350,6 @@
     }
   ],
   "failures": [
-    {
-      "name": "docs.plugins",
-      "weight": 3,
-      "message": "Missing 3 plugin(s)",
-      "details": [
-        "Missing: gen-files, literate-nav, mkdocstrings"
-      ],
-      "fix": "Add gen-files, literate-nav, mkdocstrings to mkdocs.yml plugins."
-    },
     {
       "name": "tooling.precommit_installed",
       "weight": 2,

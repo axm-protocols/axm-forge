@@ -1,7 +1,7 @@
 {
   "score": 99.4,
   "grade": "A",
-  "total": 24,
+  "total": 23,
   "failed": 0,
   "success": true,
   "checks": [
@@ -155,15 +155,6 @@
       "message": "0 blocking-IO violation(s) found",
       "details": {
         "violations": [],
-        "score": 100
-      }
-    },
-    {
-      "rule_id": "PRACTICE_LOGGING",
-      "passed": true,
-      "message": "Logging coverage: 100% (12/12)",
-      "details": {
-        "without_logging": [],
         "score": 100
       }
     },

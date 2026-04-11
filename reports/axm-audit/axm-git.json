@@ -1,9 +1,9 @@
 {
-  "score": 98.8,
+  "score": 99.0,
   "grade": "A",
-  "total": 24,
-  "failed": 1,
-  "success": false,
+  "total": 23,
+  "failed": 0,
+  "success": true,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -156,17 +156,6 @@
       "details": {
         "violations": [],
         "score": 100
-      }
-    },
-    {
-      "rule_id": "PRACTICE_LOGGING",
-      "passed": false,
-      "message": "Logging coverage: 83% (5/6)",
-      "details": {
-        "without_logging": [
-          "axm_git/core/identity.py"
-        ],
-        "score": 83
       }
     },
     {

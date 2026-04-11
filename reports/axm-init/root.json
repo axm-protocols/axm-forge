@@ -11,8 +11,8 @@
       "total": 2
     },
     "ci": {
-      "earned": 18,
-      "total": 18
+      "earned": 16,
+      "total": 16
     },
     "docs": {
       "earned": 10,
@@ -43,14 +43,6 @@
       "earned": 2,
       "weight": 2,
       "message": "No manual CHANGELOG.md"
-    },
-    {
-      "name": "ci.coverage_upload",
-      "category": "ci",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "Coverage upload configured"
     },
     {
       "name": "ci.lint_job",
