@@ -174,6 +174,8 @@ def format_compressed(pkg: PackageInfo) -> str:
     """
     lines: list[str] = []
     for mod in pkg.modules:
+        if _is_test_module(mod, pkg):
+            continue
         lines.extend(_compress_module(mod, pkg))
         lines.append("")
     return "\n".join(lines)
@@ -205,6 +207,16 @@ def _compress_module(mod: ModuleInfo, pkg: PackageInfo) -> list[str]:
             lines.extend(_compress_class(cls))
 
     return lines
+
+
+def _is_test_module(mod: ModuleInfo, pkg: PackageInfo) -> bool:
+    """Return True if *mod* is a test or conftest module."""
+    try:
+        rel = mod.path.relative_to(pkg.root)
+    except ValueError:
+        return False
+    parts = rel.parts
+    return "tests" in parts or rel.name.startswith("test_") or rel.name == "conftest.py"
 
 
 def _is_included(name: str, mod: ModuleInfo) -> bool:
