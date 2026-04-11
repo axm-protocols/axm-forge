@@ -90,10 +90,18 @@ class DocstringCoverageRule(ProjectRule):
                 continue
 
             rel_path = path.relative_to(src_path)
+            class_map = self._build_class_map(tree)
+
             for node in ast.walk(tree):
                 if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                     continue
                 if node.name.startswith("_"):
+                    continue
+                if self._is_setter_or_deleter(node):
+                    continue
+                if self._is_abstract_stub(node):
+                    continue
+                if self._is_abstract_override(node, class_map):
                     continue
 
                 if self._has_docstring(node):
@@ -102,6 +110,90 @@ class DocstringCoverageRule(ProjectRule):
                     missing.append(f"{rel_path}:{node.name}")
 
         return documented, missing
+
+    @staticmethod
+    def _is_abstract_stub(
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+    ) -> bool:
+        """Check if node is an abstract method stub (body is ``...`` or ``pass``)."""
+        is_abstract = any(
+            (isinstance(d, ast.Name) and d.id == "abstractmethod")
+            or (isinstance(d, ast.Attribute) and d.attr == "abstractmethod")
+            for d in node.decorator_list
+        )
+        if not is_abstract:
+            return False
+        # Body is just `...` (Ellipsis)
+        if (
+            len(node.body) == 1
+            and isinstance(node.body[0], ast.Expr)
+            and isinstance(node.body[0].value, ast.Constant)
+            and node.body[0].value.value is ...
+        ):
+            return True
+        # Body is just `pass`
+        if len(node.body) == 1 and isinstance(node.body[0], ast.Pass):
+            return True
+        return False
+
+    @staticmethod
+    def _is_setter_or_deleter(
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+    ) -> bool:
+        """Check if node is a property setter or deleter."""
+        for dec in node.decorator_list:
+            if isinstance(dec, ast.Attribute) and dec.attr in ("setter", "deleter"):
+                return True
+        return False
+
+    @staticmethod
+    def _build_class_map(
+        tree: ast.Module,
+    ) -> dict[str, ast.ClassDef]:
+        """Build a name -> ClassDef map for all classes in the module."""
+        return {
+            node.name: node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)
+        }
+
+    def _is_abstract_override(
+        self,
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+        class_map: dict[str, ast.ClassDef],
+    ) -> bool:
+        """Check if node overrides a documented abstractmethod in the same file."""
+        # Find the enclosing class for this method
+        enclosing = None
+        for cls in class_map.values():
+            for item in cls.body:
+                if item is node:
+                    enclosing = cls
+                    break
+            if enclosing:
+                break
+
+        if enclosing is None:
+            return False
+
+        # Check each base class (same-file only)
+        for base in enclosing.bases:
+            base_name = base.id if isinstance(base, ast.Name) else None
+            if base_name is None or base_name not in class_map:
+                continue
+            base_cls = class_map[base_name]
+            for item in base_cls.body:
+                if not isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
+                    continue
+                if item.name != node.name:
+                    continue
+                # Check if the base method is decorated with @abstractmethod
+                is_abstract = any(
+                    (isinstance(d, ast.Name) and d.id == "abstractmethod")
+                    or (isinstance(d, ast.Attribute) and d.attr == "abstractmethod")
+                    for d in item.decorator_list
+                )
+                if is_abstract and self._has_docstring(item):
+                    return True
+        return False
 
     def _has_docstring(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
         """Check if a function node has a docstring."""
