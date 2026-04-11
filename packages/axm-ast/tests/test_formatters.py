@@ -31,17 +31,11 @@ class TestFormatText:
         # Detailed should include docstrings
         assert "greeting" in output.lower() or "greet" in output
 
-    def test_full_level(self):
-        pkg = analyze_package(SAMPLE_PKG)
-        output = format_text(pkg, detail="full")
-        # Full should include imports
-        assert "import" in output.lower()
-
     def test_budget_truncation(self):
         pkg = analyze_package(SAMPLE_PKG)
-        full = format_text(pkg, detail="full")
-        truncated = format_text(pkg, detail="full", budget=10)
-        assert len(truncated.splitlines()) <= len(full.splitlines())
+        detailed = format_text(pkg, detail="detailed")
+        truncated = format_text(pkg, detail="detailed", budget=10)
+        assert len(truncated.splitlines()) <= len(detailed.splitlines())
 
     def test_empty_package(self, tmp_path):
         empty = tmp_path / "empty"
@@ -83,12 +77,6 @@ class TestFormatJson:
                 if fn.get("summary"):
                     has_summary = True
         assert has_summary
-
-    def test_full_includes_imports(self):
-        pkg = analyze_package(SAMPLE_PKG)
-        result = format_json(pkg, detail="full")
-        has_imports = any(len(mod.get("imports", [])) > 0 for mod in result["modules"])
-        assert has_imports
 
 
 # ─── format_mermaid ──────────────────────────────────────────────────────────

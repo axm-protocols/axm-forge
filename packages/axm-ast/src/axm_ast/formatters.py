@@ -1,7 +1,7 @@
 """Output formatters for axm-ast.
 
-Provides four output formats (text, JSON, Mermaid, compressed) at three
-detail levels (summary, detailed, full) with optional budget-based
+Provides four output formats (text, JSON, Mermaid, compressed) at two
+detail levels (summary, detailed) with optional budget-based
 truncation and PageRank-based symbol ranking.
 
 Example:
@@ -37,7 +37,7 @@ __all__ = [
     "format_toc",
 ]
 
-DetailLevel = str  # "toc" | "summary" | "detailed" | "full"
+DetailLevel = str  # "toc" | "summary" | "detailed"
 
 
 # ─── Text formatter ──────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ def format_text(
 
     Args:
         pkg: Analyzed package info.
-        detail: Level of detail — ``summary``, ``detailed``, or ``full``.
+        detail: Level of detail — ``summary`` or ``detailed``.
         budget: Maximum number of output lines. Truncates intelligently.
         rank: When True with a budget, sort symbols by importance
             (PageRank) so the most relevant appear first.
@@ -112,7 +112,7 @@ def _format_module_text(
     mod_name = module_dotted_name(mod.path, pkg.root)
     lines.append(f"  📄 {mod_name}")
 
-    if detail in ("detailed", "full") and mod.docstring:
+    if detail == "detailed" and mod.docstring:
         summary = parse_docstring(mod.docstring).summary
         if summary:
             lines.append(f"     {summary}")
@@ -123,9 +123,6 @@ def _format_module_text(
     for cls in mod.classes:
         lines.extend(_format_cls_text(cls, detail=detail))
 
-    if detail == "full":
-        lines.extend(_format_imports_text(mod))
-
     return lines
 
 
@@ -133,7 +130,7 @@ def _format_fn_text(fn: FunctionInfo, *, detail: DetailLevel) -> list[str]:
     """Format a function as text lines."""
     icon = "🔒" if not fn.is_public else "🔓"
     lines = [f"     {icon} {fn.signature}"]
-    if detail in ("detailed", "full") and fn.docstring:
+    if detail == "detailed" and fn.docstring:
         summary = parse_docstring(fn.docstring).summary
         if summary:
             lines.append(f"       {summary}")
@@ -145,24 +142,13 @@ def _format_cls_text(cls: ClassInfo, *, detail: DetailLevel) -> list[str]:
     bases = f"({', '.join(cls.bases)})" if cls.bases else ""
     icon = "🔒" if not cls.is_public else "🔓"
     lines = [f"     {icon} class {cls.name}{bases}"]
-    if detail in ("detailed", "full") and cls.docstring:
-        summary = parse_docstring(cls.docstring).summary
-        if summary:
-            lines.append(f"       {summary}")
-    if detail == "full":
+    if detail == "detailed":
+        if cls.docstring:
+            summary = parse_docstring(cls.docstring).summary
+            if summary:
+                lines.append(f"       {summary}")
         for method in cls.methods:
             lines.append(f"       · {method.signature}")
-    return lines
-
-
-def _format_imports_text(mod: ModuleInfo) -> list[str]:
-    """Format module imports as text lines."""
-    lines: list[str] = []
-    for imp in mod.imports:
-        module = imp.module or ""
-        prefix = "." * imp.level if imp.is_relative else ""
-        names_str = ", ".join(imp.names)
-        lines.append(f"     import {prefix}{module} → {names_str}")
     return lines
 
 
@@ -172,7 +158,7 @@ def _format_imports_text(mod: ModuleInfo) -> list[str]:
 def format_compressed(pkg: PackageInfo) -> str:
     """Format package as a compressed AI-friendly summary.
 
-    Produces an intermediate format between ``stub`` and ``full``:
+    Produces an intermediate format between ``stub`` and ``detailed``:
     keeps signatures, first docstring line, constants, ``__all__``,
     and relative imports — drops function bodies, full docstrings,
     absolute imports, and private symbols (unless in ``__all__``).
@@ -396,7 +382,7 @@ def format_json(
 
     Args:
         pkg: Analyzed package info.
-        detail: Level of detail — ``summary``, ``detailed``, or ``full``.
+        detail: Level of detail — ``summary`` or ``detailed``.
 
     Returns:
         JSON-serializable dictionary.
@@ -406,7 +392,7 @@ def format_json(
         >>> data["name"]
         'sample_pkg'
     """
-    result: dict[str, Any] = {
+    return {
         "name": pkg.name,
         "root": str(pkg.root),
         "module_count": len(pkg.modules),
@@ -414,11 +400,6 @@ def format_json(
             _format_module_json(mod, pkg, detail=detail) for mod in pkg.modules
         ],
     }
-
-    if detail == "full":
-        result["dependency_graph"] = build_import_graph(pkg)
-
-    return result
 
 
 def _format_module_json(
@@ -443,22 +424,8 @@ def _format_module_json(
     # Classes
     result["classes"] = [_format_class_json(cls, detail=detail) for cls in mod.classes]
 
-    if detail in ("detailed", "full"):
+    if detail == "detailed":
         result["docstring"] = mod.docstring
-
-    if detail == "full":
-        result["imports"] = [
-            {
-                "module": imp.module,
-                "names": imp.names,
-                "is_relative": imp.is_relative,
-            }
-            for imp in mod.imports
-        ]
-        result["variables"] = [
-            {"name": v.name, "annotation": v.annotation, "value": v.value_repr}
-            for v in mod.variables
-        ]
 
     return result
 
@@ -471,27 +438,9 @@ def _format_function_json(fn: FunctionInfo, *, detail: DetailLevel) -> dict[str,
         "kind": fn.kind.value,
         "is_public": fn.is_public,
     }
-    if detail in ("detailed", "full"):
+    if detail == "detailed":
         parsed = parse_docstring(fn.docstring)
         result["summary"] = parsed.summary
-        if detail == "full":
-            result["raises"] = [
-                {"type": exc, "desc": desc} for exc, desc in parsed.raises
-            ]
-            result["examples"] = parsed.examples
-            result["params"] = [
-                {
-                    "name": p.name,
-                    "annotation": p.annotation,
-                    "default": p.default,
-                }
-                for p in fn.params
-            ]
-            result["return_type"] = fn.return_type
-            result["decorators"] = fn.decorators
-            result["line_start"] = fn.line_start
-            result["line_end"] = fn.line_end
-            result["is_async"] = fn.is_async
     return result
 
 
@@ -502,20 +451,12 @@ def _format_class_json(cls: ClassInfo, *, detail: DetailLevel) -> dict[str, Any]
         "bases": cls.bases,
         "is_public": cls.is_public,
     }
-    if detail in ("detailed", "full"):
+    if detail == "detailed":
         parsed = parse_docstring(cls.docstring)
         result["summary"] = parsed.summary
         result["methods"] = [
             _format_function_json(m, detail=detail) for m in cls.methods
         ]
-        if detail == "full":
-            result["raises"] = [
-                {"type": exc, "desc": desc} for exc, desc in parsed.raises
-            ]
-            result["examples"] = parsed.examples
-            result["decorators"] = cls.decorators
-            result["line_start"] = cls.line_start
-            result["line_end"] = cls.line_end
     return result
 
 
