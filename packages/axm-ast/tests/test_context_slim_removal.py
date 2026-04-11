@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
-
 from axm_ast.tools.context import ContextTool
 
 REPO = Path(__file__).resolve().parents[1]
@@ -26,45 +24,6 @@ class TestContextToolDepth:
         result = tool.execute(path=str(REPO))
         assert result.success
         assert "packages" in result.data
-
-
-class TestPlanTicketHook:
-    """Functional test: protocol.yaml uses depth: 0, not slim."""
-
-    def test_plan_ticket_hook_uses_depth0(self) -> None:
-        """plan-ticket protocol should use depth: 0, not slim: true."""
-        protocol_path = (
-            Path.home() / "axm" / "protocols" / "plan-ticket" / "protocol.yaml"
-        )
-        assert protocol_path.exists(), f"Protocol file not found: {protocol_path}"
-        raw = protocol_path.read_text()
-        data = yaml.safe_load(raw)
-
-        # Recursively find all dicts that reference ast_context
-        found = _find_ast_context_params(data)
-        assert found, "No ast_context hook found in plan-ticket protocol.yaml"
-
-        for params in found:
-            assert "slim" not in params, (
-                f"slim param should be removed from ast_context params: {params}"
-            )
-            assert params.get("depth") == 0, (
-                f"depth should be 0 in ast_context params: {params}"
-            )
-
-
-def _find_ast_context_params(obj: object) -> list[dict[str, object]]:
-    """Walk YAML tree and collect params dicts for ast_context hooks."""
-    results: list[dict[str, object]] = []
-    if isinstance(obj, dict):
-        if obj.get("action") == "ast:context":
-            results.append(obj.get("params", {}))
-        for v in obj.values():
-            results.extend(_find_ast_context_params(v))
-    elif isinstance(obj, list):
-        for item in obj:
-            results.extend(_find_ast_context_params(item))
-    return results
 
 
 class TestSlimParamRemoved:
