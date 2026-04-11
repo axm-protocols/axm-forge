@@ -73,7 +73,7 @@ def _make_src_module(
 
 def test_read_coupling_config_defaults(tmp_path: Path) -> None:
     """No pyproject.toml → default threshold 10, empty overrides."""
-    threshold, overrides, _bonus = _read_coupling_config(tmp_path)
+    threshold, overrides, _bonus, _multiplier = _read_coupling_config(tmp_path)
     assert threshold == 10
     assert overrides == {}
 
@@ -86,7 +86,7 @@ def test_read_coupling_config_custom_threshold(tmp_path: Path) -> None:
         fan_out_threshold = 15
     """,
     )
-    threshold, overrides, _bonus = _read_coupling_config(tmp_path)
+    threshold, overrides, _bonus, _multiplier = _read_coupling_config(tmp_path)
     assert threshold == 15
     assert overrides == {}
 
@@ -100,7 +100,7 @@ def test_read_coupling_config_with_overrides(tmp_path: Path) -> None:
         "rules.quality" = 20
     """,
     )
-    threshold, overrides, _bonus = _read_coupling_config(tmp_path)
+    threshold, overrides, _bonus, _multiplier = _read_coupling_config(tmp_path)
     assert threshold == 10
     assert overrides == {"rules.quality": 20}
 
@@ -113,7 +113,7 @@ def test_read_coupling_config_invalid_threshold(tmp_path: Path) -> None:
         fan_out_threshold = "not_a_number"
     """,
     )
-    threshold, overrides, _bonus = _read_coupling_config(tmp_path)
+    threshold, overrides, _bonus, _multiplier = _read_coupling_config(tmp_path)
     assert threshold == 10
     assert overrides == {}
 
@@ -126,7 +126,7 @@ def test_read_coupling_config_negative_threshold(tmp_path: Path) -> None:
         fan_out_threshold = -5
     """,
     )
-    threshold, overrides, _bonus = _read_coupling_config(tmp_path)
+    threshold, overrides, _bonus, _multiplier = _read_coupling_config(tmp_path)
     assert threshold == 10
     assert overrides == {}
 
@@ -140,7 +140,7 @@ def test_read_coupling_config_invalid_override_value(tmp_path: Path) -> None:
         "mod" = "bad"
     """,
     )
-    threshold, overrides, _bonus = _read_coupling_config(tmp_path)
+    threshold, overrides, _bonus, _multiplier = _read_coupling_config(tmp_path)
     assert threshold == 10
     assert overrides == {}
 
@@ -245,7 +245,7 @@ def test_read_coupling_config_missing_audit_section(tmp_path: Path) -> None:
         name = "somepkg"
     """,
     )
-    threshold, overrides, _bonus = _read_coupling_config(tmp_path)
+    threshold, overrides, _bonus, _multiplier = _read_coupling_config(tmp_path)
     assert threshold == 10
     assert overrides == {}
 
@@ -256,7 +256,7 @@ def test_read_coupling_config_malformed_toml(tmp_path: Path) -> None:
         "[invalid toml\nno closing bracket",
         encoding="utf-8",
     )
-    threshold, overrides, _bonus = _read_coupling_config(tmp_path)
+    threshold, overrides, _bonus, _multiplier = _read_coupling_config(tmp_path)
     assert threshold == 10
     assert overrides == {}
 
@@ -271,7 +271,7 @@ def test_read_coupling_config_override_nonexistent_module(tmp_path: Path) -> Non
         "no.such.module" = 25
     """,
     )
-    threshold, overrides, _bonus = _read_coupling_config(tmp_path)
+    threshold, overrides, _bonus, _multiplier = _read_coupling_config(tmp_path)
     assert threshold == 10
     assert overrides == {"no.such.module": 25}
 
@@ -286,6 +286,6 @@ def test_read_coupling_config_empty_overrides(tmp_path: Path) -> None:
         [tool.axm-audit.coupling.overrides]
     """,
     )
-    threshold, overrides, _bonus = _read_coupling_config(tmp_path)
+    threshold, overrides, _bonus, _multiplier = _read_coupling_config(tmp_path)
     assert threshold == 12
     assert overrides == {}

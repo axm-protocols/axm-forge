@@ -119,14 +119,15 @@ class TestCouplingFormula:
         assert result.details["n_over_threshold"] == 0
 
     def test_some_above_threshold(self, tmp_path: Path) -> None:
-        """2 modules above threshold → score=90."""
+        """2 modules above threshold (both warnings) → score=94."""
         from axm_audit.core.rules.architecture import CouplingMetricRule
 
         rule = CouplingMetricRule(fan_out_threshold=10)
         src = tmp_path / "src" / "pkg"
         src.mkdir(parents=True)
 
-        # a=5 (under), b=12 (over), c=15 (over)
+        # a=5 (under), b=12 (warning), c=15 (warning)
+        # default multiplier=2 → error threshold=20, both under
         (src / "a.py").write_text("\n".join(f"import m{i}" for i in range(5)))
         (src / "b.py").write_text("\n".join(f"import m{i}" for i in range(12)))
         (src / "c.py").write_text("\n".join(f"import m{i}" for i in range(15)))
@@ -135,19 +136,21 @@ class TestCouplingFormula:
         result = rule.check(tmp_path)
         assert result.details is not None
         assert result.details["n_over_threshold"] == 2
-        assert result.details["score"] == 90  # 100 - 2*5
+        assert result.details["score"] == 94  # 100 - 2*3 (warnings)
 
     def test_many_above_threshold_floors_at_zero(self, tmp_path: Path) -> None:
-        """20+ modules above threshold → score=0."""
+        """Many modules above threshold → score floors at 0."""
         from axm_audit.core.rules.architecture import CouplingMetricRule
 
         rule = CouplingMetricRule(fan_out_threshold=10)
         src = tmp_path / "src" / "pkg"
         src.mkdir(parents=True)
 
+        # fan-out=25, threshold=10, multiplier=2 → error threshold=20
+        # 25 > 20 → all ERROR → 100 - 25*5 = 0 (floored)
         for i in range(25):
             (src / f"mod_{i}.py").write_text(
-                "\n".join(f"import dep_{j}" for j in range(15))
+                "\n".join(f"import dep_{j}" for j in range(25))
             )
         (src / "__init__.py").write_text("")
 

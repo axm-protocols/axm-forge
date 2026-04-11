@@ -367,23 +367,32 @@ def _build_fan_metrics(
 
 _COUPLING_DEFAULT_THRESHOLD = 10
 _COUPLING_DEFAULT_ORCHESTRATOR_BONUS = 5
+_COUPLING_DEFAULT_SEVERITY_MULTIPLIER = 2
 
 
-def _read_coupling_config(project_path: Path) -> tuple[int, dict[str, int], int]:
+def _read_coupling_config(
+    project_path: Path,
+) -> tuple[int, dict[str, int], int, int]:
     """Read coupling thresholds from ``[tool.axm-audit.coupling]`` in pyproject.toml.
 
     Returns:
-        ``(fan_out_threshold, overrides, orchestrator_bonus)`` — falls back to
-        defaults on any error.
+        ``(fan_out_threshold, overrides, orchestrator_bonus,
+        severity_error_multiplier)`` — falls back to defaults on any error.
     """
+    defaults: tuple[int, dict[str, int], int, int] = (
+        _COUPLING_DEFAULT_THRESHOLD,
+        {},
+        _COUPLING_DEFAULT_ORCHESTRATOR_BONUS,
+        _COUPLING_DEFAULT_SEVERITY_MULTIPLIER,
+    )
     pyproject = project_path / "pyproject.toml"
     if not pyproject.exists():
-        return _COUPLING_DEFAULT_THRESHOLD, {}, _COUPLING_DEFAULT_ORCHESTRATOR_BONUS
+        return defaults
 
     try:
         data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
-        return _COUPLING_DEFAULT_THRESHOLD, {}, _COUPLING_DEFAULT_ORCHESTRATOR_BONUS
+        return defaults
 
     section = data.get("tool", {}).get("axm-audit", {}).get("coupling", {})
 
@@ -413,7 +422,17 @@ def _read_coupling_config(project_path: Path) -> tuple[int, dict[str, int], int]
     if bonus < 0:
         bonus = _COUPLING_DEFAULT_ORCHESTRATOR_BONUS
 
-    return threshold, overrides, bonus
+    raw_multiplier = section.get(
+        "severity_error_multiplier", _COUPLING_DEFAULT_SEVERITY_MULTIPLIER
+    )
+    try:
+        multiplier = int(raw_multiplier)
+    except (TypeError, ValueError):
+        multiplier = _COUPLING_DEFAULT_SEVERITY_MULTIPLIER
+
+    multiplier = max(multiplier, 1)
+
+    return threshold, overrides, bonus, multiplier
 
 
 def _build_coupling_result(  # noqa: PLR0913
@@ -425,8 +444,15 @@ def _build_coupling_result(  # noqa: PLR0913
     orchestrator_bonus: int = 0,
     imports_map: dict[str, list[str]] | None = None,
     src_path: Path | None = None,
+    severity_error_multiplier: int = _COUPLING_DEFAULT_SEVERITY_MULTIPLIER,
 ) -> dict[str, Any]:
-    """Compute coupling summary from fan metrics."""
+    """Compute coupling summary from fan metrics.
+
+    Classifies each over-threshold module as ``"warning"`` or ``"error"``
+    based on *severity_error_multiplier*: fan-out above
+    ``effective_threshold * severity_error_multiplier`` is an error,
+    otherwise a warning.
+    """
     _overrides = overrides or {}
     _imports_map = imports_map or {}
 
@@ -460,12 +486,14 @@ def _build_coupling_result(  # noqa: PLR0913
     for name, fo in fan_out.items():
         eff, role = _effective_threshold(name)
         if fo > eff:
+            severity = "error" if fo > eff * severity_error_multiplier else "warning"
             over.append(
                 {
                     "module": name,
                     "fan_out": fo,
                     "role": role,
                     "effective_threshold": eff,
+                    "severity": severity,
                 }
             )
 
@@ -485,6 +513,7 @@ def _compute_coupling_metrics(
     threshold: int = 10,
     overrides: dict[str, int] | None = None,
     orchestrator_bonus: int = 0,
+    severity_error_multiplier: int = _COUPLING_DEFAULT_SEVERITY_MULTIPLIER,
 ) -> dict[str, Any]:
     """Compute fan-in/fan-out coupling metrics for all modules.
 
@@ -511,7 +540,23 @@ def _compute_coupling_metrics(
         orchestrator_bonus=orchestrator_bonus,
         imports_map=imports_map,
         src_path=src_path,
+        severity_error_multiplier=severity_error_multiplier,
     )
+
+
+def _resolve_coupling_severity(
+    over: list[dict[str, Any]],
+) -> tuple[int, int, Severity]:
+    """Return ``(n_warnings, n_errors, worst_severity)`` from over-threshold entries."""
+    n_warnings = sum(1 for m in over if m["severity"] == "warning")
+    n_errors = sum(1 for m in over if m["severity"] == "error")
+    if n_errors:
+        severity = Severity.ERROR
+    elif n_warnings:
+        severity = Severity.WARNING
+    else:
+        severity = Severity.INFO
+    return n_warnings, n_errors, severity
 
 
 @dataclass
@@ -538,20 +583,25 @@ class CouplingMetricRule(ProjectRule):
 
         src_path = project_path / "src"
 
-        threshold, overrides, orchestrator_bonus = _read_coupling_config(project_path)
+        threshold, overrides, orchestrator_bonus, multiplier = _read_coupling_config(
+            project_path
+        )
         metrics = _compute_coupling_metrics(
             src_path,
             threshold,
             overrides,
             orchestrator_bonus,
+            severity_error_multiplier=multiplier,
         )
         n_over: int = metrics["n_over_threshold"]
         over: list[dict[str, Any]] = metrics["over_threshold"]
         avg: float = metrics["avg_coupling"]
-        score = max(0, 100 - n_over * 5)
+
+        n_warnings, n_errors, severity = _resolve_coupling_severity(over)
+        score = max(0, 100 - (n_warnings * 3 + n_errors * 5))
 
         if n_over:
-            penalty = n_over * 5
+            penalty = n_warnings * 3 + n_errors * 5
             msg = f"Coupling: {n_over} module(s) above threshold (-{penalty} pts)"
         else:
             max_fo = metrics["max_fan_out"]
@@ -565,9 +615,9 @@ class CouplingMetricRule(ProjectRule):
 
         return CheckResult(
             rule_id=self.rule_id,
-            passed=n_over == 0,
+            passed=n_errors == 0,
             message=msg,
-            severity=Severity.WARNING if n_over else Severity.INFO,
+            severity=severity,
             details={
                 "max_fan_out": metrics["max_fan_out"],
                 "max_fan_in": metrics["max_fan_in"],

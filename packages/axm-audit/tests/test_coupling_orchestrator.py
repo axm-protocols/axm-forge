@@ -254,7 +254,7 @@ class TestReadCouplingConfigOrchestratorBonus:
         pyproject.write_text(
             "[tool.axm-audit.coupling]\nthreshold = 10\norchestrator_bonus = 8\n"
         )
-        threshold, _, bonus = _read_coupling_config(tmp_path)
+        threshold, _, bonus, _ = _read_coupling_config(tmp_path)
         assert threshold == 10
         assert bonus == 8
 
@@ -264,5 +264,5 @@ class TestReadCouplingConfigOrchestratorBonus:
 
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text("[tool.axm-audit.coupling]\nthreshold = 10\n")
-        _, _, bonus = _read_coupling_config(tmp_path)
+        _, _, bonus, _ = _read_coupling_config(tmp_path)
         assert bonus == 5
