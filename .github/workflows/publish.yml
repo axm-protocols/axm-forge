@@ -7,6 +7,7 @@ on:
       - "audit/v*"
       - "init/v*"
       - "git/v*"
+      - "smelt/v*"
 
 jobs:
   detect-package:
