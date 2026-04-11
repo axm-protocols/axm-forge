@@ -22,13 +22,14 @@
 
 - 🔍 **Preflight** — Structured working tree status with diff summary
 - 🌿 **Branch** — Create or checkout branches with one call
-- 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes
+- 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes and optional author identity injection
 - 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
 - 🚀 **Push** — Push with dirty-check, auto-upstream detection, and force support
 - 🌲 **Worktree** — Add, remove, or list git worktrees
 - 🔀 **PR** — Create GitHub pull requests with optional auto-merge
 - 🧭 **Error Recovery** — When called on a non-git directory, tools suggest nearby git repos
 - 🪝 **Hooks** — Lifecycle hook actions (preflight, create-branch, branch-delete, commit-phase, merge-squash, worktree-add, worktree-remove, push, create-pr, await-merge, pull-main) with `enabled` guard, auto-discovered via entry-points
+- 🪪 **Identity** — Resolve git author from `git-profiles.toml` with schedule-based or explicit profile selection
 - 🔎 **Phase Lookup** — `get_phase_commit()` retrieves commit hashes for protocol phases
 
 ## Installation
