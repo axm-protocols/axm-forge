@@ -180,9 +180,9 @@ class TestSearchCommand:
 class TestContextCommand:
     """Tests for axm-ast context."""
 
-    def test_context_slim(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """--slim flag produces compact output."""
-        output = _run(["context", str(SAMPLE_PKG), "--slim", "--json"], capsys)
+    def test_context_depth0(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--depth 0 produces compact output."""
+        output = _run(["context", str(SAMPLE_PKG), "--depth", "0", "--json"], capsys)
         import json
 
         data = json.loads(output)
