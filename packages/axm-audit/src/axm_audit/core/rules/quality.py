@@ -11,7 +11,12 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
+from axm_audit.core.rules.base import (
+    LINT_PASS_THRESHOLD,
+    PASS_THRESHOLD,
+    ProjectRule,
+    register_rule,
+)
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
@@ -71,7 +76,7 @@ class LintingRule(ProjectRule):
 
         issue_count = len(issues)
         score = max(0, 100 - issue_count * 2)
-        passed = score >= PASS_THRESHOLD
+        passed = score >= LINT_PASS_THRESHOLD
 
         # Store individual violations (capped at 20) for agent mode
         formatted_issues: list[dict[str, str | int]] = [
