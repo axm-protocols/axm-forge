@@ -140,29 +140,40 @@ class DocstringCoverageRule(ProjectRule):
         return documented, missing
 
     @staticmethod
-    def _is_abstract_stub(
+    def _has_abstractmethod_decorator(
         node: ast.FunctionDef | ast.AsyncFunctionDef,
     ) -> bool:
-        """Check if node is an abstract method stub (body is ``...`` or ``pass``)."""
-        is_abstract = any(
+        """Return *True* if *node* has an ``@abstractmethod`` decorator."""
+        return any(
             (isinstance(d, ast.Name) and d.id == "abstractmethod")
             or (isinstance(d, ast.Attribute) and d.attr == "abstractmethod")
             for d in node.decorator_list
         )
-        if not is_abstract:
+
+    @staticmethod
+    def _is_stub_body(
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+    ) -> bool:
+        """Return *True* if *node*'s body is just ``...`` or ``pass``."""
+        if len(node.body) != 1:
             return False
-        # Body is just `...` (Ellipsis)
-        if (
-            len(node.body) == 1
-            and isinstance(node.body[0], ast.Expr)
-            and isinstance(node.body[0].value, ast.Constant)
-            and node.body[0].value.value is ...
-        ):
+        stmt = node.body[0]
+        if isinstance(stmt, ast.Pass):
             return True
-        # Body is just `pass`
-        if len(node.body) == 1 and isinstance(node.body[0], ast.Pass):
-            return True
-        return False
+        return (
+            isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Constant)
+            and stmt.value.value is ...
+        )
+
+    @staticmethod
+    def _is_abstract_stub(
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+    ) -> bool:
+        """Check if node is an abstract method stub (body is ``...`` or ``pass``)."""
+        return DocstringCoverageRule._has_abstractmethod_decorator(
+            node
+        ) and DocstringCoverageRule._is_stub_body(node)
 
     @staticmethod
     def _is_setter_or_deleter(
@@ -244,12 +255,7 @@ class DocstringCoverageRule(ProjectRule):
                 continue
             if item.name != method_name:
                 continue
-            is_abstract = any(
-                (isinstance(d, ast.Name) and d.id == "abstractmethod")
-                or (isinstance(d, ast.Attribute) and d.attr == "abstractmethod")
-                for d in item.decorator_list
-            )
-            if is_abstract and self._has_docstring(item):
+            if self._has_abstractmethod_decorator(item) and self._has_docstring(item):
                 return True
         return False
 
