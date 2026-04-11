@@ -13,7 +13,7 @@ hide:
 
     AST introspection CLI for AI agents, powered by tree-sitter.
 
-    [:octicons-arrow-right-24: Getting Started](../ast/)
+    [:octicons-arrow-right-24: Getting Started](../ast/index.md)
 
 -   :material-shield-check:{ .lg .middle } **axm-audit**
 
@@ -21,7 +21,7 @@ hide:
 
     Code auditing and quality rules for Python projects.
 
-    [:octicons-arrow-right-24: Getting Started](../audit/)
+    [:octicons-arrow-right-24: Getting Started](../audit/index.md)
 
 -   :material-cube-outline:{ .lg .middle } **axm-init**
 
@@ -29,7 +29,7 @@ hide:
 
     Python project scaffolding CLI with Copier templates.
 
-    [:octicons-arrow-right-24: Getting Started](../init/)
+    [:octicons-arrow-right-24: Getting Started](../init/index.md)
 
 -   :material-source-branch:{ .lg .middle } **axm-git**
 
@@ -37,15 +37,15 @@ hide:
 
     Git workflow automation for AXM agents.
 
-    [:octicons-arrow-right-24: Getting Started](../git/)
+    [:octicons-arrow-right-24: Getting Started](../git/index.md)
 
--   :material-compress:{ .lg .middle } **axm-smelt**
+-   :material-arrow-collapse-vertical:{ .lg .middle } **axm-smelt**
 
     ---
 
     Deterministic token compaction for LLM inputs.
 
-    [:octicons-arrow-right-24: Getting Started](../smelt/)
+    [:octicons-arrow-right-24: Getting Started](../smelt/index.md)
 
 </div>
 
