@@ -35,12 +35,13 @@ Four commands via cyclopts: `compact`, `check`, `count`, `version`. All read fro
 
 ### 4. Pipeline (`core/pipeline.py`)
 
-`smelt()` orchestrates four steps:
+`smelt()` composes three private helpers:
 
-1. Detect format via `detect_format()` (iterates `_PROBES`: `_try_json`, `_try_xml`, `_try_yaml`, `_try_markdown`)
-2. Count input tokens
-3. Build a `SmeltContext` from the input text and detected format, then apply strategies in order — each `strategy.apply(ctx)` receives and returns a `SmeltContext`. A token-count guard compares the result against the current token count: the strategy is only accepted if it strictly reduces tokens (or reduces text length at equal tokens). Strategies that regress are silently discarded
-4. Count output tokens and compute `savings_pct`
+1. **`_resolve_input(text, parsed)`** — normalizes inputs into `(text, parsed)`. If `parsed` is provided it is JSON-serialized; if neither argument is given, raises `ValueError`
+2. **`_resolve_strategies(strategies, preset)`** — returns strategy instances from explicit names, a preset name, or the `"safe"` default
+3. **`_apply_strategies(ctx, strats, current_tokens)`** — applies strategies in order with a token-count guard: each `strategy.apply(ctx)` receives and returns a `SmeltContext`; the strategy is only accepted if it strictly reduces tokens (or reduces text length at equal tokens). Strategies that regress are silently discarded
+
+Between helper calls, `smelt()` detects the format via `detect_format()` (iterates `_PROBES`: `_try_json`, `_try_xml`, `_try_yaml`, `_try_markdown`), counts input tokens, and builds the initial `SmeltContext`. After `_apply_strategies` returns, it counts output tokens and computes `savings_pct`.
 
 `check()` runs every registered strategy independently on the original `SmeltContext` and records per-strategy savings without chaining. Only strategies with positive savings (> 0%) are included in `strategy_estimates`; strategies that regress or break even are omitted.
 
@@ -85,13 +86,19 @@ sequenceDiagram
     participant Strategies
 
     User->>API: smelt(text, preset="moderate")
+    API->>Pipeline: _resolve_input(text, parsed)
+    Pipeline-->>API: (text, parsed)
     API->>Pipeline: detect_format(text)
     API->>Pipeline: count(text) -> original_tokens
+    API->>Pipeline: _resolve_strategies(None, "moderate")
+    Pipeline-->>API: strats
     Pipeline->>Pipeline: SmeltContext(text, format)
-    loop For each strategy in preset
+    API->>Pipeline: _apply_strategies(ctx, strats, original_tokens)
+    loop For each strategy in strats
         Pipeline->>Strategies: strategy.apply(ctx)
         Strategies-->>Pipeline: ctx (accepted if tokens decrease, else discarded)
     end
+    Pipeline-->>API: (ctx, applied)
     Pipeline->>Pipeline: count(ctx.text) -> compacted_tokens
     Pipeline-->>User: SmeltReport
 ```

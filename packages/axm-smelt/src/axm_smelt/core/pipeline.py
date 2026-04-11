@@ -14,38 +14,38 @@ from axm_smelt.strategies.base import SmeltStrategy
 __all__ = ["check", "smelt"]
 
 
-def smelt(
-    text: str | None = None,
-    strategies: list[str] | None = None,
-    preset: str | None = None,
-    *,
-    parsed: dict[str, Any] | list[Any] | None = None,
-) -> SmeltReport:
-    """Run the compaction pipeline and return a report."""
+def _resolve_input(
+    text: str | None,
+    parsed: dict[str, Any] | list[Any] | None,
+) -> tuple[str, dict[str, Any] | list[Any] | None]:
+    """Normalize inputs into ``(text, parsed)``."""
     if parsed is not None:
-        text = json.dumps(parsed, separators=(",", ":"))
-    elif text is None:
+        return json.dumps(parsed, separators=(",", ":")), parsed
+    if text is None:
         msg = "Either text or parsed must be provided"
         raise ValueError(msg)
+    return text, None
 
-    fmt, _parsed = detect_format_parsed(text)
-    if parsed is not None:
-        _parsed = parsed
-    original_tokens = count(text)
 
-    strats: list[SmeltStrategy]
+def _resolve_strategies(
+    strategies: list[str] | None,
+    preset: str | None,
+) -> list[SmeltStrategy]:
+    """Return strategy instances from explicit names, a preset, or the default."""
     if strategies:
-        strats = [get_strategy(s) for s in strategies]
-    elif preset:
-        strats = get_preset(preset)
-    else:
-        strats = get_preset("safe")
+        return [get_strategy(s) for s in strategies]
+    if preset:
+        return get_preset(preset)
+    return get_preset("safe")
 
-    ctx = SmeltContext(text=text, format=fmt)
-    if _parsed is not None:
-        ctx._parsed = _parsed
+
+def _apply_strategies(
+    ctx: SmeltContext,
+    strats: list[SmeltStrategy],
+    current_tokens: int,
+) -> tuple[SmeltContext, list[str]]:
+    """Apply *strats* to *ctx*, discarding any that increase tokens."""
     applied: list[str] = []
-    current_tokens = original_tokens
     for s in strats:
         result = s.apply(ctx)
         if result.text != ctx.text:
@@ -56,6 +56,31 @@ def smelt(
                 applied.append(s.name)
                 ctx = result
                 current_tokens = result_tokens
+    return ctx, applied
+
+
+def smelt(
+    text: str | None = None,
+    strategies: list[str] | None = None,
+    preset: str | None = None,
+    *,
+    parsed: dict[str, Any] | list[Any] | None = None,
+) -> SmeltReport:
+    """Run the compaction pipeline and return a report."""
+    text, parsed = _resolve_input(text, parsed)
+
+    fmt, detected_parsed = detect_format_parsed(text)
+    if parsed is not None:
+        detected_parsed = parsed
+    original_tokens = count(text)
+
+    strats = _resolve_strategies(strategies, preset)
+
+    ctx = SmeltContext(text=text, format=fmt)
+    if detected_parsed is not None:
+        ctx._parsed = detected_parsed
+
+    ctx, applied = _apply_strategies(ctx, strats, original_tokens)
 
     compacted = ctx.text
     compacted_tokens = count(compacted)
