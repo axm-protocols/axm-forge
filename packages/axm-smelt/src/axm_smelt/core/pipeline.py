@@ -45,11 +45,17 @@ def smelt(
     if _parsed is not None:
         ctx._parsed = _parsed
     applied: list[str] = []
+    current_tokens = original_tokens
     for s in strats:
         result = s.apply(ctx)
         if result.text != ctx.text:
-            applied.append(s.name)
-            ctx = result
+            result_tokens = count(result.text)
+            if result_tokens < current_tokens or (
+                result_tokens == current_tokens and len(result.text) < len(ctx.text)
+            ):
+                applied.append(s.name)
+                ctx = result
+                current_tokens = result_tokens
 
     compacted = ctx.text
     compacted_tokens = count(compacted)
@@ -93,7 +99,8 @@ def check(
         if result.text != ctx.text:
             result_tokens = count(result.text)
             savings = (1 - result_tokens / tokens) * 100 if tokens > 0 else 0.0
-            estimates[name] = round(savings, 2)
+            if savings > 0:
+                estimates[name] = round(savings, 2)
 
     return SmeltReport(
         original=text,
