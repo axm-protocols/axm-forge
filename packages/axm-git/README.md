@@ -99,6 +99,7 @@ Execute one or more atomic commits with pre-commit hook handling.
 |---|---|---|
 | `path` | `.` | Project root directory |
 | `commits` | *required* | List of commit specs (see below) |
+| `profile` | `None` | Identity profile name — overrides schedule-based resolution from `git-profiles.toml` |
 
 Each commit spec:
 
@@ -109,6 +110,8 @@ Each commit spec:
 | `body` | | Extended commit body |
 
 When a pre-commit hook auto-fixes files (e.g. ruff `--fix`), the tool re-stages and retries once automatically.
+
+Identity is resolved once per call (not per commit). When resolved, each commit includes `--author="Name <email>"`. The result includes an `author` key (`{name, email}` or `null`).
 
 ### `git_tag`
 

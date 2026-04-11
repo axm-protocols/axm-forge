@@ -15,7 +15,10 @@ from typing import Any, cast
 
 from axm.hooks.base import HookResult
 
-from axm_git.core.identity import resolve_identity
+from axm_git.core.identity import (  # noqa: F401 (author_args: mock target)
+    author_args,
+    resolve_identity,
+)
 from axm_git.core.runner import find_git_root, run_git
 
 logger = logging.getLogger(__name__)
