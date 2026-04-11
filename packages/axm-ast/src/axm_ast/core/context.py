@@ -478,7 +478,8 @@ def format_context_json(
         depth: Detail level.  ``None`` returns the full context.
 
     Returns:
-        JSON-serializable dict.
+        JSON-serializable dict.  The ``python`` key is ``None`` when the
+        project does not declare ``requires-python``.
     """
     if depth is None:
         return ctx
@@ -486,7 +487,7 @@ def format_context_json(
     patterns = ctx.get("patterns", {})
     base: dict[str, Any] = {
         "name": ctx.get("name", ""),
-        "python": ctx.get("python", ""),
+        "python": ctx.get("python"),
         "stack": ctx.get("stack", {}),
         "patterns": {
             "module_count": patterns.get("module_count", 0),

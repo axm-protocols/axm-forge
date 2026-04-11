@@ -29,6 +29,7 @@ nav:
     - Use via MCP: howto/mcp.md
   - Reference:
     - CLI: reference/cli.md
+    - API: reference/api.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Output Formats: explanation/formats.md
