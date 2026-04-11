@@ -100,6 +100,9 @@ def get_registry() -> dict[str, list[type[ProjectRule]]]:
 PASS_THRESHOLD: int = 90
 """Minimum score (out of 100) for a check to pass."""
 
+LINT_PASS_THRESHOLD: int = 100
+"""Minimum lint score — zero tolerance for lint issues."""
+
 COMPLEXITY_THRESHOLD: int = 10
 """Cyclomatic complexity ceiling — functions at or above are flagged."""
 
