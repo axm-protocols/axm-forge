@@ -100,6 +100,73 @@ def _build_failure_data(  # noqa: PLR0913
     }
 
 
+def _process_single_commit(
+    spec: dict[str, Any],
+    index: int,
+    identity_args: list[str],
+    path: Path,
+    results: list[dict[str, Any]],
+) -> ToolResult | None:
+    """Process one commit spec: validate, stage, commit, record result.
+
+    Returns a ``ToolResult`` on failure or ``None`` on success
+    (appending the commit record to *results*).
+    """
+    validation_err = _validate_commit_spec(spec, index, results)
+    if validation_err:
+        return validation_err
+
+    files: list[str] = spec["files"]
+    message: str = spec["message"]
+    body: str | None = spec.get("body")
+
+    # Stage files
+    add_err = _stage_files(files, path)
+    if add_err:
+        return ToolResult(
+            success=False,
+            error=f"Commit {index}: git add failed: {add_err}",
+            data={"results": results, "succeeded": len(results)},
+        )
+
+    # Build commit command
+    commit_args = ["commit", "-m", message]
+    if body:
+        commit_args.extend(["-m", body])
+    commit_args.extend(identity_args)
+
+    # Attempt commit with auto-retry
+    ok, retried, output = _attempt_commit(commit_args, files, path)
+
+    if not ok:
+        return ToolResult(
+            success=False,
+            error=f"Commit {index}: pre-commit failed",
+            data=_build_failure_data(
+                results,
+                index=index,
+                message=message,
+                output=output,
+                retried=retried,
+                path=path,
+            ),
+        )
+
+    # Get the SHA of the commit
+    log = run_git(["log", "-1", "--format=%H"], path)
+    sha = log.stdout.strip()[:7]
+
+    results.append(
+        {
+            "sha": sha,
+            "message": message,
+            "precommit_passed": True,
+            "retried": retried,
+        }
+    )
+    return None
+
+
 class GitCommitTool(AXMTool):
     """Execute one or more atomic commits in a single call.
 
@@ -161,58 +228,11 @@ class GitCommitTool(AXMTool):
         results: list[dict[str, Any]] = []
 
         for i, spec in enumerate(commit_list):
-            validation_err = _validate_commit_spec(spec, i + 1, results)
-            if validation_err:
-                return validation_err
-
-            files: list[str] = spec["files"]
-            message: str = spec["message"]
-            body: str | None = spec.get("body")
-
-            # Stage files
-            add_err = _stage_files(files, resolved)
-            if add_err:
-                return ToolResult(
-                    success=False,
-                    error=f"Commit {i + 1}: git add failed: {add_err}",
-                    data={"results": results, "succeeded": len(results)},
-                )
-
-            # Build commit command
-            commit_args = ["commit", "-m", message]
-            if body:
-                commit_args.extend(["-m", body])
-            commit_args.extend(identity_args)
-
-            # Attempt commit with auto-retry
-            ok, retried, output = _attempt_commit(commit_args, files, resolved)
-
-            if not ok:
-                return ToolResult(
-                    success=False,
-                    error=f"Commit {i + 1}: pre-commit failed",
-                    data=_build_failure_data(
-                        results,
-                        index=i + 1,
-                        message=message,
-                        output=output,
-                        retried=retried,
-                        path=resolved,
-                    ),
-                )
-
-            # Get the SHA of the commit
-            log = run_git(["log", "-1", "--format=%H"], resolved)
-            sha = log.stdout.strip()[:7]
-
-            results.append(
-                {
-                    "sha": sha,
-                    "message": message,
-                    "precommit_passed": True,
-                    "retried": retried,
-                }
+            failure = _process_single_commit(
+                spec, i + 1, identity_args, resolved, results
             )
+            if failure:
+                return failure
 
         return ToolResult(
             success=True,
