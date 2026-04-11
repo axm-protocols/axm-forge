@@ -101,7 +101,12 @@ def check_diataxis_nav(project: Path) -> CheckResult:
 
 
 def check_docs_plugins(project: Path) -> CheckResult:
-    """Check 21: gen-files + literate-nav + mkdocstrings."""
+    """Check 21: gen-files + literate-nav + mkdocstrings.
+
+    For workspace members (``project.parent.name == "packages"``), missing
+    plugins are re-checked against the workspace-root ``mkdocs.yml`` so that
+    nav-only local configs do not trigger false positives.
+    """
     path = _resolve_mkdocs(project)
     if not path:
         return CheckResult(
@@ -120,6 +125,11 @@ def check_docs_plugins(project: Path) -> CheckResult:
         "mkdocstrings": "mkdocstrings" in content,
     }
     missing = [p for p, present in required.items() if not present]
+    if missing and project.parent.name == "packages":
+        root_mkdocs = project.parent.parent / "mkdocs.yml"
+        if root_mkdocs.exists():
+            root_content = root_mkdocs.read_text()
+            missing = [p for p in missing if p not in root_content]
     if missing:
         return CheckResult(
             name="docs.plugins",
