@@ -135,6 +135,7 @@ The `CouplingMetricRule` reads thresholds from `pyproject.toml`:
 ```toml
 [tool.axm-audit.coupling]
 fan_out_threshold = 15          # default: 10
+severity_error_multiplier = 2   # default: 2, minimum: 1
 
 [tool.axm-audit.coupling.overrides]
 "my_package.hub" = 20           # allow higher fan-out for hub modules
@@ -143,8 +144,9 @@ fan_out_threshold = 15          # default: 10
 
 - **`fan_out_threshold`** — global fan-out limit (modules above this are flagged)
 - **`overrides`** — per-module thresholds; keys match by exact name or suffix
+- **`severity_error_multiplier`** — tiered severity: modules with fan-out above the effective threshold but within `threshold × multiplier` get a **warning** (−3 pts); beyond that they get an **error** (−5 pts). Only errors cause the check to fail; warnings alone still pass.
 
-When no configuration is present, the default threshold of 10 is used.
+When no configuration is present, the default threshold of 10 and multiplier of 2 are used.
 
 ## Witness Rules
 
