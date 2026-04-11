@@ -119,7 +119,8 @@ Pydantic models for structured data exchange between layers:
 |---|---|
 | `ModuleInfo` | Full introspection result for a single module |
 | `PackageInfo` | Full introspection result for a package |
-| `FunctionInfo` | Function metadata (params, return type, decorators) |
+| `FunctionKind` | StrEnum classifying callables: function, method, property, classmethod, staticmethod, abstract |
+| `FunctionInfo` | Function metadata (params, return type, decorators, kind) |
 | `ClassInfo` | Class metadata (bases, methods, docstring) |
 | `ParameterInfo` | Function parameter (name, type, default) |
 | `VariableInfo` | Module-level variable / constant |
