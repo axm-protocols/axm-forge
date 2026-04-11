@@ -15,6 +15,7 @@ from typing import Any, cast
 
 from axm.hooks.base import HookResult
 
+from axm_git.core.identity import resolve_identity
 from axm_git.core.runner import find_git_root, run_git
 
 logger = logging.getLogger(__name__)
@@ -79,13 +80,24 @@ def _build_commit_cmd(
     body: str | None,
     *,
     skip_hooks: bool = True,
+    author: str | None = None,
 ) -> list[str]:
-    """Build the ``git commit`` argument list."""
+    """Build the ``git commit`` argument list.
+
+    Args:
+        message: Commit summary line.
+        body: Optional extended commit body.
+        skip_hooks: Append ``--no-verify`` when *True*.
+        author: Git ``--author`` value (``"Name <email>"``).
+            When *None*, git uses the default identity.
+    """
     cmd = ["commit", "-m", message]
     if body:
         cmd.extend(["-m", body])
     if skip_hooks:
         cmd.append("--no-verify")
+    if author:
+        cmd.append(f"--author={author}")
     return cmd
 
 
@@ -174,22 +186,43 @@ class CommitPhaseHook:
         if find_git_root(working_dir) is None:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
+        profile: str | None = params.pop("profile", None)
+
         if params.get("from_outputs"):
             skip_hooks = params.get("skip_hooks", True)
             return self._commit_from_outputs(
-                context, working_dir, skip_hooks=skip_hooks
+                context, working_dir, skip_hooks=skip_hooks, profile=profile
             )
 
-        return self._commit_legacy(context, working_dir, **params)
+        return self._commit_legacy(context, working_dir, profile=profile, **params)
 
     def _commit_legacy(
         self,
         context: dict[str, Any],
         working_dir: Path,
+        *,
+        profile: str | None = None,
         **params: Any,
     ) -> HookResult:
-        """Legacy mode: stage all and commit with format string."""
+        """Legacy mode: stage all changes and commit with a format string.
+
+        Resolves the author identity via :func:`resolve_identity` and
+        injects ``--author`` into the commit command when a profile is
+        found.  Identity metadata (name, email) is included in the
+        returned :class:`HookResult`.
+
+        Args:
+            context: Session context containing ``phase_name``.
+            working_dir: Repository working directory.
+            profile: Optional identity profile name override.
+            **params: Extra params; ``message_format`` controls the
+                commit message template (default ``"[axm] {phase}"``).
+        """
         phase_name: str = context["phase_name"]
+
+        # Resolve author identity
+        identity = resolve_identity(working_dir, profile_override=profile)
+        author = f"{identity.name} <{identity.email}>" if identity else None
 
         # Stage all changes (scoped to working_dir for workspace layouts)
         run_git(["add", "-A", "."], working_dir)
@@ -203,13 +236,21 @@ class CommitPhaseHook:
         msg = params.get("message_format", "[axm] {phase}").format(
             phase=phase_name,
         )
-        result = run_git(["commit", "-m", msg], working_dir)
+        commit_cmd = _build_commit_cmd(msg, None, author=author)
+        result = run_git(commit_cmd, working_dir)
         if result.returncode != 0:
             return HookResult.fail(f"git commit failed: {result.stderr}")
 
         # Get commit hash
         hash_result = run_git(["rev-parse", "--short", "HEAD"], working_dir)
-        return HookResult.ok(commit=hash_result.stdout.strip(), message=msg)
+        result_kw: dict[str, Any] = {
+            "commit": hash_result.stdout.strip(),
+            "message": msg,
+        }
+        if identity:
+            result_kw["author_name"] = identity.name
+            result_kw["author_email"] = identity.email
+        return HookResult.ok(**result_kw)
 
     def _commit_from_outputs(
         self,
@@ -217,12 +258,21 @@ class CommitPhaseHook:
         working_dir: Path,
         *,
         skip_hooks: bool = True,
+        profile: str | None = None,
     ) -> HookResult:
-        """Outputs mode: read commit_spec from context, stage listed files.
+        """Outputs mode: read ``commit_spec`` from context, stage listed files.
 
-        If the commit fails because pre-commit hooks auto-fixed files
-        (stderr contains ``"files were modified"``), the listed files are
-        re-staged and the commit is retried once.
+        Resolves the author identity via :func:`resolve_identity` and
+        injects ``--author`` into the commit command when a profile is
+        found.  If the commit fails because pre-commit hooks auto-fixed
+        files (stderr contains ``"files were modified"``), the listed
+        files are re-staged and the commit is retried once.
+
+        Args:
+            context: Session context containing ``commit_spec``.
+            working_dir: Repository working directory.
+            skip_hooks: Append ``--no-verify`` to the commit command.
+            profile: Optional identity profile name override.
         """
         spec, err = _validate_commit_spec(context.get("commit_spec"))
         if err:
@@ -236,6 +286,10 @@ class CommitPhaseHook:
 
         git_root = find_git_root(working_dir) or working_dir
 
+        # Resolve author identity
+        identity = resolve_identity(git_root, profile_override=profile)
+        author = f"{identity.name} <{identity.email}>" if identity else None
+
         _format_spec_files(files, git_root)
 
         warnings: list[str] = []
@@ -248,7 +302,9 @@ class CommitPhaseHook:
         if not status.stdout.strip():
             return HookResult.ok(skipped=True, reason="nothing to commit")
 
-        commit_cmd = _build_commit_cmd(message, body, skip_hooks=skip_hooks)
+        commit_cmd = _build_commit_cmd(
+            message, body, skip_hooks=skip_hooks, author=author
+        )
 
         result = run_git(commit_cmd, git_root)
         if result.returncode != 0:
@@ -262,6 +318,9 @@ class CommitPhaseHook:
             "commit": hash_result.stdout.strip(),
             "message": message,
         }
+        if identity:
+            result_kw["author_name"] = identity.name
+            result_kw["author_email"] = identity.email
         if warnings:
             result_kw["warnings"] = warnings
         return HookResult.ok(**result_kw)
