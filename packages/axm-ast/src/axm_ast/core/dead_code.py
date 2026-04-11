@@ -665,14 +665,31 @@ def _has_intra_module_refs(
     return False
 
 
+def _is_class_alive(
+    cls: ClassInfo,
+    mod: ModuleInfo,
+    pkg: PackageInfo,
+    ctx: _ScanContext,
+) -> bool:
+    """Return ``True`` if *cls* has callers, is exempt, or has intra-module refs."""
+    from axm_ast.core.callers import find_callers
+
+    has_callers = bool(find_callers(pkg, cls.name))
+    if not has_callers and ctx.extra_pkg is not None:
+        has_callers = bool(find_callers(ctx.extra_pkg, cls.name))
+    if has_callers:
+        return True
+    if _is_exempt_class(cls, mod):
+        return True
+    return _has_intra_module_refs(cls.name, cls.line_start, mod)
+
+
 def _scan_classes(
     mod: ModuleInfo,
     pkg: PackageInfo,
     ctx: _ScanContext,
 ) -> list[DeadSymbol]:
     """Scan classes and their methods in *mod* and return dead symbols."""
-    from axm_ast.core.callers import find_callers
-
     all_bases = _collect_base_class_names(pkg)
 
     dead: list[DeadSymbol] = []
@@ -684,14 +701,7 @@ def _scan_classes(
             or cls.name in ctx.all_refs
         ):
             continue
-        has_callers = bool(find_callers(pkg, cls.name))
-        if not has_callers and ctx.extra_pkg is not None:
-            has_callers = bool(find_callers(ctx.extra_pkg, cls.name))
-        if (
-            not has_callers
-            and not _is_exempt_class(cls, mod)
-            and not _has_intra_module_refs(cls.name, cls.line_start, mod)
-        ):
+        if not _is_class_alive(cls, mod, pkg, ctx):
             dead.append(
                 DeadSymbol(
                     name=cls.name,
