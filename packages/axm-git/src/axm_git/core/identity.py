@@ -97,6 +97,40 @@ def _is_axm_workspace(path: Path) -> bool:
     return resolved.startswith(_AXM_WORKSPACE_PREFIX)
 
 
+def _resolve_by_override(
+    config: GitProfileConfig,
+    profile_override: str | None,
+) -> GitIdentity | None:
+    """Resolve identity from an explicit profile override.
+
+    Returns the matching identity, or ``None`` when *profile_override*
+    is ``None`` or names an unknown profile.
+    """
+    if profile_override is None:
+        return None
+    if profile_override == "default":
+        return config.default
+    return config.profiles.get(profile_override)
+
+
+def _resolve_by_schedule(
+    config: GitProfileConfig,
+    workspace_path: Path,
+    now: datetime,
+) -> GitIdentity | None:
+    """Resolve identity from schedule rules for AXM workspaces.
+
+    Returns ``None`` when the path is outside AXM workspaces or no
+    schedule rule matches.
+    """
+    if not _is_axm_workspace(workspace_path):
+        return None
+    for rule in config.schedule.rules:
+        if _matches_schedule(rule, now) and rule.profile in config.profiles:
+            return config.profiles[rule.profile]
+    return None
+
+
 def resolve_identity(
     workspace_path: Path,
     *,
@@ -113,21 +147,12 @@ def resolve_identity(
     if config is None:
         return None
 
+    override = _resolve_by_override(config, profile_override)
     if profile_override is not None:
-        if profile_override == "default":
-            return config.default
-        if profile_override in config.profiles:
-            return config.profiles[profile_override]
-        return None
+        return override
 
-    if _is_axm_workspace(workspace_path):
-        effective_now = now or datetime.now()
-        for rule in config.schedule.rules:
-            if _matches_schedule(rule, effective_now):
-                if rule.profile in config.profiles:
-                    return config.profiles[rule.profile]
-
-    return config.default
+    effective_now = now or datetime.now()
+    return _resolve_by_schedule(config, workspace_path, effective_now) or config.default
 
 
 def author_args(identity: GitIdentity | None) -> list[str]:
