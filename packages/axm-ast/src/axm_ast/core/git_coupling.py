@@ -207,9 +207,11 @@ def git_coupled_files(
         in a git repo or on error.
 
     Example:
+        ```python
         >>> result = git_coupled_files("src/core.py", Path("."))
         >>> result[0]["file"]
         'src/utils.py'
+        ```
     """
     commits = _parse_git_log(project_root, months)
     if not commits:

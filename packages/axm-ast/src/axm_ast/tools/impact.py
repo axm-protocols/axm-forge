@@ -110,12 +110,9 @@ class ImpactTool(AXMTool):
                 )
             )
         if detail == "compact":
-            from axm_ast.hooks.impact import _merge_impact_reports
-
-            merged = _merge_impact_reports("\n".join(symbols), results)
             return ToolResult(
                 success=True,
-                data={"compact": format_impact_compact(merged)},
+                data={"compact": format_impact_compact(results)},
             )
         return ToolResult(success=True, data={"symbols": results})
 
@@ -242,7 +239,9 @@ def _classify_callers(
             bucket = direct if mod_suffix and mod_suffix in file_name else indirect
             bucket.setdefault(file_name, []).append(line or 0)
         else:
-            prod.append(f"{mod}:{line}" if line else mod)
+            name = c.get("name")
+            loc = f"{mod}:{line}" if line else mod
+            prod.append(f"{name} ({loc})" if name else loc)
     return prod, direct, indirect
 
 
