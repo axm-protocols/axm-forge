@@ -86,10 +86,10 @@ managed = true
 [dependency-groups]
 dev = [
     "pytest>=8.0",
-    "pytest-cov>=4.0",
-    "pytest-mock>=3.0",
+    "pytest-cov>=7.1.0",
+    "pytest-mock>=3.15.1",
     "ruff==0.15.9",
-    "mypy>=1.14",
+    "mypy>=1.20.0",
     "types-PyYAML>=6.0",
     "pre-commit>=4.0",
     "pip-audit>=2.0",
@@ -97,9 +97,9 @@ dev = [
 ]
 docs = [
     "mkdocs-material>=9.0",
-    "mkdocstrings[python]>=0.27",
+    "mkdocstrings[python]>=1.0.3",
     "mkdocs-gen-files>=0.5",
-    "mkdocs-literate-nav>=0.6",
+    "mkdocs-literate-nav>=0.6.3",
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
