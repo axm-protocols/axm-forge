@@ -55,6 +55,49 @@ def _read_snippet(
     return "\n".join(result)
 
 
+def _expand_violations(
+    project_path: Path,
+    failed_items: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Expand failed audit items into flat violation dicts.
+
+    Items with inner ``errors`` or ``issues`` lists are expanded per entry
+    with file/line/snippet. Items without inner lists produce a single
+    fallback violation.
+    """
+    violations: list[dict[str, Any]] = []
+    for item in failed_items:
+        rule_id = item.get("rule_id", "")
+        details = item.get("details") or {}
+        inner = details.get("errors", details.get("issues"))
+        if inner is not None:
+            for entry in inner:
+                entry_file = entry.get("file", "")
+                entry_line = entry.get("line", 0)
+                violations.append(
+                    {
+                        "file": entry_file,
+                        "line": entry_line,
+                        "message": entry.get("message", ""),
+                        "code": entry.get("code", ""),
+                        "rule_id": rule_id,
+                        "snippet": _read_snippet(project_path, entry_file, entry_line),
+                    }
+                )
+        else:
+            violations.append(
+                {
+                    "file": "",
+                    "line": 0,
+                    "message": item.get("message", ""),
+                    "code": rule_id,
+                    "rule_id": rule_id,
+                    "snippet": None,
+                }
+            )
+    return violations
+
+
 class QualityCheckHook:
     """Run audit categories and report violations as hook metadata."""
 
@@ -104,38 +147,7 @@ class QualityCheckHook:
         agent_output = format_agent(merged)
 
         failed_items = agent_output.get("failed", [])
-        violations: list[dict[str, Any]] = []
-        for item in failed_items:
-            rule_id = item.get("rule_id", "")
-            details = item.get("details") or {}
-            inner = details.get("errors", details.get("issues"))
-            if inner is not None:
-                for entry in inner:
-                    entry_file = entry.get("file", "")
-                    entry_line = entry.get("line", 0)
-                    violations.append(
-                        {
-                            "file": entry_file,
-                            "line": entry_line,
-                            "message": entry.get("message", ""),
-                            "code": entry.get("code", ""),
-                            "rule_id": rule_id,
-                            "snippet": _read_snippet(
-                                project_path, entry_file, entry_line
-                            ),
-                        }
-                    )
-            else:
-                violations.append(
-                    {
-                        "file": "",
-                        "line": 0,
-                        "message": item.get("message", ""),
-                        "code": rule_id,
-                        "rule_id": rule_id,
-                        "snippet": None,
-                    }
-                )
+        violations = _expand_violations(project_path, failed_items)
 
         has_violations = len(violations) > 0
         summary = f"{len(violations)} violation(s)" if has_violations else "clean"
