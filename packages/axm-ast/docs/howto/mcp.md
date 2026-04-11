@@ -12,7 +12,7 @@
 | `ast_callers(path, symbol)` | `axm-ast callers` | Find all call-sites of a symbol |
 | `ast_impact(path, symbol, exclude_tests?, test_filter?, detail?)` | `axm-ast impact` | Change blast radius analysis. `detail="compact"` returns a markdown table. `test_filter="related"` keeps only direct test callers |
 | `ast_inspect(path, symbol?, symbols?)` | `axm-ast inspect` | Full detail on a single symbol or batch list of `symbols`; falls back to module metadata when `symbol` matches a module name (returns `kind: "module"`, `functions`, `classes`, `symbol_count`, `docstring`, `file`) |
-| `ast_graph(path)` | `axm-ast graph` | Import dependency graph |
+| `ast_graph(path, format?)` | `axm-ast graph` | Import dependency graph. `format`: `"json"` (default), `"mermaid"`, or `"text"`. Always includes `nodes` list |
 | `ast_docs(path, detail?, pages?)` | `axm-ast docs` | Documentation tree dump |
 | `ast_dead_code(path)` | `axm-ast dead-code` | Detect unreferenced symbols |
 | `ast_diff(path, base, head)` | `axm-ast diff` | Structural branch diff at symbol level |
@@ -44,7 +44,7 @@ All tools with a `path` parameter **auto-detect `uv` workspaces**. When `path` p
 - **`ast_context`** — returns a unified context with all member packages, their dependency graph, and aggregated statistics
 - **`ast_callers`** — searches across all packages, prefixing modules with `pkg_name::` for disambiguation
 - **`ast_impact`** — performs cross-package impact analysis, identifying callers, re-exports, and test files across the workspace
-- **`ast_graph`** — generates an inter-package dependency graph (Mermaid or adjacency list)
+- **`ast_graph`** — generates an inter-package dependency graph (Mermaid, text, or adjacency list). Single-package mode always includes a `nodes` list
 
 No special arguments needed — just point `path` to the workspace root.
 
