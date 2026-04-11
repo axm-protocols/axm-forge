@@ -308,9 +308,9 @@ def _classify_module_role(
     # Modules must be at depth >= 3 (e.g. pkg.sub.mod) to have
     # meaningful subpackage siblings.  Top-level modules (pkg.mod)
     # are always leaf — they sit in a flat package.
-    _MIN_SUBPACKAGE_DEPTH = 3
+    _min_subpackage_depth = 3
     parts = module_name.split(".")
-    if len(parts) < _MIN_SUBPACKAGE_DEPTH:
+    if len(parts) < _min_subpackage_depth:
         return "leaf"
     parent = ".".join(parts[:-1])
 
@@ -334,8 +334,8 @@ def _classify_module_role(
     own_name = parts[-1]
     siblings.discard(own_name)
 
-    _MIN_SIBLINGS_FOR_ORCHESTRATOR = 3
-    return "orchestrator" if len(siblings) >= _MIN_SIBLINGS_FOR_ORCHESTRATOR else "leaf"
+    _min_siblings_for_orchestrator = 3
+    return "orchestrator" if len(siblings) >= _min_siblings_for_orchestrator else "leaf"
 
 
 def _build_fan_metrics(
