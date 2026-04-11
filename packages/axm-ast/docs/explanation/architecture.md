@@ -105,7 +105,7 @@ Output formatting with multiple detail levels:
 | Function | Purpose |
 |---|---|
 | `format_text()` | Human-readable text (summary / detailed) |
-| `format_compressed()` | AI-friendly compressed view |
+| `format_compressed()` | AI-friendly compressed view (excludes test modules) |
 | `format_json()` | Machine-readable JSON |
 | `format_toc()` | Table-of-contents: module names + counts only |
 | `filter_modules()` | Case-insensitive substring filter on module names |
