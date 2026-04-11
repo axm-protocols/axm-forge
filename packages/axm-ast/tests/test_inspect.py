@@ -63,7 +63,7 @@ class TestFindSymbolFile:
         pkg = analyze_package(rich_pkg)
         results = search_symbols(pkg, name="greet")
         assert results
-        file_path = InspectTool._find_symbol_file(pkg, results[0])
+        file_path = InspectTool._find_symbol_file(pkg, results[0][1])
         assert "core.py" in file_path
 
     def test_find_class_file(self, rich_pkg: Path) -> None:
@@ -72,7 +72,7 @@ class TestFindSymbolFile:
         pkg = analyze_package(rich_pkg)
         results = search_symbols(pkg, name="MyClass")
         assert results
-        file_path = InspectTool._find_symbol_file(pkg, results[0])
+        file_path = InspectTool._find_symbol_file(pkg, results[0][1])
         assert "core.py" in file_path
 
     def test_find_nested_function(self, rich_pkg: Path) -> None:
@@ -81,7 +81,7 @@ class TestFindSymbolFile:
         pkg = analyze_package(rich_pkg)
         results = search_symbols(pkg, name="helper_func")
         assert results
-        file_path = InspectTool._find_symbol_file(pkg, results[0])
+        file_path = InspectTool._find_symbol_file(pkg, results[0][1])
         assert "helpers.py" in file_path
 
 
@@ -97,7 +97,7 @@ class TestBuildDetail:
         pkg = analyze_package(rich_pkg)
         results = search_symbols(pkg, name="greet")
         assert results
-        detail = InspectTool._build_detail(results[0], file="core.py")
+        detail = InspectTool._build_detail(results[0][1], file="core.py")
         assert detail["name"] == "greet"
         assert detail["file"] == "core.py"
         assert "start_line" in detail
@@ -110,7 +110,7 @@ class TestBuildDetail:
 
         pkg = analyze_package(rich_pkg)
         results = search_symbols(pkg, name="MyClass")
-        cls = next(r for r in results if isinstance(r, ClassInfo))
+        cls = next(sym for _, sym in results if isinstance(sym, ClassInfo))
         detail = InspectTool._build_detail(cls, file="core.py")
         assert detail["name"] == "MyClass"
         assert "methods" in detail
@@ -121,7 +121,7 @@ class TestBuildDetail:
 
         pkg = analyze_package(rich_pkg)
         results = search_symbols(pkg, name="greet")
-        detail = InspectTool._build_detail(results[0], file="core.py", source=False)
+        detail = InspectTool._build_detail(results[0][1], file="core.py", source=False)
         assert "source" not in detail
 
     def test_detail_with_source(self, rich_pkg: Path) -> None:
@@ -131,7 +131,7 @@ class TestBuildDetail:
         results = search_symbols(pkg, name="greet")
         abs_path = str(rich_pkg / "core.py")
         detail = InspectTool._build_detail(
-            results[0], file="core.py", abs_path=abs_path, source=True
+            results[0][1], file="core.py", abs_path=abs_path, source=True
         )
         assert "source" in detail
         assert "def greet" in detail["source"]

@@ -246,11 +246,11 @@ class TestSearchByName:
     def test_search_by_name(self, rich_pkg: PackageInfo) -> None:
         results = search_symbols(rich_pkg, name="greet")
         assert len(results) >= 1
-        assert any(r.name == "greet" for r in results)
+        assert any(sym.name == "greet" for _, sym in results)
 
     def test_substring_match(self, rich_pkg: PackageInfo) -> None:
         results = search_symbols(rich_pkg, name="RETRI")
-        assert any(r.name == "MAX_RETRIES" for r in results)
+        assert any(sym.name == "MAX_RETRIES" for _, sym in results)
 
 
 class TestSearchByReturnType:
@@ -258,14 +258,14 @@ class TestSearchByReturnType:
 
     def test_filter_by_return_type(self, rich_pkg: PackageInfo) -> None:
         results = search_symbols(rich_pkg, returns="str")
-        names = [r.name for r in results]
+        names = [sym.name for _, sym in results]
         assert "greet" in names
         # Classes without return type excluded
         assert "User" not in names
 
     def test_return_type_includes_methods(self, rich_pkg: PackageInfo) -> None:
         results = search_symbols(rich_pkg, returns="bool")
-        names = [r.name for r in results]
+        names = [sym.name for _, sym in results]
         assert "validate" in names or "is_valid" in names
 
 
@@ -275,17 +275,17 @@ class TestSearchByKindAndName:
     def test_function_kind_with_name(self, rich_pkg: PackageInfo) -> None:
         results = search_symbols(rich_pkg, kind=SymbolKind.FUNCTION, name="greet")
         assert len(results) == 1
-        assert results[0].name == "greet"
+        assert results[0][1].name == "greet"
 
     def test_class_kind_with_name(self, rich_pkg: PackageInfo) -> None:
         results = search_symbols(rich_pkg, kind=SymbolKind.CLASS, name="User")
         assert len(results) == 1
-        assert results[0].name == "User"
+        assert results[0][1].name == "User"
 
     def test_variable_kind_with_name(self, rich_pkg: PackageInfo) -> None:
         results = search_symbols(rich_pkg, kind=SymbolKind.VARIABLE, name="TIMEOUT")
         assert len(results) == 1
-        assert results[0].name == "TIMEOUT"
+        assert results[0][1].name == "TIMEOUT"
 
 
 class TestSearchInherits:
@@ -293,12 +293,12 @@ class TestSearchInherits:
 
     def test_inherits_base_model(self, rich_pkg: PackageInfo) -> None:
         results = search_symbols(rich_pkg, inherits="BaseModel")
-        names = [r.name for r in results]
+        names = [sym.name for _, sym in results]
         assert "User" in names
 
     def test_inherits_user(self, rich_pkg: PackageInfo) -> None:
         results = search_symbols(rich_pkg, inherits="User")
-        names = [r.name for r in results]
+        names = [sym.name for _, sym in results]
         assert "Admin" in names
 
     def test_inherits_nonexistent(self, rich_pkg: PackageInfo) -> None:

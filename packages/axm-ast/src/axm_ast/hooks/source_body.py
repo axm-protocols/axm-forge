@@ -114,7 +114,7 @@ def _resolve_as_class_method(
         pkg, name=class_name, returns=None, kind=None, inherits=None
     )
     cls = next(
-        (c for c in classes if hasattr(c, "methods") and c.name == class_name),
+        (c for _, c in classes if hasattr(c, "methods") and c.name == class_name),
         None,
     )
     if cls is None:
@@ -165,7 +165,7 @@ def _resolve_as_module_symbol(
         matches = search_symbols(
             pkg, name=sym_name, returns=None, kind=None, inherits=None
         )
-        exact = [m for m in matches if m.name == sym_name]
+        exact = [m for _, m in matches if m.name == sym_name]
         if not exact:
             return _not_found(symbol_name)
         sym = exact[0]
@@ -237,7 +237,7 @@ def _extract_symbol(
         pkg, name=symbol_name, returns=None, kind=None, inherits=None
     )
     # Exact-name filter (search_symbols does substring match).
-    exact = [m for m in matches if m.name == symbol_name]
+    exact = [m for _, m in matches if m.name == symbol_name]
     if not exact:
         return {
             "symbol": symbol_name,

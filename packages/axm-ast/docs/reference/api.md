@@ -129,6 +129,39 @@ Apply depth-based filtering to a workspace context dict.
 
 ---
 
+## `search_symbols`
+
+```python
+from axm_ast.core.analyzer import search_symbols
+
+search_symbols(
+    pkg: PackageInfo,
+    *,
+    name: str | None = None,
+    returns: str | None = None,
+    kind: SymbolKind | None = None,
+    inherits: str | None = None,
+) -> list[tuple[str, FunctionInfo | ClassInfo | VariableInfo]]
+```
+
+Search for symbols across a package with filters. All filters are AND-combined.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `pkg` | `PackageInfo` | *required* | Analyzed package info |
+| `name` | `str \| None` | `None` | Filter by symbol name (substring match) |
+| `returns` | `str \| None` | `None` | Filter functions by return type (substring match) |
+| `kind` | `SymbolKind \| None` | `None` | Filter by symbol kind (function, class, variable, etc.) |
+| `inherits` | `str \| None` | `None` | Filter classes by base class name |
+
+### Return value
+
+A list of `(module_name, symbol)` tuples where `module_name` is the dotted module path (e.g. `pkg.sub.mod`) and `symbol` is a `FunctionInfo`, `ClassInfo`, or `VariableInfo`.
+
+---
+
 ## `format_workspace_text`
 
 ```python

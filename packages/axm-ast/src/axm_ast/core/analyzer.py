@@ -371,7 +371,7 @@ def search_symbols(
     returns: str | None = None,
     kind: SymbolKind | None = None,
     inherits: str | None = None,
-) -> list[FunctionInfo | ClassInfo | VariableInfo]:
+) -> list[tuple[str, FunctionInfo | ClassInfo | VariableInfo]]:
     """Search for symbols across a package with filters.
 
     All filters are AND-combined. A symbol must match all provided
@@ -386,25 +386,25 @@ def search_symbols(
         inherits: Filter classes by base class name.
 
     Returns:
-        List of matching symbols.
+        List of (module_name, symbol) tuples for matching symbols.
 
     Example:
         >>> results = search_symbols(pkg, returns="str")
-        >>> [r.name for r in results]
+        >>> [sym.name for _, sym in results]
         `['greet', 'version']`
     """
-    results: list[FunctionInfo | ClassInfo | VariableInfo] = []
+    results: list[tuple[str, FunctionInfo | ClassInfo | VariableInfo]] = []
 
     for mod in pkg.modules:
-        results.extend(
-            _search_module(
-                mod,
-                name=name,
-                returns=returns,
-                kind=kind,
-                inherits=inherits,
-            )
-        )
+        mod_dotted = mod.name or module_dotted_name(mod.path, pkg.root)
+        for sym in _search_module(
+            mod,
+            name=name,
+            returns=returns,
+            kind=kind,
+            inherits=inherits,
+        ):
+            results.append((mod_dotted, sym))
 
     return results
 

@@ -185,12 +185,12 @@ def inspect(
         if json_output:
             print(
                 json.dumps(
-                    {"symbols": [s.model_dump(mode="json") for s in symbols]},
+                    {"symbols": [s.model_dump(mode="json") for _, s in symbols]},
                     indent=2,
                 )
             )
         else:
-            for s in symbols:
+            for _, s in symbols:
                 sig = getattr(s, "signature", None)
                 if sig:
                     print(f"  · {sig}")
@@ -373,10 +373,10 @@ def search(
         return
 
     if json_output:
-        print(json.dumps([r.model_dump(mode="json") for r in results], indent=2))
+        print(json.dumps([r.model_dump(mode="json") for _, r in results], indent=2))
     else:
         print(f"🔍 {len(results)} result(s):\n")
-        for r in results:
+        for _, r in results:
             if hasattr(r, "signature"):
                 print(f"  · {r.signature}")
             else:

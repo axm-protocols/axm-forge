@@ -153,7 +153,7 @@ class TestSourceBodyDottedClassMethod:
 
         monkeypatch.setattr(
             "axm_ast.hooks.source_body.search_symbols",
-            MagicMock(return_value=[mock_cls]),
+            MagicMock(return_value=[("mod", mock_cls)]),
         )
         monkeypatch.setattr(
             "axm_ast.hooks.source_body.find_module_for_symbol",

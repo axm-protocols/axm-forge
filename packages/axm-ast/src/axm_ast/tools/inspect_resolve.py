@@ -160,7 +160,7 @@ def resolve_class_method(
         pkg, name=class_name, returns=None, kind=None, inherits=None
     )
     cls = next(
-        (c for c in classes if isinstance(c, ClassInfo) and c.name == class_name),
+        (c for _, c in classes if isinstance(c, ClassInfo) and c.name == class_name),
         None,
     )
     if cls is None:
