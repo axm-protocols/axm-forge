@@ -31,7 +31,6 @@ class ContextTool(AXMTool):
         *,
         path: str = ".",
         depth: int | None = 1,
-        slim: bool = False,
         **kwargs: Any,
     ) -> ToolResult:
         """Dump complete project context for AI agents.
@@ -40,13 +39,10 @@ class ContextTool(AXMTool):
             path: Path to package or workspace directory.
             depth: Detail level (0=top-5, 1=sub-packages,
                 2=modules, 3+=symbols, None=full).
-            slim: If True, override depth to 0 for compact output.
 
         Returns:
             ToolResult with project context data.
         """
-        if slim:
-            depth = 0
         try:
             project_path = Path(path).resolve()
             if not project_path.is_dir():

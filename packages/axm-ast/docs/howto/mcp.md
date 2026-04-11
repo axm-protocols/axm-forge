@@ -6,7 +6,7 @@
 
 | MCP Tool | Equivalent CLI | Purpose |
 |---|---|---|
-| `ast_context(path, slim?)` | `axm-ast context` | One-shot project dump (stack, layout, patterns, modules) |
+| `ast_context(path, depth?)` | `axm-ast context` | One-shot project dump (stack, layout, patterns, modules) |
 | `ast_describe(path, detail?, compress?, modules?)` | `axm-ast describe` | Full API surface (signatures, docstrings, `__all__`) |
 | `ast_search(path, name?, returns?, kind?, inherits?)` | `axm-ast search` | Semantic symbol lookup |
 | `ast_callers(path, symbol)` | `axm-ast callers` | Find all call-sites of a symbol |

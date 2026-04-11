@@ -60,9 +60,9 @@ def test_context_tool_default_depth(tmp_path):
 
 
 @pytest.mark.usefixtures("_no_workspace", "_mock_context")
-def test_context_tool_slim_overrides_none(tmp_path):
-    """slim=True overrides depth=None to depth=0 (top_modules)."""
-    result = ContextTool().execute(path=str(tmp_path), slim=True, depth=None)
+def test_context_tool_depth0_overrides_none(tmp_path):
+    """depth=0 explicitly produces compact output (top_modules)."""
+    result = ContextTool().execute(path=str(tmp_path), depth=0)
     assert result.success
     assert "top_modules" in result.data
 

@@ -501,20 +501,9 @@ def context(
             help="Detail level: 0=top-5, 1=sub-packages, 2=modules, 3=symbols",
         ),
     ] = None,
-    slim: Annotated[
-        bool,
-        cyclopts.Parameter(
-            name=["--slim"],
-            help="Compact output with top modules only (equivalent to --depth 0)",
-        ),
-    ] = False,
 ) -> None:
     """Dump complete project context in one shot for AI agents."""
     project_path = _resolve_dir(path)
-
-    # --slim is shorthand for --depth 0
-    if slim:
-        depth = 0
 
     from axm_ast.core.workspace import detect_workspace
 

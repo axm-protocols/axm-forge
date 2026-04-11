@@ -176,7 +176,6 @@ axm-ast context [OPTIONS] [PATH]
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Path to package or workspace directory |
 | `--depth` | `-d` | int \| None | `None` | Detail level: 0=top-5, 1=sub-packages, 2=modules, 3=symbols |
-| `--slim` | | bool | `False` | Compact overview (~500 tokens) with top-5 modules (equivalent to `--depth 0`) |
 | `--json` | | bool | `False` | Output as JSON |
 
 !!! note "Workspace mode"
