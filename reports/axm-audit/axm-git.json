@@ -1,5 +1,5 @@
 {
-  "score": 93.8,
+  "score": 94.3,
   "grade": "A",
   "total": 24,
   "failed": 2,
@@ -136,17 +136,11 @@
     {
       "rule_id": "DEPS_HYGIENE",
       "passed": true,
-      "message": "1 dependency issue(s) found",
+      "message": "Clean dependencies (0 issues)",
       "details": {
-        "issue_count": 1,
-        "score": 90,
-        "top_issues": [
-          {
-            "code": "DEP003",
-            "module": "pydantic",
-            "message": "'pydantic' imported but it is a transitive dependency"
-          }
-        ]
+        "issue_count": 0,
+        "score": 100,
+        "top_issues": []
       }
     },
     {
