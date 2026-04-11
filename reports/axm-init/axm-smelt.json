@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-smelt",
-  "score": 93,
+  "score": 95,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
@@ -19,7 +19,7 @@
       "total": 5
     },
     "docs": {
-      "earned": 11,
+      "earned": 13,
       "total": 16
     },
     "pyproject": {
@@ -167,10 +167,10 @@
     {
       "name": "docs.readme_badges",
       "category": "docs",
-      "passed": false,
-      "earned": 0,
+      "passed": true,
+      "earned": 2,
       "weight": 2,
-      "message": "README missing 2 badge(s)"
+      "message": "README has axm-audit + axm-init badges"
     },
     {
       "name": "pyproject.classifiers",
@@ -366,15 +366,6 @@
         "Missing: gen-files, literate-nav, mkdocstrings"
       ],
       "fix": "Add gen-files, literate-nav, mkdocstrings to mkdocs.yml plugins."
-    },
-    {
-      "name": "docs.readme_badges",
-      "weight": 2,
-      "message": "README missing 2 badge(s)",
-      "details": [
-        "Missing: axm-audit, axm-init"
-      ],
-      "fix": "Add axm-audit, axm-init badge(s) to README.md."
     },
     {
       "name": "tooling.precommit_installed",
