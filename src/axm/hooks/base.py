@@ -20,11 +20,13 @@ class HookResult:
         success: Whether the hook succeeded
         error: Error message if failed
         metadata: Optional execution metadata
+        text: Pre-rendered text representation of the result
     """
 
     success: bool
     error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    text: str | None = None
 
     @classmethod
     def ok(cls, **metadata: Any) -> HookResult:
