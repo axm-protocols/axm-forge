@@ -49,14 +49,14 @@ wheels = [
 
 [[package]]
 name = "axm"
-version = "0.3.2"
+version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cyclopts" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/47/18/c148b9d1796d5410006f06cc9631f61e59ba6ec5384bf0f22fbf3b919add/axm-0.3.2.tar.gz", hash = "sha256:8a9dc4368b45b0c7387d4e04334299a25e45663f626dc5102198fbe3acf522f4", size = 21513, upload-time = "2026-03-08T09:24:10.467Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a0/5a/17ee55e2f3f07e610ba4ca584709477762460873655146aafdd39666aa5b/axm-0.5.0.tar.gz", hash = "sha256:bc5ede3c94bea7ea157e6237536f9fc973666643826498fcfd7af91983a31e58", size = 22358, upload-time = "2026-04-11T18:49:20.349Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e9/93/0c7c40818926a45e56cb2bc6a2d8ecc65f03f1aa26891b0bd44f4815ff18/axm-0.3.2-py3-none-any.whl", hash = "sha256:80d14fbb69d2a9ca93aa8e53d5caffe61dccefc84ed95394e675b4ee717fcef9", size = 12835, upload-time = "2026-03-08T09:24:08.963Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/eb/8e6326c5996b6221d0af37b0be58a784d396aa91dfa61d2db53130d3a405/axm-0.5.0-py3-none-any.whl", hash = "sha256:3568e5bdaf8d4f666536cab7fcf6c6df52b348f1bc7d63ea1e4ae3b7bb99cc90", size = 13085, upload-time = "2026-04-11T18:49:19.016Z" },
 ]
 
 [[package]]

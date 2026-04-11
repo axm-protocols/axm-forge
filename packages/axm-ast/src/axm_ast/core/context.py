@@ -554,50 +554,52 @@ def format_context_text(data: dict[str, Any], *, depth: int = 0) -> str:
     if depth == 0:
         top_modules = data.get("top_modules", [])
         if top_modules:
-            lines.append("")
             lines.append("Top modules:")
             for m in top_modules:
                 stars = "★" * m["stars"] + "☆" * (5 - m["stars"])
                 lines.append(f"  {m['name']} ({m['symbol_count']}) {stars}")
     else:
-        # depth >= 1: packages
-        packages = data.get("packages", [])
-        if not packages:
-            return "\n".join(lines)
-
-        lines.append("")
-        lines.append("Packages:")
-
-        if isinstance(packages, dict):
-            # Real format from _group_by_subpackage: {name: {modules, symbols, ...}}
-            for pkg_name in sorted(packages):
-                pkg = packages[pkg_name]
-                line = f"  {pkg_name}: {pkg.get('modules', 0)} mod, {pkg.get('symbols', 0)} sym"
-                sym_names = pkg.get("symbol_names", [])
-                if sym_names:
-                    total = pkg.get("symbol_names_truncated", len(sym_names))
-                    line += " " + _fmt_sym_bracket(sym_names, total)
-                lines.append(line)
-        else:
-            # List format: [{"name", "module_count", "symbol_count", ...}]
-            for pkg in packages:
-                line = (
-                    f"  {pkg['name']}: "
-                    f"{pkg.get('module_count', 0)} mod, "
-                    f"{pkg.get('symbol_count', 0)} sym"
-                )
-                modules = pkg.get("modules")
-                if modules:
-                    lines.append(line)
-                    for mod in modules:
-                        syms = mod.get("symbols", [])
-                        lines.append(
-                            f"    {mod['name']} {_fmt_sym_bracket(syms, len(syms))}"
-                        )
-                else:
-                    lines.append(line)
+        _format_packages(data, lines)
 
     return "\n".join(lines)
+
+
+def _format_packages(data: dict[str, Any], lines: list[str]) -> None:
+    """Append package lines for depth >= 1 context text."""
+    packages = data.get("packages", [])
+    if not packages:
+        return
+
+    lines.append("Packages:")
+
+    if isinstance(packages, dict):
+        for pkg_name in sorted(packages):
+            pkg = packages[pkg_name]
+            mods = pkg.get("modules", 0)
+            syms = pkg.get("symbols", 0)
+            line = f"  {pkg_name}: {mods} mod, {syms} sym"
+            sym_names = pkg.get("symbol_names", [])
+            if sym_names:
+                total = pkg.get("symbol_names_truncated", len(sym_names))
+                line += " " + _fmt_sym_bracket(sym_names, total)
+            lines.append(line)
+    else:
+        for pkg in packages:
+            line = (
+                f"  {pkg['name']}: "
+                f"{pkg.get('module_count', 0)} mod, "
+                f"{pkg.get('symbol_count', 0)} sym"
+            )
+            modules = pkg.get("modules")
+            if modules:
+                lines.append(line)
+                for mod in modules:
+                    mod_syms = mod.get("symbols", [])
+                    lines.append(
+                        f"    {mod['name']} {_fmt_sym_bracket(mod_syms, len(mod_syms))}"
+                    )
+            else:
+                lines.append(line)
 
 
 _SYM_BRACKET_LIMIT = 5
