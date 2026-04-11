@@ -110,6 +110,25 @@ result = rule.check(Path("/path/to/project"))
 print(f"{'✅' if result.passed else '❌'} {result.message}")
 ```
 
+## Configuring coupling thresholds
+
+The `CouplingMetricRule` supports per-project configuration via `pyproject.toml`:
+
+```toml
+[tool.axm-audit.coupling]
+fan_out_threshold = 12          # global threshold (default: 10)
+orchestrator_bonus = 5          # extra allowance for orchestrator modules (default: 5)
+
+[tool.axm-audit.coupling.overrides]
+"cli" = 15                      # per-module override (matches by suffix)
+"core.runner" = 18
+```
+
+**Orchestrator detection**: modules importing from ≥ 3 distinct sibling subpackages
+are automatically classified as orchestrators and receive the `orchestrator_bonus`
+on top of the base threshold. This avoids false positives on modules whose high
+fan-out is structural (e.g. a `runner.py` that coordinates multiple subsystems).
+
 ## Existing rules as examples
 
 | Rule | Pattern | Good example of |
