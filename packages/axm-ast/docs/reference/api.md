@@ -160,6 +160,18 @@ Search for symbols across a package with filters. All filters are AND-combined.
 
 A list of `(module_name, symbol)` tuples where `module_name` is the dotted module path (e.g. `pkg.sub.mod`) and `symbol` is a `FunctionInfo`, `ClassInfo`, or `VariableInfo`.
 
+When serialized by the `ast_search` MCP tool, each symbol becomes a dict with:
+
+| Key | Present when | Value |
+|---|---|---|
+| `name` | always | Symbol name |
+| `module` | always | Dotted module path |
+| `signature` | functions | Parameter signature |
+| `return_type` | functions | Return annotation |
+| `kind` | always | `FunctionKind` value (`function`, `method`, `property`, `classmethod`, `staticmethod`, `abstract`), `"class"`, or `"variable"` |
+| `annotation` | variables with type | Type annotation |
+| `value_repr` | variables with value | Short repr of assigned value |
+
 ---
 
 ## `format_workspace_text`

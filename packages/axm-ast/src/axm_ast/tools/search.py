@@ -129,7 +129,15 @@ class SearchTool(AXMTool):
 
     @staticmethod
     def _format_symbol(sym: Any, module_name: str) -> dict[str, Any]:
-        """Format an AST symbol into a serialized dict entry."""
+        """Format an AST symbol into a serialized dict entry.
+
+        Returns a dict with keys ``name``, ``module``, and optionally
+        ``signature``, ``return_type``, ``kind`` (function/method/property/
+        classmethod/staticmethod/abstract/class/variable), ``annotation``,
+        and ``value_repr``.
+        """
+        from axm_ast.models.nodes import ClassInfo, FunctionInfo, VariableInfo
+
         entry: dict[str, Any] = {
             "name": sym.name,
             "module": module_name,
@@ -138,13 +146,18 @@ class SearchTool(AXMTool):
             entry["signature"] = sym.signature
         if hasattr(sym, "return_type"):
             entry["return_type"] = sym.return_type
-        if hasattr(sym, "value_repr"):
-            from axm_ast.models.nodes import VariableInfo
-
+        if isinstance(sym, FunctionInfo):
+            entry["kind"] = sym.kind.value
+        elif isinstance(sym, ClassInfo):
+            entry["kind"] = "class"
+        elif isinstance(sym, VariableInfo):
             entry["kind"] = "variable"
-            if isinstance(sym, VariableInfo):
-                if sym.annotation:
-                    entry["annotation"] = sym.annotation
-                if sym.value_repr:
-                    entry["value_repr"] = sym.value_repr
+            if sym.annotation:
+                entry["annotation"] = sym.annotation
+            if sym.value_repr:
+                entry["value_repr"] = sym.value_repr
+        elif hasattr(sym, "value_repr"):
+            entry["kind"] = "variable"
+        elif hasattr(sym, "kind"):
+            entry["kind"] = sym.kind if isinstance(sym.kind, str) else sym.kind.value
         return entry
