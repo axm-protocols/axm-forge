@@ -91,7 +91,11 @@ class SearchTool(AXMTool):
         kind: Any,
         inherits: str | None,
     ) -> ToolResult:
-        """Run search and format results."""
+        """Run symbol search across a package and return formatted results.
+
+        Returns a ToolResult whose ``data`` dict contains a single ``results``
+        key — a list of formatted symbol dicts.
+        """
         from axm_ast.core.analyzer import search_symbols
 
         results = search_symbols(
@@ -106,7 +110,7 @@ class SearchTool(AXMTool):
         ]
         return ToolResult(
             success=True,
-            data={"results": symbols, "count": len(symbols)},
+            data={"results": symbols},
         )
 
     def _validate_kind(self, kind: str | None) -> Any:
