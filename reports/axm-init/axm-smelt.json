@@ -1,41 +1,49 @@
 {
-  "project": "/home/runner/work/axm-forge/axm-forge",
-  "score": 94,
+  "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-smelt",
+  "score": 93,
   "grade": "A",
-  "context": "workspace",
-  "workspace_root": null,
+  "context": "member",
+  "workspace_root": "/home/runner/work/axm-forge/axm-forge",
   "excluded_checks": [],
   "categories": {
     "changelog": {
-      "earned": 2,
-      "total": 2
+      "earned": 5,
+      "total": 5
     },
     "ci": {
       "earned": 18,
       "total": 18
     },
+    "deps": {
+      "earned": 5,
+      "total": 5
+    },
     "docs": {
-      "earned": 10,
-      "total": 13
+      "earned": 11,
+      "total": 16
     },
     "pyproject": {
-      "earned": 4,
-      "total": 4
+      "earned": 27,
+      "total": 27
     },
     "structure": {
-      "earned": 8,
-      "total": 8
+      "earned": 17,
+      "total": 17
     },
     "tooling": {
       "earned": 14,
       "total": 16
-    },
-    "workspace": {
-      "earned": 19,
-      "total": 19
     }
   },
   "checks": [
+    {
+      "name": "changelog.gitcliff",
+      "category": "changelog",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "git-cliff configured"
+    },
     {
       "name": "changelog.no_manual",
       "category": "changelog",
@@ -101,6 +109,30 @@
       "message": "Trusted Publishing (OIDC) configured"
     },
     {
+      "name": "deps.dev_group",
+      "category": "deps",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Dev deps complete"
+    },
+    {
+      "name": "deps.docs_group",
+      "category": "deps",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Docs deps complete"
+    },
+    {
+      "name": "docs.diataxis_nav",
+      "category": "docs",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Full Di\u00e1taxis nav structure"
+    },
+    {
       "name": "docs.gen_ref_pages",
       "category": "docs",
       "passed": true,
@@ -111,10 +143,10 @@
     {
       "name": "docs.plugins",
       "category": "docs",
-      "passed": true,
-      "earned": 3,
+      "passed": false,
+      "earned": 0,
       "weight": 3,
-      "message": "All plugins configured"
+      "message": "Missing 3 plugin(s)"
     },
     {
       "name": "docs.mkdocs_exists",
@@ -127,18 +159,42 @@
     {
       "name": "docs.readme",
       "category": "docs",
-      "passed": false,
-      "earned": 0,
+      "passed": true,
+      "earned": 3,
       "weight": 3,
-      "message": "README missing 2 section(s)"
+      "message": "README follows standard"
     },
     {
       "name": "docs.readme_badges",
       "category": "docs",
-      "passed": true,
-      "earned": 2,
+      "passed": false,
+      "earned": 0,
       "weight": 2,
-      "message": "README has axm-audit + axm-init badges"
+      "message": "README missing 2 badge(s)"
+    },
+    {
+      "name": "pyproject.classifiers",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 1,
+      "weight": 1,
+      "message": "Required classifiers present"
+    },
+    {
+      "name": "pyproject.coverage",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 4,
+      "weight": 4,
+      "message": "Coverage fully configured"
+    },
+    {
+      "name": "pyproject.dynamic_version",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Dynamic version with hatch-vcs"
     },
     {
       "name": "pyproject.exists",
@@ -147,6 +203,46 @@
       "earned": 4,
       "weight": 4,
       "message": "pyproject.toml found"
+    },
+    {
+      "name": "pyproject.mypy",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "MyPy fully configured"
+    },
+    {
+      "name": "pyproject.pytest",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 4,
+      "weight": 4,
+      "message": "Pytest fully configured"
+    },
+    {
+      "name": "pyproject.ruff",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "Ruff fully configured"
+    },
+    {
+      "name": "pyproject.ruff_rules",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "Essential ruff rules activated"
+    },
+    {
+      "name": "pyproject.urls",
+      "category": "pyproject",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "All 4 URLs present"
     },
     {
       "name": "structure.contributing",
@@ -165,6 +261,14 @@
       "message": "LICENSE file found"
     },
     {
+      "name": "structure.py_typed",
+      "category": "structure",
+      "passed": true,
+      "earned": 2,
+      "weight": 2,
+      "message": "py.typed marker found"
+    },
+    {
       "name": "structure.python_version",
       "category": "structure",
       "passed": true,
@@ -173,12 +277,28 @@
       "message": ".python-version found"
     },
     {
+      "name": "structure.src_layout",
+      "category": "structure",
+      "passed": true,
+      "earned": 4,
+      "weight": 4,
+      "message": "src/ layout with 1 package(s)"
+    },
+    {
+      "name": "structure.tests_dir",
+      "category": "structure",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "26 test file(s) found"
+    },
+    {
       "name": "structure.uv_lock",
       "category": "structure",
       "passed": true,
       "earned": 2,
       "weight": 2,
-      "message": "uv.lock found"
+      "message": "uv.lock found (workspace root)"
     },
     {
       "name": "tooling.makefile",
@@ -235,89 +355,26 @@
       "earned": 2,
       "weight": 2,
       "message": "Ruff hook present"
-    },
-    {
-      "name": "workspace.matrix_packages",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "CI uses --package strategy"
-    },
-    {
-      "name": "workspace.members_consistent",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "5 member(s) consistent"
-    },
-    {
-      "name": "workspace.monorepo_plugin",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "monorepo plugin configured"
-    },
-    {
-      "name": "workspace.packages_layout",
-      "category": "workspace",
-      "passed": true,
-      "earned": 3,
-      "weight": 3,
-      "message": "5 member(s) in packages/"
-    },
-    {
-      "name": "workspace.pytest_importmode",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "import_mode = 'importlib' set"
-    },
-    {
-      "name": "workspace.pytest_testpaths",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "testpaths configured (5 path(s))"
-    },
-    {
-      "name": "workspace.quality_workflow",
-      "category": "workspace",
-      "passed": true,
-      "earned": 2,
-      "weight": 2,
-      "message": "axm-quality.yml configured with audit + coverage"
-    },
-    {
-      "name": "workspace.requires_python_compat",
-      "category": "workspace",
-      "passed": true,
-      "earned": 1,
-      "weight": 1,
-      "message": "All members: >=3.12"
-    },
-    {
-      "name": "workspace.root_name_collision",
-      "category": "workspace",
-      "passed": true,
-      "earned": 3,
-      "weight": 3,
-      "message": "Root 'axm-forge-workspace' does not collide with 5 member(s)"
     }
   ],
   "failures": [
     {
-      "name": "docs.readme",
+      "name": "docs.plugins",
       "weight": 3,
-      "message": "README missing 2 section(s)",
+      "message": "Missing 3 plugin(s)",
       "details": [
-        "Missing: Features, Installation"
+        "Missing: gen-files, literate-nav, mkdocstrings"
       ],
-      "fix": "Add Features, Installation section(s) to README.md."
+      "fix": "Add gen-files, literate-nav, mkdocstrings to mkdocs.yml plugins."
+    },
+    {
+      "name": "docs.readme_badges",
+      "weight": 2,
+      "message": "README missing 2 badge(s)",
+      "details": [
+        "Missing: axm-audit, axm-init"
+      ],
+      "fix": "Add axm-audit, axm-init badge(s) to README.md."
     },
     {
       "name": "tooling.precommit_installed",

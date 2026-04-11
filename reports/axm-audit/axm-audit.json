@@ -1,5 +1,5 @@
 {
-  "score": 89.5,
+  "score": 85.0,
   "grade": "B",
   "total": 24,
   "failed": 3,
@@ -54,14 +54,19 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 40/100 (6 high-complexity functions)",
+      "message": "Complexity score: 10/100 (9 high-complexity functions)",
       "details": {
-        "high_complexity_count": 6,
+        "high_complexity_count": 9,
         "top_offenders": [
           {
             "file": "audit_quality.py",
             "function": "AuditQualityRule.validate",
             "cc": 17
+          },
+          {
+            "file": "practices.py",
+            "function": "DocstringCoverageRule._is_abstract_override",
+            "cc": 15
           },
           {
             "file": "quality_check.py",
@@ -80,16 +85,26 @@
           },
           {
             "file": "practices.py",
-            "function": "LoggingPresenceRule._should_check_module",
-            "cc": 11
+            "function": "DocstringCoverageRule._is_abstract_stub",
+            "cc": 12
           },
           {
             "file": "results.py",
             "function": "AuditResult.quality_score",
             "cc": 10
+          },
+          {
+            "file": "dependencies.py",
+            "function": "_detect_first_party_packages",
+            "cc": 10
+          },
+          {
+            "file": "practices.py",
+            "function": "DocstringCoverageRule._check_abstract_parent",
+            "cc": 10
           }
         ],
-        "score": 40
+        "score": 10
       }
     },
     {
@@ -97,7 +112,7 @@
       "passed": true,
       "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 92.71922767497989,
+        "coverage": 92.75808936825887,
         "score": 92,
         "failures": []
       }
@@ -166,11 +181,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (88/88)",
+      "message": "Docstring coverage: 100% (86/86)",
       "details": {
         "coverage": 1.0,
-        "total": 88,
-        "documented": 88,
+        "total": 86,
+        "documented": 86,
         "missing": [],
         "score": 100
       }

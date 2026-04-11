@@ -1,8 +1,8 @@
 {
-  "score": 93.8,
-  "grade": "A",
+  "score": 89.3,
+  "grade": "B",
   "total": 24,
-  "failed": 2,
+  "failed": 5,
   "success": false,
   "checks": [
     {
@@ -26,11 +26,11 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 0 modules above threshold (max fan-out: 10)",
+      "message": "Coupling: 0 modules above threshold (max fan-out: 7)",
       "details": {
-        "max_fan_out": 10,
-        "max_fan_in": 21,
-        "avg_coupling": 4.84,
+        "max_fan_out": 7,
+        "max_fan_in": 12,
+        "avg_coupling": 3.43,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -48,37 +48,27 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 70/100 (3 high-complexity functions)",
+      "passed": true,
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
       "details": {
-        "high_complexity_count": 3,
+        "high_complexity_count": 1,
         "top_offenders": [
           {
-            "file": "commit.py",
-            "function": "GitCommitTool.execute",
-            "cc": 10
-          },
-          {
-            "file": "identity.py",
-            "function": "resolve_identity",
-            "cc": 10
-          },
-          {
-            "file": "commit_phase.py",
-            "function": "CommitPhaseHook._commit_from_outputs",
-            "cc": 10
+            "file": "pipeline.py",
+            "function": "smelt",
+            "cc": 14
           }
         ],
-        "score": 70
+        "score": 90
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": true,
-      "message": "Test coverage: 96% (95/100)",
+      "passed": false,
+      "message": "Test coverage: 89% (88/100)",
       "details": {
-        "coverage": 95.88039867109634,
-        "score": 95,
+        "coverage": 88.96434634974533,
+        "score": 88,
         "failures": []
       }
     },
@@ -135,30 +125,76 @@
     },
     {
       "rule_id": "DEPS_HYGIENE",
-      "passed": true,
-      "message": "1 dependency issue(s) found",
+      "passed": false,
+      "message": "52 dependency issue(s) found",
       "details": {
-        "issue_count": 1,
-        "score": 90,
+        "issue_count": 52,
+        "score": 0,
         "top_issues": [
           {
+            "code": "DEP004",
+            "module": "mkdocs_gen_files",
+            "message": "'mkdocs_gen_files' imported but declared as a dev dependency"
+          },
+          {
             "code": "DEP003",
-            "module": "pydantic",
-            "message": "'pydantic' imported but it is a transitive dependency"
+            "module": "axm_smelt",
+            "message": "'axm_smelt' imported but it is a transitive dependency"
+          },
+          {
+            "code": "DEP003",
+            "module": "axm_smelt",
+            "message": "'axm_smelt' imported but it is a transitive dependency"
+          },
+          {
+            "code": "DEP003",
+            "module": "axm_smelt",
+            "message": "'axm_smelt' imported but it is a transitive dependency"
+          },
+          {
+            "code": "DEP003",
+            "module": "axm_smelt",
+            "message": "'axm_smelt' imported but it is a transitive dependency"
           }
         ]
       }
     },
     {
       "rule_id": "PRACTICE_DOCSTRING",
-      "passed": true,
-      "message": "Docstring coverage: 100% (40/40)",
+      "passed": false,
+      "message": "Docstring coverage: 55% (30/55)",
       "details": {
-        "coverage": 1.0,
-        "total": 40,
-        "documented": 40,
-        "missing": [],
-        "score": 100
+        "coverage": 0.55,
+        "total": 55,
+        "documented": 30,
+        "missing": [
+          "axm_smelt/core/models.py:text",
+          "axm_smelt/core/models.py:parsed",
+          "axm_smelt/strategies/round_numbers.py:name",
+          "axm_smelt/strategies/round_numbers.py:category",
+          "axm_smelt/strategies/base.py:name",
+          "axm_smelt/strategies/base.py:category",
+          "axm_smelt/strategies/drop_nulls.py:name",
+          "axm_smelt/strategies/drop_nulls.py:category",
+          "axm_smelt/strategies/flatten.py:name",
+          "axm_smelt/strategies/flatten.py:category",
+          "axm_smelt/strategies/minify.py:name",
+          "axm_smelt/strategies/minify.py:category",
+          "axm_smelt/strategies/tabular.py:name",
+          "axm_smelt/strategies/tabular.py:category",
+          "axm_smelt/strategies/compact_tables.py:name",
+          "axm_smelt/strategies/compact_tables.py:category",
+          "axm_smelt/strategies/compact_tables.py:apply",
+          "axm_smelt/strategies/collapse_whitespace.py:name",
+          "axm_smelt/strategies/collapse_whitespace.py:category",
+          "axm_smelt/strategies/strip_quotes.py:name",
+          "axm_smelt/strategies/strip_quotes.py:category",
+          "axm_smelt/strategies/dedup_values.py:name",
+          "axm_smelt/strategies/dedup_values.py:category",
+          "axm_smelt/strategies/strip_html_comments.py:name",
+          "axm_smelt/strategies/strip_html_comments.py:category"
+        ],
+        "score": 54
       }
     },
     {
@@ -183,19 +219,31 @@
     {
       "rule_id": "PRACTICE_LOGGING",
       "passed": false,
-      "message": "Logging coverage: 83% (5/6)",
+      "message": "Logging coverage: 0% (0/3)",
       "details": {
         "without_logging": [
-          "axm_git/core/identity.py"
+          "axm_smelt/cli.py",
+          "axm_smelt/core/detector.py",
+          "axm_smelt/strategies/tabular.py"
         ],
-        "score": 83
+        "score": 0
       }
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
-      "passed": true,
-      "message": "All source modules have test files",
-      "details": null
+      "passed": false,
+      "message": "6 source module(s) without tests",
+      "details": {
+        "missing": [
+          "__main__.py",
+          "base.py",
+          "check.py",
+          "count.py",
+          "dedup_values.py",
+          "smelt.py"
+        ],
+        "score": 10
+      }
     },
     {
       "rule_id": "PRACTICE_SECURITY",
@@ -210,48 +258,12 @@
     {
       "rule_id": "QUALITY_SECURITY",
       "passed": true,
-      "message": "Security score: 95/100 (0 high, 1 medium severity issues)",
+      "message": "Security score: 100/100 (0 high, 0 medium severity issues)",
       "details": {
         "high_count": 0,
-        "medium_count": 1,
-        "score": 95,
-        "top_issues": [
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "runner.py",
-            "line": 7
-          },
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "tag.py",
-            "line": 8
-          },
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "commit_phase.py",
-            "line": 11
-          },
-          {
-            "severity": "LOW",
-            "code": "B607",
-            "message": "Starting a process with a partial executable path",
-            "file": "runner.py",
-            "line": 41
-          },
-          {
-            "severity": "LOW",
-            "code": "B603",
-            "message": "subprocess call - check for execution of untrusted input.",
-            "file": "runner.py",
-            "line": 41
-          }
-        ]
+        "medium_count": 0,
+        "score": 100,
+        "top_issues": []
       }
     },
     {
