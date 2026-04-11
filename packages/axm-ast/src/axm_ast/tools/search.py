@@ -108,9 +108,17 @@ class SearchTool(AXMTool):
         symbols = [
             SearchTool._format_symbol(sym, mod_name) for mod_name, sym in results
         ]
+        text = SearchTool._render_text(
+            symbols,
+            name=name,
+            returns=returns,
+            kind=kind,
+            inherits=inherits,
+        )
         return ToolResult(
             success=True,
             data={"results": symbols},
+            text=text,
         )
 
     def _validate_kind(self, kind: str | None) -> Any:
@@ -130,6 +138,128 @@ class SearchTool(AXMTool):
                 success=False,
                 error=f"Invalid kind: {kind}. Valid: {valid}",
             )
+
+    @staticmethod
+    def _format_text_header(
+        *,
+        name: str | None,
+        returns: str | None,
+        kind: Any,
+        inherits: str | None,
+        count: int,
+    ) -> str:
+        """Build the header line for text rendering."""
+        filters: list[str] = []
+        if name is not None:
+            filters.append(f'name~"{name}"')
+        if returns is not None:
+            filters.append(f"returns={returns}")
+        kind_str = (
+            kind
+            if isinstance(kind, str)
+            else (kind.value if kind is not None else None)
+        )
+        if kind_str is not None:
+            filters.append(f"kind={kind_str}")
+        if inherits is not None:
+            filters.append(f"inherits={inherits}")
+        parts = ["ast_search"]
+        if filters:
+            parts.append(" · ".join(filters))
+        parts.append(f"{count} hits")
+        return " | ".join(parts)
+
+    @staticmethod
+    def _format_symbol_line(sym: dict[str, Any]) -> str:
+        """Render one symbol dict as a compact text line."""
+        kind = sym.get("kind", "")
+        if kind in (
+            "function",
+            "method",
+            "property",
+            "classmethod",
+            "staticmethod",
+            "abstract",
+        ):
+            sig = sym.get("signature", "")
+            # Extract params from signature: "def name(...) -> ..."
+            paren_start = sig.find("(")
+            if paren_start != -1:
+                # Find matching closing paren
+                rest = sig[paren_start:]
+                # Take from paren_start to end, stripping "-> ..." after closing paren
+                paren_depth = 0
+                paren_end = -1
+                for i, ch in enumerate(rest):
+                    if ch == "(":
+                        paren_depth += 1
+                    elif ch == ")":
+                        paren_depth -= 1
+                        if paren_depth == 0:
+                            paren_end = i
+                            break
+                params_with_parens = rest[: paren_end + 1] if paren_end != -1 else rest
+            else:
+                params_with_parens = "()"
+            ret = sym.get("return_type")
+            line = f"{sym['name']}{params_with_parens}"
+            if ret is not None:
+                line += f" -> {ret}"
+            return line
+        if kind == "class":
+            return str(sym["name"])
+        # variable
+        name = sym["name"]
+        ann = sym.get("annotation")
+        val = sym.get("value_repr")
+        if ann and val:
+            return f"{name}: {ann} = {val}"
+        if ann:
+            return f"{name}: {ann}"
+        if val:
+            return f"{name} = {val}"
+        return str(name)
+
+    @staticmethod
+    def _render_text(
+        symbols: list[dict[str, Any]],
+        *,
+        name: str | None,
+        returns: str | None,
+        kind: Any,
+        inherits: str | None,
+    ) -> str:
+        """Group symbols by kind and render as compact text."""
+        header = SearchTool._format_text_header(
+            name=name,
+            returns=returns,
+            kind=kind,
+            inherits=inherits,
+            count=len(symbols),
+        )
+        if not symbols:
+            return header
+
+        func_kinds = {
+            "function",
+            "method",
+            "property",
+            "classmethod",
+            "staticmethod",
+            "abstract",
+        }
+        funcs = [s for s in symbols if s.get("kind") in func_kinds]
+        classes = [s for s in symbols if s.get("kind") == "class"]
+        variables = [s for s in symbols if s.get("kind") == "variable"]
+
+        lines = [header]
+        for s in funcs:
+            lines.append(SearchTool._format_symbol_line(s))
+        if classes:
+            lines.append(", ".join(SearchTool._format_symbol_line(s) for s in classes))
+        for s in variables:
+            lines.append(SearchTool._format_symbol_line(s))
+        return "\n".join(lines)
 
     @staticmethod
     def _format_symbol(sym: Any, module_name: str) -> dict[str, Any]:
