@@ -74,19 +74,18 @@ class TestSearchByName:
     def test_find_function(self, tool: SearchTool, search_pkg: Path) -> None:
         result = tool.execute(path=str(search_pkg), name="greet")
         assert result.success is True
-        assert result.data["count"] >= 1
         names = [s["name"] for s in result.data["results"]]
         assert "greet" in names
 
     def test_find_class(self, tool: SearchTool, search_pkg: Path) -> None:
         result = tool.execute(path=str(search_pkg), name="User")
         assert result.success is True
-        assert result.data["count"] >= 1
+        assert len(result.data["results"]) >= 1
 
     def test_no_results(self, tool: SearchTool, search_pkg: Path) -> None:
         result = tool.execute(path=str(search_pkg), name="nonexistent_xyz")
         assert result.success is True
-        assert result.data["count"] == 0
+        assert len(result.data["results"]) == 0
 
 
 # ─── Search by return type ───────────────────────────────────────────────────
@@ -98,8 +97,8 @@ class TestSearchByReturnType:
     def test_filter_by_str_return(self, tool: SearchTool, search_pkg: Path) -> None:
         result = tool.execute(path=str(search_pkg), returns="str")
         assert result.success is True
-        assert result.data["count"] >= 1
         names = [s["name"] for s in result.data["results"]]
+        assert len(names) >= 1
         assert "greet" in names
 
     def test_filter_by_int_return(self, tool: SearchTool, search_pkg: Path) -> None:
@@ -118,8 +117,8 @@ class TestSearchByKind:
     def test_filter_by_property(self, tool: SearchTool, search_pkg: Path) -> None:
         result = tool.execute(path=str(search_pkg), kind="property")
         assert result.success is True
-        assert result.data["count"] >= 1
         names = [s["name"] for s in result.data["results"]]
+        assert len(names) >= 1
         assert "is_admin" in names
 
     def test_filter_by_class(self, tool: SearchTool, search_pkg: Path) -> None:
@@ -181,15 +180,15 @@ class TestSearchByInheritance:
     ) -> None:
         result = tool.execute(path=str(search_pkg), inherits="BaseModel")
         assert result.success is True
-        assert result.data["count"] >= 2
         names = [s["name"] for s in result.data["results"]]
+        assert len(names) >= 2
         assert "User" in names
         assert "Admin" in names
 
     def test_no_subclasses(self, tool: SearchTool, search_pkg: Path) -> None:
         result = tool.execute(path=str(search_pkg), inherits="NonExistentBase")
         assert result.success is True
-        assert result.data["count"] == 0
+        assert len(result.data["results"]) == 0
 
 
 # ─── Edge cases ──────────────────────────────────────────────────────────────
@@ -207,13 +206,13 @@ class TestSearchEdgeCases:
         pkg.mkdir()
         result = tool.execute(path=str(pkg), name="anything")
         assert result.success is True
-        assert result.data["count"] == 0
+        assert len(result.data["results"]) == 0
 
     def test_no_filters_returns_all(self, tool: SearchTool, search_pkg: Path) -> None:
         """No filters should return all symbols (functions + classes)."""
         result = tool.execute(path=str(search_pkg))
         assert result.success is True
-        assert result.data["count"] > 0
+        assert len(result.data["results"]) > 0
 
     def test_kind_class_with_name(self, tool: SearchTool, search_pkg: Path) -> None:
         """kind='class' + name filter returns only matching classes."""
@@ -235,7 +234,7 @@ class TestSearchEdgeCases:
         """kind='class' + returns filter gives empty (classes have no return type)."""
         result = tool.execute(path=str(search_pkg), kind="class", returns="str")
         assert result.success is True
-        assert result.data["count"] == 0
+        assert len(result.data["results"]) == 0
 
 
 # ─── Variable search ─────────────────────────────────────────────────────────
@@ -248,7 +247,7 @@ class TestSearchVariables:
         """kind='variable' + name returns the matching constant."""
         result = tool.execute(path=str(search_pkg), kind="variable", name="_TOLERANCE")
         assert result.success is True
-        assert result.data["count"] == 1
+        assert len(result.data["results"]) == 1
         sym = result.data["results"][0]
         assert sym["name"] == "_TOLERANCE"
         assert sym["kind"] == "variable"
@@ -284,7 +283,7 @@ class TestSearchVariables:
         """kind='variable' + returns filter gives empty (variables have no return)."""
         result = tool.execute(path=str(search_pkg), kind="variable", returns="float")
         assert result.success is True
-        assert result.data["count"] == 0
+        assert len(result.data["results"]) == 0
 
     def test_search_function_unchanged(
         self, tool: SearchTool, search_pkg: Path
@@ -310,4 +309,4 @@ class TestSearchVariables:
         """kind='class' with non-matching name returns empty list."""
         result = tool.execute(path=str(search_pkg), kind="class", name="nonexistent")
         assert result.success is True
-        assert result.data["count"] == 0
+        assert len(result.data["results"]) == 0
