@@ -577,39 +577,50 @@ class _ScanContext(NamedTuple):
     namespace_modules: set[Path]
 
 
+def _is_function_alive(
+    fn: FunctionInfo,
+    mod: ModuleInfo,
+    pkg: PackageInfo,
+    ctx: _ScanContext,
+    *,
+    is_namespace: bool,
+) -> bool:
+    """Return True if *fn* should be considered alive (not dead code)."""
+    from axm_ast.core.callers import find_callers
+
+    if _is_exempt_function(fn, mod):
+        return True
+    if fn.name in ctx.entry_points or fn.name in ctx.all_refs:
+        return True
+    if find_callers(pkg, fn.name):
+        return True
+    if ctx.extra_pkg is not None and find_callers(ctx.extra_pkg, fn.name):
+        return True
+    # Public functions in namespace-imported modules are potentially
+    # called via dynamic attribute access (e.g. mod.func()).
+    if is_namespace and not fn.name.startswith("_"):
+        return True
+    return False
+
+
 def _scan_functions(
     mod: ModuleInfo,
     pkg: PackageInfo,
     ctx: _ScanContext,
 ) -> list[DeadSymbol]:
     """Scan top-level functions in *mod* and return dead symbols."""
-    from axm_ast.core.callers import find_callers
-
-    dead: list[DeadSymbol] = []
     mod_path = str(mod.path)
     is_namespace = mod.path in ctx.namespace_modules
-    for fn in mod.functions:
-        if _is_exempt_function(fn, mod):
-            continue
-        if fn.name in ctx.entry_points or fn.name in ctx.all_refs:
-            continue
-        if find_callers(pkg, fn.name):
-            continue
-        if ctx.extra_pkg is not None and find_callers(ctx.extra_pkg, fn.name):
-            continue
-        # Public functions in namespace-imported modules are potentially
-        # called via dynamic attribute access (e.g. mod.func()).
-        if is_namespace and not fn.name.startswith("_"):
-            continue
-        dead.append(
-            DeadSymbol(
-                name=fn.name,
-                module_path=mod_path,
-                line=fn.line_start,
-                kind="function",
-            )
+    return [
+        DeadSymbol(
+            name=fn.name,
+            module_path=mod_path,
+            line=fn.line_start,
+            kind="function",
         )
-    return dead
+        for fn in mod.functions
+        if not _is_function_alive(fn, mod, pkg, ctx, is_namespace=is_namespace)
+    ]
 
 
 def _collect_base_class_names(pkg: PackageInfo) -> set[str]:
