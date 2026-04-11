@@ -8,6 +8,7 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_git.core.identity import author_args, resolve_identity
 from axm_git.core.runner import not_a_repo_error, run_git
 
 __all__ = ["GitCommitTool"]
@@ -124,6 +125,7 @@ class GitCommitTool(AXMTool):
         *,
         path: str = ".",
         commits: list[dict[str, Any]] | None = None,
+        profile: str | None = None,
         **kwargs: Any,
     ) -> ToolResult:
         """Execute batched commits.
@@ -134,9 +136,12 @@ class GitCommitTool(AXMTool):
                 - ``files`` (list[str]): Files to stage.
                 - ``message`` (str): Commit summary line.
                 - ``body`` (str, optional): Commit body.
+            profile: Optional identity profile name. Overrides
+                schedule-based resolution from ``git-profiles.toml``.
 
         Returns:
-            ToolResult with list of committed results.
+            ToolResult with list of committed results and an
+            ``author`` key (``{name, email}`` or ``None``).
         """
         resolved = Path(path).resolve()
         commit_list: list[dict[str, Any]] = commits or []
@@ -148,6 +153,10 @@ class GitCommitTool(AXMTool):
         check = run_git(["rev-parse", "--git-dir"], resolved)
         if check.returncode != 0:
             return not_a_repo_error(check.stderr, resolved)
+
+        # Resolve identity once for the entire batch
+        identity = resolve_identity(resolved, profile_override=profile)
+        identity_args = author_args(identity)
 
         results: list[dict[str, Any]] = []
 
@@ -173,6 +182,7 @@ class GitCommitTool(AXMTool):
             commit_args = ["commit", "-m", message]
             if body:
                 commit_args.extend(["-m", body])
+            commit_args.extend(identity_args)
 
             # Attempt commit with auto-retry
             ok, retried, output = _attempt_commit(commit_args, files, resolved)
@@ -210,5 +220,10 @@ class GitCommitTool(AXMTool):
                 "results": results,
                 "total": len(results),
                 "succeeded": len(results),
+                "author": (
+                    {"name": identity.name, "email": identity.email}
+                    if identity
+                    else None
+                ),
             },
         )
