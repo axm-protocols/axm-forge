@@ -83,32 +83,60 @@ class DocstringCoverageRule(ProjectRule):
         documented = 0
         missing: list[str] = []
 
+        # Pre-pass: parse all files and build package-wide class registry
+        file_trees: dict[Path, ast.Module] = {}
         for path in get_python_files(src_path):
             cache = get_ast_cache()
             tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
-            if tree is None:
-                continue
+            if tree is not None:
+                file_trees[path] = tree
 
+        global_classes: dict[str, list[ast.ClassDef]] = {}
+        for tree in file_trees.values():
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    global_classes.setdefault(node.name, []).append(node)
+
+        for path, tree in file_trees.items():
             rel_path = path.relative_to(src_path)
             class_map = self._build_class_map(tree)
+            doc, mis = self._check_file_docstrings(
+                tree,
+                rel_path,
+                class_map,
+                global_classes,
+            )
+            documented += doc
+            missing.extend(mis)
 
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-                    continue
-                if node.name.startswith("_"):
-                    continue
-                if self._is_setter_or_deleter(node):
-                    continue
-                if self._is_abstract_stub(node):
-                    continue
-                if self._is_abstract_override(node, class_map):
-                    continue
+        return documented, missing
 
-                if self._has_docstring(node):
-                    documented += 1
-                else:
-                    missing.append(f"{rel_path}:{node.name}")
+    def _check_file_docstrings(
+        self,
+        tree: ast.Module,
+        rel_path: Path,
+        class_map: dict[str, ast.ClassDef],
+        global_classes: dict[str, list[ast.ClassDef]],
+    ) -> tuple[int, list[str]]:
+        """Check docstring coverage for public functions in a single file."""
+        documented = 0
+        missing: list[str] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            if node.name.startswith("_"):
+                continue
+            if self._is_setter_or_deleter(node):
+                continue
+            if self._is_abstract_stub(node):
+                continue
+            if self._is_abstract_override(node, class_map, global_classes):
+                continue
 
+            if self._has_docstring(node):
+                documented += 1
+            else:
+                missing.append(f"{rel_path}:{node.name}")
         return documented, missing
 
     @staticmethod
@@ -159,8 +187,9 @@ class DocstringCoverageRule(ProjectRule):
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
         class_map: dict[str, ast.ClassDef],
+        global_classes: dict[str, list[ast.ClassDef]] | None = None,
     ) -> bool:
-        """Check if node overrides a documented abstractmethod in the same file."""
+        """Check if node overrides a documented abstractmethod."""
         # Find the enclosing class for this method
         enclosing = None
         for cls in class_map.values():
@@ -174,25 +203,44 @@ class DocstringCoverageRule(ProjectRule):
         if enclosing is None:
             return False
 
-        # Check each base class (same-file only)
         for base in enclosing.bases:
             base_name = base.id if isinstance(base, ast.Name) else None
-            if base_name is None or base_name not in class_map:
+            if base_name is None:
                 continue
-            base_cls = class_map[base_name]
-            for item in base_cls.body:
-                if not isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
-                    continue
-                if item.name != node.name:
-                    continue
-                # Check if the base method is decorated with @abstractmethod
-                is_abstract = any(
-                    (isinstance(d, ast.Name) and d.id == "abstractmethod")
-                    or (isinstance(d, ast.Attribute) and d.attr == "abstractmethod")
-                    for d in item.decorator_list
-                )
-                if is_abstract and self._has_docstring(item):
+
+            # Same-file lookup
+            if base_name in class_map:
+                if self._check_abstract_parent(class_map[base_name], node.name):
                     return True
+                continue
+
+            # Cross-file lookup: only when class name is unambiguous
+            if global_classes and base_name in global_classes:
+                definitions = global_classes[base_name]
+                if len(definitions) == 1:
+                    if self._check_abstract_parent(definitions[0], node.name):
+                        return True
+
+        return False
+
+    def _check_abstract_parent(
+        self,
+        base_cls: ast.ClassDef,
+        method_name: str,
+    ) -> bool:
+        """Check if base_cls has a documented @abstractmethod named *method_name*."""
+        for item in base_cls.body:
+            if not isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            if item.name != method_name:
+                continue
+            is_abstract = any(
+                (isinstance(d, ast.Name) and d.id == "abstractmethod")
+                or (isinstance(d, ast.Attribute) and d.attr == "abstractmethod")
+                for d in item.decorator_list
+            )
+            if is_abstract and self._has_docstring(item):
+                return True
         return False
 
     def _has_docstring(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:

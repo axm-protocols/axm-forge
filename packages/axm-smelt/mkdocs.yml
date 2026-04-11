@@ -1,0 +1,19 @@
+site_name: smelt
+docs_dir: docs
+
+nav:
+  - Overview: index.md
+  - Tutorials:
+    - Getting Started: tutorials/getting-started.md
+  - How-To Guides:
+    - index: howto/index.md
+    - Compact Data: howto/compact.md
+    - Use Strategies: howto/strategies.md
+    - Use Presets: howto/presets.md
+    - Analyze Token Waste: howto/check.md
+    - Use via MCP: howto/mcp.md
+  - Reference:
+    - CLI: reference/cli.md
+  - Explanation:
+    - Strategy Catalog: explanation/strategies.md
+    - Format Detection: explanation/formats.md
