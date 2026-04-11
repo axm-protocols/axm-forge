@@ -31,6 +31,9 @@ jobs:
           elif [[ "$TAG" == git/* ]]; then
             echo "package=axm-git" >> "$GITHUB_OUTPUT"
             echo "package-dir=packages/axm-git" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == smelt/* ]]; then
+            echo "package=axm-smelt" >> "$GITHUB_OUTPUT"
+            echo "package-dir=packages/axm-smelt" >> "$GITHUB_OUTPUT"
           else
             echo "::error::Unknown tag prefix: $TAG"
             exit 1

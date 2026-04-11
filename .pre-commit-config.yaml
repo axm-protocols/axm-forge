@@ -38,6 +38,13 @@ repos:
         types: [python]
         pass_filenames: false
         args: [packages/axm-git/src/, packages/axm-git/tests/]
+      - id: mypy-smelt
+        name: mypy (axm-smelt)
+        entry: uv run --package axm-smelt mypy --config-file packages/axm-smelt/pyproject.toml
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [packages/axm-smelt/src/, packages/axm-smelt/tests/]
 
   # Conventional commits
   - repo: https://github.com/compilerla/conventional-pre-commit

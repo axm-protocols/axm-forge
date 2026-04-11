@@ -29,6 +29,8 @@ jobs:
         run: uv run --package axm-init mypy --config-file packages/axm-init/pyproject.toml packages/axm-init/src/ packages/axm-init/tests/
       - name: MyPy (axm-git)
         run: uv run --package axm-git mypy --config-file packages/axm-git/pyproject.toml packages/axm-git/src/ packages/axm-git/tests/
+      - name: MyPy (axm-smelt)
+        run: uv run --package axm-smelt mypy --config-file packages/axm-smelt/pyproject.toml packages/axm-smelt/src/ packages/axm-smelt/tests/
 
   security:
     name: Security Audit
@@ -49,7 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [axm-ast, axm-audit, axm-init, axm-git]
+        package: [axm-ast, axm-audit, axm-init, axm-git, axm-smelt]
         python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v6
