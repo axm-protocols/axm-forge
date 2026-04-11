@@ -2,7 +2,10 @@
 
 ## Composite Quality Score
 
-The quality score is a **weighted average** across 10 categories, on a 100-point scale:
+The quality score is a **weighted average** across 8 categories, on a 100-point scale.
+Computed by `AuditResult.quality_score` — returns `None` when no scored checks
+are present, and normalizes by the sum of present weights so filtered audits
+(e.g. `category="lint"`) are not penalized for missing categories.
 
 | Category | Tool | Weight |
 |---|---|---|
