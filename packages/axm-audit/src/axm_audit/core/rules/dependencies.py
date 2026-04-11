@@ -146,6 +146,21 @@ _FLAT_LAYOUT_EXCLUDES = {
 }
 
 
+def _has_deptry_config(project_path: Path) -> bool:
+    """Check if ``[tool.deptry] known_first_party`` is configured."""
+    pyproject = project_path / "pyproject.toml"
+    if not pyproject.exists():
+        return False
+    try:
+        import tomllib
+
+        data = tomllib.loads(pyproject.read_text())
+    except Exception:  # noqa: BLE001
+        logger.debug("Failed to parse %s", pyproject, exc_info=True)
+        return False
+    return bool(data.get("tool", {}).get("deptry", {}).get("known_first_party"))
+
+
 def _detect_first_party_packages(project_path: Path) -> list[str]:
     """Auto-detect first-party package names from project layout.
 
@@ -156,16 +171,8 @@ def _detect_first_party_packages(project_path: Path) -> list[str]:
     Returns an empty list if ``[tool.deptry] known_first_party`` is already
     configured in ``pyproject.toml`` — deptry's own config takes precedence.
     """
-    pyproject = project_path / "pyproject.toml"
-    if pyproject.exists():
-        try:
-            import tomllib
-
-            data = tomllib.loads(pyproject.read_text())
-            if data.get("tool", {}).get("deptry", {}).get("known_first_party"):
-                return []
-        except Exception:  # noqa: BLE001
-            logger.debug("Failed to parse %s", pyproject, exc_info=True)
+    if _has_deptry_config(project_path):
+        return []
 
     src_dir = project_path / "src"
     if src_dir.is_dir():
@@ -175,19 +182,13 @@ def _detect_first_party_packages(project_path: Path) -> list[str]:
         scan_root = project_path
         exclude = _FLAT_LAYOUT_EXCLUDES
 
-    packages: list[str] = []
-    for entry in sorted(scan_root.iterdir()):
-        if not entry.is_dir() or (
-            entry.name.startswith(".") and entry.name not in exclude
-        ):
-            continue
-        if entry.name in exclude:
-            continue
-        # Accept directories that are packages (have __init__.py) or
-        # namespace packages (contain subdirectories with __init__.py)
-        packages.append(entry.name)
-
-    return packages
+    return [
+        entry.name
+        for entry in sorted(scan_root.iterdir())
+        if entry.is_dir()
+        and not entry.name.startswith(".")
+        and entry.name not in exclude
+    ]
 
 
 def _run_deptry(project_path: Path) -> list[dict[str, Any]]:
