@@ -13,6 +13,32 @@ _GRADE_B: int = 80
 _GRADE_C: int = 70
 _GRADE_D: int = 60
 
+# ── Quality-score category weights ───────────────────────────────────
+_CATEGORY_WEIGHTS: dict[str, float] = {
+    "lint": 0.20,
+    "type": 0.15,
+    "complexity": 0.15,
+    "security": 0.10,
+    "deps": 0.10,
+    "testing": 0.15,
+    "architecture": 0.10,
+    "practices": 0.05,
+}
+
+
+def _collect_category_scores(
+    checks: list[Any],
+) -> dict[str, list[float]]:
+    """Group valid scores by category, filtering out unusable checks."""
+    category_scores: dict[str, list[float]] = {}
+    for check in checks:
+        cat = check.category
+        if cat and cat in _CATEGORY_WEIGHTS and check.details:
+            score = check.details.get("score")
+            if score is not None:
+                category_scores.setdefault(cat, []).append(float(score))
+    return category_scores
+
 
 class Severity(StrEnum):
     """Severity level for check results."""
@@ -85,40 +111,18 @@ class AuditResult(BaseModel):
         Structure is NOT scored here (handled by axm-init).
         Returns None if no scored checks are present.
         """
-        category_weights = {
-            "lint": 0.20,
-            "type": 0.15,
-            "complexity": 0.15,
-            "security": 0.10,
-            "deps": 0.10,
-            "testing": 0.15,
-            "architecture": 0.10,
-            "practices": 0.05,
-        }
-
-        # Collect scores by category (read from check.category)
-        category_scores: dict[str, list[float]] = {}
-        for check in self.checks:
-            cat = check.category
-            if cat and cat in category_weights and check.details:
-                score = check.details.get("score")
-                if score is not None:
-                    category_scores.setdefault(cat, []).append(float(score))
-
+        category_scores = _collect_category_scores(self.checks)
         if not category_scores:
             return None
 
-        # Weighted average: avg each category, then weight
+        # Weighted average: avg each category, then weight.
         # Normalize by sum of present weights so filtered audits
         # (e.g. category="lint") are not penalized for missing categories.
-        total = 0.0
-        weight_sum = 0.0
-        for cat, weight in category_weights.items():
-            scores = category_scores.get(cat, [])
-            if scores:
-                total += (sum(scores) / len(scores)) * weight
-                weight_sum += weight
-
+        total = sum(
+            (sum(scores) / len(scores)) * _CATEGORY_WEIGHTS[cat]
+            for cat, scores in category_scores.items()
+        )
+        weight_sum = sum(_CATEGORY_WEIGHTS[cat] for cat in category_scores)
         if weight_sum <= 0:
             return None
         return round(total / weight_sum, 1)
