@@ -19,7 +19,9 @@ Technical terms used throughout the `axm-audit` documentation.
 | Term | Definition |
 |---|---|
 | **Cyclomatic complexity** | A quantitative measure of the number of linearly independent paths through a function's source code. Higher values indicate more complex, harder-to-test code. `axm-audit` flags functions at CC ≥ 10 |
+| **Fan-in** | The number of modules that import a given module. High fan-in indicates a widely depended-upon module |
 | **Fan-out** | The number of modules that a given module imports. High fan-out (> 10) indicates tight coupling |
+| **Orchestrator** | A module classified as importing from ≥ 3 distinct sibling subpackages. Orchestrators receive a higher fan-out threshold (`orchestrator_bonus`) because their coupling is structural, not accidental |
 | **God class** | A class that has grown too large, accumulating too many responsibilities. Typically detected by method/attribute count |
 | **Coupling** | The degree of interdependence between modules. Lower coupling makes code easier to maintain and test |
 | **Test mirroring** | A convention where every source module `src/pkg/foo.py` has a corresponding test file `tests/test_foo.py` |
