@@ -44,6 +44,28 @@ class SymbolKind(enum.StrEnum):
     VARIABLE = "variable"
 
 
+def _strip_annotated(annotation: str) -> str:
+    """Strip ``Annotated[T, ...]`` wrapper, returning just ``T``."""
+    normalized = " ".join(annotation.split())
+    if not normalized.startswith("Annotated["):
+        return annotation
+    # Find T by counting bracket depth after the opening '['
+    start = len("Annotated[")
+    depth = 1
+    for i in range(start, len(normalized)):
+        ch = normalized[i]
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                # No comma found — single-arg Annotated[T]
+                return normalized[start:i].strip()
+        elif ch == "," and depth == 1:
+            return normalized[start:i].strip()
+    return annotation
+
+
 class ParameterInfo(BaseModel):
     """A single function/method parameter.
 
@@ -92,13 +114,18 @@ class FunctionInfo(BaseModel):
         return not self.name.startswith("_")
 
     def model_post_init(self, __context: Any) -> None:
-        """Compute signature if not explicitly provided."""
+        """Compute signature if not explicitly provided.
+
+        Strips ``Annotated[T, ...]`` wrappers from parameter and return-type
+        annotations so that generated signatures show only the base type.
+        """
         if self.signature is None:
             params_str = ", ".join(
-                p.name + (f": {p.annotation}" if p.annotation else "")
+                p.name + (f": {_strip_annotated(p.annotation)}" if p.annotation else "")
                 for p in self.params
             )
-            ret = f" -> {self.return_type}" if self.return_type else ""
+            ret_type = _strip_annotated(self.return_type) if self.return_type else None
+            ret = f" -> {ret_type}" if ret_type else ""
             prefix = "async " if self.is_async else ""
             self.signature = f"{prefix}def {self.name}({params_str}){ret}"
 
