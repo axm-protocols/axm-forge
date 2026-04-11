@@ -30,7 +30,8 @@ class ContextHook:
     """Run one-shot project context dump.
 
     Reads ``path`` from *params* (or ``working_dir`` from context).
-    Supports ``slim`` parameter (bool) to limit depth to 0 for a compact output.
+    Supports ``depth`` parameter (int | None) to control output granularity
+    (0 = compact, 1 = packages, None = full).
     Workspace-aware: if path is a uv workspace root, returns workspace-level context.
     The result is injected into session context via ``inject_result``.
     """
@@ -41,7 +42,8 @@ class ContextHook:
         Args:
             context: Session context dictionary (must contain ``working_dir``).
             **params: Optional ``path`` (overrides ``working_dir``).
-                Optional ``slim`` (bool, default False) to limit output depth.
+                Optional ``depth`` (int | None, default None) to control output
+                granularity (0 = compact, 1 = packages, None = full).
 
         Returns:
             HookResult with ``project_context`` dict in metadata on success.
@@ -52,8 +54,7 @@ class ContextHook:
         if not working_dir.is_dir():
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
-        slim = bool(params.get("slim", False))
-        depth = 0 if slim else None
+        depth = params.get("depth")
 
         try:
             # Lazy imports

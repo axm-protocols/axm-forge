@@ -1,6 +1,5 @@
 """Unit tests for ContextHook."""
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +31,7 @@ def test_context_hook_returns_project_context(tmp_path: Path) -> None:
 
 
 def test_context_hook_slim_limits_depth(tmp_path: Path) -> None:
-    """AC2: ast:context supports slim param to limit depth to 0."""
+    """slim param is ignored after migration to depth — returns full context."""
     pkg_dir = tmp_path / "src" / "dummy_pkg"
     pkg_dir.mkdir(parents=True)
 
@@ -43,19 +42,19 @@ def test_context_hook_slim_limits_depth(tmp_path: Path) -> None:
     hook = ContextHook()
     ctx: dict[str, Any] = {"working_dir": str(pkg_dir)}
 
-    # Call without slim
+    # Call without depth
     full_result = hook.execute(ctx)
     assert full_result.success is True
-    full_str = json.dumps(full_result.metadata["project_context"])
 
-    # Call with slim
+    # Call with slim (ignored after migration — returns full context)
     slim_result = hook.execute(ctx, slim=True)
     assert slim_result.success is True
-    slim_str = json.dumps(slim_result.metadata["project_context"])
 
-    # Slim output should be compact, and 'top_modules' replaces 'modules'
-    assert "top_modules" in slim_result.metadata["project_context"]
-    assert len(slim_str) < len(full_str)
+    # slim is silently ignored; output matches full context
+    assert (
+        slim_result.metadata["project_context"]
+        == full_result.metadata["project_context"]
+    )
 
 
 def test_context_hook_missing_path_fails(tmp_path: Path) -> None:
