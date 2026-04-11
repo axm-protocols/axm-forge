@@ -115,7 +115,7 @@ sequenceDiagram
 1. **Startup**: `discover_tools()` scans `axm.tools` entry points
 2. **Registration**: `register_tools()` wraps each tool as an MCP callable
 3. **Resource**: `_tool_catalog()` exposes the tool catalog via `axm://tools` MCP resource
-4. **Execution**: MCP client calls tool → wrapper delegates to `tool.execute(**kwargs)` → returns `ToolResult`
+4. **Execution**: MCP client calls tool → wrapper delegates to `tool.execute(**kwargs)` → if `ToolResult.text` is set, returns raw string (rendered as `TextContent`); otherwise returns flattened dict
 5. **Verify**: `verify_project()` chains audit → init_check → AST enrichment
 
 ## Concurrency Model (HTTP mode)
