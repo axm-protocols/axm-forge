@@ -90,6 +90,7 @@ dev = [
     "pytest-mock>=3.0",
     "ruff==0.15.9",
     "mypy>=1.14",
+    "types-PyYAML>=6.0",
     "pre-commit>=4.0",
     "pip-audit>=2.0",
     "radon>=6.0.1",

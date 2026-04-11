@@ -82,6 +82,7 @@ dev = [
     { name = "pytest-mock" },
     { name = "radon" },
     { name = "ruff" },
+    { name = "types-pyyaml" },
 ]
 docs = [
     { name = "mkdocs-gen-files" },
@@ -111,6 +112,7 @@ dev = [
     { name = "pytest-mock", specifier = ">=3.0" },
     { name = "radon", specifier = ">=6.0.1" },
     { name = "ruff", specifier = "==0.15.9" },
+    { name = "types-pyyaml", specifier = ">=6.0" },
 ]
 docs = [
     { name = "mkdocs-gen-files", specifier = ">=0.5" },
