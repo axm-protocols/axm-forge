@@ -65,6 +65,59 @@ class AuditQualityRule:
                         category,
                     )
 
+    def _run_categories(
+        self,
+        project_path: Path,
+        categories: list[str],
+    ) -> list[AuditResult]:
+        """Run each audit category independently, collecting results."""
+        results: list[AuditResult] = []
+        for category in categories:
+            try:
+                result = audit_project(project_path, category=category)
+                results.append(result)
+            except Exception:
+                logger.exception("audit_project failed for category=%s", category)
+        return results
+
+    def _filter_excluded(
+        self, failed_items: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Remove items whose rule_id matches any exclude prefix."""
+        if not self.exclude_rules or not failed_items:
+            return failed_items
+        return [
+            item
+            for item in failed_items
+            if not any(
+                item.get("rule_id", "").startswith(prefix)
+                for prefix in self.exclude_rules
+            )
+        ]
+
+    def _build_failure_result(
+        self,
+        agent_output: dict[str, Any],
+        failed_items: list[dict[str, Any]],
+    ) -> WitnessResult:
+        """Build a WitnessResult.failure with structured feedback."""
+        why_lines = json.dumps(failed_items, indent=2, ensure_ascii=False)
+        how = (
+            "Fix each violation listed above. Lint errors: fix the code "
+            "(do NOT add # noqa). Type errors: fix the types "
+            "(do NOT add # type: ignore without verifying)."
+        )
+        if self.guidance:
+            how = f"{how}\n\n{self.guidance}"
+        return WitnessResult.failure(
+            feedback=ValidationFeedback(
+                what=f"Quality gate failed: {len(failed_items)} violation(s)",
+                why=why_lines,
+                how=how,
+            ),
+            metadata={"audit": agent_output},
+        )
+
     def validate(self, content: str, **kwargs: Any) -> WitnessResult:
         """Run audit categories and aggregate results.
 
@@ -89,15 +142,7 @@ class AuditQualityRule:
         if not categories:
             return WitnessResult.success()
 
-        # Run each category independently
-        results: list[AuditResult] = []
-        for category in categories:
-            try:
-                result = audit_project(project_path, category=category)
-                results.append(result)
-            except Exception:
-                logger.exception("audit_project failed for category=%s", category)
-
+        results = self._run_categories(project_path, categories)
         if not results:
             return WitnessResult.failure(
                 feedback=ValidationFeedback(
@@ -119,40 +164,12 @@ class AuditQualityRule:
         agent_output = format_agent(merged)
 
         # Filter excluded rules before counting failures
-        failed_items = agent_output.get("failed", [])
-        if self.exclude_rules and failed_items:
-            failed_items = [
-                item
-                for item in failed_items
-                if not any(
-                    item.get("rule_id", "").startswith(prefix)
-                    for prefix in self.exclude_rules
-                )
-            ]
-            agent_output["failed"] = failed_items
+        failed_items = self._filter_excluded(agent_output.get("failed", []))
+        agent_output["failed"] = failed_items
 
-        total_failed = len(failed_items)
-        if total_failed == 0:
+        if not failed_items:
             return WitnessResult.success(
                 metadata={"audit": agent_output},
             )
 
-        # Build structured feedback
-        why_lines = json.dumps(failed_items, indent=2, ensure_ascii=False)
-
-        how = (
-            "Fix each violation listed above. Lint errors: fix the code "
-            "(do NOT add # noqa). Type errors: fix the types "
-            "(do NOT add # type: ignore without verifying)."
-        )
-        if self.guidance:
-            how = f"{how}\n\n{self.guidance}"
-
-        return WitnessResult.failure(
-            feedback=ValidationFeedback(
-                what=f"Quality gate failed: {total_failed} violation(s)",
-                why=why_lines,
-                how=how,
-            ),
-            metadata={"audit": agent_output},
-        )
+        return self._build_failure_result(agent_output, failed_items)
