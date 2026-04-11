@@ -287,6 +287,41 @@ class GodClassRule(ProjectRule):
             )
 
 
+def _detect_internal_prefixes(src_path: Path) -> list[str]:
+    """Return package names found directly under *src_path*."""
+    return [
+        child.name
+        for child in src_path.iterdir()
+        if child.is_dir() and (child / "__init__.py").exists()
+    ]
+
+
+def _is_internal_import(imp: str, prefixes: list[str]) -> bool:
+    """Return ``True`` if *imp* belongs to one of the *prefixes*."""
+    return any(imp == pfx or imp.startswith(f"{pfx}.") for pfx in prefixes)
+
+
+def _count_siblings(
+    module_name: str,
+    imports: list[str],
+    internal_prefixes: list[str],
+) -> set[str]:
+    """Return the set of sibling subpackage names imported by *module_name*."""
+    parts = module_name.split(".")
+    parent = ".".join(parts[:-1])
+    siblings: set[str] = set()
+    for imp in imports:
+        if not _is_internal_import(imp, internal_prefixes):
+            continue
+        imp_parts = imp.split(".")
+        if len(imp_parts) >= len(parts):
+            imp_parent = ".".join(imp_parts[: len(parts) - 1])
+            if imp_parent == parent:
+                siblings.add(imp_parts[len(parts) - 1])
+    siblings.discard(parts[-1])
+    return siblings
+
+
 def _classify_module_role(
     module_name: str,
     imports: list[str],
@@ -298,41 +333,13 @@ def _classify_module_role(
     subpackages within the project namespace.  Only intra-project imports
     are considered (external/stdlib imports are ignored).
     """
-    # Detect internal package prefix from src_path contents
-    internal_prefixes: list[str] = []
-    for child in src_path.iterdir():
-        if child.is_dir() and (child / "__init__.py").exists():
-            internal_prefixes.append(child.name)
-
-    # Determine the parent namespace of the current module.
-    # Modules must be at depth >= 3 (e.g. pkg.sub.mod) to have
-    # meaningful subpackage siblings.  Top-level modules (pkg.mod)
-    # are always leaf — they sit in a flat package.
     _min_subpackage_depth = 3
     parts = module_name.split(".")
     if len(parts) < _min_subpackage_depth:
         return "leaf"
-    parent = ".".join(parts[:-1])
 
-    # Count distinct sibling modules/subpackages under the same parent
-    siblings: set[str] = set()
-    for imp in imports:
-        # Skip external imports
-        if not any(
-            imp == pfx or imp.startswith(f"{pfx}.") for pfx in internal_prefixes
-        ):
-            continue
-        imp_parts = imp.split(".")
-        # Check if this import shares the same parent
-        if len(imp_parts) >= len(parts):
-            imp_parent = ".".join(imp_parts[: len(parts) - 1])
-            if imp_parent == parent:
-                sibling_name = imp_parts[len(parts) - 1]
-                siblings.add(sibling_name)
-
-    # Exclude the module itself from sibling count
-    own_name = parts[-1]
-    siblings.discard(own_name)
+    internal_prefixes = _detect_internal_prefixes(src_path)
+    siblings = _count_siblings(module_name, imports, internal_prefixes)
 
     _min_siblings_for_orchestrator = 3
     return "orchestrator" if len(siblings) >= _min_siblings_for_orchestrator else "leaf"
