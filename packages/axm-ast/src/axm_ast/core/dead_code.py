@@ -214,6 +214,44 @@ def _is_protocol_class(cls: ClassInfo) -> bool:
     return "Protocol" in cls.bases
 
 
+def _find_base_method(
+    base_name: str,
+    method_name: str,
+    pkg: PackageInfo,
+) -> tuple[bool, bool | None]:
+    """Look up *base_name* in *pkg* and check whether it defines *method_name*.
+
+    Returns:
+        A ``(found, alive)`` pair.  *found* is ``True`` when the base class
+        exists in *pkg*.  *alive* is ``True`` when the base defines the
+        method **and** it has callers, ``False`` when the base defines the
+        method but it has no callers, or ``None`` when the base does not
+        define the method or was not found.
+    """
+    from axm_ast.core.callers import find_callers
+
+    for mod in pkg.modules:
+        for other_cls in mod.classes:
+            if other_cls.name != base_name:
+                continue
+            for base_method in other_cls.methods:
+                if base_method.name == method_name:
+                    return True, len(find_callers(pkg, method_name)) > 0
+            # Base found but does not define the method.
+            return True, None
+    # Base not found in package.
+    return False, None
+
+
+def _is_external_override_live(method_name: str) -> bool:
+    """Return whether an override of an external base is presumed live.
+
+    Single-underscore private methods (e.g. ``_helper``) are presumed dead;
+    all others (public and dunder) are presumed live.
+    """
+    return not (method_name.startswith("_") and not method_name.startswith("__"))
+
+
 def _check_override(
     method_name: str,
     cls: ClassInfo,
@@ -236,29 +274,17 @@ def _check_override(
         ``True`` if the override is live (has callers or overrides an
         external base); ``False`` otherwise.
     """
-    from axm_ast.core.callers import find_callers
-
     found_bases: set[str] = set()
     for base_name in cls.bases:
-        # Find the base class in the package.
-        for mod in pkg.modules:
-            for other_cls in mod.classes:
-                if other_cls.name == base_name:
-                    found_bases.add(base_name)
-                    # Check if the base class has this method.
-                    for base_method in other_cls.methods:
-                        if base_method.name == method_name:
-                            # Base has the method — check if it's called.
-                            callers = find_callers(pkg, method_name)
-                            return len(callers) > 0
+        found, alive = _find_base_method(base_name, method_name, pkg)
+        if found:
+            found_bases.add(base_name)
+        if alive is True:
+            return True
 
-    # Bases not found in package are external (stdlib/third-party).
-    # Methods overriding external bases are presumed live, unless private.
     external_bases = set(cls.bases) - found_bases
     if external_bases:
-        is_private = method_name.startswith("_") and not method_name.startswith("__")
-        if not is_private:
-            return True
+        return _is_external_override_live(method_name)
 
     return False
 
