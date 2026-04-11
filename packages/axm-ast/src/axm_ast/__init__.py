@@ -10,7 +10,7 @@ Example:
     >>>
     >>> pkg = analyze_package(Path("src/mylib"))
     >>> [m.path.name for m in pkg.modules]
-    ['__init__.py', 'core.py', 'utils.py']
+    `['__init__.py', 'core.py', 'utils.py']`
 """
 
 from axm_ast._version import __version__

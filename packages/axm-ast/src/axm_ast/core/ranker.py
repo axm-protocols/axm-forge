@@ -8,7 +8,7 @@ Example:
     >>> from axm_ast.core.ranker import rank_symbols
     >>> scores = rank_symbols(pkg)
     >>> sorted(scores, key=scores.get, reverse=True)[:5]
-    ['Calculator', 'greet', 'resolve_path', ...]
+    `['Calculator', 'greet', 'resolve_path', ...]`
 """
 
 from __future__ import annotations

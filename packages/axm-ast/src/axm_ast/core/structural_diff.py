@@ -7,7 +7,7 @@ Example:
     >>> from axm_ast.core.structural_diff import structural_diff
     >>> result = structural_diff(Path("src/mylib"), "main", "feature")
     >>> result["added"]
-    [{"name": "new_func", "kind": "function", "file": "core.py", ...}]
+    `[{"name": "new_func", "kind": "function", "file": "core.py", ...}]`
 """
 
 from __future__ import annotations

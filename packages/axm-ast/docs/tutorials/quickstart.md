@@ -164,6 +164,6 @@ docs/
 
 - [Describe a package](../howto/describe.md) — All detail levels and output formats
 - [Analyze change impact](../howto/impact.md) — Pre-refactoring risk assessment
-- [How-To Guides](../howto/) — Advanced usage patterns
+- [How-To Guides](../howto/index.md) — Advanced usage patterns
 - [CLI Reference](../reference/cli.md) — Full command documentation
 - [Architecture](../explanation/architecture.md) — How it works under the hood

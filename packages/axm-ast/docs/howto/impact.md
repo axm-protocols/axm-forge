@@ -75,6 +75,33 @@ The `related` mode is useful for high-impact symbols (e.g., base classes, utilit
 !!! note "Precedence"
     If both `--exclude-tests` and `--test-filter` are set, `--test-filter` takes precedence and a warning is emitted.
 
+## Batch Analysis
+
+Analyze multiple symbols at once with `--symbols`:
+
+```bash
+axm-ast impact src/mylib --symbols my_function,MyClass
+```
+
+### Compact Output
+
+Use `--detail compact` for a condensed markdown table — ideal for MCP tool
+responses and quick triage:
+
+```bash
+axm-ast impact src/mylib --symbol my_function --detail compact
+```
+
+```
+| Symbol | Location | Score | Prod | Direct tests | Indirect tests |
+|---|---|---|---|---|---|
+| my_function | core.utils:42 | HIGH | cli:89, engine:42 | test_utils | test_engine (+1 more) |
+
+Tests: test_utils.py, test_engine.py
+```
+
+When combined with `--symbols`, each symbol gets its own row in the table.
+
 ## JSON for CI
 
 ```bash

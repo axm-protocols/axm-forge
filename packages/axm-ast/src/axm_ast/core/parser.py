@@ -9,7 +9,7 @@ Example:
     >>> from axm_ast.core.parser import extract_module_info
     >>> mod = extract_module_info(Path("my_module.py"))
     >>> [f.name for f in mod.functions]
-    ['main', 'helper']
+    `['main', 'helper']`
 """
 
 from __future__ import annotations

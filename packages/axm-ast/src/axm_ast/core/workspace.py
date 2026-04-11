@@ -275,7 +275,7 @@ def build_workspace_dep_graph(ws: WorkspaceInfo) -> dict[str, list[str]]:
     Example:
         >>> graph = build_workspace_dep_graph(ws)
         >>> graph["axm-mcp"]
-        ['axm']
+        `['axm']`
     """
     graph: dict[str, list[str]] = {}
     for src, target in ws.package_edges:
