@@ -57,22 +57,37 @@ class ContextTool(AXMTool):
                 from axm_ast.core.workspace import (
                     build_workspace_context,
                     format_workspace_context,
+                    format_workspace_text,
                 )
 
                 ctx = build_workspace_context(project_path)
+                formatted = format_workspace_context(
+                    ctx, depth=depth if depth is not None else 1
+                )
                 return ToolResult(
                     success=True,
-                    data=format_workspace_context(
-                        ctx, depth=depth if depth is not None else 1
-                    ),
+                    data=formatted,
+                    text=format_workspace_text(formatted),
                 )
 
-            from axm_ast.core.context import build_context, format_context_json
+            from axm_ast.core.context import (
+                build_context,
+                format_context_json,
+                format_context_text,
+            )
 
             ctx = build_context(project_path)
+            formatted = format_context_json(ctx, depth=depth)
+            try:
+                text = format_context_text(
+                    formatted, depth=depth if depth is not None else 0
+                )
+            except (KeyError, TypeError):
+                text = None
             return ToolResult(
                 success=True,
-                data=format_context_json(ctx, depth=depth),
+                data=formatted,
+                text=text,
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

@@ -33,6 +33,7 @@ __all__ = [
     "detect_stack",
     "format_context",
     "format_context_json",
+    "format_context_text",
 ]
 
 
@@ -514,6 +515,102 @@ def format_context_json(
         base["packages"] = _group_by_subpackage(modules, depth)
 
     return base
+
+
+def format_context_text(data: dict[str, Any], *, depth: int = 0) -> str:
+    """Format context data as compact plain text for ToolResult.text.
+
+    Operates on the dict returned by :func:`format_context_json`, not the
+    raw context from :func:`build_context`.
+
+    Args:
+        data: Formatted context dict (output of ``format_context_json``).
+        depth: Detail level matching the depth used for ``format_context_json``.
+
+    Returns:
+        Compact text string.
+    """
+    lines: list[str] = []
+
+    # Header: {name} | {layout} | {N} mod · {N} fn · {N} cls
+    patterns = data.get("patterns", {})
+    lines.append(
+        f"{data.get('name', '')} | {patterns.get('layout', '')} | "
+        f"{patterns.get('module_count', 0)} mod · "
+        f"{patterns.get('function_count', 0)} fn · "
+        f"{patterns.get('class_count', 0)} cls"
+    )
+
+    python = data.get("python")
+    if python is not None:
+        lines.append(f"python: {python}")
+
+    stack = data.get("stack", {})
+    if stack:
+        parts = [f"{cat}: {', '.join(deps)}" for cat, deps in sorted(stack.items())]
+        lines.append(f"Stack: {' | '.join(parts)}")
+
+    # depth=0: top modules with stars
+    if depth == 0:
+        top_modules = data.get("top_modules", [])
+        if top_modules:
+            lines.append("")
+            lines.append("Top modules:")
+            for m in top_modules:
+                stars = "★" * m["stars"] + "☆" * (5 - m["stars"])
+                lines.append(f"  {m['name']} ({m['symbol_count']}) {stars}")
+    else:
+        # depth >= 1: packages
+        packages = data.get("packages", [])
+        if not packages:
+            return "\n".join(lines)
+
+        lines.append("")
+        lines.append("Packages:")
+
+        if isinstance(packages, dict):
+            # Real format from _group_by_subpackage: {name: {modules, symbols, ...}}
+            for pkg_name in sorted(packages):
+                pkg = packages[pkg_name]
+                line = f"  {pkg_name}: {pkg.get('modules', 0)} mod, {pkg.get('symbols', 0)} sym"
+                sym_names = pkg.get("symbol_names", [])
+                if sym_names:
+                    total = pkg.get("symbol_names_truncated", len(sym_names))
+                    line += " " + _fmt_sym_bracket(sym_names, total)
+                lines.append(line)
+        else:
+            # List format: [{"name", "module_count", "symbol_count", ...}]
+            for pkg in packages:
+                line = (
+                    f"  {pkg['name']}: "
+                    f"{pkg.get('module_count', 0)} mod, "
+                    f"{pkg.get('symbol_count', 0)} sym"
+                )
+                modules = pkg.get("modules")
+                if modules:
+                    lines.append(line)
+                    for mod in modules:
+                        syms = mod.get("symbols", [])
+                        lines.append(
+                            f"    {mod['name']} {_fmt_sym_bracket(syms, len(syms))}"
+                        )
+                else:
+                    lines.append(line)
+
+    return "\n".join(lines)
+
+
+_SYM_BRACKET_LIMIT = 5
+
+
+def _fmt_sym_bracket(symbols: list[str], total: int) -> str:
+    """Format symbol names as ``[sym1, sym2, ... (+N)]``."""
+    shown = symbols[:_SYM_BRACKET_LIMIT]
+    text = ", ".join(shown)
+    remaining = total - len(shown)
+    if remaining > 0:
+        text += f" (+{remaining})"
+    return f"[{text}]"
 
 
 def _group_by_subpackage(

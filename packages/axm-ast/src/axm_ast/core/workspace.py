@@ -354,6 +354,45 @@ def build_workspace_context(path: Path) -> dict[str, Any]:
     }
 
 
+def format_workspace_text(ctx: dict[str, Any]) -> str:
+    """Format workspace context as compact plain text for ToolResult.text.
+
+    Args:
+        ctx: Workspace context dict from :func:`build_workspace_context`
+            or :func:`format_workspace_context`.
+
+    Returns:
+        Compact text string.
+    """
+    lines: list[str] = []
+    lines.append(
+        f"{ctx.get('workspace', '')} | workspace | "
+        f"{ctx.get('package_count', 0)} packages"
+    )
+
+    packages = ctx.get("packages", [])
+    if packages:
+        lines.append("")
+        lines.append("Packages:")
+        for pkg in packages:
+            mod_c = pkg.get("module_count")
+            if mod_c is not None:
+                fn_c = pkg.get("function_count", 0)
+                cls_c = pkg.get("class_count", 0)
+                lines.append(f"  {pkg['name']}: {mod_c} mod, {fn_c} fn, {cls_c} cls")
+            else:
+                lines.append(f"  {pkg['name']}")
+
+    graph = ctx.get("package_graph", {})
+    if graph:
+        lines.append("")
+        lines.append("Dependencies:")
+        for src in sorted(graph):
+            lines.append(f"  {src} → {', '.join(graph[src])}")
+
+    return "\n".join(lines)
+
+
 def format_workspace_context(ctx: dict[str, Any], *, depth: int = 1) -> dict[str, Any]:
     """Apply depth-based filtering to workspace context.
 
