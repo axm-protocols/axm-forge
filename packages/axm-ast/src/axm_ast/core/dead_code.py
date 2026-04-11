@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from axm_ast.models.nodes import (
         ClassInfo,
         FunctionInfo,
+        ImportInfo,
         ModuleInfo,
         PackageInfo,
     )
@@ -743,6 +744,17 @@ def _gather_all_refs(
     return all_refs
 
 
+def _resolve_import_stems(imp: ImportInfo) -> list[str]:
+    """Return module stems referenced by a single import statement."""
+    if not imp.names:
+        # Bare ``import X.Y.mod`` — module is the leaf.
+        if imp.module is not None:
+            return [imp.module.rsplit(".", 1)[-1]]
+        return []
+    # ``from X import name`` — each name might be a module.
+    return list(imp.names)
+
+
 def _find_namespace_modules(pkg: PackageInfo) -> set[Path]:
     """Find modules that are imported as namespace objects somewhere in *pkg*.
 
@@ -753,28 +765,19 @@ def _find_namespace_modules(pkg: PackageInfo) -> set[Path]:
     Public symbols in such modules may be accessed via attribute access
     (``mod.func()``) and would not show up in a direct caller search.
     """
-    namespace_paths: set[Path] = set()
     # Build lookup: stem → path for all modules in the package.
-    mod_stems: dict[str, Path] = {}
-    for mod in pkg.modules:
-        mod_stems[mod.path.stem] = mod.path
+    mod_stems: dict[str, Path] = {mod.path.stem: mod.path for mod in pkg.modules}
+
+    namespace_paths: set[Path] = set()
 
     for mod in pkg.modules:
+        # Module-level imports.
         for imp in mod.imports:
-            if not imp.names:
-                # Bare ``import X.Y.mod`` — module is the leaf.
-                if imp.module is not None:
-                    leaf = imp.module.rsplit(".", 1)[-1]
-                    if leaf in mod_stems:
-                        namespace_paths.add(mod_stems[leaf])
-            else:
-                # ``from X import name`` — check if *name* is a module.
-                for name in imp.names:
-                    if name in mod_stems:
-                        namespace_paths.add(mod_stems[name])
+            for stem in _resolve_import_stems(imp):
+                if stem in mod_stems:
+                    namespace_paths.add(mod_stems[stem])
 
-    # Second pass: scan function bodies for lazy namespace imports.
-    for mod in pkg.modules:
+        # Lazy namespace imports inside function bodies.
         for name in _extract_lazy_namespace_names(mod):
             if name in mod_stems:
                 namespace_paths.add(mod_stems[name])
