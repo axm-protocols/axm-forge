@@ -27,4 +27,4 @@ Hook actions auto-discovered via the `axm.hooks` entry-point group by `HookRegis
 
 ## Python API
 
-Auto-generated API reference is available under [Python API](api/).
+Auto-generated API reference is available under [Python API](../../reference/axm_git/index.md).

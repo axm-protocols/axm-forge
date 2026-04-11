@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "detect_package_name",
     "find_git_root",
+    "find_git_root",
     "gh_available",
     "not_a_repo_error",
     "run_gh",
