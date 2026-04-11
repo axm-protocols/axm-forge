@@ -42,7 +42,8 @@ uv add axm-ast
 ```bash
 # One-shot project context for AI agents
 axm-ast context src/mylib
-axm-ast context src/mylib --slim    # compact top-5 overview
+axm-ast context src/mylib --depth none  # full context (all modules + dependency graph)
+axm-ast context src/mylib --slim        # compact top-5 overview
 
 # Describe a package at different detail levels
 axm-ast describe src/mylib

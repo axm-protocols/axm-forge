@@ -27,7 +27,12 @@ class ContextTool(AXMTool):
         return "ast_context"
 
     def execute(
-        self, *, path: str = ".", depth: int = 1, slim: bool = False, **kwargs: Any
+        self,
+        *,
+        path: str = ".",
+        depth: int | None = 1,
+        slim: bool = False,
+        **kwargs: Any,
     ) -> ToolResult:
         """Dump complete project context for AI agents.
 
@@ -61,7 +66,9 @@ class ContextTool(AXMTool):
                 ctx = build_workspace_context(project_path)
                 return ToolResult(
                     success=True,
-                    data=format_workspace_context(ctx, depth=depth),
+                    data=format_workspace_context(
+                        ctx, depth=depth if depth is not None else 1
+                    ),
                 )
 
             from axm_ast.core.context import build_context, format_context_json
