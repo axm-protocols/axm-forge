@@ -352,3 +352,25 @@ def build_workspace_context(path: Path) -> dict[str, Any]:
         "packages": pkg_summaries,
         "package_graph": graph,
     }
+
+
+def format_workspace_context(ctx: dict[str, Any], *, depth: int = 1) -> dict[str, Any]:
+    """Apply depth-based filtering to workspace context.
+
+    Args:
+        ctx: Full workspace context from :func:`build_workspace_context`.
+        depth: Detail level. 0 = compact (names only, no graph),
+            >= 1 = full output.
+
+    Returns:
+        Filtered workspace context dict.
+    """
+    if depth >= 1:
+        return ctx
+
+    return {
+        "workspace": ctx["workspace"],
+        "root": ctx["root"],
+        "package_count": ctx["package_count"],
+        "packages": [{"name": pkg["name"]} for pkg in ctx["packages"]],
+    }

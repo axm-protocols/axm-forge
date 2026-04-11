@@ -43,3 +43,57 @@ A JSON-serializable dict with the following top-level keys:
 | `patterns` | `dict` | Module/function/class counts and layout |
 | `top_modules` | `list[dict]` | Modules included at the requested depth |
 | `graph` | `dict` | Dependency graph (depth `None` only) |
+
+---
+
+## `build_workspace_context`
+
+```python
+from axm_ast.core.workspace import build_workspace_context
+
+build_workspace_context(path: Path) -> dict[str, Any]
+```
+
+Build complete workspace context in one call. Lists all packages, their mutual dependencies, per-package stats, and the workspace-level dependency graph.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `path` | `Path` | *required* | Path to workspace root |
+
+### Return value
+
+| Key | Type | Description |
+|---|---|---|
+| `workspace` | `str` | Workspace name |
+| `root` | `str` | Absolute path to workspace root |
+| `package_count` | `int` | Number of member packages |
+| `packages` | `list[dict]` | Per-package summary (name, root, module/function/class counts) |
+| `package_graph` | `dict[str, list[str]]` | Inter-package dependency edges |
+
+---
+
+## `format_workspace_context`
+
+```python
+from axm_ast.core.workspace import format_workspace_context
+
+format_workspace_context(ctx: dict[str, Any], *, depth: int = 1) -> dict[str, Any]
+```
+
+Apply depth-based filtering to a workspace context dict.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `ctx` | `dict[str, Any]` | *required* | Full workspace context from `build_workspace_context` |
+| `depth` | `int` | `1` | Detail level (see below) |
+
+### Depth levels
+
+| Depth | Detail |
+|---|---|
+| `0` | Compact — package names only, no graph or stats |
+| `>= 1` | Full output with all per-package stats and dependency graph |

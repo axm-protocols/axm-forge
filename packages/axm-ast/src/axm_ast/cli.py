@@ -520,7 +520,7 @@ def context(
 
     ws = detect_workspace(project_path)
     if ws is not None:
-        _print_workspace_context(project_path, json_output=json_output)
+        _print_workspace_context(project_path, json_output=json_output, depth=depth)
         return
 
     from axm_ast.core.context import (
@@ -541,23 +541,32 @@ def context(
         print(format_context(ctx))
 
 
-def _print_workspace_context(project_path: Path, *, json_output: bool) -> None:
+def _print_workspace_context(
+    project_path: Path, *, json_output: bool, depth: int | None = None
+) -> None:
     """Print workspace-level context."""
-    from axm_ast.core.workspace import build_workspace_context
+    from axm_ast.core.workspace import (
+        build_workspace_context,
+        format_workspace_context,
+    )
 
     ctx = build_workspace_context(project_path)
+    ctx = format_workspace_context(ctx, depth=depth if depth is not None else 1)
     if json_output:
         print(json.dumps(ctx, indent=2))
         return
     print(f"🏗️  Workspace: {ctx['workspace']}")
     print(f"   Packages: {ctx['package_count']}")
     for pkg in ctx["packages"]:
-        print(
-            f"   • {pkg['name']} "
-            f"({pkg['module_count']} modules, "
-            f"{pkg['function_count']} functions)"
-        )
-    if ctx["package_graph"]:
+        if "module_count" in pkg:
+            print(
+                f"   • {pkg['name']} "
+                f"({pkg['module_count']} modules, "
+                f"{pkg['function_count']} functions)"
+            )
+        else:
+            print(f"   • {pkg['name']}")
+    if ctx.get("package_graph"):
         print("\n📊 Package Dependencies:")
         for src, targets in sorted(ctx["package_graph"].items()):
             for t in targets:
