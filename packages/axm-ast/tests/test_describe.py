@@ -141,20 +141,6 @@ class TestDescribeToolDetailLevels:
             for fn in mod.get("functions", []):
                 assert "summary" not in fn
 
-    def test_full_includes_line_numbers(
-        self, tool: DescribeTool, demo_pkg: Path
-    ) -> None:
-        result = tool.execute(path=str(demo_pkg), detail="full")
-        assert result.success is True
-        alpha_mod = next(
-            (m for m in result.data["modules"] if m["name"] == "alpha"), None
-        )
-        assert alpha_mod is not None
-        fn = next((f for f in alpha_mod["functions"] if f["name"] == "alpha_one"), None)
-        assert fn is not None
-        assert "line_start" in fn
-        assert "line_end" in fn
-
 
 # ─── Compress mode ───────────────────────────────────────────────────────────
 

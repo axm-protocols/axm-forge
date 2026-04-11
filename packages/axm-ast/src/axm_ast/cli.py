@@ -64,7 +64,7 @@ def describe(
         str,
         cyclopts.Parameter(
             name=["--detail", "-d"],
-            help="Detail level: summary, detailed, full",
+            help="Detail level: summary, detailed",
         ),
     ] = "detailed",
     json_output: Annotated[
@@ -101,6 +101,14 @@ def describe(
     ] = None,
 ) -> None:
     """Describe a Python package at the chosen detail level."""
+    if detail == "full":
+        print(
+            "❌ detail='full' has been removed. "
+            "Use --detail detailed or ast_inspect --source.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
     project_path = _resolve_dir(path)
 
     from axm_ast.formatters import filter_modules, format_toc

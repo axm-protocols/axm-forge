@@ -46,8 +46,7 @@ class DescribeTool(AXMTool):
             compress: If True, return compressed AI-friendly view.
             detail: Detail level — ``toc`` (names + counts only),
                 ``summary`` (signatures only),
-                ``detailed`` (+ docstrings, params, return types),
-                or ``full`` (+ line numbers, imports, variables).
+                or ``detailed`` (+ docstrings, params, return types).
                 Defaults to ``summary`` (signatures only, no docstrings).
             modules: Optional list of module name substrings to filter.
                 Case-insensitive.  ``None`` or empty returns all modules.
@@ -55,6 +54,16 @@ class DescribeTool(AXMTool):
         Returns:
             ToolResult with module descriptions.
         """
+        if detail == "full":
+            return ToolResult(
+                success=False,
+                error=(
+                    "detail='full' has been removed — it crashes MCP transport "
+                    "on large packages. Use detail='detailed' for docstrings and "
+                    "params, or ast_inspect(source=true) for full symbol source."
+                ),
+            )
+
         try:
             project_path = Path(path).resolve()
             if not project_path.is_dir():
