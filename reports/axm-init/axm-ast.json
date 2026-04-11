@@ -290,7 +290,7 @@
       "passed": true,
       "earned": 3,
       "weight": 3,
-      "message": "77 test file(s) found"
+      "message": "82 test file(s) found"
     },
     {
       "name": "structure.uv_lock",

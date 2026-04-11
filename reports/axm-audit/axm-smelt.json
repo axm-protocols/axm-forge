@@ -1,8 +1,8 @@
 {
-  "score": 89.3,
-  "grade": "B",
+  "score": 91.6,
+  "grade": "A",
   "total": 24,
-  "failed": 5,
+  "failed": 4,
   "success": false,
   "checks": [
     {
@@ -49,26 +49,20 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": true,
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 1,
-        "top_offenders": [
-          {
-            "file": "pipeline.py",
-            "function": "smelt",
-            "cc": 14
-          }
-        ],
-        "score": 90
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "score": 100
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": false,
-      "message": "Test coverage: 89% (88/100)",
+      "passed": true,
+      "message": "Test coverage: 92% (91/100)",
       "details": {
-        "coverage": 88.96434634974533,
-        "score": 88,
+        "coverage": 91.81434599156118,
+        "score": 91,
         "failures": []
       }
     },
@@ -219,10 +213,11 @@
     {
       "rule_id": "PRACTICE_LOGGING",
       "passed": false,
-      "message": "Logging coverage: 0% (0/3)",
+      "message": "Logging coverage: 0% (0/4)",
       "details": {
         "without_logging": [
           "axm_smelt/cli.py",
+          "axm_smelt/core/pipeline.py",
           "axm_smelt/core/detector.py",
           "axm_smelt/strategies/tabular.py"
         ],
@@ -232,17 +227,15 @@
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
-      "message": "6 source module(s) without tests",
+      "message": "4 source module(s) without tests",
       "details": {
         "missing": [
           "__main__.py",
-          "base.py",
           "check.py",
           "count.py",
-          "dedup_values.py",
           "smelt.py"
         ],
-        "score": 10
+        "score": 40
       }
     },
     {

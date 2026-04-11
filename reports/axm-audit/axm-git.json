@@ -1,8 +1,8 @@
 {
-  "score": 94.3,
+  "score": 98.8,
   "grade": "A",
   "total": 24,
-  "failed": 2,
+  "failed": 1,
   "success": false,
   "checks": [
     {
@@ -48,28 +48,12 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 70/100 (3 high-complexity functions)",
+      "passed": true,
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 3,
-        "top_offenders": [
-          {
-            "file": "commit.py",
-            "function": "GitCommitTool.execute",
-            "cc": 10
-          },
-          {
-            "file": "identity.py",
-            "function": "resolve_identity",
-            "cc": 10
-          },
-          {
-            "file": "commit_phase.py",
-            "function": "CommitPhaseHook._commit_from_outputs",
-            "cc": 10
-          }
-        ],
-        "score": 70
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "score": 100
       }
     },
     {
@@ -77,7 +61,7 @@
       "passed": true,
       "message": "Test coverage: 96% (95/100)",
       "details": {
-        "coverage": 95.88039867109634,
+        "coverage": 95.9789057350033,
         "score": 95,
         "failures": []
       }

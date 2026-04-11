@@ -1,5 +1,5 @@
 {
-  "score": 97.5,
+  "score": 99.4,
   "grade": "A",
   "total": 24,
   "failed": 0,
@@ -49,26 +49,20 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": true,
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 1,
-        "top_offenders": [
-          {
-            "file": "pyproject.py",
-            "function": "check_pyproject_mypy",
-            "cc": 11
-          }
-        ],
-        "score": 90
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "score": 100
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 93% (93/100)",
+      "message": "Test coverage: 97% (96/100)",
       "details": {
-        "coverage": 93.16928298684769,
-        "score": 93,
+        "coverage": 96.67508417508418,
+        "score": 96,
         "failures": []
       }
     },

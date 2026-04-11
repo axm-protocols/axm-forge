@@ -1,8 +1,8 @@
 {
-  "score": 85.0,
-  "grade": "B",
+  "score": 98.5,
+  "grade": "A",
   "total": 24,
-  "failed": 3,
+  "failed": 2,
   "success": false,
   "checks": [
     {
@@ -26,16 +26,20 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": false,
-      "message": "Coupling: 1 module(s) above threshold (-5 pts)",
+      "message": "Coupling: 2 module(s) above threshold (-10 pts)",
       "details": {
         "max_fan_out": 11,
         "max_fan_in": 22,
-        "avg_coupling": 6.28,
-        "score": 95,
-        "n_over_threshold": 1,
+        "avg_coupling": 6.32,
+        "score": 90,
+        "n_over_threshold": 2,
         "over_threshold": [
           {
             "module": "axm_audit.core.rules.quality",
+            "fan_out": 11
+          },
+          {
+            "module": "axm_audit.core.rules.architecture",
             "fan_out": 11
           }
         ]
@@ -53,67 +57,21 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 10/100 (9 high-complexity functions)",
+      "passed": true,
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 9,
-        "top_offenders": [
-          {
-            "file": "audit_quality.py",
-            "function": "AuditQualityRule.validate",
-            "cc": 17
-          },
-          {
-            "file": "practices.py",
-            "function": "DocstringCoverageRule._is_abstract_override",
-            "cc": 15
-          },
-          {
-            "file": "quality_check.py",
-            "function": "QualityCheckHook",
-            "cc": 13
-          },
-          {
-            "file": "audit_quality.py",
-            "function": "AuditQualityRule",
-            "cc": 12
-          },
-          {
-            "file": "quality_check.py",
-            "function": "QualityCheckHook.execute",
-            "cc": 12
-          },
-          {
-            "file": "practices.py",
-            "function": "DocstringCoverageRule._is_abstract_stub",
-            "cc": 12
-          },
-          {
-            "file": "results.py",
-            "function": "AuditResult.quality_score",
-            "cc": 10
-          },
-          {
-            "file": "dependencies.py",
-            "function": "_detect_first_party_packages",
-            "cc": 10
-          },
-          {
-            "file": "practices.py",
-            "function": "DocstringCoverageRule._check_abstract_parent",
-            "cc": 10
-          }
-        ],
-        "score": 10
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "score": 100
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 93% (92/100)",
+      "message": "Test coverage: 94% (93/100)",
       "details": {
-        "coverage": 92.75808936825887,
-        "score": 92,
+        "coverage": 93.58170416820361,
+        "score": 93,
         "failures": []
       }
     },
