@@ -536,9 +536,11 @@ def format_toc(pkg: PackageInfo) -> list[dict[str, Any]]:
         function_count, class_count.
 
     Example:
+        ```python
         >>> toc = format_toc(pkg)
         >>> toc[0]["name"]
         'core.analyzer'
+        ```
     """
     from axm_ast.core.analyzer import module_dotted_name
 

@@ -54,6 +54,7 @@ class InspectTool(AXMTool):
         path: str = ".",
         symbol: str | None = None,
         symbols: list[str] | None = None,
+        source: bool = False,
         **kwargs: Any,
     ) -> ToolResult:
         """Inspect a symbol by name.
@@ -73,7 +74,7 @@ class InspectTool(AXMTool):
                 success=False, error="symbol or symbols parameter is required"
             )
 
-        source = bool(kwargs.get("source", False))
+        source = bool(source)
 
         try:
             project_path = resolve_path(path)

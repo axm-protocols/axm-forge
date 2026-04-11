@@ -9,7 +9,7 @@ Example:
     >>> from axm_ast.core.analyzer import analyze_package
     >>> pkg = analyze_package(Path("src/mylib"))
     >>> [m.path.name for m in pkg.modules]
-    ['__init__.py', 'core.py', 'utils.py']
+    `['__init__.py', 'core.py', 'utils.py']`
 """
 
 from __future__ import annotations
@@ -337,7 +337,7 @@ def build_import_graph(pkg: PackageInfo) -> dict[str, list[str]]:
     Example:
         >>> graph = build_import_graph(pkg)
         >>> graph["cli"]
-        ['core', 'models']
+        `['core', 'models']`
     """
     graph: dict[str, list[str]] = {}
     for src, target in pkg.dependency_edges:
@@ -359,7 +359,7 @@ def get_public_api(pkg: PackageInfo) -> list[FunctionInfo | ClassInfo]:
     Example:
         >>> api = get_public_api(pkg)
         >>> [a.name for a in api]
-        ['main', 'Config']
+        `['main', 'Config']`
     """
     return pkg.public_api
 
@@ -391,7 +391,7 @@ def search_symbols(
     Example:
         >>> results = search_symbols(pkg, returns="str")
         >>> [r.name for r in results]
-        ['greet', 'version']
+        `['greet', 'version']`
     """
     results: list[FunctionInfo | ClassInfo | VariableInfo] = []
 
