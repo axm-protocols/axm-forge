@@ -23,7 +23,7 @@ Exits with code 1 on unknown preset, unknown strategy, or missing file.
 
 ### `axm-smelt check`
 
-Analyze input without transforming it. Shows per-strategy savings estimates.
+Analyze input without transforming it. Shows per-strategy savings estimates (only strategies with positive savings are listed).
 
 ```
 axm-smelt check [--file PATH]
@@ -56,4 +56,4 @@ axm-smelt version
 
 ## Python API
 
-Auto-generated API reference is available under [Python API](api/).
+Auto-generated API reference is available under [Python API](../../reference/axm_smelt/index.md).

@@ -95,7 +95,7 @@ See the [MCP how-to guide](https://forge.axm-protocols.io/smelt/howto/mcp/) for 
 | Command | Description |
 |---|---|
 | `axm-smelt compact` | Read from stdin/file, output compacted text; savings reported to stderr |
-| `axm-smelt check` | Analyze token waste without transforming; shows per-strategy savings estimates |
+| `axm-smelt check` | Analyze token waste without transforming; shows strategies with positive savings |
 | `axm-smelt count` | Print token count |
 | `axm-smelt version` | Print version string |
 

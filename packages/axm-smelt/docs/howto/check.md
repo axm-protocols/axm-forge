@@ -21,14 +21,10 @@ Strategies applied: none
 Strategy estimates:
   minify: 22.2%
   drop_nulls: 16.7%
-  flatten: 0.0%
-  tabular: 0.0%
-  round_numbers: 0.0%
   strip_quotes: 5.6%
-  dedup_values: 0.0%
 ```
 
-Strategies with 0.0% would produce no savings for this input and can be skipped.
+Only strategies with positive savings are shown — strategies that would produce no savings or increase tokens are automatically filtered out.
 
 ## Python API
 
