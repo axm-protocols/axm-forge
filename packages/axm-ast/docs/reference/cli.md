@@ -175,11 +175,12 @@ axm-ast context [OPTIONS] [PATH]
 | Option | Short | Type | Default | Description |
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Path to package or workspace directory |
-| `--slim` | | bool | `False` | Compact overview (~500 tokens) with top-5 modules |
+| `--depth` | `-d` | int \| None | `None` | Detail level: 0=top-5, 1=sub-packages, 2=modules, 3=symbols |
+| `--slim` | | bool | `False` | Compact overview (~500 tokens) with top-5 modules (equivalent to `--depth 0`) |
 | `--json` | | bool | `False` | Output as JSON |
 
 !!! note "Workspace mode"
-    When `PATH` is a `uv` workspace root, returns a unified context with all member packages, their inter-package dependency graph, and aggregated statistics.
+    When `PATH` is a `uv` workspace root, returns a unified context with all member packages, their inter-package dependency graph, and aggregated statistics. The `--depth` flag controls detail: `0` returns package names only, `>= 1` includes full stats and the dependency graph.
 
 **Example:**
 

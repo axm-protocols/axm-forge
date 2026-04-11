@@ -53,12 +53,15 @@ class ContextTool(AXMTool):
 
             ws = detect_workspace(project_path)
             if ws is not None:
-                from axm_ast.core.workspace import build_workspace_context
+                from axm_ast.core.workspace import (
+                    build_workspace_context,
+                    format_workspace_context,
+                )
 
                 ctx = build_workspace_context(project_path)
                 return ToolResult(
                     success=True,
-                    data=ctx,
+                    data=format_workspace_context(ctx, depth=depth),
                 )
 
             from axm_ast.core.context import build_context, format_context_json
