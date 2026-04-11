@@ -124,14 +124,14 @@ class TestContextTool:
         assert result.success is False
         assert result.error is not None
 
-    # --- Slim mode (AXM-132) ---
+    # --- Depth 0 compact output ---
 
-    def test_context_tool_slim(self, sample_project: Path) -> None:
-        """AC1+4: slim=True returns compact data with top_modules."""
+    def test_context_tool_depth0(self, sample_project: Path) -> None:
+        """depth=0 returns compact data with top_modules."""
         from axm_ast.tools.context import ContextTool
 
         tool = ContextTool()
-        result = tool.execute(path=str(sample_project / "src" / "demo"), slim=True)
+        result = tool.execute(path=str(sample_project / "src" / "demo"), depth=0)
         assert result.success is True
         assert "top_modules" in result.data
         assert "modules" not in result.data

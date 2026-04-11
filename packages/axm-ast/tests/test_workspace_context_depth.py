@@ -39,9 +39,9 @@ def tool():
     return ContextTool()
 
 
-class TestWorkspaceContextSlim:
-    def test_workspace_context_slim(self, tool, workspace_ctx, tmp_path, monkeypatch):
-        """slim=True on workspace returns compact format.
+class TestWorkspaceContextDepth0:
+    def test_workspace_context_depth0(self, tool, workspace_ctx, tmp_path, monkeypatch):
+        """depth=0 on workspace returns compact format.
 
         Name-only packages, no graph.
         """
@@ -54,7 +54,7 @@ class TestWorkspaceContextSlim:
             lambda p: workspace_ctx,
         )
 
-        result = tool.execute(path=str(tmp_path), slim=True)
+        result = tool.execute(path=str(tmp_path), depth=0)
 
         assert result.success is True
         data = result.data
@@ -67,7 +67,9 @@ class TestWorkspaceContextSlim:
         assert data["workspace"] == "test-ws"
         assert data["package_count"] == 2
 
-    def test_workspace_context_depth0(self, tool, workspace_ctx, tmp_path, monkeypatch):
+    def test_workspace_context_depth0_compact_like_slim(
+        self, tool, workspace_ctx, tmp_path, monkeypatch
+    ):
         """depth=0 on workspace returns same compact format as slim."""
         monkeypatch.setattr(
             "axm_ast.core.workspace.detect_workspace",
@@ -111,8 +113,8 @@ class TestWorkspaceContextSlim:
 
 
 class TestWorkspaceContextEdgeCases:
-    def test_non_workspace_slim(self, tool, tmp_path, monkeypatch):
-        """Regular package + slim=True uses format_context_json with depth=0."""
+    def test_non_workspace_depth0(self, tool, tmp_path, monkeypatch):
+        """Regular package + depth=0 uses format_context_json with depth=0."""
         mock_ctx = MagicMock()
         expected_data = {"name": "pkg", "top_symbols": []}
 
@@ -129,7 +131,7 @@ class TestWorkspaceContextEdgeCases:
             lambda ctx, depth: expected_data if depth == 0 else {"full": ["all"]},
         )
 
-        result = tool.execute(path=str(tmp_path), slim=True)
+        result = tool.execute(path=str(tmp_path), depth=0)
 
         assert result.success is True
         assert result.data == expected_data
