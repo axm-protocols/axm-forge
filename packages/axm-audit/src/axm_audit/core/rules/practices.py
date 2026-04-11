@@ -183,6 +183,33 @@ class DocstringCoverageRule(ProjectRule):
             node.name: node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)
         }
 
+    def _find_enclosing_class(
+        self,
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+        class_map: dict[str, ast.ClassDef],
+    ) -> ast.ClassDef | None:
+        """Return the class whose body contains *node*, or None."""
+        for cls in class_map.values():
+            for item in cls.body:
+                if item is node:
+                    return cls
+        return None
+
+    def _resolve_base_class(
+        self,
+        base_name: str,
+        class_map: dict[str, ast.ClassDef],
+        global_classes: dict[str, list[ast.ClassDef]] | None,
+    ) -> ast.ClassDef | None:
+        """Resolve *base_name* to a ClassDef via same-file or cross-file lookup."""
+        if base_name in class_map:
+            return class_map[base_name]
+        if global_classes and base_name in global_classes:
+            definitions = global_classes[base_name]
+            if len(definitions) == 1:
+                return definitions[0]
+        return None
+
     def _is_abstract_override(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
@@ -190,16 +217,7 @@ class DocstringCoverageRule(ProjectRule):
         global_classes: dict[str, list[ast.ClassDef]] | None = None,
     ) -> bool:
         """Check if node overrides a documented abstractmethod."""
-        # Find the enclosing class for this method
-        enclosing = None
-        for cls in class_map.values():
-            for item in cls.body:
-                if item is node:
-                    enclosing = cls
-                    break
-            if enclosing:
-                break
-
+        enclosing = self._find_enclosing_class(node, class_map)
         if enclosing is None:
             return False
 
@@ -207,19 +225,11 @@ class DocstringCoverageRule(ProjectRule):
             base_name = base.id if isinstance(base, ast.Name) else None
             if base_name is None:
                 continue
-
-            # Same-file lookup
-            if base_name in class_map:
-                if self._check_abstract_parent(class_map[base_name], node.name):
-                    return True
-                continue
-
-            # Cross-file lookup: only when class name is unambiguous
-            if global_classes and base_name in global_classes:
-                definitions = global_classes[base_name]
-                if len(definitions) == 1:
-                    if self._check_abstract_parent(definitions[0], node.name):
-                        return True
+            base_cls = self._resolve_base_class(base_name, class_map, global_classes)
+            if base_cls is not None and self._check_abstract_parent(
+                base_cls, node.name
+            ):
+                return True
 
         return False
 
