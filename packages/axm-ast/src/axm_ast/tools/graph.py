@@ -70,23 +70,28 @@ class GraphTool(AXMTool):
                     data={"graph": graph},
                 )
 
-            from axm_ast.core.analyzer import build_import_graph
+            from axm_ast.core.analyzer import build_import_graph, module_dotted_name
             from axm_ast.core.cache import get_package
             from axm_ast.formatters import format_mermaid
 
             pkg = get_package(project_path)
             graph = build_import_graph(pkg)
+            nodes = [module_dotted_name(mod.path, pkg.root) for mod in pkg.modules]
+            data: dict[str, Any] = {"graph": graph, "nodes": nodes}
 
             if format == "mermaid":
-                mermaid_str = format_mermaid(pkg)
-                return ToolResult(
-                    success=True,
-                    data={"mermaid": mermaid_str, "graph": graph},
-                )
+                data["mermaid"] = format_mermaid(pkg)
+            elif format == "text":
+                lines = ["Nodes:"]
+                for name in nodes:
+                    lines.append(f"  {name}")
+                lines.append("")
+                lines.append("Edges:")
+                for src, targets in graph.items():
+                    for target in targets:
+                        lines.append(f"  {src} -> {target}")
+                data["text"] = "\n".join(lines)
 
-            return ToolResult(
-                success=True,
-                data={"graph": graph},
-            )
+            return ToolResult(success=True, data=data)
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
