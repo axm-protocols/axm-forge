@@ -175,6 +175,6 @@ class TestCompressFunctional:
     def test_compress_shorter_than_full(self) -> None:
         """Compressed output is significantly shorter than full."""
         pkg = analyze_package(FIXTURES / "sample_pkg")
-        full = format_text(pkg, detail="full")
+        full = format_text(pkg, detail="detailed")
         compressed = format_compressed(pkg)
         assert len(compressed) < len(full)

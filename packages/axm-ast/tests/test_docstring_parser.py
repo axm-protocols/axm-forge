@@ -239,18 +239,6 @@ class TestFormatJsonDocstringIntegration:
                     f"raw docstring still present in {fn['name']}"
                 )
 
-    def test_full_raises_is_list(self) -> None:
-        from axm_ast.core.analyzer import analyze_package
-        from axm_ast.formatters import format_json
-
-        pkg = analyze_package(SAMPLE_PKG)
-        data = format_json(pkg, detail="full")
-        for mod in data["modules"]:
-            for fn in mod.get("functions", []):
-                assert isinstance(fn.get("raises"), list), (
-                    f"raises is not a list in {fn['name']}"
-                )
-
     def test_summary_mode_unchanged(self) -> None:
         """Summary mode should not include summary/raises/examples."""
         from axm_ast.core.analyzer import analyze_package

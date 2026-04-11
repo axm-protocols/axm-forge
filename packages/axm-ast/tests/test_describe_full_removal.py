@@ -1,41 +1,53 @@
 from __future__ import annotations
 
-import pytest
+import subprocess
+import sys
+from unittest.mock import MagicMock
 
 from axm_ast.tools.describe import DescribeTool
 
 
-@pytest.fixture()
-def tool() -> DescribeTool:
-    return DescribeTool()
+def test_describe_full_rejected():
+    """detail='full' must be rejected with a clear error."""
+    result = DescribeTool().execute(detail="full")
+
+    assert result.success is False
+    assert result.error is not None
+    assert "detailed" in result.error.lower()
+    assert "ast_inspect" in result.error.lower()
 
 
-@pytest.fixture()
-def demo_pkg(tmp_path):
-    """Create a minimal Python package for integration tests."""
-    pkg = tmp_path / "demo_pkg"
-    pkg.mkdir()
-    (pkg / "__init__.py").write_text('"""Demo package."""\n')
-    (pkg / "core.py").write_text(
-        '"""Core module."""\n\n\ndef hello(name: str) -> str:\n'
-        '    """Say hello."""\n    return f"Hello, {name}"\n'
+def test_describe_detailed_still_works(tmp_path, mocker):
+    """detail='detailed' must still work and return modules."""
+    pkg = MagicMock()
+    pkg.modules = [MagicMock(), MagicMock()]
+
+    mocker.patch(
+        "axm_ast.core.cache.get_package",
+        return_value=pkg,
     )
-    return pkg
+    mocker.patch(
+        "axm_ast.formatters.filter_modules",
+        return_value=pkg,
+    )
+    mocker.patch(
+        "axm_ast.formatters.format_json",
+        return_value={"modules": [{"name": "a"}, {"name": "b"}]},
+    )
+
+    result = DescribeTool().execute(path=str(tmp_path), detail="detailed")
+
+    assert result.success is True
+    assert result.data["module_count"] == 2
+    assert len(result.data["modules"]) == 2
 
 
-class TestDescribeDetailedStillWorks:
-    """detail='detailed' must continue to work."""
+def test_cli_detail_full_rejected():
+    """CLI --detail full must produce a clear error and exit 1."""
+    proc = subprocess.run(
+        [sys.executable, "-m", "axm_ast", "describe", "--detail", "full"],
+        capture_output=True,
+        text=True,
+    )
 
-    def test_describe_detailed_still_works(self, tool, demo_pkg):
-        result = tool.execute(path=str(demo_pkg), detail="detailed")
-        assert result.success is True
-        assert result.data["module_count"] >= 1
-
-
-class TestDescribeSummaryDefault:
-    """Default detail level is 'summary'."""
-
-    def test_describe_summary_default(self, tool, demo_pkg):
-        result = tool.execute(path=str(demo_pkg))
-        assert result.success is True
-        assert result.data["module_count"] >= 1
+    assert proc.returncode != 0

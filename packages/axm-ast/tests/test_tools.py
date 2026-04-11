@@ -219,25 +219,6 @@ class TestDescribeTool:
                 msg = f"summary unexpectedly present in {fn['name']}"
                 assert "summary" not in fn, msg
 
-    def test_execute_full_detail_includes_line_numbers(
-        self, sample_project: Path
-    ) -> None:
-        from axm_ast.tools.describe import DescribeTool
-
-        tool = DescribeTool()
-        result = tool.execute(path=str(sample_project / "src" / "demo"), detail="full")
-        assert result.success is True
-        core_mod = next(
-            (m for m in result.data["modules"] if m["name"] == "core"), None
-        )
-        assert core_mod is not None
-        greet_fn = next(
-            (f for f in core_mod["functions"] if f["name"] == "greet"), None
-        )
-        assert greet_fn is not None
-        assert "line_start" in greet_fn
-        assert "line_end" in greet_fn
-
     def test_execute_default_detail_is_summary(self, sample_project: Path) -> None:
         from axm_ast.tools.describe import DescribeTool
 
