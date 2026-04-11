@@ -1,0 +1,202 @@
+[project]
+name = "axm-smelt"
+dynamic = ["version"]
+description = "Deterministic token compaction for LLM inputs"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.12"
+authors = [{ name = "AXM Protocols", email = "gabriel@axm-protocols.io" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+    "License :: OSI Approved :: Apache Software License",
+]
+
+dependencies = [
+    "axm",
+    "cyclopts>=4.5",
+    "pydantic>=2.12.5",
+    "pyyaml>=6.0",
+    "tiktoken>=0.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/axm-protocols/axm-smelt"
+Documentation = "https://axm-protocols.github.io/axm-smelt/"
+Repository = "https://github.com/axm-protocols/axm-smelt.git"
+Issues = "https://github.com/axm-protocols/axm-smelt/issues"
+
+[project.scripts]
+axm-smelt = "axm_smelt.cli:main"
+
+[project.entry-points."axm.tools"]
+smelt = "axm_smelt.tools.smelt:SmeltTool"
+smelt_check = "axm_smelt.tools.check:SmeltCheckTool"
+smelt_count = "axm_smelt.tools.count:SmeltCountTool"
+
+[project.entry-points."axm.commands"]
+smelt = "axm_smelt.cli:app"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = "smelt/v(?P<version>.*)"
+raw-options = { root = "../..", git_describe_command = "git describe --dirty --tags --long --match smelt/v*" }
+fallback-version = "0.1.0.dev0"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/axm_smelt/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/axm_smelt"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.0",
+    "ruff==0.15.9",
+    "mypy>=1.14",
+    "types-PyYAML>=6.0",
+    "pre-commit>=4.0",
+    "pip-audit>=2.0",
+]
+docs = [
+    "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=0.27",
+    "mkdocs-gen-files>=0.5",
+    "mkdocs-literate-nav>=0.6",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ruff Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["src", "tests"]
+exclude = ["*/_version.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "PLR", "S", "T20", "RUF"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/axm_smelt/cli.py" = ["T201", "PLR0913"]
+"tests/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["axm_smelt"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MyPy Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+pretty = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+show_error_codes = true
+
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["axm_smelt.tools.*"]
+disallow_subclassing_any = false
+
+[[tool.mypy.overrides]]
+module = ["axm_smelt.cli"]
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = ["axm.*", "cyclopts.*", "tiktoken.*"]
+ignore_missing_imports = true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pytest Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+python_files = "test_*.py"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "--import-mode=importlib",
+    "--cov=src/axm_smelt",
+    "--cov-report=term-missing",
+    "--cov-report=html:coverage_html",
+    "--cov-report=xml",
+    "--cov-fail-under=0",
+]
+filterwarnings = ["error"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Coverage Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["src/axm_smelt"]
+branch = true
+relative_files = true
+omit = ["*/tests/*"]
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Git-Cliff Changelog Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.git-cliff.changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+"""
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {{ commit.message | upper_first }}\
+    {% endfor %}
+{% endfor %}
+"""
+trim = true
+
+[tool.git-cliff.git]
+conventional_commits = true
+filter_unconventional = true
+commit_parsers = [
+    { message = "^chore", skip = true },
+    { message = "^ci", skip = true },
+    { message = "^feat", group = "🚀 Features" },
+    { message = "^fix", group = "🐛 Bug Fixes" },
+    { message = "^doc", group = "📚 Documentation" },
+    { message = "^perf", group = "⚡ Performance" },
+    { message = "^refactor", group = "🔧 Refactor" },
+    { message = "^test", group = "🧪 Tests" },
+]
+tag_pattern = "smelt/v[0-9].*"
+include_path = "packages/axm-smelt/**"
