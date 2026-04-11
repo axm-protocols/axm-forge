@@ -32,7 +32,7 @@
 - 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry)
 - 🧪 **Testing** — Coverage enforcement via pytest-cov
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
-- 📐 **Practices** — Docstring coverage, bare except detection, hardcoded secrets, blocking I/O, test mirroring
+- 📐 **Practices** — Docstring coverage (with cross-file abstract override detection), bare except detection, hardcoded secrets, blocking I/O, test mirroring
 - 🔧 **Tooling** — CLI tool availability checks
 - 📈 **Composite Scoring** — Weighted 10-category 0–100 score with A–F grade
 
