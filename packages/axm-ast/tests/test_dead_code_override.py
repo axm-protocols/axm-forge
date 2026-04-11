@@ -182,6 +182,17 @@ class TestOverrideEdgeCases:
 
         assert "Foo._internal_helper" in dead_names
 
+    def test_dunder_override_external_base_presumed_live(self) -> None:
+        """Dunder method overriding external base — presumed live (not private)."""
+        child = _cls(
+            "MyModel",
+            bases=["ExternalBase"],
+            methods=[_method("__init__", 5)],
+        )
+        pkg = _pkg(modules=[_mod(classes=[child])])
+
+        assert _check_override("__init__", child, pkg) is True  # type: ignore[arg-type]
+
     def test_external_base_truly_dead_method(self) -> None:
         """All bases external, brand-new method — acceptable false negative."""
         child = _cls(
