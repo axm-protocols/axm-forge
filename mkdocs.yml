@@ -54,6 +54,7 @@ nav:
     - axm-audit: '!include ./packages/axm-audit/mkdocs.yml'
     - axm-init: '!include ./packages/axm-init/mkdocs.yml'
     - axm-git: '!include ./packages/axm-git/mkdocs.yml'
+    - axm-smelt: '!include ./packages/axm-smelt/mkdocs.yml'
   - Contributing:
     - contributing.md
 
@@ -73,6 +74,7 @@ plugins:
             - packages/axm-audit/src
             - packages/axm-init/src
             - packages/axm-git/src
+            - packages/axm-smelt/src
           options:
             docstring_style: google
             show_root_heading: true
