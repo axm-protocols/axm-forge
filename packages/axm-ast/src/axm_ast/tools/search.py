@@ -101,7 +101,9 @@ class SearchTool(AXMTool):
             kind=kind,
             inherits=inherits,
         )
-        symbols = [SearchTool._format_symbol(sym) for sym in results]
+        symbols = [
+            SearchTool._format_symbol(sym, mod_name) for mod_name, sym in results
+        ]
         return ToolResult(
             success=True,
             data={"results": symbols, "count": len(symbols)},
@@ -126,11 +128,11 @@ class SearchTool(AXMTool):
             )
 
     @staticmethod
-    def _format_symbol(sym: Any) -> dict[str, Any]:
+    def _format_symbol(sym: Any, module_name: str) -> dict[str, Any]:
         """Format an AST symbol into a serialized dict entry."""
         entry: dict[str, Any] = {
             "name": sym.name,
-            "module": getattr(sym, "module", ""),
+            "module": module_name,
         }
         if hasattr(sym, "signature"):
             entry["signature"] = sym.signature

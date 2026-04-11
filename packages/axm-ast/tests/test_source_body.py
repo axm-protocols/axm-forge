@@ -42,7 +42,7 @@ class TestSourceBodySingleSymbol:
 
         mock_pkg = MagicMock()
         mock_analyze.return_value = mock_pkg
-        mock_search.return_value = [mock_fn]
+        mock_search.return_value = [("example", mock_fn)]
         mock_find.return_value = mock_mod
 
         hook = SourceBodyHook()
@@ -94,9 +94,9 @@ class TestSourceBodyMultiSymbol:
 
         def fake_search(pkg: Any, name: str | None, **_kw: Any) -> list[Any]:
             if name == "func_a":
-                return [mock_fn_a]
+                return [("mod", mock_fn_a)]
             if name == "func_b":
-                return [mock_fn_b]
+                return [("mod", mock_fn_b)]
             return []
 
         mock_search.side_effect = fake_search
@@ -142,7 +142,7 @@ class TestSourceBodyVariable:
 
         mock_pkg = MagicMock()
         mock_analyze.return_value = mock_pkg
-        mock_search.return_value = [mock_var]
+        mock_search.return_value = [("consts", mock_var)]
         mock_find.return_value = mock_mod
 
         hook = SourceBodyHook()
@@ -244,7 +244,7 @@ class TestSourceBodyDottedClassMethod:
         # but should find "MyClass" when the dotted path is split.
         def fake_search(pkg: Any, name: str | None, **_kw: Any) -> list[Any]:
             if name == "MyClass":
-                return [mock_cls]
+                return [("models", mock_cls)]
             return []
 
         mock_search.side_effect = fake_search
@@ -294,7 +294,7 @@ class TestSourceBodyDottedModuleSymbol:
         # When split as module.function, search in the resolved module.
         def fake_search(pkg: Any, name: str | None, **_kw: Any) -> list[Any]:
             if name == "helper":
-                return [mock_fn]
+                return [("utils", mock_fn)]
             return []
 
         mock_search.side_effect = fake_search
@@ -362,7 +362,7 @@ class TestSourceBodySimpleNameUnchanged:
 
         mock_pkg = MagicMock()
         mock_analyze.return_value = mock_pkg
-        mock_search.return_value = [mock_fn]
+        mock_search.return_value = [("plain", mock_fn)]
         mock_find.return_value = mock_mod
 
         hook = SourceBodyHook()

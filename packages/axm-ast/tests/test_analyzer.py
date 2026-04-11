@@ -126,12 +126,12 @@ class TestSearchSymbols:
         pkg = analyze_package(SAMPLE_PKG)
         results = search_symbols(pkg, name="greet")
         assert len(results) >= 1
-        assert results[0].name == "greet"
+        assert results[0][1].name == "greet"
 
     def test_search_by_return_type(self):
         pkg = analyze_package(SAMPLE_PKG)
         results = search_symbols(pkg, returns="str")
-        names = [r.name for r in results]
+        names = [sym.name for _, sym in results]
         assert "greet" in names
 
     def test_search_by_kind(self):
@@ -139,8 +139,8 @@ class TestSearchSymbols:
         results = search_symbols(pkg, kind=SymbolKind.PROPERTY)
         assert len(results) >= 1
         assert all(
-            isinstance(r, FunctionInfo) and r.kind == FunctionKind.PROPERTY
-            for r in results
+            isinstance(sym, FunctionInfo) and sym.kind == FunctionKind.PROPERTY
+            for _, sym in results
         )
 
     def test_search_by_kind_class(self):
@@ -148,7 +148,7 @@ class TestSearchSymbols:
         pkg = analyze_package(SAMPLE_PKG)
         results = search_symbols(pkg, kind=SymbolKind.CLASS)
         assert len(results) >= 1
-        assert all(isinstance(r, ClassInfo) for r in results)
+        assert all(isinstance(sym, ClassInfo) for _, sym in results)
 
     def test_search_by_kind_function(self):
         """kind=FUNCTION returns only FunctionInfo items with kind=FUNCTION."""
@@ -156,10 +156,10 @@ class TestSearchSymbols:
         results = search_symbols(pkg, kind=SymbolKind.FUNCTION)
         assert len(results) >= 1
         assert all(
-            isinstance(r, FunctionInfo) and r.kind == FunctionKind.FUNCTION
-            for r in results
+            isinstance(sym, FunctionInfo) and sym.kind == FunctionKind.FUNCTION
+            for _, sym in results
         )
-        names = [r.name for r in results]
+        names = [sym.name for _, sym in results]
         # No classes should be in results
         assert "Calculator" not in names
 
@@ -180,7 +180,7 @@ class TestSearchSymbols:
         pkg = analyze_package(SAMPLE_PKG)
         results = search_symbols(pkg, name="MAX_RETRIES")
         assert len(results) >= 1
-        match = [r for r in results if r.name == "MAX_RETRIES"]
+        match = [sym for _, sym in results if sym.name == "MAX_RETRIES"]
         assert len(match) == 1
         assert isinstance(match[0], VariableInfo)
         assert match[0].line > 0
@@ -190,8 +190,8 @@ class TestSearchSymbols:
         pkg = analyze_package(SAMPLE_PKG)
         results = search_symbols(pkg, kind=SymbolKind.VARIABLE)
         assert len(results) >= 1
-        assert all(isinstance(r, VariableInfo) for r in results)
-        names = [r.name for r in results]
+        assert all(isinstance(sym, VariableInfo) for _, sym in results)
+        names = [sym.name for _, sym in results]
         assert "MAX_RETRIES" in names
         assert "DEFAULT_NAME" in names
         # No functions or classes
@@ -202,7 +202,7 @@ class TestSearchSymbols:
         """kind=None returns functions, methods, AND variables."""
         pkg = analyze_package(SAMPLE_PKG)
         results = search_symbols(pkg)
-        names = [r.name for r in results]
+        names = [sym.name for _, sym in results]
         assert "greet" in names
         assert "MAX_RETRIES" in names
 
@@ -211,8 +211,8 @@ class TestSearchSymbols:
         pkg = analyze_package(SAMPLE_PKG)
         results = search_symbols(pkg, kind=SymbolKind.FUNCTION)
         assert len(results) >= 1
-        assert all(isinstance(r, FunctionInfo) for r in results)
-        names = [r.name for r in results]
+        assert all(isinstance(sym, FunctionInfo) for _, sym in results)
+        names = [sym.name for _, sym in results]
         assert "greet" in names
         assert "MAX_RETRIES" not in names
 
@@ -220,8 +220,8 @@ class TestSearchSymbols:
         """kind=CLASS still returns only classes."""
         pkg = analyze_package(SAMPLE_PKG)
         results = search_symbols(pkg, kind=SymbolKind.CLASS)
-        assert all(isinstance(r, ClassInfo) for r in results)
-        names = [r.name for r in results]
+        assert all(isinstance(sym, ClassInfo) for _, sym in results)
+        names = [sym.name for _, sym in results]
         assert "Calculator" in names
         assert "MAX_RETRIES" not in names
 
@@ -229,7 +229,7 @@ class TestSearchSymbols:
         """Type-annotated constant is resolved with annotation."""
         pkg = analyze_package(SAMPLE_PKG)
         results = search_symbols(pkg, name="MAX_RETRIES")
-        match = [r for r in results if r.name == "MAX_RETRIES"]
+        match = [sym for _, sym in results if sym.name == "MAX_RETRIES"]
         assert len(match) == 1
         var = match[0]
         assert isinstance(var, VariableInfo)

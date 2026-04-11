@@ -138,7 +138,7 @@ class InspectTool(AXMTool):
                 error=f"Symbol '{symbol}' not found",
             )
 
-        sym = results[0]
+        _, sym = results[0]
         file_path = find_symbol_file(pkg, sym)
         abs_path = find_symbol_abs_path(pkg, sym)
         return ToolResult(
