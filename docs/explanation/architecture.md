@@ -57,6 +57,6 @@ This is the same pattern used by `axm-mcp` for tool discovery (`axm.tools` group
 | `src/` layout | PEP 621 best practice, no import conflicts |
 | Zero business logic | All functionality lives in dedicated packages |
 | `{domain}_{action}` naming | One name for CLI and MCP — no mental translation |
-| `AXMTool`/`ToolResult` in `axm` | Shared interface, no private dependency needed |
+| `AXMTool`/`ToolResult` in `axm` | Shared interface, no private dependency needed; `text` field carries pre-rendered output |
 | `HookAction`/`HookResult` in `axm` | Hooks contract without pulling `axm-engine` deps |
 | `agent_hint` on `AXMTool` | LLM-optimized one-liner propagates to MCP tool descriptions — richer than docstrings, cheaper than system prompts |

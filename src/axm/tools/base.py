@@ -31,12 +31,14 @@ class ToolResult:
         data: Structured output data (backend-specific).
         error: Human-readable error message, if any.
         hint: Optional next-step suggestion for the agent.
+        text: Optional pre-rendered text representation (e.g. Markdown).
     """
 
     success: bool
     data: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
     hint: str | None = None
+    text: str | None = None
 
 
 @runtime_checkable
