@@ -6,4 +6,4 @@
 
 ## Python API
 
-Auto-generated API reference is available under [Python API](api/).
+Auto-generated API reference is available under [Python API](../../reference/axm_audit/index.md).
