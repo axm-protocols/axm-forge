@@ -114,4 +114,4 @@ The tool verifies the tree is clean before pushing, and automatically sets the u
 ## Next Steps
 
 - [Architecture](../explanation/architecture.md) — How the project is structured
-- [API Reference](../reference/api/) — Full API documentation
+- [API Reference](../../reference/axm_git/index.md) — Full API documentation
