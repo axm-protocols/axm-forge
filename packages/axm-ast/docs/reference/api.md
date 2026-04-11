@@ -46,6 +46,35 @@ A JSON-serializable dict with the following top-level keys:
 
 ---
 
+## `format_context_text`
+
+```python
+from axm_ast.core.context import format_context_text
+
+format_context_text(data: dict[str, Any], *, depth: int = 0) -> str
+```
+
+Format a context dict (output of `format_context_json`) as compact plain text suitable for `ToolResult.text`.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `data` | `dict[str, Any]` | *required* | Formatted context dict from `format_context_json` |
+| `depth` | `int` | `0` | Detail level matching the depth used for `format_context_json` |
+
+### Output by depth
+
+| Depth | Content |
+|---|---|
+| `0` | Header + top modules with star ratings |
+| `1` | Header + sub-packages with module/symbol counts |
+| `2+` | Header + sub-packages with inline symbol names `[sym1, sym2, … (+N)]` |
+
+Header format: `{name} | {layout} | {N} mod · {N} fn · {N} cls`, followed by optional `python:` and `Stack:` lines when present.
+
+---
+
 ## `build_workspace_context`
 
 ```python
@@ -97,3 +126,25 @@ Apply depth-based filtering to a workspace context dict.
 |---|---|
 | `0` | Compact — package names only, no graph or stats |
 | `>= 1` | Full output with all per-package stats and dependency graph |
+
+---
+
+## `format_workspace_text`
+
+```python
+from axm_ast.core.workspace import format_workspace_text
+
+format_workspace_text(ctx: dict[str, Any]) -> str
+```
+
+Format a workspace context dict as compact plain text suitable for `ToolResult.text`.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `ctx` | `dict[str, Any]` | *required* | Workspace context from `build_workspace_context` or `format_workspace_context` |
+
+### Output
+
+Header line: `{workspace} | workspace | {N} packages`, followed by a `Packages:` listing with per-package stats and an optional `Dependencies:` section showing inter-package edges.
