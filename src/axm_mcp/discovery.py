@@ -341,6 +341,12 @@ def _register_one(
     For *dispatcher* functions (``action`` + ``**kwargs``), introspects
     sub-functions to build a union of all their typed parameters.
 
+    When an ``AXMTool`` returns a ``ToolResult`` whose ``text`` attribute
+    is not ``None``, the wrapper short-circuits and returns the raw string
+    instead of the flattened dict.  FastMCP converts this to a
+    ``TextContent`` response, letting the LLM see pre-rendered markdown
+    rather than JSON.
+
     Args:
         mcp: FastMCP server instance.
         name: Tool name for MCP registration.
@@ -367,7 +373,7 @@ def _register_one(
 
     if is_plain:
 
-        def _wrapper(**kwargs: Any) -> dict[str, Any]:
+        def _wrapper(**kwargs: Any) -> dict[str, Any] | str:
             # MCP may nest action args inside a "kwargs" key — unwrap.
             if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
                 nested = kwargs.pop("kwargs")
@@ -385,7 +391,7 @@ def _register_one(
 
     else:
 
-        def _wrapper(**kwargs: Any) -> dict[str, Any]:
+        def _wrapper(**kwargs: Any) -> dict[str, Any] | str:
             # MCP may nest action args inside a "kwargs" key — unwrap.
             if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
                 nested = kwargs.pop("kwargs")
@@ -394,6 +400,16 @@ def _register_one(
             start_ns = time.perf_counter_ns()
             result = tool.execute(**kwargs)
             duration_ms = (time.perf_counter_ns() - start_ns) // 1_000_000
+            _text = getattr(result, "text", None)
+            if _text is not None and isinstance(_text, str):
+                if _should_trace:
+                    try:
+                        _log_external_step(
+                            name, kwargs, result.success, _text, duration_ms
+                        )
+                    except Exception:  # noqa: S110
+                        pass
+                return str(_text)
             output: dict[str, Any] = {"success": result.success, **result.data}
             if result.error:
                 output["error"] = result.error
@@ -427,7 +443,7 @@ def _register_one(
         _lk = _lock
         _kp = _key_param
 
-        async def _wrapper(**kwargs: Any) -> dict[str, Any]:  # type: ignore[misc]
+        async def _wrapper(**kwargs: Any) -> dict[str, Any] | str:  # type: ignore[misc]
             if not _HTTP_MODE:
                 return _sync(**kwargs)
             key = kwargs.get(_kp)  # type: ignore[arg-type]
@@ -462,7 +478,7 @@ def _register_one(
                 params = _extract_docstring_params(exec_fn.__doc__)
         _wrapper.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
             parameters=params,
-            return_annotation=dict[str, Any],
+            return_annotation=dict[str, Any] | str,
         )
     except (ValueError, TypeError):
         pass  # Fall back to generic **kwargs if introspection fails
