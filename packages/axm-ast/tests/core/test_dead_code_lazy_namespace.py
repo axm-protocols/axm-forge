@@ -253,3 +253,81 @@ class TestLazyImportInNestedFunction:
         result = _find_namespace_modules(pkg)
 
         assert mod_b_path in result
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: empty / no-import / mixed-import scenarios
+# ---------------------------------------------------------------------------
+
+
+class TestEmptyPackage:
+    """Package with no modules at all."""
+
+    def test_empty_package_returns_empty_set(self) -> None:
+        from axm_ast.core.dead_code import _find_namespace_modules
+
+        pkg = _make_pkg([])
+        result = _find_namespace_modules(pkg)
+
+        assert result == set()
+
+
+class TestNoImportsAtAll:
+    """Modules exist but contain no import statements."""
+
+    def test_no_imports_returns_empty_set(self, tmp_path: Path) -> None:
+        from axm_ast.core.dead_code import _find_namespace_modules
+
+        pkg_dir = tmp_path / "mypkg"
+        pkg_dir.mkdir()
+
+        mod_a_path = _write_source(
+            pkg_dir / "alpha.py",
+            "def foo():\n    return 1\n",
+        )
+        mod_b_path = _write_source(
+            pkg_dir / "beta.py",
+            "x = 42\n",
+        )
+
+        mod_a = _make_module(mod_a_path, imports=[])
+        mod_b = _make_module(mod_b_path, imports=[])
+        pkg = _make_pkg([mod_a, mod_b])
+
+        result = _find_namespace_modules(pkg)
+
+        assert result == set()
+
+
+class TestMixedBareAndFromImportsSameModule:
+    """Both `import pkg.utils` and `from pkg import utils` resolve to the
+    same module — result set should contain a single entry."""
+
+    def test_mixed_bare_and_from_imports_single_entry(self, tmp_path: Path) -> None:
+        from axm_ast.core.dead_code import _find_namespace_modules
+
+        pkg_dir = tmp_path / "mypkg"
+        pkg_dir.mkdir()
+
+        mod_a_path = _write_source(
+            pkg_dir / "caller.py",
+            "import mypkg.utils\nfrom mypkg import utils\n",
+        )
+        mod_b_path = _write_source(
+            pkg_dir / "utils.py",
+            "def func():\n    return 1\n",
+        )
+
+        # bare import: module="mypkg.utils", names=[]
+        imp_bare = _make_import(module="mypkg.utils", names=[])
+        # from import: module="mypkg", names=["utils"]
+        imp_from = _make_import(module="mypkg", names=["utils"])
+        mod_a = _make_module(mod_a_path, imports=[imp_bare, imp_from])
+        mod_b = _make_module(mod_b_path, imports=[])
+        pkg = _make_pkg([mod_a, mod_b])
+
+        result = _find_namespace_modules(pkg)
+
+        assert mod_b_path in result
+        # Both import styles resolve to the same path → single entry
+        assert len(result) == 1
