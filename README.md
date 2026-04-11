@@ -21,7 +21,7 @@
 
 - 🔌 **Autodiscovery** — automatically finds commands from installed AXM packages via entry points
 - 🧩 **Modular** — install only what you need (`axm[init]`, `axm[audit]`, `axm[bib]`, `axm[mcp]`)
-- 🛠️ **Shared interface** — provides `AXMTool`/`ToolResult` (with optional `agent_hint` for LLM-optimized descriptions), `HookAction`/`HookResult`, and `WitnessResult`/`WitnessRule` for ecosystem development
+- 🛠️ **Shared interface** — provides `AXMTool`/`ToolResult` (with optional `agent_hint` for LLM-optimized descriptions and `text` for pre-rendered output), `HookAction`/`HookResult`, and `WitnessResult`/`WitnessRule` for ecosystem development
 - 📦 **Minimal** — only depends on `cyclopts`, everything else is optional
 
 ## Installation
