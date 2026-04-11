@@ -32,6 +32,17 @@ def _resolve_mkdocs(project: Path) -> Path | None:
     return None
 
 
+def _resolve_missing_from_workspace(missing: list[str], project: Path) -> list[str]:
+    """Re-check missing plugins against the workspace-root mkdocs.yml."""
+    if project.parent.name != "packages":
+        return missing
+    root_mkdocs = project.parent.parent / "mkdocs.yml"
+    if not root_mkdocs.exists():
+        return missing
+    root_content = root_mkdocs.read_text()
+    return [p for p in missing if p not in root_content]
+
+
 def check_mkdocs_exists(project: Path) -> CheckResult:
     """Check 19: mkdocs.yml exists."""
     if not _resolve_mkdocs(project):
@@ -125,11 +136,8 @@ def check_docs_plugins(project: Path) -> CheckResult:
         "mkdocstrings": "mkdocstrings" in content,
     }
     missing = [p for p, present in required.items() if not present]
-    if missing and project.parent.name == "packages":
-        root_mkdocs = project.parent.parent / "mkdocs.yml"
-        if root_mkdocs.exists():
-            root_content = root_mkdocs.read_text()
-            missing = [p for p in missing if p not in root_content]
+    if missing:
+        missing = _resolve_missing_from_workspace(missing, project)
     if missing:
         return CheckResult(
             name="docs.plugins",
