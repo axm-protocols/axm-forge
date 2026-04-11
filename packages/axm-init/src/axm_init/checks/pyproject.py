@@ -126,6 +126,13 @@ def check_pyproject_dynamic_version(project: Path, data: dict[str, Any]) -> Chec
 STRICT_IMPLIES = {"disallow_incomplete_defs", "check_untyped_defs"}
 
 
+def _filter_strict_implied(missing: list[str], mypy: dict[str, Any]) -> list[str]:
+    """Remove keys implied by strict=True unless explicitly set to False."""
+    if mypy.get("strict") is not True:
+        return missing
+    return [k for k in missing if k not in STRICT_IMPLIES or mypy.get(k) is False]
+
+
 @requires_toml(
     check_name="pyproject.mypy",
     category="pyproject",
@@ -142,10 +149,7 @@ def check_pyproject_mypy(project: Path, data: dict[str, Any]) -> CheckResult:
         "check_untyped_defs": True,
     }
     missing = [k for k, v in required.items() if mypy.get(k) != v]
-    if mypy.get("strict") is True:
-        missing = [
-            k for k in missing if k not in STRICT_IMPLIES or mypy.get(k) is False
-        ]
+    missing = _filter_strict_implied(missing, mypy)
     present = [k for k in required if k not in missing]
     if missing:
         return CheckResult(
