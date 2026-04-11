@@ -131,6 +131,30 @@ def _format_spec_files(files: list[str], git_root: Path) -> None:
             return
 
 
+def _build_commit_result(
+    git_root: Path,
+    message: str,
+    identity: Any,
+    warnings: list[str],
+) -> HookResult:
+    """Build a successful commit :class:`HookResult`.
+
+    Reads the current HEAD short hash and assembles the result dict
+    with optional identity and warning fields.
+    """
+    hash_result = run_git(["rev-parse", "--short", "HEAD"], git_root)
+    result_kw: dict[str, Any] = {
+        "commit": hash_result.stdout.strip(),
+        "message": message,
+    }
+    if identity:
+        result_kw["author_name"] = identity.name
+        result_kw["author_email"] = identity.email
+    if warnings:
+        result_kw["warnings"] = warnings
+    return HookResult.ok(**result_kw)
+
+
 def _retry_commit_on_autofix(
     files: list[str],
     cmd: list[str],
@@ -315,15 +339,4 @@ class CommitPhaseHook:
             if result.returncode != 0:
                 return HookResult.fail(f"git commit failed: {result.stderr}")
 
-        # Get commit hash
-        hash_result = run_git(["rev-parse", "--short", "HEAD"], git_root)
-        result_kw: dict[str, Any] = {
-            "commit": hash_result.stdout.strip(),
-            "message": message,
-        }
-        if identity:
-            result_kw["author_name"] = identity.name
-            result_kw["author_email"] = identity.email
-        if warnings:
-            result_kw["warnings"] = warnings
-        return HookResult.ok(**result_kw)
+        return _build_commit_result(git_root, message, identity, warnings)
