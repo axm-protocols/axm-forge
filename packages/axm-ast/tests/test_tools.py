@@ -334,7 +334,7 @@ class TestSearchTool:
         _assert_tool_result(result)
         assert result.success is True
         assert "results" in result.data
-        assert result.data["count"] >= 1
+        assert len(result.data["results"]) >= 1
 
     def test_search_by_returns(self, sample_project: Path) -> None:
         from axm_ast.tools.search import SearchTool
@@ -342,7 +342,7 @@ class TestSearchTool:
         tool = SearchTool()
         result = tool.execute(path=str(sample_project / "src" / "demo"), returns="str")
         assert result.success is True
-        assert result.data["count"] >= 1
+        assert len(result.data["results"]) >= 1
 
     def test_search_no_results(self, sample_project: Path) -> None:
         from axm_ast.tools.search import SearchTool
@@ -352,7 +352,7 @@ class TestSearchTool:
             path=str(sample_project / "src" / "demo"), name="nonexistent_xyz"
         )
         assert result.success is True
-        assert result.data["count"] == 0
+        assert len(result.data["results"]) == 0
 
 
 # ===========================================================================
