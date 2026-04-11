@@ -56,7 +56,7 @@ class TestSingleSymbolReturnsString:
         mock_fn = _make_mock_fn("my_func", 1, 2)
         mock_mod = _make_mock_mod(src)
         mock_analyze.return_value = MagicMock()
-        mock_search.return_value = [mock_fn]
+        mock_search.return_value = [("example", mock_fn)]
         mock_find.return_value = mock_mod
 
         hook = SourceBodyHook()
@@ -93,9 +93,9 @@ class TestMultiSymbolSameFileGrouped:
 
         def fake_search(_pkg: Any, name: str | None, **_kw: Any) -> list[Any]:
             if name == "func_a":
-                return [mock_fn_a]
+                return [("mod", mock_fn_a)]
             if name == "func_b":
-                return [mock_fn_b]
+                return [("mod", mock_fn_b)]
             return []
 
         mock_search.side_effect = fake_search
@@ -142,9 +142,9 @@ class TestMultiSymbolDifferentFiles:
 
         def fake_search(_pkg: Any, name: str | None, **_kw: Any) -> list[Any]:
             if name == "func_a":
-                return [mock_fn_a]
+                return [("alpha", mock_fn_a)]
             if name == "func_b":
-                return [mock_fn_b]
+                return [("beta", mock_fn_b)]
             return []
 
         mock_search.side_effect = fake_search
@@ -196,9 +196,9 @@ class TestFilesMetadataPresent:
 
         def fake_search(_pkg: Any, name: str | None, **_kw: Any) -> list[Any]:
             if name == "func_a":
-                return [mock_fn_a]
+                return [("file1", mock_fn_a)]
             if name == "func_b":
-                return [mock_fn_b]
+                return [("file2", mock_fn_b)]
             return []
 
         mock_search.side_effect = fake_search
@@ -237,7 +237,7 @@ class TestNoStartEndLineInOutput:
         mock_fn = _make_mock_fn("my_func", 1, 2)
         mock_mod = _make_mock_mod(src)
         mock_analyze.return_value = MagicMock()
-        mock_search.return_value = [mock_fn]
+        mock_search.return_value = [("example", mock_fn)]
         mock_find.return_value = mock_mod
 
         hook = SourceBodyHook()
@@ -273,7 +273,7 @@ class TestVariableSymbolIncludesRepr:
         )
         mock_mod = _make_mock_mod(src)
         mock_analyze.return_value = MagicMock()
-        mock_search.return_value = [mock_var]
+        mock_search.return_value = [("consts", mock_var)]
         mock_find.return_value = mock_mod
 
         hook = SourceBodyHook()
@@ -351,7 +351,7 @@ class TestDottedClassMethodMarkdown:
 
         def fake_search(_pkg: Any, name: str | None, **_kw: Any) -> list[Any]:
             if name == "MyClass":
-                return [mock_cls]
+                return [("models", mock_cls)]
             return []
 
         mock_search.side_effect = fake_search

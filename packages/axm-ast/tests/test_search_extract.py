@@ -46,34 +46,34 @@ class TestFormatSymbol:
     """SearchTool._format_symbol — AST symbol → serialized dict."""
 
     def test_always_includes_name_and_module(self, tool):
-        sym = SimpleNamespace(name="foo", module="pkg.bar")
-        entry = tool._format_symbol(sym)
+        sym = SimpleNamespace(name="foo")
+        entry = tool._format_symbol(sym, "pkg.bar")
         assert entry["name"] == "foo"
         assert entry["module"] == "pkg.bar"
 
     def test_includes_signature_when_present(self, tool):
-        sym = SimpleNamespace(name="f", module="m", signature="(x: int) -> str")
-        entry = tool._format_symbol(sym)
+        sym = SimpleNamespace(name="f", signature="(x: int) -> str")
+        entry = tool._format_symbol(sym, "m")
         assert entry["signature"] == "(x: int) -> str"
 
     def test_omits_signature_when_absent(self, tool):
-        sym = SimpleNamespace(name="f", module="m")
-        entry = tool._format_symbol(sym)
+        sym = SimpleNamespace(name="f")
+        entry = tool._format_symbol(sym, "m")
         assert "signature" not in entry
 
     def test_includes_return_type_when_present(self, tool):
-        sym = SimpleNamespace(name="f", module="m", return_type="bool")
-        entry = tool._format_symbol(sym)
+        sym = SimpleNamespace(name="f", return_type="bool")
+        entry = tool._format_symbol(sym, "m")
         assert entry["return_type"] == "bool"
 
     def test_omits_return_type_when_absent(self, tool):
-        sym = SimpleNamespace(name="f", module="m")
-        entry = tool._format_symbol(sym)
+        sym = SimpleNamespace(name="f")
+        entry = tool._format_symbol(sym, "m")
         assert "return_type" not in entry
 
     def test_variable_sets_kind_field(self, tool):
-        sym = SimpleNamespace(name="V", module="m", value_repr="42")
-        entry = tool._format_symbol(sym)
+        sym = SimpleNamespace(name="V", value_repr="42")
+        entry = tool._format_symbol(sym, "m")
         assert entry["kind"] == "variable"
 
     def test_variable_info_includes_annotation(self, tool):
@@ -81,10 +81,9 @@ class TestFormatSymbol:
 
         sym = MagicMock(spec=VariableInfo)
         sym.name = "V"
-        sym.module = "m"
         sym.value_repr = "42"
         sym.annotation = "int"
-        entry = tool._format_symbol(sym)
+        entry = tool._format_symbol(sym, "m")
         assert entry["annotation"] == "int"
         assert entry["value_repr"] == "42"
 
@@ -93,9 +92,8 @@ class TestFormatSymbol:
 
         sym = MagicMock(spec=VariableInfo)
         sym.name = "V"
-        sym.module = "m"
         sym.value_repr = ""
         sym.annotation = ""
-        entry = tool._format_symbol(sym)
+        entry = tool._format_symbol(sym, "m")
         assert "annotation" not in entry
         assert "value_repr" not in entry

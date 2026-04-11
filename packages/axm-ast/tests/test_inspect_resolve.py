@@ -138,7 +138,7 @@ class TestDottedPathResolution:
         # Patch search_symbols to return our class
         cls = _fake_pkg.modules[0].classes[0]
         original_search = mod.search_symbols
-        mod.search_symbols = lambda pkg, **kw: [cls]
+        mod.search_symbols = lambda pkg, **kw: [("test_mod", cls)]
         original_find = mod.find_module_for_symbol
         mod.find_module_for_symbol = lambda pkg, sym: _fake_pkg.modules[0]  # type: ignore[assignment]
         try:
@@ -157,7 +157,7 @@ class TestDottedPathResolution:
 
         cls = _fake_pkg.modules[0].classes[0]
         original = mod.search_symbols
-        mod.search_symbols = lambda pkg, **kw: [cls]
+        mod.search_symbols = lambda pkg, **kw: [("test_mod", cls)]
         try:
             result = resolve_class_method(
                 _fake_pkg, "MyClass.nonexistent", source=False
