@@ -287,12 +287,64 @@ class GodClassRule(ProjectRule):
             )
 
 
+def _classify_module_role(
+    module_name: str,
+    imports: list[str],
+    src_path: Path,
+) -> str:
+    """Classify a module as ``"orchestrator"`` or ``"leaf"``.
+
+    A module is an orchestrator if it imports from >= 3 distinct sibling
+    subpackages within the project namespace.  Only intra-project imports
+    are considered (external/stdlib imports are ignored).
+    """
+    # Detect internal package prefix from src_path contents
+    internal_prefixes: list[str] = []
+    for child in src_path.iterdir():
+        if child.is_dir() and (child / "__init__.py").exists():
+            internal_prefixes.append(child.name)
+
+    # Determine the parent namespace of the current module.
+    # Modules must be at depth >= 3 (e.g. pkg.sub.mod) to have
+    # meaningful subpackage siblings.  Top-level modules (pkg.mod)
+    # are always leaf — they sit in a flat package.
+    _MIN_SUBPACKAGE_DEPTH = 3
+    parts = module_name.split(".")
+    if len(parts) < _MIN_SUBPACKAGE_DEPTH:
+        return "leaf"
+    parent = ".".join(parts[:-1])
+
+    # Count distinct sibling modules/subpackages under the same parent
+    siblings: set[str] = set()
+    for imp in imports:
+        # Skip external imports
+        if not any(
+            imp == pfx or imp.startswith(f"{pfx}.") for pfx in internal_prefixes
+        ):
+            continue
+        imp_parts = imp.split(".")
+        # Check if this import shares the same parent
+        if len(imp_parts) >= len(parts):
+            imp_parent = ".".join(imp_parts[: len(parts) - 1])
+            if imp_parent == parent:
+                sibling_name = imp_parts[len(parts) - 1]
+                siblings.add(sibling_name)
+
+    # Exclude the module itself from sibling count
+    own_name = parts[-1]
+    siblings.discard(own_name)
+
+    _MIN_SIBLINGS_FOR_ORCHESTRATOR = 3
+    return "orchestrator" if len(siblings) >= _MIN_SIBLINGS_FOR_ORCHESTRATOR else "leaf"
+
+
 def _build_fan_metrics(
     src_path: Path,
-) -> tuple[dict[str, int], dict[str, int]]:
-    """Build fan-in/fan-out dicts from source files."""
+) -> tuple[dict[str, int], dict[str, int], dict[str, list[str]]]:
+    """Build fan-in/fan-out dicts and imports map from source files."""
     fan_out: dict[str, int] = {}
     fan_in: dict[str, int] = defaultdict(int)
+    imports_map: dict[str, list[str]] = {}
 
     for path in get_python_files(src_path):
         if path.name == "__init__.py":
@@ -306,29 +358,32 @@ def _build_fan_metrics(
             continue
         imports = _extract_imports(tree)
         fan_out[module_name] = len(set(imports))
+        imports_map[module_name] = imports
         for imp in imports:
             fan_in[imp] += 1
 
-    return fan_out, fan_in
+    return fan_out, fan_in, imports_map
 
 
 _COUPLING_DEFAULT_THRESHOLD = 10
+_COUPLING_DEFAULT_ORCHESTRATOR_BONUS = 5
 
 
-def _read_coupling_config(project_path: Path) -> tuple[int, dict[str, int]]:
+def _read_coupling_config(project_path: Path) -> tuple[int, dict[str, int], int]:
     """Read coupling thresholds from ``[tool.axm-audit.coupling]`` in pyproject.toml.
 
     Returns:
-        ``(fan_out_threshold, overrides)`` — falls back to defaults on any error.
+        ``(fan_out_threshold, overrides, orchestrator_bonus)`` — falls back to
+        defaults on any error.
     """
     pyproject = project_path / "pyproject.toml"
     if not pyproject.exists():
-        return _COUPLING_DEFAULT_THRESHOLD, {}
+        return _COUPLING_DEFAULT_THRESHOLD, {}, _COUPLING_DEFAULT_ORCHESTRATOR_BONUS
 
     try:
         data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
-        return _COUPLING_DEFAULT_THRESHOLD, {}
+        return _COUPLING_DEFAULT_THRESHOLD, {}, _COUPLING_DEFAULT_ORCHESTRATOR_BONUS
 
     section = data.get("tool", {}).get("axm-audit", {}).get("coupling", {})
 
@@ -349,36 +404,72 @@ def _read_coupling_config(project_path: Path) -> tuple[int, dict[str, int]]:
         except (TypeError, ValueError):
             overrides = {}
 
-    return threshold, overrides
+    raw_bonus = section.get("orchestrator_bonus", _COUPLING_DEFAULT_ORCHESTRATOR_BONUS)
+    try:
+        bonus = int(raw_bonus)
+    except (TypeError, ValueError):
+        bonus = _COUPLING_DEFAULT_ORCHESTRATOR_BONUS
+
+    if bonus < 0:
+        bonus = _COUPLING_DEFAULT_ORCHESTRATOR_BONUS
+
+    return threshold, overrides, bonus
 
 
-def _build_coupling_result(
+def _build_coupling_result(  # noqa: PLR0913
     fan_out: dict[str, int],
     fan_in: dict[str, int],
     threshold: int,
     overrides: dict[str, int] | None = None,
+    *,
+    orchestrator_bonus: int = 0,
+    imports_map: dict[str, list[str]] | None = None,
+    src_path: Path | None = None,
 ) -> dict[str, Any]:
     """Compute coupling summary from fan metrics."""
     _overrides = overrides or {}
+    _imports_map = imports_map or {}
 
-    def _effective_threshold(name: str) -> int:
-        """Return the override threshold if *name* matches an override key."""
+    def _effective_threshold(name: str) -> tuple[int, str]:
+        """Return ``(effective_threshold, role)`` for *name*."""
         if name in _overrides:
-            return _overrides[name]
+            return _overrides[name], _classify_module_role(
+                name,
+                _imports_map.get(name, []),
+                src_path,
+            ) if src_path else "leaf"
         for key, val in _overrides.items():
             if name.endswith(f".{key}") or name == key:
-                return val
-        return threshold
+                return val, _classify_module_role(
+                    name,
+                    _imports_map.get(name, []),
+                    src_path,
+                ) if src_path else "leaf"
 
-    over = sorted(
-        (
-            {"module": name, "fan_out": fo}
-            for name, fo in fan_out.items()
-            if fo > _effective_threshold(name)
-        ),
-        key=lambda x: x.get("fan_out", 0),  # type: ignore[return-value,arg-type]
-        reverse=True,
-    )
+        role = "leaf"
+        if src_path and orchestrator_bonus:
+            role = _classify_module_role(
+                name,
+                _imports_map.get(name, []),
+                src_path,
+            )
+        bonus = orchestrator_bonus if role == "orchestrator" else 0
+        return threshold + bonus, role
+
+    over: list[dict[str, Any]] = []
+    for name, fo in fan_out.items():
+        eff, role = _effective_threshold(name)
+        if fo > eff:
+            over.append(
+                {
+                    "module": name,
+                    "fan_out": fo,
+                    "role": role,
+                    "effective_threshold": eff,
+                }
+            )
+
+    over.sort(key=lambda x: x.get("fan_out", 0), reverse=True)
 
     return {
         "max_fan_out": max(fan_out.values()),
@@ -393,6 +484,7 @@ def _compute_coupling_metrics(
     src_path: Path,
     threshold: int = 10,
     overrides: dict[str, int] | None = None,
+    orchestrator_bonus: int = 0,
 ) -> dict[str, Any]:
     """Compute fan-in/fan-out coupling metrics for all modules.
 
@@ -400,7 +492,7 @@ def _compute_coupling_metrics(
     symbols from submodules, so their fan-out is structurally high
     and not indicative of poor coupling.
     """
-    fan_out, fan_in = _build_fan_metrics(src_path)
+    fan_out, fan_in, imports_map = _build_fan_metrics(src_path)
 
     if not fan_out:
         return {
@@ -411,7 +503,15 @@ def _compute_coupling_metrics(
             "over_threshold": [],
         }
 
-    return _build_coupling_result(fan_out, fan_in, threshold, overrides)
+    return _build_coupling_result(
+        fan_out,
+        fan_in,
+        threshold,
+        overrides,
+        orchestrator_bonus=orchestrator_bonus,
+        imports_map=imports_map,
+        src_path=src_path,
+    )
 
 
 @dataclass
@@ -438,8 +538,13 @@ class CouplingMetricRule(ProjectRule):
 
         src_path = project_path / "src"
 
-        threshold, overrides = _read_coupling_config(project_path)
-        metrics = _compute_coupling_metrics(src_path, threshold, overrides)
+        threshold, overrides, orchestrator_bonus = _read_coupling_config(project_path)
+        metrics = _compute_coupling_metrics(
+            src_path,
+            threshold,
+            overrides,
+            orchestrator_bonus,
+        )
         n_over: int = metrics["n_over_threshold"]
         over: list[dict[str, Any]] = metrics["over_threshold"]
         avg: float = metrics["avg_coupling"]
