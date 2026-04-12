@@ -207,42 +207,10 @@ def inspect(
         print(f"❌ {result.error}", file=sys.stderr)
         raise SystemExit(1)
 
-    sym_data = result.data["symbol"]
     if json_output:
-        print(json.dumps(sym_data, indent=2))
+        print(json.dumps(result.data["symbol"], indent=2))
     else:
-        _print_inspect_result(sym_data)
-
-
-def _print_inspect_result(sym: dict[str, Any]) -> None:
-    """Pretty-print an inspect result."""
-    name = sym.get("name", "?")
-    sig = sym.get("signature", "")
-    file = sym.get("file", "")
-    start = sym.get("start_line", "")
-    end = sym.get("end_line", "")
-
-    if sig:
-        print(f"🔍 {sig}")
-    else:
-        bases = sym.get("bases", [])
-        bases_str = f"({', '.join(bases)})" if bases else ""
-        print(f"🔍 class {name}{bases_str}")
-
-    if file:
-        print(f"   📄 {file}:{start}-{end}")
-
-    doc = sym.get("docstring", "")
-    if doc:
-        print(f"   📝 {doc.split(chr(10))[0]}")
-
-    methods = sym.get("methods", [])
-    if methods:
-        print(f"   Methods: {', '.join(methods)}")
-
-    source = sym.get("source", "")
-    if source:
-        print(f"\n{source}")
+        print(result.text)
 
 
 def _print_graph_data(
