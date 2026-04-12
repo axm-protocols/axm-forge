@@ -166,6 +166,34 @@ graph TD
 axm-ast graph src/mylib --json
 ```
 
+## Tool Text Rendering
+
+MCP tools that return structured data also include a compact `text` field optimized for token-efficient responses. Each tool uses a consistent format:
+
+### `ast_dead_code`
+
+Header line followed by one symbol per line with abbreviated kind, name, relative path, and line number:
+
+```
+ast_dead_code | 3 dead symbols
+
+func  unused_helper  core/utils.py:42
+meth  _old_method    models/base.py:108
+class DeprecatedMixin  compat.py:15
+```
+
+Kind abbreviations: `func` (function), `meth` (method), `class` (class).
+
+### `ast_callers`
+
+Header line with symbol name and caller count, followed by one caller per line:
+
+```
+ast_callers | my_function | 2 callers
+core.engine:45 run_pipeline
+tools.cli:12
+```
+
 ## JSON Output
 
 Every command supports `--json` for machine-readable output. JSON output follows consistent conventions:

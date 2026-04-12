@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 __all__ = ["DeadCodeTool"]
 
 
+_KIND_SHORT = {"function": "func", "method": "meth", "class": "class"}
+
+
 class DeadCodeTool(AXMTool):
     """Detect dead (unreferenced) code symbols in a Python package.
 
@@ -51,20 +54,36 @@ class DeadCodeTool(AXMTool):
             pkg = get_package(pkg_path)
             dead = find_dead_code(pkg, include_tests=include_tests)
 
+            symbols = [
+                {
+                    "name": d.name,
+                    "module_path": d.module_path,
+                    "line": d.line,
+                    "kind": d.kind,
+                }
+                for d in dead
+            ]
+
             return ToolResult(
                 success=True,
-                data={
-                    "dead_symbols": [
-                        {
-                            "name": d.name,
-                            "module_path": d.module_path,
-                            "line": d.line,
-                            "kind": d.kind,
-                        }
-                        for d in dead
-                    ],
-                    "total": len(dead),
-                },
+                data={"dead_symbols": symbols, "total": len(dead)},
+                text=self._render_text(symbols, pkg_root=str(pkg_path)),
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
+
+    @staticmethod
+    def _render_text(symbols: list[dict[str, Any]], *, pkg_root: str) -> str:
+        """Render dead symbols as compact text for token-efficient MCP responses."""
+        header = f"ast_dead_code | {len(symbols)} dead symbols"
+        if not symbols:
+            return header
+        prefix = pkg_root.rstrip("/") + "/"
+        lines = [header, ""]
+        for s in symbols:
+            mod = s["module_path"]
+            if mod.startswith(prefix):
+                mod = mod[len(prefix) :]
+            kind = _KIND_SHORT.get(s["kind"], s["kind"])
+            lines.append(f"{kind:5s} {s['name']}  {mod}:{s['line']}")
+        return "\n".join(lines)

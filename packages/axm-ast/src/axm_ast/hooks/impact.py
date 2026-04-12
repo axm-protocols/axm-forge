@@ -107,6 +107,27 @@ def _parse_impact_params(
     return working_dir, symbol, symbols, exclude_tests, detail
 
 
+def _enrich_report(report: dict[str, Any]) -> dict[str, Any]:
+    """Add witness-friendly aliases to a structured impact report.
+
+    Adds ``test_paths`` (alias for ``test_files``) and ``packages``
+    (space-separated dirs from ``cross_package_impact``) so that
+    witness templates can extract them directly.
+    """
+    report["test_paths"] = report.get("test_files", [])
+
+    cross = report.get("cross_package_impact", [])
+    if isinstance(cross, list):
+        dirs = [
+            entry.get("path", "") if isinstance(entry, dict) else str(entry)
+            for entry in cross
+        ]
+        report["packages"] = " ".join(d for d in dirs if d)
+    else:
+        report["packages"] = ""
+    return report
+
+
 @dataclass
 class ImpactHook:
     """Run impact analysis on one or more symbols.
@@ -168,7 +189,9 @@ class ImpactHook:
                 from axm_ast.tools.impact import format_impact_compact
 
                 return HookResult.ok(impact=format_impact_compact(report))
-            return HookResult.ok(impact=report)
+
+            report = _enrich_report(report)
+            return HookResult.ok(impact=report, packages=report.get("packages", ""))
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Impact analysis failed: {exc}")
 
