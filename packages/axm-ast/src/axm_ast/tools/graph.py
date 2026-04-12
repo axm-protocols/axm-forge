@@ -45,13 +45,10 @@ class GraphTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            from axm_ast.core.workspace import detect_workspace
-
-            ws = detect_workspace(project_path)
-            if ws is not None:
+            try:
                 return self._execute_workspace(project_path, format=format)
-
-            return self._execute_package(project_path, format=format)
+            except ValueError:
+                return self._execute_package(project_path, format=format)
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
 
