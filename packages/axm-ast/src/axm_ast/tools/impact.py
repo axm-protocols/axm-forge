@@ -325,12 +325,11 @@ def format_impact_compact_multi(
     """Format multiple impact reports as a compact table with per-symbol callers.
 
     Each symbol gets its own row with its own Prod / Direct tests / Indirect
-    tests columns.  The global *score* (max across reports) is shown in the
-    first row only.
+    tests columns.  Each row displays the per-symbol score from the report.
 
     Args:
         reports: Individual per-symbol impact dicts.
-        score: Pre-computed max score across all reports.
+        score: Kept for backward compatibility (not used for row display).
 
     Returns:
         Markdown table string.
@@ -339,8 +338,8 @@ def format_impact_compact_multi(
         "| Symbol | Location | Score | Prod | Direct tests | Indirect tests |",
         "|---|---|---|---|---|---|",
     ]
-    for i, report in enumerate(reports):
-        row_score = score if i == 0 else ""
+    for report in reports:
+        row_score = report.get("score", "LOW")
         lines.append(_format_symbol_row(report, row_score))
 
     # Aggregate test_files across all reports
