@@ -85,7 +85,7 @@ Independent, composable analysis engines:
 | Engine | Purpose | Key Function |
 |---|---|---|
 | `parser.py` | Tree-sitter AST parsing → `ModuleInfo` | `extract_module_info()` |
-| `analyzer.py` | Package discovery, import graph (absolute + relative), search, stubs | `analyze_package()` |
+| `analyzer.py` | Package discovery (auto-detects src-layout), import graph (absolute + relative), search, stubs | `analyze_package()` |
 | `cache.py` | Thread-safe caching of `PackageInfo` — avoids redundant parsing | `get_package()`, `clear_cache()` |
 | `ranker.py` | PageRank symbol importance | `rank_symbols()` |
 | `callers.py` | Call-site detection | `find_callers()`, `find_callers_workspace()` |
