@@ -82,6 +82,34 @@ def _parse_workspace_members(text: str) -> list[str]:
     return [m.strip().strip("\"'") for m in raw.split(",") if m.strip().strip("\"'")]
 
 
+def _expand_workspace_members(root: Path, raw_members: list[str]) -> list[str]:
+    """Expand glob patterns in workspace member list to concrete directory paths.
+
+    Entries containing glob characters (``*``, ``?``, ``[``) are expanded
+    via :meth:`Path.glob`. Literal entries are passed through unchanged.
+    Only directories are kept; files matching a glob are filtered out.
+
+    Args:
+        root: Workspace root directory.
+        raw_members: Raw member strings, possibly containing globs.
+
+    Returns:
+        List of expanded relative directory paths.
+    """
+    expanded: list[str] = []
+    glob_chars = {"*", "?", "["}
+    for member in raw_members:
+        if any(c in member for c in glob_chars):
+            matches = sorted(p for p in root.glob(member) if p.is_dir())
+            if not matches:
+                logger.warning("Glob pattern %r matched no directories", member)
+            for match in matches:
+                expanded.append(str(match.relative_to(root)))
+        else:
+            expanded.append(member)
+    return expanded
+
+
 def _parse_project_name(text: str) -> str | None:
     """Extract project name from pyproject.toml text.
 
@@ -209,8 +237,18 @@ def analyze_workspace(path: Path) -> WorkspaceInfo:
         raise ValueError(msg)
 
     pyproject_text = (path / "pyproject.toml").read_text()
-    members = _parse_workspace_members(pyproject_text)
-    member_names: set[str] = set(members)
+    raw_members = _parse_workspace_members(pyproject_text)
+    members = _expand_workspace_members(path, raw_members)
+
+    # Build member_names from project names in each member's pyproject.toml
+    member_names: set[str] = set()
+    for member in members:
+        member_pyproject = path / member / "pyproject.toml"
+        if member_pyproject.exists():
+            name = _parse_project_name(member_pyproject.read_text())
+            if name:
+                member_names.add(name)
+        member_names.add(Path(member).name)
 
     packages: list[PackageInfo] = []
     for member in members:
@@ -247,18 +285,31 @@ def _build_package_edges(
 
     Args:
         ws_root: Workspace root directory.
-        members: List of member directory names.
-        member_names: Set of member names for fast lookup.
+        members: List of member directory paths (may include subdirs).
+        member_names: Set of known package names for fast lookup.
 
     Returns:
         List of (from_pkg, to_pkg) edges.
     """
+    # Build lookup from project name → member path, falling back to dir basename
+    name_to_member: dict[str, str] = {}
+    for member in members:
+        member_path = ws_root / member
+        pyproject = member_path / "pyproject.toml"
+        if pyproject.exists():
+            proj_name = _parse_project_name(pyproject.read_text())
+            if proj_name:
+                name_to_member[proj_name] = member
+        name_to_member.setdefault(Path(member).name, member)
+
+    all_names = member_names | set(name_to_member)
+
     edges: list[tuple[str, str]] = []
     for member in members:
         member_path = ws_root / member
         deps = _parse_member_deps(member_path)
         for dep in deps:
-            if dep in member_names:
+            if dep in all_names:
                 edges.append((member, dep))
     return edges
 
