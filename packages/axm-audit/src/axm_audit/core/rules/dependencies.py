@@ -303,7 +303,7 @@ def _filter_false_positives(
     return filtered
 
 
-def _format_issue(issue: dict[str, Any]) -> dict[str, str]:
+def _format_issue(issue: dict[str, Any], member: str = "") -> dict[str, str]:
     """Format a single deptry issue for reporting."""
     if "error" in issue:
         code = issue["error"].get("code", "")
@@ -311,7 +311,42 @@ def _format_issue(issue: dict[str, Any]) -> dict[str, str]:
     else:
         code = issue.get("error_code", "")
         message = issue.get("message", "")
-    return {"code": code, "module": issue.get("module", ""), "message": message}
+    formatted: dict[str, str] = {
+        "code": code,
+        "module": issue.get("module", ""),
+        "message": message,
+    }
+    if member:
+        formatted["member"] = member
+    return formatted
+
+
+def _resolve_workspace_members(project_path: Path) -> list[Path] | None:
+    """Resolve workspace member paths from ``[tool.uv.workspace].members``.
+
+    Returns ``None`` when the project is not a uv workspace.
+    Directories without a ``pyproject.toml`` are silently skipped.
+    """
+    pyproject = project_path / "pyproject.toml"
+    if not pyproject.exists():
+        return None
+    try:
+        import tomllib
+
+        data = tomllib.loads(pyproject.read_text())
+    except Exception:  # noqa: BLE001
+        return None
+
+    workspace = data.get("tool", {}).get("uv", {}).get("workspace")
+    if workspace is None:
+        return None
+
+    members: list[Path] = []
+    for pattern in workspace.get("members", []):
+        for match in sorted(project_path.glob(pattern)):
+            if match.is_dir() and (match / "pyproject.toml").exists():
+                members.append(match)
+    return members
 
 
 @dataclass
@@ -329,9 +364,26 @@ class DependencyHygieneRule(ProjectRule):
 
     def check(self, project_path: Path) -> CheckResult:
         """Check dependency hygiene with deptry."""
+        members = _resolve_workspace_members(project_path)
+        if members is not None:
+            return self._check_workspace(project_path, members)
+        result = self._check_single(project_path)
+        assert isinstance(result, CheckResult)
+        return result
+
+    def _check_single(
+        self, project_path: Path, *, member_name: str = ""
+    ) -> CheckResult | list[dict[str, Any]]:
+        """Run deptry on a single package and return a CheckResult or issue list.
+
+        When *member_name* is set the method returns filtered issues (for
+        workspace aggregation).  Otherwise it returns a full ``CheckResult``.
+        """
         try:
             issues = _run_deptry(project_path)
         except FileNotFoundError:
+            if member_name:
+                return []
             return CheckResult(
                 rule_id=self.rule_id,
                 passed=False,
@@ -341,6 +393,9 @@ class DependencyHygieneRule(ProjectRule):
                 fix_hint="Install with: uv add --dev deptry",
             )
         except (RuntimeError, json.JSONDecodeError) as exc:
+            if member_name:
+                logger.warning("deptry failed for %s: %s", member_name, exc)
+                return []
             is_runtime = isinstance(exc, RuntimeError)
             msg = f"deptry failed: {exc}" if is_runtime else "deptry output parse error"
             return CheckResult(
@@ -353,6 +408,10 @@ class DependencyHygieneRule(ProjectRule):
             )
 
         issues = _filter_false_positives(issues, project_path)
+
+        if member_name:
+            return issues
+
         issue_count = len(issues)
         score = max(0, 100 - issue_count * 10)
 
@@ -369,6 +428,38 @@ class DependencyHygieneRule(ProjectRule):
                 "issue_count": issue_count,
                 "score": score,
                 "top_issues": [_format_issue(i) for i in issues[:5]],
+            },
+            fix_hint=("Run: deptry . to see details" if issue_count > 0 else None),
+        )
+
+    def _check_workspace(self, project_path: Path, members: list[Path]) -> CheckResult:
+        """Aggregate deptry results across workspace members."""
+        all_issues: list[tuple[str, dict[str, Any]]] = []
+        for member in members:
+            member_name = member.name
+            issues = self._check_single(member, member_name=member_name)
+            if isinstance(issues, list):
+                for issue in issues:
+                    all_issues.append((member_name, issue))
+
+        issue_count = len(all_issues)
+        score = max(0, 100 - issue_count * 10)
+
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=score >= PASS_THRESHOLD,
+            message=(
+                "Clean dependencies (0 issues)"
+                if issue_count == 0
+                else f"{issue_count} dependency issue(s) found"
+            ),
+            severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
+            details={
+                "issue_count": issue_count,
+                "score": score,
+                "top_issues": [
+                    _format_issue(issue, member=name) for name, issue in all_issues[:5]
+                ],
             },
             fix_hint=("Run: deptry . to see details" if issue_count > 0 else None),
         )
