@@ -139,8 +139,9 @@ class TestCalleesMCPTool:
         assert result.success is True
         assert result.data is not None
         assert result.data["count"] >= 1
-        symbols = [c["symbol"] for c in result.data["callees"]]
-        assert "helper" in symbols
+        callee = result.data["callees"][0]
+        assert "call_expression" in callee
+        assert "symbol" not in callee
 
     def test_mcp_tool_missing_symbol(self) -> None:
         from axm_ast.tools.callees import CalleesTool
