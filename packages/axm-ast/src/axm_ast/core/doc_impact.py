@@ -65,7 +65,19 @@ def _search_symbol_in_file(
 
 
 def _extract_ast_signatures(root: Path) -> dict[str, str]:
-    """Extract function/class signatures from all .py files under src/."""
+    """Extract function/class signatures from all ``.py`` files under *root*.
+
+    Walks ``src/`` (or *root* directly when no ``src/`` exists) and builds a
+    mapping of ``module.qualified_name`` to the first-line signature string.
+    Class entries include base classes when present.
+
+    Args:
+        root: Project root directory containing a ``src/`` layout or plain
+            Python packages.
+
+    Returns:
+        Mapping of fully-qualified symbol names to their signature strings.
+    """
     sigs: dict[str, str] = {}
     src_dir = root / "src"
     search_dirs = [src_dir] if src_dir.is_dir() else [root]
@@ -87,7 +99,11 @@ def _extract_ast_signatures(root: Path) -> dict[str, str]:
                         sigs[qualified] = first_line.rstrip().rstrip(":")
                 elif isinstance(node, ast.ClassDef):
                     qualified = f"{module_key}.{node.name}"
-                    sigs[qualified] = f"class {node.name}"
+                    if node.bases:
+                        bases_str = ", ".join(ast.unparse(b) for b in node.bases)
+                        sigs[qualified] = f"class {node.name}({bases_str})"
+                    else:
+                        sigs[qualified] = f"class {node.name}"
     return sigs
 
 
@@ -175,7 +191,7 @@ def find_undocumented(
 
 def find_stale_signatures(
     root: Path,
-    symbols: list[str],
+    symbols: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Detect stale code signatures in documentation.
 
@@ -184,7 +200,7 @@ def find_stale_signatures(
 
     Args:
         root: Project root directory.
-        symbols: Symbol names to check.
+        symbols: Symbol names to check. If ``None``, check all symbols.
 
     Returns:
         List of dicts with ``symbol``, ``file``, ``doc_sig``,
@@ -192,7 +208,10 @@ def find_stale_signatures(
     """
     ast_sigs = _extract_ast_signatures(root)
     doc_files = _collect_doc_files(root)
-    sym_set = set(symbols)
+    if symbols is None:
+        sym_set = {qk.rsplit(".", 1)[-1] for qk in ast_sigs}
+    else:
+        sym_set = set(symbols)
     # Build reverse index: bare name → list of (qualified_key, sig)
     bare_index: dict[str, list[str]] = {}
     for qkey in ast_sigs:
