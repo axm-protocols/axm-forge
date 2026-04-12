@@ -69,7 +69,7 @@ def _build_trace_opts(params: dict[str, Any]) -> tuple[_TraceOpts, bool]:
     opts = _TraceOpts(
         max_depth=int(params.get("max_depth", 5)),
         cross_module=bool(params.get("cross_module", False)),
-        detail="trace" if is_compact else detail,
+        detail=detail,
         exclude_stdlib=bool(params.get("exclude_stdlib", True)),
     )
     return opts, is_compact
