@@ -29,7 +29,7 @@
 - 🔒 **Type Checking** — Strict mypy (per-project `pyproject.toml` config)
 - 📊 **Complexity** — Cyclomatic complexity via radon (Python API with subprocess fallback)
 - 🛡️ **Security** — Bandit integration + hardcoded secrets detection
-- 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry) with false-positive filtering for entry-point and optional-dependency packages
+- 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry) with false-positive filtering for entry-point and optional-dependency packages, and uv workspace support (auto-aggregation across members)
 - 🧪 **Testing** — Coverage enforcement via pytest-cov
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
 - 📐 **Practices** — Docstring coverage (with cross-file abstract override detection), bare except detection, hardcoded secrets, blocking I/O, test mirroring
@@ -147,6 +147,10 @@ severity_error_multiplier = 2   # default: 2, minimum: 1
 - **`severity_error_multiplier`** — tiered severity: modules with fan-out above the effective threshold but within `threshold × multiplier` get a **warning** (−3 pts); beyond that they get an **error** (−5 pts). Only errors cause the check to fail; warnings alone still pass.
 
 When no configuration is present, the default threshold of 10 and multiplier of 2 are used.
+
+### UV Workspace Support
+
+`DependencyHygieneRule` automatically detects uv workspaces via `[tool.uv.workspace].members` in the root `pyproject.toml`. When a workspace is detected, deptry runs on each member package independently and results are aggregated into a single `CheckResult` with per-member attribution in `top_issues`.
 
 ## Witness Rules
 
