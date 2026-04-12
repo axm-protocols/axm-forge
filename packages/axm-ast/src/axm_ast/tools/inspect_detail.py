@@ -28,7 +28,7 @@ def relative_path(pkg: PackageInfo, mod_path: Path) -> str:
     """Compute relative path from package root."""
     try:
         return str(mod_path.relative_to(pkg.root.parent))
-    except ValueError:
+    except (ValueError, AttributeError):
         return str(mod_path)
 
 
@@ -60,6 +60,7 @@ def function_detail(
     """Build detail dict from a FunctionInfo."""
     detail: dict[str, Any] = {
         "name": sym.name,
+        "kind": "function",
         "file": file,
         "start_line": sym.line_start,
         "end_line": sym.line_end,
@@ -85,6 +86,7 @@ def class_detail(
     """Build detail dict from a ClassInfo."""
     detail: dict[str, Any] = {
         "name": sym.name,
+        "kind": "class",
         "file": file,
         "start_line": sym.line_start,
         "end_line": sym.line_end,
