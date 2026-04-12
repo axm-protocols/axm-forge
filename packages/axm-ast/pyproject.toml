@@ -170,6 +170,9 @@ addopts = [
     "--cov-fail-under=0",
 ]
 filterwarnings = ["error"]
+markers = [
+    "functional: marks tests as functional (hitting real packages)",
+]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Deptry Configuration

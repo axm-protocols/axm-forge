@@ -94,12 +94,14 @@ def analyze_package(path: Path) -> PackageInfo:
 
     # Detect src-layout: src/<pkg>/__init__.py
     src_dir = path / "src"
-    if src_dir.is_dir() and any(
-        (child / "__init__.py").exists()
-        for child in src_dir.iterdir()
-        if child.is_dir()
-    ):
-        path = src_dir
+    if src_dir.is_dir():
+        pkg_dirs = [
+            child
+            for child in src_dir.iterdir()
+            if child.is_dir() and (child / "__init__.py").exists()
+        ]
+        if pkg_dirs:
+            path = pkg_dirs[0]
 
     t0 = time.perf_counter()
 
