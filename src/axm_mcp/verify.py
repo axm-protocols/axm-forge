@@ -79,8 +79,11 @@ def _enrich_failure(
 ) -> dict[str, Any] | None:
     """Enrich a failure with aggregated AST context.
 
-    Calls _extract_symbols, then ast_impact on each.
-    Returns aggregated context or None if no enrichment possible.
+    Calls _extract_symbols, then ast_impact on each symbol.
+    Impact scores are ordinal strings (LOW < MEDIUM < HIGH); the
+    maximum across all symbols is kept.
+
+    Returns aggregated context dict or None if no enrichment possible.
     """
     ast_tool = tools.get("ast_impact")
     if ast_tool is None:
@@ -91,9 +94,10 @@ def _enrich_failure(
         return None
 
     # Aggregate results from all symbols
+    _score_order: dict[str, int] = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
     all_callers: list[dict[str, Any]] = []
     all_test_files: list[str] = []
-    max_score: float = 0.0
+    max_score: str = "LOW"
     success_count = 0
 
     for symbol in symbols:
@@ -103,11 +107,11 @@ def _enrich_failure(
                 success_count += 1
                 all_callers.extend(result.data.get("callers", []))
                 all_test_files.extend(result.data.get("test_files", []))
-                score = result.data.get("score", 0)
-                if score > max_score:
+                score = result.data.get("score") or "LOW"
+                if _score_order.get(score, 0) > _score_order.get(max_score, 0):
                     max_score = score
         except Exception as exc:
-            logger.debug("AST enrichment failed for %s: %s", symbol, exc)
+            logger.warning("AST enrichment failed for %s: %s", symbol, exc)
 
     if success_count == 0:
         return None
