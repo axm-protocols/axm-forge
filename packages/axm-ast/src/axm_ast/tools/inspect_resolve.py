@@ -16,6 +16,7 @@ from axm_ast.models.nodes import (
 )
 
 from .inspect_detail import build_detail, build_module_detail, relative_path
+from .inspect_text import render_module_text, render_symbol_text
 
 _MAX_SOURCE_LINES = 200
 
@@ -102,7 +103,9 @@ def inspect_module(
             detail["source"] = text
         except OSError:
             pass
-    return ToolResult(success=True, data={"symbol": detail})
+    return ToolResult(
+        success=True, data={"symbol": detail}, text=render_module_text(detail)
+    )
 
 
 def resolve_module_symbol(
@@ -127,29 +130,23 @@ def resolve_module_symbol(
         abs_mod = str(mod.path)
         for fn in mod.functions:
             if fn.name == sym_name:
+                detail = build_detail(
+                    fn, file=file_rel, abs_path=abs_mod, source=source
+                )
                 return ToolResult(
                     success=True,
-                    data={
-                        "symbol": build_detail(
-                            fn,
-                            file=file_rel,
-                            abs_path=abs_mod,
-                            source=source,
-                        )
-                    },
+                    data={"symbol": detail},
+                    text=render_symbol_text(detail),
                 )
         for cls in mod.classes:
             if cls.name == sym_name:
+                detail = build_detail(
+                    cls, file=file_rel, abs_path=abs_mod, source=source
+                )
                 return ToolResult(
                     success=True,
-                    data={
-                        "symbol": build_detail(
-                            cls,
-                            file=file_rel,
-                            abs_path=abs_mod,
-                            source=source,
-                        )
-                    },
+                    data={"symbol": detail},
+                    text=render_symbol_text(detail),
                 )
         return ToolResult(
             success=False,
@@ -188,16 +185,11 @@ def resolve_class_method(
 
     file_path = find_symbol_file(pkg, cls)
     abs_path = find_symbol_abs_path(pkg, cls)
+    detail = build_detail(method, file=file_path, abs_path=abs_path, source=source)
     return ToolResult(
         success=True,
-        data={
-            "symbol": build_detail(
-                method,
-                file=file_path,
-                abs_path=abs_path,
-                source=source,
-            )
-        },
+        data={"symbol": detail},
+        text=render_symbol_text(detail),
     )
 
 
