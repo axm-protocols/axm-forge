@@ -95,6 +95,8 @@ class FlowsTool(AXMTool):
                         data={
                             "entry": entry,
                             "compact": compact,
+                            "depth": max_depth,
+                            "cross_module": cross_module,
                             "count": len(steps),
                         },
                     )
