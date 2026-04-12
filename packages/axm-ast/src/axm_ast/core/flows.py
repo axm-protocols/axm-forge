@@ -829,7 +829,7 @@ def trace_flow(  # noqa: PLR0913
     detail: str = "trace",
     callee_index: dict[tuple[str, str], list[CallSite]] | None = None,
     exclude_stdlib: bool = True,
-) -> list[FlowStep]:
+) -> tuple[list[FlowStep], bool]:
     """Trace execution flow from an entry point via BFS.
 
     Follows the forward call graph from *entry* up to *max_depth*
@@ -854,10 +854,13 @@ def trace_flow(  # noqa: PLR0913
             ``isinstance``).  Set to False to include them.
 
     Returns:
-        List of FlowStep objects ordered by depth then discovery.
+        Tuple of (steps, truncated) where *steps* is a list of FlowStep
+        objects ordered by depth then discovery, and *truncated* is True
+        when at least one frontier node at *max_depth* had unexpanded
+        children.
 
     Example:
-        >>> steps = trace_flow(pkg, "main", max_depth=3)
+        >>> steps, truncated = trace_flow(pkg, "main", max_depth=3)
         >>> for s in steps:
         ...     print(f"{'  ' * s.depth}{s.name} ({s.module}:{s.line})")
     """
@@ -907,10 +910,27 @@ def trace_flow(  # noqa: PLR0913
         )
     )
 
+    truncated = False
+
     while queue:
         current, depth, current_chain, current_pkg, current_mod = queue.popleft()
 
         if depth >= max_depth:
+            # Check if this frontier node has callees — if so, BFS is truncated
+            if not truncated:
+                if callee_index is not None:
+                    frontier_callees = callee_index.get((current_mod, current), [])
+                else:
+                    frontier_callees = find_callees(
+                        current_pkg, current, _parse_cache=ctx.parse_cache
+                    )
+                if _has_expandable_callees(
+                    frontier_callees,
+                    exclude_stdlib=exclude_stdlib,
+                    pkg_symbols=pkg_symbols,
+                    visited=visited,
+                ):
+                    truncated = True
             continue
 
         if callee_index is not None:
@@ -958,7 +978,25 @@ def trace_flow(  # noqa: PLR0913
         max_depth,
     )
 
-    return steps
+    return steps, truncated
+
+
+def _has_expandable_callees(
+    callees: list[CallSite],
+    *,
+    exclude_stdlib: bool,
+    pkg_symbols: frozenset[str],
+    visited: set[tuple[str, str]],
+) -> bool:
+    """Return True if any callee would be enqueued (not visited, not stdlib)."""
+    for callee in callees:
+        if exclude_stdlib and (
+            _is_stdlib_or_builtin(callee.symbol) or callee.symbol not in pkg_symbols
+        ):
+            continue
+        if (callee.module, callee.symbol) not in visited:
+            return True
+    return False
 
 
 @dataclass

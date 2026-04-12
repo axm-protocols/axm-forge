@@ -137,7 +137,7 @@ class TestTraceSourceHookExecute:
         mock_analyze.return_value = mock_pkg
         mock_step = MagicMock()
         mock_step.model_dump.return_value = {"name": "test_foo", "depth": 0}
-        mock_trace.return_value = [mock_step]
+        mock_trace.return_value = ([mock_step], False)
 
         hook = TraceSourceHook()
         result = hook.execute(
@@ -164,7 +164,7 @@ class TestTraceSourceHookExecute:
     ) -> None:
         """Simple symbol entry uses path param directly."""
         mock_analyze.return_value = MagicMock()
-        mock_trace.return_value = []
+        mock_trace.return_value = ([], False)
 
         hook = TraceSourceHook()
         result = hook.execute({}, entry="HttpResponse", path=str(tmp_path))

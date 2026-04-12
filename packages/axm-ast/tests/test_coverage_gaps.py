@@ -560,7 +560,7 @@ class TestFlowsResolvedModule:
         mocker.patch("axm_ast.core.cache.get_package", return_value=MagicMock())
         mocker.patch(
             "axm_ast.core.flows.trace_flow",
-            return_value=[step],
+            return_value=([step], False),
         )
         result = FlowsTool().execute(path=str(pkg), entry="foo")
         assert result.success is True

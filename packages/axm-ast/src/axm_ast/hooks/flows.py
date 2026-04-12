@@ -181,7 +181,7 @@ class FlowsHook:
 
         if len(symbols) == 1:
             try:
-                steps = trace_flow(pkg, symbols[0], **kw)
+                steps, _truncated = trace_flow(pkg, symbols[0], **kw)
             except ValueError as exc:
                 return HookResult.fail(str(exc))
             return HookResult.ok(
@@ -215,7 +215,7 @@ class FlowsHook:
         seen: set[str] = set()
         for sym in symbols:
             try:
-                steps = trace_flow(pkg, sym, callee_index=index, **kw)
+                steps, _truncated = trace_flow(pkg, sym, callee_index=index, **kw)
             except ValueError:
                 continue
             deduped = [s for s in steps if s.name == sym or s.name not in seen]
@@ -266,7 +266,7 @@ class FlowsHook:
         }
         traces: dict[str, Any] = {}
         for e in entries:
-            steps = trace_flow(pkg, e.name, callee_index=index, **kw)
+            steps, _truncated = trace_flow(pkg, e.name, callee_index=index, **kw)
             if steps:
                 if compact:
                     traces[e.name] = format_flow_compact(steps)

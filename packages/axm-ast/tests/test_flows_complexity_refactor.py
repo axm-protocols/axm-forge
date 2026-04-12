@@ -233,7 +233,7 @@ class TestEmptyFlow:
             },
         )
         pkg = get_package(pkg_dir)
-        steps = trace_flow(pkg, "lonely")
+        steps, _ = trace_flow(pkg, "lonely")
         # A leaf function with no callees: either empty list or single root step
         if steps:
             # Only the root entry itself, no children

@@ -149,7 +149,7 @@ class TraceSourceHook:
             max_depth = int(params.get("max_depth", 5))
             cross_module = bool(params.get("cross_module", False))
 
-            steps = trace_flow(
+            steps, _truncated = trace_flow(
                 pkg,
                 symbol_name,
                 max_depth=max_depth,

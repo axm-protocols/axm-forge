@@ -247,7 +247,7 @@ class TestTraceFlowLinear:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "func_a")
+        steps, _ = trace_flow(pkg, "func_a")
         names = [s.name for s in steps]
         assert names == ["func_a", "func_b", "func_c"]
         assert steps[0].depth == 0
@@ -276,7 +276,7 @@ class TestTraceFlowBranching:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "func_a")
+        steps, _ = trace_flow(pkg, "func_a")
         names = {s.name for s in steps}
         assert "func_a" in names
         assert "func_b" in names
@@ -373,7 +373,7 @@ class TestEdgeCircularCalls:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "func_a")
+        steps, _ = trace_flow(pkg, "func_a")
         names = [s.name for s in steps]
         # Should visit A and B but not loop
         assert "func_a" in names
@@ -404,7 +404,7 @@ class TestEdgeMaxDepth:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "func_a", max_depth=3)
+        steps, _ = trace_flow(pkg, "func_a", max_depth=3)
         # Should have at most 4 entries (depth 0, 1, 2, 3)
         assert len(steps) <= 4
         depths = {s.depth for s in steps}
@@ -520,7 +520,7 @@ class TestCrossModuleBasic:
         pkg = analyze_package(pkg_path)
 
         # Without cross_module → stops at B
-        steps_no = trace_flow(pkg, "test_func", cross_module=False)
+        steps_no, _ = trace_flow(pkg, "test_func", cross_module=False)
         names_no = [s.name for s in steps_no]
         assert "test_func" in names_no
         assert "B" in names_no
@@ -528,7 +528,7 @@ class TestCrossModuleBasic:
         # (B is in the same package so find_callees should find it)
 
         # With cross_module → resolves into b.py
-        steps = trace_flow(pkg, "test_func", cross_module=True)
+        steps, _ = trace_flow(pkg, "test_func", cross_module=True)
         names = [s.name for s in steps]
         assert "test_func" in names
         assert "B" in names
@@ -556,7 +556,7 @@ class TestCrossModuleDepth:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "test_run", cross_module=True, max_depth=5)
+        steps, _ = trace_flow(pkg, "test_run", cross_module=True, max_depth=5)
         names = [s.name for s in steps]
         assert "test_run" in names
         assert "ClassA" in names
@@ -577,7 +577,7 @@ class TestImportResolutionFrom:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "run", cross_module=True)
+        steps, _ = trace_flow(pkg, "run", cross_module=True)
         names = [s.name for s in steps]
         assert "run" in names
         assert "Baz" in names
@@ -599,7 +599,7 @@ class TestImportResolutionDirect:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "run", cross_module=True)
+        steps, _ = trace_flow(pkg, "run", cross_module=True)
         names = [s.name for s in steps]
         assert "run" in names
         assert "do_stuff" in names
@@ -621,7 +621,7 @@ class TestRelativeImport:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "process", cross_module=True)
+        steps, _ = trace_flow(pkg, "process", cross_module=True)
         names = [s.name for s in steps]
         assert "process" in names
         assert "compute" in names
@@ -645,7 +645,7 @@ class TestCircularImportSafe:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "func_a", cross_module=True)
+        steps, _ = trace_flow(pkg, "func_a", cross_module=True)
         names = [s.name for s in steps]
         # Should visit both but not loop
         assert "func_a" in names
@@ -667,7 +667,7 @@ class TestCrossModuleDogfood:
             return  # Skip if not in dev layout
         pkg = analyze_package(src_path)
         # trace_flow should be in the package; trace it with cross_module
-        steps = trace_flow(
+        steps, _ = trace_flow(
             pkg,
             "trace_flow",
             cross_module=True,
@@ -695,7 +695,7 @@ class TestEdgeStdlibImport:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "test_func", cross_module=True)
+        steps, _ = trace_flow(pkg, "test_func", cross_module=True)
         # Should not have stdlib symbols in the trace
         for s in steps:
             assert s.resolved_module is None or not s.resolved_module.startswith("os")
@@ -716,7 +716,7 @@ class TestEdgeMissingModule:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "test_func", cross_module=True)
+        steps, _ = trace_flow(pkg, "test_func", cross_module=True)
         names = [s.name for s in steps]
         assert "test_func" in names
         # Ghost should not crash, just not be resolved
@@ -737,7 +737,7 @@ class TestEdgeReexportChain:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "run", cross_module=True)
+        steps, _ = trace_flow(pkg, "run", cross_module=True)
         names = [s.name for s in steps]
         assert "run" in names
 
@@ -760,7 +760,7 @@ class TestEdgeBuiltinCalls:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "test_func", cross_module=True)
+        steps, _ = trace_flow(pkg, "test_func", cross_module=True)
         # Only the entry point should appear (builtins are skipped)
         assert len(steps) >= 1
         for s in steps:
@@ -817,7 +817,7 @@ class TestCrossModuleSiblingPackage:
         """from mylib.http import HttpResponse → resolved via project root."""
         project = self._make_sibling_project(tmp_path)
         tests_pkg = analyze_package(project / "tests")
-        steps = trace_flow(tests_pkg, "test_response", cross_module=True)
+        steps, _ = trace_flow(tests_pkg, "test_response", cross_module=True)
         names = [s.name for s in steps]
         assert "test_response" in names
         assert "HttpResponse" in names
@@ -832,7 +832,7 @@ class TestCrossModuleSiblingPackage:
         """detail='source' enriches sibling-package symbols."""
         project = self._make_sibling_project(tmp_path)
         tests_pkg = analyze_package(project / "tests")
-        steps = trace_flow(
+        steps, _ = trace_flow(
             tests_pkg,
             "test_response",
             cross_module=True,
@@ -879,7 +879,7 @@ class TestCrossModuleSiblingPackage:
         )
 
         tests_pkg = analyze_package(tests)
-        steps = trace_flow(
+        steps, _ = trace_flow(
             tests_pkg,
             "test_response",
             cross_module=True,
@@ -915,7 +915,7 @@ class TestCrossModuleSiblingPackage:
             "    HttpResponse()\n"
         )
         tests_pkg = analyze_package(nested)
-        steps = trace_flow(tests_pkg, "test_response", cross_module=True)
+        steps, _ = trace_flow(tests_pkg, "test_response", cross_module=True)
         resolved = [s for s in steps if s.resolved_module is not None]
         # Without project root marker, fallback shouldn't reach mylib
         assert len(resolved) == 0
@@ -955,7 +955,7 @@ class TestDetailSource:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "main", detail="source")
+        steps, _ = trace_flow(pkg, "main", detail="source")
         main_step = next(s for s in steps if s.name == "main")
         helper_step = next(s for s in steps if s.name == "helper")
         assert main_step.source is not None
@@ -975,7 +975,7 @@ class TestDetailSource:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "main", detail="trace")
+        steps, _ = trace_flow(pkg, "main", detail="trace")
         for step in steps:
             assert step.source is None
 
@@ -989,7 +989,7 @@ class TestDetailSource:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "main")
+        steps, _ = trace_flow(pkg, "main")
         for step in steps:
             assert step.source is None
 
@@ -1009,7 +1009,7 @@ class TestDetailSourceMissingModule:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "test_func", detail="source")
+        steps, _ = trace_flow(pkg, "test_func", detail="source")
         # Entry point should have source
         entry = next(s for s in steps if s.name == "test_func")
         assert entry.source is not None
@@ -1330,7 +1330,7 @@ class TestExcludeStdlib:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "process")
+        steps, _ = trace_flow(pkg, "process")
         step_names = {s.name for s in steps}
         assert "process" in step_names
         assert "len" not in step_names
@@ -1346,7 +1346,7 @@ class TestExcludeStdlib:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "process", exclude_stdlib=False)
+        steps, _ = trace_flow(pkg, "process", exclude_stdlib=False)
         step_names = {s.name for s in steps}
         assert "process" in step_names
         assert "len" in step_names
@@ -1394,6 +1394,6 @@ class TestExcludeStdlib:
         # This is acceptable: user-defined shadowing of builtins is
         # extremely rare and the filter is name-based by design.
         # With exclude_stdlib=False it MUST appear:
-        steps = trace_flow(pkg, "process", exclude_stdlib=False)
+        steps, _ = trace_flow(pkg, "process", exclude_stdlib=False)
         step_names = {s.name for s in steps}
         assert "len" in step_names

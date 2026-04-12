@@ -37,7 +37,7 @@ def test_trace_flow_found_no_callees(monkeypatch):
         "axm_ast.core.flows.find_callees",
         lambda *a, **kw: [],
     )
-    steps = trace_flow(pkg, "leaf_function")
+    steps, _ = trace_flow(pkg, "leaf_function")
     assert len(steps) == 1
     assert steps[0].name == "leaf_function"
     assert steps[0].depth == 0

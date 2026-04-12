@@ -96,7 +96,7 @@ Independent, composable analysis engines:
 | `workspace.py` | Multi-package workspace detection and analysis; expands glob patterns in `[tool.uv.workspace]` members and resolves project names for dependency edges | `detect_workspace()`, `analyze_workspace()` |
 | `docs.py` | Documentation tree discovery | `discover_docs()` |
 | `dead_code.py` | Dead code detection with test/lazy-import/base-class/intra-module-ref/namespace-module scanning; namespace resolution uses `_resolve_import_stems` for both bare and from-imports; respects `.gitignore` via `_discover_py_files` | `find_dead_code()`, `DeadSymbol` |
-| `flows.py` | Entry point detection, BFS flow tracing, source enrichment, workspace-level callee search. Exports `VALID_DETAILS` (`frozenset`) — the accepted `detail` values (`"trace"`, `"source"`, `"compact"`); `trace_flow()` raises `ValueError` for invalid `detail` values or when the entry symbol is not found in the package | `find_entry_points()`, `trace_flow()`, `find_callees_workspace()`, `VALID_DETAILS` |
+| `flows.py` | Entry point detection, BFS flow tracing, source enrichment, workspace-level callee search. Exports `VALID_DETAILS` (`frozenset`) — the accepted `detail` values (`"trace"`, `"source"`, `"compact"`); `trace_flow()` returns `(steps, truncated)` where `truncated` is `True` when frontier nodes at `max_depth` had unexpanded children; raises `ValueError` for invalid `detail` values or when the entry symbol is not found in the package | `find_entry_points()`, `trace_flow()`, `find_callees_workspace()`, `VALID_DETAILS` |
 
 ### 3. Formatters (`formatters.py`)
 
@@ -134,7 +134,7 @@ Protocol hooks registered via `axm.hooks` entry points. These are called by `axm
 
 | Hook | Entry Point | Purpose |
 |---|---|---|
-| `TraceSourceHook` | `ast:trace-source` | Run `trace_flow(detail="source")` and inject trace into session context |
+| `TraceSourceHook` | `ast:trace-source` | Run `trace_flow(detail="source")` and inject trace into session context. Unpacks `(steps, truncated)` tuple but currently discards the truncation flag |
 | `SourceBodyHook` | `ast:source-body` | Extract symbol source bodies and return as a grouped markdown string (`symbols=<str>`) with a `files` list of relative paths. Supports dotted names via three resolution strategies: `_resolve_as_class_method` (`Class.method`, delegates to `_build_method_body`), `_resolve_as_nested_class` (`Outer.Inner.method`), and `_resolve_as_module_symbol` (`module.func`). Extraction logic lives in `_run_extraction` (with `_dedup_symbols` to remove methods already covered by their parent class); formatting in `_format_as_markdown`. |
 | `FileHeaderHook` | `ast:file-header` | Extract file-level header (module docstring, `__all__`, top-level imports) and inject into session context |
 
