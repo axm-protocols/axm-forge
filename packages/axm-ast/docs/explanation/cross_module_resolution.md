@@ -36,7 +36,7 @@ flowchart TD
     R --> M
     M -- Done --> D
     D -- Yes --> U["Optional: enrich with source"]
-    U --> V["Return FlowStep list"]
+    U --> V["Return (steps, truncated)"]
 ```
 
 ## Key Data Structures
@@ -86,7 +86,7 @@ Each BFS node produces a `FlowStep` (Pydantic model):
 1. **Symbol resolution** — `_find_symbol_location` maps the entry name to a `(module_dotted, line)` pair. If not found, raises `ValueError`.
 2. **Queue initialization** — The entry is enqueued at depth 0 and immediately appended to `steps` as the root `FlowStep`.
 3. **Main loop** — Each iteration dequeues a symbol, resolves callees (from a pre-built index or via `find_callees`), and delegates filtering and enqueuing to `_process_local_callees`, which skips stdlib/visited symbols and appends a `FlowStep` for each new discovery at `depth + 1`.
-4. **Depth cap** — When `depth >= max_depth`, the node is dequeued but its callees are not explored.
+4. **Depth cap** — When `depth >= max_depth`, the node is dequeued but its callees are not explored. If any frontier node at `max_depth` has expandable callees (not visited, not stdlib), the `truncated` flag is set to `True`.
 5. **Cross-module** — After same-package callees are processed, `_resolve_cross_module_callees` receives a `_ResolutionScope` (bundling the current module, packages, depth, and chain) and follows imported symbols into external files.
 6. **Source enrichment** — After the BFS completes, if `detail="source"`, `_enrich_steps_with_source` patches each step with the actual function source text.
 

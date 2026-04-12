@@ -53,7 +53,10 @@ class FlowsTool(AXMTool):
                 in the BFS trace.  Default True (exclude them).
 
         Returns:
-            ToolResult with entry points or flow steps.
+            ToolResult with entry points or flow steps.  When tracing,
+            ``data`` includes ``depth`` (actual max depth reached),
+            ``count``, and ``truncated`` (True when frontier nodes at
+            ``max_depth`` had unexpanded children).
             Returns ``success=False`` when the entry symbol is not found
             in the package.
         """
@@ -82,7 +85,7 @@ class FlowsTool(AXMTool):
             pkg = get_package(pkg_path)
 
             if entry is not None:
-                steps = trace_flow(
+                steps, truncated = trace_flow(
                     pkg,
                     entry,
                     max_depth=max_depth,
@@ -90,6 +93,7 @@ class FlowsTool(AXMTool):
                     detail=detail,
                     exclude_stdlib=exclude_stdlib,
                 )
+                actual_depth = max((s.depth for s in steps), default=0)
                 if detail == "compact":
                     compact = format_flow_compact(steps)
                     return ToolResult(
@@ -97,9 +101,10 @@ class FlowsTool(AXMTool):
                         data={
                             "entry": entry,
                             "compact": compact,
-                            "depth": max_depth,
+                            "depth": actual_depth,
                             "cross_module": cross_module,
                             "count": len(steps),
+                            "truncated": truncated,
                         },
                     )
 
@@ -122,9 +127,10 @@ class FlowsTool(AXMTool):
                     data={
                         "entry": entry,
                         "steps": step_dicts,
-                        "depth": max_depth,
+                        "depth": actual_depth,
                         "cross_module": cross_module,
                         "count": len(steps),
+                        "truncated": truncated,
                     },
                 )
 

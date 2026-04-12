@@ -21,7 +21,9 @@ def _mock_flows(monkeypatch: pytest.MonkeyPatch) -> None:
     step.line = 10
     step.resolved_module = None
     step.source = None
-    monkeypatch.setattr("axm_ast.core.flows.trace_flow", lambda *a, **kw: [step])
+    monkeypatch.setattr(
+        "axm_ast.core.flows.trace_flow", lambda *a, **kw: ([step], False)
+    )
     monkeypatch.setattr(
         "axm_ast.core.flows.format_flow_compact", lambda steps: "main\n  └─ func"
     )
@@ -43,7 +45,7 @@ def test_flows_tool_compact_has_depth_key(tmp_pkg: object) -> None:
         path=str(tmp_pkg), entry="main", detail="compact", max_depth=3
     )
     assert result.success
-    assert result.data["depth"] == 3
+    assert result.data["depth"] == 1  # actual depth, not max_depth
 
 
 @pytest.mark.usefixtures("_mock_flows")
@@ -68,6 +70,7 @@ def test_flows_tool_compact_keys_match_trace(tmp_pkg: object) -> None:
         "depth",
         "cross_module",
         "count",
+        "truncated",
     }
 
 
@@ -81,7 +84,7 @@ def test_flows_tool_compact_default_values(tmp_pkg: object) -> None:
     tool = FlowsTool()
     result = tool.execute(path=str(tmp_pkg), entry="main", detail="compact")
     assert result.success
-    assert result.data["depth"] == 5
+    assert result.data["depth"] == 1  # actual depth, not max_depth default
     assert result.data["cross_module"] is False
 
 
@@ -100,4 +103,5 @@ def test_flows_tool_trace_keys_unchanged(tmp_pkg: object) -> None:
         "depth",
         "cross_module",
         "count",
+        "truncated",
     }

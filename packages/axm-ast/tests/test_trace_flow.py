@@ -47,8 +47,8 @@ class TestGetCallees:
         )
         pkg = analyze_package(pkg_path)
         index = build_callee_index(pkg)
-        steps_with_index = trace_flow(pkg, "alpha", callee_index=index)
-        steps_without_index = trace_flow(pkg, "alpha")
+        steps_with_index, _ = trace_flow(pkg, "alpha", callee_index=index)
+        steps_without_index, _ = trace_flow(pkg, "alpha")
         # Both paths must produce the same result
         with_names = [s.name for s in steps_with_index]
         without_names = [s.name for s in steps_without_index]
@@ -67,7 +67,7 @@ class TestGetCallees:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "start")
+        steps, _ = trace_flow(pkg, "start")
         step_names = [s.name for s in steps]
         assert step_names == ["start", "helper"]
 
@@ -94,7 +94,7 @@ class TestProcessLocalCallees:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "compute")
+        steps, _ = trace_flow(pkg, "compute")
         step_names = {s.name for s in steps}
         assert "len" not in step_names
         assert "format_output" in step_names
@@ -119,7 +119,7 @@ class TestProcessLocalCallees:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "entry", max_depth=3)
+        steps, _ = trace_flow(pkg, "entry", max_depth=3)
         # shared() called by both a() and b(), but should appear only once
         shared_steps = [s for s in steps if s.name == "shared"]
         assert len(shared_steps) == 1
@@ -154,7 +154,7 @@ class TestTraceFlowEdgeCases:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "leaf")
+        steps, _ = trace_flow(pkg, "leaf")
         assert len(steps) == 1
         assert steps[0].name == "leaf"
         assert steps[0].depth == 0
@@ -174,7 +174,7 @@ class TestTraceFlowEdgeCases:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "only_stdlib", exclude_stdlib=True)
+        steps, _ = trace_flow(pkg, "only_stdlib", exclude_stdlib=True)
         assert len(steps) == 1
         assert steps[0].name == "only_stdlib"
 
@@ -190,7 +190,7 @@ class TestTraceFlowEdgeCases:
         pkg = analyze_package(pkg_path)
         # Provide an empty index — all lookups will miss
         empty_index: dict[tuple[str, str], list[CallSite]] = {}
-        steps = trace_flow(pkg, "lonely", callee_index=empty_index)
+        steps, _ = trace_flow(pkg, "lonely", callee_index=empty_index)
         # Entry point still appears, just no children
         assert len(steps) == 1
         assert steps[0].name == "lonely"
