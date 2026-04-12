@@ -116,7 +116,10 @@ def build_detail(
 ) -> dict[str, Any]:
     """Build detail dict from a FunctionInfo, ClassInfo, or VariableInfo."""
     if isinstance(sym, VariableInfo):
-        return variable_detail(sym, file=file)
+        detail = variable_detail(sym, file=file)
+        if source and abs_path:
+            detail["source"] = read_source(abs_path, sym.line, sym.line)
+        return detail
 
     if isinstance(sym, FunctionInfo):
         detail = function_detail(sym, file=file)
