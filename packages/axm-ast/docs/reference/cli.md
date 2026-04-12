@@ -372,6 +372,9 @@ axm-ast flows [OPTIONS] [PATH]
 
 Without `--trace`, detects entry points (cyclopts, click, Flask, FastAPI, pytest, `__main__`, `__all__` exports). With `--trace`, performs BFS call-graph traversal from the named symbol.
 
+!!! warning "Detail validation"
+    Invalid `--detail` values are rejected before tracing begins. The CLI exits with status 1, the MCP tool returns `success=False`, and the hook returns `HookResult.fail()`.
+
 !!! note "Cross-module resolution"
     With `--cross-module`, the tracer resolves `from X import Y` statements and traces into the target module. When the target is a **sibling package** (e.g. `tests/` importing from `django/`), the tracer walks up to the **project root** (detected via `.git`, `pyproject.toml`, `setup.py`) as a fallback search path.
 
