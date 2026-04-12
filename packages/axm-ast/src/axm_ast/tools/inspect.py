@@ -22,6 +22,7 @@ from .inspect_resolve import (
     resolve_module,
     resolve_path,
 )
+from .inspect_text import render_batch_text, render_symbol_text
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,15 @@ class InspectTool(AXMTool):
                 results.append(res.data["symbol"])
             else:
                 results.append({"name": sym, "error": res.error})
-        return ToolResult(success=True, data={"symbols": results})
+        try:
+            text = render_batch_text(results)
+        except (KeyError, TypeError):
+            text = None
+        return ToolResult(
+            success=True,
+            data={"symbols": results},
+            text=text,
+        )
 
     def _inspect_symbol(
         self, project_path: Path, symbol: str, *, source: bool = False
@@ -141,13 +150,11 @@ class InspectTool(AXMTool):
         _, sym = results[0]
         file_path = find_symbol_file(pkg, sym)
         abs_path = find_symbol_abs_path(pkg, sym)
+        detail = build_detail(sym, file=file_path, abs_path=abs_path, source=source)
         return ToolResult(
             success=True,
-            data={
-                "symbol": build_detail(
-                    sym, file=file_path, abs_path=abs_path, source=source
-                )
-            },
+            data={"symbol": detail},
+            text=render_symbol_text(detail),
         )
 
     # --- Backward-compatible static aliases for extracted helpers ---

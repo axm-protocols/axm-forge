@@ -18,6 +18,8 @@ Try to resolve *name* as a module name and return module metadata. Returns `None
 
 When `source=True`, the returned detail dict includes a `source` key with the module file content (truncated to 200 lines for large modules).
 
+The returned `ToolResult` includes a `text` field with a human-readable summary produced by `render_module_text(detail)`.
+
 ### Parameters
 
 | Parameter | Type | Default | Description |
@@ -40,6 +42,8 @@ resolve_module_symbol(
 
 Try to resolve `dotted` as `module_name.symbol_name`. Tries the longest module prefix first (e.g. `core.checker` before `core`). Returns `None` if no module prefix matches.
 
+The returned `ToolResult` includes a `text` field with a human-readable summary produced by `render_symbol_text(detail)`.
+
 ### Parameters
 
 | Parameter | Type | Default | Description |
@@ -60,6 +64,8 @@ InspectTool._inspect_symbol(
 
 Core symbol inspection logic within `InspectTool`. Loads the package, then dispatches to `inspect_dotted` (for dotted names) or `search_symbols` + module fallback (for simple names).
 
+The returned `ToolResult` includes a `text` field with a human-readable summary produced by `render_symbol_text(detail)`.
+
 ### Parameters
 
 | Parameter | Type | Default | Description |
@@ -67,3 +73,49 @@ Core symbol inspection logic within `InspectTool`. Loads the package, then dispa
 | `project_path` | `Path` | *required* | Root of the analyzed package |
 | `symbol` | `str` | *required* | Symbol name to inspect |
 | `source` | `bool` | `False` | Attach source code to the result |
+
+---
+
+## `resolve_class_method`
+
+```python
+from axm_ast.tools.inspect_resolve import resolve_class_method
+
+resolve_class_method(
+    pkg: PackageInfo, dotted: str, *, source: bool = False
+) -> ToolResult | None
+```
+
+Try to resolve `dotted` as `ClassName.method_name`. Returns `None` if no class matches, or a `ToolResult(success=False)` if the class exists but the method is not found.
+
+The returned `ToolResult` includes a `text` field with a human-readable summary produced by `render_symbol_text(detail)`.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `pkg` | `PackageInfo` | *required* | Analyzed package info |
+| `dotted` | `str` | *required* | Dotted path (e.g. `"MyClass.my_method"`) |
+| `source` | `bool` | `False` | Attach source code to the resolved method |
+
+---
+
+## `InspectTool._inspect_batch`
+
+```python
+InspectTool._inspect_batch(
+    self, project_path: Path, symbols: list[str], *, source: bool
+) -> ToolResult
+```
+
+Inspect multiple symbols in batch. Iterates over `symbols`, calling `_inspect_symbol` for each, and collects the results.
+
+The returned `ToolResult` includes a `text` field with a human-readable summary produced by `render_batch_text(results)`, with each symbol separated by a blank line.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `project_path` | `Path` | *required* | Root of the analyzed package |
+| `symbols` | `list[str]` | *required* | List of symbol names to inspect |
+| `source` | `bool` | *required* | Attach source code to each result |
