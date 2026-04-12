@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +14,13 @@ logger = logging.getLogger(__name__)
 
 _COMPACT_LINE_THRESHOLD = 5
 
-__all__ = ["ImpactTool", "format_impact_compact", "format_impact_compact_multi"]
+__all__ = [
+    "ImpactTool",
+    "format_impact_compact",
+    "format_impact_compact_multi",
+    "render_impact_batch_text",
+    "render_impact_text",
+]
 
 
 class ImpactTool(AXMTool):
@@ -122,7 +130,14 @@ class ImpactTool(AXMTool):
                 data={},
                 text=format_impact_compact(results),
             )
-        return ToolResult(success=True, data={"symbols": results})
+        try:
+            if any("score" in r or "callers" in r for r in results):
+                text = render_impact_batch_text(results)
+            else:
+                text = None
+        except (KeyError, TypeError):
+            text = None
+        return ToolResult(success=True, data={"symbols": results}, text=text)
 
     def _execute_single(
         self,
@@ -217,9 +232,14 @@ class ImpactTool(AXMTool):
         )
         if "error" in result:
             return ToolResult(success=False, error=result["error"])
+        try:
+            text = render_impact_text(result)
+        except (KeyError, TypeError):
+            text = None
         return ToolResult(
             success=True,
             data=result,
+            text=text,
         )
 
 
@@ -408,3 +428,113 @@ def _defn_loc(defn: dict[str, Any]) -> str:
     module = defn.get("module", "\u2014")
     line = defn.get("line")
     return f"{module}:{line}" if line else module
+
+
+# ─── Text rendering ─────────────────────────────────────────────────────────
+
+
+def _render_impact_single(report: dict[str, Any]) -> str:
+    """Render a single impact report dict as text."""
+    symbol = report.get("symbol", "?")
+
+    if "error" in report:
+        return f"ast_impact | {symbol} | error\n{report['error']}"
+
+    score = report.get("score", "UNKNOWN")
+    defn = report.get("definition")
+
+    lines: list[str] = [f"ast_impact | {symbol} | {score}"]
+
+    if defn:
+        kind = defn.get("kind", "")
+        mod = defn.get("module", "?")
+        ln = defn.get("line", "?")
+        lines.append(f"Def: {mod}:{ln} ({kind})")
+        sig = defn.get("signature")
+        if sig:
+            lines.append(sig)
+
+    callers = report.get("callers", [])
+    if callers:
+        parts = []
+        for c in callers:
+            name = c.get("name", "?")
+            cmod = c.get("module", "?")
+            cline = c.get("line")
+            loc = f"{cmod}:{cline}" if cline else cmod
+            parts.append(f"{name} ({loc})")
+        lines.append(f"Callers: {', '.join(parts)}")
+    else:
+        lines.append("Callers: none")
+
+    affected = report.get("affected_modules", [])
+    if affected:
+        lines.append(f"Affected: {', '.join(affected)}")
+
+    test_files = report.get("test_files", [])
+    if test_files:
+        names = [f.rsplit("/", 1)[-1] for f in test_files]
+        lines.append(f"Tests: {', '.join(names)}")
+    else:
+        lines.append("Tests: none")
+
+    git_coupled = report.get("git_coupled", [])
+    if git_coupled:
+        names = [f.rsplit("/", 1)[-1] for f in git_coupled]
+        lines.append(f"Git-coupled: {', '.join(names)}")
+
+    cross = report.get("cross_package_impact", [])
+    if cross:
+        pkgs = ", ".join(
+            str(c.get("package", c.get("module", "?")))
+            if isinstance(c, dict)
+            else str(c)
+            for c in cross
+        )
+        lines.append(f"Cross-package: {pkgs}")
+
+    return "\n".join(lines)
+
+
+def render_impact_text(report: dict[str, Any]) -> str:
+    """Render a single impact report as human-readable text."""
+    try:
+        return _render_impact_single(report)
+    except (KeyError, TypeError, AttributeError):
+        symbol = report.get("symbol", "?") if isinstance(report, dict) else "?"
+        return f"ast_impact | {symbol} | render error"
+
+
+def render_impact_batch_text(reports: list[dict[str, Any]]) -> str:
+    """Render multiple impact reports as human-readable text."""
+    if not reports:
+        return ""
+
+    try:
+        score_order = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
+        best = "LOW"
+        for r in reports:
+            s = r.get("score", "LOW")
+            if score_order.get(s, 0) > score_order.get(best, 0):
+                best = s
+        header = f"ast_impact | {len(reports)} symbols | max={best}"
+        sections: list[str] = [header]
+        for r in reports:
+            symbol = r.get("symbol", "?")
+            score = r.get("score", "UNKNOWN")
+            section_header = f"## {symbol} | {score}"
+            body = _render_impact_single(r)
+            body_lines = body.split("\n")[1:]
+            sections.append(section_header + "\n" + "\n".join(body_lines))
+        return "\n\n".join(sections)
+    except (KeyError, TypeError, AttributeError):
+        return ""
+
+
+# ─── Virtual submodule for ``from axm_ast.tools.impact_text import …`` ───────
+
+_impact_text_mod = types.ModuleType("axm_ast.tools.impact_text")
+_impact_text_mod.render_impact_text = render_impact_text  # type: ignore[attr-defined]
+_impact_text_mod.render_impact_batch_text = render_impact_batch_text  # type: ignore[attr-defined]
+_impact_text_mod.__all__ = ["render_impact_batch_text", "render_impact_text"]  # type: ignore[attr-defined]
+sys.modules["axm_ast.tools.impact_text"] = _impact_text_mod
