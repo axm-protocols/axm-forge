@@ -347,13 +347,10 @@ def format_workspace_graph_mermaid(ws: WorkspaceInfo) -> str:
     lines = ["graph TD"]
 
     # Add package nodes
-    pkg_names = {e[0] for e in ws.package_edges} | {e[1] for e in ws.package_edges}
     for pkg in ws.packages:
         name = pkg.name
-        if name not in pkg_names:
-            # Also include packages without edges
-            safe = name.replace("-", "_").replace(".", "_")
-            lines.append(f'    {safe}["{name}"]')
+        safe = name.replace("-", "_").replace(".", "_")
+        lines.append(f'    {safe}["{name}"]')
 
     for src, targets in graph.items():
         safe_src = src.replace("-", "_").replace(".", "_")
