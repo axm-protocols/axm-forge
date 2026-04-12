@@ -220,3 +220,49 @@ When given a list, each symbol gets its own row with per-symbol callers.
 ### Return value
 
 Markdown string with symbol table, caller details, and test footer. The `score` field (`LOW`, `MEDIUM`, `HIGH`) determines the displayed severity. When given a list, the maximum score across all reports is used as the headline score.
+
+---
+
+## `render_impact_text`
+
+```python
+from axm_ast.tools.impact import render_impact_text
+
+render_impact_text(report: dict[str, Any]) -> str
+```
+
+Render a single impact report as human-readable text. Produces a compact key-value format with header, definition location, callers, affected modules, test files, git-coupled files, and cross-package impact.
+
+Falls back to a minimal error line on malformed input.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `report` | `dict[str, Any]` | *required* | Single impact dict as returned by `_analyze_single` |
+
+### Return value
+
+Multi-line string starting with `ast_impact | {symbol} | {score}`, followed by definition, callers, and test information.
+
+---
+
+## `render_impact_batch_text`
+
+```python
+from axm_ast.tools.impact import render_impact_batch_text
+
+render_impact_batch_text(reports: list[dict[str, Any]]) -> str
+```
+
+Render multiple impact reports as human-readable text. Produces a header with symbol count and maximum score, followed by per-symbol sections.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `reports` | `list[dict[str, Any]]` | *required* | List of per-symbol impact dicts |
+
+### Return value
+
+Multi-line string starting with `ast_impact | {n} symbols | max={score}`, followed by `## {symbol} | {score}` sections. Returns empty string for an empty list.
