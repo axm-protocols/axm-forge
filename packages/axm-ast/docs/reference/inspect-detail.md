@@ -67,7 +67,7 @@ Build detail dict from a `VariableInfo`. Returns keys: `name`, `file`, `kind`, `
 function_detail(sym: FunctionInfo, *, file: str = "") -> dict[str, Any]
 ```
 
-Build detail dict from a `FunctionInfo`. Returns keys: `name`, `file`, `start_line`, `end_line`, `signature`, and optionally `docstring`, `return_type`, `parameters`.
+Build detail dict from a `FunctionInfo`. Returns keys: `name`, `kind`, `file`, `start_line`, `end_line`, `signature`, and optionally `docstring`, `return_type`, `parameters`.
 
 ---
 
@@ -77,7 +77,7 @@ Build detail dict from a `FunctionInfo`. Returns keys: `name`, `file`, `start_li
 class_detail(sym: ClassInfo, *, file: str = "") -> dict[str, Any]
 ```
 
-Build detail dict from a `ClassInfo`. Returns keys: `name`, `file`, `start_line`, `end_line`, and optionally `docstring`, `bases`, `methods`.
+Build detail dict from a `ClassInfo`. Returns keys: `name`, `kind`, `file`, `start_line`, `end_line`, and optionally `docstring`, `bases`, `methods`.
 
 ---
 
