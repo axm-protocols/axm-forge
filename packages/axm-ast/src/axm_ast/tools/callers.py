@@ -42,7 +42,8 @@ class CallersTool(AXMTool):
             symbol: Symbol name to search for (required).
 
         Returns:
-            ToolResult with caller list.
+            ToolResult with ``data={"callers": [...], "count": N}`` and
+            a compact ``text`` rendering for token-efficient MCP responses.
         """
         if not symbol:
             return ToolResult(success=False, error="symbol parameter is required")
@@ -80,6 +81,24 @@ class CallersTool(AXMTool):
             return ToolResult(
                 success=True,
                 data={"callers": caller_data, "count": len(caller_data)},
+                text=CallersTool._render_text(caller_data, symbol=symbol),
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
+
+    @staticmethod
+    def _render_text(callers: list[dict[str, Any]], *, symbol: str) -> str:
+        """Render callers as compact text for token-efficient MCP responses."""
+        header = f"ast_callers | {symbol} | {len(callers)} callers"
+        if not callers:
+            return header
+        lines = [header]
+        for c in callers:
+            module = c["module"].removeprefix("src.")
+            line = c["line"]
+            context = c.get("context")
+            if context is not None:
+                lines.append(f"{module}:{line} {context}")
+            else:
+                lines.append(f"{module}:{line}")
+        return "\n".join(lines)
