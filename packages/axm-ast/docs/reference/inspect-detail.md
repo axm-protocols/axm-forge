@@ -18,7 +18,7 @@ build_detail(
 ) -> dict[str, Any]
 ```
 
-Dispatch to the appropriate `*_detail` function based on symbol type. Optionally attaches source code.
+Dispatch to the appropriate `*_detail` function based on symbol type. When `source=True` and `abs_path` is provided, attaches source code for functions, classes, and variables.
 
 ### Parameters
 
@@ -28,6 +28,26 @@ Dispatch to the appropriate `*_detail` function based on symbol type. Optionally
 | `file` | `str` | `""` | Relative file path |
 | `abs_path` | `str` | `""` | Absolute file path (needed when `source=True`) |
 | `source` | `bool` | `False` | Attach source code to the detail dict |
+
+---
+
+## `read_source`
+
+```python
+from axm_ast.tools.inspect_detail import read_source
+
+read_source(abs_file_path: str, start: int, end: int) -> str
+```
+
+Read source lines from a file by absolute path. Returns the joined lines from `start` to `end` (1-based, inclusive). Returns an empty string on `OSError` or `IndexError`.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `abs_file_path` | `str` | *required* | Absolute path to the source file |
+| `start` | `int` | *required* | First line number (1-based) |
+| `end` | `int` | *required* | Last line number (1-based, inclusive) |
 
 ---
 
