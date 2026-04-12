@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -7,6 +8,9 @@ from unittest.mock import patch
 import pytest
 
 from axm_ast.tools.graph import GraphTool
+
+_NODE_DECL_RE = re.compile(r'^\s+(\w+)\[".*"\]', re.MULTILINE)
+_EDGE_RE = re.compile(r"^\s+(\S+)\s+-->\s+(\S+)", re.MULTILINE)
 
 
 @pytest.fixture
@@ -17,7 +21,13 @@ def graph_tool() -> GraphTool:
 @pytest.fixture
 def fake_workspace():
     """Workspace with two packages and one dependency edge."""
-    ws = SimpleNamespace(packages={"axm-alpha": object(), "axm-beta": object()})
+    ws = SimpleNamespace(
+        packages=[
+            SimpleNamespace(name="axm-alpha"),
+            SimpleNamespace(name="axm-beta"),
+        ],
+        package_edges=[("axm-alpha", "axm-beta")],
+    )
     graph = {"axm-alpha": ["axm-beta"]}
     return ws, graph
 
@@ -25,7 +35,13 @@ def fake_workspace():
 @pytest.fixture
 def fake_workspace_no_deps():
     """Workspace where packages have no inter-package dependencies."""
-    ws = SimpleNamespace(packages={"axm-solo": object(), "axm-lone": object()})
+    ws = SimpleNamespace(
+        packages=[
+            SimpleNamespace(name="axm-solo"),
+            SimpleNamespace(name="axm-lone"),
+        ],
+        package_edges=[],
+    )
     graph: dict[str, list[str]] = {}
     return ws, graph
 
@@ -85,6 +101,29 @@ def test_graph_tool_workspace_text(
     assert result.success is True
     assert result.data.get("text")
     assert len(result.data["text"]) > 0
+
+
+def test_graph_tool_workspace_mermaid_valid(
+    graph_tool: GraphTool, fake_workspace: tuple[SimpleNamespace, dict[str, list[str]]]
+) -> None:
+    """Mermaid output: all edge node IDs are in declared node set."""
+    ws, graph = fake_workspace
+    with (
+        patch.object(graph_tool, "_detect_workspace", return_value=True),
+        patch("axm_ast.core.workspace.analyze_workspace", return_value=ws),
+        patch("axm_ast.core.workspace.build_workspace_dep_graph", return_value=graph),
+    ):
+        result = graph_tool.execute(path="/fake", format="mermaid")
+
+    assert result.success is True
+    mermaid = result.data["mermaid"]
+    declared = {m.group(1) for m in _NODE_DECL_RE.finditer(mermaid)}
+    edge_ids: set[str] = set()
+    for m in _EDGE_RE.finditer(mermaid):
+        edge_ids.add(m.group(1))
+        edge_ids.add(m.group(2))
+    missing = edge_ids - declared
+    assert not missing, f"Edge IDs not declared as nodes: {missing}\n{mermaid}"
 
 
 # ---------- Edge cases ----------
