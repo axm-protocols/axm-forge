@@ -153,7 +153,9 @@ for fn in results:
 ```
 
 `analyze_package` auto-detects src-layout projects (i.e. `src/<pkg>/__init__.py`)
-and sets the package root inside `src/`, so module names stay importable.
+and sets the package root to the actual package directory under `src/` (e.g.
+`src/axm_ast/`), so `pkg.name` and import resolution use the real package name
+instead of `"src"`.
 
 Use `get_package` instead of `analyze_package` to avoid re-parsing the same
 package multiple times in a session:
