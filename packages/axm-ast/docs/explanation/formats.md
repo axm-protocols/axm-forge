@@ -115,7 +115,7 @@ axm-ast docs . --detail summary --pages architecture,howto
 
 ## Flow Detail Levels (`flows`)
 
-The `flows` command supports two detail levels via `--detail`:
+The `flows` command supports three detail levels via `--detail`:
 
 ### Trace (default)
 
@@ -131,6 +131,14 @@ Adds function source text to each `FlowStep`. Useful for full code-level tracing
 
 ```bash
 axm-ast flows src/mylib --entry main --detail source
+```
+
+### Compact
+
+Returns a tree-formatted string with box-drawing characters and metadata keys: `entry`, `compact` (the tree string), `depth` (echoing `max_depth`), `cross_module`, and `count`.
+
+```bash
+axm-ast flows src/mylib --entry main --detail compact
 ```
 
 When `--cross-module` is enabled, the BFS also resolves imported symbols across package boundaries. See [Cross-Module Resolution](cross_module_resolution.md) for the algorithm details.
