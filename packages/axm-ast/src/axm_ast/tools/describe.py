@@ -8,6 +8,8 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.tools.describe_text import render_describe_text
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["DescribeTool"]
@@ -101,19 +103,22 @@ class DescribeTool(AXMTool):
                     "modules": toc,
                     "module_count": len(toc),
                 }
+                result_text = render_describe_text(result_data, "toc")
             elif compress:
                 text = format_compressed(pkg)
                 result_data = {
                     "compressed": text,
                     "module_count": len(pkg.modules),
                 }
+                result_text = text
             else:
                 data = format_json(pkg, detail=detail)
                 result_data = {
                     "modules": data["modules"],
                     "module_count": len(pkg.modules),
                 }
+                result_text = render_describe_text(result_data, detail)
 
-            return ToolResult(success=True, data=result_data)
+            return ToolResult(success=True, data=result_data, text=result_text)
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))

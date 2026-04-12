@@ -30,6 +30,7 @@ nav:
   - Reference:
     - CLI: reference/cli.md
     - API: reference/api.md
+    - Describe Text: reference/describe-text.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Output Formats: explanation/formats.md
