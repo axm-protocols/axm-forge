@@ -156,7 +156,7 @@ class ImpactTool(AXMTool):
         """Run impact analysis for a single symbol.
 
         Returns:
-            Impact dict with ``severity`` key on success,
+            Impact dict with ``score`` key on success,
             or ``{"symbol": name, "error": msg}`` on failure.
         """
         try:
@@ -179,7 +179,6 @@ class ImpactTool(AXMTool):
                     test_filter=test_filter,
                 )
 
-            impact["severity"] = impact.get("score", "UNKNOWN")
             if impact.get("definition") is None:
                 return {"symbol": symbol, "error": f"Symbol '{symbol}' not found"}
             return impact
@@ -376,7 +375,7 @@ def format_impact_compact(
         return format_impact_compact_multi(impact, score)
 
     # Single-report dict path
-    score = impact.get("score") or impact.get("severity", "UNKNOWN")
+    score = impact.get("score", "UNKNOWN")
     return format_impact_compact_multi([impact], score)
 
 

@@ -52,13 +52,9 @@ class GraphTool(AXMTool):
 
     def _detect_workspace(self, project_path: Path) -> bool:
         """Return True if *project_path* is a uv workspace root."""
-        from axm_ast.core.workspace import analyze_workspace
+        from axm_ast.core.workspace import detect_workspace
 
-        try:
-            analyze_workspace(project_path)
-        except ValueError:
-            return False
-        return True
+        return detect_workspace(project_path) is not None
 
     def _execute_workspace(self, project_path: Path, *, format: str) -> ToolResult:
         """Build inter-package dependency graph for a uv workspace."""
