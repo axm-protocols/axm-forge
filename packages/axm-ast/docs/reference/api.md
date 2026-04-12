@@ -193,3 +193,30 @@ Format a workspace context dict as compact plain text suitable for `ToolResult.t
 ### Output
 
 Header line: `{workspace} | workspace | {N} packages`, followed by a `Packages:` listing with per-package stats and an optional `Dependencies:` section showing inter-package edges.
+
+---
+
+## `format_impact_compact`
+
+```python
+from axm_ast.tools.impact import format_impact_compact
+
+format_impact_compact(
+    impact: dict[str, Any] | list[dict[str, Any]],
+) -> str
+```
+
+Format impact analysis as a compact markdown table.
+
+Accepts either a single impact dict or a list of per-symbol reports.
+When given a list, each symbol gets its own row with per-symbol callers.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `impact` | `dict[str, Any] \| list[dict[str, Any]]` | *required* | Single impact dict or list of per-symbol impact dicts |
+
+### Return value
+
+Markdown string with symbol table, caller details, and test footer. The `score` field (`LOW`, `MEDIUM`, `HIGH`) determines the displayed severity. When given a list, the maximum score across all reports is used as the headline score.
