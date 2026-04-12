@@ -8,9 +8,22 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.tools.flows_text import (
+    render_compact_text,
+    render_entry_points_text,
+    render_source_text,
+    render_trace_text,
+)
+
 logger = logging.getLogger(__name__)
 
-__all__ = ["FlowsTool"]
+__all__ = [
+    "FlowsTool",
+    "render_compact_text",
+    "render_entry_points_text",
+    "render_source_text",
+    "render_trace_text",
+]
 
 
 class FlowsTool(AXMTool):
@@ -96,17 +109,26 @@ class FlowsTool(AXMTool):
                 actual_depth = max((s.depth for s in steps), default=0)
                 if detail == "compact":
                     compact = format_flow_compact(steps)
+                    data = {
+                        "entry": entry,
+                        "compact": compact,
+                        "traces": compact,
+                        "depth": actual_depth,
+                        "cross_module": cross_module,
+                        "count": len(steps),
+                        "truncated": truncated,
+                    }
                     return ToolResult(
                         success=True,
-                        data={
-                            "entry": entry,
-                            "compact": compact,
-                            "traces": compact,
-                            "depth": actual_depth,
-                            "cross_module": cross_module,
-                            "count": len(steps),
-                            "truncated": truncated,
-                        },
+                        data=data,
+                        text=render_compact_text(
+                            entry=entry,
+                            compact=compact,
+                            depth=actual_depth,
+                            cross_module=cross_module,
+                            count=len(steps),
+                            truncated=truncated,
+                        ),
                     )
 
                 step_dicts = []
@@ -123,34 +145,48 @@ class FlowsTool(AXMTool):
                     if s.source is not None:
                         d["source"] = s.source
                     step_dicts.append(d)
+                data = {
+                    "entry": entry,
+                    "steps": step_dicts,
+                    "depth": actual_depth,
+                    "cross_module": cross_module,
+                    "count": len(steps),
+                    "truncated": truncated,
+                }
+                renderer = (
+                    render_source_text if detail == "source" else render_trace_text
+                )
                 return ToolResult(
                     success=True,
-                    data={
-                        "entry": entry,
-                        "steps": step_dicts,
-                        "depth": actual_depth,
-                        "cross_module": cross_module,
-                        "count": len(steps),
-                        "truncated": truncated,
-                    },
+                    data=data,
+                    text=renderer(
+                        entry=entry,
+                        steps=step_dicts,
+                        depth=actual_depth,
+                        cross_module=cross_module,
+                        count=len(steps),
+                        truncated=truncated,
+                    ),
                 )
 
             entries = find_entry_points(pkg)
+            entry_dicts = [
+                {
+                    "name": e.name,
+                    "module": e.module,
+                    "kind": e.kind,
+                    "line": e.line,
+                    "framework": e.framework,
+                }
+                for e in entries
+            ]
             return ToolResult(
                 success=True,
                 data={
-                    "entry_points": [
-                        {
-                            "name": e.name,
-                            "module": e.module,
-                            "kind": e.kind,
-                            "line": e.line,
-                            "framework": e.framework,
-                        }
-                        for e in entries
-                    ],
+                    "entry_points": entry_dicts,
                     "count": len(entries),
                 },
+                text=render_entry_points_text(entry_dicts, count=len(entries)),
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
