@@ -912,7 +912,7 @@ def flows(
 
     if trace is not None:
         try:
-            steps = trace_flow(
+            steps, _truncated = trace_flow(
                 pkg,
                 trace,
                 max_depth=max_depth,

@@ -43,7 +43,7 @@ class TestTraceFlowValidDetailsAccepted:
             "axm_ast.core.flows.find_callees",
             lambda *a, **kw: [],
         )
-        result = trace_flow(pkg, "main", detail=detail)
+        result, _ = trace_flow(pkg, "main", detail=detail)
         assert isinstance(result, list)
 
 
@@ -75,7 +75,9 @@ class TestFlowsToolValidDetails:
     ) -> None:
         mock_pkg = MagicMock()
         monkeypatch.setattr("axm_ast.core.cache.get_package", lambda *a, **kw: mock_pkg)
-        monkeypatch.setattr("axm_ast.core.flows.trace_flow", lambda *a, **kw: [])
+        monkeypatch.setattr(
+            "axm_ast.core.flows.trace_flow", lambda *a, **kw: ([], False)
+        )
         monkeypatch.setattr(
             "axm_ast.core.flows.format_flow_compact", lambda *a, **kw: ""
         )
