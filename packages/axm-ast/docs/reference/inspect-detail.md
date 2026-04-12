@@ -98,3 +98,69 @@ Build detail dict for a module. Returns keys: `name`, `kind` (`"module"`), `file
 | `pkg` | `PackageInfo` | *required* | Analyzed package info |
 | `mod` | `ModuleInfo` | *required* | Module node |
 | `name` | `str` | *required* | Display name for the module |
+
+---
+
+## Text Renderers
+
+Pure functions that convert detail dicts (as returned by the helpers above) into compact, human-readable text. Imported via `axm_ast.tools.inspect_detail`.
+
+---
+
+### `render_function_text`
+
+```python
+render_function_text(detail: dict[str, Any]) -> str
+```
+
+Render a function detail dict as compact text: header line, signature, truncated docstring, params, return type. Appends a fenced Python source block when `source` is present.
+
+---
+
+### `render_class_text`
+
+```python
+render_class_text(detail: dict[str, Any]) -> str
+```
+
+Render a class detail dict as compact text: header with bases, truncated docstring, methods list. Appends source block when present.
+
+---
+
+### `render_variable_text`
+
+```python
+render_variable_text(detail: dict[str, Any]) -> str
+```
+
+Render a variable detail dict: header with `variable` suffix, annotation, and/or value repr.
+
+---
+
+### `render_module_text`
+
+```python
+render_module_text(detail: dict[str, Any]) -> str
+```
+
+Render a module detail dict: header with symbol count, truncated docstring, function and class lists.
+
+---
+
+### `render_symbol_text`
+
+```python
+render_symbol_text(detail: dict[str, Any]) -> str
+```
+
+Dispatcher — selects the correct renderer based on the `kind` key in the detail dict (`function`, `method`, `class`, `variable`, `module`).
+
+---
+
+### `render_batch_text`
+
+```python
+render_batch_text(symbols: list[dict[str, Any]]) -> str
+```
+
+Join multiple symbol renders with blank-line separators. Error entries (dicts with an `error` key) are rendered as `{name}  ⚠ {error}`. Returns empty string for an empty list.
