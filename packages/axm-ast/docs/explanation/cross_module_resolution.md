@@ -117,6 +117,12 @@ Handles the common pattern where `__init__.py` re-exports a symbol from a submod
 !!! warning "Single-level only"
     `_follow_reexport` follows **one level** of re-export. Deeply chained re-exports (A → B → C) will not be resolved beyond the first hop.
 
+## Workspace-Level Callee Search (`find_callees_workspace`)
+
+`find_callees_workspace(ws, symbol)` iterates every package in a `WorkspaceInfo` and delegates to `find_callees` per package. Results are disambiguated by prefixing each `CallSite.module` with `pkg_name::`. A shared `_parse_cache` dict is threaded across all packages to avoid redundant tree-sitter parsing.
+
+The `CalleesTool` (`ast_callees`) automatically attempts workspace-level analysis first via `analyze_workspace`; if the path is not a workspace root (raises `ValueError`), it falls back to single-package `find_callees`.
+
 ## Parse Caching
 
 The `parse_cache` dict in `_CrossModuleContext` is threaded through `find_callees` to avoid redundant tree-sitter parsing. During BFS, `find_callees` is called once per depth level per symbol — without caching, this would be quadratic in the worst case.

@@ -54,11 +54,18 @@ class CalleesTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            from axm_ast.core.cache import get_package
-            from axm_ast.core.flows import find_callees
+            try:
+                from axm_ast.core.flows import find_callees_workspace
+                from axm_ast.core.workspace import analyze_workspace
 
-            pkg = get_package(project_path)
-            callees = find_callees(pkg, symbol)
+                ws = analyze_workspace(project_path)
+                callees = find_callees_workspace(ws, symbol)
+            except ValueError:
+                from axm_ast.core.cache import get_package
+                from axm_ast.core.flows import find_callees
+
+                pkg = get_package(project_path)
+                callees = find_callees(pkg, symbol)
 
             callee_data = [
                 {
