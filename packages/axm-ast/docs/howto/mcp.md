@@ -9,6 +9,7 @@
 | `ast_context(path, depth?)` | `axm-ast context` | One-shot project dump (stack, layout, patterns, modules) |
 | `ast_describe(path, detail?, compress?, modules?)` | `axm-ast describe` | Full API surface (signatures, docstrings, `__all__`) |
 | `ast_search(path, name?, returns?, kind?, inherits?)` | `axm-ast search` | Semantic symbol lookup |
+| `ast_callees(path, symbol)` | — | Find all functions called by a symbol (inverse of `ast_callers`) |
 | `ast_callers(path, symbol)` | `axm-ast callers` | Find all call-sites of a symbol |
 | `ast_impact(path, symbol, exclude_tests?, test_filter?, detail?)` | `axm-ast impact` | Change blast radius analysis. `detail="compact"` returns a markdown table. `test_filter="related"` keeps only direct test callers |
 | `ast_inspect(path, symbol?, symbols?)` | `axm-ast inspect` | Full detail on a single symbol or batch list of `symbols`; falls back to module metadata when `symbol` matches a module name (returns `kind: "module"`, `functions`, `classes`, `symbol_count`, `docstring`, `file`) |
