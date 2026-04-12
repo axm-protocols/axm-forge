@@ -153,8 +153,9 @@ class TestImpactTestFilterFunctional:
             detail="compact",
         )
         assert result.success
-        compact = result.data["compact"]
+        compact = result.text
         # Compact output should contain the test caller reference
+        assert compact is not None
         assert "test_a" in compact
 
     def test_impact_mcp_test_filter_param(self, tmp_path: Path) -> None:

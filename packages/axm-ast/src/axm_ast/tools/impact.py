@@ -95,9 +95,16 @@ class ImpactTool(AXMTool):
         *,
         test_filter: str | None = None,
     ) -> ToolResult:
-        """Run batch impact analysis for multiple symbols."""
+        """Run batch impact analysis for multiple symbols.
+
+        In compact mode, returns formatted markdown via ``ToolResult.text``
+        with an empty ``data`` dict. In full mode, returns per-symbol dicts
+        under ``data["symbols"]``.
+        """
         if not isinstance(symbols, list):
             return ToolResult(success=False, error="symbols parameter must be a list")
+        if not symbols:
+            return ToolResult(success=False, error="symbols list must not be empty")
         results: list[dict[str, Any]] = []
         for sym in symbols:
             tf = {"test_filter": test_filter} if test_filter is not None else {}
@@ -112,7 +119,8 @@ class ImpactTool(AXMTool):
         if detail == "compact":
             return ToolResult(
                 success=True,
-                data={"compact": format_impact_compact(results)},
+                data={},
+                text=format_impact_compact(results),
             )
         return ToolResult(success=True, data={"symbols": results})
 
@@ -125,7 +133,12 @@ class ImpactTool(AXMTool):
         *,
         test_filter: str | None = None,
     ) -> ToolResult:
-        """Run single-symbol impact analysis with optional compact output."""
+        """Run single-symbol impact analysis with optional compact output.
+
+        In compact mode, returns formatted markdown via ``ToolResult.text``
+        with an empty ``data`` dict. Otherwise delegates to
+        ``_analyze_single_result``.
+        """
         tf = {"test_filter": test_filter} if test_filter is not None else {}
         if detail == "compact":
             result = self._analyze_single(
@@ -136,7 +149,8 @@ class ImpactTool(AXMTool):
             )
             return ToolResult(
                 success=True,
-                data={"compact": format_impact_compact(result)},
+                data={},
+                text=format_impact_compact(result),
             )
         return self._analyze_single_result(
             project_path,

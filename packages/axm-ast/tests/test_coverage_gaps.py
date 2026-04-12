@@ -176,7 +176,8 @@ class TestImpactToolEdgeCases:
             path=str(pkg), symbols=["foo", "bar"], detail="compact"
         )
         assert result.success is True
-        assert "compact" in result.data
+        assert result.data == {}
+        assert result.text is not None
 
     def test_single_compact(self, tmp_path: Path) -> None:
         from axm_ast.tools.impact import ImpactTool
@@ -187,7 +188,8 @@ class TestImpactToolEdgeCases:
         )
         result = ImpactTool().execute(path=str(pkg), symbol="foo", detail="compact")
         assert result.success is True
-        assert "compact" in result.data
+        assert result.data == {}
+        assert result.text is not None
 
     def test_symbol_not_found_error_result(self, tmp_path: Path) -> None:
         from axm_ast.tools.impact import ImpactTool

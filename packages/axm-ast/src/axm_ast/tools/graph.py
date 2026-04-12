@@ -66,7 +66,8 @@ class GraphTool(AXMTool):
 
         ws = analyze_workspace(project_path)
         graph = build_workspace_dep_graph(ws)
-        nodes = [pkg.name for pkg in ws.packages]
+        packages = ws.packages if hasattr(ws, "packages") else []
+        nodes = [pkg.name if hasattr(pkg, "name") else str(pkg) for pkg in packages]
 
         if format == "mermaid":
             mermaid_str = format_workspace_graph_mermaid(ws)
