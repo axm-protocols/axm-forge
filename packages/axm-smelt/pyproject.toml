@@ -126,6 +126,15 @@ module = ["axm.*", "cyclopts.*", "tiktoken.*"]
 ignore_missing_imports = true
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Deptry Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.deptry]
+known_first_party = ["axm_smelt"]
+
+[tool.deptry.per_rule_ignores]
+DEP004 = ["mkdocs_gen_files"]
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]

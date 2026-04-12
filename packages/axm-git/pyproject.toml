@@ -202,6 +202,5 @@ include_path = "packages/axm-git/**"
 # ─────────────────────────────────────────────────────────────────────────────
 # Deptry Configuration
 # ─────────────────────────────────────────────────────────────────────────────
-[tool.deptry.per_rule_ignores]
-# axm_git is the package under test — not a transitive dep violation
-DEP003 = ["axm_git"]
+[tool.deptry]
+known_first_party = ["axm_git"]
