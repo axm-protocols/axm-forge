@@ -35,7 +35,7 @@ from axm_ast.core.callers import (
 )
 from axm_ast.core.parser import parse_source
 from axm_ast.models.calls import CallSite
-from axm_ast.models.nodes import ImportInfo, ModuleInfo, PackageInfo
+from axm_ast.models.nodes import ImportInfo, ModuleInfo, PackageInfo, WorkspaceInfo
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ __all__ = [
     "FlowStep",
     "build_callee_index",
     "find_callees",
+    "find_callees_workspace",
     "find_entry_points",
     "format_flow_compact",
     "format_flows",
@@ -315,6 +316,35 @@ def _find_symbol_line(mod: ModuleInfo, name: str) -> int:
 
 
 # ─── Callee resolution ──────────────────────────────────────────────────────
+
+
+def find_callees_workspace(
+    ws: WorkspaceInfo,
+    symbol: str,
+) -> list[CallSite]:
+    """Find all callees of a symbol across a workspace.
+
+    Searches every package in the workspace for callees of the
+    given symbol. Module names are prefixed with ``pkg_name::``
+    for disambiguation.
+
+    Args:
+        ws: Analyzed workspace info.
+        symbol: Name of the function/method to inspect.
+
+    Returns:
+        List of CallSite objects for each call made by the symbol.
+    """
+    all_callees: list[CallSite] = []
+    cache: dict[str, tuple[Any, str]] = {}
+
+    for pkg in ws.packages:
+        callees = find_callees(pkg, symbol, _parse_cache=cache)
+        for call in callees:
+            call.module = f"{pkg.name}::{call.module}"
+            all_callees.append(call)
+
+    return all_callees
 
 
 def find_callees(
