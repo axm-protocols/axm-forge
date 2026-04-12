@@ -1,62 +1,84 @@
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import pytest
 
 from axm_ast.tools.callees import CalleesTool
 
 
-def test_callees_tool_workspace_path(tmp_path: Path) -> None:
-    """CalleesTool at workspace root returns callees with :: prefixed modules."""
-    call_site = MagicMock(
-        module="pkg_a::utils",
-        symbol="helper",
-        line=42,
-        context="helper(x)",
-        call_expression="helper(x)",
-    )
+@pytest.fixture()
+def tool() -> CalleesTool:
+    return CalleesTool()
 
-    ws = MagicMock()
+
+def _make_callsite(**overrides: object) -> SimpleNamespace:
+    defaults = {
+        "module": "pkg.mod",
+        "symbol": "helper",
+        "line": 10,
+        "context": "some_caller",
+        "call_expression": "helper()",
+    }
+    return SimpleNamespace(**(defaults | overrides))
+
+
+def test_callees_output_no_context_key(tool: CalleesTool, tmp_path: str) -> None:
+    """AC1: callee dicts must NOT contain 'context' key."""
+    fake_callees = [_make_callsite(), _make_callsite(symbol="other", line=20)]
 
     with (
-        patch("axm_ast.core.workspace.analyze_workspace", return_value=ws),
         patch(
-            "axm_ast.core.flows.find_callees_workspace",
-            return_value=[call_site],
+            "axm_ast.core.cache.get_package",
+            return_value=SimpleNamespace(),
         ),
-    ):
-        tool = CalleesTool()
-        result = tool.execute(path=str(tmp_path), symbol="my_func")
-
-    assert result.success is True
-    assert result.data["count"] == 1
-    assert result.data["callees"][0]["module"] == "pkg_a::utils"
-
-
-def test_callees_tool_single_package_fallback(tmp_path: Path) -> None:
-    """CalleesTool at single package path falls back — no :: prefix."""
-    call_site = MagicMock(
-        module="core.utils",
-        symbol="helper",
-        line=10,
-        context="helper()",
-        call_expression="helper()",
-    )
-
-    pkg = MagicMock()
-
-    with (
+        patch(
+            "axm_ast.core.flows.find_callees",
+            return_value=fake_callees,
+        ),
         patch(
             "axm_ast.core.workspace.analyze_workspace",
-            side_effect=ValueError("not a workspace"),
+            side_effect=ValueError,
         ),
-        patch("axm_ast.core.cache.get_package", return_value=pkg),
-        patch("axm_ast.core.flows.find_callees", return_value=[call_site]),
     ):
-        tool = CalleesTool()
-        result = tool.execute(path=str(tmp_path), symbol="my_func")
+        result = tool.execute(path=str(tmp_path), symbol="Foo.bar")
 
     assert result.success is True
-    assert result.data["count"] == 1
-    assert result.data["callees"][0]["module"] == "core.utils"
-    assert "::" not in result.data["callees"][0]["module"]
+    for callee in result.data["callees"]:
+        assert "context" not in callee, (
+            f"callee dict should not have 'context': {callee}"
+        )
+        # Ensure other expected keys are present
+        assert "module" in callee
+        assert "symbol" in callee
+        assert "line" in callee
+        assert "call_expression" in callee
+
+
+def test_callers_still_has_context(tmp_path: str) -> None:
+    """AC2: CallersTool output must still include 'context'."""
+    from axm_ast.tools.callers import CallersTool
+
+    caller_tool = CallersTool()
+    fake_callers = [_make_callsite(symbol="caller_fn", line=5)]
+
+    with (
+        patch(
+            "axm_ast.core.cache.get_package",
+            return_value=SimpleNamespace(),
+        ),
+        patch(
+            "axm_ast.core.callers.find_callers",
+            return_value=fake_callers,
+        ),
+        patch(
+            "axm_ast.core.workspace.analyze_workspace",
+            side_effect=ValueError,
+        ),
+    ):
+        result = caller_tool.execute(path=str(tmp_path), symbol="Foo.bar")
+
+    assert result.success is True
+    for caller in result.data["callers"]:
+        assert "context" in caller, f"caller dict must have 'context': {caller}"

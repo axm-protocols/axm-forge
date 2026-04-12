@@ -72,7 +72,6 @@ class CalleesTool(AXMTool):
                     "module": c.module,
                     "symbol": c.symbol,
                     "line": c.line,
-                    "context": c.context,
                     "call_expression": c.call_expression,
                 }
                 for c in callees
