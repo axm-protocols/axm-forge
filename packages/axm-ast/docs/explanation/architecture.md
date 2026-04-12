@@ -119,7 +119,7 @@ Compact text rendering for `DescribeTool` output, following the same pattern as 
 |---|---|
 | `render_describe_text()` | Dispatcher — selects renderer by detail level (`toc`, `summary`, `detailed`) |
 
-The renderer strips type annotations and docstrings to produce token-efficient output suitable for `ToolResult.text`.
+The renderer produces token-efficient output suitable for `ToolResult.text`, stripping `def ` prefixes from signatures and skipping empty modules.
 
 ### 4. Models (`models/`)
 

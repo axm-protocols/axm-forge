@@ -25,9 +25,9 @@ Dispatcher — selects the correct renderer based on the `detail` parameter.
 
 | Detail | Output |
 |---|---|
-| `toc` | Module count header + one line per module: `name  Nf Nc  docstring` |
-| `summary` | Module names with indented function signatures (annotations stripped) and class names |
-| `detailed` | Module headers with docstring first lines, full function signatures with summary lines, classes with bases and methods |
+| `toc` | Header + one line per module: `name  (Nfn Ncls)  docstring` — zero counts omitted, `—` for empty |
+| `summary` | `## module` headers with indented signatures (`def ` stripped) and `class Name(bases)` — empty modules skipped |
+| `detailed` | `## module — docstring` headers, signatures with `# summary` comments, class methods prefixed with `.` — modules with no symbols and no docstring skipped |
 
 ### Return value
 
