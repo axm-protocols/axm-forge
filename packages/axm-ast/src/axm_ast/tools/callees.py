@@ -32,6 +32,20 @@ class CalleesTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_callees"
 
+    @staticmethod
+    def _render_text(callees: list[dict[str, Any]], *, symbol: str) -> str:
+        """Render callees as compact text for token-efficient MCP responses."""
+        header = f"ast_callees | {symbol} | {len(callees)} callees"
+        if not callees:
+            return header
+        lines = [header]
+        for c in callees:
+            module = c["module"].removeprefix("src.")
+            line = c["line"]
+            call_expression = c["call_expression"]
+            lines.append(f"{module}:{line} {call_expression}")
+        return "\n".join(lines)
+
     def execute(
         self, *, path: str = ".", symbol: str | None = None, **kwargs: Any
     ) -> ToolResult:
@@ -79,6 +93,7 @@ class CalleesTool(AXMTool):
             return ToolResult(
                 success=True,
                 data={"callees": callee_data, "count": len(callee_data)},
+                text=CalleesTool._render_text(callee_data, symbol=symbol),
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
