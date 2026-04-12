@@ -503,15 +503,15 @@ def format_toc(pkg: PackageInfo) -> list[dict[str, Any]]:
         summary = parse_docstring(mod.docstring).summary if mod.docstring else None
         func_count = len(mod.functions)
         cls_count = len(mod.classes)
-        modules.append(
-            {
-                "name": mod_name,
-                "docstring": summary,
-                "function_count": func_count,
-                "class_count": cls_count,
-                "symbol_count": func_count + cls_count,
-            }
-        )
+        entry: dict[str, Any] = {
+            "name": mod_name,
+            "function_count": func_count,
+            "class_count": cls_count,
+            "symbol_count": func_count + cls_count,
+        }
+        if summary:
+            entry["docstring"] = summary
+        modules.append(entry)
     return modules
 
 

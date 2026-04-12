@@ -12,6 +12,14 @@ from axm_ast.models.nodes import (
     PackageInfo,
     VariableInfo,
 )
+from axm_ast.tools.inspect_text import (
+    render_batch_text,
+    render_class_text,
+    render_function_text,
+    render_module_text,
+    render_symbol_text,
+    render_variable_text,
+)
 
 __all__ = [
     "build_detail",
@@ -20,6 +28,12 @@ __all__ = [
     "function_detail",
     "read_source",
     "relative_path",
+    "render_batch_text",
+    "render_class_text",
+    "render_function_text",
+    "render_module_text",
+    "render_symbol_text",
+    "render_variable_text",
     "variable_detail",
 ]
 
