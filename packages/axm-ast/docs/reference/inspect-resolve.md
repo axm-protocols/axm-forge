@@ -54,6 +54,32 @@ The returned `ToolResult` includes a `text` field with a human-readable summary 
 
 ---
 
+## `InspectTool.execute`
+
+```python
+InspectTool.execute(
+    self,
+    *,
+    path: str = ".",
+    symbol: str | None = None,
+    symbols: list[str] | None = None,
+    source: bool = False,
+) -> ToolResult
+```
+
+Main entry point for `ast_inspect`. Dispatches to `_inspect_symbol` (single) or `_inspect_batch` (batch) depending on the arguments. When neither `symbol` nor `symbols` is provided, returns an error.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `path` | `str` | `"."` | Path to package directory |
+| `symbol` | `str \| None` | `None` | Single symbol name to inspect (supports dotted paths) |
+| `symbols` | `list[str] \| None` | `None` | List of symbol names for batch inspection |
+| `source` | `bool` | `False` | Include source code in results |
+
+---
+
 ## `_inspect_symbol`
 
 ```python
