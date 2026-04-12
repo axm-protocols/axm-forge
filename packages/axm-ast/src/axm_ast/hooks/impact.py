@@ -23,7 +23,7 @@ from axm.hooks.base import HookResult
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["ImpactHook", "_merge_impact_reports"]
+__all__ = ["DocImpactHook", "ImpactHook"]
 
 _SCORE_ORDER: dict[str, int] = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
 
