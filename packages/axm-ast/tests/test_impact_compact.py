@@ -173,10 +173,10 @@ class TestImpactToolCompactMode:
             detail="compact",
         )
         assert result.success is True
-        # Compact mode wraps markdown in {"compact": "..."}
-        assert isinstance(result.data, dict)
-        assert "compact" in result.data
-        assert isinstance(result.data["compact"], str)
+        # Compact mode returns text, not data
+        assert result.data == {}
+        assert result.text is not None
+        assert isinstance(result.text, str)
 
     def test_impact_tool_full_unchanged(self, sample_pkg: Path) -> None:
         """ImpactTool.execute() without detail → same JSON output (regression)."""
