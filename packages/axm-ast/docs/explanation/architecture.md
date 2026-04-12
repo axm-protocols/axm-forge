@@ -93,7 +93,7 @@ Independent, composable analysis engines:
 | `impact.py` | Change blast radius (callers + reexports + tests + git coupling + cross-package). Workspace analysis delegates to extracted helpers (`_find_workspace_definition`, `_resolve_effective_test_filter`, `_apply_caller_test_filter`) | `analyze_impact()`, `find_definition()`, `analyze_impact_workspace()` |
 | `git_coupling.py` | Git co-change coupling analysis (6-month history) | `git_coupled_files()` |
 | `structural_diff.py` | Symbol-level branch diff via git worktrees | `structural_diff()` |
-| `workspace.py` | Multi-package workspace detection and analysis | `detect_workspace()`, `analyze_workspace()` |
+| `workspace.py` | Multi-package workspace detection and analysis; expands glob patterns in `[tool.uv.workspace]` members and resolves project names for dependency edges | `detect_workspace()`, `analyze_workspace()` |
 | `docs.py` | Documentation tree discovery | `discover_docs()` |
 | `dead_code.py` | Dead code detection with test/lazy-import/base-class/intra-module-ref/namespace-module scanning; namespace resolution uses `_resolve_import_stems` for both bare and from-imports; respects `.gitignore` via `_discover_py_files` | `find_dead_code()`, `DeadSymbol` |
 | `flows.py` | Entry point detection, BFS flow tracing, source enrichment | `find_entry_points()`, `trace_flow()` |
