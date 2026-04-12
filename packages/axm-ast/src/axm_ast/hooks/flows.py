@@ -180,7 +180,10 @@ class FlowsHook:
         kw = _trace_opts_kwargs(opts)
 
         if len(symbols) == 1:
-            steps = trace_flow(pkg, symbols[0], **kw)
+            try:
+                steps = trace_flow(pkg, symbols[0], **kw)
+            except ValueError as exc:
+                return HookResult.fail(str(exc))
             return HookResult.ok(
                 traces=FlowsHook._format_symbol_traces(
                     steps,
@@ -211,8 +214,9 @@ class FlowsHook:
         traces: dict[str, Any] = {}
         seen: set[str] = set()
         for sym in symbols:
-            steps = trace_flow(pkg, sym, callee_index=index, **kw)
-            if not steps:
+            try:
+                steps = trace_flow(pkg, sym, callee_index=index, **kw)
+            except ValueError:
                 continue
             deduped = [s for s in steps if s.name == sym or s.name not in seen]
             seen.update(s.name for s in steps)

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_ast.core.analyzer import analyze_package
 from axm_ast.core.flows import build_callee_index, trace_flow
 from axm_ast.models.calls import CallSite
@@ -130,7 +132,7 @@ class TestTraceFlowEdgeCases:
     """Boundary conditions for trace_flow."""
 
     def test_entry_point_not_found(self, tmp_path: Path) -> None:
-        """_find_symbol_location returns None → empty list returned."""
+        """_find_symbol_location returns None → ValueError raised."""
         pkg_path = _make_pkg(
             tmp_path,
             {
@@ -139,8 +141,8 @@ class TestTraceFlowEdgeCases:
             },
         )
         pkg = analyze_package(pkg_path)
-        steps = trace_flow(pkg, "nonexistent_function")
-        assert steps == []
+        with pytest.raises(ValueError, match="not found"):
+            trace_flow(pkg, "nonexistent_function")
 
     def test_empty_callees(self, tmp_path: Path) -> None:
         """Function with no calls → only entry FlowStep."""
