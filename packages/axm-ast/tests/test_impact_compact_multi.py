@@ -81,10 +81,10 @@ class TestMultiSymbolPerSymbolCallers:
         assert "pkg.x" not in rows[2]
 
 
-class TestMultiSymbolScoreIsMax:
-    """AC3: score uses max-score semantics."""
+class TestMultiSymbolPerSymbolScores:
+    """AC3: each row shows its own per-symbol score."""
 
-    def test_multi_symbol_score_is_max(self) -> None:
+    def test_multi_symbol_per_symbol_scores(self) -> None:
         reports = [
             _make_report("a", score="LOW"),
             _make_report("b", score="HIGH"),
@@ -92,7 +92,9 @@ class TestMultiSymbolScoreIsMax:
         ]
         result = format_impact_compact(reports)
         rows = _data_rows(result)
-        assert "HIGH" in rows[0]
+        assert "LOW" in rows[0]
+        assert "HIGH" in rows[1]
+        assert "MEDIUM" in rows[2]
 
 
 class TestSingleSymbolViaMultiPath:

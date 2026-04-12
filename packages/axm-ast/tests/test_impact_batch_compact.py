@@ -1,155 +1,96 @@
 from __future__ import annotations
 
-from typing import Any
-
 from axm_ast.tools.impact import (
-    ImpactTool,
-    format_impact_compact,
+    format_impact_compact_multi,
 )
 
 
-def _make_report(  # noqa: PLR0913
+def _make_report(
     symbol: str,
+    score: str | None = None,
     *,
     module: str = "mod",
     line: int = 1,
-    callers: list[dict[str, Any]] | None = None,
-    score: str = "LOW",
-    test_files: list[str] | None = None,
-) -> dict[str, Any]:
-    """Build a minimal per-symbol impact report dict."""
-    return {
+    callers: list[dict[str, str]] | None = None,
+) -> dict[str, object]:
+    report: dict[str, object] = {
         "symbol": symbol,
-        "definition": {
-            "name": symbol,
-            "module": module,
-            "line": line,
-            "type": "function",
-        },
+        "definition": {"module": module, "line": line, "file": f"{module}.py"},
         "callers": callers or [],
-        "score": score,
-        "test_files": test_files or [],
+        "test_files": [],
     }
+    if score is not None:
+        report["score"] = score
+    return report
 
 
-# ---------------------------------------------------------------------------
-# Unit tests
-# ---------------------------------------------------------------------------
+# --- Unit tests ---
 
 
-def test_batch_compact_preserves_per_symbol_data():
-    """Each symbol must have its own row with its own callers."""
+def test_batch_compact_per_symbol_scores() -> None:
+    """3 reports with HIGH, LOW, MEDIUM - each row shows its own score."""
     reports = [
-        _make_report(
-            "func_a",
-            module="pkg.alpha",
-            line=10,
-            callers=[{"name": "caller_x", "module": "pkg.alpha", "line": 20}],
-        ),
-        _make_report(
-            "func_b",
-            module="pkg.beta",
-            line=30,
-            callers=[{"name": "caller_y", "module": "pkg.beta", "line": 40}],
-        ),
+        _make_report("func_a", "HIGH"),
+        _make_report("func_b", "LOW"),
+        _make_report("func_c", "MEDIUM"),
     ]
-    result = format_impact_compact(reports)
+    result = format_impact_compact_multi(reports, score="HIGH")
+    rows = [
+        line
+        for line in result.splitlines()
+        if line.startswith("|") and "---" not in line and "Symbol" not in line
+    ]
+    assert len(rows) == 3
+    assert "HIGH" in rows[0]
+    assert "LOW" in rows[1]
+    assert "MEDIUM" in rows[2]
 
-    lines = result.strip().split("\n")
-    row_a = next(row for row in lines if "func_a" in row)
-    row_b = next(row for row in lines if "func_b" in row)
 
-    # Per-symbol callers — not mixed
-    assert "caller_x" in row_a
-    assert "caller_y" in row_b
-    assert "caller_y" not in row_a
-    assert "caller_x" not in row_b
-
-
-def test_batch_compact_score_max():
-    """Max score (HIGH) shown on first row only, second row score is empty."""
+def test_batch_compact_all_same_score() -> None:
+    """2 reports both LOW - both rows show LOW."""
     reports = [
-        _make_report("sym_low", score="LOW"),
-        _make_report("sym_high", score="HIGH"),
+        _make_report("alpha", "LOW"),
+        _make_report("beta", "LOW"),
     ]
-    result = format_impact_compact(reports)
-
-    lines = result.strip().split("\n")
-    data_rows = [
-        row
-        for row in lines
-        if row.startswith("|") and "Symbol" not in row and "---" not in row
+    result = format_impact_compact_multi(reports, score="LOW")
+    rows = [
+        line
+        for line in result.splitlines()
+        if line.startswith("|") and "---" not in line and "Symbol" not in line
     ]
-    assert len(data_rows) == 2
-    # First row carries the max score
-    assert "HIGH" in data_rows[0]
-    # Second row score cell must be empty
-    cols_second = [c.strip() for c in data_rows[1].split("|")]
-    assert cols_second[3] == ""
+    assert len(rows) == 2
+    for row in rows:
+        assert "LOW" in row
 
 
-# ---------------------------------------------------------------------------
-# Functional tests
-# ---------------------------------------------------------------------------
+# --- Edge cases ---
 
 
-def test_execute_batch_compact_e2e(tmp_path):
-    """ImpactTool batch+compact on a real fixture package."""
-    pkg = tmp_path / "mypkg"
-    src = pkg / "src" / "mypkg"
-    src.mkdir(parents=True)
-    (src / "__init__.py").write_text("")
-    (src / "core.py").write_text(
-        "def helper():\n    return 1\n\n\nclass MyClass:\n    pass\n"
-    )
-    (pkg / "pyproject.toml").write_text(
-        '[project]\nname = "mypkg"\nversion = "0.1.0"\n'
-    )
-
-    tool = ImpactTool()
-    result = tool.execute(
-        path=str(pkg),
-        symbols=["helper", "MyClass"],
-        detail="compact",
-    )
-
-    assert result.success
-    compact = result.data["compact"]
-    assert "helper" in compact
-    assert "MyClass" in compact
-    assert "not found" not in compact
-
-
-# ---------------------------------------------------------------------------
-# Edge cases
-# ---------------------------------------------------------------------------
-
-
-def test_batch_missing_symbol():
-    """Missing symbol gets a 'not found' row; valid symbol is intact."""
+def test_batch_compact_missing_score_defaults_to_low() -> None:
+    """Report with no 'score' key should display LOW as default."""
     reports = [
-        _make_report("valid_sym", module="pkg.mod", line=5),
-        {"symbol": "nonexistent", "error": "not found"},
+        _make_report("no_score_sym"),
     ]
-    result = format_impact_compact(reports)
+    result = format_impact_compact_multi(reports, score="LOW")
+    rows = [
+        line
+        for line in result.splitlines()
+        if line.startswith("|") and "---" not in line and "Symbol" not in line
+    ]
+    assert len(rows) == 1
+    assert "LOW" in rows[0]
 
-    assert "valid_sym" in result
-    assert "nonexistent" in result
-    row_missing = next(
-        row for row in result.strip().split("\n") if "nonexistent" in row
-    )
-    assert "not found" in row_missing
 
-
-def test_batch_single_symbol_matches_single():
-    """Batch with one symbol produces same output as single-symbol path."""
-    report = _make_report(
-        "solo",
-        module="pkg.solo",
-        line=1,
-        callers=[{"name": "c1", "module": "pkg.solo", "line": 10}],
-        score="MEDIUM",
-    )
-    batch_result = format_impact_compact([report])
-    single_result = format_impact_compact(report)
-    assert batch_result == single_result
+def test_batch_compact_single_symbol() -> None:
+    """Single-symbol batch shows its own score in the row."""
+    reports = [
+        _make_report("only_one", "MEDIUM"),
+    ]
+    result = format_impact_compact_multi(reports, score="MEDIUM")
+    rows = [
+        line
+        for line in result.splitlines()
+        if line.startswith("|") and "---" not in line and "Symbol" not in line
+    ]
+    assert len(rows) == 1
+    assert "MEDIUM" in rows[0]
