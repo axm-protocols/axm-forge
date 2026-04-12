@@ -96,7 +96,7 @@ Independent, composable analysis engines:
 | `workspace.py` | Multi-package workspace detection and analysis; expands glob patterns in `[tool.uv.workspace]` members and resolves project names for dependency edges | `detect_workspace()`, `analyze_workspace()` |
 | `docs.py` | Documentation tree discovery | `discover_docs()` |
 | `dead_code.py` | Dead code detection with test/lazy-import/base-class/intra-module-ref/namespace-module scanning; namespace resolution uses `_resolve_import_stems` for both bare and from-imports; respects `.gitignore` via `_discover_py_files` | `find_dead_code()`, `DeadSymbol` |
-| `flows.py` | Entry point detection, BFS flow tracing, source enrichment | `find_entry_points()`, `trace_flow()` |
+| `flows.py` | Entry point detection, BFS flow tracing, source enrichment, workspace-level callee search | `find_entry_points()`, `trace_flow()`, `find_callees_workspace()` |
 
 ### 3. Formatters (`formatters.py`)
 
