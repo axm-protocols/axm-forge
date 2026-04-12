@@ -44,7 +44,6 @@ def variable_detail(
         "kind": "variable",
         "start_line": sym.line,
         "end_line": sym.line,
-        "module": "",
     }
     if sym.annotation is not None:
         detail["annotation"] = sym.annotation
@@ -75,7 +74,6 @@ def function_detail(
             {"name": p.name, "annotation": p.annotation, "default": p.default}
             for p in sym.params
         ]
-    detail["module"] = ""
     return detail
 
 
@@ -97,7 +95,6 @@ def class_detail(
         detail["bases"] = sym.bases
     if sym.methods:
         detail["methods"] = [m.name for m in sym.methods]
-    detail["module"] = ""
     return detail
 
 

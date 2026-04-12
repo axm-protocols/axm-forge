@@ -327,7 +327,7 @@ class TestVariableDetail:
         assert detail["kind"] == "variable"
         assert detail["start_line"] == 10
         assert detail["end_line"] == 10
-        assert detail["module"] == ""
+        assert "module" not in detail
 
     def test_variable_without_annotation(self) -> None:
         """No annotation key when annotation is None."""
