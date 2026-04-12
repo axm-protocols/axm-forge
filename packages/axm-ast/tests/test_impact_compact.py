@@ -37,7 +37,6 @@ def _make_impact_dict(
         "test_files": test_files or [],
         "git_coupled": [],
         "score": score,
-        "severity": score,
     }
 
 
@@ -191,7 +190,7 @@ class TestImpactToolCompactMode:
         assert result.success is True
         # Default mode: data is a dict with impact fields
         assert isinstance(result.data, dict)
-        assert "severity" in result.data
+        assert "score" in result.data
 
 
 # ─── Functional: ImpactHook with detail param ────────────────────────────────
@@ -283,7 +282,6 @@ class TestImpactCompactEdgeCases:
             "test_files": [],
             "git_coupled": [],
             "score": "LOW",
-            "severity": "LOW",
             "error": "Symbol 'missing_func' not found",
         }
         result = format_impact_compact(impact)
@@ -317,7 +315,6 @@ class TestImpactCompactEdgeCases:
             "test_files": [],
             "git_coupled": [],
             "score": "HIGH",
-            "severity": "HIGH",
             "cross_package_impact": ["pkg_b", "pkg_c"],
         }
 

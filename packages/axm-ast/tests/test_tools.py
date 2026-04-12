@@ -409,7 +409,7 @@ class TestImpactTool:
         result = tool.execute(path=str(sample_project / "src" / "demo"), symbol="greet")
         _assert_tool_result(result)
         assert result.success is True
-        assert "severity" in result.data
+        assert "score" in result.data
 
     def test_missing_symbol(self, sample_project: Path) -> None:
         from axm_ast.tools.impact import ImpactTool
@@ -421,7 +421,7 @@ class TestImpactTool:
     # --- Batch mode (AXM-462) ---
 
     def test_symbols_batch_success(self, sample_project: Path) -> None:
-        """AC1/2: Batch with two valid symbols returns severity for each."""
+        """AC1/2: Batch with two valid symbols returns score for each."""
         from axm_ast.tools.impact import ImpactTool
 
         tool = ImpactTool()
@@ -433,8 +433,8 @@ class TestImpactTool:
         assert "symbols" in result.data
         symbols = result.data["symbols"]
         assert len(symbols) == 2
-        assert "severity" in symbols[0]
-        assert "severity" in symbols[1]
+        assert "score" in symbols[0]
+        assert "score" in symbols[1]
 
     def test_symbols_batch_partial_missing(self, sample_project: Path) -> None:
         """AC2: Batch with one valid + one missing → mixed results."""
@@ -448,7 +448,7 @@ class TestImpactTool:
         assert result.success is True
         symbols = result.data["symbols"]
         assert len(symbols) == 2
-        assert "severity" in symbols[0]
+        assert "score" in symbols[0]
         assert "error" in symbols[1]
         assert symbols[1]["symbol"] == "missing_xyz"
 
