@@ -82,6 +82,27 @@ class TestDeadCodeToolExecute:
         assert result.success is True
         assert result.data["total"] == 0
 
+    def test_text_rendering_empty(self, tool: DeadCodeTool, tmp_path: Path) -> None:
+        """Clean package → header-only text."""
+        pkg = tmp_path / "clean2"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text('"""Clean."""\n')
+        (pkg / "core.py").write_text(
+            '"""Core."""\n\n__all__ = ["f"]\n\ndef f() -> None: ...\n'
+        )
+        result = tool.execute(path=str(pkg))
+        assert result.text == "ast_dead_code | 0 dead symbols"
+
+    def test_text_rendering_populated(self, tool: DeadCodeTool, dead_pkg: Path) -> None:
+        """Dead code → compact text with relative paths."""
+        result = tool.execute(path=str(dead_pkg))
+        assert result.text is not None
+        assert "ast_dead_code" in result.text
+        assert "dead symbols" in result.text
+        assert str(dead_pkg) not in result.text  # paths are relative
+        assert "unused_function" in result.text
+        assert "func" in result.text
+
 
 # ─── Edge cases ──────────────────────────────────────────────────────────────
 
