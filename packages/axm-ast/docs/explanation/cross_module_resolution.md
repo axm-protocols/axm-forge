@@ -83,7 +83,7 @@ Each BFS node produces a `FlowStep` (Pydantic model):
 
 ## BFS Traversal (`trace_flow`)
 
-1. **Symbol resolution** — `_find_symbol_location` maps the entry name to a `(module_dotted, line)` pair. If not found, returns an empty list.
+1. **Symbol resolution** — `_find_symbol_location` maps the entry name to a `(module_dotted, line)` pair. If not found, raises `ValueError`.
 2. **Queue initialization** — The entry is enqueued at depth 0 and immediately appended to `steps` as the root `FlowStep`.
 3. **Main loop** — Each iteration dequeues a symbol, resolves callees (from a pre-built index or via `find_callees`), and delegates filtering and enqueuing to `_process_local_callees`, which skips stdlib/visited symbols and appends a `FlowStep` for each new discovery at `depth + 1`.
 4. **Depth cap** — When `depth >= max_depth`, the node is dequeued but its callees are not explored.

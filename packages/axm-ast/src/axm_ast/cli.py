@@ -911,14 +911,18 @@ def flows(
     pkg = get_package(project_path)
 
     if trace is not None:
-        steps = trace_flow(
-            pkg,
-            trace,
-            max_depth=max_depth,
-            cross_module=cross_module,
-            detail=detail,
-            exclude_stdlib=not no_exclude_stdlib,
-        )
+        try:
+            steps = trace_flow(
+                pkg,
+                trace,
+                max_depth=max_depth,
+                cross_module=cross_module,
+                detail=detail,
+                exclude_stdlib=not no_exclude_stdlib,
+            )
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(1) from None
         if json_output:
             print(
                 json.dumps(

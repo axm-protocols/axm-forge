@@ -248,9 +248,9 @@ class TestCompactEmptyTrace:
         )
         tool = FlowsTool()
         result = tool.execute(path=str(pkg_path), entry="nonexistent", detail="compact")
-        assert result.success is True
-        compact = result.data.get("compact", "")
-        assert compact == "" or "No flows" in compact
+        assert result.success is False
+        assert result.error is not None
+        assert "not found" in result.error
 
 
 class TestCompactSingleSymbol:

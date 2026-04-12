@@ -96,7 +96,7 @@ Independent, composable analysis engines:
 | `workspace.py` | Multi-package workspace detection and analysis; expands glob patterns in `[tool.uv.workspace]` members and resolves project names for dependency edges | `detect_workspace()`, `analyze_workspace()` |
 | `docs.py` | Documentation tree discovery | `discover_docs()` |
 | `dead_code.py` | Dead code detection with test/lazy-import/base-class/intra-module-ref/namespace-module scanning; namespace resolution uses `_resolve_import_stems` for both bare and from-imports; respects `.gitignore` via `_discover_py_files` | `find_dead_code()`, `DeadSymbol` |
-| `flows.py` | Entry point detection, BFS flow tracing, source enrichment, workspace-level callee search. Exports `VALID_DETAILS` (`frozenset`) — the accepted `detail` values (`"trace"`, `"source"`, `"compact"`); `trace_flow()` raises `ValueError` for invalid values | `find_entry_points()`, `trace_flow()`, `find_callees_workspace()`, `VALID_DETAILS` |
+| `flows.py` | Entry point detection, BFS flow tracing, source enrichment, workspace-level callee search. Exports `VALID_DETAILS` (`frozenset`) — the accepted `detail` values (`"trace"`, `"source"`, `"compact"`); `trace_flow()` raises `ValueError` for invalid `detail` values or when the entry symbol is not found in the package | `find_entry_points()`, `trace_flow()`, `find_callees_workspace()`, `VALID_DETAILS` |
 
 ### 3. Formatters (`formatters.py`)
 

@@ -54,6 +54,8 @@ class FlowsTool(AXMTool):
 
         Returns:
             ToolResult with entry points or flow steps.
+            Returns ``success=False`` when the entry symbol is not found
+            in the package.
         """
         try:
             pkg_path = Path(path).resolve()
