@@ -130,7 +130,7 @@ class InspectTool(AXMTool):
 
         if not results:
             # --- Module fallback ---
-            mod_result = inspect_module(pkg, symbol)
+            mod_result = inspect_module(pkg, symbol, source=source)
             if mod_result is not None:
                 return mod_result
             return ToolResult(

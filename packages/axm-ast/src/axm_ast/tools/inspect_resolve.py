@@ -17,6 +17,8 @@ from axm_ast.models.nodes import (
 
 from .inspect_detail import build_detail, build_module_detail, relative_path
 
+_MAX_SOURCE_LINES = 200
+
 __all__ = [
     "find_module_for_symbol",
     "find_symbol_abs_path",
@@ -82,13 +84,24 @@ def resolve_module(
     return None
 
 
-def inspect_module(pkg: PackageInfo, name: str) -> ToolResult | None:
+def inspect_module(
+    pkg: PackageInfo, name: str, *, source: bool = False
+) -> ToolResult | None:
     """Try to resolve *name* as a module name and return module metadata."""
     mod = resolve_module(pkg, name)
     if mod is None or isinstance(mod, ToolResult):
         return mod
 
     detail = build_module_detail(pkg, mod, name)
+    if source:
+        try:
+            text = mod.path.read_text(encoding="utf-8")
+            lines = text.splitlines(keepends=True)
+            if len(lines) > _MAX_SOURCE_LINES:
+                text = "".join(lines[:_MAX_SOURCE_LINES])
+            detail["source"] = text
+        except OSError:
+            pass
     return ToolResult(success=True, data={"symbol": detail})
 
 
@@ -192,7 +205,7 @@ def inspect_dotted(
     pkg: PackageInfo, symbol: str, *, source: bool = False
 ) -> ToolResult:
     """Resolve a dotted symbol (module, module.symbol, or Class.method)."""
-    result = inspect_module(pkg, symbol)
+    result = inspect_module(pkg, symbol, source=source)
     if result is not None:
         return result
 
