@@ -78,3 +78,23 @@ class_detail(sym: ClassInfo, *, file: str = "") -> dict[str, Any]
 ```
 
 Build detail dict from a `ClassInfo`. Returns keys: `name`, `file`, `start_line`, `end_line`, and optionally `docstring`, `bases`, `methods`.
+
+---
+
+## `build_module_detail`
+
+```python
+from axm_ast.tools.inspect_detail import build_module_detail
+
+build_module_detail(pkg: PackageInfo, mod: ModuleInfo, name: str) -> dict[str, Any]
+```
+
+Build detail dict for a module. Returns keys: `name`, `kind` (`"module"`), `file`, `start_line`, `end_line`, `docstring`, `functions`, `classes`, `variables`, `imports`.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `pkg` | `PackageInfo` | *required* | Analyzed package info |
+| `mod` | `ModuleInfo` | *required* | Module node |
+| `name` | `str` | *required* | Display name for the module |
