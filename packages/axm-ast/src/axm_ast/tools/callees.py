@@ -24,7 +24,7 @@ class CalleesTool(AXMTool):
     agent_hint: str = (
         "Find all functions called by a symbol"
         " — the inverse of ast_callers."
-        " Returns call-sites with symbol, module, line."
+        " Returns call-sites with module, line, call_expression."
     )
 
     @property
@@ -70,7 +70,6 @@ class CalleesTool(AXMTool):
             callee_data = [
                 {
                     "module": c.module,
-                    "symbol": c.symbol,
                     "line": c.line,
                     "call_expression": c.call_expression,
                 }
