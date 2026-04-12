@@ -144,6 +144,42 @@ def _print_toc(toc: list[dict[str, object]], *, json_output: bool) -> None:
             print(f"  {entry['name']} ({sym} symbols){doc}")
 
 
+def _inspect_batch(
+    project_path: Path, symbols: list[str], *, source: bool, json_output: bool
+) -> None:
+    """Handle --symbols batch inspection path."""
+    from axm_ast.tools.inspect import InspectTool
+
+    tool = InspectTool()
+    result = tool.execute(path=str(project_path), symbols=symbols, source=source)
+
+    if not result.success:
+        print(f"❌ {result.error}", file=sys.stderr)
+        raise SystemExit(1)
+
+    if json_output:
+        print(json.dumps(result.data, indent=2))
+    else:
+        print(result.text)
+
+
+def _inspect_list_all(project_path: Path, *, json_output: bool) -> None:
+    """List all symbols in a package."""
+    pkg = get_package(project_path)
+    all_symbols = search_symbols(pkg, name=None, returns=None, kind=None, inherits=None)
+    if json_output:
+        print(
+            json.dumps(
+                {"symbols": [s.model_dump(mode="json") for _, s in all_symbols]},
+                indent=2,
+            )
+        )
+    else:
+        for _, s in all_symbols:
+            sig = getattr(s, "signature", None)
+            print(f"  · {sig}" if sig else f"  · class {s.name}")
+
+
 @app.command()
 def inspect(
     path: Annotated[
@@ -156,6 +192,14 @@ def inspect(
         cyclopts.Parameter(
             name=["--symbol", "-s"],
             help="Symbol name to inspect (supports dotted paths like Class.method)",
+        ),
+    ] = None,
+    symbols: Annotated[
+        list[str] | None,
+        cyclopts.Parameter(
+            name=["--symbols"],
+            consume_multiple=True,
+            help="Symbol names to inspect in batch",
         ),
     ] = None,
     source: Annotated[
@@ -176,26 +220,18 @@ def inspect(
     like ``ClassName.method`` or ``module.symbol``. Returns file path,
     line numbers, and optionally source code — matching MCP ``ast_inspect``.
     """
+    if symbol and symbols:
+        print("❌ --symbol and --symbols are mutually exclusive", file=sys.stderr)
+        raise SystemExit(1)
+
     project_path = _resolve_dir(path)
 
+    if symbols:
+        _inspect_batch(project_path, symbols, source=source, json_output=json_output)
+        return
+
     if not symbol:
-        # List all symbols in the package
-        pkg = get_package(project_path)
-        symbols = search_symbols(pkg, name=None, returns=None, kind=None, inherits=None)
-        if json_output:
-            print(
-                json.dumps(
-                    {"symbols": [s.model_dump(mode="json") for _, s in symbols]},
-                    indent=2,
-                )
-            )
-        else:
-            for _, s in symbols:
-                sig = getattr(s, "signature", None)
-                if sig:
-                    print(f"  · {sig}")
-                else:
-                    print(f"  · class {s.name}")
+        _inspect_list_all(project_path, json_output=json_output)
         return
 
     from axm_ast.tools.inspect import InspectTool

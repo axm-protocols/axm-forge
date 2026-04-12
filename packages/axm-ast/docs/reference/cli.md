@@ -54,6 +54,7 @@ axm-ast inspect [OPTIONS] [PATH]
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Path to package directory |
 | `--symbol` | `-s` | string | *none* | Symbol name to inspect (supports dotted paths like `Class.method`) |
+| `--symbols` | | list[str] | *none* | Symbol names to inspect in batch (mutually exclusive with `--symbol`) |
 | `--source` | | bool | `False` | Include source code in output |
 | `--json` | | bool | `False` | Output as JSON |
 
@@ -72,6 +73,9 @@ axm-ast inspect src/mylib --symbol my_function
 
 # Inspect a class method with source code
 axm-ast inspect src/mylib --symbol Calculator.add --source
+
+# Batch inspect multiple symbols
+axm-ast inspect src/mylib --symbols my_function Calculator.add
 
 # JSON output with line info
 axm-ast inspect src/mylib --symbol my_function --json
