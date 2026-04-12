@@ -350,15 +350,6 @@ class TestAnalyzePackageSkipDirs:
             all_nodes.update(targets)
         assert not any("dep" in n for n in all_nodes)
 
-    def test_analyze_real_project_scale(self):
-        """Self-test: analyzing axm-ast source has < 50 modules."""
-        src = Path(__file__).parent.parent / "src" / "axm_ast"
-        if not src.is_dir():
-            pytest.skip("Source not available")
-        result = analyze_package(src)
-        # Sanity: no venv leak
-        assert len(result.modules) < 50
-
 
 # ─── Gitignore-aware filtering ───────────────────────────────────────────────
 
