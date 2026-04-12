@@ -109,6 +109,14 @@ def describe(
         )
         raise SystemExit(1)
 
+    if compress and detail not in ("summary", "detailed"):
+        print(
+            f"❌ --compress and --detail {detail} are mutually exclusive. "
+            "Use --compress alone or --detail without --compress.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
     project_path = _resolve_dir(path)
 
     from axm_ast.formatters import filter_modules, format_toc
