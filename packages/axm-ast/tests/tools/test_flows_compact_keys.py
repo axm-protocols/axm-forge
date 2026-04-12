@@ -67,6 +67,7 @@ def test_flows_tool_compact_keys_match_trace(tmp_pkg: object) -> None:
     assert set(result.data.keys()) == {
         "entry",
         "compact",
+        "traces",
         "depth",
         "cross_module",
         "count",
