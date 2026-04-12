@@ -70,22 +70,23 @@ class GraphTool(AXMTool):
 
         ws = analyze_workspace(project_path)
         graph = build_workspace_dep_graph(ws)
+        nodes = [pkg.name for pkg in ws.packages]
 
         if format == "mermaid":
             mermaid_str = format_workspace_graph_mermaid(ws)
             return ToolResult(
                 success=True,
-                data={"mermaid": mermaid_str, "graph": graph},
+                data={"mermaid": mermaid_str, "graph": graph, "nodes": nodes},
             )
 
         if format == "text":
-            text = self._format_text([p.name for p in ws.packages], graph)
+            text = self._format_text(nodes, graph)
             return ToolResult(
                 success=True,
-                data={"text": text, "graph": graph},
+                data={"text": text, "graph": graph, "nodes": nodes},
             )
 
-        return ToolResult(success=True, data={"graph": graph})
+        return ToolResult(success=True, data={"graph": graph, "nodes": nodes})
 
     def _execute_package(self, project_path: Path, *, format: str) -> ToolResult:
         """Build intra-package import graph for a single package."""
