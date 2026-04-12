@@ -111,6 +111,16 @@ Output formatting with multiple detail levels:
 | `filter_modules()` | Case-insensitive substring filter on module names |
 | `format_mermaid()` | Mermaid dependency graph |
 
+### 3b. Text Renderers (`tools/describe_text.py`)
+
+Compact text rendering for `DescribeTool` output, following the same pattern as `tools/inspect_text.py`:
+
+| Function | Purpose |
+|---|---|
+| `render_describe_text()` | Dispatcher — selects renderer by detail level (`toc`, `summary`, `detailed`) |
+
+The renderer strips type annotations and docstrings to produce token-efficient output suitable for `ToolResult.text`.
+
 ### 4. Models (`models/`)
 
 Pydantic models for structured data exchange between layers:
