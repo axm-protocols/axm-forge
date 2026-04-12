@@ -44,6 +44,9 @@ class DescribeTool(AXMTool):
         Args:
             path: Path to package directory.
             compress: If True, return compressed AI-friendly view.
+                Mutually exclusive with ``detail`` values other than
+                the default (``summary``).  Passing both ``compress=True``
+                and an explicit ``detail`` returns an error.
             detail: Detail level — ``toc`` (names + counts only),
                 ``summary`` (signatures only),
                 or ``detailed`` (+ docstrings, params, return types).
@@ -61,6 +64,16 @@ class DescribeTool(AXMTool):
                     "detail='full' has been removed — it crashes MCP transport "
                     "on large packages. Use detail='detailed' for docstrings and "
                     "params, or ast_inspect(source=true) for full symbol source."
+                ),
+            )
+
+        if compress and detail != "summary":
+            return ToolResult(
+                success=False,
+                error=(
+                    f"compress=True and detail={detail!r} are mutually exclusive. "
+                    "Use compress=True alone (implies its own format) "
+                    f"or detail={detail!r} without compress."
                 ),
             )
 
@@ -84,31 +97,23 @@ class DescribeTool(AXMTool):
 
             if detail == "toc":
                 toc = format_toc(pkg)
-                return ToolResult(
-                    success=True,
-                    data={
-                        "modules": toc,
-                        "module_count": len(toc),
-                    },
-                )
-
-            if compress:
+                result_data = {
+                    "modules": toc,
+                    "module_count": len(toc),
+                }
+            elif compress:
                 text = format_compressed(pkg)
-                return ToolResult(
-                    success=True,
-                    data={
-                        "compressed": text,
-                        "module_count": len(pkg.modules),
-                    },
-                )
-
-            data = format_json(pkg, detail=detail)
-            return ToolResult(
-                success=True,
-                data={
+                result_data = {
+                    "compressed": text,
+                    "module_count": len(pkg.modules),
+                }
+            else:
+                data = format_json(pkg, detail=detail)
+                result_data = {
                     "modules": data["modules"],
                     "module_count": len(pkg.modules),
-                },
-            )
+                }
+
+            return ToolResult(success=True, data=result_data)
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
