@@ -40,17 +40,25 @@ class GraphTool(AXMTool):
         """
         try:
             project_path = Path(path).resolve()
+            if self._detect_workspace(project_path):
+                return self._execute_workspace(project_path, format=format)
             if not project_path.is_dir():
                 return ToolResult(
                     success=False, error=f"Not a directory: {project_path}"
                 )
-
-            try:
-                return self._execute_workspace(project_path, format=format)
-            except ValueError:
-                return self._execute_package(project_path, format=format)
+            return self._execute_package(project_path, format=format)
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
+
+    def _detect_workspace(self, project_path: Path) -> bool:
+        """Return True if *project_path* is a uv workspace root."""
+        from axm_ast.core.workspace import analyze_workspace
+
+        try:
+            analyze_workspace(project_path)
+        except ValueError:
+            return False
+        return True
 
     def _execute_workspace(self, project_path: Path, *, format: str) -> ToolResult:
         """Build inter-package dependency graph for a uv workspace."""
@@ -68,6 +76,13 @@ class GraphTool(AXMTool):
             return ToolResult(
                 success=True,
                 data={"mermaid": mermaid_str, "graph": graph},
+            )
+
+        if format == "text":
+            text = self._format_text([p.name for p in ws.packages], graph)
+            return ToolResult(
+                success=True,
+                data={"text": text, "graph": graph},
             )
 
         return ToolResult(success=True, data={"graph": graph})
