@@ -1,0 +1,60 @@
+# Inspect Detail Helpers
+
+Internal helpers that build detail dicts for `ast_inspect` results.
+
+---
+
+## `build_detail`
+
+```python
+from axm_ast.tools.inspect_detail import build_detail
+
+build_detail(
+    sym: FunctionInfo | ClassInfo | VariableInfo,
+    *,
+    file: str = "",
+    abs_path: str = "",
+    source: bool = False,
+) -> dict[str, Any]
+```
+
+Dispatch to the appropriate `*_detail` function based on symbol type. Optionally attaches source code.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `sym` | `FunctionInfo \| ClassInfo \| VariableInfo` | *required* | Parsed symbol node |
+| `file` | `str` | `""` | Relative file path |
+| `abs_path` | `str` | `""` | Absolute file path (needed when `source=True`) |
+| `source` | `bool` | `False` | Attach source code to the detail dict |
+
+---
+
+## `variable_detail`
+
+```python
+variable_detail(sym: VariableInfo, *, file: str = "") -> dict[str, Any]
+```
+
+Build detail dict from a `VariableInfo`. Returns keys: `name`, `file`, `kind`, `start_line`, `end_line`, and optionally `annotation` and `value_repr`.
+
+---
+
+## `function_detail`
+
+```python
+function_detail(sym: FunctionInfo, *, file: str = "") -> dict[str, Any]
+```
+
+Build detail dict from a `FunctionInfo`. Returns keys: `name`, `file`, `start_line`, `end_line`, `signature`, and optionally `docstring`, `return_type`, `parameters`.
+
+---
+
+## `class_detail`
+
+```python
+class_detail(sym: ClassInfo, *, file: str = "") -> dict[str, Any]
+```
+
+Build detail dict from a `ClassInfo`. Returns keys: `name`, `file`, `start_line`, `end_line`, and optionally `docstring`, `bases`, `methods`.
