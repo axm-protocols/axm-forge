@@ -76,15 +76,18 @@ def _extract_ast_signatures(root: Path) -> dict[str, str]:
                 tree = ast.parse(source)
             except (OSError, SyntaxError):
                 continue
+            module_key = ".".join(py_file.relative_to(search_dir).with_suffix("").parts)
             for node in ast.walk(tree):
                 if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                     sig = ast.get_source_segment(source, node)
                     if sig:
                         first_line = sig.split("\n")[0]
                         # Remove trailing colon for comparison
-                        sigs[node.name] = first_line.rstrip().rstrip(":")
+                        qualified = f"{module_key}.{node.name}"
+                        sigs[qualified] = first_line.rstrip().rstrip(":")
                 elif isinstance(node, ast.ClassDef):
-                    sigs[node.name] = f"class {node.name}"
+                    qualified = f"{module_key}.{node.name}"
+                    sigs[qualified] = f"class {node.name}"
     return sigs
 
 
@@ -190,18 +193,24 @@ def find_stale_signatures(
     ast_sigs = _extract_ast_signatures(root)
     doc_files = _collect_doc_files(root)
     sym_set = set(symbols)
+    # Build reverse index: bare name → list of (qualified_key, sig)
+    bare_index: dict[str, list[str]] = {}
+    for qkey in ast_sigs:
+        bare = qkey.rsplit(".", 1)[-1]
+        bare_index.setdefault(bare, []).append(qkey)
     stale: list[dict[str, Any]] = []
     for doc_file in doc_files:
         doc_sigs = _extract_doc_signatures(doc_file, sym_set, root)
         for entry in doc_sigs:
             sym_name = entry["symbol"]
-            if sym_name in ast_sigs:
-                actual = ast_sigs[sym_name]
-                doc_sig = entry["doc_sig"]
-                # Normalize for comparison: strip whitespace
-                if doc_sig.strip() != actual.strip():
-                    entry["actual_sig"] = actual
-                    stale.append(entry)
+            qkeys = bare_index.get(sym_name, [])
+            if not qkeys:
+                continue
+            doc_sig = entry["doc_sig"].strip()
+            # Conservative: report stale only if NO qualified match agrees
+            if all(ast_sigs[qk].strip() != doc_sig for qk in qkeys):
+                entry["actual_sig"] = ast_sigs[qkeys[0]]
+                stale.append(entry)
     return stale
 
 
