@@ -142,6 +142,10 @@ omit = ["*/tests/*", "*/_version.py"]
 [tool.coverage.xml]
 output = "coverage.xml"
 
+[tool.deptry]
+pep621_dev_dependency_groups = ["dev"]
+known_first_party = ["axm_nexus", "axm_engine", "axm_mcp"]
+
 [tool.coverage.report]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError", "if __name__"]
 
