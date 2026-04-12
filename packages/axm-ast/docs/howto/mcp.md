@@ -33,8 +33,9 @@
     Combine both: `ast_docs(detail="toc", pages=["arch"])` for minimal token scan.
 
 !!! tip "ast_flows detail levels"
-    `ast_flows` with `entry` accepts `detail`: `"trace"` (default, names + positions only)
-    or `"source"` (includes function source code for each step). Use `cross_module=True`
+    `ast_flows` with `entry` accepts `detail`: `"trace"` (default, names + positions only),
+    `"source"` (includes function source code for each step), or `"compact"` (tree with
+    box-drawing chars plus `depth` and `cross_module` metadata). Use `cross_module=True`
     to follow imports into other modules. Use `max_depth` to control BFS depth (default 5).
 
 
