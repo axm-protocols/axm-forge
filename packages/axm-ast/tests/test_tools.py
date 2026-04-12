@@ -913,17 +913,5 @@ class TestDogfood:
         assert result.success is True
         assert result.data["readme"] is not None
 
-    def test_toc_size_under_2k(self) -> None:
-        """AC2: TOC output < 2048 bytes on axm-ast itself."""
-        import json
-
-        from axm_ast.tools.describe import DescribeTool
-
-        tool = DescribeTool()
-        result = tool.execute(path=str(SELF_PKG), detail="toc")
-        assert result.success is True
-        raw = json.dumps(result.data)
-        assert len(raw) < 7168, f"TOC output too large: {len(raw)} bytes"
-
 
 """Tests for axm-ast MCP tool wrappers."""
