@@ -152,6 +152,9 @@ for fn in results:
     print(f"{fn.name}: {fn.signature}")
 ```
 
+`analyze_package` auto-detects src-layout projects (i.e. `src/<pkg>/__init__.py`)
+and sets the package root inside `src/`, so module names stay importable.
+
 Use `get_package` instead of `analyze_package` to avoid re-parsing the same
 package multiple times in a session:
 
