@@ -21,9 +21,8 @@
 | `ast_doc_impact(path, symbols)` | — | Doc refs, undocumented symbols, stale signatures |
 
 !!! tip "ast_describe detail levels"
-    `ast_describe` accepts `detail`: `"toc"` (module names + counts only), `"summary"` (signatures only),
-    `"detailed"` (+ docstrings, params, return types — **default**), or `"full"` (+ line
-    numbers, imports, variables). Use `modules=["core"]` to filter by module name substring.
+    `ast_describe` accepts `detail`: `"toc"` (module names + counts only), `"summary"` (signatures only — **default**),
+    or `"detailed"` (+ docstrings, params, return types). Use `modules=["core"]` to filter by module name substring.
     Use `compress=True` for an AI-optimized view with signatures and first docstring lines.
 
 !!! tip "ast_docs detail levels"
