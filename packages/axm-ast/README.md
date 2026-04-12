@@ -66,6 +66,7 @@ axm-ast impact src/mylib --symbol my_function
 axm-ast context /path/to/workspace   # all packages at once
 axm-ast callers /path/to/workspace --symbol ToolResult
 axm-ast graph /path/to/workspace --format mermaid
+axm-ast graph /path/to/workspace --format text
 
 # Detect dead code
 axm-ast dead-code src/mylib
