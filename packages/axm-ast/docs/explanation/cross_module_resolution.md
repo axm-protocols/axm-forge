@@ -1,6 +1,6 @@
 # Cross-Module Resolution
 
-`trace_flow` uses a **breadth-first search (BFS)** to trace execution flow from an entry point through the call graph. When `cross_module=True`, it resolves imported symbols across package boundaries — the most complex subsystem in `axm-ast`.
+`trace_flow` uses a **breadth-first search (BFS)** to trace execution flow from an entry point through the call graph. The `detail` parameter must be one of `VALID_DETAILS` (`"trace"`, `"source"`, `"compact"`); invalid values raise `ValueError`. When `cross_module=True`, it resolves imported symbols across package boundaries — the most complex subsystem in `axm-ast`.
 
 ## Algorithm Overview
 
@@ -79,7 +79,7 @@ Each BFS node produces a `FlowStep` (Pydantic model):
 | `depth` | BFS depth from entry |
 | `chain` | Full ancestor path from entry to this step |
 | `resolved_module` | Set when resolved cross-module |
-| `source` | Function source text (only when `detail="source"`) |
+| `source` | Function source text (only when `detail="source"` or `detail="compact"`) |
 
 ## BFS Traversal (`trace_flow`)
 

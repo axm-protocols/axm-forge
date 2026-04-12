@@ -59,7 +59,12 @@ def _ensure_flow_imports() -> None:
 
 def _build_trace_opts(params: dict[str, Any]) -> tuple[_TraceOpts, bool]:
     """Build trace options and compact flag from hook parameters."""
+    from axm_ast.core.flows import VALID_DETAILS
+
     detail = str(params.get("detail", "trace"))
+    if detail not in VALID_DETAILS:
+        msg = f"Invalid detail={detail!r}; must be one of {sorted(VALID_DETAILS)}"
+        raise ValueError(msg)
     is_compact = detail == "compact"
     opts = _TraceOpts(
         max_depth=int(params.get("max_depth", 5)),
@@ -122,9 +127,8 @@ class FlowsHook:
         if not working_dir.is_dir():
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
-        opts, is_compact = _build_trace_opts(params)
-
         try:
+            opts, is_compact = _build_trace_opts(params)
             _ensure_flow_imports()
             pkg = get_package(working_dir)
 
