@@ -50,10 +50,7 @@ class ContextTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            from axm_ast.core.workspace import detect_workspace
-
-            ws = detect_workspace(project_path)
-            if ws is not None:
+            try:
                 from axm_ast.core.workspace import (
                     build_workspace_context,
                     format_workspace_context,
@@ -69,6 +66,8 @@ class ContextTool(AXMTool):
                     data=formatted,
                     text=format_workspace_text(formatted),
                 )
+            except ValueError:
+                pass
 
             from axm_ast.core.context import (
                 build_context,
