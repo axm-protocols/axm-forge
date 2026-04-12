@@ -166,6 +166,37 @@ axm-ast callers src/mylib --symbol analyze_package
 
 ---
 
+## `callees` — Find Callees of a Symbol
+
+```
+axm-ast callees [OPTIONS] [PATH]
+```
+
+| Option | Short | Type | Default | Description |
+|---|---|---|---|---|
+| `PATH` | | string | `.` | Path to package directory |
+| `--symbol` | `-s` | string | *required* | Symbol to find callees of |
+| `--json` | | bool | `False` | Output as JSON |
+
+The inverse of `callers`: given a function name, returns all call-sites *within* that function body.
+
+**Example:**
+
+```bash
+axm-ast callees src/mylib --symbol execute
+```
+
+```
+📞 3 callee(s) of 'execute':
+
+  core.analyzer:38 → analyze_package in execute()
+    analyze_package(project_path)
+  core.cache:12 → get_package in execute()
+    get_package(project_path)
+```
+
+---
+
 ## `context` — Project Context Dump
 
 ```
