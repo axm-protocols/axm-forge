@@ -27,7 +27,6 @@ Repository = "https://github.com/axm-protocols/axm-nexus-mcp.git"
 Issues = "https://github.com/axm-protocols/axm-nexus-mcp/issues"
 
 # Optional dependencies — only packages published on PyPI
-# axm-word and scrapling are excluded until published
 [project.optional-dependencies]
 init   = ["axm-init"]
 audit  = ["axm-audit"]
@@ -37,6 +36,7 @@ ast    = ["axm-ast"]
 ticker = ["axm-ticket"]
 engine = ["axm-engine"]
 forge  = ["axm-ast", "axm-audit", "axm-init"]
+web    = ["scrapling"]
 all    = ["axm-init", "axm-audit", "axm-bib", "axm-git", "axm-ast", "axm-ticket", "axm-engine"]
 
 [project.scripts]
@@ -157,6 +157,10 @@ omit = ["*/tests/*"]
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+[tool.deptry]
+pep621_dev_dependency_groups = ["dev"]
+known_first_party = ["axm", "axm_nexus", "axm_engine"]
 
 [tool.coverage.report]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
