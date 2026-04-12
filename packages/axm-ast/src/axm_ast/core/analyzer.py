@@ -92,6 +92,15 @@ def analyze_package(path: Path) -> PackageInfo:
         msg = f"{path} is not a directory"
         raise ValueError(msg)
 
+    # Detect src-layout: src/<pkg>/__init__.py
+    src_dir = path / "src"
+    if src_dir.is_dir() and any(
+        (child / "__init__.py").exists()
+        for child in src_dir.iterdir()
+        if child.is_dir()
+    ):
+        path = src_dir
+
     t0 = time.perf_counter()
 
     # Discover all .py files, skipping virtual envs and caches
@@ -192,6 +201,8 @@ def module_dotted_name(mod_path: Path, root: Path) -> str:
     parts = list(rel.with_suffix("").parts)
     if parts and parts[-1] == "__init__":
         parts = parts[:-1]
+    if parts and parts[0] == "src" and len(parts) > 1:
+        parts = parts[1:]
     return ".".join(parts) if parts else root.name
 
 
