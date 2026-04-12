@@ -160,10 +160,7 @@ class ImpactTool(AXMTool):
             or ``{"symbol": name, "error": msg}`` on failure.
         """
         try:
-            from axm_ast.core.workspace import detect_workspace
-
-            ws = detect_workspace(project_path)
-            if ws is not None:
+            try:
                 from axm_ast.core.impact import analyze_impact_workspace
 
                 impact = analyze_impact_workspace(
@@ -172,7 +169,7 @@ class ImpactTool(AXMTool):
                     exclude_tests=exclude_tests,
                     test_filter=test_filter,
                 )
-            else:
+            except ValueError:
                 from axm_ast.core.impact import analyze_impact
 
                 impact = analyze_impact(

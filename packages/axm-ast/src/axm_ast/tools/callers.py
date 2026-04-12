@@ -54,16 +54,13 @@ class CallersTool(AXMTool):
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            from axm_ast.core.workspace import detect_workspace
-
-            ws = detect_workspace(project_path)
-            if ws is not None:
+            try:
                 from axm_ast.core.callers import find_callers_workspace
                 from axm_ast.core.workspace import analyze_workspace
 
                 ws = analyze_workspace(project_path)
                 callers = find_callers_workspace(ws, symbol)
-            else:
+            except ValueError:
                 from axm_ast.core.cache import get_package
                 from axm_ast.core.callers import find_callers
 
