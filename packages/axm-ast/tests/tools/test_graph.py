@@ -165,3 +165,109 @@ def test_workspace_graph_unknown_format_falls_through(
     assert "graph" in result.data
     assert "text" not in result.data
     assert "mermaid" not in result.data
+
+
+# ---------- Workspace nodes key (AXM-1361) ----------
+
+
+def test_workspace_graph_has_nodes_key(
+    graph_tool: GraphTool, fake_workspace: tuple[SimpleNamespace, dict[str, list[str]]]
+) -> None:
+    """_execute_workspace must return a 'nodes' key containing a list of strings."""
+    ws, graph = fake_workspace
+    with (
+        patch("axm_ast.core.workspace.analyze_workspace", return_value=ws),
+        patch("axm_ast.core.workspace.build_workspace_dep_graph", return_value=graph),
+    ):
+        result = graph_tool._execute_workspace(Path("/fake"), format="json")
+
+    assert result.success is True
+    assert "nodes" in result.data
+    assert isinstance(result.data["nodes"], list)
+    assert all(isinstance(n, str) for n in result.data["nodes"])
+
+
+def test_workspace_nodes_includes_all_packages(
+    graph_tool: GraphTool, fake_workspace: tuple[SimpleNamespace, dict[str, list[str]]]
+) -> None:
+    """nodes list must include every package in the workspace."""
+    ws, graph = fake_workspace
+    with (
+        patch("axm_ast.core.workspace.analyze_workspace", return_value=ws),
+        patch("axm_ast.core.workspace.build_workspace_dep_graph", return_value=graph),
+    ):
+        result = graph_tool._execute_workspace(Path("/fake"), format="json")
+
+    expected = {p.name for p in ws.packages}
+    assert len(result.data["nodes"]) == len(ws.packages)
+    assert set(result.data["nodes"]) == expected
+
+
+def test_graph_tool_schema_parity(
+    graph_tool: GraphTool, fake_workspace: tuple[SimpleNamespace, dict[str, list[str]]]
+) -> None:
+    """Both package and workspace execute results must have 'graph' and 'nodes' keys."""
+    ws, ws_graph = fake_workspace
+
+    # Workspace result
+    with (
+        patch("axm_ast.core.workspace.analyze_workspace", return_value=ws),
+        patch(
+            "axm_ast.core.workspace.build_workspace_dep_graph",
+            return_value=ws_graph,
+        ),
+    ):
+        ws_result = graph_tool._execute_workspace(Path("/fake"), format="json")
+
+    # Package result
+    mod = SimpleNamespace(path=Path("src/mypkg/foo.py"))
+    pkg = SimpleNamespace(root=Path("src/mypkg"), modules=[mod])
+    pkg_graph: dict[str, list[str]] = {"mypkg.foo": []}
+    with (
+        patch("axm_ast.core.cache.get_package", return_value=pkg),
+        patch("axm_ast.core.analyzer.build_import_graph", return_value=pkg_graph),
+        patch("axm_ast.core.analyzer.module_dotted_name", return_value="mypkg.foo"),
+    ):
+        pkg_result = graph_tool._execute_package(Path("/fake"), format="json")
+
+    for result in (ws_result, pkg_result):
+        assert result.success is True
+        assert "graph" in result.data, f"Missing 'graph' key in {result.data.keys()}"
+        assert "nodes" in result.data, f"Missing 'nodes' key in {result.data.keys()}"
+
+
+def test_workspace_single_package(graph_tool: GraphTool) -> None:
+    """Single-package workspace must return nodes with exactly one element."""
+    ws = SimpleNamespace(
+        packages=[SimpleNamespace(name="solo-pkg")],
+        package_edges=[],
+    )
+    graph: dict[str, list[str]] = {}
+    with (
+        patch("axm_ast.core.workspace.analyze_workspace", return_value=ws),
+        patch("axm_ast.core.workspace.build_workspace_dep_graph", return_value=graph),
+    ):
+        result = graph_tool._execute_workspace(Path("/fake"), format="json")
+
+    assert result.data["nodes"] == ["solo-pkg"]
+
+
+def test_workspace_mermaid_format_has_nodes(
+    graph_tool: GraphTool, fake_workspace: tuple[SimpleNamespace, dict[str, list[str]]]
+) -> None:
+    """Mermaid format must still include the nodes key alongside mermaid key."""
+    ws, graph = fake_workspace
+    with (
+        patch("axm_ast.core.workspace.analyze_workspace", return_value=ws),
+        patch("axm_ast.core.workspace.build_workspace_dep_graph", return_value=graph),
+        patch(
+            "axm_ast.core.workspace.format_workspace_graph_mermaid",
+            return_value="graph TD\nA --> B",
+        ),
+    ):
+        result = graph_tool._execute_workspace(Path("/fake"), format="mermaid")
+
+    assert result.success is True
+    assert "mermaid" in result.data
+    assert "nodes" in result.data
+    assert set(result.data["nodes"]) == {"axm-alpha", "axm-beta"}
