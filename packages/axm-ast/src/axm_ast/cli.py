@@ -894,11 +894,19 @@ def flows(
     project_path = _resolve_dir(path)
 
     from axm_ast.core.flows import (
+        VALID_DETAILS,
         find_entry_points,
         format_flow_compact,
         format_flows,
         trace_flow,
     )
+
+    if detail not in VALID_DETAILS:
+        print(
+            f"Invalid detail={detail!r}; must be one of {sorted(VALID_DETAILS)}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
     pkg = get_package(project_path)
 

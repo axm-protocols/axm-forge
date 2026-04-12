@@ -62,10 +62,20 @@ class FlowsTool(AXMTool):
 
             from axm_ast.core.cache import get_package
             from axm_ast.core.flows import (
+                VALID_DETAILS,
                 find_entry_points,
                 format_flow_compact,
                 trace_flow,
             )
+
+            if detail not in VALID_DETAILS:
+                return ToolResult(
+                    success=False,
+                    error=(
+                        f"Invalid detail={detail!r};"
+                        f" must be one of {sorted(VALID_DETAILS)}"
+                    ),
+                )
 
             pkg = get_package(pkg_path)
 

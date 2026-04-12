@@ -40,6 +40,7 @@ from axm_ast.models.nodes import ImportInfo, ModuleInfo, PackageInfo, WorkspaceI
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "VALID_DETAILS",
     "EntryPoint",
     "FlowStep",
     "build_callee_index",
@@ -50,6 +51,8 @@ __all__ = [
     "format_flows",
     "trace_flow",
 ]
+
+VALID_DETAILS: frozenset[str] = frozenset({"trace", "source", "compact"})
 
 
 # ─── Models ──────────────────────────────────────────────────────────────────
@@ -840,7 +843,9 @@ def trace_flow(  # noqa: PLR0913
             into external modules on-demand.
         detail: Level of detail — ``"trace"`` (default) returns
             names and positions only; ``"source"`` enriches each
-            step with the function's source code.
+            step with the function's source code; ``"compact"``
+            produces a tree-formatted string.  Must be one of
+            ``VALID_DETAILS``; raises :exc:`ValueError` otherwise.
         callee_index: Optional pre-computed index from
             :func:`build_callee_index`.  When provided, BFS uses
             O(1) dict lookups instead of scanning all modules.
@@ -856,6 +861,10 @@ def trace_flow(  # noqa: PLR0913
         >>> for s in steps:
         ...     print(f"{'  ' * s.depth}{s.name} ({s.module}:{s.line})")
     """
+    if detail not in VALID_DETAILS:
+        msg = f"Invalid detail={detail!r}; must be one of {sorted(VALID_DETAILS)}"
+        raise ValueError(msg)
+
     t0 = time.perf_counter()
 
     # Find the entry point location
