@@ -141,11 +141,11 @@ class TestTraceSourceHookExecute:
         assert result.success
 
     def test_trace_unknown_symbol(self, hook: TraceSourceHook, trace_pkg: Path) -> None:
-        """Unknown entry symbol → empty trace, still success."""
+        """Unknown entry symbol → ValueError caught, fail result."""
         result = hook.execute(
             context={"working_dir": str(trace_pkg)},
             entry="nonexistent_xyz",
         )
-        assert result.success
-        trace = result.metadata.get("trace", [])
-        assert trace == []
+        assert result.success is False
+        assert result.error is not None
+        assert "not found" in result.error

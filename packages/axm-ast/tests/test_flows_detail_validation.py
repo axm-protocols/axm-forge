@@ -30,10 +30,18 @@ class TestTraceFlowValidDetailsAccepted:
         self, detail: str, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         pkg = MagicMock()
-        # Short-circuit BFS by making entry lookup return None
+        # Short-circuit BFS by making entry lookup return a found symbol
         monkeypatch.setattr(
             "axm_ast.core.flows._find_symbol_location",
-            lambda *a, **kw: (None, None),
+            lambda *a, **kw: ("some.module", 1),
+        )
+        monkeypatch.setattr(
+            "axm_ast.core.flows._build_package_symbols",
+            lambda _pkg: frozenset(),
+        )
+        monkeypatch.setattr(
+            "axm_ast.core.flows.find_callees",
+            lambda *a, **kw: [],
         )
         result = trace_flow(pkg, "main", detail=detail)
         assert isinstance(result, list)

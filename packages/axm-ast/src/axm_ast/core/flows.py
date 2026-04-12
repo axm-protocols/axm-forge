@@ -870,7 +870,8 @@ def trace_flow(  # noqa: PLR0913
     # Find the entry point location
     entry_mod, entry_line = _find_symbol_location(pkg, entry)
     if entry_mod is None:
-        return []
+        msg = f"Symbol {entry!r} not found in package"
+        raise ValueError(msg)
 
     # Pre-compute set of symbols defined in the package so we can
     # distinguish project callees from stdlib method calls (e.g.
