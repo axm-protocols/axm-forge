@@ -64,6 +64,24 @@ def _search_symbol_in_file(
     return refs
 
 
+def _node_sig(node: ast.AST, src: str, mod_key: str) -> tuple[str, str] | None:
+    """Return ``(qualified_name, signature)`` for a def/class node."""
+    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+        seg = ast.get_source_segment(src, node)
+        if seg:
+            first_line = seg.split("\n")[0]
+            qualified = f"{mod_key}.{node.name}"
+            return qualified, first_line.rstrip().rstrip(":")
+        return None
+    if isinstance(node, ast.ClassDef):
+        qualified = f"{mod_key}.{node.name}"
+        if node.bases:
+            bases_str = ", ".join(ast.unparse(b) for b in node.bases)
+            return qualified, f"class {node.name}({bases_str})"
+        return qualified, f"class {node.name}"
+    return None
+
+
 def _extract_ast_signatures(root: Path) -> dict[str, str]:
     """Extract function/class signatures from all ``.py`` files under *root*.
 
@@ -90,20 +108,9 @@ def _extract_ast_signatures(root: Path) -> dict[str, str]:
                 continue
             module_key = ".".join(py_file.relative_to(search_dir).with_suffix("").parts)
             for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-                    sig = ast.get_source_segment(source, node)
-                    if sig:
-                        first_line = sig.split("\n")[0]
-                        # Remove trailing colon for comparison
-                        qualified = f"{module_key}.{node.name}"
-                        sigs[qualified] = first_line.rstrip().rstrip(":")
-                elif isinstance(node, ast.ClassDef):
-                    qualified = f"{module_key}.{node.name}"
-                    if node.bases:
-                        bases_str = ", ".join(ast.unparse(b) for b in node.bases)
-                        sigs[qualified] = f"class {node.name}({bases_str})"
-                    else:
-                        sigs[qualified] = f"class {node.name}"
+                entry = _node_sig(node, source, module_key)
+                if entry:
+                    sigs[entry[0]] = entry[1]
     return sigs
 
 
