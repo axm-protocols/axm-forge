@@ -916,27 +916,19 @@ def trace_flow(  # noqa: PLR0913
         current, depth, current_chain, current_pkg, current_mod = queue.popleft()
 
         if depth >= max_depth:
-            # Check if this frontier node has callees — if so, BFS is truncated
-            if not truncated:
-                if callee_index is not None:
-                    frontier_callees = callee_index.get((current_mod, current), [])
-                else:
-                    frontier_callees = find_callees(
-                        current_pkg, current, _parse_cache=ctx.parse_cache
-                    )
-                if _has_expandable_callees(
-                    frontier_callees,
-                    exclude_stdlib=exclude_stdlib,
-                    pkg_symbols=pkg_symbols,
-                    visited=visited,
-                ):
-                    truncated = True
+            truncated = truncated or _check_frontier_truncated(
+                current_mod,
+                current,
+                current_pkg,
+                callee_index,
+                ctx,
+                exclude_stdlib=exclude_stdlib,
+                pkg_symbols=pkg_symbols,
+                visited=visited,
+            )
             continue
 
-        if callee_index is not None:
-            callees = callee_index.get((current_mod, current), [])
-        else:
-            callees = find_callees(current_pkg, current, _parse_cache=ctx.parse_cache)
+        callees = _get_callees(current_mod, current, current_pkg, callee_index, ctx)
         _process_local_callees(
             callees=callees,
             exclude_stdlib=exclude_stdlib,
@@ -949,22 +941,18 @@ def trace_flow(  # noqa: PLR0913
             current_pkg=current_pkg,
         )
 
-        if not cross_module:
-            continue
-
-        # Cross-module resolution: find symbols that were imported
-        # but not defined locally.
-        _resolve_cross_module_callees(
-            callees,
-            _ResolutionScope(
-                current_mod=current_mod,
-                current_pkg=current_pkg,
-                original_pkg=pkg,
-                depth=depth,
-                current_chain=current_chain,
-            ),
-            ctx,
-        )
+        if cross_module:
+            _resolve_cross_module_callees(
+                callees,
+                _ResolutionScope(
+                    current_mod=current_mod,
+                    current_pkg=current_pkg,
+                    original_pkg=pkg,
+                    depth=depth,
+                    current_chain=current_chain,
+                ),
+                ctx,
+            )
 
     if detail == "source":
         _enrich_steps_with_source(steps, pkg)
@@ -979,6 +967,46 @@ def trace_flow(  # noqa: PLR0913
     )
 
     return steps, truncated
+
+
+def _get_callees(
+    current_mod: str,
+    current: str,
+    current_pkg: PackageInfo,
+    callee_index: dict[tuple[str, str], list[CallSite]] | None,
+    ctx: _CrossModuleContext,
+) -> list[CallSite]:
+    """Look up callees from the index or by scanning the package."""
+    if callee_index is not None:
+        return callee_index.get((current_mod, current), [])
+    return find_callees(current_pkg, current, _parse_cache=ctx.parse_cache)
+
+
+def _check_frontier_truncated(  # noqa: PLR0913
+    current_mod: str,
+    current: str,
+    current_pkg: PackageInfo,
+    callee_index: dict[tuple[str, str], list[CallSite]] | None,
+    ctx: _CrossModuleContext,
+    *,
+    exclude_stdlib: bool,
+    pkg_symbols: frozenset[str],
+    visited: set[tuple[str, str]],
+) -> bool:
+    """Return True if a frontier node has unexpanded callees."""
+    frontier_callees = _get_callees(
+        current_mod,
+        current,
+        current_pkg,
+        callee_index,
+        ctx,
+    )
+    return _has_expandable_callees(
+        frontier_callees,
+        exclude_stdlib=exclude_stdlib,
+        pkg_symbols=pkg_symbols,
+        visited=visited,
+    )
 
 
 def _has_expandable_callees(
