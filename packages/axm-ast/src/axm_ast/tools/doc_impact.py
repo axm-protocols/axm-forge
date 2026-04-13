@@ -51,6 +51,10 @@ class DocImpactTool(AXMTool):
             from axm_ast.core.doc_impact import analyze_doc_impact
 
             result = analyze_doc_impact(project_path, symbols)
-            return ToolResult(success=True, data=result)
+
+            from axm_ast.tools.doc_impact_text import render_doc_impact_text
+
+            text = render_doc_impact_text(result) if isinstance(result, dict) else None
+            return ToolResult(success=True, data=result, text=text)
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
