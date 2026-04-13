@@ -114,6 +114,21 @@ class GraphTool(AXMTool):
         return ToolResult(success=True, data=data, text=text)
 
     @staticmethod
+    def _group_modules(
+        nodes: list[str],
+    ) -> tuple[list[str], dict[str, list[str]]]:
+        """Split node names into standalone and dot-grouped buckets."""
+        groups: dict[str, list[str]] = {}
+        standalone: list[str] = []
+        for name in nodes:
+            parts = name.split(".", 1)
+            if "." in name:
+                groups.setdefault(parts[0], []).append(parts[1])
+            else:
+                standalone.append(name)
+        return standalone, groups
+
+    @staticmethod
     def _render_pkg_text(
         pkg_name: str,
         nodes: list[str],
@@ -129,16 +144,7 @@ class GraphTool(AXMTool):
         )
         lines = [header]
 
-        # Tree-grouped modules: group by first dot-segment
-        groups: dict[str, list[str]] = {}
-        standalone: list[str] = []
-        for name in nodes:
-            parts = name.split(".", 1)
-            if "." in name:
-                groups.setdefault(parts[0], []).append(parts[1])
-            else:
-                standalone.append(name)
-
+        standalone, groups = GraphTool._group_modules(nodes)
         lines.append("Modules:")
         for name in standalone:
             lines.append(f"  {name}")
