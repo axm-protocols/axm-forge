@@ -85,9 +85,9 @@ Each BFS node produces a `FlowStep` (Pydantic model):
 
 1. **Symbol resolution** — `_find_symbol_location` maps the entry name to a `(module_dotted, line)` pair. If not found, raises `ValueError`.
 2. **Queue initialization** — The entry is enqueued at depth 0 and immediately appended to `steps` as the root `FlowStep`.
-3. **Main loop** — Each iteration dequeues a symbol, resolves callees (from a pre-built index or via `find_callees`), and delegates filtering and enqueuing to `_process_local_callees`, which skips stdlib/visited symbols and appends a `FlowStep` for each new discovery at `depth + 1`.
-4. **Depth cap** — When `depth >= max_depth`, the node is dequeued but its callees are not explored. If any frontier node at `max_depth` has expandable callees (not visited, not stdlib), the `truncated` flag is set to `True`.
-5. **Cross-module** — After same-package callees are processed, `_resolve_cross_module_callees` receives a `_ResolutionScope` (bundling the current module, packages, depth, and chain) and follows imported symbols into external files.
+3. **Main loop** — Each iteration dequeues a symbol, resolves callees via `_get_callees` (which checks the pre-built index or falls back to `find_callees`), and delegates filtering and enqueuing to `_process_local_callees`, which skips stdlib/visited symbols and appends a `FlowStep` for each new discovery at `depth + 1`.
+4. **Depth cap** — When `depth >= max_depth`, `_check_frontier_truncated` tests whether the frontier node has expandable callees (not visited, not stdlib) and sets the `truncated` flag to `True` if so. The node's callees are not explored.
+5. **Cross-module** — When `cross_module` is enabled, `_resolve_cross_module_callees` receives a `_ResolutionScope` (bundling the current module, packages, depth, and chain) and follows imported symbols into external files.
 6. **Source enrichment** — After the BFS completes, if `detail="source"`, `_enrich_steps_with_source` patches each step with the actual function source text.
 
 ## Cross-Module Resolution (`_resolve_cross_module_callees`)

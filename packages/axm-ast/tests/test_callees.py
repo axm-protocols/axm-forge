@@ -98,7 +98,7 @@ class TestCalleesDogfood:
         pkg = analyze_package(src_path)
         callees = find_callees(pkg, "trace_flow")
         symbols = [c.symbol for c in callees]
-        assert "find_callees" in symbols
+        assert "_get_callees" in symbols
         assert "_find_symbol_location" in symbols
 
 
