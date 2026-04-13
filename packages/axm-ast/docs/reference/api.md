@@ -247,6 +247,56 @@ Multi-line string starting with `ast_impact | {symbol} | {score}`, followed by d
 
 ---
 
+## `FlowsTool.execute`
+
+```python
+from axm_ast.tools.flows import FlowsTool
+
+tool = FlowsTool()
+result = tool.execute(
+    path=".",
+    entry=None,
+    max_depth=5,
+    cross_module=False,
+    detail="trace",
+    exclude_stdlib=True,
+)
+```
+
+Detect entry points or trace execution flows from a symbol. Without `entry`, returns detected entry points. With `entry`, traces BFS flow from that symbol.
+
+Registered as `ast_flows` via `axm.tools` entry point.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `path` | `str` | `"."` | Path to package directory |
+| `entry` | `str \| None` | `None` | Entry point name to trace from; when `None`, detects entry points |
+| `max_depth` | `int` | `5` | Maximum BFS depth for flow tracing |
+| `cross_module` | `bool` | `False` | Resolve imports and trace into external modules |
+| `detail` | `str` | `"trace"` | Detail level — `"trace"`, `"source"`, or `"compact"` |
+| `exclude_stdlib` | `bool` | `True` | Exclude stdlib/builtin callees from BFS trace |
+
+### Return value
+
+`ToolResult` with:
+
+| Key | Present when | Description |
+|---|---|---|
+| `entry_points` | no `entry` | List of detected entry point dicts |
+| `entry` | with `entry` | Entry symbol name |
+| `steps` / `compact` | with `entry` | Flow steps (trace/source) or compact tree string |
+| `depth` | with `entry` | Actual max depth reached |
+| `count` | always | Number of items returned |
+| `truncated` | with `entry` | `True` when frontier nodes at `max_depth` had unexpanded children |
+
+Returns `success=False` when the entry symbol is not found or `detail` is invalid.
+
+Internally delegates to `_trace_entry` (single-entry BFS tracing with result formatting) and `_detect_entries` (entry point detection).
+
+---
+
 ## `render_impact_batch_text`
 
 ```python

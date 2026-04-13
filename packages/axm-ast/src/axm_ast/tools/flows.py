@@ -98,95 +98,129 @@ class FlowsTool(AXMTool):
             pkg = get_package(pkg_path)
 
             if entry is not None:
-                steps, truncated = trace_flow(
+                return self._trace_entry(
                     pkg,
                     entry,
                     max_depth=max_depth,
                     cross_module=cross_module,
                     detail=detail,
                     exclude_stdlib=exclude_stdlib,
-                )
-                actual_depth = max((s.depth for s in steps), default=0)
-                if detail == "compact":
-                    compact = format_flow_compact(steps)
-                    data = {
-                        "entry": entry,
-                        "compact": compact,
-                        "traces": compact,
-                        "depth": actual_depth,
-                        "cross_module": cross_module,
-                        "count": len(steps),
-                        "truncated": truncated,
-                    }
-                    return ToolResult(
-                        success=True,
-                        data=data,
-                        text=render_compact_text(
-                            entry=entry,
-                            compact=compact,
-                            depth=actual_depth,
-                            cross_module=cross_module,
-                            count=len(steps),
-                            truncated=truncated,
-                        ),
-                    )
-
-                step_dicts = []
-                for s in steps:
-                    d: dict[str, object] = {
-                        "name": s.name,
-                        "module": s.module,
-                        "line": s.line,
-                        "depth": s.depth,
-                        "chain": s.chain,
-                    }
-                    if s.resolved_module is not None:
-                        d["resolved_module"] = s.resolved_module
-                    if s.source is not None:
-                        d["source"] = s.source
-                    step_dicts.append(d)
-                data = {
-                    "entry": entry,
-                    "steps": step_dicts,
-                    "depth": actual_depth,
-                    "cross_module": cross_module,
-                    "count": len(steps),
-                    "truncated": truncated,
-                }
-                renderer = (
-                    render_source_text if detail == "source" else render_trace_text
-                )
-                return ToolResult(
-                    success=True,
-                    data=data,
-                    text=renderer(
-                        entry=entry,
-                        steps=step_dicts,
-                        depth=actual_depth,
-                        cross_module=cross_module,
-                        count=len(steps),
-                        truncated=truncated,
-                    ),
+                    trace_flow=trace_flow,
+                    format_flow_compact=format_flow_compact,
                 )
 
-            entries = find_entry_points(pkg)
-            entry_dicts = [
-                {
-                    "name": e.name,
-                    "module": e.module,
-                    "kind": e.kind,
-                    "line": e.line,
-                    "framework": e.framework,
-                }
-                for e in entries
-            ]
-            return ToolResult(
-                success=True,
-                data={
-                    "entry_points": entry_dicts,
-                    "count": len(entries),
-                },
-                text=render_entry_points_text(entry_dicts, count=len(entries)),
-            )
+            return self._detect_entries(pkg, find_entry_points)
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
+
+    def _trace_entry(  # noqa: PLR0913
+        self,
+        pkg: Any,
+        entry: str,
+        *,
+        max_depth: int,
+        cross_module: bool,
+        detail: str,
+        exclude_stdlib: bool,
+        trace_flow: Any,
+        format_flow_compact: Any,
+    ) -> ToolResult:
+        """Trace a single entry point and build the result."""
+        steps, truncated = trace_flow(
+            pkg,
+            entry,
+            max_depth=max_depth,
+            cross_module=cross_module,
+            detail=detail,
+            exclude_stdlib=exclude_stdlib,
+        )
+        actual_depth = max((s.depth for s in steps), default=0)
+
+        if detail == "compact":
+            compact = format_flow_compact(steps)
+            data = {
+                "entry": entry,
+                "compact": compact,
+                "traces": compact,
+                "depth": actual_depth,
+                "cross_module": cross_module,
+                "count": len(steps),
+                "truncated": truncated,
+            }
+            return ToolResult(
+                success=True,
+                data=data,
+                text=render_compact_text(
+                    entry=entry,
+                    compact=compact,
+                    depth=actual_depth,
+                    cross_module=cross_module,
+                    count=len(steps),
+                    truncated=truncated,
+                ),
+            )
+
+        step_dicts = _build_step_dicts(steps)
+        data = {
+            "entry": entry,
+            "steps": step_dicts,
+            "depth": actual_depth,
+            "cross_module": cross_module,
+            "count": len(steps),
+            "truncated": truncated,
+        }
+        renderer = render_source_text if detail == "source" else render_trace_text
+        return ToolResult(
+            success=True,
+            data=data,
+            text=renderer(
+                entry=entry,
+                steps=step_dicts,
+                depth=actual_depth,
+                cross_module=cross_module,
+                count=len(steps),
+                truncated=truncated,
+            ),
+        )
+
+    @staticmethod
+    def _detect_entries(pkg: Any, find_entry_points: Any) -> ToolResult:
+        """Detect entry points in the package."""
+        entries = find_entry_points(pkg)
+        entry_dicts = [
+            {
+                "name": e.name,
+                "module": e.module,
+                "kind": e.kind,
+                "line": e.line,
+                "framework": e.framework,
+            }
+            for e in entries
+        ]
+        return ToolResult(
+            success=True,
+            data={
+                "entry_points": entry_dicts,
+                "count": len(entries),
+            },
+            text=render_entry_points_text(entry_dicts, count=len(entries)),
+        )
+
+
+def _build_step_dicts(steps: list[Any]) -> list[dict[str, object]]:
+    """Convert FlowStep objects to serializable dicts."""
+    step_dicts: list[dict[str, object]] = []
+    for s in steps:
+        d: dict[str, object] = {
+            "name": s.name,
+            "module": s.module,
+            "line": s.line,
+            "depth": s.depth,
+            "chain": s.chain,
+        }
+        if s.resolved_module is not None:
+            d["resolved_module"] = s.resolved_module
+        if s.source is not None:
+            d["source"] = s.source
+        step_dicts.append(d)
+    return step_dicts
