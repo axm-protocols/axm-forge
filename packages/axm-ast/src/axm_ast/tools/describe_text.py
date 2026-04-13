@@ -50,18 +50,11 @@ def _render_toc(modules: list[dict[str, Any]], header: str) -> str:
 
 def _render_summary(modules: list[dict[str, Any]], header: str) -> str:
     lines: list[str] = [header]
-    # Collect empty module names so their submodules are also skipped
-    empty_parents: set[str] = set()
-    for mod in modules:
-        if not mod.get("functions") and not mod.get("classes"):
-            empty_parents.add(mod["name"])
     for mod in modules:
         name = mod["name"]
         functions = mod.get("functions", [])
         classes = mod.get("classes", [])
         if not functions and not classes:
-            continue
-        if any(name.startswith(p + ".") for p in empty_parents):
             continue
         lines.append(f"## {name}")
         for fn in functions:

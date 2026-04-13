@@ -52,7 +52,10 @@ def test_describe_compress_default_ok(
 
     result = tool.execute(path=str(tmp_path), compress=True)
     assert result.success is True
-    assert result.data["compressed"] == "compressed output"
+    assert (
+        result.data["compressed"]
+        == "ast_describe | compress | 1 modules\ncompressed output"
+    )
     assert result.data["module_count"] == 1
 
 

@@ -105,7 +105,9 @@ class DescribeTool(AXMTool):
                 }
                 result_text = render_describe_text(result_data, "toc")
             elif compress:
-                text = format_compressed(pkg)
+                body = format_compressed(pkg)
+                header = f"ast_describe | compress | {len(pkg.modules)} modules"
+                text = f"{header}\n{body}"
                 result_data = {
                     "compressed": text,
                     "module_count": len(pkg.modules),

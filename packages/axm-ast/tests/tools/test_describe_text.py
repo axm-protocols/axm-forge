@@ -74,7 +74,7 @@ def test_summary_skips_empty(tool: DescribeTool) -> None:
     result = tool.execute(path=AST_PKG, detail="summary")
     assert result.text is not None
     assert "## _version" not in result.text
-    assert "## models" not in result.text
+    assert "## models\n" not in result.text
 
 
 def test_detailed_has_summaries(tool: DescribeTool) -> None:
