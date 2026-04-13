@@ -130,14 +130,18 @@ class ImpactTool(AXMTool):
                 data={},
                 text=format_impact_compact(results),
             )
+        text = self._render_batch_text(results)
+        return ToolResult(success=True, data={"symbols": results}, text=text)
+
+    @staticmethod
+    def _render_batch_text(results: list[dict[str, Any]]) -> str | None:
+        """Render batch text from results, returning *None* on failure."""
         try:
             if any("score" in r or "callers" in r for r in results):
-                text = render_impact_batch_text(results)
-            else:
-                text = None
+                return render_impact_batch_text(results)
         except (KeyError, TypeError):
-            text = None
-        return ToolResult(success=True, data={"symbols": results}, text=text)
+            pass
+        return None
 
     def _execute_single(
         self,
