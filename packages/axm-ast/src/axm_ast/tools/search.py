@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -169,46 +169,45 @@ class SearchTool(AXMTool):
         parts.append(f"{count} hits")
         return " | ".join(parts)
 
+    _FUNC_KINDS: ClassVar[set[str]] = {
+        "function",
+        "method",
+        "property",
+        "classmethod",
+        "staticmethod",
+        "abstract",
+    }
+
     @staticmethod
-    def _format_symbol_line(sym: dict[str, Any]) -> str:
-        """Render one symbol dict as a compact text line."""
-        kind = sym.get("kind", "")
-        if kind in (
-            "function",
-            "method",
-            "property",
-            "classmethod",
-            "staticmethod",
-            "abstract",
-        ):
-            sig = sym.get("signature", "")
-            # Extract params from signature: "def name(...) -> ..."
-            paren_start = sig.find("(")
-            if paren_start != -1:
-                # Find matching closing paren
-                rest = sig[paren_start:]
-                # Take from paren_start to end, stripping "-> ..." after closing paren
-                paren_depth = 0
-                paren_end = -1
-                for i, ch in enumerate(rest):
-                    if ch == "(":
-                        paren_depth += 1
-                    elif ch == ")":
-                        paren_depth -= 1
-                        if paren_depth == 0:
-                            paren_end = i
-                            break
-                params_with_parens = rest[: paren_end + 1] if paren_end != -1 else rest
-            else:
-                params_with_parens = "()"
-            ret = sym.get("return_type")
-            line = f"{sym['name']}{params_with_parens}"
-            if ret is not None:
-                line += f" -> {ret}"
-            return line
-        if kind == "class":
-            return str(sym["name"])
-        # variable
+    def _extract_params_block(sig: str) -> str:
+        """Extract the parenthesised params block from a signature string."""
+        paren_start = sig.find("(")
+        if paren_start == -1:
+            return "()"
+        rest = sig[paren_start:]
+        depth = 0
+        for i, ch in enumerate(rest):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    return rest[: i + 1]
+        return rest
+
+    @staticmethod
+    def _format_func_line(sym: dict[str, Any]) -> str:
+        """Format a function-like symbol as a compact text line."""
+        params = SearchTool._extract_params_block(sym.get("signature", ""))
+        line = f"{sym['name']}{params}"
+        ret = sym.get("return_type")
+        if ret is not None:
+            line += f" -> {ret}"
+        return line
+
+    @staticmethod
+    def _format_variable_line(sym: dict[str, Any]) -> str:
+        """Format a variable symbol as a compact text line."""
         name = sym["name"]
         ann = sym.get("annotation")
         val = sym.get("value_repr")
@@ -219,6 +218,34 @@ class SearchTool(AXMTool):
         if val:
             return f"{name} = {val}"
         return str(name)
+
+    @staticmethod
+    def _format_symbol_line(sym: dict[str, Any]) -> str:
+        """Render one symbol dict as a compact text line."""
+        kind = sym.get("kind", "")
+        if kind in SearchTool._FUNC_KINDS:
+            return SearchTool._format_func_line(sym)
+        if kind == "class":
+            return str(sym["name"])
+        return SearchTool._format_variable_line(sym)
+
+    @staticmethod
+    def _group_symbols(
+        symbols: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+        """Partition symbols into (funcs, classes, variables)."""
+        funcs: list[dict[str, Any]] = []
+        classes: list[dict[str, Any]] = []
+        variables: list[dict[str, Any]] = []
+        for s in symbols:
+            k = s.get("kind", "")
+            if k in SearchTool._FUNC_KINDS:
+                funcs.append(s)
+            elif k == "class":
+                classes.append(s)
+            else:
+                variables.append(s)
+        return funcs, classes, variables
 
     @staticmethod
     def _render_text(
@@ -240,26 +267,31 @@ class SearchTool(AXMTool):
         if not symbols:
             return header
 
-        func_kinds = {
-            "function",
-            "method",
-            "property",
-            "classmethod",
-            "staticmethod",
-            "abstract",
-        }
-        funcs = [s for s in symbols if s.get("kind") in func_kinds]
-        classes = [s for s in symbols if s.get("kind") == "class"]
-        variables = [s for s in symbols if s.get("kind") == "variable"]
-
+        funcs, classes, variables = SearchTool._group_symbols(symbols)
+        fmt = SearchTool._format_symbol_line
         lines = [header]
-        for s in funcs:
-            lines.append(SearchTool._format_symbol_line(s))
+        lines.extend(fmt(s) for s in funcs)
         if classes:
-            lines.append(", ".join(SearchTool._format_symbol_line(s) for s in classes))
-        for s in variables:
-            lines.append(SearchTool._format_symbol_line(s))
+            lines.append(", ".join(fmt(s) for s in classes))
+        lines.extend(fmt(s) for s in variables)
         return "\n".join(lines)
+
+    @staticmethod
+    def _add_variable_fields(entry: dict[str, Any], sym: Any) -> None:
+        """Populate annotation and value_repr on a variable entry."""
+        if sym.annotation:
+            entry["annotation"] = sym.annotation
+        if sym.value_repr:
+            entry["value_repr"] = sym.value_repr
+
+    @staticmethod
+    def _resolve_kind(sym: Any) -> str | None:
+        """Resolve kind string from a fallback symbol."""
+        if hasattr(sym, "value_repr"):
+            return "variable"
+        if hasattr(sym, "kind"):
+            return sym.kind if isinstance(sym.kind, str) else sym.kind.value
+        return None
 
     @staticmethod
     def _format_symbol(sym: Any, module_name: str) -> dict[str, Any]:
@@ -280,18 +312,16 @@ class SearchTool(AXMTool):
             entry["signature"] = sym.signature
         if hasattr(sym, "return_type"):
             entry["return_type"] = sym.return_type
-        if isinstance(sym, FunctionInfo):
-            entry["kind"] = sym.kind.value
-        elif isinstance(sym, ClassInfo):
-            entry["kind"] = "class"
-        elif isinstance(sym, VariableInfo):
-            entry["kind"] = "variable"
-            if sym.annotation:
-                entry["annotation"] = sym.annotation
-            if sym.value_repr:
-                entry["value_repr"] = sym.value_repr
-        elif hasattr(sym, "value_repr"):
-            entry["kind"] = "variable"
-        elif hasattr(sym, "kind"):
-            entry["kind"] = sym.kind if isinstance(sym.kind, str) else sym.kind.value
+        match sym:
+            case FunctionInfo():
+                entry["kind"] = sym.kind.value
+            case ClassInfo():
+                entry["kind"] = "class"
+            case VariableInfo():
+                entry["kind"] = "variable"
+                SearchTool._add_variable_fields(entry, sym)
+            case _:
+                kind = SearchTool._resolve_kind(sym)
+                if kind is not None:
+                    entry["kind"] = kind
         return entry
