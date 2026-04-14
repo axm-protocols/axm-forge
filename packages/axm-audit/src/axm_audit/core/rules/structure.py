@@ -33,7 +33,11 @@ class FileExistsRule(ProjectRule):
         return "structure"
 
     def check(self, project_path: Path) -> CheckResult:
-        """Check if the file exists in the project."""
+        """Check if the file exists in the project.
+
+        Returns a passing result when the file is present, or a failing
+        result with ``fix_hint="touch {file_name}"`` when missing.
+        """
         target = project_path / self.file_name
         if target.exists() and target.is_file():
             return CheckResult(
@@ -45,6 +49,7 @@ class FileExistsRule(ProjectRule):
             rule_id=self.rule_id,
             passed=False,
             message=f"{self.file_name} not found",
+            fix_hint=f"touch {self.file_name}",
         )
 
 
@@ -70,7 +75,11 @@ class DirectoryExistsRule(ProjectRule):
         return "structure"
 
     def check(self, project_path: Path) -> CheckResult:
-        """Check if the directory exists in the project."""
+        """Check if the directory exists in the project.
+
+        Returns a passing result when the directory is present, or a failing
+        result with ``fix_hint="mkdir {dir_name}"`` when missing.
+        """
         target = project_path / self.dir_name
         if target.exists() and target.is_dir():
             return CheckResult(
@@ -82,6 +91,7 @@ class DirectoryExistsRule(ProjectRule):
             rule_id=self.rule_id,
             passed=False,
             message=f"{self.dir_name}/ not found",
+            fix_hint=f"mkdir {self.dir_name}",
         )
 
 
