@@ -67,12 +67,21 @@ class DuplicationRule(ProjectRule):
         score = max(0, 100 - dup_count * 10)
         passed = dup_count == 0
 
+        capped = clones[:20]
+        text_lines = [
+            f"     \u2022 {s[1]} {s[0]}:{s[2]}\u2192{t[0]}:{t[2]}"
+            for c in capped
+            for s in [c["source"].split(":")]
+            for t in [c["target"].split(":")]
+        ]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
             message=f"{dup_count} duplicate block(s) found",
             severity=Severity.WARNING if not passed else Severity.INFO,
-            details={"dup_count": dup_count, "clones": clones[:20], "score": score},
+            details={"dup_count": dup_count, "clones": capped, "score": score},
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint=(
                 "Extract duplicated code into shared functions" if not passed else None
             ),
