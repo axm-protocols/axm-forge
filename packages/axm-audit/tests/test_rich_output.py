@@ -19,7 +19,7 @@ class TestFormatCheckDetails:
             rule_id="QUALITY_COMPLEXITY",
             passed=False,
             message="Complexity score: 50/100",
-            text="    • foo.py → bar (cc=15)\n    • baz.py → qux (cc=12)",
+            text="• foo.py:bar 15\n• baz.py:qux 12",
             details={
                 "top_offenders": [
                     {"file": "foo.py", "function": "bar", "cc": 15},
@@ -32,7 +32,7 @@ class TestFormatCheckDetails:
         assert len(lines) == 2
         assert "foo.py" in lines[0]
         assert "bar" in lines[0]
-        assert "cc=15" in lines[0]
+        assert "15" in lines[0]
         assert "baz.py" in lines[1]
 
     def test_security_top_issues(self) -> None:
@@ -115,7 +115,7 @@ class TestFormatCheckDetails:
             rule_id="QUALITY_COMPLEXITY",
             passed=True,
             message="Complexity score: 90/100",
-            text="    • foo.py → bar (cc=11)",
+            text="• foo.py:bar 11",
             details={
                 "top_offenders": [
                     {"file": "foo.py", "function": "bar", "cc": 11},
@@ -280,7 +280,7 @@ class TestFormatReportRichOutput:
                     rule_id="QUALITY_COMPLEXITY",
                     passed=False,
                     message="Complexity score: 50/100",
-                    text="    • foo.py → bar (cc=15)",
+                    text="• foo.py:bar 15",
                     details={
                         "top_offenders": [
                             {"file": "foo.py", "function": "bar", "cc": 15},
@@ -295,7 +295,7 @@ class TestFormatReportRichOutput:
         assert "•" in report
         assert "foo.py" in report
         assert "bar" in report
-        assert "cc=15" in report
+        assert "15" in report
 
     def test_report_no_details_for_perfect_passing_checks(self) -> None:
         """Passing checks at 100 should NOT have bullet-point details."""
