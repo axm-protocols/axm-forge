@@ -296,7 +296,12 @@ class BareExceptRule(ProjectRule):
         return "PRACTICE_BARE_EXCEPT"
 
     def check(self, project_path: Path) -> CheckResult:
-        """Check for bare except clauses in the project."""
+        """Check for bare except clauses in the project.
+
+        Returns a ``CheckResult`` with ``text`` containing one bullet per
+        location (shortened to the last two path parts) when bare excepts
+        are found, or ``None`` when the project passes.
+        """
         early = self.check_src(project_path)
         if early is not None:
             return early
@@ -318,6 +323,17 @@ class BareExceptRule(ProjectRule):
         passed = count == 0
         score = max(0, 100 - count * 20)
 
+        _min_depth = 2
+        text_lines = []
+        for loc in bare_excepts:
+            file_path = Path(str(loc["file"]))
+            short = (
+                "/".join(file_path.parts[-_min_depth:])
+                if len(file_path.parts) > _min_depth
+                else file_path.parts[-1]
+            )
+            text_lines.append(f"     \u2022 {short}:{loc['line']}")
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -328,6 +344,7 @@ class BareExceptRule(ProjectRule):
                 "locations": bare_excepts,
                 "score": score,
             },
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint="Use specific exception types (e.g., except ValueError:)"
             if not passed
             else None,
