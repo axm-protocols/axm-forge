@@ -25,6 +25,7 @@ Each individual check returns:
 | `message` | `str` | Human-readable description |
 | `severity` | `Severity` | `error`, `warning`, or `info` |
 | `details` | `dict \| None` | Tool-specific data (scores, counts) |
+| `text` | `str \| None` | Pre-rendered detail text for display (bullet lines) |
 | `fix_hint` | `str \| None` | Suggested fix |
 
 ## Formatters
@@ -76,6 +77,7 @@ Example output structure:
     {
       "rule_id": "QUALITY_TYPE",
       "message": "Type score: 70/100 (6 errors)",
+      "text": "     \u2022 src/mod.py:MyClass (attr error)",
       "details": {"score": 70, "error_count": 6},
       "fix_hint": "Run: mypy src/"
     }

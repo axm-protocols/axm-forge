@@ -14,6 +14,8 @@ __all__ = ["TestCoverageRule"]
 
 logger = logging.getLogger(__name__)
 
+_FULL_COVERAGE: int = 100
+
 
 @dataclass
 @register_rule("testing")
@@ -75,6 +77,15 @@ class TestCoverageRule(ProjectRule):
 
         fix_hints = self._generate_fix_hints(has_failures, coverage_pct)
 
+        text_parts: list[str] = []
+        if coverage_pct < _FULL_COVERAGE:
+            text_parts.append(
+                f"     \u2022 Coverage: {coverage_pct:.1f}%"
+                f" \u2192 target: {_FULL_COVERAGE}%"
+            )
+        for f in failures[:10]:
+            text_parts.append(f"     \u2022 FAIL: {f['test']}")
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -85,6 +96,7 @@ class TestCoverageRule(ProjectRule):
                 "score": score,
                 "failures": failures,
             },
+            text="\n".join(text_parts) if text_parts else None,
             fix_hint=fix_hints,
         )
 

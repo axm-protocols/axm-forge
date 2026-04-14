@@ -12,96 +12,15 @@ logger = logging.getLogger(__name__)
 
 _GRADE_EMOJI = {"A": "🏆", "B": "✅", "C": "⚠️", "D": "🔧", "F": "❌"}
 
-# ── Detail formatters (per rule type) ────────────────────────────────
-
-_INDENT = "     "
-
-
-def _complexity_details(details: dict[str, Any]) -> list[str]:
-    """Format complexity top offenders."""
-    return [
-        f"{_INDENT}• {o['file']} → {o['function']} (cc={o['cc']})"
-        for o in details.get("top_offenders", [])
-    ]
-
-
-def _security_details(details: dict[str, Any]) -> list[str]:
-    """Format Bandit security issues."""
-    return [
-        f"{_INDENT}• [{i['severity']}] {i['code']}: "
-        f"{i['message']} ({i['file']}:{i['line']})"
-        for i in details.get("top_issues", [])
-    ]
-
-
-def _vuln_details(details: dict[str, Any]) -> list[str]:
-    """Format vulnerable packages."""
-    return [
-        f"{_INDENT}• {v['name']}=={v['version']}" for v in details.get("top_vulns", [])
-    ]
-
-
-def _hygiene_details(details: dict[str, Any]) -> list[str]:
-    """Format deptry hygiene issues."""
-    return [
-        f"{_INDENT}• [{i['code']}] {i['module']}: {i['message']}"
-        for i in details.get("top_issues", [])
-    ]
-
-
-def _coverage_details(details: dict[str, Any]) -> list[str]:
-    """Format coverage details."""
-    cov = details.get("coverage")
-    if cov is not None and cov < PERFECT_SCORE:
-        return [f"{_INDENT}• Coverage: {cov:.1f}% → target: 100%"]
-    return []
-
-
-def _lint_details(details: dict[str, Any]) -> list[str]:
-    """Format individual ruff violations."""
-    return [
-        f"{_INDENT}• [{i['code']}] {i['file']}:{i['line']}: {i['message']}"
-        for i in details.get("issues", [])
-    ]
-
-
-def _type_details(details: dict[str, Any]) -> list[str]:
-    """Format individual mypy errors."""
-    return [
-        f"{_INDENT}• [{e['code']}] {e['file']}:{e['line']}: {e['message']}"
-        for e in details.get("errors", [])
-    ]
-
-
-# Dispatch table: rule_id → detail formatter
-_DETAIL_FORMATTERS: dict[str, Any] = {
-    "QUALITY_LINT": _lint_details,
-    "QUALITY_TYPE": _type_details,
-    "QUALITY_COMPLEXITY": _complexity_details,
-    "QUALITY_SECURITY": _security_details,
-    "DEPS_AUDIT": _vuln_details,
-    "DEPS_HYGIENE": _hygiene_details,
-    "QUALITY_COVERAGE": _coverage_details,
-}
-
 
 def _format_check_details(check: CheckResult) -> list[str]:
     """Extract contextual detail lines from a check result.
 
-    Returns bullet-point strings for display.
-    Returns empty list for checks at score=100 or without details.
+    Returns the pre-rendered ``text`` lines when available.
+    Returns empty list for checks without text.
     """
-    if not check.details:
-        return []
-
-    score = check.details.get("score")
-    if score is not None and score >= PERFECT_SCORE:
-        return []
-
-    formatter = _DETAIL_FORMATTERS.get(check.rule_id)
-    if formatter:
-        result: list[str] = formatter(check.details)
-        return result
+    if check.text:
+        return check.text.splitlines()
     return []
 
 
@@ -254,6 +173,7 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
             {
                 "rule_id": c.rule_id,
                 "message": c.message,
+                "text": c.text,
                 "details": c.details,
                 "fix_hint": c.fix_hint,
             }
