@@ -59,6 +59,19 @@ class DocstringCoverageRule(ProjectRule):
         passed = coverage >= self.min_coverage
         score = int(coverage * 100)
 
+        # Group missing functions by file for text rendering
+        text: str | None = None
+        if missing:
+            groups: dict[str, list[str]] = {}
+            for item in missing:
+                file_part, _, func_name = item.rpartition(":")
+                groups.setdefault(file_part, []).append(func_name)
+            text_lines = [
+                f"     \u2022 {path}: {', '.join(funcs)}"
+                for path, funcs in groups.items()
+            ]
+            text = "\n".join(text_lines)
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -71,6 +84,7 @@ class DocstringCoverageRule(ProjectRule):
                 "missing": missing,
                 "score": score,
             },
+            text=text,
             fix_hint="Add docstrings to public functions" if missing else None,
         )
 
