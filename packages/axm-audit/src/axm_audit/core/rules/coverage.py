@@ -14,7 +14,7 @@ __all__ = ["TestCoverageRule"]
 
 logger = logging.getLogger(__name__)
 
-_FULL_COVERAGE: int = 100
+_FULL_COVERAGE: int = 100  # Target coverage percentage for compact text output
 
 
 @dataclass
@@ -46,7 +46,13 @@ class TestCoverageRule(ProjectRule):
         return self._report_to_result(report)
 
     def _report_to_result(self, report: TestReport) -> CheckResult:
-        """Convert a ``TestReport`` to a ``CheckResult``."""
+        """Convert a ``TestReport`` to a ``CheckResult``.
+
+        Builds a compact text summary with bullet lines for coverage gap
+        (``• cov N% → 100%``) and up to 10 short failure names
+        (``• FAIL test_name``).  Returns ``text=None`` when coverage is
+        full and no failures exist.
+        """
         coverage_pct = report.coverage if report.coverage is not None else 0.0
         score = int(coverage_pct)
         has_failures = report.failed > 0 or report.errors > 0
@@ -80,11 +86,11 @@ class TestCoverageRule(ProjectRule):
         text_parts: list[str] = []
         if coverage_pct < _FULL_COVERAGE:
             text_parts.append(
-                f"     \u2022 Coverage: {coverage_pct:.1f}%"
-                f" \u2192 target: {_FULL_COVERAGE}%"
+                f"\u2022 cov {coverage_pct:.0f}% \u2192 {_FULL_COVERAGE}%"
             )
         for f in failures[:10]:
-            text_parts.append(f"     \u2022 FAIL: {f['test']}")
+            short = f["test"].rsplit("::", 1)[-1]
+            text_parts.append(f"\u2022 FAIL {short}")
 
         return CheckResult(
             rule_id=self.rule_id,
