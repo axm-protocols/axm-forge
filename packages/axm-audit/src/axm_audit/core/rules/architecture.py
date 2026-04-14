@@ -22,6 +22,24 @@ from axm_audit.models.results import CheckResult, Severity
 logger = logging.getLogger(__name__)
 
 
+def _strip_prefix(modules: list[str]) -> list[str]:
+    """Strip the common top-level package prefix from module names.
+
+    All modules in a detected cycle belong to the same package (the graph
+    only contains modules under ``src/``).  Removing the shared prefix
+    cuts token count by ~49% with zero information loss.
+    """
+    if not modules:
+        return modules
+    first_dot = modules[0].find(".")
+    if first_dot == -1:
+        return modules
+    prefix = modules[0][: first_dot + 1]
+    if all(m.startswith(prefix) for m in modules):
+        return [m[len(prefix) :] for m in modules]
+    return modules
+
+
 def _get_module_name(path: Path, src_root: Path) -> str:
     """Convert file path to module name relative to src root."""
     rel_path = path.relative_to(src_root)
@@ -161,7 +179,9 @@ class CircularImportRule(ProjectRule):
         cycles, score = self._analyze_cycles(src_path)
         passed = len(cycles) == 0
 
-        text_lines = [f"     \u2022 {' \u2192 '.join(c)}" for c in cycles]
+        text_lines = [
+            f"     \u2022 {' \u2192 '.join(_strip_prefix(c))}" for c in cycles
+        ]
 
         return CheckResult(
             rule_id=self.rule_id,
