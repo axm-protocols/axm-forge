@@ -101,21 +101,27 @@ _OPTIONAL_FIELDS = ("classifiers", "readme")
 _TOTAL_FIELDS = 9  # required(5) + version + urls + optional(2)
 
 
-def _count_fields(project: dict[str, Any]) -> int:
-    """Count present PEP 621 fields in project table."""
-    present = sum(1 for f in _REQUIRED_FIELDS if f in project)
+def _check_fields(project: dict[str, Any]) -> tuple[int, list[str]]:
+    """Check present PEP 621 fields in project table.
+
+    Returns (present_count, missing_field_names).
+    """
+    missing: list[str] = [f for f in _REQUIRED_FIELDS if f not in project]
 
     # Version: static or dynamic
-    if "version" in project or "version" in project.get("dynamic", []):
-        present += 1
+    has_version = "version" in project or "version" in project.get("dynamic", [])
+    if not has_version:
+        missing.append("version")
 
     # URLs section
-    if project.get("urls"):
-        present += 1
+    if not project.get("urls"):
+        missing.append("urls")
 
     # Optional fields
-    present += sum(1 for f in _OPTIONAL_FIELDS if f in project)
-    return present
+    missing.extend(f for f in _OPTIONAL_FIELDS if f not in project)
+
+    present = _TOTAL_FIELDS - len(missing)
+    return present, missing
 
 
 @dataclass
@@ -158,7 +164,7 @@ class PyprojectCompletenessRule(ProjectRule):
                 fix_hint="Fix pyproject.toml syntax",
             )
 
-        present = _count_fields(data.get("project", {}))
+        present, missing = _check_fields(data.get("project", {}))
         score = int((present / _TOTAL_FIELDS) * 100)
 
         return CheckResult(
@@ -166,10 +172,12 @@ class PyprojectCompletenessRule(ProjectRule):
             passed=score >= PASS_THRESHOLD,
             message=f"pyproject.toml completeness: {present}/{_TOTAL_FIELDS} fields",
             severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
+            text=f"\u2022 missing: {', '.join(missing)}" if missing else None,
             details={
                 "fields_present": present,
                 "total_fields": _TOTAL_FIELDS,
                 "score": score,
+                "missing": missing,
             },
             fix_hint=(
                 "Add missing PEP 621 fields to [project]"
