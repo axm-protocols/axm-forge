@@ -402,7 +402,14 @@ class DiffSizeRule(ProjectRule):
             return False
 
     def _measure_diff(self, project_path: Path) -> CheckResult:
-        """Run ``git diff --stat HEAD`` and score the result."""
+        """Run ``git diff --stat HEAD`` and score the result.
+
+        Counts uncommitted changed lines via ``git diff --stat``, computes a
+        score against configurable *ideal* / *max* thresholds, and returns a
+        :class:`CheckResult`.  When the check passes (score ≥ 90) or there are
+        no changes, ``text`` is ``None`` so the result is omitted from
+        agent-facing output.
+        """
         try:
             result = subprocess.run(
                 ["git", "diff", "--stat", "HEAD"],
@@ -431,8 +438,8 @@ class DiffSizeRule(ProjectRule):
         passed = score >= PASS_THRESHOLD
 
         text = (
-            f"\u2022 {lines_changed} lines changed (ideal < {ideal})"
-            if lines_changed > 0
+            f"     \u2022 {lines_changed} lines \u0394 (ideal < {ideal})"
+            if not passed and lines_changed > 0
             else None
         )
 
