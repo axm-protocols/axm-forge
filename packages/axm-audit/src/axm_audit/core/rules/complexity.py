@@ -178,8 +178,7 @@ class ComplexityRule(ProjectRule):
         passed = score >= PASS_THRESHOLD
 
         text_lines = [
-            f"     \u2022 {o['file']} \u2192 {o['function']} (cc={o['cc']})"
-            for o in top_offenders
+            f"\u2022 {o['file']}:{o['function']} {o['cc']}" for o in top_offenders
         ]
 
         return CheckResult(
