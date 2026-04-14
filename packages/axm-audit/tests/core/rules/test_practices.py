@@ -1,6 +1,14 @@
 """Tests for Practice Rules — RED phase."""
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
+if TYPE_CHECKING:
+    from axm_audit.core.rules.practices import DocstringCoverageRule
 
 from axm_audit.models.results import Severity
 
@@ -662,3 +670,114 @@ class TestTestMirrorRule:
         assert result.details is None or "___triple.py" not in result.details.get(
             "missing", []
         )
+
+
+# ─── DocstringCoverageRule text= rendering ──────────────────────────────────
+
+
+class TestDocstringTextRendering:
+    """Tests for _build_result text= output (AXM-1395)."""
+
+    @pytest.fixture
+    def rule(self) -> DocstringCoverageRule:
+        from axm_audit.core.rules.practices import DocstringCoverageRule
+
+        return DocstringCoverageRule()
+
+    def test_docstring_text_with_missing(self, rule: DocstringCoverageRule) -> None:
+        """Passed with 6 missing across 3 modules -> 3 grouped bullet lines."""
+        missing = [
+            "core.py:process_data",
+            "core.py:validate_input",
+            "utils.py:format_output",
+            "utils.py:parse_config",
+            "helpers.py:build_key",
+            "helpers.py:load_data",
+        ]
+        result = rule._build_result(documented=44, missing=missing)
+
+        assert result.passed is True
+        assert result.text is not None
+        lines = result.text.split("\n")
+        assert len(lines) == 3
+        for line in lines:
+            assert line.startswith("     \u2022 ")
+        assert "core.py: process_data, validate_input" in result.text
+        assert "utils.py: format_output, parse_config" in result.text
+        assert "helpers.py: build_key, load_data" in result.text
+        # AC3: details dict unchanged
+        assert result.details is not None
+        assert result.details["missing"] == missing
+        assert result.details["coverage"] == 0.88
+        assert result.details["total"] == 50
+        assert result.details["documented"] == 44
+        assert result.details["score"] == 88
+
+    def test_docstring_text_perfect(self, rule: DocstringCoverageRule) -> None:
+        """100% coverage -> text is None."""
+        result = rule._build_result(documented=10, missing=[])
+
+        assert result.passed is True
+        assert result.text is None
+        # AC3: details dict unchanged
+        assert result.details is not None
+        assert result.details["missing"] == []
+        assert result.details["score"] == 100
+
+    def test_docstring_text_failed(self, rule: DocstringCoverageRule) -> None:
+        """Below threshold, 12 missing across 4 files.
+
+        Grouped bullets, passed False.
+        """
+        missing = [
+            "mod_a.py:f1",
+            "mod_a.py:f2",
+            "mod_a.py:f3",
+            "mod_b.py:f4",
+            "mod_b.py:f5",
+            "mod_b.py:f6",
+            "mod_c.py:f7",
+            "mod_c.py:f8",
+            "mod_c.py:f9",
+            "mod_d.py:f10",
+            "mod_d.py:f11",
+            "mod_d.py:f12",
+        ]
+        result = rule._build_result(documented=3, missing=missing)
+
+        assert result.passed is False
+        assert result.text is not None
+        lines = result.text.split("\n")
+        assert len(lines) == 4
+        for line in lines:
+            assert line.startswith("     \u2022 ")
+        assert "mod_a.py: f1, f2, f3" in result.text
+        assert "mod_b.py: f4, f5, f6" in result.text
+        assert "mod_c.py: f7, f8, f9" in result.text
+        assert "mod_d.py: f10, f11, f12" in result.text
+
+    # --- Edge cases ---
+
+    def test_docstring_text_single_file_single_missing(
+        self, rule: DocstringCoverageRule
+    ) -> None:
+        """Single missing func in one file -> one bullet line."""
+        result = rule._build_result(documented=9, missing=["file.py:func_name"])
+
+        assert result.text is not None
+        lines = result.text.split("\n")
+        assert len(lines) == 1
+        assert lines[0] == "     \u2022 file.py: func_name"
+
+    def test_docstring_text_nested_path(self, rule: DocstringCoverageRule) -> None:
+        """Nested path uses full relative path as grouping key."""
+        missing = [
+            "pkg/sub/module.py:func_a",
+            "pkg/sub/module.py:func_b",
+        ]
+        result = rule._build_result(documented=8, missing=missing)
+
+        assert result.text is not None
+        lines = result.text.split("\n")
+        assert len(lines) == 1
+        assert "pkg/sub/module.py: func_a, func_b" in lines[0]
