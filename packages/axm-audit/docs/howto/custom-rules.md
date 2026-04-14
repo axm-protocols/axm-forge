@@ -32,7 +32,7 @@ class MyRule(ProjectRule):
 
 !!! note "Contract"
     - `rule_id` → `@property` returning a unique `str` (e.g. `CUSTOM_README_LENGTH`)
-    - `check(project_path)` → returns a `CheckResult` with pass/fail, message, severity, and optional `details`/`fix_hint`
+    - `check(project_path)` → returns a `CheckResult` with pass/fail, message, severity, and optional `details`/`text`/`fix_hint`
 
 ## Scoring conventions
 

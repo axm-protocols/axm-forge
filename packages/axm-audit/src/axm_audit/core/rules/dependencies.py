@@ -106,6 +106,9 @@ class DependencyAuditRule(ProjectRule):
         vuln_count = len(vulns)
         score = max(0, 100 - vuln_count * 15)
 
+        top_vulns = [_summarize_vuln(v) for v in vulns[:5]]
+        text_lines = [f"     \u2022 {v['name']}=={v['version']}" for v in top_vulns]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=score >= PASS_THRESHOLD,
@@ -118,8 +121,9 @@ class DependencyAuditRule(ProjectRule):
             details={
                 "vuln_count": vuln_count,
                 "score": score,
-                "top_vulns": [_summarize_vuln(v) for v in vulns[:5]],
+                "top_vulns": top_vulns,
             },
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint=("Run: pip-audit --fix to remediate" if vuln_count > 0 else None),
         )
 
@@ -415,6 +419,12 @@ class DependencyHygieneRule(ProjectRule):
         issue_count = len(issues)
         score = max(0, 100 - issue_count * 10)
 
+        formatted = [_format_issue(i) for i in issues[:5]]
+        text_lines = [
+            f"     \u2022 [{fi['code']}] {fi['module']}: {fi['message']}"
+            for fi in formatted
+        ]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=score >= PASS_THRESHOLD,
@@ -427,8 +437,9 @@ class DependencyHygieneRule(ProjectRule):
             details={
                 "issue_count": issue_count,
                 "score": score,
-                "top_issues": [_format_issue(i) for i in issues[:5]],
+                "top_issues": formatted,
             },
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint=("Run: deptry . to see details" if issue_count > 0 else None),
         )
 
@@ -445,6 +456,14 @@ class DependencyHygieneRule(ProjectRule):
         issue_count = len(all_issues)
         score = max(0, 100 - issue_count * 10)
 
+        formatted = [
+            _format_issue(issue, member=name) for name, issue in all_issues[:5]
+        ]
+        text_lines = [
+            f"     \u2022 [{fi['code']}] {fi['module']}: {fi['message']}"
+            for fi in formatted
+        ]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=score >= PASS_THRESHOLD,
@@ -457,9 +476,8 @@ class DependencyHygieneRule(ProjectRule):
             details={
                 "issue_count": issue_count,
                 "score": score,
-                "top_issues": [
-                    _format_issue(issue, member=name) for name, issue in all_issues[:5]
-                ],
+                "top_issues": formatted,
             },
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint=("Run: deptry . to see details" if issue_count > 0 else None),
         )

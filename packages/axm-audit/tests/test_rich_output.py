@@ -19,6 +19,7 @@ class TestFormatCheckDetails:
             rule_id="QUALITY_COMPLEXITY",
             passed=False,
             message="Complexity score: 50/100",
+            text="    • foo.py → bar (cc=15)\n    • baz.py → qux (cc=12)",
             details={
                 "top_offenders": [
                     {"file": "foo.py", "function": "bar", "cc": 15},
@@ -42,6 +43,7 @@ class TestFormatCheckDetails:
             rule_id="QUALITY_SECURITY",
             passed=False,
             message="Security score: 50/100",
+            text="    • [HIGH] B105: Hardcoded password (auth.py:42)",
             details={
                 "top_issues": [
                     {
@@ -69,6 +71,7 @@ class TestFormatCheckDetails:
             rule_id="DEPS_AUDIT",
             passed=False,
             message="2 vulnerable packages",
+            text="    • requests==2.25.0\n    • pip==21.0",
             details={
                 "top_vulns": [
                     {"name": "requests", "version": "2.25.0"},
@@ -90,6 +93,7 @@ class TestFormatCheckDetails:
             rule_id="DEPS_HYGIENE",
             passed=False,
             message="3 issues",
+            text="    • [DEP001] foo: missing",
             details={
                 "top_issues": [
                     {"code": "DEP001", "module": "foo", "message": "missing"},
@@ -111,6 +115,7 @@ class TestFormatCheckDetails:
             rule_id="QUALITY_COMPLEXITY",
             passed=True,
             message="Complexity score: 90/100",
+            text="    • foo.py → bar (cc=11)",
             details={
                 "top_offenders": [
                     {"file": "foo.py", "function": "bar", "cc": 11},
@@ -184,6 +189,7 @@ class TestImprovementsSection:
                     rule_id="DEPS_AUDIT",
                     passed=True,
                     message="1 vulnerable package(s)",
+                    text="    • pip==25.3",
                     details={
                         "top_vulns": [
                             {"name": "pip", "version": "25.3"},
@@ -274,6 +280,7 @@ class TestFormatReportRichOutput:
                     rule_id="QUALITY_COMPLEXITY",
                     passed=False,
                     message="Complexity score: 50/100",
+                    text="    • foo.py → bar (cc=15)",
                     details={
                         "top_offenders": [
                             {"file": "foo.py", "function": "bar", "cc": 15},

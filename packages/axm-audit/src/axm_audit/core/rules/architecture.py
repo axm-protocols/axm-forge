@@ -161,12 +161,15 @@ class CircularImportRule(ProjectRule):
         cycles, score = self._analyze_cycles(src_path)
         passed = len(cycles) == 0
 
+        text_lines = [f"     \u2022 {' \u2192 '.join(c)}" for c in cycles]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
             message=f"{len(cycles)} circular import(s) found",
             severity=Severity.ERROR if not passed else Severity.INFO,
             details={"cycles": cycles, "score": score},
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint="Break cycles by using lazy imports or restructuring"
             if cycles
             else None,
@@ -227,12 +230,19 @@ class GodClassRule(ProjectRule):
         score = max(0, 100 - len(god_classes) * 15)
         passed = len(god_classes) == 0
 
+        text_lines = [
+            f"     \u2022 {g['file']}:{g['name']} "
+            f"({g['lines']} lines, {g['methods']} methods)"
+            for g in god_classes
+        ]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
             message=f"{len(god_classes)} god class(es) found",
             severity=Severity.WARNING if not passed else Severity.INFO,
             details={"god_classes": god_classes, "score": score},
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint="Split large classes into smaller, focused classes"
             if god_classes
             else None,
@@ -622,6 +632,10 @@ class CouplingMetricRule(ProjectRule):
             lines = [f"  \u2022 {m['module']} (fan-out: {m['fan_out']})" for m in over]
             hint = "Reduce imports in:\n" + "\n".join(lines)
 
+        text_lines = [
+            f"     \u2022 {m['module']} (fan-out: {m['fan_out']})" for m in over
+        ]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=n_errors == 0,
@@ -635,5 +649,6 @@ class CouplingMetricRule(ProjectRule):
                 "n_over_threshold": n_over,
                 "over_threshold": over,
             },
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint=hint,
         )

@@ -177,6 +177,11 @@ class ComplexityRule(ProjectRule):
         score = max(0, 100 - high_complexity_count * 10)
         passed = score >= PASS_THRESHOLD
 
+        text_lines = [
+            f"     \u2022 {o['file']} \u2192 {o['function']} (cc={o['cc']})"
+            for o in top_offenders
+        ]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -190,6 +195,7 @@ class ComplexityRule(ProjectRule):
                 "top_offenders": top_offenders,
                 "score": score,
             },
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint=(
                 "Refactor complex functions into smaller units"
                 if high_complexity_count > 0

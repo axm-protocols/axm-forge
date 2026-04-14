@@ -73,6 +73,13 @@ def _build_security_result(rule_id: str, results: list[dict[str, Any]]) -> Check
     med = sum(1 for r in results if r.get("issue_severity") == "MEDIUM")
     score = max(0, 100 - (high * 15 + med * 5))
 
+    top_issues = _extract_top_issues(results)
+    text_lines = [
+        f"     \u2022 [{i['severity']}] {i['code']}: "
+        f"{i['message']} ({i['file']}:{i['line']})"
+        for i in top_issues
+    ]
+
     return CheckResult(
         rule_id=rule_id,
         passed=score >= PASS_THRESHOLD,
@@ -84,8 +91,9 @@ def _build_security_result(rule_id: str, results: list[dict[str, Any]]) -> Check
             "high_count": high,
             "medium_count": med,
             "score": score,
-            "top_issues": _extract_top_issues(results),
+            "top_issues": top_issues,
         },
+        text="\n".join(text_lines) if text_lines else None,
         fix_hint=(
             "Review and fix security vulnerabilities. Run: bandit -r src/ for details"
             if high > 0 or med > 0
