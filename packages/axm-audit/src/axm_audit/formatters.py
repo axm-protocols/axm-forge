@@ -157,12 +157,17 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
             continue
         if _has_actionable_detail(c):
             entry: dict[str, Any] = {
-                "rule_id": c.rule_id,
-                "message": c.message,
-                **({"text": c.text} if c.text is not None else {}),
-                **({"details": c.details} if c.details is not None else {}),
-                **({"fix_hint": c.fix_hint} if c.fix_hint else {}),
+                k: v
+                for k, v in {
+                    "rule_id": c.rule_id,
+                    "message": c.message,
+                    "text": c.text,
+                    "details": c.details,
+                }.items()
+                if v is not None
             }
+            if c.fix_hint:
+                entry["fix_hint"] = c.fix_hint
             passed.append(entry)
         else:
             passed.append(f"{c.rule_id}: {c.message}")
@@ -173,12 +178,16 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
         "passed": passed,
         "failed": [
             {
-                "rule_id": c.rule_id,
-                "message": c.message,
-                **({"text": c.text} if c.text is not None else {}),
-                **({"details": c.details} if c.details is not None else {}),
-                **({"fix_hint": c.fix_hint} if c.fix_hint else {}),
+                k: v
+                for k, v in {
+                    "rule_id": c.rule_id,
+                    "message": c.message,
+                    "text": c.text,
+                    "details": c.details,
+                }.items()
+                if v is not None
             }
+            | ({"fix_hint": c.fix_hint} if c.fix_hint else {})
             for c in result.checks
             if not c.passed
         ],
