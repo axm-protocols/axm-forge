@@ -234,7 +234,8 @@ class TypeCheckRule(ProjectRule):
         passed = error_count == 0
 
         text_lines = [
-            f"\u2022 [{e['code']}] {e['file']}:{e['line']}: {e['message']}"
+            f"\u2022 [{e['code']}] {str(e['file']).removeprefix('src/')}"
+            f":{e['line']}: {e['message']}"
             for e in errors
         ]
 
