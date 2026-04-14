@@ -93,7 +93,7 @@ class TestFormatCheckDetails:
             rule_id="DEPS_HYGIENE",
             passed=False,
             message="3 issues",
-            text="    • [DEP001] foo: missing",
+            text="• DEP001 foo: missing dep",
             details={
                 "top_issues": [
                     {"code": "DEP001", "module": "foo", "message": "missing"},
