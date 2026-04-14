@@ -25,6 +25,14 @@ __all__ = ["DiffSizeRule", "FormattingRule", "LintingRule", "TypeCheckRule"]
 logger = logging.getLogger(__name__)
 
 
+def _short_path(filepath: str, project_path: Path) -> str:
+    """Return *filepath* relative to *project_path*, or unchanged on failure."""
+    try:
+        return str(Path(filepath).relative_to(project_path))
+    except ValueError:
+        return filepath
+
+
 def _get_audit_targets(project_path: Path) -> tuple[list[str], str]:
     """Build the list of directories to audit and a human-readable label.
 
@@ -90,7 +98,8 @@ class LintingRule(ProjectRule):
         ]
 
         text_lines = [
-            f"     \u2022 [{i['code']}] {i['file']}:{i['line']}: {i['message']}"
+            f"\u2022 {i['code']} {_short_path(str(i['file']), project_path)}"
+            f":{i['line']} {i['message']}"
             for i in formatted_issues
         ]
 
@@ -156,7 +165,7 @@ class FormattingRule(ProjectRule):
         score = max(0, 100 - unformatted_count * 5)
         passed = score >= PASS_THRESHOLD
 
-        text_lines = [f"     \u2022 {f}" for f in unformatted_files[:20]]
+        text_lines = [f"\u2022 {f}" for f in unformatted_files[:20]]
 
         return CheckResult(
             rule_id=self.rule_id,
@@ -225,7 +234,7 @@ class TypeCheckRule(ProjectRule):
         passed = error_count == 0
 
         text_lines = [
-            f"     \u2022 [{e['code']}] {e['file']}:{e['line']}: {e['message']}"
+            f"\u2022 [{e['code']}] {e['file']}:{e['line']}: {e['message']}"
             for e in errors
         ]
 
@@ -422,7 +431,7 @@ class DiffSizeRule(ProjectRule):
         passed = score >= PASS_THRESHOLD
 
         text = (
-            f"     \u2022 {lines_changed} lines changed (ideal < {ideal})"
+            f"\u2022 {lines_changed} lines changed (ideal < {ideal})"
             if lines_changed > 0
             else None
         )

@@ -20,7 +20,7 @@ def _format_check_details(check: CheckResult) -> list[str]:
     Returns empty list for checks without text.
     """
     if check.text:
-        return check.text.splitlines()
+        return [f"     {line}" for line in check.text.splitlines()]
     return []
 
 
