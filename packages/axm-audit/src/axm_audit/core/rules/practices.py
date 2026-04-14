@@ -477,12 +477,17 @@ class BlockingIORule(ProjectRule):
         passed = count == 0
         score = max(0, 100 - count * 15)
 
+        text_lines = [
+            f"     \u2022 {v['file']}:{v['line']}: {v['issue']}" for v in violations
+        ]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
             message=f"{count} blocking-IO violation(s) found",
             severity=Severity.WARNING if not passed else Severity.INFO,
             details={"violations": violations, "score": score},
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint=(
                 "Use asyncio.sleep() instead of time.sleep() in async context; "
                 "add timeout= to HTTP calls"
