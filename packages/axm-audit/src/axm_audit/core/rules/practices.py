@@ -648,6 +648,11 @@ class TestMirrorRule(ProjectRule):
         if len(missing) > 5:  # noqa: PLR2004
             hint_files += f" (+{len(missing) - 5} more)"
 
+        text_files = " ".join(missing[:5])
+        if len(missing) > 5:  # noqa: PLR2004
+            text_files += f" (+{len(missing) - 5} more)"
+        text_lines = [f"\u2022 untested: {text_files}"] if missing else []
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -655,6 +660,7 @@ class TestMirrorRule(ProjectRule):
             severity=Severity.WARNING if not passed else Severity.INFO,
             details={"missing": missing, "score": score},
             fix_hint=f"Create test files: {hint_files}",
+            text="\n".join(text_lines) if text_lines else None,
         )
 
     @staticmethod
