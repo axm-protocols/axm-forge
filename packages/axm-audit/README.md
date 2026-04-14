@@ -29,7 +29,7 @@
 - 🔒 **Type Checking** — Strict mypy (per-project `pyproject.toml` config)
 - 📊 **Complexity** — Cyclomatic complexity via radon (Python API with subprocess fallback)
 - 🛡️ **Security** — Bandit integration + hardcoded secrets detection
-- 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry) with false-positive filtering for entry-point and optional-dependency packages, and uv workspace support (auto-aggregation across members)
+- 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry) with false-positive filtering for entry-point and optional-dependency packages, uv workspace support (auto-aggregation across members), and dual-format text output (`• pkg ver→fix CVE-id` with `+N` suffix for multiple CVEs)
 - 🧪 **Testing** — Coverage enforcement via pytest-cov
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
 - 📐 **Practices** — Docstring coverage (with cross-file abstract override detection), bare except detection, hardcoded secrets, blocking I/O, test mirroring

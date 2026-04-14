@@ -46,6 +46,19 @@ def _run_pip_audit(project_path: Path) -> dict[str, Any] | list[Any]:
     return {}
 
 
+def _format_vuln_line(v: dict[str, Any]) -> str:
+    """Format a single summarized vuln entry as a text line."""
+    fix = ",".join(v["fix_versions"]) if v["fix_versions"] else "?"
+    cves = v["vuln_ids"]
+    if not cves:
+        cve_str = ""
+    elif len(cves) == 1:
+        cve_str = cves[0]
+    else:
+        cve_str = f"{cves[0]}+{len(cves) - 1}"
+    return f"\u2022 {v['name']} {v['version']}\u2192{fix} {cve_str}"
+
+
 def _summarize_vuln(v: dict[str, Any]) -> dict[str, Any]:
     """Build a top_vulns summary entry for a single vulnerable package."""
     vuln_entries = v.get("vulns", [])
@@ -107,7 +120,7 @@ class DependencyAuditRule(ProjectRule):
         score = max(0, 100 - vuln_count * 15)
 
         top_vulns = [_summarize_vuln(v) for v in vulns[:5]]
-        text_lines = [f"     \u2022 {v['name']}=={v['version']}" for v in top_vulns]
+        text_lines = [_format_vuln_line(v) for v in top_vulns]
 
         return CheckResult(
             rule_id=self.rule_id,
