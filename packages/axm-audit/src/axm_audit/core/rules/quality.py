@@ -165,7 +165,7 @@ class FormattingRule(ProjectRule):
         score = max(0, 100 - unformatted_count * 5)
         passed = score >= PASS_THRESHOLD
 
-        text_lines = [f"\u2022 {f}" for f in unformatted_files[:20]]
+        text_lines = unformatted_files[:20]
 
         return CheckResult(
             rule_id=self.rule_id,
