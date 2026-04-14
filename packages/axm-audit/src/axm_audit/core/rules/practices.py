@@ -422,12 +422,17 @@ class SecurityPatternRule(ProjectRule):
         passed = count == 0
         score = max(0, 100 - count * 25)
 
+        text_lines = [
+            f"     \u2022 {m['file']}:{m['line']} {m['pattern']}" for m in matches
+        ]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
             message=f"{count} potential secret(s) found",
             severity=Severity.ERROR if not passed else Severity.INFO,
             details={"secret_count": count, "matches": matches, "score": score},
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint="Use environment variables or secret managers"
             if not passed
             else None,
