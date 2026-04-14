@@ -75,8 +75,7 @@ def _build_security_result(rule_id: str, results: list[dict[str, Any]]) -> Check
 
     top_issues = _extract_top_issues(results)
     text_lines = [
-        f"     \u2022 [{i['severity']}] {i['code']}: "
-        f"{i['message']} ({i['file']}:{i['line']})"
+        f"\u2022 {i['severity'][0]} {i['code']} {i['file']}:{i['line']} {i['message']}"
         for i in top_issues
     ]
 

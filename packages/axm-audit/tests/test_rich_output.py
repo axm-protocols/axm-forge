@@ -43,7 +43,7 @@ class TestFormatCheckDetails:
             rule_id="QUALITY_SECURITY",
             passed=False,
             message="Security score: 50/100",
-            text="    • [HIGH] B105: Hardcoded password (auth.py:42)",
+            text="• H B105 auth.py:42 Hardcoded password",
             details={
                 "top_issues": [
                     {
@@ -59,7 +59,7 @@ class TestFormatCheckDetails:
         )
         lines = _format_check_details(check)
         assert len(lines) == 1
-        assert "HIGH" in lines[0]
+        assert "H" in lines[0]
         assert "B105" in lines[0]
         assert "auth.py" in lines[0]
 
