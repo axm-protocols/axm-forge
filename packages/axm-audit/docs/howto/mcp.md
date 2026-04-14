@@ -16,7 +16,7 @@ Call the `audit` MCP tool with the project path:
 {"tool": "audit", "kwargs": {"path": "/path/to/project"}}
 ```
 
-The output uses `format_agent` — compact strings for clean passes, detailed dicts for actionable items:
+The output uses `format_agent` — compact strings for clean passes, detailed dicts for actionable items. Each dict includes either `text` or `details`, never both:
 
 ```json
 {
