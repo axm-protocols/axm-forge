@@ -146,22 +146,26 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
     """Agent-optimized output: passed=summary, failed=full detail.
 
     Minimizes tokens for passing checks while giving full context on
-    failures.  Passed checks that carry actionable detail (e.g. missing
-    docstrings) include a ``details`` dict so the agent can act on them.
+    failures.  Each check entry includes either ``text`` (pre-formatted
+    string) or ``details`` (structured dict), never both.  Passed checks
+    that carry actionable detail (e.g. missing docstrings) are promoted
+    to dicts with ``fix_hint``.
     """
     passed: list[str | dict[str, Any]] = []
     for c in result.checks:
         if not c.passed:
             continue
         if _has_actionable_detail(c):
-            passed.append(
-                {
-                    "rule_id": c.rule_id,
-                    "message": c.message,
-                    "details": c.details,
-                    "fix_hint": c.fix_hint,
-                }
-            )
+            entry: dict[str, Any] = {
+                "rule_id": c.rule_id,
+                "message": c.message,
+                "fix_hint": c.fix_hint,
+            }
+            if c.text:
+                entry["text"] = c.text
+            else:
+                entry["details"] = c.details
+            passed.append(entry)
         else:
             passed.append(f"{c.rule_id}: {c.message}")
 
@@ -173,8 +177,7 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
             {
                 "rule_id": c.rule_id,
                 "message": c.message,
-                "text": c.text,
-                "details": c.details,
+                **({"text": c.text} if c.text else {"details": c.details}),
                 "fix_hint": c.fix_hint,
             }
             for c in result.checks
