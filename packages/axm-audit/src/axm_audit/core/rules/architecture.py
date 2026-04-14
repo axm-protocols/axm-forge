@@ -238,7 +238,15 @@ class GodClassRule(ProjectRule):
         return "ARCH_GOD_CLASS"
 
     def check(self, project_path: Path) -> CheckResult:
-        """Check for god classes in the project."""
+        """Check for god classes in the project.
+
+        Scans all classes under ``src/`` and flags those exceeding
+        :attr:`max_lines` or :attr:`max_methods`.
+
+        The ``text`` field uses the compact format
+        ``• {basename}:{ClassName} {lines}L/{methods}M`` (one line per
+        violation), or ``None`` when no god classes are found.
+        """
         early = self.check_src(project_path)
         if early is not None:
             return early
@@ -251,8 +259,8 @@ class GodClassRule(ProjectRule):
         passed = len(god_classes) == 0
 
         text_lines = [
-            f"     \u2022 {g['file']}:{g['name']} "
-            f"({g['lines']} lines, {g['methods']} methods)"
+            f"\u2022 {Path(str(g['file'])).name}:{g['name']}"
+            f" {g['lines']}L/{g['methods']}M"
             for g in god_classes
         ]
 
