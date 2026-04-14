@@ -320,6 +320,14 @@ def _filter_false_positives(
     return filtered
 
 
+_DEPTRY_LABELS: dict[str, str] = {
+    "DEP001": "missing dep",
+    "DEP002": "unused dep",
+    "DEP003": "transitive dep",
+    "DEP004": "misplaced dev dep",
+}
+
+
 def _format_issue(issue: dict[str, Any], member: str = "") -> dict[str, str]:
     """Format a single deptry issue for reporting."""
     if "error" in issue:
@@ -434,7 +442,8 @@ class DependencyHygieneRule(ProjectRule):
 
         formatted = [_format_issue(i) for i in issues[:5]]
         text_lines = [
-            f"     \u2022 [{fi['code']}] {fi['module']}: {fi['message']}"
+            f"\u2022 {fi['code']} {fi['module']}:"
+            f" {_DEPTRY_LABELS.get(fi['code'], fi['message'])}"
             for fi in formatted
         ]
 
@@ -473,7 +482,9 @@ class DependencyHygieneRule(ProjectRule):
             _format_issue(issue, member=name) for name, issue in all_issues[:5]
         ]
         text_lines = [
-            f"     \u2022 [{fi['code']}] {fi['module']}: {fi['message']}"
+            f"\u2022 {fi['code']} {fi['module']}:"
+            f" {_DEPTRY_LABELS.get(fi['code'], fi['message'])}"
+            + (f" ({fi['member']})" if fi.get("member") else "")
             for fi in formatted
         ]
 
