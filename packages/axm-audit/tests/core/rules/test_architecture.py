@@ -39,6 +39,41 @@ class TestCircularImportRule:
         assert result.details is not None
         assert len(result.details["cycles"]) > 0
 
+    def test_text_strips_package_prefix(self, tmp_path: Path) -> None:
+        """Text output strips the common package prefix from module names."""
+        from axm_audit.core.rules.architecture import CircularImportRule
+
+        src = tmp_path / "src"
+        pkg = src / "mypkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "a.py").write_text("import mypkg.b\n")
+        (pkg / "b.py").write_text("import mypkg.a\n")
+
+        rule = CircularImportRule()
+        result = rule.check(tmp_path)
+        assert result.text is not None
+        # Should show relative paths, not FQN
+        assert "mypkg." not in result.text
+        assert "\u2192" in result.text
+
+    def test_text_no_prefix_strip_for_bare_modules(self, tmp_path: Path) -> None:
+        """Modules without dots keep their names unchanged."""
+        from axm_audit.core.rules.architecture import CircularImportRule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "__init__.py").write_text("")
+        (src / "a.py").write_text("import b\n")
+        (src / "b.py").write_text("import a\n")
+
+        rule = CircularImportRule()
+        result = rule.check(tmp_path)
+        assert result.text is not None
+        # Bare names (no dot) should remain as-is
+        assert "a" in result.text
+        assert "b" in result.text
+
     def test_rule_id_format(self) -> None:
         """Rule ID should be ARCH_CIRCULAR."""
         from axm_audit.core.rules.architecture import CircularImportRule
@@ -139,6 +174,37 @@ class TestCouplingMetricRule:
 
         rule = CouplingMetricRule()
         assert rule.rule_id == "ARCH_COUPLING"
+
+
+class TestStripPrefix:
+    """Tests for _strip_prefix helper."""
+
+    def test_strips_shared_prefix(self) -> None:
+        """Removes common top-level package from all modules."""
+        from axm_audit.core.rules.architecture import _strip_prefix
+
+        result = _strip_prefix(["pkg.core.a", "pkg.core.b", "pkg.models.c"])
+        assert result == ["core.a", "core.b", "models.c"]
+
+    def test_no_dot_returns_unchanged(self) -> None:
+        """Bare module names (no dot) are returned as-is."""
+        from axm_audit.core.rules.architecture import _strip_prefix
+
+        result = _strip_prefix(["a", "b"])
+        assert result == ["a", "b"]
+
+    def test_empty_list_returns_empty(self) -> None:
+        """Empty input returns empty."""
+        from axm_audit.core.rules.architecture import _strip_prefix
+
+        assert _strip_prefix([]) == []
+
+    def test_mixed_prefix_returns_unchanged(self) -> None:
+        """If modules don't share a prefix, return unchanged."""
+        from axm_audit.core.rules.architecture import _strip_prefix
+
+        result = _strip_prefix(["pkg_a.mod", "pkg_b.mod"])
+        assert result == ["pkg_a.mod", "pkg_b.mod"]
 
 
 class TestTarjanSCC:
