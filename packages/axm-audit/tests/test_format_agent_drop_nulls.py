@@ -178,7 +178,7 @@ class TestFormatAgentEdgeCases:
         assert set(failed.keys()) == {"rule_id", "message"}
 
     def test_empty_string_vs_none(self) -> None:
-        """Empty string is falsy but not None — key must be preserved."""
+        """Empty string is not None — text key is preserved."""
         from axm_audit.formatters import format_agent
         from axm_audit.models.results import AuditResult, CheckResult
 
