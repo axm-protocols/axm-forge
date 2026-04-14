@@ -89,6 +89,11 @@ class LintingRule(ProjectRule):
             for i in issues[:20]
         ]
 
+        text_lines = [
+            f"     \u2022 [{i['code']}] {i['file']}:{i['line']}: {i['message']}"
+            for i in formatted_issues
+        ]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -100,6 +105,7 @@ class LintingRule(ProjectRule):
                 "checked": checked,
                 "issues": formatted_issues,
             },
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint=f"Run: ruff check --fix {checked}" if issue_count > 0 else None,
         )
 
@@ -150,6 +156,8 @@ class FormattingRule(ProjectRule):
         score = max(0, 100 - unformatted_count * 5)
         passed = score >= PASS_THRESHOLD
 
+        text_lines = [f"     \u2022 {f}" for f in unformatted_files[:20]]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -161,6 +169,7 @@ class FormattingRule(ProjectRule):
                 "score": score,
                 "checked": checked,
             },
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint=(f"Run: ruff format {checked}" if unformatted_count > 0 else None),
         )
 
@@ -215,6 +224,11 @@ class TypeCheckRule(ProjectRule):
         score = max(0, 100 - error_count * 5)
         passed = error_count == 0
 
+        text_lines = [
+            f"     \u2022 [{e['code']}] {e['file']}:{e['line']}: {e['message']}"
+            for e in errors
+        ]
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -226,6 +240,7 @@ class TypeCheckRule(ProjectRule):
                 "checked": checked,
                 "errors": errors,
             },
+            text="\n".join(text_lines) if text_lines else None,
             fix_hint=(
                 "Add type hints to functions and fix type errors"
                 if error_count > 0
@@ -406,12 +421,19 @@ class DiffSizeRule(ProjectRule):
         score = self._compute_score(lines_changed, ideal, max_lines)
         passed = score >= PASS_THRESHOLD
 
+        text = (
+            f"     \u2022 {lines_changed} lines changed (ideal < {ideal})"
+            if lines_changed > 0
+            else None
+        )
+
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
             message=f"Diff size: {lines_changed} lines changed (score {score}/100)",
             severity=Severity.WARNING if not passed else Severity.INFO,
             details={"lines_changed": lines_changed, "score": score},
+            text=text,
             fix_hint=(
                 f"Consider splitting into smaller commits (< {ideal} lines ideal)"
                 if not passed

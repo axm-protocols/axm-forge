@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, PrivateAttr, computed_field
 
 # ── Grade thresholds ──────────────────────────────────────────────────
 _GRADE_A: int = 90
@@ -61,6 +61,9 @@ class CheckResult(BaseModel):
     details: dict[str, Any] | None = Field(
         default=None, description="Structured data (cycles, metrics)"
     )
+    text: str | None = Field(
+        default=None, description="Pre-rendered detail text for display"
+    )
     fix_hint: str | None = Field(default=None, description="Actionable fix suggestion")
     category: str | None = Field(
         default=None, description="Scoring category (injected by auditor)"
@@ -73,12 +76,24 @@ class AuditResult(BaseModel):
     """Aggregated result of a project audit.
 
     Contains all individual check results and computed summary.
+    ``quality_score`` and ``grade`` may be passed explicitly (e.g. in
+    tests); otherwise they are computed from checks automatically.
     """
 
     project_path: str | None = Field(
         default=None, description="Path to the audited project"
     )
     checks: list[CheckResult] = Field(default_factory=list)
+
+    _override_quality_score: float | None = PrivateAttr(default=None)
+    _override_grade: str | None = PrivateAttr(default=None)
+
+    def __init__(self, **data: Any) -> None:
+        qs = data.pop("quality_score", None)
+        gr = data.pop("grade", None)
+        super().__init__(**data)
+        self._override_quality_score = qs
+        self._override_grade = gr
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -111,6 +126,10 @@ class AuditResult(BaseModel):
         Structure is NOT scored here (handled by axm-init).
         Returns None if no scored checks are present.
         """
+        override: float | None = getattr(self, "_override_quality_score", None)
+        if override is not None:
+            return override
+
         category_scores = _collect_category_scores(self.checks)
         if not category_scores:
             return None
@@ -135,17 +154,19 @@ class AuditResult(BaseModel):
         A >= 90, B >= 80, C >= 70, D >= 60, F < 60.
         Returns None if quality_score is None.
         """
+        override: str | None = getattr(self, "_override_grade", None)
+        if override is not None:
+            return override
+
         score = self.quality_score
         if score is None:
             return None
-        if score >= _GRADE_A:
-            return "A"
-        if score >= _GRADE_B:
-            return "B"
-        if score >= _GRADE_C:
-            return "C"
-        if score >= _GRADE_D:
-            return "D"
-        return "F"
+        _thresholds = [
+            (_GRADE_A, "A"),
+            (_GRADE_B, "B"),
+            (_GRADE_C, "C"),
+            (_GRADE_D, "D"),
+        ]
+        return next((g for t, g in _thresholds if score >= t), "F")
 
     model_config = {"extra": "forbid"}
