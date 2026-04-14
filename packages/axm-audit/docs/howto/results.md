@@ -50,7 +50,7 @@ print(json.dumps(data, indent=2))
 
 ### Agent Output
 
-`format_agent` minimizes tokens for AI agent consumption. Passed checks are compact strings — unless they carry actionable detail (e.g. missing docstrings, complexity top offenders), in which case they become dicts with `fix_hint` and either `text` (pre-formatted string) or `details` (structured dict), never both:
+`format_agent` minimizes tokens for AI agent consumption. Passed checks are compact strings — unless they carry actionable detail (e.g. missing docstrings, complexity top offenders), in which case they become dicts. Each dict includes only non-None fields among `text`, `details`, and `fix_hint` — both `text` and `details` may appear together:
 
 ```python
 from axm_audit.formatters import format_agent

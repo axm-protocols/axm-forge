@@ -29,7 +29,8 @@ def test_format_agent_failed_with_text() -> None:
     entry = out["failed"][0]
     assert "text" in entry
     assert entry["text"] == "\u2022 issue"
-    assert "details" not in entry
+    assert "details" in entry
+    assert entry["details"] == {"items": [1, 2]}
 
 
 def test_format_agent_failed_without_text() -> None:
@@ -70,7 +71,8 @@ def test_format_agent_passed_actionable_with_text() -> None:
     assert isinstance(entry, dict)
     assert "text" in entry
     assert entry["text"] == "\u2022 item"
-    assert "details" not in entry
+    assert "details" in entry
+    assert entry["details"] == {"missing": ["a", "b"]}
 
 
 def test_format_agent_passed_actionable_without_text() -> None:
@@ -97,7 +99,7 @@ def test_format_agent_passed_actionable_without_text() -> None:
 
 
 def test_format_agent_failed_empty_text_treated_as_falsy() -> None:
-    """Empty string text is falsy — emits details instead."""
+    """Empty string text is not None — preserved after AXM-1410."""
     cr = CheckResult(
         rule_id="R005",
         message="edge empty",
@@ -109,11 +111,12 @@ def test_format_agent_failed_empty_text_treated_as_falsy() -> None:
     out = format_agent(_make_result(cr))
     entry = out["failed"][0]
     assert "details" in entry
-    assert "text" not in entry
+    assert "text" in entry
+    assert entry["text"] == ""
 
 
 def test_format_agent_failed_both_none() -> None:
-    """Both text and details None — emits details: None (existing behavior)."""
+    """Both text and details None — both dropped after AXM-1410."""
     cr = CheckResult(
         rule_id="R006",
         message="both none",
@@ -124,6 +127,6 @@ def test_format_agent_failed_both_none() -> None:
     )
     out = format_agent(_make_result(cr))
     entry = out["failed"][0]
-    assert "details" in entry
-    assert entry["details"] is None
+    assert "details" not in entry
     assert "text" not in entry
+    assert set(entry.keys()) == {"rule_id", "message", "fix_hint"}
