@@ -77,7 +77,7 @@ Example output structure:
     {
       "rule_id": "QUALITY_TYPE",
       "message": "Type score: 70/100 (6 errors)",
-      "text": "     \u2022 src/mod.py:MyClass (attr error)",
+      "text": "\u2022 mod.py:10: Incompatible types in assignment",
       "fix_hint": "Run: mypy src/"
     }
   ]
