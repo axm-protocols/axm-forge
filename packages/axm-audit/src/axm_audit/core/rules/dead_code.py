@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["DeadCodeRule"]
 
+_MAX_TOP_OFFENDERS = 10
+
 
 @register_rule("lint")
 class DeadCodeRule(ProjectRule):
@@ -132,7 +134,16 @@ class DeadCodeRule(ProjectRule):
         }
 
         if dead_symbols:
-            details["top_offenders"] = dead_symbols[:10]
+            details["top_offenders"] = dead_symbols[:_MAX_TOP_OFFENDERS]
+
+        text_lines: list[str] = []
+        for sym in dead_symbols[:_MAX_TOP_OFFENDERS]:
+            path = sym.get("file", sym.get("module_path", ""))
+            if path.startswith("src/"):
+                path = path[4:]
+            text_lines.append(f"\u2022 {sym['name']} {path}:{sym.get('line', '')}")
+        if dead_count > _MAX_TOP_OFFENDERS:
+            text_lines.append(f"\u2022 +{dead_count - _MAX_TOP_OFFENDERS} more")
 
         return CheckResult(
             rule_id=self.rule_id,
@@ -141,4 +152,5 @@ class DeadCodeRule(ProjectRule):
             severity=Severity.WARNING if dead_count > 0 else Severity.INFO,
             details=details,
             fix_hint="Remove dead code or mark exported in __all__ if public API",
+            text="\n".join(text_lines) if text_lines else None,
         )
