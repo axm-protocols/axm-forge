@@ -493,12 +493,17 @@ def _build_coupling_result(  # noqa: PLR0913
     src_path: Path | None = None,
     severity_error_multiplier: int = _COUPLING_DEFAULT_SEVERITY_MULTIPLIER,
 ) -> dict[str, Any]:
-    """Compute coupling summary from fan metrics.
+    """Compute coupling summary from fan-out / fan-in metrics.
 
     Classifies each over-threshold module as ``"warning"`` or ``"error"``
     based on *severity_error_multiplier*: fan-out above
     ``effective_threshold * severity_error_multiplier`` is an error,
     otherwise a warning.
+
+    Returns a dict with keys ``max_fan_out``, ``max_fan_in``,
+    ``avg_coupling``, ``n_over_threshold``, and ``over_threshold``
+    (list of dicts with ``module``, ``fan_out``, ``role``,
+    ``effective_threshold``, ``severity``).
     """
     _overrides = overrides or {}
     _imports_map = imports_map or {}
@@ -623,7 +628,21 @@ class CouplingMetricRule(ProjectRule):
         return "ARCH_COUPLING"
 
     def check(self, project_path: Path) -> CheckResult:
-        """Check coupling metrics for the project."""
+        """Check coupling metrics for the project.
+
+        Scans ``src/`` for import fan-out per module and compares each
+        against its effective threshold (base + orchestrator bonus +
+        per-module overrides).
+
+        Returns a :class:`CheckResult` with:
+
+        * ``text`` — one line per violation formatted as
+          ``• {leaf_module} fo:{fan_out}/{threshold} {⚠|✘}``
+          (``None`` when all modules pass).
+        * ``details`` — full ``over_threshold`` list with FQN, fan-out,
+          role, effective threshold, and severity.
+        * ``fix_hint`` — human-readable remediation listing.
+        """
         early = self.check_src(project_path)
         if early is not None:
             return early
@@ -660,8 +679,12 @@ class CouplingMetricRule(ProjectRule):
             lines = [f"  \u2022 {m['module']} (fan-out: {m['fan_out']})" for m in over]
             hint = "Reduce imports in:\n" + "\n".join(lines)
 
+        _sev = {"warning": "\u26a0", "error": "\u2718"}
         text_lines = [
-            f"     \u2022 {m['module']} (fan-out: {m['fan_out']})" for m in over
+            f"\u2022 {m['module'].rsplit('.', 1)[-1]}"
+            f" fo:{m['fan_out']}/{m['effective_threshold']}"
+            f" {_sev.get(m['severity'], '?')}"
+            for m in over
         ]
 
         return CheckResult(
