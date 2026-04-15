@@ -19,7 +19,12 @@ from typing import Annotated
 import cyclopts
 
 from axm_audit.core.rules.base import PERFECT_SCORE
-from axm_audit.formatters import format_agent, format_json, format_report
+from axm_audit.formatters import (
+    format_agent,
+    format_agent_text,
+    format_json,
+    format_report,
+)
 
 __all__ = ["app"]
 
@@ -60,7 +65,7 @@ def audit(
     result = audit_project(project_path, category=category)
 
     if agent:
-        print(json.dumps(format_agent(result), indent=2))
+        print(format_agent_text(format_agent(result), category=category))
     elif json_output:
         print(json.dumps(format_json(result), indent=2))
     else:
@@ -98,6 +103,10 @@ def test(
             help="Stop on first failure",
         ),
     ] = True,
+    agent: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--agent"], help="Compact agent-friendly output"),
+    ] = False,
 ) -> None:
     """Run tests with structured output."""
     import dataclasses
@@ -116,7 +125,12 @@ def test(
         stop_on_first=stop_on_first,
     )
 
-    print(json.dumps(dataclasses.asdict(report), indent=2))
+    if agent:
+        from axm_audit.tools.audit_test_text import format_audit_test_text
+
+        print(format_audit_test_text(report))
+    else:
+        print(json.dumps(dataclasses.asdict(report), indent=2))
 
     if report.failed > 0 or report.errors > 0:
         raise SystemExit(1)
