@@ -5,7 +5,7 @@ Usage::
     axm-audit audit .
     axm-audit audit --json
     axm-audit audit --category lint
-    axm-audit test . --mode=compact
+    axm-audit test .
     axm-audit version
 """
 
@@ -77,13 +77,6 @@ def test(
         cyclopts.Parameter(help="Path to project to test"),
     ] = ".",
     *,
-    mode: Annotated[
-        str,
-        cyclopts.Parameter(
-            name=["--mode"],
-            help="Output mode: compact, failures, delta, targeted",
-        ),
-    ] = "failures",
     files: Annotated[
         list[str] | None,
         cyclopts.Parameter(
@@ -105,12 +98,8 @@ def test(
             help="Stop on first failure",
         ),
     ] = True,
-    agent: Annotated[
-        bool,
-        cyclopts.Parameter(name=["--agent"], help="Alias for --mode=compact"),
-    ] = False,
 ) -> None:
-    """Run tests with agent-optimized structured output."""
+    """Run tests with structured output."""
     import dataclasses
 
     from axm_audit.core.test_runner import run_tests
@@ -120,10 +109,8 @@ def test(
         print(f"❌ Not a directory: {project_path}", file=sys.stderr)
         raise SystemExit(1)
 
-    effective_mode = "compact" if agent else mode
     report = run_tests(
         project_path,
-        mode=effective_mode,
         files=files,
         markers=markers,
         stop_on_first=stop_on_first,

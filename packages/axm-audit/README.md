@@ -59,8 +59,8 @@ axm-audit audit . --agent
 # Filter by category
 axm-audit audit . --category lint
 
-# Run tests with structured output (agent-optimized)
-axm-audit test . --mode=compact
+# Run tests with structured output
+axm-audit test .
 ```
 
 ### Python API

@@ -16,14 +16,14 @@ class TestAuditTestTool:
         assert self.tool.name == "audit_test"
 
     @patch("axm_audit.core.test_runner.run_tests")
-    def test_compact_mode(self, mock_run: MagicMock, tmp_path: Any) -> None:
+    def test_execute_success(self, mock_run: MagicMock, tmp_path: Any) -> None:
         from axm_audit.core.test_runner import TestReport
 
         mock_run.return_value = TestReport(
             passed=42, failed=0, duration=5.0, coverage=91.0
         )
 
-        result = self.tool.execute(path=str(tmp_path), mode="compact")
+        result = self.tool.execute(path=str(tmp_path))
         assert result.success is True
         assert result.data is not None
         assert result.data["passed"] == 42
