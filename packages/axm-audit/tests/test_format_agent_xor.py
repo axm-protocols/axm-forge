@@ -70,8 +70,7 @@ def test_format_agent_passed_actionable_with_text() -> None:
     assert isinstance(entry, dict)
     assert "text" in entry
     assert entry["text"] == "\u2022 item"
-    assert "details" in entry
-    assert entry["details"] == {"missing": ["a", "b"]}
+    assert "details" not in entry
 
 
 def test_format_agent_passed_actionable_without_text() -> None:
