@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
+from difflib import SequenceMatcher, get_close_matches
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -11,6 +13,23 @@ from axm.tools.base import AXMTool, ToolResult
 logger = logging.getLogger(__name__)
 
 __all__ = ["SearchTool"]
+
+
+_FUNC_KINDS = frozenset(
+    {"function", "method", "property", "classmethod", "staticmethod", "abstract"}
+)
+
+_KIND_ABBREV_LEN = 4
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class _SearchFilters:
+    """Bundled filter parameters for search rendering."""
+
+    name: str | None
+    returns: str | None
+    kind: Any
+    inherits: str | None
 
 
 class SearchTool(AXMTool):
@@ -108,16 +127,28 @@ class SearchTool(AXMTool):
         symbols = [
             SearchTool._format_symbol(sym, mod_name) for mod_name, sym in results
         ]
+
+        suggestions: list[dict[str, Any]] = []
+        if not symbols and name is not None and pkg is not None:
+            kind_str = (
+                kind
+                if isinstance(kind, str)
+                else (kind.value if kind is not None else None)
+            )
+            suggestions = _find_suggestions(pkg, name, kind=kind_str)
+
+        sf = {"name": name, "returns": returns, "kind": kind, "inherits": inherits}
         text = SearchTool._render_text(
             symbols,
-            name=name,
-            returns=returns,
-            kind=kind,
-            inherits=inherits,
+            search_filters=sf,
+            suggestions=suggestions,
         )
+        data: dict[str, Any] = {"results": symbols}
+        if suggestions:
+            data["suggestions"] = suggestions
         return ToolResult(
             success=True,
-            data={"results": symbols},
+            data=data,
             text=text,
         )
 
@@ -142,32 +173,37 @@ class SearchTool(AXMTool):
     @staticmethod
     def _format_text_header(
         *,
-        name: str | None,
-        returns: str | None,
-        kind: Any,
-        inherits: str | None,
+        search_filters: dict[str, Any],
         count: int,
+        suggestion_count: int = 0,
     ) -> str:
         """Build the header line for text rendering."""
-        filters: list[str] = []
+        name = search_filters.get("name")
+        returns = search_filters.get("returns")
+        kind = search_filters.get("kind")
+        inherits = search_filters.get("inherits")
+        parts: list[str] = []
         if name is not None:
-            filters.append(f'name~"{name}"')
+            parts.append(f'name~"{name}"')
         if returns is not None:
-            filters.append(f"returns={returns}")
+            parts.append(f"returns={returns}")
         kind_str = (
             kind
             if isinstance(kind, str)
             else (kind.value if kind is not None else None)
         )
         if kind_str is not None:
-            filters.append(f"kind={kind_str}")
+            parts.append(f"kind={kind_str}")
         if inherits is not None:
-            filters.append(f"inherits={inherits}")
-        parts = ["ast_search"]
-        if filters:
-            parts.append(" · ".join(filters))
-        parts.append(f"{count} hits")
-        return " | ".join(parts)
+            parts.append(f"inherits={inherits}")
+        sections = ["ast_search"]
+        if parts:
+            sections.append(" · ".join(parts))
+        hits_part = f"{count} hits"
+        if suggestion_count > 0:
+            hits_part += f" · {suggestion_count} suggestions"
+        sections.append(hits_part)
+        return " | ".join(sections)
 
     _FUNC_KINDS: ClassVar[set[str]] = {
         "function",
@@ -230,6 +266,90 @@ class SearchTool(AXMTool):
         return SearchTool._format_variable_line(sym)
 
     @staticmethod
+    def _collect_module_candidates(
+        mod: Any,
+        kind: str | None,
+        candidates: dict[str, list[tuple[str, str, str]]],
+    ) -> None:
+        """Populate *candidates* from a single module's symbols."""
+        mod_name = mod.name
+        if kind is None or kind in _FUNC_KINDS:
+            for fn in mod.functions:
+                fk = fn.kind if isinstance(fn.kind, str) else fn.kind.value
+                candidates.setdefault(fn.name.lower(), []).append(
+                    (fn.name, fk, mod_name)
+                )
+        for cls in mod.classes:
+            if kind is None or kind == "class":
+                candidates.setdefault(cls.name.lower(), []).append(
+                    (cls.name, "class", mod_name)
+                )
+            if kind is None or kind in _FUNC_KINDS:
+                for method in cls.methods:
+                    mk = (
+                        method.kind
+                        if isinstance(method.kind, str)
+                        else method.kind.value
+                    )
+                    dotted = f"{cls.name}.{method.name}"
+                    candidates.setdefault(dotted.lower(), []).append(
+                        (dotted, mk, mod_name)
+                    )
+        if kind is None or kind == "variable":
+            for var in mod.variables:
+                candidates.setdefault(var.name.lower(), []).append(
+                    (var.name, "variable", mod_name)
+                )
+
+    @staticmethod
+    def _find_suggestions(
+        pkg: Any, name: str, *, kind: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Find fuzzy suggestions for a symbol name query."""
+        candidates: dict[str, list[tuple[str, str, str]]] = {}
+
+        for mod in pkg.modules:
+            SearchTool._collect_module_candidates(mod, kind, candidates)
+
+        if not candidates:
+            return []
+
+        matches = get_close_matches(
+            name.lower(), list(candidates.keys()), n=10, cutoff=0.6
+        )
+
+        seen: dict[str, dict[str, Any]] = {}
+        for match_key in matches:
+            for original_name, sym_kind, module in candidates[match_key]:
+                score = round(SequenceMatcher(None, name.lower(), match_key).ratio(), 2)
+                if original_name not in seen or score > seen[original_name]["score"]:
+                    seen[original_name] = {
+                        "name": original_name,
+                        "score": score,
+                        "kind": sym_kind,
+                        "module": module,
+                    }
+
+        return sorted(seen.values(), key=lambda s: s["score"], reverse=True)
+
+    @staticmethod
+    def _render_suggestion_line(suggestion: dict[str, Any]) -> str:
+        """Render one suggestion as a compact ``?``-prefixed text line."""
+        name = suggestion["name"]
+        score = (
+            f".{int(suggestion['score'] * 100):02d}"
+            if suggestion["score"] < 1
+            else "1.0"
+        )
+        kind = (
+            suggestion["kind"][:_KIND_ABBREV_LEN]
+            if len(suggestion["kind"]) > _KIND_ABBREV_LEN
+            else suggestion["kind"]
+        )
+        module = suggestion["module"]
+        return f"? {name:<22} {score}  {kind:<6} {module}"
+
+    @staticmethod
     def _group_symbols(
         symbols: list[dict[str, Any]],
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -251,21 +371,23 @@ class SearchTool(AXMTool):
     def _render_text(
         symbols: list[dict[str, Any]],
         *,
-        name: str | None,
-        returns: str | None,
-        kind: Any,
-        inherits: str | None,
+        search_filters: dict[str, Any],
+        suggestions: list[dict[str, Any]] | None = None,
     ) -> str:
         """Group symbols by kind and render as compact text."""
+        suggestions = suggestions or []
         header = SearchTool._format_text_header(
-            name=name,
-            returns=returns,
-            kind=kind,
-            inherits=inherits,
+            search_filters=search_filters,
             count=len(symbols),
+            suggestion_count=len(suggestions),
         )
-        if not symbols:
+        if not symbols and not suggestions:
             return header
+
+        if not symbols and suggestions:
+            lines = [header]
+            lines.extend(SearchTool._render_suggestion_line(s) for s in suggestions)
+            return "\n".join(lines)
 
         funcs, classes, variables = SearchTool._group_symbols(symbols)
         fmt = SearchTool._format_symbol_line
@@ -325,3 +447,6 @@ class SearchTool(AXMTool):
                 if kind is not None:
                     entry["kind"] = kind
         return entry
+
+
+_find_suggestions = SearchTool._find_suggestions
