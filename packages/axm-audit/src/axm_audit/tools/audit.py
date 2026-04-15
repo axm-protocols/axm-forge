@@ -35,7 +35,8 @@ class AuditTool(AXMTool):
             category: Optional category filter.
 
         Returns:
-            ToolResult with audit scores and details.
+            ToolResult with audit scores and details (``data`` dict
+            and a compact ``text`` summary for LLM consumption).
         """
         try:
             project_path = Path(path).resolve()
@@ -45,9 +46,11 @@ class AuditTool(AXMTool):
                 )
 
             from axm_audit.core.auditor import audit_project
-            from axm_audit.formatters import format_agent
+            from axm_audit.formatters import format_agent, format_agent_text
 
             result = audit_project(project_path, category=category)
-            return ToolResult(success=True, data=format_agent(result))
+            data = format_agent(result)
+            text = format_agent_text(data, category=category)
+            return ToolResult(success=True, data=data, text=text)
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))

@@ -16,14 +16,17 @@ Call the `audit` MCP tool with the project path:
 {"tool": "audit", "kwargs": {"path": "/path/to/project"}}
 ```
 
-The output uses `format_agent` — compact strings for clean passes, detailed dicts for actionable items. For failed checks, `text` and `details` are mutually exclusive — `text` takes priority when truthy, otherwise `details` is included:
+The result includes both a structured `data` dict (via `format_agent`) and a compact `text` summary (via `format_agent_text`) optimised for token count. The `text` field uses `✓`/`✗` lines for ~55-60% token savings:
 
 ```json
 {
-  "score": 85.0,
-  "grade": "B",
-  "passed": ["QUALITY_LINT: Lint score: 100/100 (0 issues)"],
-  "failed": [{"rule_id": "...", "details": {...}, "fix_hint": "..."}]
+  "data": {
+    "score": 85.0,
+    "grade": "B",
+    "passed": ["QUALITY_LINT: Lint score: 100/100 (0 issues)"],
+    "failed": [{"rule_id": "...", "details": {...}, "fix_hint": "..."}]
+  },
+  "text": "audit | B 85 | 1 pass · 1 fail\n✓ QUALITY_LINT\n✗ ... details ..."
 }
 ```
 

@@ -58,7 +58,22 @@ from axm_audit.formatters import format_agent
 data = format_agent(result)
 ```
 
-Example output structure:
+For a compact text representation optimised for token count, pass the
+agent dict through `format_agent_text`:
+
+```python
+from axm_audit.formatters import format_agent_text
+
+text = format_agent_text(data, category="lint")
+print(text)
+# audit lint | B 85 | 3 pass · 1 fail
+# ✓ QUALITY_LINT QUALITY_TYPES QUALITY_SECURITY
+# ✗ QUALITY_COMPLEXITY 3 functions exceed CC threshold
+#   src/mod.py:10 func_a CC=15
+#   fix: Extract helpers to reduce CC
+```
+
+Example agent dict structure:
 
 ```json
 {
