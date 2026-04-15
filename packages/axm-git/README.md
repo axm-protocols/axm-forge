@@ -43,7 +43,7 @@ uv add axm-git
 ```python
 # Check what changed
 git_preflight(path="/path/to/repo")
-# → {files: [{path: "foo.py", status: "M"}, ...], clean: false}
+# → {files: [{path: "foo.py", status: "M"}, ...], clean: false, text: "git_preflight | 1 files · dirty\n..."}
 
 # Create or switch branch
 git_branch(name="feat/new-feature", path="/path/to/repo")
@@ -76,7 +76,7 @@ Report working tree changes so the agent can plan commits.
 | `path` | `.` | Project root directory |
 | `diff_lines` | `200` | Max diff lines to include (0 to disable) |
 
-Returns: file list with status (`M`, `A`, `D`, `??`), diff stat, clean flag.
+Returns: file list with status (`M`, `A`, `D`, `??`), diff stat, clean flag, and a compact `text` summary for agent display.
 
 ### `git_branch`
 
