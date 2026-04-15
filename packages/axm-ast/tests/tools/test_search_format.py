@@ -112,7 +112,8 @@ def test_render_text_mixed(
 ) -> None:
     symbols = [function_sym, class_sym, variable_sym_annotated]
     result = SearchTool._render_text(
-        symbols, name=None, returns=None, kind=None, inherits=None
+        symbols,
+        search_filters={"name": None, "returns": None, "kind": None, "inherits": None},
     )
     lines = result.split("\n")
     # First line is the header

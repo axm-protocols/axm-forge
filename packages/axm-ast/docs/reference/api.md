@@ -172,6 +172,29 @@ When serialized by the `ast_search` MCP tool, each symbol becomes a dict with:
 | `annotation` | variables with type | Type annotation |
 | `value_repr` | variables with value | Short repr of assigned value |
 
+### Fuzzy suggestions
+
+When the `ast_search` MCP tool returns **0 results** and a `name` filter was provided, it automatically runs fuzzy matching against all symbols in the package using `difflib.get_close_matches` (cutoff 0.6). Suggestions are returned in `data["suggestions"]` alongside the empty `data["results"]`.
+
+Each suggestion dict contains:
+
+| Key | Type | Description |
+|---|---|---|
+| `name` | `str` | Original-cased symbol name |
+| `score` | `float` | Similarity score (0–1) |
+| `kind` | `str` | Symbol kind (`function`, `method`, `class`, `variable`, etc.) |
+| `module` | `str` | Dotted module path where the symbol lives |
+
+When `kind` is also specified, suggestions are filtered to that kind only. Duplicate symbol names across modules are deduplicated, keeping the entry with the highest score.
+
+The `text` output for the 0-hit+suggestions case uses `?`-prefixed lines:
+
+```
+ast_search | name~"get_sesion" | 0 hits · 2 suggestions
+? get_session            .92  func   core.analyzer
+? get_sessions           .85  func   core.analyzer
+```
+
 ---
 
 ## `format_workspace_text`
