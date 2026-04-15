@@ -93,3 +93,4 @@ if not result.success:
 | `format_report(result)` | Human-readable report |
 | `format_json(result)` | JSON-serializable dict |
 | `format_agent(result)` | Agent-optimized output (compact passed, detailed failed) |
+| `format_agent_text(data, category=None)` | Compact text rendering of agent dict for LLM consumption |

@@ -196,6 +196,58 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
     }
 
 
+def format_agent_text(
+    data: dict[str, Any],
+    category: str | None = None,
+) -> str:
+    """Render agent-format audit data as compact text for LLM consumption.
+
+    Consumes the dict produced by ``format_agent`` and returns a minimal
+    text representation optimised for token count.
+    """
+    score = data.get("score")
+    grade = data.get("grade")
+    passed = data.get("passed", [])
+    failed = data.get("failed", [])
+
+    # Header
+    cat_label = f" {category}" if category else ""
+    score_part = f" {grade} {score}" if score is not None and grade is not None else ""
+    header = f"audit{cat_label} |{score_part} | {len(passed)} pass · {len(failed)} fail"
+    lines: list[str] = [header]
+
+    # Passed section — group rule_ids on ✓ lines (≤5 per line)
+    if passed:
+        rule_ids: list[str] = []
+        for p in passed:
+            if isinstance(p, dict):
+                rule_ids.append(p.get("rule_id", "?"))
+            else:
+                rule_ids.append(p.split(":")[0])
+        for i in range(0, len(rule_ids), 5):
+            chunk = rule_ids[i : i + 5]
+            lines.append(f"✓ {' '.join(chunk)}")
+
+    # Failed section
+    for f in failed:
+        rule_id = f.get("rule_id", "?")
+        message = f.get("message", "")
+        lines.append(f"✗ {rule_id} {message}")
+        text = f.get("text")
+        if text:
+            for tl in text.splitlines():
+                lines.append(f"  {tl}")
+        elif "details" in f:
+            details = f["details"]
+            for dk, dv in details.items():
+                lines.append(f"  {dk}: {dv}")
+        fix_hint = f.get("fix_hint")
+        if fix_hint:
+            lines.append(f"  fix: {fix_hint}")
+
+    return "\n".join(lines)
+
+
 def _has_actionable_detail(check: CheckResult) -> bool:
     """Return True if a passing check carries detail the agent should surface.
 
