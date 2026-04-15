@@ -7,7 +7,7 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_git.core.runner import not_a_repo_error, run_git
+from axm_git.core.runner import find_git_root, not_a_repo_error, run_git
 
 __all__ = ["GitPreflightTool"]
 
@@ -45,8 +45,21 @@ class GitPreflightTool(AXMTool):
         resolved = Path(path).resolve()
         max_diff_lines = diff_lines
 
-        # git status --porcelain
-        status = run_git(["status", "--porcelain"], resolved)
+        git_root = find_git_root(resolved)
+
+        if git_root is not None:
+            # Scope to subdirectory when inside a workspace
+            rel = resolved.relative_to(git_root.resolve())
+            pathspec = ["--", str(rel)] if str(rel) != "." else []
+            cwd = git_root
+        else:
+            # Not a repo (or find_git_root failed) — fall through with
+            # resolved so run_git triggers not_a_repo_error naturally.
+            pathspec = []
+            cwd = resolved
+
+        # git status --porcelain [-- rel_path]
+        status = run_git(["status", "--porcelain", *pathspec], cwd)
         if status.returncode != 0:
             return not_a_repo_error(status.stderr, resolved)
 
@@ -58,17 +71,17 @@ class GitPreflightTool(AXMTool):
             filepath = line[3:]
             files.append({"path": filepath, "status": code})
 
-        # git diff --stat (only when dirty)
+        # git diff --stat [-- rel_path] (only when dirty)
         diff_stat_out = ""
         if files:
-            diff_stat = run_git(["diff", "--stat"], resolved)
+            diff_stat = run_git(["diff", "--stat", *pathspec], cwd)
             diff_stat_out = diff_stat.stdout.strip()
 
-        # git diff -U2 (reduced context, truncated to max_diff_lines)
+        # git diff -U2 [-- rel_path] (reduced context, truncated to max_diff_lines)
         diff_content = ""
         diff_truncated = False
         if max_diff_lines > 0:
-            diff_result = run_git(["diff", "-U2"], resolved)
+            diff_result = run_git(["diff", "-U2", *pathspec], cwd)
             lines = diff_result.stdout.splitlines()
             if len(lines) > max_diff_lines:
                 diff_content = "\n".join(lines[:max_diff_lines])
