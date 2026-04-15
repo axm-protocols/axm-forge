@@ -454,13 +454,17 @@ def _search_all(
     name: str | None,
     returns: str | None,
 ) -> list[FunctionInfo | ClassInfo | VariableInfo]:
-    """Search all symbol types (no kind filter)."""
+    """Search all symbol types (no kind filter).
+
+    When *returns* is set, variables are excluded since they have no return type.
+    """
     results: list[FunctionInfo | ClassInfo | VariableInfo] = []
     for fn in mod.functions:
         if _match_function(fn, name=name, returns=returns):
             results.append(fn)
     results.extend(_search_classes(mod, name=name, returns=returns, kind=None))
-    results.extend(_search_variables(mod, name=name))
+    if returns is None:
+        results.extend(_search_variables(mod, name=name))
     return results
 
 
@@ -533,14 +537,21 @@ def _search_classes(
     returns: str | None,
     kind: FunctionKind | None,
 ) -> list[FunctionInfo | ClassInfo]:
-    """Search classes and their methods for matching symbols."""
+    """Search classes and their methods for matching symbols.
+
+    When *returns* is set, classes matched by name alone are not returned;
+    instead their methods are scanned for a matching return type.
+    """
     results: list[FunctionInfo | ClassInfo] = []
     for cls in mod.classes:
-        if name is not None and name in cls.name:
-            results.append(cls)
-            continue
+        class_name_matched = name is not None and name in cls.name
+        if class_name_matched:
+            if returns is None:
+                results.append(cls)
+                continue
         for method in cls.methods:
-            if _match_function(method, name=name, returns=returns, kind=kind):
+            method_name = None if class_name_matched else name
+            if _match_function(method, name=method_name, returns=returns, kind=kind):
                 results.append(method)
     return results
 
