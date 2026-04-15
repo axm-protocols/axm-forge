@@ -361,7 +361,10 @@ class SearchTool(AXMTool):
             else suggestion["kind"]
         )
         module = suggestion["module"]
-        return f"? {name:<22} {score}  {kind:<6} {module}"
+        line = f"? {name} {score} {kind}"
+        if module is not None:
+            line += f" {module}"
+        return line
 
     @staticmethod
     def _group_symbols(
