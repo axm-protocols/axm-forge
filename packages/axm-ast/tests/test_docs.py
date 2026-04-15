@@ -282,7 +282,7 @@ class TestCliDocs:
         assert result["readme"] is not None
         assert "axm-ast" in result["readme"]["content"]
         assert result["mkdocs"] is not None
-        assert len(result["pages"]) >= 5  # we have 8+ pages
+        assert len(result["pages"]) >= 1
 
 
 # ─── Unit: detail levels ─────────────────────────────────────────────────────

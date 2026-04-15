@@ -316,3 +316,37 @@ Render multiple impact reports as human-readable text. Produces a header with sy
 ### Return value
 
 Multi-line string starting with `ast_impact | {n} symbols | max={score}`, followed by `## {symbol} | {score}` sections. Returns empty string for an empty list.
+
+---
+
+## `ImpactHook.execute`
+
+```python
+from axm_ast.hooks.impact import ImpactHook
+
+hook = ImpactHook()
+result = hook.execute(context, symbol="MyClass.method")
+```
+
+Run impact analysis on one or more symbols. When `symbol` contains newline characters, each line is analyzed separately and results are merged.
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `context` | `dict[str, Any]` | *required* | Session context dictionary (must include `working_dir`) |
+| `symbol` | `str` | *required* | Symbol name to analyze; newline-separated for batch |
+| `path` | `str \| None` | `None` | Package path override (defaults to `working_dir` from context) |
+| `detail` | `str` | `"full"` | `"compact"` for short format, otherwise full render |
+
+### Return value
+
+`HookResult` with:
+
+| Field | Detail=full | Detail=compact |
+|---|---|---|
+| `metadata["impact"]` | Enriched report dict with `test_paths`, `packages` | Pre-formatted compact string |
+| `metadata["packages"]` | Space-separated cross-package paths | *absent* |
+| `text` | Human-readable render via `render_impact_text` (single) or `render_impact_batch_text` (multi) | `None` |
+
+Returns `HookResult.fail(...)` when analysis raises an exception.

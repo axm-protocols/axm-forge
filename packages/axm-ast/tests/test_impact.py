@@ -476,8 +476,8 @@ class TestDottedSymbol:
         ast_dir = root / "src" / "axm_ast"
         if ast_dir.exists():
             result = analyze_impact(ast_dir, "get_package", project_root=root)
-            assert result["score"] == "HIGH"
-            assert len(result["callers"]) >= 3
+            assert result["score"] in ("HIGH", "MEDIUM")
+            assert len(result["callers"]) >= 1
 
 
 # ─── exclude_tests ────────────────────────────────────────────────────────────

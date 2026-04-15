@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -144,9 +145,7 @@ def test_data_unchanged_with_text(tool: CallersTool) -> None:
 
 def test_callers_text_on_real_package(tool: CallersTool, tmp_path: object) -> None:
     """execute() returns text starting with ast_callers | and line count matches."""
-    sample = (
-        "/Users/gabriel/Documents/Code/python/axm-workspaces/axm-forge/packages/axm-ast"
-    )
+    sample = str(Path(__file__).resolve().parent.parent.parent)
     result = tool.execute(path=sample, symbol="greet")
     # greet may or may not exist — either way the result should be consistent
     if result.success:

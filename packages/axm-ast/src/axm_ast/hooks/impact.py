@@ -145,9 +145,15 @@ class ImpactHook:
             context: Session context dictionary.
             **params: Must include ``symbol`` (name to analyze).
                 Optional ``path`` (overrides ``working_dir`` from context).
+                Optional ``detail`` (``"compact"`` for short format).
 
         Returns:
-            HookResult with ``impact`` dict in metadata on success.
+            HookResult with ``impact`` dict and ``packages`` in metadata.
+            ``text`` is populated with a human-readable render via
+            ``render_impact_text`` (single symbol) or
+            ``render_impact_batch_text`` (multiple symbols).
+            In compact mode, ``text`` is *None* and ``impact`` holds
+            a pre-formatted string instead.
         """
         parsed = _parse_impact_params(context, params)
         if isinstance(parsed, HookResult):
@@ -156,6 +162,10 @@ class ImpactHook:
 
         try:
             from axm_ast.core.impact import analyze_impact
+            from axm_ast.tools.impact import (
+                render_impact_batch_text,
+                render_impact_text,
+            )
 
             if len(symbols) == 1:
                 report = analyze_impact(
@@ -183,6 +193,7 @@ class ImpactHook:
                     return HookResult.ok(
                         impact=format_impact_compact(reports),
                     )
+                text = render_impact_batch_text(reports)
                 report = _merge_impact_reports(symbol, reports)
 
             if detail == "compact":
@@ -190,8 +201,15 @@ class ImpactHook:
 
                 return HookResult.ok(impact=format_impact_compact(report))
 
+            if len(symbols) == 1:
+                text = render_impact_text(report)
+
             report = _enrich_report(report)
-            return HookResult.ok(impact=report, packages=report.get("packages", ""))
+            return HookResult(
+                success=True,
+                metadata={"impact": report, "packages": report.get("packages", "")},
+                text=text,
+            )
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Impact analysis failed: {exc}")
 
