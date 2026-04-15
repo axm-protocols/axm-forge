@@ -160,7 +160,7 @@ When no configuration is present, the default threshold of 10 and multiplier of 
 |---|---|---|
 | `AuditQualityRule` | `audit_quality` | `lint`, `type` |
 
-`AuditQualityRule` runs `audit_project` for each configured category independently (a lint failure does not prevent type checking) and returns structured agent-friendly feedback via `format_agent`.
+`AuditQualityRule` runs `audit_project` for each configured category independently (a lint failure does not prevent type checking) and returns structured agent-friendly feedback via `format_agent`, with a compact `text` summary via `format_agent_text`.
 
 ## Hooks
 
