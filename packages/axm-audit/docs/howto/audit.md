@@ -94,3 +94,17 @@ if not result.success:
 | `format_json(result)` | JSON-serializable dict |
 | `format_agent(result)` | Agent-optimized output (compact passed, detailed failed) |
 | `format_agent_text(data, category=None)` | Compact text rendering of agent dict for LLM consumption |
+
+### CLI `--agent` Flag
+
+Both `audit` and `test` commands support an `--agent` flag for compact, token-efficient output suitable for AI agents:
+
+```bash
+# Audit with agent output
+axm-audit audit . --agent
+
+# Tests with agent output
+axm-audit test . --agent
+```
+
+Without `--agent`, `audit` uses the human-readable report and `test` outputs JSON.
