@@ -9,9 +9,42 @@ from axm.tools.base import AXMTool, ToolResult
 
 from axm_git.core.runner import find_git_root, not_a_repo_error, run_git
 
-__all__ = ["GitPreflightTool"]
+__all__ = ["GitPreflightTool", "_render_text"]
 
 _MIN_STATUS_LINE_LEN = 4  # git porcelain format: "XY filename"
+_STATUS_PAD = 3  # pad status codes to 3 chars (e.g. "M  ", "?? ")
+
+
+def _render_text(
+    *,
+    files: list[dict[str, str]],
+    diff_stat: str,
+    diff: str,
+    diff_truncated: bool,
+    max_diff_lines: int,
+) -> str:
+    """Render a compact text summary of preflight results."""
+    if not files:
+        return "git_preflight | clean"
+
+    parts: list[str] = [f"git_preflight | {len(files)} files · dirty", ""]
+
+    for f in files:
+        status = f["status"]
+        parts.append(f"{status:<{_STATUS_PAD}}{f['path']}")
+
+    if diff_stat:
+        parts.append("")
+        parts.append(diff_stat)
+
+    if diff:
+        parts.append("")
+        parts.append(diff)
+
+    if diff_truncated:
+        parts.append(f"[diff truncated at {max_diff_lines} lines]")
+
+    return "\n".join(parts)
 
 
 class GitPreflightTool(AXMTool):
@@ -89,6 +122,14 @@ class GitPreflightTool(AXMTool):
             else:
                 diff_content = diff_result.stdout.strip()
 
+        text = _render_text(
+            files=files,
+            diff_stat=diff_stat_out,
+            diff=diff_content,
+            diff_truncated=diff_truncated,
+            max_diff_lines=max_diff_lines,
+        )
+
         return ToolResult(
             success=True,
             data={
@@ -99,4 +140,5 @@ class GitPreflightTool(AXMTool):
                 "diff_truncated": diff_truncated,
                 "clean": len(files) == 0,
             },
+            text=text,
         )

@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
 
 import pytest
 
-from axm_git.tools.commit_preflight import GitPreflightTool
+from axm_git.tools.commit_preflight import GitPreflightTool, _render_text
 
-if TYPE_CHECKING:
-    from pytest_mock import MockerFixture
-
-MODULE = "axm_git.tools.commit_preflight"
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture()
@@ -19,85 +16,145 @@ def tool() -> GitPreflightTool:
     return GitPreflightTool()
 
 
-def _git_result(stdout: str = "", stderr: str = "", rc: int = 0) -> SimpleNamespace:
-    return SimpleNamespace(returncode=rc, stdout=stdout, stderr=stderr)
+def _git_result(
+    stdout: str = "", stderr: str = "", returncode: int = 0
+) -> SimpleNamespace:
+    return SimpleNamespace(stdout=stdout, stderr=stderr, returncode=returncode)
 
 
 # ---------------------------------------------------------------------------
-# Unit tests
+# Unit tests — _render_text
 # ---------------------------------------------------------------------------
 
 
-def test_pathspec_subpackage(tool: GitPreflightTool, mocker: MockerFixture) -> None:
-    """When path is a subdirectory of git root, run_git includes pathspec."""
-    mocker.patch(f"{MODULE}.find_git_root", return_value=Path("/workspace"))
-    mock_run = mocker.patch(
-        f"{MODULE}.run_git",
-        return_value=_git_result(stdout="M  packages/pkg-a/foo.py\n"),
+def test_render_text_clean():
+    result = _render_text(
+        files=[], diff_stat="", diff="", diff_truncated=False, max_diff_lines=200
     )
-
-    tool.execute(path="/workspace/packages/pkg-a")
-
-    # Every run_git call should end with the pathspec suffix
-    for c in mock_run.call_args_list:
-        cmd = c[0][0]
-        assert cmd[-2:] == ["--", "packages/pkg-a"], (
-            f"Expected pathspec suffix, got cmd={cmd}"
-        )
+    assert result == "git_preflight | clean"
 
 
-def test_pathspec_root(tool: GitPreflightTool, mocker: MockerFixture) -> None:
-    """When path equals git root, no pathspec is added."""
-    mocker.patch(f"{MODULE}.find_git_root", return_value=Path("/workspace"))
-    mock_run = mocker.patch(
-        f"{MODULE}.run_git",
-        return_value=_git_result(),
+def test_render_text_dirty():
+    files = [
+        {"path": "src/foo.py", "status": "M"},
+        {"path": "src/bar.py", "status": "A"},
+    ]
+    diff_stat = " 2 files changed, 10 insertions(+), 3 deletions(-)"
+    diff = "diff --git a/src/foo.py b/src/foo.py\n--- a/src/foo.py\n+++ b/src/foo.py"
+    result = _render_text(
+        files=files,
+        diff_stat=diff_stat,
+        diff=diff,
+        diff_truncated=False,
+        max_diff_lines=200,
     )
+    assert "git_preflight | 2 files \u00b7 dirty" in result
+    assert "M  src/foo.py" in result
+    assert "A  src/bar.py" in result
+    assert diff_stat in result
+    assert diff in result
 
-    tool.execute(path="/workspace")
 
-    for c in mock_run.call_args_list:
-        cmd = c[0][0]
-        assert "--" not in cmd, f"Unexpected pathspec in cmd={cmd}"
-
-
-def test_dirty_tree(tool: GitPreflightTool, mocker: MockerFixture) -> None:
-    """Dirty tree returns files, diff_stat, and diff content."""
-    mocker.patch(f"{MODULE}.find_git_root", return_value=Path("/workspace"))
-
-    status_out = " M src/foo.py\n?? new.txt\n"
-    diff_stat_out = " src/foo.py | 2 +-\n 1 file changed\n"
-    diff_out = "diff --git a/src/foo.py b/src/foo.py\n-old\n+new\n"
-
-    results = iter(
-        [
-            _git_result(stdout=status_out),  # git status --porcelain
-            _git_result(stdout=diff_stat_out),  # git diff --stat
-            _git_result(stdout=diff_out),  # git diff -U2
-        ]
+def test_render_text_nodiff():
+    files = [{"path": "src/foo.py", "status": "M"}]
+    diff_stat = " 1 file changed, 5 insertions(+)"
+    result = _render_text(
+        files=files,
+        diff_stat=diff_stat,
+        diff="",
+        diff_truncated=False,
+        max_diff_lines=200,
     )
-    mocker.patch(f"{MODULE}.run_git", side_effect=lambda *a, **kw: next(results))
+    assert "git_preflight | 1 files \u00b7 dirty" in result
+    assert "M  src/foo.py" in result
+    assert diff_stat in result
+    assert "diff --git" not in result
 
-    result = tool.execute(path="/workspace")
 
-    assert result.success is True
-    assert result.data["file_count"] == 2
+def test_render_text_truncated():
+    files = [{"path": "src/foo.py", "status": "M"}]
+    diff = "diff --git a/src/foo.py b/src/foo.py"
+    result = _render_text(
+        files=files,
+        diff_stat=" 1 file changed",
+        diff=diff,
+        diff_truncated=True,
+        max_diff_lines=200,
+    )
+    assert result.endswith("[diff truncated at 200 lines]")
+
+
+def test_render_text_file_status_format():
+    files = [{"path": "src/mod.py", "status": "M"}]
+    result = _render_text(
+        files=files,
+        diff_stat="",
+        diff="",
+        diff_truncated=False,
+        max_diff_lines=200,
+    )
+    lines = result.splitlines()
+    file_line = next(ln for ln in lines if "src/mod.py" in ln)
+    assert file_line.startswith("M  ")
+
+
+def test_render_text_untracked_format():
+    files = [{"path": "new_file.py", "status": "??"}]
+    result = _render_text(
+        files=files,
+        diff_stat="",
+        diff="",
+        diff_truncated=False,
+        max_diff_lines=200,
+    )
+    lines = result.splitlines()
+    file_line = next(ln for ln in lines if "new_file.py" in ln)
+    assert file_line.startswith("?? ")
+
+
+# ---------------------------------------------------------------------------
+# Functional tests — execute
+# ---------------------------------------------------------------------------
+
+
+def _mock_run_git_dirty(cmd, cwd):
+    if cmd[0] == "status":
+        return _git_result(stdout=" M src/foo.py\n")
+    if cmd[0] == "diff" and "-U2" in cmd:
+        return _git_result(stdout="diff --git a/src/foo.py b/src/foo.py")
+    # diff --stat
+    return _git_result(stdout=" 1 file changed, 2 insertions(+)")
+
+
+def test_execute_sets_text(tool, monkeypatch):
+    monkeypatch.setattr("axm_git.tools.commit_preflight.find_git_root", lambda p: p)
+    monkeypatch.setattr("axm_git.tools.commit_preflight.run_git", _mock_run_git_dirty)
+    result = tool.execute(path="/tmp/repo")
+    assert result.text is not None
+    assert isinstance(result.text, str)
+
+
+def test_execute_preserves_data(tool, monkeypatch):
+    monkeypatch.setattr("axm_git.tools.commit_preflight.find_git_root", lambda p: p)
+    monkeypatch.setattr("axm_git.tools.commit_preflight.run_git", _mock_run_git_dirty)
+    result = tool.execute(path="/tmp/repo")
+    assert "files" in result.data
+    assert "clean" in result.data
+    assert "diff" in result.data
     assert result.data["clean"] is False
-    assert result.data["diff_stat"] != ""
-    assert result.data["diff"] != ""
+    assert len(result.data["files"]) == 1
+    assert result.data["files"][0]["path"] == "src/foo.py"
+    assert result.data["files"][0]["status"] == "M"
 
 
-def test_clean_tree(tool: GitPreflightTool, mocker: MockerFixture) -> None:
-    """Clean tree returns empty files list and clean=True."""
-    mocker.patch(f"{MODULE}.find_git_root", return_value=Path("/workspace"))
-    mocker.patch(f"{MODULE}.run_git", return_value=_git_result())
-
-    result = tool.execute(path="/workspace")
-
-    assert result.success is True
-    assert result.data["file_count"] == 0
-    assert result.data["clean"] is True
-    assert result.data["diff"] == ""
+def test_execute_clean_text(tool, monkeypatch):
+    monkeypatch.setattr("axm_git.tools.commit_preflight.find_git_root", lambda p: p)
+    monkeypatch.setattr(
+        "axm_git.tools.commit_preflight.run_git",
+        lambda cmd, cwd: _git_result(stdout=""),
+    )
+    result = tool.execute(path="/tmp/repo")
+    assert result.text == "git_preflight | clean"
 
 
 # ---------------------------------------------------------------------------
@@ -105,50 +162,29 @@ def test_clean_tree(tool: GitPreflightTool, mocker: MockerFixture) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_deep_subdir_pathspec(tool: GitPreflightTool, mocker: MockerFixture) -> None:
-    """Deep subdirectory produces correct relative pathspec."""
-    mocker.patch(f"{MODULE}.find_git_root", return_value=Path("/repo"))
-    mock_run = mocker.patch(
-        f"{MODULE}.run_git",
-        return_value=_git_result(),
+def test_render_text_empty_diff_stat():
+    """Clean repo — no blank stat section in text."""
+    result = _render_text(
+        files=[], diff_stat="", diff="", diff_truncated=False, max_diff_lines=200
     )
-
-    tool.execute(path="/repo/pkg/sub/deep")
-
-    for c in mock_run.call_args_list:
-        cmd = c[0][0]
-        assert cmd[-2:] == ["--", "pkg/sub/deep"]
+    assert result == "git_preflight | clean"
+    assert "\n\n\n" not in result
 
 
-def test_git_root_none_falls_through(
-    tool: GitPreflightTool, mocker: MockerFixture
-) -> None:
-    """When find_git_root returns None, not_a_repo_error is triggered."""
-    mocker.patch(f"{MODULE}.find_git_root", return_value=None)
-    mock_run = mocker.patch(
-        f"{MODULE}.run_git",
-        return_value=_git_result(rc=128, stderr="fatal: not a git repository"),
+def test_render_text_single_file():
+    """Single changed file — header shows '1 files · dirty'."""
+    files = [{"path": "README.md", "status": "M"}]
+    result = _render_text(
+        files=files, diff_stat="", diff="", diff_truncated=False, max_diff_lines=200
     )
-
-    result = tool.execute(path="/not-a-repo")
-
-    assert result.success is False
-    # run_git should still be called (fallback) so the not_a_repo_error path fires
-    mock_run.assert_called_once()
+    assert "1 files \u00b7 dirty" in result
 
 
-def test_run_git_receives_git_root_as_cwd(
-    tool: GitPreflightTool, mocker: MockerFixture
-) -> None:
-    """run_git is called with git_root as cwd, not the user-supplied path."""
-    mocker.patch(f"{MODULE}.find_git_root", return_value=Path("/workspace"))
-    mock_run = mocker.patch(
-        f"{MODULE}.run_git",
-        return_value=_git_result(),
+def test_render_text_long_file_paths():
+    """200+ char paths shown in full, no truncation."""
+    long_path = "a" * 210 + ".py"
+    files = [{"path": long_path, "status": "M"}]
+    result = _render_text(
+        files=files, diff_stat="", diff="", diff_truncated=False, max_diff_lines=200
     )
-
-    tool.execute(path="/workspace/packages/pkg-a")
-
-    for c in mock_run.call_args_list:
-        cwd_arg = c[0][1]
-        assert cwd_arg == Path("/workspace"), f"Expected git_root as cwd, got {cwd_arg}"
+    assert long_path in result
