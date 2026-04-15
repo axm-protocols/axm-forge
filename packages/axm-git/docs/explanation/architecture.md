@@ -59,6 +59,7 @@ graph TD
     Branch --> Runner
     Push --> Runner
     PF --> Runner
+    PF -->|"_render_text()"| Preflight
     CB --> Runner
     CP --> Runner
     CP --> PhaseCommit
@@ -110,7 +111,7 @@ Lifecycle hook actions conforming to the `HookAction` protocol from `axm.hooks.b
 
 All hooks accept an `enabled` param (default `True`). Pass `enabled=False` to skip git operations entirely (returns `HookResult.ok(skipped=True, reason="git disabled")`).
 
-- **`PreflightHook`** — Runs a structured working tree status check before a phase begins. Entry point: `git:preflight`.
+- **`PreflightHook`** — Runs a structured working tree status check before a phase begins. Returns a compact `text` render (via `_render_text` from `commit_preflight`) alongside structured metadata. Entry point: `git:preflight`.
 - **`CreateBranchHook`** — Creates a session branch. Accepts `branch`, `ticket_id`, `ticket_title`, and `ticket_labels` params; `_resolve_branch()` derives the final branch name from those inputs. Skips if not a git repo.
 - **`BranchDeleteHook`** — Deletes a branch via `git branch -D`. Branch name resolved from `branch` param then `branch` context key. Entry point: `git:branch-delete`.
 - **`CommitPhaseHook`** — Stages all changes, commits with `[axm] {phase_name}`. Pass `from_outputs=True` to derive staged files from protocol outputs instead of staging everything. Skips if nothing to commit.

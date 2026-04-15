@@ -13,6 +13,7 @@ from axm.hooks.base import HookResult
 
 from axm_git.core.runner import find_git_root, run_git
 from axm_git.hooks._resolve import _resolve_working_dir
+from axm_git.tools.commit_preflight import _render_text
 
 __all__ = ["PreflightHook", "_truncate_diff"]
 
@@ -54,7 +55,9 @@ class PreflightHook:
             **params: Optional ``path`` and ``diff_lines``.
 
         Returns:
-            HookResult with ``files``, ``diff``, ``file_count``, and ``clean``.
+            HookResult with a compact ``text`` render (via ``_render_text``)
+            and metadata containing ``files``, ``diff``, ``file_count``,
+            and ``clean``.
         """
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
@@ -83,15 +86,36 @@ class PreflightHook:
             filepath = line[3:]
             files.append({"path": filepath, "status": code})
 
+        # git diff --stat [-- rel_path]
+        diff_stat_out = ""
+        diff_stat_result = run_git(["diff", "--stat", *pathspec], git_root)
+        if diff_stat_result.returncode == 0:
+            diff_stat_out = diff_stat_result.stdout.strip()
+
         # git diff -U2 [-- rel_path]
         diff_content = ""
+        diff_truncated = False
         if max_diff_lines > 0:
             diff_result = run_git(["diff", "-U2", *pathspec], git_root)
+            raw_lines = diff_result.stdout.splitlines()
             diff_content = _truncate_diff(diff_result.stdout, max_diff_lines)
+            diff_truncated = len(raw_lines) > max_diff_lines
 
-        return HookResult.ok(
+        rendered = _render_text(
             files=files,
+            diff_stat=diff_stat_out,
             diff=diff_content,
-            file_count=len(files),
-            clean=len(files) == 0,
+            diff_truncated=diff_truncated,
+            max_diff_lines=max_diff_lines,
+        )
+
+        return HookResult(
+            success=True,
+            text=rendered,
+            metadata={
+                "files": files,
+                "diff": diff_content,
+                "file_count": len(files),
+                "clean": len(files) == 0,
+            },
         )
