@@ -110,6 +110,17 @@ result = rule.check(Path("/path/to/project"))
 print(f"{'✅' if result.passed else '❌'} {result.message}")
 ```
 
+## Configuring import boundaries
+
+The `ImportBoundaryRule` detects cross-package imports that bypass the public API surface (e.g. `from axm_ticket.utils import X` instead of `from axm_ticket import X`). Configure an allow list in `pyproject.toml`:
+
+```toml
+[tool.axm-audit.import-boundary]
+allow = ["axm_engine.hooks", "axm_nexus.models.base"]
+```
+
+Each entry is a module prefix — any import matching or starting with that prefix is permitted.
+
 ## Configuring coupling thresholds
 
 The `CouplingMetricRule` supports per-project configuration via `pyproject.toml`:
@@ -138,3 +149,4 @@ fan-out is structural (e.g. a `runner.py` that coordinates multiple subsystems).
 | `ComplexityRule` | API-first + subprocess fallback | Graceful degradation |
 | `FileExistsRule` | Binary | Simplest possible rule |
 | `CircularImportRule` | AST + graph algorithm | Complex analysis (Tarjan SCC) |
+| `ImportBoundaryRule` | AST + config | Cross-package import enforcement |

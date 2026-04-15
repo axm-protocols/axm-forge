@@ -200,7 +200,7 @@ class TestRuleRegistryDeduplication:
             ("security", 2),
             ("deps", 2),
             ("testing", 1),
-            ("architecture", 4),
+            ("architecture", 5),
             ("practices", 4),
             ("structure", 1),
             ("tooling", 3),
