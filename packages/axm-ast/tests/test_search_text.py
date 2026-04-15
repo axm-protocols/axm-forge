@@ -63,10 +63,12 @@ def patch_search(monkeypatch):
 class TestFormatTextHeader:
     def test_text_header_name_filter(self):
         h = SearchTool._format_text_header(
-            name="foo",
-            returns=None,
-            kind=None,
-            inherits=None,
+            search_filters={
+                "name": "foo",
+                "returns": None,
+                "kind": None,
+                "inherits": None,
+            },
             count=5,
         )
         assert re.search(r"name~.foo.", h)
@@ -75,10 +77,12 @@ class TestFormatTextHeader:
 
     def test_text_header_combined_filters(self):
         h = SearchTool._format_text_header(
-            name="x",
-            returns=None,
-            kind="class",
-            inherits=None,
+            search_filters={
+                "name": "x",
+                "returns": None,
+                "kind": "class",
+                "inherits": None,
+            },
             count=3,
         )
         assert re.search(r"name~.x.", h)
@@ -87,10 +91,12 @@ class TestFormatTextHeader:
 
     def test_text_header_no_filters(self):
         h = SearchTool._format_text_header(
-            name=None,
-            returns=None,
-            kind=None,
-            inherits=None,
+            search_filters={
+                "name": None,
+                "returns": None,
+                "kind": None,
+                "inherits": None,
+            },
             count=10,
         )
         assert "ast_search" in h
@@ -98,10 +104,12 @@ class TestFormatTextHeader:
 
     def test_text_header_zero_results(self):
         h = SearchTool._format_text_header(
-            name="z",
-            returns=None,
-            kind=None,
-            inherits=None,
+            search_filters={
+                "name": "z",
+                "returns": None,
+                "kind": None,
+                "inherits": None,
+            },
             count=0,
         )
         assert "0 hits" in h
@@ -276,10 +284,12 @@ class TestEdgeCases:
 
     def test_inherits_filter_in_header(self):
         h = SearchTool._format_text_header(
-            name=None,
-            returns=None,
-            kind=None,
-            inherits="AXMTool",
+            search_filters={
+                "name": None,
+                "returns": None,
+                "kind": None,
+                "inherits": "AXMTool",
+            },
             count=2,
         )
         assert "inherits=AXMTool" in h

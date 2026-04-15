@@ -136,6 +136,9 @@ axm-ast search [OPTIONS] [PATH]
 axm-ast search src/mylib --returns "PackageInfo"
 ```
 
+!!! note "Fuzzy suggestions"
+    When `--name` matches no symbols, the tool returns fuzzy suggestions based on `difflib` similarity matching (cutoff 0.6). If `--kind` is also set, suggestions are filtered to that kind. Suggestions appear as `?`-prefixed lines in the text output and under `data.suggestions` in JSON mode.
+
 ---
 
 ## `callers` — Find Call-Sites
