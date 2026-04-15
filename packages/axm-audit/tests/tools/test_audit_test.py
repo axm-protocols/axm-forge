@@ -29,11 +29,6 @@ class TestAuditTestTool:
         assert result.data["passed"] == 42
         assert result.data["coverage"] == 91.0
 
-    def test_invalid_mode(self, tmp_path: Any) -> None:
-        result = self.tool.execute(path=str(tmp_path), mode="bogus")
-        assert result.success is False
-        assert "Invalid mode" in (result.error or "")
-
     def test_invalid_path(self) -> None:
         result = self.tool.execute(path="/nonexistent/path/xyz")
         assert result.success is False

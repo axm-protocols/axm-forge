@@ -53,19 +53,9 @@ class AuditTestTool(AXMTool):
 
             from axm_audit.core.test_runner import run_tests
 
-            valid_modes: set[str] = {"compact", "failures", "delta", "targeted"}
-            if mode not in valid_modes:
-                return ToolResult(
-                    success=False,
-                    error=(
-                        f"Invalid mode '{mode}'."
-                        f" Must be one of: {', '.join(sorted(valid_modes))}"
-                    ),
-                )
-
             report = run_tests(
                 project_path,
-                mode=mode,  # type: ignore[arg-type]
+                mode=mode,
                 files=files,
                 markers=markers,
                 stop_on_first=stop_on_first,
