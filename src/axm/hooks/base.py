@@ -29,14 +29,27 @@ class HookResult:
     text: str | None = None
 
     @classmethod
-    def ok(cls, **metadata: Any) -> HookResult:
-        """Create a successful result."""
-        return cls(success=True, metadata=metadata)
+    def ok(cls, *, text: str | None = None, **metadata: Any) -> HookResult:
+        """Create a successful result.
+
+        Args:
+            text: Pre-rendered text representation of the result.
+            **metadata: Arbitrary key-value pairs stored in metadata.
+        """
+        return cls(success=True, text=text, metadata=metadata)
 
     @classmethod
-    def fail(cls, error: str, **metadata: Any) -> HookResult:
-        """Create a failed result."""
-        return cls(success=False, error=error, metadata=metadata)
+    def fail(
+        cls, error: str, *, text: str | None = None, **metadata: Any
+    ) -> HookResult:
+        """Create a failed result.
+
+        Args:
+            error: Human-readable error message.
+            text: Pre-rendered text representation of the result.
+            **metadata: Arbitrary key-value pairs stored in metadata.
+        """
+        return cls(success=False, error=error, text=text, metadata=metadata)
 
     @classmethod
     def skip(cls, reason: str = "condition not met") -> HookResult:
