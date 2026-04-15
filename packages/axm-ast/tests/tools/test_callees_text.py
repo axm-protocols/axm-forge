@@ -102,9 +102,11 @@ def test_data_unchanged_with_text(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_callees_text_on_real_package() -> None:
+    from pathlib import Path
+
     tool = CalleesTool()
     result = tool.execute(
-        path="/Users/gabriel/Documents/Code/python/axm-workspaces/axm-forge/packages/axm-ast",
+        path=str(Path(__file__).resolve().parent.parent.parent),
         symbol="CalleesTool.execute",
     )
     assert result.success is True

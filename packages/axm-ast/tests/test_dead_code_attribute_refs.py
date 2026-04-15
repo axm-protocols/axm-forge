@@ -215,9 +215,11 @@ class TestAttributeRefsFunctional:
 
     def test_executor_advance_hooks_not_dead(self) -> None:
         """find_dead_code on axm-engine must not flag _advance_hooks."""
-        engine_path = Path(
-            "/Users/gabriel/Documents/Code/python/axm-workspaces"
-            "/axm-nexus/packages/axm-engine"
+        engine_path = (
+            Path(__file__).resolve().parent.parent.parent.parent.parent
+            / "axm-nexus"
+            / "packages"
+            / "axm-engine"
         )
         if not engine_path.exists():
             import pytest
