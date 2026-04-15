@@ -123,7 +123,7 @@ def test(
     effective_mode = "compact" if agent else mode
     report = run_tests(
         project_path,
-        mode=effective_mode,  # type: ignore[arg-type]
+        mode=effective_mode,
         files=files,
         markers=markers,
         stop_on_first=stop_on_first,

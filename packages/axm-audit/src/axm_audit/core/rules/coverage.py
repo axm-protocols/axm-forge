@@ -60,7 +60,7 @@ class TestCoverageRule(ProjectRule):
 
         # Build failure details for backwards-compatible format
         failures: list[dict[str, str]] = [
-            {"test": f.test, "traceback": f.message} for f in report.failures
+            {"test": f.test, "traceback": f.message} for f in report.failures or []
         ]
 
         if report.coverage is None:

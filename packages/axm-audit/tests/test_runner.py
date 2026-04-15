@@ -603,5 +603,6 @@ class TestBuildTestReport:
         assert report.passed == 2
         assert report.failed == 1
         assert report.coverage == 85.0
+        assert report.failures is not None
         assert len(report.failures) == 1
         assert report.failures[0].test == "test_foo.py::test_bar"
