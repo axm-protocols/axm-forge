@@ -11,6 +11,7 @@ _MAX_NODEID_LEN = 120
 
 
 def _build_header(report: TestReport) -> str:
+    """Build the one-line summary header with counts, duration, and coverage."""
     passed = getattr(report, "passed", 0) or 0
     failed = getattr(report, "failed", 0) or 0
     errors = getattr(report, "errors", 0) or 0
@@ -28,7 +29,7 @@ def _build_header(report: TestReport) -> str:
     counts = " \u00b7 ".join(parts)
     header = f"audit_test | {icon} {counts} | {duration:.1f}s"
     if coverage is not None:
-        header += f" | cov {report.coverage}%"
+        header += f" | cov {report.coverage:.1f}%"
     return header
 
 
@@ -51,6 +52,7 @@ def _build_failure_blocks(report: TestReport) -> list[str]:
 
 
 def _build_coverage_section(report: TestReport) -> list[str]:
+    """Return a ``cov<`` line listing files below the coverage threshold."""
     cov_by_file = getattr(report, "coverage_by_file", None)
     if cov_by_file is None:
         return []
@@ -61,7 +63,7 @@ def _build_coverage_section(report: TestReport) -> list[str]:
     ]
     if not below:
         return []
-    parts = [f"{name} {pct}%" for name, pct in below]
+    parts = [f"{name} {pct:.1f}%" for name, pct in below]
     return ["cov< " + " \u00b7 ".join(parts)]
 
 
