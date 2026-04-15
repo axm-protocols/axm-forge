@@ -36,7 +36,7 @@ class TestBlockingIOTextRendering:
         rule = BlockingIORule()
         result = rule.check(tmp_path)
         assert result.text is not None
-        assert "     \u2022 bad.py:4: time.sleep in async" in result.text
+        assert "\u2022 bad.py:4: time.sleep in async" in result.text
 
     def test_text_bullets_no_timeout(self, tmp_path: Path) -> None:
         """HTTP call without timeout produces bullet line."""
@@ -48,7 +48,7 @@ class TestBlockingIOTextRendering:
         rule = BlockingIORule()
         result = rule.check(tmp_path)
         assert result.text is not None
-        assert "     \u2022 bad.py:4: HTTP call without timeout" in result.text
+        assert "\u2022 bad.py:4: HTTP call without timeout" in result.text
 
     def test_text_multiple_violations(self, tmp_path: Path) -> None:
         """Multiple violations produce multiple bullet lines."""
@@ -66,7 +66,7 @@ class TestBlockingIOTextRendering:
         assert result.text is not None
         lines = result.text.splitlines()
         assert len(lines) == 2
-        assert all(line.startswith("     \u2022") for line in lines)
+        assert all(line.startswith("\u2022") for line in lines)
 
     def test_empty_src_directory(self, tmp_path: Path) -> None:
         """Empty src/ directory returns text=None and passed=True."""
@@ -88,4 +88,4 @@ class TestBlockingIOTextRendering:
         assert result.text is not None
         assert not result.text.endswith("\n")
         assert len(result.text.splitlines()) == 1
-        assert result.text.startswith("     \u2022")
+        assert result.text.startswith("\u2022")

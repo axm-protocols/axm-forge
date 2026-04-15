@@ -47,7 +47,7 @@ def test_format_agent_drops_null_keys_failed() -> None:
 
 
 def test_format_agent_keeps_non_null_keys_failed() -> None:
-    """Failed dict with all fields populated keeps all 5 keys."""
+    """Failed dict with text and details — only text emitted (XOR)."""
     result = _AuditResult(
         checks=[
             _CheckResult(
@@ -67,7 +67,6 @@ def test_format_agent_keeps_non_null_keys_failed() -> None:
         "rule_id",
         "message",
         "text",
-        "details",
         "fix_hint",
     }
 
@@ -96,7 +95,7 @@ def test_format_agent_drops_null_fix_hint_passed() -> None:
 
 
 def test_format_agent_all_keys_present_failed() -> None:
-    """When all fields are populated, all 5 keys appear in failed dict."""
+    """When all fields are populated, text wins — details excluded (XOR)."""
     result = _AuditResult(
         checks=[
             _CheckResult(
@@ -115,7 +114,6 @@ def test_format_agent_all_keys_present_failed() -> None:
         "rule_id",
         "message",
         "text",
-        "details",
         "fix_hint",
     }
 
