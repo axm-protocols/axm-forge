@@ -92,7 +92,7 @@ Each tool exposes an `execute(*, path, ..., **kwargs) → ToolResult` method wit
 
 - **`GitTagTool`** — Full tag workflow: check clean tree, check CI, compute semver bump, create tag, verify hatch-vcs, push.
 - **`GitCommitTool`** — Stage files, commit with pre-commit hooks, auto-retry on linter fixes. Supports batched commits. Each commit spec is processed by `_process_single_commit()` (validate → stage → commit → record).
-- **`GitPreflightTool`** — Parse `git status --porcelain` and `git diff --stat` into structured data.
+- **`GitPreflightTool`** — Parse `git status --porcelain` and `git diff --stat` into structured data. Uses `find_git_root()` to scope status and diff to the target subdirectory via pathspec, matching the behaviour of `PreflightHook`.
 - **`GitBranchTool`** — Create or checkout a branch. Supports `from_ref` (branch from tag/commit) and `checkout_only` (switch without creating).
 - **`GitPushTool`** — Push with dirty-check guard, auto-upstream detection, custom remote, and force-push support.
 
