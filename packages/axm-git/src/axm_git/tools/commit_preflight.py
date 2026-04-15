@@ -58,8 +58,11 @@ class GitPreflightTool(AXMTool):
             filepath = line[3:]
             files.append({"path": filepath, "status": code})
 
-        # git diff --stat
-        diff_stat = run_git(["diff", "--stat"], resolved)
+        # git diff --stat (only when dirty)
+        diff_stat_out = ""
+        if files:
+            diff_stat = run_git(["diff", "--stat"], resolved)
+            diff_stat_out = diff_stat.stdout.strip()
 
         # git diff -U2 (reduced context, truncated to max_diff_lines)
         diff_content = ""
@@ -78,10 +81,9 @@ class GitPreflightTool(AXMTool):
             data={
                 "files": files,
                 "file_count": len(files),
-                "diff_stat": diff_stat.stdout.strip(),
+                "diff_stat": diff_stat_out,
                 "diff": diff_content,
                 "diff_truncated": diff_truncated,
                 "clean": len(files) == 0,
             },
-            hint="Tip: Use git_commit(commits=[...]) to stage and commit changes.",
         )
