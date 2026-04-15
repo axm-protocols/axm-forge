@@ -422,9 +422,7 @@ class SecurityPatternRule(ProjectRule):
         passed = count == 0
         score = max(0, 100 - count * 25)
 
-        text_lines = [
-            f"     \u2022 {m['file']}:{m['line']} {m['pattern']}" for m in matches
-        ]
+        text_lines = [f"\u2022 {m['file']}:{m['line']} {m['pattern']}" for m in matches]
 
         return CheckResult(
             rule_id=self.rule_id,
@@ -478,7 +476,7 @@ class BlockingIORule(ProjectRule):
         score = max(0, 100 - count * 15)
 
         text_lines = [
-            f"     \u2022 {v['file']}:{v['line']}: {v['issue']}" for v in violations
+            f"\u2022 {v['file']}:{v['line']}: {v['issue']}" for v in violations
         ]
 
         return CheckResult(

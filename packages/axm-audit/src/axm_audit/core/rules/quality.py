@@ -234,7 +234,7 @@ class TypeCheckRule(ProjectRule):
         passed = error_count == 0
 
         text_lines = [
-            f"\u2022 [{e['code']}] {str(e['file']).removeprefix('src/')}"
+            f"• [{e['code']}] {str(e['file']).removeprefix('src/')}"
             f":{e['line']}: {e['message']}"
             for e in errors
         ]
@@ -367,6 +367,7 @@ class DiffSizeRule(ProjectRule):
 
     def check(self, project_path: Path) -> CheckResult:
         """Check uncommitted diff size."""
+        project_path = Path(project_path)
         if shutil.which("git") is None:
             return self._skip("git not installed")
 
@@ -439,7 +440,7 @@ class DiffSizeRule(ProjectRule):
         passed = score >= PASS_THRESHOLD
 
         text = (
-            f"     \u2022 {lines_changed} lines \u0394 (ideal < {ideal})"
+            f"\u2022 {lines_changed} lines \u0394 (ideal < {ideal})"
             if not passed and lines_changed > 0
             else None
         )
