@@ -118,13 +118,12 @@ Uses `pytest-cov` to measure line coverage. Pass threshold: ≥ 80%.
 
 ### Architecture Score
 
-Average of five sub-scores:
+Average of four sub-scores:
 
 - **Circular imports**: `max(0, 100 − cycle_count × 20)`
 - **God classes**: `max(0, 100 − god_class_count × 15)`
 - **Coupling**: `max(0, 100 − N(modules > threshold) × 5)` — fan-out exceeding 10 imports
 - **Duplication**: `max(0, 100 − duplicate_pair_count × 10)`
-- **Import boundary**: `max(0, 100 − violation_count × 10)` — cross-package deep imports
 
 ### Practices Score
 
