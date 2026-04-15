@@ -7,7 +7,7 @@
 ```mermaid
 graph TB
     API["CLI / audit_project()"] --> Auditor["get_rules_for_category()"]
-    Auditor --> Rules["24 Rules · 10 Categories"]
+    Auditor --> Rules["25 Rules · 10 Categories"]
     Rules -->|subprocess| Runner["run_in_project()"]
     Rules -->|direct| AST["ast · radon · tomllib"]
     Runner --> Tools["Ruff · mypy · Bandit\npip-audit · deptry · pytest-cov"]
@@ -38,12 +38,12 @@ Both return typed Pydantic models for safe agent consumption.
 | `security` | `SecurityRule`, `SecurityPatternRule` | 2 |
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
-| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
+| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule`, `ImportBoundaryRule` | 5 |
 | `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `SecurityPatternRule`, `TestMirrorRule` | 5 |
 | `structure` | `PyprojectCompletenessRule` | 1 |
 | `tooling` | `ToolAvailabilityRule` | 3 instances |
 
-**Total: 24 rule instances across 10 categories.**
+**Total: 25 rule instances across 10 categories.**
 
 ### 3. Tool Integration
 

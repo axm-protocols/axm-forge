@@ -178,4 +178,4 @@ class TestGetRegistry:
 
         reg = get_registry()
         total = sum(len(v) for v in reg.values())
-        assert total == 21
+        assert total == 22

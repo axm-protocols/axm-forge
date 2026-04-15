@@ -74,6 +74,23 @@ def _extract_imports(tree: ast.Module) -> list[str]:
     return imports
 
 
+def _extract_imports_with_lines(tree: ast.Module) -> list[tuple[str, int]]:
+    """Extract top-level imported module names with their line numbers.
+
+    Parallel to :func:`_extract_imports` but returns ``(module, lineno)``
+    tuples for violation reporting.
+    """
+    imports: list[tuple[str, int]] = []
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imports.append((alias.name, node.lineno))
+        elif isinstance(node, ast.ImportFrom):
+            if node.module and node.module != "__future__":
+                imports.append((node.module, node.lineno))
+    return imports
+
+
 class _TarjanState:
     """Mutable state container for the iterative Tarjan algorithm."""
 
@@ -325,6 +342,27 @@ class GodClassRule(ProjectRule):
             )
 
 
+def _is_cross_package_deep_import(
+    imp: str,
+    prefixes: list[str],
+    *,
+    current_package: str,
+) -> bool:
+    """Return ``True`` if *imp* is a deep import into a *different* internal package.
+
+    A "deep" import targets a sub-module (e.g. ``axm_ticket.utils``)
+    rather than the package root (``axm_ticket``).  Imports within
+    *current_package* are excluded — they are intra-package.
+    """
+    for pfx in prefixes:
+        if imp == pfx or not imp.startswith(f"{pfx}."):
+            continue
+        # It's a deep import into *pfx* — only flag if cross-package.
+        if pfx != current_package:
+            return True
+    return False
+
+
 def _detect_internal_prefixes(src_path: Path) -> list[str]:
     """Return package names found directly under *src_path*."""
     return [
@@ -432,6 +470,24 @@ def _parse_overrides(raw: object) -> dict[str, int]:
         return {str(k): int(v) for k, v in raw.items()}
     except (TypeError, ValueError):
         return {}
+
+
+def _read_boundary_config(project_path: Path) -> list[str]:
+    """Read import-boundary allow list from ``[tool.axm-audit.import-boundary]``.
+
+    Returns:
+        List of module prefixes permitted as cross-package deep imports.
+    """
+    pyproject = project_path / "pyproject.toml"
+    if not pyproject.exists():
+        return []
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return []
+    section = data.get("tool", {}).get("axm-audit", {}).get("import-boundary", {})
+    allow = section.get("allow", [])
+    return list(allow) if isinstance(allow, list) else []
 
 
 def _read_coupling_config(
@@ -609,6 +665,116 @@ def _resolve_coupling_severity(
     else:
         severity = Severity.INFO
     return n_warnings, n_errors, severity
+
+
+def _is_allowed(imp: str, allow_list: list[str]) -> bool:
+    """Return ``True`` if *imp* is covered by the allow list."""
+    return any(imp == a or imp.startswith(f"{a}.") for a in allow_list)
+
+
+@dataclass
+@register_rule("architecture")
+class ImportBoundaryRule(ProjectRule):
+    """Detect cross-package imports that bypass the public API surface.
+
+    Flags imports targeting sub-modules of other packages (e.g.
+    ``from axm_ticket.utils import X``) instead of the package root.
+    """
+
+    @property
+    def rule_id(self) -> str:
+        """Unique identifier for this rule."""
+        return "import-boundary"
+
+    def check(self, project_path: Path) -> CheckResult:
+        """Scan ``src/`` for cross-package deep imports."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
+        src_path = project_path / "src"
+        prefixes = _detect_internal_prefixes(src_path)
+        allow_list = _read_boundary_config(project_path)
+        violations = self._collect_violations(
+            project_path, src_path, prefixes, allow_list
+        )
+        return self._build_result(violations)
+
+    def _collect_violations(
+        self,
+        project_path: Path,
+        src_path: Path,
+        prefixes: list[str],
+        allow_list: list[str],
+    ) -> list[dict[str, Any]]:
+        """Scan all Python files and collect boundary violations."""
+        violations: list[dict[str, Any]] = []
+        for path in get_python_files(src_path):
+            cache = get_ast_cache()
+            tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
+            if tree is None:
+                continue
+            module_name = _get_module_name(path, src_path)
+            current_package = module_name.split(".")[0] if module_name else ""
+            self._check_file_imports(
+                path,
+                tree,
+                project_path,
+                prefixes,
+                allow_list,
+                current_package,
+                violations,
+            )
+        return violations
+
+    def _check_file_imports(  # noqa: PLR0913
+        self,
+        path: Path,
+        tree: ast.Module,
+        project_path: Path,
+        prefixes: list[str],
+        allow_list: list[str],
+        current_package: str,
+        violations: list[dict[str, Any]],
+    ) -> None:
+        """Check imports in a single file for boundary violations."""
+        for imp, lineno in _extract_imports_with_lines(tree):
+            if _is_allowed(imp, allow_list):
+                continue
+            if not _is_cross_package_deep_import(
+                imp, prefixes, current_package=current_package
+            ):
+                continue
+            target_pkg = next((p for p in prefixes if imp.startswith(f"{p}.")), "")
+            violations.append(
+                {
+                    "file": str(path.relative_to(project_path)),
+                    "line": lineno,
+                    "import": imp,
+                    "target_package": target_pkg,
+                }
+            )
+
+    @staticmethod
+    def _build_result(violations: list[dict[str, Any]]) -> CheckResult:
+        """Build a :class:`CheckResult` from collected violations."""
+        n = len(violations)
+        score = max(0, 100 - n * 10)
+        text_lines = [
+            f"\u2022 {v['file']}:{v['line']} {v['import']}" for v in violations
+        ]
+        return CheckResult(
+            rule_id="import-boundary",
+            passed=n == 0,
+            message=f"{n} cross-package deep import(s) found",
+            severity=Severity.WARNING if n else Severity.INFO,
+            details={"violations": violations, "score": score},
+            text="\n".join(text_lines) if text_lines else None,
+            fix_hint="Use root-level package imports instead of "
+            "reaching into sub-modules"
+            if violations
+            else None,
+        )
 
 
 @dataclass
