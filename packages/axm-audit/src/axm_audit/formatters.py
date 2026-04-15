@@ -161,8 +161,7 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
                 for k, v in {
                     "rule_id": c.rule_id,
                     "message": c.message,
-                    "text": c.text,
-                    "details": c.details,
+                    **({"text": c.text} if c.text else {"details": c.details}),
                 }.items()
                 if v is not None
             }
