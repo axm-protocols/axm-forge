@@ -151,15 +151,12 @@ class TestRenderSuggestions:
     """Unit tests for suggestion text rendering."""
 
     def test_render_suggestion_line(self) -> None:
-        """Suggestion line starts with ? and contains score and kind."""
+        """Suggestion line uses compact format with no padding."""
         suggestion = _suggestion("get_session", 0.92, "function", "core.analyzer")
 
         line = SearchTool._render_suggestion_line(suggestion)
 
-        assert line.startswith("?")
-        assert ".92" in line
-        assert "func" in line
-        assert "core.analyzer" in line
+        assert line == "? get_session .92 func core.analyzer"
 
     def test_render_suggestions_header(self) -> None:
         """Header shows 0 hits and suggestion count."""
