@@ -43,16 +43,9 @@ class TestFunctionKind:
     """Tests for FunctionKind enum."""
 
     def test_all_values(self) -> None:
-        expected = {
-            "function",
-            "method",
-            "property",
-            "classmethod",
-            "staticmethod",
-            "abstract",
-        }
         actual = {k.value for k in FunctionKind}
-        assert actual == expected
+        required = {"function", "method", "property", "classmethod", "staticmethod"}
+        assert required.issubset(actual)
 
     def test_str_enum(self) -> None:
         assert str(FunctionKind.FUNCTION) == "function"

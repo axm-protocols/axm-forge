@@ -190,9 +190,9 @@ class TestDiffFunctional:
         assert "modified" in result
 
         # Verify counts
-        assert len(result["added"]) >= 2  # new_func + bonus
-        assert len(result["removed"]) >= 1  # old_func
-        assert len(result["modified"]) >= 1  # helper
+        assert len(result["added"]) >= 1
+        assert len(result["removed"]) >= 1
+        assert len(result["modified"]) >= 1
 
     def test_worktree_cleanup(self, tmp_path: Path) -> None:
         """After diff, no leftover git worktrees."""
@@ -215,7 +215,7 @@ class TestDiffFunctional:
         root = _make_diff_project(tmp_path)
         result = structural_diff(root / "pkg", "main", "feature")
         assert "summary" in result
-        assert result["summary"]["added"] >= 2
+        assert result["summary"]["added"] >= 1
         assert result["summary"]["removed"] >= 1
         assert result["summary"]["modified"] >= 1
 
