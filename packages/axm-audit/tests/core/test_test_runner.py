@@ -620,3 +620,138 @@ class TestEdgeCases:
         report = run_tests(tmp_path, mode="compact")
         assert report.passed == 42
         # Coverage may be None if the tmp file wasn't populated
+
+
+# ---------------------------------------------------------------------------
+# AXM-1427 — skip coverage when files param is set
+# ---------------------------------------------------------------------------
+
+
+class TestBuildPytestCmdCoverageWithFiles:
+    """Unit tests: _build_pytest_cmd must omit --cov when coverage_path is None."""
+
+    def test_build_pytest_cmd_no_cov_when_files(self, tmp_path: Path) -> None:
+        cmd = _build_pytest_cmd(
+            report_path=tmp_path / "report.json",
+            coverage_path=None,
+            files=["t.py"],
+            markers=None,
+            stop_on_first=False,
+        )
+        assert "--cov" not in cmd
+        assert not any(arg.startswith("--cov-report") for arg in cmd)
+
+    def test_build_pytest_cmd_cov_when_no_files(self, tmp_path: Path) -> None:
+        cov_path = Path("/tmp/c.json")
+        cmd = _build_pytest_cmd(
+            report_path=tmp_path / "report.json",
+            coverage_path=cov_path,
+            files=None,
+            markers=None,
+            stop_on_first=False,
+        )
+        assert "--cov" in cmd
+        assert any(arg.startswith("--cov-report=json:") for arg in cmd)
+
+
+class TestRunTestsFilesCoverage:
+    """Functional tests: run_tests must skip coverage collection when files is set."""
+
+    @patch("axm_audit.core.test_runner.run_in_project")
+    def test_run_tests_files_no_coverage(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """When files are specified, coverage must be None."""
+
+        def _side_effect(
+            cmd: list[str], project_path: Path, **kwargs: Any
+        ) -> MagicMock:
+            for arg in cmd:
+                if arg.startswith("--json-report-file="):
+                    rpath = Path(arg.split("=", 1)[1])
+                    rpath.write_text(json.dumps(_PASSING_REPORT))
+            # No coverage file written — --cov should not be in cmd
+            assert "--cov" not in cmd
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = _side_effect
+
+        report = run_tests(tmp_path, files=["tests/test_callers.py"])
+        assert report.coverage is None
+        assert report.coverage_by_file is None
+
+    @patch("axm_audit.core.test_runner.run_in_project")
+    def test_run_tests_default_has_coverage(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """Default invocation (no files) must collect coverage."""
+
+        def _side_effect(
+            cmd: list[str], project_path: Path, **kwargs: Any
+        ) -> MagicMock:
+            for arg in cmd:
+                if arg.startswith("--json-report-file="):
+                    rpath = Path(arg.split("=", 1)[1])
+                    rpath.write_text(json.dumps(_PASSING_REPORT))
+            for arg in cmd:
+                if arg.startswith("--cov-report=json:"):
+                    cpath = Path(arg.split(":", 1)[1])
+                    cpath.write_text(json.dumps(_COVERAGE_DATA))
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = _side_effect
+
+        report = run_tests(tmp_path)
+        assert report.coverage is not None
+
+
+class TestRunTestsFilesCoverageEdgeCases:
+    """Edge cases for files + coverage interaction."""
+
+    @patch("axm_audit.core.test_runner.run_in_project")
+    def test_empty_files_list_collects_coverage(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """files=[] is treated as no-files — coverage collected normally."""
+
+        def _side_effect(
+            cmd: list[str], project_path: Path, **kwargs: Any
+        ) -> MagicMock:
+            for arg in cmd:
+                if arg.startswith("--json-report-file="):
+                    rpath = Path(arg.split("=", 1)[1])
+                    rpath.write_text(json.dumps(_PASSING_REPORT))
+            for arg in cmd:
+                if arg.startswith("--cov-report=json:"):
+                    cpath = Path(arg.split(":", 1)[1])
+                    cpath.write_text(json.dumps(_COVERAGE_DATA))
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = _side_effect
+
+        report = run_tests(tmp_path, files=[])
+        assert report.coverage is not None
+
+    @patch("axm_audit.core.test_runner.run_in_project")
+    def test_files_with_markers_no_coverage(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """files + markers combined — files takes precedence, no coverage."""
+
+        def _side_effect(
+            cmd: list[str], project_path: Path, **kwargs: Any
+        ) -> MagicMock:
+            for arg in cmd:
+                if arg.startswith("--json-report-file="):
+                    rpath = Path(arg.split("=", 1)[1])
+                    rpath.write_text(json.dumps(_PASSING_REPORT))
+            assert "--cov" not in cmd
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = _side_effect
+
+        report = run_tests(
+            tmp_path, files=["tests/test_callers.py"], markers=["not slow"]
+        )
+        assert report.coverage is None
+        assert report.coverage_by_file is None
