@@ -1,8 +1,9 @@
-"""MCP tool for agent-optimized test execution."""
+"""MCP tool for structured test execution."""
 
 from __future__ import annotations
 
 import dataclasses
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -10,9 +11,11 @@ from axm.tools.base import AXMTool, ToolResult
 
 __all__ = ["AuditTestTool"]
 
+logger = logging.getLogger(__name__)
+
 
 class AuditTestTool(AXMTool):
-    """Run tests with agent-optimized, token-efficient output.
+    """Run tests with structured output.
 
     Registered as ``audit_test`` via axm.tools entry point.
     """
@@ -32,11 +35,11 @@ class AuditTestTool(AXMTool):
         stop_on_first: bool = True,
         **kwargs: Any,
     ) -> ToolResult:
-        """Run tests with agent-optimized output.
+        """Run tests with structured output.
 
         Args:
             path: Path to project root.
-            mode: Output mode (compact, failures, delta, targeted).
+            mode: Deprecated, ignored. Kept for backward compatibility.
             files: Specific test files to run.
             markers: Pytest markers to filter.
             stop_on_first: Stop on first failure.
@@ -44,6 +47,9 @@ class AuditTestTool(AXMTool):
         Returns:
             ToolResult with structured test report.
         """
+        if mode != "failures":
+            logger.info("mode param is deprecated")
+
         try:
             project_path = Path(path).resolve()
             if not project_path.is_dir():
@@ -55,7 +61,6 @@ class AuditTestTool(AXMTool):
 
             report = run_tests(
                 project_path,
-                mode=mode,
                 files=files,
                 markers=markers,
                 stop_on_first=stop_on_first,

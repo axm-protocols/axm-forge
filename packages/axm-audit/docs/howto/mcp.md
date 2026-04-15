@@ -40,24 +40,24 @@ Use `verify` instead of `audit` for a combined quality + governance check:
 
 This runs `audit` + `init_check` + AST enrichment in a single call.
 
-### Agent-optimized test runner
+### Structured test runner
 
 Use `audit_test` for structured, token-efficient test feedback:
 
 ```json
-{"tool": "audit_test", "kwargs": {"path": "/path/to/project", "mode": "failures"}}
+{"tool": "audit_test", "kwargs": {"path": "/path/to/project"}}
 ```
 
-| Mode | ~Tokens | Use case |
-|---|---|---|
-| `compact` | 30 | Fast-feedback loops (pass/fail + counts) |
-| `failures` | 30-200 | First run, debugging (includes failure details) |
-| `delta` | 100-300 | Post-refactor coverage comparison |
-| `targeted` | 50-150 | Impact-scoped tests with `files` or `markers` |
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `path` | `str` | `"."` | Path to project root |
+| `files` | `list[str]` | `None` | Specific test files to run |
+| `markers` | `list[str]` | `None` | Pytest markers to filter |
+| `stop_on_first` | `bool` | `True` | Stop on first failure |
 
 ## Output Format
 
-The MCP tool returns the same structure as `axm-audit audit . --agent`:
+The MCP tool returns a structured result:
 
 | Key | Type | Content |
 |---|---|---|
