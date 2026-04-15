@@ -72,7 +72,7 @@ class TestFailedWithDetailsIncludesKeys:
         failed = output["failed"][0]
 
         assert failed["text"] == "ruff output here"
-        assert failed["details"] == {"violations": ["E501"]}
+        assert "details" not in failed
         assert failed["fix_hint"] == "Run ruff --fix"
         assert failed["rule_id"] == "QUALITY_LINT"
         assert failed["message"] == "Lint failed"
@@ -167,7 +167,7 @@ class TestEdgeCases:
     def test_empty_string_treated_as_falsy(
         self, _make_result: Callable[..., AuditResult]
     ) -> None:
-        """Empty string fix_hint is falsy -> key omitted."""
+        """Empty string fix_hint is preserved (not None)."""
         result = _make_result(
             rule_id="R1",
             passed=False,
@@ -178,4 +178,4 @@ class TestEdgeCases:
         )
         output = format_agent(result)
         failed = output["failed"][0]
-        assert "fix_hint" not in failed
+        assert failed["fix_hint"] == ""

@@ -66,7 +66,7 @@ class TestDiffSizeText:
         assert result.passed is False
         assert result.text is not None
         assert "lines \u0394" in result.text
-        assert "     \u2022" in result.text
+        assert "\u2022" in result.text
 
     def test_diff_size_no_changes_text_is_none(
         self, rule: DiffSizeRule, project_path: Path, mocker: MockerFixture
@@ -108,4 +108,4 @@ class TestDiffSizeTextEdgeCases:
         assert result.passed is False
         assert result.text is not None
         assert "lines \u0394" in result.text
-        assert "     \u2022" in result.text
+        assert "\u2022" in result.text

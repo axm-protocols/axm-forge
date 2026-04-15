@@ -43,7 +43,7 @@ def test_text_bullet_format(tmp_path: Path, rule: SecurityPatternRule) -> None:
     result = rule.check(tmp_path)
 
     assert result.text is not None
-    assert result.text == "     \u2022 bad.py:2 password"
+    assert result.text == "\u2022 bad.py:2 password"
 
 
 def test_early_result_no_text(tmp_path: Path, rule: SecurityPatternRule) -> None:

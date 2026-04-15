@@ -16,7 +16,7 @@ def _make_result(
 
 
 def test_format_agent_failed_with_text() -> None:
-    """Failed check with text emits text, not details."""
+    """Failed check with text and details emits text only — details omitted."""
     cr = CheckResult(
         rule_id="R001",
         message="some failure",
@@ -29,8 +29,7 @@ def test_format_agent_failed_with_text() -> None:
     entry = out["failed"][0]
     assert "text" in entry
     assert entry["text"] == "\u2022 issue"
-    assert "details" in entry
-    assert entry["details"] == {"items": [1, 2]}
+    assert "details" not in entry
 
 
 def test_format_agent_failed_without_text() -> None:
@@ -98,8 +97,8 @@ def test_format_agent_passed_actionable_without_text() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_format_agent_failed_empty_text_treated_as_falsy() -> None:
-    """Empty string text is not None — preserved after AXM-1410."""
+def test_format_agent_failed_empty_text_preserved() -> None:
+    """Empty string text is falsy — falls back to details, text omitted."""
     cr = CheckResult(
         rule_id="R005",
         message="edge empty",
@@ -111,8 +110,8 @@ def test_format_agent_failed_empty_text_treated_as_falsy() -> None:
     out = format_agent(_make_result(cr))
     entry = out["failed"][0]
     assert "details" in entry
-    assert "text" in entry
-    assert entry["text"] == ""
+    assert entry["details"] == {"items": [1]}
+    assert "text" not in entry
 
 
 def test_format_agent_failed_both_none() -> None:

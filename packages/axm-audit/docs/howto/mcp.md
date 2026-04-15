@@ -16,7 +16,7 @@ Call the `audit` MCP tool with the project path:
 {"tool": "audit", "kwargs": {"path": "/path/to/project"}}
 ```
 
-The output uses `format_agent` — compact strings for clean passes, detailed dicts for actionable items. Each dict includes only non-None fields (`text`, `details`, `fix_hint`) — both `text` and `details` may appear together:
+The output uses `format_agent` — compact strings for clean passes, detailed dicts for actionable items. For failed checks, `text` and `details` are mutually exclusive — `text` takes priority when truthy, otherwise `details` is included:
 
 ```json
 {

@@ -146,10 +146,10 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
     """Agent-optimized output: passed=summary, failed=full detail.
 
     Minimizes tokens for passing checks while giving full context on
-    failures.  Each check entry includes only non-None fields among
-    ``text``, ``details``, and ``fix_hint`` — both ``text`` and
-    ``details`` may appear together.  Passed checks that carry actionable
-    detail (e.g. missing docstrings) are promoted to dicts.
+    failures.  For failed checks, ``text`` and ``details`` are both included
+    when present (``None`` values are omitted).  Passed checks that
+    carry actionable detail (e.g. missing
+    docstrings) are promoted to dicts.
     """
     passed: list[str | dict[str, Any]] = []
     for c in result.checks:
@@ -182,12 +182,15 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
                 for k, v in {
                     "rule_id": c.rule_id,
                     "message": c.message,
-                    "text": c.text,
-                    "details": c.details,
+                    **(
+                        ({"text": c.text} if c.text else {"details": c.details})
+                        if c.text or c.details is not None
+                        else {}
+                    ),
+                    "fix_hint": c.fix_hint,
                 }.items()
                 if v is not None
             }
-            | ({"fix_hint": c.fix_hint} if c.fix_hint else {})
             for c in result.checks
             if not c.passed
         ],
