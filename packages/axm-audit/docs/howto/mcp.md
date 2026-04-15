@@ -55,6 +55,22 @@ Use `audit_test` for structured, token-efficient test feedback:
 | `markers` | `list[str]` | `None` | Pytest markers to filter |
 | `stop_on_first` | `bool` | `True` | Stop on first failure |
 
+The result includes a structured `data` dict (full `TestReport` fields) and a compact `text` summary via `format_audit_test_text`, optimised for token count (~27 tokens green path, ~240 tokens with failures):
+
+```
+audit_test | ✅ 42 passed | 1.2s | cov 95.0%
+```
+
+Failure output adds `✗` blocks and a coverage section for files below 95%:
+
+```
+audit_test | ❌ 10 passed · 2 failed | 3.4s | cov 88.0%
+✗ test_foo.py::test_bar (foo.py:42)
+  AssertionError: expected 5 got 3
+    assert 5 == 3
+cov< utils.py 80%
+```
+
 ## Output Format
 
 The MCP tool returns a structured result:
