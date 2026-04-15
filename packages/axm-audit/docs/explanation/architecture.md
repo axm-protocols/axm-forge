@@ -58,7 +58,7 @@ All subprocess-based rules use `run_in_project()` from `core/runner.py`, which d
 | `SecurityRule` | Bandit | `run_in_project(["bandit", ...])` |
 | `DependencyAuditRule` | pip-audit | `run_in_project(["pip-audit", ...])` |
 | `DependencyHygieneRule` | deptry | `run_in_project(["deptry", ...])` |
-| `TestCoverageRule` | pytest-cov | `run_tests()` via `test_runner.py` (always collects failures + coverage; `mode` param accepted for backward compat but ignored) |
+| `TestCoverageRule` | pytest-cov | `run_tests()` via `test_runner.py` (collects failures + coverage; skips coverage when `files` is specified; `mode` param accepted for backward compat but ignored) |
 | Architecture rules | Python `ast` | Direct AST parsing |
 | Structure rules | `tomllib` | TOML parsing |
 | `ToolAvailabilityRule` | `shutil.which` | PATH lookup |
