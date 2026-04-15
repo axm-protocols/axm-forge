@@ -9,9 +9,9 @@ from __future__ import annotations
 import json
 import logging
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from axm_audit.core.runner import run_in_project
 
@@ -56,7 +56,11 @@ _MAX_TB_LINES = 5
 
 @dataclass
 class TestReport:
-    """Compact test execution report."""
+    """Compact test execution report.
+
+    All fields use ``None`` rather than empty containers when no data
+    exists so that ``dataclasses.asdict`` produces a minimal payload.
+    """
 
     passed: int = 0
     failed: int = 0
@@ -65,7 +69,7 @@ class TestReport:
     warnings: int = 0
     duration: float = 0.0
     coverage: float | None = None
-    failures: list[FailureDetail] = field(default_factory=list)
+    failures: list[FailureDetail] | None = None
     coverage_by_file: dict[str, float] | None = None
 
 
@@ -219,36 +223,28 @@ def _build_pytest_cmd(
 # Public API
 # ---------------------------------------------------------------------------
 
-type TestMode = Literal["compact", "failures", "delta", "targeted"]
-
 
 def run_tests(
     project_path: Path,
     *,
-    mode: TestMode = "failures",
+    mode: str = "failures",
     files: list[str] | None = None,
     markers: list[str] | None = None,
     stop_on_first: bool = True,
-    last_coverage: dict[str, float] | None = None,
 ) -> TestReport:
     """Run tests with agent-optimized structured output.
 
     Args:
         project_path: Root of the project to test.
-        mode: Output mode — ``compact`` (summary only),
-            ``failures`` (summary + failure details),
-            ``delta`` (failures + coverage changes),
-            ``targeted`` (failures for specific files/markers).
+        mode: Accepted for backward compatibility but ignored — all modes
+            now produce the same unified output (failures + coverage).
         files: Specific test files or paths to run.
         markers: Pytest markers to filter (``-m``).
         stop_on_first: Stop on first failure (``-x``).
-        last_coverage: Previous per-file coverage dict for delta mode.
 
     Returns:
-        Structured ``TestReport`` with mode-appropriate fields populated.
+        Structured ``TestReport`` with failures and coverage populated.
     """
-    include_coverage = mode in ("compact", "failures", "delta")
-
     # Create temp files for reports
     report_tmp = tempfile.NamedTemporaryFile(
         suffix=".json", prefix="axm_report_", delete=False
@@ -256,13 +252,11 @@ def run_tests(
     report_path = Path(report_tmp.name)
     report_tmp.close()
 
-    coverage_path: Path | None = None
-    if include_coverage:
-        cov_tmp = tempfile.NamedTemporaryFile(
-            suffix=".json", prefix="axm_cov_", delete=False
-        )
-        coverage_path = Path(cov_tmp.name)
-        cov_tmp.close()
+    cov_tmp = tempfile.NamedTemporaryFile(
+        suffix=".json", prefix="axm_cov_", delete=False
+    )
+    coverage_path = Path(cov_tmp.name)
+    cov_tmp.close()
 
     try:
         cmd = _build_pytest_cmd(
@@ -287,23 +281,17 @@ def run_tests(
         report_data = _parse_json_report(report_path)
 
         # Parse coverage
-        total_cov: float | None = None
-        per_file_cov: dict[str, float] = {}
-        if coverage_path is not None:
-            total_cov, per_file_cov = _parse_coverage(coverage_path)
+        total_cov, per_file_cov = _parse_coverage(coverage_path)
 
         return _build_test_report(
             report_data=report_data,
             total_cov=total_cov,
             per_file_cov=per_file_cov,
-            mode=mode,
-            last_coverage=last_coverage,
         )
 
     finally:
         report_path.unlink(missing_ok=True)
-        if coverage_path is not None:
-            coverage_path.unlink(missing_ok=True)
+        coverage_path.unlink(missing_ok=True)
 
 
 def _build_test_report(
@@ -311,15 +299,24 @@ def _build_test_report(
     report_data: dict[str, Any],
     total_cov: float | None,
     per_file_cov: dict[str, float],
-    mode: TestMode,
-    last_coverage: dict[str, float] | None,
+    mode: str | None = None,
+    last_coverage: dict[str, float] | None = None,
 ) -> TestReport:
-    """Build the final TestReport object from parsed data."""
+    """Build a ``TestReport`` from pytest JSON and coverage data.
+
+    Always parses failures and populates coverage — no mode branching.
+    Returns ``None`` for ``failures`` and ``coverage_by_file`` when no
+    data exists.
+    """
     summary = report_data.get("summary", {})
     tests_list: list[dict[str, Any]] = report_data.get("tests", [])
 
-    # Build report
-    result = TestReport(
+    # Always parse failures
+    failures = _parse_failures(tests_list)
+    collectors_list: list[dict[str, Any]] = report_data.get("collectors", [])
+    failures.extend(_parse_collector_errors(collectors_list))
+
+    return TestReport(
         passed=summary.get("passed", 0),
         failed=summary.get("failed", 0),
         errors=summary.get("error", 0),
@@ -327,25 +324,6 @@ def _build_test_report(
         warnings=summary.get("warnings", 0),
         duration=report_data.get("duration", 0.0),
         coverage=total_cov,
+        failures=failures or None,
+        coverage_by_file=per_file_cov or None,
     )
-
-    # Populate failures for modes that need them
-    if mode != "compact":
-        result.failures = _parse_failures(tests_list)
-        collectors_list: list[dict[str, Any]] = report_data.get("collectors", [])
-        result.failures.extend(_parse_collector_errors(collectors_list))
-
-    # Populate coverage delta for delta mode
-    if mode == "delta" and last_coverage is not None:
-        delta: dict[str, float] = {}
-        all_files = set(per_file_cov) | set(last_coverage)
-        for fpath in sorted(all_files):
-            old = last_coverage.get(fpath, 0.0)
-            new = per_file_cov.get(fpath, 0.0)
-            if old != new:
-                delta[fpath] = round(new - old, 1)
-        result.coverage_by_file = delta
-    else:
-        result.coverage_by_file = per_file_cov
-
-    return result
