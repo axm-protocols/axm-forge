@@ -31,7 +31,7 @@
 - 🛡️ **Security** — Bandit integration + hardcoded secrets detection
 - 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry) with false-positive filtering for entry-point and optional-dependency packages, uv workspace support (auto-aggregation across members), and dual-format text output (`• pkg ver→fix CVE-id` with `+N` suffix for multiple CVEs)
 - 🧪 **Testing** — Coverage enforcement via pytest-cov
-- 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection, import boundary enforcement
+- 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
 - 📐 **Practices** — Docstring coverage (with cross-file abstract override detection), bare except detection, hardcoded secrets, blocking I/O, test mirroring
 - 🔧 **Tooling** — CLI tool availability checks
 - 📈 **Composite Scoring** — Weighted 10-category 0–100 score with A–F grade
@@ -124,7 +124,7 @@ See the [MCP how-to guide](https://forge.axm-protocols.io/audit/howto/mcp/) for 
 | `security` | `SecurityRule` (Bandit), `SecurityPatternRule` | 2 |
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
-| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule`, `ImportBoundaryRule` | 5 |
+| `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
 | `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `SecurityPatternRule`, `TestMirrorRule` | 5 |
 | `structure` | `PyprojectCompletenessRule` | 1 |
 | `tooling` | `ToolAvailabilityRule` | 3 |
@@ -150,15 +150,6 @@ severity_error_multiplier = 2   # default: 2, minimum: 1
 - **`severity_error_multiplier`** — tiered severity: modules with fan-out above the effective threshold but within `threshold × multiplier` get a **warning** (−3 pts); beyond that they get an **error** (−5 pts). Only errors cause the check to fail; warnings alone still pass.
 
 When no configuration is present, the default threshold of 10 and multiplier of 2 are used.
-
-### Import Boundary
-
-The `ImportBoundaryRule` detects cross-package imports that bypass the public API surface (e.g. `from axm_ticket.utils import X` instead of `from axm_ticket import X`). Configure an allow list:
-
-```toml
-[tool.axm-audit.import-boundary]
-allow = ["axm_engine.hooks", "axm_nexus.models.base"]
-```
 
 ### UV Workspace Support
 
