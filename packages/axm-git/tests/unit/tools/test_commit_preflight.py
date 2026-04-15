@@ -43,7 +43,11 @@ class TestGitPreflightTool:
         assert result.data["clean"] is True
         assert result.data["files"] == []
         assert result.data["diff"] == ""
+        assert result.data["diff_stat"] == ""
         assert result.data["diff_truncated"] is False
+        # diff --stat must not be called on a clean repo
+        called_cmds = [c.args[0] for c in mock_git.call_args_list]
+        assert not any("--stat" in cmd for cmd in called_cmds)
 
     @patch("axm_git.tools.commit_preflight.run_git")
     def test_dirty_tree(self, mock_git: MagicMock) -> None:
@@ -139,3 +143,10 @@ class TestGitPreflightTool:
         result = GitPreflightTool().execute(path="/tmp/empty")
         assert not result.success
         assert "not a git repository" in (result.error or "")
+
+    @patch("axm_git.tools.commit_preflight.run_git")
+    def test_no_hint_in_result(self, mock_git: MagicMock) -> None:
+        mock_git.return_value = _completed(stdout=" M README.md\n")
+        result = GitPreflightTool().execute(path="/tmp/test")
+        assert result.success
+        assert getattr(result, "hint", None) is None
