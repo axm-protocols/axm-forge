@@ -259,9 +259,10 @@ def run_tests(
     cov_tmp.close()
 
     try:
+        effective_cov_path = None if files else coverage_path
         cmd = _build_pytest_cmd(
             report_path=report_path,
-            coverage_path=coverage_path,
+            coverage_path=effective_cov_path,
             files=files,
             markers=markers,
             stop_on_first=stop_on_first,
@@ -281,7 +282,9 @@ def run_tests(
         report_data = _parse_json_report(report_path)
 
         # Parse coverage
-        total_cov, per_file_cov = _parse_coverage(coverage_path)
+        total_cov, per_file_cov = (
+            _parse_coverage(coverage_path) if not files else (None, {})
+        )
 
         return _build_test_report(
             report_data=report_data,
