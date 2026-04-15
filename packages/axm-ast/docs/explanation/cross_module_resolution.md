@@ -95,7 +95,7 @@ Each BFS node produces a `FlowStep` (Pydantic model):
 The outer function receives `(callees, scope: _ResolutionScope, ctx: _CrossModuleContext)` and iterates over callees, delegating each to `_resolve_single_cross_callee`:
 
 1. **Filter callee** — `_try_resolve_callee` skips stdlib/builtins (`_is_stdlib_or_builtin`) and symbols already defined in the current package.
-2. **Locate context** — `_find_source_module` finds the `ModuleInfo` for the calling module, first via `find_module_for_symbol` by context name, then by matching `module_dotted_name` against the current module. For src-layout packages, `module_dotted_name` strips the leading `src.` component so names remain importable (e.g. `mypkg.core` instead of `src.mypkg.core`).
+2. **Locate context** — `_find_source_module` finds the `ModuleInfo` for the calling module, first via `find_module_for_symbol` by context name, then by matching `module_dotted_name` against the current module. For src-layout packages, `module_dotted_name` strips the leading `src.` component so names remain importable (e.g. `mypkg.core` instead of `src.mypkg.core`). The same helper is reused by `SearchTool._collect_module_candidates` to populate suggestion module names when the parser leaves `mod.name` unset.
 3. **Resolve import** — `_resolve_import` maps the symbol's import statement to `(resolved_path, resolved_dotted)`.
 4. **Locate symbol** — `_locate_symbol` parses the target file with tree-sitter (single file, no full package traversal).
 5. **Follow re-exports** — If not found, `_follow_reexport` chases `__init__.py` re-exports (one level deep).

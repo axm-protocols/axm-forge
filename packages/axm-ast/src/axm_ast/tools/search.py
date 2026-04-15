@@ -10,6 +10,8 @@ from typing import Any, ClassVar
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.core.analyzer import module_dotted_name
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["SearchTool"]
@@ -270,9 +272,17 @@ class SearchTool(AXMTool):
         mod: Any,
         kind: str | None,
         candidates: dict[str, list[tuple[str, str, str]]],
+        root: Path | None = None,
     ) -> None:
-        """Populate *candidates* from a single module's symbols."""
-        mod_name = mod.name
+        """Populate *candidates* from a single module's symbols.
+
+        When *mod.name* is ``None``, falls back to
+        ``module_dotted_name(mod.path, root)`` so that suggestion dicts
+        always carry a real dotted module name.
+        """
+        mod_name: str = mod.name or (
+            module_dotted_name(mod.path, root) if root and mod.path else ""
+        )
         if kind is None or kind in _FUNC_KINDS:
             for fn in mod.functions:
                 fk = fn.kind if isinstance(fn.kind, str) else fn.kind.value
@@ -305,11 +315,15 @@ class SearchTool(AXMTool):
     def _find_suggestions(
         pkg: Any, name: str, *, kind: str | None = None
     ) -> list[dict[str, Any]]:
-        """Find fuzzy suggestions for a symbol name query."""
+        """Find fuzzy suggestions for a symbol name query.
+
+        Passes ``pkg.root`` to ``_collect_module_candidates`` so module
+        names are resolved even when the parser leaves ``mod.name`` unset.
+        """
         candidates: dict[str, list[tuple[str, str, str]]] = {}
 
         for mod in pkg.modules:
-            SearchTool._collect_module_candidates(mod, kind, candidates)
+            SearchTool._collect_module_candidates(mod, kind, candidates, root=pkg.root)
 
         if not candidates:
             return []

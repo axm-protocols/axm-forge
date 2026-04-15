@@ -176,6 +176,8 @@ When serialized by the `ast_search` MCP tool, each symbol becomes a dict with:
 
 When the `ast_search` MCP tool returns **0 results** and a `name` filter was provided, it automatically runs fuzzy matching against all symbols in the package using `difflib.get_close_matches` (cutoff 0.6). Suggestions are returned in `data["suggestions"]` alongside the empty `data["results"]`.
 
+Internally, `_collect_module_candidates` builds the candidate map from each module's symbols. When a module's `name` attribute is `None` (common with tree-sitter parsed modules), it falls back to `module_dotted_name(mod.path, pkg.root)` to produce a proper dotted name (e.g. `axm_ast.core.analyzer`).
+
 Each suggestion dict contains:
 
 | Key | Type | Description |

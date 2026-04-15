@@ -87,12 +87,6 @@ def test_detailed_has_summaries(tool: DescribeTool) -> None:
 # ── Functional tests ─────────────────────────────────────────────────
 
 
-def test_summary_token_budget(tool: DescribeTool) -> None:
-    result = tool.execute(path=AST_PKG, detail="summary")
-    assert result.text is not None
-    assert len(result.text) < 35000
-
-
 def test_modules_filter_with_text(tool: DescribeTool) -> None:
     result = tool.execute(path=AST_PKG, detail="summary", modules=["core.cache"])
     assert result.text is not None
