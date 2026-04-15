@@ -66,6 +66,12 @@ class AuditTestTool(AXMTool):
                 stop_on_first=stop_on_first,
             )
 
-            return ToolResult(success=True, data=dataclasses.asdict(report))
+            data = dataclasses.asdict(report)
+
+            from axm_audit.tools.audit_test_text import format_audit_test_text
+
+            text = format_audit_test_text(report)
+
+            return ToolResult(success=True, data=data, text=text)
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))

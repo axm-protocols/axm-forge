@@ -101,6 +101,29 @@ Example agent dict structure:
 
 
 
+### Test Report Text
+
+`format_audit_test_text` renders a `TestReport` as compact text for LLM consumption (~27 tokens green, ~240 tokens with failures):
+
+```python
+from axm_audit.tools.audit_test_text import format_audit_test_text
+from axm_audit.core.test_runner import TestReport
+
+text = format_audit_test_text(report)
+print(text)
+# audit_test | ✅ 42 passed | 1.2s | cov 95.0%
+```
+
+The output includes:
+
+| Section | When shown | Format |
+|---|---|---|
+| Header | Always | `audit_test \| {icon} {counts} \| {duration}s [\| cov {pct}%]` |
+| Failure blocks | `failures` is non-empty | `✗ {test} ({file}:{line})` + error + traceback |
+| Coverage | Files below 95% exist | `cov< {basename} {pct}%` |
+
+When `coverage` is `None` (targeted/files runs), the coverage section is omitted entirely.
+
 ## Scoring
 
 The `quality_score` is computed from 8 weighted categories:
