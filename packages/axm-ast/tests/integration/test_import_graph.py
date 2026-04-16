@@ -1,19 +1,23 @@
-"""Tests for import graph edge resolution.
+"""Integration tests for import graph edge resolution.
 
-Complements test_analyzer.py with focused tests for _resolve_import_target
-and _build_edges — verifying that absolute intra-package imports create edges.
+Verifies that _resolve_import_target and _build_edges correctly create
+edges for absolute and relative intra-package imports.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
+
+import pytest
 
 from axm_ast.core.analyzer import analyze_package, build_import_graph
 
 
+@pytest.mark.integration
 class TestAbsoluteImportEdges:
     """Absolute intra-package imports create dependency edges."""
 
     def test_absolute_import_creates_edge(self, tmp_path: Path) -> None:
-        """from pkg.sub import X → edge (mod, sub)."""
         pkg = tmp_path / "mypkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
@@ -26,7 +30,6 @@ class TestAbsoluteImportEdges:
         assert "sub" in graph["main"]
 
     def test_absolute_import_nested(self, tmp_path: Path) -> None:
-        """from pkg.core.engine import X → edge (cli, core.engine)."""
         pkg = tmp_path / "mypkg"
         core = pkg / "core"
         core.mkdir(parents=True)
@@ -41,7 +44,6 @@ class TestAbsoluteImportEdges:
         assert "core.engine" in graph["cli"]
 
     def test_absolute_import_to_package_root(self, tmp_path: Path) -> None:
-        """from pkg import X → edge (mod, pkg)."""
         pkg = tmp_path / "mypkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("VERSION = '1.0'\n")
@@ -53,7 +55,6 @@ class TestAbsoluteImportEdges:
         assert "mypkg" in graph["info"]
 
     def test_external_import_no_edge(self, tmp_path: Path) -> None:
-        """from pathlib import Path → no edge."""
         pkg = tmp_path / "mypkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
@@ -61,11 +62,9 @@ class TestAbsoluteImportEdges:
 
         result = analyze_package(pkg)
         graph = build_import_graph(result)
-        # No internal edges — both imports are external
         assert "mod" not in graph
 
     def test_self_import_no_edge(self, tmp_path: Path) -> None:
-        """from pkg.mod import X inside mod.py → no self-loop."""
         pkg = tmp_path / "mypkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
@@ -73,16 +72,15 @@ class TestAbsoluteImportEdges:
 
         result = analyze_package(pkg)
         graph = build_import_graph(result)
-        # Should not have self-loop
         if "mod" in graph:
             assert "mod" not in graph["mod"]
 
 
+@pytest.mark.integration
 class TestRelativeImportEdges:
-    """Relative imports still create edges (regression test)."""
+    """Relative imports still create edges."""
 
     def test_relative_import_creates_edge(self, tmp_path: Path) -> None:
-        """from .sub import X → edge."""
         pkg = tmp_path / "mypkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
@@ -95,11 +93,11 @@ class TestRelativeImportEdges:
         assert "sub" in graph["main"]
 
 
+@pytest.mark.integration
 class TestMixedImports:
     """Packages using both absolute and relative imports."""
 
     def test_both_create_edges(self, tmp_path: Path) -> None:
-        """Both import styles produce edges in the same graph."""
         pkg = tmp_path / "mypkg"
         pkg.mkdir()
         (pkg / "__init__.py").write_text("")
@@ -115,19 +113,16 @@ class TestMixedImports:
         assert "b" in targets
 
 
+@pytest.mark.integration
 class TestRealProjectGraph:
     """Smoke test on axm-ast source itself."""
 
     def test_axm_ast_has_edges(self) -> None:
-        """axm_ast package must have import edges (not empty graph)."""
         src = Path(__file__).parent.parent / "src" / "axm_ast"
         if not src.is_dir():
-            import pytest
-
             pytest.skip("Source not available")
         result = analyze_package(src)
         graph = build_import_graph(result)
-        # cli.py imports from core.analyzer, formatters, etc.
         assert len(graph) > 0
         total_edges = sum(len(v) for v in graph.values())
         assert total_edges >= 1

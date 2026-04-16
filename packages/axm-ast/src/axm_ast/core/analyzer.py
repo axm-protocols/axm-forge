@@ -38,7 +38,6 @@ __all__ = [
     "analyze_package",
     "build_import_graph",
     "find_module_for_symbol",
-    "get_public_api",
     "module_dotted_name",
     "search_symbols",
 ]
@@ -356,25 +355,6 @@ def build_import_graph(pkg: PackageInfo) -> dict[str, list[str]]:
     for src, target in pkg.dependency_edges:
         graph.setdefault(src, []).append(target)
     return graph
-
-
-def get_public_api(pkg: PackageInfo) -> list[FunctionInfo | ClassInfo]:
-    """Extract the public API surface of a package.
-
-    Uses ``__all__`` when available, otherwise filters by name convention.
-
-    Args:
-        pkg: Analyzed package info.
-
-    Returns:
-        List of public functions and classes.
-
-    Example:
-        >>> api = get_public_api(pkg)
-        >>> [a.name for a in api]
-        `['main', 'Config']`
-    """
-    return pkg.public_api
 
 
 def search_symbols(
