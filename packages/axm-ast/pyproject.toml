@@ -171,6 +171,7 @@ addopts = [
 ]
 filterwarnings = ["error"]
 markers = [
+    "integration: marks tests as integration (2+ internal components with real I/O)",
     "functional: marks tests as functional (hitting real packages)",
 ]
 
