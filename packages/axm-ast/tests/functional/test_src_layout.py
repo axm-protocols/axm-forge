@@ -1,10 +1,13 @@
+"""Functional tests for src-layout support in analyze_package."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
-from axm_ast.core.analyzer import analyze_package, module_dotted_name
+import pytest
 
-# ── Helpers ─────────────────────────────────────────────────────────
+from axm_ast import analyze_package
+from axm_ast.core.analyzer import module_dotted_name
 
 
 def _make_src_layout(root: Path, pkg_name: str = "mypkg") -> Path:
@@ -16,48 +19,18 @@ def _make_src_layout(root: Path, pkg_name: str = "mypkg") -> Path:
     return root
 
 
-# ── Unit tests ──────────────────────────────────────────────────────
-
-
-def test_module_dotted_name_src_layout():
-    """module_dotted_name strips src/ prefix for src-layout packages."""
-    mod_path = Path("/tmp/pkg/src/mypkg/core.py")
-    root = Path("/tmp/pkg")
-    result = module_dotted_name(mod_path, root)
-    assert result == "mypkg.core"
-
-
-def test_module_dotted_name_flat_layout():
-    """module_dotted_name works unchanged for flat-layout packages."""
-    mod_path = Path("/tmp/pkg/mypkg/core.py")
-    root = Path("/tmp/pkg")
-    result = module_dotted_name(mod_path, root)
-    assert result == "mypkg.core"
-
-
-def test_module_dotted_name_init():
-    """module_dotted_name strips __init__ and src/ for init files."""
-    mod_path = Path("/tmp/pkg/src/mypkg/__init__.py")
-    root = Path("/tmp/pkg")
-    result = module_dotted_name(mod_path, root)
-    assert result == "mypkg"
-
-
+@pytest.mark.functional
 def test_analyze_package_src_layout_root(tmp_path: Path) -> None:
     """analyze_package sets root inside src/ for src-layout packages."""
     _make_src_layout(tmp_path)
-
     pkg = analyze_package(tmp_path)
-    # root should point inside src/, not project root
     assert pkg.root != tmp_path, "root should not be the project directory"
     assert tmp_path / "src" == pkg.root or pkg.root.is_relative_to(tmp_path / "src"), (
         f"root {pkg.root} should be inside src/"
     )
 
 
-# ── Functional tests ────────────────────────────────────────────────
-
-
+@pytest.mark.functional
 def test_callers_no_src_prefix(tmp_path: Path) -> None:
     """Callers in src-layout packages have clean module names."""
     pkg_dir = tmp_path / "src" / "mypkg"
@@ -76,6 +49,7 @@ def test_callers_no_src_prefix(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.functional
 def test_describe_no_src_prefix(tmp_path: Path) -> None:
     """Describe output for src-layout packages uses importable module names."""
     pkg_dir = tmp_path / "src" / "mypkg"
@@ -95,33 +69,66 @@ def test_describe_no_src_prefix(tmp_path: Path) -> None:
         )
 
 
-# ── Edge cases ──────────────────────────────────────────────────────
-
-
-def test_package_named_src():
-    """A package literally named 'src' keeps its name."""
-    mod_path = Path("/tmp/pkg/src/src/__init__.py")
-    root = Path("/tmp/pkg")
-    result = module_dotted_name(mod_path, root)
-    assert result == "src", f"Expected 'src', got '{result}'"
-
-
-def test_nested_src_dirs():
-    """Only top-level src/ is stripped, not nested ones."""
-    mod_path = Path("/tmp/pkg/src/mypkg/src/inner.py")
-    root = Path("/tmp/pkg")
-    result = module_dotted_name(mod_path, root)
-    assert result == "mypkg.src.inner", f"Expected 'mypkg.src.inner', got '{result}'"
-
-
+@pytest.mark.functional
 def test_no_init_in_src_subdir(tmp_path: Path) -> None:
     """Handles src/scripts/util.py gracefully when scripts has no __init__.py."""
     scripts_dir = tmp_path / "src" / "scripts"
     scripts_dir.mkdir(parents=True)
     (scripts_dir / "util.py").write_text("x = 1\n")
 
-    # Should not crash
     pkg = analyze_package(tmp_path)
     for mod in pkg.modules:
         name = module_dotted_name(mod.path, pkg.root)
         assert not name.startswith("src."), f"Module '{name}' has src. prefix"
+
+
+@pytest.mark.functional
+def test_src_layout_name(tmp_path: Path) -> None:
+    """analyze_package sets pkg.name to the actual package name, not 'src'."""
+    _make_src_layout(tmp_path)
+    pkg = analyze_package(tmp_path)
+    assert pkg.name != "src", "pkg.name must not be 'src'"
+    assert pkg.name == "mypkg"
+
+
+@pytest.mark.functional
+def test_flat_layout_package(tmp_path: Path) -> None:
+    """Flat-layout package: name is the directory name, edges resolve normally."""
+    pkg_dir = tmp_path / "flatpkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    (pkg_dir / "alpha.py").write_text("from flatpkg import beta\n")
+    (pkg_dir / "beta.py").write_text("from flatpkg import alpha\n")
+
+    pkg = analyze_package(pkg_dir)
+    assert pkg.name == "flatpkg"
+    assert len(pkg.dependency_edges) > 0, "Flat-layout should still produce edges"
+
+
+@pytest.mark.functional
+def test_src_layout_multiple_packages(tmp_path: Path) -> None:
+    """src-layout with two package dirs should handle gracefully."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "pkg_a").mkdir()
+    (src / "pkg_a" / "__init__.py").write_text("")
+    (src / "pkg_a" / "mod.py").write_text("x = 1\n")
+    (src / "pkg_b").mkdir()
+    (src / "pkg_b" / "__init__.py").write_text("")
+    (src / "pkg_b" / "mod.py").write_text("y = 2\n")
+
+    pkg = analyze_package(tmp_path)
+    assert pkg.name != "src"
+
+
+@pytest.mark.functional
+def test_namespace_package_no_init(tmp_path: Path) -> None:
+    """src-layout but no __init__.py in child falls through to flat-layout behavior."""
+    src = tmp_path / "src"
+    src.mkdir()
+    ns_pkg = src / "nspkg"
+    ns_pkg.mkdir()
+    (ns_pkg / "mod.py").write_text("x = 1\n")
+
+    pkg = analyze_package(tmp_path)
+    assert pkg.name != "src"
