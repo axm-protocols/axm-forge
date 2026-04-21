@@ -286,7 +286,8 @@ class TestFindSuggestionsEdgeCases:
 
         suggestions = _find_suggestions(pkg, name="a")
 
-        assert isinstance(suggestions, list)
+        # Single-char query: must not crash; may return empty (below cutoff)
+        assert suggestions == [] or all("name" in s for s in suggestions)
 
     def test_exact_match_kind_mismatch(self) -> None:
         """Exact name but wrong kind yields no suggestions per AC7."""

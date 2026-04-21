@@ -179,7 +179,7 @@ class TestCouplingEdgeCases:
         )
         # Shallow clone has only 1 commit → no co-change pairs
         result = git_coupled_files(target, clone)
-        assert isinstance(result, list)  # no crash
+        assert result == []  # shallow clone: 1 commit, no co-change pairs
 
     def test_new_file_no_history(self, tmp_path: Path) -> None:
         """File with 0 git history → returns empty."""

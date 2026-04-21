@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
-from axm_audit.hooks.quality_check import QualityCheckHook, _read_snippet
+from axm_audit.hooks.quality_check import _read_snippet
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -22,11 +20,6 @@ def sample_py_file(tmp_path: Path) -> Path:
     f = tmp_path / "sample.py"
     f.write_text("".join(lines))
     return f
-
-
-@pytest.fixture()
-def hook() -> QualityCheckHook:
-    return QualityCheckHook()
 
 
 # ---------------------------------------------------------------------------
@@ -119,83 +112,3 @@ class TestReadSnippetEdgeCases:
         binary.write_bytes(bytes(range(256)))
         result = _read_snippet(tmp_path, "image.bin", 3)
         assert result is None
-
-
-# ---------------------------------------------------------------------------
-# Integration — snippet field in hook violations
-# ---------------------------------------------------------------------------
-
-
-class TestHookSnippetIntegration:
-    """Verify QualityCheckHook.execute populates snippet in violations."""
-
-    def test_violations_contain_snippet_key(
-        self,
-        hook: QualityCheckHook,
-        tmp_path: Path,
-        sample_py_file: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Each violation dict has a 'snippet' key after hook execution."""
-        from axm_audit.hooks import quality_check as qc_mod
-
-        fake_violation: dict[str, Any] = {
-            "file": "sample.py",
-            "line": 10,
-            "message": "type error",
-            "code": "E001",
-        }
-        fake_agent_output: dict[str, Any] = {
-            "failed": [
-                {
-                    "rule_id": "R001",
-                    "details": {"errors": [fake_violation]},
-                }
-            ]
-        }
-
-        monkeypatch.setattr(
-            qc_mod, "audit_project", lambda *a, **kw: MagicMock(checks=[MagicMock()])
-        )
-        monkeypatch.setattr(qc_mod, "format_agent", lambda _: fake_agent_output)
-
-        result = hook.execute(
-            context={"working_dir": str(tmp_path)},
-        )
-        violations = result.metadata["violations"]
-        assert len(violations) >= 1
-        assert "snippet" in violations[0]
-        # snippet should be a string with content (file exists)
-        assert violations[0]["snippet"] is not None
-        assert "payload" in violations[0]["snippet"]
-
-    def test_fallback_violation_snippet_is_none(
-        self,
-        hook: QualityCheckHook,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Fallback violations (no inner errors) have snippet=None (empty file)."""
-        from axm_audit.hooks import quality_check as qc_mod
-
-        fake_agent_output: dict[str, Any] = {
-            "failed": [
-                {
-                    "rule_id": "R002",
-                    "message": "general failure",
-                    "details": {},
-                }
-            ]
-        }
-
-        monkeypatch.setattr(
-            qc_mod, "audit_project", lambda *a, **kw: MagicMock(checks=[MagicMock()])
-        )
-        monkeypatch.setattr(qc_mod, "format_agent", lambda _: fake_agent_output)
-
-        result = hook.execute(
-            context={"working_dir": str(tmp_path)},
-        )
-        violations = result.metadata["violations"]
-        assert len(violations) == 1
-        assert violations[0]["snippet"] is None

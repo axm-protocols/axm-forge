@@ -45,6 +45,7 @@ class TestTraceFlowValidDetailsAccepted:
         )
         result, _ = trace_flow(pkg, "main", detail=detail)
         assert isinstance(result, list)
+        assert len(result) >= 1
 
 
 # ---------------------------------------------------------------------------
