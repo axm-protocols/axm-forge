@@ -31,6 +31,9 @@ class TestPreflightHook:
         assert any("hello.py" in p for p in paths)
         assert not any("root_change" in p for p in paths)
         assert result.metadata["file_count"] == 1
+        # text= contains the scoped file
+        assert result.text is not None
+        assert "hello.py" in result.text
 
     def test_workspace_package_clean(
         self,
@@ -66,6 +69,7 @@ class TestPreflightHook:
         assert len(result.metadata["files"]) == 2
         assert result.metadata["diff"]  # non-empty (tracked file modified)
         assert result.metadata["clean"] is False
+        assert result.text is not None
 
     def test_clean_repo(self, tmp_git_repo: Path) -> None:
         """Hook reports clean=True when nothing changed."""
@@ -77,6 +81,7 @@ class TestPreflightHook:
         assert result.success
         assert result.metadata["clean"] is True
         assert result.metadata["file_count"] == 0
+        assert result.text is not None
 
     def test_not_a_repo(self, tmp_path: Path) -> None:
         """Hook skips when directory is not a git repo."""
@@ -120,6 +125,20 @@ class TestPreflightHook:
 
         assert result.success
         assert result.metadata["file_count"] == 1
+
+    def test_no_diff_when_zero_lines(self, tmp_git_repo: Path) -> None:
+        """diff_lines=0 suppresses diff content in text."""
+        (tmp_git_repo / ".gitkeep").write_text("modified")
+
+        hook = PreflightHook()
+        result = hook.execute(
+            {"working_dir": str(tmp_git_repo)},
+            diff_lines=0,
+        )
+
+        assert result.success
+        assert result.text is not None
+        assert "diff --git" not in result.text
 
     def test_path_from_params(self, tmp_git_repo: Path) -> None:
         """Hook reads path from params over context working_dir."""
