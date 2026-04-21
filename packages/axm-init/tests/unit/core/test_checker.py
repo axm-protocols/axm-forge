@@ -136,8 +136,9 @@ def gold_project(tmp_path: Path) -> Path:
     (pkg / "__init__.py").write_text("")
     (pkg / "py.typed").write_text("")
     tests_dir = tmp_path / "tests"
-    tests_dir.mkdir()
-    (tests_dir / "test_x.py").write_text("def test_x() -> None: pass\n")
+    for sub in ("unit", "integration", "e2e"):
+        (tests_dir / sub).mkdir(parents=True)
+    (tests_dir / "unit" / "test_x.py").write_text("def test_x() -> None: pass\n")
     docs = tmp_path / "docs"
     docs.mkdir()
     (docs / "gen_ref_pages.py").write_text("")

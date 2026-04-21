@@ -102,6 +102,10 @@ disallow_untyped_defs = false
 testpaths = ["tests"]
 pythonpath = ["src"]
 python_files = "test_*.py"
+markers = [
+    "integration: tests that hit real external boundaries (filesystem, DB, network)",
+    "e2e: end-to-end tests that exercise the CLI via subprocess",
+]
 addopts = [
     "-v",
     "--strict-markers",

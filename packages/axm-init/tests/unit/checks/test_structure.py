@@ -142,6 +142,67 @@ class TestCheckTestsDir:
         r = check_tests_dir(empty_project)
         assert r.passed is False
 
+    def test_check_tests_dir_fails_when_unit_missing(self, tmp_path: Path) -> None:
+        tests = tmp_path / "tests"
+        (tests / "integration").mkdir(parents=True)
+        (tests / "e2e").mkdir()
+        r = check_tests_dir(tmp_path)
+        assert r.passed is False
+        assert "tests/unit/" in r.fix
+
+    def test_check_tests_dir_fails_when_integration_missing(
+        self, tmp_path: Path
+    ) -> None:
+        tests = tmp_path / "tests"
+        (tests / "unit").mkdir(parents=True)
+        (tests / "e2e").mkdir()
+        r = check_tests_dir(tmp_path)
+        assert r.passed is False
+        assert "tests/integration/" in r.fix
+
+    def test_check_tests_dir_fails_when_e2e_missing(self, tmp_path: Path) -> None:
+        tests = tmp_path / "tests"
+        (tests / "unit").mkdir(parents=True)
+        (tests / "integration").mkdir()
+        r = check_tests_dir(tmp_path)
+        assert r.passed is False
+        assert "tests/e2e/" in r.fix
+
+    def test_check_tests_dir_fails_when_all_subdirs_missing(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "tests").mkdir()
+        r = check_tests_dir(tmp_path)
+        assert r.passed is False
+        details_text = "\n".join(r.details)
+        assert "tests/unit/" in details_text
+        assert "tests/integration/" in details_text
+        assert "tests/e2e/" in details_text
+
+    def test_check_tests_dir_fails_when_tests_dir_missing(self, tmp_path: Path) -> None:
+        r = check_tests_dir(tmp_path)
+        assert r.passed is False
+        assert r.message == "tests/ directory not found"
+
+    def test_check_tests_dir_passes_with_full_pyramid(self, tmp_path: Path) -> None:
+        tests = tmp_path / "tests"
+        (tests / "unit").mkdir(parents=True)
+        (tests / "integration").mkdir()
+        (tests / "e2e").mkdir()
+        (tests / "unit" / "test_example.py").write_text("def test_x() -> None: pass\n")
+        r = check_tests_dir(tmp_path)
+        assert r.passed is True
+        assert r.weight == 3
+
+    def test_check_tests_dir_fails_when_no_test_files(self, tmp_path: Path) -> None:
+        tests = tmp_path / "tests"
+        (tests / "unit").mkdir(parents=True)
+        (tests / "integration").mkdir()
+        (tests / "e2e").mkdir()
+        r = check_tests_dir(tmp_path)
+        assert r.passed is False
+        assert "No test files found" in r.message
+
 
 class TestCheckContributing:
     def test_pass(self, gold_project: Path) -> None:

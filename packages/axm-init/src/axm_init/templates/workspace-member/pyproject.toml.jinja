@@ -39,6 +39,10 @@ packages = ["src/{{ module_name }}"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "integration: tests that hit real external boundaries (filesystem, DB, network)",
+    "e2e: end-to-end tests that exercise the CLI via subprocess",
+]
 addopts = [
     "-q",
     "--import-mode=importlib",
