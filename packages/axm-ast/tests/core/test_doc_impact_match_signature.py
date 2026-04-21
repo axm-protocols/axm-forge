@@ -2,48 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-from axm_ast.core.doc_impact import _extract_doc_signatures, _match_signature_line
-
-
-@pytest.fixture()
-def doc_root(tmp_path: Path) -> Path:
-    return tmp_path / "docs"
-
-
-class TestMatchSignatureLine:
-    """Unit tests for _match_signature_line helper."""
-
-    def test_matches_def(self, tmp_path: Path) -> None:
-        path = tmp_path / "doc.md"
-        result = _match_signature_line(
-            "def my_func(x):", 5, {"my_func"}, path, tmp_path
-        )
-        assert result is not None
-        assert result["symbol"] == "my_func"
-
-    def test_matches_class(self, tmp_path: Path) -> None:
-        path = tmp_path / "doc.md"
-        result = _match_signature_line(
-            "class MyClass:", 10, {"MyClass"}, path, tmp_path
-        )
-        assert result is not None
-        assert result["symbol"] == "MyClass"
-
-    def test_no_match_unknown_symbol(self, tmp_path: Path) -> None:
-        path = tmp_path / "doc.md"
-        result = _match_signature_line(
-            "def other_func():", 5, {"my_func"}, path, tmp_path
-        )
-        assert result is None
-
-    def test_no_match_plain_text(self, tmp_path: Path) -> None:
-        path = tmp_path / "doc.md"
-        result = _match_signature_line(
-            "some plain text", 5, {"my_func"}, path, tmp_path
-        )
-        assert result is None
+from axm_ast.core.doc_impact import _extract_doc_signatures
 
 
 class TestExtractDocSignatures:

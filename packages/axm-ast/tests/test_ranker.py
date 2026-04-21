@@ -27,8 +27,8 @@ class TestBuildSymbolGraph:
         (pkg_dir / "__init__.py").write_text('"""Empty."""')
         pkg = analyze_package(pkg_dir)
         graph = _build_symbol_graph(pkg)
-        # May have module-level nodes, but no symbol edges
-        assert isinstance(graph, dict)
+        # Module node exists but has no symbol edges
+        assert all(targets == set() for targets in graph.values())
 
     def test_import_creates_edge(self) -> None:
         """Importing a symbol from another module creates an edge."""
@@ -184,7 +184,7 @@ class TestRankSymbols:
         (pkg_dir / "__init__.py").write_text('"""Empty."""')
         pkg = analyze_package(pkg_dir)
         result = rank_symbols(pkg)
-        assert isinstance(result, dict)
+        assert result == {}
 
     def test_scores_non_negative(self) -> None:
         """All scores must be >= 0."""
@@ -235,8 +235,9 @@ class TestRankerEdgeCases:
         )
         pkg = analyze_package(pkg_dir)
         result = rank_symbols(pkg)
-        # Should complete without hanging
-        assert isinstance(result, dict)
+        # Should complete without hanging; both symbols must be ranked
+        assert "func_a" in result or "a.func_a" in result
+        assert "func_b" in result or "b.func_b" in result
 
 
 # ─── Functional: formatter integration ───────────────────────────────────────
