@@ -17,8 +17,9 @@ member_name:
 
 description:
   type: str
-  help: "One-line description"
+  help: "One-line description (keep under 80 chars — becomes the module docstring)"
   default: "A workspace member package"
+  validator: "{% if description | length > 80 %}Description too long ({{ description | length }} chars, max 80){% endif %}"
 
 author_name:
   type: str

@@ -1,0 +1,11 @@
+"""Smoke test — verify the package version is importable."""
+
+from __future__ import annotations
+
+
+def test_version_is_importable() -> None:
+    """The dynamically-generated _version module exposes a version string."""
+    from {{ module_name }}._version import __version__
+
+    assert isinstance(__version__, str)
+    assert len(__version__) > 0
