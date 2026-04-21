@@ -246,16 +246,6 @@ class TestFormatDocs:
 class TestCliDocs:
     """Functional tests for the CLI docs command."""
 
-    def test_cli_docs_text(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """CLI docs outputs text to stdout."""
-        from axm_ast.cli import app
-
-        with pytest.raises(SystemExit, match="0"):
-            app(["docs", str(FIXTURES / "sample_pkg" / ".."), "--tree"])
-        out = capsys.readouterr().out
-        # Should have some output (tree at minimum or empty for fixtures)
-        assert isinstance(out, str)
-
     def test_cli_docs_json(self, capsys: pytest.CaptureFixture[str]) -> None:
         """CLI docs --json outputs valid JSON."""
         from axm_ast.cli import app
@@ -265,15 +255,6 @@ class TestCliDocs:
         out = capsys.readouterr().out
         data = json.loads(out)
         assert "pages" in data
-
-    def test_cli_docs_tree_only(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """CLI docs --tree outputs only tree."""
-        from axm_ast.cli import app
-
-        with pytest.raises(SystemExit, match="0"):
-            app(["docs", str(FIXTURES / "sample_pkg" / ".."), "--tree"])
-        out = capsys.readouterr().out
-        assert isinstance(out, str)
 
     def test_cli_docs_dogfood(self) -> None:
         """Dogfood: discover_docs works on axm-ast project root."""

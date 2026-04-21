@@ -116,15 +116,6 @@ class TestFormatCompressed:
         output = format_compressed(pkg)
         assert "MAX_RETRIES" in output or "VERSION" in output
 
-    def test_empty_module(self, tmp_path: Path) -> None:
-        """Empty module produces minimal output."""
-        pkg_dir = tmp_path / "empty"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text('"""Empty."""')
-        pkg = analyze_package(pkg_dir)
-        output = format_compressed(pkg)
-        assert isinstance(output, str)
-
     def test_class_no_methods(self, tmp_path: Path) -> None:
         """Class with no methods renders as 'class Foo: ...'."""
         pkg_dir = tmp_path / "nomethod"

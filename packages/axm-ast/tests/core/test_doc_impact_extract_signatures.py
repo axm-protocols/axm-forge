@@ -157,4 +157,4 @@ def target():
         p.write_bytes(b"\x80\x81\x82")
         # Depending on codec this may or may not raise; function handles it
         result = _extract_doc_signatures(p, {"foo"}, doc_root)
-        assert isinstance(result, list)
+        assert result == []

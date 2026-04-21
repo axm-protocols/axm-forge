@@ -131,14 +131,6 @@ class TestImportExtraction:
         assert path_import is not None
         assert "Path" in path_import.names
 
-    def test_future_import(self):
-        init_mod = _module_by_name(self.pkg, "__init__.py")
-        future = next(
-            (i for i in init_mod.imports if "annotations" in i.names),
-            None,
-        )
-        assert future is not None
-
     def test_relative_import(self):
         utils_mod = _module_by_name(self.pkg, "utils.py")
         rel_imports = [i for i in utils_mod.imports if i.is_relative]

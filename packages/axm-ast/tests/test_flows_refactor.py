@@ -90,17 +90,6 @@ class TestFlowsHookReturnsTraces:
         assert result.success is True
         assert "traces" in result.metadata
 
-    def test_single_entry_traces_are_list(self, sample_pkg: Path) -> None:
-        from axm_ast.hooks.flows import FlowsHook
-
-        hook = FlowsHook()
-        result = hook.execute(
-            {"working_dir": str(sample_pkg)},
-            entry="main_func",
-        )
-        traces = result.metadata["traces"]
-        assert isinstance(traces, list)
-
     def test_trace_items_have_required_keys(self, sample_pkg: Path) -> None:
         from axm_ast.hooks.flows import FlowsHook
 

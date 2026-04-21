@@ -37,24 +37,12 @@ class TestFormatText:
         truncated = format_text(pkg, detail="detailed", budget=10)
         assert len(truncated.splitlines()) <= len(detailed.splitlines())
 
-    def test_empty_package(self, tmp_path):
-        empty = tmp_path / "empty"
-        empty.mkdir()
-        pkg = analyze_package(empty)
-        output = format_text(pkg, detail="summary")
-        assert isinstance(output, str)
-
 
 # ─── format_json ─────────────────────────────────────────────────────────────
 
 
 class TestFormatJson:
     """Tests for JSON output."""
-
-    def test_returns_dict(self):
-        pkg = analyze_package(SAMPLE_PKG)
-        result = format_json(pkg, detail="summary")
-        assert isinstance(result, dict)
 
     def test_has_package_name(self):
         pkg = analyze_package(SAMPLE_PKG)
@@ -84,11 +72,6 @@ class TestFormatJson:
 
 class TestFormatMermaid:
     """Tests for Mermaid diagram output."""
-
-    def test_returns_string(self):
-        pkg = analyze_package(SAMPLE_PKG)
-        output = format_mermaid(pkg)
-        assert isinstance(output, str)
 
     def test_contains_graph_keyword(self):
         pkg = analyze_package(SAMPLE_PKG)

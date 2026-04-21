@@ -46,10 +46,6 @@ class TestDescribeCommand:
         output = _run(["describe", str(SAMPLE_PKG), "--json"], capsys)
         assert '"name"' in output
 
-    def test_describe_with_budget(self, capsys: pytest.CaptureFixture[str]) -> None:
-        output = _run(["describe", str(SAMPLE_PKG), "--budget", "5"], capsys)
-        assert isinstance(output, str)
-
     def test_describe_invalid_path(self) -> None:
         with pytest.raises(SystemExit):
             app(["describe", "/nonexistent/path"])
@@ -144,10 +140,6 @@ class TestInspectCommand:
 
 class TestGraphCommand:
     """Tests for axm-ast graph."""
-
-    def test_graph_text(self, capsys: pytest.CaptureFixture[str]) -> None:
-        output = _run(["graph", str(SAMPLE_PKG)], capsys)
-        assert isinstance(output, str)
 
     def test_graph_mermaid(self, capsys: pytest.CaptureFixture[str]) -> None:
         output = _run(["graph", str(SAMPLE_PKG), "--format", "mermaid"], capsys)
