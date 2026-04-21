@@ -104,7 +104,7 @@ def check_py_typed(project: Path) -> CheckResult:
 
 
 def check_tests_dir(project: Path) -> CheckResult:
-    """Check 26: tests/ directory with at least one test file."""
+    """Check 26: tests/ directory with unit/integration/e2e pyramid."""
     tests = project / "tests"
     if not tests.is_dir():
         return CheckResult(
@@ -114,7 +114,22 @@ def check_tests_dir(project: Path) -> CheckResult:
             weight=3,
             message="tests/ directory not found",
             details=[],
-            fix="Create tests/ directory with test files.",
+            fix=(
+                "Create tests/ directory with unit/, integration/, e2e/ subdirectories."
+            ),
+        )
+    required = ["unit", "integration", "e2e"]
+    missing = [sub for sub in required if not (tests / sub).is_dir()]
+    if missing:
+        missing_paths = [f"tests/{sub}/" for sub in missing]
+        return CheckResult(
+            name="structure.tests_dir",
+            category="structure",
+            passed=False,
+            weight=3,
+            message=f"Missing test pyramid subdirectories: {', '.join(missing_paths)}",
+            details=[f"Expected: {p}" for p in missing_paths],
+            fix=f"Create missing subdirectories: {', '.join(missing_paths)}",
         )
     test_files = list(tests.rglob("test_*.py"))
     if not test_files:
@@ -124,15 +139,18 @@ def check_tests_dir(project: Path) -> CheckResult:
             passed=False,
             weight=3,
             message="No test files found in tests/",
-            details=["Expected: tests/test_*.py files"],
-            fix="Add test files matching test_*.py pattern.",
+            details=["Expected: tests/{unit,integration,e2e}/test_*.py files"],
+            fix=(
+                "Add test files matching test_*.py pattern under"
+                " tests/unit/, tests/integration/, or tests/e2e/."
+            ),
         )
     return CheckResult(
         name="structure.tests_dir",
         category="structure",
         passed=True,
         weight=3,
-        message=f"{len(test_files)} test file(s) found",
+        message=f"{len(test_files)} test file(s) found across unit/integration/e2e",
         details=[],
         fix="",
     )
