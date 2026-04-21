@@ -11,5 +11,6 @@ def test_version_is_string() -> None:
 
 def test_version_format() -> None:
     """Version should follow semver pattern."""
+    min_version_parts = 3
     parts = __version__.replace("a", ".").replace("b", ".").split(".")
-    assert len(parts) >= 3
+    assert len(parts) >= min_version_parts

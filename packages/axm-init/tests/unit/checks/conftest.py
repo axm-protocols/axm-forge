@@ -265,10 +265,11 @@ def gold_project(tmp_path: Path) -> Path:
     pkg_dir.mkdir(parents=True)
     (pkg_dir / "__init__.py").write_text("")
     (pkg_dir / "py.typed").write_text("")
-    # tests
+    # tests (pyramid: unit/integration/e2e)
     test_dir = tmp_path / "tests"
-    test_dir.mkdir()
-    (test_dir / "test_version.py").write_text("def test_v() -> None: pass\n")
+    for sub in ("unit", "integration", "e2e"):
+        (test_dir / sub).mkdir(parents=True)
+    (test_dir / "unit" / "test_version.py").write_text("def test_v() -> None: pass\n")
     # docs
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
