@@ -170,6 +170,10 @@ addopts = [
 pythonpath = ["src", "tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 asyncio_mode = "auto"
+markers = [
+    "integration: integration tests (real I/O, filesystem, DB, network)",
+    "e2e: end-to-end tests (subprocess, CLI black box)",
+]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Coverage Configuration
