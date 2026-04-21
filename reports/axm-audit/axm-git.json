@@ -1,9 +1,9 @@
 {
-  "score": 99.0,
+  "score": 96.9,
   "grade": "A",
   "total": 23,
-  "failed": 0,
-  "success": true,
+  "failed": 1,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 10,
         "max_fan_in": 21,
-        "avg_coupling": 4.84,
+        "avg_coupling": 4.88,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -49,20 +49,26 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": true,
-      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
       "details": {
-        "high_complexity_count": 0,
-        "top_offenders": [],
-        "score": 100
+        "high_complexity_count": 1,
+        "top_offenders": [
+          {
+            "file": "preflight.py",
+            "function": "PreflightHook",
+            "cc": 10
+          }
+        ],
+        "score": 90
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 96% (95/100)",
+      "message": "Test coverage: 96% (96/100)",
       "details": {
-        "coverage": 95.9789057350033,
-        "score": 95,
+        "coverage": 96.11464968152866,
+        "score": 96,
         "failures": []
       }
     },
@@ -109,12 +115,23 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": true,
-      "message": "No known vulnerabilities",
+      "passed": false,
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 0,
-        "score": 100,
-        "top_vulns": []
+        "vuln_count": 1,
+        "score": 85,
+        "top_vulns": [
+          {
+            "name": "pytest",
+            "version": "9.0.2",
+            "vuln_ids": [
+              "CVE-2025-71176"
+            ],
+            "fix_versions": [
+              "9.0.3"
+            ]
+          }
+        ]
       }
     },
     {

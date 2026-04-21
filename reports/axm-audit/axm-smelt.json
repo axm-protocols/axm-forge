@@ -1,8 +1,8 @@
 {
-  "score": 96.8,
+  "score": 96.5,
   "grade": "A",
   "total": 23,
-  "failed": 2,
+  "failed": 3,
   "success": false,
   "checks": [
     {
@@ -109,28 +109,33 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": true,
-      "message": "No known vulnerabilities",
+      "passed": false,
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 0,
-        "score": 100,
-        "top_vulns": []
+        "vuln_count": 1,
+        "score": 85,
+        "top_vulns": [
+          {
+            "name": "pytest",
+            "version": "9.0.2",
+            "vuln_ids": [
+              "CVE-2025-71176"
+            ],
+            "fix_versions": [
+              "9.0.3"
+            ]
+          }
+        ]
       }
     },
     {
       "rule_id": "DEPS_HYGIENE",
       "passed": true,
-      "message": "1 dependency issue(s) found",
+      "message": "Clean dependencies (0 issues)",
       "details": {
-        "issue_count": 1,
-        "score": 90,
-        "top_issues": [
-          {
-            "code": "DEP004",
-            "module": "mkdocs_gen_files",
-            "message": "'mkdocs_gen_files' imported but declared as a dev dependency"
-          }
-        ]
+        "issue_count": 0,
+        "score": 100,
+        "top_issues": []
       }
     },
     {

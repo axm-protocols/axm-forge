@@ -1,9 +1,9 @@
 {
-  "score": 97.0,
+  "score": 94.5,
   "grade": "A",
   "total": 23,
-  "failed": 0,
-  "success": true,
+  "failed": 3,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -16,11 +16,18 @@
     },
     {
       "rule_id": "ARCH_GOD_CLASS",
-      "passed": true,
-      "message": "0 god class(es) found",
+      "passed": false,
+      "message": "1 god class(es) found",
       "details": {
-        "god_classes": [],
-        "score": 100
+        "god_classes": [
+          {
+            "name": "SearchTool",
+            "file": "axm_ast/tools/search.py",
+            "lines": 430,
+            "methods": 18
+          }
+        ],
+        "score": 85
       }
     },
     {
@@ -30,7 +37,7 @@
       "details": {
         "max_fan_out": 13,
         "max_fan_in": 37,
-        "avg_coupling": 5.0,
+        "avg_coupling": 4.87,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -48,27 +55,32 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": true,
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "passed": false,
+      "message": "Complexity score: 80/100 (2 high-complexity functions)",
       "details": {
-        "high_complexity_count": 1,
+        "high_complexity_count": 2,
         "top_offenders": [
           {
             "file": "search.py",
-            "function": "SearchTool._format_symbol",
+            "function": "SearchTool._collect_module_candidates",
+            "cc": 18
+          },
+          {
+            "file": "search.py",
+            "function": "SearchTool._render_text",
             "cc": 11
           }
         ],
-        "score": 90
+        "score": 80
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 91% (90/100)",
+      "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 90.62107466852757,
-        "score": 90,
+        "coverage": 91.39554284352282,
+        "score": 91,
         "failures": []
       }
     },
@@ -115,12 +127,23 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": true,
-      "message": "No known vulnerabilities",
+      "passed": false,
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 0,
-        "score": 100,
-        "top_vulns": []
+        "vuln_count": 1,
+        "score": 85,
+        "top_vulns": [
+          {
+            "name": "pytest",
+            "version": "9.0.2",
+            "vuln_ids": [
+              "CVE-2025-71176"
+            ],
+            "fix_versions": [
+              "9.0.3"
+            ]
+          }
+        ]
       }
     },
     {
@@ -136,11 +159,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (140/140)",
+      "message": "Docstring coverage: 100% (154/154)",
       "details": {
         "coverage": 1.0,
-        "total": 140,
-        "documented": 140,
+        "total": 154,
+        "documented": 154,
         "missing": [],
         "score": 100
       }
@@ -188,43 +211,7 @@
         "high_count": 0,
         "medium_count": 0,
         "score": 100,
-        "top_issues": [
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "structural_diff.py",
-            "line": 16
-          },
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "analyzer.py",
-            "line": 18
-          },
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "git_coupling.py",
-            "line": 19
-          },
-          {
-            "severity": "LOW",
-            "code": "B607",
-            "message": "Starting a process with a partial executable path",
-            "file": "structural_diff.py",
-            "line": 40
-          },
-          {
-            "severity": "LOW",
-            "code": "B603",
-            "message": "subprocess call - check for execution of untrusted input.",
-            "file": "structural_diff.py",
-            "line": 40
-          }
-        ]
+        "top_issues": []
       }
     },
     {

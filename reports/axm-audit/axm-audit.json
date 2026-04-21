@@ -1,8 +1,8 @@
 {
-  "score": 98.6,
-  "grade": "A",
+  "score": 82.9,
+  "grade": "B",
   "total": 23,
-  "failed": 1,
+  "failed": 3,
   "success": false,
   "checks": [
     {
@@ -29,8 +29,8 @@
       "message": "Coupling: 2 module(s) above threshold (-6 pts)",
       "details": {
         "max_fan_out": 11,
-        "max_fan_in": 22,
-        "avg_coupling": 6.32,
+        "max_fan_in": 23,
+        "avg_coupling": 6.23,
         "score": 94,
         "n_over_threshold": 2,
         "over_threshold": [
@@ -63,20 +63,76 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": true,
-      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "passed": false,
+      "message": "Complexity score: 0/100 (11 high-complexity functions)",
       "details": {
-        "high_complexity_count": 0,
-        "top_offenders": [],
-        "score": 100
+        "high_complexity_count": 11,
+        "top_offenders": [
+          {
+            "file": "formatters.py",
+            "function": "format_agent",
+            "cc": 15
+          },
+          {
+            "file": "formatters.py",
+            "function": "format_agent_text",
+            "cc": 14
+          },
+          {
+            "file": "dependencies.py",
+            "function": "DependencyHygieneRule._check_single",
+            "cc": 13
+          },
+          {
+            "file": "coverage.py",
+            "function": "TestCoverageRule._report_to_result",
+            "cc": 12
+          },
+          {
+            "file": "audit_test_text.py",
+            "function": "_build_header",
+            "cc": 11
+          },
+          {
+            "file": "quality_check.py",
+            "function": "QualityCheckHook",
+            "cc": 11
+          },
+          {
+            "file": "dependencies.py",
+            "function": "DependencyHygieneRule._check_workspace",
+            "cc": 11
+          },
+          {
+            "file": "quality_check.py",
+            "function": "QualityCheckHook.execute",
+            "cc": 10
+          },
+          {
+            "file": "practices.py",
+            "function": "BareExceptRule.check",
+            "cc": 10
+          },
+          {
+            "file": "practices.py",
+            "function": "SecurityPatternRule.check",
+            "cc": 10
+          },
+          {
+            "file": "security.py",
+            "function": "_build_security_result",
+            "cc": 10
+          }
+        ],
+        "score": 0
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 94% (93/100)",
+      "message": "Test coverage: 93% (93/100)",
       "details": {
-        "coverage": 93.58170416820361,
+        "coverage": 93.20850523643288,
         "score": 93,
         "failures": []
       }
@@ -124,12 +180,23 @@
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": true,
-      "message": "No known vulnerabilities",
+      "passed": false,
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 0,
-        "score": 100,
-        "top_vulns": []
+        "vuln_count": 1,
+        "score": 85,
+        "top_vulns": [
+          {
+            "name": "pytest",
+            "version": "9.0.2",
+            "vuln_ids": [
+              "CVE-2025-71176"
+            ],
+            "fix_versions": [
+              "9.0.3"
+            ]
+          }
+        ]
       }
     },
     {
@@ -145,11 +212,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (40/40)",
+      "message": "Docstring coverage: 100% (42/42)",
       "details": {
         "coverage": 1.0,
-        "total": 40,
-        "documented": 40,
+        "total": 42,
+        "documented": 42,
         "missing": [],
         "score": 100
       }
@@ -236,7 +303,7 @@
             "code": "B607",
             "message": "Starting a process with a partial executable path",
             "file": "dead_code.py",
-            "line": 80
+            "line": 82
           }
         ]
       }
