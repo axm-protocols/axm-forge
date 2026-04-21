@@ -126,7 +126,7 @@ See the [MCP how-to guide](https://forge.axm-protocols.io/audit/howto/mcp/) for 
 | `testing` | `TestCoverageRule` | 1 |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
 | `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `SecurityPatternRule`, `TestMirrorRule` | 5 |
-| `structure` | `PyprojectCompletenessRule` | 1 |
+| `structure` | `PyprojectCompletenessRule`, `TestsPyramidRule` | 2 |
 | `tooling` | `ToolAvailabilityRule` | 3 |
 
 ## Configuration

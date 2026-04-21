@@ -14,7 +14,7 @@ Focus your audit on specific areas instead of running all checks.
 | `testing` | `TestCoverageRule` | Coverage enforcement (pytest-cov) |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | Structural analysis (AST) |
 | `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `SecurityPatternRule`, `TestMirrorRule` | Best practices |
-| `structure` | `PyprojectCompletenessRule` | pyproject.toml completeness |
+| `structure` | `PyprojectCompletenessRule`, `TestsPyramidRule` | pyproject.toml completeness; test pyramid layout (unit/integration/e2e + pytest markers) |
 | `tooling` | `ToolAvailabilityRule` | CLI tool availability |
 
 ## CLI
