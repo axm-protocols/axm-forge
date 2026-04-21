@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 
 from axm_init.adapters.workspace_patcher import (
     _append_to_toml_array_lines,
@@ -12,6 +13,8 @@ from axm_init.adapters.workspace_patcher import (
     _find_yaml_list_range,
     _insert_into_toml_array,
     _insert_into_yaml_list,
+    patch_ci,
+    patch_publish,
     patch_release,
 )
 
@@ -207,3 +210,170 @@ class TestAppendToTomlArrayLines:
         content = 'testpaths = [\n    "packages/a/tests",\n]\n'
         result = _append_to_toml_array_lines(content, "packages/b/tests", "testpaths")
         assert '"packages/b/tests"' in result
+
+
+# ── YAML safety regression tests ────────────────────────────────────────────
+#
+# Regression coverage for a bug where `_find_yaml_list_range` captured
+# `- ` items past the target list (e.g. items inside `steps:`), causing
+# `patch_ci` / `patch_publish` / `patch_release` to insert the new entry
+# inside the wrong block and produce unparseable YAML.
+
+
+class TestYamlSafetyRegression:
+    """Patchers must produce valid YAML and insert into the correct list."""
+
+    def _make_realistic_ci(self, root: Path) -> Path:
+        """Create a CI workflow that mirrors the shape of real axm workflows.
+
+        Includes a ``matrix.package`` list *and* a subsequent ``steps:``
+        block with its own ``- `` items — the exact shape that triggered
+        the original regression.
+        """
+        ci = root / ".github" / "workflows" / "ci.yml"
+        ci.parent.mkdir(parents=True, exist_ok=True)
+        ci.write_text(
+            "name: CI\n\n"
+            "on:\n  push:\n    branches: [main]\n\n"
+            "jobs:\n"
+            "  test:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    strategy:\n"
+            "      fail-fast: false\n"
+            "      matrix:\n"
+            "        package:\n"
+            "          - existing-pkg\n"
+            "          - another-pkg\n"
+            '        python-version: ["3.12", "3.13"]\n'
+            "    steps:\n"
+            "      - uses: actions/checkout@v6\n"
+            "      - uses: astral-sh/setup-uv@v7\n"
+            "      - run: uv sync --all-groups\n"
+            "      - name: Test ${{ matrix.package }}\n"
+            "        run: uv run pytest --cov\n"
+        )
+        return ci
+
+    def _make_realistic_publish(self, root: Path) -> Path:
+        """Create a publish workflow mirroring real axm workflows."""
+        publish = root / ".github" / "workflows" / "publish.yml"
+        publish.parent.mkdir(parents=True, exist_ok=True)
+        publish.write_text(
+            "name: Publish to PyPI\n\n"
+            "on:\n  push:\n    tags:\n"
+            '      - "existing-pkg/v*"\n'
+            '      - "another-pkg/v*"\n\n'
+            "jobs:\n"
+            "  publish:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@v6\n"
+            "      - uses: astral-sh/setup-uv@v7\n"
+            "      - run: uv build\n"
+            "      - uses: pypa/gh-action-pypi-publish@release/v1\n"
+        )
+        return publish
+
+    def _make_realistic_release(self, root: Path) -> Path:
+        """Create a release workflow mirroring real axm workflows."""
+        release = root / ".github" / "workflows" / "release.yml"
+        release.parent.mkdir(parents=True, exist_ok=True)
+        release.write_text(
+            "name: Release\n\n"
+            "on:\n  push:\n    tags:\n"
+            '      - "existing-pkg/v*"\n\n'
+            "permissions:\n  contents: write\n\n"
+            "jobs:\n"
+            "  release:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@v6\n"
+            "      - name: Detect package from tag\n"
+            "        id: detect\n"
+            "        run: |\n"
+            "          TAG=${GITHUB_REF#refs/tags/}\n"
+            '          if [[ "$TAG" == existing-pkg/* ]]; then\n'
+            '            echo "package=existing-pkg" >> "$GITHUB_OUTPUT"\n'
+            "          else\n"
+            '            echo "::error::Unknown tag"\n'
+            "            exit 1\n"
+            "          fi\n"
+            "      - name: Create GitHub Release\n"
+            "        uses: softprops/action-gh-release@v2\n"
+        )
+        return release
+
+    def test_patch_ci_keeps_yaml_parseable(self, tmp_path: Path) -> None:
+        """patch_ci must produce YAML that yaml.safe_load can parse."""
+        ci = self._make_realistic_ci(tmp_path)
+        patch_ci(tmp_path, "my-lib")
+        parsed = yaml.safe_load(ci.read_text())
+        assert parsed is not None
+
+    def test_patch_ci_inserts_into_matrix_not_steps(self, tmp_path: Path) -> None:
+        """Inserted entry ends up in ``matrix.package``, never in ``steps``."""
+        ci = self._make_realistic_ci(tmp_path)
+        patch_ci(tmp_path, "my-lib")
+        parsed = yaml.safe_load(ci.read_text())
+        matrix_packages = parsed["jobs"]["test"]["strategy"]["matrix"]["package"]
+        assert "my-lib" in matrix_packages
+        assert matrix_packages == ["existing-pkg", "another-pkg", "my-lib"]
+        # Steps must remain untouched — no "my-lib" string anywhere in them.
+        steps = parsed["jobs"]["test"]["steps"]
+        for step in steps:
+            assert "my-lib" not in str(step)
+
+    def test_patch_publish_keeps_yaml_parseable(self, tmp_path: Path) -> None:
+        """patch_publish must produce YAML that yaml.safe_load can parse."""
+        publish = self._make_realistic_publish(tmp_path)
+        patch_publish(tmp_path, "my-lib")
+        parsed = yaml.safe_load(publish.read_text())
+        assert parsed is not None
+
+    def test_patch_publish_inserts_into_tags_not_steps(self, tmp_path: Path) -> None:
+        """Tag pattern goes into ``on.push.tags``, never into ``steps``."""
+        publish = self._make_realistic_publish(tmp_path)
+        patch_publish(tmp_path, "my-lib")
+        parsed = yaml.safe_load(publish.read_text())
+        # YAML 1.1: bare `on:` parses as the boolean key True, not "on".
+        tags = parsed[True]["push"]["tags"]
+        assert "my-lib/v*" in tags
+        steps = parsed["jobs"]["publish"]["steps"]
+        for step in steps:
+            assert "my-lib/v*" not in str(step)
+
+    def test_patch_release_keeps_yaml_parseable(self, tmp_path: Path) -> None:
+        """patch_release must produce YAML that yaml.safe_load can parse."""
+        release = self._make_realistic_release(tmp_path)
+        patch_release(tmp_path, "my-lib")
+        parsed = yaml.safe_load(release.read_text())
+        assert parsed is not None
+
+    def test_patch_release_inserts_into_tags_not_steps(self, tmp_path: Path) -> None:
+        """Release tag goes into ``on.push.tags``, not between ``steps``."""
+        release = self._make_realistic_release(tmp_path)
+        patch_release(tmp_path, "my-lib")
+        parsed = yaml.safe_load(release.read_text())
+        # YAML 1.1: bare `on:` parses as the boolean key True, not "on".
+        tags = parsed[True]["push"]["tags"]
+        assert "my-lib/v*" in tags
+        steps = parsed["jobs"]["release"]["steps"]
+        for step in steps:
+            # The tag pattern must not leak into any step.
+            assert '"my-lib/v*"' not in str(step)
+
+    @pytest.mark.parametrize("member", ["lib-one", "lib-two", "lib-three"])
+    def test_patch_ci_repeated_calls_keep_yaml_valid(
+        self, tmp_path: Path, member: str
+    ) -> None:
+        """Sequential patches for multiple members stay parseable."""
+        self._make_realistic_ci(tmp_path)
+        for m in ["lib-one", "lib-two", "lib-three"]:
+            patch_ci(tmp_path, m)
+            if m == member:
+                break
+        parsed = yaml.safe_load(
+            (tmp_path / ".github" / "workflows" / "ci.yml").read_text()
+        )
+        packages = parsed["jobs"]["test"]["strategy"]["matrix"]["package"]
+        assert member in packages

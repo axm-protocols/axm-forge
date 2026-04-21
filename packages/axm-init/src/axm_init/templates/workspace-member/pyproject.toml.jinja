@@ -3,13 +3,22 @@ name = "{{ member_name }}"
 dynamic = ["version"]
 description = "{{ description }}"
 readme = "README.md"
-license = { text = "{{ license }}" }
+license = "{{ license }}"
 requires-python = ">=3.12"
 authors = [{ name = "{{ author_name }}", email = "{{ author_email }}" }]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    {%- if license == "Apache-2.0" %}
+    "License :: OSI Approved :: Apache Software License",
+    {%- elif license == "MIT" %}
+    "License :: OSI Approved :: MIT License",
+    {%- elif license == "EUPL-1.2" %}
+    "License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2)",
+    {%- endif %}
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
 
@@ -17,7 +26,9 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/{{ org }}/{{ workspace_name }}"
+Documentation = "https://{{ org }}.github.io/{{ member_name }}/"
 Repository = "https://github.com/{{ org }}/{{ workspace_name }}.git"
+Issues = "https://github.com/{{ org }}/{{ workspace_name }}/issues"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -25,7 +36,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 source = "vcs"
-raw-options = { root = "../..", tag-pattern = "{{ member_name }}/v*" }
+tag-pattern = "{{ member_name }}/v(?P<version>.*)"
+raw-options = { root = "../..", git_describe_command = "git describe --dirty --tags --long --match {{ member_name }}/v*" }
+fallback-version = "0.0.0.dev0"
 
 [tool.hatch.build.hooks.vcs]
 version-file = "src/{{ module_name }}/_version.py"
@@ -33,26 +46,147 @@ version-file = "src/{{ module_name }}/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/{{ module_name }}"]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=7.1.0",
+    "pytest-mock>=3.15.1",
+    "ruff==0.15.10",
+    "mypy>=1.20.0",
+    "pre-commit>=4.0",
+]
+docs = [
+    "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=1.0.3",
+    "mkdocs-gen-files>=0.6.0",
+    "mkdocs-literate-nav>=0.6.3",
+]
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Testing (inherits workspace-level ruff/mypy config)
+# Ruff Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["src", "tests"]
+exclude = ["*/_version.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "S", "T20", "PLR", "RUF"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["{{ module_name }}"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MyPy Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+pretty = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "conftest"]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["axm.*"]
+ignore_missing_imports = true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Deptry Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.deptry]
+known_first_party = ["{{ module_name }}"]
+
+[tool.deptry.per_rule_ignores]
+DEP004 = ["mkdocs_gen_files", "pytest"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+python_files = "test_*.py"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "--import-mode=importlib",
+    "--cov=src/{{ module_name }}",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-fail-under=0",
+]
+filterwarnings = ["error"]
 markers = [
     "integration: tests that hit real external boundaries (filesystem, DB, network)",
     "e2e: end-to-end tests that exercise the CLI via subprocess",
 ]
-addopts = [
-    "-q",
-    "--import-mode=importlib",
-    "--cov=src/{{ module_name }}",
-    "--cov-report=term-missing",
-]
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Coverage Configuration
+# ─────────────────────────────────────────────────────────────────────────────
 [tool.coverage.run]
 source = ["src/{{ module_name }}"]
 branch = true
+relative_files = true
+omit = ["*/tests/*"]
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.coverage.report]
 show_missing = true
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Git-Cliff Changelog Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.git-cliff.changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+"""
+body = """
+{% raw %}{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {{ commit.message | upper_first }}\
+    {% endfor %}
+{% endfor %}{% endraw %}
+"""
+trim = true
+
+[tool.git-cliff.git]
+conventional_commits = true
+filter_unconventional = true
+commit_parsers = [
+    { message = "^chore", skip = true },
+    { message = "^ci", skip = true },
+    { message = "^feat", group = "🚀 Features" },
+    { message = "^fix", group = "🐛 Bug Fixes" },
+    { message = "^doc", group = "📚 Documentation" },
+    { message = "^perf", group = "⚡ Performance" },
+    { message = "^refactor", group = "🔧 Refactor" },
+    { message = "^test", group = "🧪 Tests" },
+]
+tag_pattern = "{{ member_name }}/v[0-9].*"

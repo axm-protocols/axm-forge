@@ -6,23 +6,44 @@
   <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ workspace_name }}/gh-pages/badges/{{ member_name }}/axm-audit.json" alt="axm-audit"></a>
   <a href="https://forge.axm-protocols.io/init/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ workspace_name }}/gh-pages/badges/{{ member_name }}/axm-init.json" alt="axm-init"></a>
   <a href="https://github.com/{{ org }}/{{ workspace_name }}/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/{{ org }}/{{ workspace_name }}/gh-pages/badges/{{ member_name }}/coverage.json" alt="Coverage"></a>
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
 </p>
 
 ---
+
+## Overview
+
+{{ description }}
+
+## Features
+
+- _TBD — describe the main features of this package here._
+
+## Installation
 
 ```bash
 uv add {{ member_name }}
 ```
 
+Or as a workspace dependency in `pyproject.toml`:
+
+```toml
+[project]
+dependencies = ["{{ member_name }}"]
+
+[tool.uv.sources]
+{{ member_name }} = { workspace = true }
+```
+
 ## Development
 
-This package is part of the **{{ workspace_name }}** workspace.
+This package is part of the **{{ workspace_name }}** uv workspace.
 
 ```bash
 # Run tests for this package
 uv run pytest --package {{ member_name }}
 
-# Run from workspace root
+# From workspace root
 make test-{{ member_name }}
 ```
 

@@ -158,20 +158,44 @@ def _find_yaml_list_range(
     *end* is the index of the line **after** the last ``- `` item.
     If *list_marker* is given, the search begins only after that marker.
     Returns ``None`` if no list is found.
+
+    The range is bounded by YAML indentation: once a non-empty line is
+    found at an indent level at or above the first list item, the list is
+    considered closed. This prevents the search from leaking into
+    sibling / parent blocks (e.g. ``steps:`` siblings of
+    ``matrix.package:``).
     """
     searching = list_marker is None
     first = -1
     last = -1
+    list_indent = -1
 
     for i, line in enumerate(lines):
+        if not line.strip():
+            continue
+        current_indent = len(line) - len(line.lstrip())
         stripped = line.strip()
+
         if not searching and list_marker and list_marker in line:
             searching = True
             continue
-        if searching and stripped.startswith("- "):
+
+        if not searching:
+            continue
+
+        if stripped.startswith("- "):
             if first == -1:
                 first = i
-            last = i
+                list_indent = current_indent
+                last = i
+            elif current_indent == list_indent:
+                last = i
+            else:
+                # `- ` at a different indent — belongs to another list.
+                break
+        elif first >= 0 and current_indent <= list_indent:
+            # Non-list line at or above the list's indent → list closed.
+            break
 
     if first == -1:
         return None

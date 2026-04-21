@@ -1,4 +1,11 @@
 site_name: "{{ member_name }}"
+docs_dir: docs
+
+plugins:
+  - search
+  - gen-files
+  - literate-nav
+  - mkdocstrings
 
 nav:
   - Home: index.md
