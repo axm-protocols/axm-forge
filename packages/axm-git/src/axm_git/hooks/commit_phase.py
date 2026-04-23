@@ -48,27 +48,81 @@ def _validate_commit_spec(
     return spec, None
 
 
+def _resolve_repo_path(
+    filepath: str,
+    git_root: Path,
+    working_dir: Path | None,
+) -> tuple[Path | None, list[Path], str | None]:
+    """Resolve *filepath* to an absolute path inside *git_root*.
+
+    Tries ``git_root / filepath`` then ``working_dir / filepath`` (when
+    *working_dir* is passed and differs from *git_root*). Absolute inputs
+    are accepted verbatim when they resolve inside *git_root*.
+
+    Returns ``(resolved, tried, error)``. On success ``resolved`` is the
+    absolute path (which may not exist if the file is tracked-but-deleted)
+    and ``error`` is ``None``. On out-of-tree absolute input, ``error``
+    describes the violation. If neither candidate exists, ``resolved`` is
+    ``None`` and callers can decide whether that is fatal.
+    """
+    git_root_abs = git_root.resolve()
+    raw = Path(filepath)
+    if raw.is_absolute():
+        resolved = raw.resolve()
+        if not resolved.is_relative_to(git_root_abs):
+            return (
+                None,
+                [resolved],
+                (
+                    f"absolute path outside repository: {filepath} "
+                    f"(git_root: {git_root_abs})"
+                ),
+            )
+        return resolved, [resolved], None
+
+    tried: list[Path] = []
+    candidates = [git_root_abs / filepath]
+    if working_dir is not None and working_dir.resolve() != git_root_abs:
+        candidates.append(working_dir.resolve() / filepath)
+    for candidate in candidates:
+        tried.append(candidate)
+        if candidate.exists():
+            return candidate, tried, None
+    return None, tried, None
+
+
 def _stage_spec_files(
     files: list[str],
     git_root: Path,
     *,
+    working_dir: Path | None = None,
     warnings: list[str] | None = None,
 ) -> str | None:
     """Stage each file in *files*, returning an error message on failure.
 
-    Paths in *files* are expected relative to *git_root*.
+    Paths in *files* are resolved against *git_root* first, then against
+    *working_dir* (if provided and distinct), so both git-root-relative
+    and package-relative inputs work transparently. Absolute inputs are
+    accepted when they point inside *git_root*.
+
     Tracked-but-deleted files (git status ``D``) are staged as deletions.
     Gitignored files are skipped with a warning appended to *warnings*.
-    Truly missing files (never tracked) produce a clear diagnostic error.
+    Truly missing files (never tracked) produce a clear diagnostic error
+    listing every absolute path that was attempted.
     """
     for filepath in files:
-        full = git_root / filepath
-        if not full.exists():
-            # Check if the file is tracked-but-deleted (git status D)
+        resolved, tried, err = _resolve_repo_path(filepath, git_root, working_dir)
+        if err:
+            return err
+        if resolved is None or not resolved.exists():
             ls_result = run_git(["ls-files", "-d", filepath], git_root)
             if not ls_result.stdout.strip():
-                return f"files not found: {filepath}"
-        add_result = run_git(["add", filepath], git_root)
+                attempts = ", ".join(str(p) for p in tried)
+                return f"files not found: {filepath!r} (tried: {attempts})"
+            add_target = filepath
+        else:
+            add_target = str(resolved)
+        add_result = run_git(["add", "--", add_target], git_root)
         if add_result.returncode != 0:
             if "ignored" in add_result.stderr.lower():
                 if warnings is not None:
@@ -104,13 +158,26 @@ def _build_commit_cmd(
     return cmd
 
 
-def _format_spec_files(files: list[str], git_root: Path) -> None:
+def _format_spec_files(
+    files: list[str],
+    git_root: Path,
+    *,
+    working_dir: Path | None = None,
+) -> None:
     """Run ``ruff check --fix`` then ``ruff format`` on *files*.
 
     Non-fatal: logs warnings on failure but never raises.
-    Resolves paths relative to *git_root* before passing to ruff.
+    Resolves paths via :func:`_resolve_repo_path` so both git-root-relative
+    and package-relative inputs are handled transparently.
     """
-    targets = [str(git_root / f) for f in files if f.endswith(".py")]
+    targets: list[str] = []
+    for f in files:
+        if not f.endswith(".py"):
+            continue
+        resolved, _tried, err = _resolve_repo_path(f, git_root, working_dir)
+        if err:
+            continue
+        targets.append(str(resolved) if resolved is not None else str(git_root / f))
     if not targets:
         return
 
@@ -160,18 +227,23 @@ def _retry_commit_on_autofix(
     cmd: list[str],
     git_root: Path,
     first_result: Any,
+    *,
+    working_dir: Path | None = None,
 ) -> Any:
     """Handle pre-commit autofix retry for a failed commit.
 
     If *first_result* stderr contains ``"files were modified"``, re-stage
-    *files* and retry the commit once.  Otherwise return *first_result*
-    unchanged.
+    *files* (using the same dual-resolution as the original staging) and
+    retry the commit once.  Otherwise return *first_result* unchanged.
 
     Returns a GitResult-like object (has *returncode*, *stdout*, *stderr*).
     """
     if "files were modified" not in first_result.stderr:
         return first_result
-    restage_err = _stage_spec_files(files, git_root)
+    if working_dir is None:
+        restage_err = _stage_spec_files(files, git_root)
+    else:
+        restage_err = _stage_spec_files(files, git_root, working_dir=working_dir)
     if restage_err:
         from types import SimpleNamespace
 
@@ -317,10 +389,12 @@ class CommitPhaseHook:
         identity = resolve_identity(git_root, profile_override=profile)
         author = f"{identity.name} <{identity.email}>" if identity else None
 
-        _format_spec_files(files, git_root)
+        _format_spec_files(files, git_root, working_dir=working_dir)
 
         warnings: list[str] = []
-        stage_err = _stage_spec_files(files, git_root, warnings=warnings)
+        stage_err = _stage_spec_files(
+            files, git_root, working_dir=working_dir, warnings=warnings
+        )
         if stage_err:
             return HookResult.fail(stage_err)
 
@@ -335,7 +409,9 @@ class CommitPhaseHook:
 
         result = run_git(commit_cmd, git_root)
         if result.returncode != 0:
-            result = _retry_commit_on_autofix(files, commit_cmd, git_root, result)
+            result = _retry_commit_on_autofix(
+                files, commit_cmd, git_root, result, working_dir=working_dir
+            )
             if result.returncode != 0:
                 return HookResult.fail(f"git commit failed: {result.stderr}")
 
