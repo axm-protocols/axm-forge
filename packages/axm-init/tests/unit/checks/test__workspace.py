@@ -207,29 +207,3 @@ class TestEdgeCases:
 
 
 # ---------------------------------------------------------------------------
-# TestRealPaths — functional tests against real filesystem
-# ---------------------------------------------------------------------------
-
-AXM_OFFICE = Path("/Users/gabriel/Documents/Code/python/axm-office")
-AXM_WORD = AXM_OFFICE / "packages" / "axm-word"
-AXM_BIB = Path("/Users/gabriel/Documents/Code/python/axm-protocols/axm-bib")
-
-
-@pytest.mark.skipif(
-    not AXM_OFFICE.exists(),
-    reason="axm-office not found on this machine",
-)
-class TestRealPaths:
-    def test_detect_real_workspace(self) -> None:
-        assert detect_context(AXM_OFFICE) == ProjectContext.WORKSPACE
-
-    def test_detect_real_member_axm_word(self) -> None:
-        assert detect_context(AXM_WORD) == ProjectContext.MEMBER
-
-    @pytest.mark.skipif(
-        not AXM_BIB.exists(),
-        reason="axm-bib not found on this machine",
-    )
-    def test_detect_real_member_axm_bib(self) -> None:
-        """axm-bib is a member of the axm-protocols UV workspace."""
-        assert detect_context(AXM_BIB) == ProjectContext.MEMBER
