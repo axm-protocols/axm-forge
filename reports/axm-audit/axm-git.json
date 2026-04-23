@@ -1,8 +1,8 @@
 {
-  "score": 96.9,
+  "score": 95.2,
   "grade": "A",
   "total": 23,
-  "failed": 1,
+  "failed": 2,
   "success": false,
   "checks": [
     {
@@ -48,27 +48,32 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": true,
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "passed": false,
+      "message": "Complexity score: 80/100 (2 high-complexity functions)",
       "details": {
-        "high_complexity_count": 1,
+        "high_complexity_count": 2,
         "top_offenders": [
+          {
+            "file": "commit_phase.py",
+            "function": "_stage_spec_files",
+            "cc": 10
+          },
           {
             "file": "preflight.py",
             "function": "PreflightHook",
             "cc": 10
           }
         ],
-        "score": 90
+        "score": 80
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 96% (96/100)",
+      "message": "Test coverage: 96% (95/100)",
       "details": {
-        "coverage": 96.11464968152866,
-        "score": 96,
+        "coverage": 95.79468150896723,
+        "score": 95,
         "failures": []
       }
     },

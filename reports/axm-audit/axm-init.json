@@ -1,8 +1,8 @@
 {
-  "score": 97.2,
+  "score": 97.0,
   "grade": "A",
   "total": 23,
-  "failed": 2,
+  "failed": 3,
   "success": false,
   "checks": [
     {
@@ -65,7 +65,7 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": false,
-      "message": "Test coverage: 97% (14 test(s) failed)",
+      "message": "Test coverage: 97% (5 test(s) failed)",
       "details": {
         "coverage": 96.7124427798585,
         "score": 96,
@@ -177,9 +177,14 @@
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
-      "passed": true,
-      "message": "All source modules have test files",
-      "details": null
+      "passed": false,
+      "message": "1 source module(s) without tests",
+      "details": {
+        "missing": [
+          "scaffold.py"
+        ],
+        "score": 85
+      }
     },
     {
       "rule_id": "PRACTICE_SECURITY",
