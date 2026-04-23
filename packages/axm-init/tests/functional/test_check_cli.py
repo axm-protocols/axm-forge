@@ -150,7 +150,9 @@ def gold_project(tmp_path: Path) -> Path:
     (pkg / "py.typed").write_text("")
     tests = tmp_path / "tests"
     tests.mkdir()
-    (tests / "test_x.py").write_text("def test_x() -> None: pass\n")
+    for sub in ("unit", "integration", "e2e"):
+        (tests / sub).mkdir()
+        (tests / sub / "test_x.py").write_text("def test_x() -> None: pass\n")
     docs = tmp_path / "docs"
     docs.mkdir()
     (docs / "gen_ref_pages.py").write_text("")

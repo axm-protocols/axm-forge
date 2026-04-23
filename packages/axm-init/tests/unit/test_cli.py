@@ -207,19 +207,9 @@ class TestCommandsRegistered:
 class TestCheckCommand:
     """Tests for `axm-init check`."""
 
-    def test_gold_exits_0(self, gold_project: Path) -> None:
-        _stdout, _stderr, code = _run("check", str(gold_project))
-        assert code == 0
-
     def test_empty_exits_1(self, tmp_path: Path) -> None:
         _stdout, _stderr, code = _run("check", str(tmp_path))
         assert code == 1
-
-    def test_json_flag(self, gold_project: Path) -> None:
-        stdout, _stderr, code = _run("check", str(gold_project), "--json")
-        assert code == 0
-        data = json.loads(stdout)
-        assert data["score"] == 100
 
     def test_category_filter(self, gold_project: Path) -> None:
         stdout, _stderr, code = _run(
