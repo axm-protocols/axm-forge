@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -141,7 +142,7 @@ class TestRetryOnAutofixDualResolution:
     def test_retry_on_autofix_uses_dual_resolution(
         self,
         workspace_repo: tuple[Path, Path],
-        mocker,
+        mocker: Any,
     ) -> None:
         """AC4: retry path re-stages package-relative files after autofix."""
         git_root, pkg = workspace_repo
@@ -152,11 +153,11 @@ class TestRetryOnAutofixDualResolution:
 
         import axm_git.hooks.commit_phase as cp
 
-        real_run_git = cp.run_git
+        real_run_git = cp.run_git  # type: ignore[attr-defined]
         call_log: list[tuple[list[str], ...]] = []
         commit_attempts = {"n": 0}
 
-        def fake_run_git(args: list[str], cwd: Path, *rest, **kw):
+        def fake_run_git(args: list[str], cwd: Path, *rest: Any, **kw: Any) -> Any:
             call_log.append((args,))
             if args and args[0] == "commit":
                 commit_attempts["n"] += 1

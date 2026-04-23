@@ -240,10 +240,7 @@ def _retry_commit_on_autofix(
     """
     if "files were modified" not in first_result.stderr:
         return first_result
-    if working_dir is None:
-        restage_err = _stage_spec_files(files, git_root)
-    else:
-        restage_err = _stage_spec_files(files, git_root, working_dir=working_dir)
+    restage_err = _stage_spec_files(files, git_root, working_dir=working_dir)
     if restage_err:
         from types import SimpleNamespace
 
