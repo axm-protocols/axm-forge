@@ -87,12 +87,11 @@ class TestMakefileEdgeCases:
     """Cover adapters/makefile.py line 22-23."""
 
     def test_unreadable_makefile(self, tmp_path: Path) -> None:
-        """Makefile with read error returns empty set."""
+        """Makefile with undecodable bytes returns an empty set, not raises."""
         from axm_init.adapters.makefile import detect_makefile_targets
 
         makefile = tmp_path / "Makefile"
-        makefile.write_bytes(b"\x80\x81\x82")  # Binary content
+        makefile.write_bytes(b"\x80\x81\x82")
 
-        # Should not raise, returns empty or parsed set
         result = detect_makefile_targets(tmp_path)
-        assert isinstance(result, set)
+        assert result == set()

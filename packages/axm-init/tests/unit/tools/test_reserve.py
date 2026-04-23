@@ -5,16 +5,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 
-class TestReserveToolImport:
-    """Smoke: reserve tool is importable."""
-
-    def test_import_init_reserve_tool(self) -> None:
-        """InitReserveTool is importable."""
-        from axm_init.tools.reserve import InitReserveTool
-
-        assert InitReserveTool is not None
-
-
 class TestReserveToolValidation:
     """Validate required kwargs handling."""
 

@@ -304,11 +304,13 @@ class TestYamlSafetyRegression:
         return release
 
     def test_patch_ci_keeps_yaml_parseable(self, tmp_path: Path) -> None:
-        """patch_ci must produce YAML that yaml.safe_load can parse."""
+        """patch_ci produces a dict with the expected CI job structure."""
         ci = self._make_realistic_ci(tmp_path)
         patch_ci(tmp_path, "my-lib")
         parsed = yaml.safe_load(ci.read_text())
-        assert parsed is not None
+        assert isinstance(parsed, dict)
+        assert "jobs" in parsed
+        assert "test" in parsed["jobs"]
 
     def test_patch_ci_inserts_into_matrix_not_steps(self, tmp_path: Path) -> None:
         """Inserted entry ends up in ``matrix.package``, never in ``steps``."""
@@ -324,11 +326,13 @@ class TestYamlSafetyRegression:
             assert "my-lib" not in str(step)
 
     def test_patch_publish_keeps_yaml_parseable(self, tmp_path: Path) -> None:
-        """patch_publish must produce YAML that yaml.safe_load can parse."""
+        """patch_publish produces a dict with tag-push trigger + publish job."""
         publish = self._make_realistic_publish(tmp_path)
         patch_publish(tmp_path, "my-lib")
         parsed = yaml.safe_load(publish.read_text())
-        assert parsed is not None
+        assert isinstance(parsed, dict)
+        assert True in parsed and "push" in parsed[True]
+        assert "jobs" in parsed and "publish" in parsed["jobs"]
 
     def test_patch_publish_inserts_into_tags_not_steps(self, tmp_path: Path) -> None:
         """Tag pattern goes into ``on.push.tags``, never into ``steps``."""
@@ -343,11 +347,13 @@ class TestYamlSafetyRegression:
             assert "my-lib/v*" not in str(step)
 
     def test_patch_release_keeps_yaml_parseable(self, tmp_path: Path) -> None:
-        """patch_release must produce YAML that yaml.safe_load can parse."""
+        """patch_release produces a dict with tag-push trigger + release job."""
         release = self._make_realistic_release(tmp_path)
         patch_release(tmp_path, "my-lib")
         parsed = yaml.safe_load(release.read_text())
-        assert parsed is not None
+        assert isinstance(parsed, dict)
+        assert True in parsed and "push" in parsed[True]
+        assert "jobs" in parsed and "release" in parsed["jobs"]
 
     def test_patch_release_inserts_into_tags_not_steps(self, tmp_path: Path) -> None:
         """Release tag goes into ``on.push.tags``, not between ``steps``."""
