@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from axm_audit.core.registry import register_rule
 from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules.test_quality import _shared
 from axm_audit.core.rules.test_quality._shared import (
     _FIXTURE_MOCK_PREFIXES,
     _FIXTURE_MOCK_SUBSTRS,
@@ -29,10 +30,13 @@ from axm_audit.core.rules.test_quality._shared import (
     analyze_imports,
     current_level_from_path,
     detect_real_io,
+    extract_mock_targets,
+    fixture_does_io,
     func_attr_io_transitive,
     get_init_all,
     get_pkg_prefixes,
     iter_test_files,
+    target_matches_io,
 )
 from axm_audit.models.results import CheckResult, Severity
 
@@ -213,17 +217,90 @@ def _detect_tmp_path_usage(func: ast.FunctionDef) -> bool:
     return False
 
 
-# ── R4 / R5 stubs — replaced in ticket #4b ────────────────────────────
+# ── R4 — conftest fixture IO resolution ───────────────────────────────
 
 
-def _apply_conftest_fixture_io(_node: ast.FunctionDef) -> str | None:
-    return None
+def _gather_fixtures_for_test(
+    tree: ast.Module,
+    test_file: Path,
+    tests_dir: Path,
+    pkg_root: Path,
+) -> dict[str, ast.FunctionDef]:
+    """Collect fixtures from *tree* + every ``conftest.py`` ancestor to ``tests/``.
+
+    Walk stops at ``tests_dir``, ``pkg_root`` or filesystem root, whichever
+    comes first. Uses ``_shared._CONFTEST_CACHE`` to avoid re-parsing.
+    """
+    fixtures: dict[str, ast.FunctionDef] = dict(_shared._collect_fixtures(tree))
+    current = test_file.parent.resolve()
+    tests_dir = tests_dir.resolve()
+    pkg_root = pkg_root.resolve()
+    visited: set[Path] = set()
+    while current not in visited:
+        visited.add(current)
+        conftest = current / "conftest.py"
+        if conftest.exists():
+            for name, fdef in _shared._load_conftest_fixtures(conftest).items():
+                fixtures.setdefault(name, fdef)
+        if current == tests_dir or current == pkg_root:
+            break
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return fixtures
+
+
+def _apply_conftest_fixture_io(
+    func: ast.FunctionDef,
+    fixtures: dict[str, ast.FunctionDef],
+) -> list[str]:
+    """Emit ``conftest-fixture-io:<name>`` for each IO fixture the test takes."""
+    signals: list[str] = []
+    for arg in func.args.args:
+        name = arg.arg
+        if name == "self" or _is_mock_arg(name):
+            continue
+        if name not in fixtures:
+            continue
+        if fixture_does_io(name, fixtures, set(), 0):
+            signals.append(f"conftest-fixture-io:{name}")
+    return signals
+
+
+# ── R5 — mock neutralization ──────────────────────────────────────────
+
+
+def _signal_is_hard(sig: str) -> bool:
+    if sig == "tmp_path+write/read":
+        return True
+    if sig.startswith("attr:."):
+        attr = sig[len("attr:.") :].rstrip("()")
+        return attr in _IO_WRITER_ATTRS
+    return False
 
 
 def _apply_mock_neutralization(
-    _node: ast.FunctionDef, signals: list[str]
+    func: ast.FunctionDef, signals: list[str]
 ) -> tuple[bool, list[str]]:
-    return True, signals
+    """Neutralize soft-only signals when a mock covers an IO target.
+
+    Returns ``(keep_has_real_io, signals)``. ``keep_has_real_io=False``
+    means the caller must flip ``has_real_io`` to ``False``.
+    """
+    if any(_signal_is_hard(s) for s in signals):
+        return True, signals
+    targets = extract_mock_targets(func)
+    if not targets:
+        return True, signals
+    has_io_target = any(
+        not t.startswith("mock-factory:") and target_matches_io(t) for t in targets
+    )
+    has_factory = any(t.startswith("mock-factory:") for t in targets)
+    if not (has_io_target or has_factory):
+        return True, signals
+    first_two = ",".join(targets[:2])
+    return False, [*signals, f"mock-neutralized:{first_two}"]
 
 
 # ── Suggested placement ───────────────────────────────────────────────
@@ -285,6 +362,7 @@ def scan_test_file(  # noqa: PLR0912, PLR0913
     file_has_io, file_has_subprocess, file_signals = detect_real_io(tree)
     helpers = _collect_helpers(tree)
     current = current_level_from_path(test_file, tests_dir)
+    fixtures: dict[str, ast.FunctionDef] | None = None
 
     findings: list[Finding] = []
     for node in ast.walk(tree):
@@ -340,9 +418,24 @@ def scan_test_file(  # noqa: PLR0912, PLR0913
                 signals.append("tmp_path+write/read")
             has_real_io = True
 
-        # R4 / R5 stubs — no-ops until ticket #4b replaces them
-        _apply_conftest_fixture_io(node)
-        _keep, signals = _apply_mock_neutralization(node, signals)
+        # R4 — conftest fixture IO (skipped when R3 attr-scan already fired)
+        if not attr_sigs:
+            if fixtures is None:
+                fixtures = _gather_fixtures_for_test(
+                    tree, test_file, tests_dir, pkg_root
+                )
+            conftest_sigs = _apply_conftest_fixture_io(node, fixtures)
+            for sig in conftest_sigs:
+                if sig not in signals:
+                    signals.append(sig)
+            if conftest_sigs:
+                has_real_io = True
+
+        # R5 — mock neutralization (hard invariant B: never fires on subprocess)
+        if not has_subprocess:
+            keep, signals = _apply_mock_neutralization(node, signals)
+            if not keep:
+                has_real_io = False
 
         level, reason = _classify_level(
             has_real_io=has_real_io,
