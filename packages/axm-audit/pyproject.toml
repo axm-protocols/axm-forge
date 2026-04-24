@@ -101,6 +101,10 @@ ignore = ["S101"]
 "src/axm_audit/core/rules/dependencies.py" = ["S603", "S607"]
 "src/axm_audit/cli.py" = ["T201", "PLR0913"]
 "src/axm_audit/core/test_runner.py" = ["PLR0913"]
+# Pydantic models intentionally use `Field(default_factory=...)` for mutable defaults.
+"src/axm_audit/core/rules/test_quality/duplicate_tests.py" = ["RUF012"]
+"src/axm_audit/core/rules/test_quality/pyramid_level.py" = ["RUF012"]
+"src/axm_audit/core/rules/test_quality/tautology.py" = ["RUF012"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_audit"]

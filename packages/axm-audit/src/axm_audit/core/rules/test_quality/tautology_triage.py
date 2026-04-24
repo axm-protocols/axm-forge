@@ -26,6 +26,9 @@ __all__ = [
     "triage",
 ]
 
+_ISINSTANCE_ARITY = 2
+_SIGNIFICANT_SETUP_MIN_STMTS = 4
+
 
 _TEST_INFRA_CALLS: frozenset[str] = frozenset(
     {
@@ -379,7 +382,7 @@ def _isinstance_target(func: ast.FunctionDef) -> str | None:
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
             and node.func.id == "isinstance"
-            and len(node.args) >= 2
+            and len(node.args) >= _ISINSTANCE_ARITY
         ):
             second = node.args[1]
             match second:
@@ -529,7 +532,7 @@ def _is_factory_name(name: str) -> bool:
     return any(name.startswith(p) for p in _FACTORY_PREFIXES)
 
 
-def _is_pure_constructor_test(
+def _is_pure_constructor_test(  # noqa: PLR0911
     func: ast.FunctionDef, helper_names: set[str], pkg_symbols: set[str]
 ) -> bool:
     """True when *func* is a single-constructor call followed by a weak assert."""
@@ -658,7 +661,7 @@ def _name_suggests_edge_case(name: str) -> bool:
 
 def _has_significant_setup(body: list[ast.stmt]) -> bool:
     """True when *body* has >= 4 non-trivial statements."""
-    return _count_nontrivial_stmts(body) >= 4
+    return _count_nontrivial_stmts(body) >= _SIGNIFICANT_SETUP_MIN_STMTS
 
 
 def _has_intentional_weakness_marker(func: ast.FunctionDef, source_text: str) -> bool:
@@ -728,7 +731,7 @@ def _sut_invoked_with_result(func: ast.FunctionDef, pkg_symbols: set[str]) -> bo
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
             and node.func.id == "isinstance"
-            and len(node.args) >= 2
+            and len(node.args) >= _ISINSTANCE_ARITY
         ):
             first = node.args[0]
             if isinstance(first, ast.Name) and first.id in sut_bound:

@@ -242,7 +242,7 @@ def _gather_fixtures_for_test(
         if conftest.exists():
             for name, fdef in _shared._load_conftest_fixtures(conftest).items():
                 fixtures.setdefault(name, fdef)
-        if current == tests_dir or current == pkg_root:
+        if current in (tests_dir, pkg_root):
             break
         parent = current.parent
         if parent == current:
@@ -337,7 +337,7 @@ def _collect_helpers(tree: ast.Module) -> dict[str, ast.FunctionDef]:
     return helpers
 
 
-def scan_test_file(  # noqa: PLR0912, PLR0913
+def scan_test_file(  # noqa: PLR0912, PLR0913, PLR0915
     test_file: Path,
     tree: ast.Module,
     pkg_root: Path,

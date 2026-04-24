@@ -37,7 +37,7 @@ def _prototype_path() -> Path:
 
 def _prototype_set(pkg_path: Path) -> set[tuple[str, str, str]]:
     script = _prototype_path()
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603
         ["uv", "run", "python", str(script), "--json", str(pkg_path)],  # noqa: S607
         capture_output=True,
         text=True,

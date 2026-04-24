@@ -35,6 +35,7 @@ __all__ = [
 
 
 _SCORE_PENALTY = 2
+_ASSERT_EQUAL_ARITY = 2
 
 
 @dataclass
@@ -67,7 +68,7 @@ def _unparse_safe(node: ast.AST) -> str:
         return "<?>"
 
 
-def _is_constant_truthy(node: ast.expr) -> bool:
+def _is_constant_truthy(node: ast.expr) -> bool:  # noqa: PLR0911
     match node:
         case ast.Constant(value=v) if v:
             return True
@@ -258,7 +259,7 @@ def _check_assert(  # noqa: PLR0911
             args = call.args
             if (
                 method == "assertEqual"
-                and len(args) == 2
+                and len(args) == _ASSERT_EQUAL_ARITY
                 and _same_expr(args[0], args[1])
             ):
                 return Finding(

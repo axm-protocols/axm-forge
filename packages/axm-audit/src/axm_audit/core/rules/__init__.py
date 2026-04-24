@@ -32,13 +32,13 @@ from axm_audit.core.rules.structure import PyprojectCompletenessRule
 from axm_audit.core.rules.test_quality import (  # noqa: F401  (side-effect: registration)
     duplicate_tests as _test_quality_duplicate_tests,
 )
-from axm_audit.core.rules.test_quality import (
+from axm_audit.core.rules.test_quality import (  # noqa: F401  (side-effect: registration)
     private_imports as _test_quality_private_imports,
 )
-from axm_audit.core.rules.test_quality import (
+from axm_audit.core.rules.test_quality import (  # noqa: F401  (side-effect: registration)
     pyramid_level as _test_quality_pyramid_level,
 )
-from axm_audit.core.rules.test_quality import (
+from axm_audit.core.rules.test_quality import (  # noqa: F401  (side-effect: registration)
     tautology as _test_quality_tautology,
 )
 from axm_audit.core.rules.tooling import ToolAvailabilityRule

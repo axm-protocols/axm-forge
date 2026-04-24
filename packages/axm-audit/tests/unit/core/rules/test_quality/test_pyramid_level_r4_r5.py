@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import textwrap
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from axm_audit.core.rules.test_quality import _shared
-from axm_audit.core.rules.test_quality.pyramid_level import PyramidLevelRule
+from axm_audit.core.rules.test_quality.pyramid_level import Finding, PyramidLevelRule
 
 
 @pytest.fixture(autouse=True)
@@ -60,7 +61,7 @@ def _make_pkg(
     return pkg
 
 
-def _find(pkg: Path, func_name: str = "test_foo"):
+def _find(pkg: Path, func_name: str = "test_foo") -> Finding:
     findings = PyramidLevelRule().check(pkg).findings
     for f in findings:
         if f.function == func_name:
@@ -97,7 +98,7 @@ def test_r4_conftest_fixture_with_write_text_detected(tmp_path: Path) -> None:
     ), finding.io_signals
 
 
-def test_r4_conftest_cache_not_re_parsed(tmp_path: Path, mocker) -> None:
+def test_r4_conftest_cache_not_re_parsed(tmp_path: Path, mocker: Any) -> None:
     """AC1: _CONFTEST_CACHE prevents re-parsing the same conftest file."""
     conftest_path = tmp_path / "conftest.py"
     conftest_path.write_text(

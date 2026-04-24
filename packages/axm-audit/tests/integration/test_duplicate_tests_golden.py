@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -17,7 +18,7 @@ AXM_TICKET_PATH = Path(
 PROTOTYPE_SCRIPT = AXM_TICKET_PATH / "detect_duplicates.py"
 
 
-def _rule_tuples(result) -> set[tuple[str, str, str]]:
+def _rule_tuples(result: Any) -> set[tuple[str, str, str]]:
     tuples: set[tuple[str, str, str]] = set()
     for cluster in result.metadata["clusters"]:
         signal = cluster["signal"]

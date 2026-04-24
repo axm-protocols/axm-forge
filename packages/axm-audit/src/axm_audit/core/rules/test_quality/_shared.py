@@ -743,9 +743,11 @@ def test_is_in_lazy_import_context(
         first = tree_module.body[0]
         assert isinstance(first, ast.Expr)
         assert isinstance(first.value, ast.Constant)
-        doc = first.value.value.lower()
-        if any(sig in doc for sig in _LAZY_DOCSTRING_SIGNALS):
-            return True
+        value = first.value.value
+        if isinstance(value, str):
+            doc = value.lower()
+            if any(sig in doc for sig in _LAZY_DOCSTRING_SIGNALS):
+                return True
 
     return False
 
