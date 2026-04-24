@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import textwrap
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -24,7 +25,7 @@ def project(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _cluster_signals(result) -> list[str]:
+def _cluster_signals(result: Any) -> list[str]:
     return [c["signal"] for c in result.metadata["clusters"]]
 
 
@@ -290,7 +291,7 @@ def test_p4_large_bodies_do_not_rescue(project: Path) -> None:
     assert "ambiguous_body_size" not in signals
 
 
-def _make_cluster(signal: str, tests: list[tuple[str, str]]) -> dict:
+def _make_cluster(signal: str, tests: list[tuple[str, str]]) -> dict[str, Any]:
     return {
         "signal": signal,
         "similarity": 0.9,

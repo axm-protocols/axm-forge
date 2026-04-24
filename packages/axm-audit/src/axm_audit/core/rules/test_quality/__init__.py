@@ -7,14 +7,11 @@ in this package.
 
 from __future__ import annotations
 
-from axm_audit.core.rules.test_quality import duplicate_tests as _duplicate_tests
-from axm_audit.core.rules.test_quality import private_imports as _private_imports
-from axm_audit.core.rules.test_quality import pyramid_level as _pyramid_level
-from axm_audit.core.rules.test_quality import tautology as _tautology
+from axm_audit.core.rules.test_quality import (  # noqa: F401  (side-effect: registration)
+    duplicate_tests,
+    private_imports,
+    pyramid_level,
+    tautology,
+)
 
 __all__: list[str] = []
-
-_ = _duplicate_tests
-_ = _private_imports
-_ = _pyramid_level
-_ = _tautology

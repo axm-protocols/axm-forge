@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import textwrap
 from pathlib import Path
+from typing import Any
 
 from axm_audit.core.rules.test_quality._shared import (
     analyze_imports,
@@ -266,7 +267,7 @@ def test_fixture_does_io_depth_guard() -> None:
     assert fixture_does_io("a", fixtures, set(), 0) is False
 
 
-def test_fixture_does_io_conftest_cache(tmp_path: Path, mocker) -> None:
+def test_fixture_does_io_conftest_cache(tmp_path: Path, mocker: Any) -> None:
     conftest = tmp_path / "conftest.py"
     conftest.write_text(
         textwrap.dedent("""
