@@ -9,6 +9,7 @@ via :func:`tautology_triage.triage`.  Verdicts land in
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -436,64 +437,19 @@ class TautologyRule(ProjectRule):
         return "TEST_QUALITY_TAUTOLOGY"
 
     def check(self, project_path: Path) -> TautologyCheckResult:
-        tests_dir = project_path / "tests"
-        if tests_dir.exists():
-            file_iter: list[tuple[Path, ast.Module | None]] = list(
-                iter_test_files(project_path)
-            )
-        else:
-            file_iter = []
-            for p in sorted(project_path.rglob("test_*.py")):
-                try:
-                    file_iter.append((p, ast.parse(p.read_text(), filename=str(p))))
-                except (OSError, SyntaxError, UnicodeDecodeError):
-                    file_iter.append((p, None))
-
+        """Scan test files in ``project_path`` and return tautology verdicts."""
         pkg_symbols = collect_pkg_public_symbols(project_path)
         contracts = collect_pkg_contract_classes(project_path)
 
         all_verdicts: list[dict[str, Any]] = []
-        for test_file, tree in file_iter:
+        for test_file, tree in self._iter_test_files_with_fallback(project_path):
             if tree is None:
                 continue
-            try:
-                source = test_file.read_text()
-            except (OSError, UnicodeDecodeError):
-                source = ""
-            try:
-                rel = str(test_file.relative_to(project_path))
-            except ValueError:
-                rel = str(test_file)
-            findings = detect_tautologies(tree, path=rel)
-            if not findings:
-                continue
-            helpers = _collect_helpers(tree)
-            for f in findings:
-                loc = _find_func(tree, f.test)
-                if loc is None:
-                    continue
-                v = triage(
-                    f,
-                    tree=tree,
-                    func=loc.func,
-                    enclosing_class=loc.enclosing_class,
-                    helpers=helpers,
-                    pkg_symbols=pkg_symbols,
-                    contracts=contracts,
-                    test_file=test_file,
-                    source_text=source,
+            all_verdicts.extend(
+                self._verdicts_for_file(
+                    test_file, tree, project_path, pkg_symbols, contracts
                 )
-                all_verdicts.append(
-                    {
-                        "file": rel,
-                        "test": f.test,
-                        "line": f.line,
-                        "pattern": f.pattern,
-                        "rule": v.rule,
-                        "verdict": v.action,
-                        "reason": v.reason,
-                    }
-                )
+            )
 
         n = len(all_verdicts)
         score = max(0, 100 - n * _SCORE_PENALTY)
@@ -507,3 +463,66 @@ class TautologyRule(ProjectRule):
             metadata={"verdicts": all_verdicts},
             score=score,
         )
+
+    @staticmethod
+    def _iter_test_files_with_fallback(
+        project_path: Path,
+    ) -> Iterator[tuple[Path, ast.Module | None]]:
+        tests_dir = project_path / "tests"
+        if tests_dir.exists():
+            yield from iter_test_files(project_path)
+            return
+        for p in sorted(project_path.rglob("test_*.py")):
+            try:
+                yield p, ast.parse(p.read_text(), filename=str(p))
+            except (OSError, SyntaxError, UnicodeDecodeError):
+                yield p, None
+
+    @staticmethod
+    def _verdicts_for_file(
+        test_file: Path,
+        tree: ast.Module,
+        project_path: Path,
+        pkg_symbols: Any,
+        contracts: Any,
+    ) -> list[dict[str, Any]]:
+        try:
+            source = test_file.read_text()
+        except (OSError, UnicodeDecodeError):
+            source = ""
+        try:
+            rel = str(test_file.relative_to(project_path))
+        except ValueError:
+            rel = str(test_file)
+        findings = detect_tautologies(tree, path=rel)
+        if not findings:
+            return []
+        helpers = _collect_helpers(tree)
+        verdicts: list[dict[str, Any]] = []
+        for f in findings:
+            loc = _find_func(tree, f.test)
+            if loc is None:
+                continue
+            v = triage(
+                f,
+                tree=tree,
+                func=loc.func,
+                enclosing_class=loc.enclosing_class,
+                helpers=helpers,
+                pkg_symbols=pkg_symbols,
+                contracts=contracts,
+                test_file=test_file,
+                source_text=source,
+            )
+            verdicts.append(
+                {
+                    "file": rel,
+                    "test": f.test,
+                    "line": f.line,
+                    "pattern": f.pattern,
+                    "rule": v.rule,
+                    "verdict": v.action,
+                    "reason": v.reason,
+                }
+            )
+        return verdicts
