@@ -325,9 +325,32 @@ def _is_none_check_assert(node: ast.stmt) -> bool:
     return False
 
 
+def _classify_meaningless_asserts(
+    asserts: list[ast.Assert], func: ast.FunctionDef
+) -> Finding | None:
+    if any(
+        not _is_isinstance_assert(a) and not _is_none_check_assert(a) for a in asserts
+    ):
+        return None
+
+    count = len(asserts)
+    if all(_is_isinstance_assert(a) for a in asserts):
+        pattern = "isinstance_only"
+        detail = f"{count} isinstance assert(s), no content check"
+    elif all(_is_none_check_assert(a) for a in asserts):
+        pattern = "none_check_only"
+        detail = f"{count} not-None assert(s), no content check"
+    else:
+        pattern = "isinstance_only"
+        detail = f"only isinstance/None checks ({count} assert(s)), no content"
+
+    return Finding(test=func.name, line=func.lineno, pattern=pattern, detail=detail)
+
+
 def _analyze_test_function(
     func: ast.FunctionDef, mock_setups: dict[str, ast.expr]
 ) -> list[Finding]:
+    """Return tautology findings for a single test function."""
     findings: list[Finding] = []
     asserts = _collect_asserts(func.body)
 
@@ -339,42 +362,9 @@ def _analyze_test_function(
             findings.append(f)
 
     if asserts and not findings:
-        meaningful = [
-            a
-            for a in asserts
-            if not _is_isinstance_assert(a) and not _is_none_check_assert(a)
-        ]
-        if not meaningful:
-            if all(_is_isinstance_assert(a) for a in asserts):
-                findings.append(
-                    Finding(
-                        test=func.name,
-                        line=func.lineno,
-                        pattern="isinstance_only",
-                        detail=f"{len(asserts)} isinstance assert(s), no content check",
-                    )
-                )
-            elif all(_is_none_check_assert(a) for a in asserts):
-                findings.append(
-                    Finding(
-                        test=func.name,
-                        line=func.lineno,
-                        pattern="none_check_only",
-                        detail=f"{len(asserts)} not-None assert(s), no content check",
-                    )
-                )
-            else:
-                findings.append(
-                    Finding(
-                        test=func.name,
-                        line=func.lineno,
-                        pattern="isinstance_only",
-                        detail=(
-                            f"only isinstance/None checks ({len(asserts)} "
-                            f"assert(s)), no content"
-                        ),
-                    )
-                )
+        meaningless = _classify_meaningless_asserts(asserts, func)
+        if meaningless is not None:
+            findings.append(meaningless)
 
     return findings
 
