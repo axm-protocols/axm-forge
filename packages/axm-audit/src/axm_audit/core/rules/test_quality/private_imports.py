@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ast
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,10 @@ _DUNDER_RE = re.compile(r"^__\w+__$")
 _CONSTANT_RE = re.compile(r"^_[A-Z][A-Z0-9_]+$")
 _DOCS_ANCHOR = "docs/test_quality.md#private-imports"
 _SCORE_PENALTY = 5
+
+
+def _variable_kind(name: str) -> str:
+    return "constant" if _CONSTANT_RE.match(name) else "variable"
 
 
 @dataclass
@@ -109,22 +114,25 @@ class PrivateImportsRule(ProjectRule):
         pkg_root: Path,
         cache: dict[str, ModuleInfo | None],
     ) -> str:
+        """Return the kind of `symbol` in `module` (function/class/constant/variable/unknown)."""
         if module not in cache:
             cache[module] = self._load_module_info(module, pkg_root)
         info = cache[module]
         if info is None:
             return "unknown"
-        for fn in info.functions:
-            if fn.name == symbol:
-                return "function"
-        for cls in info.classes:
-            if cls.name == symbol:
-                return "class"
-        for var in info.variables:
-            if var.name == symbol:
-                if _CONSTANT_RE.match(symbol):
-                    return "constant"
-                return "variable"
+        return self._lookup_symbol_in_info(info, symbol)
+
+    @staticmethod
+    def _lookup_symbol_in_info(info: ModuleInfo, symbol: str) -> str:
+        dispatch: list[tuple[list, str | Callable[[str], str]]] = [
+            (info.functions, "function"),
+            (info.classes, "class"),
+            (info.variables, _variable_kind),
+        ]
+        for entries, kind in dispatch:
+            for entry in entries:
+                if entry.name == symbol:
+                    return kind(symbol) if callable(kind) else kind
         return "unknown"
 
     def _load_module_info(self, module: str, pkg_root: Path) -> ModuleInfo | None:
