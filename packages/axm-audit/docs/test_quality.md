@@ -71,9 +71,9 @@ rule = PrivateImportsRule(include_constants=True)
 **Score**: `max(0, 100 - n_mismatches * 2)`
 
 Classifies every `tests/**/test_*.py` function into `unit`, `integration`, or
-`e2e` based on soft signals (R1 + R2 + R3 of the pyramid scoping stack) and
-reports findings when the classified level does not match the folder the test
-lives in.
+`e2e` based on soft signals (R1 + R2 + R3 + R4 + R5 of the pyramid scoping
+stack) and reports findings when the classified level does not match the
+folder the test lives in.
 
 ### Signal stack
 
@@ -82,6 +82,8 @@ lives in.
 | **R1** — import attribution | Module-level `import httpx` only counts as I/O when the function body references `httpx` | `imports httpx` |
 | **R2** — public-only rescue | Tests that import only public (`__all__`) symbols and do no I/O stay `unit`, even under `tests/integration/` | reason `"public API import, no real I/O"` |
 | **R3** — per-function I/O | Attr-IO (`.write_text`, `.mkdir`, `open()`) traced through helpers up to depth 2; fixture-arg guard; `tmp_path`-as-arg taint | `attr:.write_text()`, `fixture-arg:tmp_path_factory`, `tmp_path-as-arg` |
+| **R4** — conftest fixture IO | Fixtures defined in ancestor `conftest.py` files (walked up to `tests/` or the package root) are resolved and flagged when they perform real I/O | `conftest-fixture-io:tmp_db` |
+| **R5** — mock neutralization | When `@patch` / `mock.patch` targets an IO symbol and no hard signal (`tmp_path+write/read`, writer `attr:`) fires, the test's `has_real_io` flips back to `False` (never applies under subprocess / CLI runner) | `mock-neutralized:module.open,module.write_text` |
 
 Additional built-ins:
 
