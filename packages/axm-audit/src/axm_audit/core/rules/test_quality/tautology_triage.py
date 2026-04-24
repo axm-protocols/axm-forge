@@ -480,7 +480,9 @@ def _collect_top_level_imports(tree: ast.Module) -> set[str]:
 
 
 def _asserted_name_is_not_none(func: ast.FunctionDef) -> str | None:
-    """Return the asserted name when *func* body is a single truthiness assert on a Name.
+    """Return the asserted name when *func* body is a single truthiness assert.
+
+    Specifically, matches when the body asserts on a Name.
 
     Matches ``assert x is not None`` and ``assert x`` — returns ``"x"``. Returns
     ``None`` for any other shape (multi-statement bodies, non-assert statements,
@@ -659,13 +661,17 @@ def _has_significant_setup(body: list[ast.stmt]) -> bool:
     return _count_nontrivial_stmts(body) >= _SIGNIFICANT_SETUP_MIN_STMTS
 
 
-def _has_intentional_weakness_marker(func: ast.FunctionDef, source_text: str) -> bool:
-    """True when docstring or inline comments flag intentional weakness."""
+def _docstring_has_marker(func: ast.FunctionDef) -> bool:
+    """True when *func*'s docstring contains a weakness marker."""
     docstring = ast.get_docstring(func)
-    if docstring:
-        low = docstring.lower()
-        if any(m in low for m in _WEAKNESS_MARKERS):
-            return True
+    if not docstring:
+        return False
+    low = docstring.lower()
+    return any(m in low for m in _WEAKNESS_MARKERS)
+
+
+def _comments_have_marker(func: ast.FunctionDef, source_text: str) -> bool:
+    """True when an inline comment inside *func* contains a weakness marker."""
     if not source_text:
         return False
     lines = source_text.splitlines()
@@ -679,6 +685,11 @@ def _has_intentional_weakness_marker(func: ast.FunctionDef, source_text: str) ->
         if any(m in comment for m in _WEAKNESS_MARKERS):
             return True
     return False
+
+
+def _has_intentional_weakness_marker(func: ast.FunctionDef, source_text: str) -> bool:
+    """True when docstring or inline comments flag intentional weakness."""
+    return _docstring_has_marker(func) or _comments_have_marker(func, source_text)
 
 
 def _has_mock_setup(func: ast.FunctionDef) -> bool:
