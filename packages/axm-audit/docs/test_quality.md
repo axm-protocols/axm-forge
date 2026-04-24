@@ -205,10 +205,10 @@ Detection is mechanical and file-scoped (`detect_tautologies(tree)` →
 | `len_tautology` | `assert len(r) >= 0` | Length comparison always true |
 | `mock_echo` | `mock.f.return_value = 1; assert f() == 1` | Asserts the value just stubbed |
 
-### Triage (delete-side)
+### Triage
 
 Findings are classified by `tautology_triage.triage(...)` which walks a
-fixed step order. Steps relevant to the delete-side port:
+fixed step order covering both the delete-side and the strengthen-side:
 
 | Step | Verdict | When it fires |
 | -- | -- | -- |
@@ -220,13 +220,23 @@ fixed step order. Steps relevant to the delete-side port:
 | `step0c_contract_conformance` | STRENGTHEN | `isinstance(x, T)` where T is a local Protocol / stdlib ABC |
 | `step0d_explicit_contract_name` | STRENGTHEN | Test name encodes a contract (`_satisfies_`, `_is_a_`, …) |
 | `step1a_unique_fn` | STRENGTHEN | SUT is not exercised by any sibling |
+| `step2_unique_io` | STRENGTHEN | Uses `tmp_path`/filesystem I/O not exercised by any sibling |
+| `step3_unique_parametrize` | STRENGTHEN | Carries `@parametrize` while no sibling does |
+| `step4_boundary_literal` | STRENGTHEN | Exercises a boundary literal (`0`, `-1`, `""`, `b""`) unseen in siblings |
+| `step4c_significant_setup` | STRENGTHEN | ≥ 4 non-trivial setup statements combined with a weak assert |
 | `step1b_different_args` | STRENGTHEN | Same SUT, different literal args — runs **before** `step0b` to rescue varying-args cases |
+| `step4b_name_edge` | STRENGTHEN | Name mentions an edge-case keyword (`empty`, `null`, `overflow`, …) |
+| `step4f_intentional_weakness` | STRENGTHEN | Docstring/comment explicitly flags a deliberately weak assertion |
+| `step4d_mocked_sut_contract` | STRENGTHEN | Mocked SUT is invoked and the result is `isinstance`-checked |
+| `step4e_homogeneity_check` | STRENGTHEN | `isinstance()` runs inside a loop / `all()` / `any()` — homogeneity contract |
 | `step0b_n_copies_constructor` | DELETE | Pure constructor + weak assert with ≥ 1 identical-args sibling |
 | `step0b2_impure_sibling_covers_ctor` | DELETE | Pure-ctor test whose constructor is already exercised by an impure sibling |
-| `step5_default_unknown` | UNKNOWN | Terminator — no strengthen-side step matched |
+| `step5_default_unknown` | UNKNOWN | Terminator — no step matched |
 
-The full STRENGTHEN-side steps (#6b) replace `step5_default_unknown` in
-a follow-up ticket; today anything unmatched returns `UNKNOWN`.
+The step order is load-bearing: strengthen-side rescues (`step2`–`step4e`)
+fire before the delete-side constructor checks (`step0b` / `step0b2`) so
+that a weak constructor test carrying real edge-case signal is kept
+rather than deleted.
 
 ### Findings
 
