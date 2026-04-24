@@ -124,6 +124,7 @@ See the [MCP how-to guide](https://forge.axm-protocols.io/audit/howto/mcp/) for 
 | `security` | `SecurityRule` (Bandit), `SecurityPatternRule` | 2 |
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
+| `test_quality` | `PrivateImportsRule` | 1 |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
 | `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `SecurityPatternRule`, `TestMirrorRule` | 5 |
 | `structure` | `PyprojectCompletenessRule`, `TestsPyramidRule` | 2 |

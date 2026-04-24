@@ -7,4 +7,8 @@ in this package.
 
 from __future__ import annotations
 
+from axm_audit.core.rules.test_quality import private_imports as _private_imports
+
 __all__: list[str] = []
+
+_ = _private_imports

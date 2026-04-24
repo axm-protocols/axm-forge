@@ -12,7 +12,7 @@ Focus your audit on specific areas instead of running all checks.
 | `security` | `SecurityRule`, `SecurityPatternRule` | Vulnerability detection (Bandit + patterns) |
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | Supply chain (pip-audit, deptry) |
 | `testing` | `TestCoverageRule` | Coverage enforcement (pytest-cov) |
-| `test_quality` | _(scaffolded; rules land in follow-up tickets)_ | Test-tree heuristics: pyramid level, tautologies, mock hygiene |
+| `test_quality` | `PrivateImportsRule` | Test-tree heuristics: private-symbol imports (pyramid level, tautologies, mock hygiene land incrementally) |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | Structural analysis (AST) |
 | `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `SecurityPatternRule`, `TestMirrorRule` | Best practices |
 | `structure` | `PyprojectCompletenessRule`, `TestsPyramidRule` | pyproject.toml completeness; test pyramid layout (unit/integration/e2e + pytest markers) |
@@ -48,7 +48,7 @@ result = audit_project(Path("."), quick=True)
 ```python
 from axm_audit import get_rules_for_category
 
-# All rules (24 instances)
+# All rules (25 instances)
 rules = get_rules_for_category(None)
 
 # Single category
