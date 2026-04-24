@@ -156,6 +156,14 @@ When no configuration is present, the default threshold of 10 and multiplier of 
 
 `DependencyHygieneRule` automatically detects uv workspaces via `[tool.uv.workspace].members` in the root `pyproject.toml`. When a workspace is detected, deptry runs on each member package independently and results are aggregated into a single `CheckResult` with per-member attribution in `top_issues`.
 
+## Test Quality
+
+The `test_quality` category ships four rules (private-imports,
+pyramid-level, duplicate-tests, tautology) plus the v6 pyramid stack and
+the v4 tautology triage ladder. See [docs/test_quality.md](docs/test_quality.md)
+for the full guide, including the 5 pyramid scoping rules, the 3 + 4
+duplicate signals/rescues, and the 22-step triage ladder.
+
 ## Witness Rules
 
 `axm-audit` ships a witness rule for use with the `axm.witnesses` entry point group:
