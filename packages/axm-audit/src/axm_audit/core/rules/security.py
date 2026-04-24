@@ -67,17 +67,31 @@ def _extract_top_issues(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
-def _build_security_result(rule_id: str, results: list[dict[str, Any]]) -> CheckResult:
-    """Build a CheckResult from Bandit scan results."""
+def _count_severities(results: list[dict[str, Any]]) -> tuple[int, int]:
+    """Return (high, medium) severity counts from Bandit results."""
     high = sum(1 for r in results if r.get("issue_severity") == "HIGH")
     med = sum(1 for r in results if r.get("issue_severity") == "MEDIUM")
-    score = max(0, 100 - (high * 15 + med * 5))
+    return high, med
 
-    top_issues = _extract_top_issues(results)
-    text_lines = [
+
+def _format_top_issue_lines(top_issues: list[dict[str, Any]]) -> list[str]:
+    """Format top issues as bullet lines for the text report."""
+    return [
         f"\u2022 {i['severity'][0]} {i['code']} {i['file']}:{i['line']} {i['message']}"
         for i in top_issues
     ]
+
+
+def _build_security_result(rule_id: str, results: list[dict[str, Any]]) -> CheckResult:
+    """Assemble a CheckResult from Bandit scan results.
+
+    Aggregates severity counts, derives a 0-100 score (HIGH=-15, MEDIUM=-5),
+    extracts the top issues, and formats them as text lines.
+    """
+    high, med = _count_severities(results)
+    score = max(0, 100 - (high * 15 + med * 5))
+    top_issues = _extract_top_issues(results)
+    text_lines = _format_top_issue_lines(top_issues)
 
     return CheckResult(
         rule_id=rule_id,
