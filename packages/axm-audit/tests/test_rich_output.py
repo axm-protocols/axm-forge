@@ -344,11 +344,12 @@ class TestLegacyRemoval:
         assert "STRUCTURE_PYPROJECT" in rule_ids
 
     def test_valid_categories_count(self) -> None:
-        """Should have 10 valid categories (aligned with scoring)."""
+        """Should have 11 valid categories (aligned with scoring)."""
         from axm_audit.core.auditor import VALID_CATEGORIES
 
-        assert len(VALID_CATEGORIES) == 10
+        assert len(VALID_CATEGORIES) == 11
         assert "structure" in VALID_CATEGORIES
+        assert "test_quality" in VALID_CATEGORIES
 
 
 # ── Complexity verification tests ────────────────────────────────────

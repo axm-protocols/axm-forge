@@ -28,6 +28,7 @@ VALID_CATEGORIES = {
     "security",
     "deps",
     "testing",
+    "test_quality",
     "architecture",
     "practices",
     "structure",
