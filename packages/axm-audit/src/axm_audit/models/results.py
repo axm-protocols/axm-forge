@@ -68,6 +68,10 @@ class CheckResult(BaseModel):
     category: str | None = Field(
         default=None, description="Scoring category (injected by auditor)"
     )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Rule-specific structured payload (clusters, verdicts, ...)",
+    )
 
     model_config = {"extra": "forbid"}
 
@@ -91,6 +95,9 @@ class AuditResult(BaseModel):
     def __init__(self, **data: Any) -> None:
         qs = data.pop("quality_score", None)
         gr = data.pop("grade", None)
+        # Computed fields — silently dropped if passed (test convenience).
+        for _computed in ("success", "total", "failed"):
+            data.pop(_computed, None)
         super().__init__(**data)
         self._override_quality_score = qs
         self._override_grade = gr

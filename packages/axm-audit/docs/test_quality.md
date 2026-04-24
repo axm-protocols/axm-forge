@@ -8,6 +8,19 @@ asserts, or mock patterns that drift from production behavior.
 
 Rules land incrementally; this page documents each as it ships.
 
+## CLI
+
+```
+axm-audit test-quality [PATH] [--json] [--mismatches-only] [--agent]
+```
+
+Runs the `test_quality` category and prints the four sections (private
+imports → pyramid → duplicates → tautologies). Use `--json` for the
+machine-readable superset (`format_test_quality_json`), `--agent` for the
+compact agent renderer, or `--mismatches-only` to focus on pyramid
+folder↔level violations. Exits `1` when the aggregate score falls below
+`PASS_THRESHOLD`. See the [CLI reference](reference/cli.md) for details.
+
 ## private-imports
 
 **Rule ID**: `TEST_QUALITY_PRIVATE_IMPORTS`

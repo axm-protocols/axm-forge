@@ -18,15 +18,42 @@ from typing import Annotated
 
 import cyclopts
 
-from axm_audit.core.rules.base import PERFECT_SCORE
+from axm_audit.core.rules.base import PASS_THRESHOLD, PERFECT_SCORE
 from axm_audit.formatters import (
     format_agent,
     format_agent_text,
     format_json,
     format_report,
+    format_test_quality_json,
+    format_test_quality_text,
 )
 
 __all__ = ["app"]
+
+
+class _AppFacade:
+    """Wraps :class:`cyclopts.App` so external iteration yields sub-apps.
+
+    Cyclopts' own iteration yields command-name strings, which lack the
+    ``.name`` attribute callers expect when introspecting registrations.
+    Iterating this facade yields the underlying sub-:class:`cyclopts.App`
+    objects whose ``.name`` is a tuple of registered names. All other
+    attribute access and ``__call__`` delegate to the wrapped app, so
+    cyclopts' own internal iteration is unaffected.
+    """
+
+    def __init__(self, app: cyclopts.App) -> None:
+        self._app = app
+
+    def __iter__(self):
+        return iter(self._app._commands.values())
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._app(*args, **kwargs)
+
+    def __getattr__(self, item: str) -> Any:
+        return getattr(self._app, item)
+
 
 app = cyclopts.App(
     name="axm-audit",
@@ -136,6 +163,50 @@ def test(
         raise SystemExit(1)
 
 
+@app.command(name="test-quality")
+def test_quality(
+    path: Annotated[
+        str,
+        cyclopts.Parameter(help="Path to project to analyse"),
+    ] = ".",
+    *,
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--json"], help="Output as JSON"),
+    ] = False,
+    mismatches_only: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--mismatches-only"],
+            help="Show only pyramid mismatches (folder vs classified level)",
+        ),
+    ] = False,
+    agent: Annotated[
+        bool,
+        cyclopts.Parameter(name=["--agent"], help="Compact agent-friendly output"),
+    ] = False,
+) -> None:
+    """Audit test quality (pyramid, duplicates, tautologies, private imports)."""
+    from axm_audit.core.auditor import audit_project
+
+    project_path = Path(path).resolve()
+    if not project_path.is_dir():
+        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
+        raise SystemExit(1)
+
+    result = audit_project(project_path, category="test_quality")
+
+    if agent:
+        print(format_agent_text(format_agent(result), category="test_quality"))
+    elif json_output:
+        print(json.dumps(format_test_quality_json(result), indent=2))
+    else:
+        print(format_test_quality_text(result, mismatches_only=mismatches_only))
+
+    if result.quality_score is not None and result.quality_score < PASS_THRESHOLD:
+        raise SystemExit(1)
+
+
 @app.command()
 def version() -> None:
     """Show axm-audit version."""
@@ -147,6 +218,10 @@ def version() -> None:
 def main() -> None:
     """Main entry point."""
     app()
+
+
+# Expose facade so ``list(app)`` yields sub-Apps with ``.name`` tuples.
+app = _AppFacade(app)  # type: ignore[assignment]
 
 
 if __name__ == "__main__":
