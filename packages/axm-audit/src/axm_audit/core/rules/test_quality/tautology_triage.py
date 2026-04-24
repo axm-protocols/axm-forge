@@ -480,26 +480,26 @@ def _collect_top_level_imports(tree: ast.Module) -> set[str]:
 
 
 def _asserted_name_is_not_none(func: ast.FunctionDef) -> str | None:
+    """Return the asserted name when *func* body is a single truthiness assert on a Name.
+
+    Matches ``assert x is not None`` and ``assert x`` — returns ``"x"``. Returns
+    ``None`` for any other shape (multi-statement bodies, non-assert statements,
+    or asserts on more complex expressions).
+    """
     body = [s for s in func.body if not _is_docstring(s)]
-    if len(body) != 1:
+    if len(body) != 1 or not isinstance(body[0], ast.Assert):
         return None
-    stmt = body[0]
-    if not isinstance(stmt, ast.Assert):
-        return None
-    test = stmt.test
-    if isinstance(test, ast.Compare):
-        if (
-            len(test.ops) == 1
-            and isinstance(test.ops[0], ast.IsNot)
-            and len(test.comparators) == 1
-            and isinstance(test.comparators[0], ast.Constant)
-            and test.comparators[0].value is None
-            and isinstance(test.left, ast.Name)
+    match body[0].test:
+        case ast.Compare(
+            left=ast.Name(id=name),
+            ops=[ast.IsNot()],
+            comparators=[ast.Constant(value=None)],
         ):
-            return test.left.id
-    if isinstance(test, ast.Name):
-        return test.id
-    return None
+            return name
+        case ast.Name(id=name):
+            return name
+        case _:
+            return None
 
 
 def _name_used_by_any_sibling(
