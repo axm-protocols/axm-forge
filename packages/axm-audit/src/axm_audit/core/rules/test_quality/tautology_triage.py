@@ -995,6 +995,49 @@ def _classify_uniqueness(  # noqa: PLR0911, PLR0913
     return None
 
 
+def _classify_constructor_duplication(  # noqa: PLR0913
+    finding: Finding,
+    *,
+    func: ast.FunctionDef,
+    tree: ast.Module,
+    helpers: list[ast.FunctionDef],
+    helper_names: set[str],
+    pkg_symbols: set[str],
+    siblings: _SiblingInfo,
+    enclosing_class: str | None,
+) -> Verdict | None:
+    """Detect DELETE verdicts for duplicated pure-constructor tests."""
+    if finding.pattern not in ("isinstance_only", "none_check_only"):
+        return None
+    if not _is_pure_constructor_test(func, helper_names, pkg_symbols):
+        return None
+
+    # Step 0b — N-copies pure constructor+weak-assert, SAME args
+    n_pure = _count_pure_constructor_siblings(
+        tree, func.name, enclosing_class, helper_names, pkg_symbols
+    )
+    if n_pure >= 1:
+        return Verdict(
+            "DELETE",
+            "step0b_n_copies_constructor",
+            f"N-copies constructor+weak-assert ({n_pure + 1} similar)",
+        )
+
+    # Step 0b2 — impure sibling covers the ctor
+    my_calls_here = _extract_calls(func.body, helper_names)
+    if my_calls_here and my_calls_here[0] in pkg_symbols:
+        my_ctor = my_calls_here[0]
+        if my_ctor in siblings.all_calls:
+            return Verdict(
+                "DELETE",
+                "step0b2_impure_sibling_covers_ctor",
+                f"pure weak check on `{my_ctor}` — sibling exercises "
+                f"the same constructor with stronger assertions",
+            )
+
+    return None
+
+
 def triage(  # noqa: PLR0913
     finding: Finding,
     *,
@@ -1046,39 +1089,23 @@ def triage(  # noqa: PLR0913
     ) is not None:
         return verdict
 
-    # Step 0b — N-copies pure constructor+weak-assert, SAME args
-    if finding.pattern in (
-        "isinstance_only",
-        "none_check_only",
-    ) and _is_pure_constructor_test(func, helper_names, pkg_symbols):
-        n_pure = _count_pure_constructor_siblings(
-            tree, func.name, enclosing_class, helper_names, pkg_symbols
+    if (
+        verdict := _classify_constructor_duplication(
+            finding,
+            func=func,
+            tree=tree,
+            helpers=helpers,
+            helper_names=helper_names,
+            pkg_symbols=pkg_symbols,
+            siblings=siblings,
+            enclosing_class=enclosing_class,
         )
-        if n_pure >= 1:
-            return Verdict(
-                "DELETE",
-                "step0b_n_copies_constructor",
-                f"N-copies constructor+weak-assert ({n_pure + 1} similar)",
-            )
+    ) is not None:
+        return verdict
 
-    # Step 0b2 — impure sibling covers the ctor
-    if finding.pattern in (
-        "isinstance_only",
-        "none_check_only",
-    ) and _is_pure_constructor_test(func, helper_names, pkg_symbols):
-        my_calls_here = _extract_calls(func.body, helper_names)
-        if my_calls_here and my_calls_here[0] in pkg_symbols:
-            my_ctor = my_calls_here[0]
-            if my_ctor in siblings.all_calls:
-                return Verdict(
-                    "DELETE",
-                    "step0b2_impure_sibling_covers_ctor",
-                    f"pure weak check on `{my_ctor}` — sibling exercises "
-                    f"the same constructor with stronger assertions",
-                )
-
-    # Step 5 — terminator
-    reason = "no decisive signal — requires human review"
-    if my_dominant:
-        reason = f"`{my_dominant}` tested elsewhere but ambiguity remains"
+    reason = (
+        f"`{my_dominant}` tested elsewhere but ambiguity remains"
+        if my_dominant
+        else "no decisive signal — requires human review"
+    )
     return Verdict("UNKNOWN", "step5_default_unknown", reason)
