@@ -1,9 +1,9 @@
-"""Delete-side triage for tautology findings.
+"""Triage for tautology findings.
 
 Implements the v4 decision tree steps that decide whether a tautology
-finding should be deleted or strengthened.  Only the delete-side steps
-plus the supporting STRENGTHEN guards (n2b, n1, 0, 0c, 0d, 1a, 1b) are
-ported here; the remaining STRENGTHEN steps land in a follow-up ticket.
+finding should be deleted or strengthened. Both the delete-side steps
+and the full STRENGTHEN-side tree (steps 2/3/4/4b/4c/4d/4e/4f) are
+ported here.
 """
 
 from __future__ import annotations
@@ -115,6 +115,129 @@ _STDLIB_CONTRACT_NAMES: frozenset[str] = frozenset(
 
 _FACTORY_PREFIXES: tuple[str, ...] = ("create_", "make_", "build_", "new_", "from_")
 
+_IO_CALL_NAMES: frozenset[str] = frozenset(
+    {
+        "open",
+        "write_text",
+        "write_bytes",
+        "read_text",
+        "read_bytes",
+        "mkdir",
+        "touch",
+        "symlink_to",
+        "copy",
+        "copytree",
+    }
+)
+
+_IO_FIXTURE_ARGS: frozenset[str] = frozenset({"tmp_path", "tmpdir", "tmp_path_factory"})
+
+_BOUNDARY_LITERALS: frozenset[object] = frozenset({0, -1, "", b""})
+
+_EDGE_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "empty",
+        "blank",
+        "null",
+        "nil",
+        "none",
+        "zero",
+        "negative",
+        "overflow",
+        "underflow",
+        "max",
+        "min",
+        "boundary",
+        "edge",
+        "limit",
+        "limits",
+        "invalid",
+        "malformed",
+        "corrupt",
+        "corrupted",
+        "broken",
+        "bom",
+        "emoji",
+        "unicode",
+        "utf8",
+        "utf16",
+        "ascii",
+        "parseable",
+        "unparseable",
+        "whitespace",
+        "missing",
+        "nonexistent",
+        "notfound",
+        "oversized",
+        "undersized",
+        "huge",
+        "tiny",
+        "duplicate",
+        "duplicates",
+        "unique",
+        "special",
+        "escape",
+        "escaped",
+        "unescaped",
+        "reserved",
+        "quoted",
+        "unquoted",
+        "lowercase",
+        "uppercase",
+        "trailing",
+        "leading",
+        "nested",
+        "recursive",
+        "circular",
+        "cyclic",
+        "infinite",
+        "eof",
+        "newline",
+        "crlf",
+        "tab",
+        "nan",
+        "inf",
+        "infinity",
+        "truncated",
+        "padded",
+        "mixed",
+        "ambiguous",
+        "unsupported",
+        "degenerate",
+        "singular",
+        "edgecase",
+    }
+)
+
+_WEAKNESS_MARKERS: tuple[str, ...] = (
+    "doesn't crash",
+    "does not crash",
+    "doesnt crash",
+    "known limitation",
+    "no-op",
+    "no op",
+    "handled gracefully",
+    "smoke test",
+    "intentional",
+    "just checks",
+    "only checks",
+    "sanity check",
+    "sanity-check",
+    "weak assertion",
+    "placeholder",
+    "tolerated",
+)
+
+_MOCK_CALL_NAMES: frozenset[str] = frozenset(
+    {
+        "Mock",
+        "MagicMock",
+        "AsyncMock",
+        "PropertyMock",
+        "create_autospec",
+    }
+)
+
 _CONTRACT_NAME_INFIXES: tuple[str, ...] = (
     "_is_a_",
     "_is_an_",
@@ -140,6 +263,18 @@ class Verdict:
     action: str
     rule: str
     reason: str
+
+    @property
+    def decision(self) -> str:
+        return self.action
+
+    @property
+    def verdict(self) -> str:
+        return self.action
+
+    @property
+    def step(self) -> str:
+        return self.rule
 
 
 # ── Small AST helpers ─────────────────────────────────────────────────
@@ -409,7 +544,7 @@ def _is_pure_constructor_test(
     if len(calls) != 1:
         return False
     c = calls[0]
-    if not (c[0].isupper() or _is_factory_name(c)):
+    if not (c[0].isupper() or _is_factory_name(c) or c in pkg_symbols):
         return False
 
     for node in ast.walk(ast.Module(body=func.body, type_ignores=[])):
@@ -449,6 +584,186 @@ def _count_pure_constructor_siblings(
     return count
 
 
+# ── Strengthen-side (4-series) helpers ────────────────────────────────
+
+
+def _count_nontrivial_stmts(body: list[ast.stmt]) -> int:
+    """Count statements in *body* excluding docstrings and `pass`."""
+    count = 0
+    for stmt in body:
+        if _is_docstring(stmt) or isinstance(stmt, ast.Pass):
+            continue
+        count += 1
+    return count
+
+
+def _has_io_setup(func: ast.FunctionDef) -> bool:
+    """True when *func* sets up or consumes filesystem I/O."""
+    arg_names = {a.arg for a in func.args.args}
+    if arg_names & _IO_FIXTURE_ARGS:
+        return True
+    for node in ast.walk(func):
+        if isinstance(node, ast.Call):
+            name = _call_name(node)
+            if name in _IO_CALL_NAMES:
+                return True
+    return False
+
+
+def _has_parametrize(func: ast.FunctionDef) -> bool:
+    """True when *func* carries any `parametrize` decorator."""
+    for dec in func.decorator_list:
+        target = dec.func if isinstance(dec, ast.Call) else dec
+        if isinstance(target, ast.Attribute) and target.attr == "parametrize":
+            return True
+        if isinstance(target, ast.Name) and target.id == "parametrize":
+            return True
+    return False
+
+
+def _collect_literal_constants(node: ast.AST) -> set[object]:
+    """Return hashable literal values found anywhere inside *node*."""
+    out: set[object] = set()
+    for n in ast.walk(node):
+        if isinstance(n, ast.Constant):
+            value = n.value
+            if isinstance(value, bool):
+                continue
+            try:
+                hash(value)
+            except TypeError:
+                continue
+            out.add(value)
+    return out
+
+
+def _boundary_literals(
+    func: ast.FunctionDef, sibling_literals: set[object]
+) -> set[object]:
+    """Return boundary literals in *func* that siblings don't also use."""
+    mine = _collect_literal_constants(func)
+    return {
+        lit for lit in mine if lit in _BOUNDARY_LITERALS and lit not in sibling_literals
+    }
+
+
+def _name_suggests_edge_case(name: str) -> bool:
+    """True when *name* mentions an edge-case keyword."""
+    low = name.lower()
+    for part in low.split("_"):
+        if part in _EDGE_KEYWORDS:
+            return True
+    return False
+
+
+def _has_significant_setup(body: list[ast.stmt]) -> bool:
+    """True when *body* has >= 4 non-trivial statements."""
+    return _count_nontrivial_stmts(body) >= 4
+
+
+def _has_intentional_weakness_marker(func: ast.FunctionDef, source_text: str) -> bool:
+    """True when docstring or inline comments flag intentional weakness."""
+    docstring = ast.get_docstring(func)
+    if docstring:
+        low = docstring.lower()
+        if any(m in low for m in _WEAKNESS_MARKERS):
+            return True
+    if not source_text:
+        return False
+    lines = source_text.splitlines()
+    start = max(0, (func.lineno or 1) - 1)
+    end = func.end_lineno or len(lines)
+    for line in lines[start:end]:
+        idx = line.find("#")
+        if idx < 0:
+            continue
+        comment = line[idx + 1 :].lower()
+        if any(m in comment for m in _WEAKNESS_MARKERS):
+            return True
+    return False
+
+
+def _has_mock_setup(func: ast.FunctionDef) -> bool:
+    """True when *func* wires up a mock/patch in decorator, body, or args."""
+    for dec in func.decorator_list:
+        target = dec.func if isinstance(dec, ast.Call) else dec
+        if isinstance(target, ast.Name) and target.id == "patch":
+            return True
+        if isinstance(target, ast.Attribute) and target.attr in {"patch", "object"}:
+            return True
+    for arg in func.args.args:
+        if arg.arg == "mock" or arg.arg.startswith("mock_"):
+            return True
+    for node in ast.walk(func):
+        if isinstance(node, ast.Call):
+            name = _call_name(node)
+            if name in _MOCK_CALL_NAMES:
+                return True
+        if isinstance(node, ast.Assign):
+            for tgt in node.targets:
+                if isinstance(tgt, ast.Attribute) and tgt.attr == "return_value":
+                    return True
+    return False
+
+
+def _sut_invoked_with_result(func: ast.FunctionDef, pkg_symbols: set[str]) -> bool:
+    """True when a package SUT is called, bound to a var, then isinstance'd."""
+    sut_bound: set[str] = set()
+    for stmt in ast.walk(func):
+        if not isinstance(stmt, ast.Assign) or len(stmt.targets) != 1:
+            continue
+        tgt = stmt.targets[0]
+        if not isinstance(tgt, ast.Name):
+            continue
+        value = stmt.value
+        if not isinstance(value, ast.Call):
+            continue
+        name = _call_name(value)
+        if name and name in pkg_symbols:
+            sut_bound.add(tgt.id)
+    if not sut_bound:
+        return False
+    for node in ast.walk(func):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "isinstance"
+            and len(node.args) >= 2
+        ):
+            first = node.args[0]
+            if isinstance(first, ast.Name) and first.id in sut_bound:
+                return True
+    return False
+
+
+def _has_isinstance_call(node: ast.AST) -> bool:
+    for inner in ast.walk(node):
+        if (
+            isinstance(inner, ast.Call)
+            and isinstance(inner.func, ast.Name)
+            and inner.func.id == "isinstance"
+        ):
+            return True
+    return False
+
+
+def _isinstance_in_loop_or_aggregate(func: ast.FunctionDef) -> bool:
+    """True when `isinstance()` appears inside a loop or aggregate."""
+    for node in ast.walk(func):
+        if isinstance(node, ast.For | ast.AsyncFor | ast.While):
+            if _has_isinstance_call(node):
+                return True
+        if isinstance(
+            node, ast.ListComp | ast.SetComp | ast.GeneratorExp | ast.DictComp
+        ):
+            if _has_isinstance_call(node):
+                return True
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id in {"all", "any"} and _has_isinstance_call(node):
+                return True
+    return False
+
+
 # ── Triage entry point ────────────────────────────────────────────────
 
 
@@ -465,7 +780,6 @@ def triage(  # noqa: PLR0911, PLR0912, PLR0913
     source_text: str = "",
 ) -> Verdict:
     """Return the verdict for *finding* inside *func*."""
-    del source_text  # reserved for step4f (not ported in this ticket)
     helper_names = {h.name for h in helpers}
 
     # Step -2 — import + weak-assert smoke
@@ -565,7 +879,50 @@ def triage(  # noqa: PLR0911, PLR0912, PLR0913
             f"SUT `{my_dominant}` not in siblings",
         )
 
-    # Step 1b — same fn, different args (MUST precede 0b/0b2)
+    sibling_funcs = _iter_sibling_funcs(tree, func.name, enclosing_class)
+
+    # Step 2 — unique I/O fixture use
+    if _has_io_setup(func) and not any(_has_io_setup(s) for s in sibling_funcs):
+        return Verdict(
+            "STRENGTHEN",
+            "step2_unique_io",
+            "unique I/O setup — no sibling exercises filesystem",
+        )
+
+    # Step 3 — unique parametrize
+    if _has_parametrize(func) and not any(_has_parametrize(s) for s in sibling_funcs):
+        return Verdict(
+            "STRENGTHEN",
+            "step3_unique_parametrize",
+            "unique @parametrize — no sibling is parametrized",
+        )
+
+    # Step 4 — boundary literal unseen in siblings
+    sibling_literals: set[object] = set()
+    for sib in sibling_funcs:
+        sibling_literals |= _collect_literal_constants(sib)
+    unique_boundary = _boundary_literals(func, sibling_literals)
+    if unique_boundary:
+        lit_repr = ", ".join(sorted(repr(lit) for lit in unique_boundary))
+        return Verdict(
+            "STRENGTHEN",
+            "step4_boundary_literal",
+            f"boundary literal {lit_repr} not seen in siblings",
+        )
+
+    # Step 4c — significant setup (P16 extension covers len_tautology)
+    if finding.pattern in (
+        "isinstance_only",
+        "none_check_only",
+        "len_tautology",
+    ) and _has_significant_setup(func.body):
+        return Verdict(
+            "STRENGTHEN",
+            "step4c_significant_setup",
+            "significant setup with weak assert — non-trivial scenario",
+        )
+
+    # Step 1b — same fn, different args
     if my_dominant and my_dominant in siblings.dominant_calls:
         my_sigs = {
             sig
@@ -581,6 +938,38 @@ def triage(  # noqa: PLR0911, PLR0912, PLR0913
                 "step1b_different_args",
                 f"`{my_dominant}` called with different args",
             )
+
+    # Step 4b — name suggests edge case
+    if _name_suggests_edge_case(func.name):
+        return Verdict(
+            "STRENGTHEN",
+            "step4b_name_edge",
+            f"name `{func.name}` declares an edge-case scenario",
+        )
+
+    # Step 4f — intentional weakness marker
+    if _has_intentional_weakness_marker(func, source_text):
+        return Verdict(
+            "STRENGTHEN",
+            "step4f_intentional_weakness",
+            "docstring/comment flags intentional weak assertion",
+        )
+
+    # Step 4d — mocked SUT + isinstance on SUT result (P17)
+    if _has_mock_setup(func) and _sut_invoked_with_result(func, pkg_symbols):
+        return Verdict(
+            "STRENGTHEN",
+            "step4d_mocked_sut_contract",
+            "mocked SUT invoked + isinstance asserts contract on result",
+        )
+
+    # Step 4e — homogeneity check (P18)
+    if _isinstance_in_loop_or_aggregate(func):
+        return Verdict(
+            "STRENGTHEN",
+            "step4e_homogeneity_check",
+            "isinstance inside loop/aggregate — homogeneity contract",
+        )
 
     # Step 0b — N-copies pure constructor+weak-assert, SAME args
     if finding.pattern in (
@@ -613,7 +1002,7 @@ def triage(  # noqa: PLR0911, PLR0912, PLR0913
                     f"the same constructor with stronger assertions",
                 )
 
-    # Step 5 — terminator (temporary until the full STRENGTHEN-side lands)
+    # Step 5 — terminator
     reason = "no decisive signal — requires human review"
     if my_dominant:
         reason = f"`{my_dominant}` tested elsewhere but ambiguity remains"
