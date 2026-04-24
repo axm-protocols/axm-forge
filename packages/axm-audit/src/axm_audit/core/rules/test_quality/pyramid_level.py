@@ -157,6 +157,21 @@ def _fixture_io_signals(func: ast.FunctionDef) -> list[str]:
     return sigs
 
 
+def _one_taint_pass(func: ast.FunctionDef, tainted: set[str]) -> bool:
+    """Run one propagation pass; mutate ``tainted`` in place; return changed."""
+    changed = False
+    for node in ast.walk(func):
+        if not isinstance(node, ast.Assign):
+            continue
+        if not _expr_touches(node.value, tainted):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id not in tainted:
+                tainted.add(target.id)
+                changed = True
+    return changed
+
+
 def _collect_taint_aliases(func: ast.FunctionDef) -> set[str]:
     """Two-pass propagation of ``tmp_path`` aliases through assignments."""
     tainted: set[str] = {
@@ -165,17 +180,7 @@ def _collect_taint_aliases(func: ast.FunctionDef) -> set[str]:
     if not tainted:
         return tainted
     for _ in range(_TAINT_PASSES):
-        changed = False
-        for node in ast.walk(func):
-            if not isinstance(node, ast.Assign):
-                continue
-            if not _expr_touches(node.value, tainted):
-                continue
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id not in tainted:
-                    tainted.add(target.id)
-                    changed = True
-        if not changed:
+        if not _one_taint_pass(func, tainted):
             break
     return tainted
 
