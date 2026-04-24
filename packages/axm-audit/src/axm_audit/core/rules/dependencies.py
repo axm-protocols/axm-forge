@@ -477,8 +477,10 @@ class DependencyHygieneRule(ProjectRule):
             return filtered
         return self._build_single_check_result(filtered)
 
-    def _check_workspace(self, project_path: Path, members: list[Path]) -> CheckResult:
-        """Aggregate deptry results across workspace members."""
+    def _collect_member_issues(
+        self, members: list[Path]
+    ) -> list[tuple[str, dict[str, Any]]]:
+        """Run deptry on each workspace member and collect tagged issues."""
         all_issues: list[tuple[str, dict[str, Any]]] = []
         for member in members:
             member_name = member.name
@@ -486,7 +488,12 @@ class DependencyHygieneRule(ProjectRule):
             if isinstance(issues, list):
                 for issue in issues:
                     all_issues.append((member_name, issue))
+        return all_issues
 
+    def _build_workspace_result(
+        self, all_issues: list[tuple[str, dict[str, Any]]]
+    ) -> CheckResult:
+        """Score and format aggregated member issues into a CheckResult."""
         issue_count = len(all_issues)
         score = max(0, 100 - issue_count * 10)
 
@@ -517,3 +524,8 @@ class DependencyHygieneRule(ProjectRule):
             text="\n".join(text_lines) if text_lines else None,
             fix_hint=("Run: deptry . to see details" if issue_count > 0 else None),
         )
+
+    def _check_workspace(self, project_path: Path, members: list[Path]) -> CheckResult:
+        """Aggregate deptry results across workspace members."""
+        all_issues = self._collect_member_issues(members)
+        return self._build_workspace_result(all_issues)
