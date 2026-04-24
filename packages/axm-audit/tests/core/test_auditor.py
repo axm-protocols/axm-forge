@@ -105,7 +105,7 @@ class TestGetRulesForCategory:
         from axm_audit import get_rules_for_category
 
         rules = get_rules_for_category(None)
-        assert len(rules) == 25
+        assert len(rules) == 26
 
     @pytest.mark.parametrize(
         "category,expected_min",
