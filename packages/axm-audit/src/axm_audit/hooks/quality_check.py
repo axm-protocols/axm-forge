@@ -104,25 +104,8 @@ class QualityCheckHook:
             return HookResult.ok(has_violations=False, summary="clean")
 
         categories: list[str] = params.get("categories", _DEFAULT_CATEGORIES)
-
-        results: list[AuditResult] = []
-        for category in categories:
-            try:
-                result = audit_project(project_path, category=category)
-                results.append(result)
-            except (OSError, RuntimeError, ValueError):
-                logger.warning(
-                    "audit_project failed for category=%s", category, exc_info=True
-                )
-
-        if not results:
-            return HookResult.ok(has_violations=False, summary="clean")
-
-        all_checks: list[CheckResult] = []
-        for r in results:
-            all_checks.extend(r.checks)
-
-        failed_checks = [c for c in all_checks if not c.passed]
+        results = self._run_audits(project_path, categories)
+        failed_checks = self._failed_checks_from(results)
 
         if not failed_checks:
             return HookResult.ok(has_violations=False, summary="clean")
@@ -138,3 +121,19 @@ class QualityCheckHook:
             text=text,
             metadata={"has_violations": True, "summary": summary},
         )
+
+    @staticmethod
+    def _run_audits(project_path: Path, categories: list[str]) -> list[AuditResult]:
+        results: list[AuditResult] = []
+        for category in categories:
+            try:
+                results.append(audit_project(project_path, category=category))
+            except (OSError, RuntimeError, ValueError):
+                logger.warning(
+                    "audit_project failed for category=%s", category, exc_info=True
+                )
+        return results
+
+    @staticmethod
+    def _failed_checks_from(results: list[AuditResult]) -> list[CheckResult]:
+        return [c for r in results for c in r.checks if not c.passed]
