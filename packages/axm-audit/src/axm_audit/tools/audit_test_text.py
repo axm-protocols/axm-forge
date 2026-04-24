@@ -10,6 +10,15 @@ _COV_THRESHOLD = 95.0
 _MAX_NODEID_LEN = 120
 
 
+def _count_parts(passed: int, failed: int, errors: int, skipped: int) -> list[str]:
+    """Build the count fragments, omitting zero-valued categories except passed."""
+    parts: list[str] = [f"{passed} passed"]
+    for label, value in (("failed", failed), ("errors", errors), ("skipped", skipped)):
+        if value > 0:
+            parts.append(f"{value} {label}")
+    return parts
+
+
 def _build_header(report: TestReport) -> str:
     """Build the one-line summary header with counts, duration, and coverage."""
     passed = getattr(report, "passed", 0) or 0
@@ -19,14 +28,7 @@ def _build_header(report: TestReport) -> str:
     duration = getattr(report, "duration", 0.0) or 0.0
     coverage = getattr(report, "coverage", None)
     icon = "\u2705" if (failed + errors) == 0 else "\u274c"
-    parts: list[str] = [f"{passed} passed"]
-    if failed > 0:
-        parts.append(f"{failed} failed")
-    if errors > 0:
-        parts.append(f"{errors} errors")
-    if skipped > 0:
-        parts.append(f"{skipped} skipped")
-    counts = " \u00b7 ".join(parts)
+    counts = " \u00b7 ".join(_count_parts(passed, failed, errors, skipped))
     header = f"audit_test | {icon} {counts} | {duration:.1f}s"
     if coverage is not None:
         header += f" | cov {report.coverage:.1f}%"
