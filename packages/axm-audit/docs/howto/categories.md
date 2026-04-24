@@ -12,6 +12,7 @@ Focus your audit on specific areas instead of running all checks.
 | `security` | `SecurityRule`, `SecurityPatternRule` | Vulnerability detection (Bandit + patterns) |
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | Supply chain (pip-audit, deptry) |
 | `testing` | `TestCoverageRule` | Coverage enforcement (pytest-cov) |
+| `test_quality` | _(scaffolded; rules land in follow-up tickets)_ | Test-tree heuristics: pyramid level, tautologies, mock hygiene |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | Structural analysis (AST) |
 | `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `SecurityPatternRule`, `TestMirrorRule` | Best practices |
 | `structure` | `PyprojectCompletenessRule`, `TestsPyramidRule` | pyproject.toml completeness; test pyramid layout (unit/integration/e2e + pytest markers) |
