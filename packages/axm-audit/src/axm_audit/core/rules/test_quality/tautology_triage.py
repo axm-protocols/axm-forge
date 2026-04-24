@@ -779,21 +779,17 @@ def _isinstance_in_loop_or_aggregate(func: ast.FunctionDef) -> bool:
 # ── Triage entry point ────────────────────────────────────────────────
 
 
-def triage(  # noqa: PLR0911, PLR0912, PLR0913
+def _classify_early_exits(  # noqa: PLR0911, PLR0913
     finding: Finding,
     *,
-    tree: ast.Module,
     func: ast.FunctionDef,
-    enclosing_class: str | None,
-    helpers: list[ast.FunctionDef],
-    pkg_symbols: set[str],
-    contracts: set[str],
+    tree: ast.Module,
     test_file: Path,
-    source_text: str = "",
-) -> Verdict:
-    """Return the verdict for *finding* inside *func*."""
-    helper_names = {h.name for h in helpers}
-
+    contracts: set[str],
+    enclosing_class: str | None,
+    siblings: _SiblingInfo,
+) -> Verdict | None:
+    """Return early-exit verdict for *finding*, or ``None`` to continue triage."""
     # Step -2 — import + weak-assert smoke
     if is_import_smoke_test(func):
         if _is_contract_conformance_test(func, contracts):
@@ -835,10 +831,6 @@ def triage(  # noqa: PLR0911, PLR0912, PLR0913
                         f"siblings — `assert is not None` is redundant",
                     )
 
-    siblings = _collect_siblings(
-        tree, func.name, enclosing_class, helper_names, pkg_symbols
-    )
-
     # Step -1 — no siblings
     if siblings.count == 0:
         return Verdict(
@@ -872,6 +864,41 @@ def triage(  # noqa: PLR0911, PLR0912, PLR0913
             "step0c_contract_conformance",
             "isinstance against Protocol/ABC — contract test",
         )
+
+    return None
+
+
+def triage(  # noqa: PLR0911, PLR0912, PLR0913
+    finding: Finding,
+    *,
+    tree: ast.Module,
+    func: ast.FunctionDef,
+    enclosing_class: str | None,
+    helpers: list[ast.FunctionDef],
+    pkg_symbols: set[str],
+    contracts: set[str],
+    test_file: Path,
+    source_text: str = "",
+) -> Verdict:
+    """Return the verdict for *finding* inside *func*."""
+    helper_names = {h.name for h in helpers}
+
+    siblings = _collect_siblings(
+        tree, func.name, enclosing_class, helper_names, pkg_symbols
+    )
+
+    if (
+        verdict := _classify_early_exits(
+            finding,
+            func=func,
+            tree=tree,
+            test_file=test_file,
+            contracts=contracts,
+            enclosing_class=enclosing_class,
+            siblings=siblings,
+        )
+    ) is not None:
+        return verdict
 
     my_dominant = _dominant_call(func.body, helper_names, pkg_symbols)
     my_calls = set(_extract_calls(func.body, helper_names))
