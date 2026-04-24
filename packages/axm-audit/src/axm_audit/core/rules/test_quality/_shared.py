@@ -593,24 +593,37 @@ def _iter_src_py(pkg_root: Path) -> Iterator[Path]:
     yield from sorted(src.rglob("*.py"))
 
 
+def _public_names_from_node(node: ast.stmt) -> Iterator[str]:
+    match node:
+        case (
+            ast.FunctionDef(name=name)
+            | ast.AsyncFunctionDef(name=name)
+            | ast.ClassDef(name=name)
+        ):
+            if not name.startswith("_"):
+                yield name
+        case ast.Assign(targets=targets):
+            for target in targets:
+                if isinstance(target, ast.Name) and not target.id.startswith("_"):
+                    yield target.id
+        case ast.AnnAssign(target=ast.Name(id=tid)) if not tid.startswith("_"):
+            yield tid
+
+
 def collect_pkg_public_symbols(pkg_root: Path) -> set[str]:
-    """Top-level function / class / constant names across ``src/``."""
+    """Collect top-level public function, class, and constant names across ``src/``.
+
+    Walks every ``*.py`` file under ``{pkg_root}/src`` and returns the union of
+    non-underscore names defined at module top level — functions, async
+    functions, classes, and simple / annotated assignments to ``Name`` targets.
+    """
     out: set[str] = set()
     for path in _iter_src_py(pkg_root):
         tree = _parse_cached(path)
         if tree is None:
             continue
         for node in tree.body:
-            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
-                if not node.name.startswith("_"):
-                    out.add(node.name)
-            elif isinstance(node, ast.Assign):
-                for target in node.targets:
-                    if isinstance(target, ast.Name) and not target.id.startswith("_"):
-                        out.add(target.id)
-            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-                if not node.target.id.startswith("_"):
-                    out.add(node.target.id)
+            out.update(_public_names_from_node(node))
     return out
 
 
