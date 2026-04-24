@@ -168,6 +168,7 @@ class TestGetRegistry:
             "testing",
             "structure",
             "tooling",
+            "test_quality",
         }
         assert expected == set(reg.keys())
 
@@ -178,4 +179,4 @@ class TestGetRegistry:
 
         reg = get_registry()
         total = sum(len(v) for v in reg.values())
-        assert total == 22
+        assert total == 23
