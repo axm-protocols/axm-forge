@@ -52,6 +52,24 @@ _IO_FIXTURES: frozenset[str] = frozenset(
     }
 )
 
+_FIXTURE_NAME_SUFFIXES: tuple[str, ...] = (
+    "_db",
+    "_client",
+    "_server",
+    "_session",
+    "_engine",
+    "_workspace",
+    "_pkg",
+    "_project",
+    "_repo",
+    "_path",
+    "_dir",
+    "_file",
+)
+
+_FIXTURE_MOCK_PREFIXES: tuple[str, ...] = ("mock_", "fake_", "stub_")
+_FIXTURE_MOCK_SUBSTRS: tuple[str, ...] = ("mock", "fake", "stub")
+
 _IO_CALLS: frozenset[str] = frozenset(
     {
         "subprocess.run",
