@@ -396,20 +396,19 @@ class DependencyHygieneRule(ProjectRule):
         assert isinstance(result, CheckResult)
         return result
 
-    def _check_single(
+    def _run_deptry_safely(
         self, project_path: Path, *, member_name: str = ""
-    ) -> CheckResult | list[dict[str, Any]]:
-        """Run deptry on a single package and return a CheckResult or issue list.
+    ) -> tuple[list[dict[str, Any]] | None, CheckResult | None]:
+        """Invoke ``_run_deptry`` and translate failures into a ``CheckResult``.
 
-        When *member_name* is set the method returns filtered issues (for
-        workspace aggregation).  Otherwise it returns a full ``CheckResult``.
+        Returns ``(issues, None)`` on success and ``(None, error_result)`` on
+        failure.  When *member_name* is set, non-missing failures are logged so
+        workspace callers keep their existing diagnostics.
         """
         try:
-            issues = _run_deptry(project_path)
+            return _run_deptry(project_path), None
         except FileNotFoundError:
-            if member_name:
-                return []
-            return CheckResult(
+            return None, CheckResult(
                 rule_id=self.rule_id,
                 passed=False,
                 message="deptry not available",
@@ -420,10 +419,9 @@ class DependencyHygieneRule(ProjectRule):
         except (RuntimeError, json.JSONDecodeError) as exc:
             if member_name:
                 logger.warning("deptry failed for %s: %s", member_name, exc)
-                return []
             is_runtime = isinstance(exc, RuntimeError)
             msg = f"deptry failed: {exc}" if is_runtime else "deptry output parse error"
-            return CheckResult(
+            return None, CheckResult(
                 rule_id=self.rule_id,
                 passed=False,
                 message=msg,
@@ -432,11 +430,8 @@ class DependencyHygieneRule(ProjectRule):
                 fix_hint="Check deptry installation: uv run deptry --version",
             )
 
-        issues = _filter_false_positives(issues, project_path)
-
-        if member_name:
-            return issues
-
+    def _build_single_check_result(self, issues: list[dict[str, Any]]) -> CheckResult:
+        """Build the success-path ``CheckResult`` for single-package mode."""
         issue_count = len(issues)
         score = max(0, 100 - issue_count * 10)
 
@@ -464,6 +459,23 @@ class DependencyHygieneRule(ProjectRule):
             text="\n".join(text_lines) if text_lines else None,
             fix_hint=("Run: deptry . to see details" if issue_count > 0 else None),
         )
+
+    def _check_single(
+        self, project_path: Path, *, member_name: str = ""
+    ) -> CheckResult | list[dict[str, Any]]:
+        """Run deptry on a single package and return a CheckResult or issue list.
+
+        When *member_name* is set the method returns filtered issues (for
+        workspace aggregation).  Otherwise it returns a full ``CheckResult``.
+        """
+        issues, error = self._run_deptry_safely(project_path, member_name=member_name)
+        if error is not None:
+            return [] if member_name else error
+
+        filtered = _filter_false_positives(issues or [], project_path)
+        if member_name:
+            return filtered
+        return self._build_single_check_result(filtered)
 
     def _check_workspace(self, project_path: Path, members: list[Path]) -> CheckResult:
         """Aggregate deptry results across workspace members."""
