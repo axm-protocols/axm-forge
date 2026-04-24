@@ -756,21 +756,24 @@ def _has_isinstance_call(node: ast.AST) -> bool:
     return False
 
 
+def _node_is_isinstance_container(node: ast.AST) -> bool:
+    """True when `node` is a loop/comprehension/`all|any` that contains `isinstance`."""
+    if isinstance(node, ast.For | ast.AsyncFor | ast.While):
+        return _has_isinstance_call(node)
+    if isinstance(node, ast.ListComp | ast.SetComp | ast.GeneratorExp | ast.DictComp):
+        return _has_isinstance_call(node)
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in {"all", "any"}
+    ):
+        return _has_isinstance_call(node)
+    return False
+
+
 def _isinstance_in_loop_or_aggregate(func: ast.FunctionDef) -> bool:
     """True when `isinstance()` appears inside a loop or aggregate."""
-    for node in ast.walk(func):
-        if isinstance(node, ast.For | ast.AsyncFor | ast.While):
-            if _has_isinstance_call(node):
-                return True
-        if isinstance(
-            node, ast.ListComp | ast.SetComp | ast.GeneratorExp | ast.DictComp
-        ):
-            if _has_isinstance_call(node):
-                return True
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-            if node.func.id in {"all", "any"} and _has_isinstance_call(node):
-                return True
-    return False
+    return any(_node_is_isinstance_container(n) for n in ast.walk(func))
 
 
 # ── Triage entry point ────────────────────────────────────────────────
