@@ -16,6 +16,7 @@ nav:
     - Troubleshooting: howto/troubleshooting.md
   - Reference:
     - CLI: reference/cli.md
+    - Test Quality Rules: test_quality.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Scoring: explanation/scoring.md
