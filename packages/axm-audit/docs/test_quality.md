@@ -127,3 +127,53 @@ from axm_audit.core.rules.test_quality.pyramid_level import PyramidLevelRule
 # Default: report every folder↔level mismatch as a finding
 rule = PyramidLevelRule(strict_mismatches=True)
 ```
+
+## duplicate-tests
+
+**Rule ID**: `TEST_QUALITY_DUPLICATE_TESTS`
+**Class**: `axm_audit.core.rules.test_quality.DuplicateTestsRule`
+**Severity**: `WARNING`
+**Score**: `max(0, 100 - n_clustered_pairs * 5)`
+
+Clusters likely-duplicate test functions across the `tests/**/test_*.py`
+tree using three structural signals and four rescue anti-signals. A
+"clustered pair" counts against the score only when no rescue fires;
+ambiguous clusters are surfaced but do not dock points.
+
+### Signal stack
+
+| Signal | What it catches | Scope |
+| -- | -- | -- |
+| **S1** — call + assert fingerprint | Same SUT call signature (`mod.func(2)`) and same normalized assert pattern | Any file |
+| **S2** — cross-file same-name + high similarity | Tests with identical names across files whose statement-set Jaccard ≥ `0.95` | Cross-file |
+| **S3** — intra-file Jaccard ≥ threshold | Statement-set similarity ≥ `ast_similarity_threshold` (default `0.8`) | Same file |
+
+### Rescue anti-signals
+
+| Rescue | Trigger | Effect |
+| -- | -- | -- |
+| **P1** — distinct literals | Pair differs on ≥ 2 distinct str/bytes literals per side | `ambiguous_distinct_literals` |
+| **P2** — patch context | Pair exercises different `(decorator, with, mocker)` patch shapes | `ambiguous_patch_context` |
+| **P3** — template pair | Cross-file pair with a ≥ 4-char token diff in filename stem and body ≤ 4 child nodes | `ambiguous_template_pair` |
+| **P4** — body size | Intra-file pair whose largest body has ≤ 8 child nodes | `ambiguous_body_size` |
+
+### Findings
+
+`metadata` exposes two keys:
+
+- `clusters` — merged cluster dicts, each with `signal`, `reason`,
+  `similarity`, and a `tests` list of `{file, name, line, call_sig}`.
+  Union-find merges clusters that share at least one test; ambiguous
+  sub-clusters dominate the merged signal (`ambiguous_*` or
+  `ambiguous_multi`), otherwise the merge is `multi_signal`
+- `buckets` — every collected test routed to `CLUSTERED` (counts against
+  score), `AMBIGUOUS` (rescued), or `UNIQUE`
+
+### Configuration
+
+```python
+from axm_audit.core.rules.test_quality import DuplicateTestsRule
+
+# Raise the intra-file Jaccard floor (default: 0.8)
+rule = DuplicateTestsRule(ast_similarity_threshold=0.9)
+```

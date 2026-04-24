@@ -173,10 +173,10 @@ class TestGetRegistry:
         assert expected == set(reg.keys())
 
     def test_registry_total_rule_count(self) -> None:
-        """Registry contains 24 total rule classes."""
+        """Registry contains 25 total rule classes."""
         import axm_audit.core.rules  # noqa: F401
         from axm_audit.core.rules.base import get_registry
 
         reg = get_registry()
         total = sum(len(v) for v in reg.values())
-        assert total == 24
+        assert total == 25
