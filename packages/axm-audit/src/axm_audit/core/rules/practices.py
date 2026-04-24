@@ -23,6 +23,14 @@ _HTTP_LIBRARIES = {"requests", "httpx"}
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch", "head", "options"}
 
 
+def _short_path(file_str: str, depth: int = 2) -> str:
+    """Shorten *file_str* to the last *depth* path parts."""
+    parts = Path(file_str).parts
+    if len(parts) > depth:
+        return "/".join(parts[-depth:])
+    return parts[-1]
+
+
 @dataclass
 @register_rule("practices")
 class DocstringCoverageRule(ProjectRule):
@@ -307,32 +315,16 @@ class BareExceptRule(ProjectRule):
             return early
 
         src_path = project_path / "src"
-
-        bare_excepts: list[dict[str, str | int]] = []
-        py_files = get_python_files(src_path)
-
-        for path in py_files:
-            cache = get_ast_cache()
-            tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
-            if tree is None:
-                continue
-
-            self._find_bare_excepts(tree, path, src_path, bare_excepts)
+        bare_excepts = self._collect_bare_excepts(src_path)
 
         count = len(bare_excepts)
         passed = count == 0
         score = max(0, 100 - count * 20)
 
-        _min_depth = 2
-        text_lines = []
-        for loc in bare_excepts:
-            file_path = Path(str(loc["file"]))
-            short = (
-                "/".join(file_path.parts[-_min_depth:])
-                if len(file_path.parts) > _min_depth
-                else file_path.parts[-1]
-            )
-            text_lines.append(f"     \u2022 {short}:{loc['line']}")
+        text_lines = [
+            f"     \u2022 {_short_path(str(loc['file']))}:{loc['line']}"
+            for loc in bare_excepts
+        ]
 
         return CheckResult(
             rule_id=self.rule_id,
@@ -349,6 +341,20 @@ class BareExceptRule(ProjectRule):
             if not passed
             else None,
         )
+
+    def _collect_bare_excepts(
+        self,
+        src_path: Path,
+    ) -> list[dict[str, str | int]]:
+        """Parse every ``.py`` file under *src_path* and gather bare excepts."""
+        bare_excepts: list[dict[str, str | int]] = []
+        for path in get_python_files(src_path):
+            cache = get_ast_cache()
+            tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
+            if tree is None:
+                continue
+            self._find_bare_excepts(tree, path, src_path, bare_excepts)
+        return bare_excepts
 
     def _find_bare_excepts(
         self,
