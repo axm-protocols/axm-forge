@@ -177,3 +177,77 @@ from axm_audit.core.rules.test_quality import DuplicateTestsRule
 # Raise the intra-file Jaccard floor (default: 0.8)
 rule = DuplicateTestsRule(ast_similarity_threshold=0.9)
 ```
+
+## tautology
+
+**Rule ID**: `TEST_QUALITY_TAUTOLOGY`
+**Class**: `axm_audit.core.rules.test_quality.tautology.TautologyRule`
+**Severity**: `WARNING`
+**Score**: `max(0, 100 - n_findings * 2)`
+
+Detects test functions whose asserts can never fail, then triages each
+finding into `DELETE` / `STRENGTHEN` / `UNKNOWN` based on surrounding
+context (siblings, imports, contract conformance). The rule emits one
+entry per finding in `metadata["verdicts"]`; no source rewriting happens
+here — downstream tooling consumes the verdicts.
+
+### Detected patterns
+
+Detection is mechanical and file-scoped (`detect_tautologies(tree)` →
+`list[Finding]`):
+
+| Pattern | Example | Trigger |
+| -- | -- | -- |
+| `trivially_true` | `assert True`, `assert [1]` | Constant truthy / non-empty literal |
+| `self_compare` | `assert x == x`, `assertEqual(x, x)` | Both sides AST-equal |
+| `isinstance_only` | `assert isinstance(r, dict)` | All asserts are shallow `isinstance` |
+| `none_check_only` | `assert x is not None` | All asserts are not-None |
+| `len_tautology` | `assert len(r) >= 0` | Length comparison always true |
+| `mock_echo` | `mock.f.return_value = 1; assert f() == 1` | Asserts the value just stubbed |
+
+### Triage (delete-side)
+
+Findings are classified by `tautology_triage.triage(...)` which walks a
+fixed step order. Steps relevant to the delete-side port:
+
+| Step | Verdict | When it fires |
+| -- | -- | -- |
+| `step_n2_import_smoke` | DELETE | Body is `from X import Y; assert Y is not None`-shaped |
+| `step_n2b_lazy_import_sut` | STRENGTHEN | Same shape, but test sits in a `test_init.py` lazy-import surface |
+| `step_n2c_toplevel_import_not_none` | DELETE | `assert X is not None` where X is top-level-imported AND used by ≥ 1 sibling |
+| `step_n1_no_siblings` | STRENGTHEN | File has a single test — nothing to dedupe against |
+| `step0_self_compare` | STRENGTHEN | `self_compare` pattern — always rescued |
+| `step0c_contract_conformance` | STRENGTHEN | `isinstance(x, T)` where T is a local Protocol / stdlib ABC |
+| `step0d_explicit_contract_name` | STRENGTHEN | Test name encodes a contract (`_satisfies_`, `_is_a_`, …) |
+| `step1a_unique_fn` | STRENGTHEN | SUT is not exercised by any sibling |
+| `step1b_different_args` | STRENGTHEN | Same SUT, different literal args — runs **before** `step0b` to rescue varying-args cases |
+| `step0b_n_copies_constructor` | DELETE | Pure constructor + weak assert with ≥ 1 identical-args sibling |
+| `step0b2_impure_sibling_covers_ctor` | DELETE | Pure-ctor test whose constructor is already exercised by an impure sibling |
+| `step5_default_unknown` | UNKNOWN | Terminator — no strengthen-side step matched |
+
+The full STRENGTHEN-side steps (#6b) replace `step5_default_unknown` in
+a follow-up ticket; today anything unmatched returns `UNKNOWN`.
+
+### Findings
+
+`metadata["verdicts"]` is a `list[dict]`; each entry exposes:
+
+- `file` — path relative to the project root
+- `test` — test function name
+- `line` — line number of the triggering assert
+- `pattern` — one of the six detection patterns above
+- `rule` — triage step that fired (e.g. `step0b_n_copies_constructor`)
+- `verdict` — `DELETE` / `STRENGTHEN` / `UNKNOWN`
+- `reason` — human-readable explanation from the triage step
+
+### Configuration
+
+```python
+from axm_audit.core.rules.test_quality.tautology import TautologyRule
+
+rule = TautologyRule()
+result = rule.check(project_path)
+for v in result.metadata["verdicts"]:
+    if v["verdict"] == "DELETE":
+        print(f"{v['file']}:{v['line']} {v['test']} — {v['reason']}")
+```
