@@ -45,6 +45,41 @@ class TestCoverageRule(ProjectRule):
         report = run_tests(project_path, mode="compact", stop_on_first=False)
         return self._report_to_result(report)
 
+    def _no_coverage_result(self, failures: list[dict[str, str]]) -> CheckResult:
+        """Build the ``CheckResult`` returned when pytest-cov is not configured."""
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=False,
+            message="No coverage data (pytest-cov not configured)",
+            severity=Severity.WARNING,
+            details={"coverage": 0.0, "score": 0, "failures": failures},
+            fix_hint="Add pytest-cov: uv add --dev pytest-cov",
+        )
+
+    @staticmethod
+    def _build_text_parts(
+        coverage_pct: float, failures: list[dict[str, str]]
+    ) -> list[str]:
+        """Build compact bullet lines for the coverage gap and up to 10 failures."""
+        text_parts: list[str] = []
+        if coverage_pct < _FULL_COVERAGE:
+            text_parts.append(
+                f"\u2022 cov {coverage_pct:.0f}% \u2192 {_FULL_COVERAGE}%"
+            )
+        for f in failures[:10]:
+            short = f["test"].rsplit("::", 1)[-1]
+            text_parts.append(f"\u2022 FAIL {short}")
+        return text_parts
+
+    @staticmethod
+    def _build_message(
+        coverage_pct: float, score: int, has_failures: bool, total_fails: int
+    ) -> str:
+        """Format the human-readable coverage message, with or without failures."""
+        if has_failures:
+            return f"Test coverage: {coverage_pct:.0f}% ({total_fails} test(s) failed)"
+        return f"Test coverage: {coverage_pct:.0f}% ({score}/100)"
+
     def _report_to_result(self, report: TestReport) -> CheckResult:
         """Convert a ``TestReport`` to a ``CheckResult``.
 
@@ -57,40 +92,17 @@ class TestCoverageRule(ProjectRule):
         score = int(coverage_pct)
         has_failures = report.failed > 0 or report.errors > 0
         passed = coverage_pct >= self.min_coverage and not has_failures
+        total_fails = report.failed + report.errors
 
-        # Build failure details for backwards-compatible format
         failures: list[dict[str, str]] = [
             {"test": f.test, "traceback": f.message} for f in report.failures or []
         ]
 
         if report.coverage is None:
-            return CheckResult(
-                rule_id=self.rule_id,
-                passed=False,
-                message="No coverage data (pytest-cov not configured)",
-                severity=Severity.WARNING,
-                details={"coverage": 0.0, "score": 0, "failures": failures},
-                fix_hint="Add pytest-cov: uv add --dev pytest-cov",
-            )
+            return self._no_coverage_result(failures)
 
-        if has_failures:
-            total_fails = report.failed + report.errors
-            message = (
-                f"Test coverage: {coverage_pct:.0f}% ({total_fails} test(s) failed)"
-            )
-        else:
-            message = f"Test coverage: {coverage_pct:.0f}% ({score}/100)"
-
-        fix_hints = self._generate_fix_hints(has_failures, coverage_pct)
-
-        text_parts: list[str] = []
-        if coverage_pct < _FULL_COVERAGE:
-            text_parts.append(
-                f"\u2022 cov {coverage_pct:.0f}% \u2192 {_FULL_COVERAGE}%"
-            )
-        for f in failures[:10]:
-            short = f["test"].rsplit("::", 1)[-1]
-            text_parts.append(f"\u2022 FAIL {short}")
+        message = self._build_message(coverage_pct, score, has_failures, total_fails)
+        text_parts = self._build_text_parts(coverage_pct, failures)
 
         return CheckResult(
             rule_id=self.rule_id,
@@ -103,7 +115,7 @@ class TestCoverageRule(ProjectRule):
                 "failures": failures,
             },
             text="\n".join(text_parts) if text_parts else None,
-            fix_hint=fix_hints,
+            fix_hint=self._generate_fix_hints(has_failures, coverage_pct),
         )
 
     def _generate_fix_hints(
