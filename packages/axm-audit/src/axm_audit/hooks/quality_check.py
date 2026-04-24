@@ -77,6 +77,39 @@ def _render_failed_checks(failed_checks: list[CheckResult]) -> str:
     return "\n\n".join(sections)
 
 
+def _run_audits(project_path: Path, categories: list[str]) -> list[AuditResult]:
+    results: list[AuditResult] = []
+    for category in categories:
+        try:
+            results.append(audit_project(project_path, category=category))
+        except (OSError, RuntimeError, ValueError):
+            logger.warning(
+                "audit_project failed for category=%s", category, exc_info=True
+            )
+    return results
+
+
+def _failed_checks_from(results: list[AuditResult]) -> list[CheckResult]:
+    return [c for r in results for c in r.checks if not c.passed]
+
+
+def _clean_result() -> HookResult:
+    return HookResult.ok(has_violations=False, summary="clean")
+
+
+def _violations_result(failed_checks: list[CheckResult]) -> HookResult:
+    text = _render_failed_checks(failed_checks)
+    summary = f"{len(failed_checks)} failing check(s)"
+    # Note: bypass HookResult.ok() because older installed axm versions
+    # swallow `text` into metadata. Build the dataclass directly so the
+    # downstream HookRunner sees result.text and injects it verbatim.
+    return HookResult(
+        success=True,
+        text=text,
+        metadata={"has_violations": True, "summary": summary},
+    )
+
+
 class QualityCheckHook:
     """Run audit categories and emit a text-only summary of failures."""
 
@@ -101,39 +134,12 @@ class QualityCheckHook:
         project_path = Path(working_dir)
 
         if not project_path.is_dir():
-            return HookResult.ok(has_violations=False, summary="clean")
+            return _clean_result()
 
         categories: list[str] = params.get("categories", _DEFAULT_CATEGORIES)
-        results = self._run_audits(project_path, categories)
-        failed_checks = self._failed_checks_from(results)
+        failed_checks = _failed_checks_from(_run_audits(project_path, categories))
 
         if not failed_checks:
-            return HookResult.ok(has_violations=False, summary="clean")
+            return _clean_result()
 
-        text = _render_failed_checks(failed_checks)
-        summary = f"{len(failed_checks)} failing check(s)"
-
-        # Note: bypass HookResult.ok() because older installed axm versions
-        # swallow `text` into metadata. Build the dataclass directly so the
-        # downstream HookRunner sees result.text and injects it verbatim.
-        return HookResult(
-            success=True,
-            text=text,
-            metadata={"has_violations": True, "summary": summary},
-        )
-
-    @staticmethod
-    def _run_audits(project_path: Path, categories: list[str]) -> list[AuditResult]:
-        results: list[AuditResult] = []
-        for category in categories:
-            try:
-                results.append(audit_project(project_path, category=category))
-            except (OSError, RuntimeError, ValueError):
-                logger.warning(
-                    "audit_project failed for category=%s", category, exc_info=True
-                )
-        return results
-
-    @staticmethod
-    def _failed_checks_from(results: list[AuditResult]) -> list[CheckResult]:
-        return [c for r in results for c in r.checks if not c.passed]
+        return _violations_result(failed_checks)
