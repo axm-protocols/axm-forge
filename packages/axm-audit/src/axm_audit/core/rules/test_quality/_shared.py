@@ -783,50 +783,65 @@ def _dotted_of(expr: ast.AST) -> str | None:
     return ".".join(reversed(parts))
 
 
-def _patch_call_targets(call: ast.Call, out: list[str]) -> None:  # noqa: PLR0912
+_STRING_ARG_KINDS = frozenset(
+    {"patch", "patch.dict", "monkeypatch.setenv", "monkeypatch.delenv"}
+)
+
+
+def _classify_patch_kind(call: ast.Call) -> str | None:
     qual = _dotted_of(call.func)
     if not qual:
-        return
-    kind: str | None = None
+        return None
     if qual == "patch" or qual.endswith(".patch"):
-        kind = "patch"
-    elif qual == "patch.object" or qual.endswith(".patch.object"):
-        kind = "patch.object"
-    elif qual == "patch.dict" or qual.endswith(".patch.dict"):
-        kind = "patch.dict"
-    elif qual.endswith("monkeypatch.setattr") or (
+        return "patch"
+    if qual == "patch.object" or qual.endswith(".patch.object"):
+        return "patch.object"
+    if qual == "patch.dict" or qual.endswith(".patch.dict"):
+        return "patch.dict"
+    if qual.endswith("monkeypatch.setattr") or (
         qual.endswith(".setattr") and "monkeypatch" in qual
     ):
-        kind = "monkeypatch.setattr"
-    elif qual.endswith("monkeypatch.setenv"):
-        kind = "monkeypatch.setenv"
-    elif qual.endswith("monkeypatch.delenv"):
-        kind = "monkeypatch.delenv"
-    else:
-        return
+        return "monkeypatch.setattr"
+    if qual.endswith("monkeypatch.setenv"):
+        return "monkeypatch.setenv"
+    if qual.endswith("monkeypatch.delenv"):
+        return "monkeypatch.delenv"
+    return None
 
-    if not call.args:
-        return
+
+def _append_string_arg_target(call: ast.Call, out: list[str]) -> None:
     first = call.args[0]
-    if kind in ("patch", "patch.dict", "monkeypatch.setenv", "monkeypatch.delenv"):
-        if isinstance(first, ast.Constant) and isinstance(first.value, str):
-            out.append(first.value)
-        elif isinstance(first, ast.JoinedStr):
-            for value in first.values:
-                if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                    out.append(value.value)
-        return
+    if isinstance(first, ast.Constant) and isinstance(first.value, str):
+        out.append(first.value)
+    elif isinstance(first, ast.JoinedStr):
+        for value in first.values:
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                out.append(value.value)
 
+
+def _append_object_attr_target(call: ast.Call, out: list[str]) -> None:
+    first = call.args[0]
     if isinstance(first, ast.Constant) and isinstance(first.value, str):
         out.append(first.value)
         return
     attr_node = call.args[1] if len(call.args) >= _SETATTR_OBJ_FORM_MIN_ARGS else None
+    if not (isinstance(attr_node, ast.Constant) and isinstance(attr_node.value, str)):
+        return
     obj_name = _dotted_of(first) or ""
-    if isinstance(attr_node, ast.Constant) and isinstance(attr_node.value, str):
-        if obj_name:
-            out.append(f"{obj_name}.{attr_node.value}")
-        else:
-            out.append(attr_node.value)
+    if obj_name:
+        out.append(f"{obj_name}.{attr_node.value}")
+    else:
+        out.append(attr_node.value)
+
+
+def _patch_call_targets(call: ast.Call, out: list[str]) -> None:
+    kind = _classify_patch_kind(call)
+    if kind is None or not call.args:
+        return
+    if kind in _STRING_ARG_KINDS:
+        _append_string_arg_target(call, out)
+    else:
+        _append_object_attr_target(call, out)
 
 
 def extract_mock_targets(func: ast.FunctionDef) -> list[str]:
