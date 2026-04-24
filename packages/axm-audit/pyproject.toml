@@ -57,6 +57,12 @@ fallback-version = "0.1.0.dev0"
 [tool.hatch.build.hooks.vcs]
 version-file = "src/axm_audit/_version.py"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/axm_audit"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"docs/test_quality.md" = "axm_audit/docs/test_quality.md"
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
