@@ -237,15 +237,182 @@ def format_agent_text(
         if text:
             for tl in text.splitlines():
                 lines.append(f"  {tl}")
-        elif "details" in f:
+        elif "details" in f and isinstance(f["details"], dict):
             details = f["details"]
             for dk, dv in details.items():
                 lines.append(f"  {dk}: {dv}")
+        meta = f.get("metadata")
+        if isinstance(meta, dict):
+            for verdict in meta.get("verdicts", []) or []:
+                if isinstance(verdict, dict):
+                    tag = verdict.get("verdict") or "UNKNOWN"
+                    lines.append(
+                        f"  [{tag}] {verdict.get('test', '?')} "
+                        f"({verdict.get('file', '?')}:{verdict.get('line', '?')})"
+                    )
+            for cluster in meta.get("clusters", []) or []:
+                if isinstance(cluster, dict):
+                    members = cluster.get("members") or cluster.get("tests") or []
+                    lines.append(
+                        f"  [{cluster.get('signal', '?')}] {len(members)} test(s)"
+                    )
         fix_hint = f.get("fix_hint")
         if fix_hint:
             lines.append(f"  fix: {fix_hint}")
 
     return "\n".join(lines)
+
+
+def _extract_test_quality(
+    result: AuditResult,
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    """Pull (private, pyramid, clusters, verdicts) entries from any check shape."""
+    private: list[dict[str, Any]] = []
+    pyramid: list[dict[str, Any]] = []
+    clusters: list[dict[str, Any]] = []
+    verdicts: list[dict[str, Any]] = []
+
+    for c in result.checks:
+        meta = getattr(c, "metadata", None) or {}
+        details = c.details or {}
+        rule = (c.rule_id or "").upper()
+
+        if meta.get("private_import_violations"):
+            private.extend(meta["private_import_violations"])
+        elif "PRIVATE" in rule and details.get("findings"):
+            for f in details["findings"]:
+                private.append(
+                    {
+                        "file": f.get("test_file") or f.get("file") or "",
+                        "line": f.get("line", 0),
+                        "symbol": (f.get("private_symbol") or f.get("symbol") or ""),
+                    }
+                )
+
+        if meta.get("pyramid_mismatches"):
+            pyramid.extend(meta["pyramid_mismatches"])
+        elif "PYRAMID" in rule:
+            findings = getattr(c, "findings", None) or []
+            for f in findings:
+                fd = f.model_dump() if hasattr(f, "model_dump") else dict(f)
+                pyramid.append(
+                    {
+                        "test": f"{fd.get('path', '')}::{fd.get('function', '')}",
+                        "current_dir": fd.get("current_level", ""),
+                        "detected_level": fd.get("level", ""),
+                    }
+                )
+
+        if meta.get("clusters"):
+            for cl in meta["clusters"]:
+                members_raw = cl.get("members") or cl.get("tests") or []
+                clusters.append(
+                    {
+                        "signal": cl.get("signal", "?"),
+                        "members": [
+                            {
+                                "test": m.get("test") or m.get("name") or "?",
+                                "file": m.get("file", ""),
+                                "line": m.get("line", 0),
+                            }
+                            for m in members_raw
+                        ],
+                    }
+                )
+
+        if meta.get("verdicts"):
+            verdicts.extend(meta["verdicts"])
+
+    return private, pyramid, clusters, verdicts
+
+
+def _format_pyramid_only(pyramid: list[dict[str, Any]]) -> str:
+    mismatches = [m for m in pyramid if m.get("current_dir") != m.get("detected_level")]
+    lines = ["Pyramid mismatches:"]
+    for m in mismatches:
+        lines.append(
+            f"  {m.get('test', '?')}  "
+            f"{m.get('current_dir', '')} -> {m.get('detected_level', '')}"
+        )
+    return "\n".join(lines)
+
+
+def format_test_quality_text(
+    result: AuditResult,
+    mismatches_only: bool = False,
+) -> str:
+    """Render test-quality findings grouped by rule.
+
+    Order: private imports → pyramid → duplicates → tautologies.
+    With ``mismatches_only=True`` only the pyramid section is emitted,
+    filtered to entries whose folder differs from the classified level.
+    """
+    private, pyramid, clusters, verdicts = _extract_test_quality(result)
+
+    if mismatches_only:
+        return _format_pyramid_only(pyramid)
+
+    lines: list[str] = []
+
+    lines.append("Private imports:")
+    if not private:
+        lines.append("  (none)")
+    for p in private:
+        lines.append(
+            f"  {p.get('file', '?')}:{p.get('line', '?')}  {p.get('symbol', '?')}"
+        )
+    lines.append("")
+
+    lines.append("Pyramid:")
+    if not pyramid:
+        lines.append("  (none)")
+    for m in pyramid:
+        cd = m.get("current_dir", "")
+        dl = m.get("detected_level", "")
+        flag = "" if cd == dl else "  [MISMATCH]"
+        lines.append(f"  {m.get('test', '?')}  {cd} -> {dl}{flag}")
+    lines.append("")
+
+    lines.append("Duplicates:")
+    if not clusters:
+        lines.append("  (none)")
+    for cl in clusters:
+        lines.append(f"  [{cl.get('signal', '?')}]")
+        for mem in cl.get("members", []):
+            lines.append(
+                f"    {mem.get('file', '?')}:{mem.get('line', '?')}  "
+                f"{mem.get('test', '?')}"
+            )
+    lines.append("")
+
+    lines.append("Tautologies:")
+    if not verdicts:
+        lines.append("  (none)")
+    for v in verdicts:
+        tag = v.get("verdict") or "UNKNOWN"
+        lines.append(
+            f"  [{tag}] {v.get('test', '?')}  {v.get('file', '?')}:{v.get('line', '?')}"
+        )
+
+    return "\n".join(lines)
+
+
+def format_test_quality_json(result: AuditResult) -> dict[str, Any]:
+    """JSON superset: clusters + verdicts + pyramid + private violations."""
+    private, pyramid, clusters, verdicts = _extract_test_quality(result)
+    return {
+        "score": result.quality_score,
+        "grade": result.grade,
+        "clusters": clusters,
+        "verdicts": verdicts,
+        "pyramid_mismatches": pyramid,
+        "private_import_violations": private,
+    }
 
 
 def _has_actionable_detail(check: CheckResult) -> bool:
