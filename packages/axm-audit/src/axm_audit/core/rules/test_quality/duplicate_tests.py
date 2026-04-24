@@ -39,6 +39,7 @@ _P3_MAX_BODY = 4
 _P4_MAX_BODY = 8
 _S2_HIGH_SIM = 0.95
 _SCORE_PENALTY = 5
+_MIN_PAIR = 2
 
 
 class DuplicateTestsCheckResult(CheckResult):
@@ -95,7 +96,7 @@ def _statement_set(node: ast.FunctionDef) -> frozenset[str]:
     for stmt in _flatten_body(node.body):
         try:
             dump = ast.dump(stmt, annotate_fields=False)
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001, S112
             continue
         dump = _CONSTANT_RE.sub("Constant(<C>)", dump)
         dump = _NAME_RE.sub("Name(<N>,", dump)
@@ -273,7 +274,7 @@ def _patch_targets(node: ast.FunctionDef) -> tuple[int, int, int]:
 
 def _p1_rescues(tests: list[_TestFunc]) -> bool:
     """P1 — pair differs on ≥ 2 distinct str/bytes literals per side."""
-    if len(tests) < 2:
+    if len(tests) < _MIN_PAIR:
         return False
     lits = [_string_literals(t.node) for t in tests]
     for a, b in combinations(lits, 2):
@@ -284,15 +285,15 @@ def _p1_rescues(tests: list[_TestFunc]) -> bool:
 
 def _p2_rescues(tests: list[_TestFunc]) -> bool:
     """P2 — pair exercises different ``(deco, with, mocker)`` patch shapes."""
-    if len(tests) < 2:
+    if len(tests) < _MIN_PAIR:
         return False
     targets = {_patch_targets(t.node) for t in tests}
-    return len(targets) >= 2
+    return len(targets) >= _MIN_PAIR
 
 
 def _p3_rescues(tests: list[_TestFunc]) -> bool:
     """P3 — cross-file template pair on short bodies."""
-    if len(tests) != 2:
+    if len(tests) != _MIN_PAIR:
         return False
     a, b = tests
     stem_a = Path(a.file).stem.removeprefix("test_")
@@ -311,10 +312,10 @@ def _p3_rescues(tests: list[_TestFunc]) -> bool:
 
 def _p4_rescues(tests: list[_TestFunc]) -> bool:
     """P4 — intra-file body-size delta rescue on small bodies."""
-    if len(tests) < 2:
+    if len(tests) < _MIN_PAIR:
         return False
     sizes = {len(list(ast.iter_child_nodes(t.node))) for t in tests}
-    if len(sizes) < 2:
+    if len(sizes) < _MIN_PAIR:
         return False
     return max(sizes) <= _P4_MAX_BODY
 
@@ -383,17 +384,17 @@ def _classify_s3(tests: list[_TestFunc], sim: float) -> tuple[str, str]:
     return "signal3_intra_file_similarity", f"AST similarity {sim:.0%}"
 
 
-def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
-    """Return merged cluster dicts for *tests*."""
-    seen_pairs: set[tuple[str, str]] = set()
+def _cluster_s2(
+    tests: list[_TestFunc],
+    seen_pairs: set[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    """S2 — cross-file same-name with Jaccard ≥ ``_S2_HIGH_SIM``."""
     raw: list[dict[str, Any]] = []
-
-    # --- S2: cross-file same-name ≥ _S2_HIGH_SIM ---
     by_name: dict[str, list[_TestFunc]] = defaultdict(list)
     for t in tests:
         by_name[t.name].append(t)
     for group in by_name.values():
-        if len(group) < 2 or len({t.file for t in group}) < 2:
+        if len(group) < _MIN_PAIR or len({t.file for t in group}) < _MIN_PAIR:
             continue
         for a, b in combinations(group, 2):
             if a.file == b.file:
@@ -404,8 +405,7 @@ def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
             sim = _jaccard_similarity(a.stmt_set, b.stmt_set)
             if sim < _S2_HIGH_SIM:
                 continue
-            pair = [a, b]
-            signal, reason = _classify_s2(pair, a.name, sim)
+            signal, reason = _classify_s2([a, b], a.name, sim)
             raw.append(
                 {
                     "signal": signal,
@@ -415,8 +415,15 @@ def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
                 }
             )
             seen_pairs.add(pk)
+    return raw
 
-    # --- S1: same call_sig + same assert_pattern ---
+
+def _cluster_s1(
+    tests: list[_TestFunc],
+    seen_pairs: set[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    """S1 — same ``call_sig`` and same ``assert_pattern``."""
+    raw: list[dict[str, Any]] = []
     by_call: dict[str, list[_TestFunc]] = defaultdict(list)
     for t in tests:
         if t.call_sig:
@@ -426,7 +433,7 @@ def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
         for t in group:
             subgroups[t.assert_pattern or "<no-assert>"].append(t)
         for pattern, subgroup in subgroups.items():
-            if len(subgroup) < 2:
+            if len(subgroup) < _MIN_PAIR:
                 continue
             claimed: set[str] = set()
             for a, b in combinations(subgroup, 2):
@@ -436,7 +443,7 @@ def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
                 seen_pairs.add(pk)
                 claimed.add(_test_key(a))
                 claimed.add(_test_key(b))
-            if len(claimed) < 2:
+            if len(claimed) < _MIN_PAIR:
                 continue
             confirmed = [t for t in subgroup if _test_key(t) in claimed]
             signal, reason = _classify_s1(confirmed, sig, pattern)
@@ -448,13 +455,21 @@ def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
                     "tests": [_test_entry(t) for t in confirmed],
                 }
             )
+    return raw
 
-    # --- S3: intra-file Jaccard ≥ threshold ---
+
+def _cluster_s3(
+    tests: list[_TestFunc],
+    threshold: float,
+    seen_pairs: set[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    """S3 — intra-file Jaccard ≥ ``threshold``."""
+    raw: list[dict[str, Any]] = []
     by_file: dict[str, list[_TestFunc]] = defaultdict(list)
     for t in tests:
         by_file[t.file].append(t)
     for file_tests in by_file.values():
-        if len(file_tests) < 2:
+        if len(file_tests) < _MIN_PAIR:
             continue
         for a, b in combinations(file_tests, 2):
             pk = _pair_key(a, b)
@@ -463,8 +478,7 @@ def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
             sim = _jaccard_similarity(a.stmt_set, b.stmt_set)
             if sim < threshold:
                 continue
-            pair = [a, b]
-            signal, reason = _classify_s3(pair, sim)
+            signal, reason = _classify_s3([a, b], sim)
             raw.append(
                 {
                     "signal": signal,
@@ -474,15 +488,23 @@ def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
                 }
             )
             seen_pairs.add(pk)
+    return raw
 
+
+def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
+    """Return merged cluster dicts for *tests* across S1/S2/S3 signals."""
+    seen_pairs: set[tuple[str, str]] = set()
+    raw: list[dict[str, Any]] = []
+    raw.extend(_cluster_s2(tests, seen_pairs))
+    raw.extend(_cluster_s1(tests, seen_pairs))
+    raw.extend(_cluster_s3(tests, threshold, seen_pairs))
     return _merge_clusters(raw)
 
 
-def _merge_clusters(clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Union-find merge; ambiguous sub-clusters dominate the merged signal."""
-    if not clusters:
-        return []
-
+def _build_union_find(
+    clusters: list[dict[str, Any]],
+) -> dict[int, list[int]]:
+    """Return ``{root: [indices]}`` after union-find over shared tests."""
     test_to_idx: dict[tuple[Any, ...], list[int]] = defaultdict(list)
     for i, cluster in enumerate(clusters):
         for t in cluster.get("tests", []):
@@ -509,6 +531,28 @@ def _merge_clusters(clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
     groups: dict[int, list[int]] = defaultdict(list)
     for i in range(len(clusters)):
         groups[find(i)].append(i)
+    return groups
+
+
+def _pick_merged_signal(signals: list[str]) -> str:
+    """Return the dominant signal for a merged group."""
+    unique_signals = list(dict.fromkeys(signals))
+    ambiguous = [s for s in unique_signals if s.startswith("ambiguous_")]
+    if ambiguous:
+        return ambiguous[0] if len(ambiguous) == 1 else "ambiguous_multi"
+    if len(unique_signals) == 1:
+        return unique_signals[0]
+    if len(unique_signals) >= _MIN_PAIR:
+        return "multi_signal"
+    return ""
+
+
+def _merge_clusters(clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Union-find merge; ambiguous sub-clusters dominate the merged signal."""
+    if not clusters:
+        return []
+
+    groups = _build_union_find(clusters)
 
     merged: list[dict[str, Any]] = []
     for indices in groups.values():
@@ -527,18 +571,9 @@ def _merge_clusters(clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
             for t in cluster.get("tests", []):
                 key = (t.get("file"), t.get("name"), t.get("line", 0))
                 tests_by_key[key] = t
-        if len(tests_by_key) < 2:
+        if len(tests_by_key) < _MIN_PAIR:
             continue
-        unique_signals = list(dict.fromkeys(signals))
-        ambiguous = [s for s in unique_signals if s.startswith("ambiguous_")]
-        if ambiguous:
-            merged_signal = ambiguous[0] if len(ambiguous) == 1 else "ambiguous_multi"
-        elif len(unique_signals) == 1:
-            merged_signal = unique_signals[0]
-        elif len(unique_signals) >= 2:
-            merged_signal = "multi_signal"
-        else:
-            merged_signal = ""
+        merged_signal = _pick_merged_signal(signals)
         unique_reasons = list(dict.fromkeys(reasons))
         merged.append(
             {

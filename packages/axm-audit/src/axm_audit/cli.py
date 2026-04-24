@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import cyclopts
 
@@ -45,7 +45,7 @@ class _AppFacade:
     def __init__(self, app: cyclopts.App) -> None:
         self._app = app
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return iter(self._app._commands.values())
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:

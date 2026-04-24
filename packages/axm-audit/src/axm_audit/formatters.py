@@ -196,7 +196,7 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
     }
 
 
-def format_agent_text(
+def format_agent_text(  # noqa: PLR0912
     data: dict[str, Any],
     category: str | None = None,
 ) -> str:

@@ -9,6 +9,8 @@ import pytest
 
 from axm_audit.core.registry import get_registry
 from axm_audit.core.rules.test_quality.pyramid_level import (
+    Finding,
+    PyramidCheckResult,
     PyramidLevelRule,
     _classify_level,
 )
@@ -22,11 +24,11 @@ def _write(root: Path, relpath: str, body: str) -> Path:
     return p
 
 
-def _check(tmp_path: Path) -> object:
+def _check(tmp_path: Path) -> PyramidCheckResult:
     return PyramidLevelRule().check(tmp_path)
 
 
-def _first_finding(result: object) -> object:
+def _first_finding(result: PyramidCheckResult) -> Finding:
     findings = list(result.findings)
     assert findings, f"expected at least one finding, got {result!r}"
     return findings[0]

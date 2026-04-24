@@ -11,10 +11,10 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 from textwrap import dedent
-from types import SimpleNamespace
 
 import pytest
 
+from axm_audit.core.rules.test_quality.tautology import Finding
 from axm_audit.core.rules.test_quality.tautology_triage import triage
 
 
@@ -29,8 +29,8 @@ def _func(tree: ast.Module, name: str) -> ast.FunctionDef:
     raise AssertionError(f"function {name!r} not found")
 
 
-def _finding(pattern: str = "isinstance_only") -> SimpleNamespace:
-    return SimpleNamespace(pattern=pattern, line=1, rule_id="tautology-weak-assert")
+def _finding(pattern: str = "isinstance_only") -> Finding:
+    return Finding(test="test_", line=1, pattern=pattern, detail="")
 
 
 def _fields(v: object) -> tuple[str, str, str]:

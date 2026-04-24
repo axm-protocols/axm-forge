@@ -27,7 +27,7 @@ def test_axm_ast_byte_parity_with_prototype() -> None:
     if not _PROTOTYPE.exists():
         pytest.skip(f"prototype script not available at {_PROTOTYPE}")
 
-    proc = subprocess.run(
+    proc = subprocess.run(  # noqa: S603
         [sys.executable, str(_PROTOTYPE), "--all", "--json"],
         capture_output=True,
         text=True,
