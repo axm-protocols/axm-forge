@@ -179,9 +179,37 @@ def _dotted(expr: ast.AST) -> str | None:
     return ".".join(reversed(parts))
 
 
+def _call_candidates(call: ast.Call) -> list[str]:
+    candidates: list[str] = []
+    if isinstance(call.func, ast.Name):
+        candidates.append(call.func.id)
+    elif isinstance(call.func, ast.Attribute):
+        dotted = _dotted(call.func)
+        if dotted:
+            candidates.append(dotted)
+        parent = _dotted(call.func.value)
+        if parent:
+            candidates.append(parent)
+    return candidates
+
+
+def _match_call_side(
+    call_side: ast.expr,
+    value_side: ast.expr,
+    mock_setups: dict[str, ast.expr],
+) -> str | None:
+    if not isinstance(call_side, ast.Call):
+        return None
+    for key in _call_candidates(call_side):
+        if key in mock_setups and _same_expr(value_side, mock_setups[key]):
+            return f"{key}() == {_unparse_safe(value_side)}"
+    return None
+
+
 def _find_mock_echo(
     assert_node: ast.expr, mock_setups: dict[str, ast.expr]
 ) -> str | None:
+    """Return a mock-echo explanation if ``assert_node`` compares a configured mock call to its own return value."""
     match assert_node:
         case ast.Compare(left=left, ops=[ast.Eq()], comparators=[comp]):
             pass
@@ -189,21 +217,9 @@ def _find_mock_echo(
             return None
 
     for call_side, value_side in ((left, comp), (comp, left)):
-        if not isinstance(call_side, ast.Call):
-            continue
-        candidates: list[str] = []
-        if isinstance(call_side.func, ast.Name):
-            candidates.append(call_side.func.id)
-        elif isinstance(call_side.func, ast.Attribute):
-            dotted = _dotted(call_side.func)
-            if dotted:
-                candidates.append(dotted)
-            parent = _dotted(call_side.func.value)
-            if parent:
-                candidates.append(parent)
-        for key in candidates:
-            if key in mock_setups and _same_expr(value_side, mock_setups[key]):
-                return f"{key}() == {_unparse_safe(value_side)}"
+        result = _match_call_side(call_side, value_side, mock_setups)
+        if result is not None:
+            return result
     return None
 
 
