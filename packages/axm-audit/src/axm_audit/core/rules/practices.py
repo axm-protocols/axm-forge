@@ -395,39 +395,31 @@ class SecurityPatternRule(ProjectRule):
         """Unique identifier for this rule."""
         return "PRACTICE_SECURITY"
 
-    def check(self, project_path: Path) -> CheckResult:
-        """Check for hardcoded secrets in the project."""
-        early = self.check_src(project_path)
-        if early is not None:
-            return early
+    def _scan_file_for_secrets(
+        self, path: Path, src_path: Path
+    ) -> list[dict[str, str | int]]:
+        try:
+            content = path.read_text()
+        except (OSError, UnicodeDecodeError):
+            return []
 
-        src_path = project_path / "src"
+        found: list[dict[str, str | int]] = []
+        for pattern in self.patterns:
+            for match in re.finditer(pattern, content, re.IGNORECASE):
+                line_num = content[: match.start()].count("\n") + 1
+                found.append(
+                    {
+                        "file": str(path.relative_to(src_path)),
+                        "line": line_num,
+                        "pattern": pattern.split(r"\s*")[0],
+                    }
+                )
+        return found
 
-        matches: list[dict[str, str | int]] = []
-        py_files = get_python_files(src_path)
-
-        for path in py_files:
-            try:
-                content = path.read_text()
-            except (OSError, UnicodeDecodeError):
-                continue
-
-            for pattern in self.patterns:
-                for match in re.finditer(pattern, content, re.IGNORECASE):
-                    # Find line number
-                    line_num = content[: match.start()].count("\n") + 1
-                    matches.append(
-                        {
-                            "file": str(path.relative_to(src_path)),
-                            "line": line_num,
-                            "pattern": pattern.split(r"\s*")[0],  # Just the key name
-                        }
-                    )
-
+    def _build_secret_result(self, matches: list[dict[str, str | int]]) -> CheckResult:
         count = len(matches)
         passed = count == 0
         score = max(0, 100 - count * 25)
-
         text_lines = [f"\u2022 {m['file']}:{m['line']} {m['pattern']}" for m in matches]
 
         return CheckResult(
@@ -441,6 +433,19 @@ class SecurityPatternRule(ProjectRule):
             if not passed
             else None,
         )
+
+    def check(self, project_path: Path) -> CheckResult:
+        """Check for hardcoded secrets in the project."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
+        src_path = project_path / "src"
+        matches: list[dict[str, str | int]] = []
+        for path in get_python_files(src_path):
+            matches.extend(self._scan_file_for_secrets(path, src_path))
+
+        return self._build_secret_result(matches)
 
 
 @dataclass
