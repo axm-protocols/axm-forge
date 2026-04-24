@@ -868,41 +868,23 @@ def _classify_early_exits(  # noqa: PLR0911, PLR0913
     return None
 
 
-def triage(  # noqa: PLR0911, PLR0912, PLR0913
+def _classify_uniqueness(  # noqa: PLR0911, PLR0913
     finding: Finding,
     *,
-    tree: ast.Module,
     func: ast.FunctionDef,
+    tree: ast.Module,
     enclosing_class: str | None,
-    helpers: list[ast.FunctionDef],
+    helper_names: set[str],
     pkg_symbols: set[str],
-    contracts: set[str],
-    test_file: Path,
-    source_text: str = "",
-) -> Verdict:
-    """Return the verdict for *finding* inside *func*."""
-    helper_names = {h.name for h in helpers}
+    siblings: _SiblingInfo,
+    my_dominant: str | None,
+    my_calls: set[str],
+    source_text: str,
+) -> Verdict | None:
+    """Return a STRENGTHEN verdict for uniqueness-based rules, or ``None``.
 
-    siblings = _collect_siblings(
-        tree, func.name, enclosing_class, helper_names, pkg_symbols
-    )
-
-    if (
-        verdict := _classify_early_exits(
-            finding,
-            func=func,
-            tree=tree,
-            test_file=test_file,
-            contracts=contracts,
-            enclosing_class=enclosing_class,
-            siblings=siblings,
-        )
-    ) is not None:
-        return verdict
-
-    my_dominant = _dominant_call(func.body, helper_names, pkg_symbols)
-    my_calls = set(_extract_calls(func.body, helper_names))
-
+    Decision order: 1a, 2, 3, 4, 4c, 1b, 4b, 4f, 4d, 4e.
+    """
     # Step 1a — unique SUT (scoped to pkg_symbols so we don't treat
     # built-in constructors like object() as domain SUTs).
     if (
@@ -1009,6 +991,60 @@ def triage(  # noqa: PLR0911, PLR0912, PLR0913
             "step4e_homogeneity_check",
             "isinstance inside loop/aggregate — homogeneity contract",
         )
+
+    return None
+
+
+def triage(  # noqa: PLR0913
+    finding: Finding,
+    *,
+    tree: ast.Module,
+    func: ast.FunctionDef,
+    enclosing_class: str | None,
+    helpers: list[ast.FunctionDef],
+    pkg_symbols: set[str],
+    contracts: set[str],
+    test_file: Path,
+    source_text: str = "",
+) -> Verdict:
+    """Return the verdict for *finding* inside *func*."""
+    helper_names = {h.name for h in helpers}
+
+    siblings = _collect_siblings(
+        tree, func.name, enclosing_class, helper_names, pkg_symbols
+    )
+
+    if (
+        verdict := _classify_early_exits(
+            finding,
+            func=func,
+            tree=tree,
+            test_file=test_file,
+            contracts=contracts,
+            enclosing_class=enclosing_class,
+            siblings=siblings,
+        )
+    ) is not None:
+        return verdict
+
+    my_dominant = _dominant_call(func.body, helper_names, pkg_symbols)
+    my_calls = set(_extract_calls(func.body, helper_names))
+
+    if (
+        verdict := _classify_uniqueness(
+            finding,
+            func=func,
+            tree=tree,
+            enclosing_class=enclosing_class,
+            helper_names=helper_names,
+            pkg_symbols=pkg_symbols,
+            siblings=siblings,
+            my_dominant=my_dominant,
+            my_calls=my_calls,
+            source_text=source_text,
+        )
+    ) is not None:
+        return verdict
 
     # Step 0b — N-copies pure constructor+weak-assert, SAME args
     if finding.pattern in (
