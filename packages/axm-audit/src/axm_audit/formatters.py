@@ -342,6 +342,55 @@ def _format_pyramid_only(pyramid: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _format_private_section(private: list[dict]) -> list[str]:
+    lines = ["Private imports:"]
+    if not private:
+        lines.append("  (none)")
+    for p in private:
+        lines.append(
+            f"  {p.get('file', '?')}:{p.get('line', '?')}  {p.get('symbol', '?')}"
+        )
+    return lines
+
+
+def _format_pyramid_section(pyramid: list[dict]) -> list[str]:
+    lines = ["Pyramid:"]
+    if not pyramid:
+        lines.append("  (none)")
+    for m in pyramid:
+        cd = m.get("current_dir", "")
+        dl = m.get("detected_level", "")
+        flag = "" if cd == dl else "  [MISMATCH]"
+        lines.append(f"  {m.get('test', '?')}  {cd} -> {dl}{flag}")
+    return lines
+
+
+def _format_duplicates_section(clusters: list[dict]) -> list[str]:
+    lines = ["Duplicates:"]
+    if not clusters:
+        lines.append("  (none)")
+    for cl in clusters:
+        lines.append(f"  [{cl.get('signal', '?')}]")
+        for mem in cl.get("members", []):
+            lines.append(
+                f"    {mem.get('file', '?')}:{mem.get('line', '?')}  "
+                f"{mem.get('test', '?')}"
+            )
+    return lines
+
+
+def _format_tautologies_section(verdicts: list[dict]) -> list[str]:
+    lines = ["Tautologies:"]
+    if not verdicts:
+        lines.append("  (none)")
+    for v in verdicts:
+        tag = v.get("verdict") or "UNKNOWN"
+        lines.append(
+            f"  [{tag}] {v.get('test', '?')}  {v.get('file', '?')}:{v.get('line', '?')}"
+        )
+    return lines
+
+
 def format_test_quality_text(
     result: AuditResult,
     mismatches_only: bool = False,
@@ -358,46 +407,13 @@ def format_test_quality_text(
         return _format_pyramid_only(pyramid)
 
     lines: list[str] = []
-
-    lines.append("Private imports:")
-    if not private:
-        lines.append("  (none)")
-    for p in private:
-        lines.append(
-            f"  {p.get('file', '?')}:{p.get('line', '?')}  {p.get('symbol', '?')}"
-        )
+    lines.extend(_format_private_section(private))
     lines.append("")
-
-    lines.append("Pyramid:")
-    if not pyramid:
-        lines.append("  (none)")
-    for m in pyramid:
-        cd = m.get("current_dir", "")
-        dl = m.get("detected_level", "")
-        flag = "" if cd == dl else "  [MISMATCH]"
-        lines.append(f"  {m.get('test', '?')}  {cd} -> {dl}{flag}")
+    lines.extend(_format_pyramid_section(pyramid))
     lines.append("")
-
-    lines.append("Duplicates:")
-    if not clusters:
-        lines.append("  (none)")
-    for cl in clusters:
-        lines.append(f"  [{cl.get('signal', '?')}]")
-        for mem in cl.get("members", []):
-            lines.append(
-                f"    {mem.get('file', '?')}:{mem.get('line', '?')}  "
-                f"{mem.get('test', '?')}"
-            )
+    lines.extend(_format_duplicates_section(clusters))
     lines.append("")
-
-    lines.append("Tautologies:")
-    if not verdicts:
-        lines.append("  (none)")
-    for v in verdicts:
-        tag = v.get("verdict") or "UNKNOWN"
-        lines.append(
-            f"  [{tag}] {v.get('test', '?')}  {v.get('file', '?')}:{v.get('line', '?')}"
-        )
+    lines.extend(_format_tautologies_section(verdicts))
 
     return "\n".join(lines)
 

@@ -327,35 +327,30 @@ def _dominant_call(
     return calls[0]
 
 
+def _format_arg(node: ast.expr) -> str:
+    match node:
+        case ast.Constant():
+            return repr(node.value)
+        case ast.Name():
+            return f"var:{node.id}"
+        case ast.List():
+            inner = [
+                repr(e.value) if isinstance(e, ast.Constant) else type(e).__name__
+                for e in node.elts
+            ]
+            return f"[{','.join(inner)}]"
+        case _:
+            return type(node).__name__
+
+
+def _format_keyword(kw: ast.keyword) -> str:
+    return f"{kw.arg}={_format_arg(kw.value)}"
+
+
 def _call_signature(call: ast.Call) -> str:
     name = _call_name(call) or ""
-    parts: list[str] = []
-    for arg in call.args:
-        if isinstance(arg, ast.Constant):
-            parts.append(repr(arg.value))
-        elif isinstance(arg, ast.Name):
-            parts.append(f"var:{arg.id}")
-        elif isinstance(arg, ast.List):
-            inner = [
-                repr(e.value) if isinstance(e, ast.Constant) else type(e).__name__
-                for e in arg.elts
-            ]
-            parts.append(f"[{','.join(inner)}]")
-        else:
-            parts.append(type(arg).__name__)
-    for kw in call.keywords:
-        if isinstance(kw.value, ast.Constant):
-            parts.append(f"{kw.arg}={kw.value.value!r}")
-        elif isinstance(kw.value, ast.List):
-            inner = [
-                repr(e.value) if isinstance(e, ast.Constant) else type(e).__name__
-                for e in kw.value.elts
-            ]
-            parts.append(f"{kw.arg}=[{','.join(inner)}]")
-        elif isinstance(kw.value, ast.Name):
-            parts.append(f"{kw.arg}=var:{kw.value.id}")
-        else:
-            parts.append(f"{kw.arg}={type(kw.value).__name__}")
+    parts = [_format_arg(arg) for arg in call.args]
+    parts.extend(_format_keyword(kw) for kw in call.keywords)
     return f"{name}({','.join(parts)})"
 
 
