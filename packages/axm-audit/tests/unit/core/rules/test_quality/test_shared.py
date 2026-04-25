@@ -421,6 +421,68 @@ def test_is_import_smoke_test_rejects_5_stmts() -> None:
     assert is_import_smoke_test(func) is False
 
 
+def test_is_import_smoke_test_isinstance_assert() -> None:
+    code = textwrap.dedent("""
+        def test_x():
+            from x import Y
+            assert isinstance(Y, int)
+    """)
+    func = _find_func(ast.parse(code), "test_x")
+    assert is_import_smoke_test(func) is True
+
+
+def test_is_import_smoke_test_bare_name_assert() -> None:
+    code = textwrap.dedent("""
+        def test_x():
+            from x import Y
+            assert Y
+    """)
+    func = _find_func(ast.parse(code), "test_x")
+    assert is_import_smoke_test(func) is True
+
+
+def test_is_import_smoke_test_self_assert_is_not_none() -> None:
+    code = textwrap.dedent("""
+        def test_x(self):
+            from x import Y
+            self.assertIsNotNone(Y)
+    """)
+    func = _find_func(ast.parse(code), "test_x")
+    assert is_import_smoke_test(func) is True
+
+
+def test_strong_assert_returns_false() -> None:
+    code = textwrap.dedent("""
+        def test_x():
+            from x import Y
+            assert Y == 42
+    """)
+    func = _find_func(ast.parse(code), "test_x")
+    assert is_import_smoke_test(func) is False
+
+
+def test_no_import_returns_false() -> None:
+    code = textwrap.dedent("""
+        def test_x():
+            assert Y is not None
+    """)
+    func = _find_func(ast.parse(code), "test_x")
+    assert is_import_smoke_test(func) is False
+
+
+def test_body_over_budget_returns_false() -> None:
+    code = textwrap.dedent("""
+        def test_x():
+            from x import Y
+            assert Y is not None
+            a = 1
+            b = 2
+            c = 3
+    """)
+    func = _find_func(ast.parse(code), "test_x")
+    assert is_import_smoke_test(func) is False
+
+
 # AC13 -----------------------------------------------------------------
 
 

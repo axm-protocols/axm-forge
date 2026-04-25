@@ -735,8 +735,43 @@ def _is_docstring_stmt(stmt: ast.stmt) -> bool:
     )
 
 
+def _is_is_not_none_compare(test: ast.Compare) -> bool:
+    return (
+        len(test.ops) == 1
+        and isinstance(test.ops[0], ast.IsNot)
+        and len(test.comparators) == 1
+        and isinstance(test.comparators[0], ast.Constant)
+        and test.comparators[0].value is None
+    )
+
+
+def _is_weak_assert(stmt: ast.stmt) -> bool | None:
+    if isinstance(stmt, ast.Assert):
+        test = stmt.test
+        if isinstance(test, ast.Name):
+            return True
+        if isinstance(test, ast.Compare):
+            return _is_is_not_none_compare(test)
+        if isinstance(test, ast.Call) and isinstance(test.func, ast.Name):
+            return test.func.id in ("isinstance", "callable")
+        return False
+    if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
+        call = stmt.value
+        return (
+            isinstance(call.func, ast.Attribute) and call.func.attr == "assertIsNotNone"
+        )
+    return None
+
+
 def is_import_smoke_test(func: ast.FunctionDef) -> bool:
-    """Docstring-aware import + weak-assert smoke pattern (body ≤ 4 stmts)."""
+    """Detect an import + weak-assert smoke test.
+
+    Returns True when the function body (docstrings excluded, ≤ 4 stmts)
+    contains at least one ``import``/``from … import …`` statement and at
+    least one weak assertion (``assert name``, ``assert x is not None``,
+    ``assert isinstance(...)``, ``assert callable(...)``, or
+    ``self.assertIsNotNone(...)``), with no statement stronger than these.
+    """
     body = [s for s in func.body if not _is_docstring_stmt(s)]
     if len(body) > _SMOKE_BODY_BUDGET:
         return False
@@ -747,37 +782,12 @@ def is_import_smoke_test(func: ast.FunctionDef) -> bool:
         if isinstance(stmt, ast.Import | ast.ImportFrom):
             has_import = True
             continue
-        if isinstance(stmt, ast.Assert):
-            has_any_assert = True
-            test = stmt.test
-            if isinstance(test, ast.Compare):
-                if (
-                    len(test.ops) == 1
-                    and isinstance(test.ops[0], ast.IsNot)
-                    and len(test.comparators) == 1
-                    and isinstance(test.comparators[0], ast.Constant)
-                    and test.comparators[0].value is None
-                ):
-                    continue
-            if isinstance(test, ast.Name):
-                continue
-            if (
-                isinstance(test, ast.Call)
-                and isinstance(test.func, ast.Name)
-                and test.func.id in ("isinstance", "callable")
-            ):
-                continue
+        weak = _is_weak_assert(stmt)
+        if weak is None:
             has_only_weak = False
-        elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
-            call = stmt.value
-            if (
-                isinstance(call.func, ast.Attribute)
-                and call.func.attr == "assertIsNotNone"
-            ):
-                has_any_assert = True
-                continue
-            has_only_weak = False
-        else:
+            continue
+        has_any_assert = True
+        if not weak:
             has_only_weak = False
     return has_import and has_any_assert and has_only_weak
 
