@@ -545,6 +545,34 @@ def test_ordering_2_before_3_before_4_etc(
 
 
 # ---------------------------------------------------------------------------
+# Step priority — step 1a wins dispatch order
+# ---------------------------------------------------------------------------
+
+
+def test_step_priority_1a_beats_1b(tfile: Path) -> None:
+    # Target satisfies step 1a (unique SUT `parse`, not in siblings'
+    # dominant calls) AND would also match step 4b (name suggests
+    # edge-case via "empty"). Dispatch order is 1a, 2, 3, 4, 4c, 1b, 4b,
+    # ... — refactor must keep 1a winning over any later step.
+    src = """
+        def test_parse_empty():
+            r = parse("input_value")
+            assert isinstance(r, dict)
+
+        def test_build_alpha():
+            r = build("a")
+            assert isinstance(r, dict)
+
+        def test_build_beta():
+            r = build("b")
+            assert isinstance(r, dict)
+    """
+    decision, step, _ = _fields(_call(src, "test_parse_empty", tfile=tfile))
+    assert decision == "STRENGTHEN"
+    assert step == "step1a_unique_fn"
+
+
+# ---------------------------------------------------------------------------
 # step5 fallthrough — truly ambiguous findings stay UNKNOWN
 # ---------------------------------------------------------------------------
 

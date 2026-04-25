@@ -877,7 +877,171 @@ def _classify_early_exits(  # noqa: PLR0911, PLR0913
     return None
 
 
-def _classify_uniqueness(  # noqa: PLR0911, PLR0913
+@dataclass
+class _UniquenessCtx:
+    """Frozen context shared by every uniqueness step helper."""
+
+    finding: Finding
+    func: ast.FunctionDef
+    tree: ast.Module
+    enclosing_class: str | None
+    helper_names: set[str]
+    pkg_symbols: set[str]
+    siblings: _SiblingInfo
+    my_dominant: str | None
+    my_calls: set[str]
+    source_text: str
+    sibling_funcs: list[ast.FunctionDef]
+
+
+def _step1a_unique_fn(ctx: _UniquenessCtx) -> Verdict | None:
+    # Scoped to pkg_symbols so we don't treat built-in constructors like
+    # object() as domain SUTs.
+    if (
+        ctx.my_dominant
+        and ctx.my_dominant in ctx.pkg_symbols
+        and ctx.my_dominant not in ctx.siblings.dominant_calls
+        and ctx.my_calls
+        and not (ctx.my_calls & ctx.siblings.all_calls)
+    ):
+        return Verdict(
+            "STRENGTHEN",
+            "step1a_unique_fn",
+            f"SUT `{ctx.my_dominant}` not in siblings",
+        )
+    return None
+
+
+def _step2_unique_io(ctx: _UniquenessCtx) -> Verdict | None:
+    if _has_io_setup(ctx.func) and not any(_has_io_setup(s) for s in ctx.sibling_funcs):
+        return Verdict(
+            "STRENGTHEN",
+            "step2_unique_io",
+            "unique I/O setup — no sibling exercises filesystem",
+        )
+    return None
+
+
+def _step3_unique_parametrize(ctx: _UniquenessCtx) -> Verdict | None:
+    if _has_parametrize(ctx.func) and not any(
+        _has_parametrize(s) for s in ctx.sibling_funcs
+    ):
+        return Verdict(
+            "STRENGTHEN",
+            "step3_unique_parametrize",
+            "unique @parametrize — no sibling is parametrized",
+        )
+    return None
+
+
+def _step4_boundary_literal(ctx: _UniquenessCtx) -> Verdict | None:
+    sibling_literals: set[object] = set()
+    for sib in ctx.sibling_funcs:
+        sibling_literals |= _collect_literal_constants(sib)
+    unique_boundary = _boundary_literals(ctx.func, sibling_literals)
+    if not unique_boundary:
+        return None
+    lit_repr = ", ".join(sorted(repr(lit) for lit in unique_boundary))
+    return Verdict(
+        "STRENGTHEN",
+        "step4_boundary_literal",
+        f"boundary literal {lit_repr} not seen in siblings",
+    )
+
+
+def _step4c_significant_setup(ctx: _UniquenessCtx) -> Verdict | None:
+    if ctx.finding.pattern in (
+        "isinstance_only",
+        "none_check_only",
+        "len_tautology",
+    ) and _has_significant_setup(ctx.func.body):
+        return Verdict(
+            "STRENGTHEN",
+            "step4c_significant_setup",
+            "significant setup with weak assert — non-trivial scenario",
+        )
+    return None
+
+
+def _step1b_different_args(ctx: _UniquenessCtx) -> Verdict | None:
+    if not (ctx.my_dominant and ctx.my_dominant in ctx.siblings.dominant_calls):
+        return None
+    my_sigs = {
+        sig
+        for name, sig in _extract_call_signatures(ctx.func.body, ctx.helper_names)
+        if name == ctx.my_dominant
+    }
+    sib_sigs = {
+        sig
+        for sig in ctx.siblings.call_signatures
+        if sig.startswith(f"{ctx.my_dominant}(")
+    }
+    if not my_sigs or (my_sigs & sib_sigs):
+        return None
+    return Verdict(
+        "STRENGTHEN",
+        "step1b_different_args",
+        f"`{ctx.my_dominant}` called with different args",
+    )
+
+
+def _step4b_name_edge(ctx: _UniquenessCtx) -> Verdict | None:
+    if _name_suggests_edge_case(ctx.func.name):
+        return Verdict(
+            "STRENGTHEN",
+            "step4b_name_edge",
+            f"name `{ctx.func.name}` declares an edge-case scenario",
+        )
+    return None
+
+
+def _step4f_intentional_weakness(ctx: _UniquenessCtx) -> Verdict | None:
+    if _has_intentional_weakness_marker(ctx.func, ctx.source_text):
+        return Verdict(
+            "STRENGTHEN",
+            "step4f_intentional_weakness",
+            "docstring/comment flags intentional weak assertion",
+        )
+    return None
+
+
+def _step4d_mocked_sut_contract(ctx: _UniquenessCtx) -> Verdict | None:
+    if _has_mock_setup(ctx.func) and _sut_invoked_with_result(
+        ctx.func, ctx.pkg_symbols
+    ):
+        return Verdict(
+            "STRENGTHEN",
+            "step4d_mocked_sut_contract",
+            "mocked SUT invoked + isinstance asserts contract on result",
+        )
+    return None
+
+
+def _step4e_homogeneity_check(ctx: _UniquenessCtx) -> Verdict | None:
+    if _isinstance_in_loop_or_aggregate(ctx.func):
+        return Verdict(
+            "STRENGTHEN",
+            "step4e_homogeneity_check",
+            "isinstance inside loop/aggregate — homogeneity contract",
+        )
+    return None
+
+
+_UNIQUENESS_STEPS = (
+    _step1a_unique_fn,
+    _step2_unique_io,
+    _step3_unique_parametrize,
+    _step4_boundary_literal,
+    _step4c_significant_setup,
+    _step1b_different_args,
+    _step4b_name_edge,
+    _step4f_intentional_weakness,
+    _step4d_mocked_sut_contract,
+    _step4e_homogeneity_check,
+)
+
+
+def _classify_uniqueness(  # noqa: PLR0913
     finding: Finding,
     *,
     func: ast.FunctionDef,
@@ -894,113 +1058,22 @@ def _classify_uniqueness(  # noqa: PLR0911, PLR0913
 
     Decision order: 1a, 2, 3, 4, 4c, 1b, 4b, 4f, 4d, 4e.
     """
-    # Step 1a — unique SUT (scoped to pkg_symbols so we don't treat
-    # built-in constructors like object() as domain SUTs).
-    if (
-        my_dominant
-        and my_dominant in pkg_symbols
-        and my_dominant not in siblings.dominant_calls
-        and my_calls
-        and not (my_calls & siblings.all_calls)
-    ):
-        return Verdict(
-            "STRENGTHEN",
-            "step1a_unique_fn",
-            f"SUT `{my_dominant}` not in siblings",
-        )
-
-    sibling_funcs = _iter_sibling_funcs(tree, func.name, enclosing_class)
-
-    # Step 2 — unique I/O fixture use
-    if _has_io_setup(func) and not any(_has_io_setup(s) for s in sibling_funcs):
-        return Verdict(
-            "STRENGTHEN",
-            "step2_unique_io",
-            "unique I/O setup — no sibling exercises filesystem",
-        )
-
-    # Step 3 — unique parametrize
-    if _has_parametrize(func) and not any(_has_parametrize(s) for s in sibling_funcs):
-        return Verdict(
-            "STRENGTHEN",
-            "step3_unique_parametrize",
-            "unique @parametrize — no sibling is parametrized",
-        )
-
-    # Step 4 — boundary literal unseen in siblings
-    sibling_literals: set[object] = set()
-    for sib in sibling_funcs:
-        sibling_literals |= _collect_literal_constants(sib)
-    unique_boundary = _boundary_literals(func, sibling_literals)
-    if unique_boundary:
-        lit_repr = ", ".join(sorted(repr(lit) for lit in unique_boundary))
-        return Verdict(
-            "STRENGTHEN",
-            "step4_boundary_literal",
-            f"boundary literal {lit_repr} not seen in siblings",
-        )
-
-    # Step 4c — significant setup (P16 extension covers len_tautology)
-    if finding.pattern in (
-        "isinstance_only",
-        "none_check_only",
-        "len_tautology",
-    ) and _has_significant_setup(func.body):
-        return Verdict(
-            "STRENGTHEN",
-            "step4c_significant_setup",
-            "significant setup with weak assert — non-trivial scenario",
-        )
-
-    # Step 1b — same fn, different args
-    if my_dominant and my_dominant in siblings.dominant_calls:
-        my_sigs = {
-            sig
-            for name, sig in _extract_call_signatures(func.body, helper_names)
-            if name == my_dominant
-        }
-        sib_sigs = {
-            sig for sig in siblings.call_signatures if sig.startswith(f"{my_dominant}(")
-        }
-        if my_sigs and not (my_sigs & sib_sigs):
-            return Verdict(
-                "STRENGTHEN",
-                "step1b_different_args",
-                f"`{my_dominant}` called with different args",
-            )
-
-    # Step 4b — name suggests edge case
-    if _name_suggests_edge_case(func.name):
-        return Verdict(
-            "STRENGTHEN",
-            "step4b_name_edge",
-            f"name `{func.name}` declares an edge-case scenario",
-        )
-
-    # Step 4f — intentional weakness marker
-    if _has_intentional_weakness_marker(func, source_text):
-        return Verdict(
-            "STRENGTHEN",
-            "step4f_intentional_weakness",
-            "docstring/comment flags intentional weak assertion",
-        )
-
-    # Step 4d — mocked SUT + isinstance on SUT result (P17)
-    if _has_mock_setup(func) and _sut_invoked_with_result(func, pkg_symbols):
-        return Verdict(
-            "STRENGTHEN",
-            "step4d_mocked_sut_contract",
-            "mocked SUT invoked + isinstance asserts contract on result",
-        )
-
-    # Step 4e — homogeneity check (P18)
-    if _isinstance_in_loop_or_aggregate(func):
-        return Verdict(
-            "STRENGTHEN",
-            "step4e_homogeneity_check",
-            "isinstance inside loop/aggregate — homogeneity contract",
-        )
-
+    ctx = _UniquenessCtx(
+        finding=finding,
+        func=func,
+        tree=tree,
+        enclosing_class=enclosing_class,
+        helper_names=helper_names,
+        pkg_symbols=pkg_symbols,
+        siblings=siblings,
+        my_dominant=my_dominant,
+        my_calls=my_calls,
+        source_text=source_text,
+        sibling_funcs=_iter_sibling_funcs(tree, func.name, enclosing_class),
+    )
+    for step in _UNIQUENESS_STEPS:
+        if (verdict := step(ctx)) is not None:
+            return verdict
     return None
 
 
