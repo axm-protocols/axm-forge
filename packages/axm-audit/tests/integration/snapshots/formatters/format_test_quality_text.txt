@@ -1,0 +1,14 @@
+Private imports:
+  tests/unit/test_b.py:5  _helper
+
+Pyramid:
+  tests/unit/test_a.py::test_a  unit -> integration  [MISMATCH]
+  tests/unit/test_b.py::test_b  unit -> unit
+
+Duplicates:
+  [shape:0xabc]
+    tests/unit/test_a.py:1  test_a
+    tests/unit/test_b.py:2  test_b
+
+Tautologies:
+  [TAUTOLOGY] test_trivial  tests/unit/test_c.py:10

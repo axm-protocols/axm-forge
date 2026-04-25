@@ -1,0 +1,37 @@
+📋 axm-audit — Quality Audit
+   Path: /tmp/sample
+
+  lint
+    ✅ ruff                            ok
+
+  type
+    ✅ mypy                            ok
+
+  complexity
+    ❌ complexity                      1 function above CC budget
+
+  testing
+    ❌ TEST_PYRAMID                    pyramid mismatch
+    ❌ PRIVATE_IMPORTS                 private imports
+    ❌ duplicates                      duplicates found
+    ❌ tautologies                     tautologies found
+
+  Score: 75/100 — Grade B ✅
+
+  📝 Failures (5):
+
+  ❌ complexity
+     Problem: 1 function above CC budget
+     1 function above CC budget
+
+  ❌ TEST_PYRAMID
+     Problem: pyramid mismatch
+
+  ❌ PRIVATE_IMPORTS
+     Problem: private imports
+
+  ❌ duplicates
+     Problem: duplicates found
+
+  ❌ tautologies
+     Problem: tautologies found

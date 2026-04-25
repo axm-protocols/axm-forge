@@ -1,0 +1,8 @@
+audit quality | B 75 | 2 pass · 5 fail
+✓ ruff mypy
+✗ complexity 1 function above CC budget
+  1 function above CC budget
+✗ TEST_PYRAMID pyramid mismatch
+✗ PRIVATE_IMPORTS private imports
+✗ duplicates duplicates found
+✗ tautologies tautologies found
