@@ -263,6 +263,72 @@ def format_agent_text(  # noqa: PLR0912
     return "\n".join(lines)
 
 
+def _extract_private(check: Any) -> list[dict[str, Any]]:
+    """Normalize private-import findings from metadata or legacy ``details``."""
+    meta = getattr(check, "metadata", None) or {}
+    if meta.get("private_import_violations"):
+        return list(meta["private_import_violations"])
+    rule = (check.rule_id or "").upper()
+    details = check.details or {}
+    if "PRIVATE" not in rule or not details.get("findings"):
+        return []
+    return [
+        {
+            "file": f.get("test_file") or f.get("file") or "",
+            "line": f.get("line", 0),
+            "symbol": f.get("private_symbol") or f.get("symbol") or "",
+        }
+        for f in details["findings"]
+    ]
+
+
+def _extract_pyramid(check: Any) -> list[dict[str, Any]]:
+    """Normalize pyramid-mismatch entries from metadata or ``findings`` models."""
+    meta = getattr(check, "metadata", None) or {}
+    if meta.get("pyramid_mismatches"):
+        return list(meta["pyramid_mismatches"])
+    rule = (check.rule_id or "").upper()
+    if "PYRAMID" not in rule:
+        return []
+    findings = getattr(check, "findings", None) or []
+    out: list[dict[str, Any]] = []
+    for f in findings:
+        fd = f.model_dump() if hasattr(f, "model_dump") else dict(f)
+        out.append(
+            {
+                "test": f"{fd.get('path', '')}::{fd.get('function', '')}",
+                "current_dir": fd.get("current_level", ""),
+                "detected_level": fd.get("level", ""),
+            }
+        )
+    return out
+
+
+def _extract_clusters(check: Any) -> list[dict[str, Any]]:
+    """Normalize duplicate-test clusters, tolerating ``members``/``tests`` keys."""
+    meta = getattr(check, "metadata", None) or {}
+    return [
+        {
+            "signal": cl.get("signal", "?"),
+            "members": [
+                {
+                    "test": m.get("test") or m.get("name") or "?",
+                    "file": m.get("file", ""),
+                    "line": m.get("line", 0),
+                }
+                for m in (cl.get("members") or cl.get("tests") or [])
+            ],
+        }
+        for cl in (meta.get("clusters") or [])
+    ]
+
+
+def _extract_verdicts(check: Any) -> list[dict[str, Any]]:
+    """Return per-test quality verdicts attached to ``check.metadata``."""
+    meta = getattr(check, "metadata", None) or {}
+    return list(meta.get("verdicts") or [])
+
+
 def _extract_test_quality(
     result: AuditResult,
 ) -> tuple[
@@ -276,58 +342,11 @@ def _extract_test_quality(
     pyramid: list[dict[str, Any]] = []
     clusters: list[dict[str, Any]] = []
     verdicts: list[dict[str, Any]] = []
-
     for c in result.checks:
-        meta = getattr(c, "metadata", None) or {}
-        details = c.details or {}
-        rule = (c.rule_id or "").upper()
-
-        if meta.get("private_import_violations"):
-            private.extend(meta["private_import_violations"])
-        elif "PRIVATE" in rule and details.get("findings"):
-            for f in details["findings"]:
-                private.append(
-                    {
-                        "file": f.get("test_file") or f.get("file") or "",
-                        "line": f.get("line", 0),
-                        "symbol": (f.get("private_symbol") or f.get("symbol") or ""),
-                    }
-                )
-
-        if meta.get("pyramid_mismatches"):
-            pyramid.extend(meta["pyramid_mismatches"])
-        elif "PYRAMID" in rule:
-            findings = getattr(c, "findings", None) or []
-            for f in findings:
-                fd = f.model_dump() if hasattr(f, "model_dump") else dict(f)
-                pyramid.append(
-                    {
-                        "test": f"{fd.get('path', '')}::{fd.get('function', '')}",
-                        "current_dir": fd.get("current_level", ""),
-                        "detected_level": fd.get("level", ""),
-                    }
-                )
-
-        if meta.get("clusters"):
-            for cl in meta["clusters"]:
-                members_raw = cl.get("members") or cl.get("tests") or []
-                clusters.append(
-                    {
-                        "signal": cl.get("signal", "?"),
-                        "members": [
-                            {
-                                "test": m.get("test") or m.get("name") or "?",
-                                "file": m.get("file", ""),
-                                "line": m.get("line", 0),
-                            }
-                            for m in members_raw
-                        ],
-                    }
-                )
-
-        if meta.get("verdicts"):
-            verdicts.extend(meta["verdicts"])
-
+        private.extend(_extract_private(c))
+        pyramid.extend(_extract_pyramid(c))
+        clusters.extend(_extract_clusters(c))
+        verdicts.extend(_extract_verdicts(c))
     return private, pyramid, clusters, verdicts
 
 
