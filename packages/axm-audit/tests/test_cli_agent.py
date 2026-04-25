@@ -88,7 +88,7 @@ def test_cli_test_agent_prints_text(monkeypatch, capsys, tmp_path, mock_test_rep
 
 
 def test_cli_test_default_prints_json(monkeypatch, capsys, tmp_path, mock_test_report):
-    """test (no --agent) outputs valid JSON."""
+    """test (no --agent) outputs valid JSON with the expected report fields."""
     report_dict = {"passed": 10, "failed": 0, "errors": 0}
     monkeypatch.setattr(
         "axm_audit.core.test_runner.run_tests",
@@ -102,4 +102,6 @@ def test_cli_test_default_prints_json(monkeypatch, capsys, tmp_path, mock_test_r
 
     out = capsys.readouterr().out
     data = json.loads(out)
-    assert isinstance(data, dict)
+    assert data["passed"] == 10
+    assert data["failed"] == 0
+    assert data["errors"] == 0

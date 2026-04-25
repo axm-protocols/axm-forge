@@ -6,9 +6,12 @@ from axm_audit.core.auditor import get_rules_for_category
 
 
 def test_get_rules_for_category_test_quality_empty_ok() -> None:
-    """test_quality is a valid category; returns a list without KeyError/ValueError."""
+    """test_quality is a valid category and returns a list of registered rules."""
     rules = get_rules_for_category("test_quality")
     assert isinstance(rules, list)
+    assert all(hasattr(r, "check") for r in rules), (
+        "Every test_quality rule must expose a `.check` method"
+    )
 
 
 def test_get_rules_for_category_test_quality_picks_up_registrations(

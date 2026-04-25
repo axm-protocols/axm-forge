@@ -57,7 +57,7 @@ class TestParseFileSafe:
     """Tests for parse_file_safe()."""
 
     def test_valid_python(self, tmp_path: Path) -> None:
-        """Valid Python file returns ast.Module."""
+        """Valid Python file returns an ast.Module containing the parsed assignment."""
         import ast
 
         from axm_audit.core.rules._helpers import parse_file_safe
@@ -66,6 +66,7 @@ class TestParseFileSafe:
         f.write_text("x = 1\n")
         result = parse_file_safe(f)
         assert isinstance(result, ast.Module)
+        assert any(isinstance(n, ast.Assign) for n in result.body)
 
     def test_syntax_error(self, tmp_path: Path) -> None:
         """File with syntax errors returns None."""
