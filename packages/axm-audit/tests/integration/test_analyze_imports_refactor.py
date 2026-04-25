@@ -32,7 +32,7 @@ def test_analyze_imports_is_deterministic(tmp_path: Path) -> None:
 
 def test_analyze_imports_findings_match_baseline(tmp_path: Path) -> None:
     tree = ast.parse(FIXTURE_CODE)
-    public, internal, modules, has_private, io_modules, io_signals = analyze_imports(
+    _public, _internal, modules, has_private, io_modules, io_signals = analyze_imports(
         tree, {"mypkg"}, None, tmp_path
     )
 

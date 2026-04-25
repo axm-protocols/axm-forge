@@ -520,7 +520,7 @@ def _build_scan_context(  # noqa: PLR0913
 def _resolve_io_for_test(
     ctx: _ScanContext, node: ast.FunctionDef
 ) -> tuple[list[str], bool, bool]:
-    """Run R1+R3+R4+R5 for *node* and return ``(signals, has_real_io, has_subprocess)``."""
+    """Run R1+R3+R4+R5 and return ``(signals, has_real_io, has_subprocess)``."""
     signals, has_real_io, attr_sigs = _collect_signals(
         node,
         io_module_names=ctx.io_module_names,
