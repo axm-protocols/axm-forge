@@ -839,7 +839,120 @@ def _isinstance_in_loop_or_aggregate(func: ast.FunctionDef) -> bool:
 # ── Triage entry point ────────────────────────────────────────────────
 
 
-def _classify_early_exits(  # noqa: PLR0911, PLR0913
+@dataclass
+class _EarlyExitCtx:
+    finding: Finding
+    func: ast.FunctionDef
+    tree: ast.Module
+    test_file: Path
+    contracts: set[str]
+    enclosing_class: str | None
+    siblings: _SiblingInfo
+
+
+def _exit_import_smoke(ctx: _EarlyExitCtx) -> Verdict | None:
+    if not is_import_smoke_test(ctx.func):
+        return None
+    if _is_contract_conformance_test(ctx.func, ctx.contracts):
+        return Verdict(
+            "STRENGTHEN",
+            "step0c_contract_conformance",
+            "import + isinstance against Protocol/ABC — contract test",
+        )
+    if _name_is_explicit_contract(ctx.func.name):
+        return Verdict(
+            "STRENGTHEN",
+            "step0d_explicit_contract_name",
+            f"name `{ctx.func.name}` declares explicit contract check",
+        )
+    if test_is_in_lazy_import_context(ctx.func, ctx.tree, ctx.test_file):
+        return Verdict(
+            "STRENGTHEN",
+            "step_n2b_lazy_import_sut",
+            "import IS the SUT (lazy/__getattr__/re-export) — keep",
+        )
+    return Verdict(
+        "DELETE",
+        "step_n2_import_smoke",
+        "import smoke test: tautological by construction",
+    )
+
+
+def _exit_toplevel_import_not_none(ctx: _EarlyExitCtx) -> Verdict | None:
+    if ctx.finding.pattern != "none_check_only":
+        return None
+    asserted = _asserted_name_is_not_none(ctx.func)
+    if not asserted or asserted not in _collect_top_level_imports(ctx.tree):
+        return None
+    if test_is_in_lazy_import_context(ctx.func, ctx.tree, ctx.test_file):
+        return None
+    if not _name_used_by_any_sibling(
+        asserted, ctx.tree, ctx.func.name, ctx.enclosing_class
+    ):
+        return None
+    return Verdict(
+        "DELETE",
+        "step_n2c_toplevel_import_not_none",
+        f"`{asserted}` imported at top-level and used by "
+        f"siblings — `assert is not None` is redundant",
+    )
+
+
+def _exit_no_siblings(ctx: _EarlyExitCtx) -> Verdict | None:
+    if ctx.siblings.count != 0:
+        return None
+    return Verdict(
+        "STRENGTHEN",
+        "step_n1_no_siblings",
+        "no sibling tests — cannot be redundant",
+    )
+
+
+def _exit_self_compare(ctx: _EarlyExitCtx) -> Verdict | None:
+    if ctx.finding.pattern != "self_compare":
+        return None
+    return Verdict(
+        "STRENGTHEN",
+        "step0_self_compare",
+        "self-compare tests determinism",
+    )
+
+
+def _exit_isinstance_explicit_contract(ctx: _EarlyExitCtx) -> Verdict | None:
+    if ctx.finding.pattern != "isinstance_only":
+        return None
+    if not _name_is_explicit_contract(ctx.func.name):
+        return None
+    return Verdict(
+        "STRENGTHEN",
+        "step0d_explicit_contract_name",
+        f"name `{ctx.func.name}` declares explicit contract check",
+    )
+
+
+def _exit_isinstance_conformance(ctx: _EarlyExitCtx) -> Verdict | None:
+    if ctx.finding.pattern != "isinstance_only":
+        return None
+    if not _is_contract_conformance_test(ctx.func, ctx.contracts):
+        return None
+    return Verdict(
+        "STRENGTHEN",
+        "step0c_contract_conformance",
+        "isinstance against Protocol/ABC — contract test",
+    )
+
+
+_EARLY_EXIT_BUILDERS = (
+    _exit_import_smoke,
+    _exit_toplevel_import_not_none,
+    _exit_no_siblings,
+    _exit_self_compare,
+    _exit_isinstance_explicit_contract,
+    _exit_isinstance_conformance,
+)
+
+
+def _classify_early_exits(  # noqa: PLR0913
     finding: Finding,
     *,
     func: ast.FunctionDef,
@@ -850,81 +963,18 @@ def _classify_early_exits(  # noqa: PLR0911, PLR0913
     siblings: _SiblingInfo,
 ) -> Verdict | None:
     """Return early-exit verdict for *finding*, or ``None`` to continue triage."""
-    # Step -2 — import + weak-assert smoke
-    if is_import_smoke_test(func):
-        if _is_contract_conformance_test(func, contracts):
-            return Verdict(
-                "STRENGTHEN",
-                "step0c_contract_conformance",
-                "import + isinstance against Protocol/ABC — contract test",
-            )
-        if _name_is_explicit_contract(func.name):
-            return Verdict(
-                "STRENGTHEN",
-                "step0d_explicit_contract_name",
-                f"name `{func.name}` declares explicit contract check",
-            )
-        if test_is_in_lazy_import_context(func, tree, test_file):
-            return Verdict(
-                "STRENGTHEN",
-                "step_n2b_lazy_import_sut",
-                "import IS the SUT (lazy/__getattr__/re-export) — keep",
-            )
-        return Verdict(
-            "DELETE",
-            "step_n2_import_smoke",
-            "import smoke test: tautological by construction",
-        )
-
-    # Step -2c — top-level import re-tested with `is not None`, used by sibling
-    if finding.pattern == "none_check_only":
-        asserted = _asserted_name_is_not_none(func)
-        if asserted and asserted in _collect_top_level_imports(tree):
-            if not test_is_in_lazy_import_context(func, tree, test_file):
-                if _name_used_by_any_sibling(
-                    asserted, tree, func.name, enclosing_class
-                ):
-                    return Verdict(
-                        "DELETE",
-                        "step_n2c_toplevel_import_not_none",
-                        f"`{asserted}` imported at top-level and used by "
-                        f"siblings — `assert is not None` is redundant",
-                    )
-
-    # Step -1 — no siblings
-    if siblings.count == 0:
-        return Verdict(
-            "STRENGTHEN",
-            "step_n1_no_siblings",
-            "no sibling tests — cannot be redundant",
-        )
-
-    # Step 0 — self-compare
-    if finding.pattern == "self_compare":
-        return Verdict(
-            "STRENGTHEN",
-            "step0_self_compare",
-            "self-compare tests determinism",
-        )
-
-    # Step 0d — explicit contract name
-    if finding.pattern == "isinstance_only" and _name_is_explicit_contract(func.name):
-        return Verdict(
-            "STRENGTHEN",
-            "step0d_explicit_contract_name",
-            f"name `{func.name}` declares explicit contract check",
-        )
-
-    # Step 0c — isinstance against Protocol/ABC/TypedDict/stdlib ABC
-    if finding.pattern == "isinstance_only" and _is_contract_conformance_test(
-        func, contracts
-    ):
-        return Verdict(
-            "STRENGTHEN",
-            "step0c_contract_conformance",
-            "isinstance against Protocol/ABC — contract test",
-        )
-
+    ctx = _EarlyExitCtx(
+        finding=finding,
+        func=func,
+        tree=tree,
+        test_file=test_file,
+        contracts=contracts,
+        enclosing_class=enclosing_class,
+        siblings=siblings,
+    )
+    for build in _EARLY_EXIT_BUILDERS:
+        if (verdict := build(ctx)) is not None:
+            return verdict
     return None
 
 
