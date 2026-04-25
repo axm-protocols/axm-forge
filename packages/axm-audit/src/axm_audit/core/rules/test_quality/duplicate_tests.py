@@ -129,6 +129,33 @@ def _call_sig(call: ast.Call) -> str | None:
     return None
 
 
+def _collect_asserted_names(node: ast.FunctionDef) -> set[str]:
+    """Names referenced in ``assert`` expressions of ``node``."""
+    asserted: set[str] = set()
+    for child in ast.walk(node):
+        if not (isinstance(child, ast.Assert) and child.test is not None):
+            continue
+        for sub in ast.walk(child.test):
+            if isinstance(sub, ast.Name):
+                asserted.add(sub.id)
+    return asserted
+
+
+def _is_tainted_assign(assign: ast.Assign, asserted: set[str]) -> bool:
+    target = assign.targets[0]
+    return isinstance(target, ast.Name) and target.id in asserted
+
+
+def _propagate_call_args(call: ast.Call, asserted: set[str]) -> bool:
+    """Add positional name args to ``asserted``; return True if any added."""
+    added = False
+    for arg in call.args:
+        if isinstance(arg, ast.Name) and arg.id not in asserted:
+            asserted.add(arg.id)
+            added = True
+    return added
+
+
 def _compute_call_signature(node: ast.FunctionDef) -> str:
     """Signature of the call chain whose result is asserted on.
 
@@ -137,13 +164,7 @@ def _compute_call_signature(node: ast.FunctionDef) -> str:
     collecting each call's signature.  Two tests with different
     upstream calls in the chain produce different signatures.
     """
-    asserted: set[str] = set()
-    for child in ast.walk(node):
-        if isinstance(child, ast.Assert) and child.test is not None:
-            for sub in ast.walk(child.test):
-                if isinstance(sub, ast.Name):
-                    asserted.add(sub.id)
-
+    asserted = _collect_asserted_names(node)
     assigns = [
         stmt
         for stmt in _flatten_body(node.body)
@@ -155,8 +176,7 @@ def _compute_call_signature(node: ast.FunctionDef) -> str:
     while changed:
         changed = False
         for assign in list(assigns):
-            target = assign.targets[0]
-            if not (isinstance(target, ast.Name) and target.id in asserted):
+            if not _is_tainted_assign(assign, asserted):
                 continue
             if not isinstance(assign.value, ast.Call):
                 assigns.remove(assign)
@@ -164,10 +184,8 @@ def _compute_call_signature(node: ast.FunctionDef) -> str:
             sig = _call_sig(assign.value)
             if sig is not None:
                 sigs.add(sig)
-            for arg in assign.value.args:
-                if isinstance(arg, ast.Name) and arg.id not in asserted:
-                    asserted.add(arg.id)
-                    changed = True
+            if _propagate_call_args(assign.value, asserted):
+                changed = True
             assigns.remove(assign)
 
     return ">".join(sorted(sigs))
