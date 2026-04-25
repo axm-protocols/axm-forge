@@ -359,6 +359,32 @@ def _collect_tmp_path_signals(
     return signals, fired
 
 
+def _apply_r1_import_signals(
+    node: ast.FunctionDef,
+    io_module_names: set[str],
+    file_import_signals: list[str],
+    signals: list[str],
+) -> bool:
+    """Append R1 import-IO signals referenced by *node*; return whether any fired."""
+    referenced = _func_references_names(node, io_module_names)
+    fired = False
+    for sig in file_import_signals:
+        mod_from_sig = sig.removeprefix("imports ").split(".")[0]
+        if any(
+            ref == mod_from_sig or ref.startswith(mod_from_sig) for ref in referenced
+        ):
+            signals.append(sig)
+            fired = True
+    return fired
+
+
+def _merge_unique(target: list[str], items: list[str]) -> None:
+    """Append items from *items* into *target* preserving order, skipping duplicates."""
+    for sig in items:
+        if sig not in target:
+            target.append(sig)
+
+
 def _collect_signals(  # noqa: PLR0913
     node: ast.FunctionDef,
     *,
@@ -374,31 +400,19 @@ def _collect_signals(  # noqa: PLR0913
     so the caller can gate R4 (skipped when R3 attr-scan already fired).
     """
     signals: list[str] = []
-    has_real_io = False
-
-    # R1 — module-level IO imports referenced in this function's body
-    referenced = _func_references_names(node, io_module_names)
-    for sig in file_import_signals:
-        mod_from_sig = sig.removeprefix("imports ").split(".")[0]
-        if any(
-            ref == mod_from_sig or ref.startswith(mod_from_sig) for ref in referenced
-        ):
-            signals.append(sig)
-            has_real_io = True
+    has_real_io = _apply_r1_import_signals(
+        node, io_module_names, file_import_signals, signals
+    )
 
     # File-scope CLI runner / call-based I/O bleeds to every function
     if file_has_io:
-        for sig in file_signals:
-            if sig not in signals:
-                signals.append(sig)
+        _merge_unique(signals, file_signals)
         has_real_io = True
 
     # R3 — per-function attr-IO (transitive)
     attr_sigs = func_attr_io_transitive(node, helpers, max_depth=2)
     if attr_sigs:
-        for sig in attr_sigs:
-            if sig not in signals:
-                signals.append(sig)
+        _merge_unique(signals, list(attr_sigs))
         has_real_io = True
 
     # R3 — fixture-arg IO guard
@@ -438,6 +452,135 @@ def _apply_r4_conftest(  # noqa: PLR0913
     return signals, bool(conftest_sigs), fixtures
 
 
+@dataclass(slots=True)
+class _ScanContext:
+    """File-scope state shared across every ``test_*`` classification.
+
+    Built once per test file by :func:`_build_scan_context`, then passed
+    to :func:`_classify_test_function` for each test inside the module.
+    ``fixtures`` is lazily populated by R4 on first conftest scan and
+    reused across subsequent iterations.
+    """
+
+    test_file: Path
+    tree: ast.Module
+    pkg_root: Path
+    pkg_prefixes: set[str]
+    tests_dir: Path
+    current: str
+    public: list[str]
+    internal: list[str]
+    import_modules: list[str]
+    io_module_names: set[str]
+    file_import_signals: list[str]
+    file_has_io: bool
+    file_has_subprocess: bool
+    file_signals: list[str]
+    helpers: dict[str, ast.FunctionDef]
+    fixtures: dict[str, ast.FunctionDef] | None = None
+
+
+def _build_scan_context(  # noqa: PLR0913
+    test_file: Path,
+    tree: ast.Module,
+    pkg_root: Path,
+    pkg_prefixes: set[str],
+    init_all: set[str] | None,
+    tests_dir: Path,
+) -> _ScanContext:
+    """Gather all file-scope state needed to classify tests in *tree*."""
+    (
+        public,
+        internal,
+        import_modules,
+        _has_private,
+        io_module_names,
+        file_import_signals,
+    ) = analyze_imports(tree, pkg_prefixes, init_all, pkg_root)
+    file_has_io, file_has_subprocess, file_signals = detect_real_io(tree)
+    return _ScanContext(
+        test_file=test_file,
+        tree=tree,
+        pkg_root=pkg_root,
+        pkg_prefixes=pkg_prefixes,
+        tests_dir=tests_dir,
+        current=current_level_from_path(test_file, tests_dir),
+        public=public,
+        internal=internal,
+        import_modules=import_modules,
+        io_module_names=io_module_names,
+        file_import_signals=file_import_signals,
+        file_has_io=file_has_io,
+        file_has_subprocess=file_has_subprocess,
+        file_signals=file_signals,
+        helpers=_collect_helpers(tree),
+    )
+
+
+def _resolve_io_for_test(
+    ctx: _ScanContext, node: ast.FunctionDef
+) -> tuple[list[str], bool, bool]:
+    """Run R1+R3+R4+R5 for *node* and return ``(signals, has_real_io, has_subprocess)``."""
+    signals, has_real_io, attr_sigs = _collect_signals(
+        node,
+        io_module_names=ctx.io_module_names,
+        file_import_signals=ctx.file_import_signals,
+        file_has_io=ctx.file_has_io,
+        file_signals=ctx.file_signals,
+        helpers=ctx.helpers,
+    )
+    has_subprocess = ctx.file_has_subprocess
+
+    # R4 — conftest fixture IO (skipped when R3 attr-scan already fired)
+    if not attr_sigs:
+        signals, fired, ctx.fixtures = _apply_r4_conftest(
+            node,
+            ctx.tree,
+            ctx.test_file,
+            ctx.tests_dir,
+            ctx.pkg_root,
+            ctx.fixtures,
+            signals,
+        )
+        has_real_io = has_real_io or fired
+
+    # R5 — mock neutralization (hard invariant B: never fires on subprocess)
+    if not has_subprocess:
+        keep, signals = _apply_mock_neutralization(node, signals)
+        if not keep:
+            has_real_io = False
+
+    return signals, has_real_io, has_subprocess
+
+
+def _classify_test_function(ctx: _ScanContext, node: ast.FunctionDef) -> Finding:
+    """Run the full pipeline for one ``test_*`` function and emit a Finding."""
+    signals, has_real_io, has_subprocess = _resolve_io_for_test(ctx, node)
+    level, reason = _classify_level(
+        has_real_io=has_real_io,
+        has_subprocess=has_subprocess,
+        imports_public=bool(ctx.public),
+        imports_internal=bool(ctx.internal),
+    )
+    suggested = _suggest_file(
+        level, ctx.import_modules, ctx.pkg_prefixes, ctx.test_file
+    )
+    return Finding(
+        path=str(ctx.test_file),
+        function=node.name,
+        level=level,
+        reason=reason,
+        current_level=ctx.current,
+        has_real_io=has_real_io,
+        has_subprocess=has_subprocess,
+        io_signals=signals,
+        imports_public=list(ctx.public),
+        imports_internal=list(ctx.internal),
+        suggested_file=suggested,
+        severity=Severity.WARNING,
+    )
+
+
 def scan_test_file(  # noqa: PLR0913
     test_file: Path,
     tree: ast.Module,
@@ -451,74 +594,14 @@ def scan_test_file(  # noqa: PLR0913
     Emits one :class:`Finding` per function whose classified level differs
     from its folder-derived current level.
     """
-    (
-        public,
-        internal,
-        import_modules,
-        _has_private,
-        io_module_names,
-        file_import_signals,
-    ) = analyze_imports(tree, pkg_prefixes, init_all, pkg_root)
-
-    file_has_io, file_has_subprocess, file_signals = detect_real_io(tree)
-    helpers = _collect_helpers(tree)
-    current = current_level_from_path(test_file, tests_dir)
-    fixtures: dict[str, ast.FunctionDef] | None = None
-
-    findings: list[Finding] = []
-    for node in ast.walk(tree):
-        if not (isinstance(node, ast.FunctionDef) and node.name.startswith("test_")):
-            continue
-
-        signals, has_real_io, attr_sigs = _collect_signals(
-            node,
-            io_module_names=io_module_names,
-            file_import_signals=file_import_signals,
-            file_has_io=file_has_io,
-            file_signals=file_signals,
-            helpers=helpers,
-        )
-        has_subprocess = file_has_subprocess
-
-        # R4 — conftest fixture IO (skipped when R3 attr-scan already fired)
-        if not attr_sigs:
-            signals, fired, fixtures = _apply_r4_conftest(
-                node, tree, test_file, tests_dir, pkg_root, fixtures, signals
-            )
-            has_real_io = has_real_io or fired
-
-        # R5 — mock neutralization (hard invariant B: never fires on subprocess)
-        if not has_subprocess:
-            keep, signals = _apply_mock_neutralization(node, signals)
-            if not keep:
-                has_real_io = False
-
-        level, reason = _classify_level(
-            has_real_io=has_real_io,
-            has_subprocess=has_subprocess,
-            imports_public=bool(public),
-            imports_internal=bool(internal),
-        )
-        suggested = _suggest_file(level, import_modules, pkg_prefixes, test_file)
-
-        findings.append(
-            Finding(
-                path=str(test_file),
-                function=node.name,
-                level=level,
-                reason=reason,
-                current_level=current,
-                has_real_io=has_real_io,
-                has_subprocess=has_subprocess,
-                io_signals=signals,
-                imports_public=list(public),
-                imports_internal=list(internal),
-                suggested_file=suggested,
-                severity=Severity.WARNING,
-            )
-        )
-
-    return findings
+    ctx = _build_scan_context(
+        test_file, tree, pkg_root, pkg_prefixes, init_all, tests_dir
+    )
+    return [
+        _classify_test_function(ctx, node)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+    ]
 
 
 def scan_package(pkg_root: Path) -> list[Finding]:
