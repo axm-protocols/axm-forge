@@ -10,7 +10,7 @@ _PKG_ROOT = Path(__file__).resolve().parents[2]
 _FIXTURE = _PKG_ROOT / "tests" / "fixtures" / "tautology_verdicts_baseline.json"
 
 
-def _verdict_key(v: dict) -> tuple:
+def _verdict_key(v: dict[str, object]) -> tuple[object, ...]:
     return (
         v.get("file", ""),
         v.get("test", ""),
@@ -22,7 +22,7 @@ def _verdict_key(v: dict) -> tuple:
     )
 
 
-def _normalize(payload: object) -> list[dict]:
+def _normalize(payload: object) -> list[dict[str, object]]:
     if isinstance(payload, dict):
         items = payload.get("verdicts", [])
     else:
