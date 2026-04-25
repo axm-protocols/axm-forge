@@ -734,27 +734,40 @@ def _has_intentional_weakness_marker(func: ast.FunctionDef, source_text: str) ->
     return _docstring_has_marker(func) or _comments_have_marker(func, source_text)
 
 
+def _is_patch_decorator(dec: ast.expr) -> bool:
+    """True when *dec* is a ``patch`` / ``patch.object`` decorator."""
+    target = dec.func if isinstance(dec, ast.Call) else dec
+    if isinstance(target, ast.Name):
+        return target.id == "patch"
+    if isinstance(target, ast.Attribute):
+        return target.attr in {"patch", "object"}
+    return False
+
+
+def _is_mock_arg(arg: ast.arg) -> bool:
+    """True when *arg* names a mock injected by a ``patch`` decorator."""
+    return arg.arg == "mock" or arg.arg.startswith("mock_")
+
+
+def _is_mock_node(node: ast.AST) -> bool:
+    """True when *node* is a mock call or a ``return_value`` assignment."""
+    if isinstance(node, ast.Call):
+        return _call_name(node) in _MOCK_CALL_NAMES
+    if isinstance(node, ast.Assign):
+        return any(
+            isinstance(tgt, ast.Attribute) and tgt.attr == "return_value"
+            for tgt in node.targets
+        )
+    return False
+
+
 def _has_mock_setup(func: ast.FunctionDef) -> bool:
     """True when *func* wires up a mock/patch in decorator, body, or args."""
-    for dec in func.decorator_list:
-        target = dec.func if isinstance(dec, ast.Call) else dec
-        if isinstance(target, ast.Name) and target.id == "patch":
-            return True
-        if isinstance(target, ast.Attribute) and target.attr in {"patch", "object"}:
-            return True
-    for arg in func.args.args:
-        if arg.arg == "mock" or arg.arg.startswith("mock_"):
-            return True
-    for node in ast.walk(func):
-        if isinstance(node, ast.Call):
-            name = _call_name(node)
-            if name in _MOCK_CALL_NAMES:
-                return True
-        if isinstance(node, ast.Assign):
-            for tgt in node.targets:
-                if isinstance(tgt, ast.Attribute) and tgt.attr == "return_value":
-                    return True
-    return False
+    return (
+        any(_is_patch_decorator(dec) for dec in func.decorator_list)
+        or any(_is_mock_arg(arg) for arg in func.args.args)
+        or any(_is_mock_node(node) for node in ast.walk(func))
+    )
 
 
 def _sut_invoked_with_result(func: ast.FunctionDef, pkg_symbols: set[str]) -> bool:
