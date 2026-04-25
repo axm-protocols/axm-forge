@@ -7,6 +7,7 @@ Spec: AXM-1502 — PyramidLevelRule v6 R4/R5 implementation.
 
 from __future__ import annotations
 
+import ast
 import textwrap
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from typing import Any
 import pytest
 
 from axm_audit.core.rules.test_quality import _shared
+from axm_audit.core.rules.test_quality._shared import fixture_does_io
 from axm_audit.core.rules.test_quality.pyramid_level import Finding, PyramidLevelRule
 
 
@@ -207,6 +209,30 @@ def test_r4_skipped_when_r3_attr_present(tmp_path: Path) -> None:
         s for s in finding.io_signals if s.startswith("conftest-fixture-io")
     ]
     assert len(conftest_sigs) <= 1, f"duplicate conftest signals: {conftest_sigs}"
+
+
+def test_cyclic_fixture_graph_terminates() -> None:
+    """AC3: cyclic fixture graph terminates via visited-set short-circuit."""
+    src = textwrap.dedent(
+        """
+        def fix_a(fix_b):
+            return fix_b
+
+        def fix_b(fix_a):
+            return fix_a
+        """
+    )
+    tree = ast.parse(src)
+    fixtures = {
+        node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)
+    }
+    visited: set[str] = set()
+
+    result = fixture_does_io("fix_a", fixtures, visited, 0)
+
+    assert result is False
+    assert "fix_a" in visited
+    assert "fix_b" in visited
 
 
 # ---------------------------------------------------------------------------
