@@ -19,10 +19,18 @@ class TestDependencyIsolation:
         axm_modules = [k for k in sys.modules.keys() if k.startswith("axm.")]
         assert len(axm_modules) == 0
 
-    def test_only_pydantic_dependency(self):
-        """Test that axm-audit only depends on pydantic."""
-        # This would be tested by inspecting pyproject.toml
-        # For now, we'll just verify pydantic is available
-        import pydantic
+    def test_runtime_dependencies_within_allowlist(self) -> None:
+        """axm-audit runtime deps must stay within the documented allowlist."""
+        import tomllib
+        from pathlib import Path
 
-        assert pydantic is not None
+        pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+        data = tomllib.loads(pyproject.read_text())
+        deps = data["project"]["dependencies"]
+        names = {
+            d.split("[")[0].split(">")[0].split("=")[0].split("<")[0].strip()
+            for d in deps
+        }
+
+        allowed = {"axm", "cyclopts", "pydantic", "radon"}
+        assert names == allowed, f"Unexpected runtime deps: {names - allowed}"

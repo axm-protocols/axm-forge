@@ -1,28 +1,6 @@
 """Tests for audit models."""
 
 
-class TestModels:
-    """Test that audit models work correctly in axm-audit."""
-
-    def test_audit_result_import(self):
-        """Test that AuditResult can be imported."""
-        from axm_audit.models import AuditResult
-
-        assert AuditResult is not None
-
-    def test_check_result_import(self):
-        """Test that CheckResult can be imported."""
-        from axm_audit.models import CheckResult
-
-        assert CheckResult is not None
-
-    def test_severity_import(self):
-        """Test that Severity can be imported."""
-        from axm_audit.models import Severity
-
-        assert Severity is not None
-
-
 class TestCheckResult:
     """Tests for CheckResult model."""
 

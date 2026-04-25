@@ -1,22 +1,20 @@
 """Tests for CLI (cyclopts)."""
 
+import pytest
+
 
 class TestCLI:
     """Tests for CLI commands."""
 
-    def test_version_command(self) -> None:
-        """version command should print version."""
-        from axm_audit.cli import app
+    def test_version_command(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """version command should print the package version to stdout."""
+        from axm_audit import __version__
+        from axm_audit.cli import version
 
-        # cyclopts apps can be tested by calling them directly
-        # We just verify the app exists and has commands
-        assert app is not None
-
-    def test_audit_command_exists(self) -> None:
-        """audit command should be registered."""
-        from axm_audit.cli import app
-
-        assert app is not None
+        version()
+        out = capsys.readouterr().out
+        assert __version__ in out
+        assert "axm-audit" in out
 
     def test_agent_flag_exists(self) -> None:
         """--agent flag should be accepted by audit command."""
