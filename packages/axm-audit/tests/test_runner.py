@@ -14,19 +14,19 @@ class TestFindVenv:
 
     def test_finds_local_venv(self, tmp_path: Path) -> None:
         """Returns .venv when present directly in project_path."""
-        from axm_audit.core.runner import _find_venv
+        from axm_audit.core.runner import find_venv
 
         (tmp_path / "pyproject.toml").touch()
         venv_bin = tmp_path / ".venv" / "bin"
         venv_bin.mkdir(parents=True)
         (venv_bin / "python").touch()
 
-        result = _find_venv(tmp_path)
+        result = find_venv(tmp_path)
         assert result == tmp_path / ".venv"
 
     def test_finds_workspace_root_venv(self, tmp_path: Path) -> None:
         """Returns workspace-root .venv when subpackage has no local .venv."""
-        from axm_audit.core.runner import _find_venv
+        from axm_audit.core.runner import find_venv
 
         # Simulate: workspace_root/pyproject.toml + .venv
         workspace_root = tmp_path / "workspace"
@@ -41,17 +41,17 @@ class TestFindVenv:
         subpackage.mkdir()
         (subpackage / "pyproject.toml").touch()
 
-        result = _find_venv(subpackage)
+        result = find_venv(subpackage)
         assert result == workspace_root / ".venv"
 
     def test_returns_none_when_no_venv(self, tmp_path: Path) -> None:
         """Returns None when no .venv exists anywhere in the project tree."""
-        from axm_audit.core.runner import _find_venv
+        from axm_audit.core.runner import find_venv
 
         (tmp_path / "pyproject.toml").touch()
         # No .venv created
 
-        result = _find_venv(tmp_path)
+        result = find_venv(tmp_path)
         assert result is None
 
     def test_find_venv_packages_layout(self, tmp_path: Path) -> None:
@@ -61,7 +61,7 @@ class TestFindVenv:
         directories (e.g. ``packages/``) that lack a ``pyproject.toml``,
         never reaching the workspace root where ``.venv`` lives.
         """
-        from axm_audit.core.runner import _find_venv
+        from axm_audit.core.runner import find_venv
 
         # workspace/
         # ├── .venv/bin/python
@@ -84,12 +84,12 @@ class TestFindVenv:
         pkg.mkdir()
         (pkg / "pyproject.toml").touch()
 
-        result = _find_venv(pkg)
+        result = find_venv(pkg)
         assert result == workspace / ".venv"
 
     def test_find_venv_flat_workspace(self, tmp_path: Path) -> None:
         """Finds workspace-root .venv in flat workspace layout (no packages/ dir)."""
-        from axm_audit.core.runner import _find_venv
+        from axm_audit.core.runner import find_venv
 
         workspace = tmp_path / "workspace"
         workspace.mkdir()
@@ -102,12 +102,12 @@ class TestFindVenv:
         pkg.mkdir()
         (pkg / "pyproject.toml").touch()
 
-        result = _find_venv(pkg)
+        result = find_venv(pkg)
         assert result == workspace / ".venv"
 
     def test_find_venv_bounded_depth(self, tmp_path: Path) -> None:
         """Returns None when .venv is beyond _MAX_VENV_SEARCH_DEPTH levels up."""
-        from axm_audit.core.runner import _MAX_VENV_SEARCH_DEPTH, _find_venv
+        from axm_audit.core.runner import _MAX_VENV_SEARCH_DEPTH, find_venv
 
         # Create a .venv at the top, then nest deeper than the limit
         top = tmp_path / "top"
@@ -122,7 +122,7 @@ class TestFindVenv:
             deep = deep / f"level{i}"
             deep.mkdir()
 
-        result = _find_venv(deep)
+        result = find_venv(deep)
         assert result is None
 
 
@@ -563,7 +563,7 @@ class TestBuildTestReport:
 
     def test_build_test_report_helper(self, tmp_path: Path) -> None:
         """Tests that _build_test_report correctly constructs a TestReport."""
-        from axm_audit.core.test_runner import _build_test_report
+        from axm_audit.core.test_runner import build_test_report
 
         report_data = {
             "summary": {
@@ -592,7 +592,7 @@ class TestBuildTestReport:
 
         per_file_cov = {"src/foo.py": 80.0}
 
-        report = _build_test_report(
+        report = build_test_report(
             report_data=report_data,
             total_cov=85.0,
             per_file_cov=per_file_cov,

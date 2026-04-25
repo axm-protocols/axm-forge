@@ -366,7 +366,7 @@ class TestComplexityAfterRefactoring:
             ("src/axm_audit/core/rules/security.py", "check"),
             ("src/axm_audit/core/rules/dependencies.py", "check"),
             ("src/axm_audit/core/rules/structure.py", "check"),
-            ("src/axm_audit/core/rules/architecture.py", "check"),
+            ("src/axm_audit/core/rules/architecture/__init__.py", "check"),
         ],
     )
     def test_function_cc_under_10(self, module_path: str, function_name: str) -> None:

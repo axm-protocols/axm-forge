@@ -6,10 +6,10 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
-from axm_audit.core.rules.architecture import (
-    CouplingMetricRule,
-    _build_coupling_result,
-    _read_coupling_config,
+from axm_audit.core.rules.architecture import CouplingMetricRule
+from axm_audit.core.rules.architecture.coupling import (
+    build_coupling_result,
+    read_coupling_config,
 )
 from axm_audit.models.results import Severity
 
@@ -80,9 +80,9 @@ def _build_result(
     threshold: int = 10,
     severity_error_multiplier: int = 2,
 ) -> dict[str, Any]:
-    """Shortcut to call _build_coupling_result with simple fan-out dict."""
+    """Shortcut to call build_coupling_result with simple fan-out dict."""
     fan_in = dict.fromkeys(modules, 1)
-    return _build_coupling_result(
+    return build_coupling_result(
         fan_out=modules,
         fan_in=fan_in,
         threshold=threshold,
@@ -91,7 +91,7 @@ def _build_result(
 
 
 # ---------------------------------------------------------------------------
-# Unit tests — per-module severity in _build_coupling_result
+# Unit tests — per-module severity in build_coupling_result
 # ---------------------------------------------------------------------------
 
 
@@ -168,13 +168,13 @@ def test_multiplier_from_config(tmp_path: Path) -> None:
         severity_error_multiplier = 3
     """,
     )
-    _threshold, _overrides, _bonus, multiplier = _read_coupling_config(tmp_path)
+    _threshold, _overrides, _bonus, multiplier = read_coupling_config(tmp_path)
     assert multiplier == 3
 
 
 def test_multiplier_default(tmp_path: Path) -> None:
     """No config → default multiplier=2."""
-    _threshold, _overrides, _bonus, multiplier = _read_coupling_config(tmp_path)
+    _threshold, _overrides, _bonus, multiplier = read_coupling_config(tmp_path)
     assert multiplier == 2
 
 
@@ -187,7 +187,7 @@ def test_multiplier_minimum_1(tmp_path: Path) -> None:
         severity_error_multiplier = 0
     """,
     )
-    _threshold, _overrides, _bonus, multiplier = _read_coupling_config(tmp_path)
+    _threshold, _overrides, _bonus, multiplier = read_coupling_config(tmp_path)
     assert multiplier == 1
 
 

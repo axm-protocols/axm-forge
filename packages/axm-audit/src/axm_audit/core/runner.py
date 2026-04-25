@@ -23,7 +23,7 @@ _MAX_VENV_SEARCH_DEPTH: int = 5
 (3 levels) with margin.  Prevents walking into unrelated directories."""
 
 
-def _find_venv(project_path: Path) -> Path | None:
+def find_venv(project_path: Path) -> Path | None:
     """Locate the nearest ``.venv`` directory for a project.
 
     Checks ``project_path`` first, then walks up the directory tree to
@@ -85,7 +85,7 @@ def run_in_project(
         CompletedProcess result.  On timeout, returns a synthetic result
         with ``returncode=124`` and the timeout message in ``stderr``.
     """
-    venv = _find_venv(project_path)
+    venv = find_venv(project_path)
 
     if venv is not None:
         with_flags: list[str] = []

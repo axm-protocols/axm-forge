@@ -55,7 +55,7 @@ def _patch_coupling(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Any:
         metrics = _make_metrics(over)
 
         monkeypatch.setattr(
-            f"{_MOD}._read_coupling_config",
+            f"{_MOD}.read_coupling_config",
             lambda _p: (12, {}, 0, 2),
         )
         monkeypatch.setattr(

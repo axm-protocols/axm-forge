@@ -32,7 +32,7 @@ def _mock_config(
     mocker: MockerFixture, ideal: int = 200, max_lines: int = 1000
 ) -> None:
     mocker.patch(
-        "axm_audit.core.rules.quality._read_diff_config",
+        "axm_audit.core.rules.quality.read_diff_config",
         return_value=(ideal, max_lines),
     )
 

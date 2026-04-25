@@ -655,73 +655,73 @@ class TestDiffSizeRule:
 
     def test_config_override_ideal(self, tmp_path: Path) -> None:
         """pyproject.toml with diff_size_ideal=300 → rule uses 300."""
-        from axm_audit.core.rules.quality import _read_diff_config
+        from axm_audit.core.rules.quality import read_diff_config
 
         (tmp_path / "pyproject.toml").write_text(
             "[tool.axm-audit]\ndiff_size_ideal = 300\n"
         )
-        ideal, max_lines = _read_diff_config(tmp_path)
+        ideal, max_lines = read_diff_config(tmp_path)
         assert ideal == 300
         assert max_lines == 1200  # default
 
     def test_config_override_max(self, tmp_path: Path) -> None:
         """pyproject.toml with diff_size_max=1000 → rule uses 1000."""
-        from axm_audit.core.rules.quality import _read_diff_config
+        from axm_audit.core.rules.quality import read_diff_config
 
         (tmp_path / "pyproject.toml").write_text(
             "[tool.axm-audit]\ndiff_size_max = 1000\n"
         )
-        ideal, max_lines = _read_diff_config(tmp_path)
+        ideal, max_lines = read_diff_config(tmp_path)
         assert ideal == 400  # default
         assert max_lines == 1000
 
     def test_no_config_uses_defaults(self, tmp_path: Path) -> None:
         """pyproject.toml without [tool.axm-audit] → defaults."""
-        from axm_audit.core.rules.quality import _read_diff_config
+        from axm_audit.core.rules.quality import read_diff_config
 
         (tmp_path / "pyproject.toml").write_text('[project]\nname = "demo"\n')
-        ideal, max_lines = _read_diff_config(tmp_path)
+        ideal, max_lines = read_diff_config(tmp_path)
         assert ideal == 400
         assert max_lines == 1200
 
     def test_partial_config(self, tmp_path: Path) -> None:
         """Only diff_size_ideal set → diff_size_max uses default."""
-        from axm_audit.core.rules.quality import _read_diff_config
+        from axm_audit.core.rules.quality import read_diff_config
 
         (tmp_path / "pyproject.toml").write_text(
             "[tool.axm-audit]\ndiff_size_ideal = 250\n"
         )
-        ideal, max_lines = _read_diff_config(tmp_path)
+        ideal, max_lines = read_diff_config(tmp_path)
         assert ideal == 250
         assert max_lines == 1200
 
     def test_invalid_config_value(self, tmp_path: Path) -> None:
         """Non-numeric diff_size_ideal → falls back to default."""
-        from axm_audit.core.rules.quality import _read_diff_config
+        from axm_audit.core.rules.quality import read_diff_config
 
         (tmp_path / "pyproject.toml").write_text(
             '[tool.axm-audit]\ndiff_size_ideal = "abc"\n'
         )
-        ideal, max_lines = _read_diff_config(tmp_path)
+        ideal, max_lines = read_diff_config(tmp_path)
         assert ideal == 400
         assert max_lines == 1200
 
     def test_negative_threshold(self, tmp_path: Path) -> None:
         """Negative diff_size_ideal → falls back to default."""
-        from axm_audit.core.rules.quality import _read_diff_config
+        from axm_audit.core.rules.quality import read_diff_config
 
         (tmp_path / "pyproject.toml").write_text(
             "[tool.axm-audit]\ndiff_size_ideal = -10\n"
         )
-        ideal, max_lines = _read_diff_config(tmp_path)
+        ideal, max_lines = read_diff_config(tmp_path)
         assert ideal == 400
         assert max_lines == 1200
 
     def test_missing_pyproject(self, tmp_path: Path) -> None:
         """No pyproject.toml at all → defaults apply."""
-        from axm_audit.core.rules.quality import _read_diff_config
+        from axm_audit.core.rules.quality import read_diff_config
 
-        ideal, max_lines = _read_diff_config(tmp_path)
+        ideal, max_lines = read_diff_config(tmp_path)
         assert ideal == 400
         assert max_lines == 1200
 
@@ -816,28 +816,3 @@ class TestParseMypyErrors:
         count, errors = TypeCheckRule._parse_mypy_errors(stdout)
         assert count == 0
         assert errors == []
-
-
-class TestGetAuditTargets:
-    """Tests for _get_audit_targets() helper (AXM-203)."""
-
-    def test_with_tests_dir(self, tmp_path: Path) -> None:
-        """Return both src and tests when tests/ exists."""
-        from axm_audit.core.rules.quality import _get_audit_targets
-
-        (tmp_path / "src").mkdir()
-        (tmp_path / "tests").mkdir()
-
-        targets, checked = _get_audit_targets(tmp_path)
-        assert targets == [str(tmp_path / "src"), str(tmp_path / "tests")]
-        assert checked == "src/ tests/"
-
-    def test_without_tests_dir(self, tmp_path: Path) -> None:
-        """Return only src when tests/ does not exist."""
-        from axm_audit.core.rules.quality import _get_audit_targets
-
-        (tmp_path / "src").mkdir()
-
-        targets, checked = _get_audit_targets(tmp_path)
-        assert targets == [str(tmp_path / "src")]
-        assert checked == "src/"

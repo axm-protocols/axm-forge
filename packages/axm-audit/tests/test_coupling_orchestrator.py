@@ -22,7 +22,7 @@ class TestClassifyModuleRole:
 
     def test_classify_orchestrator_3_siblings(self, tmp_path: Path) -> None:
         """3 distinct sibling imports → orchestrator."""
-        from axm_audit.core.rules.architecture import _classify_module_role
+        from axm_audit.core.rules.architecture.coupling import classify_module_role
 
         src_path = _make_pkg(tmp_path, "pkg")
         imports = [
@@ -30,24 +30,24 @@ class TestClassifyModuleRole:
             "pkg.core.rules.b",
             "pkg.core.rules.c",
         ]
-        result = _classify_module_role("pkg.core.rules.quality", imports, src_path)
+        result = classify_module_role("pkg.core.rules.quality", imports, src_path)
         assert result == "orchestrator"
 
     def test_classify_leaf_2_siblings(self, tmp_path: Path) -> None:
         """Only 2 sibling imports → leaf."""
-        from axm_audit.core.rules.architecture import _classify_module_role
+        from axm_audit.core.rules.architecture.coupling import classify_module_role
 
         src_path = _make_pkg(tmp_path, "pkg")
         imports = [
             "pkg.core.rules.a",
             "pkg.core.rules.b",
         ]
-        result = _classify_module_role("pkg.core.rules.quality", imports, src_path)
+        result = classify_module_role("pkg.core.rules.quality", imports, src_path)
         assert result == "leaf"
 
     def test_classify_ignores_external_imports(self, tmp_path: Path) -> None:
         """External imports (stdlib/third-party) are excluded from sibling count."""
-        from axm_audit.core.rules.architecture import _classify_module_role
+        from axm_audit.core.rules.architecture.coupling import classify_module_role
 
         src_path = _make_pkg(tmp_path, "pkg")
         imports = [
@@ -56,12 +56,12 @@ class TestClassifyModuleRole:
             "typing",
             "pkg.core.rules.a",
         ]
-        result = _classify_module_role("pkg.core.rules.quality", imports, src_path)
+        result = classify_module_role("pkg.core.rules.quality", imports, src_path)
         assert result == "leaf"
 
     def test_flat_package_all_leaf(self, tmp_path: Path) -> None:
         """Flat package (no subpackages) — all modules classified as leaf."""
-        from axm_audit.core.rules.architecture import _classify_module_role
+        from axm_audit.core.rules.architecture.coupling import classify_module_role
 
         src_path = _make_pkg(tmp_path, "pkg")
         # Top-level modules, no dotted subpackage structure
@@ -70,19 +70,19 @@ class TestClassifyModuleRole:
             "pkg.module_b",
             "pkg.module_c",
         ]
-        result = _classify_module_role("pkg.module_x", imports, src_path)
+        result = classify_module_role("pkg.module_x", imports, src_path)
         assert result == "leaf"
 
     def test_one_deep_subpackage_2_siblings(self, tmp_path: Path) -> None:
         """Two siblings under one deep subpackage → 2 < 3 → leaf."""
-        from axm_audit.core.rules.architecture import _classify_module_role
+        from axm_audit.core.rules.architecture.coupling import classify_module_role
 
         src_path = _make_pkg(tmp_path, "pkg")
         imports = [
             "pkg.a.b.c.d",
             "pkg.a.b.c.e",
         ]
-        result = _classify_module_role("pkg.a.b.c.f", imports, src_path)
+        result = classify_module_role("pkg.a.b.c.f", imports, src_path)
         assert result == "leaf"
 
 
@@ -96,7 +96,7 @@ class TestOrchestratorBonusThreshold:
 
     def test_orchestrator_bonus_applied(self, tmp_path: Path) -> None:
         """fan_out=12, base=10, bonus=5 → effective=15 → not over threshold."""
-        from axm_audit.core.rules.architecture import _build_coupling_result
+        from axm_audit.core.rules.architecture.coupling import build_coupling_result
 
         src_path = _make_pkg(tmp_path, "pkg")
         fan_out = {"pkg.core.rules.quality": 12}
@@ -117,7 +117,7 @@ class TestOrchestratorBonusThreshold:
                 "typing",
             ],
         }
-        result = _build_coupling_result(
+        result = build_coupling_result(
             fan_out,
             fan_in,
             threshold=10,
@@ -130,7 +130,7 @@ class TestOrchestratorBonusThreshold:
 
     def test_override_takes_precedence_over_bonus(self, tmp_path: Path) -> None:
         """Per-module override=8 wins over bonus; fan_out=9 > 8 → over."""
-        from axm_audit.core.rules.architecture import _build_coupling_result
+        from axm_audit.core.rules.architecture.coupling import build_coupling_result
 
         src_path = _make_pkg(tmp_path, "pkg")
         fan_out = {"pkg.core.rules.quality": 9}
@@ -148,7 +148,7 @@ class TestOrchestratorBonusThreshold:
                 "typing",
             ],
         }
-        result = _build_coupling_result(
+        result = build_coupling_result(
             fan_out,
             fan_in,
             threshold=10,
@@ -165,7 +165,7 @@ class TestOrchestratorBonusThreshold:
         self, tmp_path: Path
     ) -> None:
         """AC4: over_threshold entries carry role + effective_threshold keys."""
-        from axm_audit.core.rules.architecture import _build_coupling_result
+        from axm_audit.core.rules.architecture.coupling import build_coupling_result
 
         src_path = _make_pkg(tmp_path, "pkg")
         fan_out = {"pkg.core.rules.quality": 16}
@@ -190,7 +190,7 @@ class TestOrchestratorBonusThreshold:
                 "typing_extensions",
             ],
         }
-        result = _build_coupling_result(
+        result = build_coupling_result(
             fan_out,
             fan_in,
             threshold=10,
@@ -206,7 +206,7 @@ class TestOrchestratorBonusThreshold:
 
     def test_orchestrator_bonus_zero_no_bonus(self, tmp_path: Path) -> None:
         """orchestrator_bonus=0 disables bonus; fan_out=11 > base=10 → over."""
-        from axm_audit.core.rules.architecture import _build_coupling_result
+        from axm_audit.core.rules.architecture.coupling import build_coupling_result
 
         src_path = _make_pkg(tmp_path, "pkg")
         fan_out = {"pkg.core.rules.quality": 11}
@@ -226,7 +226,7 @@ class TestOrchestratorBonusThreshold:
                 "typing",
             ],
         }
-        result = _build_coupling_result(
+        result = build_coupling_result(
             fan_out,
             fan_in,
             threshold=10,
@@ -248,21 +248,21 @@ class TestReadCouplingConfigOrchestratorBonus:
 
     def test_read_coupling_config_orchestrator_bonus(self, tmp_path: Path) -> None:
         """orchestrator_bonus = 8 in pyproject.toml → config returns 8."""
-        from axm_audit.core.rules.architecture import _read_coupling_config
+        from axm_audit.core.rules.architecture.coupling import read_coupling_config
 
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text(
             "[tool.axm-audit.coupling]\nthreshold = 10\norchestrator_bonus = 8\n"
         )
-        threshold, _, bonus, _ = _read_coupling_config(tmp_path)
+        threshold, _, bonus, _ = read_coupling_config(tmp_path)
         assert threshold == 10
         assert bonus == 8
 
     def test_read_coupling_config_default_bonus(self, tmp_path: Path) -> None:
         """Missing orchestrator_bonus → default 5."""
-        from axm_audit.core.rules.architecture import _read_coupling_config
+        from axm_audit.core.rules.architecture.coupling import read_coupling_config
 
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text("[tool.axm-audit.coupling]\nthreshold = 10\n")
-        _, _, bonus, _ = _read_coupling_config(tmp_path)
+        _, _, bonus, _ = read_coupling_config(tmp_path)
         assert bonus == 5

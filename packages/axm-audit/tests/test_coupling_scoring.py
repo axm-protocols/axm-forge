@@ -36,57 +36,57 @@ class TestExtractImports:
 
     def test_from_import_counts_module_not_symbols(self) -> None:
         """'from foo import A, B, C' = 1 import, not 4."""
-        from axm_audit.core.rules.architecture import _extract_imports
+        from axm_audit.core.rules.architecture.coupling import extract_imports
 
         code = "from axm_init.models import CheckResult, Severity, Config"
         tree = ast.parse(code)
-        imports = _extract_imports(tree)
+        imports = extract_imports(tree)
         # Should be just ["axm_init.models"], not 4 entries
         assert len(imports) == 1
         assert imports[0] == "axm_init.models"
 
     def test_plain_import(self) -> None:
         """'import os' = 1 import."""
-        from axm_audit.core.rules.architecture import _extract_imports
+        from axm_audit.core.rules.architecture.coupling import extract_imports
 
         tree = ast.parse("import os")
-        imports = _extract_imports(tree)
+        imports = extract_imports(tree)
         assert imports == ["os"]
 
     def test_relative_import_no_module(self) -> None:
         """'from . import x' (module=None) produces 0 imports."""
-        from axm_audit.core.rules.architecture import _extract_imports
+        from axm_audit.core.rules.architecture.coupling import extract_imports
 
         tree = ast.parse("from . import x")
-        imports = _extract_imports(tree)
+        imports = extract_imports(tree)
         assert imports == []
 
     def test_multiple_imports(self) -> None:
         """Multiple distinct import statements are counted separately."""
-        from axm_audit.core.rules.architecture import _extract_imports
+        from axm_audit.core.rules.architecture.coupling import extract_imports
 
         code = "import os\nimport sys\nfrom pathlib import Path"
         tree = ast.parse(code)
-        imports = _extract_imports(tree)
+        imports = extract_imports(tree)
         assert set(imports) == {"os", "sys", "pathlib"}
 
     def test_future_import_excluded(self) -> None:
         """'from __future__ import annotations' is a directive, not a dependency."""
-        from axm_audit.core.rules.architecture import _extract_imports
+        from axm_audit.core.rules.architecture.coupling import extract_imports
 
         code = "from __future__ import annotations\nimport os\nfrom pathlib import Path"
         tree = ast.parse(code)
-        imports = _extract_imports(tree)
+        imports = extract_imports(tree)
         assert "__future__" not in imports
         assert set(imports) == {"os", "pathlib"}
 
     def test_future_import_only(self) -> None:
         """Module with only __future__ import has 0 fan-out."""
-        from axm_audit.core.rules.architecture import _extract_imports
+        from axm_audit.core.rules.architecture.coupling import extract_imports
 
         code = "from __future__ import annotations"
         tree = ast.parse(code)
-        imports = _extract_imports(tree)
+        imports = extract_imports(tree)
         assert imports == []
 
 

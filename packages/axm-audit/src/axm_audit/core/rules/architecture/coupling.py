@@ -1,4 +1,10 @@
-"""Architecture rules — AST-based structural analysis."""
+"""Coupling helpers — graph algorithms and config parsing.
+
+Public-internal API: the eight non-underscore functions below are stable
+enough to be imported directly by tests within this package.  They are
+not re-exported in the package root ``__all__`` because they are tools
+for rule authors, not application code.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +13,6 @@ import logging
 import tomllib
 from collections import defaultdict
 from collections.abc import Iterator
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -16,13 +21,12 @@ from axm_audit.core.rules._helpers import (
     get_python_files,
     parse_file_safe,
 )
-from axm_audit.core.rules.base import ProjectRule, register_rule
-from axm_audit.models.results import CheckResult, Severity
+from axm_audit.models.results import Severity
 
 logger = logging.getLogger(__name__)
 
 
-def _strip_prefix(modules: list[str]) -> list[str]:
+def strip_prefix(modules: list[str]) -> list[str]:
     """Strip the common top-level package prefix from module names.
 
     All modules in a detected cycle belong to the same package (the graph
@@ -51,7 +55,7 @@ def _get_module_name(path: Path, src_root: Path) -> str:
     return ".".join(parts) if parts else ""
 
 
-def _extract_imports(tree: ast.Module) -> list[str]:
+def extract_imports(tree: ast.Module) -> list[str]:
     """Extract module-level imported module names from an AST.
 
     Only scans top-level imports to avoid false positives from lazy/deferred
@@ -125,7 +129,7 @@ def _try_advance(
     return False
 
 
-def _tarjan_scc(graph: dict[str, set[str]]) -> list[list[str]]:
+def tarjan_scc(graph: dict[str, set[str]]) -> list[list[str]]:
     """Find strongly connected components using iterative Tarjan's algorithm.
 
     Uses an explicit call stack instead of recursion to avoid hitting
@@ -147,7 +151,6 @@ def _tarjan_scc(graph: dict[str, set[str]]) -> list[list[str]]:
             if _try_advance(state, node, neighbors, graph, call_stack):
                 continue
 
-            # All neighbors processed — "return" from this frame.
             if state.lowlink[node] == state.index[node]:
                 state.pop_scc(node)
 
@@ -157,172 +160,6 @@ def _tarjan_scc(graph: dict[str, set[str]]) -> list[list[str]]:
                 state.lowlink[parent] = min(state.lowlink[parent], state.lowlink[node])
 
     return state.sccs
-
-
-@dataclass
-@register_rule("architecture")
-class CircularImportRule(ProjectRule):
-    """Detect circular imports via import graph + Tarjan's SCC algorithm."""
-
-    @property
-    def rule_id(self) -> str:
-        """Unique identifier for this rule."""
-        return "ARCH_CIRCULAR"
-
-    def check(self, project_path: Path) -> CheckResult:
-        """Check for circular imports in the project."""
-        early = self.check_src(project_path)
-        if early is not None:
-            return early
-
-        src_path = project_path / "src"
-        cycles, score = self._analyze_cycles(src_path)
-        passed = len(cycles) == 0
-
-        text_lines = [
-            f"     \u2022 {' \u2192 '.join(_strip_prefix(c))}" for c in cycles
-        ]
-
-        return CheckResult(
-            rule_id=self.rule_id,
-            passed=passed,
-            message=f"{len(cycles)} circular import(s) found",
-            severity=Severity.ERROR if not passed else Severity.INFO,
-            details={"cycles": cycles, "score": score},
-            text="\n".join(text_lines) if text_lines else None,
-            fix_hint="Break cycles by using lazy imports or restructuring"
-            if cycles
-            else None,
-        )
-
-    def _analyze_cycles(self, src_path: Path) -> tuple[list[list[str]], int]:
-        """Build import graph and detect cycles."""
-        graph = self._build_import_graph(src_path)
-        cycles = _tarjan_scc(graph)
-        score = max(0, 100 - len(cycles) * 20)
-        return cycles, score
-
-    def _build_import_graph(self, src_path: Path) -> dict[str, set[str]]:
-        """Build the module import graph from source files."""
-        graph: dict[str, set[str]] = defaultdict(set)
-
-        for path in get_python_files(src_path):
-            if path.name == "__init__.py":
-                continue
-            cache = get_ast_cache()
-            tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
-            if tree is None:
-                continue
-            module_name = _get_module_name(path, src_path)
-            if not module_name:
-                continue
-            for imp in _extract_imports(tree):
-                graph[module_name].add(imp)
-            if module_name not in graph:
-                graph[module_name] = set()
-
-        return dict(graph)
-
-
-@dataclass
-@register_rule("architecture")
-class GodClassRule(ProjectRule):
-    """Detect god classes (too many lines or methods)."""
-
-    max_lines: int = 500
-    max_methods: int = 15
-
-    @property
-    def rule_id(self) -> str:
-        """Unique identifier for this rule."""
-        return "ARCH_GOD_CLASS"
-
-    def check(self, project_path: Path) -> CheckResult:
-        """Check for god classes in the project.
-
-        Scans all classes under ``src/`` and flags those exceeding
-        :attr:`max_lines` or :attr:`max_methods`.
-
-        The ``text`` field uses the compact format
-        ``• {basename}:{ClassName} {lines}L/{methods}M`` (one line per
-        violation), or ``None`` when no god classes are found.
-        """
-        early = self.check_src(project_path)
-        if early is not None:
-            return early
-
-        src_path = project_path / "src"
-
-        god_classes = self._find_god_classes(src_path)
-
-        score = max(0, 100 - len(god_classes) * 15)
-        passed = len(god_classes) == 0
-
-        text_lines = [
-            f"\u2022 {Path(str(g['file'])).name}:{g['name']}"
-            f" {g['lines']}L/{g['methods']}M"
-            for g in god_classes
-        ]
-
-        return CheckResult(
-            rule_id=self.rule_id,
-            passed=passed,
-            message=f"{len(god_classes)} god class(es) found",
-            severity=Severity.WARNING if not passed else Severity.INFO,
-            details={"god_classes": god_classes, "score": score},
-            text="\n".join(text_lines) if text_lines else None,
-            fix_hint="Split large classes into smaller, focused classes"
-            if god_classes
-            else None,
-        )
-
-    def _find_god_classes(self, src_path: Path) -> list[dict[str, str | int]]:
-        """Identify god classes in the source directory."""
-        god_classes: list[dict[str, str | int]] = []
-        py_files = get_python_files(src_path)
-
-        for path in py_files:
-            cache = get_ast_cache()
-            tree = cache.get_or_parse(path) if cache else parse_file_safe(path)
-            if tree is None:
-                continue
-
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ClassDef):
-                    self._check_class_node(node, path, src_path, god_classes)
-
-        return god_classes
-
-    def _check_class_node(
-        self,
-        node: ast.ClassDef,
-        file_path: Path,
-        src_root: Path,
-        results: list[dict[str, str | int]],
-    ) -> None:
-        """Analyze a single class node for god class metrics."""
-        # Count lines
-        if hasattr(node, "end_lineno") and node.end_lineno:
-            lines = node.end_lineno - node.lineno + 1
-        else:
-            lines = 0
-
-        # Count methods
-        methods = sum(
-            1
-            for child in node.body
-            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef)
-        )
-
-        if lines > self.max_lines or methods > self.max_methods:
-            results.append(
-                {
-                    "name": node.name,
-                    "file": str(file_path.relative_to(src_root)),
-                    "lines": lines,
-                    "methods": methods,
-                }
-            )
 
 
 def _detect_internal_prefixes(src_path: Path) -> list[str]:
@@ -360,7 +197,7 @@ def _count_siblings(
     return siblings
 
 
-def _classify_module_role(
+def classify_module_role(
     module_name: str,
     imports: list[str],
     src_path: Path,
@@ -401,7 +238,7 @@ def _build_fan_metrics(
         module_name = _get_module_name(path, src_path)
         if not module_name:
             continue
-        imports = _extract_imports(tree)
+        imports = extract_imports(tree)
         fan_out[module_name] = len(set(imports))
         imports_map[module_name] = imports
         for imp in imports:
@@ -415,7 +252,7 @@ _COUPLING_DEFAULT_ORCHESTRATOR_BONUS = 5
 _COUPLING_DEFAULT_SEVERITY_MULTIPLIER = 2
 
 
-def _safe_int(value: Any, default: int) -> int:
+def safe_int(value: Any, default: int) -> int:
     """Convert *value* to a non-negative ``int``, returning *default* on failure."""
     try:
         result = int(value)
@@ -424,7 +261,7 @@ def _safe_int(value: Any, default: int) -> int:
     return result if result >= 0 else default
 
 
-def _parse_overrides(raw: object) -> dict[str, int]:
+def parse_overrides(raw: object) -> dict[str, int]:
     """Parse an overrides mapping, silently dropping invalid entries."""
     if not isinstance(raw, dict):
         return {}
@@ -434,7 +271,7 @@ def _parse_overrides(raw: object) -> dict[str, int]:
         return {}
 
 
-def _read_coupling_config(
+def read_coupling_config(
     project_path: Path,
 ) -> tuple[int, dict[str, int], int, int]:
     """Read coupling thresholds from ``[tool.axm-audit.coupling]`` in pyproject.toml.
@@ -460,17 +297,17 @@ def _read_coupling_config(
 
     section = data.get("tool", {}).get("axm-audit", {}).get("coupling", {})
 
-    threshold = _safe_int(
+    threshold = safe_int(
         section.get("fan_out_threshold", _COUPLING_DEFAULT_THRESHOLD),
         _COUPLING_DEFAULT_THRESHOLD,
     )
-    overrides = _parse_overrides(section.get("overrides", {}))
-    bonus = _safe_int(
+    overrides = parse_overrides(section.get("overrides", {}))
+    bonus = safe_int(
         section.get("orchestrator_bonus", _COUPLING_DEFAULT_ORCHESTRATOR_BONUS),
         _COUPLING_DEFAULT_ORCHESTRATOR_BONUS,
     )
     multiplier = max(
-        _safe_int(
+        safe_int(
             section.get(
                 "severity_error_multiplier", _COUPLING_DEFAULT_SEVERITY_MULTIPLIER
             ),
@@ -482,7 +319,7 @@ def _read_coupling_config(
     return threshold, overrides, bonus, multiplier
 
 
-def _build_coupling_result(  # noqa: PLR0913
+def build_coupling_result(  # noqa: PLR0913
     fan_out: dict[str, int],
     fan_in: dict[str, int],
     threshold: int,
@@ -511,14 +348,14 @@ def _build_coupling_result(  # noqa: PLR0913
     def _effective_threshold(name: str) -> tuple[int, str]:
         """Return ``(effective_threshold, role)`` for *name*."""
         if name in _overrides:
-            return _overrides[name], _classify_module_role(
+            return _overrides[name], classify_module_role(
                 name,
                 _imports_map.get(name, []),
                 src_path,
             ) if src_path else "leaf"
         for key, val in _overrides.items():
             if name.endswith(f".{key}") or name == key:
-                return val, _classify_module_role(
+                return val, classify_module_role(
                     name,
                     _imports_map.get(name, []),
                     src_path,
@@ -526,7 +363,7 @@ def _build_coupling_result(  # noqa: PLR0913
 
         role = "leaf"
         if src_path and orchestrator_bonus:
-            role = _classify_module_role(
+            role = classify_module_role(
                 name,
                 _imports_map.get(name, []),
                 src_path,
@@ -584,7 +421,7 @@ def _compute_coupling_metrics(
             "over_threshold": [],
         }
 
-    return _build_coupling_result(
+    return build_coupling_result(
         fan_out,
         fan_in,
         threshold,
@@ -609,97 +446,3 @@ def _resolve_coupling_severity(
     else:
         severity = Severity.INFO
     return n_warnings, n_errors, severity
-
-
-@dataclass
-@register_rule("architecture")
-class CouplingMetricRule(ProjectRule):
-    """Measure module coupling via fan-in/fan-out analysis.
-
-    Scores based on the number of modules whose fan-out exceeds
-    the threshold: ``score = 100 - N(over) * 5``.
-    """
-
-    fan_out_threshold: int = 10
-
-    @property
-    def rule_id(self) -> str:
-        """Unique identifier for this rule."""
-        return "ARCH_COUPLING"
-
-    def check(self, project_path: Path) -> CheckResult:
-        """Check coupling metrics for the project.
-
-        Scans ``src/`` for import fan-out per module and compares each
-        against its effective threshold (base + orchestrator bonus +
-        per-module overrides).
-
-        Returns a :class:`CheckResult` with:
-
-        * ``text`` — one line per violation formatted as
-          ``• {leaf_module} fo:{fan_out}/{threshold} {⚠|✘}``
-          (``None`` when all modules pass).
-        * ``details`` — full ``over_threshold`` list with FQN, fan-out,
-          role, effective threshold, and severity.
-        * ``fix_hint`` — human-readable remediation listing.
-        """
-        early = self.check_src(project_path)
-        if early is not None:
-            return early
-
-        src_path = project_path / "src"
-
-        threshold, overrides, orchestrator_bonus, multiplier = _read_coupling_config(
-            project_path
-        )
-        metrics = _compute_coupling_metrics(
-            src_path,
-            threshold,
-            overrides,
-            orchestrator_bonus,
-            severity_error_multiplier=multiplier,
-        )
-        n_over: int = metrics["n_over_threshold"]
-        over: list[dict[str, Any]] = metrics["over_threshold"]
-        avg: float = metrics["avg_coupling"]
-
-        n_warnings, n_errors, severity = _resolve_coupling_severity(over)
-        score = max(0, 100 - (n_warnings * 3 + n_errors * 5))
-
-        if n_over:
-            penalty = n_warnings * 3 + n_errors * 5
-            msg = f"Coupling: {n_over} module(s) above threshold (-{penalty} pts)"
-        else:
-            max_fo = metrics["max_fan_out"]
-            msg = f"Coupling: 0 modules above threshold (max fan-out: {max_fo})"
-
-        # Build fix_hint with module listing
-        hint = None
-        if over:
-            lines = [f"  \u2022 {m['module']} (fan-out: {m['fan_out']})" for m in over]
-            hint = "Reduce imports in:\n" + "\n".join(lines)
-
-        _sev = {"warning": "\u26a0", "error": "\u2718"}
-        text_lines = [
-            f"\u2022 {m['module'].rsplit('.', 1)[-1]}"
-            f" fo:{m['fan_out']}/{m['effective_threshold']}"
-            f" {_sev.get(m['severity'], '?')}"
-            for m in over
-        ]
-
-        return CheckResult(
-            rule_id=self.rule_id,
-            passed=n_errors == 0,
-            message=msg,
-            severity=severity,
-            details={
-                "max_fan_out": metrics["max_fan_out"],
-                "max_fan_in": metrics["max_fan_in"],
-                "avg_coupling": round(avg, 2),
-                "score": score,
-                "n_over_threshold": n_over,
-                "over_threshold": over,
-            },
-            text="\n".join(text_lines) if text_lines else None,
-            fix_hint=hint,
-        )

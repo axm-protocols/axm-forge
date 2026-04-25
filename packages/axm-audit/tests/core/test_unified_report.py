@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from axm_audit.core.test_runner import (
     TestReport,
-    _build_test_report,
+    build_test_report,
     run_tests,
 )
 
@@ -40,7 +40,7 @@ class TestBuildReportAlwaysParsesFailures:
 
     def test_build_report_always_parses_failures(self):
         report_data = _make_report_data(num_failed=1)
-        report = _build_test_report(
+        report = build_test_report(
             report_data=report_data,
             total_cov=80.0,
             per_file_cov={"src/a.py": 80.0},
@@ -54,7 +54,7 @@ class TestBuildReportCoverageNone:
 
     def test_build_report_coverage_none_when_empty(self):
         report_data = _make_report_data()
-        report = _build_test_report(
+        report = build_test_report(
             report_data=report_data,
             total_cov=None,
             per_file_cov={},
@@ -67,7 +67,7 @@ class TestBuildReportFailuresNone:
 
     def test_build_report_failures_none_when_no_fails(self):
         report_data = _make_report_data(num_failed=0)
-        report = _build_test_report(
+        report = build_test_report(
             report_data=report_data,
             total_cov=90.0,
             per_file_cov={"src/a.py": 90.0},
@@ -87,11 +87,11 @@ class TestRunTestsIgnoresMode:
             lambda *a, **kw: None,
         )
         monkeypatch.setattr(
-            "axm_audit.core.test_runner._parse_json_report",
+            "axm_audit.core.test_runner.parse_json_report",
             lambda _: report_data,
         )
         monkeypatch.setattr(
-            "axm_audit.core.test_runner._parse_coverage",
+            "axm_audit.core.test_runner.parse_coverage",
             lambda _: (75.0, per_file),
         )
 
@@ -132,7 +132,7 @@ class TestDeprecatedDeltaMode:
     def test_delta_mode_same_behavior(self):
         report_data = _make_report_data(num_failed=1)
         per_file = {"src/a.py": 85.0}
-        report = _build_test_report(
+        report = build_test_report(
             report_data=report_data,
             total_cov=85.0,
             per_file_cov=per_file,

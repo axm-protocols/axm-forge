@@ -78,7 +78,7 @@ class TestReport:
 # ---------------------------------------------------------------------------
 
 
-def _parse_failures(tests: list[dict[str, Any]]) -> list[FailureDetail]:
+def parse_failures(tests: list[dict[str, Any]]) -> list[FailureDetail]:
     """Extract ``FailureDetail`` items from pytest-json-report tests list."""
     failures: list[FailureDetail] = []
     for test in tests:
@@ -116,7 +116,7 @@ def _parse_failures(tests: list[dict[str, Any]]) -> list[FailureDetail]:
     return failures
 
 
-def _parse_collector_errors(
+def parse_collector_errors(
     collectors: list[dict[str, Any]],
 ) -> list[FailureDetail]:
     """Extract ``FailureDetail`` items from pytest-json-report collectors list.
@@ -159,7 +159,7 @@ def _parse_collector_errors(
     return failures
 
 
-def _parse_json_report(report_path: Path) -> dict[str, Any]:
+def parse_json_report(report_path: Path) -> dict[str, Any]:
     """Read and parse a pytest-json-report JSON file."""
     try:
         return json.loads(report_path.read_text())  # type: ignore[no-any-return]
@@ -168,7 +168,7 @@ def _parse_json_report(report_path: Path) -> dict[str, Any]:
         return {}
 
 
-def _parse_coverage(coverage_path: Path) -> tuple[float | None, dict[str, float]]:
+def parse_coverage(coverage_path: Path) -> tuple[float | None, dict[str, float]]:
     """Parse coverage JSON into total % and per-file dict."""
     if not coverage_path.exists():
         return None, {}
@@ -185,7 +185,7 @@ def _parse_coverage(coverage_path: Path) -> tuple[float | None, dict[str, float]
     return total_pct, per_file
 
 
-def _build_pytest_cmd(
+def build_pytest_cmd(
     *,
     report_path: Path,
     coverage_path: Path | None,
@@ -260,7 +260,7 @@ def run_tests(
 
     try:
         effective_cov_path = None if files else coverage_path
-        cmd = _build_pytest_cmd(
+        cmd = build_pytest_cmd(
             report_path=report_path,
             coverage_path=effective_cov_path,
             files=files,
@@ -279,14 +279,14 @@ def run_tests(
         )
 
         # Parse JSON report
-        report_data = _parse_json_report(report_path)
+        report_data = parse_json_report(report_path)
 
         # Parse coverage
         total_cov, per_file_cov = (
-            _parse_coverage(coverage_path) if not files else (None, {})
+            parse_coverage(coverage_path) if not files else (None, {})
         )
 
-        return _build_test_report(
+        return build_test_report(
             report_data=report_data,
             total_cov=total_cov,
             per_file_cov=per_file_cov,
@@ -297,7 +297,7 @@ def run_tests(
         coverage_path.unlink(missing_ok=True)
 
 
-def _build_test_report(
+def build_test_report(
     *,
     report_data: dict[str, Any],
     total_cov: float | None,
@@ -315,9 +315,9 @@ def _build_test_report(
     tests_list: list[dict[str, Any]] = report_data.get("tests", [])
 
     # Always parse failures
-    failures = _parse_failures(tests_list)
+    failures = parse_failures(tests_list)
     collectors_list: list[dict[str, Any]] = report_data.get("collectors", [])
-    failures.extend(_parse_collector_errors(collectors_list))
+    failures.extend(parse_collector_errors(collectors_list))
 
     return TestReport(
         passed=summary.get("passed", 0),

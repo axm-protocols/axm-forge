@@ -9,11 +9,11 @@ from unittest.mock import MagicMock, patch
 
 from axm_audit.core.test_runner import (
     FailureDetail,
-    _build_pytest_cmd,
-    _parse_collector_errors,
-    _parse_coverage,
-    _parse_failures,
-    _parse_json_report,
+    build_pytest_cmd,
+    parse_collector_errors,
+    parse_coverage,
+    parse_failures,
+    parse_json_report,
     run_tests,
 )
 
@@ -123,14 +123,14 @@ _COVERAGE_DATA: dict[str, Any] = {
 
 class TestParseFailures:
     def test_empty_list(self) -> None:
-        assert _parse_failures([]) == []
+        assert parse_failures([]) == []
 
     def test_passing_tests_skipped(self) -> None:
         tests = [{"nodeid": "test_a", "outcome": "passed"}]
-        assert _parse_failures(tests) == []
+        assert parse_failures(tests) == []
 
     def test_failed_test_extracted(self) -> None:
-        result = _parse_failures(_FAILING_REPORT["tests"])
+        result = parse_failures(_FAILING_REPORT["tests"])
         assert len(result) == 2
         f = result[0]
         assert isinstance(f, FailureDetail)
@@ -141,19 +141,19 @@ class TestParseFailures:
 
     def test_traceback_truncated(self) -> None:
         """Traceback longer than 5 lines is truncated."""
-        result = _parse_failures(_FAILING_REPORT["tests"])
+        result = parse_failures(_FAILING_REPORT["tests"])
         tb_lines = result[0].traceback.splitlines()
         assert len(tb_lines) <= 5
 
     def test_error_outcome_included(self) -> None:
-        result = _parse_failures(_FAILING_REPORT["tests"])
+        result = parse_failures(_FAILING_REPORT["tests"])
         err = result[1]
         assert err.error_type == "ImportError"
         assert err.test == "tests/test_bar.py::test_error"
 
     def test_parse_failures_collection_error(self) -> None:
         """Setup-phase errors (no 'call' key) produce non-empty FailureDetail."""
-        result = _parse_failures(_SETUP_ERROR_REPORT["tests"])
+        result = parse_failures(_SETUP_ERROR_REPORT["tests"])
         assert len(result) == 1
         f = result[0]
         assert f.test == "tests/test_models.py::test_budget"
@@ -165,7 +165,7 @@ class TestParseFailures:
 
     def test_parse_failures_call_error_unchanged(self) -> None:
         """Normal call-phase failures are unaffected by the fallback logic."""
-        result = _parse_failures(_FAILING_REPORT["tests"])
+        result = parse_failures(_FAILING_REPORT["tests"])
         assert len(result) == 2
         assert result[0].error_type == "AssertionError"
         assert result[0].file == "tests/test_foo.py"
@@ -180,15 +180,15 @@ class TestParseFailures:
 
 class TestParseCollectorErrors:
     def test_empty_list(self) -> None:
-        assert _parse_collector_errors([]) == []
+        assert parse_collector_errors([]) == []
 
     def test_collector_without_longrepr_skipped(self) -> None:
-        result = _parse_collector_errors([{"nodeid": "foo", "longrepr": ""}])
+        result = parse_collector_errors([{"nodeid": "foo", "longrepr": ""}])
         assert result == []
 
     def test_parse_failures_collector_error(self) -> None:
         """Collector-level errors produce FailureDetail with correct fields."""
-        result = _parse_collector_errors(_COLLECTOR_ERROR_ENTRIES)
+        result = parse_collector_errors(_COLLECTOR_ERROR_ENTRIES)
         assert len(result) == 1
         f = result[0]
         assert f.test == "tests/test_broken.py"
@@ -206,17 +206,17 @@ class TestParseJsonReport:
     def test_valid_json(self, tmp_path: Path) -> None:
         report_file = tmp_path / "report.json"
         report_file.write_text(json.dumps(_PASSING_REPORT))
-        result = _parse_json_report(report_file)
+        result = parse_json_report(report_file)
         assert result["summary"]["passed"] == 42
 
     def test_invalid_json(self, tmp_path: Path) -> None:
         report_file = tmp_path / "report.json"
         report_file.write_text("not json")
-        result = _parse_json_report(report_file)
+        result = parse_json_report(report_file)
         assert result == {}
 
     def test_missing_file(self, tmp_path: Path) -> None:
-        result = _parse_json_report(tmp_path / "nonexistent.json")
+        result = parse_json_report(tmp_path / "nonexistent.json")
         assert result == {}
 
 
@@ -229,19 +229,19 @@ class TestParseCoverage:
     def test_valid_coverage(self, tmp_path: Path) -> None:
         cov_file = tmp_path / "cov.json"
         cov_file.write_text(json.dumps(_COVERAGE_DATA))
-        total, per_file = _parse_coverage(cov_file)
+        total, per_file = parse_coverage(cov_file)
         assert total == 91.5
         assert per_file["src/pkg/core.py"] == 95.0
 
     def test_missing_file(self, tmp_path: Path) -> None:
-        total, per_file = _parse_coverage(tmp_path / "nonexistent.json")
+        total, per_file = parse_coverage(tmp_path / "nonexistent.json")
         assert total is None
         assert per_file == {}
 
     def test_invalid_json(self, tmp_path: Path) -> None:
         cov_file = tmp_path / "cov.json"
         cov_file.write_text("bad")
-        total, per_file = _parse_coverage(cov_file)
+        total, per_file = parse_coverage(cov_file)
         assert total is None
         assert per_file == {}
 
@@ -253,7 +253,7 @@ class TestParseCoverage:
 
 class TestBuildPytestCmd:
     def test_basic_cmd(self, tmp_path: Path) -> None:
-        cmd = _build_pytest_cmd(
+        cmd = build_pytest_cmd(
             report_path=tmp_path / "r.json",
             coverage_path=None,
             files=None,
@@ -265,7 +265,7 @@ class TestBuildPytestCmd:
         assert "-x" not in cmd
 
     def test_stop_on_first(self, tmp_path: Path) -> None:
-        cmd = _build_pytest_cmd(
+        cmd = build_pytest_cmd(
             report_path=tmp_path / "r.json",
             coverage_path=None,
             files=None,
@@ -275,7 +275,7 @@ class TestBuildPytestCmd:
         assert "-x" in cmd
 
     def test_with_files(self, tmp_path: Path) -> None:
-        cmd = _build_pytest_cmd(
+        cmd = build_pytest_cmd(
             report_path=tmp_path / "r.json",
             coverage_path=None,
             files=["tests/test_a.py", "tests/test_b.py"],
@@ -286,7 +286,7 @@ class TestBuildPytestCmd:
         assert "tests/test_b.py" in cmd
 
     def test_with_markers(self, tmp_path: Path) -> None:
-        cmd = _build_pytest_cmd(
+        cmd = build_pytest_cmd(
             report_path=tmp_path / "r.json",
             coverage_path=None,
             files=None,
@@ -298,7 +298,7 @@ class TestBuildPytestCmd:
 
     def test_with_coverage(self, tmp_path: Path) -> None:
         cov_path = tmp_path / "cov.json"
-        cmd = _build_pytest_cmd(
+        cmd = build_pytest_cmd(
             report_path=tmp_path / "r.json",
             coverage_path=cov_path,
             files=None,
@@ -631,7 +631,7 @@ class TestBuildPytestCmdCoverageWithFiles:
     """Unit tests: _build_pytest_cmd must omit --cov when coverage_path is None."""
 
     def test_build_pytest_cmd_no_cov_when_files(self, tmp_path: Path) -> None:
-        cmd = _build_pytest_cmd(
+        cmd = build_pytest_cmd(
             report_path=tmp_path / "report.json",
             coverage_path=None,
             files=["t.py"],
@@ -643,7 +643,7 @@ class TestBuildPytestCmdCoverageWithFiles:
 
     def test_build_pytest_cmd_cov_when_no_files(self, tmp_path: Path) -> None:
         cov_path = Path("/tmp/c.json")
-        cmd = _build_pytest_cmd(
+        cmd = build_pytest_cmd(
             report_path=tmp_path / "report.json",
             coverage_path=cov_path,
             files=None,
