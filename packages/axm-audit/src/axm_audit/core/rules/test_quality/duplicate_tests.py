@@ -462,20 +462,30 @@ def _cluster_s2(
     return raw
 
 
-def _cluster_s1(
+def _group_by_s1_key(
     tests: list[_TestFunc],
-    seen_pairs: set[tuple[str, str]],
-) -> list[dict[str, Any]]:
-    """S1 — same ``call_sig`` and same ``assert_pattern``."""
-    raw: list[dict[str, Any]] = []
+) -> dict[str, dict[str, list[_TestFunc]]]:
+    """Group tests by ``call_sig`` then ``assert_pattern``."""
     by_call: dict[str, list[_TestFunc]] = defaultdict(list)
     for t in tests:
         if t.call_sig:
             by_call[t.call_sig].append(t)
+    grouped: dict[str, dict[str, list[_TestFunc]]] = {}
     for sig, group in by_call.items():
         subgroups: dict[str, list[_TestFunc]] = defaultdict(list)
         for t in group:
             subgroups[t.assert_pattern or "<no-assert>"].append(t)
+        grouped[sig] = subgroups
+    return grouped
+
+
+def _emit_s1_clusters(
+    groups: dict[str, dict[str, list[_TestFunc]]],
+    seen_pairs: set[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    """Emit raw S1 cluster dicts for each ``(sig, pattern)`` group."""
+    raw: list[dict[str, Any]] = []
+    for sig, subgroups in groups.items():
         for pattern, subgroup in subgroups.items():
             if len(subgroup) < _MIN_PAIR:
                 continue
@@ -500,6 +510,14 @@ def _cluster_s1(
                 }
             )
     return raw
+
+
+def _cluster_s1(
+    tests: list[_TestFunc],
+    seen_pairs: set[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    """S1 — same ``call_sig`` and same ``assert_pattern``."""
+    return _emit_s1_clusters(_group_by_s1_key(tests), seen_pairs)
 
 
 def _cluster_s3(
