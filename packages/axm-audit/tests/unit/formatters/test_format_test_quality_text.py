@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from axm_audit.formatters import format_test_quality_text
+from axm_audit.formatters import format_test_quality_json, format_test_quality_text
 from axm_audit.models.results import AuditResult, CheckResult
 
 
@@ -105,3 +105,73 @@ def test_format_test_quality_text_byte_identical_after_refactor(
 ) -> None:
     """Full-mode output must byte-match the pre-refactor snapshot (AC2)."""
     assert format_test_quality_text(result_one_per_section) == SNAPSHOT
+
+
+def test_legacy_details_findings_shape() -> None:
+    """Legacy ``details.findings`` payload must populate the private section (AC3).
+
+    Older private-import checks emit findings under ``details`` instead of
+    ``metadata.private_import_violations`` and use ``test_file`` /
+    ``private_symbol`` keys. The extractor must normalize these.
+    """
+    result = AuditResult(
+        checks=[
+            CheckResult(
+                rule_id="QUALITY_TEST_PRIVATE_IMPORTS",
+                passed=False,
+                message="private import",
+                details={
+                    "findings": [
+                        {
+                            "test_file": "tests/unit/legacy.py",
+                            "line": 7,
+                            "private_symbol": "mypkg._secret",
+                        }
+                    ],
+                },
+            ),
+        ]
+    )
+
+    payload = format_test_quality_json(result)
+
+    assert payload["private_import_violations"] == [
+        {
+            "file": "tests/unit/legacy.py",
+            "line": 7,
+            "symbol": "mypkg._secret",
+        }
+    ]
+
+
+def test_clusters_member_key_tolerance() -> None:
+    """Clusters with ``members``/``tests`` keys must yield identical output (AC3)."""
+    member = {"test": "test_x", "file": "tests/unit/x.py", "line": 3}
+    result = AuditResult(
+        checks=[
+            CheckResult(
+                rule_id="QUALITY_TEST_DUPLICATES",
+                passed=False,
+                message="members key",
+                metadata={
+                    "clusters": [{"signal": "sig_a", "members": [member]}],
+                },
+            ),
+            CheckResult(
+                rule_id="QUALITY_TEST_DUPLICATES",
+                passed=False,
+                message="tests key",
+                metadata={
+                    "clusters": [{"signal": "sig_b", "tests": [member]}],
+                },
+            ),
+        ]
+    )
+
+    payload = format_test_quality_json(result)
+
+    assert [c["members"] for c in payload["clusters"]] == [
+        [member],
+        [member],
+    ]
+    assert [c["signal"] for c in payload["clusters"]] == ["sig_a", "sig_b"]
