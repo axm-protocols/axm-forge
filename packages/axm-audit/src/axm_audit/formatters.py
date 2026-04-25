@@ -142,6 +142,37 @@ def format_json(result: AuditResult) -> dict[str, Any]:
     }
 
 
+def _drop_nulls(d: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in d.items() if v is not None}
+
+
+def _render_passed_entry(c: CheckResult) -> str | dict[str, Any]:
+    if not _has_actionable_detail(c):
+        return f"{c.rule_id}: {c.message}"
+    detail = {"text": c.text} if c.text else {"details": c.details}
+    entry = _drop_nulls({"rule_id": c.rule_id, "message": c.message, **detail})
+    if c.fix_hint:
+        entry["fix_hint"] = c.fix_hint
+    return entry
+
+
+def _render_failed_entry(c: CheckResult) -> dict[str, Any]:
+    if c.text:
+        detail: dict[str, Any] = {"text": c.text}
+    elif c.details is not None:
+        detail = {"details": c.details}
+    else:
+        detail = {}
+    return _drop_nulls(
+        {
+            "rule_id": c.rule_id,
+            "message": c.message,
+            **detail,
+            "fix_hint": c.fix_hint,
+        }
+    )
+
+
 def format_agent(result: AuditResult) -> dict[str, Any]:
     """Agent-optimized output: passed=summary, failed=full detail.
 
@@ -151,48 +182,11 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
     carry actionable detail (e.g. missing
     docstrings) are promoted to dicts.
     """
-    passed: list[str | dict[str, Any]] = []
-    for c in result.checks:
-        if not c.passed:
-            continue
-        if _has_actionable_detail(c):
-            entry: dict[str, Any] = {
-                k: v
-                for k, v in {
-                    "rule_id": c.rule_id,
-                    "message": c.message,
-                    **({"text": c.text} if c.text else {"details": c.details}),
-                }.items()
-                if v is not None
-            }
-            if c.fix_hint:
-                entry["fix_hint"] = c.fix_hint
-            passed.append(entry)
-        else:
-            passed.append(f"{c.rule_id}: {c.message}")
-
     return {
         "score": result.quality_score,
         "grade": result.grade,
-        "passed": passed,
-        "failed": [
-            {
-                k: v
-                for k, v in {
-                    "rule_id": c.rule_id,
-                    "message": c.message,
-                    **(
-                        ({"text": c.text} if c.text else {"details": c.details})
-                        if c.text or c.details is not None
-                        else {}
-                    ),
-                    "fix_hint": c.fix_hint,
-                }.items()
-                if v is not None
-            }
-            for c in result.checks
-            if not c.passed
-        ],
+        "passed": [_render_passed_entry(c) for c in result.checks if c.passed],
+        "failed": [_render_failed_entry(c) for c in result.checks if not c.passed],
     }
 
 
