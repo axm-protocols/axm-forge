@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 
 import pytest
+from radon.complexity import cc_visit
 
 from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality.private_imports import PrivateImportsRule
@@ -180,3 +182,51 @@ def test_unknown_kind_fallback(pkg_root: Path) -> None:
     findings = result.details["findings"]  # type: ignore[index]
     assert len(findings) == 1
     assert findings[0]["symbol_kind"] == "unknown"
+
+
+def test_private_module_same_package_allowed(tmp_path: Path) -> None:
+    (tmp_path / "src" / "mypkg" / "sub").mkdir(parents=True)
+    _write(tmp_path / "src" / "mypkg" / "__init__.py", "")
+    _write(tmp_path / "src" / "mypkg" / "sub" / "__init__.py", "")
+    _write(tmp_path / "src" / "mypkg" / "sub" / "_helper.py", "value = 1\n")
+    _write(
+        tmp_path / "tests" / "test_x.py",
+        "from mypkg.sub import _helper\n",
+    )
+
+    result = PrivateImportsRule().check(tmp_path)
+
+    assert result.details["findings"] == []  # type: ignore[index]
+    assert result.passed is True
+
+
+def test_private_module_cross_package_flagged(tmp_path: Path) -> None:
+    (tmp_path / "src" / "pkg_a").mkdir(parents=True)
+    (tmp_path / "src" / "pkg_b").mkdir(parents=True)
+    _write(tmp_path / "src" / "pkg_a" / "__init__.py", "")
+    _write(tmp_path / "src" / "pkg_a" / "_helper.py", "value = 1\n")
+    _write(tmp_path / "src" / "pkg_b" / "__init__.py", "")
+    _write(
+        tmp_path / "tests" / "pkg_b" / "test_x.py",
+        "from pkg_a import _helper\n",
+    )
+
+    result = PrivateImportsRule().check(tmp_path)
+
+    findings = result.details["findings"]  # type: ignore[index]
+    assert len(findings) >= 1
+    assert any(f["private_symbol"] == "_helper" for f in findings)
+
+
+def test_check_complexity_within_budget() -> None:
+    from axm_audit.core.rules.test_quality import private_imports
+
+    source = Path(inspect.getfile(private_imports)).read_text()
+    blocks = cc_visit(source)
+
+    check_block = next(
+        b
+        for b in blocks
+        if getattr(b, "classname", None) == "PrivateImportsRule" and b.name == "check"
+    )
+    assert check_block.complexity <= 17
