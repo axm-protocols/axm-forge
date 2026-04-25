@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -26,7 +27,7 @@ _HELPERS = (
 )
 
 
-def _covered_lines_for_helper(coverage_data, helper: str) -> int:
+def _covered_lines_for_helper(coverage_data: dict[str, Any], helper: str) -> int:
     """Best-effort lookup: scan ``coverage.py`` JSON report for any function
     whose qualified name contains the helper name and sum its executed lines."""
     total = 0

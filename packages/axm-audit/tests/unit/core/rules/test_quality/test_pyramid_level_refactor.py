@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -30,7 +31,7 @@ ALL_BASELINE = BASELINE_DIR / "axm_audit_all.json"
 CC_BUDGET = 10
 
 
-def _cc_blocks() -> list:
+def _cc_blocks() -> list[Any]:
     from radon.complexity import cc_visit
 
     return list(cc_visit(PYRAMID_LEVEL.read_text(encoding="utf-8")))

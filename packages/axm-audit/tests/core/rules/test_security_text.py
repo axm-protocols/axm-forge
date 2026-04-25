@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from axm_audit.models.results import CheckResult
+
 
 def _make_result(
     severity: str, test_id: str, text: str, filename: str, line: int
@@ -39,7 +41,7 @@ def _check_with_results(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     bandit_results: list[dict[str, str | int]],
-):
+) -> CheckResult:
     from axm_audit.core.rules import security as sec_mod
     from axm_audit.core.rules.security import SecurityRule
 

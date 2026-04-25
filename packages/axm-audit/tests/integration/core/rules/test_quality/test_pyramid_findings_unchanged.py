@@ -11,6 +11,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -21,7 +22,7 @@ BASELINE_DIR = Path(__file__).parent / "_baselines"
 FINDINGS_BASELINE = BASELINE_DIR / "pyramid_findings.json"
 
 
-def _normalize(payload: dict) -> dict:
+def _normalize(payload: dict[str, Any]) -> dict[str, Any]:
     """Reduce a raw axm-audit payload to its pyramid-level classification.
 
     We compare only the bits that AC2 mandates (count and per-test
@@ -41,7 +42,7 @@ def _normalize(payload: dict) -> dict:
     return {"count": len(classification), "classification": classification}
 
 
-def _run_audit() -> dict:
+def _run_audit() -> dict[str, Any]:
     result = subprocess.run(  # noqa: S603
         [
             sys.executable,
@@ -60,7 +61,8 @@ def _run_audit() -> dict:
         f"axm-audit produced no JSON output\n"
         f"stderr:\n{result.stderr}\nrc={result.returncode}"
     )
-    return json.loads(result.stdout)
+    payload: dict[str, Any] = json.loads(result.stdout)
+    return payload
 
 
 def test_pyramid_findings_unchanged() -> None:
