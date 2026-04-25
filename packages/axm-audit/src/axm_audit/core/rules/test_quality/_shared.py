@@ -626,7 +626,48 @@ def _expr_contains_names(expr: ast.AST, names: set[str]) -> bool:
     return False
 
 
-def fixture_does_io(  # noqa: PLR0911, PLR0912
+def _fixture_has_direct_io(fdef: ast.FunctionDef) -> bool:
+    """True if fixture body has direct attr-IO or matches ``_IO_CALLS``."""
+    if _attr_signals_in_node(fdef):
+        return True
+    for node in ast.walk(fdef):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        parts: list[str] = []
+        cur: ast.AST = node.func
+        while isinstance(cur, ast.Attribute):
+            parts.insert(0, cur.attr)
+            cur = cur.value
+        if isinstance(cur, ast.Name):
+            parts.insert(0, cur.id)
+            if ".".join(parts) in _IO_CALLS:
+                return True
+    return False
+
+
+def _fixture_calls_io_fixture(
+    fdef: ast.FunctionDef,
+    fix_name: str,
+    fixtures: dict[str, ast.FunctionDef],
+    visited: set[str],
+    depth: int,
+) -> bool:
+    """True if fixture transitively depends on ``tmp_path`` or another IO fixture."""
+    for arg in fdef.args.args:
+        if arg.arg in ("tmp_path", "tmp_path_factory") and _expr_contains_names(
+            fdef, {arg.arg}
+        ):
+            return True
+        if (
+            arg.arg in fixtures
+            and arg.arg != fix_name
+            and fixture_does_io(arg.arg, fixtures, visited, depth + 1)
+        ):
+            return True
+    return False
+
+
+def fixture_does_io(
     fix_name: str,
     fixtures: dict[str, ast.FunctionDef],
     visited: set[str],
@@ -643,33 +684,9 @@ def fixture_does_io(  # noqa: PLR0911, PLR0912
     fdef = fixtures.get(fix_name)
     if fdef is None:
         return False
-
-    if _attr_signals_in_node(fdef):
-        return True
-
-    for node in ast.walk(fdef):
-        if not isinstance(node, ast.Call):
-            continue
-        if isinstance(node.func, ast.Attribute):
-            parts: list[str] = []
-            cur: ast.AST = node.func
-            while isinstance(cur, ast.Attribute):
-                parts.insert(0, cur.attr)
-                cur = cur.value
-            if isinstance(cur, ast.Name):
-                parts.insert(0, cur.id)
-                if ".".join(parts) in _IO_CALLS:
-                    return True
-
-    for arg in fdef.args.args:
-        if arg.arg in ("tmp_path", "tmp_path_factory"):
-            if _expr_contains_names(fdef, {arg.arg}):
-                return True
-        if arg.arg in fixtures and arg.arg != fix_name:
-            if fixture_does_io(arg.arg, fixtures, visited, depth + 1):
-                return True
-
-    return False
+    return _fixture_has_direct_io(fdef) or _fixture_calls_io_fixture(
+        fdef, fix_name, fixtures, visited, depth
+    )
 
 
 # ── Package surface ───────────────────────────────────────────────────
