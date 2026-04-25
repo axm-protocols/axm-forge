@@ -52,9 +52,11 @@ class PrivateImportsRule(ProjectRule):
 
     @property
     def rule_id(self) -> str:
+        """Stable identifier for this rule."""
         return "TEST_QUALITY_PRIVATE_IMPORTS"
 
     def check(self, project_path: Path) -> CheckResult:
+        """Scan test files in ``project_path`` for private-symbol imports."""
         early = self.check_src(project_path)
         if early is not None:
             return early

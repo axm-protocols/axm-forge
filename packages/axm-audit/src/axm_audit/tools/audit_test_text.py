@@ -1,3 +1,5 @@
+"""Compact text formatter for ``audit_test`` ToolResult output."""
+
 from __future__ import annotations
 
 from pathlib import PurePosixPath

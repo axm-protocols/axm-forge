@@ -454,6 +454,7 @@ class TautologyRule(ProjectRule):
 
     @property
     def rule_id(self) -> str:
+        """Stable identifier for this rule."""
         return "TEST_QUALITY_TAUTOLOGY"
 
     def check(self, project_path: Path) -> TautologyCheckResult:

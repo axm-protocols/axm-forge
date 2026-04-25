@@ -93,6 +93,7 @@ class AuditResult(BaseModel):
     _override_grade: str | None = PrivateAttr(default=None)
 
     def __init__(self, **data: Any) -> None:
+        """Accept optional ``quality_score`` / ``grade`` overrides for tests."""
         qs = data.pop("quality_score", None)
         gr = data.pop("grade", None)
         # Computed fields — silently dropped if passed (test convenience).

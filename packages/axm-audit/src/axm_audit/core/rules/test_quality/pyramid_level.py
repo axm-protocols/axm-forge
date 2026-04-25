@@ -502,9 +502,11 @@ class PyramidLevelRule(ProjectRule):
 
     @property
     def rule_id(self) -> str:
+        """Stable identifier for this rule."""
         return "TEST_QUALITY_PYRAMID_LEVEL"
 
     def check(self, project_path: Path) -> PyramidCheckResult:
+        """Classify tests in ``project_path`` against their pyramid folder."""
         tests_dir = project_path / "tests"
         if not tests_dir.exists():
             return PyramidCheckResult(
