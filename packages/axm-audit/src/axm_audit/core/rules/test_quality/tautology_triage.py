@@ -538,45 +538,67 @@ def _is_factory_name(name: str) -> bool:
     return any(name.startswith(p) for p in _FACTORY_PREFIXES)
 
 
-def _is_pure_constructor_test(  # noqa: PLR0911
+_PURE_CTOR_CONTROL_FLOW = (
+    ast.With,
+    ast.AsyncWith,
+    ast.Try,
+    ast.For,
+    ast.AsyncFor,
+    ast.While,
+)
+
+
+def _has_disqualifying_control_flow(func: ast.FunctionDef) -> bool:
+    return any(isinstance(stmt, _PURE_CTOR_CONTROL_FLOW) for stmt in ast.walk(func))
+
+
+def _is_constructor_call_name(name: str, pkg_symbols: set[str]) -> bool:
+    return name[0].isupper() or _is_factory_name(name) or name in pkg_symbols
+
+
+def _is_isinstance_call(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "isinstance"
+    )
+
+
+def _is_is_not_none_compare(test: ast.expr) -> bool:
+    if not isinstance(test, ast.Compare):
+        return False
+    return (
+        len(test.ops) == 1
+        and isinstance(test.ops[0], ast.IsNot)
+        and len(test.comparators) == 1
+        and isinstance(test.comparators[0], ast.Constant)
+        and test.comparators[0].value is None
+    )
+
+
+def _is_weak_assert(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Assert):
+        return False
+    return isinstance(node.test, ast.Name) or _is_is_not_none_compare(node.test)
+
+
+def _body_has_weak_check(body: list[ast.stmt]) -> bool:
+    module = ast.Module(body=body, type_ignores=[])
+    return any(
+        _is_isinstance_call(node) or _is_weak_assert(node) for node in ast.walk(module)
+    )
+
+
+def _is_pure_constructor_test(
     func: ast.FunctionDef, helper_names: set[str], pkg_symbols: set[str]
 ) -> bool:
     """True when *func* is a single-constructor call followed by a weak assert."""
-    for stmt in ast.walk(func):
-        if isinstance(
-            stmt,
-            ast.With | ast.AsyncWith | ast.Try | ast.For | ast.AsyncFor | ast.While,
-        ):
-            return False
-
+    if _has_disqualifying_control_flow(func):
+        return False
     calls = _extract_calls(func.body, helper_names)
-    if len(calls) != 1:
+    if len(calls) != 1 or not _is_constructor_call_name(calls[0], pkg_symbols):
         return False
-    c = calls[0]
-    if not (c[0].isupper() or _is_factory_name(c) or c in pkg_symbols):
-        return False
-
-    for node in ast.walk(ast.Module(body=func.body, type_ignores=[])):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "isinstance"
-        ):
-            return True
-        if isinstance(node, ast.Assert):
-            if isinstance(node.test, ast.Name):
-                return True
-            if isinstance(node.test, ast.Compare):
-                cmp = node.test
-                if (
-                    len(cmp.ops) == 1
-                    and isinstance(cmp.ops[0], ast.IsNot)
-                    and len(cmp.comparators) == 1
-                    and isinstance(cmp.comparators[0], ast.Constant)
-                    and cmp.comparators[0].value is None
-                ):
-                    return True
-    return False
+    return _body_has_weak_check(func.body)
 
 
 def _count_pure_constructor_siblings(
