@@ -35,7 +35,7 @@ def _patch_coupling(
     max_fo: int = 18,
 ) -> None:
     monkeypatch.setattr(
-        f"{_MOD}._read_coupling_config",
+        f"{_MOD}.read_coupling_config",
         lambda _path: (12, {}, 0, 2),
     )
     monkeypatch.setattr(

@@ -3,54 +3,54 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
-from axm_audit.core.rules.architecture import (
-    _parse_overrides,
-    _read_coupling_config,
-    _safe_int,
+from axm_audit.core.rules.architecture.coupling import (
+    parse_overrides,
+    read_coupling_config,
+    safe_int,
 )
 
 # ---------------------------------------------------------------------------
-# Unit tests — _safe_int
+# Unit tests — safe_int
 # ---------------------------------------------------------------------------
 
 
 def test_safe_int_valid() -> None:
-    assert _safe_int(10, 5) == 10
+    assert safe_int(10, 5) == 10
 
 
 def test_safe_int_string() -> None:
-    assert _safe_int("abc", 5) == 5
+    assert safe_int("abc", 5) == 5
 
 
 def test_safe_int_negative() -> None:
-    assert _safe_int(-3, 5) == 5
+    assert safe_int(-3, 5) == 5
 
 
 # ---------------------------------------------------------------------------
-# Unit tests — _parse_overrides
+# Unit tests — parse_overrides
 # ---------------------------------------------------------------------------
 
 
 def test_parse_overrides_valid() -> None:
-    assert _parse_overrides({"mod": 15}) == {"mod": 15}
+    assert parse_overrides({"mod": 15}) == {"mod": 15}
 
 
 def test_parse_overrides_invalid_value() -> None:
-    assert _parse_overrides({"mod": "abc"}) == {}
+    assert parse_overrides({"mod": "abc"}) == {}
 
 
 def test_parse_overrides_not_dict() -> None:
-    assert _parse_overrides("invalid") == {}
+    assert parse_overrides("invalid") == {}
 
 
 # ---------------------------------------------------------------------------
-# Edge cases — _read_coupling_config
+# Edge cases — read_coupling_config
 # ---------------------------------------------------------------------------
 
 
 def test_no_pyproject(tmp_path: Path) -> None:
     """No pyproject.toml → all defaults."""
-    result = _read_coupling_config(tmp_path)
+    result = read_coupling_config(tmp_path)
     # Returns the 4-tuple of defaults
     assert isinstance(result, tuple)
     assert len(result) == 4
@@ -59,7 +59,7 @@ def test_no_pyproject(tmp_path: Path) -> None:
 def test_malformed_toml(tmp_path: Path) -> None:
     """Invalid TOML content → all defaults."""
     (tmp_path / "pyproject.toml").write_text("{{not valid toml", encoding="utf-8")
-    result = _read_coupling_config(tmp_path)
+    result = read_coupling_config(tmp_path)
     assert isinstance(result, tuple)
     assert len(result) == 4
 
@@ -73,7 +73,7 @@ def test_missing_coupling_section(tmp_path: Path) -> None:
         """),
         encoding="utf-8",
     )
-    result = _read_coupling_config(tmp_path)
+    result = read_coupling_config(tmp_path)
     assert isinstance(result, tuple)
     assert len(result) == 4
 
@@ -87,5 +87,5 @@ def test_zero_threshold(tmp_path: Path) -> None:
         """),
         encoding="utf-8",
     )
-    threshold, _overrides, _bonus, _multiplier = _read_coupling_config(tmp_path)
+    threshold, _overrides, _bonus, _multiplier = read_coupling_config(tmp_path)
     assert threshold == 0

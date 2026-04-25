@@ -308,7 +308,7 @@ _DIFF_IDEAL = 400
 _DIFF_MAX = 1200
 
 
-def _read_diff_config(project_path: Path) -> tuple[int, int]:
+def read_diff_config(project_path: Path) -> tuple[int, int]:
     """Read diff-size thresholds from ``[tool.axm-audit]`` in pyproject.toml.
 
     Returns:
@@ -434,7 +434,7 @@ class DiffSizeRule(ProjectRule):
                 details={"lines_changed": 0, "score": 100},
             )
 
-        ideal, max_lines = _read_diff_config(project_path)
+        ideal, max_lines = read_diff_config(project_path)
         lines_changed = self._parse_stat(stdout)
         score = self._compute_score(lines_changed, ideal, max_lines)
         passed = score >= PASS_THRESHOLD
