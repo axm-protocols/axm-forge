@@ -60,6 +60,22 @@ as well. Each finding records `test_file`, `line`, `import_module`,
 `private_symbol` and a `symbol_kind` (`function`, `class`, `constant`,
 `variable`, `unknown`).
 
+### Same-package submodule exemption
+
+Imports of `_prefixed` *modules* (not symbols) from the same top-level
+first-party package as the test file are not flagged. For example, in a
+package `mypkg`, `from mypkg.sub import _helper` resolves to the submodule
+`mypkg/sub/_helper.py` and is allowed when the test lives under that
+package's test tree. Cross-package imports of private submodules
+(e.g. `pkg_b` test importing `from pkg_a import _helper`) remain flagged.
+
+Owning-package detection:
+
+- Single-package projects: every test belongs to the lone package.
+- Multi-package projects: the owner is inferred from the test path under
+  `tests/` (e.g. `tests/pkg_b/test_x.py` → `pkg_b`); tests not nested
+  under a recognized package directory are treated as cross-package.
+
 ### Fix recipes
 
 - Export the symbol: drop the `_` prefix and add it to the package
