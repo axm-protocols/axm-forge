@@ -95,8 +95,9 @@ def test_deps_audit_text_empty_vuln_ids(
     raw = [_vuln("pkg", "1.0.0", [])]
     result = _check_with_vulns(rule, tmp_path, raw)
     # _summarize_vuln produces vuln_ids=[], fix_versions=[]
-    # Should not crash
-    assert result is not None
+    # Formatting must not crash and must still mention the package name.
+    assert result.text is not None
+    assert "pkg" in result.text
 
 
 def test_deps_audit_text_top_vulns_cap(

@@ -28,15 +28,19 @@ class TestAuditProjectFunction:
         assert "quick" in params
 
     def test_audit_project_returns_audit_result(self, tmp_path):
-        """Test that audit_project returns an AuditResult object."""
+        """audit_project returns a populated AuditResult.
+
+        Checks and a non-negative score must be present.
+        """
         from axm_audit import AuditResult, audit_project
 
-        # Create minimal project structure
         (tmp_path / "pyproject.toml").write_text("[project]\nname='test'")
         (tmp_path / "src").mkdir()
 
         result = audit_project(tmp_path)
         assert isinstance(result, AuditResult)
+        assert result.checks, "audit_project should produce at least one check"
+        assert result.total == len(result.checks)
 
     def test_audit_project_nonexistent_path_raises_error(self):
         """Test that audit_project raises FileNotFoundError for invalid path."""
@@ -70,14 +74,18 @@ class TestAuditProjectFunction:
         ],
     )
     def test_audit_project_category_filtering(self, tmp_path, category):
-        """Test that category filtering works for all valid categories."""
+        """Category filter must restrict result.checks to the requested category."""
         from axm_audit import audit_project
 
         (tmp_path / "pyproject.toml").write_text("[project]\nname='test'")
         (tmp_path / "src").mkdir()
 
         result = audit_project(tmp_path, category=category)
-        assert result is not None
+        assert result.checks, f"category={category} produced no checks"
+        leaked = {c.category or "" for c in result.checks}
+        assert all(c.category == category for c in result.checks), (
+            f"category={category} leaked checks: {sorted(leaked)}"
+        )
 
     def test_audit_project_quick_mode(self, tmp_path):
         """Test that quick mode runs only lint and type checks."""
