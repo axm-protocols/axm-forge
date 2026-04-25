@@ -125,32 +125,6 @@ class TestRulesRegistration:
             assert isinstance(rule.rule_id, str)
             assert len(rule.rule_id) > 0
 
-    def test_safe_check_catches_exceptions(
-        self, tmp_path: pytest.TempPathFactory
-    ) -> None:
-        """Edge case: _safe_check returns ERROR result when rule raises."""
-        from pathlib import Path
-
-        from axm_audit.core.auditor import _safe_check
-        from axm_audit.core.rules.base import ProjectRule
-        from axm_audit.models.results import CheckResult
-
-        class CrashingRule(ProjectRule):
-            _registered_category = "testing"
-
-            @property
-            def rule_id(self) -> str:
-                return "TEST_CRASH"
-
-            def check(self, project_path: Path) -> CheckResult:
-                msg = "intentional crash"
-                raise RuntimeError(msg)
-
-        result = _safe_check(CrashingRule(), tmp_path)  # type: ignore[arg-type]
-        assert not result.passed
-        assert "crashed" in result.message.lower()
-        assert result.fix_hint is not None
-
 
 class TestRuleRegistryDeduplication:
     """Tests for auto-discovery registry (AXM-198)."""
@@ -248,11 +222,11 @@ class TestGetInstances:
         rule = DuplicationRule()
         assert rule.category == "architecture"
 
-    def test_build_all_rules_includes_tooling(self) -> None:
-        """_build_all_rules() includes TOOL_RUFF, TOOL_MYPY, TOOL_UV."""
-        from axm_audit.core.auditor import _build_all_rules
+    def test_all_rules_includes_tooling(self) -> None:
+        """All-rules path includes TOOL_RUFF, TOOL_MYPY, TOOL_UV."""
+        from axm_audit import get_rules_for_category
 
-        rules = _build_all_rules()
+        rules = get_rules_for_category(None)
         rule_ids = {r.rule_id for r in rules}
         assert "TOOL_RUFF" in rule_ids
         assert "TOOL_MYPY" in rule_ids

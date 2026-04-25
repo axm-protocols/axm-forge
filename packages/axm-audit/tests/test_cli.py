@@ -26,34 +26,5 @@ class TestCLI:
         assert "agent" in sig.parameters
 
 
-class TestExtractTestFailures:
-    """Tests for _extract_test_failures helper."""
-
-    def test_no_failures(self) -> None:
-        """Empty stdout → no failures."""
-        from axm_audit.core.rules.coverage import _extract_test_failures
-
-        assert _extract_test_failures("") == []
-        assert _extract_test_failures("3 passed\n") == []
-
-    def test_single_failure(self) -> None:
-        """FAILED line parsed correctly."""
-        from axm_audit.core.rules.coverage import _extract_test_failures
-
-        stdout = "FAILED tests/test_foo.py::test_bar - AssertionError\n1 failed\n"
-        failures = _extract_test_failures(stdout)
-        assert len(failures) == 1
-        assert failures[0]["test"] == "tests/test_foo.py::test_bar"
-        assert "AssertionError" in failures[0]["traceback"]
-
-    def test_multiple_failures(self) -> None:
-        """Multiple FAILED lines parsed."""
-        from axm_audit.core.rules.coverage import _extract_test_failures
-
-        stdout = (
-            "FAILED tests/test_a.py::test_one - err1\n"
-            "FAILED tests/test_b.py::test_two - err2\n"
-            "2 failed\n"
-        )
-        failures = _extract_test_failures(stdout)
-        assert len(failures) == 2
+# Test-failure extraction is exercised end-to-end through ``CoverageRule().check()``
+# in ``tests/integration/test_coverage_rule_e2e.py``.
