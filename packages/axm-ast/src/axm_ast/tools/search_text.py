@@ -141,6 +141,21 @@ def _group_symbols(
     return funcs, classes, variables
 
 
+def _render_symbol_lines(symbols: list[dict[str, Any]]) -> list[str]:
+    """Build formatted lines for grouped symbols (funcs, classes, variables)."""
+    funcs, classes, variables = _group_symbols(symbols)
+    lines = [format_symbol_line(s) for s in funcs]
+    if classes:
+        lines.append(", ".join(format_symbol_line(s) for s in classes))
+    lines.extend(format_symbol_line(s) for s in variables)
+    return lines
+
+
+def _render_suggestion_lines(suggestions: list[dict[str, Any]]) -> list[str]:
+    """Build ``?``-prefixed suggestion lines."""
+    return [render_suggestion_line(s) for s in suggestions]
+
+
 def render_text(
     symbols: list[dict[str, Any]],
     *,
@@ -156,16 +171,9 @@ def render_text(
     )
     if not symbols and not suggestions:
         return header
-
-    if not symbols and suggestions:
-        lines = [header]
-        lines.extend(render_suggestion_line(s) for s in suggestions)
-        return "\n".join(lines)
-
-    funcs, classes, variables = _group_symbols(symbols)
-    lines = [header]
-    lines.extend(format_symbol_line(s) for s in funcs)
-    if classes:
-        lines.append(", ".join(format_symbol_line(s) for s in classes))
-    lines.extend(format_symbol_line(s) for s in variables)
-    return "\n".join(lines)
+    body = (
+        _render_symbol_lines(symbols)
+        if symbols
+        else _render_suggestion_lines(suggestions)
+    )
+    return "\n".join([header, *body])
