@@ -208,9 +208,7 @@ def _render_text_or_details(f: dict[str, Any]) -> list[str]:
     return []
 
 
-def _render_metadata(meta: Any) -> list[str]:
-    if not isinstance(meta, dict):
-        return []
+def _render_verdict_entries(meta: dict[str, Any]) -> list[str]:
     out: list[str] = []
     for verdict in meta.get("verdicts", []) or []:
         if isinstance(verdict, dict):
@@ -219,11 +217,22 @@ def _render_metadata(meta: Any) -> list[str]:
                 f"  [{tag}] {verdict.get('test', '?')} "
                 f"({verdict.get('file', '?')}:{verdict.get('line', '?')})"
             )
+    return out
+
+
+def _render_cluster_entries(meta: dict[str, Any]) -> list[str]:
+    out: list[str] = []
     for cluster in meta.get("clusters", []) or []:
         if isinstance(cluster, dict):
             members = cluster.get("members") or cluster.get("tests") or []
             out.append(f"  [{cluster.get('signal', '?')}] {len(members)} test(s)")
     return out
+
+
+def _render_metadata(meta: Any) -> list[str]:
+    if not isinstance(meta, dict):
+        return []
+    return _render_verdict_entries(meta) + _render_cluster_entries(meta)
 
 
 def _render_fix(f: dict[str, Any]) -> list[str]:
@@ -267,6 +276,14 @@ def format_agent_text(
     return "\n".join(lines)
 
 
+def _legacy_private_entry(f: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "file": f.get("test_file") or f.get("file") or "",
+        "line": f.get("line", 0),
+        "symbol": f.get("private_symbol") or f.get("symbol") or "",
+    }
+
+
 def _extract_private(check: Any) -> list[dict[str, Any]]:
     """Normalize private-import findings from metadata or legacy ``details``."""
     meta = getattr(check, "metadata", None) or {}
@@ -276,14 +293,7 @@ def _extract_private(check: Any) -> list[dict[str, Any]]:
     details = check.details or {}
     if "PRIVATE" not in rule or not details.get("findings"):
         return []
-    return [
-        {
-            "file": f.get("test_file") or f.get("file") or "",
-            "line": f.get("line", 0),
-            "symbol": f.get("private_symbol") or f.get("symbol") or "",
-        }
-        for f in details["findings"]
-    ]
+    return [_legacy_private_entry(f) for f in details["findings"]]
 
 
 def _extract_pyramid(check: Any) -> list[dict[str, Any]]:
@@ -298,11 +308,15 @@ def _extract_pyramid(check: Any) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for f in findings:
         fd = f.model_dump() if hasattr(f, "model_dump") else dict(f)
+        current = fd.get("current_level", "")
+        detected = fd.get("level", "")
+        if current in ("root", detected):
+            continue
         out.append(
             {
                 "test": f"{fd.get('path', '')}::{fd.get('function', '')}",
-                "current_dir": fd.get("current_level", ""),
-                "detected_level": fd.get("level", ""),
+                "current_dir": current,
+                "detected_level": detected,
             }
         )
     return out
