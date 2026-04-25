@@ -850,35 +850,52 @@ def is_import_smoke_test(func: ast.FunctionDef) -> bool:
     return has_import and has_any_assert and has_only_weak
 
 
+def _has_lazy_filename(test_file: Path) -> bool:
+    return Path(test_file).name.lower() in _LAZY_FILENAMES
+
+
+def _has_lazy_classname(func: ast.FunctionDef, tree_module: ast.Module) -> bool:
+    for node in ast.walk(tree_module):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        if not any(item is func for item in node.body):
+            continue
+        cname = node.name.lower()
+        if any(sig in cname for sig in _LAZY_CLASSNAME_SIGNALS):
+            return True
+    return False
+
+
+def _has_lazy_module_docstring(tree_module: ast.Module) -> bool:
+    if not tree_module.body or not _is_docstring_stmt(tree_module.body[0]):
+        return False
+    first = tree_module.body[0]
+    assert isinstance(first, ast.Expr)
+    assert isinstance(first.value, ast.Constant)
+    value = first.value.value
+    if not isinstance(value, str):
+        return False
+    doc = value.lower()
+    return any(sig in doc for sig in _LAZY_DOCSTRING_SIGNALS)
+
+
 def test_is_in_lazy_import_context(
     func: ast.FunctionDef,
     tree_module: ast.Module,
     test_file: Path,
 ) -> bool:
-    """Detect when the import itself is the system-under-test."""
-    fname = Path(test_file).name.lower()
-    if fname in _LAZY_FILENAMES:
-        return True
+    """Detect when the import itself is the system-under-test.
 
-    for node in ast.walk(tree_module):
-        if isinstance(node, ast.ClassDef):
-            for item in node.body:
-                if isinstance(item, ast.FunctionDef) and item is func:
-                    cname = node.name.lower()
-                    if any(sig in cname for sig in _LAZY_CLASSNAME_SIGNALS):
-                        return True
-
-    if tree_module.body and _is_docstring_stmt(tree_module.body[0]):
-        first = tree_module.body[0]
-        assert isinstance(first, ast.Expr)
-        assert isinstance(first.value, ast.Constant)
-        value = first.value.value
-        if isinstance(value, str):
-            doc = value.lower()
-            if any(sig in doc for sig in _LAZY_DOCSTRING_SIGNALS):
-                return True
-
-    return False
+    Returns True when the surrounding test file, class, or module
+    docstring signals that the test exists to verify lazy/optional
+    imports — in which case bare ``import`` statements inside the
+    test body must not be flagged as smoke tests.
+    """
+    return (
+        _has_lazy_filename(test_file)
+        or _has_lazy_classname(func, tree_module)
+        or _has_lazy_module_docstring(tree_module)
+    )
 
 
 # ── Mock extraction ───────────────────────────────────────────────────
