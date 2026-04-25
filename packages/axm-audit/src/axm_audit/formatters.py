@@ -196,7 +196,58 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
     }
 
 
-def format_agent_text(  # noqa: PLR0912
+def _render_passed(passed: list[Any]) -> list[str]:
+    rule_ids: list[str] = [
+        p.get("rule_id", "?") if isinstance(p, dict) else p.split(":")[0]
+        for p in passed
+    ]
+    return [f"✓ {' '.join(rule_ids[i : i + 5])}" for i in range(0, len(rule_ids), 5)]
+
+
+def _render_text_or_details(f: dict[str, Any]) -> list[str]:
+    text = f.get("text")
+    if text:
+        return [f"  {tl}" for tl in text.splitlines()]
+    details = f.get("details")
+    if isinstance(details, dict):
+        return [f"  {dk}: {dv}" for dk, dv in details.items()]
+    return []
+
+
+def _render_metadata(meta: Any) -> list[str]:
+    if not isinstance(meta, dict):
+        return []
+    out: list[str] = []
+    for verdict in meta.get("verdicts", []) or []:
+        if isinstance(verdict, dict):
+            tag = verdict.get("verdict") or "UNKNOWN"
+            out.append(
+                f"  [{tag}] {verdict.get('test', '?')} "
+                f"({verdict.get('file', '?')}:{verdict.get('line', '?')})"
+            )
+    for cluster in meta.get("clusters", []) or []:
+        if isinstance(cluster, dict):
+            members = cluster.get("members") or cluster.get("tests") or []
+            out.append(f"  [{cluster.get('signal', '?')}] {len(members)} test(s)")
+    return out
+
+
+def _render_fix(f: dict[str, Any]) -> list[str]:
+    fix_hint = f.get("fix_hint")
+    return [f"  fix: {fix_hint}"] if fix_hint else []
+
+
+def _render_failed_check(f: dict[str, Any]) -> list[str]:
+    rule_id = f.get("rule_id", "?")
+    message = f.get("message", "")
+    lines: list[str] = [f"✗ {rule_id} {message}"]
+    lines.extend(_render_text_or_details(f))
+    lines.extend(_render_metadata(f.get("metadata")))
+    lines.extend(_render_fix(f))
+    return lines
+
+
+def format_agent_text(
     data: dict[str, Any],
     category: str | None = None,
 ) -> str:
@@ -210,55 +261,14 @@ def format_agent_text(  # noqa: PLR0912
     passed = data.get("passed", [])
     failed = data.get("failed", [])
 
-    # Header
     cat_label = f" {category}" if category else ""
     score_part = f" {grade} {score}" if score is not None and grade is not None else ""
     header = f"audit{cat_label} |{score_part} | {len(passed)} pass · {len(failed)} fail"
     lines: list[str] = [header]
 
-    # Passed section — group rule_ids on ✓ lines (≤5 per line)
-    if passed:
-        rule_ids: list[str] = []
-        for p in passed:
-            if isinstance(p, dict):
-                rule_ids.append(p.get("rule_id", "?"))
-            else:
-                rule_ids.append(p.split(":")[0])
-        for i in range(0, len(rule_ids), 5):
-            chunk = rule_ids[i : i + 5]
-            lines.append(f"✓ {' '.join(chunk)}")
-
-    # Failed section
+    lines.extend(_render_passed(passed))
     for f in failed:
-        rule_id = f.get("rule_id", "?")
-        message = f.get("message", "")
-        lines.append(f"✗ {rule_id} {message}")
-        text = f.get("text")
-        if text:
-            for tl in text.splitlines():
-                lines.append(f"  {tl}")
-        elif "details" in f and isinstance(f["details"], dict):
-            details = f["details"]
-            for dk, dv in details.items():
-                lines.append(f"  {dk}: {dv}")
-        meta = f.get("metadata")
-        if isinstance(meta, dict):
-            for verdict in meta.get("verdicts", []) or []:
-                if isinstance(verdict, dict):
-                    tag = verdict.get("verdict") or "UNKNOWN"
-                    lines.append(
-                        f"  [{tag}] {verdict.get('test', '?')} "
-                        f"({verdict.get('file', '?')}:{verdict.get('line', '?')})"
-                    )
-            for cluster in meta.get("clusters", []) or []:
-                if isinstance(cluster, dict):
-                    members = cluster.get("members") or cluster.get("tests") or []
-                    lines.append(
-                        f"  [{cluster.get('signal', '?')}] {len(members)} test(s)"
-                    )
-        fix_hint = f.get("fix_hint")
-        if fix_hint:
-            lines.append(f"  fix: {fix_hint}")
+        lines.extend(_render_failed_check(f))
 
     return "\n".join(lines)
 
