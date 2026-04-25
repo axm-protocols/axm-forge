@@ -664,9 +664,11 @@ class DuplicateTestsRule(ProjectRule):
 
     @property
     def rule_id(self) -> str:
+        """Stable identifier for this rule."""
         return "TEST_QUALITY_DUPLICATE_TESTS"
 
     def check(self, project_path: Path) -> DuplicateTestsCheckResult:
+        """Cluster duplicate tests in ``project_path`` and return verdicts."""
         tests = _collect_tests(project_path)
         if not tests:
             return DuplicateTestsCheckResult(

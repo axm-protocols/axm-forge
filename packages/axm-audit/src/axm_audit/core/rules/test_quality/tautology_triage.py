@@ -269,14 +269,17 @@ class Verdict:
 
     @property
     def decision(self) -> str:
+        """Alias for :attr:`action` (triage decision)."""
         return self.action
 
     @property
     def verdict(self) -> str:
+        """Alias for :attr:`action` (triage verdict)."""
         return self.action
 
     @property
     def step(self) -> str:
+        """Alias for :attr:`rule` (triage step that fired)."""
         return self.rule
 
 
