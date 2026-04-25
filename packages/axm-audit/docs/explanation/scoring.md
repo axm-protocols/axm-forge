@@ -105,7 +105,7 @@ Average of two sub-scores:
 
 Average of two sub-scores:
 
-- **pip-audit**: `max(0, 100 − vuln_count × 15)` — known CVEs
+- **pip-audit**: `max(0, 100 − vuln_count × 15)` — known CVEs (env tools `pip`, `setuptools`, `wheel`, `uv`, `pip-audit` are excluded from the count)
 - **deptry**: `max(0, 100 − issue_count × 10)` — unused/missing deps
 
 ### Testing Score

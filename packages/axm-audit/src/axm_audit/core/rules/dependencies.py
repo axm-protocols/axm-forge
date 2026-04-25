@@ -72,11 +72,26 @@ def _summarize_vuln(v: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+_ENV_TOOLS: frozenset[str] = frozenset(
+    {
+        "pip",
+        "setuptools",
+        "wheel",
+        "uv",
+        "pip-audit",
+        "pip_audit",
+    }
+)
+
+
 def _parse_vulns(data: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
-    """Extract vulnerable packages from pip-audit output."""
-    if isinstance(data, list):
-        return [d for d in data if d.get("vulns")]
-    return [d for d in data.get("dependencies", []) if d.get("vulns")]
+    """Extract vulnerable packages from pip-audit output, excluding env tools."""
+    deps = data if isinstance(data, list) else data.get("dependencies", [])
+    return [
+        d
+        for d in deps
+        if d.get("vulns") and d.get("name", "").lower() not in _ENV_TOOLS
+    ]
 
 
 @dataclass
@@ -85,6 +100,12 @@ class DependencyAuditRule(ProjectRule):
     """Scan dependencies for known vulnerabilities via pip-audit.
 
     Scoring: 100 - (vuln_count * 15), min 0.
+
+    Vulnerabilities reported against environment tools (``pip``, ``setuptools``,
+    ``wheel``, ``uv``, ``pip-audit``) are excluded from the count. These tools
+    are injected into the audit venv by ``uv run --with`` rather than declared
+    as project dependencies, so their CVEs are not actionable from the project
+    being audited. Matching is case-insensitive.
     """
 
     @property
