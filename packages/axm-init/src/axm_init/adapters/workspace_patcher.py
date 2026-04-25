@@ -148,6 +148,21 @@ def _detect_yaml_indent(lines: list[str], default: str = "          ") -> str:
     return default
 
 
+def _advance_past_marker(lines: list[str], list_marker: str | None) -> int:
+    """Return the first index to start scanning from (after the marker line).
+
+    If *list_marker* is ``None``, returns ``0`` so the whole buffer is scanned.
+    If the marker is never found, returns ``len(lines)`` so the outer loop
+    yields no items.
+    """
+    if list_marker is None:
+        return 0
+    for i, line in enumerate(lines):
+        if list_marker in line:
+            return i + 1
+    return len(lines)
+
+
 def _find_yaml_list_range(
     lines: list[str],
     list_marker: str | None,
@@ -165,23 +180,16 @@ def _find_yaml_list_range(
     sibling / parent blocks (e.g. ``steps:`` siblings of
     ``matrix.package:``).
     """
-    searching = list_marker is None
     first = -1
     last = -1
     list_indent = -1
 
-    for i, line in enumerate(lines):
-        if not line.strip():
+    for i in range(_advance_past_marker(lines, list_marker), len(lines)):
+        line = lines[i]
+        stripped = line.strip()
+        if not stripped:
             continue
         current_indent = len(line) - len(line.lstrip())
-        stripped = line.strip()
-
-        if not searching and list_marker and list_marker in line:
-            searching = True
-            continue
-
-        if not searching:
-            continue
 
         if stripped.startswith("- "):
             if first == -1:
