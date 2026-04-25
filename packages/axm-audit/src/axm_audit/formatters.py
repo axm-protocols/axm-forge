@@ -342,7 +342,7 @@ def _format_pyramid_only(pyramid: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def _format_private_section(private: list[dict]) -> list[str]:
+def _format_private_section(private: list[dict[str, Any]]) -> list[str]:
     lines = ["Private imports:"]
     if not private:
         lines.append("  (none)")
@@ -353,7 +353,7 @@ def _format_private_section(private: list[dict]) -> list[str]:
     return lines
 
 
-def _format_pyramid_section(pyramid: list[dict]) -> list[str]:
+def _format_pyramid_section(pyramid: list[dict[str, Any]]) -> list[str]:
     lines = ["Pyramid:"]
     if not pyramid:
         lines.append("  (none)")
@@ -365,7 +365,7 @@ def _format_pyramid_section(pyramid: list[dict]) -> list[str]:
     return lines
 
 
-def _format_duplicates_section(clusters: list[dict]) -> list[str]:
+def _format_duplicates_section(clusters: list[dict[str, Any]]) -> list[str]:
     lines = ["Duplicates:"]
     if not clusters:
         lines.append("  (none)")
@@ -379,7 +379,7 @@ def _format_duplicates_section(clusters: list[dict]) -> list[str]:
     return lines
 
 
-def _format_tautologies_section(verdicts: list[dict]) -> list[str]:
+def _format_tautologies_section(verdicts: list[dict[str, Any]]) -> list[str]:
     lines = ["Tautologies:"]
     if not verdicts:
         lines.append("  (none)")

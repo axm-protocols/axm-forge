@@ -114,7 +114,10 @@ class PrivateImportsRule(ProjectRule):
         pkg_root: Path,
         cache: dict[str, ModuleInfo | None],
     ) -> str:
-        """Return the kind of `symbol` in `module` (function/class/constant/variable/unknown)."""
+        """Return the kind of *symbol* in *module*.
+
+        Possible values: function, class, constant, variable, unknown.
+        """
         if module not in cache:
             cache[module] = self._load_module_info(module, pkg_root)
         info = cache[module]
@@ -124,7 +127,7 @@ class PrivateImportsRule(ProjectRule):
 
     @staticmethod
     def _lookup_symbol_in_info(info: ModuleInfo, symbol: str) -> str:
-        dispatch: list[tuple[list, str | Callable[[str], str]]] = [
+        dispatch: list[tuple[list[Any], str | Callable[[str], str]]] = [
             (info.functions, "function"),
             (info.classes, "class"),
             (info.variables, _variable_kind),
