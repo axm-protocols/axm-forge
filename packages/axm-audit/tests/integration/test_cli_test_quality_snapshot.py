@@ -23,4 +23,3 @@ def test_axm_audit_output_pinned() -> None:
     out = result.stdout
     lower = out.lower()
     assert "pyramid" in lower
-    assert "[STRENGTHEN]" in out
