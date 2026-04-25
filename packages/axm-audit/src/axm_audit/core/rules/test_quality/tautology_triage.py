@@ -770,34 +770,39 @@ def _has_mock_setup(func: ast.FunctionDef) -> bool:
     )
 
 
-def _sut_invoked_with_result(func: ast.FunctionDef, pkg_symbols: set[str]) -> bool:
-    """True when a package SUT is called, bound to a var, then isinstance'd."""
-    sut_bound: set[str] = set()
+def _collect_sut_call_targets(func: ast.FunctionDef, pkg_symbols: set[str]) -> set[str]:
+    """Names bound to results of package SUT calls within ``func``."""
+    bound: set[str] = set()
     for stmt in ast.walk(func):
         if not isinstance(stmt, ast.Assign) or len(stmt.targets) != 1:
             continue
         tgt = stmt.targets[0]
-        if not isinstance(tgt, ast.Name):
-            continue
         value = stmt.value
-        if not isinstance(value, ast.Call):
+        if not isinstance(tgt, ast.Name) or not isinstance(value, ast.Call):
             continue
         name = _call_name(value)
         if name and name in pkg_symbols:
-            sut_bound.add(tgt.id)
-    if not sut_bound:
-        return False
+            bound.add(tgt.id)
+    return bound
+
+
+def _isinstance_uses(func: ast.FunctionDef, names: set[str]) -> bool:
+    """True if any ``isinstance(x, ...)`` in ``func`` has ``x`` in ``names``."""
     for node in ast.walk(func):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "isinstance"
-            and len(node.args) >= _ISINSTANCE_ARITY
-        ):
-            first = node.args[0]
-            if isinstance(first, ast.Name) and first.id in sut_bound:
-                return True
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)):
+            continue
+        if node.func.id != "isinstance" or len(node.args) < _ISINSTANCE_ARITY:
+            continue
+        first = node.args[0]
+        if isinstance(first, ast.Name) and first.id in names:
+            return True
     return False
+
+
+def _sut_invoked_with_result(func: ast.FunctionDef, pkg_symbols: set[str]) -> bool:
+    """True when a package SUT is called, bound to a var, then isinstance'd."""
+    sut_bound = _collect_sut_call_targets(func, pkg_symbols)
+    return bool(sut_bound) and _isinstance_uses(func, sut_bound)
 
 
 def _has_isinstance_call(node: ast.AST) -> bool:
