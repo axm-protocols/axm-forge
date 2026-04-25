@@ -468,50 +468,91 @@ def _names_called_in(node: ast.AST) -> set[str]:
     return out
 
 
-def detect_real_io(tree: ast.Module) -> tuple[bool, bool, list[str]]:  # noqa: PLR0912
-    """File-scope I/O detection (fixtures, calls, CLI runners) — no attr-IO."""
-    has_io = False
+def _fixture_arg_signals(tree: ast.Module) -> list[str]:
+    signals: list[str] = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.FunctionDef) and node.name.startswith("test_")):
+            continue
+        for arg in node.args.args:
+            if arg.arg in _IO_FIXTURES:
+                signals.append(f"fixture:{arg.arg}")
+    return signals
+
+
+def _dotted_call_name(func: ast.Attribute) -> str | None:
+    parts: list[str] = []
+    cur: ast.AST = func
+    while isinstance(cur, ast.Attribute):
+        parts.insert(0, cur.attr)
+        cur = cur.value
+    if not isinstance(cur, ast.Name):
+        return None
+    parts.insert(0, cur.id)
+    return ".".join(parts)
+
+
+def _io_call_signals(tree: ast.Module) -> tuple[bool, list[str]]:
     has_subprocess = False
     signals: list[str] = []
-
     for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-            for arg in node.args.args:
-                if arg.arg in _IO_FIXTURES:
-                    has_io = True
-                    signals.append(f"fixture:{arg.arg}")
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+            continue
+        full = _dotted_call_name(node.func)
+        if full is None or full not in _IO_CALLS:
+            continue
+        signals.append(f"call:{full}")
+        if full.startswith("subprocess."):
+            has_subprocess = True
+    return has_subprocess, signals
 
+
+def _cli_runner_signal(node: ast.Call) -> str | None:
+    if not (isinstance(node.func, ast.Attribute) and node.func.attr == "invoke"):
+        return None
+    target = node.func.value
+    if isinstance(target, ast.Call) and isinstance(target.func, ast.Name):
+        if target.func.id in _CLI_RUNNER_CLASSES:
+            return f"cli:{target.func.id}"
+    if isinstance(target, ast.Name) and target.id in _CLI_RUNNER_NAMES:
+        return f"cli:{target.id}"
+    return None
+
+
+def _cli_runner_signals(tree: ast.Module) -> tuple[bool, list[str]]:
+    signals: list[str] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
+        sig = _cli_runner_signal(node)
+        if sig is not None:
+            signals.append(sig)
+    return bool(signals), signals
 
-        if isinstance(node.func, ast.Attribute):
-            parts: list[str] = []
-            cur: ast.AST = node.func
-            while isinstance(cur, ast.Attribute):
-                parts.insert(0, cur.attr)
-                cur = cur.value
-            if isinstance(cur, ast.Name):
-                parts.insert(0, cur.id)
-                full = ".".join(parts)
-                if full in _IO_CALLS:
-                    has_io = True
-                    signals.append(f"call:{full}")
-                    if full.startswith("subprocess."):
-                        has_subprocess = True
 
-        if isinstance(node.func, ast.Attribute) and node.func.attr == "invoke":
-            target = node.func.value
-            if isinstance(target, ast.Call) and isinstance(target.func, ast.Name):
-                if target.func.id in _CLI_RUNNER_CLASSES:
-                    has_subprocess = True
-                    has_io = True
-                    signals.append(f"cli:{target.func.id}")
-            if isinstance(target, ast.Name) and target.id in _CLI_RUNNER_NAMES:
-                has_subprocess = True
-                has_io = True
-                signals.append(f"cli:{target.id}")
+def detect_real_io(tree: ast.Module) -> tuple[bool, bool, list[str]]:
+    """File-scope I/O detection from a parsed test module.
 
+    Scans the module for three kinds of evidence that a test performs real I/O:
+    fixtures listed in ``_IO_FIXTURES`` consumed by ``test_*`` functions,
+    dotted calls listed in ``_IO_CALLS`` (e.g. ``subprocess.run``,
+    ``pathlib.Path.write_text``), and CLI runner invocations such as
+    ``CliRunner().invoke(...)``. Attribute-IO inside helpers is intentionally
+    out of scope — see :func:`func_attr_io_transitive`.
+
+    Returns:
+        ``(has_io, has_subprocess, signals)``. ``has_io`` is ``True`` when any
+        signal was found. ``has_subprocess`` is ``True`` when a
+        ``subprocess.*`` call or a CLI runner was seen. ``signals`` is the
+        list of evidence strings (``fixture:<name>``, ``call:<dotted>``,
+        ``cli:<runner>``) preserving discovery order.
+    """
+    fixture_signals = _fixture_arg_signals(tree)
+    sub_from_calls, call_signals = _io_call_signals(tree)
+    sub_from_cli, cli_signals = _cli_runner_signals(tree)
+
+    signals = fixture_signals + call_signals + cli_signals
+    has_io = bool(signals)
+    has_subprocess = sub_from_calls or sub_from_cli
     return has_io, has_subprocess, signals
 
 

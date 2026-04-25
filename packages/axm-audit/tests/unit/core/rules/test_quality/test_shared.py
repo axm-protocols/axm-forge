@@ -189,6 +189,43 @@ def test_detect_real_io_cli_runner() -> None:
     assert any("cli:runner" in s for s in signals)
 
 
+def test_subprocess_sets_has_subprocess() -> None:
+    code = textwrap.dedent("""
+        import subprocess
+
+        def test_run():
+            subprocess.run(["ls"])
+    """)
+    tree = ast.parse(code)
+    has_io, has_subprocess, signals = detect_real_io(tree)
+    assert has_io is True
+    assert has_subprocess is True
+    assert "call:subprocess.run" in signals
+
+
+def test_cli_runner_sets_has_subprocess() -> None:
+    code = textwrap.dedent("""
+        from typer.testing import CliRunner
+
+        def test_cli(app):
+            CliRunner().invoke(app, ["--help"])
+    """)
+    tree = ast.parse(code)
+    has_io, has_subprocess, signals = detect_real_io(tree)
+    assert has_io is True
+    assert has_subprocess is True
+    assert "cli:CliRunner" in signals
+
+
+def test_no_io_returns_empty() -> None:
+    code = textwrap.dedent("""
+        def test_pure():
+            assert 1 + 1 == 2
+    """)
+    tree = ast.parse(code)
+    assert detect_real_io(tree) == (False, False, [])
+
+
 # AC8 ------------------------------------------------------------------
 
 
