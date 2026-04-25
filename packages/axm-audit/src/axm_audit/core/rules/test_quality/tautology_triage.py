@@ -11,7 +11,7 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeGuard
 
 from axm_audit.core.rules.test_quality._shared import (
     is_import_smoke_test,
@@ -412,38 +412,48 @@ def _name_is_explicit_contract(name: str) -> bool:
 # ── Sibling traversal ─────────────────────────────────────────────────
 
 
+def _is_sibling_test(node: ast.AST, target_name: str) -> TypeGuard[ast.FunctionDef]:
+    """Return True when *node* is a `test_*` function distinct from *target_name*."""
+    return (
+        isinstance(node, ast.FunctionDef)
+        and node.name.startswith("test_")
+        and node.name != target_name
+    )
+
+
+def _iter_class_siblings(
+    tree: ast.Module, class_name: str, target_name: str
+) -> list[ast.FunctionDef]:
+    """Yield `test_*` siblings of *target_name* defined inside *class_name*."""
+    results: list[ast.FunctionDef] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            results.extend(
+                item for item in node.body if _is_sibling_test(item, target_name)
+            )
+    return results
+
+
+def _iter_module_siblings(tree: ast.Module, target_name: str) -> list[ast.FunctionDef]:
+    """Yield `test_*` siblings of *target_name* at module scope or inside any class."""
+    results: list[ast.FunctionDef] = []
+    for node in tree.body:
+        if _is_sibling_test(node, target_name):
+            results.append(node)
+        elif isinstance(node, ast.ClassDef):
+            results.extend(
+                item for item in node.body if _is_sibling_test(item, target_name)
+            )
+    return results
+
+
 def _iter_sibling_funcs(
     tree: ast.Module, target_name: str, target_class: str | None
 ) -> list[ast.FunctionDef]:
     """Yield `test_*` siblings of *target_name* (class-scoped when provided)."""
-    results: list[ast.FunctionDef] = []
     if target_class:
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef) and node.name == target_class:
-                for item in node.body:
-                    if (
-                        isinstance(item, ast.FunctionDef)
-                        and item.name.startswith("test_")
-                        and item.name != target_name
-                    ):
-                        results.append(item)
-        return results
-    for node in tree.body:
-        if (
-            isinstance(node, ast.FunctionDef)
-            and node.name.startswith("test_")
-            and node.name != target_name
-        ):
-            results.append(node)
-        elif isinstance(node, ast.ClassDef):
-            for item in node.body:
-                if (
-                    isinstance(item, ast.FunctionDef)
-                    and item.name.startswith("test_")
-                    and item.name != target_name
-                ):
-                    results.append(item)
-    return results
+        return _iter_class_siblings(tree, target_class, target_name)
+    return _iter_module_siblings(tree, target_name)
 
 
 @dataclass
@@ -461,6 +471,7 @@ def _collect_siblings(
     helper_names: set[str],
     pkg_symbols: set[str],
 ) -> _SiblingInfo:
+    """Aggregate dominant calls, all calls, and call signatures across sibling tests."""
     info = _SiblingInfo()
     for sib in _iter_sibling_funcs(tree, target_name, target_class):
         info.count += 1
