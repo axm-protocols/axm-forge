@@ -23,7 +23,7 @@ def _cc_for(path: Path, name: str) -> int:
     blocks = cc_visit(path.read_text(encoding="utf-8"))
     matches = [b for b in blocks if b.name == name]
     assert matches, f"{name} not found in {path}"
-    return max(b.complexity for b in matches)
+    return int(max(b.complexity for b in matches))
 
 
 @pytest.mark.integration
