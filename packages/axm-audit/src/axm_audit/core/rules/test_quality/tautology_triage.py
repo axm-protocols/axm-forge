@@ -348,6 +348,12 @@ def _format_keyword(kw: ast.keyword) -> str:
 
 
 def _call_signature(call: ast.Call) -> str:
+    """Stable string signature for a call: ``name(arg1,arg2,kw=val)``.
+
+    Positional args formatted via :func:`_format_arg`; keywords via
+    :func:`_format_keyword`. Used to compare structural identity of
+    calls across tests.
+    """
     name = _call_name(call) or ""
     parts = [_format_arg(arg) for arg in call.args]
     parts.extend(_format_keyword(kw) for kw in call.keywords)
