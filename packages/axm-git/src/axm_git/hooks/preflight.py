@@ -7,6 +7,7 @@ working-tree state before a protocol phase.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from axm.hooks.base import HookResult
@@ -33,6 +34,48 @@ def _truncate_diff(stdout: str, max_lines: int) -> str:
     if len(lines) > max_lines:
         return "\n".join(lines[:max_lines])
     return stdout.strip()
+
+
+def _compute_pathspec(working_dir: Path, git_root: Path) -> list[str]:
+    """Build the ``["--", rel]`` pathspec scoping git commands to the package.
+
+    Returns an empty list when *working_dir* is the git root itself.
+    """
+    rel = working_dir.resolve().relative_to(git_root.resolve())
+    return ["--", str(rel)] if str(rel) != "." else []
+
+
+def _collect_status_files(status_stdout: str) -> list[dict[str, str]]:
+    """Parse ``git status --porcelain`` output into ``{path, status}`` rows."""
+    files: list[dict[str, str]] = []
+    for line in status_stdout.splitlines():
+        if len(line) < _MIN_STATUS_LINE_LEN:
+            continue
+        files.append({"path": line[3:], "status": line[:2].strip()})
+    return files
+
+
+def _collect_diff_stat(git_root: Path, pathspec: list[str]) -> str:
+    """Run ``git diff --stat`` and return its trimmed stdout (empty on failure)."""
+    result = run_git(["diff", "--stat", *pathspec], git_root)
+    if result.returncode != 0:
+        return ""
+    return result.stdout.strip()
+
+
+def _collect_diff(
+    git_root: Path, pathspec: list[str], max_diff_lines: int
+) -> tuple[str, bool]:
+    """Run ``git diff -U2`` and return ``(truncated_text, was_truncated)``.
+
+    Returns ``("", False)`` when *max_diff_lines* is non-positive.
+    """
+    if max_diff_lines <= 0:
+        return "", False
+    result = run_git(["diff", "-U2", *pathspec], git_root)
+    raw_lines = result.stdout.splitlines()
+    truncated = _truncate_diff(result.stdout, max_diff_lines)
+    return truncated, len(raw_lines) > max_diff_lines
 
 
 @dataclass
@@ -69,37 +112,15 @@ class PreflightHook:
         if git_root is None:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
-        # Scope to package when inside a workspace (git root != working dir)
-        rel = working_dir.resolve().relative_to(git_root.resolve())
-        pathspec = ["--", str(rel)] if str(rel) != "." else []
+        pathspec = _compute_pathspec(working_dir, git_root)
 
-        # git status --porcelain [-- rel_path]
         status = run_git(["status", "--porcelain", *pathspec], git_root)
         if status.returncode != 0:
             return HookResult.fail(f"git status failed: {status.stderr}")
 
-        files: list[dict[str, str]] = []
-        for line in status.stdout.splitlines():
-            if len(line) < _MIN_STATUS_LINE_LEN:
-                continue
-            code = line[:2].strip()
-            filepath = line[3:]
-            files.append({"path": filepath, "status": code})
-
-        # git diff --stat [-- rel_path]
-        diff_stat_out = ""
-        diff_stat_result = run_git(["diff", "--stat", *pathspec], git_root)
-        if diff_stat_result.returncode == 0:
-            diff_stat_out = diff_stat_result.stdout.strip()
-
-        # git diff -U2 [-- rel_path]
-        diff_content = ""
-        diff_truncated = False
-        if max_diff_lines > 0:
-            diff_result = run_git(["diff", "-U2", *pathspec], git_root)
-            raw_lines = diff_result.stdout.splitlines()
-            diff_content = _truncate_diff(diff_result.stdout, max_diff_lines)
-            diff_truncated = len(raw_lines) > max_diff_lines
+        files = _collect_status_files(status.stdout)
+        diff_stat_out = _collect_diff_stat(git_root, pathspec)
+        diff_content, diff_truncated = _collect_diff(git_root, pathspec, max_diff_lines)
 
         rendered = _render_text(
             files=files,
