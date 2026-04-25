@@ -248,6 +248,15 @@ def iter_test_files(pkg_root: Path) -> Iterator[tuple[Path, ast.Module | None]]:
 
 
 def get_pkg_prefixes(pkg_root: Path) -> set[str]:
+    """Return top-level package directory names under ``<pkg_root>/src``.
+
+    Args:
+        pkg_root: Repository root expected to follow the ``src/`` layout.
+
+    Returns:
+        Set of directory names directly under ``src``, excluding hidden
+        entries. Empty when ``src`` is missing.
+    """
     src_dir = pkg_root / "src"
     if not src_dir.exists():
         return set()
@@ -279,6 +288,15 @@ def _literal_strings(expr: ast.AST) -> set[str] | None:
 
 
 def get_init_all(pkg_root: Path) -> set[str] | None:
+    """Read ``__all__`` from the first ``src/<pkg>/__init__.py`` that defines it.
+
+    Args:
+        pkg_root: Repository root expected to follow the ``src/`` layout.
+
+    Returns:
+        Set of exported names, or ``None`` when no top-level package
+        declares ``__all__`` (or ``src`` is missing).
+    """
     src_dir = pkg_root / "src"
     if not src_dir.exists():
         return None
@@ -298,6 +316,16 @@ def get_init_all(pkg_root: Path) -> set[str] | None:
 
 
 def get_module_all(pkg_root: Path, dotted: str) -> set[str] | None:
+    """Resolve ``__all__`` for ``dotted`` module within the ``src`` tree.
+
+    Args:
+        pkg_root: Repository root expected to follow the ``src/`` layout.
+        dotted: Dotted module path relative to ``src`` (e.g. ``pkg.sub``).
+
+    Returns:
+        Set of exported names, or ``None`` if the module is missing or does
+        not declare ``__all__``.
+    """
     src_dir = pkg_root / "src"
     rel = dotted.replace(".", "/")
     candidates = [src_dir / (rel + ".py"), src_dir / rel / "__init__.py"]
@@ -314,6 +342,17 @@ def get_module_all(pkg_root: Path, dotted: str) -> set[str] | None:
 
 
 def current_level_from_path(test_file: Path, tests_dir: Path) -> str:
+    """Map ``test_file`` to its pyramid level based on its location.
+
+    Args:
+        test_file: Test file path to classify.
+        tests_dir: Root tests directory used to compute the relative path.
+
+    Returns:
+        One of ``"unit"``, ``"integration"``, ``"e2e"``, or ``"root"`` when
+        the level cannot be inferred. ``functional`` folders are mapped to
+        ``"integration"`` for backward compatibility.
+    """
     try:
         rel = test_file.relative_to(tests_dir)
     except ValueError:
@@ -993,6 +1032,17 @@ def extract_mock_targets(func: ast.FunctionDef) -> list[str]:
 
 
 def target_matches_io(target: str) -> bool:
+    """Return ``True`` when ``target`` references a known I/O call or module.
+
+    Args:
+        target: Dotted call expression captured from the AST (e.g.
+            ``pathlib.Path.read_text``).
+
+    Returns:
+        ``True`` when the leaf call name, the full dotted target, or any of
+        its dotted segments matches the package's I/O catalog; ``False``
+        otherwise (including for empty input).
+    """
     if not target:
         return False
     if target in _IO_CALLS:
