@@ -209,7 +209,11 @@ def _match_call_side(
 def _find_mock_echo(
     assert_node: ast.expr, mock_setups: dict[str, ast.expr]
 ) -> str | None:
-    """Return a mock-echo explanation if ``assert_node`` compares a configured mock call to its own return value."""
+    """Return a mock-echo explanation.
+
+    True when *assert_node* compares a configured mock call
+    to its own return value.
+    """
     match assert_node:
         case ast.Compare(left=left, ops=[ast.Eq()], comparators=[comp]):
             pass
@@ -343,7 +347,7 @@ def _is_none_check_assert(node: ast.stmt) -> bool:
 
 
 def _classify_meaningless_asserts(
-    asserts: list[ast.Assert], func: ast.FunctionDef
+    asserts: list[ast.stmt], func: ast.FunctionDef
 ) -> Finding | None:
     if any(
         not _is_isinstance_assert(a) and not _is_none_check_assert(a) for a in asserts
