@@ -788,24 +788,25 @@ _STRING_ARG_KINDS = frozenset(
 )
 
 
+_PATCH_KIND_SUFFIXES: tuple[tuple[str, str], ...] = (
+    ("patch.object", "patch.object"),
+    ("patch.dict", "patch.dict"),
+    ("monkeypatch.setattr", "monkeypatch.setattr"),
+    ("monkeypatch.setenv", "monkeypatch.setenv"),
+    ("monkeypatch.delenv", "monkeypatch.delenv"),
+    ("patch", "patch"),
+)
+
+
 def _classify_patch_kind(call: ast.Call) -> str | None:
     qual = _dotted_of(call.func)
     if not qual:
         return None
-    if qual == "patch" or qual.endswith(".patch"):
-        return "patch"
-    if qual == "patch.object" or qual.endswith(".patch.object"):
-        return "patch.object"
-    if qual == "patch.dict" or qual.endswith(".patch.dict"):
-        return "patch.dict"
-    if qual.endswith("monkeypatch.setattr") or (
-        qual.endswith(".setattr") and "monkeypatch" in qual
-    ):
+    for suffix, kind in _PATCH_KIND_SUFFIXES:
+        if qual == suffix or qual.endswith(f".{suffix}"):
+            return kind
+    if qual.endswith(".setattr") and "monkeypatch" in qual:
         return "monkeypatch.setattr"
-    if qual.endswith("monkeypatch.setenv"):
-        return "monkeypatch.setenv"
-    if qual.endswith("monkeypatch.delenv"):
-        return "monkeypatch.delenv"
     return None
 
 
