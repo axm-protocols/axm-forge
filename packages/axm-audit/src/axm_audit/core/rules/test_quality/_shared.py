@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from axm_audit.core.rules._helpers import get_ast_cache, parse_file_safe
@@ -330,7 +331,85 @@ def current_level_from_path(test_file: Path, tests_dir: Path) -> str:
 # ── Import analysis ───────────────────────────────────────────────────
 
 
-def analyze_imports(  # noqa: PLR0912
+@dataclass
+class _ImportScan:
+    """Mutable accumulator for :func:`analyze_imports` classification."""
+
+    public: list[str] = field(default_factory=list)
+    internal: list[str] = field(default_factory=list)
+    import_modules: list[str] = field(default_factory=list)
+    io_module_names: set[str] = field(default_factory=set)
+    io_signals: list[str] = field(default_factory=list)
+    has_private: bool = False
+
+
+def _is_io_module(mod: str) -> bool:
+    return mod in _IO_MODULES or any(mod.startswith(m + ".") for m in _IO_MODULES)
+
+
+def _is_pkg_module(mod: str, pkg_prefixes: set[str]) -> bool:
+    return any(mod == p or mod.startswith(p + ".") for p in pkg_prefixes)
+
+
+def _classify_alias_name(
+    name: str,
+    init_all: set[str] | None,
+    mod_all: set[str] | None,
+) -> str:
+    """Return one of ``'private'``, ``'public'``, ``'internal'``."""
+    if name.startswith("_") and not (name.startswith("__") and name.endswith("__")):
+        return "private"
+    in_root_all = init_all is not None and name in init_all
+    in_mod_all = mod_all is not None and name in mod_all
+    return "public" if (in_root_all or in_mod_all) else "internal"
+
+
+def _classify_pkg_aliases(
+    node: ast.ImportFrom,
+    init_all: set[str] | None,
+    mod_all: set[str] | None,
+    scan: _ImportScan,
+) -> None:
+    for alias in node.names or []:
+        kind = _classify_alias_name(alias.name, init_all, mod_all)
+        if kind == "private":
+            scan.has_private = True
+            scan.internal.append(alias.name)
+        elif kind == "public":
+            scan.public.append(alias.name)
+        else:
+            scan.internal.append(alias.name)
+
+
+def _process_import_from(
+    node: ast.ImportFrom,
+    pkg_prefixes: set[str],
+    init_all: set[str] | None,
+    pkg_root: Path,
+    scan: _ImportScan,
+) -> None:
+    mod = node.module or ""
+    if _is_io_module(mod):
+        scan.io_signals.append(f"imports {mod}")
+        for alias in node.names or []:
+            scan.io_module_names.add(alias.asname or alias.name)
+        return
+    if not _is_pkg_module(mod, pkg_prefixes):
+        return
+    if mod not in scan.import_modules:
+        scan.import_modules.append(mod)
+    mod_all = get_module_all(pkg_root, mod)
+    _classify_pkg_aliases(node, init_all, mod_all, scan)
+
+
+def _process_import(node: ast.Import, scan: _ImportScan) -> None:
+    for alias in node.names:
+        if alias.name in _IO_MODULES:
+            scan.io_signals.append(f"imports {alias.name}")
+            scan.io_module_names.add(alias.asname or alias.name.split(".")[0])
+
+
+def analyze_imports(
     tree: ast.Module,
     pkg_prefixes: set[str],
     init_all: set[str] | None,
@@ -341,51 +420,20 @@ def analyze_imports(  # noqa: PLR0912
     Returns ``(public, internal, modules, has_private, io_module_names,
     io_signals)``.
     """
-    public: list[str] = []
-    internal: list[str] = []
-    import_modules: list[str] = []
-    has_private = False
-    io_module_names: set[str] = set()
-    io_signals: list[str] = []
-
+    scan = _ImportScan()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module:
-            mod = node.module
-            if mod in _IO_MODULES or any(mod.startswith(m + ".") for m in _IO_MODULES):
-                io_signals.append(f"imports {mod}")
-                for alias in node.names or []:
-                    io_module_names.add(alias.asname or alias.name)
-                continue
-
-            is_pkg = any(mod == p or mod.startswith(p + ".") for p in pkg_prefixes)
-            if not is_pkg:
-                continue
-            if mod not in import_modules:
-                import_modules.append(mod)
-
-            mod_all = get_module_all(pkg_root, mod)
-            for alias in node.names or []:
-                name = alias.name
-                if name.startswith("_") and not (
-                    name.startswith("__") and name.endswith("__")
-                ):
-                    has_private = True
-                    internal.append(name)
-                    continue
-                in_root_all = init_all is not None and name in init_all
-                in_mod_all = mod_all is not None and name in mod_all
-                if in_root_all or in_mod_all:
-                    public.append(name)
-                else:
-                    internal.append(name)
-
+            _process_import_from(node, pkg_prefixes, init_all, pkg_root, scan)
         elif isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name in _IO_MODULES:
-                    io_signals.append(f"imports {alias.name}")
-                    io_module_names.add(alias.asname or alias.name.split(".")[0])
-
-    return public, internal, import_modules, has_private, io_module_names, io_signals
+            _process_import(node, scan)
+    return (
+        scan.public,
+        scan.internal,
+        scan.import_modules,
+        scan.has_private,
+        scan.io_module_names,
+        scan.io_signals,
+    )
 
 
 # ── IO detection ──────────────────────────────────────────────────────

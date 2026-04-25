@@ -342,7 +342,103 @@ def _collect_helpers(tree: ast.Module) -> dict[str, ast.FunctionDef]:
     return helpers
 
 
-def scan_test_file(  # noqa: PLR0912, PLR0913, PLR0915
+def _collect_tmp_path_signals(
+    node: ast.FunctionDef, signals: list[str]
+) -> tuple[list[str], bool]:
+    """Append tmp_path R3 markers (taint-as-arg, write/read) if applicable."""
+    fired = False
+    tainted = _collect_taint_aliases(node)
+    if _tmp_path_reaches_call(node, tainted):
+        if "tmp_path-as-arg" not in signals:
+            signals.append("tmp_path-as-arg")
+        fired = True
+    if _detect_tmp_path_usage(node):
+        if "tmp_path+write/read" not in signals:
+            signals.append("tmp_path+write/read")
+        fired = True
+    return signals, fired
+
+
+def _collect_signals(  # noqa: PLR0913
+    node: ast.FunctionDef,
+    *,
+    io_module_names: set[str],
+    file_import_signals: list[str],
+    file_has_io: bool,
+    file_signals: list[str],
+    helpers: dict[str, ast.FunctionDef],
+) -> tuple[list[str], bool, list[str]]:
+    """Collect R1 + file-scope + R3 signals for *node*.
+
+    Returns ``(signals, has_real_io, attr_sigs)``. ``attr_sigs`` is exposed
+    so the caller can gate R4 (skipped when R3 attr-scan already fired).
+    """
+    signals: list[str] = []
+    has_real_io = False
+
+    # R1 — module-level IO imports referenced in this function's body
+    referenced = _func_references_names(node, io_module_names)
+    for sig in file_import_signals:
+        mod_from_sig = sig.removeprefix("imports ").split(".")[0]
+        if any(
+            ref == mod_from_sig or ref.startswith(mod_from_sig) for ref in referenced
+        ):
+            signals.append(sig)
+            has_real_io = True
+
+    # File-scope CLI runner / call-based I/O bleeds to every function
+    if file_has_io:
+        for sig in file_signals:
+            if sig not in signals:
+                signals.append(sig)
+        has_real_io = True
+
+    # R3 — per-function attr-IO (transitive)
+    attr_sigs = func_attr_io_transitive(node, helpers, max_depth=2)
+    if attr_sigs:
+        for sig in attr_sigs:
+            if sig not in signals:
+                signals.append(sig)
+        has_real_io = True
+
+    # R3 — fixture-arg IO guard
+    fixture_sigs = _fixture_io_signals(node)
+    signals.extend(fixture_sigs)
+    has_real_io = has_real_io or bool(fixture_sigs)
+
+    # R3 — tmp_path taint + boundary write/read
+    signals, tmp_fired = _collect_tmp_path_signals(node, signals)
+    if tmp_fired:
+        has_real_io = True
+
+    return signals, has_real_io, list(attr_sigs)
+
+
+def _apply_r4_conftest(  # noqa: PLR0913
+    node: ast.FunctionDef,
+    tree: ast.Module,
+    test_file: Path,
+    tests_dir: Path,
+    pkg_root: Path,
+    fixtures: dict[str, ast.FunctionDef] | None,
+    signals: list[str],
+) -> tuple[list[str], bool, dict[str, ast.FunctionDef]]:
+    """Apply R4 conftest-fixture IO scan and merge resulting signals.
+
+    Returns ``(signals, fired, fixtures)`` where *fired* is ``True`` when
+    the conftest scan produced at least one signal, and *fixtures* is the
+    (possibly newly-computed) fixture cache for reuse across iterations.
+    """
+    if fixtures is None:
+        fixtures = _gather_fixtures_for_test(tree, test_file, tests_dir, pkg_root)
+    conftest_sigs = _apply_conftest_fixture_io(node, fixtures)
+    for sig in conftest_sigs:
+        if sig not in signals:
+            signals.append(sig)
+    return signals, bool(conftest_sigs), fixtures
+
+
+def scan_test_file(  # noqa: PLR0913
     test_file: Path,
     tree: ast.Module,
     pkg_root: Path,
@@ -374,67 +470,22 @@ def scan_test_file(  # noqa: PLR0912, PLR0913, PLR0915
         if not (isinstance(node, ast.FunctionDef) and node.name.startswith("test_")):
             continue
 
-        has_real_io = False
+        signals, has_real_io, attr_sigs = _collect_signals(
+            node,
+            io_module_names=io_module_names,
+            file_import_signals=file_import_signals,
+            file_has_io=file_has_io,
+            file_signals=file_signals,
+            helpers=helpers,
+        )
         has_subprocess = file_has_subprocess
-        signals: list[str] = []
-
-        # R1 — module-level IO imports referenced in this function's body
-        referenced = _func_references_names(node, io_module_names)
-        for sig in file_import_signals:
-            mod_from_sig = sig.removeprefix("imports ").split(".")[0]
-            if any(
-                ref == mod_from_sig or ref.startswith(mod_from_sig)
-                for ref in referenced
-            ):
-                signals.append(sig)
-                has_real_io = True
-
-        # File-scope CLI runner / call-based I/O bleeds to every function
-        if file_has_io:
-            for sig in file_signals:
-                if sig not in signals:
-                    signals.append(sig)
-            has_real_io = has_real_io or file_has_io
-
-        # R3 — per-function attr-IO (transitive)
-        attr_sigs = func_attr_io_transitive(node, helpers, max_depth=2)
-        if attr_sigs:
-            for sig in attr_sigs:
-                if sig not in signals:
-                    signals.append(sig)
-            has_real_io = True
-
-        # R3 — fixture-arg IO guard
-        fixture_sigs = _fixture_io_signals(node)
-        if fixture_sigs:
-            signals.extend(fixture_sigs)
-            has_real_io = True
-
-        # R3 — tmp_path taint reaching any call
-        tainted = _collect_taint_aliases(node)
-        if _tmp_path_reaches_call(node, tainted):
-            if "tmp_path-as-arg" not in signals:
-                signals.append("tmp_path-as-arg")
-            has_real_io = True
-
-        # tmp_path boundary (write/read through tmp_path)
-        if _detect_tmp_path_usage(node):
-            if "tmp_path+write/read" not in signals:
-                signals.append("tmp_path+write/read")
-            has_real_io = True
 
         # R4 — conftest fixture IO (skipped when R3 attr-scan already fired)
         if not attr_sigs:
-            if fixtures is None:
-                fixtures = _gather_fixtures_for_test(
-                    tree, test_file, tests_dir, pkg_root
-                )
-            conftest_sigs = _apply_conftest_fixture_io(node, fixtures)
-            for sig in conftest_sigs:
-                if sig not in signals:
-                    signals.append(sig)
-            if conftest_sigs:
-                has_real_io = True
+            signals, fired, fixtures = _apply_r4_conftest(
+                node, tree, test_file, tests_dir, pkg_root, fixtures, signals
+            )
+            has_real_io = has_real_io or fired
 
         # R5 — mock neutralization (hard invariant B: never fires on subprocess)
         if not has_subprocess:
