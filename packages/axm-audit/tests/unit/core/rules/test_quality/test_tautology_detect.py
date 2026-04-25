@@ -68,6 +68,20 @@ def test_detect_mock_echo() -> None:
     assert any(f.pattern == "mock_echo" for f in findings)
 
 
+def test_priority_trivial_beats_self_compare() -> None:
+    tree = _parse("def test_foo():\n    assert True == True\n")
+    findings = detect_tautologies(tree, path="test_foo.py")
+    assert len(findings) == 1
+    assert findings[0].pattern == "trivially_true"
+
+
+def test_unittest_assert_equal_self_compare() -> None:
+    tree = _parse("def test_foo():\n    x = 1\n    self.assertEqual(x, x)\n")
+    findings = detect_tautologies(tree, path="test_foo.py")
+    assert len(findings) == 1
+    assert findings[0].pattern == "self_compare"
+
+
 def test_severity_warning(tmp_path: Path) -> None:
     f = tmp_path / "test_sample.py"
     f.write_text("def test_foo():\n    assert True\n")

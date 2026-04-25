@@ -9,7 +9,7 @@ via :func:`tautology_triage.triage`.  Verdicts land in
 from __future__ import annotations
 
 import ast
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -69,6 +69,17 @@ def _unparse_safe(node: ast.AST) -> str:
         return "<?>"
 
 
+def _is_constant_compare_truthy(node: ast.Compare) -> bool:
+    if not (isinstance(node.left, ast.Constant) and node.left.value):
+        return False
+    if not all(isinstance(op, ast.Eq) for op in node.ops):
+        return False
+    target = node.left.value
+    return all(
+        isinstance(c, ast.Constant) and c.value == target for c in node.comparators
+    )
+
+
 def _is_constant_truthy(node: ast.expr) -> bool:  # noqa: PLR0911
     match node:
         case ast.Constant(value=v) if v:
@@ -82,6 +93,8 @@ def _is_constant_truthy(node: ast.expr) -> bool:  # noqa: PLR0911
         case ast.Set(elts=elts) if elts:
             return True
         case ast.JoinedStr():
+            return True
+        case ast.Compare() as cmp if _is_constant_compare_truthy(cmp):
             return True
     return False
 
@@ -230,76 +243,110 @@ def _find_mock_echo(
 # ── Per-assert / per-test checks ──────────────────────────────────────
 
 
-def _check_assert(  # noqa: PLR0911
-    node: ast.AST, mock_setups: dict[str, ast.expr]
-) -> Finding | None:
-    if isinstance(node, ast.Assert) and node.test:
-        test_expr = node.test
-        if _is_constant_truthy(test_expr):
-            return Finding(
-                test="",
-                line=node.lineno,
-                pattern="trivially_true",
-                detail=f"assert {_unparse_safe(test_expr)}",
-            )
-        if (
-            isinstance(test_expr, ast.Compare)
-            and len(test_expr.ops) == 1
-            and len(test_expr.comparators) == 1
-            and _same_expr(test_expr.left, test_expr.comparators[0])
-        ):
-            op_name = type(test_expr.ops[0]).__name__
-            return Finding(
-                test="",
-                line=node.lineno,
-                pattern="self_compare",
-                detail=f"assert {_unparse_safe(test_expr.left)} {op_name} itself",
-            )
-        if _is_len_always_true(test_expr):
-            return Finding(
-                test="",
-                line=node.lineno,
-                pattern="len_tautology",
-                detail=f"assert {_unparse_safe(test_expr)}",
-            )
-        echo = _find_mock_echo(test_expr, mock_setups)
-        if echo:
-            return Finding(
-                test="",
-                line=node.lineno,
-                pattern="mock_echo",
-                detail=echo,
-            )
+def _is_self_compare(test_expr: ast.expr) -> bool:
+    return (
+        isinstance(test_expr, ast.Compare)
+        and len(test_expr.ops) == 1
+        and len(test_expr.comparators) == 1
+        and _same_expr(test_expr.left, test_expr.comparators[0])
+    )
 
-    if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
-        call = node.value
-        if isinstance(call.func, ast.Attribute) and isinstance(
-            call.func.value, ast.Name
-        ):
-            method = call.func.attr
-            args = call.args
-            if (
-                method == "assertEqual"
-                and len(args) == _ASSERT_EQUAL_ARITY
-                and _same_expr(args[0], args[1])
-            ):
-                return Finding(
-                    test="",
-                    line=node.lineno,
-                    pattern="self_compare",
-                    detail=f"assertEqual({_unparse_safe(args[0])}, same)",
-                )
-            if (
-                method == "assertTrue"
-                and len(args) == 1
-                and _is_constant_truthy(args[0])
-            ):
-                return Finding(
-                    test="",
-                    line=node.lineno,
-                    pattern="trivially_true",
-                    detail=f"assertTrue({_unparse_safe(args[0])})",
-                )
+
+def _build_trivially_true(node: ast.Assert, test_expr: ast.expr) -> Finding:
+    return Finding(
+        test="",
+        line=node.lineno,
+        pattern="trivially_true",
+        detail=f"assert {_unparse_safe(test_expr)}",
+    )
+
+
+def _build_self_compare(node: ast.Assert, test_expr: ast.expr) -> Finding:
+    assert isinstance(test_expr, ast.Compare)
+    op_name = type(test_expr.ops[0]).__name__
+    return Finding(
+        test="",
+        line=node.lineno,
+        pattern="self_compare",
+        detail=f"assert {_unparse_safe(test_expr.left)} {op_name} itself",
+    )
+
+
+def _build_len_tautology(node: ast.Assert, test_expr: ast.expr) -> Finding:
+    return Finding(
+        test="",
+        line=node.lineno,
+        pattern="len_tautology",
+        detail=f"assert {_unparse_safe(test_expr)}",
+    )
+
+
+_ASSERT_PATTERNS: tuple[
+    tuple[Callable[[ast.expr], bool], Callable[[ast.Assert, ast.expr], Finding]], ...
+] = (
+    (_is_constant_truthy, _build_trivially_true),
+    (_is_self_compare, _build_self_compare),
+    (_is_len_always_true, _build_len_tautology),
+)
+
+
+def _check_assert_stmt(
+    node: ast.Assert, mock_setups: dict[str, ast.expr]
+) -> Finding | None:
+    test_expr = node.test
+    if test_expr is None:
+        return None
+    for predicate, builder in _ASSERT_PATTERNS:
+        if predicate(test_expr):
+            return builder(node, test_expr)
+    echo = _find_mock_echo(test_expr, mock_setups)
+    if echo:
+        return Finding(
+            test="",
+            line=node.lineno,
+            pattern="mock_echo",
+            detail=echo,
+        )
+    return None
+
+
+def _check_unittest_call(node: ast.Expr) -> Finding | None:
+    call = node.value
+    if not isinstance(call, ast.Call):
+        return None
+    if not (
+        isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name)
+    ):
+        return None
+    method = call.func.attr
+    args = call.args
+    if (
+        method == "assertEqual"
+        and len(args) == _ASSERT_EQUAL_ARITY
+        and _same_expr(args[0], args[1])
+    ):
+        return Finding(
+            test="",
+            line=node.lineno,
+            pattern="self_compare",
+            detail=f"assertEqual({_unparse_safe(args[0])}, same)",
+        )
+    if method == "assertTrue" and len(args) == 1 and _is_constant_truthy(args[0]):
+        return Finding(
+            test="",
+            line=node.lineno,
+            pattern="trivially_true",
+            detail=f"assertTrue({_unparse_safe(args[0])})",
+        )
+    return None
+
+
+def _check_assert(node: ast.AST, mock_setups: dict[str, ast.expr]) -> Finding | None:
+    """Dispatch *node* to the matching tautology check (plain or unittest)."""
+    if isinstance(node, ast.Assert):
+        return _check_assert_stmt(node, mock_setups)
+    if isinstance(node, ast.Expr):
+        return _check_unittest_call(node)
     return None
 
 
