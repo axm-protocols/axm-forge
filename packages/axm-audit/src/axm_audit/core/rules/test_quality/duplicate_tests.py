@@ -235,41 +235,67 @@ def _string_literals(node: ast.FunctionDef) -> set[str]:
     return lits
 
 
-def _patch_targets(node: ast.FunctionDef) -> tuple[int, int, int]:
-    """Return ``(decorator_patches, with_patches, mocker_patches)`` counts."""
-    deco = 0
-    for dec in node.decorator_list:
-        call = dec if isinstance(dec, ast.Call) else None
-        if call is None:
-            continue
-        match call.func:
-            case ast.Name(id="patch"):
-                deco += 1
-            case ast.Attribute(attr=attr) if attr in {"patch", "object"}:
-                deco += 1
-    with_p = 0
-    mocker_p = 0
+def _is_patch_call(call: ast.Call) -> bool:
+    match call.func:
+        case ast.Name(id="patch"):
+            return True
+        case ast.Attribute(attr=attr) if attr in {"patch", "object"}:
+            return True
+    return False
+
+
+def _is_mocker_patch_call(call: ast.Call) -> bool:
+    func = call.func
+    return (
+        isinstance(func, ast.Attribute)
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "mocker"
+        and func.attr.startswith("patch")
+    )
+
+
+def _count_decorator_patches(node: ast.FunctionDef) -> int:
+    return sum(
+        1
+        for dec in node.decorator_list
+        if isinstance(dec, ast.Call) and _is_patch_call(dec)
+    )
+
+
+def _count_with_patches(node: ast.FunctionDef) -> int:
+    count = 0
     for child in ast.walk(node):
-        if isinstance(child, ast.With):
-            for item in child.items:
-                if isinstance(item.context_expr, ast.Call):
-                    func = item.context_expr.func
-                    if isinstance(func, ast.Name) and func.id == "patch":
-                        with_p += 1
-                    elif isinstance(func, ast.Attribute) and func.attr in {
-                        "patch",
-                        "object",
-                    }:
-                        with_p += 1
-        if (
-            isinstance(child, ast.Call)
-            and isinstance(child.func, ast.Attribute)
-            and isinstance(child.func.value, ast.Name)
-            and child.func.value.id == "mocker"
-            and child.func.attr.startswith("patch")
-        ):
-            mocker_p += 1
-    return (deco, with_p, mocker_p)
+        if not isinstance(child, ast.With):
+            continue
+        for item in child.items:
+            if isinstance(item.context_expr, ast.Call) and _is_patch_call(
+                item.context_expr
+            ):
+                count += 1
+    return count
+
+
+def _count_mocker_patches(node: ast.FunctionDef) -> int:
+    return sum(
+        1
+        for child in ast.walk(node)
+        if isinstance(child, ast.Call) and _is_mocker_patch_call(child)
+    )
+
+
+def _patch_targets(node: ast.FunctionDef) -> tuple[int, int, int]:
+    """Count patch usages in ``node``.
+
+    Returns a tuple ``(decorator_patches, with_patches, mocker_patches)`` where
+    each element is the number of ``patch``/``patch.object`` decorator calls,
+    ``with patch(...)`` context managers, and ``mocker.patch*`` invocations
+    found inside the function body, respectively.
+    """
+    return (
+        _count_decorator_patches(node),
+        _count_with_patches(node),
+        _count_mocker_patches(node),
+    )
 
 
 def _p1_rescues(tests: list[_TestFunc]) -> bool:
