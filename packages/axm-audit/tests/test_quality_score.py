@@ -157,37 +157,5 @@ class TestQualityScoreWeightedAverage:
         assert result.quality_score == 71.4
 
 
-# ── Unit: _collect_category_scores helper (post-refactor) ──────────
-
-
-class TestCollectCategoryScores:
-    """Tests for the extracted _collect_category_scores helper."""
-
-    def test_groups_scores_by_category(self) -> None:
-        from axm_audit.models.results import _collect_category_scores
-
-        checks = [
-            _make_check(category="lint", score=80.0),
-            _make_check(category="lint", score=90.0),
-            _make_check(category="type", score=70.0),
-        ]
-        result = _collect_category_scores(checks)
-        assert result == {"lint": [80.0, 90.0], "type": [70.0]}
-
-    def test_skips_invalid_checks(self) -> None:
-        from axm_audit.models.results import _collect_category_scores
-
-        checks = [
-            _make_check(category=None, score=80.0),
-            _make_check(category="unknown", score=80.0),
-            _make_check(category="lint", score=None),
-            _make_check(category="lint", score=None, has_details=False),
-        ]
-        result = _collect_category_scores(checks)
-        assert result == {}
-
-    def test_empty_checks(self) -> None:
-        from axm_audit.models.results import _collect_category_scores
-
-        result = _collect_category_scores([])
-        assert result == {}
+# Score-aggregation behavior is now exercised through ``AuditResult.quality_score``
+# in ``tests/unit/test_audit_result_score_public_api.py``.
