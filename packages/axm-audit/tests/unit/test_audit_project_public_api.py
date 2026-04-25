@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from axm_audit import AuditResult, audit_project
 
 
-def _make_minimal_project(root):
+def _make_minimal_project(root: Path) -> None:
     src = root / "src" / "pkg"
     src.mkdir(parents=True)
     (src / "__init__.py").write_text("")

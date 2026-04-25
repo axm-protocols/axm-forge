@@ -29,6 +29,65 @@ _FUNC_KINDS = frozenset(
 )
 
 
+def _kind_str(kind: Any) -> str:
+    """Return the string form of a symbol kind (enum value or str)."""
+    return kind if isinstance(kind, str) else kind.value
+
+
+def _collect_function_candidates(
+    mod: Any,
+    kind: str | None,
+    candidates: dict[str, list[tuple[str, str, str]]],
+    mod_name: str,
+) -> None:
+    """Add module-level functions to *candidates*."""
+    if kind is not None and kind not in _FUNC_KINDS:
+        return
+    for fn in mod.functions:
+        candidates.setdefault(fn.name.lower(), []).append(
+            (fn.name, _kind_str(fn.kind), mod_name)
+        )
+
+
+def _collect_class_candidates(
+    mod: Any,
+    kind: str | None,
+    candidates: dict[str, list[tuple[str, str, str]]],
+    mod_name: str,
+) -> None:
+    """Add classes and their methods to *candidates*."""
+    include_class = kind is None or kind == "class"
+    include_methods = kind is None or kind in _FUNC_KINDS
+    if not (include_class or include_methods):
+        return
+    for cls in mod.classes:
+        if include_class:
+            candidates.setdefault(cls.name.lower(), []).append(
+                (cls.name, "class", mod_name)
+            )
+        if include_methods:
+            for method in cls.methods:
+                dotted = f"{cls.name}.{method.name}"
+                candidates.setdefault(dotted.lower(), []).append(
+                    (dotted, _kind_str(method.kind), mod_name)
+                )
+
+
+def _collect_variable_candidates(
+    mod: Any,
+    kind: str | None,
+    candidates: dict[str, list[tuple[str, str, str]]],
+    mod_name: str,
+) -> None:
+    """Add module-level variables to *candidates*."""
+    if kind is not None and kind != "variable":
+        return
+    for var in mod.variables:
+        candidates.setdefault(var.name.lower(), []).append(
+            (var.name, "variable", mod_name)
+        )
+
+
 def _collect_module_candidates(
     mod: Any,
     kind: str | None,
@@ -44,25 +103,9 @@ def _collect_module_candidates(
     mod_name: str = mod.name or (
         module_dotted_name(mod.path, root) if root and mod.path else ""
     )
-    if kind is None or kind in _FUNC_KINDS:
-        for fn in mod.functions:
-            fk = fn.kind if isinstance(fn.kind, str) else fn.kind.value
-            candidates.setdefault(fn.name.lower(), []).append((fn.name, fk, mod_name))
-    for cls in mod.classes:
-        if kind is None or kind == "class":
-            candidates.setdefault(cls.name.lower(), []).append(
-                (cls.name, "class", mod_name)
-            )
-        if kind is None or kind in _FUNC_KINDS:
-            for method in cls.methods:
-                mk = method.kind if isinstance(method.kind, str) else method.kind.value
-                dotted = f"{cls.name}.{method.name}"
-                candidates.setdefault(dotted.lower(), []).append((dotted, mk, mod_name))
-    if kind is None or kind == "variable":
-        for var in mod.variables:
-            candidates.setdefault(var.name.lower(), []).append(
-                (var.name, "variable", mod_name)
-            )
+    _collect_function_candidates(mod, kind, candidates, mod_name)
+    _collect_class_candidates(mod, kind, candidates, mod_name)
+    _collect_variable_candidates(mod, kind, candidates, mod_name)
 
 
 def _find_suggestions(
@@ -238,6 +281,18 @@ class SearchTool(AXMTool):
         " Ask 'functions returning X' or 'classes inheriting Y'."
     )
 
+    _load_package = staticmethod(_load_package)
+    _validate_kind = staticmethod(_validate_kind)
+    _search = staticmethod(_search)
+    _format_symbol = staticmethod(_format_symbol)
+    _find_suggestions = staticmethod(_find_suggestions)
+    _format_text_header = staticmethod(format_text_header)
+    _format_symbol_line = staticmethod(format_symbol_line)
+    _format_func_line = staticmethod(format_func_line)
+    _format_variable_line = staticmethod(format_variable_line)
+    _render_suggestion_line = staticmethod(render_suggestion_line)
+    _render_text = staticmethod(render_text)
+
     @property
     def name(self) -> str:
         """Return tool name for registry lookup."""
@@ -284,21 +339,3 @@ class SearchTool(AXMTool):
             )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
-
-
-# ── Backwards-compat aliases ───────────────────────────────────────────────
-# Tests reference these on ``SearchTool`` directly; keep them callable via the
-# class without re-defining methods (which would re-trigger the god-class
-# audit). Aliases are attached after the class body so they don't count as
-# methods of ``SearchTool``.
-SearchTool._load_package = staticmethod(_load_package)
-SearchTool._validate_kind = staticmethod(_validate_kind)
-SearchTool._search = staticmethod(_search)
-SearchTool._format_symbol = staticmethod(_format_symbol)
-SearchTool._find_suggestions = staticmethod(_find_suggestions)
-SearchTool._format_text_header = staticmethod(format_text_header)
-SearchTool._format_symbol_line = staticmethod(format_symbol_line)
-SearchTool._format_func_line = staticmethod(format_func_line)
-SearchTool._format_variable_line = staticmethod(format_variable_line)
-SearchTool._render_suggestion_line = staticmethod(render_suggestion_line)
-SearchTool._render_text = staticmethod(render_text)

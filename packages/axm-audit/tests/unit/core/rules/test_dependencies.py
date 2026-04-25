@@ -40,6 +40,7 @@ def test_check_excludes_pip_env_tool(
 
     result = rule.check(project_path)
 
+    assert result.details is not None
     assert result.details["vuln_count"] == 0
     assert result.passed is True
     assert result.details["top_vulns"] == []
@@ -66,6 +67,7 @@ def test_check_keeps_real_vuln_alongside_env_tool(
 
     result = rule.check(project_path)
 
+    assert result.details is not None
     assert result.details["vuln_count"] == 1
     assert result.details["top_vulns"][0]["name"] == "requests"
 
@@ -93,6 +95,7 @@ def test_check_excludes_each_env_tool(
 
     result = rule.check(project_path)
 
+    assert result.details is not None
     assert result.details["vuln_count"] == 0
 
 
@@ -112,4 +115,5 @@ def test_check_passes_through_unknown_package(
 
     result = rule.check(project_path)
 
+    assert result.details is not None
     assert result.details["vuln_count"] == 1
