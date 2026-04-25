@@ -56,7 +56,20 @@ class PrivateImportsRule(ProjectRule):
         return "TEST_QUALITY_PRIVATE_IMPORTS"
 
     def check(self, project_path: Path) -> CheckResult:
-        """Scan test files in ``project_path`` for private-symbol imports."""
+        """Scan test files in ``project_path`` for private-symbol imports.
+
+        Walks every ``tests/**/test_*.py`` file under ``project_path``,
+        collects ``ImportFrom`` nodes that reference first-party packages
+        and flags each underscore-prefixed alias.  Dunders are always
+        ignored; ``_UPPER_CASE`` constants are ignored unless
+        ``include_constants`` is ``True``.
+
+        Returns a :class:`CheckResult` with ``passed=True`` when no
+        private imports are found.  Otherwise ``details["findings"]``
+        lists each offending import (test file, line, source module,
+        symbol, and resolved kind) and ``details["score"]`` reports a
+        100-point score penalised by ``_SCORE_PENALTY`` per finding.
+        """
         early = self.check_src(project_path)
         if early is not None:
             return early
@@ -68,31 +81,55 @@ class PrivateImportsRule(ProjectRule):
         for test_file, tree in iter_test_files(project_path):
             if tree is None:
                 continue
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.ImportFrom) or not node.module:
-                    continue
-                mod = node.module
-                if not any(mod == p or mod.startswith(p + ".") for p in pkg_prefixes):
-                    continue
-                for alias in node.names or []:
-                    name = alias.name
-                    if not name.startswith("_"):
-                        continue
-                    if _DUNDER_RE.match(name):
-                        continue
-                    if _CONSTANT_RE.match(name) and not self.include_constants:
-                        continue
-                    kind = self._resolve_symbol_kind(mod, name, project_path, mod_cache)
-                    findings.append(
-                        {
-                            "test_file": str(test_file),
-                            "line": node.lineno,
-                            "import_module": mod,
-                            "private_symbol": name,
-                            "symbol_kind": kind,
-                        }
-                    )
+            findings.extend(
+                self._scan_file_for_private_imports(
+                    test_file, tree, pkg_prefixes, project_path, mod_cache
+                )
+            )
 
+        return self._build_check_result(findings)
+
+    def _scan_file_for_private_imports(
+        self,
+        test_file: Path,
+        tree: ast.AST,
+        pkg_prefixes: list[str],
+        project_path: Path,
+        mod_cache: dict[str, ModuleInfo | None],
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom) or not node.module:
+                continue
+            mod = node.module
+            if not any(mod == p or mod.startswith(p + ".") for p in pkg_prefixes):
+                continue
+            for alias in node.names or []:
+                name = alias.name
+                if not self._is_private_symbol(name):
+                    continue
+                kind = self._resolve_symbol_kind(mod, name, project_path, mod_cache)
+                findings.append(
+                    {
+                        "test_file": str(test_file),
+                        "line": node.lineno,
+                        "import_module": mod,
+                        "private_symbol": name,
+                        "symbol_kind": kind,
+                    }
+                )
+        return findings
+
+    def _is_private_symbol(self, name: str) -> bool:
+        if not name.startswith("_"):
+            return False
+        if _DUNDER_RE.match(name):
+            return False
+        if _CONSTANT_RE.match(name) and not self.include_constants:
+            return False
+        return True
+
+    def _build_check_result(self, findings: list[dict[str, Any]]) -> CheckResult:
         n = len(findings)
         score = max(0, 100 - n * _SCORE_PENALTY)
         passed = n == 0
@@ -100,7 +137,6 @@ class PrivateImportsRule(ProjectRule):
             message = f"No private imports in tests/ (see {_DOCS_ANCHOR})"
         else:
             message = f"{n} private import(s) in tests/ — see {_DOCS_ANCHOR}"
-
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
