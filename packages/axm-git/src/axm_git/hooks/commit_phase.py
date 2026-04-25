@@ -111,25 +111,54 @@ def _stage_spec_files(
     listing every absolute path that was attempted.
     """
     for filepath in files:
-        resolved, tried, err = _resolve_repo_path(filepath, git_root, working_dir)
+        err = _stage_single_file(filepath, git_root, working_dir, warnings)
         if err:
             return err
-        if resolved is None or not resolved.exists():
-            ls_result = run_git(["ls-files", "-d", filepath], git_root)
-            if not ls_result.stdout.strip():
-                attempts = ", ".join(str(p) for p in tried)
-                return f"files not found: {filepath!r} (tried: {attempts})"
-            add_target = filepath
-        else:
-            add_target = str(resolved)
-        add_result = run_git(["add", "--", add_target], git_root)
-        if add_result.returncode != 0:
-            if "ignored" in add_result.stderr.lower():
-                if warnings is not None:
-                    warnings.append(f"skipped gitignored file: {filepath}")
-                continue
-            return f"git add failed for {filepath}: {add_result.stderr}"
     return None
+
+
+def _stage_single_file(
+    filepath: str,
+    git_root: Path,
+    working_dir: Path | None,
+    warnings: list[str] | None,
+) -> str | None:
+    """Stage one file, returning an error message on failure."""
+    add_target, err = _resolve_add_target(filepath, git_root, working_dir)
+    if err:
+        return err
+    add_result = run_git(["add", "--", add_target], git_root)
+    if add_result.returncode == 0:
+        return None
+    if "ignored" in add_result.stderr.lower():
+        if warnings is not None:
+            warnings.append(f"skipped gitignored file: {filepath}")
+        return None
+    return f"git add failed for {filepath}: {add_result.stderr}"
+
+
+def _resolve_add_target(
+    filepath: str,
+    git_root: Path,
+    working_dir: Path | None,
+) -> tuple[str, str | None]:
+    """Return the path to pass to ``git add`` for *filepath*.
+
+    When the resolved path exists on disk it is used verbatim. When it
+    does not exist but ``git ls-files -d`` reports it as tracked-but-deleted,
+    *filepath* is returned so git stages the deletion. Otherwise an error
+    listing every attempted path is returned.
+    """
+    resolved, tried, err = _resolve_repo_path(filepath, git_root, working_dir)
+    if err:
+        return "", err
+    if resolved is not None and resolved.exists():
+        return str(resolved), None
+    ls_result = run_git(["ls-files", "-d", filepath], git_root)
+    if ls_result.stdout.strip():
+        return filepath, None
+    attempts = ", ".join(str(p) for p in tried)
+    return "", f"files not found: {filepath!r} (tried: {attempts})"
 
 
 def _build_commit_cmd(
