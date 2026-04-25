@@ -133,6 +133,31 @@ def test_analyze_imports_public_vs_internal(tmp_path: Path) -> None:
     assert has_private is True
 
 
+def test_io_match_shortcircuits_pkg(tmp_path: Path) -> None:
+    (tmp_path / "src" / "subprocess").mkdir(parents=True)
+    (tmp_path / "src" / "subprocess" / "__init__.py").write_text('__all__ = ["run"]\n')
+    tree = ast.parse("from subprocess import run\n")
+    public, internal, _modules, _has_private, _io_names, io_signals = analyze_imports(
+        tree, {"subprocess"}, {"run"}, tmp_path
+    )
+    assert io_signals == ["imports subprocess"]
+    assert public == []
+    assert internal == []
+
+
+def test_private_name_always_internal(tmp_path: Path) -> None:
+    (tmp_path / "src" / "pkg").mkdir(parents=True)
+    (tmp_path / "src" / "pkg" / "__init__.py").write_text('__all__ = ["_helper"]\n')
+    (tmp_path / "src" / "pkg" / "mod.py").write_text('__all__ = ["_helper"]\n')
+    tree = ast.parse("from pkg.mod import _helper\n")
+    public, internal, _modules, has_private, _io_names, _io_signals = analyze_imports(
+        tree, {"pkg"}, {"_helper"}, tmp_path
+    )
+    assert "_helper" in internal
+    assert "_helper" not in public
+    assert has_private is True
+
+
 # AC7 ------------------------------------------------------------------
 
 
