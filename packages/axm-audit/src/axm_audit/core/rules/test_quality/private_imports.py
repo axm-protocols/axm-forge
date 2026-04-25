@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import ast
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -39,8 +39,51 @@ _DOCS_ANCHOR = "docs/test_quality.md#private-imports"
 _SCORE_PENALTY = 5
 
 
+@dataclass(frozen=True)
+class _ScanContext:
+    project_path: Path
+    pkg_prefixes: list[str]
+    mod_cache: dict[str, ModuleInfo | None]
+
+
 def _variable_kind(name: str) -> str:
     return "constant" if _CONSTANT_RE.match(name) else "variable"
+
+
+def _test_owning_package(
+    test_file: Path, project_path: Path, pkg_prefixes: Iterable[str]
+) -> str | None:
+    """Return the top-level first-party package the test belongs to.
+
+    For single-package projects, every test belongs to that package.  For
+    multi-package projects, the owning package is inferred from the test
+    path under ``tests/`` (e.g. ``tests/pkg_b/test_x.py`` -> ``pkg_b``).
+    Returns ``None`` when the owner cannot be determined.
+    """
+    prefixes = set(pkg_prefixes)
+    if len(prefixes) == 1:
+        return next(iter(prefixes))
+    try:
+        rel = test_file.relative_to(project_path / "tests")
+    except ValueError:
+        return None
+    for part in rel.parts:
+        if part in prefixes:
+            return part
+    return None
+
+
+def _is_same_package_module_import(
+    module: str, name: str, project_path: Path, test_pkg: str | None
+) -> bool:
+    """True when ``from module import name`` targets a private *submodule*
+    that lives in the same top-level package as the importing test file.
+    """
+    if test_pkg is None or module.split(".", 1)[0] != test_pkg:
+        return False
+    rel = (module + "." + name).replace(".", "/")
+    src = project_path / "src"
+    return (src / f"{rel}.py").exists() or (src / rel / "__init__.py").exists()
 
 
 @dataclass
@@ -78,13 +121,17 @@ class PrivateImportsRule(ProjectRule):
         findings: list[dict[str, Any]] = []
         mod_cache: dict[str, ModuleInfo | None] = {}
 
+        ctx = _ScanContext(
+            project_path=project_path,
+            pkg_prefixes=list(pkg_prefixes),
+            mod_cache=mod_cache,
+        )
         for test_file, tree in iter_test_files(project_path):
             if tree is None:
                 continue
+            test_pkg = _test_owning_package(test_file, project_path, ctx.pkg_prefixes)
             findings.extend(
-                self._scan_file_for_private_imports(
-                    test_file, tree, pkg_prefixes, project_path, mod_cache
-                )
+                self._scan_file_for_private_imports(test_file, tree, ctx, test_pkg)
             )
 
         return self._build_check_result(findings)
@@ -93,22 +140,27 @@ class PrivateImportsRule(ProjectRule):
         self,
         test_file: Path,
         tree: ast.AST,
-        pkg_prefixes: list[str],
-        project_path: Path,
-        mod_cache: dict[str, ModuleInfo | None],
+        ctx: _ScanContext,
+        test_pkg: str | None = None,
     ) -> list[dict[str, Any]]:
         findings: list[dict[str, Any]] = []
         for node in ast.walk(tree):
             if not isinstance(node, ast.ImportFrom) or not node.module:
                 continue
             mod = node.module
-            if not any(mod == p or mod.startswith(p + ".") for p in pkg_prefixes):
+            if not any(mod == p or mod.startswith(p + ".") for p in ctx.pkg_prefixes):
                 continue
             for alias in node.names or []:
                 name = alias.name
                 if not self._is_private_symbol(name):
                     continue
-                kind = self._resolve_symbol_kind(mod, name, project_path, mod_cache)
+                if _is_same_package_module_import(
+                    mod, name, ctx.project_path, test_pkg
+                ):
+                    continue
+                kind = self._resolve_symbol_kind(
+                    mod, name, ctx.project_path, ctx.mod_cache
+                )
                 findings.append(
                     {
                         "test_file": str(test_file),
