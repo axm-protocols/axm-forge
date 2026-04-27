@@ -439,6 +439,35 @@ def _classify_s3(tests: list[_TestFunc], sim: float) -> tuple[str, str]:
     return "signal3_intra_file_similarity", f"AST similarity {sim:.0%}"
 
 
+def _try_emit_s2_pair(
+    a: _TestFunc,
+    b: _TestFunc,
+    seen_pairs: set[tuple[str, str]],
+) -> dict[str, Any] | None:
+    """Return cluster dict if ``a``/``b`` form a valid S2 pair, else ``None``."""
+    if a.file == b.file:
+        return None
+    pk = _pair_key(a, b)
+    if pk in seen_pairs:
+        return None
+    sim = _jaccard_similarity(a.stmt_set, b.stmt_set)
+    if sim < _S2_HIGH_SIM:
+        return None
+    signal, reason = _classify_s2([a, b], a.name, sim)
+    seen_pairs.add(pk)
+    return {
+        "signal": signal,
+        "reason": reason,
+        "similarity": sim,
+        "tests": [_test_entry(a), _test_entry(b)],
+    }
+
+
+def _is_valid_s2_group(group: list[_TestFunc]) -> bool:
+    """Return ``True`` if group has ≥ _MIN_PAIR items spanning ≥ _MIN_PAIR files."""
+    return len(group) >= _MIN_PAIR and len({t.file for t in group}) >= _MIN_PAIR
+
+
 def _cluster_s2(
     tests: list[_TestFunc],
     seen_pairs: set[tuple[str, str]],
@@ -449,27 +478,12 @@ def _cluster_s2(
     for t in tests:
         by_name[t.name].append(t)
     for group in by_name.values():
-        if len(group) < _MIN_PAIR or len({t.file for t in group}) < _MIN_PAIR:
+        if not _is_valid_s2_group(group):
             continue
         for a, b in combinations(group, 2):
-            if a.file == b.file:
-                continue
-            pk = _pair_key(a, b)
-            if pk in seen_pairs:
-                continue
-            sim = _jaccard_similarity(a.stmt_set, b.stmt_set)
-            if sim < _S2_HIGH_SIM:
-                continue
-            signal, reason = _classify_s2([a, b], a.name, sim)
-            raw.append(
-                {
-                    "signal": signal,
-                    "reason": reason,
-                    "similarity": sim,
-                    "tests": [_test_entry(a), _test_entry(b)],
-                }
-            )
-            seen_pairs.add(pk)
+            cluster = _try_emit_s2_pair(a, b, seen_pairs)
+            if cluster is not None:
+                raw.append(cluster)
     return raw
 
 
