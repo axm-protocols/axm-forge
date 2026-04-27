@@ -60,6 +60,10 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv python install ${{ matrix.python-version }}
       - run: uv sync --all-groups
+      - name: Configure git identity (required by axm-init scaffold tests)
+        run: |
+          git config --global user.email "ci@axm.local"
+          git config --global user.name "axm CI"
       - run: uv run --package ${{ matrix.package }} --directory packages/${{ matrix.package }} pytest --cov
       - name: Upload coverage
         if: matrix.python-version == '3.12'

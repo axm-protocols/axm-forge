@@ -51,6 +51,10 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
       - run: uv sync --all-groups
+      - name: Configure git identity (required by axm-init scaffold tests)
+        run: |
+          git config --global user.email "ci@axm.local"
+          git config --global user.name "axm CI"
       - run: uv run --package ${{ needs.detect-package.outputs.package }} --directory ${{ needs.detect-package.outputs.package-dir }} pytest --no-cov
 
   publish:
