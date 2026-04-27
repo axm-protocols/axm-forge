@@ -40,6 +40,9 @@ __all__ = [
 
 _MAX_VALUE_REPR_LEN = 80
 
+_TRIVIA_NODE_TYPES = frozenset({"comment", "newline"})
+_DOCSTRING_NODE_TYPES = frozenset({"string", "concatenated_string"})
+
 # ─── Language & Parser singleton ─────────────────────────────────────────────
 
 PY_LANGUAGE = Language(tspython.language())
@@ -130,33 +133,36 @@ def _unquote(text: str) -> str:
 # ─── Extraction helpers ──────────────────────────────────────────────────────
 
 
-def _extract_docstring(node: Node) -> str | None:
-    """Extract docstring from a function/class/module body.
-
-    Looks for an expression_statement containing a string as the
-    first statement in the body.
-    """
+def _body_children(node: Node) -> list[Node]:
+    """Return body children of a function/class, or direct children for a module."""
     body = node.child_by_field_name("body")
-    if body is None:
-        # Module-level: children are direct
-        children = node.children
-    else:
-        children = body.children
+    return list(body.children if body is not None else node.children)
 
-    for child in children:
-        # Skip comments and whitespace
-        if child.type in ("comment", "newline"):
-            continue
-        if child.type == "expression_statement":
-            expr = child.children[0] if child.children else None
-            if expr is not None and expr.type in (
-                "string",
-                "concatenated_string",
-            ):
-                raw = _node_text(expr)
-                return _unquote(raw) if raw else None
-        break  # First non-comment statement was not a docstring
-    return None
+
+def _first_non_trivia_child(children: list[Node]) -> Node | None:
+    """Return the first child that is not a comment or newline."""
+    return next((c for c in children if c.type not in _TRIVIA_NODE_TYPES), None)
+
+
+def _string_value(stmt: Node) -> str | None:
+    """Return the unquoted string of an expression-statement string, else None."""
+    if stmt.type != "expression_statement":
+        return None
+    expr = stmt.children[0] if stmt.children else None
+    if expr is None or expr.type not in _DOCSTRING_NODE_TYPES:
+        return None
+    raw = _node_text(expr)
+    return _unquote(raw) if raw else None
+
+
+def _extract_docstring(node: Node) -> str | None:
+    """Return the docstring of a function/class/module node, or None.
+
+    Looks at the first non-trivia statement in the body and returns its
+    unquoted string when it is a bare string expression.
+    """
+    first = _first_non_trivia_child(_body_children(node))
+    return _string_value(first) if first is not None else None
 
 
 def _extract_decorators(node: Node) -> list[str]:
