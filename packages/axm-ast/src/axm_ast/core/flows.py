@@ -20,6 +20,7 @@ import logging
 import sys
 import time
 from collections import deque
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -1324,19 +1325,27 @@ def _find_qualified_location(
     return None, 0
 
 
+def _iter_named_symbols(mod: ModuleInfo) -> Iterator[tuple[str, int]]:
+    """Yield ``(name, line_start)`` for every function, class, and method."""
+    for fn in mod.functions:
+        yield fn.name, fn.line_start
+    for cls in mod.classes:
+        yield cls.name, cls.line_start
+        for method in cls.methods:
+            yield method.name, method.line_start
+
+
 def _find_short_location(pkg: PackageInfo, symbol: str) -> tuple[str | None, int]:
     """Find the module and line of a short (unqualified) symbol name."""
-    for mod in pkg.modules:
-        for fn in mod.functions:
-            if fn.name == symbol:
-                return module_dotted_name(mod.path, pkg.root), fn.line_start
-        for cls in mod.classes:
-            if cls.name == symbol:
-                return module_dotted_name(mod.path, pkg.root), cls.line_start
-            for method in cls.methods:
-                if method.name == symbol:
-                    return module_dotted_name(mod.path, pkg.root), method.line_start
-    return None, 0
+    return next(
+        (
+            (module_dotted_name(mod.path, pkg.root), line)
+            for mod in pkg.modules
+            for name, line in _iter_named_symbols(mod)
+            if name == symbol
+        ),
+        (None, 0),
+    )
 
 
 def _find_symbol_location(pkg: PackageInfo, symbol: str) -> tuple[str | None, int]:
