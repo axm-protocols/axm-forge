@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import ast
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -44,10 +44,56 @@ class _ScanContext:
     project_path: Path
     pkg_prefixes: list[str]
     mod_cache: dict[str, ModuleInfo | None]
+    include_constants: bool = False
 
 
 def _variable_kind(name: str) -> str:
     return "constant" if _CONSTANT_RE.match(name) else "variable"
+
+
+def _is_private_symbol(name: str, include_constants: bool) -> bool:
+    if not name.startswith("_"):
+        return False
+    if _DUNDER_RE.match(name):
+        return False
+    if _CONSTANT_RE.match(name) and not include_constants:
+        return False
+    return True
+
+
+def _iter_private_aliases(
+    node: ast.AST,
+    ctx: _ScanContext,
+    test_pkg: str | None,
+) -> Iterator[tuple[str, str]]:
+    if not isinstance(node, ast.ImportFrom) or not node.module:
+        return
+    mod = node.module
+    if not any(mod == p or mod.startswith(p + ".") for p in ctx.pkg_prefixes):
+        return
+    for alias in node.names or []:
+        name = alias.name
+        if not _is_private_symbol(name, ctx.include_constants):
+            continue
+        if _is_same_package_module_import(mod, name, ctx.project_path, test_pkg):
+            continue
+        yield mod, name
+
+
+def _build_finding(
+    test_file: Path,
+    node: ast.AST,
+    mod: str,
+    name: str,
+    kind: str,
+) -> dict[str, Any]:
+    return {
+        "test_file": str(test_file),
+        "line": node.lineno,
+        "import_module": mod,
+        "private_symbol": name,
+        "symbol_kind": kind,
+    }
 
 
 def _test_owning_package(
@@ -125,6 +171,7 @@ class PrivateImportsRule(ProjectRule):
             project_path=project_path,
             pkg_prefixes=list(pkg_prefixes),
             mod_cache=mod_cache,
+            include_constants=self.include_constants,
         )
         for test_file, tree in iter_test_files(project_path):
             if tree is None:
@@ -143,43 +190,15 @@ class PrivateImportsRule(ProjectRule):
         ctx: _ScanContext,
         test_pkg: str | None = None,
     ) -> list[dict[str, Any]]:
+        """Walk *tree* and return one finding per private-symbol import."""
         findings: list[dict[str, Any]] = []
         for node in ast.walk(tree):
-            if not isinstance(node, ast.ImportFrom) or not node.module:
-                continue
-            mod = node.module
-            if not any(mod == p or mod.startswith(p + ".") for p in ctx.pkg_prefixes):
-                continue
-            for alias in node.names or []:
-                name = alias.name
-                if not self._is_private_symbol(name):
-                    continue
-                if _is_same_package_module_import(
-                    mod, name, ctx.project_path, test_pkg
-                ):
-                    continue
+            for mod, name in _iter_private_aliases(node, ctx, test_pkg):
                 kind = self._resolve_symbol_kind(
                     mod, name, ctx.project_path, ctx.mod_cache
                 )
-                findings.append(
-                    {
-                        "test_file": str(test_file),
-                        "line": node.lineno,
-                        "import_module": mod,
-                        "private_symbol": name,
-                        "symbol_kind": kind,
-                    }
-                )
+                findings.append(_build_finding(test_file, node, mod, name, kind))
         return findings
-
-    def _is_private_symbol(self, name: str) -> bool:
-        if not name.startswith("_"):
-            return False
-        if _DUNDER_RE.match(name):
-            return False
-        if _CONSTANT_RE.match(name) and not self.include_constants:
-            return False
-        return True
 
     def _build_check_result(self, findings: list[dict[str, Any]]) -> CheckResult:
         n = len(findings)
