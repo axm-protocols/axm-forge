@@ -11,7 +11,10 @@ def rule() -> ComplexityRule:
 
 
 def _rank_for(cc: int) -> str:
-    """Mirror radon's grade mapping (A 1-5, B 6-10, C 11-20, D 21-30, E 31-40, F 41+)."""
+    """Mirror radon's grade mapping.
+
+    A 1-5, B 6-10, C 11-20, D 21-30, E 31-40, F 41+.
+    """
     if cc <= 5:
         return "A"
     if cc <= 10:
@@ -48,7 +51,7 @@ def _make_offenders(
 
 
 class TestBuildResultTextFormat:
-    """Text lines use format `• {file}:{function} cc={cc} ({rank}) cog={cog} [{reason}]`."""
+    """Text format: `• {file}:{function} cc={cc} ({rank}) cog={cog} [{reason}]`."""
 
     def test_build_result_text_format(self, rule: ComplexityRule) -> None:
         offenders = _make_offenders(
