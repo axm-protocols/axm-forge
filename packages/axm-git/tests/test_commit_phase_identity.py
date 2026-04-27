@@ -266,19 +266,19 @@ class TestIdentityEdgeCases:
 
         call_count = 0
 
+        canned: dict[str, SimpleNamespace] = {
+            "add": SimpleNamespace(returncode=0, stdout="", stderr=""),
+            "ls-files": SimpleNamespace(returncode=0, stdout="file.py\n", stderr=""),
+            "diff": SimpleNamespace(returncode=0, stdout="file.py\n", stderr=""),
+        }
+
         def _run_git(cmd, working_dir):
             nonlocal call_count
-            if cmd[0] == "add":
-                return SimpleNamespace(returncode=0, stdout="", stderr="")
-            if cmd[0] == "ls-files":
-                return SimpleNamespace(returncode=0, stdout="file.py\n", stderr="")
-            if cmd[0] == "diff":
-                return SimpleNamespace(returncode=0, stdout="file.py\n", stderr="")
+            if cmd[0] in canned:
+                return canned[cmd[0]]
             if cmd[0] == "commit":
                 call_count += 1
-                if call_count == 1:
-                    return first_attempt
-                return success
+                return first_attempt if call_count == 1 else success
             if cmd == ["rev-parse", "--short", "HEAD"]:
                 return SimpleNamespace(returncode=0, stdout="abc1234\n", stderr="")
             return SimpleNamespace(returncode=0, stdout="", stderr="")
