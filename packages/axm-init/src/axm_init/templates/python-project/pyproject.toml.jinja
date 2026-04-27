@@ -68,11 +68,21 @@ src = ["src", "tests"]
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "PLR", "S", "T20", "RUF"]
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20", "RUF"]
 ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S105", "S106", "S108"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 5
+max-branches = 12
+max-returns = 6
+max-statements = 50
+max-locals = 15
 
 [tool.ruff.lint.isort]
 known-first-party = ["{{ module_name }}"]
