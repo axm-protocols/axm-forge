@@ -310,7 +310,32 @@ def _check_assert_stmt(
     return None
 
 
+def _check_assert_equal_self_compare(call: ast.Call, node: ast.Expr) -> Finding | None:
+    args = call.args
+    if len(args) != _ASSERT_EQUAL_ARITY or not _same_expr(args[0], args[1]):
+        return None
+    return Finding(
+        test="",
+        line=node.lineno,
+        pattern="self_compare",
+        detail=f"assertEqual({_unparse_safe(args[0])}, same)",
+    )
+
+
+def _check_assert_true_constant(call: ast.Call, node: ast.Expr) -> Finding | None:
+    args = call.args
+    if len(args) != 1 or not _is_constant_truthy(args[0]):
+        return None
+    return Finding(
+        test="",
+        line=node.lineno,
+        pattern="trivially_true",
+        detail=f"assertTrue({_unparse_safe(args[0])})",
+    )
+
+
 def _check_unittest_call(node: ast.Expr) -> Finding | None:
+    """Dispatch a unittest-style assertion call to the matching tautology check."""
     call = node.value
     if not isinstance(call, ast.Call):
         return None
@@ -318,27 +343,13 @@ def _check_unittest_call(node: ast.Expr) -> Finding | None:
         isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name)
     ):
         return None
-    method = call.func.attr
-    args = call.args
-    if (
-        method == "assertEqual"
-        and len(args) == _ASSERT_EQUAL_ARITY
-        and _same_expr(args[0], args[1])
-    ):
-        return Finding(
-            test="",
-            line=node.lineno,
-            pattern="self_compare",
-            detail=f"assertEqual({_unparse_safe(args[0])}, same)",
-        )
-    if method == "assertTrue" and len(args) == 1 and _is_constant_truthy(args[0]):
-        return Finding(
-            test="",
-            line=node.lineno,
-            pattern="trivially_true",
-            detail=f"assertTrue({_unparse_safe(args[0])})",
-        )
-    return None
+    match call.func.attr:
+        case "assertEqual":
+            return _check_assert_equal_self_compare(call, node)
+        case "assertTrue":
+            return _check_assert_true_constant(call, node)
+        case _:
+            return None
 
 
 def _check_assert(node: ast.AST, mock_setups: dict[str, ast.expr]) -> Finding | None:
