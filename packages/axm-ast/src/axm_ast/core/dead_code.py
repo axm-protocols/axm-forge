@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from axm_ast.models.nodes import (
         ClassInfo,
         FunctionInfo,
@@ -803,6 +805,13 @@ def _resolve_import_stems(imp: ImportInfo) -> list[str]:
     return list(imp.names)
 
 
+def _iter_namespace_stems(mod: ModuleInfo) -> Iterator[str]:
+    """Yield candidate namespace stems for *mod*: resolved imports + lazy names."""
+    for imp in mod.imports:
+        yield from _resolve_import_stems(imp)
+    yield from _extract_lazy_namespace_names(mod)
+
+
 def _find_namespace_modules(pkg: PackageInfo) -> set[Path]:
     """Find modules that are imported as namespace objects somewhere in *pkg*.
 
@@ -813,24 +822,13 @@ def _find_namespace_modules(pkg: PackageInfo) -> set[Path]:
     Public symbols in such modules may be accessed via attribute access
     (``mod.func()``) and would not show up in a direct caller search.
     """
-    # Build lookup: stem → path for all modules in the package.
     mod_stems: dict[str, Path] = {mod.path.stem: mod.path for mod in pkg.modules}
-
-    namespace_paths: set[Path] = set()
-
-    for mod in pkg.modules:
-        # Module-level imports.
-        for imp in mod.imports:
-            for stem in _resolve_import_stems(imp):
-                if stem in mod_stems:
-                    namespace_paths.add(mod_stems[stem])
-
-        # Lazy namespace imports inside function bodies.
-        for name in _extract_lazy_namespace_names(mod):
-            if name in mod_stems:
-                namespace_paths.add(mod_stems[name])
-
-    return namespace_paths
+    return {
+        mod_stems[s]
+        for mod in pkg.modules
+        for s in _iter_namespace_stems(mod)
+        if s in mod_stems
+    }
 
 
 def find_dead_code(
