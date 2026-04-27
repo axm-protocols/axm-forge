@@ -510,6 +510,32 @@ def _search_by_inheritance(
     return results
 
 
+def _match_class_name(
+    cls: ClassInfo,
+    name: str | None,
+    returns: str | None,
+) -> bool:
+    """Whether the class itself should be returned as a match."""
+    return name is not None and name in cls.name and returns is None
+
+
+def _search_methods(
+    cls: ClassInfo,
+    *,
+    name: str | None,
+    returns: str | None,
+    kind: FunctionKind | None,
+    suppress_method_name: bool,
+) -> list[FunctionInfo]:
+    """Return methods of *cls* matching the search criteria."""
+    method_name = None if suppress_method_name else name
+    return [
+        method
+        for method in cls.methods
+        if _match_function(method, name=method_name, returns=returns, kind=kind)
+    ]
+
+
 def _search_classes(
     mod: ModuleInfo,
     *,
@@ -524,15 +550,19 @@ def _search_classes(
     """
     results: list[FunctionInfo | ClassInfo] = []
     for cls in mod.classes:
-        class_name_matched = name is not None and name in cls.name
-        if class_name_matched:
-            if returns is None:
-                results.append(cls)
-                continue
-        for method in cls.methods:
-            method_name = None if class_name_matched else name
-            if _match_function(method, name=method_name, returns=returns, kind=kind):
-                results.append(method)
+        if _match_class_name(cls, name, returns):
+            results.append(cls)
+            continue
+        suppress_method_name = name is not None and name in cls.name
+        results.extend(
+            _search_methods(
+                cls,
+                name=name,
+                returns=returns,
+                kind=kind,
+                suppress_method_name=suppress_method_name,
+            )
+        )
     return results
 
 
