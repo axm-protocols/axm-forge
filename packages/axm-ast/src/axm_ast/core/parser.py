@@ -501,17 +501,37 @@ def _extract_assignment(node: Node) -> VariableInfo | None:
     )
 
 
+def _assignment_target_name(stmt: Node) -> str | None:
+    """Return the LHS identifier of an assignment expression statement."""
+    if stmt.type != "expression_statement":
+        return None
+    expr = stmt.children[0] if stmt.children else None
+    if expr is None or expr.type != "assignment":
+        return None
+    return _node_text(expr.child_by_field_name("left"))
+
+
+def _assignment_rhs(stmt: Node) -> Node | None:
+    """Return the RHS node of an assignment expression statement."""
+    if stmt.type != "expression_statement":
+        return None
+    expr = stmt.children[0] if stmt.children else None
+    if expr is None or expr.type != "assignment":
+        return None
+    return expr.child_by_field_name("right")
+
+
 def _extract_all_exports(node: Node) -> list[str] | None:
     """Extract __all__ list if present in the module."""
-    for child in node.children:
-        if child.type == "expression_statement":
-            expr = child.children[0] if child.children else None
-            if expr is not None and expr.type == "assignment":
-                left = expr.child_by_field_name("left")
-                right = expr.child_by_field_name("right")
-                if _node_text(left) == "__all__" and right is not None:
-                    return _parse_all_list(right)
-    return None
+    return next(
+        (
+            _parse_all_list(rhs)
+            for child in node.children
+            if _assignment_target_name(child) == "__all__"
+            and (rhs := _assignment_rhs(child)) is not None
+        ),
+        None,
+    )
 
 
 def _parse_all_list(node: Node) -> list[str]:
