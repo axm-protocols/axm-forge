@@ -62,11 +62,11 @@ def _is_private_symbol(name: str, include_constants: bool) -> bool:
 
 
 def _iter_private_aliases(
-    node: ast.AST,
+    node: ast.ImportFrom,
     ctx: _ScanContext,
     test_pkg: str | None,
 ) -> Iterator[tuple[str, str]]:
-    if not isinstance(node, ast.ImportFrom) or not node.module:
+    if not node.module:
         return
     mod = node.module
     if not any(mod == p or mod.startswith(p + ".") for p in ctx.pkg_prefixes):
@@ -82,7 +82,7 @@ def _iter_private_aliases(
 
 def _build_finding(
     test_file: Path,
-    node: ast.AST,
+    node: ast.ImportFrom,
     mod: str,
     name: str,
     kind: str,
@@ -193,6 +193,8 @@ class PrivateImportsRule(ProjectRule):
         """Walk *tree* and return one finding per private-symbol import."""
         findings: list[dict[str, Any]] = []
         for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
             for mod, name in _iter_private_aliases(node, ctx, test_pkg):
                 kind = self._resolve_symbol_kind(
                     mod, name, ctx.project_path, ctx.mod_cache
