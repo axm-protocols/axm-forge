@@ -30,6 +30,7 @@ __all__ = [
     "_p2_rescues",
     "_p3_rescues",
     "_p4_rescues",
+    "_p5_rescues",
 ]
 
 
@@ -37,6 +38,7 @@ _P1_MIN_SYMDIFF = 2
 _P3_MIN_TOKEN_LEN = 4
 _P3_MAX_BODY = 4
 _P4_MAX_BODY = 8
+_P5_SETUP_DIVERGENCE_THRESHOLD = 0.5
 _S2_HIGH_SIM = 0.95
 _SCORE_PENALTY = 5
 _MIN_PAIR = 2
@@ -60,6 +62,7 @@ class _TestFunc:
     call_sig: str = ""
     assert_pattern: str = ""
     stmt_set: frozenset[str] = field(default_factory=frozenset)
+    setup_set: frozenset[str] = field(default_factory=frozenset)
 
 
 # ── Statement-set similarity ──────────────────────────────────────────
@@ -102,6 +105,40 @@ def _statement_set(node: ast.FunctionDef) -> frozenset[str]:
         dump = _NAME_RE.sub("Name(<N>,", dump)
         stmts.add(dump)
     return frozenset(stmts)
+
+
+def _normalize_dump(stmt: ast.stmt) -> str | None:
+    try:
+        dump = ast.dump(stmt, annotate_fields=False)
+    except Exception:  # noqa: BLE001
+        return None
+    dump = _CONSTANT_RE.sub("Constant(<C>)", dump)
+    dump = _NAME_RE.sub("Name(<N>,", dump)
+    return dump
+
+
+def _compute_setup_set(
+    node: ast.FunctionDef, tainted: set[ast.Assign]
+) -> frozenset[str]:
+    """Set of normalized statement-dumps NOT participating in the assert chain.
+
+    Builds on ``_statement_set`` semantics but excludes ``ast.Assign`` nodes
+    in ``tainted`` and any ``ast.Assert`` statement.  Two tests with the
+    same SUT call but radically different fixtures (e.g. ``git_coupled_files``
+    cluster) produce disjoint setup-sets — used by P5 to demote false
+    positives whose divergence lives entirely in the setup phase.
+    """
+    setup: set[str] = set()
+    for stmt in _flatten_body(node.body):
+        if isinstance(stmt, ast.Assert):
+            continue
+        if isinstance(stmt, ast.Assign) and stmt in tainted:
+            continue
+        dump = _normalize_dump(stmt)
+        if dump is None:
+            continue
+        setup.add(dump)
+    return frozenset(setup)
 
 
 def _jaccard_similarity(
@@ -201,18 +238,23 @@ def _collect_single_target_assigns(node: ast.FunctionDef) -> list[ast.Assign]:
     ]
 
 
-def _compute_call_signature(node: ast.FunctionDef) -> str:
-    """Signature of the call chain whose result is asserted on.
+def _propagate_taint(
+    node: ast.FunctionDef,
+) -> tuple[set[str], set[ast.Assign]]:
+    """Run taint propagation; return ``(call_sigs, tainted_assigns)``.
 
     Starts from names referenced in ``assert`` expressions and propagates
     the taint back through direct ``target = call(...)`` assignments,
-    collecting each call's signature.  Two tests with different
-    upstream calls in the chain produce different signatures.
+    collecting each call's signature and the participating assigns.
+    Two tests with different upstream calls in the chain produce
+    different signatures; ``tainted_assigns`` is used by P5 to compute
+    a setup-set fingerprint over the remaining (non-chain) statements.
     """
     asserted = _collect_asserted_names(node)
     assigns = _collect_single_target_assigns(node)
 
     sigs: set[str] = set()
+    tainted: set[ast.Assign] = set()
     changed = True
     while changed:
         changed = False
@@ -221,9 +263,10 @@ def _compute_call_signature(node: ast.FunctionDef) -> str:
                 continue
             if _process_tainted_assign(assign, asserted, sigs):
                 changed = True
+            tainted.add(assign)
             assigns.remove(assign)
 
-    return ">".join(sorted(sigs))
+    return sigs, tainted
 
 
 def _process_tainted_assign(
@@ -412,6 +455,29 @@ def _p4_rescues(tests: list[_TestFunc]) -> bool:
     return max(sizes) <= _P4_MAX_BODY
 
 
+def _p5_rescues(
+    tests: list[_TestFunc],
+    threshold: float = _P5_SETUP_DIVERGENCE_THRESHOLD,
+) -> bool:
+    """P5 — semantic divergence lives in the test SETUP, not the call/assert.
+
+    Compute the pairwise Jaccard between ``setup_set`` (statements not on
+    the asserted call chain) for every pair of tests in the cluster.  If
+    the *minimum* similarity is below ``threshold``, at least one pair has
+    structurally distinct fixtures (different repo state, different mocked
+    inputs, …) — same SUT and same assert shape are then a coincidence,
+    not a true clone.  Demote to ``ambiguous_setup_divergence``.
+    """
+    if len(tests) < _MIN_PAIR:
+        return False
+    if any(not t.setup_set for t in tests):
+        return False
+    min_sim = 1.0
+    for a, b in combinations(tests, 2):
+        min_sim = min(min_sim, _jaccard_similarity(a.setup_set, b.setup_set))
+    return min_sim < threshold
+
+
 # ── Clustering ────────────────────────────────────────────────────────
 
 
@@ -434,6 +500,11 @@ def _classify_s1(tests: list[_TestFunc], sig: str, pattern: str) -> tuple[str, s
         return "ambiguous_distinct_literals", f"distinct literals rescue for SUT {sig}"
     if _p2_rescues(tests):
         return "ambiguous_patch_context", f"patch-context rescue for SUT {sig}"
+    if _p5_rescues(tests):
+        return (
+            "ambiguous_setup_divergence",
+            f"setup divergence rescue for SUT {sig}",
+        )
     tail = " + same asserts" if pattern != "<no-assert>" else ""
     return "signal1_call_assert", f"same SUT: {sig}{tail}"
 
@@ -472,6 +543,11 @@ def _classify_s3(tests: list[_TestFunc], sim: float) -> tuple[str, str]:
         return (
             "ambiguous_body_size",
             f"body-size delta rescue (intra-file {sim:.0%})",
+        )
+    if _p5_rescues(tests):
+        return (
+            "ambiguous_setup_divergence",
+            f"setup divergence rescue (intra-file {sim:.0%})",
         )
     return "signal3_intra_file_similarity", f"AST similarity {sim:.0%}"
 
@@ -779,9 +855,11 @@ def _collect_tests(project_path: Path) -> list[_TestFunc]:
             ):
                 continue
             tf = _TestFunc(file=rel, name=node.name, line=node.lineno, node=node)
-            tf.call_sig = _compute_call_signature(node)
+            sigs, tainted = _propagate_taint(node)
+            tf.call_sig = ">".join(sorted(sigs))
             tf.assert_pattern = _compute_assert_pattern(node)
             tf.stmt_set = _statement_set(node)
+            tf.setup_set = _compute_setup_set(node, tainted)
             out.append(tf)
     return out
 

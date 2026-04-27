@@ -19,7 +19,9 @@ def _function_cc11(name: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def test_subprocess_path_uses_grade(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_subprocess_path_uses_grade(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """AC2: subprocess radon path flags CC=11 with rank='C'."""
     src = tmp_path / "src"
     src.mkdir()
@@ -34,6 +36,7 @@ def test_subprocess_path_uses_grade(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     rule = ComplexityRule()
     result = rule.check(tmp_path)
 
+    assert result.details is not None
     assert result.details["high_complexity_count"] == 1
     offenders = result.details["top_offenders"]
     assert offenders[0]["rank"] == "C"

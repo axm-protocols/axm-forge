@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Protocol
 
 import pytest
 
 from axm_audit.core.rules.complexity import ComplexityRule
 
 pytestmark = pytest.mark.integration
+
+
+class _ProjectBuilder(Protocol):
+    def __call__(self, name: str, n_branches: int) -> Path: ...
 
 
 def _make_function_with_cc(name: str, n_branches: int) -> str:
@@ -20,7 +25,7 @@ def _make_function_with_cc(name: str, n_branches: int) -> str:
 
 
 @pytest.fixture
-def project_with_function(tmp_path: Path):
+def project_with_function(tmp_path: Path) -> _ProjectBuilder:
     def _build(name: str, n_branches: int) -> Path:
         src = tmp_path / "src"
         src.mkdir(exist_ok=True)
@@ -31,41 +36,50 @@ def project_with_function(tmp_path: Path):
     return _build
 
 
-def test_cc_equals_10_grade_b_passes(project_with_function):
+def test_cc_equals_10_grade_b_passes(
+    project_with_function: _ProjectBuilder,
+) -> None:
     """AC1: CC=10 (grade B) must NOT count as a high-complexity violation."""
     project = project_with_function("mod_b", n_branches=9)
 
     rule = ComplexityRule()
     result = rule.check(project)
 
+    assert result.details is not None
     assert result.details["high_complexity_count"] == 0
 
 
-def test_cc_equals_11_grade_c_flagged(project_with_function):
+def test_cc_equals_11_grade_c_flagged(
+    project_with_function: _ProjectBuilder,
+) -> None:
     """AC2: CC=11 (grade C) must count as a violation with rank='C'."""
     project = project_with_function("mod_c", n_branches=10)
 
     rule = ComplexityRule()
     result = rule.check(project)
 
+    assert result.details is not None
     assert result.details["high_complexity_count"] == 1
     offenders = result.details["top_offenders"]
     assert offenders[0]["rank"] == "C"
 
 
-def test_high_grade_d_includes_rank(project_with_function):
+def test_high_grade_d_includes_rank(
+    project_with_function: _ProjectBuilder,
+) -> None:
     """AC3, AC5: a CC>=21 function reports rank='D' in offenders."""
     project = project_with_function("mod_d", n_branches=24)
 
     rule = ComplexityRule()
     result = rule.check(project)
 
+    assert result.details is not None
     offenders = result.details["top_offenders"]
     assert offenders[0]["rank"] == "D"
     assert offenders[0]["cc"] >= 21
 
 
-def test_top_offenders_have_rank_key(tmp_path: Path):
+def test_top_offenders_have_rank_key(tmp_path: Path) -> None:
     """AC5: every offender entry exposes a 'rank' key alongside 'cc'."""
     src = tmp_path / "src"
     src.mkdir()
@@ -75,6 +89,7 @@ def test_top_offenders_have_rank_key(tmp_path: Path):
     rule = ComplexityRule()
     result = rule.check(tmp_path)
 
+    assert result.details is not None
     offenders = result.details["top_offenders"]
     assert len(offenders) == 2
     assert all("rank" in o for o in offenders)
