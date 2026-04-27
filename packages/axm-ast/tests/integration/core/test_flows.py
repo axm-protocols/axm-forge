@@ -1,4 +1,4 @@
-"""TDD tests for axm-ast execution flow tracing and entry point detection."""
+"""Integration tests for axm_ast.core.flows (real filesystem I/O)."""
 
 from __future__ import annotations
 
@@ -6,16 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from axm_ast.core.analyzer import analyze_package
-from axm_ast.core.flows import (
-    EntryPoint,
-    FlowStep,
-    find_callees,
-    find_entry_points,
-    format_flows,
-    trace_flow,
-)
-
-# ─── Helpers ─────────────────────────────────────────────────────────────────
+from axm_ast.core.flows import find_callees, find_entry_points, trace_flow
 
 
 def _make_pkg(tmp_path: Path, files: dict[str, str]) -> Path:
@@ -27,9 +18,6 @@ def _make_pkg(tmp_path: Path, files: dict[str, str]) -> Path:
         filepath.parent.mkdir(parents=True, exist_ok=True)
         filepath.write_text(content)
     return pkg
-
-
-# ─── Unit: entry point detection ─────────────────────────────────────────────
 
 
 class TestDetectCycloptsEntry:
@@ -192,9 +180,6 @@ class TestIgnoreRegularFunction:
         assert "helper" not in entry_names
 
 
-# ─── Unit: callee resolution ────────────────────────────────────────────────
-
-
 class TestFindCallees:
     """Test find_callees — forward call graph."""
 
@@ -222,9 +207,6 @@ class TestFindCallees:
         callees = find_callees(pkg, "main")
         callee_names = {c.symbol for c in callees}
         assert callee_names == {"alpha", "beta", "gamma"}
-
-
-# ─── Unit: trace_flow BFS ───────────────────────────────────────────────────
 
 
 class TestTraceFlowLinear:
@@ -287,9 +269,6 @@ class TestTraceFlowBranching:
                 assert s.depth == 1
 
 
-# ─── Functional tests ───────────────────────────────────────────────────────
-
-
 class TestFlowsSamplePkg:
     """Functional test with test fixtures."""
 
@@ -336,9 +315,6 @@ class TestFlowsDogfood:
         frameworks = {e.framework for e in entries}
         # axm-ast has __all__ exports
         assert "all" in frameworks
-
-
-# ─── Edge cases ──────────────────────────────────────────────────────────────
 
 
 class TestEdgeNoEntryPoints:
@@ -457,45 +433,6 @@ class TestEdgeDecoratedNonEntry:
         entry_names = {e.name for e in entries if e.kind == "decorator"}
         assert "bar" not in entry_names
         assert "baz" not in entry_names
-
-
-# ─── Formatting ──────────────────────────────────────────────────────────────
-
-
-class TestFormatFlows:
-    """Test output formatting."""
-
-    def test_format_empty(self) -> None:
-        """Empty results → clean message."""
-        assert format_flows([]) == "✅ No entry points detected."
-
-    def test_format_results(self) -> None:
-        """Results → grouped output."""
-        entries = [
-            EntryPoint(
-                name="index",
-                module="routes",
-                kind="decorator",
-                line=5,
-                framework="flask",
-            ),
-            EntryPoint(
-                name="test_foo",
-                module="tests",
-                kind="test",
-                line=1,
-                framework="pytest",
-            ),
-        ]
-        output = format_flows(entries)
-        assert "2 entry point(s)" in output
-        assert "flask" in output
-        assert "pytest" in output
-        assert "index" in output
-        assert "test_foo" in output
-
-
-# ─── Cross-module trace_flow tests (AXM-405) ────────────────────────────────
 
 
 class TestCrossModuleBasic:
@@ -654,9 +591,6 @@ class TestCircularImportSafe:
         assert len(steps) <= 4
 
 
-# ─── Cross-module functional tests ──────────────────────────────────────────
-
-
 class TestCrossModuleDogfood:
     """Functional test — cross-module trace on axm-ast itself."""
 
@@ -675,9 +609,6 @@ class TestCrossModuleDogfood:
         )
         assert len(steps) >= 1
         assert steps[0].name == "trace_flow"
-
-
-# ─── Cross-module edge cases ────────────────────────────────────────────────
 
 
 class TestEdgeStdlibImport:
@@ -921,25 +852,6 @@ class TestCrossModuleSiblingPackage:
         assert len(resolved) == 0
 
 
-# ─── detail=source tests (AXM-410) ──────────────────────────────────────────
-
-
-class TestFlowStepSourceField:
-    """FlowStep model accepts optional source field."""
-
-    def test_flowstep_source_default_none(self) -> None:
-        """FlowStep without source → defaults to None."""
-        step = FlowStep(name="f", module="m", line=1, depth=0, chain=["f"])
-        assert step.source is None
-
-    def test_flowstep_source_explicit(self) -> None:
-        """FlowStep with explicit source → stored."""
-        step = FlowStep(
-            name="f", module="m", line=1, depth=0, chain=["f"], source="def f(): pass"
-        )
-        assert step.source == "def f(): pass"
-
-
 class TestDetailSource:
     """trace_flow(detail='source') fills source code."""
 
@@ -1016,229 +928,6 @@ class TestDetailSourceMissingModule:
         assert "def test_func" in entry.source
 
 
-class TestFlowsToolDetail:
-    """FlowsTool passes detail param through."""
-
-    def test_flowstool_passes_detail(self, tmp_path: Path) -> None:
-        """FlowsTool with detail='source' → steps contain source."""
-        from axm_ast.tools.flows import FlowsTool
-
-        pkg_path = _make_pkg(
-            tmp_path,
-            {
-                "__init__.py": "",
-                "core.py": "def main():\n    pass\n",
-            },
-        )
-        tool = FlowsTool()
-        result = tool.execute(path=str(pkg_path), entry="main", detail="source")
-        assert result.success
-        assert result.data is not None
-        steps = result.data["steps"]
-        assert len(steps) >= 1
-        assert "source" in steps[0]
-        assert "def main" in steps[0]["source"]
-
-    def test_flowstool_default_no_source(self, tmp_path: Path) -> None:
-        """FlowsTool default → steps do not contain source key."""
-        from axm_ast.tools.flows import FlowsTool
-
-        pkg_path = _make_pkg(
-            tmp_path,
-            {
-                "__init__.py": "",
-                "core.py": "def main():\n    pass\n",
-            },
-        )
-        tool = FlowsTool()
-        result = tool.execute(path=str(pkg_path), entry="main")
-        assert result.success
-        assert result.data is not None
-        steps = result.data["steps"]
-        assert len(steps) >= 1
-        assert "source" not in steps[0]
-
-
-class TestTraceSourceHook:
-    """TraceSourceHook execution tests."""
-
-    def test_trace_source_hook_execute(self, tmp_path: Path) -> None:
-        """Valid context with working_dir → HookResult.ok with trace."""
-        from axm_ast.hooks.trace_source import TraceSourceHook
-
-        pkg_path = _make_pkg(
-            tmp_path,
-            {
-                "__init__.py": "",
-                "core.py": "def main():\n    pass\n",
-            },
-        )
-        hook = TraceSourceHook()
-        result = hook.execute({"working_dir": str(pkg_path)}, entry="main")
-        assert result.success
-        assert "trace" in result.metadata
-        trace = result.metadata["trace"]
-        assert len(trace) >= 1
-        assert trace[0]["name"] == "main"
-        assert "source" in trace[0]
-        assert "def main" in trace[0]["source"]
-
-    def test_trace_source_hook_no_entry(self, tmp_path: Path) -> None:
-        """Missing entry param → HookResult.fail."""
-        from axm_ast.hooks.trace_source import TraceSourceHook
-
-        hook = TraceSourceHook()
-        result = hook.execute({"working_dir": str(tmp_path)})
-        assert not result.success
-        assert "entry" in (result.error or "").lower()
-
-    def test_trace_source_hook_path_param(self, tmp_path: Path) -> None:
-        """path param overrides working_dir from context."""
-        from axm_ast.hooks.trace_source import TraceSourceHook
-
-        pkg_path = _make_pkg(
-            tmp_path,
-            {
-                "__init__.py": "",
-                "core.py": "def main():\n    pass\n",
-            },
-        )
-        hook = TraceSourceHook()
-        # working_dir points to tmp_path (no package), but path param is correct
-        result = hook.execute(
-            {"working_dir": str(tmp_path)},
-            entry="main",
-            path=str(pkg_path),
-        )
-        assert result.success
-        assert "trace" in result.metadata
-        assert result.metadata["trace"][0]["name"] == "main"
-
-
-class TestImpactHook:
-    """ImpactHook execution tests."""
-
-    def test_impact_hook_execute(self, tmp_path: Path) -> None:
-        """Valid path + symbol → HookResult.ok with impact data."""
-        from axm_ast.hooks.impact import ImpactHook
-
-        pkg_path = _make_pkg(
-            tmp_path,
-            {
-                "__init__.py": "",
-                "core.py": (
-                    "def helper():\n    return 42\n\ndef main():\n    helper()\n"
-                ),
-            },
-        )
-        hook = ImpactHook()
-        result = hook.execute({"working_dir": str(pkg_path)}, symbol="helper")
-        assert result.success
-        assert "impact" in result.metadata
-        impact = result.metadata["impact"]
-        assert "symbol" in impact
-        assert impact["symbol"] == "helper"
-
-    def test_impact_hook_no_symbol(self) -> None:
-        """Missing symbol param → HookResult.fail."""
-        from axm_ast.hooks.impact import ImpactHook
-
-        hook = ImpactHook()
-        result = hook.execute({})
-        assert not result.success
-        assert "symbol" in (result.error or "").lower()
-
-    def test_impact_hook_path_param(self, tmp_path: Path) -> None:
-        """path param overrides working_dir from context."""
-        from axm_ast.hooks.impact import ImpactHook
-
-        pkg_path = _make_pkg(
-            tmp_path,
-            {
-                "__init__.py": "",
-                "core.py": "def main():\n    pass\n",
-            },
-        )
-        hook = ImpactHook()
-        result = hook.execute(
-            {"working_dir": "/nonexistent"},
-            symbol="main",
-            path=str(pkg_path),
-        )
-        assert result.success
-        assert "impact" in result.metadata
-
-
-# ─── AXM-421: extracted helper tests ────────────────────────────────────────
-
-
-class TestParseImportFromNodeBasic:
-    """_parse_import_from_node extracts module and imported names."""
-
-    def test_basic_import(self) -> None:
-        """``from .response import HttpResponse`` → ('.response', ['HttpResponse'])."""
-        from axm_ast.core.flows import _parse_import_from_node
-        from axm_ast.core.parser import parse_source
-
-        code = "from .response import HttpResponse\n"
-        tree = parse_source(code)
-        nodes = [
-            n
-            for n in getattr(tree.root_node, "children", [])
-            if getattr(n, "type", "") == "import_from_statement"
-        ]
-        assert len(nodes) == 1
-        module, names = _parse_import_from_node(nodes[0])
-        assert module == ".response"
-        assert names == ["HttpResponse"]
-
-
-class TestParseImportFromNodeMulti:
-    """_parse_import_from_node handles multi-name imports."""
-
-    def test_multi_import(self) -> None:
-        """``from .models import A, B`` → ('.models', ['A', 'B'])."""
-        from axm_ast.core.flows import _parse_import_from_node
-        from axm_ast.core.parser import parse_source
-
-        code = "from .models import A, B\n"
-        tree = parse_source(code)
-        nodes = [
-            n
-            for n in getattr(tree.root_node, "children", [])
-            if getattr(n, "type", "") == "import_from_statement"
-        ]
-        assert len(nodes) == 1
-        module, names = _parse_import_from_node(nodes[0])
-        assert module == ".models"
-        assert set(names) == {"A", "B"}
-
-
-class TestResolveRelativeModule:
-    """_resolve_relative_module resolves dotted paths."""
-
-    def test_single_dot(self) -> None:
-        """.response from django.http → django.http.response."""
-        from axm_ast.core.flows import _resolve_relative_module
-
-        result = _resolve_relative_module(".response", "django.http")
-        assert result == "django.http.response"
-
-    def test_double_dot(self) -> None:
-        """..utils from django.http.response → django.utils."""
-        from axm_ast.core.flows import _resolve_relative_module
-
-        result = _resolve_relative_module("..utils", "django.http.response")
-        assert result == "django.http.utils"
-
-    def test_dot_only(self) -> None:
-        """. from django.http → django.http (no rel_name)."""
-        from axm_ast.core.flows import _resolve_relative_module
-
-        result = _resolve_relative_module(".", "django.http")
-        assert result == "django.http"
-
-
 class TestFindCalleesNoReparse:
     """find_callees does not re-parse the same file twice."""
 
@@ -1307,9 +996,6 @@ class TestExceptionLogging:
         assert result is None
         assert len(messages) >= 1
         assert any("Failed to locate symbol" in m for m in messages)
-
-
-# ─── exclude_stdlib tests (AXM-584) ─────────────────────────────────────────
 
 
 class TestExcludeStdlib:
