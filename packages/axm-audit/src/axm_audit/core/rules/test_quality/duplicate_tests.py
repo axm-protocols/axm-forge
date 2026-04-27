@@ -156,6 +156,14 @@ def _propagate_call_args(call: ast.Call, asserted: set[str]) -> bool:
     return added
 
 
+def _collect_single_target_assigns(node: ast.FunctionDef) -> list[ast.Assign]:
+    return [
+        stmt
+        for stmt in _flatten_body(node.body)
+        if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1
+    ]
+
+
 def _compute_call_signature(node: ast.FunctionDef) -> str:
     """Signature of the call chain whose result is asserted on.
 
@@ -165,11 +173,7 @@ def _compute_call_signature(node: ast.FunctionDef) -> str:
     upstream calls in the chain produce different signatures.
     """
     asserted = _collect_asserted_names(node)
-    assigns = [
-        stmt
-        for stmt in _flatten_body(node.body)
-        if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1
-    ]
+    assigns = _collect_single_target_assigns(node)
 
     sigs: set[str] = set()
     changed = True
@@ -178,17 +182,24 @@ def _compute_call_signature(node: ast.FunctionDef) -> str:
         for assign in list(assigns):
             if not _is_tainted_assign(assign, asserted):
                 continue
-            if not isinstance(assign.value, ast.Call):
-                assigns.remove(assign)
-                continue
-            sig = _call_sig(assign.value)
-            if sig is not None:
-                sigs.add(sig)
-            if _propagate_call_args(assign.value, asserted):
+            if _process_tainted_assign(assign, asserted, sigs):
                 changed = True
             assigns.remove(assign)
 
     return ">".join(sorted(sigs))
+
+
+def _process_tainted_assign(
+    assign: ast.Assign,
+    asserted: set[str],
+    sigs: set[str],
+) -> bool:
+    if not isinstance(assign.value, ast.Call):
+        return False
+    sig = _call_sig(assign.value)
+    if sig is not None:
+        sigs.add(sig)
+    return _propagate_call_args(assign.value, asserted)
 
 
 def _expr_shape(expr: ast.expr) -> str:
