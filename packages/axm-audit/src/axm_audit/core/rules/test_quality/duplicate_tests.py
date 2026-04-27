@@ -504,6 +504,33 @@ def _group_by_s1_key(
     return grouped
 
 
+def _build_s1_cluster(
+    subgroup: list[_TestFunc],
+    sig: str,
+    pattern: str,
+    seen_pairs: set[tuple[str, str]],
+) -> dict[str, Any] | None:
+    """Build the S1 cluster dict for a single subgroup, or ``None`` if too small."""
+    claimed: set[str] = set()
+    for a, b in combinations(subgroup, 2):
+        pk = _pair_key(a, b)
+        if pk in seen_pairs:
+            continue
+        seen_pairs.add(pk)
+        claimed.add(_test_key(a))
+        claimed.add(_test_key(b))
+    if len(claimed) < _MIN_PAIR:
+        return None
+    confirmed = [t for t in subgroup if _test_key(t) in claimed]
+    signal, reason = _classify_s1(confirmed, sig, pattern)
+    return {
+        "signal": signal,
+        "reason": reason,
+        "similarity": 0.0,
+        "tests": [_test_entry(t) for t in confirmed],
+    }
+
+
 def _emit_s1_clusters(
     groups: dict[str, dict[str, list[_TestFunc]]],
     seen_pairs: set[tuple[str, str]],
@@ -514,26 +541,9 @@ def _emit_s1_clusters(
         for pattern, subgroup in subgroups.items():
             if len(subgroup) < _MIN_PAIR:
                 continue
-            claimed: set[str] = set()
-            for a, b in combinations(subgroup, 2):
-                pk = _pair_key(a, b)
-                if pk in seen_pairs:
-                    continue
-                seen_pairs.add(pk)
-                claimed.add(_test_key(a))
-                claimed.add(_test_key(b))
-            if len(claimed) < _MIN_PAIR:
-                continue
-            confirmed = [t for t in subgroup if _test_key(t) in claimed]
-            signal, reason = _classify_s1(confirmed, sig, pattern)
-            raw.append(
-                {
-                    "signal": signal,
-                    "reason": reason,
-                    "similarity": 0.0,
-                    "tests": [_test_entry(t) for t in confirmed],
-                }
-            )
+            cluster = _build_s1_cluster(subgroup, sig, pattern, seen_pairs)
+            if cluster is not None:
+                raw.append(cluster)
     return raw
 
 
