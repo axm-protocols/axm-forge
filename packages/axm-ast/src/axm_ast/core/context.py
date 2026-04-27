@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -564,42 +565,52 @@ def format_context_text(data: dict[str, Any], *, depth: int = 0) -> str:
     return "\n".join(lines)
 
 
+def _iter_packages(packages: Any) -> Iterator[dict[str, Any]]:
+    """Yield normalized package dicts from either dict or list shape."""
+    if isinstance(packages, dict):
+        for pkg_name in sorted(packages):
+            pkg = packages[pkg_name]
+            sym_names = pkg.get("symbol_names", [])
+            yield {
+                "name": pkg_name,
+                "module_count": pkg.get("modules", 0),
+                "symbol_count": pkg.get("symbols", 0),
+                "symbol_names": sym_names,
+                "symbol_names_total": pkg.get("symbol_names_truncated", len(sym_names)),
+                "modules": [],
+            }
+    else:
+        for pkg in packages:
+            yield {
+                "name": pkg["name"],
+                "module_count": pkg.get("module_count", 0),
+                "symbol_count": pkg.get("symbol_count", 0),
+                "symbol_names": [],
+                "symbol_names_total": 0,
+                "modules": pkg.get("modules") or [],
+            }
+
+
+def _format_one_package(pkg: dict[str, Any]) -> list[str]:
+    """Format a single normalized package as one or more text lines."""
+    line = f"  {pkg['name']}: {pkg['module_count']} mod, {pkg['symbol_count']} sym"
+    if pkg["symbol_names"]:
+        line += " " + _fmt_sym_bracket(pkg["symbol_names"], pkg["symbol_names_total"])
+    out = [line]
+    for mod in pkg["modules"]:
+        mod_syms = mod.get("symbols", [])
+        out.append(f"    {mod['name']} {_fmt_sym_bracket(mod_syms, len(mod_syms))}")
+    return out
+
+
 def _format_packages(data: dict[str, Any], lines: list[str]) -> None:
     """Append package lines for depth >= 1 context text."""
     packages = data.get("packages", [])
     if not packages:
         return
-
     lines.append("Packages:")
-
-    if isinstance(packages, dict):
-        for pkg_name in sorted(packages):
-            pkg = packages[pkg_name]
-            mods = pkg.get("modules", 0)
-            syms = pkg.get("symbols", 0)
-            line = f"  {pkg_name}: {mods} mod, {syms} sym"
-            sym_names = pkg.get("symbol_names", [])
-            if sym_names:
-                total = pkg.get("symbol_names_truncated", len(sym_names))
-                line += " " + _fmt_sym_bracket(sym_names, total)
-            lines.append(line)
-    else:
-        for pkg in packages:
-            line = (
-                f"  {pkg['name']}: "
-                f"{pkg.get('module_count', 0)} mod, "
-                f"{pkg.get('symbol_count', 0)} sym"
-            )
-            modules = pkg.get("modules")
-            if modules:
-                lines.append(line)
-                for mod in modules:
-                    mod_syms = mod.get("symbols", [])
-                    lines.append(
-                        f"    {mod['name']} {_fmt_sym_bracket(mod_syms, len(mod_syms))}"
-                    )
-            else:
-                lines.append(line)
+    for pkg in _iter_packages(packages):
+        lines.extend(_format_one_package(pkg))
 
 
 _SYM_BRACKET_LIMIT = 5
