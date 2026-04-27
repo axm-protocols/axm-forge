@@ -48,24 +48,40 @@ def _render_toc(modules: list[dict[str, Any]], header: str) -> str:
     return "\n".join(lines)
 
 
+def _strip_def(sig: str) -> str:
+    if sig.startswith("def "):
+        return sig[4:]
+    return sig
+
+
+def _render_function_signature(fn: dict[str, Any]) -> str:
+    return f"  {_strip_def(fn['signature'])}"
+
+
+def _render_class_label(cls: dict[str, Any]) -> str:
+    bases = ", ".join(cls["bases"]) if cls.get("bases") else ""
+    label = f"class {cls['name']}({bases})" if bases else f"class {cls['name']}"
+    return f"  {label}"
+
+
+def _render_module_section(mod: dict[str, Any]) -> list[str] | None:
+    functions = mod.get("functions", [])
+    classes = mod.get("classes", [])
+    if not functions and not classes:
+        return None
+    lines = [f"## {mod['name']}"]
+    lines.extend(_render_function_signature(fn) for fn in functions)
+    lines.extend(_render_class_label(cls) for cls in classes)
+    return lines
+
+
 def _render_summary(modules: list[dict[str, Any]], header: str) -> str:
+    """Render the signature-level summary view, skipping empty modules."""
     lines: list[str] = [header]
     for mod in modules:
-        name = mod["name"]
-        functions = mod.get("functions", [])
-        classes = mod.get("classes", [])
-        if not functions and not classes:
-            continue
-        lines.append(f"## {name}")
-        for fn in functions:
-            sig = fn["signature"]
-            if sig.startswith("def "):
-                sig = sig[4:]
-            lines.append(f"  {sig}")
-        for cls in classes:
-            bases = ", ".join(cls["bases"]) if cls.get("bases") else ""
-            label = f"class {cls['name']}({bases})" if bases else f"class {cls['name']}"
-            lines.append(f"  {label}")
+        section = _render_module_section(mod)
+        if section is not None:
+            lines.extend(section)
     return "\n".join(lines)
 
 
