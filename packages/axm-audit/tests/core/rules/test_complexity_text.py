@@ -10,11 +10,29 @@ def rule() -> ComplexityRule:
     return ComplexityRule()
 
 
+def _rank_for(cc: int) -> str:
+    """Mirror radon's grade mapping (A 1-5, B 6-10, C 11-20, D 21-30, E 31-40, F 41+)."""
+    if cc <= 5:
+        return "A"
+    if cc <= 10:
+        return "B"
+    if cc <= 20:
+        return "C"
+    if cc <= 30:
+        return "D"
+    if cc <= 40:
+        return "E"
+    return "F"
+
+
 def _make_offenders(
     items: list[tuple[str, str, int]],
 ) -> list[dict[str, str | int]]:
     """Build offender dicts from (file, function, cc) tuples."""
-    return [{"file": f, "function": fn, "cc": cc} for f, fn, cc in items]
+    return [
+        {"file": f, "function": fn, "cc": cc, "rank": _rank_for(cc)}
+        for f, fn, cc in items
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -23,7 +41,7 @@ def _make_offenders(
 
 
 class TestBuildResultTextFormat:
-    """AC1: text lines use format `\u2022 {file}:{function} {cc}`."""
+    """AC1: text lines use format `\u2022 {file}:{function} {cc} ({rank})`."""
 
     def test_build_result_text_format(self, rule: ComplexityRule) -> None:
         offenders = _make_offenders(
@@ -43,11 +61,12 @@ class TestBuildResultTextFormat:
             assert not line.startswith(" ")
             assert "\u2192" not in line
             assert "(cc=" not in line
-            # Matches \u2022 {file}:{function} {cc}
+            # Matches \u2022 {file}:{function} {cc} ({rank})
             assert line.startswith("\u2022 ")
             parts = line[2:].split(" ")
-            assert len(parts) == 2
+            assert len(parts) == 3
             assert ":" in parts[0]
+            assert parts[2].startswith("(") and parts[2].endswith(")")
 
     def test_build_result_empty_offenders(self, rule: ComplexityRule) -> None:
         """AC2: text=None when top_offenders is empty."""
@@ -112,7 +131,7 @@ class TestComplexityCheckTextRendering:
 
 class TestBuildResultEdgeCases:
     def test_class_method_preserved(self, rule: ComplexityRule) -> None:
-        """Class method shows as file.py:ClassName.method cc."""
+        """Class method shows as file.py:ClassName.method cc (rank)."""
         offenders = _make_offenders(
             [
                 ("src/service.py", "MyClass.process", 20),
@@ -121,7 +140,7 @@ class TestBuildResultEdgeCases:
         result = rule._build_result(1, offenders)
 
         assert result.text is not None
-        assert "src/service.py:MyClass.process 20" in result.text
+        assert "src/service.py:MyClass.process 20 (C)" in result.text
 
     def test_single_offender_no_trailing_newline(self, rule: ComplexityRule) -> None:
         """Single offender produces one line with no trailing newline."""
@@ -130,4 +149,4 @@ class TestBuildResultEdgeCases:
 
         assert result.text is not None
         assert "\n" not in result.text
-        assert result.text == "\u2022 a.py:heavy 25"
+        assert result.text == "\u2022 a.py:heavy 25 (D)"
