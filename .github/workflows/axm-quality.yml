@@ -58,6 +58,10 @@ jobs:
             > /tmp/init-logo.svg || true
 
       # ── Per-package tests (coverage) ────────────────────────────────
+      - name: Configure git identity (required by axm-init scaffold tests)
+        run: |
+          git config --global user.email "ci@axm.local"
+          git config --global user.name "axm CI"
       - name: Run tests with coverage
         run: |
           mkdir -p _publish/badges _publish/reports/coverage
