@@ -116,14 +116,12 @@
         "score": 85,
         "top_vulns": [
           {
-            "name": "pytest",
-            "version": "9.0.2",
+            "name": "pip",
+            "version": "26.0.1",
             "vuln_ids": [
-              "CVE-2025-71176"
+              "CVE-2026-3219"
             ],
-            "fix_versions": [
-              "9.0.3"
-            ]
+            "fix_versions": []
           }
         ]
       }

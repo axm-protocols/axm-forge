@@ -1,8 +1,8 @@
 {
-  "score": 82.9,
-  "grade": "B",
+  "score": 93.6,
+  "grade": "A",
   "total": 23,
-  "failed": 3,
+  "failed": 4,
   "success": false,
   "checks": [
     {
@@ -26,14 +26,28 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 2 module(s) above threshold (-6 pts)",
+      "message": "Coupling: 4 module(s) above threshold (-12 pts)",
       "details": {
-        "max_fan_out": 11,
-        "max_fan_in": 23,
-        "avg_coupling": 6.23,
-        "score": 94,
-        "n_over_threshold": 2,
+        "max_fan_out": 12,
+        "max_fan_in": 29,
+        "avg_coupling": 5.95,
+        "score": 88,
+        "n_over_threshold": 4,
         "over_threshold": [
+          {
+            "module": "axm_audit.core.rules.test_quality.tautology",
+            "fan_out": 12,
+            "role": "leaf",
+            "effective_threshold": 10,
+            "severity": "warning"
+          },
+          {
+            "module": "axm_audit.core.rules.test_quality.duplicate_tests",
+            "fan_out": 12,
+            "role": "leaf",
+            "effective_threshold": 10,
+            "severity": "warning"
+          },
           {
             "module": "axm_audit.core.rules.quality",
             "fan_out": 11,
@@ -42,7 +56,7 @@
             "severity": "warning"
           },
           {
-            "module": "axm_audit.core.rules.architecture",
+            "module": "axm_audit.core.rules.test_quality.private_imports",
             "fan_out": 11,
             "role": "leaf",
             "effective_threshold": 10,
@@ -63,88 +77,65 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 0/100 (11 high-complexity functions)",
+      "passed": true,
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
       "details": {
-        "high_complexity_count": 11,
+        "high_complexity_count": 1,
         "top_offenders": [
           {
-            "file": "formatters.py",
-            "function": "format_agent",
-            "cc": 15
-          },
-          {
-            "file": "formatters.py",
-            "function": "format_agent_text",
-            "cc": 14
-          },
-          {
-            "file": "dependencies.py",
-            "function": "DependencyHygieneRule._check_single",
-            "cc": 13
-          },
-          {
-            "file": "coverage.py",
-            "function": "TestCoverageRule._report_to_result",
-            "cc": 12
-          },
-          {
-            "file": "audit_test_text.py",
-            "function": "_build_header",
-            "cc": 11
-          },
-          {
-            "file": "quality_check.py",
-            "function": "QualityCheckHook",
-            "cc": 11
-          },
-          {
-            "file": "dependencies.py",
-            "function": "DependencyHygieneRule._check_workspace",
-            "cc": 11
-          },
-          {
-            "file": "quality_check.py",
-            "function": "QualityCheckHook.execute",
-            "cc": 10
-          },
-          {
-            "file": "practices.py",
-            "function": "BareExceptRule.check",
-            "cc": 10
-          },
-          {
-            "file": "practices.py",
-            "function": "SecurityPatternRule.check",
-            "cc": 10
-          },
-          {
-            "file": "security.py",
-            "function": "_build_security_result",
+            "file": "private_imports.py",
+            "function": "_iter_private_aliases",
             "cc": 10
           }
         ],
-        "score": 0
+        "score": 90
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 93% (93/100)",
+      "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 93.20850523643288,
-        "score": 93,
+        "coverage": 91.47718937949244,
+        "score": 91,
         "failures": []
       }
     },
     {
       "rule_id": "QUALITY_DEAD_CODE",
-      "passed": true,
-      "message": "No dead code detected.",
+      "passed": false,
+      "message": "Found 2 dead (unreferenced) symbol(s).",
       "details": {
-        "score": 100.0,
-        "dead_count": 0,
-        "symbols": []
+        "score": 90.0,
+        "dead_count": 2,
+        "symbols": [
+          {
+            "name": "_extract_test_failures",
+            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-audit/src/axm_audit/core/rules/coverage.py",
+            "line": 166,
+            "kind": "function"
+          },
+          {
+            "name": "_read_snippet",
+            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-audit/src/axm_audit/hooks/quality_check.py",
+            "line": 27,
+            "kind": "function"
+          }
+        ],
+        "top_offenders": [
+          {
+            "name": "_extract_test_failures",
+            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-audit/src/axm_audit/core/rules/coverage.py",
+            "line": 166,
+            "kind": "function"
+          },
+          {
+            "name": "_read_snippet",
+            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-audit/src/axm_audit/hooks/quality_check.py",
+            "line": 27,
+            "kind": "function"
+          }
+        ]
       }
     },
     {
@@ -187,14 +178,12 @@
         "score": 85,
         "top_vulns": [
           {
-            "name": "pytest",
-            "version": "9.0.2",
+            "name": "pip",
+            "version": "26.0.1",
             "vuln_ids": [
-              "CVE-2025-71176"
+              "CVE-2026-3219"
             ],
-            "fix_versions": [
-              "9.0.3"
-            ]
+            "fix_versions": []
           }
         ]
       }
@@ -212,13 +201,16 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (42/42)",
+      "message": "Docstring coverage: 98% (83/85)",
       "details": {
-        "coverage": 1.0,
-        "total": 42,
-        "documented": 42,
-        "missing": [],
-        "score": 100
+        "coverage": 0.98,
+        "total": 85,
+        "documented": 83,
+        "missing": [
+          "axm_audit/core/rules/test_quality/duplicate_tests.py:find",
+          "axm_audit/core/rules/test_quality/duplicate_tests.py:union"
+        ],
+        "score": 97
       }
     },
     {
@@ -243,12 +235,20 @@
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
-      "message": "1 source module(s) without tests",
+      "message": "9 source module(s) without tests",
       "details": {
         "missing": [
-          "autofix.py"
+          "__main__.py",
+          "autofix.py",
+          "coupling.py",
+          "models.py",
+          "pyramid_level.py",
+          "registry.py",
+          "severity.py",
+          "tautology.py",
+          "tautology_triage.py"
         ],
-        "score": 85
+        "score": 0
       }
     },
     {
@@ -310,13 +310,20 @@
     },
     {
       "rule_id": "QUALITY_TYPE",
-      "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
+      "passed": false,
+      "message": "Type score: 95/100 (1 errors)",
       "details": {
-        "error_count": 0,
-        "score": 100,
+        "error_count": 1,
+        "score": 95,
         "checked": "src/ tests/",
-        "errors": []
+        "errors": [
+          {
+            "file": "src/axm_audit/core/rules/test_quality/private_imports.py",
+            "line": 92,
+            "message": "\"AST\" has no attribute \"lineno\"",
+            "code": "attr-defined"
+          }
+        ]
       }
     },
     {

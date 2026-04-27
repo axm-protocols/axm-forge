@@ -1,5 +1,5 @@
 {
-  "score": 97.0,
+  "score": 98.5,
   "grade": "A",
   "total": 23,
   "failed": 3,
@@ -49,17 +49,11 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": true,
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 1,
-        "top_offenders": [
-          {
-            "file": "workspace_patcher.py",
-            "function": "_find_yaml_list_range",
-            "cc": 13
-          }
-        ],
-        "score": 90
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "score": 100
       }
     },
     {
@@ -67,7 +61,7 @@
       "passed": false,
       "message": "Test coverage: 97% (5 test(s) failed)",
       "details": {
-        "coverage": 96.7124427798585,
+        "coverage": 96.71790610718737,
         "score": 96,
         "failures": []
       }
@@ -122,14 +116,12 @@
         "score": 85,
         "top_vulns": [
           {
-            "name": "pytest",
-            "version": "9.0.2",
+            "name": "pip",
+            "version": "26.0.1",
             "vuln_ids": [
-              "CVE-2025-71176"
+              "CVE-2026-3219"
             ],
-            "fix_versions": [
-              "9.0.3"
-            ]
+            "fix_versions": []
           }
         ]
       }

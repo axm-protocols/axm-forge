@@ -1,8 +1,8 @@
 {
-  "score": 94.5,
+  "score": 97.9,
   "grade": "A",
   "total": 23,
-  "failed": 3,
+  "failed": 1,
   "success": false,
   "checks": [
     {
@@ -16,18 +16,11 @@
     },
     {
       "rule_id": "ARCH_GOD_CLASS",
-      "passed": false,
-      "message": "1 god class(es) found",
+      "passed": true,
+      "message": "0 god class(es) found",
       "details": {
-        "god_classes": [
-          {
-            "name": "SearchTool",
-            "file": "axm_ast/tools/search.py",
-            "lines": 430,
-            "methods": 18
-          }
-        ],
-        "score": 85
+        "god_classes": [],
+        "score": 100
       }
     },
     {
@@ -36,8 +29,8 @@
       "message": "Coupling: 0 modules above threshold (max fan-out: 13)",
       "details": {
         "max_fan_out": 13,
-        "max_fan_in": 37,
-        "avg_coupling": 4.87,
+        "max_fan_in": 38,
+        "avg_coupling": 4.78,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -55,23 +48,12 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 80/100 (2 high-complexity functions)",
+      "passed": true,
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 2,
-        "top_offenders": [
-          {
-            "file": "search.py",
-            "function": "SearchTool._collect_module_candidates",
-            "cc": 18
-          },
-          {
-            "file": "search.py",
-            "function": "SearchTool._render_text",
-            "cc": 11
-          }
-        ],
-        "score": 80
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "score": 100
       }
     },
     {
@@ -79,7 +61,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.39554284352282,
+        "coverage": 91.37479151775078,
         "score": 91,
         "failures": []
       }
@@ -134,14 +116,12 @@
         "score": 85,
         "top_vulns": [
           {
-            "name": "pytest",
-            "version": "9.0.2",
+            "name": "pip",
+            "version": "26.0.1",
             "vuln_ids": [
-              "CVE-2025-71176"
+              "CVE-2026-3219"
             ],
-            "fix_versions": [
-              "9.0.3"
-            ]
+            "fix_versions": []
           }
         ]
       }
@@ -159,11 +139,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (154/154)",
+      "message": "Docstring coverage: 100% (160/160)",
       "details": {
         "coverage": 1.0,
-        "total": 154,
-        "documented": 154,
+        "total": 160,
+        "documented": 160,
         "missing": [],
         "score": 100
       }

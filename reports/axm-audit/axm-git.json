@@ -1,8 +1,8 @@
 {
-  "score": 95.2,
+  "score": 98.2,
   "grade": "A",
   "total": 23,
-  "failed": 2,
+  "failed": 1,
   "success": false,
   "checks": [
     {
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 10,
         "max_fan_in": 21,
-        "avg_coupling": 4.88,
+        "avg_coupling": 4.92,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -48,23 +48,12 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 80/100 (2 high-complexity functions)",
+      "passed": true,
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 2,
-        "top_offenders": [
-          {
-            "file": "commit_phase.py",
-            "function": "_stage_spec_files",
-            "cc": 10
-          },
-          {
-            "file": "preflight.py",
-            "function": "PreflightHook",
-            "cc": 10
-          }
-        ],
-        "score": 80
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "score": 100
       }
     },
     {
@@ -72,7 +61,7 @@
       "passed": true,
       "message": "Test coverage: 96% (95/100)",
       "details": {
-        "coverage": 95.79468150896723,
+        "coverage": 95.78497251069028,
         "score": 95,
         "failures": []
       }
@@ -127,14 +116,12 @@
         "score": 85,
         "top_vulns": [
           {
-            "name": "pytest",
-            "version": "9.0.2",
+            "name": "pip",
+            "version": "26.0.1",
             "vuln_ids": [
-              "CVE-2025-71176"
+              "CVE-2026-3219"
             ],
-            "fix_versions": [
-              "9.0.3"
-            ]
+            "fix_versions": []
           }
         ]
       }
