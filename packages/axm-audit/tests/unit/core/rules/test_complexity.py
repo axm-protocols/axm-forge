@@ -44,6 +44,7 @@ def test_low_cc_high_cognitive_flagged(tmp_path: Path, rule: ComplexityRule) -> 
     )
     project = _write(tmp_path, body)
     result = rule.check(project)
+    assert result.details is not None
     assert result.details["high_complexity_count"] == 1
     top = result.details["top_offenders"][0]
     assert top["reason"] == "cog"
@@ -56,6 +57,7 @@ def test_high_cc_low_cognitive_flagged_as_cc(
     body = f"def big_match(x):\n    match x:\n{cases}\n        case _: return -1\n"
     project = _write(tmp_path, body)
     result = rule.check(project)
+    assert result.details is not None
     assert result.details["high_complexity_count"] == 1
     top = result.details["top_offenders"][0]
     assert top["reason"] == "cc"
@@ -83,6 +85,7 @@ def test_both_thresholds_single_violation(tmp_path: Path, rule: ComplexityRule) 
     )
     project = _write(tmp_path, body)
     result = rule.check(project)
+    assert result.details is not None
     assert result.details["high_complexity_count"] == 1
     top = result.details["top_offenders"][0]
     assert top["reason"] == "cc+cog"
@@ -110,6 +113,7 @@ def test_offenders_sorted_by_max_metric(tmp_path: Path, rule: ComplexityRule) ->
     )
     project = _write(tmp_path, func_a + "\n\n" + func_b)
     result = rule.check(project)
+    assert result.details is not None
     offenders = result.details["top_offenders"]
     assert len(offenders) == 2
     assert offenders[0]["function"] == "func_b"
@@ -120,6 +124,7 @@ def test_offender_dict_has_cognitive_key(tmp_path: Path, rule: ComplexityRule) -
     body = f"def cc_only(x):\n    match x:\n{cases}\n        case _: return -1\n"
     project = _write(tmp_path, body)
     result = rule.check(project)
+    assert result.details is not None
     top = result.details["top_offenders"][0]
     assert "cognitive" in top
     assert top["cognitive"] == 0
