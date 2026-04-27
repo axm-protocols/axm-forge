@@ -17,6 +17,15 @@ constraints = [
 ]
 
 [[package]]
+name = "annotated-doc"
+version = "0.0.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/57/ba/046ceea27344560984e26a590f90bc7f4a75b06701f653222458922b558c/annotated_doc-0.0.4.tar.gz", hash = "sha256:fbcda96e87e9c92ad167c2e53839e57503ecfda18804ea28102353485033faa4", size = 7288, upload-time = "2025-11-10T22:07:42.062Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1e/d3/26bf1008eb3d2daa8ef4cacc7f3bfdc11818d111f7e2d0201bc6e3b49d45/annotated_doc-0.0.4-py3-none-any.whl", hash = "sha256:571ac1dc6991c450b25a9c2d84a3705e2ae7a53467b5d111c24fa8baabbed320", size = 5303, upload-time = "2025-11-10T22:07:40.673Z" },
+]
+
+[[package]]
 name = "annotated-types"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -127,6 +136,7 @@ source = { editable = "packages/axm-audit" }
 dependencies = [
     { name = "axm" },
     { name = "axm-ast" },
+    { name = "complexipy" },
     { name = "cyclopts" },
     { name = "pydantic" },
     { name = "radon" },
@@ -156,6 +166,7 @@ docs = [
 requires-dist = [
     { name = "axm" },
     { name = "axm-ast", editable = "packages/axm-ast" },
+    { name = "complexipy", specifier = ">=5.4.0" },
     { name = "cyclopts", specifier = ">=3.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "radon", specifier = ">=6.0.1" },
@@ -543,6 +554,48 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93a6792e2acffb9d9d5cb0a5cfd8802644b7b1c9a02e4/colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44", size = 27697, upload-time = "2022-10-25T02:36:22.414Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335, upload-time = "2022-10-25T02:36:20.889Z" },
+]
+
+[[package]]
+name = "complexipy"
+version = "5.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tomli" },
+    { name = "typer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7f/42/830820022dad5b7444a485ddd900f1a076f35658ff384428b7be8f20ff9f/complexipy-5.4.0.tar.gz", hash = "sha256:eecfdf77821839c79c3853d0567235a7773e8037ed896a897487350251f68404", size = 339507, upload-time = "2026-04-25T02:11:19.771Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8b/f3/be547f8328f0b9ca722db22763df7ac7dfe0489c40cc9b26c552e4d47918/complexipy-5.4.0-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:e5ff5f785cf903dbf59121cd489c413901d79f19ccd43e4ca590501b14accdab", size = 2032846, upload-time = "2026-04-25T02:09:08.893Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/64/2e47784f986a7bdd929bc3416a43982396156b9d59ef43d3a2a40bd22e89/complexipy-5.4.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:7bb23bd23bdebfc7193821dcfb53952eb46c07404c0d94d04944d69abb416c81", size = 1962200, upload-time = "2026-04-25T02:09:10.657Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/9d/1e2cd605b3549b3f80f99f2d42015769f040f6d1dd1fcf7d68e47cddb5fc/complexipy-5.4.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:ee36d113becdbe44ee45183c0f8042aea6c81d1f9e78f843012afe2c962a2bf6", size = 2137850, upload-time = "2026-04-25T02:09:12.498Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/02/4f0ff203d12d6da8c5fac9d9410bf24b198b46a7f83b3b5cf67d8610e58a/complexipy-5.4.0-cp312-cp312-manylinux2014_armv7l.manylinux_2_17_armv7l.whl", hash = "sha256:72f3fb62cde1feea36b7cf01bbbc7f83ac0de27e682152bdab2d7fa89a8cdb01", size = 2073192, upload-time = "2026-04-25T02:09:14.22Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/eb/5d514a7d559fbc078fb9f027a46da47986d4f6d7e89c3ea57c3e207b4122/complexipy-5.4.0-cp312-cp312-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:b9cbe2477fbe259ad9bcf3ab4b1e4489afd10145aaf43c2ad1fd31ba9d5dc667", size = 2249686, upload-time = "2026-04-25T02:09:16.287Z" },
+    { url = "https://files.pythonhosted.org/packages/f1/af/f48bb0dd1c24ef72874bf3e217cb770eab3919138b599efda92e1c0706e2/complexipy-5.4.0-cp312-cp312-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:224f166699fd4d2044fb06ba0ac2de0c9961f76e5889ef4dc7b42863a302a3e6", size = 2487573, upload-time = "2026-04-25T02:09:17.903Z" },
+    { url = "https://files.pythonhosted.org/packages/29/2f/a0c967b8856a8fed630f4fd48d4f872c16e73dabfe28057c1e4138ad071e/complexipy-5.4.0-cp312-cp312-manylinux2014_s390x.manylinux_2_17_s390x.whl", hash = "sha256:00395ca31d033695d603e89f3707087badfa44b0b2316a58a3fca94fdedf3617", size = 2279451, upload-time = "2026-04-25T02:09:20.04Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/50/25ac85c94f8968db0bbe0e105e407e3885e1aea93b90eef03bfca77131a9/complexipy-5.4.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:48402ae78a0d328c29262bd5337833ae633be5e1679e3019ee508bab621bfc9f", size = 2172664, upload-time = "2026-04-25T02:09:21.849Z" },
+    { url = "https://files.pythonhosted.org/packages/ca/32/7a3a3c7b58e166f815ab65f4a03aba8cf25e387593d303d830c64f292f06/complexipy-5.4.0-cp312-cp312-win32.whl", hash = "sha256:f8c9a1256534b180d4e7627fc534ff8a20a6e75989ea041f878b61bb1318f083", size = 1772613, upload-time = "2026-04-25T02:09:23.482Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/f4/382a824d750b84f26bc55edc9713c6c7c631bd5292dc4631d40ffe8ce250/complexipy-5.4.0-cp312-cp312-win_amd64.whl", hash = "sha256:3fb6757cef095d400dd374645d6c97c4041c0148a7c9042dd3d4ad50c0021d62", size = 1885135, upload-time = "2026-04-25T02:09:25.215Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/f5/d865e45926fbeeac82790d140cf0466b994b4f09efd2340ea6107c7535c8/complexipy-5.4.0-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:1d4e57e38d7f81b0859bbfea7b0811bb0278fac76ecbe5349db519ddcab1bcd2", size = 2032847, upload-time = "2026-04-25T02:09:27.213Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/0d/20afb84148749774255eedf956374e3cff08c1037e5626d8eaf5e0ccccbb/complexipy-5.4.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:b6506a346f76680e02707d7f8b15736262c80f75efc0f58b0b97475f130d389f", size = 1962201, upload-time = "2026-04-25T02:09:29.208Z" },
+    { url = "https://files.pythonhosted.org/packages/65/14/735bb1c7c675ee9335d73812af3c79b2eee316d4fa8907a9fc65281988db/complexipy-5.4.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:70c7da3dc24155059239837f13c2d22ec1cd7bb29a482b8db458e298e5c92e38", size = 2137850, upload-time = "2026-04-25T02:09:32.025Z" },
+    { url = "https://files.pythonhosted.org/packages/48/9a/0da7a8ebcf3de5029e6b2be6c308f04167b887d5e8e58b33bf7ee5e7f959/complexipy-5.4.0-cp313-cp313-manylinux2014_armv7l.manylinux_2_17_armv7l.whl", hash = "sha256:2776e41408dd6103edfe2427f80e01b3c5b5f23b37b203d1d6571242f275af7d", size = 2073194, upload-time = "2026-04-25T02:09:33.609Z" },
+    { url = "https://files.pythonhosted.org/packages/79/20/fc04c1c48bd1dc30fdccbcd0984adce0555e33b5e19aacc9fe4c7df0cfb1/complexipy-5.4.0-cp313-cp313-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:6ba5e652741801096f0b5b5a365d05f4268db1b6f26cdc91ad54844d03de980a", size = 2249685, upload-time = "2026-04-25T02:09:35.273Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/b2/3e7856b38c61d0ba694a19f29dc6e871ef6f7924eb54059bec010cccd38e/complexipy-5.4.0-cp313-cp313-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:bb7586443257586cc1ab1c524bb71d8553e7acee433d78b4c1b2f61825237272", size = 2487574, upload-time = "2026-04-25T02:09:37.048Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/77/36b2cd71d1ea29cef14c91755095a14a77d308a8d63684e286a9372efb66/complexipy-5.4.0-cp313-cp313-manylinux2014_s390x.manylinux_2_17_s390x.whl", hash = "sha256:96f92fea96b97726cbbcb2b7f5979ab4c8d3fcb351a4c08f9ec0d58e1aba0ef9", size = 2279451, upload-time = "2026-04-25T02:09:38.811Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/c9/ea4364c82e4f97d267c873a1aaa06c5c187a83e98f55ebd92fb3c5c174e6/complexipy-5.4.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:037d9b14f9297e37f8a5752b3f0c26bb5ed70dd62b7b033f92ffe63e9dde423b", size = 2172663, upload-time = "2026-04-25T02:09:40.504Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/a3/fa6a852c62f69807115d0055178df461deaa5fd889e0a20dc013619e1737/complexipy-5.4.0-cp313-cp313-win32.whl", hash = "sha256:48b0ae7706a6c54da8ebfe0453d3a4b962e1300cca5db28c1aa3575fd1a61df2", size = 1772612, upload-time = "2026-04-25T02:09:42.497Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/06/e8cec169a787555920c19a58282676ef564d4fb40cf03fe1766f1ecb8a49/complexipy-5.4.0-cp313-cp313-win_amd64.whl", hash = "sha256:8a97b47ff486a3607c1331540e8ea2b401babef1f95ec3dac079e17cc5e65505", size = 1885137, upload-time = "2026-04-25T02:09:44.672Z" },
+    { url = "https://files.pythonhosted.org/packages/33/91/cf15faaa19e1dddbc2e940a07ade3137f8dc6fb428b75de2cf53d2b54b4f/complexipy-5.4.0-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:d11519de249f0dae9e14eb12bfb32a41ce18720ca6506fdf23f8bbce3a300030", size = 2032844, upload-time = "2026-04-25T02:09:46.623Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/9b/b39ebd45c1d097a43b2630ce5e634cb54327ec3d133cb590cb61f5e31839/complexipy-5.4.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:5ef21d5fa4bfcd9851a300ff08f3eea85ddd21afda656ab74198d01c74913d33", size = 1962200, upload-time = "2026-04-25T02:09:48.254Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/da/2aa7cb0a598ec162831f9c16ea6c0b09be27960defcbb574ddf203364442/complexipy-5.4.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:488097d185265556e64fec3a31d334f684ec55304bbb2533bd5708b4add420dd", size = 2137849, upload-time = "2026-04-25T02:09:50.481Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/bf/3464fe2401594f5e435c282dbce3599a3eee2de38e413f763e7639e35b14/complexipy-5.4.0-cp314-cp314-manylinux2014_armv7l.manylinux_2_17_armv7l.whl", hash = "sha256:43dca0070306007915b3c022239031df652a2c64ae0d3ffa10ba034d40b96226", size = 2073191, upload-time = "2026-04-25T02:09:52.236Z" },
+    { url = "https://files.pythonhosted.org/packages/ac/97/c233e04ffdde42daa919b4c1470c47dd07450bd263dc66b63be1d68a2c88/complexipy-5.4.0-cp314-cp314-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:1d8fb02e164264234e0d664d6d71d85a93706a77fdc54e603bc609a7fc9037d6", size = 2249686, upload-time = "2026-04-25T02:09:54.231Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/69/75103dd6a5bfe7e9fea8612f9641bb9ac1d23d748e6a353c6135b3b9924f/complexipy-5.4.0-cp314-cp314-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:101938466d910088d81f5494637ed8da992c93f417a69defc1e07b09771c4c1d", size = 2487575, upload-time = "2026-04-25T02:09:55.856Z" },
+    { url = "https://files.pythonhosted.org/packages/2c/b9/90f155eefa3aa10a6e70a94a8c7e0b06f19e37799c0c842b22b01e6a2824/complexipy-5.4.0-cp314-cp314-manylinux2014_s390x.manylinux_2_17_s390x.whl", hash = "sha256:bbaed28e0bbfe527df43534bf0ba67b1459c52b55a46c01b802f227427043760", size = 2279453, upload-time = "2026-04-25T02:09:57.821Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/77/0e645595d374f444f4838a44e3b125a58b0691fdd46d6702a805665f9e05/complexipy-5.4.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:5dc5d1db0c7d2befbf02e45a5ed2a64276c1ba4b710c1e86d031244eb33dea1c", size = 2172663, upload-time = "2026-04-25T02:09:59.723Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/a0/ea630fe40f278b3f83230d58cff18e89f3f7ac3c526755067c4848990998/complexipy-5.4.0-cp314-cp314-win32.whl", hash = "sha256:60cbcdd503e869fdf314db4594cd0220a0b5d6f0432c4fc4ed49f92e635917ff", size = 1772612, upload-time = "2026-04-25T02:10:01.43Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/fd/dd2504fcbbd04e1e7c4866e0a831ad8ca9f2513883049e91d8a4014b6b3e/complexipy-5.4.0-cp314-cp314-win_amd64.whl", hash = "sha256:d2ef116c563e98b16c7494f6c8f1b2ddf47fcfc8f6665f7db98fc2b8b24087d2", size = 1885133, upload-time = "2026-04-25T02:10:03.214Z" },
 ]
 
 [[package]]
@@ -2016,6 +2069,15 @@ wheels = [
 ]
 
 [[package]]
+name = "shellingham"
+version = "1.5.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/58/15/8b3609fd3830ef7b27b655beb4b4e9c62313a4e8da8c676e142cc210d58e/shellingham-1.5.4.tar.gz", hash = "sha256:8dbca0739d487e5bd35ab3ca4b36e11c4078f3a234bfce294b0a0291363404de", size = 10310, upload-time = "2023-10-24T04:13:40.426Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e0/f9/0595336914c5619e5f28a1fb793285925a8cd4b432c9da0a987836c7f822/shellingham-1.5.4-py2.py3-none-any.whl", hash = "sha256:7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686", size = 9755, upload-time = "2023-10-24T04:13:38.866Z" },
+]
+
+[[package]]
 name = "six"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2195,6 +2257,21 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/75/69/4946da3d6c0df316ccb938316ce007fb565d08f89d02d854f2d308f0309f/tree_sitter_python-0.25.0-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:71959832fc5d9642e52c11f2f7d79ae520b461e63334927e93ca46cd61cd9683", size = 107268, upload-time = "2025-09-11T06:47:54.388Z" },
     { url = "https://files.pythonhosted.org/packages/ed/a2/996fc2dfa1076dc460d3e2f3c75974ea4b8f02f6bc925383aaae519920e8/tree_sitter_python-0.25.0-cp310-abi3-win_amd64.whl", hash = "sha256:9bcde33f18792de54ee579b00e1b4fe186b7926825444766f849bf7181793a76", size = 76073, upload-time = "2025-09-11T06:47:55.773Z" },
     { url = "https://files.pythonhosted.org/packages/07/19/4b5569d9b1ebebb5907d11554a96ef3fa09364a30fcfabeff587495b512f/tree_sitter_python-0.25.0-cp310-abi3-win_arm64.whl", hash = "sha256:0fbf6a3774ad7e89ee891851204c2e2c47e12b63a5edbe2e9156997731c128bb", size = 74169, upload-time = "2025-09-11T06:47:56.747Z" },
+]
+
+[[package]]
+name = "typer"
+version = "0.25.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "annotated-doc" },
+    { name = "click" },
+    { name = "rich" },
+    { name = "shellingham" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7b/27/ede8cec7596e0041ba7e7b80b47d132562f56ff454313a16f6084e555c9f/typer-0.25.0.tar.gz", hash = "sha256:123eaf9f19bb40fd268310e12a542c0c6b4fab9c98d9d23342a01ff95e3ce930", size = 120150, upload-time = "2026-04-26T08:46:14.767Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9a/72/193d4e586ec5a4db834a36bbeb47641a62f951f114ffd0fe5b1b46e8d56f/typer-0.25.0-py3-none-any.whl", hash = "sha256:ac01b48823d3db9a83c9e164338057eadbb1c9957a2a6b4eeb486669c560b5dc", size = 55993, upload-time = "2026-04-26T08:46:15.889Z" },
 ]
 
 [[package]]
