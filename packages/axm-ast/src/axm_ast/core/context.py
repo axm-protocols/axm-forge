@@ -136,19 +136,34 @@ def _normalize_dep_name(dep: str) -> str:
     return name.lower().replace("_", "-")
 
 
+def _match_category(dep: str, known_deps: list[str]) -> bool:
+    """Check if dep equals or is prefixed by any known dep."""
+    return any(dep == known or dep.startswith(known) for known in known_deps)
+
+
+def _find_category(dep: str) -> str | None:
+    """Return the first stack category matching dep, or None."""
+    for category, known in STACK_CATEGORIES.items():
+        if _match_category(dep, known):
+            return category
+    return None
+
+
 def _categorize_deps(deps: list[str]) -> dict[str, list[str]]:
-    """Categorize dependency names into stack categories."""
+    """Group dep names by stack category, deduplicating per bucket.
+
+    Each dep is matched against ``STACK_CATEGORIES`` via prefix match;
+    deps with no match are skipped. Order within each bucket follows the
+    input order of ``deps``.
+    """
     result: dict[str, list[str]] = {}
-    seen: set[tuple[str, str]] = set()
     for dep in deps:
-        for category, known in STACK_CATEGORIES.items():
-            for known_dep in known:
-                if dep == known_dep or dep.startswith(known_dep):
-                    key = (category, dep)
-                    if key not in seen:
-                        seen.add(key)
-                        result.setdefault(category, []).append(dep)
-                    break
+        category = _find_category(dep)
+        if category is None:
+            continue
+        bucket = result.setdefault(category, [])
+        if dep not in bucket:
+            bucket.append(dep)
     return result
 
 
