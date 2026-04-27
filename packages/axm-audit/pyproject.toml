@@ -16,6 +16,7 @@ classifiers = [
 dependencies = [
     "axm",
     "axm-ast",
+    "complexipy>=5.4.0",
     "cyclopts>=3.0",
     "pydantic>=2.12.5",
     "radon>=6.0.1",

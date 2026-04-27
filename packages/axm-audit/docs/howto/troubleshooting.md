@@ -58,6 +58,14 @@ axm-audit audit . --category tooling
 
 **Solution**: Install radon directly: `uv add --dev radon`
 
+## Complexipy unavailable — cognitive layer disabled
+
+**Symptom**: `ComplexityRule` returns `severity=WARNING` with message "cognitive layer disabled (complexipy unavailable)" and `details["cognitive_disabled"] == True`.
+
+**Cause**: `complexipy` is required for the cognitive complexity layer (Cog<15, SonarSource convention). The rule tries `from complexipy import file_complexity` first, then falls back to a `complexipy` subprocess. Both unavailable means the rule degrades to CC-only (radon) mode and reports the degradation.
+
+**Solution**: Install complexipy: `uv add complexipy>=5.4.0`. The double constraint (CC<10 via ruff C901 + Cog<15 via axm-audit) is documented in your project CLAUDE.md.
+
 ## Score seems wrong
 
 If the composite score doesn't match expectations:
