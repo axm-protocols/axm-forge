@@ -120,12 +120,49 @@ def _jaccard_similarity(
 # ── Fingerprints ──────────────────────────────────────────────────────
 
 
+def _kwarg_value_token(value: ast.expr) -> str:
+    """One-token fingerprint of a kwarg value.
+
+    Scalar literals (``str``/``int``/``bool``/``None``) carry their actual
+    value so that ``format="mermaid"`` and ``format="text"`` produce distinct
+    tokens — branch-discriminating in dispatch tests.  Other shapes collapse
+    to their AST type name.
+    """
+    if isinstance(value, ast.Constant):
+        if isinstance(value.value, str):
+            return f"'{value.value}'"
+        if isinstance(value.value, (int, bool)) or value.value is None:
+            return repr(value.value)
+        return "<C>"
+    return type(value).__name__
+
+
+def _call_kwargs_fingerprint(call: ast.Call) -> str:
+    """Sorted ``name=<value-token>`` pairs of *call*'s kwargs, joined by ``,``.
+
+    Two calls with the same positional arity but different kwarg *names* or
+    different scalar kwarg *values* exercise structurally distinct branches
+    (e.g. ``execute(path=…)`` vs ``execute(path=…, format="mermaid")``;
+    ``execute(format="mermaid")`` vs ``execute(format="text")``).  Encoding
+    them lets the call signature discriminate.  ``**kwargs`` splat is encoded
+    as ``**``.
+    """
+    pairs: list[str] = []
+    for kw in call.keywords:
+        name = kw.arg if kw.arg is not None else "**"
+        pairs.append(f"{name}={_kwarg_value_token(kw.value)}")
+    if not pairs:
+        return ""
+    return "|" + ",".join(sorted(pairs))
+
+
 def _call_sig(call: ast.Call) -> str | None:
+    kw = _call_kwargs_fingerprint(call)
     match call.func:
         case ast.Name(id=name):
-            return f"{name}({len(call.args)})"
+            return f"{name}({len(call.args)}{kw})"
         case ast.Attribute(attr=attr, value=ast.Name(id=obj)):
-            return f"{obj}.{attr}({len(call.args)})"
+            return f"{obj}.{attr}({len(call.args)}{kw})"
     return None
 
 
