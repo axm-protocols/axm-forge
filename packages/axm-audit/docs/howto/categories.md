@@ -8,7 +8,7 @@ Focus your audit on specific areas instead of running all checks.
 |---|---|---|
 | `lint` | `LintingRule`, `FormattingRule`, `DiffSizeRule`, `DeadCodeRule` | Code quality (Ruff, git) |
 | `type` | `TypeCheckRule` | Type safety (mypy) |
-| `complexity` | `ComplexityRule` | Cyclomatic complexity (radon) |
+| `complexity` | `ComplexityRule` | Cyclomatic + cognitive complexity (radon CC + complexipy Cog) |
 | `security` | `SecurityRule`, `SecurityPatternRule` | Vulnerability detection (Bandit + patterns) |
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | Supply chain (pip-audit, deptry) |
 | `testing` | `TestCoverageRule` | Coverage enforcement (pytest-cov) |

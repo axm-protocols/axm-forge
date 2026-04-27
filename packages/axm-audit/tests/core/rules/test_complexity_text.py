@@ -28,9 +28,16 @@ def _rank_for(cc: int) -> str:
 def _make_offenders(
     items: list[tuple[str, str, int]],
 ) -> list[dict[str, str | int]]:
-    """Build offender dicts from (file, function, cc) tuples."""
+    """Build offender dicts from (file, function, cc) tuples (cog=0, reason='cc')."""
     return [
-        {"file": f, "function": fn, "cc": cc, "rank": _rank_for(cc)}
+        {
+            "file": f,
+            "function": fn,
+            "cc": cc,
+            "rank": _rank_for(cc),
+            "cognitive": 0,
+            "reason": "cc",
+        }
         for f, fn, cc in items
     ]
 
@@ -41,48 +48,44 @@ def _make_offenders(
 
 
 class TestBuildResultTextFormat:
-    """AC1: text lines use format `\u2022 {file}:{function} {cc} ({rank})`."""
+    """Text lines use format `• {file}:{function} cc={cc} ({rank}) cog={cog} [{reason}]`."""
 
     def test_build_result_text_format(self, rule: ComplexityRule) -> None:
         offenders = _make_offenders(
             [
                 ("src/mod.py", "foo", 15),
                 ("src/mod.py", "bar", 12),
-                ("src/util.py", "baz", 10),
+                ("src/util.py", "baz", 11),
             ]
         )
-        result = rule._build_result(3, offenders)
+        result = rule._build_result(offenders)
 
         assert result.text is not None
         lines = result.text.split("\n")
         assert len(lines) == 3
         for line in lines:
-            # No leading spaces, no arrow, no (cc=) wrapper
             assert not line.startswith(" ")
-            assert "\u2192" not in line
-            assert "(cc=" not in line
-            # Matches \u2022 {file}:{function} {cc} ({rank})
-            assert line.startswith("\u2022 ")
-            parts = line[2:].split(" ")
-            assert len(parts) == 3
-            assert ":" in parts[0]
-            assert parts[2].startswith("(") and parts[2].endswith(")")
+            assert "→" not in line
+            assert line.startswith("• ")
+            assert "cc=" in line
+            assert "cog=" in line
+            assert "[" in line and "]" in line
 
     def test_build_result_empty_offenders(self, rule: ComplexityRule) -> None:
-        """AC2: text=None when top_offenders is empty."""
-        result = rule._build_result(0, [])
+        """text=None when offenders is empty."""
+        result = rule._build_result([])
         assert result.text is None
 
     def test_build_result_details_unchanged(self, rule: ComplexityRule) -> None:
-        """AC3: details dict has correct keys and values."""
+        """details dict has correct keys and values."""
         offenders = _make_offenders(
             [
                 ("a.py", "f1", 15),
                 ("b.py", "f2", 12),
-                ("c.py", "f3", 10),
+                ("c.py", "f3", 11),
             ]
         )
-        result = rule._build_result(3, offenders)
+        result = rule._build_result(offenders)
 
         assert result.details is not None
         assert "high_complexity_count" in result.details
@@ -90,9 +93,12 @@ class TestBuildResultTextFormat:
         assert "score" in result.details
         assert result.details["high_complexity_count"] == 3
         assert result.details["score"] == 70
-        # top_offenders sorted descending by cc
-        ccs = [o["cc"] for o in result.details["top_offenders"]]
-        assert ccs == sorted(ccs, reverse=True)
+        # top_offenders sorted descending by max(cc, cognitive)
+        keys = [
+            max(int(o["cc"]), int(o["cognitive"]))
+            for o in result.details["top_offenders"]
+        ]
+        assert keys == sorted(keys, reverse=True)
 
 
 # ---------------------------------------------------------------------------
@@ -114,14 +120,13 @@ class TestComplexityCheckTextRendering:
                 ("src/validator.py", "validate_all", 14),
             ]
         )
-        result = rule._build_result(3, offenders)
+        result = rule._build_result(offenders)
 
         assert result.text is not None
         for line in result.text.split("\n"):
-            # file:function pattern, no arrows or (cc=)
             assert ":" in line
-            assert "\u2192" not in line
-            assert "(cc=" not in line
+            assert "→" not in line
+            assert "cc=" in line
 
 
 # ---------------------------------------------------------------------------
@@ -131,22 +136,24 @@ class TestComplexityCheckTextRendering:
 
 class TestBuildResultEdgeCases:
     def test_class_method_preserved(self, rule: ComplexityRule) -> None:
-        """Class method shows as file.py:ClassName.method cc (rank)."""
+        """Class method shows as file.py:ClassName.method cc=N (rank) ..."""
         offenders = _make_offenders(
             [
                 ("src/service.py", "MyClass.process", 20),
             ]
         )
-        result = rule._build_result(1, offenders)
+        result = rule._build_result(offenders)
 
         assert result.text is not None
-        assert "src/service.py:MyClass.process 20 (C)" in result.text
+        assert "src/service.py:MyClass.process" in result.text
+        assert "cc=20" in result.text
+        assert "(C)" in result.text
 
     def test_single_offender_no_trailing_newline(self, rule: ComplexityRule) -> None:
         """Single offender produces one line with no trailing newline."""
         offenders = _make_offenders([("a.py", "heavy", 25)])
-        result = rule._build_result(1, offenders)
+        result = rule._build_result(offenders)
 
         assert result.text is not None
         assert "\n" not in result.text
-        assert result.text == "\u2022 a.py:heavy 25 (D)"
+        assert result.text == "• a.py:heavy cc=25 (D) cog=0 [cc]"

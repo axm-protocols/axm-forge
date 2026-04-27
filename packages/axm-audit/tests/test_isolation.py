@@ -32,5 +32,5 @@ class TestDependencyIsolation:
             for d in deps
         }
 
-        allowed = {"axm", "axm-ast", "cyclopts", "pydantic", "radon"}
+        allowed = {"axm", "axm-ast", "complexipy", "cyclopts", "pydantic", "radon"}
         assert names == allowed, f"Unexpected runtime deps: {names - allowed}"
