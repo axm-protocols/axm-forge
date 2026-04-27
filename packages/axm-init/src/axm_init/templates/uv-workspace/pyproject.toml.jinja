@@ -25,8 +25,18 @@ target-version = "py{{ python_min_version | replace('.', '') }}"
 line-length = 99
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "C4", "S", "T20", "RUF"]
+select = ["E", "F", "I", "N", "UP", "B", "C4", "C901", "S", "T20", "RUF"]
 per-file-ignores = { "tests/**" = ["S101"] }
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 5
+max-branches = 12
+max-returns = 6
+max-statements = 50
+max-locals = 15
 
 [tool.pytest.ini_options]
 testpaths = ["packages"]
