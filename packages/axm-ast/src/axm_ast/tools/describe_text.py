@@ -97,24 +97,26 @@ def _render_functions(functions: list[dict[str, Any]], lines: list[str]) -> None
             lines.append(f"  {sig}")
 
 
+def _render_method_line(method: dict[str, Any]) -> str:
+    msig = _strip_def(method["signature"])
+    msummary = method.get("summary")
+    if msummary:
+        return f"    .{msig}  # {msummary}"
+    return f"    .{msig}"
+
+
+def _render_class_block(cls: dict[str, Any]) -> list[str]:
+    label = _render_class_label(cls)
+    summary = cls.get("summary")
+    block = [f"{label}  # {summary}" if summary else label]
+    block.extend(_render_method_line(m) for m in cls.get("methods", []))
+    return block
+
+
 def _render_classes(classes: list[dict[str, Any]], lines: list[str]) -> None:
+    """Append rendered class blocks (label + methods) to ``lines``."""
     for cls in classes:
-        bases = ", ".join(cls["bases"]) if cls.get("bases") else ""
-        label = f"class {cls['name']}({bases})" if bases else f"class {cls['name']}"
-        summary = cls.get("summary")
-        if summary:
-            lines.append(f"  {label}  # {summary}")
-        else:
-            lines.append(f"  {label}")
-        for method in cls.get("methods", []):
-            msig = method["signature"]
-            if msig.startswith("def "):
-                msig = msig[4:]
-            msummary = method.get("summary")
-            if msummary:
-                lines.append(f"    .{msig}  # {msummary}")
-            else:
-                lines.append(f"    .{msig}")
+        lines.extend(_render_class_block(cls))
 
 
 def _render_detailed(modules: list[dict[str, Any]], header: str) -> str:
