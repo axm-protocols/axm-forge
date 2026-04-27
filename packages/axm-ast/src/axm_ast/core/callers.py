@@ -14,6 +14,8 @@ Example:
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
+from pathlib import Path
 
 from axm_ast.core.analyzer import module_dotted_name
 from axm_ast.core.parser import parse_source
@@ -310,6 +312,22 @@ def _node_text_safe(node: object) -> str:
 # ─── Cross-module caller search ─────────────────────────────────────────────
 
 
+def _iter_cached_calls(pkg_root: Path) -> Iterator[CallSite] | None:
+    from axm_ast.core.cache import get_calls
+
+    try:
+        calls_by_module = get_calls(pkg_root)
+    except (ValueError, OSError):
+        return None
+    return (call for mod_calls in calls_by_module.values() for call in mod_calls)
+
+
+def _iter_fresh_calls(pkg: PackageInfo) -> Iterator[CallSite]:
+    for mod in pkg.modules:
+        mod_name = module_dotted_name(mod.path, pkg.root)
+        yield from extract_calls(mod, module_name=mod_name)
+
+
 def find_callers(
     pkg: PackageInfo,
     symbol: str,
@@ -332,31 +350,10 @@ def find_callers(
         >>> results[0].module
         'cli'
     """
-    from axm_ast.core.cache import get_calls
-
-    # Use cached call-sites when possible
-    try:
-        calls_by_module = get_calls(pkg.root)
-    except (ValueError, OSError):
-        # Fallback for programmatic PackageInfo without a real root
-        calls_by_module = None
-
-    all_calls: list[CallSite] = []
-
-    if calls_by_module is not None:
-        for mod_calls in calls_by_module.values():
-            for call in mod_calls:
-                if call.symbol == symbol:
-                    all_calls.append(call)
-    else:
-        for mod in pkg.modules:
-            mod_name = module_dotted_name(mod.path, pkg.root)
-            calls = extract_calls(mod, module_name=mod_name)
-            for call in calls:
-                if call.symbol == symbol:
-                    all_calls.append(call)
-
-    return all_calls
+    calls = _iter_cached_calls(pkg.root)
+    if calls is None:
+        calls = _iter_fresh_calls(pkg)
+    return [c for c in calls if c.symbol == symbol]
 
 
 def find_callers_workspace(
