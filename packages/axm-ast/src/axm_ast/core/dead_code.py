@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import tomllib
 from dataclasses import dataclass
+from itertools import dropwhile
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -510,6 +511,17 @@ def _first_identifier_in_node(node: object) -> str | None:
     return None
 
 
+def _extract_namespace_import_name(child: object) -> str | None:
+    """Return the imported name from a single namespace import child."""
+    if getattr(child, "type", "") == "aliased_import":
+        for ac in getattr(child, "children", None) or []:
+            name = _first_identifier_in_node(ac)
+            if name is not None:
+                return name
+        return None
+    return _first_identifier_in_node(child)
+
+
 def _collect_namespace_import_names(
     children: list[object],
     refs: set[str],
@@ -520,25 +532,12 @@ def _collect_namespace_import_names(
     nodes that appear *after* the ``import`` keyword (tree-sitter wraps
     the imported name in ``dotted_name`` when it looks like a module).
     """
-    past_import_kw = False
-    for child in children:
-        child_type = getattr(child, "type", "")
-        if child_type == "import":
-            past_import_kw = True
-            continue
-        if not past_import_kw:
-            continue
-        if child_type == "aliased_import":
-            # First child is the original name.
-            for ac in getattr(child, "children", None) or []:
-                name = _first_identifier_in_node(ac)
-                if name is not None:
-                    refs.add(name)
-                    break
-        else:
-            name = _first_identifier_in_node(child)
-            if name is not None:
-                refs.add(name)
+    rest = dropwhile(lambda c: getattr(c, "type", "") != "import", children)
+    next(rest, None)
+    for child in rest:
+        name = _extract_namespace_import_name(child)
+        if name is not None:
+            refs.add(name)
 
 
 def _find_tests_dir(pkg_root: Path) -> Path | None:
