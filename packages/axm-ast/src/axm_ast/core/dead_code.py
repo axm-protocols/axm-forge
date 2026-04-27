@@ -427,23 +427,25 @@ def _node_identifier_text(node: object) -> str | None:
     return None
 
 
+def _extract_import_name(child: object) -> str | None:
+    """Return the imported symbol name from a single ``import_from_statement`` child."""
+    child_type = getattr(child, "type", "")
+    if child_type == "identifier":
+        return _node_identifier_text(child)
+    if child_type == "aliased_import":
+        for ac in getattr(child, "children", None) or []:
+            name = _node_identifier_text(ac)
+            if name is not None:
+                return name
+    return None
+
+
 def _collect_import_names(children: list[object], refs: set[str]) -> None:
     """Collect imported symbol names from an ``import_from_statement``."""
     for child in children:
-        child_type = getattr(child, "type", "")
-        if child_type == "dotted_name":
-            continue  # module path, not the imported name
-        if child_type == "aliased_import":
-            alias_children = getattr(child, "children", None) or []
-            for ac in alias_children:
-                name = _node_identifier_text(ac)
-                if name is not None:
-                    refs.add(name)
-                    break  # first identifier is the original name
-        elif child_type == "identifier":
-            name = _node_identifier_text(child)
-            if name is not None:
-                refs.add(name)
+        name = _extract_import_name(child)
+        if name is not None:
+            refs.add(name)
 
 
 def _extract_lazy_namespace_names(mod: ModuleInfo) -> set[str]:
