@@ -325,28 +325,48 @@ def _fmt_tree_section(result: dict[str, Any], parts: list[str]) -> None:
         parts.append("")
 
 
+def _fmt_full_page(page: dict[str, Any]) -> list[str]:
+    return [page["content"].rstrip()]
+
+
+def _fmt_headings(headings: list[dict[str, Any]]) -> list[str]:
+    return [
+        f"{'  ' * (h['level'] - 1)}{'#' * h['level']} {h['text']}" for h in headings
+    ]
+
+
+def _fmt_summaries(summaries: dict[str, str]) -> list[str]:
+    if not summaries:
+        return []
+    return [
+        "",
+        *(f"  {heading}: {sentence}" for heading, sentence in summaries.items()),
+    ]
+
+
+def _fmt_toc_page(page: dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    if page.get("line_count"):
+        out.append(f"({page['line_count']} lines)")
+    out.extend(_fmt_headings(page.get("headings", [])))
+    out.extend(_fmt_summaries(page.get("summaries", {})))
+    return out
+
+
+def _fmt_one_page(page: dict[str, Any]) -> list[str]:
+    out = [f"📄 {page['path']}", "─" * 40]
+    if "content" in page:
+        out.extend(_fmt_full_page(page))
+    else:
+        out.extend(_fmt_toc_page(page))
+    out.append("")
+    return out
+
+
 def _fmt_pages(result: dict[str, Any], parts: list[str]) -> None:
     """Format documentation pages."""
     for page in result.get("pages", []):
-        parts.append(f"📄 {page['path']}")
-        parts.append("─" * 40)
-
-        if "content" in page:
-            # detail=full
-            parts.append(page["content"].rstrip())
-        else:
-            # detail=toc or summary
-            if page.get("line_count"):
-                parts.append(f"({page['line_count']} lines)")
-            for h in page.get("headings", []):
-                indent = "  " * (h["level"] - 1)
-                parts.append(f"{indent}{'#' * h['level']} {h['text']}")
-            summaries = page.get("summaries", {})
-            if summaries:
-                parts.append("")
-                for heading, sentence in summaries.items():
-                    parts.append(f"  {heading}: {sentence}")
-        parts.append("")
+        parts.extend(_fmt_one_page(page))
 
 
 def format_docs_json(result: dict[str, Any]) -> dict[str, Any]:
