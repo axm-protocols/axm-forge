@@ -105,6 +105,7 @@ select = [
     "B",   # flake8-bugbear
     "BLE", # flake8-blind-except
     "C4",  # flake8-comprehensions
+    "C901",# mccabe complexity
     "PLR", # pylint refactor (magic numbers)
     "S",   # flake8-bandit (security)
     "T20", # flake8-print
@@ -125,6 +126,16 @@ ignore = [
 "src/axm_init/models/check.py" = ["PLR2004"]
 "src/axm_init/tools/*" = ["BLE001"]
 "src/axm_init/cli.py" = ["PLR0913", "PLR5501", "PLR2004"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 5
+max-branches = 12
+max-returns = 6
+max-statements = 50
+max-locals = 15
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_init"]
