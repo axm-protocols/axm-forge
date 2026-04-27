@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from axm_audit.core.rules.base import (
-    COMPLEXITY_THRESHOLD,
     PASS_THRESHOLD,
     ProjectRule,
     register_rule,
@@ -20,6 +19,8 @@ from axm_audit.core.rules.base import (
 from axm_audit.models.results import CheckResult, Severity
 
 __all__ = ["ComplexityRule"]
+
+_HIGH_COMPLEXITY_RANKS: frozenset[str] = frozenset({"C", "D", "E", "F"})
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class ComplexityRule(ProjectRule):
     """Analyse cyclomatic complexity via radon Python API.
 
     Scoring: 100 - (high_complexity_count * 10), min 0.
-    High complexity = CC >= 10 (industry standard).
+    High complexity = radon grade C or worse (CC >= 11), aligned with ruff.
 
     Falls back to ``radon cc --json`` subprocess when the Python API
     is not importable (e.g. auditing a project that does not declare
@@ -51,9 +52,10 @@ class ComplexityRule(ProjectRule):
         src_path = project_path / "src"
 
         # Try Python API first, fall back to subprocess
-        cc_visit = _try_import_radon()
-        if cc_visit is not None:
-            return self._check_via_api(src_path, cc_visit)
+        radon_api = _try_import_radon()
+        if radon_api is not None:
+            cc_visit, cc_rank = radon_api
+            return self._check_via_api(src_path, cc_visit, cc_rank)
 
         return self._check_via_subprocess(src_path)
 
@@ -65,6 +67,7 @@ class ComplexityRule(ProjectRule):
         self,
         src_path: Path,
         cc_visit: Callable[..., list[Any]],
+        cc_rank: Callable[[int], str],
     ) -> CheckResult:
         """Analyse complexity using the radon Python API."""
         high_complexity_count = 0
@@ -81,7 +84,8 @@ class ComplexityRule(ProjectRule):
                 if not hasattr(block, "complexity"):
                     continue
                 cc: int = block.complexity
-                if cc >= COMPLEXITY_THRESHOLD:
+                rank = cc_rank(cc)
+                if rank in _HIGH_COMPLEXITY_RANKS:
                     high_complexity_count += 1
                     classname = getattr(block, "classname", "")
                     name = f"{classname}.{block.name}" if classname else block.name
@@ -90,6 +94,7 @@ class ComplexityRule(ProjectRule):
                             "file": py_file.name,
                             "function": name,
                             "cc": cc,
+                            "rank": rank,
                         }
                     )
 
@@ -150,10 +155,11 @@ class ComplexityRule(ProjectRule):
             for block in blocks:
                 if not isinstance(block, dict):
                     continue
-                raw_cc = block.get("complexity", 0)
-                cc = int(raw_cc) if isinstance(raw_cc, int | float | str) else 0
-                if cc >= COMPLEXITY_THRESHOLD:
+                rank = str(block.get("rank", ""))
+                if rank in _HIGH_COMPLEXITY_RANKS:
                     high_complexity_count += 1
+                    raw_cc = block.get("complexity", 0)
+                    cc = int(raw_cc) if isinstance(raw_cc, int | float | str) else 0
                     raw_name = str(block.get("name", ""))
                     classname = str(block.get("classname", ""))
                     name = f"{classname}.{raw_name}" if classname else raw_name
@@ -162,6 +168,7 @@ class ComplexityRule(ProjectRule):
                             "file": file_name,
                             "function": name,
                             "cc": cc,
+                            "rank": rank,
                         }
                     )
 
@@ -178,7 +185,8 @@ class ComplexityRule(ProjectRule):
         passed = score >= PASS_THRESHOLD
 
         text_lines = [
-            f"\u2022 {o['file']}:{o['function']} {o['cc']}" for o in top_offenders
+            f"\u2022 {o['file']}:{o['function']} {o['cc']} ({o['rank']})"
+            for o in top_offenders
         ]
 
         return CheckResult(
@@ -203,15 +211,15 @@ class ComplexityRule(ProjectRule):
         )
 
 
-def _try_import_radon() -> Callable[..., list[Any]] | None:
-    """Try to import ``radon.complexity.cc_visit``.
+def _try_import_radon() -> tuple[Callable[..., list[Any]], Callable[[int], str]] | None:
+    """Try to import radon's ``cc_visit`` and ``cc_rank``.
 
     Returns:
-        The ``cc_visit`` callable, or ``None`` if radon is not available.
+        ``(cc_visit, cc_rank)`` callables, or ``None`` if radon is not available.
     """
     try:
-        from radon.complexity import cc_visit
+        from radon.complexity import cc_rank, cc_visit
 
-        return cc_visit  # type: ignore[no-any-return]
+        return cc_visit, cc_rank
     except ModuleNotFoundError:
         return None

@@ -90,12 +90,6 @@ class TestScoringConstants:
 
         assert PASS_THRESHOLD == 90
 
-    def test_complexity_threshold_value(self) -> None:
-        """COMPLEXITY_THRESHOLD should be 10."""
-        from axm_audit.core.rules.base import COMPLEXITY_THRESHOLD
-
-        assert COMPLEXITY_THRESHOLD == 10
-
     def test_perfect_score_value(self) -> None:
         """PERFECT_SCORE should be 100."""
         from axm_audit.core.rules.base import PERFECT_SCORE

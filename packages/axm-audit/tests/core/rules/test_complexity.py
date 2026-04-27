@@ -391,6 +391,7 @@ def my_func(x: int, y: int, z: int) -> str:
                         "name": "check",
                         "classname": "HighClass",
                         "complexity": 12,
+                        "rank": "C",
                         "lineno": 1,
                         "col_offset": 4,
                         "endline": 30,
@@ -400,6 +401,7 @@ def my_func(x: int, y: int, z: int) -> str:
                         "name": "top_func",
                         "classname": "",
                         "complexity": 15,
+                        "rank": "C",
                         "lineno": 32,
                         "col_offset": 0,
                         "endline": 60,
@@ -513,12 +515,14 @@ def my_func(x: int, y: int, z: int) -> str:
                     "name": "simple",
                     "classname": "",
                     "complexity": 2,
+                    "rank": "A",
                 },
                 {
                     "type": "method",
                     "name": "complex_method",
                     "classname": "MyClass",
                     "complexity": 15,
+                    "rank": "C",
                 },
             ],
             "file2.py": [
@@ -527,6 +531,7 @@ def my_func(x: int, y: int, z: int) -> str:
                     "name": "another_complex",
                     "classname": "",
                     "complexity": 20,
+                    "rank": "C",
                 },
                 "ignore_this_string_block",  # type: ignore[list-item]
             ],

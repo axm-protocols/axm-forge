@@ -103,8 +103,6 @@ PASS_THRESHOLD: int = 90
 LINT_PASS_THRESHOLD: int = 100
 """Minimum lint score — zero tolerance for lint issues."""
 
-COMPLEXITY_THRESHOLD: int = 10
-"""Cyclomatic complexity ceiling — functions at or above are flagged."""
 
 PERFECT_SCORE: int = 100
 """Maximum achievable score."""
