@@ -93,7 +93,7 @@ line-length = 88
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "PLR", "S", "T20", "RUF"]
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20", "RUF"]
 ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
@@ -106,6 +106,16 @@ ignore = ["S101"]
 "src/axm_audit/core/rules/test_quality/duplicate_tests.py" = ["RUF012"]
 "src/axm_audit/core/rules/test_quality/pyramid_level.py" = ["RUF012"]
 "src/axm_audit/core/rules/test_quality/tautology.py" = ["RUF012"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 5
+max-branches = 12
+max-returns = 6
+max-statements = 50
+max-locals = 15
 
 [tool.ruff.lint.isort]
 known-first-party = ["axm_audit"]
