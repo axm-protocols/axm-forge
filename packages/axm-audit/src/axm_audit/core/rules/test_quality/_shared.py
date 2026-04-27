@@ -11,6 +11,7 @@ import ast
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from axm_audit.core.rules._helpers import get_ast_cache, parse_file_safe
 
@@ -860,6 +861,18 @@ def _is_weak_assert(stmt: ast.stmt) -> bool | None:
     return None
 
 
+_SmokeStmtKind = Literal["import", "weak", "strong", "other"]
+
+
+def _classify_smoke_stmt(stmt: ast.stmt) -> _SmokeStmtKind:
+    if isinstance(stmt, ast.Import | ast.ImportFrom):
+        return "import"
+    weak = _is_weak_assert(stmt)
+    if weak is None:
+        return "other"
+    return "weak" if weak else "strong"
+
+
 def is_import_smoke_test(func: ast.FunctionDef) -> bool:
     """Detect an import + weak-assert smoke test.
 
@@ -872,21 +885,8 @@ def is_import_smoke_test(func: ast.FunctionDef) -> bool:
     body = [s for s in func.body if not _is_docstring_stmt(s)]
     if len(body) > _SMOKE_BODY_BUDGET:
         return False
-    has_import = False
-    has_any_assert = False
-    has_only_weak = True
-    for stmt in body:
-        if isinstance(stmt, ast.Import | ast.ImportFrom):
-            has_import = True
-            continue
-        weak = _is_weak_assert(stmt)
-        if weak is None:
-            has_only_weak = False
-            continue
-        has_any_assert = True
-        if not weak:
-            has_only_weak = False
-    return has_import and has_any_assert and has_only_weak
+    kinds = {_classify_smoke_stmt(stmt) for stmt in body}
+    return "import" in kinds and "weak" in kinds and not (kinds & {"strong", "other"})
 
 
 def _has_lazy_filename(test_file: Path) -> bool:
