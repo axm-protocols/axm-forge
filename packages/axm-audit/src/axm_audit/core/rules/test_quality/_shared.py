@@ -266,15 +266,18 @@ def get_pkg_prefixes(pkg_root: Path) -> set[str]:
     }
 
 
+def _is_all_target(node: ast.AST) -> bool:
+    return isinstance(node, ast.Name) and node.id == "__all__"
+
+
 def _extract_all_from_tree(tree: ast.Module) -> set[str] | None:
     for node in tree.body:
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "__all__":
-                    return _literal_strings(node.value)
-        if isinstance(node, ast.AugAssign):
-            if isinstance(node.target, ast.Name) and node.target.id == "__all__":
-                return _literal_strings(node.value)
+        if isinstance(node, ast.Assign) and any(
+            _is_all_target(t) for t in node.targets
+        ):
+            return _literal_strings(node.value)
+        if isinstance(node, ast.AugAssign) and _is_all_target(node.target):
+            return _literal_strings(node.value)
     return None
 
 
