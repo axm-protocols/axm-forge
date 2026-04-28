@@ -20,7 +20,8 @@ from axm_audit.models.results import AuditResult, CheckResult, Severity
 
 logger = logging.getLogger(__name__)
 
-# Valid audit categories — aligned with scoring weights
+# Valid audit categories. Note: structure and tooling emit findings
+# but are NOT included in quality_score (see results._CATEGORY_WEIGHTS).
 VALID_CATEGORIES = {
     "lint",
     "type",
