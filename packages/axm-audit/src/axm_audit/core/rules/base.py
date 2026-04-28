@@ -75,7 +75,7 @@ def get_registry() -> dict[str, list[type[ProjectRule]]]:
 # │ QUALITY_FORMAT      │  5      │ per unformatted file     │
 # │ QUALITY_TYPE        │  5      │ per type error           │
 # │ QUALITY_COMPLEXITY  │ 10      │ per high-CC function     │
-# │ QUALITY_DIFF_SIZE   │ linear  │ 100→0 over [200,800] LOC │
+# │ QUALITY_DIFF_SIZE   │ linear  │ 100→0 over [400,1200] LOC│
 # │ QUALITY_SECURITY    │ 15/5    │ per HIGH/MEDIUM finding  │
 # │ QUALITY_COVERAGE    │ ratio   │ branch coverage %        │
 # │ DEPS_AUDIT          │ 15      │ per vulnerable package   │
