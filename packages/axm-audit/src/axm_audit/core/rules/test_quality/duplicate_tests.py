@@ -759,37 +759,43 @@ def _pick_merged_signal(signals: list[str]) -> str:
     return ""
 
 
+def _aggregate_group(
+    clusters: list[dict[str, Any]],
+    indices: list[int],
+) -> tuple[dict[tuple[Any, ...], dict[str, Any]], list[str], list[str], float]:
+    """Collapse a union-find group into (tests_by_key, reasons, signals, max_sim)."""
+    tests_by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
+    reasons: list[str] = []
+    signals: list[str] = []
+    max_sim = 0.0
+    for idx in indices:
+        cluster = clusters[idx]
+        if reason := cluster.get("reason"):
+            reasons.append(reason)
+        if signal := cluster.get("signal"):
+            signals.append(signal)
+        max_sim = max(max_sim, cluster.get("similarity") or 0.0)
+        for t in cluster.get("tests", []):
+            key = (t.get("file"), t.get("name"), t.get("line", 0))
+            tests_by_key[key] = t
+    return tests_by_key, reasons, signals, max_sim
+
+
 def _merge_clusters(clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Union-find merge; ambiguous sub-clusters dominate the merged signal."""
     if not clusters:
         return []
 
     groups = _build_union_find(clusters)
-
     merged: list[dict[str, Any]] = []
     for indices in groups.values():
-        tests_by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
-        reasons: list[str] = []
-        signals: list[str] = []
-        max_sim = 0.0
-        for idx in indices:
-            cluster = clusters[idx]
-            if cluster.get("reason"):
-                reasons.append(cluster["reason"])
-            if cluster.get("signal"):
-                signals.append(cluster["signal"])
-            sim = cluster.get("similarity") or 0.0
-            max_sim = max(max_sim, sim)
-            for t in cluster.get("tests", []):
-                key = (t.get("file"), t.get("name"), t.get("line", 0))
-                tests_by_key[key] = t
+        tests_by_key, reasons, signals, max_sim = _aggregate_group(clusters, indices)
         if len(tests_by_key) < _MIN_PAIR:
             continue
-        merged_signal = _pick_merged_signal(signals)
         unique_reasons = list(dict.fromkeys(reasons))
         merged.append(
             {
-                "signal": merged_signal,
+                "signal": _pick_merged_signal(signals),
                 "reason": " + ".join(unique_reasons[:3]),
                 "similarity": max_sim,
                 "tests": list(tests_by_key.values()),
