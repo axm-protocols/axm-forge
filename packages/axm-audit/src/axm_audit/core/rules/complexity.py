@@ -33,8 +33,9 @@ class ComplexityRule(ProjectRule):
     """Analyse complexity via radon (CC) and complexipy (Cognitive).
 
     Double constraint: a function is flagged if either radon grade is
-    C+ (CC >= 11, aligned with ruff C901) or cognitive complexity >= 15
-    (SonarSource convention). A function exceeding both thresholds counts
+    C+ (CC >= 11, aligned with ruff C901) or cognitive complexity > 15
+    (SonarSource convention: strictly higher than 15, aligned with
+    complexipy). A function exceeding both thresholds counts
     as one violation (no double penalty) but is reported with
     ``reason='cc+cog'``. Falls back gracefully to CC-only mode when
     complexipy is unavailable.
@@ -256,7 +257,7 @@ def _classify(
 ) -> dict[str, str | int] | None:
     """Classify a function. Return offender dict if it violates, else None."""
     cc_violates = rank in _HIGH_COMPLEXITY_RANKS
-    cog_violates = cognitive >= _COGNITIVE_THRESHOLD
+    cog_violates = cognitive > _COGNITIVE_THRESHOLD
     if not (cc_violates or cog_violates):
         return None
     if cc_violates and cog_violates:
