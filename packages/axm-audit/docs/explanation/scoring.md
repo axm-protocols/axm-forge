@@ -108,12 +108,16 @@ Average of two sub-scores:
 - **Bandit**: `max(0, 100 − high_count × 15 − medium_count × 5)` — vulnerability scanning
 - **Hardcoded secrets**: `max(0, 100 − count × 25)` — regex pattern detection
 
+Per-category pass threshold: ≥ 90.
+
 ### Dependencies Score
 
 Average of two sub-scores:
 
 - **pip-audit**: `max(0, 100 − vuln_count × 15)` — known CVEs (env tools `pip`, `setuptools`, `wheel`, `uv`, `pip-audit` are excluded from the count)
 - **deptry**: `max(0, 100 − issue_count × 10)` — unused/missing deps
+
+Per-category pass threshold: ≥ 90.
 
 ### Testing Score
 
