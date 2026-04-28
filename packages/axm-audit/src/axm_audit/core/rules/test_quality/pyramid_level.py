@@ -13,6 +13,7 @@ stubbed here as identities — ticket #4b replaces the two placeholders.
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -192,19 +193,20 @@ def _expr_touches(expr: ast.AST, names: set[str]) -> bool:
     return False
 
 
+def _call_subexprs(call: ast.Call) -> Iterator[ast.expr]:
+    yield from call.args
+    yield from (kw.value for kw in call.keywords if kw.value is not None)
+
+
 def _tmp_path_reaches_call(func: ast.FunctionDef, tainted: set[str]) -> bool:
     if not tainted:
         return False
-    for node in ast.walk(func):
-        if not isinstance(node, ast.Call):
-            continue
-        for arg in node.args:
-            if _expr_touches(arg, tainted):
-                return True
-        for kw in node.keywords:
-            if kw.value is not None and _expr_touches(kw.value, tainted):
-                return True
-    return False
+    return any(
+        _expr_touches(expr, tainted)
+        for node in ast.walk(func)
+        if isinstance(node, ast.Call)
+        for expr in _call_subexprs(node)
+    )
 
 
 def _detect_tmp_path_usage(func: ast.FunctionDef) -> bool:
