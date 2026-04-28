@@ -92,10 +92,17 @@ def get_registry() -> dict[str, list[type[ProjectRule]]]:
 # │                     │         │  HTTP without timeout)   │
 
 # │ PRACTICE_TEST_MIRROR│ 15      │ per untested module      │
+# │ TEST_PYRAMID_LEVEL  │ ratio   │ tests at correct level   │
+# │ TEST_TAUTOLOGY      │ ratio   │ non-tautological tests   │
+# │ TEST_PRIVATE_IMPORT │ ratio   │ public-API imports       │
+# │ TEST_DUPLICATE      │ ratio   │ unique test bodies       │
 # │ STRUCTURE_PYPROJECT │ binary  │ field presence checks    │
+# │ TOOL_<NAME>         │ binary  │ CLI tool availability    │
 # └─────────────────────┴─────────┴──────────────────────────┘
 #
-# Pass threshold: score >= 90 to pass.
+# Composite quality score = weighted average of 9 scored categories.
+# Structure (handled by axm-init) and tooling are NOT scored.
+# Pass threshold: composite score >= 90 to pass.
 
 PASS_THRESHOLD: int = 90
 """Minimum score (out of 100) for a check to pass."""
