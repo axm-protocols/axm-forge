@@ -1,6 +1,6 @@
 """Duplicate-tests rule — cluster likely-duplicate test functions.
 
-Three clustering signals (S1/S2/S3) + four rescue anti-signals (P1-P4)
+Three clustering signals (S1/S2/S3) + six rescue anti-signals (P1-P6)
 ported from the ``detect_duplicates.py`` prototype.
 """
 
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import ast
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from itertools import combinations
 from pathlib import Path
@@ -31,6 +31,7 @@ __all__ = [
     "_p3_rescues",
     "_p4_rescues",
     "_p5_rescues",
+    "_p6_rescues",
 ]
 
 
@@ -42,6 +43,81 @@ _P5_SETUP_DIVERGENCE_THRESHOLD = 0.5
 _S2_HIGH_SIM = 0.95
 _SCORE_PENALTY = 5
 _MIN_PAIR = 2
+
+# Names excluded from P6 candidate-SUT search: builtins, common test
+# infrastructure, and ubiquitous library helpers that are almost never
+# the actual SUT.  Underscore-prefixed names are also excluded
+# dynamically (private helpers/fixtures).
+_P6_EXCLUDED_NAMES: frozenset[str] = frozenset(
+    {
+        # Builtins
+        "len",
+        "isinstance",
+        "type",
+        "repr",
+        "str",
+        "int",
+        "float",
+        "bool",
+        "set",
+        "list",
+        "dict",
+        "tuple",
+        "range",
+        "enumerate",
+        "zip",
+        "next",
+        "iter",
+        "any",
+        "all",
+        "min",
+        "max",
+        "sum",
+        "hasattr",
+        "getattr",
+        "setattr",
+        "callable",
+        "id",
+        "vars",
+        "print",
+        "open",
+        # Test infrastructure
+        "MagicMock",
+        "Mock",
+        "patch",
+        "fixture",
+        "raises",
+        "approx",
+        "fail",
+        "readouterr",
+        # Common exceptions
+        "FileNotFoundError",
+        "ValueError",
+        "TypeError",
+        "KeyError",
+        "AttributeError",
+        "OSError",
+        "Exception",
+        "RuntimeError",
+        "AssertionError",
+        # Path / filesystem methods
+        "Path",
+        "mkdir",
+        "touch",
+        "exists",
+        "read_text",
+        "write_text",
+        "read_bytes",
+        "write_bytes",
+        "save",
+        "close",
+        # Misc method names that are rarely SUTs in test bodies
+        "join",
+        "replace",
+        "find",
+        "qn",
+    }
+)
 
 
 class DuplicateTestsCheckResult(CheckResult):
@@ -478,6 +554,61 @@ def _p5_rescues(
     return min_sim < threshold
 
 
+def _call_target_name(call: ast.Call) -> str | None:
+    """Return the immediate name being called (``Name`` id or ``Attribute`` attr)."""
+    match call.func:
+        case ast.Name(id=name):
+            return name
+        case ast.Attribute(attr=attr):
+            return attr
+    return None
+
+
+def _p6_eligible_sut(name: str) -> bool:
+    """A candidate SUT must be public and not a builtin/fixture helper."""
+    if name.startswith("_"):
+        return False
+    return name not in _P6_EXCLUDED_NAMES
+
+
+def _p6_call_counts(node: ast.FunctionDef) -> Counter[str]:
+    """Multiset of public, non-builtin call-target names in *node*'s body."""
+    counts: Counter[str] = Counter()
+    for child in ast.walk(node):
+        if not isinstance(child, ast.Call):
+            continue
+        name = _call_target_name(child)
+        if name is not None and _p6_eligible_sut(name):
+            counts[name] += 1
+    return counts
+
+
+def _p6_rescues(tests: list[_TestFunc]) -> bool:
+    """P6 — a public SUT shared by all tests is called a different number of times.
+
+    Two tests with the same call_sig and assert pattern can still exercise
+    structurally distinct properties: idempotence (one call vs two), override
+    (re-application), accumulation (state across multiple invocations).  When
+    the *common* SUT (the function called by every test in the cluster) has
+    different call counts across tests, the cluster is demoted to
+    ``ambiguous_call_multiplicity``.
+
+    The candidate SUT must be a *public* name (no leading underscore) and
+    not a known builtin or test-infra helper, so that fixture/setup helpers
+    like ``_make_plan`` or ``mkdir`` cannot trigger the rescue.
+    """
+    if len(tests) < _MIN_PAIR:
+        return False
+    per_test = [_p6_call_counts(t.node) for t in tests]
+    common = set(per_test[0].keys())
+    for counts in per_test[1:]:
+        common &= set(counts.keys())
+    for sut in common:
+        if len({counts[sut] for counts in per_test}) >= _MIN_PAIR:
+            return True
+    return False
+
+
 # ── Clustering ────────────────────────────────────────────────────────
 
 
@@ -504,6 +635,11 @@ def _classify_s1(tests: list[_TestFunc], sig: str, pattern: str) -> tuple[str, s
         return (
             "ambiguous_setup_divergence",
             f"setup divergence rescue for SUT {sig}",
+        )
+    if _p6_rescues(tests):
+        return (
+            "ambiguous_call_multiplicity",
+            f"call-multiplicity rescue for SUT {sig}",
         )
     tail = " + same asserts" if pattern != "<no-assert>" else ""
     return "signal1_call_assert", f"same SUT: {sig}{tail}"
@@ -548,6 +684,11 @@ def _classify_s3(tests: list[_TestFunc], sim: float) -> tuple[str, str]:
         return (
             "ambiguous_setup_divergence",
             f"setup divergence rescue (intra-file {sim:.0%})",
+        )
+    if _p6_rescues(tests):
+        return (
+            "ambiguous_call_multiplicity",
+            f"call-multiplicity rescue (intra-file {sim:.0%})",
         )
     return "signal3_intra_file_similarity", f"AST similarity {sim:.0%}"
 

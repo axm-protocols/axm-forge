@@ -291,6 +291,91 @@ def test_p4_large_bodies_do_not_rescue(project: Path) -> None:
     assert "ambiguous_body_size" not in signals
 
 
+def test_p6_call_multiplicity_rescues_s1(project: Path) -> None:
+    """Common public SUT called once vs twice -> demoted to call_multiplicity."""
+    _write(
+        project / "tests" / "test_mod.py",
+        """
+        def test_applies_shading():
+            cell = make_cell()
+            shade_cell(cell, "RED")
+            assert cell.color == "RED"
+
+        def test_replaces_existing_shading():
+            cell = make_cell()
+            shade_cell(cell, "RED")
+            shade_cell(cell, "BLUE")
+            assert cell.color == "BLUE"
+        """,
+    )
+    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
+    signals = _cluster_signals(result)
+    assert "ambiguous_call_multiplicity" in signals
+
+
+def test_p6_same_count_does_not_rescue(project: Path) -> None:
+    """Same SUT called the same number of times → not rescued."""
+    _write(
+        project / "tests" / "test_mod.py",
+        """
+        def test_one():
+            result = compute(1)
+            assert result == 1
+
+        def test_two():
+            result = compute(2)
+            assert result == 1
+        """,
+    )
+    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
+    signals = _cluster_signals(result)
+    assert "ambiguous_call_multiplicity" not in signals
+
+
+def test_p6_underscore_helper_does_not_trigger(project: Path) -> None:
+    """Divergence on a private helper (``_make_check``) must not rescue."""
+    _write(
+        project / "tests" / "test_mod.py",
+        """
+        def test_alpha():
+            checks = [_make_check(80)]
+            result = quality_score(checks)
+            assert result == 80
+
+        def test_beta():
+            checks = [_make_check(80), _make_check(60), _make_check(100)]
+            result = quality_score(checks)
+            assert result == 80
+        """,
+    )
+    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
+    signals = _cluster_signals(result)
+    assert "ambiguous_call_multiplicity" not in signals
+
+
+def test_p6_builtin_does_not_trigger(project: Path) -> None:
+    """Divergence on builtin (``mkdir``) must not rescue."""
+    _write(
+        project / "tests" / "test_mod.py",
+        """
+        def test_alpha(tmp_path):
+            (tmp_path / "a").mkdir()
+            result = scan(tmp_path)
+            assert result == "ok"
+
+        def test_beta(tmp_path):
+            (tmp_path / "a").mkdir()
+            (tmp_path / "b").mkdir()
+            (tmp_path / "c").mkdir()
+            result = scan(tmp_path)
+            assert result == "ok"
+        """,
+    )
+    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
+    signals = _cluster_signals(result)
+    assert "ambiguous_call_multiplicity" not in signals
+
+
 def _make_cluster(signal: str, tests: list[tuple[str, str]]) -> dict[str, Any]:
     return {
         "signal": signal,
