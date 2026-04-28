@@ -724,12 +724,14 @@ def _build_union_find(
     parent = list(range(len(clusters)))
 
     def find(x: int) -> int:
+        """Return the root of ``x`` with path compression."""
         while parent[x] != x:
             parent[x] = parent[parent[x]]
             x = parent[x]
         return x
 
     def union(x: int, y: int) -> None:
+        """Merge the components containing ``x`` and ``y``."""
         px, py = find(x), find(y)
         if px != py:
             parent[px] = py
