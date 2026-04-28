@@ -213,16 +213,20 @@ class TestCouplingFormula:
 
 
 # ---------------------------------------------------------------------------
-# 3. Scoring weights: arch (10%) + practices (5%) in total
+# 3. Scoring integration: rule_id -> category routing actually contributes
 # ---------------------------------------------------------------------------
 
 
-class TestScoringWeights:
-    """Tests for the 8-category weighted scoring."""
+class TestScoringIntegration:
+    """End-to-end checks that registered rule IDs route to scored categories.
 
-    def test_weights_sum_to_one(self) -> None:
-        """All weights must sum to 1.0."""
-        # After the change, weights include architecture + practices
+    These tests verify integration (registry wiring + AuditResult.quality_score)
+    without hardcoding the weights table — they only assert structural
+    properties (perfect=100, monotonicity).
+    """
+
+    def test_perfect_scores_yield_100(self) -> None:
+        """Every scored category at 100 → composite is 100."""
         checks = [
             _make_check("QUALITY_LINT", 100),
             _make_check("QUALITY_TYPE", 100),
@@ -234,46 +238,48 @@ class TestScoringWeights:
             _make_check("PRACTICE_DOCSTRING", 100),
         ]
         result = AuditResult(checks=checks)
-        # All 100 → total must be 100
         assert result.quality_score == pytest.approx(100.0, abs=0.1)
 
-    def test_architecture_counts_in_score(self) -> None:
-        """ARCH_COUPLING score affects the total."""
-        # All 100 except architecture = 0
-        checks = [
-            _make_check("QUALITY_LINT", 100),
-            _make_check("QUALITY_TYPE", 100),
-            _make_check("QUALITY_COMPLEXITY", 100),
-            _make_check("QUALITY_SECURITY", 100),
-            _make_check("DEPS_AUDIT", 100),
-            _make_check("QUALITY_COVERAGE", 100),
-            _make_check("ARCH_COUPLING", 0),  # 0 * 10% = -10
-            _make_check("PRACTICE_DOCSTRING", 100),
-            _make_check("PRACTICE_BARE_EXCEPT", 100),
-            _make_check("PRACTICE_SECURITY", 100),
-        ]
-        result = AuditResult(checks=checks)
-        # Missing 10% from architecture
-        assert result.quality_score == pytest.approx(90.0, abs=0.1)
+    def test_architecture_failure_lowers_composite(self) -> None:
+        """ARCH_COUPLING=0 with rest at 100 must produce score < 100."""
+        baseline = AuditResult(
+            checks=[
+                _make_check("QUALITY_LINT", 100),
+                _make_check("ARCH_COUPLING", 100),
+            ]
+        )
+        degraded = AuditResult(
+            checks=[
+                _make_check("QUALITY_LINT", 100),
+                _make_check("ARCH_COUPLING", 0),
+            ]
+        )
+        assert baseline.quality_score is not None
+        assert degraded.quality_score is not None
+        assert degraded.quality_score < baseline.quality_score
 
-    def test_practices_counts_in_score(self) -> None:
-        """PRACTICE_* scores affect the total."""
-        checks = [
-            _make_check("QUALITY_LINT", 100),
-            _make_check("QUALITY_TYPE", 100),
-            _make_check("QUALITY_COMPLEXITY", 100),
-            _make_check("QUALITY_SECURITY", 100),
-            _make_check("DEPS_AUDIT", 100),
-            _make_check("QUALITY_COVERAGE", 100),
-            _make_check("ARCH_COUPLING", 100),
-            _make_check("PRACTICE_DOCSTRING", 0),  # practices: avg(0,100)=50 * 5%
-            _make_check("PRACTICE_BARE_EXCEPT", 100),
-            _make_check("PRACTICE_SECURITY", 100),  # registry: security category
-        ]
-        result = AuditResult(checks=checks)
-        # PRACTICE_SECURITY is registered under "security" (not "practices")
-        # security: avg(100,100)=100 * 10% = 10
-        # practices: avg(0,100)=50 * 5% = 2.5
-        # others at 100 = 85
-        # Total: 85 + 10 + 2.5 = 97.5
-        assert result.quality_score == pytest.approx(97.5, abs=0.1)
+    def test_practices_failure_lowers_composite(self) -> None:
+        """PRACTICE_DOCSTRING=0 lowers the composite below baseline."""
+        baseline = AuditResult(
+            checks=[
+                _make_check("QUALITY_LINT", 100),
+                _make_check("PRACTICE_DOCSTRING", 100),
+            ]
+        )
+        degraded = AuditResult(
+            checks=[
+                _make_check("QUALITY_LINT", 100),
+                _make_check("PRACTICE_DOCSTRING", 0),
+            ]
+        )
+        assert baseline.quality_score is not None
+        assert degraded.quality_score is not None
+        assert degraded.quality_score < baseline.quality_score
+
+    def test_practice_security_routes_to_security_category(self) -> None:
+        """PRACTICE_SECURITY is registered under 'security' (not 'practices').
+
+        Regression guard: a renaming or registry refactor must not silently
+        re-route this rule. We check the registry mapping directly.
+        """
+        assert _RULE_CATEGORY.get("PRACTICE_SECURITY") == "security"

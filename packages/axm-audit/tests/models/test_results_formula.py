@@ -1,8 +1,13 @@
-"""Tests for the 8-category composite quality score formula."""
+"""Integration tests for the composite quality score using real registry rules.
+
+These tests exercise the rule_id -> category mapping built from the live
+``@register_rule`` registry, and assert structural properties of the score
+(grade thresholds, normalization, single-category audits) without
+hardcoding the weights table.
+"""
 
 from __future__ import annotations
 
-import pytest
 from _registry_helpers import build_rule_category_map
 
 from axm_audit.models.results import AuditResult, CheckResult
@@ -11,7 +16,7 @@ _RULE_CATEGORY = build_rule_category_map()
 
 
 def _make_check(rule_id: str, score: float) -> CheckResult:
-    """Helper to create a CheckResult with a score and category."""
+    """Create a CheckResult with a score and the registry-derived category."""
     return CheckResult(
         rule_id=rule_id,
         passed=True,
@@ -21,72 +26,21 @@ def _make_check(rule_id: str, score: float) -> CheckResult:
     )
 
 
-class TestQualityScore:
-    """Tests for the quality scoring logic."""
+class TestQualityScoreRegistryIntegration:
+    """Score behavior against the real rule registry."""
 
-    def test_quality_score_8_category_formula(self) -> None:
-        """Quality score uses 8-category weighted model with all scored rules."""
-        checks = [
-            _make_check("QUALITY_LINT", 90),  # lint: avg(90,100,100)=96.67
-            _make_check("QUALITY_FORMAT", 100),
-            _make_check("QUALITY_DIFF_SIZE", 100),
-            _make_check("QUALITY_TYPE", 85),  # 85 * 0.15 = 12.75
-            _make_check("QUALITY_COMPLEXITY", 95),  # 95 * 0.15 = 14.25
-            _make_check("QUALITY_SECURITY", 100),  # 100 * 0.10 = 10
-            _make_check("DEPS_AUDIT", 100),  # avg(100,100) * 0.10 = 10
-            _make_check("DEPS_HYGIENE", 100),
-            _make_check("QUALITY_COVERAGE", 90),  # 90 * 0.15 = 13.5
-            _make_check("ARCH_COUPLING", 100),  # avg(100,...) * 0.10 = 10
-            _make_check("ARCH_CIRCULAR", 100),
-            _make_check("ARCH_GOD_CLASS", 100),
-            _make_check("ARCH_DUPLICATION", 100),
-            _make_check("PRACTICE_DOCSTRING", 100),  # avg(100,...) * 0.05 = 5
-            _make_check("PRACTICE_BARE_EXCEPT", 100),
-            _make_check("PRACTICE_SECURITY", 100),
-            _make_check("PRACTICE_BLOCKING_IO", 100),
-        ]
-
-        result = AuditResult(checks=checks)
-
-        # lint: avg(90,100,100)=96.67 * 0.20 = 19.33
-        # types: 85*0.15=12.75 | complexity: 95*0.15=14.25
-        # security: avg(100,100)*0.10=10 | deps: avg(100,100)*0.10=10
-        # testing: 90*0.15=13.5 | architecture: avg(100,100,100,100)*0.10=10
-        # practices: avg(100,100,100,100)*0.05=5
-        # Total: 19.33 + 12.75 + 14.25 + 10 + 10 + 13.5 + 10 + 5 = 94.83
-        assert result.quality_score == pytest.approx(94.8, abs=0.2)
-
-    def test_quality_score_weights_sum_to_100(self) -> None:
-        """Weights should sum to 100%."""
-        weights = {
-            "lint": 0.20,
-            "type": 0.15,
-            "complexity": 0.15,
-            "security": 0.10,
-            "deps": 0.10,
-            "testing": 0.15,
-            "architecture": 0.10,
-            "practices": 0.05,
-        }
-
-        assert sum(weights.values()) == pytest.approx(1.0)
-
-    def test_quality_score_includes_all_scored_rules(self) -> None:
+    def test_all_scored_rules_at_100_yields_100(self) -> None:
         """Every registered scored rule must contribute to quality_score.
 
-        Regression test: creates an AuditResult with ALL scored rules at 100,
+        Regression: creates an AuditResult with ALL scored rules at 100,
         then verifies the score is exactly 100 (proving nothing was dropped).
         """
         checks = [_make_check(rid, 100) for rid in _RULE_CATEGORY]
         result = AuditResult(checks=checks)
         assert result.quality_score == 100.0
 
-    def test_rule_category_covers_all_scored_rules(self) -> None:
-        """Every rule in the registry must have a category property.
-
-        Safeguard: enumerate rule classes from the auto-discovery registry,
-        instantiate each, and verify the category property is set and non-empty.
-        """
+    def test_every_registered_rule_has_category(self) -> None:
+        """Every rule in the registry must expose a non-empty category."""
         from axm_audit.core.rules.base import get_registry
 
         for category, rule_classes in get_registry().items():
@@ -104,64 +58,34 @@ class TestQualityScore:
                     f"(expected registry category: {category})"
                 )
 
-    def test_quality_score_backward_compatible_grades(self) -> None:
-        """Grade thresholds still work after adding new rules."""
-        # All perfect → A
+    def test_grade_a_when_all_perfect(self) -> None:
         all_perfect = [_make_check(rid, 100) for rid in _RULE_CATEGORY]
         assert AuditResult(checks=all_perfect).grade == "A"
 
-        # All zero → F
+    def test_grade_f_when_all_zero(self) -> None:
         all_zero = [_make_check(rid, 0) for rid in _RULE_CATEGORY]
         assert AuditResult(checks=all_zero).grade == "F"
 
-    def test_category_filter_score_normalization(self) -> None:
+    def test_filtered_audit_normalizes_to_category_average(self) -> None:
         """Category-filtered audit normalizes by present weights only.
 
-        Simulates audit(category="lint") where only lint-related rules run.
-        Bug: was returning ~17 (dividing by all 8 weights). Fix: ~96.
+        Regression for the bug where a lint-only audit returned ~17 because
+        the score was divided by the sum of all weights instead of the
+        present ones.
         """
-        # Only lint-category checks (lint weight = 0.20)
         checks = [
-            _make_check("QUALITY_LINT", 94),  # lint
-            _make_check("QUALITY_FORMAT", 100),  # lint
-            _make_check("QUALITY_DEAD_CODE", 95),  # lint
+            _make_check("QUALITY_LINT", 94),
+            _make_check("QUALITY_FORMAT", 100),
+            _make_check("QUALITY_DEAD_CODE", 95),
         ]
         result = AuditResult(checks=checks)
-        # avg(94, 100, 95) = 96.33 → normalized by lint weight only → 96.3
+        # All in one category → score equals the category's mean.
+        # avg(94, 100, 95) = 96.33
         assert result.quality_score is not None
-        assert result.quality_score == pytest.approx(96.3, abs=0.1)
+        assert abs(result.quality_score - 96.33) < 0.1
         assert result.grade == "A"
 
-    def test_full_score_unchanged(self) -> None:
-        """Full audit (all 8 categories) returns same score as before fix.
-
-        Regression: ensures normalization doesn't change full-audit behavior.
-        """
-        checks = [
-            _make_check("QUALITY_LINT", 90),
-            _make_check("QUALITY_FORMAT", 100),
-            _make_check("QUALITY_DIFF_SIZE", 100),
-            _make_check("QUALITY_TYPE", 85),
-            _make_check("QUALITY_COMPLEXITY", 95),
-            _make_check("QUALITY_SECURITY", 100),
-            _make_check("DEPS_AUDIT", 100),
-            _make_check("DEPS_HYGIENE", 100),
-            _make_check("QUALITY_COVERAGE", 90),
-            _make_check("ARCH_COUPLING", 100),
-            _make_check("ARCH_CIRCULAR", 100),
-            _make_check("ARCH_GOD_CLASS", 100),
-            _make_check("ARCH_DUPLICATION", 100),
-            _make_check("PRACTICE_DOCSTRING", 100),
-            _make_check("PRACTICE_BARE_EXCEPT", 100),
-            _make_check("PRACTICE_SECURITY", 100),
-            _make_check("PRACTICE_BLOCKING_IO", 100),
-        ]
-        result = AuditResult(checks=checks)
-        # weight_sum=1.0 so total/weight_sum == total → same as before
-        assert result.quality_score == pytest.approx(94.8, abs=0.2)
-
-    def test_single_category_perfect(self) -> None:
-        """Single category scoring 100 returns exactly 100.0."""
-        checks = [_make_check("QUALITY_COVERAGE", 100)]  # testing category
-        result = AuditResult(checks=checks)
+    def test_single_scored_check_returns_its_score(self) -> None:
+        """With one check, weights cancel out and the score equals the input."""
+        result = AuditResult(checks=[_make_check("QUALITY_COVERAGE", 100)])
         assert result.quality_score == 100.0
