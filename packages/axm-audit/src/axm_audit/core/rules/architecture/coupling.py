@@ -319,6 +319,45 @@ def read_coupling_config(
     return threshold, overrides, bonus, multiplier
 
 
+def _resolve_override(name: str, overrides: dict[str, int]) -> int | None:
+    """Return override value for *name* (exact or dotted-suffix match)."""
+    if name in overrides:
+        return overrides[name]
+    for key, val in overrides.items():
+        if name == key or name.endswith(f".{key}"):
+            return val
+    return None
+
+
+def _classify_role_safe(
+    name: str,
+    imports_map: dict[str, list[str]],
+    src_path: Path | None,
+) -> str:
+    """Classify module role, defaulting to ``"leaf"`` when *src_path* is None."""
+    if src_path is None:
+        return "leaf"
+    return classify_module_role(name, imports_map.get(name, []), src_path)
+
+
+def _resolve_effective_threshold(  # noqa: PLR0913
+    name: str,
+    *,
+    overrides: dict[str, int],
+    imports_map: dict[str, list[str]],
+    src_path: Path | None,
+    threshold: int,
+    orchestrator_bonus: int,
+) -> tuple[int, str]:
+    """Return ``(effective_threshold, role)`` for *name*."""
+    override = _resolve_override(name, overrides)
+    if override is not None:
+        return override, _classify_role_safe(name, imports_map, src_path)
+    role = _classify_role_safe(name, imports_map, src_path)
+    bonus = orchestrator_bonus if role == "orchestrator" else 0
+    return threshold + bonus, role
+
+
 def build_coupling_result(  # noqa: PLR0913
     fan_out: dict[str, int],
     fan_in: dict[str, int],
@@ -345,35 +384,16 @@ def build_coupling_result(  # noqa: PLR0913
     _overrides = overrides or {}
     _imports_map = imports_map or {}
 
-    def _effective_threshold(name: str) -> tuple[int, str]:
-        """Return ``(effective_threshold, role)`` for *name*."""
-        if name in _overrides:
-            return _overrides[name], classify_module_role(
-                name,
-                _imports_map.get(name, []),
-                src_path,
-            ) if src_path else "leaf"
-        for key, val in _overrides.items():
-            if name.endswith(f".{key}") or name == key:
-                return val, classify_module_role(
-                    name,
-                    _imports_map.get(name, []),
-                    src_path,
-                ) if src_path else "leaf"
-
-        role = "leaf"
-        if src_path and orchestrator_bonus:
-            role = classify_module_role(
-                name,
-                _imports_map.get(name, []),
-                src_path,
-            )
-        bonus = orchestrator_bonus if role == "orchestrator" else 0
-        return threshold + bonus, role
-
     over: list[dict[str, Any]] = []
     for name, fo in fan_out.items():
-        eff, role = _effective_threshold(name)
+        eff, role = _resolve_effective_threshold(
+            name,
+            overrides=_overrides,
+            imports_map=_imports_map,
+            src_path=src_path,
+            threshold=threshold,
+            orchestrator_bonus=orchestrator_bonus,
+        )
         if fo > eff:
             severity = "error" if fo > eff * severity_error_multiplier else "warning"
             over.append(
