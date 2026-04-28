@@ -14,13 +14,17 @@ _GRADE_C: int = 70
 _GRADE_D: int = 60
 
 # ── Quality-score category weights ───────────────────────────────────
+# Sum must equal 1.0. Categories absent here (structure, tooling) emit
+# findings but are NOT scored. Adding a category requires updating
+# docs/explanation/scoring.md and the ASCII table in core/rules/base.py.
 _CATEGORY_WEIGHTS: dict[str, float] = {
-    "lint": 0.20,
+    "lint": 0.15,
     "type": 0.15,
     "complexity": 0.15,
     "security": 0.10,
     "deps": 0.10,
-    "testing": 0.15,
+    "testing": 0.10,
+    "test_quality": 0.10,
     "architecture": 0.10,
     "practices": 0.05,
 }
@@ -124,14 +128,15 @@ class AuditResult(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def quality_score(self) -> float | None:
-        """Weighted average across 8 code-quality categories.
+        """Weighted average across 9 code-quality categories.
 
         Categories and weights:
-            Linting (20%), Type Safety (15%), Complexity (15%),
-            Security (10%), Dependencies (10%), Testing (15%),
-            Architecture (10%), Practices (5%).
+            Linting (15%), Type Safety (15%), Complexity (15%),
+            Testing (10%), Test Quality (10%), Security (10%),
+            Dependencies (10%), Architecture (10%), Practices (5%).
 
-        Structure is NOT scored here (handled by axm-init).
+        Structure and tooling emit findings but are NOT scored
+        (structure is handled by axm-init; tooling is informational).
         Returns None if no scored checks are present.
         """
         override: float | None = getattr(self, "_override_quality_score", None)

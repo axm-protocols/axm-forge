@@ -2,28 +2,30 @@
 
 ## Composite Quality Score
 
-The quality score is a **weighted average** across 8 categories, on a 100-point scale.
+The quality score is a **weighted average** across 9 categories, on a 100-point scale.
 Computed by `AuditResult.quality_score` — returns `None` when no scored checks
 are present, and normalizes by the sum of present weights so filtered audits
 (e.g. `category="lint"`) are not penalized for missing categories.
 
 | Category | Tool | Weight |
 |---|---|---|
-| Linting | Ruff | **20%** |
+| Linting | Ruff | **15%** |
 | Type Safety | mypy | **15%** |
 | Complexity | radon | **15%** |
+| Testing | pytest-cov | **10%** |
+| Test Quality | AST analysis | **10%** |
 | Security | Bandit | **10%** |
 | Dependencies | pip-audit + deptry | **10%** |
-| Testing | pytest-cov | **15%** |
 | Architecture | AST analysis | **10%** |
 | Practices | AST analysis | **5%** |
 
 ```mermaid
 pie title Category Weights
-    "Linting" : 20
+    "Linting" : 15
     "Type Safety" : 15
     "Complexity" : 15
-    "Testing" : 15
+    "Testing" : 10
+    "Test Quality" : 10
     "Security" : 10
     "Dependencies" : 10
     "Architecture" : 10
@@ -33,14 +35,18 @@ pie title Category Weights
 Each category produces a score from 0 to 100. The composite score is:
 
 ```
-score = lint × 0.20 + type × 0.15 + complexity × 0.15
-      + security × 0.10 + deps × 0.10 + testing × 0.15
+score = lint × 0.15 + type × 0.15 + complexity × 0.15
+      + testing × 0.10 + test_quality × 0.10
+      + security × 0.10 + deps × 0.10
       + architecture × 0.10 + practices × 0.05
 ```
 
-!!! info "Why no Structure category?"
-    Structure validation (project layout, `pyproject.toml` completeness) is handled
-    by `axm-init` with 16 dedicated checks. `axm-audit` focuses on **code quality**.
+!!! info "Why no Structure or Tooling categories?"
+    Structure validation (project layout, `pyproject.toml` completeness) is
+    handled by `axm-init` with dedicated checks. Tooling availability checks
+    (`ruff`, `mypy`, `uv` on PATH) emit informational findings only. Both
+    categories produce findings but are intentionally excluded from the
+    composite score — `axm-audit` focuses on **code quality**.
 
 ## Category Scoring
 
@@ -50,7 +56,8 @@ score = lint × 0.20 + type × 0.15 + complexity × 0.15
 score = max(0, 100 − issue_count × 2)
 ```
 
-Pass threshold: ≥ 80 (≤ 10 issues).
+Per-category pass threshold: ≥ 80 (≤ 10 issues). The composite
+`PASS_THRESHOLD` is 90 — see [Grading Scale](#grading-scale).
 
 ### Format Score
 
@@ -58,7 +65,7 @@ Pass threshold: ≥ 80 (≤ 10 issues).
 score = max(0, 100 − unformatted_count × 5)
 ```
 
-Pass threshold: ≥ 80 (≤ 4 unformatted files).
+Per-category pass threshold: ≥ 80 (≤ 4 unformatted files).
 
 ### Diff Size Score
 
@@ -76,7 +83,7 @@ diff_size_ideal = 400   # lines — perfect score ceiling
 diff_size_max = 1200    # lines — zero score floor
 ```
 
-Pass threshold: ≥ 80 (≤ 560 lines with defaults).
+Per-category pass threshold: ≥ 80 (≤ 560 lines with defaults).
 
 ### Type Score
 
@@ -84,7 +91,7 @@ Pass threshold: ≥ 80 (≤ 560 lines with defaults).
 score = max(0, 100 − error_count × 5)
 ```
 
-Pass threshold: ≥ 80 (≤ 4 errors).
+Per-category pass threshold: ≥ 80 (≤ 4 errors).
 
 ### Complexity Score
 
@@ -92,7 +99,7 @@ Pass threshold: ≥ 80 (≤ 4 errors).
 score = max(0, 100 − high_complexity_count × 10)
 ```
 
-High complexity = cyclomatic complexity ≥ 10. Pass threshold: ≥ 80 (≤ 2 complex functions).
+High complexity = cyclomatic complexity ≥ 10. Per-category pass threshold: ≥ 80 (≤ 2 complex functions).
 
 ### Security Score
 
@@ -114,7 +121,22 @@ Average of two sub-scores:
 score = coverage_percentage
 ```
 
-Uses `pytest-cov` to measure line coverage. Pass threshold: ≥ 80%.
+Uses `pytest-cov` to measure line coverage. Per-category pass threshold: ≥ 80%.
+
+### Test Quality Score
+
+Average of four sub-scores, each penalising structural defects in the test suite:
+
+- **Pyramid level**: `max(0, 100 − misplaced_count × P)` — tests living at the
+  wrong layer (`tests/unit/` vs `tests/integration/` vs `tests/e2e/`)
+- **Tautology**: `max(0, 100 − tautological_count × P)` — tests whose body
+  cannot fail (e.g. `assert True`, asserting against the SUT's own output)
+- **Private imports**: `max(0, 100 − private_count × P)` — tests importing
+  underscore-prefixed names instead of going through the public API
+- **Duplicate tests**: `max(0, 100 − duplicate_pair_count × P)` — tests with
+  near-identical bodies clustered together
+
+Where `P` is each rule's per-finding penalty defined in `core/rules/test_quality/`.
 
 ### Architecture Score
 
