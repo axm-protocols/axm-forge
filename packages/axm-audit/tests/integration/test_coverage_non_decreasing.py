@@ -22,8 +22,6 @@ _HELPERS = (
     "_build_security_result",
     "_get_audit_targets",
     "_collect_category_scores",
-    "_extract_test_failures",
-    "_read_snippet",
 )
 
 
