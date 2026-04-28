@@ -21,9 +21,9 @@ def _assert_snapshot(name: str, actual: str) -> None:
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     path = SNAPSHOT_DIR / name
     if not path.exists():
-        path.write_text(actual)
-    expected = path.read_text()
-    assert actual == expected, f"Snapshot drift for {name}"
+        path.write_text(actual + "\n" if not actual.endswith("\n") else actual)
+    expected = path.read_text().rstrip("\n")
+    assert actual.rstrip("\n") == expected, f"Snapshot drift for {name}"
 
 
 @pytest.fixture
