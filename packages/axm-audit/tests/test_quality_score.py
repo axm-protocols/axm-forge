@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
-from axm_audit.models.results import AuditResult
+import pytest
+
+from axm_audit.models.results import _CATEGORY_WEIGHTS, AuditResult
 
 
 def _make_check(
@@ -22,9 +24,27 @@ def _make_result(checks: list[Mock]) -> AuditResult:
     """Build an AuditResult with only .checks populated."""
     result = Mock(spec=AuditResult)
     result.checks = checks
-    # Bind the real property so the actual logic runs
     result.quality_score = AuditResult.quality_score.fget(result)  # type: ignore[attr-defined]
     return result
+
+
+SCORED_CATEGORIES = sorted(_CATEGORY_WEIGHTS)
+
+
+# ── Invariants on the weights table itself ──────────────────────────
+
+
+class TestWeightsTableInvariants:
+    """Properties the weights dict must always satisfy."""
+
+    def test_weights_sum_to_one(self) -> None:
+        assert sum(_CATEGORY_WEIGHTS.values()) == pytest.approx(1.0, abs=1e-9)
+
+    def test_all_weights_strictly_positive(self) -> None:
+        assert all(w > 0 for w in _CATEGORY_WEIGHTS.values())
+
+    def test_no_weight_exceeds_one(self) -> None:
+        assert all(w <= 1.0 for w in _CATEGORY_WEIGHTS.values())
 
 
 # ── Edge case: no scored checks → None ──────────────────────────────
@@ -34,128 +54,147 @@ class TestQualityScoreNoScoredChecks:
     """When no checks carry a usable score the property returns None."""
 
     def test_empty_checks_list(self) -> None:
-        result = _make_result([])
-        assert result.quality_score is None
+        assert _make_result([]).quality_score is None
 
     def test_checks_without_category(self) -> None:
         checks = [_make_check(category=None, score=80.0)]
-        result = _make_result(checks)
-        assert result.quality_score is None
+        assert _make_result(checks).quality_score is None
 
     def test_checks_with_unknown_category(self) -> None:
         checks = [_make_check(category="unknown", score=80.0)]
-        result = _make_result(checks)
-        assert result.quality_score is None
+        assert _make_result(checks).quality_score is None
 
     def test_checks_without_details(self) -> None:
         checks = [_make_check(category="lint", score=None, has_details=False)]
-        result = _make_result(checks)
-        assert result.quality_score is None
+        assert _make_result(checks).quality_score is None
 
     def test_checks_with_details_but_no_score_key(self) -> None:
         checks = [_make_check(category="lint", score=None)]
-        result = _make_result(checks)
-        assert result.quality_score is None
+        assert _make_result(checks).quality_score is None
+
+    def test_unscored_categories_ignored(self) -> None:
+        """Categories absent from _CATEGORY_WEIGHTS contribute nothing."""
+        checks = [
+            _make_check(category="structure", score=0.0),
+            _make_check(category="tooling", score=0.0),
+        ]
+        assert _make_result(checks).quality_score is None
 
 
-# ── Edge case: single category only ─────────────────────────────────
+# ── Property: range and identity ────────────────────────────────────
 
 
-class TestQualityScoreSingleCategory:
-    """With a single category the score equals that category's average."""
+class TestQualityScoreRange:
+    """Score always falls in [0, 100] when defined."""
 
-    def test_single_lint_check(self) -> None:
+    @pytest.mark.parametrize("category", SCORED_CATEGORIES)
+    def test_perfect_single_category_is_100(self, category: str) -> None:
+        checks = [_make_check(category=category, score=100.0)]
+        assert _make_result(checks).quality_score == 100.0
+
+    @pytest.mark.parametrize("category", SCORED_CATEGORIES)
+    def test_zero_single_category_is_0(self, category: str) -> None:
+        checks = [_make_check(category=category, score=0.0)]
+        assert _make_result(checks).quality_score == 0.0
+
+    def test_all_categories_perfect_is_100(self) -> None:
+        checks = [_make_check(category=cat, score=100.0) for cat in SCORED_CATEGORIES]
+        assert _make_result(checks).quality_score == 100.0
+
+    def test_all_categories_zero_is_0(self) -> None:
+        checks = [_make_check(category=cat, score=0.0) for cat in SCORED_CATEGORIES]
+        assert _make_result(checks).quality_score == 0.0
+
+    def test_score_within_bounds_for_arbitrary_inputs(self) -> None:
+        checks = [
+            _make_check(category="lint", score=42.0),
+            _make_check(category="type", score=88.0),
+            _make_check(category="security", score=17.0),
+        ]
+        score = _make_result(checks).quality_score
+        assert score is not None
+        assert 0.0 <= score <= 100.0
+
+
+# ── Property: averaging within a category ───────────────────────────
+
+
+class TestSingleCategoryAveraging:
+    """Multiple checks in one category are averaged before weighting."""
+
+    def test_single_check_passes_through(self) -> None:
         checks = [_make_check(category="lint", score=85.0)]
-        result = _make_result(checks)
-        assert result.quality_score == 85.0
+        assert _make_result(checks).quality_score == 85.0
 
-    def test_single_category_multiple_checks_averaged(self) -> None:
+    def test_multiple_checks_in_one_category_averaged(self) -> None:
         checks = [
             _make_check(category="lint", score=80.0),
             _make_check(category="lint", score=90.0),
         ]
-        result = _make_result(checks)
-        assert result.quality_score == 85.0
+        assert _make_result(checks).quality_score == 85.0
 
-    def test_single_security_check(self) -> None:
+    def test_filtered_audit_returns_category_average(self) -> None:
+        """With one category, weights cancel out: result == that average."""
         checks = [_make_check(category="security", score=70.0)]
-        result = _make_result(checks)
-        assert result.quality_score == 70.0
+        assert _make_result(checks).quality_score == 70.0
 
 
-# ── Edge case: all scores zero ──────────────────────────────────────
+# ── Property: monotonicity ──────────────────────────────────────────
 
 
-class TestQualityScoreAllZero:
-    """When every category scores 0 the result is 0.0."""
+class TestMonotonicity:
+    """Improving any category never lowers the composite."""
 
-    def test_all_categories_zero(self) -> None:
-        categories = [
-            "lint",
-            "type",
-            "complexity",
-            "security",
-            "deps",
-            "testing",
-            "architecture",
-            "practices",
-        ]
-        checks = [_make_check(category=cat, score=0.0) for cat in categories]
-        result = _make_result(checks)
-        assert result.quality_score == 0.0
+    def test_improving_one_category_does_not_decrease_score(self) -> None:
+        before = [_make_check(category=cat, score=50.0) for cat in SCORED_CATEGORIES]
+        score_before = _make_result(before).quality_score
+        assert score_before is not None
 
-    def test_single_category_zero(self) -> None:
-        checks = [_make_check(category="lint", score=0.0)]
-        result = _make_result(checks)
-        assert result.quality_score == 0.0
+        for category in SCORED_CATEGORIES:
+            after = [
+                _make_check(category=cat, score=100.0 if cat == category else 50.0)
+                for cat in SCORED_CATEGORIES
+            ]
+            score_after = _make_result(after).quality_score
+            assert score_after is not None
+            assert score_after >= score_before, (
+                f"raising {category} from 50 to 100 lowered score "
+                f"({score_before} -> {score_after})"
+            )
+
+    def test_degrading_one_category_does_not_increase_score(self) -> None:
+        before = [_make_check(category=cat, score=50.0) for cat in SCORED_CATEGORIES]
+        score_before = _make_result(before).quality_score
+        assert score_before is not None
+
+        for category in SCORED_CATEGORIES:
+            after = [
+                _make_check(category=cat, score=0.0 if cat == category else 50.0)
+                for cat in SCORED_CATEGORIES
+            ]
+            score_after = _make_result(after).quality_score
+            assert score_after is not None
+            assert score_after <= score_before
 
 
-# ── Unit: weighted average correctness ──────────────────────────────
+# ── Property: filtering and renormalization ─────────────────────────
 
 
-class TestQualityScoreWeightedAverage:
-    """Verify the weighted-average math with known inputs."""
+class TestFilteredAuditRenormalization:
+    """Missing categories must not penalize the score (filtered audits)."""
 
-    def test_two_categories_weighted(self) -> None:
-        """lint (w=0.20) at 100, security (w=0.10) at 50.
-
-        Expected: (100*0.20 + 50*0.10) / (0.20 + 0.10) = 25/0.30 = 83.3
-        """
+    def test_two_perfect_categories_yield_100(self) -> None:
         checks = [
             _make_check(category="lint", score=100.0),
-            _make_check(category="security", score=50.0),
+            _make_check(category="security", score=100.0),
         ]
-        result = _make_result(checks)
-        assert result.quality_score == 83.3
+        assert _make_result(checks).quality_score == 100.0
 
-    def test_all_categories_perfect(self) -> None:
-        categories = [
-            "lint",
-            "type",
-            "complexity",
-            "security",
-            "deps",
-            "testing",
-            "architecture",
-            "practices",
-        ]
-        checks = [_make_check(category=cat, score=100.0) for cat in categories]
-        result = _make_result(checks)
-        assert result.quality_score == 100.0
-
-    def test_mixed_scored_and_unscored_checks(self) -> None:
-        """Unscored checks (missing details/score) are ignored."""
+    def test_unscored_and_unknown_inputs_are_ignored(self) -> None:
         checks = [
             _make_check(category="lint", score=80.0),
-            _make_check(category="lint", score=None),  # no score key
-            _make_check(category="type", score=60.0),
-            _make_check(category=None, score=90.0),  # no category
+            _make_check(category="lint", score=None),
+            _make_check(category=None, score=90.0),
+            _make_check(category="unknown", score=50.0),
         ]
-        result = _make_result(checks)
-        # lint=80 (w=0.20), type=60 (w=0.15)
-        # (80*0.20 + 60*0.15) / (0.20+0.15) = 25/0.35 ≈ 71.4
-        assert result.quality_score == 71.4
-
-
-# Score-aggregation behavior is now exercised through ``AuditResult.quality_score``
-# in ``tests/unit/test_audit_result_score_public_api.py``.
+        assert _make_result(checks).quality_score == 80.0

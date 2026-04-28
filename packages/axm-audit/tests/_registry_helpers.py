@@ -8,23 +8,13 @@ from __future__ import annotations
 
 import axm_audit.core.rules  # noqa: F401 — trigger @register_rule
 from axm_audit.core.rules.base import get_registry
+from axm_audit.models.results import _CATEGORY_WEIGHTS
 
 __all__ = ["SCORED_CATEGORIES", "build_rule_category_map", "scored_rule_ids"]
 
-# Categories that contribute to quality_score (matches results.py:88-97).
-# Excludes structure and tooling.
-SCORED_CATEGORIES: frozenset[str] = frozenset(
-    {
-        "lint",
-        "type",
-        "complexity",
-        "security",
-        "deps",
-        "testing",
-        "architecture",
-        "practices",
-    }
-)
+# Categories that contribute to quality_score. Derived from the live
+# weights dict so adding a category in results.py auto-propagates here.
+SCORED_CATEGORIES: frozenset[str] = frozenset(_CATEGORY_WEIGHTS.keys())
 
 
 def build_rule_category_map() -> dict[str, str]:
