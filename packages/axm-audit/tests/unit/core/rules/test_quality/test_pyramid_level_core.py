@@ -286,6 +286,69 @@ def test_cli_runner_name_detection(tmp_path: Path) -> None:
     assert finding.has_subprocess is True
 
 
+def test_cli_runner_fixture_direct_call_classifies_e2e(tmp_path: Path) -> None:
+    """Cyclopts-style ``cli_runner(args)`` (fixture-as-callable) is e2e."""
+    _write(
+        tmp_path,
+        "tests/e2e/test_foo.py",
+        """
+        def test_x(cli_runner):
+            result = cli_runner(["--help"])
+            assert result.exit_code == 0
+        """,
+    )
+    finding = _first_finding(_check(tmp_path))
+    assert "cli:cli_runner" in finding.io_signals
+    assert finding.has_subprocess is True
+    assert finding.level == "e2e"
+
+
+def test_fake_fixture_with_real_io_classifies_integration(tmp_path: Path) -> None:
+    """Fixture named ``fake_*`` that performs real I/O is NOT mock-neutralised."""
+    _write(tmp_path, "tests/conftest.py", "")
+    _write(
+        tmp_path,
+        "tests/integration/conftest.py",
+        """
+        import pytest
+
+        @pytest.fixture
+        def fake_workbook(tmp_path_factory):
+            path = tmp_path_factory.mktemp('wb') / 'fake.xlsx'
+            path.write_text('synthetic')
+            return path
+        """,
+    )
+    _write(
+        tmp_path,
+        "tests/integration/test_foo.py",
+        """
+        def test_x(fake_workbook):
+            assert fake_workbook.exists()
+        """,
+    )
+    finding = _first_finding(_check(tmp_path))
+    assert finding.has_real_io is True
+    assert finding.level == "integration"
+
+
+def test_literal_str_replace_not_treated_as_io(tmp_path: Path) -> None:
+    """``str.replace("a","b")`` (formatting) does not mark a test as I/O."""
+    _write(
+        tmp_path,
+        "tests/unit/test_foo.py",
+        """
+        def test_x():
+            value = "1.5".replace(".", ",")
+            assert value == "1,5"
+        """,
+    )
+    finding = _first_finding(_check(tmp_path))
+    assert "attr:.replace()" not in finding.io_signals
+    assert finding.has_real_io is False
+    assert finding.level == "unit"
+
+
 def test_submodule_all_public_detection(tmp_path: Path) -> None:
     _write(tmp_path, "src/pkg/__init__.py", "")
     _write(

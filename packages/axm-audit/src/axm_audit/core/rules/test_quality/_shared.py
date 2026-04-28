@@ -69,8 +69,8 @@ _FIXTURE_NAME_SUFFIXES: tuple[str, ...] = (
     "_file",
 )
 
-_FIXTURE_MOCK_PREFIXES: tuple[str, ...] = ("mock_", "fake_", "stub_")
-_FIXTURE_MOCK_SUBSTRS: tuple[str, ...] = ("mock", "fake", "stub")
+_FIXTURE_MOCK_PREFIXES: tuple[str, ...] = ("mock_", "stub_")
+_FIXTURE_MOCK_SUBSTRS: tuple[str, ...] = ("mock", "stub")
 
 _IO_CALLS: frozenset[str] = frozenset(
     {
@@ -482,12 +482,34 @@ def analyze_imports(
 # ── IO detection ──────────────────────────────────────────────────────
 
 
+_STR_REPLACE_MIN_ARGS = 2
+
+
+def _is_literal_str_replace(call: ast.Call) -> bool:
+    """True for ``.replace("x", "y")`` with two string-literal args.
+
+    ``str.replace`` and ``Path.replace`` share the same name but only the
+    latter is I/O. Without type inference we use a syntactic guard: real
+    file renames pass a path-like argument, never two string literals.
+    """
+    if not isinstance(call.func, ast.Attribute) or call.func.attr != "replace":
+        return False
+    if len(call.args) < _STR_REPLACE_MIN_ARGS:
+        return False
+    return all(
+        isinstance(a, ast.Constant) and isinstance(a.value, str)
+        for a in call.args[:_STR_REPLACE_MIN_ARGS]
+    )
+
+
 def _attr_signals_in_node(node: ast.AST) -> list[str]:
     sigs: list[str] = []
     for child in ast.walk(node):
         if not isinstance(child, ast.Call):
             continue
         if isinstance(child.func, ast.Attribute) and child.func.attr in _IO_ATTRS:
+            if _is_literal_str_replace(child):
+                continue
             sigs.append(f"attr:.{child.func.attr}()")
         if isinstance(child.func, ast.Name) and child.func.id == "open":
             sigs.append("call:open()")
@@ -550,14 +572,17 @@ def _io_call_signals(tree: ast.Module) -> tuple[bool, list[str]]:
 
 
 def _cli_runner_signal(node: ast.Call) -> str | None:
-    if not (isinstance(node.func, ast.Attribute) and node.func.attr == "invoke"):
-        return None
-    target = node.func.value
-    if isinstance(target, ast.Call) and isinstance(target.func, ast.Name):
-        if target.func.id in _CLI_RUNNER_CLASSES:
-            return f"cli:{target.func.id}"
-    if isinstance(target, ast.Name) and target.id in _CLI_RUNNER_NAMES:
-        return f"cli:{target.id}"
+    # ``runner.invoke(...)`` / ``CliRunner().invoke(...)``
+    if isinstance(node.func, ast.Attribute) and node.func.attr == "invoke":
+        target = node.func.value
+        if isinstance(target, ast.Call) and isinstance(target.func, ast.Name):
+            if target.func.id in _CLI_RUNNER_CLASSES:
+                return f"cli:{target.func.id}"
+        if isinstance(target, ast.Name) and target.id in _CLI_RUNNER_NAMES:
+            return f"cli:{target.id}"
+    # ``cli_runner(args)`` — fixture-style direct call (cyclopts convention)
+    if isinstance(node.func, ast.Name) and node.func.id == "cli_runner":
+        return "cli:cli_runner"
     return None
 
 
