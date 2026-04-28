@@ -56,8 +56,8 @@ score = lint × 0.15 + type × 0.15 + complexity × 0.15
 score = max(0, 100 − issue_count × 2)
 ```
 
-Per-category pass threshold: ≥ 80 (≤ 10 issues). The composite
-`PASS_THRESHOLD` is 90 — see [Grading Scale](#grading-scale).
+Per-category pass threshold: ≥ 90 (≤ 5 issues). The same threshold
+applies to the composite score — see [Grading Scale](#grading-scale).
 
 ### Format Score
 
@@ -65,7 +65,7 @@ Per-category pass threshold: ≥ 80 (≤ 10 issues). The composite
 score = max(0, 100 − unformatted_count × 5)
 ```
 
-Per-category pass threshold: ≥ 80 (≤ 4 unformatted files).
+Per-category pass threshold: ≥ 90 (≤ 2 unformatted files).
 
 ### Diff Size Score
 
@@ -83,7 +83,7 @@ diff_size_ideal = 400   # lines — perfect score ceiling
 diff_size_max = 1200    # lines — zero score floor
 ```
 
-Per-category pass threshold: ≥ 80 (≤ 560 lines with defaults).
+Per-category pass threshold: ≥ 90 (≤ 480 lines with defaults).
 
 ### Type Score
 
@@ -91,7 +91,7 @@ Per-category pass threshold: ≥ 80 (≤ 560 lines with defaults).
 score = max(0, 100 − error_count × 5)
 ```
 
-Per-category pass threshold: ≥ 80 (≤ 4 errors).
+Per-category pass threshold: ≥ 90 (≤ 2 errors).
 
 ### Complexity Score
 
@@ -99,7 +99,7 @@ Per-category pass threshold: ≥ 80 (≤ 4 errors).
 score = max(0, 100 − high_complexity_count × 10)
 ```
 
-High complexity = cyclomatic complexity ≥ 10. Per-category pass threshold: ≥ 80 (≤ 2 complex functions).
+High complexity = cyclomatic complexity ≥ 10. Per-category pass threshold: ≥ 90 (≤ 1 complex function).
 
 ### Security Score
 
@@ -121,7 +121,7 @@ Average of two sub-scores:
 score = coverage_percentage
 ```
 
-Uses `pytest-cov` to measure line coverage. Per-category pass threshold: ≥ 80%.
+Uses `pytest-cov` to measure line coverage. Per-category pass threshold: ≥ 90%.
 
 ### Test Quality Score
 
