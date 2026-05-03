@@ -17,11 +17,6 @@ from axm_init.models.results import ScaffoldResult
 class TestGetTemplatePath:
     """Tests for get_template_path()."""
 
-    def test_returns_path(self) -> None:
-        """get_template_path() returns a Path object."""
-        result = get_template_path()
-        assert isinstance(result, Path)
-
     def test_path_exists(self) -> None:
         """Returned path points to an existing directory."""
         result = get_template_path()
