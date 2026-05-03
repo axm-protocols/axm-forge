@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from axm_init.checks._utils import _load_toml
+from axm_init.checks._utils import load_toml
 from axm_init.models.check import CheckResult
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ __all__ = [
 
 def _resolve_member_dirs(project: Path) -> list[Path]:
     """Return resolved member directories from workspace config."""
-    data = _load_toml(project)
+    data = load_toml(project)
     if data is None:
         return []
 
@@ -219,7 +219,7 @@ def check_requires_python_compat(project: Path) -> CheckResult:
 
     specs: dict[str, str] = {}
     for member in member_dirs:
-        data = _load_toml(member)
+        data = load_toml(member)
         if data is None:
             continue
         req = data.get("project", {}).get("requires-python")
@@ -268,7 +268,7 @@ def _get_member_names(project: Path) -> list[str]:
     """Return project names of all workspace members."""
     names: list[str] = []
     for member_dir in _resolve_member_dirs(project):
-        data = _load_toml(member_dir)
+        data = load_toml(member_dir)
         if data is not None:
             name = data.get("project", {}).get("name")
             if isinstance(name, str):
@@ -278,7 +278,7 @@ def _get_member_names(project: Path) -> list[str]:
 
 def check_root_name_collision(project: Path) -> CheckResult:
     """Check that root project name does not collide with any member name."""
-    data = _load_toml(project)
+    data = load_toml(project)
     if data is None:
         return CheckResult(
             name="workspace.root_name_collision",
@@ -340,7 +340,7 @@ def _get_pytest_config(data: dict[str, Any]) -> dict[str, Any]:
 
 def check_pytest_importmode(project: Path) -> CheckResult:
     """Check root pytest has import_mode = 'importlib'."""
-    data = _load_toml(project)
+    data = load_toml(project)
     if data is None:
         return CheckResult(
             name="workspace.pytest_importmode",
@@ -379,7 +379,7 @@ def check_pytest_importmode(project: Path) -> CheckResult:
 
 def check_pytest_testpaths(project: Path) -> CheckResult:
     """Check root testpaths includes paths for workspace members."""
-    data = _load_toml(project)
+    data = load_toml(project)
     if data is None:
         return CheckResult(
             name="workspace.pytest_testpaths",

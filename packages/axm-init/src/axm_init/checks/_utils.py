@@ -17,8 +17,16 @@ except ModuleNotFoundError:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "load_exclusions",
+    "load_toml",
+    "load_toml_with_workspace_fallback",
+    "merge_tool_sections",
+    "requires_toml",
+]
 
-def _load_toml(project: Path) -> dict[str, Any] | None:
+
+def load_toml(project: Path) -> dict[str, Any] | None:
     """Load pyproject.toml, return None if missing/corrupt."""
     path = project / "pyproject.toml"
     if not path.exists():
@@ -45,7 +53,7 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return merged
 
 
-def _merge_tool_sections(
+def merge_tool_sections(
     base: dict[str, Any],
     override: dict[str, Any],
 ) -> dict[str, Any]:
@@ -66,7 +74,7 @@ def _merge_tool_sections(
     return merged
 
 
-def _load_toml_with_workspace_fallback(project: Path) -> dict[str, Any] | None:
+def load_toml_with_workspace_fallback(project: Path) -> dict[str, Any] | None:
     """Load pyproject.toml, merging workspace root tool sections for members.
 
     When *project* is a UV workspace member, the workspace root's tool
@@ -75,7 +83,7 @@ def _load_toml_with_workspace_fallback(project: Path) -> dict[str, Any] | None:
     """
     from axm_init.checks._workspace import find_workspace_root
 
-    data = _load_toml(project)
+    data = load_toml(project)
     if data is None:
         return None
 
@@ -83,11 +91,11 @@ def _load_toml_with_workspace_fallback(project: Path) -> dict[str, Any] | None:
     if workspace_root is None or workspace_root == project:
         return data
 
-    root_data = _load_toml(workspace_root)
+    root_data = load_toml(workspace_root)
     if root_data is None:
         return data
 
-    return _merge_tool_sections(root_data, data)
+    return merge_tool_sections(root_data, data)
 
 
 def requires_toml(
@@ -123,7 +131,7 @@ def requires_toml(
         @functools.wraps(fn)
         def wrapper(project: Path) -> CheckResult:
             """Load TOML then delegate to the wrapped check."""
-            data = _load_toml_with_workspace_fallback(project)
+            data = load_toml_with_workspace_fallback(project)
             if data is None:
                 return CheckResult(
                     name=check_name,
@@ -159,7 +167,7 @@ def load_exclusions(project: Path) -> set[str]:
         Set of check name prefixes to exclude.  Empty set if no
         exclusions are configured.
     """
-    data = _load_toml(project)
+    data = load_toml(project)
     if data is None:
         return set()
 
