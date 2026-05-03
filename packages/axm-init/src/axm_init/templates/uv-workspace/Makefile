@@ -1,39 +1,53 @@
-.PHONY: test-all lint-all docs-serve clean
+.PHONY: install check lint format test audit clean docs-serve docs-build type-check help
 
-## Run tests for all packages
-test-all:
-	uv run pytest packages/ -q
+# 🚀 Workspace Management
 
-## Lint all packages
-lint-all:
-	uv run ruff check src/ packages/
-	uv run ruff format --check src/ packages/
+install:  ## Install all dependencies
+	uv sync --all-groups
 
-## Format all packages
-format:
-	uv run ruff format src/ packages/
+# 🛡️ Quality Gates
 
-## Serve documentation locally
-docs-serve:
-	uv run mkdocs serve
+lint:  ## Linter + format check
+	uv run ruff check .
+	uv run ruff format --check .
 
-## Build documentation
-docs-build:
-	uv run mkdocs build
+format:  ## Auto-format code
+	uv run ruff format .
 
-## Run type checks
-type-check:
+type-check:  ## Run mypy across packages
 	uv run mypy packages/
 
-## Full quality check
-check:
-	$(MAKE) lint-all
-	$(MAKE) type-check
-	$(MAKE) test-all
+audit:  ## Security audit
+	uv run pip-audit
 
-## Clean build artifacts
-clean:
+# 🧪 Testing
+
+test:  ## Run all workspace tests
+	uv run pytest packages/ -q
+
+# 📚 Documentation
+
+docs-serve:  ## Serve documentation locally
+	uv run mkdocs serve
+
+docs-build:  ## Build documentation
+	uv run mkdocs build
+
+# ✅ Aggregate
+
+check:  ## Full quality gate (lint + type-check + test)
+	$(MAKE) lint
+	$(MAKE) type-check
+	$(MAKE) test
+
+# 🧹 Housekeeping
+
+clean:  ## Remove build artifacts
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type d -name .mypy_cache -exec rm -rf {} +
 	find . -type d -name .pytest_cache -exec rm -rf {} +
-	rm -rf dist/ build/ *.egg-info
+	find . -type d -name .ruff_cache -exec rm -rf {} +
+	rm -rf dist/ build/ *.egg-info site/
+
+help:  ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
