@@ -45,10 +45,12 @@ class StripHtmlCommentsStrategy(SmeltStrategy):
 
     @property
     def name(self) -> str:
+        """Strategy identifier used in the registry."""
         return "strip_html_comments"
 
     @property
     def category(self) -> str:
+        """Strategy category (``cosmetic``)."""
         return "cosmetic"
 
     def apply(self, ctx: SmeltContext) -> SmeltContext:

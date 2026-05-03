@@ -44,10 +44,12 @@ class RoundNumbersStrategy(SmeltStrategy):
 
     @property
     def name(self) -> str:
+        """Strategy identifier used in the registry."""
         return "round_numbers"
 
     @property
     def category(self) -> str:
+        """Strategy category (``cosmetic``)."""
         return "cosmetic"
 
     def _round_text(self, text: str) -> str:
