@@ -160,6 +160,8 @@ class TestAppIsCyclopts:
     def test_app_is_cyclopts_instance(self) -> None:
         """app must be a cyclopts.App, not typer.Typer."""
         assert isinstance(app, cyclopts.App)
+        assert type(app).__module__.startswith("cyclopts")
+        assert "typer" not in type(app).__module__
 
     def test_app_name(self) -> None:
         """App name should be 'axm-init'."""

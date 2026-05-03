@@ -173,6 +173,8 @@ addopts = [
 ]
 markers = [
     "slow: marks tests that invoke real Copier (deselect with '-m \"not slow\"')",
+    "integration: tests that exercise real I/O (filesystem, network, DB)",
+    "e2e: end-to-end tests (subprocess/CLI, black box)",
 ]
 filterwarnings = [
     # Copier uses deprecated pathspec API — upstream issue, not ours
