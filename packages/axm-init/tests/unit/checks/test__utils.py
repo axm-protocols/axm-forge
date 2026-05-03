@@ -7,41 +7,36 @@ from typing import Any
 from unittest.mock import patch
 
 from axm_init.checks._utils import (
-    _load_toml_with_workspace_fallback,
-    _merge_tool_sections,
+    load_toml,
+    load_toml_with_workspace_fallback,
+    merge_tool_sections,
 )
 
 
 class TestLoadToml:
-    """Tests for _load_toml()."""
+    """Tests for load_toml()."""
 
     def test_load_toml_valid(self, tmp_path: Path) -> None:
         """Valid pyproject.toml is parsed correctly."""
-        from axm_init.checks._utils import _load_toml
-
         (tmp_path / "pyproject.toml").write_text('[project]\nname = "test-pkg"\n')
-        data = _load_toml(tmp_path)
+        data = load_toml(tmp_path)
         assert data is not None
         assert data["project"]["name"] == "test-pkg"
 
     def test_load_toml_missing(self, tmp_path: Path) -> None:
         """Missing pyproject.toml returns None."""
-        from axm_init.checks._utils import _load_toml
-
-        data = _load_toml(tmp_path)
+        data = load_toml(tmp_path)
         assert data is None
 
     def test_load_toml_corrupt(self, tmp_path: Path) -> None:
         """Corrupt TOML returns None."""
-        from axm_init.checks._utils import _load_toml
-
         (tmp_path / "pyproject.toml").write_text("{{invalid toml}}")
-        data = _load_toml(tmp_path)
+        data = load_toml(tmp_path)
         assert data is None
 
 
 # ---------------------------------------------------------------------------
-# Unit tests: _merge_tool_sections
+# Unit tests: merge_tool_sections
 # ---------------------------------------------------------------------------
 
 
@@ -52,7 +47,7 @@ class TestDeepMergeNestedDicts:
         base = {"tool": {"coverage": {"run": {"relative_files": True}}}}
         override = {"tool": {"coverage": {"run": {"branch": True}}}}
 
-        result = _merge_tool_sections(base, override)
+        result = merge_tool_sections(base, override)
 
         assert result["tool"]["coverage"]["run"]["relative_files"] is True
         assert result["tool"]["coverage"]["run"]["branch"] is True
@@ -65,7 +60,7 @@ class TestDeepMergeMemberWinsConflict:
         base = {"tool": {"mypy": {"strict": True}}}
         override = {"tool": {"mypy": {"strict": False}}}
 
-        result = _merge_tool_sections(base, override)
+        result = merge_tool_sections(base, override)
 
         assert result["tool"]["mypy"]["strict"] is False
 
@@ -77,7 +72,7 @@ class TestDeepMergeListsNotMerged:
         base = {"tool": {"ruff": {"lint": {"select": ["E", "F"]}}}}
         override = {"tool": {"ruff": {"lint": {"select": ["I"]}}}}
 
-        result = _merge_tool_sections(base, override)
+        result = merge_tool_sections(base, override)
 
         assert result["tool"]["ruff"]["lint"]["select"] == ["I"]
 
@@ -96,7 +91,7 @@ class TestDeepMergeRootOnlyKey:
         }
         override = {"tool": {"coverage": {"run": {"branch": True}}}}
 
-        result = _merge_tool_sections(base, override)
+        result = merge_tool_sections(base, override)
 
         assert result["tool"]["coverage"]["xml"] == {"output": "cov.xml"}
 
@@ -108,7 +103,7 @@ class TestDeepMergeMemberOnlyKey:
         base = {"tool": {"mypy": {"strict": True}}}
         override = {"tool": {"deptry": {"enabled": True}}}
 
-        result = _merge_tool_sections(base, override)
+        result = merge_tool_sections(base, override)
 
         assert result["tool"]["deptry"] == {"enabled": True}
         assert result["tool"]["mypy"] == {"strict": True}
@@ -126,7 +121,7 @@ class TestMemberEmptyToolSection:
         base = {"tool": {"mypy": {"strict": True, "pretty": True}}}
         override: dict[str, Any] = {"tool": {"mypy": {}}}
 
-        result = _merge_tool_sections(base, override)
+        result = merge_tool_sections(base, override)
 
         assert result["tool"]["mypy"] == {"strict": True, "pretty": True}
 
@@ -138,7 +133,7 @@ class TestDeeplyNestedOverride:
         base = {"tool": {"ruff": {"lint": {"isort": {"known-first-party": ["axm"]}}}}}
         override = {"tool": {"ruff": {"lint": {"select": ["I"]}}}}
 
-        result = _merge_tool_sections(base, override)
+        result = merge_tool_sections(base, override)
 
         assert result["tool"]["ruff"]["lint"]["isort"] == {"known-first-party": ["axm"]}
         assert result["tool"]["ruff"]["lint"]["select"] == ["I"]
@@ -151,7 +146,7 @@ class TestNonDictToolValue:
         base = {"tool": {"setuptools": "legacy"}}
         override = {"tool": {"setuptools": "modern"}}
 
-        result = _merge_tool_sections(base, override)
+        result = merge_tool_sections(base, override)
 
         assert result["tool"]["setuptools"] == "modern"
 
@@ -159,13 +154,13 @@ class TestNonDictToolValue:
         base = {"tool": {"setuptools": ["a", "b"]}}
         override = {"tool": {"setuptools": ["c"]}}
 
-        result = _merge_tool_sections(base, override)
+        result = merge_tool_sections(base, override)
 
         assert result["tool"]["setuptools"] == ["c"]
 
 
 # ---------------------------------------------------------------------------
-# Functional: _load_toml_with_workspace_fallback
+# Functional: load_toml_with_workspace_fallback
 # ---------------------------------------------------------------------------
 
 
@@ -176,10 +171,10 @@ class TestNoWorkspaceNoMerge:
         member_data = {"tool": {"mypy": {"strict": True}}, "project": {"name": "solo"}}
 
         with (
-            patch("axm_init.checks._utils._load_toml", return_value=member_data),
+            patch("axm_init.checks._utils.load_toml", return_value=member_data),
             patch("axm_init.checks._workspace.find_workspace_root", return_value=None),
         ):
-            result = _load_toml_with_workspace_fallback(tmp_path)
+            result = load_toml_with_workspace_fallback(tmp_path)
 
         assert result == member_data
 
@@ -221,12 +216,12 @@ class TestWorkspaceFallbackIntegration:
             return {}
 
         with (
-            patch("axm_init.checks._utils._load_toml", side_effect=fake_load_toml),
+            patch("axm_init.checks._utils.load_toml", side_effect=fake_load_toml),
             patch(
                 "axm_init.checks._workspace.find_workspace_root", return_value=root_path
             ),
         ):
-            result = _load_toml_with_workspace_fallback(member_path)
+            result = load_toml_with_workspace_fallback(member_path)
 
         assert result is not None
         tool = result["tool"]
