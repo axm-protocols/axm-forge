@@ -47,10 +47,12 @@ class DedupValuesStrategy(SmeltStrategy):
 
     @property
     def name(self) -> str:
+        """Strategy identifier used in the registry."""
         return "dedup_values"
 
     @property
     def category(self) -> str:
+        """Strategy category (``structural``)."""
         return "structural"
 
     def apply(self, ctx: SmeltContext) -> SmeltContext:

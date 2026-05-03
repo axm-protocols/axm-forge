@@ -27,10 +27,12 @@ class CompactTablesStrategy(SmeltStrategy):
 
     @property
     def name(self) -> str:
+        """Strategy identifier used in the registry."""
         return "compact_tables"
 
     @property
     def category(self) -> str:
+        """Strategy category (``whitespace``)."""
         return "whitespace"
 
     def apply(self, ctx: SmeltContext) -> SmeltContext:
