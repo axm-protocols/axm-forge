@@ -1,16 +1,46 @@
 site_name: "{{ workspace_name }}"
 site_url: "https://{{ org }}.github.io/{{ workspace_name }}"
 repo_url: "https://github.com/{{ org }}/{{ workspace_name }}"
+repo_name: {{ org }}/{{ workspace_name }}
 
 theme:
   name: material
   palette:
     - scheme: default
       primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
 
 plugins:
   - search
   - monorepo
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            heading_level: 3
 
 nav:
   - Home: index.md
