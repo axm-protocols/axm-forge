@@ -26,11 +26,11 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 0 modules above threshold (max fan-out: 13)",
+      "message": "Coupling: 0 modules above threshold (max fan-out: 14)",
       "details": {
-        "max_fan_out": 13,
+        "max_fan_out": 14,
         "max_fan_in": 38,
-        "avg_coupling": 4.78,
+        "avg_coupling": 4.89,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -61,7 +61,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.37479151775078,
+        "coverage": 91.26062492517659,
         "score": 91,
         "failures": []
       }

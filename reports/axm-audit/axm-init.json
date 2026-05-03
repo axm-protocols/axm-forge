@@ -2,7 +2,7 @@
   "score": 98.5,
   "grade": "A",
   "total": 23,
-  "failed": 3,
+  "failed": 2,
   "success": false,
   "checks": [
     {
@@ -58,10 +58,10 @@
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": false,
-      "message": "Test coverage: 97% (5 test(s) failed)",
+      "passed": true,
+      "message": "Test coverage: 97% (96/100)",
       "details": {
-        "coverage": 96.71790610718737,
+        "coverage": 96.80232558139535,
         "score": 96,
         "failures": []
       }
@@ -139,11 +139,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (109/109)",
+      "message": "Docstring coverage: 100% (112/112)",
       "details": {
         "coverage": 1.0,
-        "total": 109,
-        "documented": 109,
+        "total": 112,
+        "documented": 112,
         "missing": [],
         "score": 100
       }

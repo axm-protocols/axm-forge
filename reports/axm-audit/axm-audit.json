@@ -1,8 +1,8 @@
 {
-  "score": 93.6,
+  "score": 94.9,
   "grade": "A",
   "total": 23,
-  "failed": 4,
+  "failed": 2,
   "success": false,
   "checks": [
     {
@@ -26,13 +26,13 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 4 module(s) above threshold (-12 pts)",
+      "message": "Coupling: 5 module(s) above threshold (-15 pts)",
       "details": {
         "max_fan_out": 12,
         "max_fan_in": 29,
-        "avg_coupling": 5.95,
-        "score": 88,
-        "n_over_threshold": 4,
+        "avg_coupling": 6.0,
+        "score": 85,
+        "n_over_threshold": 5,
         "over_threshold": [
           {
             "module": "axm_audit.core.rules.test_quality.tautology",
@@ -50,6 +50,13 @@
           },
           {
             "module": "axm_audit.core.rules.quality",
+            "fan_out": 11,
+            "role": "leaf",
+            "effective_threshold": 10,
+            "severity": "warning"
+          },
+          {
+            "module": "axm_audit.core.rules.complexity",
             "fan_out": 11,
             "role": "leaf",
             "effective_threshold": 10,
@@ -83,8 +90,8 @@
         "high_complexity_count": 1,
         "top_offenders": [
           {
-            "file": "private_imports.py",
-            "function": "_iter_private_aliases",
+            "file": "_shared.py",
+            "function": "_cli_runner_signal",
             "cc": 10
           }
         ],
@@ -94,48 +101,21 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 91% (91/100)",
+      "message": "Test coverage: 92% (92/100)",
       "details": {
-        "coverage": 91.47718937949244,
-        "score": 91,
+        "coverage": 92.0176437108708,
+        "score": 92,
         "failures": []
       }
     },
     {
       "rule_id": "QUALITY_DEAD_CODE",
-      "passed": false,
-      "message": "Found 2 dead (unreferenced) symbol(s).",
+      "passed": true,
+      "message": "No dead code detected.",
       "details": {
-        "score": 90.0,
-        "dead_count": 2,
-        "symbols": [
-          {
-            "name": "_extract_test_failures",
-            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-audit/src/axm_audit/core/rules/coverage.py",
-            "line": 166,
-            "kind": "function"
-          },
-          {
-            "name": "_read_snippet",
-            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-audit/src/axm_audit/hooks/quality_check.py",
-            "line": 27,
-            "kind": "function"
-          }
-        ],
-        "top_offenders": [
-          {
-            "name": "_extract_test_failures",
-            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-audit/src/axm_audit/core/rules/coverage.py",
-            "line": 166,
-            "kind": "function"
-          },
-          {
-            "name": "_read_snippet",
-            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-audit/src/axm_audit/hooks/quality_check.py",
-            "line": 27,
-            "kind": "function"
-          }
-        ]
+        "score": 100.0,
+        "dead_count": 0,
+        "symbols": []
       }
     },
     {
@@ -201,16 +181,13 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 98% (83/85)",
+      "message": "Docstring coverage: 100% (85/85)",
       "details": {
-        "coverage": 0.98,
+        "coverage": 1.0,
         "total": 85,
-        "documented": 83,
-        "missing": [
-          "axm_audit/core/rules/test_quality/duplicate_tests.py:find",
-          "axm_audit/core/rules/test_quality/duplicate_tests.py:union"
-        ],
-        "score": 97
+        "documented": 85,
+        "missing": [],
+        "score": 100
       }
     },
     {
@@ -310,20 +287,13 @@
     },
     {
       "rule_id": "QUALITY_TYPE",
-      "passed": false,
-      "message": "Type score: 95/100 (1 errors)",
+      "passed": true,
+      "message": "Type score: 100/100 (0 errors)",
       "details": {
-        "error_count": 1,
-        "score": 95,
+        "error_count": 0,
+        "score": 100,
         "checked": "src/ tests/",
-        "errors": [
-          {
-            "file": "src/axm_audit/core/rules/test_quality/private_imports.py",
-            "line": 92,
-            "message": "\"AST\" has no attribute \"lineno\"",
-            "code": "attr-defined"
-          }
-        ]
+        "errors": []
       }
     },
     {

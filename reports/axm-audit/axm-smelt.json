@@ -1,8 +1,8 @@
 {
-  "score": 96.5,
+  "score": 97.2,
   "grade": "A",
   "total": 23,
-  "failed": 3,
+  "failed": 2,
   "success": false,
   "checks": [
     {
@@ -138,35 +138,14 @@
     },
     {
       "rule_id": "PRACTICE_DOCSTRING",
-      "passed": false,
-      "message": "Docstring coverage: 51% (21/41)",
+      "passed": true,
+      "message": "Docstring coverage: 100% (41/41)",
       "details": {
-        "coverage": 0.51,
+        "coverage": 1.0,
         "total": 41,
-        "documented": 21,
-        "missing": [
-          "axm_smelt/strategies/round_numbers.py:name",
-          "axm_smelt/strategies/round_numbers.py:category",
-          "axm_smelt/strategies/drop_nulls.py:name",
-          "axm_smelt/strategies/drop_nulls.py:category",
-          "axm_smelt/strategies/flatten.py:name",
-          "axm_smelt/strategies/flatten.py:category",
-          "axm_smelt/strategies/minify.py:name",
-          "axm_smelt/strategies/minify.py:category",
-          "axm_smelt/strategies/tabular.py:name",
-          "axm_smelt/strategies/tabular.py:category",
-          "axm_smelt/strategies/compact_tables.py:name",
-          "axm_smelt/strategies/compact_tables.py:category",
-          "axm_smelt/strategies/collapse_whitespace.py:name",
-          "axm_smelt/strategies/collapse_whitespace.py:category",
-          "axm_smelt/strategies/strip_quotes.py:name",
-          "axm_smelt/strategies/strip_quotes.py:category",
-          "axm_smelt/strategies/dedup_values.py:name",
-          "axm_smelt/strategies/dedup_values.py:category",
-          "axm_smelt/strategies/strip_html_comments.py:name",
-          "axm_smelt/strategies/strip_html_comments.py:category"
-        ],
-        "score": 51
+        "documented": 41,
+        "missing": [],
+        "score": 100
       }
     },
     {
