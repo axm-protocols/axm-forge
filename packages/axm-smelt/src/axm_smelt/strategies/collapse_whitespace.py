@@ -23,10 +23,12 @@ class CollapseWhitespaceStrategy(SmeltStrategy):
 
     @property
     def name(self) -> str:
+        """Strategy identifier used in the registry."""
         return "collapse_whitespace"
 
     @property
     def category(self) -> str:
+        """Strategy category (``whitespace``)."""
         return "whitespace"
 
     def apply(self, ctx: SmeltContext) -> SmeltContext:

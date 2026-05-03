@@ -35,10 +35,12 @@ class DropNullsStrategy(SmeltStrategy):
 
     @property
     def name(self) -> str:
+        """Strategy identifier used in the registry."""
         return "drop_nulls"
 
     @property
     def category(self) -> str:
+        """Strategy category (``structural``)."""
         return "structural"
 
     def apply(self, ctx: SmeltContext) -> SmeltContext:
