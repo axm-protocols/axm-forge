@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from axm_init.checks._utils import _load_toml, requires_toml
+from axm_init.checks._utils import load_toml, requires_toml
 from axm_init.models.check import CheckResult
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ def check_pyproject_exists(project: Path) -> CheckResult:
             details=[],
             fix="Create a pyproject.toml at the project root.",
         )
-    data = _load_toml(project)
+    data = load_toml(project)
     if data is None:
         return CheckResult(
             name="pyproject.exists",
