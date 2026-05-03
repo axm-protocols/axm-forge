@@ -73,19 +73,24 @@ def test_s2_cross_file_same_name_high_similarity(project: Path) -> None:
 
 
 def test_s3_intra_file_similarity(project: Path) -> None:
+    # Same public SUT set on both sides so P7 (distinct-SUT rescue)
+    # does not fire.  A kwarg-only divergence on the asserted call
+    # breaks the S1 ``call_sig`` match (kwargs are part of the sig)
+    # while keeping ``stmt_set`` Jaccard ≥ threshold, leaving S3 as
+    # the only signal that can cluster the pair.
     _write(
         project / "tests" / "test_mod.py",
         """
         def test_alpha():
             x = foo(1)
             y = bar(x)
-            z = baz(y)
+            z = baz(y, mode="strict")
             assert z == 5
 
         def test_gamma():
-            x = qux(1)
+            x = foo(1)
             y = bar(x)
-            z = baz(y)
+            z = baz(y, mode="loose")
             assert z == 5
         """,
     )
@@ -374,6 +379,59 @@ def test_p6_builtin_does_not_trigger(project: Path) -> None:
     result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
     signals = _cluster_signals(result)
     assert "ambiguous_call_multiplicity" not in signals
+
+
+def test_p7_distinct_sut_rescues_s3(project: Path) -> None:
+    """P7 — same skeleton + side-effecting distinct SUTs ≠ duplicates.
+
+    Reproduit le faux positif `atd-reporter` cluster #15: deux smoke
+    tests dont le SUT (``fill_highlight`` vs ``_shift_ppr_tracking_table``)
+    n'apparaît pas sur la chaîne d'asserts (side-effect), donc
+    ``call_sig`` capte le builder de fixture et S1 ne déclenche pas; S3
+    clusterise par similarité brute.  P7 doit demoter en
+    ``ambiguous_distinct_sut``.
+    """
+    _write(
+        project / "tests" / "test_mod.py",
+        """
+        def test_no_table_no_crash():
+            doc = Document()
+            fill_highlight(doc, "data")
+            assert len(doc.tables) == 0
+
+        def test_no_ppr_table_no_crash():
+            cell = _make_cell()
+            _shift_ppr_tracking_table(cell, "data")
+            assert len(cell.tables) == 0
+        """,
+    )
+    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
+    signals = _cluster_signals(result)
+    assert "ambiguous_distinct_sut" in signals
+    assert "signal3_intra_file_similarity" not in signals
+
+
+def test_p7_subset_does_not_rescue(project: Path) -> None:
+    """P7 — set inclusion (parametrable) must NOT trigger the rescue."""
+    _write(
+        project / "tests" / "test_mod.py",
+        """
+        def test_alpha():
+            result = parse("foo")
+            assert result == "alpha"
+
+        def test_beta():
+            warmup()
+            result = parse("bar")
+            assert result == "beta"
+        """,
+    )
+    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
+    signals = _cluster_signals(result)
+    # ``warmup`` is only on one side but the SUT set on side A
+    # (``{parse}``) is a subset of side B (``{parse, warmup}``).
+    # P7 stays silent; P1 (distinct literals) wins instead.
+    assert "ambiguous_distinct_sut" not in signals
 
 
 def _make_cluster(signal: str, tests: list[tuple[str, str]]) -> dict[str, Any]:

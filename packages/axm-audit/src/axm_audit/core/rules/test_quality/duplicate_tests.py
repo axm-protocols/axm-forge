@@ -32,6 +32,7 @@ __all__ = [
     "_p4_rescues",
     "_p5_rescues",
     "_p6_rescues",
+    "_p7_rescues",
 ]
 
 
@@ -609,6 +610,56 @@ def _p6_rescues(tests: list[_TestFunc]) -> bool:
     return False
 
 
+def _p7_eligible_sut(name: str) -> bool:
+    """A P7 candidate SUT is anything not a known builtin/test-infra helper.
+
+    Looser than ``_p6_eligible_sut``: leading-underscore names are *kept*
+    because internal entry points (``_shift_ppr_tracking_table``,
+    ``_format_json``…) are legitimately distinct SUTs.  P6 has to exclude
+    them to avoid false rescues based on fixture helpers; P7 has to keep
+    them to detect distinct internal SUTs.
+    """
+    return name not in _P6_EXCLUDED_NAMES
+
+
+def _p7_sut_set(node: ast.FunctionDef) -> frozenset[str]:
+    """Set of non-builtin direct call-target names in *node*'s body."""
+    out: set[str] = set()
+    for child in ast.walk(node):
+        if not isinstance(child, ast.Call):
+            continue
+        name = _call_target_name(child)
+        if name is not None and _p7_eligible_sut(name):
+            out.add(name)
+    return frozenset(out)
+
+
+def _p7_rescues(tests: list[_TestFunc]) -> bool:
+    """P7 — tests' direct-call SUT sets are not in subset relation.
+
+    For a pair of tests, if neither side's set of direct calls is a
+    subset of the other, they exercise structurally distinct entry
+    points — even when the AST skeleton is otherwise identical.  This
+    is the smoke-test failure mode where a side-effecting SUT does not
+    appear on the assert chain (so ``call_sig`` captures a fixture
+    builder instead of the real entry point), and S3 would otherwise
+    cluster ``fill_highlight`` with ``_shift_ppr_tracking_table``.
+
+    The check is *symmetric difference*-based, not strict equality:
+    when set A ⊆ B (or vice-versa), the smaller set is interpreted as a
+    parametrised slice of the larger one — keep clustering (a legitimate
+    parametrised cluster usually has a near-equal call set).  Demote
+    only when each side has a SUT the other lacks.
+    """
+    if len(tests) < _MIN_PAIR:
+        return False
+    sut_sets = [_p7_sut_set(t.node) for t in tests]
+    for a, b in combinations(sut_sets, 2):
+        if (a - b) and (b - a):
+            return True
+    return False
+
+
 # ── Clustering ────────────────────────────────────────────────────────
 
 
@@ -641,6 +692,11 @@ def _classify_s1(tests: list[_TestFunc], sig: str, pattern: str) -> tuple[str, s
             "ambiguous_call_multiplicity",
             f"call-multiplicity rescue for SUT {sig}",
         )
+    if _p7_rescues(tests):
+        return (
+            "ambiguous_distinct_sut",
+            f"distinct public SUT rescue for shared sig {sig}",
+        )
     tail = " + same asserts" if pattern != "<no-assert>" else ""
     return "signal1_call_assert", f"same SUT: {sig}{tail}"
 
@@ -661,35 +717,31 @@ def _classify_s2(tests: list[_TestFunc], name: str, sim: float) -> tuple[str, st
             "ambiguous_patch_context",
             f"patch-context rescue (cross-file {name})",
         )
+    if _p7_rescues(tests):
+        return (
+            "ambiguous_distinct_sut",
+            f"distinct public SUT rescue (cross-file {name})",
+        )
     return "signal2_cross_file_name", f"cross-file duplicate ({sim:.0%}): {name}"
 
 
+_S3_RESCUES: tuple[
+    tuple[Any, str, str],
+    ...,
+] = (
+    (_p1_rescues, "ambiguous_distinct_literals", "distinct literals rescue"),
+    (_p2_rescues, "ambiguous_patch_context", "patch-context rescue"),
+    (_p4_rescues, "ambiguous_body_size", "body-size delta rescue"),
+    (_p5_rescues, "ambiguous_setup_divergence", "setup divergence rescue"),
+    (_p6_rescues, "ambiguous_call_multiplicity", "call-multiplicity rescue"),
+    (_p7_rescues, "ambiguous_distinct_sut", "distinct public SUT rescue"),
+)
+
+
 def _classify_s3(tests: list[_TestFunc], sim: float) -> tuple[str, str]:
-    if _p1_rescues(tests):
-        return (
-            "ambiguous_distinct_literals",
-            f"distinct literals rescue (intra-file {sim:.0%})",
-        )
-    if _p2_rescues(tests):
-        return (
-            "ambiguous_patch_context",
-            f"patch-context rescue (intra-file {sim:.0%})",
-        )
-    if _p4_rescues(tests):
-        return (
-            "ambiguous_body_size",
-            f"body-size delta rescue (intra-file {sim:.0%})",
-        )
-    if _p5_rescues(tests):
-        return (
-            "ambiguous_setup_divergence",
-            f"setup divergence rescue (intra-file {sim:.0%})",
-        )
-    if _p6_rescues(tests):
-        return (
-            "ambiguous_call_multiplicity",
-            f"call-multiplicity rescue (intra-file {sim:.0%})",
-        )
+    for predicate, signal, label in _S3_RESCUES:
+        if predicate(tests):
+            return signal, f"{label} (intra-file {sim:.0%})"
     return "signal3_intra_file_similarity", f"AST similarity {sim:.0%}"
 
 
