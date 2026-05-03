@@ -8,70 +8,66 @@ import pytest
 import yaml
 
 from axm_init.adapters.workspace_patcher import (
-    _append_to_toml_array_lines,
-    _detect_yaml_indent,
-    _find_yaml_list_range,
-    _insert_into_toml_array,
-    _insert_into_yaml_list,
     patch_ci,
     patch_publish,
     patch_release,
+    patch_testpaths,
 )
 
-# ── _detect_yaml_indent ─────────────────────────────────────────────────────
+# ── YAML helper edge cases (covered via public patch_publish) ───────────────
 
 
-class TestDetectYamlIndent:
-    """Cover line 148: fallback to default when no list items."""
+class TestYamlHelperEdgeCases:
+    """Edge cases in YAML list handling, exercised via patch_publish."""
 
-    def test_no_list_items_returns_default(self) -> None:
-        lines = ["key: value\n", "other: stuff\n"]
-        result = _detect_yaml_indent(lines, default="    ")
-        assert result == "    "
+    def _publish_with(self, root: Path, body: str) -> Path:
+        """Write a minimal publish.yml under *root* with the given body."""
+        publish_yml = root / ".github" / "workflows" / "publish.yml"
+        publish_yml.parent.mkdir(parents=True, exist_ok=True)
+        publish_yml.write_text(body)
+        return publish_yml
 
-    def test_detects_existing_indent(self) -> None:
-        lines = ["items:\n", "    - first\n", "    - second\n"]
-        result = _detect_yaml_indent(lines)
-        assert result == "    "
+    def test_marker_present_but_no_list_items(self, tmp_path: Path) -> None:
+        """`tags:` marker present but no `- ` items → original is preserved."""
+        body = (
+            "name: Publish\n\n"
+            "on:\n  push:\n    tags:\n      nothing_here: true\n\n"
+            "jobs:\n  publish:\n    runs-on: ubuntu-latest\n"
+            "    steps:\n      - uses: actions/checkout@v6\n"
+        )
+        publish_yml = self._publish_with(tmp_path, body)
+        patch_publish(tmp_path, "my-lib")
+        content = publish_yml.read_text()
+        assert "nothing_here: true" in content
 
+    def test_no_tags_marker_creates_section(self, tmp_path: Path) -> None:
+        """No `tags:` in publish.yml → push.tags trigger is created."""
+        body = (
+            "name: Publish\n\n"
+            "jobs:\n  publish:\n    runs-on: ubuntu-latest\n"
+            "    steps:\n      - uses: actions/checkout@v6\n"
+        )
+        publish_yml = self._publish_with(tmp_path, body)
+        patch_publish(tmp_path, "my-lib")
+        content = publish_yml.read_text()
+        assert '"my-lib/v*"' in content
+        assert "push:" in content
+        assert "tags:" in content
 
-# ── _find_yaml_list_range ───────────────────────────────────────────────────
-
-
-class TestFindYamlListRange:
-    """Cover line 177: no list found returns None."""
-
-    def test_no_list_returns_none(self) -> None:
-        lines = ["key: value\n", "other: stuff\n"]
-        result = _find_yaml_list_range(lines, None)
-        assert result is None
-
-    def test_with_marker_no_list_after(self) -> None:
-        lines = ["tags:\n", "  nothing_here: true\n"]
-        result = _find_yaml_list_range(lines, "tags:")
-        assert result is None
-
-    def test_finds_list_with_marker(self) -> None:
-        lines = ["tags:\n", "  - v1\n", "  - v2\n", "jobs:\n"]
-        result = _find_yaml_list_range(lines, "tags:")
-        assert result == (1, 3)
-
-    def test_finds_list_without_marker(self) -> None:
-        lines = ["  - item1\n", "  - item2\n", "other:\n"]
-        result = _find_yaml_list_range(lines, None)
-        assert result == (0, 2)
-
-
-# ── _insert_into_yaml_list ──────────────────────────────────────────────────
-
-
-class TestInsertIntoYamlList:
-    """Cover line 195: bounds is None → return original."""
-
-    def test_no_bounds_returns_original(self) -> None:
-        lines = ["key: value\n"]
-        result = _insert_into_yaml_list(lines, "new-item", list_marker="tags:")
-        assert result == ["key: value\n"]
+    def test_existing_tags_with_default_indent(self, tmp_path: Path) -> None:
+        """Existing tags list → indent is detected from the last item."""
+        body = (
+            "name: Publish\n\n"
+            "on:\n  push:\n    tags:\n"
+            '      - "existing/v*"\n\n'
+            "jobs:\n  publish:\n    runs-on: ubuntu-latest\n"
+            "    steps:\n      - uses: actions/checkout@v6\n"
+        )
+        publish_yml = self._publish_with(tmp_path, body)
+        patch_publish(tmp_path, "my-lib")
+        content = publish_yml.read_text()
+        assert '      - "existing/v*"' in content
+        assert '      - "my-lib/v*"' in content
 
 
 # ── patch_release ───────────────────────────────────────────────────────────
@@ -174,41 +170,36 @@ class TestPatchPyprojectWithSources:
         assert "[tool.uv.sources.new-lib]" in content
 
 
-# ── _insert_into_toml_array edge cases ──────────────────────────────────────
+# ── TOML array edge cases (covered via public patch_testpaths) ──────────────
 
 
-class TestInsertIntoTomlArray:
-    """Cover lines 336, 339: section missing or key missing."""
+class TestTomlArrayEdgeCases:
+    """Edge cases in TOML array handling, exercised via patch_testpaths."""
 
-    def test_section_missing_creates_full_block(self) -> None:
-        content = '[project]\nname = "ws"\n'
-        result = _insert_into_toml_array(content, "packages/new/tests")
-        assert "[tool.pytest.ini_options]" in result
-        assert '"packages/new/tests"' in result
-
-    def test_section_exists_key_missing(self) -> None:
-        content = (
+    def test_section_exists_key_missing(self, tmp_path: Path) -> None:
+        """Section exists without testpaths key → key is added with array."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
             '[project]\nname = "ws"\n\n'
             '[tool.pytest.ini_options]\nimport_mode = "importlib"\n'
         )
-        result = _insert_into_toml_array(content, "packages/new/tests")
-        assert '"packages/new/tests"' in result
+        patch_testpaths(tmp_path, "new-pkg")
+        result = pyproject.read_text()
+        assert '"packages/new-pkg/tests"' in result
         assert "[tool.pytest.ini_options]" in result
+        assert 'import_mode = "importlib"' in result
 
-
-class TestAppendToTomlArrayLines:
-    """Cover lines 359-366: single-line array handling."""
-
-    def test_single_line_array(self) -> None:
-        content = 'testpaths = ["packages/a/tests"]\n'
-        result = _append_to_toml_array_lines(content, "packages/b/tests", "testpaths")
+    def test_single_line_array(self, tmp_path: Path) -> None:
+        """Existing single-line testpaths array → entry appended in-place."""
+        pyproject = tmp_path / "pyproject.toml"
+        pyproject.write_text(
+            '[project]\nname = "ws"\n\n'
+            "[tool.pytest.ini_options]\n"
+            'testpaths = ["packages/a/tests"]\n'
+        )
+        patch_testpaths(tmp_path, "b")
+        result = pyproject.read_text()
         assert '"packages/a/tests"' in result
-        assert '"packages/b/tests"' in result
-        assert "]" in result
-
-    def test_multi_line_array(self) -> None:
-        content = 'testpaths = [\n    "packages/a/tests",\n]\n'
-        result = _append_to_toml_array_lines(content, "packages/b/tests", "testpaths")
         assert '"packages/b/tests"' in result
 
 
