@@ -4,36 +4,44 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# ── _resolve_member_dirs edge cases ─────────────────────────────────────────
+# ── Member-dir resolution edge cases (via public check_members_consistent) ──
 
 
 class TestResolveMemberDirsEdge:
-    """Cover lines 31, 36: no toml and no member globs."""
+    """Cover member-dir resolution edge cases via public check_members_consistent.
+
+    When member resolution yields an empty list, check_members_consistent
+    returns passed=True with the "No members yet" message — exercising the
+    same branches that previously imported _resolve_member_dirs directly.
+    """
 
     def test_no_pyproject_returns_empty(self, tmp_path: Path) -> None:
-        """No pyproject.toml → empty list."""
-        from axm_init.checks.workspace import _resolve_member_dirs
+        """No pyproject.toml → check passes with "No members yet"."""
+        from axm_init.checks.workspace import check_members_consistent
 
-        result = _resolve_member_dirs(tmp_path)
-        assert result == []
+        result = check_members_consistent(tmp_path)
+        assert result.passed
+        assert "No members yet" in result.message
 
     def test_no_member_globs_returns_empty(self, tmp_path: Path) -> None:
-        """Workspace section with empty members → empty list."""
-        from axm_init.checks.workspace import _resolve_member_dirs
+        """Workspace section with empty members → check passes with "No members yet"."""
+        from axm_init.checks.workspace import check_members_consistent
 
         (tmp_path / "pyproject.toml").write_text(
             '[project]\nname = "ws"\n[tool.uv.workspace]\nmembers = []\n'
         )
-        result = _resolve_member_dirs(tmp_path)
-        assert result == []
+        result = check_members_consistent(tmp_path)
+        assert result.passed
+        assert "No members yet" in result.message
 
     def test_no_workspace_section_returns_empty(self, tmp_path: Path) -> None:
-        """pyproject.toml without workspace section → empty list."""
-        from axm_init.checks.workspace import _resolve_member_dirs
+        """No workspace section → check passes with 'No members yet'."""
+        from axm_init.checks.workspace import check_members_consistent
 
         (tmp_path / "pyproject.toml").write_text('[project]\nname = "ws"\n')
-        result = _resolve_member_dirs(tmp_path)
-        assert result == []
+        result = check_members_consistent(tmp_path)
+        assert result.passed
+        assert "No members yet" in result.message
 
 
 # ── check_members_consistent missing files ──────────────────────────────────

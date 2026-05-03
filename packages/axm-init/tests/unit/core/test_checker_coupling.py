@@ -31,14 +31,13 @@ class TestCheckerLazyImports:
         engine = CheckEngine(tmp_path)
         assert engine.project_path == tmp_path.resolve()
 
-    def test_discover_checks_returns_registry(self) -> None:
-        """_discover_checks still finds check modules at runtime."""
-        from axm_init.core.checker import _discover_checks
+    def test_all_checks_registry_populated(self) -> None:
+        """ALL_CHECKS registry is populated with callable check functions."""
+        from axm_init.core.checker import ALL_CHECKS
 
-        registry = _discover_checks()
-        assert isinstance(registry, dict)
-        assert len(registry) > 0
-        for category, fns in registry.items():
+        assert isinstance(ALL_CHECKS, dict)
+        assert len(ALL_CHECKS) > 0
+        for category, fns in ALL_CHECKS.items():
             assert isinstance(category, str)
             assert all(callable(fn) for fn in fns)
 
