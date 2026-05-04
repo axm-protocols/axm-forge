@@ -30,7 +30,7 @@ class TestCommitFromOutputsSkipHooks:
         mock_run_git: MagicMock,
         tmp_path: Path,
     ) -> None:
-        """By default, git commit args include --no-verify."""
+        """By default (skip_hooks=False), git commit args do NOT include --no-verify."""
         mock_find_root.return_value = tmp_path
         (tmp_path / "f.py").write_text("x")
 
@@ -67,7 +67,7 @@ class TestCommitFromOutputsSkipHooks:
             call for call in mock_run_git.call_args_list if call[0][0][0] == "commit"
         ]
         assert len(commit_calls) == 1
-        assert "--no-verify" in commit_calls[0][0][0]
+        assert "--no-verify" not in commit_calls[0][0][0]
 
     @patch("axm_git.hooks.commit_phase.run_git")
     @patch("axm_git.hooks.commit_phase.find_git_root")
