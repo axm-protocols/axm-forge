@@ -1,13 +1,15 @@
-"""Security rules — Bandit integration for vulnerability detection."""
+"""Security rules — Bandit + secret-pattern detection."""
 
 from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from axm_audit.core.rules._helpers import get_python_files
 from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
@@ -172,3 +174,76 @@ class SecurityRule(ProjectRule):
             )
 
         return _build_security_result(self.rule_id, data.get("results", []))
+
+
+@dataclass
+@register_rule("security")
+class SecurityPatternRule(ProjectRule):
+    """Detect hardcoded secrets via regex patterns."""
+
+    patterns: list[str] = field(
+        default_factory=lambda: [
+            r"password\s*=\s*[\"'][^\"']+[\"']",
+            r"secret\s*=\s*[\"'][^\"']+[\"']",
+            r"api_key\s*=\s*[\"'][^\"']+[\"']",
+            r"token\s*=\s*[\"'][^\"']+[\"']",
+        ]
+    )
+
+    @property
+    def rule_id(self) -> str:
+        """Unique identifier for this rule."""
+        return "PRACTICE_SECURITY"
+
+    def _scan_file_for_secrets(
+        self, path: Path, src_path: Path
+    ) -> list[dict[str, str | int]]:
+        try:
+            content = path.read_text()
+        except (OSError, UnicodeDecodeError):
+            return []
+
+        found: list[dict[str, str | int]] = []
+        for pattern in self.patterns:
+            for match in re.finditer(pattern, content, re.IGNORECASE):
+                line_num = content[: match.start()].count("\n") + 1
+                found.append(
+                    {
+                        "file": str(path.relative_to(src_path)),
+                        "line": line_num,
+                        "pattern": pattern.split(r"\s*")[0],
+                    }
+                )
+        return found
+
+    def _build_secret_result(self, matches: list[dict[str, str | int]]) -> CheckResult:
+        count = len(matches)
+        passed = count == 0
+        score = max(0, 100 - count * 25)
+        text_lines = [f"• {m['file']}:{m['line']} {m['pattern']}" for m in matches]
+
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=passed,
+            message=f"{count} potential secret(s) found",
+            severity=Severity.ERROR if not passed else Severity.INFO,
+            score=int(score),
+            details={"secret_count": count, "matches": matches},
+            text="\n".join(text_lines) if text_lines else None,
+            fix_hint="Use environment variables or secret managers"
+            if not passed
+            else None,
+        )
+
+    def check(self, project_path: Path) -> CheckResult:
+        """Check for hardcoded secrets in the project."""
+        early = self.check_src(project_path)
+        if early is not None:
+            return early
+
+        src_path = project_path / "src"
+        matches: list[dict[str, str | int]] = []
+        for path in get_python_files(src_path):
+            matches.extend(self._scan_file_for_secrets(path, src_path))
+
+        return self._build_secret_result(matches)

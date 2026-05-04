@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_audit.core.rules.practices import DocstringCoverageRule
+from axm_audit.core.rules.practices.docstring_coverage import DocstringCoverageRule
 
 
 @pytest.fixture
