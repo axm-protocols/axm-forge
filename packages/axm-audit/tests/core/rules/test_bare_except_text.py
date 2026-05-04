@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_audit.core.rules.practices import BareExceptRule
+from axm_audit.core.rules.practices.bare_except import BareExceptRule
 
 BULLET = "     \u2022 "
 

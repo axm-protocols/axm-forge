@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from axm_audit.core.rules.practices import BlockingIORule
+from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 
 
 def _write_file(base: Path, rel: str, content: str) -> None:

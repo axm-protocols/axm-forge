@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 if TYPE_CHECKING:
-    from axm_audit.core.rules.practices import DocstringCoverageRule
+    from axm_audit.core.rules.practices.docstring_coverage import DocstringCoverageRule
 
 from axm_audit.models.results import Severity
 
@@ -18,7 +18,9 @@ class TestDocstringCoverageRule:
 
     def test_fully_documented_passes(self, tmp_path: Path) -> None:
         """All public functions with docstrings should pass."""
-        from axm_audit.core.rules.practices import DocstringCoverageRule
+        from axm_audit.core.rules.practices.docstring_coverage import (
+            DocstringCoverageRule,
+        )
 
         src = tmp_path / "src"
         src.mkdir()
@@ -40,7 +42,9 @@ def another_public() -> str:
 
     def test_missing_docstrings_fails(self, tmp_path: Path) -> None:
         """Functions without docstrings should reduce coverage."""
-        from axm_audit.core.rules.practices import DocstringCoverageRule
+        from axm_audit.core.rules.practices.docstring_coverage import (
+            DocstringCoverageRule,
+        )
 
         src = tmp_path / "src"
         src.mkdir()
@@ -67,7 +71,9 @@ def func_four() -> None:
 
     def test_private_functions_ignored(self, tmp_path: Path) -> None:
         """Private functions (starting with _) should not count."""
-        from axm_audit.core.rules.practices import DocstringCoverageRule
+        from axm_audit.core.rules.practices.docstring_coverage import (
+            DocstringCoverageRule,
+        )
 
         src = tmp_path / "src"
         src.mkdir()
@@ -87,7 +93,9 @@ def _private_helper() -> None:
 
     def test_rule_id_format(self) -> None:
         """Rule ID should be PRACTICE_DOCSTRING."""
-        from axm_audit.core.rules.practices import DocstringCoverageRule
+        from axm_audit.core.rules.practices.docstring_coverage import (
+            DocstringCoverageRule,
+        )
 
         rule = DocstringCoverageRule()
         assert rule.rule_id == "PRACTICE_DOCSTRING"
@@ -98,7 +106,7 @@ class TestBareExceptRule:
 
     def test_typed_except_passes(self, tmp_path: Path) -> None:
         """Typed except clauses should pass."""
-        from axm_audit.core.rules.practices import BareExceptRule
+        from axm_audit.core.rules.practices.bare_except import BareExceptRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -117,7 +125,7 @@ except (ValueError, TypeError) as e:
 
     def test_bare_except_fails(self, tmp_path: Path) -> None:
         """Bare except: should fail."""
-        from axm_audit.core.rules.practices import BareExceptRule
+        from axm_audit.core.rules.practices.bare_except import BareExceptRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -136,7 +144,7 @@ except:
 
     def test_rule_id_format(self) -> None:
         """Rule ID should be PRACTICE_BARE_EXCEPT."""
-        from axm_audit.core.rules.practices import BareExceptRule
+        from axm_audit.core.rules.practices.bare_except import BareExceptRule
 
         rule = BareExceptRule()
         assert rule.rule_id == "PRACTICE_BARE_EXCEPT"
@@ -145,7 +153,7 @@ except:
         """Tests that _find_bare_excepts correctly extracts locations."""
         import ast
 
-        from axm_audit.core.rules.practices import BareExceptRule
+        from axm_audit.core.rules.practices.bare_except import BareExceptRule
 
         src_path = tmp_path / "src"
         src_path.mkdir()
@@ -173,7 +181,7 @@ class TestSecurityPatternRule:
 
     def test_no_secrets_passes(self, tmp_path: Path) -> None:
         """Code without hardcoded secrets should pass."""
-        from axm_audit.core.rules.practices import SecurityPatternRule
+        from axm_audit.core.rules.security import SecurityPatternRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -190,7 +198,7 @@ api_key = os.getenv("API_KEY")
 
     def test_hardcoded_password_fails(self, tmp_path: Path) -> None:
         """Hardcoded password should fail."""
-        from axm_audit.core.rules.practices import SecurityPatternRule
+        from axm_audit.core.rules.security import SecurityPatternRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -207,7 +215,7 @@ api_key = "sk-1234567890"
 
     def test_rule_id_format(self) -> None:
         """Rule ID should be PRACTICE_SECURITY."""
-        from axm_audit.core.rules.practices import SecurityPatternRule
+        from axm_audit.core.rules.security import SecurityPatternRule
 
         rule = SecurityPatternRule()
         assert rule.rule_id == "PRACTICE_SECURITY"
@@ -221,7 +229,7 @@ class TestBlockingIORule:
 
     def test_pass_no_blocking(self, tmp_path: Path) -> None:
         """Module with async def using asyncio.sleep should pass."""
-        from axm_audit.core.rules.practices import BlockingIORule
+        from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -238,7 +246,7 @@ async def f():
 
     def test_fail_sleep_in_async(self, tmp_path: Path) -> None:
         """time.sleep inside async def should fail."""
-        from axm_audit.core.rules.practices import BlockingIORule
+        from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -259,7 +267,7 @@ async def handler():
 
     def test_fail_no_timeout(self, tmp_path: Path) -> None:
         """requests.get without timeout should fail."""
-        from axm_audit.core.rules.practices import BlockingIORule
+        from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -280,7 +288,7 @@ def fetch():
 
     def test_pass_with_timeout(self, tmp_path: Path) -> None:
         """requests.get with timeout should pass."""
-        from axm_audit.core.rules.practices import BlockingIORule
+        from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -297,7 +305,7 @@ def fetch():
 
     def test_httpx_async_client_no_timeout(self, tmp_path: Path) -> None:
         """httpx.AsyncClient().get() without timeout should fail."""
-        from axm_audit.core.rules.practices import BlockingIORule
+        from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -316,7 +324,7 @@ async def fetch():
 
     def test_rule_id_format(self) -> None:
         """Rule ID should be PRACTICE_BLOCKING_IO."""
-        from axm_audit.core.rules.practices import BlockingIORule
+        from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 
         rule = BlockingIORule()
         assert rule.rule_id == "PRACTICE_BLOCKING_IO"
@@ -330,7 +338,9 @@ class TestDocstringMissingDetail:
 
     def test_missing_no_cap(self, tmp_path: Path) -> None:
         """All missing docstrings are returned, not capped at 10."""
-        from axm_audit.core.rules.practices import DocstringCoverageRule
+        from axm_audit.core.rules.practices.docstring_coverage import (
+            DocstringCoverageRule,
+        )
 
         src = tmp_path / "src"
         src.mkdir()
@@ -346,7 +356,9 @@ class TestDocstringMissingDetail:
 
     def test_missing_list_contains_locations(self, tmp_path: Path) -> None:
         """Each missing entry has file:function format."""
-        from axm_audit.core.rules.practices import DocstringCoverageRule
+        from axm_audit.core.rules.practices.docstring_coverage import (
+            DocstringCoverageRule,
+        )
 
         src = tmp_path / "src"
         src.mkdir()
@@ -359,7 +371,9 @@ class TestDocstringMissingDetail:
 
     def test_fully_documented_empty_missing(self, tmp_path: Path) -> None:
         """100% coverage returns empty missing list."""
-        from axm_audit.core.rules.practices import DocstringCoverageRule
+        from axm_audit.core.rules.practices.docstring_coverage import (
+            DocstringCoverageRule,
+        )
 
         src = tmp_path / "src"
         src.mkdir()
@@ -449,7 +463,7 @@ class TestTestMirrorRule:
 
     def test_pass_all_modules_tested(self, tmp_path: Path) -> None:
         """All source modules with matching test files should pass."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -469,7 +483,7 @@ class TestTestMirrorRule:
 
     def test_fail_missing_tests(self, tmp_path: Path) -> None:
         """Missing test file should fail with details listing the module."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -492,7 +506,7 @@ class TestTestMirrorRule:
 
     def test_exempt_init_and_version(self, tmp_path: Path) -> None:
         """__init__.py and _version.py should be exempt from test requirement."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -510,7 +524,7 @@ class TestTestMirrorRule:
 
     def test_nested_test_dirs(self, tmp_path: Path) -> None:
         """Test files in nested directories (tests/core/) should match."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -527,7 +541,7 @@ class TestTestMirrorRule:
 
     def test_no_src_directory(self, tmp_path: Path) -> None:
         """Empty project without src/ should pass with INFO."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         rule = TestMirrorRule()
         result = rule.check(tmp_path)
@@ -536,7 +550,7 @@ class TestTestMirrorRule:
 
     def test_empty_src_only_init(self, tmp_path: Path) -> None:
         """Package with only __init__.py should pass (all exempt)."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -548,7 +562,7 @@ class TestTestMirrorRule:
 
     def test_rule_id_format(self) -> None:
         """Rule ID should be PRACTICE_TEST_MIRROR."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         rule = TestMirrorRule()
         assert rule.rule_id == "PRACTICE_TEST_MIRROR"
@@ -557,7 +571,7 @@ class TestTestMirrorRule:
 
     def test_private_module_matches_stripped_test(self, tmp_path: Path) -> None:
         """_facade.py should match test_facade.py (leading _ stripped)."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -577,7 +591,7 @@ class TestTestMirrorRule:
 
     def test_private_module_matches_exact_test(self, tmp_path: Path) -> None:
         """_facade.py should also match test__facade.py (exact prefix)."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -597,7 +611,7 @@ class TestTestMirrorRule:
 
     def test_public_module_unchanged(self, tmp_path: Path) -> None:
         """Public module base.py should still match test_base.py unchanged."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -614,7 +628,7 @@ class TestTestMirrorRule:
 
     def test_private_module_no_test(self, tmp_path: Path) -> None:
         """_facade.py with no matching test should appear in missing."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -633,7 +647,7 @@ class TestTestMirrorRule:
 
     def test_double_underscore_stripped(self, tmp_path: Path) -> None:
         """__internal.py should match test_internal.py (all leading _ stripped)."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -653,7 +667,7 @@ class TestTestMirrorRule:
 
     def test_triple_underscore_stripped(self, tmp_path: Path) -> None:
         """___triple.py (pathological) should match test_triple.py."""
-        from axm_audit.core.rules.practices import TestMirrorRule
+        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -680,7 +694,9 @@ class TestDocstringTextRendering:
 
     @pytest.fixture
     def rule(self) -> DocstringCoverageRule:
-        from axm_audit.core.rules.practices import DocstringCoverageRule
+        from axm_audit.core.rules.practices.docstring_coverage import (
+            DocstringCoverageRule,
+        )
 
         return DocstringCoverageRule()
 

@@ -14,20 +14,17 @@ from axm_audit.core.rules.dependencies import (
     DependencyHygieneRule,
 )
 from axm_audit.core.rules.duplication import DuplicationRule
-from axm_audit.core.rules.practices import (
-    BareExceptRule,
-    BlockingIORule,
-    DocstringCoverageRule,
-    SecurityPatternRule,
-    TestMirrorRule,
-)
+from axm_audit.core.rules.practices.bare_except import BareExceptRule
+from axm_audit.core.rules.practices.blocking_io import BlockingIORule
+from axm_audit.core.rules.practices.docstring_coverage import DocstringCoverageRule
+from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 from axm_audit.core.rules.quality import (
     DiffSizeRule,
     FormattingRule,
     LintingRule,
     TypeCheckRule,
 )
-from axm_audit.core.rules.security import SecurityRule
+from axm_audit.core.rules.security import SecurityPatternRule, SecurityRule
 from axm_audit.core.rules.structure import PyprojectCompletenessRule
 from axm_audit.core.rules.test_quality import (  # noqa: F401  (side-effect: registration)
     duplicate_tests as _test_quality_duplicate_tests,
