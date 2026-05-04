@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, PrivateAttr, computed_field
+from pydantic import BaseModel, Field, computed_field
 
 # ── Grade thresholds ──────────────────────────────────────────────────
 _GRADE_A: int = 90
@@ -93,20 +93,6 @@ class AuditResult(BaseModel):
     )
     checks: list[CheckResult] = Field(default_factory=list)
 
-    _override_quality_score: float | None = PrivateAttr(default=None)
-    _override_grade: str | None = PrivateAttr(default=None)
-
-    def __init__(self, **data: Any) -> None:
-        """Accept optional ``quality_score`` / ``grade`` overrides for tests."""
-        qs = data.pop("quality_score", None)
-        gr = data.pop("grade", None)
-        # Computed fields — silently dropped if passed (test convenience).
-        for _computed in ("success", "total", "failed"):
-            data.pop(_computed, None)
-        super().__init__(**data)
-        self._override_quality_score = qs
-        self._override_grade = gr
-
     @computed_field  # type: ignore[prop-decorator]
     @property
     def success(self) -> bool:
@@ -139,10 +125,6 @@ class AuditResult(BaseModel):
         (structure is handled by axm-init; tooling is informational).
         Returns None if no scored checks are present.
         """
-        override: float | None = getattr(self, "_override_quality_score", None)
-        if override is not None:
-            return override
-
         category_scores = _collect_category_scores(self.checks)
         if not category_scores:
             return None
@@ -167,10 +149,6 @@ class AuditResult(BaseModel):
         A >= 90, B >= 80, C >= 70, D >= 60, F < 60.
         Returns None if quality_score is None.
         """
-        override: str | None = getattr(self, "_override_grade", None)
-        if override is not None:
-            return override
-
         score = self.quality_score
         if score is None:
             return None

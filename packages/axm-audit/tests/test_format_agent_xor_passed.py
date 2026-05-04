@@ -5,7 +5,7 @@ from axm_audit.models.results import AuditResult, CheckResult
 
 
 def _make_result(*checks: CheckResult) -> AuditResult:
-    return AuditResult(checks=list(checks), quality_score=100, grade="A")
+    return AuditResult(checks=list(checks))
 
 
 # ── Unit tests ──────────────────────────────────────────────────────

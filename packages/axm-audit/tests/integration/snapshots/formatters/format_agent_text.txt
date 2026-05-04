@@ -1,4 +1,4 @@
-audit quality | B 75 | 2 pass · 5 fail
+audit quality | C 75.0 | 2 pass · 5 fail
 ✓ ruff mypy
 ✗ complexity 1 function above CC budget
   1 function above CC budget

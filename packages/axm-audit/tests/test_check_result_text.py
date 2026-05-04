@@ -61,8 +61,6 @@ def test_format_agent_uses_text() -> None:
     ]
     audit = AuditResult(
         checks=checks,
-        quality_score=70.0,
-        grade="C",
         project_path="/tmp/fake",
     )
 
@@ -89,8 +87,6 @@ def test_passed_rule_text_none_fallback_message() -> None:
     ]
     audit = AuditResult(
         checks=checks,
-        quality_score=100.0,
-        grade="A",
         project_path="/tmp/fake",
     )
 
@@ -113,8 +109,6 @@ def test_no_details_no_text_no_crash() -> None:
     ]
     audit = AuditResult(
         checks=checks,
-        quality_score=0.0,
-        grade="F",
         project_path="/tmp/fake",
     )
 

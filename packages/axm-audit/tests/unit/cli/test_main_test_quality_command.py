@@ -41,11 +41,6 @@ def pyramid_mismatch_result() -> AuditResult:
     return AuditResult(
         project_path="/tmp/proj",
         checks=checks,
-        quality_score=80,
-        grade="B",
-        total=1,
-        failed=1,
-        success=False,
     )
 
 
@@ -136,11 +131,6 @@ def full_result() -> AuditResult:
     return AuditResult(
         project_path="/tmp/proj",
         checks=checks,
-        quality_score=50,
-        grade="D",
-        total=4,
-        failed=4,
-        success=False,
     )
 
 

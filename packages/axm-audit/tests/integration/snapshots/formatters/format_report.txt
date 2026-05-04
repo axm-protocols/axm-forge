@@ -16,7 +16,12 @@
     ❌ duplicates                      duplicates found
     ❌ tautologies                     tautologies found
 
-  Score: 75/100 — Grade B ✅
+  Score: 75.0/100 — Grade C ⚠️
+
+  ⚠️  Improvements (1):
+
+  ⚡ ruff (75/100)
+
 
   📝 Failures (5):
 
