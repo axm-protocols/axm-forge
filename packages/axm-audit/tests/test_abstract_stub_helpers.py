@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import textwrap
 
-from axm_audit.core.rules.practices import DocstringCoverageRule
+from axm_audit.core.rules.practices.docstring_coverage import DocstringCoverageRule
 
 
 def _parse_func(source: str) -> ast.FunctionDef | ast.AsyncFunctionDef:

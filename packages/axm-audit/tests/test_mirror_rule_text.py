@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_audit.core.rules.practices import TestMirrorRule
+from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
 
 class TestTestMirrorRule:
