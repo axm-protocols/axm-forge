@@ -33,14 +33,13 @@ def audit_result() -> Any:
     return AuditResult.model_validate(
         {
             "project_path": "/tmp/sample",
-            "quality_score": 75,
-            "grade": "B",
             "checks": [
                 {
                     "rule_id": "ruff",
                     "message": "ok",
                     "category": "lint",
                     "passed": True,
+                    "details": {"score": 75},
                 },
                 {
                     "rule_id": "mypy",

@@ -4,10 +4,8 @@ from axm_audit.formatters import format_agent
 from axm_audit.models import AuditResult, CheckResult
 
 
-def _make_result(
-    *checks: CheckResult, score: float = 80.0, grade: str = "B"
-) -> AuditResult:
-    return AuditResult(quality_score=score, grade=grade, checks=list(checks))
+def _make_result(*checks: CheckResult) -> AuditResult:
+    return AuditResult(checks=list(checks))
 
 
 # ---------------------------------------------------------------------------
