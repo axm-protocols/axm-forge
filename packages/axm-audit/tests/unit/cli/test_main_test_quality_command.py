@@ -5,8 +5,8 @@ import json
 import pytest
 
 from axm_audit.cli import app
-from axm_audit.core.models import AuditResult, CheckResult
 from axm_audit.formatters import format_test_quality_json, format_test_quality_text
+from axm_audit.models.results import AuditResult, CheckResult
 
 
 @pytest.fixture
