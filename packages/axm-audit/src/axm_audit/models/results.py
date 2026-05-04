@@ -39,6 +39,36 @@ _CATEGORY_WEIGHTS: dict[str, float] = {
 SCORED_CATEGORIES: frozenset[str] = frozenset(_CATEGORY_WEIGHTS)
 EXTRA_NONSCORED_CATEGORIES: frozenset[str] = frozenset({"structure", "tooling"})
 
+# One-line summary per category. Used by the AuditTool MCP description and
+# the CLI ``--category`` help text so both surfaces stay in sync. Keys must
+# cover ``SCORED_CATEGORIES | EXTRA_NONSCORED_CATEGORIES``.
+CATEGORY_SUMMARIES: dict[str, str] = {
+    "lint": "ruff lint findings (style, bugs, simplifications)",
+    "type": "mypy type-checking errors",
+    "complexity": "cyclomatic + cognitive complexity hotspots",
+    "security": "bandit security findings",
+    "deps": "dependency hygiene (pins, unused, outdated)",
+    "testing": "pytest suite outcome and coverage",
+    "test_quality": (
+        "test-suite hygiene (pyramid level, duplicates, private imports, tautologies)"
+    ),
+    "architecture": "layering, public surface, import boundaries",
+    "practices": "Python idioms and conventions",
+    "structure": "package layout (src/, tests/, pyproject)",
+    "tooling": "build/dev tooling configuration",
+}
+
+
+def format_categories_help() -> str:
+    """Return a multi-line bullet list of categories with one-line summaries.
+
+    Source of truth for both the ``AuditTool`` MCP description and the
+    CLI ``--category`` help text.
+    """
+    all_cats = SCORED_CATEGORIES | EXTRA_NONSCORED_CATEGORIES
+    lines = [f"- {cat}: {CATEGORY_SUMMARIES[cat]}" for cat in sorted(all_cats)]
+    return "\n".join(lines)
+
 
 def _collect_category_scores(
     checks: list[Any],
