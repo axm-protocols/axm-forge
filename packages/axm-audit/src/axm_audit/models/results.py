@@ -29,6 +29,13 @@ _CATEGORY_WEIGHTS: dict[str, float] = {
     "practices": 0.05,
 }
 
+# Public views over the private weights table. ``SCORED_CATEGORIES`` is the
+# canonical set of categories that contribute to ``quality_score``;
+# ``EXTRA_NONSCORED_CATEGORIES`` lists categories that emit findings but are
+# not scored (see scoring docstring on ``AuditResult.quality_score``).
+SCORED_CATEGORIES: frozenset[str] = frozenset(_CATEGORY_WEIGHTS)
+EXTRA_NONSCORED_CATEGORIES: frozenset[str] = frozenset({"structure", "tooling"})
+
 
 def _collect_category_scores(
     checks: list[Any],

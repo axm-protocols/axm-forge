@@ -16,25 +16,20 @@ from pathlib import Path
 
 from axm_audit.core.rules._helpers import ASTCache, reset_ast_cache, set_ast_cache
 from axm_audit.core.rules.base import ProjectRule, get_registry
-from axm_audit.models.results import AuditResult, CheckResult, Severity
+from axm_audit.models.results import (
+    EXTRA_NONSCORED_CATEGORIES,
+    SCORED_CATEGORIES,
+    AuditResult,
+    CheckResult,
+    Severity,
+)
 
 logger = logging.getLogger(__name__)
 
-# Valid audit categories. Note: structure and tooling emit findings
-# but are NOT included in quality_score (see results._CATEGORY_WEIGHTS).
-VALID_CATEGORIES = {
-    "lint",
-    "type",
-    "complexity",
-    "security",
-    "deps",
-    "testing",
-    "test_quality",
-    "architecture",
-    "practices",
-    "structure",
-    "tooling",
-}
+# Valid audit categories: scored categories (from _CATEGORY_WEIGHTS) plus the
+# non-scored extras (structure, tooling) that emit findings but are not
+# weighted into quality_score.
+VALID_CATEGORIES: frozenset[str] = SCORED_CATEGORIES | EXTRA_NONSCORED_CATEGORIES
 
 
 def _ensure_registry_loaded() -> None:
