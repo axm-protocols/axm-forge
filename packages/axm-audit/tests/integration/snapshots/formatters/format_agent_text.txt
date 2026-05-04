@@ -5,4 +5,6 @@ audit quality | C 75.0 | 2 pass · 5 fail
 ✗ TEST_PYRAMID pyramid mismatch
 ✗ PRIVATE_IMPORTS private imports
 ✗ duplicates duplicates found
+  [shape:0xabc] 2 test(s)
 ✗ tautologies tautologies found
+  [TAUTOLOGY] test_trivial (tests/unit/test_c.py:10)
