@@ -70,7 +70,7 @@ def test_active_cache_propagates_to_threadpool_worker() -> None:
     observed_caches: list[ASTCache | None] = []
 
     from axm_audit.core import auditor as auditor_mod
-    from axm_audit.core.auditor import CheckResult
+    from axm_audit.models.results import CheckResult
 
     def _capturing_safe_check(rule, project_path):
         observed_caches.append(get_active_cache())
