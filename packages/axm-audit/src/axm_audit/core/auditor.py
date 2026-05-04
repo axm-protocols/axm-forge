@@ -145,7 +145,7 @@ def audit_project(
     token = set_ast_cache(cache)
     try:
 
-        def _run_rule(rule):
+        def _run_rule(rule: ProjectRule) -> CheckResult:
             t = set_ast_cache(cache)
             try:
                 return _safe_check(rule, project_path)

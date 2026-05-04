@@ -36,12 +36,12 @@ def test_audit_result_quality_score_computed_from_checks() -> None:
 
 def test_audit_result_rejects_quality_score_kwarg() -> None:
     with pytest.raises(ValidationError):
-        AuditResult(quality_score=85)
+        AuditResult(quality_score=85)  # type: ignore[call-arg]
 
 
 def test_audit_result_rejects_grade_kwarg() -> None:
     with pytest.raises(ValidationError):
-        AuditResult(grade="A")
+        AuditResult(grade="A")  # type: ignore[call-arg]
 
 
 def test_audit_result_no_override_attrs_after_migration() -> None:
