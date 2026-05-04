@@ -32,7 +32,7 @@ class TestLintingRule:
         rule = LintingRule()
         result = rule.check(tmp_path)
         assert result.details is not None
-        assert result.details["score"] == 100
+        assert result.score == 100
 
     def test_issues_reduce_score(self, tmp_path: Path) -> None:
         """Lint issues should reduce score."""
@@ -46,7 +46,8 @@ class TestLintingRule:
         rule = LintingRule()
         result = rule.check(tmp_path)
         assert result.details is not None
-        assert result.details["score"] < 100
+        assert result.score is not None
+        assert result.score < 100
         assert result.details["issue_count"] > 0
 
     def test_rule_id_format(self) -> None:
@@ -211,7 +212,7 @@ class TestTypeCheckRule:
         result = rule.check(tmp_path)
         assert result.details is not None
         assert result.passed is True
-        assert result.details["score"] == 100
+        assert result.score == 100
 
     def test_type_errors_reduce_score(self, tmp_path: Path) -> None:
         """Type errors should fail with zero tolerance."""
@@ -356,7 +357,7 @@ class TestTypeCheckRule:
         result = rule.check(tmp_path)
         assert result.passed is True
         assert result.details is not None
-        assert result.details["score"] == 100
+        assert result.score == 100
 
     def test_type_check_one_error_fails(self, tmp_path: Path) -> None:
         """One mypy error → passed=False (zero tolerance)."""
@@ -406,7 +407,8 @@ class TestTypeCheckRule:
         assert result.details is not None
         # Lint uses scoring threshold, not zero-tolerance
         assert result.details["issue_count"] > 0
-        assert result.details["score"] >= 90
+        assert result.score is not None
+        assert result.score >= 90
 
 
 class TestAuditResultScoring:
@@ -423,7 +425,7 @@ class TestAuditResultScoring:
             rule_id=rule_id,
             passed=True,
             message="",
-            details={"score": score},
+            score=int(score),
             category=category_map.get(rule_id),
         )
 
@@ -539,7 +541,7 @@ class TestDiffSizeRule:
         assert result.passed is True
         assert result.details is not None
         assert result.details["lines_changed"] == 50
-        assert result.details["score"] == 100
+        assert result.score == 100
 
     def test_fail_large_diff(self, tmp_path: Path) -> None:
         """Large diff (1100 lines) should fail with reduced score."""
@@ -563,7 +565,7 @@ class TestDiffSizeRule:
         assert result.passed is False
         assert result.details is not None
         assert result.details["lines_changed"] == 1100
-        assert result.details["score"] == 12
+        assert result.score == 12
         assert result.fix_hint is not None
 
     def test_skip_not_git_repo(self, tmp_path: Path) -> None:
@@ -603,7 +605,7 @@ class TestDiffSizeRule:
         assert result.passed is True
         assert result.details is not None
         assert result.details["lines_changed"] == 0
-        assert result.details["score"] == 100
+        assert result.score == 100
 
     def test_skip_git_not_installed(self, tmp_path: Path) -> None:
         """Missing git binary should skip gracefully."""

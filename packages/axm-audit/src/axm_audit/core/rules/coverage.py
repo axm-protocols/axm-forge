@@ -52,7 +52,8 @@ class TestCoverageRule(ProjectRule):
             passed=False,
             message="No coverage data (pytest-cov not configured)",
             severity=Severity.WARNING,
-            details={"coverage": 0.0, "score": 0, "failures": failures},
+            score=0,
+            details={"coverage": 0.0, "failures": failures},
             fix_hint="Add pytest-cov: uv add --dev pytest-cov",
         )
 
@@ -109,9 +110,9 @@ class TestCoverageRule(ProjectRule):
             passed=passed,
             message=message,
             severity=Severity.WARNING if not passed else Severity.INFO,
+            score=int(score),
             details={
                 "coverage": coverage_pct,
-                "score": score,
                 "failures": failures,
             },
             text="\n".join(text_parts) if text_parts else None,

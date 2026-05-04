@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, computed_field
+
+_logger = logging.getLogger(__name__)
 
 # ── Grade thresholds ──────────────────────────────────────────────────
 _GRADE_A: int = 90
@@ -40,14 +43,25 @@ EXTRA_NONSCORED_CATEGORIES: frozenset[str] = frozenset({"structure", "tooling"})
 def _collect_category_scores(
     checks: list[Any],
 ) -> dict[str, list[float]]:
-    """Group valid scores by category, filtering out unusable checks."""
+    """Group valid scores by category, filtering out unusable checks.
+
+    Reads the typed ``CheckResult.score`` field. When a check belongs to a
+    scored category but exposes ``score is None``, a warning is emitted naming
+    the rule_id so that silently-dropped scores remain observable.
+    """
     category_scores: dict[str, list[float]] = {}
     for check in checks:
         cat = check.category
-        if cat and cat in _CATEGORY_WEIGHTS and check.details:
-            score = check.details.get("score")
-            if score is not None:
-                category_scores.setdefault(cat, []).append(float(score))
+        if not cat or cat not in _CATEGORY_WEIGHTS:
+            continue
+        if check.score is None:
+            _logger.warning(
+                "rule %s in scored category %r returned score=None; dropped",
+                check.rule_id,
+                cat,
+            )
+            continue
+        category_scores.setdefault(cat, []).append(float(check.score))
     return category_scores
 
 
@@ -82,6 +96,12 @@ class CheckResult(BaseModel):
     metadata: dict[str, Any] = Field(
         default_factory=dict,
         description="Rule-specific structured payload (clusters, verdicts, ...)",
+    )
+    score: int | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+        description="Numeric score in [0, 100] for scored categories",
     )
 
     model_config = {"extra": "forbid"}

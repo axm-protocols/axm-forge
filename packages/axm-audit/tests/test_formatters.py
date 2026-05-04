@@ -17,7 +17,7 @@ class TestFormatReport:
                     rule_id="QUALITY_LINT",
                     passed=True,
                     message="Lint score: 100/100 (0 issues)",
-                    details={"score": 100},
+                    score=100,
                     category="lint",
                 ),
             ]
@@ -36,13 +36,13 @@ class TestFormatReport:
                     rule_id="QUALITY_LINT",
                     passed=True,
                     message="OK",
-                    details={"score": 100},
+                    score=100,
                 ),
                 CheckResult(
                     rule_id="QUALITY_TYPE",
                     passed=False,
                     message="FAIL",
-                    details={"score": 0},
+                    score=0,
                 ),
             ]
         )
@@ -62,7 +62,7 @@ class TestFormatReport:
                     rule_id="QUALITY_LINT",
                     passed=True,
                     message="OK",
-                    details={"score": 100},
+                    score=100,
                 ),
             ],
         )
@@ -89,7 +89,7 @@ class TestFormatReport:
                     rule_id="QUALITY_LINT",
                     passed=True,
                     message="OK",
-                    details={"score": 100},
+                    score=100,
                 ),
             ],
         )
@@ -107,14 +107,14 @@ class TestFormatReport:
                     rule_id="QUALITY_LINT",
                     passed=True,
                     message="OK",
-                    details={"score": 100},
+                    score=100,
                     category="lint",
                 ),
                 CheckResult(
                     rule_id="QUALITY_TYPE",
                     passed=True,
                     message="OK",
-                    details={"score": 100},
+                    score=100,
                     category="type",
                 ),
             ]
@@ -157,7 +157,7 @@ class TestFormatJson:
                     rule_id="QUALITY_LINT",
                     passed=True,
                     message="OK",
-                    details={"score": 100},
+                    score=100,
                 ),
             ]
         )
@@ -181,13 +181,13 @@ class TestFormatAgent:
                     rule_id="QUALITY_LINT",
                     passed=True,
                     message="Lint score: 100/100",
-                    details={"score": 100},
+                    score=100,
                 ),
                 CheckResult(
                     rule_id="QUALITY_TYPE",
                     passed=True,
                     message="Type score: 100/100",
-                    details={"score": 100},
+                    score=100,
                 ),
             ]
         )
@@ -207,13 +207,14 @@ class TestFormatAgent:
                     rule_id="QUALITY_LINT",
                     passed=True,
                     message="OK",
-                    details={"score": 100},
+                    score=100,
                 ),
                 CheckResult(
                     rule_id="QUALITY_TYPE",
                     passed=False,
                     message="Type errors found",
-                    details={"error_count": 5, "score": 75},
+                    score=75,
+                    details={"error_count": 5},
                     fix_hint="Add type hints",
                 ),
             ]
@@ -271,7 +272,6 @@ class TestFormatAgent:
                         "top_offenders": [
                             {"file": "foo.py", "function": "bar", "cc": 12},
                         ],
-                        "score": 90,
                     },
                     category="complexity",
                 ),
@@ -300,7 +300,6 @@ class TestFormatAgent:
                     message="Complexity score: 100/100",
                     details={
                         "top_offenders": [],
-                        "score": 100,
                     },
                     category="complexity",
                 ),
@@ -327,7 +326,6 @@ class TestFormatAgent:
                     message="Complexity score: 90/100",
                     details={
                         "top_offenders": offenders,
-                        "score": 90,
                     },
                     category="complexity",
                 ),

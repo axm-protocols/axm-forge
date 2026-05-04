@@ -56,7 +56,8 @@ class CircularImportRule(ProjectRule):
             passed=passed,
             message=f"{len(cycles)} circular import(s) found",
             severity=Severity.ERROR if not passed else Severity.INFO,
-            details={"cycles": cycles, "score": score},
+            score=int(score),
+            details={"cycles": cycles},
             text="\n".join(text_lines) if text_lines else None,
             fix_hint="Break cycles by using lazy imports or restructuring"
             if cycles
@@ -137,7 +138,8 @@ class GodClassRule(ProjectRule):
             passed=passed,
             message=f"{len(god_classes)} god class(es) found",
             severity=Severity.WARNING if not passed else Severity.INFO,
-            details={"god_classes": god_classes, "score": score},
+            score=int(score),
+            details={"god_classes": god_classes},
             text="\n".join(text_lines) if text_lines else None,
             fix_hint="Split large classes into smaller, focused classes"
             if god_classes
@@ -271,11 +273,11 @@ class CouplingMetricRule(ProjectRule):
             passed=n_errors == 0,
             message=msg,
             severity=severity,
+            score=int(score),
             details={
                 "max_fan_out": metrics["max_fan_out"],
                 "max_fan_in": metrics["max_fan_in"],
                 "avg_coupling": round(avg, 2),
-                "score": score,
                 "n_over_threshold": n_over,
                 "over_threshold": over,
             },

@@ -21,7 +21,7 @@ def _make_check(rule_id: str, score: float) -> CheckResult:
         rule_id=rule_id,
         passed=True,
         message="",
-        details={"score": score},
+        score=int(score),
         category=_RULE_CATEGORY.get(rule_id),
     )
 

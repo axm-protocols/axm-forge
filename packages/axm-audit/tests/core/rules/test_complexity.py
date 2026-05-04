@@ -23,7 +23,8 @@ class TestComplexityRule:
         rule = ComplexityRule()
         result = rule.check(tmp_path)
         assert result.details is not None
-        assert result.details["score"] >= 90
+        assert result.score is not None
+        assert result.score >= 90
 
     def test_complex_functions_reduce_score(self, tmp_path: Path) -> None:
         """High complexity functions should reduce score."""
@@ -93,7 +94,8 @@ def complex_fn(x: int, y: int, z: int) -> str:
         assert result.passed
         assert result.rule_id == "QUALITY_COMPLEXITY"
         assert result.details is not None
-        assert result.details["score"] >= 90
+        assert result.score is not None
+        assert result.score >= 90
 
     def test_complexity_rule_radon_fallback(self, tmp_path: Path) -> None:
         """When radon API is missing but radon binary exists, use subprocess."""
@@ -142,7 +144,8 @@ def complex_fn(x: int, y: int, z: int) -> str:
         assert result.passed
         assert result.rule_id == "QUALITY_COMPLEXITY"
         assert result.details is not None
-        assert result.details["score"] >= 90
+        assert result.score is not None
+        assert result.score >= 90
 
     def test_complexity_rule_radon_missing_both(self, tmp_path: Path) -> None:
         """When neither API nor binary is available, return clear error."""
@@ -168,8 +171,7 @@ def complex_fn(x: int, y: int, z: int) -> str:
 
         assert not result.passed
         assert result.rule_id == "QUALITY_COMPLEXITY"
-        assert result.details is not None
-        assert result.details["score"] == 0
+        assert result.score == 0
         assert result.fix_hint is not None
         assert "uv sync" in result.fix_hint
 
@@ -204,8 +206,7 @@ def complex_fn(x: int, y: int, z: int) -> str:
             result = rule.check(tmp_path)
 
         assert not result.passed
-        assert result.details is not None
-        assert result.details["score"] == 0
+        assert result.score == 0
         assert "radon cc --json failed" in caplog.text
         assert "mocked permission denied" in caplog.text
 
@@ -452,8 +453,8 @@ def my_func(x: int, y: int, z: int) -> str:
         assert result.rule_id == "QUALITY_COMPLEXITY"
         assert result.details is not None
         # Must not crash — score should be valid
-        assert isinstance(result.details["score"], int)
-        assert result.details["score"] >= 0
+        assert isinstance(result.score, int)
+        assert result.score >= 0
 
     def test_type_alias_subprocess_fallback(self, tmp_path: Path) -> None:
         """Subprocess path skips string entries produced by radon for type aliases."""
@@ -501,8 +502,8 @@ def my_func(x: int, y: int, z: int) -> str:
         assert result.rule_id == "QUALITY_COMPLEXITY"
         assert result.passed
         assert result.details is not None
-        assert isinstance(result.details["score"], int)
-        assert result.details["score"] >= 90
+        assert isinstance(result.score, int)
+        assert result.score >= 90
 
     def test_process_radon_output_helper(self, tmp_path: Path) -> None:
         """Tests that _process_radon_output correctly extracts metrics."""
@@ -543,7 +544,7 @@ def my_func(x: int, y: int, z: int) -> str:
         assert result.passed is False
         assert result.details is not None
         assert result.details["high_complexity_count"] == 2
-        assert result.details["score"] == 80
+        assert result.score == 80
 
         offenders = result.details["top_offenders"]
         assert len(offenders) == 2

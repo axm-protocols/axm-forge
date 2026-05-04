@@ -73,14 +73,14 @@ class TestCheckResult:
                 rule_id="QUALITY_LINT",
                 passed=True,
                 message="Pass",
-                details={"score": 90.0},
+                score=90,
                 category="lint",
             ),
             CheckResult(
                 rule_id="QUALITY_TYPE",
                 passed=False,
                 message="Fail",
-                details={"score": 50.0},
+                score=50,
                 category="type",
             ),
         ]
@@ -98,7 +98,7 @@ class TestCheckResult:
                 rule_id="QUALITY_LINT",
                 passed=True,
                 message="Pass",
-                details={"score": 95.0},
+                score=95,
                 category="lint",
             )
         ]

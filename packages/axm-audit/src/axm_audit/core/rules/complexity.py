@@ -111,7 +111,7 @@ class ComplexityRule(ProjectRule):
                 passed=False,
                 message=("radon not found — complexity analysis skipped"),
                 severity=Severity.ERROR,
-                details={"score": 0},
+                score=0,
                 fix_hint=(
                     "Run 'uv sync' at workspace root or "
                     "'uv pip install axm-audit' to make radon available"
@@ -139,7 +139,7 @@ class ComplexityRule(ProjectRule):
                 passed=False,
                 message="radon cc --json failed",
                 severity=Severity.ERROR,
-                details={"score": 0},
+                score=0,
                 fix_hint="Check radon installation",
             )
 
@@ -209,10 +209,10 @@ class ComplexityRule(ProjectRule):
             severity=(
                 Severity.WARNING if not passed or cog_disabled else Severity.INFO
             ),
+            score=int(score),
             details={
                 "high_complexity_count": high_complexity_count,
                 "top_offenders": top_offenders,
-                "score": score,
                 "cognitive_disabled": cog_disabled,
             },
             text="\n".join(text_lines) if text_lines else None,

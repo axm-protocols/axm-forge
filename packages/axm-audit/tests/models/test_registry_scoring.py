@@ -25,7 +25,7 @@ def _make_check(
         rule_id=rule_id,
         passed=True,
         message="",
-        details={"score": score},
+        score=int(score),
         category=category_map.get(rule_id),
     )
 

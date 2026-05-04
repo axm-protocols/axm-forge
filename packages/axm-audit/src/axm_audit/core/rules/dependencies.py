@@ -123,7 +123,8 @@ class DependencyAuditRule(ProjectRule):
                 passed=False,
                 message="pip-audit not available",
                 severity=Severity.ERROR,
-                details={"vuln_count": 0, "score": 0},
+                score=0,
+                details={"vuln_count": 0},
                 fix_hint="Install with: uv add --dev pip-audit",
             )
         except RuntimeError as exc:
@@ -132,7 +133,8 @@ class DependencyAuditRule(ProjectRule):
                 passed=False,
                 message=str(exc),
                 severity=Severity.ERROR,
-                details={"vuln_count": 0, "score": 0},
+                score=0,
+                details={"vuln_count": 0},
                 fix_hint="Check pip-audit installation: uv run pip-audit --version",
             )
 
@@ -152,9 +154,9 @@ class DependencyAuditRule(ProjectRule):
                 else f"{vuln_count} vulnerable package(s) found"
             ),
             severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
+            score=int(score),
             details={
                 "vuln_count": vuln_count,
-                "score": score,
                 "top_vulns": top_vulns,
             },
             text="\n".join(text_lines) if text_lines else None,
@@ -434,7 +436,8 @@ class DependencyHygieneRule(ProjectRule):
                 passed=False,
                 message="deptry not available",
                 severity=Severity.ERROR,
-                details={"issue_count": 0, "score": 0},
+                score=0,
+                details={"issue_count": 0},
                 fix_hint="Install with: uv add --dev deptry",
             )
         except (RuntimeError, json.JSONDecodeError) as exc:
@@ -447,7 +450,8 @@ class DependencyHygieneRule(ProjectRule):
                 passed=False,
                 message=msg,
                 severity=Severity.ERROR,
-                details={"issue_count": 0, "score": 0},
+                score=0,
+                details={"issue_count": 0},
                 fix_hint="Check deptry installation: uv run deptry --version",
             )
 
@@ -472,9 +476,9 @@ class DependencyHygieneRule(ProjectRule):
                 else f"{issue_count} dependency issue(s) found"
             ),
             severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
+            score=int(score),
             details={
                 "issue_count": issue_count,
-                "score": score,
                 "top_issues": formatted,
             },
             text="\n".join(text_lines) if text_lines else None,
@@ -537,9 +541,9 @@ class DependencyHygieneRule(ProjectRule):
                 else f"{issue_count} dependency issue(s) found"
             ),
             severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
+            score=int(score),
             details={
                 "issue_count": issue_count,
-                "score": score,
                 "top_issues": formatted,
             },
             text="\n".join(text_lines) if text_lines else None,

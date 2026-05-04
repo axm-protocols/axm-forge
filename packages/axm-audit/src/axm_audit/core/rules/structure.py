@@ -197,7 +197,8 @@ class TestsPyramidRule(ProjectRule):
                 rule_id=self.rule_id,
                 passed=True,
                 message=f"pyramid layout ok: {present}",
-                details={"score": 100, "self_contained": self_contained},
+                score=100,
+                details={"self_contained": self_contained},
             )
 
         return _pyramid_failure(
@@ -237,8 +238,8 @@ def _pyramid_failure(
         passed=False,
         message="; ".join(parts),
         severity=Severity.WARNING,
+        score=0,
         details={
-            "score": 0,
             "missing_dirs": missing_dirs,
             "missing_markers": missing_markers,
             "self_contained": self_contained,
@@ -296,7 +297,8 @@ class PyprojectCompletenessRule(ProjectRule):
                 passed=False,
                 message="pyproject.toml not found",
                 severity=Severity.ERROR,
-                details={"fields_present": 0, "total_fields": 9, "score": 0},
+                score=0,
+                details={"fields_present": 0, "total_fields": 9},
                 fix_hint="Create pyproject.toml with PEP 621 metadata",
             )
 
@@ -308,7 +310,8 @@ class PyprojectCompletenessRule(ProjectRule):
                 passed=False,
                 message="pyproject.toml parse error",
                 severity=Severity.ERROR,
-                details={"fields_present": 0, "total_fields": 9, "score": 0},
+                score=0,
+                details={"fields_present": 0, "total_fields": 9},
                 fix_hint="Fix pyproject.toml syntax",
             )
 
@@ -321,10 +324,10 @@ class PyprojectCompletenessRule(ProjectRule):
             message=f"pyproject.toml completeness: {present}/{_TOTAL_FIELDS} fields",
             severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
             text=f"\u2022 missing: {', '.join(missing)}" if missing else None,
+            score=int(score),
             details={
                 "fields_present": present,
                 "total_fields": _TOTAL_FIELDS,
-                "score": score,
                 "missing": missing,
             },
             fix_hint=(

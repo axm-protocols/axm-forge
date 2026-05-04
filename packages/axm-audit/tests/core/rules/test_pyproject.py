@@ -50,7 +50,7 @@ class TestPyprojectCompletenessRule:
 
         assert result.passed is True
         assert result.details is not None
-        assert result.details["score"] == 100
+        assert result.score == 100
 
     def test_minimal_pyproject_fails(self, tmp_path: Path) -> None:
         """Only name → low score, passed=False."""
@@ -64,7 +64,8 @@ class TestPyprojectCompletenessRule:
 
         assert result.passed is False
         assert result.details is not None
-        assert result.details["score"] < 50
+        assert result.score is not None
+        assert result.score < 50
 
     def test_dynamic_version_counts(self, tmp_path: Path) -> None:
         """dynamic = ['version'] should count as version present."""
@@ -91,7 +92,7 @@ class TestPyprojectCompletenessRule:
 
         assert result.passed is True
         assert result.details is not None
-        assert result.details["score"] == 100
+        assert result.score == 100
 
     def test_missing_pyproject_fails(self, tmp_path: Path) -> None:
         """No pyproject.toml → score=0, passed=False."""
@@ -102,7 +103,7 @@ class TestPyprojectCompletenessRule:
 
         assert result.passed is False
         assert result.details is not None
-        assert result.details["score"] == 0
+        assert result.score == 0
 
     def test_rule_id(self) -> None:
         """Rule ID should be STRUCTURE_PYPROJECT."""
@@ -123,7 +124,7 @@ class TestPyprojectCompletenessRule:
         assert result.passed is False
         assert "parse error" in result.message
         assert result.details is not None
-        assert result.details["score"] == 0
+        assert result.score == 0
 
 
 # ---------------------------------------------------------------------------

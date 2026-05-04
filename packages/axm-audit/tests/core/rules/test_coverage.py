@@ -45,7 +45,7 @@ class TestTestCoverageRule:
         )
         assert result.passed is True
         assert result.details is not None
-        assert result.details["score"] == 90
+        assert result.score == 90
 
     def test_low_coverage_fails(self, tmp_path: Path) -> None:
         """50% coverage → score=50, passed=False."""
@@ -77,7 +77,7 @@ class TestTestCoverageRule:
         assert "Fix failing tests" in result.fix_hint
         assert "Increase test coverage" in result.fix_hint
         assert result.details is not None
-        assert result.details["score"] == 50
+        assert result.score == 50
 
     def test_no_coverage_file(self, tmp_path: Path) -> None:
         """No coverage data → score=0, passed=False."""
@@ -92,7 +92,7 @@ class TestTestCoverageRule:
         )
         assert result.passed is False
         assert result.details is not None
-        assert result.details["score"] == 0
+        assert result.score == 0
 
     def test_rule_id(self) -> None:
         """Rule ID should be QUALITY_COVERAGE."""

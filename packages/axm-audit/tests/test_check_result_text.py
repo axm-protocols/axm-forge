@@ -56,7 +56,8 @@ def test_format_agent_uses_text() -> None:
             passed=False,
             message="3 issues",
             text="    \u2022 [F401] foo.py:1: unused import",
-            details={"score": 70, "issues": []},
+            score=70,
+            details={"issues": []},
         ),
     ]
     audit = AuditResult(
@@ -82,7 +83,7 @@ def test_passed_rule_text_none_fallback_message() -> None:
             rule_id="QUALITY_LINT",
             passed=True,
             message="All clear",
-            details={"score": 100},
+            score=100,
         ),
     ]
     audit = AuditResult(

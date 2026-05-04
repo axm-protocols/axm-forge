@@ -12,7 +12,7 @@ def _check(score: float, category: str = "lint", rule_id: str = "r1") -> CheckRe
         passed=True,
         message="ok",
         category=category,
-        details={"score": score},
+        score=int(score),
     )
 
 
