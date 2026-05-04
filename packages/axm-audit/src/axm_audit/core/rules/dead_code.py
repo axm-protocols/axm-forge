@@ -39,7 +39,8 @@ class DeadCodeRule(ProjectRule):
             passed=True,  # Passing so it doesn't fail the build
             message=f"Skipped: {reason}",
             severity=Severity.INFO,
-            details={"skipped": True, "reason": reason, "score": 100.0},
+            score=100,
+            details={"skipped": True, "reason": reason},
         )
 
     def check(self, project_path: Path) -> CheckResult:
@@ -59,10 +60,10 @@ class DeadCodeRule(ProjectRule):
                 passed=False,
                 message="Failed to parse axm-ast output",
                 severity=Severity.ERROR,
+                score=0,
                 details={
                     "stdout": result.stdout,
                     "stderr": result.stderr,
-                    "score": 0.0,
                 },
             )
         return self._build_result(dead_symbols)
@@ -92,7 +93,7 @@ class DeadCodeRule(ProjectRule):
                 passed=False,
                 message="Failed to execute axm-ast",
                 severity=Severity.ERROR,
-                details={"score": 0.0},
+                score=0,
                 fix_hint="Ensure axm-ast is installed in the audit environment",
             )
 
@@ -128,7 +129,6 @@ class DeadCodeRule(ProjectRule):
         )
 
         details: dict[str, object] = {
-            "score": score,
             "dead_count": dead_count,
             "symbols": dead_symbols,
         }
@@ -150,6 +150,7 @@ class DeadCodeRule(ProjectRule):
             passed=passed,
             message=message,
             severity=Severity.WARNING if dead_count > 0 else Severity.INFO,
+            score=int(score),
             details=details,
             fix_hint="Remove dead code or mark exported in __all__ if public API",
             text="\n".join(text_lines) if text_lines else None,

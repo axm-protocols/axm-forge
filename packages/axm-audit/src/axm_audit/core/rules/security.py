@@ -112,10 +112,10 @@ def _build_security_result(rule_id: str, results: list[dict[str, Any]]) -> Check
             f"Security score: {score}/100 ({high} high, {med} medium severity issues)"
         ),
         severity=Severity.WARNING if score < PASS_THRESHOLD else Severity.INFO,
+        score=int(score),
         details={
             "high_count": high,
             "medium_count": med,
-            "score": score,
             "top_issues": top_issues,
         },
         text="\n".join(text_lines) if text_lines else None,
@@ -156,7 +156,8 @@ class SecurityRule(ProjectRule):
                 passed=False,
                 message="bandit not available",
                 severity=Severity.ERROR,
-                details={"high_count": 0, "medium_count": 0, "score": 0},
+                score=0,
+                details={"high_count": 0, "medium_count": 0},
                 fix_hint="Install with: uv add --dev bandit",
             )
         except RuntimeError as exc:
@@ -165,7 +166,8 @@ class SecurityRule(ProjectRule):
                 passed=False,
                 message=str(exc),
                 severity=Severity.ERROR,
-                details={"high_count": 0, "medium_count": 0, "score": 0},
+                score=0,
+                details={"high_count": 0, "medium_count": 0},
                 fix_hint="Check bandit installation: uv run bandit --version",
             )
 

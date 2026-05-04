@@ -14,6 +14,7 @@ class _CheckResult:
     text: str | None = None
     details: dict[str, Any] | None = None
     fix_hint: str | None = None
+    score: int | None = None
 
 
 @dataclass
@@ -54,7 +55,7 @@ def test_format_agent_keeps_non_null_keys_failed() -> None:
                 rule_id="R002",
                 message="check failed",
                 passed=False,
-                details={"score": 50},
+                score=50,
                 text="\u2022 issue",
                 fix_hint="fix it",
             ),
@@ -103,7 +104,7 @@ def test_format_agent_all_keys_present_failed() -> None:
                 message="full check",
                 passed=False,
                 text="detail text",
-                details={"score": 80},
+                score=80,
                 fix_hint="try this",
             ),
         ],

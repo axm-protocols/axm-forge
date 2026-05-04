@@ -24,9 +24,10 @@ Each individual check returns:
 | `passed` | `bool` | Whether the check passed |
 | `message` | `str` | Human-readable description |
 | `severity` | `Severity` | `error`, `warning`, or `info` |
-| `details` | `dict \| None` | Tool-specific data (scores, counts) |
+| `details` | `dict \| None` | Tool-specific structured data (counts, lists) |
 | `text` | `str \| None` | Pre-rendered detail text for display (bullet lines) |
 | `fix_hint` | `str \| None` | Suggested fix |
+| `score` | `int \| None` | Numeric score in [0, 100] for scored categories |
 
 ## Formatters
 

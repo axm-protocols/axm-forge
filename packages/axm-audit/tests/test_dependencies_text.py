@@ -120,7 +120,7 @@ def test_deps_audit_text_details_unchanged(
     result = _check_with_vulns(rule, tmp_path, raw)
     assert result.details is not None
     assert result.details["vuln_count"] == 1
-    assert result.details["score"] == 85
+    assert result.score == 85
     assert len(result.details["top_vulns"]) == 1
     vuln = result.details["top_vulns"][0]
     assert vuln["name"] == "requests"

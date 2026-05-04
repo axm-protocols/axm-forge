@@ -93,9 +93,8 @@ class TestBuildResultTextFormat:
         assert result.details is not None
         assert "high_complexity_count" in result.details
         assert "top_offenders" in result.details
-        assert "score" in result.details
         assert result.details["high_complexity_count"] == 3
-        assert result.details["score"] == 70
+        assert result.score == 70
         # top_offenders sorted descending by max(cc, cognitive)
         keys = [
             max(int(o["cc"]), int(o["cognitive"]))

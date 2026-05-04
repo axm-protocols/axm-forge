@@ -77,7 +77,8 @@ class TestProjectRule:
         assert result is not None
         assert result.passed is True
         assert result.rule_id == "TEST_RULE"
-        assert result.details == {"score": 100}
+        assert result.score == 100
+        assert result.details is None
         assert "src/ directory not found" in result.message
 
 

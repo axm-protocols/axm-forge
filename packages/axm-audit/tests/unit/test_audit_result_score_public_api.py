@@ -16,7 +16,7 @@ def _check(
         passed=passed,
         message=f"{rule_id}: {score}/100",
         category=category,
-        details={"score": score},
+        score=score,
     )
 
 

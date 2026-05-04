@@ -133,7 +133,7 @@ class TestDependencyHygieneRule:
 
         assert result.details is not None
         assert result.details["issue_count"] == 3
-        assert result.details["score"] == 70
+        assert result.score == 70
 
     def test_hygiene_workspace_filters_per_member(
         self, rule: DependencyHygieneRule, tmp_path: Path, mocker: MockerFixture
@@ -183,7 +183,7 @@ class TestDependencyHygieneRule:
 
         assert result.details is not None
         assert result.details["issue_count"] == 2
-        assert result.details["score"] == 80
+        assert result.score == 80
 
     def test_workspace_one_member_crashes(
         self, rule: DependencyHygieneRule, tmp_path: Path, mocker: MockerFixture

@@ -18,7 +18,7 @@ class _DummyRule(ProjectRule):
             passed=True,
             message="ok",
             severity=Severity.INFO,
-            details={"score": 100},
+            score=100,
         )
 
 
@@ -42,7 +42,8 @@ def test_check_src_no_layout_returns_passing_stub(tmp_path: Path) -> None:
     assert result is not None
     assert result.passed is True
     assert result.message == "src/ directory not found"
-    assert result.details == {"score": 100}
+    assert result.score == 100
+    assert result.details is None
 
 
 def test_check_src_prefers_single_when_both_present(tmp_path: Path) -> None:

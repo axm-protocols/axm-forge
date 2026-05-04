@@ -23,7 +23,7 @@ class TestScoringRedesign:
             rule_id=rule_id,
             passed=True,
             message="",
-            details={"score": score},
+            score=int(score),
             category=_RULE_CATEGORY.get(rule_id),
         )
 

@@ -55,7 +55,7 @@ class TestDeadCodeRule:
 
         assert not result.passed
         assert result.details is not None
-        assert result.details["score"] == 90.0  # 100 - (2 * 5)
+        assert result.score == 90.0  # 100 - (2 * 5)
         assert result.severity == Severity.WARNING
         assert result.details["dead_count"] == 2
         assert len(result.details["symbols"]) == 2
@@ -86,7 +86,7 @@ class TestDeadCodeRule:
 
         assert result.passed
         assert result.details is not None
-        assert result.details["score"] == 100.0
+        assert result.score == 100.0
         assert result.severity == Severity.INFO
         assert result.details["dead_count"] == 0
         assert result.details["symbols"] == []
@@ -105,7 +105,7 @@ class TestDeadCodeRule:
 
         assert result.passed  # Graceful skip shouldn't fail the build
         assert result.details is not None
-        assert result.details["score"] == 100.0
+        assert result.score == 100.0
         assert result.severity == Severity.INFO
         assert "skipped" in result.details
         assert result.details["skipped"] is True
@@ -131,7 +131,7 @@ class TestDeadCodeRule:
 
         assert not result.passed
         assert result.details is not None
-        assert result.details["score"] == 0.0
+        assert result.score == 0.0
         assert result.severity == Severity.ERROR
         assert "parse" in result.message.lower()
         assert result.text is None
