@@ -7,14 +7,14 @@ from textwrap import dedent
 
 import pytest
 
-from axm_audit.core.registry import get_registry
+from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality.pyramid_level import (
     Finding,
     PyramidCheckResult,
     PyramidLevelRule,
     _classify_level,
 )
-from axm_audit.core.severity import Severity
+from axm_audit.models.results import Severity
 
 
 def _write(root: Path, relpath: str, body: str) -> Path:

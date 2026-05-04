@@ -6,12 +6,12 @@ from typing import Any
 
 import pytest
 
-from axm_audit.core.registry import get_registry
+from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality.duplicate_tests import (
     DuplicateTestsRule,
     _merge_clusters,
 )
-from axm_audit.core.severity import Severity
+from axm_audit.models.results import Severity
 
 
 def _write(path: Path, content: str) -> None:

@@ -19,8 +19,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from axm_audit.core.registry import register_rule
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.core.rules.test_quality import _shared
 from axm_audit.core.rules.test_quality._shared import (
     _FIXTURE_MOCK_PREFIXES,

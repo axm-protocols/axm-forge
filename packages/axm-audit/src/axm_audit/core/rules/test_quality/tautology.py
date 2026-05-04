@@ -16,16 +16,14 @@ from typing import Any
 
 from pydantic import Field
 
-from axm_audit.core.registry import register_rule
-from axm_audit.core.rules.base import ProjectRule
+from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.core.rules.test_quality._shared import (
     collect_pkg_contract_classes,
     collect_pkg_public_symbols,
     iter_test_files,
 )
 from axm_audit.core.rules.test_quality.tautology_triage import triage
-from axm_audit.core.severity import Severity
-from axm_audit.models.results import CheckResult
+from axm_audit.models.results import CheckResult, Severity
 
 __all__ = [
     "Finding",

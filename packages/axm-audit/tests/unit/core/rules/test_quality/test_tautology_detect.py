@@ -3,12 +3,12 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from axm_audit.core.rules.registry import get_registry
+from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality.tautology import (
     TautologyRule,
     detect_tautologies,
 )
-from axm_audit.core.severity import Severity
+from axm_audit.models.results import Severity
 
 
 def _parse(src: str) -> ast.Module:
