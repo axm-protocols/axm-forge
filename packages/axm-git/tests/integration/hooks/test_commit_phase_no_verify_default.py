@@ -37,7 +37,7 @@ def _make_file(repo: Path, name: str = "a.txt", content: str = "hello\n") -> str
     return name
 
 
-def _spec(files: list[str], message: str = "test commit") -> dict:
+def _spec(files: list[str], message: str = "test commit") -> dict[str, object]:
     return {"message": message, "files": files}
 
 
