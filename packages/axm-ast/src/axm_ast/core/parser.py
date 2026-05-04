@@ -38,7 +38,7 @@ __all__ = [
     "parse_source",
 ]
 
-_MAX_VALUE_REPR_LEN = 80
+_MAX_VALUE_REPR_LEN = 300
 
 _TRIVIA_NODE_TYPES = frozenset({"comment", "newline"})
 _DOCSTRING_NODE_TYPES = frozenset({"string", "concatenated_string"})
