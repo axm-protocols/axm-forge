@@ -15,10 +15,62 @@ __all__ = [
     "get_active_cache",
     "get_ast_cache",
     "get_python_files",
+    "iter_src_dirs",
+    "iter_workspace_packages",
     "parse_file_safe",
     "reset_ast_cache",
     "set_ast_cache",
 ]
+
+
+def iter_src_dirs(project_path: Path) -> list[Path]:
+    """Discover ``src/`` directories under *project_path*.
+
+    Layout detection (in order):
+
+    * **Single-package** — ``<project_path>/src/`` exists → returns
+      ``[<project_path>/src]``. This branch wins even if a sibling
+      ``packages/`` directory also exists (defensive precedence).
+    * **Multi-package workspace** — ``<project_path>/packages/<pkg>/src/``
+      matches one or more ``<pkg>`` → returns the matched src dirs
+      sorted lexicographically by ``<pkg>``.
+    * Otherwise — returns ``[]``.
+
+    Note: this is unrelated to the older
+    ``axm_audit.core.rules.quality._get_audit_targets`` which returns
+    ``(list[str], str)`` of ruff/mypy CLI args.
+    """
+    src_dir = project_path / "src"
+    if src_dir.is_dir():
+        return [src_dir]
+    packages_dir = project_path / "packages"
+    if not packages_dir.is_dir():
+        return []
+    matches = [
+        pkg / "src"
+        for pkg in sorted(packages_dir.iterdir())
+        if pkg.is_dir() and (pkg / "src").is_dir()
+    ]
+    return matches
+
+
+def iter_workspace_packages(project_path: Path) -> list[Path]:
+    """Return the package roots of a multi-package workspace.
+
+    Returns ``[]`` for single-package or no-layout projects.
+    Each returned path is the package directory (parent of ``src/``),
+    sorted lexicographically.
+    """
+    if (project_path / "src").is_dir():
+        return []
+    packages_dir = project_path / "packages"
+    if not packages_dir.is_dir():
+        return []
+    return [
+        pkg
+        for pkg in sorted(packages_dir.iterdir())
+        if pkg.is_dir() and (pkg / "src").is_dir()
+    ]
 
 
 def get_python_files(directory: Path) -> list[Path]:
