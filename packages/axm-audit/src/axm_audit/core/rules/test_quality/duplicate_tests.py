@@ -120,10 +120,9 @@ _P6_EXCLUDED_NAMES: frozenset[str] = frozenset(
 
 
 class DuplicateTestsCheckResult(CheckResult):
-    """:class:`CheckResult` with cluster metadata and a scoring field."""
+    """:class:`CheckResult` with cluster metadata."""
 
     metadata: dict[str, Any] = Field(default_factory=dict)
-    score: int = 100
 
     model_config = {"extra": "forbid"}
 

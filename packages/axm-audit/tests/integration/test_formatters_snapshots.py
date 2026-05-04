@@ -39,7 +39,7 @@ def audit_result() -> Any:
                     "message": "ok",
                     "category": "lint",
                     "passed": True,
-                    "details": {"score": 75},
+                    "score": 75,
                 },
                 {
                     "rule_id": "mypy",

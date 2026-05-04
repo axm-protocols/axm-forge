@@ -21,7 +21,7 @@ def _make_check(rule_id: str, score: float) -> CheckResult:
         rule_id=rule_id,
         passed=True,
         message="",
-        details={"score": score},
+        score=int(score),
         category=_RULE_CATEGORY.get(rule_id),
     )
 
@@ -114,7 +114,7 @@ class TestCouplingFormula:
 
         result = rule.check(tmp_path)
         assert result.details is not None
-        score = result.details["score"]
+        score = result.score
         assert score == 100
         assert result.details["n_over_threshold"] == 0
 
@@ -136,7 +136,7 @@ class TestCouplingFormula:
         result = rule.check(tmp_path)
         assert result.details is not None
         assert result.details["n_over_threshold"] == 2
-        assert result.details["score"] == 94  # 100 - 2*3 (warnings)
+        assert result.score == 94  # 100 - 2*3 (warnings)
 
     def test_many_above_threshold_floors_at_zero(self, tmp_path: Path) -> None:
         """Many modules above threshold → score floors at 0."""
@@ -156,7 +156,7 @@ class TestCouplingFormula:
 
         result = rule.check(tmp_path)
         assert result.details is not None
-        assert result.details["score"] == 0
+        assert result.score == 0
 
     def test_no_src_returns_100(self, tmp_path: Path) -> None:
         """No src/ directory → score=100."""
@@ -164,8 +164,7 @@ class TestCouplingFormula:
 
         rule = CouplingMetricRule()
         result = rule.check(tmp_path)
-        assert result.details is not None
-        assert result.details["score"] == 100
+        assert result.score == 100
 
     def test_over_threshold_lists_modules(self, tmp_path: Path) -> None:
         """Details lists which modules exceed threshold."""
@@ -209,7 +208,7 @@ class TestCouplingFormula:
         assert result.details is not None
         # __init__.py excluded → only core.py counted (3 imports, under 5)
         assert result.details["n_over_threshold"] == 0
-        assert result.details["score"] == 100
+        assert result.score == 100
 
 
 # ---------------------------------------------------------------------------

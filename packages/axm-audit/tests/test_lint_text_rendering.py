@@ -83,13 +83,13 @@ class TestLintTextNoneWhenPassed:
 
 class TestDetailsUnchanged:
     def test_details_keys(self, lint_result):
-        """details keys are issue_count, score, checked, issues."""
+        """details keys are issue_count, checked, issues; score is on the model."""
         assert set(lint_result.details.keys()) == {
             "issue_count",
-            "score",
             "checked",
             "issues",
         }
+        assert lint_result.score is not None
 
     def test_issues_file_absolute(self, lint_result, project_path):
         """issues[].file still uses absolute paths."""

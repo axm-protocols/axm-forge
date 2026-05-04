@@ -156,7 +156,7 @@ class PrivateImportsRule(ProjectRule):
         Returns a :class:`CheckResult` with ``passed=True`` when no
         private imports are found.  Otherwise ``details["findings"]``
         lists each offending import (test file, line, source module,
-        symbol, and resolved kind) and ``details["score"]`` reports a
+        symbol, and resolved kind) and ``score`` reports a
         100-point score penalised by ``_SCORE_PENALTY`` per finding.
         """
         early = self.check_src(project_path)
@@ -215,7 +215,8 @@ class PrivateImportsRule(ProjectRule):
             passed=passed,
             message=message,
             severity=Severity.ERROR,
-            details={"findings": findings, "score": score},
+            score=int(score),
+            details={"findings": findings},
         )
 
     def _resolve_symbol_kind(

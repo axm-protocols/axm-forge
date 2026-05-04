@@ -108,9 +108,9 @@ class LintingRule(ProjectRule):
             passed=passed,
             message=f"Lint score: {score}/100 ({issue_count} issues)",
             severity=Severity.WARNING if not passed else Severity.INFO,
+            score=int(score),
             details={
                 "issue_count": issue_count,
-                "score": score,
                 "checked": checked,
                 "issues": formatted_issues,
             },
@@ -172,10 +172,10 @@ class FormattingRule(ProjectRule):
             passed=passed,
             message=f"Format score: {score}/100 ({unformatted_count} unformatted)",
             severity=Severity.WARNING if not passed else Severity.INFO,
+            score=int(score),
             details={
                 "unformatted_count": unformatted_count,
                 "unformatted_files": unformatted_files[:20],
-                "score": score,
                 "checked": checked,
             },
             text="\n".join(text_lines) if text_lines else None,
@@ -244,9 +244,9 @@ class TypeCheckRule(ProjectRule):
             passed=passed,
             message=f"Type score: {score}/100 ({error_count} errors)",
             severity=Severity.WARNING if not passed else Severity.INFO,
+            score=int(score),
             details={
                 "error_count": error_count,
-                "score": score,
                 "checked": checked,
                 "errors": errors,
             },
@@ -385,7 +385,8 @@ class DiffSizeRule(ProjectRule):
             passed=True,
             message=f"{reason} — diff size check skipped",
             severity=Severity.INFO,
-            details={"lines_changed": 0, "score": 100},
+            score=100,
+            details={"lines_changed": 0},
         )
 
     @staticmethod
@@ -431,7 +432,8 @@ class DiffSizeRule(ProjectRule):
                 passed=True,
                 message="No uncommitted changes",
                 severity=Severity.INFO,
-                details={"lines_changed": 0, "score": 100},
+                score=100,
+                details={"lines_changed": 0},
             )
 
         ideal, max_lines = read_diff_config(project_path)
@@ -450,7 +452,8 @@ class DiffSizeRule(ProjectRule):
             passed=passed,
             message=f"Diff size: {lines_changed} lines changed (score {score}/100)",
             severity=Severity.WARNING if not passed else Severity.INFO,
-            details={"lines_changed": lines_changed, "score": score},
+            score=int(score),
+            details={"lines_changed": lines_changed},
             text=text,
             fix_hint=(
                 f"Consider splitting into smaller commits (< {ideal} lines ideal)"

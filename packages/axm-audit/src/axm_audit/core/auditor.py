@@ -227,8 +227,8 @@ def _merge_check(
     incoming_prefixed = _prefix_check(incoming, pkg_name)
     passed = existing.passed and incoming_prefixed.passed
 
-    existing_score = _extract_score(existing.details)
-    incoming_score = _extract_score(incoming_prefixed.details)
+    existing_score = existing.score
+    incoming_score = incoming_prefixed.score
     new_score: int | None
     if existing_score is None and incoming_score is None:
         new_score = None
@@ -247,11 +247,7 @@ def _merge_check(
         details.update(existing.details)
     if incoming_prefixed.details:
         for key, value in incoming_prefixed.details.items():
-            if key == "score":
-                continue
             details[key] = value
-    if new_score is not None:
-        details["score"] = new_score
 
     severity = _max_severity(existing.severity, incoming_prefixed.severity)
 
@@ -262,6 +258,7 @@ def _merge_check(
             "details": details or None,
             "severity": severity,
             "message": existing.message,
+            "score": new_score,
         }
     )
 
@@ -272,13 +269,3 @@ _SEVERITY_RANK = {Severity.INFO: 0, Severity.WARNING: 1, Severity.ERROR: 2}
 def _max_severity(a: Severity, b: Severity) -> Severity:
     """Return the more severe of two ``Severity`` values."""
     return a if _SEVERITY_RANK[a] >= _SEVERITY_RANK[b] else b
-
-
-def _extract_score(details: dict[str, object] | None) -> int | None:
-    """Pull a numeric ``score`` from a details dict, if present."""
-    if not details:
-        return None
-    raw = details.get("score")
-    if isinstance(raw, int | float):
-        return int(raw)
-    return None

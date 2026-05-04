@@ -285,4 +285,4 @@ def test_scoring_differentiation_functional(tmp_path: Path) -> None:
     rule = CouplingMetricRule()
     result = rule.check(tmp_path)
     assert result.details is not None
-    assert result.details["score"] == 89  # 100 - (2*3 + 1*5)
+    assert result.score == 89  # 100 - (2*3 + 1*5)

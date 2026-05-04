@@ -58,15 +58,14 @@ def _format_score(result: AuditResult) -> list[str]:
 
 def _is_improvable(check: CheckResult) -> bool:
     """Return True if check passed but scored below 100."""
-    if not check.passed or not check.details:
+    if not check.passed or check.score is None:
         return False
-    score = check.details.get("score")
-    return score is not None and score < PERFECT_SCORE
+    return check.score < PERFECT_SCORE
 
 
 def _format_one_improvement(check: CheckResult) -> list[str]:
     """Format a single improvement entry."""
-    score = check.details["score"] if check.details else "?"
+    score: int | str = check.score if check.score is not None else "?"
     lines = [f"  ⚡ {check.rule_id} ({score}/100)"]
     lines.extend(_format_check_details(check))
     if check.fix_hint:

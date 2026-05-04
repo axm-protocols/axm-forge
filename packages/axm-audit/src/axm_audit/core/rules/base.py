@@ -170,7 +170,7 @@ class ProjectRule(ABC):
             passed=True,
             message="src/ directory not found",
             severity=Severity.INFO,
-            details={"score": 100},
+            score=100,
         )
 
     @classmethod

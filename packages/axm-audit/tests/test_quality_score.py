@@ -13,8 +13,10 @@ def _make_check(
     """Build a mock check with the given category and score."""
     check = Mock()
     check.category = category
+    check.rule_id = f"mock_{category}"
+    check.score = score
     if has_details:
-        check.details = {"score": score} if score is not None else {}
+        check.details = {} if score is None else {"placeholder": True}
     else:
         check.details = None
     return check

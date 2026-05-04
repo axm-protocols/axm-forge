@@ -25,7 +25,6 @@ class TestFormatCheckDetails:
                     {"file": "foo.py", "function": "bar", "cc": 15},
                     {"file": "baz.py", "function": "qux", "cc": 12},
                 ],
-                "score": 50,
             },
         )
         lines = _format_check_details(check)
@@ -54,7 +53,6 @@ class TestFormatCheckDetails:
                         "line": 42,
                     },
                 ],
-                "score": 50,
             },
         )
         lines = _format_check_details(check)
@@ -77,7 +75,6 @@ class TestFormatCheckDetails:
                     {"name": "requests", "version": "2.25.0"},
                     {"name": "pip", "version": "21.0"},
                 ],
-                "score": 70,
             },
         )
         lines = _format_check_details(check)
@@ -98,7 +95,6 @@ class TestFormatCheckDetails:
                 "top_issues": [
                     {"code": "DEP001", "module": "foo", "message": "missing"},
                 ],
-                "score": 70,
             },
         )
         lines = _format_check_details(check)
@@ -120,7 +116,6 @@ class TestFormatCheckDetails:
                 "top_offenders": [
                     {"file": "foo.py", "function": "bar", "cc": 11},
                 ],
-                "score": 90,
             },
         )
         lines = _format_check_details(check)
@@ -135,7 +130,7 @@ class TestFormatCheckDetails:
             rule_id="QUALITY_LINT",
             passed=True,
             message="OK",
-            details={"score": 100},
+            score=100,
         )
         lines = _format_check_details(check)
         assert lines == []
@@ -167,11 +162,11 @@ class TestImprovementsSection:
                     rule_id="QUALITY_COMPLEXITY",
                     passed=True,
                     message="Complexity score: 90/100",
+                    score=90,
                     details={
                         "top_offenders": [
                             {"file": "f.py", "function": "g", "cc": 11},
                         ],
-                        "score": 90,
                     },
                     fix_hint="Refactor complex functions",
                 ),
@@ -190,11 +185,11 @@ class TestImprovementsSection:
                     passed=True,
                     message="1 vulnerable package(s)",
                     text="    • pip==25.3",
+                    score=85,
                     details={
                         "top_vulns": [
                             {"name": "pip", "version": "25.3"},
                         ],
-                        "score": 85,
                     },
                     fix_hint="Run: pip-audit --fix",
                 ),
@@ -212,7 +207,8 @@ class TestImprovementsSection:
                     rule_id="QUALITY_COVERAGE",
                     passed=True,
                     message="Coverage: 89%",
-                    details={"coverage": 89.0, "score": 88},
+                    score=88,
+                    details={"coverage": 89.0},
                     fix_hint="Add tests for uncovered branches",
                 ),
             ]
@@ -229,13 +225,13 @@ class TestImprovementsSection:
                     rule_id="QUALITY_LINT",
                     passed=True,
                     message="OK",
-                    details={"score": 100},
+                    score=100,
                 ),
                 CheckResult(
                     rule_id="QUALITY_TYPE",
                     passed=True,
                     message="OK",
-                    details={"score": 100},
+                    score=100,
                 ),
             ]
         )
@@ -258,13 +254,13 @@ class TestFormatReportRichOutput:
                     rule_id="QUALITY_LINT",
                     passed=True,
                     message="Lint score: 100/100",
-                    details={"score": 100},
+                    score=100,
                 ),
                 CheckResult(
                     rule_id="QUALITY_COMPLEXITY",
                     passed=False,
                     message="Complexity score: 50/100",
-                    details={"score": 50},
+                    score=50,
                 ),
             ]
         )
@@ -285,7 +281,6 @@ class TestFormatReportRichOutput:
                         "top_offenders": [
                             {"file": "foo.py", "function": "bar", "cc": 15},
                         ],
-                        "score": 50,
                     },
                     fix_hint="Refactor",
                 ),
@@ -305,7 +300,7 @@ class TestFormatReportRichOutput:
                     rule_id="QUALITY_LINT",
                     passed=True,
                     message="OK",
-                    details={"score": 100},
+                    score=100,
                 ),
             ]
         )

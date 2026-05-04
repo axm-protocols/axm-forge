@@ -135,7 +135,7 @@ class TestGodClassDetailsUnchanged:
 
         assert result.details is not None
         assert "god_classes" in result.details
-        assert "score" in result.details
+        assert result.score is not None
         god = result.details["god_classes"][0]
         assert set(god.keys()) >= {"name", "file", "lines", "methods"}
         assert god["name"] == "BigClass"

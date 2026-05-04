@@ -80,7 +80,8 @@ class DuplicationRule(ProjectRule):
             passed=passed,
             message=f"{dup_count} duplicate block(s) found",
             severity=Severity.WARNING if not passed else Severity.INFO,
-            details={"dup_count": dup_count, "clones": capped, "score": score},
+            score=int(score),
+            details={"dup_count": dup_count, "clones": capped},
             text="\n".join(text_lines) if text_lines else None,
             fix_hint=(
                 "Extract duplicated code into shared functions" if not passed else None

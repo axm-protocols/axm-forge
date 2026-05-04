@@ -85,12 +85,12 @@ class DocstringCoverageRule(ProjectRule):
             passed=passed,
             message=f"Docstring coverage: {coverage:.0%} ({documented}/{total})",
             severity=Severity.WARNING if not passed else Severity.INFO,
+            score=int(score),
             details={
                 "coverage": round(coverage, 2),
                 "total": total,
                 "documented": documented,
                 "missing": missing,
-                "score": score,
             },
             text=text,
             fix_hint="Add docstrings to public functions" if missing else None,
@@ -331,10 +331,10 @@ class BareExceptRule(ProjectRule):
             passed=passed,
             message=f"{count} bare except(s) found",
             severity=Severity.WARNING if not passed else Severity.INFO,
+            score=int(score),
             details={
                 "bare_except_count": count,
                 "locations": bare_excepts,
-                "score": score,
             },
             text="\n".join(text_lines) if text_lines else None,
             fix_hint="Use specific exception types (e.g., except ValueError:)"
@@ -427,7 +427,8 @@ class SecurityPatternRule(ProjectRule):
             passed=passed,
             message=f"{count} potential secret(s) found",
             severity=Severity.ERROR if not passed else Severity.INFO,
-            details={"secret_count": count, "matches": matches, "score": score},
+            score=int(score),
+            details={"secret_count": count, "matches": matches},
             text="\n".join(text_lines) if text_lines else None,
             fix_hint="Use environment variables or secret managers"
             if not passed
@@ -495,7 +496,8 @@ class BlockingIORule(ProjectRule):
             passed=passed,
             message=f"{count} blocking-IO violation(s) found",
             severity=Severity.WARNING if not passed else Severity.INFO,
-            details={"violations": violations, "score": score},
+            score=int(score),
+            details={"violations": violations},
             text="\n".join(text_lines) if text_lines else None,
             fix_hint=(
                 "Use asyncio.sleep() instead of time.sleep() in async context; "
@@ -667,7 +669,8 @@ class TestMirrorRule(ProjectRule):
             passed=passed,
             message=f"{len(missing)} source module(s) without tests",
             severity=Severity.WARNING if not passed else Severity.INFO,
-            details={"missing": missing, "score": score},
+            score=int(score),
+            details={"missing": missing},
             fix_hint=f"Create test files: {hint_files}",
             text="\n".join(text_lines) if text_lines else None,
         )

@@ -88,8 +88,7 @@ class TestDuplicationRule:
         rule = DuplicationRule()
         result = rule.check(tmp_path)
         assert result.passed is True
-        assert result.details is not None
-        assert result.details["score"] == 100
+        assert result.score == 100
 
     def test_rule_id_format(self) -> None:
         """Rule ID should be ARCH_DUPLICATION."""
@@ -121,5 +120,6 @@ class TestDuplicationRule:
         rule = DuplicationRule()
         result = rule.check(tmp_path)
         assert result.details is not None
-        assert result.details["score"] < 100
+        assert result.score is not None
+        assert result.score < 100
         assert result.details["dup_count"] >= 3

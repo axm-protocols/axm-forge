@@ -414,7 +414,7 @@ class TestFormatAgentActionable:
             passed=True,
             message="Type score: 100/100",
             severity=Severity.INFO,
-            details={"score": 100},
+            score=100,
         )
         result = AuditResult(checks=[check])
         output = format_agent(result)
@@ -711,7 +711,7 @@ class TestDocstringTextRendering:
         assert result.details["coverage"] == 0.88
         assert result.details["total"] == 50
         assert result.details["documented"] == 44
-        assert result.details["score"] == 88
+        assert result.score == 88
 
     def test_docstring_text_perfect(self, rule: DocstringCoverageRule) -> None:
         """100% coverage -> text is None."""
@@ -722,7 +722,7 @@ class TestDocstringTextRendering:
         # AC3: details dict unchanged
         assert result.details is not None
         assert result.details["missing"] == []
-        assert result.details["score"] == 100
+        assert result.score == 100
 
     def test_docstring_text_failed(self, rule: DocstringCoverageRule) -> None:
         """Below threshold, 12 missing across 4 files.

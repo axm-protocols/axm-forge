@@ -30,7 +30,7 @@ class TestFormattingRule:
 
         assert result.passed is True
         assert result.details is not None
-        assert result.details["score"] == 100
+        assert result.score == 100
         assert result.details["unformatted_count"] == 0
 
     def test_unformatted_project_reduces_score(self, tmp_path: Path) -> None:
@@ -55,7 +55,7 @@ class TestFormattingRule:
         assert result.passed is False  # score 85 < 90
         assert result.details is not None
         assert result.details["unformatted_count"] == 3
-        assert result.details["score"] == 85
+        assert result.score == 85
 
     def test_rule_id_format(self) -> None:
         """Rule ID should be QUALITY_FORMAT."""
@@ -166,7 +166,7 @@ class TestFormattingRule:
 
         assert result.passed is True
         assert result.details is not None
-        assert result.details["score"] == 100
+        assert result.score == 100
         assert result.details["unformatted_count"] == 0
 
     def test_format_ignores_warnings(self, tmp_path: Path) -> None:

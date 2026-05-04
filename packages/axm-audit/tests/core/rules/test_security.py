@@ -63,7 +63,7 @@ class TestSecurityRule:
 
         assert result.passed
         assert result.details is not None
-        assert result.details["score"] == 100
+        assert result.score == 100
         assert result.details["high_count"] == 0
         assert result.details["medium_count"] == 0
         assert result.severity == Severity.INFO
@@ -104,7 +104,7 @@ class TestSecurityRule:
 
         # Score = 100 - (2*15 + 1*5) = 100 - 35 = 65
         assert result.details is not None
-        assert result.details["score"] == 65
+        assert result.score == 65
         assert result.details["high_count"] == 2
         assert result.details["medium_count"] == 1
         assert not result.passed  # < 80
@@ -212,7 +212,7 @@ class TestSecurityRule:
 
         # Should default to 0 issues
         assert result.details is not None
-        assert result.details["score"] == 100
+        assert result.score == 100
         assert result.passed
 
     def test_bandit_not_found_graceful(
@@ -239,7 +239,7 @@ class TestSecurityRule:
         assert result.fix_hint is not None
         assert "uv add --dev bandit" in result.fix_hint
         assert result.details is not None
-        assert result.details["score"] == 0
+        assert result.score == 0
 
     def test_bandit_crash_not_false_positive(
         self,
@@ -265,7 +265,7 @@ class TestSecurityRule:
         assert "rc=2" in result.message
         assert result.severity == Severity.ERROR
         assert result.details is not None
-        assert result.details["score"] == 0
+        assert result.score == 0
 
     def test_bandit_issues_rc1_still_reported(
         self,
@@ -293,4 +293,4 @@ class TestSecurityRule:
 
         assert result.details is not None
         assert result.details["high_count"] == 1
-        assert result.details["score"] == 85  # 100 - 15
+        assert result.score == 85  # 100 - 15

@@ -272,9 +272,9 @@ class TestEdgeCases:
         # Lint errors should lower the lint score
         lint_checks = [c for c in result.checks if c.rule_id.startswith("QUALITY_LINT")]
         if lint_checks:
-            details = lint_checks[0].details
-            if details is not None:
-                assert details.get("score", 100) < 100
+            score = lint_checks[0].score
+            if score is not None:
+                assert score < 100
 
     def test_no_tests_directory(self, no_tests_project: Path) -> None:
         """Audit passes on a project without a tests/ directory.
@@ -287,8 +287,7 @@ class TestEdgeCases:
         # Coverage check should show low/zero coverage
         coverage_checks = [c for c in result.checks if c.rule_id == "QUALITY_COVERAGE"]
         if coverage_checks:
-            details = coverage_checks[0].details
-            cov_score = details.get("score", 0) if details is not None else 0
+            cov_score = coverage_checks[0].score or 0
             assert cov_score <= 10  # No tests → ~0% coverage
 
     def test_syntax_error_does_not_crash(self, tmp_path: Path) -> None:

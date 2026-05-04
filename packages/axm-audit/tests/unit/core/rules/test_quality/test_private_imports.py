@@ -39,15 +39,14 @@ def test_check_empty_tests_dir_passes(tmp_path: Path) -> None:
     result = PrivateImportsRule().check(tmp_path)
     assert result.passed is True
     assert result.details is not None
-    assert result.details["score"] == 100
+    assert result.score == 100
 
 
 def test_check_no_src_passes(tmp_path: Path) -> None:
     (tmp_path / "tests").mkdir()
     result = PrivateImportsRule().check(tmp_path)
     assert result.passed is True
-    assert result.details is not None
-    assert result.details["score"] == 100
+    assert result.score == 100
 
 
 def test_flags_private_function_import(pkg_root: Path) -> None:
@@ -144,7 +143,7 @@ def test_score_decreases_linearly(pkg_root: Path) -> None:
     imports = "\n".join(f"from pkg.mod import _fn{i}" for i in range(10)) + "\n"
     _write(pkg_root / "tests" / "test_x.py", imports)
     result = PrivateImportsRule().check(pkg_root)
-    assert result.details["score"] == 50  # type: ignore[index]
+    assert result.score == 50
 
 
 def test_score_floors_at_zero(pkg_root: Path) -> None:
@@ -153,7 +152,7 @@ def test_score_floors_at_zero(pkg_root: Path) -> None:
     imports = "\n".join(f"from pkg.mod import _fn{i}" for i in range(25)) + "\n"
     _write(pkg_root / "tests" / "test_x.py", imports)
     result = PrivateImportsRule().check(pkg_root)
-    assert result.details["score"] == 0  # type: ignore[index]
+    assert result.score == 0
 
 
 def test_message_links_to_docs(pkg_root: Path) -> None:
