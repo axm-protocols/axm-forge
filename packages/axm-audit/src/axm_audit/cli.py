@@ -27,6 +27,7 @@ from axm_audit.formatters import (
     format_test_quality_json,
     format_test_quality_text,
 )
+from axm_audit.models.results import format_categories_help
 
 __all__ = ["app"]
 
@@ -78,7 +79,12 @@ def audit(
     ] = False,
     category: Annotated[
         str | None,
-        cyclopts.Parameter(name=["--category", "-c"], help="Filter to one category"),
+        cyclopts.Parameter(
+            name=["--category", "-c"],
+            help=(
+                "Filter to one category. Accepted values:\n" + format_categories_help()
+            ),
+        ),
     ] = None,
 ) -> None:
     """Audit a project's code quality against the AXM standard."""
