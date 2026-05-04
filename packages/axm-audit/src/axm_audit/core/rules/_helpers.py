@@ -5,15 +5,18 @@ from __future__ import annotations
 import ast
 import logging
 import threading
+from contextvars import ContextVar, Token
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "ASTCache",
+    "get_active_cache",
     "get_ast_cache",
     "get_python_files",
     "parse_file_safe",
+    "reset_ast_cache",
     "set_ast_cache",
 ]
 
@@ -62,15 +65,31 @@ class ASTCache:
 
 # ── Module-level cache accessor ──────────────────────────────────────
 
-_active_cache: ASTCache | None = None
+_ACTIVE_CACHE: ContextVar[ASTCache | None] = ContextVar("axm_audit_ast_cache")
+
+_broadcast_cache: ASTCache | None = None
 
 
-def set_ast_cache(cache: ASTCache | None) -> None:
-    """Set the module-level ``ASTCache`` for rule access."""
-    global _active_cache
-    _active_cache = cache
+def set_ast_cache(cache: ASTCache | None) -> Token[ASTCache | None]:
+    """Bind *cache* to the current context and return the reset token."""
+    global _broadcast_cache
+    _broadcast_cache = cache
+    return _ACTIVE_CACHE.set(cache)
+
+
+def reset_ast_cache(token: Token[ASTCache | None]) -> None:
+    """Reset the active cache using a token from :func:`set_ast_cache`."""
+    global _broadcast_cache
+    _ACTIVE_CACHE.reset(token)
+    _broadcast_cache = None
 
 
 def get_ast_cache() -> ASTCache | None:
     """Return the active ``ASTCache``, or ``None`` outside audits."""
-    return _active_cache
+    try:
+        return _ACTIVE_CACHE.get()
+    except LookupError:
+        return _broadcast_cache
+
+
+get_active_cache = get_ast_cache

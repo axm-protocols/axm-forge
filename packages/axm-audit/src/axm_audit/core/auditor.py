@@ -14,7 +14,7 @@ import logging
 import traceback as _traceback
 from pathlib import Path
 
-from axm_audit.core.rules._helpers import ASTCache, set_ast_cache
+from axm_audit.core.rules._helpers import ASTCache, reset_ast_cache, set_ast_cache
 from axm_audit.core.rules.base import ProjectRule, get_registry
 from axm_audit.models.results import AuditResult, CheckResult, Severity
 
@@ -147,11 +147,19 @@ def audit_project(
     rules = get_rules_for_category(category, quick)
 
     cache = ASTCache()
-    set_ast_cache(cache)
+    token = set_ast_cache(cache)
     try:
+
+        def _run_rule(rule):
+            t = set_ast_cache(cache)
+            try:
+                return _safe_check(rule, project_path)
+            finally:
+                reset_ast_cache(t)
+
         with concurrent.futures.ThreadPoolExecutor() as pool:
-            checks = list(pool.map(lambda r: _safe_check(r, project_path), rules))
+            checks = list(pool.map(_run_rule, rules))
     finally:
-        set_ast_cache(None)
+        reset_ast_cache(token)
 
     return AuditResult(project_path=str(project_path), checks=checks)
