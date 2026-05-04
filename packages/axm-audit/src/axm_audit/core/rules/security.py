@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -11,8 +12,11 @@ from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
+logger = logging.getLogger(__name__)
+
 # Bandit exit codes: 0 = clean, 1 = issues found, >= 2 = internal error.
 _BANDIT_ERROR_RC = 2
+_BANDIT_ISSUES_RC = 1
 
 
 def _run_bandit(src_path: Path, project_path: Path) -> dict[str, Any]:
@@ -37,11 +41,19 @@ def _run_bandit(src_path: Path, project_path: Path) -> dict[str, Any]:
     except json.JSONDecodeError:
         pass
 
-    # rc=0 or rc=1 with empty stdout is fine (no issues / banner only)
     if result.returncode >= _BANDIT_ERROR_RC:
         stderr = result.stderr.strip() if result.stderr else "unknown error"
         msg = f"bandit failed (rc={result.returncode}): {stderr}"
         raise RuntimeError(msg)
+
+    if result.returncode == _BANDIT_ISSUES_RC:
+        stderr = (result.stderr or "").strip()[:500]
+        logger.warning(
+            "QUALITY_SECURITY: bandit returned rc=1 with empty stdout "
+            "(stderr: %s) — treating as no issues found, but this may "
+            "indicate a silent failure",
+            stderr or "<empty>",
+        )
 
     return {}
 
