@@ -146,10 +146,18 @@ def _drop_nulls(d: dict[str, Any]) -> dict[str, Any]:
 
 
 def _render_passed_entry(c: CheckResult) -> str | dict[str, Any]:
-    if not _has_actionable_detail(c):
+    metadata = getattr(c, "metadata", None) or None
+    if not _has_actionable_detail(c) and not metadata:
         return f"{c.rule_id}: {c.message}"
-    detail = {"text": c.text} if c.text else {"details": c.details}
+    if c.text:
+        detail: dict[str, Any] = {"text": c.text}
+    elif c.details is not None:
+        detail = {"details": c.details}
+    else:
+        detail = {}
     entry = _drop_nulls({"rule_id": c.rule_id, "message": c.message, **detail})
+    if metadata:
+        entry["metadata"] = metadata
     if c.fix_hint:
         entry["fix_hint"] = c.fix_hint
     return entry
@@ -162,11 +170,13 @@ def _render_failed_entry(c: CheckResult) -> dict[str, Any]:
         detail = {"details": c.details}
     else:
         detail = {}
+    metadata = getattr(c, "metadata", None) or None
     return _drop_nulls(
         {
             "rule_id": c.rule_id,
             "message": c.message,
             **detail,
+            "metadata": metadata,
             "fix_hint": c.fix_hint,
         }
     )
@@ -178,8 +188,10 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
     Minimizes tokens for passing checks while giving full context on
     failures.  For failed checks, ``text`` and ``details`` are both included
     when present (``None`` values are omitted).  Passed checks that
-    carry actionable detail (e.g. missing
-    docstrings) are promoted to dicts.
+    carry actionable detail (e.g. missing docstrings) are promoted to dicts.
+    Rule-specific ``metadata`` (e.g. tautology verdicts, duplicate clusters,
+    pyramid mismatches) is propagated verbatim under the ``metadata`` key
+    on both passed and failed entries when non-empty.
     """
     return {
         "score": result.quality_score,
