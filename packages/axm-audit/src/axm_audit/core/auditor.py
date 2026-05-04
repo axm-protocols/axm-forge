@@ -14,7 +14,12 @@ import logging
 import traceback as _traceback
 from pathlib import Path
 
-from axm_audit.core.rules._helpers import ASTCache, reset_ast_cache, set_ast_cache
+from axm_audit.core.rules._helpers import (
+    ASTCache,
+    iter_workspace_packages,
+    reset_ast_cache,
+    set_ast_cache,
+)
 from axm_audit.core.rules.base import ProjectRule, get_registry
 from axm_audit.models.results import (
     EXTRA_NONSCORED_CATEGORIES,
@@ -139,6 +144,12 @@ def audit_project(
     if not project_path.exists():
         raise FileNotFoundError(f"Project path does not exist: {project_path}")
 
+    workspace_packages = iter_workspace_packages(project_path)
+    if workspace_packages:
+        return _audit_workspace(
+            project_path, workspace_packages, category=category, quick=quick
+        )
+
     rules = get_rules_for_category(category, quick)
 
     cache = ASTCache()
@@ -158,3 +169,116 @@ def audit_project(
         reset_ast_cache(token)
 
     return AuditResult(project_path=str(project_path), checks=checks)
+
+
+def _audit_workspace(
+    workspace_path: Path,
+    packages: list[Path],
+    *,
+    category: str | None,
+    quick: bool,
+) -> AuditResult:
+    """Audit each package in a multi-package workspace and merge results.
+
+    Each package is audited independently (as if it were a standalone
+    project) and per-package CheckResults are merged by ``rule_id``
+    using a worst-of-N policy: any failure fails the merged result, and
+    score-bearing rules report the minimum score across packages. Text
+    blocks are concatenated with a per-package header so consumers can
+    disambiguate which package emitted which violation.
+    """
+    per_package: list[tuple[str, list[CheckResult]]] = []
+    for pkg in packages:
+        sub = audit_project(pkg, category=category, quick=quick)
+        per_package.append((pkg.name, list(sub.checks)))
+
+    merged: dict[str, CheckResult] = {}
+    order: list[str] = []
+    for pkg_name, checks in per_package:
+        for check in checks:
+            if check.rule_id not in merged:
+                order.append(check.rule_id)
+                merged[check.rule_id] = _prefix_check(check, pkg_name)
+                continue
+            merged[check.rule_id] = _merge_check(merged[check.rule_id], check, pkg_name)
+
+    return AuditResult(
+        project_path=str(workspace_path),
+        checks=[merged[r] for r in order],
+    )
+
+
+def _prefix_check(check: CheckResult, pkg_name: str) -> CheckResult:
+    """Return a copy of *check* with *pkg_name* prefixed into text/details."""
+    text = f"[{pkg_name}]\n{check.text}" if check.text else None
+    details = dict(check.details) if check.details else {}
+    if details:
+        details["package"] = pkg_name
+    message = f"{pkg_name}: {check.message}" if check.message else check.message
+    return check.model_copy(
+        update={"text": text, "details": details or None, "message": message}
+    )
+
+
+def _merge_check(
+    existing: CheckResult, incoming: CheckResult, pkg_name: str
+) -> CheckResult:
+    """Merge two CheckResults for the same rule_id (worst-of-N policy)."""
+    incoming_prefixed = _prefix_check(incoming, pkg_name)
+    passed = existing.passed and incoming_prefixed.passed
+
+    existing_score = _extract_score(existing.details)
+    incoming_score = _extract_score(incoming_prefixed.details)
+    new_score: int | None
+    if existing_score is None and incoming_score is None:
+        new_score = None
+    elif existing_score is None:
+        new_score = incoming_score
+    elif incoming_score is None:
+        new_score = existing_score
+    else:
+        new_score = min(existing_score, incoming_score)
+
+    text_parts = [t for t in (existing.text, incoming_prefixed.text) if t]
+    text = "\n".join(text_parts) if text_parts else None
+
+    details: dict[str, object] = {}
+    if existing.details:
+        details.update(existing.details)
+    if incoming_prefixed.details:
+        for key, value in incoming_prefixed.details.items():
+            if key == "score":
+                continue
+            details[key] = value
+    if new_score is not None:
+        details["score"] = new_score
+
+    severity = _max_severity(existing.severity, incoming_prefixed.severity)
+
+    return existing.model_copy(
+        update={
+            "passed": passed,
+            "text": text,
+            "details": details or None,
+            "severity": severity,
+            "message": existing.message,
+        }
+    )
+
+
+_SEVERITY_RANK = {Severity.INFO: 0, Severity.WARNING: 1, Severity.ERROR: 2}
+
+
+def _max_severity(a: Severity, b: Severity) -> Severity:
+    """Return the more severe of two ``Severity`` values."""
+    return a if _SEVERITY_RANK[a] >= _SEVERITY_RANK[b] else b
+
+
+def _extract_score(details: dict[str, object] | None) -> int | None:
+    """Pull a numeric ``score`` from a details dict, if present."""
+    if not details:
+        return None
+    raw = details.get("score")
+    if isinstance(raw, int | float):
+        return int(raw)
+    return None

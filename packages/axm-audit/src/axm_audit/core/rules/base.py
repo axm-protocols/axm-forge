@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from axm_audit.core.rules._helpers import iter_src_dirs
 from axm_audit.models.results import CheckResult, Severity
 
 if TYPE_CHECKING:
@@ -157,11 +158,12 @@ class ProjectRule(ABC):
                 return early
 
         Returns:
-            ``None`` if ``src/`` exists (rule should continue).
-            A passing ``CheckResult`` if ``src/`` is missing.
+            ``None`` if ``src/`` exists — single-package layout (``src/``)
+            or multi-package workspace (``packages/*/src/``). The rule
+            should continue.
+            A passing ``CheckResult`` if neither layout is present.
         """
-        src_path = project_path / "src"
-        if src_path.exists():
+        if iter_src_dirs(project_path):
             return None
         return CheckResult(
             rule_id=self.rule_id,
