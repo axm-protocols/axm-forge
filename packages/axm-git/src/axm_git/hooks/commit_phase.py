@@ -297,8 +297,9 @@ class CommitPhaseHook:
         Args:
             context: Session context dictionary.
             **params: Optional ``message_format``, ``from_outputs``,
-                ``working_dir``, ``skip_hooks`` (default ``True`` for
-                ``from_outputs`` mode — appends ``--no-verify``).
+                ``working_dir``, ``skip_hooks`` (default ``False`` for
+                ``from_outputs`` mode — pass ``True`` to append
+                ``--no-verify`` and bypass project pre-commit hooks).
 
         Returns:
             HookResult with ``commit`` hash and ``message`` in metadata.
@@ -314,7 +315,7 @@ class CommitPhaseHook:
         profile: str | None = params.pop("profile", None)
 
         if params.get("from_outputs"):
-            skip_hooks = params.get("skip_hooks", True)
+            skip_hooks = params.get("skip_hooks", False)
             return self._commit_from_outputs(
                 context, working_dir, skip_hooks=skip_hooks, profile=profile
             )
@@ -382,7 +383,7 @@ class CommitPhaseHook:
         context: dict[str, Any],
         working_dir: Path,
         *,
-        skip_hooks: bool = True,
+        skip_hooks: bool = False,
         profile: str | None = None,
     ) -> HookResult:
         """Outputs mode: read ``commit_spec`` from context, stage listed files.
@@ -396,7 +397,9 @@ class CommitPhaseHook:
         Args:
             context: Session context containing ``commit_spec``.
             working_dir: Repository working directory.
-            skip_hooks: Append ``--no-verify`` to the commit command.
+            skip_hooks: When *True*, append ``--no-verify`` to bypass
+                project pre-commit hooks.  Defaults to ``False`` so
+                hooks run and surface failures via ``HookResult.fail``.
             profile: Optional identity profile name override.
         """
         spec, err = _validate_commit_spec(context.get("commit_spec"))
