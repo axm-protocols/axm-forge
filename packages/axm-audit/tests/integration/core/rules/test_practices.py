@@ -621,6 +621,219 @@ class TestMirrorRuleIntegration:
         assert result.details is not None
         assert "foo.py" in result.details["missing"]
 
+    # --- AXM-1666: forward mirror exemptions via pyproject.toml ---
+
+    def test_exempt_paths_skips_listed_modules(self, tmp_path: Path) -> None:
+        """AC1, AC2: exempt_paths glob skips matching modules from missing."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        (pkg / "commands").mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "commands" / "__init__.py").write_text("")
+        (pkg / "commands" / "data.py").write_text("def x(): pass\n")
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.axm-audit.mirror]\nexempt_paths = ["commands/*.py"]\n'
+        )
+
+        result = MirrorRule().check(tmp_path)
+        assert result.passed is True
+        assert result.details is not None
+        assert "data.py" not in result.details["missing"]
+        assert "data.py" in result.details["exempt"]
+
+    def test_no_config_section_backwards_compatible(self, tmp_path: Path) -> None:
+        """AC3: missing config section preserves legacy behavior."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "foo.py").write_text("x = 1\n")
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'pkg'\n")
+
+        result = MirrorRule().check(tmp_path)
+        assert result.passed is False
+        assert result.details is not None
+        assert "foo.py" in result.details["missing"]
+        assert result.details["exempt"] == []
+
+    def test_double_star_glob_matches_nested(self, tmp_path: Path) -> None:
+        """AC4, AC8: ** glob matches nested paths."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        (pkg / "sub").mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "sub" / "__init__.py").write_text("")
+        (pkg / "sub" / "_facade.py").write_text("x = 1\n")
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.axm-audit.mirror]\nexempt_paths = ["**/_facade.py"]\n'
+        )
+
+        result = MirrorRule().check(tmp_path)
+        assert result.passed is True
+        assert result.details is not None
+        assert "_facade.py" not in result.details["missing"]
+        assert "_facade.py" in result.details["exempt"]
+
+    def test_question_mark_glob(self, tmp_path: Path) -> None:
+        """AC4: ? glob matches a single character."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "v1.py").write_text("x = 1\n")
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.axm-audit.mirror]\nexempt_paths = ["v?.py"]\n'
+        )
+
+        result = MirrorRule().check(tmp_path)
+        assert result.passed is True
+        assert result.details is not None
+        assert "v1.py" not in result.details["missing"]
+        assert "v1.py" in result.details["exempt"]
+
+    def test_single_star_does_not_cross_slash(self, tmp_path: Path) -> None:
+        """AC8: single * must not match across path separators."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        (pkg / "sub").mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "sub" / "__init__.py").write_text("")
+        (pkg / "sub" / "foo.py").write_text("x = 1\n")
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.axm-audit.mirror]\nexempt_paths = ["*.py"]\n'
+        )
+
+        result = MirrorRule().check(tmp_path)
+        assert result.details is not None
+        assert "foo.py" in result.details["missing"]
+        assert "foo.py" not in result.details["exempt"]
+
+    def test_exempt_module_with_test_still_allowed(self, tmp_path: Path) -> None:
+        """AC5: exempt module that has a test is still allowed and listed in exempt."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "data.py").write_text("x = 1\n")
+        unit = tmp_path / "tests" / "unit"
+        unit.mkdir(parents=True)
+        (unit / "test_data.py").write_text("def test_data(): pass\n")
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.axm-audit.mirror]\nexempt_paths = ["data.py"]\n'
+        )
+
+        result = MirrorRule().check(tmp_path)
+        assert result.passed is True
+        assert result.details is not None
+        assert result.details["missing"] == []
+        assert "data.py" in result.details["exempt"]
+
+    def test_details_exempt_lists_exempted_modules(self, tmp_path: Path) -> None:
+        """AC6: details['exempt'] lists exempted module basenames."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "a.py").write_text("x = 1\n")
+        (pkg / "b.py").write_text("x = 1\n")
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.axm-audit.mirror]\nexempt_paths = ["a.py", "b.py"]\n'
+        )
+
+        result = MirrorRule().check(tmp_path)
+        assert result.details is not None
+        assert set(result.details["exempt"]) == {"a.py", "b.py"}
+
+    def test_all_missing_exempted_passes(self, tmp_path: Path) -> None:
+        """AC7: when all missing modules are exempt, pass with score=100."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "a.py").write_text("x = 1\n")
+        (pkg / "b.py").write_text("x = 1\n")
+        (pkg / "c.py").write_text("x = 1\n")
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.axm-audit.mirror]\nexempt_paths = ["a.py", "b.py", "c.py"]\n'
+        )
+
+        result = MirrorRule().check(tmp_path)
+        assert result.passed is True
+        assert result.score == 100
+
+    def test_invalid_exempt_paths_type_reported(self, tmp_path: Path) -> None:
+        """AC9: invalid exempt_paths type fails with a fix_hint, no exception."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "foo.py").write_text("x = 1\n")
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.axm-audit.mirror]\nexempt_paths = "not-a-list"\n'
+        )
+
+        result = MirrorRule().check(tmp_path)
+        assert result.passed is False
+        assert result.fix_hint is not None
+        assert (
+            "exempt_paths" in result.fix_hint.lower()
+            or "list" in result.fix_hint.lower()
+            or "malform" in result.fix_hint.lower()
+        )
+
+    def test_invalid_toml_does_not_crash(self, tmp_path: Path) -> None:
+        """AC9: malformed pyproject.toml returns CheckResult, no exception."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+        from axm_audit.models.results import CheckResult
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "foo.py").write_text("x = 1\n")
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "pyproject.toml").write_text("this is = = not valid toml [[[\n")
+
+        result = MirrorRule().check(tmp_path)
+        assert isinstance(result, CheckResult)
+        assert result.passed is False
+
+    def test_exemption_does_not_affect_reverse(self, tmp_path: Path) -> None:
+        """AC10: forward exemption never leaks into reverse orphan check."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "real.py").write_text("x = 1\n")
+        unit = tmp_path / "tests" / "unit"
+        unit.mkdir(parents=True)
+        (unit / "test_real.py").write_text("def test_real(): pass\n")
+        (unit / "test_ghost.py").write_text("def test_ghost(): pass\n")
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.axm-audit.mirror]\nexempt_paths = ["ghost.py", "real.py"]\n'
+        )
+
+        result = MirrorRule().check(tmp_path)
+        assert result.details is not None
+        assert "tests/unit/test_ghost.py" in result.details["orphan"]
+
 
 # ─── MirrorRule reverse / orphan check (AXM-1665) ────────────────────────────
 
