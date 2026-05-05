@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import re
 from collections import Counter, defaultdict
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from itertools import combinations
 from pathlib import Path
@@ -1211,27 +1212,39 @@ def _make_test_func(
     return tf
 
 
+def _parse_test_file(path: Path) -> ast.Module | None:
+    try:
+        return ast.parse(path.read_text(), filename=str(path))
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return None
+
+
+def _iter_test_functions(
+    tree: ast.Module,
+) -> Iterator[tuple[ast.FunctionDef, str | None]]:
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            for child in node.body:
+                if isinstance(child, ast.FunctionDef) and child.name.startswith(
+                    "test_"
+                ):
+                    yield child, node.name
+        elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+            yield node, None
+
+
 def _collect_tests(project_path: Path) -> list[_TestFunc]:
     tests_dir = project_path / "tests"
     if not tests_dir.exists():
         return []
     out: list[_TestFunc] = []
     for test_file in sorted(tests_dir.rglob("test_*.py")):
-        try:
-            source = test_file.read_text()
-            tree = ast.parse(source, filename=str(test_file))
-        except (OSError, SyntaxError, UnicodeDecodeError):
+        tree = _parse_test_file(test_file)
+        if tree is None:
             continue
         rel = str(test_file.relative_to(project_path))
-        for node in tree.body:
-            if isinstance(node, ast.ClassDef):
-                for child in node.body:
-                    if isinstance(child, ast.FunctionDef) and child.name.startswith(
-                        "test_"
-                    ):
-                        out.append(_make_test_func(rel, child, node.name))
-            elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-                out.append(_make_test_func(rel, node, None))
+        for node, class_name in _iter_test_functions(tree):
+            out.append(_make_test_func(rel, node, class_name))
     return out
 
 
