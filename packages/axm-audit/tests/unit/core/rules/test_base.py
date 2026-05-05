@@ -9,8 +9,8 @@ import pytest
 from axm_audit.models.results import CheckResult
 
 
-class TestProjectRule:
-    """Tests for ProjectRule ABC."""
+class TestProjectRuleAbstract:
+    """Tests for ProjectRule ABC surface (no I/O)."""
 
     def test_is_abstract(self) -> None:
         """ProjectRule cannot be instantiated directly."""
@@ -34,48 +34,6 @@ class TestProjectRule:
         assert hasattr(ProjectRule, "category")
         # category is no longer abstract — it reads from _registered_category
         assert "category" not in ProjectRule.__abstractmethods__
-
-    def test_check_src_returns_none_when_exists(self, tmp_path: Path) -> None:
-        """check_src returns None when src/ exists (rule should continue)."""
-        from axm_audit.core.rules.base import ProjectRule
-
-        (tmp_path / "src").mkdir()
-
-        class _ConcreteRule(ProjectRule):
-            _registered_category = "testing"
-
-            @property
-            def rule_id(self) -> str:
-                return "TEST_RULE"
-
-            def check(self, project_path: Path) -> CheckResult:
-                return CheckResult(rule_id=self.rule_id, passed=True, message="ok")
-
-        rule = _ConcreteRule()
-        assert rule.check_src(tmp_path) is None
-
-    def test_check_src_returns_result_when_missing(self, tmp_path: Path) -> None:
-        """check_src returns a passing CheckResult when src/ is missing."""
-        from axm_audit.core.rules.base import ProjectRule
-
-        class _ConcreteRule(ProjectRule):
-            _registered_category = "testing"
-
-            @property
-            def rule_id(self) -> str:
-                return "TEST_RULE"
-
-            def check(self, project_path: Path) -> CheckResult:
-                return CheckResult(rule_id=self.rule_id, passed=True, message="ok")
-
-        rule = _ConcreteRule()
-        result = rule.check_src(tmp_path)
-        assert result is not None
-        assert result.passed is True
-        assert result.rule_id == "TEST_RULE"
-        assert result.score == 100
-        assert result.details is None
-        assert "src/ directory not found" in result.message
 
 
 class TestScoringConstants:
