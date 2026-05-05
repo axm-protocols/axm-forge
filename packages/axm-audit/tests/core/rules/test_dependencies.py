@@ -49,17 +49,39 @@ def _make_issue(
 
 
 class TestResolveWorkspaceMembers:
-    def test_resolve_workspace_members_basic(self, tmp_path: Path) -> None:
-        """Workspace with members glob resolves to sub-dirs with pyproject.toml."""
-        _write_pyproject(tmp_path, _workspace_toml("packages/*"))
-        _write_pyproject(tmp_path / "packages" / "pkg-a")
-        _write_pyproject(tmp_path / "packages" / "pkg-b")
+    @pytest.mark.parametrize(
+        ("member_patterns", "package_paths", "expected_names"),
+        [
+            pytest.param(
+                ("packages/*",),
+                ("packages/pkg-a", "packages/pkg-b"),
+                ["pkg-a", "pkg-b"],
+                id="single_pattern",
+            ),
+            pytest.param(
+                ("packages/*", "libs/*"),
+                ("packages/pkg-a", "libs/lib-x"),
+                ["lib-x", "pkg-a"],
+                id="multiple_patterns",
+            ),
+        ],
+    )
+    def test_resolve_returns_member_names(
+        self,
+        tmp_path: Path,
+        member_patterns: tuple[str, ...],
+        package_paths: tuple[str, ...],
+        expected_names: list[str],
+    ) -> None:
+        """Workspace globs resolve to sub-dirs with pyproject.toml."""
+        _write_pyproject(tmp_path, _workspace_toml(*member_patterns))
+        for pkg in package_paths:
+            _write_pyproject(tmp_path / pkg)
 
         result = resolve_workspace_members(tmp_path)
 
         assert result is not None
-        names = sorted(p.name for p in result)
-        assert names == ["pkg-a", "pkg-b"]
+        assert sorted(p.name for p in result) == expected_names
 
     def test_resolve_workspace_members_no_workspace(self, tmp_path: Path) -> None:
         """Non-workspace pyproject returns None."""
@@ -89,18 +111,6 @@ class TestResolveWorkspaceMembers:
         assert result is not None
         assert len(result) == 1
         assert result[0].name == "has-pyproject"
-
-    def test_workspace_multiple_member_patterns(self, tmp_path: Path) -> None:
-        """Multiple glob patterns are all resolved."""
-        _write_pyproject(tmp_path, _workspace_toml("packages/*", "libs/*"))
-        _write_pyproject(tmp_path / "packages" / "pkg-a")
-        _write_pyproject(tmp_path / "libs" / "lib-x")
-
-        result = resolve_workspace_members(tmp_path)
-
-        assert result is not None
-        names = sorted(p.name for p in result)
-        assert names == ["lib-x", "pkg-a"]
 
 
 # ---------------------------------------------------------------------------
