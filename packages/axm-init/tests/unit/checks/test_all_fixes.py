@@ -17,12 +17,12 @@ from axm_init.checks.ci import (
     check_dependabot,
     check_trusted_publishing,
 )
-from axm_init.checks.deps import check_dev_deps, check_docs_deps
+from axm_init.checks.deps import check_dev_deps, check_docs_group
 from axm_init.checks.docs import (
     check_diataxis_nav,
-    check_docs_gen_ref_pages,
-    check_docs_plugins,
+    check_gen_ref_pages,
     check_mkdocs_exists,
+    check_plugins,
     check_readme,
 )
 from axm_init.checks.pyproject import (
@@ -83,8 +83,8 @@ class TestAllFailuresHaveFix:
         check_makefile,
         check_mkdocs_exists,
         check_diataxis_nav,
-        check_docs_plugins,
-        check_docs_gen_ref_pages,
+        check_plugins,
+        check_gen_ref_pages,
         check_readme,
         check_src_layout,
         check_py_typed,
@@ -94,7 +94,7 @@ class TestAllFailuresHaveFix:
         check_uv_lock,
         check_python_version,
         check_dev_deps,
-        check_docs_deps,
+        check_docs_group,
         check_gitcliff_config,
         check_no_manual_changelog,
     ]

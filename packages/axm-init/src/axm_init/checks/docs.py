@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "check_diataxis_nav",
-    "check_docs_gen_ref_pages",
-    "check_docs_plugins",
+    "check_gen_ref_pages",
     "check_mkdocs_exists",
+    "check_plugins",
     "check_readme",
     "check_readme_badges",
 ]
@@ -111,7 +111,7 @@ def check_diataxis_nav(project: Path) -> CheckResult:
     )
 
 
-def check_docs_plugins(project: Path) -> CheckResult:
+def check_plugins(project: Path) -> CheckResult:
     """Check 21: gen-files + literate-nav + mkdocstrings.
 
     For workspace members (``project.parent.name == "packages"``), missing
@@ -159,7 +159,7 @@ def check_docs_plugins(project: Path) -> CheckResult:
     )
 
 
-def check_docs_gen_ref_pages(project: Path) -> CheckResult:
+def check_gen_ref_pages(project: Path) -> CheckResult:
     """Check 22: docs/gen_ref_pages.py exists."""
     found = (project / "docs" / "gen_ref_pages.py").exists()
     if not found and project.parent.name == "packages":
