@@ -42,6 +42,26 @@ _P5_SETUP_DIVERGENCE_THRESHOLD = 0.5
 _S2_HIGH_SIM = 0.95
 _SCORE_PENALTY = 5
 _MIN_PAIR = 2
+_MAX_TEXT_CLUSTERS = 10
+_MAX_MEMBERS_INLINE = 3
+
+
+def _render_clusters_text(clusters: list[dict[str, Any]]) -> str:
+    """Render top-N non-ambiguous clusters as a compact bullet list."""
+    real = [c for c in clusters if not c.get("signal", "").startswith("ambiguous_")]
+    lines: list[str] = []
+    for cluster in real[:_MAX_TEXT_CLUSTERS]:
+        members = cluster.get("members", [])
+        names = [m.get("name", "") for m in members[:_MAX_MEMBERS_INLINE]]
+        suffix = "…" if len(members) > _MAX_MEMBERS_INLINE else ""
+        lines.append(
+            f"• cluster[{cluster.get('signal', '')}] "
+            f"{len(members)} tests: {', '.join(names)}{suffix}"
+        )
+    if len(real) > _MAX_TEXT_CLUSTERS:
+        lines.append(f"(+{len(real) - _MAX_TEXT_CLUSTERS} more clusters)")
+    return "\n".join(lines)
+
 
 # Names excluded from P6 candidate-SUT search: builtins, common test
 # infrastructure, and ubiquitous library helpers that are almost never
@@ -1137,6 +1157,16 @@ class DuplicateTestsRule(ProjectRule):
             message = (
                 f"{len(clusters)} cluster(s), {n_clustered_pairs} clustered pair(s)"
             )
+        slim = _slim_clusters(clusters)
+        text = _render_clusters_text(slim) if not passed else None
+        fix_hint = (
+            None
+            if passed
+            else (
+                "Merge duplicate tests, or use parametrize, or differentiate "
+                "via distinct fixtures/asserts"
+            )
+        )
         return DuplicateTestsCheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -1144,7 +1174,9 @@ class DuplicateTestsRule(ProjectRule):
             severity=Severity.WARNING,
             score=score,
             metadata={
-                "clusters": _slim_clusters(clusters),
+                "clusters": slim,
                 "bucket_counts": bucket_counts,
             },
+            text=text,
+            fix_hint=fix_hint,
         )
