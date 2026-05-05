@@ -52,8 +52,8 @@ Each strategy is a class implementing `SmeltStrategy` (name, category, `apply(ct
 | Preset | Strategies |
 |---|---|
 | `safe` | `minify`, `collapse_whitespace` |
-| `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values`, `tabular`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` |
-| `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` |
+| `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values_with_refs`, `tabular`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` |
+| `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values_with_refs`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` |
 
 | Strategy class | Name | Category |
 |---|---|---|
@@ -63,7 +63,7 @@ Each strategy is a class implementing `SmeltStrategy` (name, category, `apply(ct
 | `DropNullsStrategy` | `drop_nulls` | structural |
 | `FlattenStrategy` | `flatten` | structural |
 | `TabularStrategy` | `tabular` | structural |
-| `DedupValuesStrategy` | `dedup_values` | structural |
+| `DedupValuesStrategy` | `dedup_values_with_refs` | structural |
 | `StripQuotesStrategy` | `strip_quotes` | cosmetic |
 | `StripHtmlCommentsStrategy` | `strip_html_comments` | cosmetic |
 | `RoundNumbersStrategy` | `round_numbers` | cosmetic |
