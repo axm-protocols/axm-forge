@@ -7,6 +7,8 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from axm_audit.core.rules.test_quality._shared import (
     analyze_imports,
     collect_pkg_contract_classes,
@@ -593,17 +595,15 @@ def test_extract_mock_targets_mock_factories() -> None:
 # AC15 -----------------------------------------------------------------
 
 
-def test_target_matches_io_direct_call() -> None:
-    assert target_matches_io("subprocess.run") is True
-
-
-def test_target_matches_io_dotted_suffix() -> None:
-    assert target_matches_io("pkg.inner.subprocess.run") is True
-
-
-def test_target_matches_io_module_leaf_token() -> None:
-    assert target_matches_io("pkg.mod.httpx") is True
-
-
-def test_target_matches_io_non_match() -> None:
-    assert target_matches_io("pkg.mod.helper") is False
+@pytest.mark.parametrize(
+    ("target", "expected"),
+    [
+        pytest.param("subprocess.run", True, id="direct_call"),
+        pytest.param("pkg.inner.subprocess.run", True, id="dotted_suffix"),
+        pytest.param("pkg.mod.httpx", True, id="module_leaf_token"),
+        pytest.param("pkg.mod.helper", False, id="non_match"),
+    ],
+)
+def test_target_matches_io(target: str, expected: bool) -> None:
+    """target_matches_io detects I/O targets via dotted suffix or leaf token."""
+    assert target_matches_io(target) is expected
