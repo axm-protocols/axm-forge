@@ -95,39 +95,40 @@ def test_type_check_text_strips_src_prefix(
     assert "src/pkg/mod.py:" not in result.text
 
 
-def test_type_check_tests_path_unchanged(
-    rule: TypeCheckRule,
-    monkeypatch: pytest.MonkeyPatch,
-    _patch_infra: Path,
-) -> None:
-    """Paths under tests/ are kept as-is in text."""
-    _patch_check_src_ok(monkeypatch)
-    stdout = _mypy_json_line("tests/test_x.py", 3, "Bad arg", "arg-type")
-    _mock_mypy(monkeypatch, stdout)
-
-    result = rule.check(_patch_infra)
-
-    assert result.text is not None
-    assert "tests/test_x.py:" in result.text
-
-
 # ── Edge cases ──────────────────────────────────────────────────────
 
 
-def test_type_check_path_outside_src_tests_unchanged(
+@pytest.mark.parametrize(
+    ("path", "expected_substring"),
+    [
+        pytest.param(
+            "tests/test_x.py",
+            "tests/test_x.py:",
+            id="tests_path_unchanged",
+        ),
+        pytest.param(
+            "scripts/deploy.py",
+            "scripts/deploy.py:",
+            id="path_outside_src_tests_unchanged",
+        ),
+    ],
+)
+def test_type_check_path_unchanged(
     rule: TypeCheckRule,
     monkeypatch: pytest.MonkeyPatch,
     _patch_infra: Path,
+    path: str,
+    expected_substring: str,
 ) -> None:
-    """Paths not under src/ or tests/ stay unchanged."""
+    """Paths not under src/ are preserved as-is in rendered text."""
     _patch_check_src_ok(monkeypatch)
-    stdout = _mypy_json_line("scripts/deploy.py", 1, "Name error", "name-defined")
+    stdout = _mypy_json_line(path, 3, "Bad arg", "arg-type")
     _mock_mypy(monkeypatch, stdout)
 
     result = rule.check(_patch_infra)
 
     assert result.text is not None
-    assert "scripts/deploy.py:" in result.text
+    assert expected_substring in result.text
 
 
 def test_type_check_empty_stdout(
