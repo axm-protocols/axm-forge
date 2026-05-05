@@ -74,27 +74,26 @@ class FakeMCP:
 # ──────────────────────── mcp_app.py tests ───────────────────────────
 
 
-class TestVerifyToolKwargs:
-    """Cover _verify_tool kwargs unwrapping (mcp_app.py:38-41)."""
+class TestVerifyToolExecute:
+    """Cover VerifyTool.execute path delegation."""
 
-    def test_nested_kwargs_unwrap(self) -> None:
-        """Nested kwargs={...} is unwrapped before delegation."""
-        with patch("axm_mcp.mcp_app.verify_project") as mock_vp:
+    def test_path_forwarded_to_verify_project(self) -> None:
+        """Explicit path is forwarded to verify_project as a string."""
+        with patch("axm_mcp.verify.verify_project") as mock_vp:
             mock_vp.return_value = {"audit": None, "governance": None}
-            from axm_mcp.mcp_app import _verify_tool
+            from axm_mcp.verify import VerifyTool
 
-            _verify_tool(kwargs={"path": "/tmp/proj"})
-            # First positional arg should be the unwrapped path
+            VerifyTool({}).execute(path="/tmp/proj")
             assert mock_vp.call_args[0][0] == "/tmp/proj"
 
-    def test_flat_kwargs(self) -> None:
-        """Flat kwargs are passed directly."""
-        with patch("axm_mcp.mcp_app.verify_project") as mock_vp:
+    def test_default_path_is_dot(self) -> None:
+        """When no path is given, defaults to '.'."""
+        with patch("axm_mcp.verify.verify_project") as mock_vp:
             mock_vp.return_value = {"audit": None, "governance": None}
-            from axm_mcp.mcp_app import _verify_tool
+            from axm_mcp.verify import VerifyTool
 
-            _verify_tool(path="/tmp/proj")
-            assert mock_vp.call_args[0][0] == "/tmp/proj"
+            VerifyTool({}).execute()
+            assert mock_vp.call_args[0][0] == "."
 
 
 class TestMcpAppMain:
