@@ -13,7 +13,7 @@ from axm_audit.core.rules.test_quality.private_imports import PrivateImportsRule
 _PKG_ROOT = Path(__file__).resolve().parents[2]
 _BASELINE_FILE = _PKG_ROOT / "tests" / ".private_imports_baseline"
 _DROP_REQUIRED = 18
-_EXPECTED_ATTRIBUTE_FINDINGS = 4
+_EXPECTED_ATTRIBUTE_FINDINGS = 0
 
 
 @pytest.mark.integration
