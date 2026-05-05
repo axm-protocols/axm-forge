@@ -127,6 +127,15 @@ score = coverage_percentage
 
 Uses `pytest-cov` to measure line coverage. Per-category pass threshold: ≥ 90%.
 
+Files whose basename equals `__main__.py` are excluded from the per-file gap
+list (they typically only host a `python -m` entry point and are not
+meaningfully unit-testable). The aggregate `total_pct` from pytest-cov is
+left untouched — this mirrors `coverage.py`'s `exclude_also` convention of
+filtering reports rather than rewriting underlying totals. To exclude
+`__main__.py` from the aggregate as well, add
+`[tool.coverage.run] omit = ["**/__main__.py"]` in the package's
+`pyproject.toml`.
+
 ### Test Quality Score
 
 Average of four sub-scores, each penalising structural defects in the test suite:

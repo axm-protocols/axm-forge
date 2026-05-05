@@ -169,7 +169,15 @@ def parse_json_report(report_path: Path) -> dict[str, Any]:
 
 
 def parse_coverage(coverage_path: Path) -> tuple[float | None, dict[str, float]]:
-    """Parse coverage JSON into total % and per-file dict."""
+    """Parse coverage JSON into total % and per-file dict.
+
+    Files whose basename equals ``__main__.py`` are excluded from the
+    per-file map (they typically contain only a ``python -m`` entry
+    point and are not meaningfully unit-testable). The aggregate
+    ``total_pct`` from pytest-cov is left untouched, in line with
+    coverage.py's ``exclude_also`` convention of filtering reports
+    rather than rewriting the underlying totals.
+    """
     if not coverage_path.exists():
         return None, {}
     try:
@@ -180,6 +188,8 @@ def parse_coverage(coverage_path: Path) -> tuple[float | None, dict[str, float]]
     total_pct = data.get("totals", {}).get("percent_covered")
     per_file: dict[str, float] = {}
     for fpath, fdata in data.get("files", {}).items():
+        if Path(fpath).name == "__main__.py":
+            continue
         per_file[fpath] = fdata.get("summary", {}).get("percent_covered", 0.0)
 
     return total_pct, per_file
