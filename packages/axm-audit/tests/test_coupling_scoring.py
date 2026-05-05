@@ -239,36 +239,25 @@ class TestScoringIntegration:
         result = AuditResult(checks=checks)
         assert result.quality_score == pytest.approx(100.0, abs=0.1)
 
-    def test_architecture_failure_lowers_composite(self) -> None:
-        """ARCH_COUPLING=0 with rest at 100 must produce score < 100."""
+    @pytest.mark.parametrize(
+        "rule_id",
+        [
+            pytest.param("ARCH_COUPLING", id="architecture"),
+            pytest.param("PRACTICE_DOCSTRING", id="practices"),
+        ],
+    )
+    def test_rule_failure_lowers_composite(self, rule_id: str) -> None:
+        """A rule dropping from 100 to 0 must lower the composite score."""
         baseline = AuditResult(
             checks=[
                 _make_check("QUALITY_LINT", 100),
-                _make_check("ARCH_COUPLING", 100),
+                _make_check(rule_id, 100),
             ]
         )
         degraded = AuditResult(
             checks=[
                 _make_check("QUALITY_LINT", 100),
-                _make_check("ARCH_COUPLING", 0),
-            ]
-        )
-        assert baseline.quality_score is not None
-        assert degraded.quality_score is not None
-        assert degraded.quality_score < baseline.quality_score
-
-    def test_practices_failure_lowers_composite(self) -> None:
-        """PRACTICE_DOCSTRING=0 lowers the composite below baseline."""
-        baseline = AuditResult(
-            checks=[
-                _make_check("QUALITY_LINT", 100),
-                _make_check("PRACTICE_DOCSTRING", 100),
-            ]
-        )
-        degraded = AuditResult(
-            checks=[
-                _make_check("QUALITY_LINT", 100),
-                _make_check("PRACTICE_DOCSTRING", 0),
+                _make_check(rule_id, 0),
             ]
         )
         assert baseline.quality_score is not None
