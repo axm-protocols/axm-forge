@@ -175,7 +175,7 @@ class TestRuleRegistryDeduplication:
             ("deps", 2),
             ("testing", 1),
             ("architecture", 4),
-            ("practices", 4),
+            ("practices", 5),
             ("structure", 2),
             ("tooling", 3),
         ],
