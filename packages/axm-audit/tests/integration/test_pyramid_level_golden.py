@@ -1,7 +1,7 @@
-"""Byte-parity integration tests: PyramidLevelRule vs detect_pyramid_level_v6.py.
+"""Byte-parity integration tests: PyramidLevelRule vs reference prototype.
 
 Spec: AXM-1502 AC9/AC10 — the real rule must produce an output set identical
-to the v6 prototype script across 3 representative AXM packages.
+to the reference prototype script across representative AXM packages.
 """
 
 from __future__ import annotations
@@ -72,22 +72,18 @@ def _require_pkg(pkg_path: Path) -> None:
         pytest.skip(f"package not present: {pkg_path}")
 
 
-def test_axm_audit_v6_byte_parity() -> None:
-    """AC9: full byte-parity with v6 prototype on axm-audit."""
-    pkg = _WORKSPACES / "axm-forge/packages/axm-audit"
-    _require_pkg(pkg)
-    assert _rule_set(pkg) == _prototype_set(pkg)
-
-
-def test_axm_ast_v6_byte_parity() -> None:
-    """AC10: byte-parity on axm-ast."""
-    pkg = _WORKSPACES / "axm-forge/packages/axm-ast"
-    _require_pkg(pkg)
-    assert _rule_set(pkg) == _prototype_set(pkg)
-
-
-def test_axm_engine_v6_byte_parity() -> None:
-    """AC10: byte-parity on axm-engine."""
-    pkg = _WORKSPACES / "axm-nexus/packages/axm-engine"
+@pytest.mark.parametrize(
+    "pkg_relpath",
+    [
+        "axm-forge/packages/axm-audit",
+        "axm-forge/packages/axm-ast",
+        "axm-nexus/packages/axm-engine",
+    ],
+    ids=["axm-audit", "axm-ast", "axm-engine"],
+)
+def test_rule_output_matches_prototype(pkg_relpath: str) -> None:
+    """AC9/AC10: rule output is byte-identical to the reference prototype."""
+    # Across representative packages.
+    pkg = _WORKSPACES / pkg_relpath
     _require_pkg(pkg)
     assert _rule_set(pkg) == _prototype_set(pkg)
