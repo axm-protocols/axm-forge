@@ -137,22 +137,24 @@ def test_severity_is_error(pkg_root: Path) -> None:
     assert result.severity == Severity.ERROR
 
 
-def test_score_decreases_linearly(pkg_root: Path) -> None:
-    src_lines = [f"def _fn{i}():\n    return {i}\n" for i in range(10)]
+@pytest.mark.parametrize(
+    ("private_count", "expected_score"),
+    [
+        pytest.param(10, 50, id="linear_midrange"),
+        pytest.param(25, 0, id="floors_at_zero"),
+    ],
+)
+def test_score_scales_with_violation_count(
+    pkg_root: Path, private_count: int, expected_score: int
+) -> None:
+    src_lines = [f"def _fn{i}():\n    return {i}\n" for i in range(private_count)]
     _write(pkg_root / "src" / "pkg" / "mod.py", "".join(src_lines))
-    imports = "\n".join(f"from pkg.mod import _fn{i}" for i in range(10)) + "\n"
+    imports = (
+        "\n".join(f"from pkg.mod import _fn{i}" for i in range(private_count)) + "\n"
+    )
     _write(pkg_root / "tests" / "test_x.py", imports)
     result = PrivateImportsRule().check(pkg_root)
-    assert result.score == 50
-
-
-def test_score_floors_at_zero(pkg_root: Path) -> None:
-    src_lines = [f"def _fn{i}():\n    return {i}\n" for i in range(25)]
-    _write(pkg_root / "src" / "pkg" / "mod.py", "".join(src_lines))
-    imports = "\n".join(f"from pkg.mod import _fn{i}" for i in range(25)) + "\n"
-    _write(pkg_root / "tests" / "test_x.py", imports)
-    result = PrivateImportsRule().check(pkg_root)
-    assert result.score == 0
+    assert result.score == expected_score
 
 
 def test_message_links_to_docs(pkg_root: Path) -> None:
