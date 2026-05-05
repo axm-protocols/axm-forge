@@ -42,23 +42,36 @@ _S2_HIGH_SIM = 0.95
 _SCORE_PENALTY = 5
 _MIN_PAIR = 2
 _MAX_TEXT_CLUSTERS = 10
-_MAX_MEMBERS_INLINE = 3
+_MAX_MEMBERS_INLINE = 5
+
+
+def _render_cluster_members(members: list[dict[str, Any]]) -> str:
+    shown = members[:_MAX_MEMBERS_INLINE]
+    files = {m.get("file", "") for m in shown}
+    if len(files) == 1:
+        file = next(iter(files))
+        names = ", ".join(m.get("name", "") for m in shown)
+        return f"{file}::{names}" if file else names
+    return ", ".join(f"{m.get('file', '')}::{m.get('name', '')}" for m in shown)
 
 
 def _render_clusters_text(clusters: list[dict[str, Any]]) -> str:
-    """Render top-N non-ambiguous clusters as a compact bullet list."""
-    real = [c for c in clusters if not c.get("signal", "").startswith("ambiguous_")]
+    """Render top-N clusters (signal + ambiguous) as a compact bullet list."""
+    ordered = sorted(
+        clusters,
+        key=lambda c: (-len(c.get("members", [])), c.get("signal", "")),
+    )
     lines: list[str] = []
-    for cluster in real[:_MAX_TEXT_CLUSTERS]:
+    for cluster in ordered[:_MAX_TEXT_CLUSTERS]:
         members = cluster.get("members", [])
-        names = [m.get("name", "") for m in members[:_MAX_MEMBERS_INLINE]]
         suffix = "…" if len(members) > _MAX_MEMBERS_INLINE else ""
+        label = _render_cluster_members(members)
         lines.append(
             f"• cluster[{cluster.get('signal', '')}] "
-            f"{len(members)} tests: {', '.join(names)}{suffix}"
+            f"{len(members)} tests: {label}{suffix}"
         )
-    if len(real) > _MAX_TEXT_CLUSTERS:
-        lines.append(f"(+{len(real) - _MAX_TEXT_CLUSTERS} more clusters)")
+    if len(ordered) > _MAX_TEXT_CLUSTERS:
+        lines.append(f"(+{len(ordered) - _MAX_TEXT_CLUSTERS} more clusters)")
     return "\n".join(lines)
 
 
