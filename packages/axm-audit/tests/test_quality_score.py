@@ -95,22 +95,29 @@ class TestQualityScoreRange:
     """Score always falls in [0, 100] when defined."""
 
     @pytest.mark.parametrize("category", SCORED_CATEGORIES)
-    def test_perfect_single_category_is_100(self, category: str) -> None:
-        checks = [_make_check(category=category, score=100.0)]
-        assert _make_result(checks).quality_score == 100.0
+    @pytest.mark.parametrize(
+        ("score", "expected"),
+        [
+            pytest.param(100.0, 100.0, id="perfect"),
+            pytest.param(0.0, 0.0, id="zero"),
+        ],
+    )
+    def test_single_category_extreme_score(
+        self, category: str, score: float, expected: float
+    ) -> None:
+        checks = [_make_check(category=category, score=score)]
+        assert _make_result(checks).quality_score == expected
 
-    @pytest.mark.parametrize("category", SCORED_CATEGORIES)
-    def test_zero_single_category_is_0(self, category: str) -> None:
-        checks = [_make_check(category=category, score=0.0)]
-        assert _make_result(checks).quality_score == 0.0
-
-    def test_all_categories_perfect_is_100(self) -> None:
-        checks = [_make_check(category=cat, score=100.0) for cat in SCORED_CATEGORIES]
-        assert _make_result(checks).quality_score == 100.0
-
-    def test_all_categories_zero_is_0(self) -> None:
-        checks = [_make_check(category=cat, score=0.0) for cat in SCORED_CATEGORIES]
-        assert _make_result(checks).quality_score == 0.0
+    @pytest.mark.parametrize(
+        ("score", "expected"),
+        [
+            pytest.param(100.0, 100.0, id="all_perfect"),
+            pytest.param(0.0, 0.0, id="all_zero"),
+        ],
+    )
+    def test_all_categories_uniform_score(self, score: float, expected: float) -> None:
+        checks = [_make_check(category=cat, score=score) for cat in SCORED_CATEGORIES]
+        assert _make_result(checks).quality_score == expected
 
     def test_score_within_bounds_for_arbitrary_inputs(self) -> None:
         checks = [
