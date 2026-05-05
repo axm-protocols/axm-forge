@@ -1,7 +1,7 @@
 """Public-API tests for ``SecurityRule`` text formatting.
 
 These tests drive ``SecurityRule().check()`` (the public boundary) and
-monkeypatch the module-level ``_run_bandit`` function to inject canned
+monkeypatch the module-level ``run_bandit`` function to inject canned
 results, replacing the old direct ``_build_security_result`` import.
 """
 
@@ -47,7 +47,7 @@ def _check_with_results(
 
     monkeypatch.setattr(
         sec_mod,
-        "_run_bandit",
+        "run_bandit",
         lambda src_path, project_path: {"results": bandit_results},
     )
     return SecurityRule().check(_make_project(tmp_path))

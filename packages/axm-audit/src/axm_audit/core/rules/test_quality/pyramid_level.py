@@ -45,8 +45,6 @@ __all__ = [
     "PyramidCheckResult",
     "PyramidLevelRule",
     "_detect_tmp_path_usage",
-    "_relpath",
-    "_render_mismatch_text",
     "_suggest_file",
     "scan_package",
     "scan_test_file",
@@ -630,7 +628,7 @@ _SCORE_PENALTY = 2
 _MAX_TEXT_ITEMS = 20
 
 
-def _relpath(path: str, project_path: Path) -> str:
+def relpath(path: str, project_path: Path) -> str:
     """Return *path* relative to *project_path* if possible, else absolute."""
     try:
         return str(Path(path).relative_to(project_path))
@@ -638,14 +636,14 @@ def _relpath(path: str, project_path: Path) -> str:
         return path
 
 
-def _render_mismatch_text(mismatches: list[Finding], project_path: Path) -> str:
+def render_mismatch_text(mismatches: list[Finding], project_path: Path) -> str:
     """Render top-N mismatched findings as a compact bullet list.
 
     Paths are relativized to *project_path* to keep the text dense; falls
     back to the absolute path if the finding lives outside the project root.
     """
     lines = [
-        f"• {_relpath(f.path, project_path)}:{f.function} "
+        f"• {relpath(f.path, project_path)}:{f.function} "
         f"{f.current_level}→{f.level} ({f.reason})"
         for f in mismatches[:_MAX_TEXT_ITEMS]
     ]
@@ -694,7 +692,7 @@ class PyramidLevelRule(ProjectRule):
             "mismatches": [f.model_dump() for f in mismatches],
             "total": len(mismatches),
         }
-        text = _render_mismatch_text(mismatches, project_path) if mismatches else None
+        text = render_mismatch_text(mismatches, project_path) if mismatches else None
         fix_hint = (
             None
             if passed

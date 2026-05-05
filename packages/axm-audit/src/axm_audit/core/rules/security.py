@@ -21,7 +21,7 @@ _BANDIT_ERROR_RC = 2
 _BANDIT_ISSUES_RC = 1
 
 
-def _run_bandit(src_path: Path, project_path: Path) -> dict[str, Any]:
+def run_bandit(src_path: Path, project_path: Path) -> dict[str, Any]:
     """Run Bandit and return parsed JSON output.
 
     Raises:
@@ -151,7 +151,7 @@ class SecurityRule(ProjectRule):
         src_path = project_path / "src"
 
         try:
-            data = _run_bandit(src_path, project_path)
+            data = run_bandit(src_path, project_path)
         except FileNotFoundError:
             return CheckResult(
                 rule_id=self.rule_id,

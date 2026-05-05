@@ -70,7 +70,7 @@ def format_categories_help() -> str:
     return "\n".join(lines)
 
 
-def _collect_category_scores(
+def collect_category_scores(
     checks: list[Any],
 ) -> dict[str, list[float]]:
     """Group valid scores by category, filtering out unusable checks.
@@ -182,7 +182,7 @@ class AuditResult(BaseModel):
         (structure is handled by axm-init; tooling is informational).
         Returns None if no scored checks are present.
         """
-        category_scores = _collect_category_scores(self.checks)
+        category_scores = collect_category_scores(self.checks)
         if not category_scores:
             return None
 

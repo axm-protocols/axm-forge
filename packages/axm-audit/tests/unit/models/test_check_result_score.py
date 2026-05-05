@@ -5,7 +5,7 @@ import logging
 import pytest
 from pydantic import ValidationError
 
-from axm_audit.models.results import CheckResult, _collect_category_scores
+from axm_audit.models.results import CheckResult, collect_category_scores
 
 
 def test_check_result_has_typed_score() -> None:
@@ -30,7 +30,7 @@ def test_collect_category_scores_reads_typed_score() -> None:
     check = CheckResult(
         rule_id="r", passed=True, message="ok", category="lint", score=80
     )
-    assert _collect_category_scores([check]) == {"lint": [80.0]}
+    assert collect_category_scores([check]) == {"lint": [80.0]}
 
 
 def test_collect_category_scores_warns_on_missing(
@@ -40,7 +40,7 @@ def test_collect_category_scores_warns_on_missing(
         rule_id="my_rule", passed=True, message="ok", category="lint", score=None
     )
     with caplog.at_level(logging.WARNING):
-        result = _collect_category_scores([check])
+        result = collect_category_scores([check])
     assert result == {}
     assert any(
         record.levelno == logging.WARNING and "my_rule" in record.getMessage()
@@ -55,5 +55,5 @@ def test_collect_category_scores_no_warn_for_unscored_category(
         rule_id="r", passed=True, message="ok", category="structure", score=None
     )
     with caplog.at_level(logging.WARNING):
-        _collect_category_scores([check])
+        collect_category_scores([check])
     assert not any(record.levelno == logging.WARNING for record in caplog.records)
