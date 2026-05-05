@@ -292,21 +292,17 @@ class TestFormatReportRichOutput:
 class TestLegacyRemoval:
     """Tests that legacy structure rules are removed."""
 
-    def test_no_file_exists_rules(self) -> None:
-        """FILE_EXISTS rules should not be in the rule set."""
+    @pytest.mark.parametrize(
+        "removed_prefix",
+        ["FILE_EXISTS_", "DIR_EXISTS_"],
+    )
+    def test_legacy_existence_rules_removed(self, removed_prefix: str) -> None:
+        """FILE_EXISTS_ and DIR_EXISTS_ rules should not be in the rule set."""
         from axm_audit.core.auditor import get_rules_for_category
 
         rules = get_rules_for_category(None)
         rule_ids = [r.rule_id for r in rules]
-        assert not any(rid.startswith("FILE_EXISTS_") for rid in rule_ids)
-
-    def test_no_dir_exists_rules(self) -> None:
-        """DIR_EXISTS rules should not be in the rule set."""
-        from axm_audit.core.auditor import get_rules_for_category
-
-        rules = get_rules_for_category(None)
-        rule_ids = [r.rule_id for r in rules]
-        assert not any(rid.startswith("DIR_EXISTS_") for rid in rule_ids)
+        assert not any(rid.startswith(removed_prefix) for rid in rule_ids)
 
     def test_pyproject_completeness_still_exists(self) -> None:
         """PyprojectCompletenessRule should still be registered."""
