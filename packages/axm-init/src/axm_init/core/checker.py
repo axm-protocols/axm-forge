@@ -38,7 +38,7 @@ SKIP_FOR_WORKSPACE: frozenset[str] = frozenset(
         "pyproject.pyproject_ruff_rules",
         "changelog.gitcliff_config",
         "deps.dev_deps",
-        "deps.docs_deps",
+        "deps.docs_group",
         "pyproject.pyproject_pytest",
         "pyproject.pyproject_coverage",
         "docs.diataxis_nav",
@@ -142,6 +142,17 @@ ALL_CHECKS: dict[str, list[Callable[[Path], CheckResult]]] = _discover_checks()
 VALID_CATEGORIES = set(ALL_CHECKS.keys())
 
 
+SKIP_FOR_MEMBER: frozenset[str] = frozenset(
+    {
+        "docs.gen_ref_pages",
+        "docs.plugins",
+        "docs.diataxis_nav",
+        "docs.readme_badges",
+        "deps.docs_group",
+    }
+)
+
+
 class CheckEngine:
     """Orchestrates project checks and produces results."""
 
@@ -159,10 +170,12 @@ class CheckEngine:
         """Return True if the check should be skipped for context reasons."""
         if category == "workspace" and self.context != ProjectContext.WORKSPACE:
             return True
-        return (
+        if (
             self.context == ProjectContext.WORKSPACE
             and check_name in SKIP_FOR_WORKSPACE
-        )
+        ):
+            return True
+        return self.context == ProjectContext.MEMBER and check_name in SKIP_FOR_MEMBER
 
     def _should_redirect(self, check_name: str | None) -> bool:
         """Return True if the check should be redirected to workspace root."""

@@ -6,9 +6,9 @@ from pathlib import Path
 
 from axm_init.checks.docs import (
     check_diataxis_nav,
-    check_docs_gen_ref_pages,
-    check_docs_plugins,
+    check_gen_ref_pages,
     check_mkdocs_exists,
+    check_plugins,
     check_readme,
     check_readme_badges,
 )
@@ -44,19 +44,19 @@ class TestCheckDiataxisNav:
 
 class TestCheckDocsPlugins:
     def test_pass(self, gold_project: Path) -> None:
-        r = check_docs_plugins(gold_project)
+        r = check_plugins(gold_project)
         assert r.passed is True
 
     def test_fail_no_plugins(self, tmp_path: Path) -> None:
         (tmp_path / "mkdocs.yml").write_text("site_name: x\n")
-        r = check_docs_plugins(tmp_path)
+        r = check_plugins(tmp_path)
         assert r.passed is False
 
 
 class TestCheckDocsGenRefPages:
     def test_gen_ref_pages_in_package(self, gold_project: Path) -> None:
         """File exists in package docs/ → check passes."""
-        r = check_docs_gen_ref_pages(gold_project)
+        r = check_gen_ref_pages(gold_project)
         assert r.passed is True
         assert r.name == "docs.gen_ref_pages"
 
@@ -71,7 +71,7 @@ class TestCheckDocsGenRefPages:
         ws_docs = workspace / "docs"
         ws_docs.mkdir()
         (ws_docs / "gen_ref_pages.py").write_text("")
-        r = check_docs_gen_ref_pages(pkg)
+        r = check_gen_ref_pages(pkg)
         assert r.passed is True
 
     def test_gen_ref_pages_nowhere(self, tmp_path: Path) -> None:
@@ -79,13 +79,13 @@ class TestCheckDocsGenRefPages:
         workspace = tmp_path / "workspace"
         pkg = workspace / "packages" / "my-pkg"
         pkg.mkdir(parents=True)
-        r = check_docs_gen_ref_pages(pkg)
+        r = check_gen_ref_pages(pkg)
         assert r.passed is False
 
     def test_gen_ref_pages_no_workspace(self, tmp_path: Path) -> None:
         """Standalone package (no workspace) → fails if absent."""
         # Package directly in tmp_path, no packages/ parent structure
-        r = check_docs_gen_ref_pages(tmp_path)
+        r = check_gen_ref_pages(tmp_path)
         assert r.passed is False
 
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_init.checks.docs import check_docs_plugins
+from axm_init.checks.docs import check_plugins
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def test_workspace_root_resolves_all_missing(workspace_project: Path) -> None:
         "plugins:\n  - gen-files\n  - literate-nav\n  - mkdocstrings\n"
     )
 
-    result = check_docs_plugins(workspace_project)
+    result = check_plugins(workspace_project)
 
     assert result.passed is True
     assert result.message == "All plugins configured"
@@ -45,7 +45,7 @@ def test_workspace_no_root_mkdocs(workspace_project: Path) -> None:
     local_mkdocs = workspace_project / "mkdocs.yml"
     local_mkdocs.write_text("plugins:\n  - mkdocstrings\n")
 
-    result = check_docs_plugins(workspace_project)
+    result = check_plugins(workspace_project)
 
     assert result.passed is False
     assert "gen-files" in result.details[0]
@@ -57,7 +57,7 @@ def test_non_workspace_no_fallback(standalone_project: Path) -> None:
     local_mkdocs = standalone_project / "mkdocs.yml"
     local_mkdocs.write_text("plugins:\n  - mkdocstrings\n")
 
-    result = check_docs_plugins(standalone_project)
+    result = check_plugins(standalone_project)
 
     assert result.passed is False
     assert "2" in result.message

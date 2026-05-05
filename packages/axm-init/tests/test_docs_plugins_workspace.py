@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_init.checks.docs import check_docs_plugins
+from axm_init.checks.docs import check_plugins
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -45,7 +45,7 @@ def test_docs_plugins_local_nav_only_root_has_plugins(
     (workspace / "mkdocs.yml").write_text(NAV_ONLY)
     (tmp_path / "mkdocs.yml").write_text(FULL_PLUGINS)
 
-    result = check_docs_plugins(workspace)
+    result = check_plugins(workspace)
 
     assert result.passed is True
 
@@ -58,7 +58,7 @@ def test_docs_plugins_local_nav_only_no_root_plugins(
     (workspace / "mkdocs.yml").write_text(NAV_ONLY)
     (tmp_path / "mkdocs.yml").write_text(NAV_ONLY)
 
-    result = check_docs_plugins(workspace)
+    result = check_plugins(workspace)
 
     assert result.passed is False
     assert "gen-files" in result.details[0]
@@ -74,7 +74,7 @@ def test_docs_plugins_local_has_some_root_has_rest(
     (workspace / "mkdocs.yml").write_text(PARTIAL_PLUGINS_GEN)
     (tmp_path / "mkdocs.yml").write_text(PARTIAL_PLUGINS_LIT_MKD)
 
-    result = check_docs_plugins(workspace)
+    result = check_plugins(workspace)
 
     assert result.passed is True
 
@@ -91,7 +91,7 @@ def test_docs_plugins_local_has_all_plugins_workspace_member(
     (workspace / "mkdocs.yml").write_text(FULL_PLUGINS)
     # No root mkdocs.yml — should still pass
 
-    result = check_docs_plugins(workspace)
+    result = check_plugins(workspace)
 
     assert result.passed is True
 
@@ -102,7 +102,7 @@ def test_docs_plugins_not_workspace_member(tmp_path: Path) -> None:
     project.mkdir()
     (project / "mkdocs.yml").write_text(NAV_ONLY)
 
-    result = check_docs_plugins(project)
+    result = check_plugins(project)
 
     assert result.passed is False
     assert "gen-files" in result.details[0]
@@ -117,7 +117,7 @@ def test_docs_plugins_workspace_member_no_root_mkdocs(
     (workspace / "mkdocs.yml").write_text(NAV_ONLY)
     # No root mkdocs.yml exists
 
-    result = check_docs_plugins(workspace)
+    result = check_plugins(workspace)
 
     assert result.passed is False
     assert "gen-files" in result.details[0]
