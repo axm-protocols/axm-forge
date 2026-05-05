@@ -40,72 +40,72 @@ def _mock_config(
 class TestDiffSizeText:
     """Tests for DiffSizeRule._measure_diff text rendering."""
 
-    def test_diff_size_passed_text_is_none(
-        self, rule: DiffSizeRule, project_path: Path, mocker: MockerFixture
+    @pytest.mark.parametrize(
+        ("stdout", "lines", "score", "expected_passed"),
+        [
+            pytest.param(
+                " 1 file changed, 50 insertions(+)\n",
+                50,
+                100,
+                True,
+                id="passed_low_lines",
+            ),
+            pytest.param(
+                " 5 files changed, 300 insertions(+)\n",
+                300,
+                90,
+                True,
+                id="passed_at_threshold",
+            ),
+            pytest.param(
+                " 10 files changed, 1100 insertions(+)\n",
+                1100,
+                0,
+                False,
+                id="failed_high_lines",
+            ),
+            pytest.param(
+                " 5 files changed, 350 insertions(+)\n",
+                350,
+                89,
+                False,
+                id="failed_below_threshold",
+            ),
+        ],
+    )
+    def test_measure_diff_text_rendering(  # noqa: PLR0913 — pytest fixtures + parametrize args
+        self,
+        rule: DiffSizeRule,
+        project_path: Path,
+        mocker: MockerFixture,
+        stdout: str,
+        lines: int,
+        score: int,
+        expected_passed: bool,
     ) -> None:
-        _mock_subprocess(mocker, " 1 file changed, 50 insertions(+)\n")
-        _mock_config(mocker)
-        mocker.patch.object(rule, "_parse_stat", return_value=50)
-        mocker.patch.object(rule, "compute_score", return_value=100)
-
-        result = rule._measure_diff(project_path)
-
-        assert result.passed is True
-        assert result.text is None
-
-    def test_diff_size_failed_text_contains_delta(
-        self, rule: DiffSizeRule, project_path: Path, mocker: MockerFixture
-    ) -> None:
-        _mock_subprocess(mocker, " 10 files changed, 1100 insertions(+)\n")
+        """Text is None when passed; contains delta marker when failed."""
+        _mock_subprocess(mocker, stdout)
         _mock_config(mocker, ideal=200)
-        mocker.patch.object(rule, "_parse_stat", return_value=1100)
-        mocker.patch.object(rule, "compute_score", return_value=0)
+        mocker.patch.object(rule, "_parse_stat", return_value=lines)
+        mocker.patch.object(rule, "compute_score", return_value=score)
 
         result = rule._measure_diff(project_path)
 
-        assert result.passed is False
-        assert result.text is not None
-        assert "lines \u0394" in result.text
-        assert "\u2022" in result.text
+        assert result.passed is expected_passed
+        if expected_passed:
+            assert result.text is None
+        else:
+            assert result.text is not None
+            assert "lines \u0394" in result.text
+            assert "\u2022" in result.text
 
     def test_diff_size_no_changes_text_is_none(
         self, rule: DiffSizeRule, project_path: Path, mocker: MockerFixture
     ) -> None:
+        """Empty git diff stdout short-circuits to passed with no text."""
         _mock_subprocess(mocker, "")
 
         result = rule._measure_diff(project_path)
 
         assert result.passed is True
         assert result.text is None
-
-
-class TestDiffSizeTextEdgeCases:
-    """Edge cases for score-threshold boundary."""
-
-    def test_score_at_threshold_text_is_none(
-        self, rule: DiffSizeRule, project_path: Path, mocker: MockerFixture
-    ) -> None:
-        _mock_subprocess(mocker, " 5 files changed, 300 insertions(+)\n")
-        _mock_config(mocker)
-        mocker.patch.object(rule, "_parse_stat", return_value=300)
-        mocker.patch.object(rule, "compute_score", return_value=90)
-
-        result = rule._measure_diff(project_path)
-
-        assert result.passed is True
-        assert result.text is None
-
-    def test_score_below_threshold_text_has_delta(
-        self, rule: DiffSizeRule, project_path: Path, mocker: MockerFixture
-    ) -> None:
-        _mock_subprocess(mocker, " 5 files changed, 350 insertions(+)\n")
-        _mock_config(mocker, ideal=200)
-        mocker.patch.object(rule, "_parse_stat", return_value=350)
-        mocker.patch.object(rule, "compute_score", return_value=89)
-
-        result = rule._measure_diff(project_path)
-
-        assert result.passed is False
-        assert result.text is not None
-        assert "lines \u0394" in result.text
-        assert "\u2022" in result.text
