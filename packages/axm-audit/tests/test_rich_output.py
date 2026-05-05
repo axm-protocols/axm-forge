@@ -13,8 +13,6 @@ class TestFormatCheckDetails:
 
     def test_complexity_top_offenders(self) -> None:
         """Complexity details should list each offending function."""
-        from axm_audit.formatters import _format_check_details
-
         check = CheckResult(
             rule_id="QUALITY_COMPLEXITY",
             passed=False,
@@ -27,17 +25,12 @@ class TestFormatCheckDetails:
                 ],
             },
         )
-        lines = _format_check_details(check)
-        assert len(lines) == 2
-        assert "foo.py" in lines[0]
-        assert "bar" in lines[0]
-        assert "15" in lines[0]
-        assert "baz.py" in lines[1]
+        report = format_report(AuditResult(checks=[check]))
+        assert "     • foo.py:bar 15" in report
+        assert "     • baz.py:qux 12" in report
 
     def test_security_top_issues(self) -> None:
         """Security details should list each issue with severity."""
-        from axm_audit.formatters import _format_check_details
-
         check = CheckResult(
             rule_id="QUALITY_SECURITY",
             passed=False,
@@ -55,16 +48,11 @@ class TestFormatCheckDetails:
                 ],
             },
         )
-        lines = _format_check_details(check)
-        assert len(lines) == 1
-        assert "H" in lines[0]
-        assert "B105" in lines[0]
-        assert "auth.py" in lines[0]
+        report = format_report(AuditResult(checks=[check]))
+        assert "     • H B105 auth.py:42 Hardcoded password" in report
 
     def test_deps_audit_top_vulns(self) -> None:
         """Dependency audit details should list vulnerable packages."""
-        from axm_audit.formatters import _format_check_details
-
         check = CheckResult(
             rule_id="DEPS_AUDIT",
             passed=False,
@@ -77,15 +65,12 @@ class TestFormatCheckDetails:
                 ],
             },
         )
-        lines = _format_check_details(check)
-        assert len(lines) == 2
-        assert "requests" in lines[0]
-        assert "2.25.0" in lines[0]
+        report = format_report(AuditResult(checks=[check]))
+        assert "requests==2.25.0" in report
+        assert "pip==21.0" in report
 
     def test_deps_hygiene_top_issues(self) -> None:
         """Dependency hygiene details should list issues."""
-        from axm_audit.formatters import _format_check_details
-
         check = CheckResult(
             rule_id="DEPS_HYGIENE",
             passed=False,
@@ -97,19 +82,15 @@ class TestFormatCheckDetails:
                 ],
             },
         )
-        lines = _format_check_details(check)
-        assert len(lines) == 1
-        assert "DEP001" in lines[0]
-        assert "foo" in lines[0]
+        report = format_report(AuditResult(checks=[check]))
+        assert "     • DEP001 foo: missing dep" in report
 
     def test_details_works_for_passing_checks_with_low_score(self) -> None:
-        """_format_check_details should return lines for passing checks
-        that have score < 100 (for the improvements section)."""
-        from axm_audit.formatters import _format_check_details
-
+        """Passing checks with score<100 render details under Improvements."""
         check = CheckResult(
             rule_id="QUALITY_COMPLEXITY",
             passed=True,
+            score=90,
             message="Complexity score: 90/100",
             text="• foo.py:bar 11",
             details={
@@ -118,34 +99,31 @@ class TestFormatCheckDetails:
                 ],
             },
         )
-        lines = _format_check_details(check)
-        assert len(lines) == 1
-        assert "foo.py" in lines[0]
+        report = format_report(AuditResult(checks=[check]))
+        assert "Improvements" in report
+        assert "     • foo.py:bar 11" in report
 
     def test_score_100_no_details(self) -> None:
-        """Passing checks at score=100 should return empty list."""
-        from axm_audit.formatters import _format_check_details
-
+        """Passing checks at score=100 should produce no bullet details."""
         check = CheckResult(
             rule_id="QUALITY_LINT",
             passed=True,
             message="OK",
             score=100,
         )
-        lines = _format_check_details(check)
-        assert lines == []
+        report = format_report(AuditResult(checks=[check]))
+        assert "•" not in report
+        assert "Improvements" not in report
 
     def test_no_details_returns_empty(self) -> None:
-        """Checks without details should return empty list."""
-        from axm_audit.formatters import _format_check_details
-
+        """Checks without text/details should produce no bullets."""
         check = CheckResult(
             rule_id="QUALITY_LINT",
             passed=True,
             message="OK",
         )
-        lines = _format_check_details(check)
-        assert lines == []
+        report = format_report(AuditResult(checks=[check]))
+        assert "•" not in report
 
 
 # ── Improvements section tests ───────────────────────────────────────
