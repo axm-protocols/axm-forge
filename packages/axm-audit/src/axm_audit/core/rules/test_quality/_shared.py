@@ -525,6 +525,11 @@ def _names_called_in(node: ast.AST) -> set[str]:
         if isinstance(func, ast.Name):
             out.add(func.id)
         elif isinstance(func, ast.Attribute):
+            # `self.<attr>(...)` should resolve to the method name, not `self`,
+            # so class-method helpers can be looked up by name.
+            if isinstance(func.value, ast.Name) and func.value.id == "self":
+                out.add(func.attr)
+                continue
             cur: ast.AST = func
             while isinstance(cur, ast.Attribute):
                 cur = cur.value
