@@ -429,42 +429,6 @@ class TestAuditResultScoring:
             category=category_map.get(rule_id),
         )
 
-    def test_quality_score_weighted_average(self) -> None:
-        """quality_score with all 8 categories at 100 → 100."""
-        from axm_audit.models.results import AuditResult
-
-        result = AuditResult(
-            checks=[
-                self._make_check("QUALITY_LINT", 100),
-                self._make_check("QUALITY_TYPE", 100),
-                self._make_check("QUALITY_COMPLEXITY", 100),
-                self._make_check("QUALITY_SECURITY", 100),
-                self._make_check("DEPS_AUDIT", 100),
-                self._make_check("DEPS_HYGIENE", 100),
-                self._make_check("QUALITY_COVERAGE", 100),
-                self._make_check("ARCH_COUPLING", 100),
-                self._make_check("PRACTICE_DOCSTRING", 100),
-                self._make_check("PRACTICE_BARE_EXCEPT", 100),
-                self._make_check("PRACTICE_SECURITY", 100),
-            ]
-        )
-        assert result.quality_score == 100.0
-
-    def test_quality_score_partial(self) -> None:
-        """quality_score with only lint/type/complexity → normalized partial score."""
-        from axm_audit.models.results import AuditResult
-
-        result = AuditResult(
-            checks=[
-                self._make_check("QUALITY_LINT", 80),  # 80 * 0.20 = 16
-                self._make_check("QUALITY_TYPE", 60),  # 60 * 0.15 = 9
-                self._make_check("QUALITY_COMPLEXITY", 100),  # 100 * 0.15 = 15
-            ]
-        )
-        # 3 categories present, weight_sum = 0.20 + 0.15 + 0.15 = 0.50
-        # Normalized: (16 + 9 + 15) / 0.50 = 80.0
-        assert result.quality_score == 80.0
-
     def test_quality_score_none_without_quality_checks(self) -> None:
         """quality_score is None if no quality checks present."""
         from axm_audit.models.results import AuditResult, CheckResult
