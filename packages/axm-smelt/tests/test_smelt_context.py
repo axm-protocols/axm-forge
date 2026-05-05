@@ -42,9 +42,9 @@ def test_smelt_context_is_immutable() -> None:
 
     ctx = SmeltContext(text='{"a":1}')
     with pytest.raises(FrozenInstanceError):
-        ctx.text = "x"  # type: ignore[misc]
+        ctx.text = "x"
     with pytest.raises(FrozenInstanceError):
-        ctx.parsed = {"b": 2}  # type: ignore[misc]
+        ctx.parsed = {"b": 2}
 
 
 def test_smelt_context_format_carried() -> None:
