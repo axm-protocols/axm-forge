@@ -51,7 +51,7 @@ class DedupValuesStrategy(SmeltStrategy):
     @property
     def name(self) -> str:
         """Strategy identifier used in the registry."""
-        return "dedup_values"
+        return "dedup_values_with_refs"
 
     @property
     def category(self) -> str:
@@ -82,7 +82,9 @@ class DedupValuesStrategy(SmeltStrategy):
                 return ctx
 
         if isinstance(parsed, dict) and ("_refs" in parsed or "_data" in parsed):
-            logger.debug("dedup_values: input has reserved top-level key, skipping")
+            logger.debug(
+                "dedup_values_with_refs: input has reserved top-level key, skipping"
+            )
             return ctx
 
         strings: list[str] = []

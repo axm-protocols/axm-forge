@@ -16,22 +16,24 @@ from axm_smelt.strategies.strip_html_comments import StripHtmlCommentsStrategy
 from axm_smelt.strategies.strip_quotes import StripQuotesStrategy
 from axm_smelt.strategies.tabular import TabularStrategy
 
-__all__ = ["get_preset", "get_strategy"]
+__all__ = ["REGISTRY", "get_preset", "get_strategy"]
 
 _log = logging.getLogger(__name__)
 
-_REGISTRY: dict[str, type[SmeltStrategy]] = {
+REGISTRY: dict[str, type[SmeltStrategy]] = {
     "minify": MinifyStrategy,
     "drop_nulls": DropNullsStrategy,
     "flatten": FlattenStrategy,
     "tabular": TabularStrategy,
     "round_numbers": RoundNumbersStrategy,
     "strip_quotes": StripQuotesStrategy,
-    "dedup_values": DedupValuesStrategy,
+    "dedup_values_with_refs": DedupValuesStrategy,
     "collapse_whitespace": CollapseWhitespaceStrategy,
     "compact_tables": CompactTablesStrategy,
     "strip_html_comments": StripHtmlCommentsStrategy,
 }
+
+_REGISTRY = REGISTRY
 
 _PRESETS: dict[str, list[str]] = {
     "safe": ["minify", "collapse_whitespace"],
@@ -39,7 +41,7 @@ _PRESETS: dict[str, list[str]] = {
         "minify",
         "drop_nulls",
         "flatten",
-        "dedup_values",
+        "dedup_values_with_refs",
         "tabular",
         "strip_quotes",
         "collapse_whitespace",
@@ -52,7 +54,7 @@ _PRESETS: dict[str, list[str]] = {
         "flatten",
         "tabular",
         "round_numbers",
-        "dedup_values",
+        "dedup_values_with_refs",
         "strip_quotes",
         "collapse_whitespace",
         "compact_tables",
