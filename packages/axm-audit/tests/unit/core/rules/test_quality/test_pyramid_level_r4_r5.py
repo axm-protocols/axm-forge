@@ -116,9 +116,9 @@ def test_r4_conftest_cache_not_re_parsed(tmp_path: Path, mocker: Any) -> None:
         ).lstrip("\n")
     )
 
-    load = getattr(_shared, "_load_conftest_fixtures", None)
+    load = getattr(_shared, "load_conftest_fixtures", None)
     if load is None:
-        pytest.skip("_load_conftest_fixtures not exposed on _shared")
+        pytest.skip("load_conftest_fixtures not exposed on _shared")
 
     spy = mocker.spy(Path, "read_text")
     load(conftest_path)

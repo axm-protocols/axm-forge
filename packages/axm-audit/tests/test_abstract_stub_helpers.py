@@ -19,7 +19,7 @@ def _parse_func(source: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
 
 
 # ---------------------------------------------------------------------------
-# _has_abstractmethod_decorator
+# has_abstractmethod_decorator
 # ---------------------------------------------------------------------------
 
 
@@ -48,15 +48,15 @@ def _parse_func(source: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
         ),
     ],
 )
-def test_has_abstractmethod_decorator(source: str, expected: bool) -> None:
-    """_has_abstractmethod_decorator detects @abstractmethod."""
+def testhas_abstractmethod_decorator(source: str, expected: bool) -> None:
+    """has_abstractmethod_decorator detects @abstractmethod."""
     # Also detects @abc.abstractmethod (qualified form).
     node = _parse_func(source)
-    assert DocstringCoverageRule._has_abstractmethod_decorator(node) is expected
+    assert DocstringCoverageRule.has_abstractmethod_decorator(node) is expected
 
 
 # ---------------------------------------------------------------------------
-# _is_stub_body
+# is_stub_body
 # ---------------------------------------------------------------------------
 
 
@@ -73,19 +73,19 @@ def test_has_abstractmethod_decorator(source: str, expected: bool) -> None:
         ),
     ],
 )
-def test_is_stub_body(source: str, expected: bool) -> None:
-    """_is_stub_body returns True only for `...` or `pass` single-statement bodies."""
+def testis_stub_body(source: str, expected: bool) -> None:
+    """is_stub_body returns True only for `...` or `pass` single-statement bodies."""
     node = _parse_func(source)
-    assert DocstringCoverageRule._is_stub_body(node) is expected
+    assert DocstringCoverageRule.is_stub_body(node) is expected
 
 
 # ---------------------------------------------------------------------------
-# _is_abstract_stub — edge cases
+# is_abstract_stub — edge cases
 # ---------------------------------------------------------------------------
 
 
 class TestIsAbstractStubEdgeCases:
-    """Edge cases for _is_abstract_stub after refactoring."""
+    """Edge cases for is_abstract_stub after refactoring."""
 
     def test_abstract_with_real_body_not_stub(self) -> None:
         """@abstractmethod with implementation is NOT a stub."""
@@ -94,11 +94,11 @@ class TestIsAbstractStubEdgeCases:
             def foo(self):
                 return 42
         """)
-        assert DocstringCoverageRule._is_abstract_stub(node) is False
+        assert DocstringCoverageRule.is_abstract_stub(node) is False
 
     def test_non_abstract_ellipsis_not_stub(self) -> None:
         """Protocol-style method with ... but no @abstractmethod is NOT a stub."""
         node = _parse_func("""
             def foo(self): ...
         """)
-        assert DocstringCoverageRule._is_abstract_stub(node) is False
+        assert DocstringCoverageRule.is_abstract_stub(node) is False
