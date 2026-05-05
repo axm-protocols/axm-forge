@@ -176,6 +176,40 @@ def _is_same_package_module_import(
 # Attribute-access detection helpers
 
 
+def _collect_from_imports(
+    node: ast.ImportFrom,
+    ctx: _ScanContext,
+    out: dict[str, tuple[str, str, str]],
+) -> None:
+    """Record ``from pkg.mod import Name [as N]`` bindings into ``out``."""
+    mod = node.module or ""
+    if not mod or not _is_first_party_module(mod, ctx.pkg_prefixes):
+        return
+    for alias in node.names or []:
+        if alias.name == "*":
+            continue
+        local = alias.asname or alias.name
+        out[local] = (mod, "symbol", alias.name)
+
+
+def _collect_plain_imports(
+    node: ast.Import,
+    ctx: _ScanContext,
+    out: dict[str, tuple[str, str, str]],
+) -> None:
+    """Record ``import pkg.mod [as m]`` bindings into ``out``."""
+    for alias in node.names:
+        mod = alias.name
+        if not _is_first_party_module(mod, ctx.pkg_prefixes):
+            continue
+        if alias.asname:
+            out[alias.asname] = (mod, "module", mod)
+        else:
+            root = mod.split(".", 1)[0]
+            out.setdefault(root, (root, "module", root))
+            out[mod] = (mod, "module", mod)
+
+
 def _collect_first_party_imports(
     tree: ast.AST, ctx: _ScanContext
 ) -> dict[str, tuple[str, str, str]]:
@@ -190,25 +224,9 @@ def _collect_first_party_imports(
     out: dict[str, tuple[str, str, str]] = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
-            mod = node.module or ""
-            if not mod or not _is_first_party_module(mod, ctx.pkg_prefixes):
-                continue
-            for alias in node.names or []:
-                if alias.name == "*":
-                    continue
-                local = alias.asname or alias.name
-                out[local] = (mod, "symbol", alias.name)
+            _collect_from_imports(node, ctx, out)
         elif isinstance(node, ast.Import):
-            for alias in node.names:
-                mod = alias.name
-                if not _is_first_party_module(mod, ctx.pkg_prefixes):
-                    continue
-                if alias.asname:
-                    out[alias.asname] = (mod, "module", mod)
-                else:
-                    root = mod.split(".", 1)[0]
-                    out.setdefault(root, (root, "module", root))
-                    out[mod] = (mod, "module", mod)
+            _collect_plain_imports(node, ctx, out)
     return out
 
 
