@@ -209,35 +209,147 @@ def test_p3_cross_file_template_pair_rescues(project: Path) -> None:
     assert "ambiguous_template_pair" in signals
 
 
-def test_p3_token_too_short_does_not_rescue(project: Path) -> None:
-    body = """
-        def test_parse():
-            result = run(1)
-            assert result == 1
-    """
-    _write(project / "tests" / "test_a.py", body)
-    _write(project / "tests" / "test_b.py", body)
-    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    signals = _cluster_signals(result)
-    assert "ambiguous_template_pair" not in signals
+_P3_SHORT_BODY = """
+    def test_parse():
+        result = run(1)
+        assert result == 1
+"""
+
+_P3_LONG_BODY = """
+    def test_parse():
+        a = step_one(1)
+        b = step_two(a)
+        c = step_three(b)
+        d = step_four(c)
+        e = step_five(d)
+        f = step_six(e)
+        assert f == 0
+"""
+
+_P4_LARGE_BODIES = """
+    def test_alpha():
+        a = f1(1)
+        b = f2(a)
+        c = f3(b)
+        d = f4(c)
+        e = f5(d)
+        g = f6(e)
+        h = f7(g)
+        i = f8(h)
+        j = f9(i)
+        assert j == 0
+
+    def test_beta():
+        a = f1(2)
+        b = f2(a)
+        c = f3(b)
+        d = f4(c)
+        e = f5(d)
+        g = f6(e)
+        h = f7(g)
+        i = f8(h)
+        assert i == 0
+"""
+
+_P6_SAME_COUNT = """
+    def test_one():
+        result = compute(1)
+        assert result == 1
+
+    def test_two():
+        result = compute(2)
+        assert result == 1
+"""
+
+_P6_UNDERSCORE_HELPER = """
+    def test_alpha():
+        checks = [_make_check(80)]
+        result = quality_score(checks)
+        assert result == 80
+
+    def test_beta():
+        checks = [_make_check(80), _make_check(60), _make_check(100)]
+        result = quality_score(checks)
+        assert result == 80
+"""
+
+_P6_BUILTIN = """
+    def test_alpha(tmp_path):
+        (tmp_path / "a").mkdir()
+        result = scan(tmp_path)
+        assert result == "ok"
+
+    def test_beta(tmp_path):
+        (tmp_path / "a").mkdir()
+        (tmp_path / "b").mkdir()
+        (tmp_path / "c").mkdir()
+        result = scan(tmp_path)
+        assert result == "ok"
+"""
+
+_P7_SUBSET = """
+    def test_alpha():
+        result = parse("foo")
+        assert result == "alpha"
+
+    def test_beta():
+        warmup()
+        result = parse("bar")
+        assert result == "beta"
+"""
 
 
-def test_p3_long_body_does_not_rescue(project: Path) -> None:
-    body = """
-        def test_parse():
-            a = step_one(1)
-            b = step_two(a)
-            c = step_three(b)
-            d = step_four(c)
-            e = step_five(d)
-            f = step_six(e)
-            assert f == 0
-    """
-    _write(project / "tests" / "test_json_parser.py", body)
-    _write(project / "tests" / "test_yaml_parser.py", body)
+@pytest.mark.parametrize(
+    ("files", "absent_signal"),
+    [
+        pytest.param(
+            [("test_a.py", _P3_SHORT_BODY), ("test_b.py", _P3_SHORT_BODY)],
+            "ambiguous_template_pair",
+            id="p3_token_too_short",
+        ),
+        pytest.param(
+            [
+                ("test_json_parser.py", _P3_LONG_BODY),
+                ("test_yaml_parser.py", _P3_LONG_BODY),
+            ],
+            "ambiguous_template_pair",
+            id="p3_long_body",
+        ),
+        pytest.param(
+            [("test_mod.py", _P4_LARGE_BODIES)],
+            "ambiguous_body_size",
+            id="p4_large_bodies",
+        ),
+        pytest.param(
+            [("test_mod.py", _P6_SAME_COUNT)],
+            "ambiguous_call_multiplicity",
+            id="p6_same_count",
+        ),
+        pytest.param(
+            [("test_mod.py", _P6_UNDERSCORE_HELPER)],
+            "ambiguous_call_multiplicity",
+            id="p6_underscore_helper",
+        ),
+        pytest.param(
+            [("test_mod.py", _P6_BUILTIN)],
+            "ambiguous_call_multiplicity",
+            id="p6_builtin",
+        ),
+        pytest.param(
+            [("test_mod.py", _P7_SUBSET)],
+            "ambiguous_distinct_sut",
+            id="p7_subset",
+        ),
+    ],
+)
+def test_guard_does_not_rescue(
+    project: Path, files: list[tuple[str, str]], absent_signal: str
+) -> None:
+    for filename, body in files:
+        _write(project / "tests" / filename, body)
     result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
     signals = _cluster_signals(result)
-    assert "ambiguous_template_pair" not in signals
+    assert absent_signal not in signals
 
 
 def test_p4_intra_file_body_size_delta_rescues(project: Path) -> None:
@@ -263,39 +375,6 @@ def test_p4_intra_file_body_size_delta_rescues(project: Path) -> None:
     assert "ambiguous_body_size" in signals
 
 
-def test_p4_large_bodies_do_not_rescue(project: Path) -> None:
-    _write(
-        project / "tests" / "test_mod.py",
-        """
-        def test_alpha():
-            a = f1(1)
-            b = f2(a)
-            c = f3(b)
-            d = f4(c)
-            e = f5(d)
-            g = f6(e)
-            h = f7(g)
-            i = f8(h)
-            j = f9(i)
-            assert j == 0
-
-        def test_beta():
-            a = f1(2)
-            b = f2(a)
-            c = f3(b)
-            d = f4(c)
-            e = f5(d)
-            g = f6(e)
-            h = f7(g)
-            i = f8(h)
-            assert i == 0
-        """,
-    )
-    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    signals = _cluster_signals(result)
-    assert "ambiguous_body_size" not in signals
-
-
 def test_p6_call_multiplicity_rescues_s1(project: Path) -> None:
     """Common public SUT called once vs twice -> demoted to call_multiplicity."""
     _write(
@@ -316,69 +395,6 @@ def test_p6_call_multiplicity_rescues_s1(project: Path) -> None:
     result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
     signals = _cluster_signals(result)
     assert "ambiguous_call_multiplicity" in signals
-
-
-def test_p6_same_count_does_not_rescue(project: Path) -> None:
-    """Same SUT called the same number of times → not rescued."""
-    _write(
-        project / "tests" / "test_mod.py",
-        """
-        def test_one():
-            result = compute(1)
-            assert result == 1
-
-        def test_two():
-            result = compute(2)
-            assert result == 1
-        """,
-    )
-    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    signals = _cluster_signals(result)
-    assert "ambiguous_call_multiplicity" not in signals
-
-
-def test_p6_underscore_helper_does_not_trigger(project: Path) -> None:
-    """Divergence on a private helper (``_make_check``) must not rescue."""
-    _write(
-        project / "tests" / "test_mod.py",
-        """
-        def test_alpha():
-            checks = [_make_check(80)]
-            result = quality_score(checks)
-            assert result == 80
-
-        def test_beta():
-            checks = [_make_check(80), _make_check(60), _make_check(100)]
-            result = quality_score(checks)
-            assert result == 80
-        """,
-    )
-    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    signals = _cluster_signals(result)
-    assert "ambiguous_call_multiplicity" not in signals
-
-
-def test_p6_builtin_does_not_trigger(project: Path) -> None:
-    """Divergence on builtin (``mkdir``) must not rescue."""
-    _write(
-        project / "tests" / "test_mod.py",
-        """
-        def test_alpha(tmp_path):
-            (tmp_path / "a").mkdir()
-            result = scan(tmp_path)
-            assert result == "ok"
-
-        def test_beta(tmp_path):
-            (tmp_path / "a").mkdir()
-            (tmp_path / "b").mkdir()
-            (tmp_path / "c").mkdir()
-            result = scan(tmp_path)
-            assert result == "ok"
-        """,
-    )
-    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    signals = _cluster_signals(result)
-    assert "ambiguous_call_multiplicity" not in signals
 
 
 def test_p7_distinct_sut_rescues_s3(project: Path) -> None:
@@ -409,29 +425,6 @@ def test_p7_distinct_sut_rescues_s3(project: Path) -> None:
     signals = _cluster_signals(result)
     assert "ambiguous_distinct_sut" in signals
     assert "signal3_intra_file_similarity" not in signals
-
-
-def test_p7_subset_does_not_rescue(project: Path) -> None:
-    """P7 — set inclusion (parametrable) must NOT trigger the rescue."""
-    _write(
-        project / "tests" / "test_mod.py",
-        """
-        def test_alpha():
-            result = parse("foo")
-            assert result == "alpha"
-
-        def test_beta():
-            warmup()
-            result = parse("bar")
-            assert result == "beta"
-        """,
-    )
-    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    signals = _cluster_signals(result)
-    # ``warmup`` is only on one side but the SUT set on side A
-    # (``{parse}``) is a subset of side B (``{parse, warmup}``).
-    # P7 stays silent; P1 (distinct literals) wins instead.
-    assert "ambiguous_distinct_sut" not in signals
 
 
 def _make_cluster(signal: str, tests: list[tuple[str, str]]) -> dict[str, Any]:
