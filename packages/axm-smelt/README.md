@@ -27,7 +27,7 @@
 
 - **Format detection** — auto-detect JSON, YAML, XML, TOML, CSV, Markdown, and plain text
 - **Token counting** — exact counts via tiktoken (`o200k_base`), with `len//4` fallback
-- **7 strategies** — `minify`, `drop_nulls`, `flatten`, `tabular`, `dedup_values`, `strip_quotes`, `round_numbers`
+- **7 strategies** — `minify`, `drop_nulls`, `flatten`, `tabular`, `dedup_values_with_refs`, `strip_quotes`, `round_numbers`
 - **Composable pipeline** — chain strategies explicitly or use presets (`safe`, `moderate`, `aggressive`)
 - **CLI** — `axm-smelt compact|check|count|version` with `--preset`/`--strategies`/`--file`/`--output` flags
 - **MCP tool** — `SmeltTool` for use by AI agents via `axm-mcp`
@@ -110,7 +110,7 @@ All commands accept `--file PATH` to read from a file instead of stdin. `compact
 | `drop_nulls` | structural | Recursively remove `None`, `""`, `[]`, `{}` values |
 | `flatten` | structural | Collapse single-child wrapper dicts (`{"a":{"b":1}}` → `{"a.b":1}`) |
 | `tabular` | structural | Convert `list[dict]` JSON to pipe-separated tables |
-| `dedup_values` | structural | Replace repeated long strings (≥20 chars, ≥2 occurrences) with aliases |
+| `dedup_values_with_refs` | structural | Replace repeated long strings (≥20 chars, ≥2 occurrences) with aliases. **Output is wrapped in a `{_refs, _data}` envelope — not format-preserving.** |
 | `strip_quotes` | cosmetic | Remove quotes on simple alphanumeric JSON keys |
 | `round_numbers` | cosmetic | Round floats to N decimal places (default: 2) |
 
@@ -119,8 +119,8 @@ All commands accept `--file PATH` to read from a file instead of stdin. `compact
 | Preset | Strategies | Use when |
 |---|---|---|
 | `safe` | `minify` | Lossless only — output is semantically identical |
-| `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values`, `tabular`, `strip_quotes` | Structural transforms are acceptable |
-| `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values`, `strip_quotes` | Maximum savings, may alter float precision |
+| `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values_with_refs`, `tabular`, `strip_quotes` | Structural transforms are acceptable |
+| `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values_with_refs`, `strip_quotes` | Maximum savings, may alter float precision |
 
 ## Development
 
@@ -132,6 +132,10 @@ cd axm-forge
 uv sync --all-groups
 uv run --package axm-smelt --directory packages/axm-smelt pytest -x -q
 ```
+
+## Migration notes
+
+- **0.1.0.dev0 → next**: the `dedup_values` strategy was renamed to `dedup_values_with_refs` to signal that its output is wrapped in a `{_refs, _data}` envelope and is not format-preserving. The old name is removed from the registry (no alias) — pipelines referencing `"dedup_values"` will raise `KeyError`. Update CLI invocations (`--strategies dedup_values_with_refs`) and library calls (`Pipeline(strategies=["dedup_values_with_refs"])`) accordingly.
 
 ## License
 
