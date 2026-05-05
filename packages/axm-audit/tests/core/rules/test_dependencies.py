@@ -9,7 +9,7 @@ from pytest_mock import MockerFixture
 
 from axm_audit.core.rules.dependencies import (
     DependencyHygieneRule,
-    _resolve_workspace_members,
+    resolve_workspace_members,
 )
 
 MOD = "axm_audit.core.rules.dependencies"
@@ -55,7 +55,7 @@ class TestResolveWorkspaceMembers:
         _write_pyproject(tmp_path / "packages" / "pkg-a")
         _write_pyproject(tmp_path / "packages" / "pkg-b")
 
-        result = _resolve_workspace_members(tmp_path)
+        result = resolve_workspace_members(tmp_path)
 
         assert result is not None
         names = sorted(p.name for p in result)
@@ -65,7 +65,7 @@ class TestResolveWorkspaceMembers:
         """Non-workspace pyproject returns None."""
         _write_pyproject(tmp_path, '[project]\nname = "solo"\n')
 
-        result = _resolve_workspace_members(tmp_path)
+        result = resolve_workspace_members(tmp_path)
 
         assert result is None
 
@@ -74,7 +74,7 @@ class TestResolveWorkspaceMembers:
         _write_pyproject(tmp_path, _workspace_toml("packages/*"))
         (tmp_path / "packages").mkdir()
 
-        result = _resolve_workspace_members(tmp_path)
+        result = resolve_workspace_members(tmp_path)
 
         assert result == []
 
@@ -84,7 +84,7 @@ class TestResolveWorkspaceMembers:
         _write_pyproject(tmp_path / "packages" / "has-pyproject")
         (tmp_path / "packages" / "no-pyproject").mkdir(parents=True)
 
-        result = _resolve_workspace_members(tmp_path)
+        result = resolve_workspace_members(tmp_path)
 
         assert result is not None
         assert len(result) == 1
@@ -96,7 +96,7 @@ class TestResolveWorkspaceMembers:
         _write_pyproject(tmp_path / "packages" / "pkg-a")
         _write_pyproject(tmp_path / "libs" / "lib-x")
 
-        result = _resolve_workspace_members(tmp_path)
+        result = resolve_workspace_members(tmp_path)
 
         assert result is not None
         names = sorted(p.name for p in result)
@@ -117,11 +117,11 @@ class TestDependencyHygieneRule:
         member_b = tmp_path / "packages" / "b"
 
         mocker.patch(
-            f"{MOD}._resolve_workspace_members",
+            f"{MOD}.resolve_workspace_members",
             return_value=[member_a, member_b],
         )
         mocker.patch(
-            f"{MOD}._run_deptry",
+            f"{MOD}.run_deptry",
             side_effect=[
                 [_make_issue("DEP001", "x"), _make_issue("DEP003", "y")],
                 [_make_issue("DEP002", "z")],
@@ -145,11 +145,11 @@ class TestDependencyHygieneRule:
         issue_b = _make_issue("DEP001", "real-missing")
 
         mocker.patch(
-            f"{MOD}._resolve_workspace_members",
+            f"{MOD}.resolve_workspace_members",
             return_value=[member_a, member_b],
         )
         mocker.patch(
-            f"{MOD}._run_deptry",
+            f"{MOD}.run_deptry",
             side_effect=[[issue_a], [issue_b]],
         )
         mock_filter = mocker.patch(
@@ -172,9 +172,9 @@ class TestDependencyHygieneRule:
         self, rule: DependencyHygieneRule, tmp_path: Path, mocker: MockerFixture
     ) -> None:
         """Non-workspace project uses existing single-package path."""
-        mocker.patch(f"{MOD}._resolve_workspace_members", return_value=None)
+        mocker.patch(f"{MOD}.resolve_workspace_members", return_value=None)
         mocker.patch(
-            f"{MOD}._run_deptry",
+            f"{MOD}.run_deptry",
             return_value=[_make_issue("DEP001", "a"), _make_issue("DEP003", "b")],
         )
         mocker.patch(f"{MOD}._filter_false_positives", side_effect=lambda i, _p: i)
@@ -193,11 +193,11 @@ class TestDependencyHygieneRule:
         member_b = tmp_path / "packages" / "b"
 
         mocker.patch(
-            f"{MOD}._resolve_workspace_members",
+            f"{MOD}.resolve_workspace_members",
             return_value=[member_a, member_b],
         )
         mocker.patch(
-            f"{MOD}._run_deptry",
+            f"{MOD}.run_deptry",
             side_effect=[
                 RuntimeError("deptry crashed"),
                 [_make_issue("DEP001", "ok")],

@@ -25,7 +25,7 @@ def rule() -> DependencyHygieneRule:
     return DependencyHygieneRule()
 
 
-_PATCH_RUN = "axm_audit.core.rules.dependencies._run_deptry"
+_PATCH_RUN = "axm_audit.core.rules.dependencies.run_deptry"
 _PATCH_FILTER = "axm_audit.core.rules.dependencies._filter_false_positives"
 
 
