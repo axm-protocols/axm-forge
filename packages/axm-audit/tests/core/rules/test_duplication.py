@@ -4,34 +4,49 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+_DISTINCT_A = (
+    "def add(a: int, b: int) -> int:\n"
+    "    result = a + b\n"
+    "    if result > 0:\n"
+    "        return result\n"
+    "    elif result < 0:\n"
+    "        return -result\n"
+    "    return 0\n"
+)
+_DISTINCT_B = (
+    "def multiply(a: int, b: int) -> int:\n"
+    "    result = a * b\n"
+    "    if result > 100:\n"
+    "        return 100\n"
+    "    elif result < -100:\n"
+    "        return -100\n"
+    "    return result\n"
+)
+_TINY = "def tiny(x: int) -> int:\n    return x + 1\n"
+
 
 class TestDuplicationRule:
     """Tests for DuplicationRule (AST structure hashing)."""
 
-    def test_no_duplicates_passes(self, tmp_path: Path) -> None:
-        """Distinct function bodies should pass."""
+    @pytest.mark.parametrize(
+        ("a_src", "b_src"),
+        [
+            pytest.param(_DISTINCT_A, _DISTINCT_B, id="distinct_bodies"),
+            pytest.param(_TINY, _TINY, id="identical_but_below_min_lines"),
+        ],
+    )
+    def test_no_duplicates_detected(
+        self, tmp_path: Path, a_src: str, b_src: str
+    ) -> None:
+        """Distinct or sub-threshold function bodies should pass without duplicates."""
         from axm_audit.core.rules.duplication import DuplicationRule
 
         src = tmp_path / "src"
         src.mkdir()
-        (src / "a.py").write_text(
-            "def add(a: int, b: int) -> int:\n"
-            "    result = a + b\n"
-            "    if result > 0:\n"
-            "        return result\n"
-            "    elif result < 0:\n"
-            "        return -result\n"
-            "    return 0\n"
-        )
-        (src / "b.py").write_text(
-            "def multiply(a: int, b: int) -> int:\n"
-            "    result = a * b\n"
-            "    if result > 100:\n"
-            "        return 100\n"
-            "    elif result < -100:\n"
-            "        return -100\n"
-            "    return result\n"
-        )
+        (src / "a.py").write_text(a_src)
+        (src / "b.py").write_text(b_src)
 
         rule = DuplicationRule()
         result = rule.check(tmp_path)
@@ -64,22 +79,6 @@ class TestDuplicationRule:
         assert result.details["dup_count"] >= 1
         assert len(result.details["clones"]) >= 1
         assert result.fix_hint is not None
-
-    def test_skips_small_functions(self, tmp_path: Path) -> None:
-        """Functions shorter than min_lines should be ignored."""
-        from axm_audit.core.rules.duplication import DuplicationRule
-
-        small_fn = "def tiny(x: int) -> int:\n    return x + 1\n"
-        src = tmp_path / "src"
-        src.mkdir()
-        (src / "a.py").write_text(small_fn)
-        (src / "b.py").write_text(small_fn)
-
-        rule = DuplicationRule()
-        result = rule.check(tmp_path)
-        assert result.passed is True
-        assert result.details is not None
-        assert result.details["dup_count"] == 0
 
     def test_no_src_directory(self, tmp_path: Path) -> None:
         """No src/ directory should pass gracefully."""
