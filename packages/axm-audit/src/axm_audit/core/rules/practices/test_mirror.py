@@ -13,7 +13,13 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["TestMirrorRule"]
 
-_TEST_MIRROR_EXEMPT = {"__init__.py", "_version.py", "conftest.py", "py.typed"}
+_TEST_MIRROR_EXEMPT = {
+    "__init__.py",
+    "__main__.py",
+    "_version.py",
+    "conftest.py",
+    "py.typed",
+}
 
 
 @dataclass
@@ -27,6 +33,9 @@ class TestMirrorRule(ProjectRule):
     Private modules (leading underscores) are matched with the prefix
     stripped: ``_facade.py`` matches ``test_facade.py`` or
     ``test__facade.py``.
+
+    Exempt filenames (no test required): ``__init__.py``, ``__main__.py``,
+    ``_version.py``, ``conftest.py``, ``py.typed``.
 
     Scoring: 100 - (missing_count * 15), min 0.
     """
@@ -53,6 +62,7 @@ class TestMirrorRule(ProjectRule):
                 passed=True,
                 message="All source modules have test files",
                 severity=Severity.INFO,
+                details={"missing": []},
             )
 
         score = max(0, 100 - len(missing) * 15)
