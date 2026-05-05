@@ -39,6 +39,11 @@ class TestCoverageRule(ProjectRule):
         Delegates to ``run_tests(mode='compact')`` from the shared
         test runner for structured output, then converts the result
         to a ``CheckResult``.
+
+        The per-file gap list is derived from ``parse_coverage``'s
+        filtered ``per_file`` map, which excludes ``__main__.py``
+        entries by default (aligned with coverage.py's
+        ``exclude_also`` convention).
         """
         from axm_audit.core.test_runner import run_tests
 
