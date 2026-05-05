@@ -132,7 +132,7 @@ module = ["axm_smelt.cli"]
 disallow_untyped_decorators = false
 
 [[tool.mypy.overrides]]
-module = ["axm.*", "cyclopts.*", "tiktoken.*"]
+module = ["tiktoken.*"]
 ignore_missing_imports = true
 
 # ─────────────────────────────────────────────────────────────────────────────
