@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
@@ -398,74 +400,60 @@ class TestTypeCheckRule:
 class TestDiffSizeRule:
     """Integration tests for DiffSizeRule config reading (real pyproject.toml I/O)."""
 
-    def test_config_override_ideal(self, tmp_path: Path) -> None:
-        """pyproject.toml with diff_size_ideal=300 → rule uses 300."""
+    @pytest.mark.parametrize(
+        ("pyproject_content", "expected_ideal", "expected_max"),
+        [
+            pytest.param(
+                "[tool.axm-audit]\ndiff_size_ideal = 300\n",
+                300,
+                1200,
+                id="override_ideal",
+            ),
+            pytest.param(
+                "[tool.axm-audit]\ndiff_size_max = 1000\n",
+                400,
+                1000,
+                id="override_max",
+            ),
+            pytest.param(
+                '[project]\nname = "demo"\n',
+                400,
+                1200,
+                id="no_axm_audit_section_uses_defaults",
+            ),
+            pytest.param(
+                "[tool.axm-audit]\ndiff_size_ideal = 250\n",
+                250,
+                1200,
+                id="partial_config_ideal_only",
+            ),
+            pytest.param(
+                '[tool.axm-audit]\ndiff_size_ideal = "abc"\n',
+                400,
+                1200,
+                id="invalid_non_numeric_falls_back",
+            ),
+            pytest.param(
+                "[tool.axm-audit]\ndiff_size_ideal = -10\n",
+                400,
+                1200,
+                id="negative_threshold_falls_back",
+            ),
+            pytest.param(None, 400, 1200, id="missing_pyproject_uses_defaults"),
+        ],
+    )
+    def test_read_diff_config(
+        self,
+        tmp_path: Path,
+        pyproject_content: str | None,
+        expected_ideal: int,
+        expected_max: int,
+    ) -> None:
+        """read_diff_config honours config overrides and falls back to defaults."""
         from axm_audit.core.rules.quality import read_diff_config
 
-        (tmp_path / "pyproject.toml").write_text(
-            "[tool.axm-audit]\ndiff_size_ideal = 300\n"
-        )
+        if pyproject_content is not None:
+            (tmp_path / "pyproject.toml").write_text(pyproject_content)
         ideal, max_lines = read_diff_config(tmp_path)
-        assert ideal == 300
-        assert max_lines == 1200  # default
-
-    def test_config_override_max(self, tmp_path: Path) -> None:
-        """pyproject.toml with diff_size_max=1000 → rule uses 1000."""
-        from axm_audit.core.rules.quality import read_diff_config
-
-        (tmp_path / "pyproject.toml").write_text(
-            "[tool.axm-audit]\ndiff_size_max = 1000\n"
-        )
-        ideal, max_lines = read_diff_config(tmp_path)
-        assert ideal == 400  # default
-        assert max_lines == 1000
-
-    def test_no_config_uses_defaults(self, tmp_path: Path) -> None:
-        """pyproject.toml without [tool.axm-audit] → defaults."""
-        from axm_audit.core.rules.quality import read_diff_config
-
-        (tmp_path / "pyproject.toml").write_text('[project]\nname = "demo"\n')
-        ideal, max_lines = read_diff_config(tmp_path)
-        assert ideal == 400
-        assert max_lines == 1200
-
-    def test_partial_config(self, tmp_path: Path) -> None:
-        """Only diff_size_ideal set → diff_size_max uses default."""
-        from axm_audit.core.rules.quality import read_diff_config
-
-        (tmp_path / "pyproject.toml").write_text(
-            "[tool.axm-audit]\ndiff_size_ideal = 250\n"
-        )
-        ideal, max_lines = read_diff_config(tmp_path)
-        assert ideal == 250
-        assert max_lines == 1200
-
-    def test_invalid_config_value(self, tmp_path: Path) -> None:
-        """Non-numeric diff_size_ideal → falls back to default."""
-        from axm_audit.core.rules.quality import read_diff_config
-
-        (tmp_path / "pyproject.toml").write_text(
-            '[tool.axm-audit]\ndiff_size_ideal = "abc"\n'
-        )
-        ideal, max_lines = read_diff_config(tmp_path)
-        assert ideal == 400
-        assert max_lines == 1200
-
-    def test_negative_threshold(self, tmp_path: Path) -> None:
-        """Negative diff_size_ideal → falls back to default."""
-        from axm_audit.core.rules.quality import read_diff_config
-
-        (tmp_path / "pyproject.toml").write_text(
-            "[tool.axm-audit]\ndiff_size_ideal = -10\n"
-        )
-        ideal, max_lines = read_diff_config(tmp_path)
-        assert ideal == 400
-        assert max_lines == 1200
-
-    def test_missing_pyproject(self, tmp_path: Path) -> None:
-        """No pyproject.toml at all → defaults apply."""
-        from axm_audit.core.rules.quality import read_diff_config
-
-        ideal, max_lines = read_diff_config(tmp_path)
-        assert ideal == 400
-        assert max_lines == 1200
+        assert ideal == expected_ideal
+        assert max_lines == expected_max
