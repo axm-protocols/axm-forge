@@ -339,6 +339,15 @@ def _collect_helpers(tree: ast.Module) -> dict[str, ast.FunctionDef]:
     for node in tree.body:
         if isinstance(node, ast.FunctionDef) and not node.name.startswith("test_"):
             helpers[node.name] = node
+    # Also collect non-test methods defined inside test classes so that
+    # `self._helper(...)` calls resolve through the same transitive I/O scan.
+    # Module-level helpers win on name collision (setdefault).
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for sub in node.body:
+            if isinstance(sub, ast.FunctionDef) and not sub.name.startswith("test_"):
+                helpers.setdefault(sub.name, sub)
     return helpers
 
 
