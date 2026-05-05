@@ -3,6 +3,8 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from axm_audit.core.rules.architecture import CouplingMetricRule
 from axm_audit.core.rules.architecture.coupling import (
     build_coupling_result,
@@ -71,24 +73,97 @@ def _make_src_module(
 # ---------------------------------------------------------------------------
 
 
-def test_read_coupling_config_defaults(tmp_path: Path) -> None:
-    """No pyproject.toml → default threshold 10, empty overrides."""
+@pytest.mark.parametrize(
+    ("content", "raw", "expected_threshold", "expected_overrides"),
+    [
+        pytest.param(None, False, 10, {}, id="defaults"),
+        pytest.param(
+            """\
+            [tool.axm-audit.coupling]
+            fan_out_threshold = 15
+        """,
+            False,
+            15,
+            {},
+            id="custom_threshold",
+        ),
+        pytest.param(
+            """\
+            [tool.axm-audit.coupling]
+            fan_out_threshold = "not_a_number"
+        """,
+            False,
+            10,
+            {},
+            id="invalid_threshold",
+        ),
+        pytest.param(
+            """\
+            [tool.axm-audit.coupling]
+            fan_out_threshold = -5
+        """,
+            False,
+            10,
+            {},
+            id="negative_threshold",
+        ),
+        pytest.param(
+            """\
+            [tool.axm-audit.coupling]
+            [tool.axm-audit.coupling.overrides]
+            "mod" = "bad"
+        """,
+            False,
+            10,
+            {},
+            id="invalid_override_value",
+        ),
+        pytest.param(
+            """\
+            [project]
+            name = "somepkg"
+        """,
+            False,
+            10,
+            {},
+            id="missing_audit_section",
+        ),
+        pytest.param(
+            "[invalid toml\nno closing bracket",
+            True,
+            10,
+            {},
+            id="malformed_toml",
+        ),
+        pytest.param(
+            """\
+            [tool.axm-audit.coupling]
+            fan_out_threshold = 12
+            [tool.axm-audit.coupling.overrides]
+        """,
+            False,
+            12,
+            {},
+            id="empty_overrides",
+        ),
+    ],
+)
+def test_read_coupling_config_returns_threshold_and_overrides(
+    tmp_path: Path,
+    content: str | None,
+    raw: bool,
+    expected_threshold: int,
+    expected_overrides: dict[str, int],
+) -> None:
+    """read_coupling_config returns (threshold, overrides) per pyproject content."""
+    if content is not None:
+        if raw:
+            (tmp_path / "pyproject.toml").write_text(content, encoding="utf-8")
+        else:
+            _write_pyproject(tmp_path, content)
     threshold, overrides, _bonus, _multiplier = read_coupling_config(tmp_path)
-    assert threshold == 10
-    assert overrides == {}
-
-
-def test_read_coupling_config_custom_threshold(tmp_path: Path) -> None:
-    _write_pyproject(
-        tmp_path,
-        """\
-        [tool.axm-audit.coupling]
-        fan_out_threshold = 15
-    """,
-    )
-    threshold, overrides, _bonus, _multiplier = read_coupling_config(tmp_path)
-    assert threshold == 15
-    assert overrides == {}
+    assert threshold == expected_threshold
+    assert overrides == expected_overrides
 
 
 def test_read_coupling_config_with_overrides(tmp_path: Path) -> None:
@@ -103,46 +178,6 @@ def test_read_coupling_config_with_overrides(tmp_path: Path) -> None:
     threshold, overrides, _bonus, _multiplier = read_coupling_config(tmp_path)
     assert threshold == 10
     assert overrides == {"rules.quality": 20}
-
-
-def test_read_coupling_config_invalid_threshold(tmp_path: Path) -> None:
-    _write_pyproject(
-        tmp_path,
-        """\
-        [tool.axm-audit.coupling]
-        fan_out_threshold = "not_a_number"
-    """,
-    )
-    threshold, overrides, _bonus, _multiplier = read_coupling_config(tmp_path)
-    assert threshold == 10
-    assert overrides == {}
-
-
-def test_read_coupling_config_negative_threshold(tmp_path: Path) -> None:
-    _write_pyproject(
-        tmp_path,
-        """\
-        [tool.axm-audit.coupling]
-        fan_out_threshold = -5
-    """,
-    )
-    threshold, overrides, _bonus, _multiplier = read_coupling_config(tmp_path)
-    assert threshold == 10
-    assert overrides == {}
-
-
-def test_read_coupling_config_invalid_override_value(tmp_path: Path) -> None:
-    _write_pyproject(
-        tmp_path,
-        """\
-        [tool.axm-audit.coupling]
-        [tool.axm-audit.coupling.overrides]
-        "mod" = "bad"
-    """,
-    )
-    threshold, overrides, _bonus, _multiplier = read_coupling_config(tmp_path)
-    assert threshold == 10
-    assert overrides == {}
 
 
 # ---------------------------------------------------------------------------
@@ -236,31 +271,6 @@ def test_coupling_rule_per_module_override(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_read_coupling_config_missing_audit_section(tmp_path: Path) -> None:
-    """pyproject.toml exists but has no [tool.axm-audit] section."""
-    _write_pyproject(
-        tmp_path,
-        """\
-        [project]
-        name = "somepkg"
-    """,
-    )
-    threshold, overrides, _bonus, _multiplier = read_coupling_config(tmp_path)
-    assert threshold == 10
-    assert overrides == {}
-
-
-def test_read_coupling_config_malformed_toml(tmp_path: Path) -> None:
-    """Invalid TOML syntax → fallback to defaults, no crash."""
-    (tmp_path / "pyproject.toml").write_text(
-        "[invalid toml\nno closing bracket",
-        encoding="utf-8",
-    )
-    threshold, overrides, _bonus, _multiplier = read_coupling_config(tmp_path)
-    assert threshold == 10
-    assert overrides == {}
-
-
 def test_read_coupling_config_override_nonexistent_module(tmp_path: Path) -> None:
     """Override for a module that doesn't exist is silently kept in dict."""
     _write_pyproject(
@@ -274,18 +284,3 @@ def test_read_coupling_config_override_nonexistent_module(tmp_path: Path) -> Non
     threshold, overrides, _bonus, _multiplier = read_coupling_config(tmp_path)
     assert threshold == 10
     assert overrides == {"no.such.module": 25}
-
-
-def test_read_coupling_config_empty_overrides(tmp_path: Path) -> None:
-    """Empty overrides table → empty dict, base threshold applies."""
-    _write_pyproject(
-        tmp_path,
-        """\
-        [tool.axm-audit.coupling]
-        fan_out_threshold = 12
-        [tool.axm-audit.coupling.overrides]
-    """,
-    )
-    threshold, overrides, _bonus, _multiplier = read_coupling_config(tmp_path)
-    assert threshold == 12
-    assert overrides == {}
