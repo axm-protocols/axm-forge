@@ -3,6 +3,8 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from axm_audit.core.rules.structure import TestsPyramidRule
 
 __all__ = []
@@ -71,7 +73,7 @@ def _make_project(
     return tmp_path
 
 
-def test_tests_pyramid_passes_with_all_dirs(tmp_path: Path) -> None:
+def test_pyramid_passes_with_all_dirs(tmp_path: Path) -> None:
     project = _make_project(
         tmp_path,
         pyproject=PYPROJECT_SELFCONTAINED_WITH_MARKERS,
@@ -84,43 +86,43 @@ def test_tests_pyramid_passes_with_all_dirs(tmp_path: Path) -> None:
     assert "e2e" in result.message
 
 
-def test_tests_pyramid_fails_missing_unit(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("present_dirs", "expected_missing"),
+    [
+        pytest.param(
+            ("tests/integration", "tests/e2e"),
+            "tests/unit",
+            id="missing_unit",
+        ),
+        pytest.param(
+            ("tests/unit", "tests/e2e"),
+            "tests/integration",
+            id="missing_integration",
+        ),
+        pytest.param(
+            ("tests/unit", "tests/integration"),
+            "tests/e2e",
+            id="missing_e2e_selfcontained",
+        ),
+    ],
+)
+def test_pyramid_fails_when_dir_missing(
+    tmp_path: Path,
+    present_dirs: tuple[str, ...],
+    expected_missing: str,
+) -> None:
     project = _make_project(
         tmp_path,
         pyproject=PYPROJECT_SELFCONTAINED_WITH_MARKERS,
-        dirs=("tests/integration", "tests/e2e"),
+        dirs=present_dirs,
     )
     result = TestsPyramidRule().check(project)
     assert result.passed is False
     assert result.fix_hint is not None
-    assert "tests/unit" in result.fix_hint
+    assert expected_missing in result.fix_hint
 
 
-def test_tests_pyramid_fails_missing_integration(tmp_path: Path) -> None:
-    project = _make_project(
-        tmp_path,
-        pyproject=PYPROJECT_SELFCONTAINED_WITH_MARKERS,
-        dirs=("tests/unit", "tests/e2e"),
-    )
-    result = TestsPyramidRule().check(project)
-    assert result.passed is False
-    assert result.fix_hint is not None
-    assert "tests/integration" in result.fix_hint
-
-
-def test_tests_pyramid_fails_missing_e2e_selfcontained(tmp_path: Path) -> None:
-    project = _make_project(
-        tmp_path,
-        pyproject=PYPROJECT_SELFCONTAINED_WITH_MARKERS,
-        dirs=("tests/unit", "tests/integration"),
-    )
-    result = TestsPyramidRule().check(project)
-    assert result.passed is False
-    assert result.fix_hint is not None
-    assert "tests/e2e" in result.fix_hint
-
-
-def test_tests_pyramid_fails_missing_markers(tmp_path: Path) -> None:
+def test_pyramid_fails_when_markers_missing(tmp_path: Path) -> None:
     project = _make_project(
         tmp_path,
         pyproject=PYPROJECT_SELFCONTAINED_NO_MARKERS,
@@ -133,7 +135,7 @@ def test_tests_pyramid_fails_missing_markers(tmp_path: Path) -> None:
     assert "e2e" in text
 
 
-def test_tests_pyramid_library_allows_no_e2e(tmp_path: Path) -> None:
+def test_pyramid_library_allows_no_e2e(tmp_path: Path) -> None:
     project = _make_project(
         tmp_path,
         pyproject=PYPROJECT_LIBRARY,
@@ -143,7 +145,7 @@ def test_tests_pyramid_library_allows_no_e2e(tmp_path: Path) -> None:
     assert result.passed is True
 
 
-def test_tests_pyramid_fails_no_tests_dir(tmp_path: Path) -> None:
+def test_pyramid_fails_when_tests_dir_missing(tmp_path: Path) -> None:
     project = _make_project(
         tmp_path,
         pyproject=PYPROJECT_SELFCONTAINED_WITH_MARKERS,
