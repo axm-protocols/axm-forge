@@ -170,6 +170,8 @@ class _TestFunc:
     assert_pattern: str = ""
     stmt_set: frozenset[str] = field(default_factory=frozenset)
     setup_set: frozenset[str] = field(default_factory=frozenset)
+    class_name: str | None = None
+    has_raises_block: bool = False
 
 
 # ── Statement-set similarity ──────────────────────────────────────────
@@ -307,7 +309,45 @@ def _call_sig(call: ast.Call) -> str | None:
             return f"{name}({len(call.args)}{kw})"
         case ast.Attribute(attr=attr, value=ast.Name(id=obj)):
             return f"{obj}.{attr}({len(call.args)}{kw})"
+        case ast.Attribute(
+            attr=attr,
+            value=ast.Attribute(attr=mid, value=ast.Name(id=base)),
+        ):
+            return f"{base}.{mid}.{attr}({len(call.args)}{kw})"
     return None
+
+
+def _is_pytest_raises_call(expr: ast.expr) -> bool:
+    if not isinstance(expr, ast.Call):
+        return False
+    func = expr.func
+    if isinstance(func, ast.Attribute) and func.attr == "raises":
+        return isinstance(func.value, ast.Name) and func.value.id == "pytest"
+    return isinstance(func, ast.Name) and func.id == "raises"
+
+
+def _has_pytest_raises_block(node: ast.FunctionDef) -> bool:
+    for child in ast.walk(node):
+        if isinstance(child, ast.With) and any(
+            _is_pytest_raises_call(item.context_expr) for item in child.items
+        ):
+            return True
+    return False
+
+
+def _collect_raises_call_sigs(node: ast.FunctionDef) -> set[str]:
+    sigs: set[str] = set()
+    for child in ast.walk(node):
+        if not isinstance(child, ast.With):
+            continue
+        if not any(_is_pytest_raises_call(item.context_expr) for item in child.items):
+            continue
+        for stmt in child.body:
+            if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
+                sig = _call_sig(stmt.value)
+                if sig is not None:
+                    sigs.add(sig)
+    return sigs
 
 
 def _collect_asserted_names(node: ast.FunctionDef) -> set[str]:
@@ -664,6 +704,24 @@ def _p7_sut_set(node: ast.FunctionDef) -> frozenset[str]:
     return frozenset(out)
 
 
+def _p8_rescues(tests: list[_TestFunc]) -> bool:
+    """P8 — clustered tests live in distinct parent classes."""
+    if len(tests) < _MIN_PAIR:
+        return False
+    classes = {t.class_name for t in tests}
+    if None in classes:
+        return False
+    return len(classes) >= _MIN_PAIR
+
+
+def _p9_rescues(tests: list[_TestFunc]) -> bool:
+    """P9 — only some clustered tests wrap their body in ``pytest.raises``."""
+    if len(tests) < _MIN_PAIR:
+        return False
+    flags = {t.has_raises_block for t in tests}
+    return len(flags) >= _MIN_PAIR
+
+
 def _p7_rescues(tests: list[_TestFunc]) -> bool:
     """P7 — tests' direct-call SUT sets are not in subset relation.
 
@@ -707,51 +765,47 @@ def _test_entry(t: _TestFunc) -> dict[str, Any]:
     return {"file": t.file, "name": t.name, "line": t.line, "call_sig": t.call_sig}
 
 
+_S1_RESCUES: tuple[tuple[Any, str, str], ...] = (
+    (_p1_rescues, "ambiguous_distinct_literals", "distinct literals rescue for SUT"),
+    (_p2_rescues, "ambiguous_patch_context", "patch-context rescue for SUT"),
+    (_p5_rescues, "ambiguous_setup_divergence", "setup divergence rescue for SUT"),
+    (_p6_rescues, "ambiguous_call_multiplicity", "call-multiplicity rescue for SUT"),
+    (
+        _p7_rescues,
+        "ambiguous_distinct_sut",
+        "distinct public SUT rescue for shared sig",
+    ),
+    (_p8_rescues, "ambiguous_distinct_class", "distinct parent class rescue for SUT"),
+    (
+        _p9_rescues,
+        "ambiguous_raises_divergence",
+        "pytest.raises divergence rescue for SUT",
+    ),
+)
+
+
 def _classify_s1(tests: list[_TestFunc], sig: str, pattern: str) -> tuple[str, str]:
-    if _p1_rescues(tests):
-        return "ambiguous_distinct_literals", f"distinct literals rescue for SUT {sig}"
-    if _p2_rescues(tests):
-        return "ambiguous_patch_context", f"patch-context rescue for SUT {sig}"
-    if _p5_rescues(tests):
-        return (
-            "ambiguous_setup_divergence",
-            f"setup divergence rescue for SUT {sig}",
-        )
-    if _p6_rescues(tests):
-        return (
-            "ambiguous_call_multiplicity",
-            f"call-multiplicity rescue for SUT {sig}",
-        )
-    if _p7_rescues(tests):
-        return (
-            "ambiguous_distinct_sut",
-            f"distinct public SUT rescue for shared sig {sig}",
-        )
+    for predicate, signal, label in _S1_RESCUES:
+        if predicate(tests):
+            return signal, f"{label} {sig}"
     tail = " + same asserts" if pattern != "<no-assert>" else ""
     return "signal1_call_assert", f"same SUT: {sig}{tail}"
 
 
+_S2_RESCUES: tuple[tuple[Any, str, str], ...] = (
+    (_p1_rescues, "ambiguous_distinct_literals", "distinct literals rescue"),
+    (_p3_rescues, "ambiguous_template_pair", "template-pair rescue"),
+    (_p2_rescues, "ambiguous_patch_context", "patch-context rescue"),
+    (_p7_rescues, "ambiguous_distinct_sut", "distinct public SUT rescue"),
+    (_p8_rescues, "ambiguous_distinct_class", "distinct parent class rescue"),
+    (_p9_rescues, "ambiguous_raises_divergence", "pytest.raises divergence rescue"),
+)
+
+
 def _classify_s2(tests: list[_TestFunc], name: str, sim: float) -> tuple[str, str]:
-    if _p1_rescues(tests):
-        return (
-            "ambiguous_distinct_literals",
-            f"distinct literals rescue (cross-file {name})",
-        )
-    if _p3_rescues(tests):
-        return (
-            "ambiguous_template_pair",
-            f"template-pair rescue (cross-file {name})",
-        )
-    if _p2_rescues(tests):
-        return (
-            "ambiguous_patch_context",
-            f"patch-context rescue (cross-file {name})",
-        )
-    if _p7_rescues(tests):
-        return (
-            "ambiguous_distinct_sut",
-            f"distinct public SUT rescue (cross-file {name})",
-        )
+    for predicate, signal, label in _S2_RESCUES:
+        if predicate(tests):
+            return signal, f"{label} (cross-file {name})"
     return "signal2_cross_file_name", f"cross-file duplicate ({sim:.0%}): {name}"
 
 
@@ -765,6 +819,8 @@ _S3_RESCUES: tuple[
     (_p5_rescues, "ambiguous_setup_divergence", "setup divergence rescue"),
     (_p6_rescues, "ambiguous_call_multiplicity", "call-multiplicity rescue"),
     (_p7_rescues, "ambiguous_distinct_sut", "distinct public SUT rescue"),
+    (_p8_rescues, "ambiguous_distinct_class", "distinct parent class rescue"),
+    (_p9_rescues, "ambiguous_raises_divergence", "pytest.raises divergence rescue"),
 )
 
 
@@ -924,6 +980,41 @@ def _cluster_s3(
     return raw
 
 
+def _cluster_raises_divergence(
+    tests: list[_TestFunc],
+    seen_pairs: set[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    """Emit ambiguous clusters for tests sharing call_sig but divergent raises usage."""
+    by_sig: dict[str, list[_TestFunc]] = defaultdict(list)
+    for t in tests:
+        if t.call_sig:
+            by_sig[t.call_sig].append(t)
+    raw: list[dict[str, Any]] = []
+    for sig, group in by_sig.items():
+        if len(group) < _MIN_PAIR:
+            continue
+        if len({t.has_raises_block for t in group}) < _MIN_PAIR:
+            continue
+        new_pairs = [
+            _pair_key(a, b)
+            for a, b in combinations(group, 2)
+            if _pair_key(a, b) not in seen_pairs
+        ]
+        if not new_pairs:
+            continue
+        for pk in new_pairs:
+            seen_pairs.add(pk)
+        raw.append(
+            {
+                "signal": "ambiguous_raises_divergence",
+                "reason": f"pytest.raises divergence rescue for SUT {sig}",
+                "similarity": 0.0,
+                "tests": [_test_entry(t) for t in group],
+            }
+        )
+    return raw
+
+
 def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
     """Return merged cluster dicts for *tests* across S1/S2/S3 signals."""
     seen_pairs: set[tuple[str, str]] = set()
@@ -931,6 +1022,7 @@ def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
     raw.extend(_cluster_s2(tests, seen_pairs))
     raw.extend(_cluster_s1(tests, seen_pairs))
     raw.extend(_cluster_s3(tests, threshold, seen_pairs))
+    raw.extend(_cluster_raises_divergence(tests, seen_pairs))
     return merge_clusters(raw)
 
 
@@ -1076,25 +1168,47 @@ def _slim_clusters(clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
         reason = cluster.get("reason") or ""
         if len(reason) > _REASON_MAX_LEN:
             reason = reason[:_REASON_MAX_LEN]
+        members = [
+            {
+                "file": t.get("file", ""),
+                "name": t.get("name", ""),
+                "line": t.get("line", 0),
+            }
+            for t in cluster.get("tests", [])
+        ]
         slim.append(
             {
                 "signal": cluster.get("signal", ""),
                 "reason": reason,
                 "similarity": cluster.get("similarity", 0.0),
-                "members": [
-                    {
-                        "file": t.get("file", ""),
-                        "name": t.get("name", ""),
-                        "line": t.get("line", 0),
-                    }
-                    for t in cluster.get("tests", [])
-                ],
+                "members": members,
+                "tests": members,
             }
         )
     return slim
 
 
 # ── Collection ────────────────────────────────────────────────────────
+
+
+def _make_test_func(
+    rel: str, node: ast.FunctionDef, class_name: str | None
+) -> _TestFunc:
+    tf = _TestFunc(
+        file=rel,
+        name=node.name,
+        line=node.lineno,
+        node=node,
+        class_name=class_name,
+    )
+    sigs, tainted = _propagate_taint(node)
+    sigs |= _collect_raises_call_sigs(node)
+    tf.call_sig = ">".join(sorted(sigs))
+    tf.assert_pattern = _compute_assert_pattern(node)
+    tf.stmt_set = _statement_set(node)
+    tf.setup_set = _compute_setup_set(node, tainted)
+    tf.has_raises_block = _has_pytest_raises_block(node)
+    return tf
 
 
 def _collect_tests(project_path: Path) -> list[_TestFunc]:
@@ -1109,18 +1223,15 @@ def _collect_tests(project_path: Path) -> list[_TestFunc]:
         except (OSError, SyntaxError, UnicodeDecodeError):
             continue
         rel = str(test_file.relative_to(project_path))
-        for node in ast.walk(tree):
-            if not (
-                isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
-            ):
-                continue
-            tf = _TestFunc(file=rel, name=node.name, line=node.lineno, node=node)
-            sigs, tainted = _propagate_taint(node)
-            tf.call_sig = ">".join(sorted(sigs))
-            tf.assert_pattern = _compute_assert_pattern(node)
-            tf.stmt_set = _statement_set(node)
-            tf.setup_set = _compute_setup_set(node, tainted)
-            out.append(tf)
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                for child in node.body:
+                    if isinstance(child, ast.FunctionDef) and child.name.startswith(
+                        "test_"
+                    ):
+                        out.append(_make_test_func(rel, child, node.name))
+            elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                out.append(_make_test_func(rel, node, None))
     return out
 
 
