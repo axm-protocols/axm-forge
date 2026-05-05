@@ -6,7 +6,7 @@ import enum
 import json
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel
 
@@ -69,11 +69,11 @@ class SmeltContext:
     def parsed(self) -> dict[str, Any] | list[Any] | None:
         """Parsed JSON, derived from ``text`` when not provided."""
         if self._src_parsed is not _SENTINEL:
-            return self._src_parsed
+            return cast("dict[str, Any] | list[Any] | None", self._src_parsed)
         if not self._src_text:
             return None
         try:
-            return json.loads(self._src_text)
+            return cast("dict[str, Any] | list[Any] | None", json.loads(self._src_text))
         except (json.JSONDecodeError, ValueError, TypeError):
             return None
 

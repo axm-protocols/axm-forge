@@ -5,15 +5,16 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from axm_smelt.core.models import Format, SmeltContext
+from axm_smelt.core.models import Format, SmeltContext, SmeltReport
+from axm_smelt.strategies.base import SmeltStrategy
 
 
 def test_context_is_frozen() -> None:
     ctx = SmeltContext(text='{"a":1}')
     with pytest.raises(FrozenInstanceError):
-        ctx.text = "x"  # type: ignore[misc]
+        ctx.text = "x"
     with pytest.raises(FrozenInstanceError):
-        ctx.parsed = {}  # type: ignore[misc]
+        ctx.parsed = {}
 
 
 def test_text_constructor_caches_parsed() -> None:
@@ -44,3 +45,31 @@ def test_invalid_json_text_yields_none_parsed() -> None:
 def test_empty_text_yields_none_parsed() -> None:
     ctx = SmeltContext(text="")
     assert ctx.parsed is None
+
+
+def test_smelt_report_fields() -> None:
+    report = SmeltReport(
+        original="hello world",
+        compacted="hello world",
+        original_tokens=10,
+        compacted_tokens=8,
+        savings_pct=20.0,
+        format=Format.TEXT,
+        strategies_applied=["minify"],
+    )
+    assert report.original == "hello world"
+    assert report.compacted == "hello world"
+    assert report.original_tokens == 10
+    assert report.compacted_tokens == 8
+    assert report.savings_pct == 20.0
+    assert report.format == Format.TEXT
+    assert report.strategies_applied == ["minify"]
+
+
+def test_strategy_abc() -> None:
+    with pytest.raises(TypeError):
+
+        class Incomplete(SmeltStrategy):
+            pass
+
+        Incomplete()  # type: ignore[abstract]
