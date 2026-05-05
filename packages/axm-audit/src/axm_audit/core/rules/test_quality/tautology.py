@@ -150,6 +150,171 @@ def _is_none_compare(node: ast.expr) -> bool:
     return False
 
 
+_PURE_BUILTINS: dict[str, Callable[..., object]] = {
+    "int": int,
+    "float": float,
+    "str": str,
+    "bool": bool,
+    "len": len,
+    "abs": abs,
+    "round": round,
+    "min": min,
+    "max": max,
+}
+
+
+_UNARY_OPS: dict[type, Callable[[Any], Any]] = {
+    ast.USub: lambda v: -v,
+    ast.UAdd: lambda v: +v,
+    ast.Not: lambda v: not v,
+    ast.Invert: lambda v: ~v,
+}
+
+_BINARY_OPS: dict[type, Callable[[Any, Any], Any]] = {
+    ast.Add: lambda a, b: a + b,
+    ast.Sub: lambda a, b: a - b,
+    ast.Mult: lambda a, b: a * b,
+    ast.Div: lambda a, b: a / b,
+    ast.FloorDiv: lambda a, b: a // b,
+    ast.Mod: lambda a, b: a % b,
+    ast.Pow: lambda a, b: a**b,
+}
+
+_COMPARE_OPS: dict[type, Callable[[Any, Any], bool]] = {
+    ast.Eq: lambda a, b: a == b,
+    ast.NotEq: lambda a, b: a != b,
+    ast.Lt: lambda a, b: a < b,
+    ast.LtE: lambda a, b: a <= b,
+    ast.Gt: lambda a, b: a > b,
+    ast.GtE: lambda a, b: a >= b,
+    ast.Is: lambda a, b: a is b,
+    ast.IsNot: lambda a, b: a is not b,
+}
+
+
+def _eval_unary(node: ast.UnaryOp) -> tuple[bool, object]:
+    fn = _UNARY_OPS.get(type(node.op))
+    if fn is None:
+        return False, None
+    ok, val = _eval_pure(node.operand)
+    if not ok:
+        return False, None
+    try:
+        return True, fn(val)
+    except TypeError:
+        return False, None
+
+
+def _eval_binop(node: ast.BinOp) -> tuple[bool, object]:
+    fn = _BINARY_OPS.get(type(node.op))
+    if fn is None:
+        return False, None
+    okl, lv = _eval_pure(node.left)
+    okr, rv = _eval_pure(node.right)
+    if not (okl and okr):
+        return False, None
+    try:
+        return True, fn(lv, rv)
+    except (TypeError, ZeroDivisionError, ValueError, OverflowError):
+        return False, None
+
+
+def _eval_boolop(node: ast.BoolOp) -> tuple[bool, object]:
+    evaluated: list[object] = []
+    for v in node.values:
+        ok, val = _eval_pure(v)
+        if not ok:
+            return False, None
+        evaluated.append(val)
+    if isinstance(node.op, ast.And):
+        for val in evaluated:
+            if not val:
+                return True, val
+        return True, evaluated[-1] if evaluated else True
+    if isinstance(node.op, ast.Or):
+        for val in evaluated:
+            if val:
+                return True, val
+        return True, evaluated[-1] if evaluated else False
+    return False, None
+
+
+def _eval_call(node: ast.Call) -> tuple[bool, object]:
+    if not (isinstance(node.func, ast.Name) and not node.keywords):
+        return False, None
+    fn = _PURE_BUILTINS.get(node.func.id)
+    if fn is None:
+        return False, None
+    args: list[object] = []
+    for a in node.args:
+        ok, val = _eval_pure(a)
+        if not ok:
+            return False, None
+        args.append(val)
+    try:
+        return True, fn(*args)
+    except (TypeError, ValueError, OverflowError):
+        return False, None
+
+
+def _eval_compare(node: ast.Compare) -> tuple[bool, object]:
+    ok, cur = _eval_pure(node.left)
+    if not ok:
+        return False, None
+    for op, comp in zip(node.ops, node.comparators, strict=False):
+        fn = _COMPARE_OPS.get(type(op))
+        if fn is None:
+            return False, None
+        okc, rv = _eval_pure(comp)
+        if not okc:
+            return False, None
+        try:
+            res = fn(cur, rv)
+        except TypeError:
+            return False, None
+        if not res:
+            return True, False
+        cur = rv
+    return True, True
+
+
+_EVAL_DISPATCH: dict[type, Callable[[Any], tuple[bool, object]]] = {
+    ast.UnaryOp: _eval_unary,
+    ast.BinOp: _eval_binop,
+    ast.BoolOp: _eval_boolop,
+    ast.Call: _eval_call,
+    ast.Compare: _eval_compare,
+}
+
+
+def _eval_pure(node: ast.expr) -> tuple[bool, object]:
+    """Try to evaluate *node* as a pure constant expression.
+
+    Returns ``(ok, value)``. Only literals, arithmetic/comparison/bool
+    operators, and a small whitelist of side-effect-free builtins on
+    constant arguments are considered pure.
+    """
+    if isinstance(node, ast.Constant):
+        return True, node.value
+    fn = _EVAL_DISPATCH.get(type(node))
+    if fn is None:
+        return False, None
+    return fn(node)
+
+
+def _is_constant_arithmetic_assert(node: ast.expr) -> bool:
+    """True when *node* is a fully-constant expression (no free variables).
+
+    Catches asserts like ``assert 100 - 5 * 2 == 90`` or
+    ``assert int(0.9 * 100) == 90`` whose truth value is fixed at
+    AST-time and therefore exercises no SUT.
+    """
+    if isinstance(node, ast.Constant):
+        return False
+    ok, _ = _eval_pure(node)
+    return ok
+
+
 def _is_len_always_true(node: ast.expr) -> bool:
     match node:
         case ast.Compare(
@@ -296,12 +461,22 @@ def _build_len_tautology(node: ast.Assert, test_expr: ast.expr) -> Finding:
     )
 
 
+def _build_constant_arithmetic(node: ast.Assert, test_expr: ast.expr) -> Finding:
+    return Finding(
+        test="",
+        line=node.lineno,
+        pattern="constant_arithmetic",
+        detail=f"assert {_unparse_safe(test_expr)}",
+    )
+
+
 _ASSERT_PATTERNS: tuple[
     tuple[Callable[[ast.expr], bool], Callable[[ast.Assert, ast.expr], Finding]], ...
 ] = (
     (_is_constant_truthy, _build_trivially_true),
     (_is_self_compare, _build_self_compare),
     (_is_len_always_true, _build_len_tautology),
+    (_is_constant_arithmetic_assert, _build_constant_arithmetic),
 )
 
 

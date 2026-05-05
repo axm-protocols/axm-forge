@@ -82,6 +82,41 @@ def test_unittest_assert_equal_self_compare() -> None:
     assert findings[0].pattern == "self_compare"
 
 
+def test_detect_constant_arithmetic_subtract_multiply() -> None:
+    tree = _parse("def test_foo():\n    assert 100 - 5 * 2 == 90\n")
+    findings = detect_tautologies(tree, path="test_foo.py")
+    assert len(findings) == 1
+    assert findings[0].pattern == "constant_arithmetic"
+
+
+def test_detect_constant_arithmetic_zero_result() -> None:
+    tree = _parse("def test_foo():\n    assert 100 - 50 * 2 == 0\n")
+    findings = detect_tautologies(tree, path="test_foo.py")
+    assert len(findings) == 1
+    assert findings[0].pattern == "constant_arithmetic"
+
+
+def test_detect_constant_arithmetic_with_int_call() -> None:
+    tree = _parse("def test_foo():\n    assert int(0.90 * 100) == 90\n")
+    findings = detect_tautologies(tree, path="test_foo.py")
+    assert len(findings) == 1
+    assert findings[0].pattern == "constant_arithmetic"
+
+
+def test_constant_arithmetic_skips_when_var_present() -> None:
+    tree = _parse("def test_foo():\n    x = 1\n    assert x == 5 - 2 + 7\n")
+    findings = detect_tautologies(tree, path="test_foo.py")
+    assert findings == []
+
+
+def test_constant_arithmetic_skips_bare_constant() -> None:
+    # bare constants stay under trivially_true, not constant_arithmetic
+    tree = _parse("def test_foo():\n    assert 1\n")
+    findings = detect_tautologies(tree, path="test_foo.py")
+    assert len(findings) == 1
+    assert findings[0].pattern == "trivially_true"
+
+
 def test_severity_warning(tmp_path: Path) -> None:
     f = tmp_path / "test_sample.py"
     f.write_text("def test_foo():\n    assert True\n")
