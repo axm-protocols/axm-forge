@@ -21,7 +21,7 @@ def test_practices_rules_registered(registry):
         "DocstringCoverageRule",
         "BareExceptRule",
         "BlockingIORule",
-        "TestMirrorRule",
+        "MirrorRule",
     } <= names
 
 

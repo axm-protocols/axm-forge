@@ -353,15 +353,15 @@ class TestDocstringMissingDetail:
         assert result.details["missing"] == []
 
 
-# ─── TestMirrorRule ──────────────────────────────────────────────────────────
+# ─── MirrorRule ──────────────────────────────────────────────────────────
 
 
-class TestTestMirrorRuleIntegration:
-    """Tests for TestMirrorRule — 1:1 source-to-test file mapping (real I/O)."""
+class TestMirrorRuleIntegration:
+    """Tests for MirrorRule — 1:1 source-to-test file mapping (real I/O)."""
 
     def test_pass_all_modules_tested(self, tmp_path: Path) -> None:
         """All source modules with matching test files should pass."""
-        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+        from axm_audit.core.rules.practices.mirror import MirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -374,14 +374,14 @@ class TestTestMirrorRuleIntegration:
         (tests / "test_a.py").write_text("def test_a(): pass\n")
         (tests / "test_b.py").write_text("def test_b(): pass\n")
 
-        rule = TestMirrorRule()
+        rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is True
         assert result.fix_hint is None
 
     def test_fail_missing_tests(self, tmp_path: Path) -> None:
         """Missing test file should fail with details listing the module."""
-        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+        from axm_audit.core.rules.practices.mirror import MirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -394,7 +394,7 @@ class TestTestMirrorRuleIntegration:
         (tests / "test_a.py").write_text("def test_a(): pass\n")
         # No test_b.py!
 
-        rule = TestMirrorRule()
+        rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is False
         assert result.details is not None
@@ -404,7 +404,7 @@ class TestTestMirrorRuleIntegration:
 
     def test_exempt_init_main_and_version(self, tmp_path: Path) -> None:
         """__init__/__main__/_version are exempt from test requirement."""
-        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+        from axm_audit.core.rules.practices.mirror import MirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -417,7 +417,7 @@ class TestTestMirrorRuleIntegration:
         tests.mkdir()
         (tests / "test_a.py").write_text("def test_a(): pass\n")
 
-        rule = TestMirrorRule()
+        rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is True
         assert result.details is not None
@@ -425,7 +425,7 @@ class TestTestMirrorRuleIntegration:
 
     def test_nested_test_dirs(self, tmp_path: Path) -> None:
         """Test files in nested directories (tests/core/) should match."""
-        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+        from axm_audit.core.rules.practices.mirror import MirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -436,28 +436,28 @@ class TestTestMirrorRuleIntegration:
         tests.mkdir(parents=True)
         (tests / "test_foo.py").write_text("def test_foo(): pass\n")
 
-        rule = TestMirrorRule()
+        rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is True
 
     def test_no_src_directory(self, tmp_path: Path) -> None:
         """Empty project without src/ should pass with INFO."""
-        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+        from axm_audit.core.rules.practices.mirror import MirrorRule
 
-        rule = TestMirrorRule()
+        rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is True
         assert result.severity == Severity.INFO
 
     def test_empty_src_only_init(self, tmp_path: Path) -> None:
         """Package with only __init__.py should pass (all exempt)."""
-        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+        from axm_audit.core.rules.practices.mirror import MirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
         (pkg / "__init__.py").write_text("")
 
-        rule = TestMirrorRule()
+        rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is True
 
@@ -465,7 +465,7 @@ class TestTestMirrorRuleIntegration:
 
     def test_private_module_matches_stripped_test(self, tmp_path: Path) -> None:
         """_facade.py should match test_facade.py (leading _ stripped)."""
-        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+        from axm_audit.core.rules.practices.mirror import MirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -476,7 +476,7 @@ class TestTestMirrorRuleIntegration:
         tests.mkdir()
         (tests / "test_facade.py").write_text("def test_facade(): pass\n")
 
-        rule = TestMirrorRule()
+        rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is True
         assert result.details is None or "_facade.py" not in result.details.get(
@@ -485,7 +485,7 @@ class TestTestMirrorRuleIntegration:
 
     def test_private_module_matches_exact_test(self, tmp_path: Path) -> None:
         """_facade.py should also match test__facade.py (exact prefix)."""
-        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+        from axm_audit.core.rules.practices.mirror import MirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -496,7 +496,7 @@ class TestTestMirrorRuleIntegration:
         tests.mkdir()
         (tests / "test__facade.py").write_text("def test_facade(): pass\n")
 
-        rule = TestMirrorRule()
+        rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is True
         assert result.details is None or "_facade.py" not in result.details.get(
@@ -505,7 +505,7 @@ class TestTestMirrorRuleIntegration:
 
     def test_public_module_unchanged(self, tmp_path: Path) -> None:
         """Public module base.py should still match test_base.py unchanged."""
-        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+        from axm_audit.core.rules.practices.mirror import MirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -516,13 +516,13 @@ class TestTestMirrorRuleIntegration:
         tests.mkdir()
         (tests / "test_base.py").write_text("def test_base(): pass\n")
 
-        rule = TestMirrorRule()
+        rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is True
 
     def test_private_module_no_test(self, tmp_path: Path) -> None:
         """_facade.py with no matching test should appear in missing."""
-        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+        from axm_audit.core.rules.practices.mirror import MirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -533,7 +533,7 @@ class TestTestMirrorRuleIntegration:
         tests.mkdir()
         # No test file at all
 
-        rule = TestMirrorRule()
+        rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is False
         assert result.details is not None
@@ -541,7 +541,7 @@ class TestTestMirrorRuleIntegration:
 
     def test_double_underscore_stripped(self, tmp_path: Path) -> None:
         """__internal.py should match test_internal.py (all leading _ stripped)."""
-        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+        from axm_audit.core.rules.practices.mirror import MirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -552,7 +552,7 @@ class TestTestMirrorRuleIntegration:
         tests.mkdir()
         (tests / "test_internal.py").write_text("def test_internal(): pass\n")
 
-        rule = TestMirrorRule()
+        rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is True
         assert result.details is None or "__internal.py" not in result.details.get(
@@ -561,7 +561,7 @@ class TestTestMirrorRuleIntegration:
 
     def test_triple_underscore_stripped(self, tmp_path: Path) -> None:
         """___triple.py (pathological) should match test_triple.py."""
-        from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+        from axm_audit.core.rules.practices.mirror import MirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
@@ -572,9 +572,51 @@ class TestTestMirrorRuleIntegration:
         tests.mkdir()
         (tests / "test_triple.py").write_text("def test_triple(): pass\n")
 
-        rule = TestMirrorRule()
+        rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is True
         assert result.details is None or "___triple.py" not in result.details.get(
             "missing", []
         )
+
+    # --- Pyramid scoping: mirror only counts unit-level tests ---
+
+    def test_unit_dir_present_only_unit_counts(self, tmp_path: Path) -> None:
+        """When tests/unit/ exists, integration/e2e tests do not satisfy the mirror."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "foo.py").write_text("def foo(): pass\n")
+
+        unit = tmp_path / "tests" / "unit"
+        unit.mkdir(parents=True)
+        integ = tmp_path / "tests" / "integration"
+        integ.mkdir(parents=True)
+        (integ / "test_foo.py").write_text("def test_foo(): pass\n")
+
+        rule = MirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is False
+        assert result.details is not None
+        assert "foo.py" in result.details["missing"]
+
+    def test_flat_layout_excludes_integration_and_e2e(self, tmp_path: Path) -> None:
+        """In flat layout (no tests/unit/), integration/e2e subdirs are excluded."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        pkg = tmp_path / "src" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / "foo.py").write_text("def foo(): pass\n")
+
+        e2e = tmp_path / "tests" / "e2e"
+        e2e.mkdir(parents=True)
+        (e2e / "test_foo.py").write_text("def test_foo(): pass\n")
+
+        rule = MirrorRule()
+        result = rule.check(tmp_path)
+        assert result.passed is False
+        assert result.details is not None
+        assert "foo.py" in result.details["missing"]

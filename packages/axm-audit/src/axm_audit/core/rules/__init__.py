@@ -17,7 +17,7 @@ from axm_audit.core.rules.duplication import DuplicationRule
 from axm_audit.core.rules.practices.bare_except import BareExceptRule
 from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 from axm_audit.core.rules.practices.docstring_coverage import DocstringCoverageRule
-from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+from axm_audit.core.rules.practices.mirror import MirrorRule
 from axm_audit.core.rules.quality import (
     DiffSizeRule,
     FormattingRule,
@@ -55,12 +55,12 @@ __all__ = [
     "FormattingRule",
     "GodClassRule",
     "LintingRule",
+    "MirrorRule",
     "ProjectRule",
     "PyprojectCompletenessRule",
     "SecurityPatternRule",
     "SecurityRule",
     "TestCoverageRule",
-    "TestMirrorRule",
     "ToolAvailabilityRule",
     "TypeCheckRule",
     "get_registry",
