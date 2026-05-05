@@ -152,9 +152,7 @@ exclude = ["tests/fixtures/"]
 module = ["tests.*"]
 disallow_untyped_defs = false
 
-[[tool.mypy.overrides]]
-module = ["cyclopts.*", "tree_sitter.*", "tree_sitter_python.*", "axm.*"]
-ignore_missing_imports = true
+
 
 [[tool.mypy.overrides]]
 module = ["axm_ast.tools.*"]
