@@ -9,7 +9,7 @@ import pytest
 from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality.duplicate_tests import (
     DuplicateTestsRule,
-    _merge_clusters,
+    merge_clusters,
 )
 from axm_audit.models.results import Severity
 
@@ -453,7 +453,7 @@ def test_merge_ambiguous_dominates() -> None:
             [("tests/test_mod.py", "test_a"), ("tests/test_mod.py", "test_c")],
         ),
     ]
-    merged = _merge_clusters(sub_clusters)
+    merged = merge_clusters(sub_clusters)
     assert len(merged) == 1
     assert merged[0]["signal"] == "ambiguous_distinct_literals"
 
@@ -469,7 +469,7 @@ def test_merge_multi_signal() -> None:
             [("tests/test_mod.py", "test_a"), ("tests/test_mod.py", "test_c")],
         ),
     ]
-    merged = _merge_clusters(sub_clusters)
+    merged = merge_clusters(sub_clusters)
     assert len(merged) == 1
     assert merged[0]["signal"] == "multi_signal"
 
@@ -485,7 +485,7 @@ def test_merge_ambiguous_multi() -> None:
             [("tests/test_mod.py", "test_a"), ("tests/test_mod.py", "test_c")],
         ),
     ]
-    merged = _merge_clusters(sub_clusters)
+    merged = merge_clusters(sub_clusters)
     assert len(merged) == 1
     assert merged[0]["signal"] == "ambiguous_multi"
 

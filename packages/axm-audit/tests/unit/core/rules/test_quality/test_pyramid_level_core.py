@@ -12,7 +12,7 @@ from axm_audit.core.rules.test_quality.pyramid_level import (
     Finding,
     PyramidCheckResult,
     PyramidLevelRule,
-    _classify_level,
+    classify_level,
 )
 from axm_audit.models.results import Severity
 
@@ -442,7 +442,7 @@ def test_classify_level_8_branches_table_driven(
     imports_internal: bool,
     expected: str,
 ) -> None:
-    level, reason = _classify_level(
+    level, reason = classify_level(
         has_real_io=has_real_io,
         has_subprocess=has_subprocess,
         imports_public=imports_public,

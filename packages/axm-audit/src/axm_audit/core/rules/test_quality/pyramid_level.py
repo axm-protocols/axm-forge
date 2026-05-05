@@ -44,7 +44,6 @@ __all__ = [
     "Finding",
     "PyramidCheckResult",
     "PyramidLevelRule",
-    "_classify_level",
     "_detect_tmp_path_usage",
     "_relpath",
     "_render_mismatch_text",
@@ -89,7 +88,7 @@ class PyramidCheckResult(CheckResult):
 # ── Classification ────────────────────────────────────────────────────
 
 
-def _classify_level(
+def classify_level(
     *,
     has_real_io: bool,
     has_subprocess: bool,
@@ -559,7 +558,7 @@ def _resolve_io_for_test(
 def _classify_test_function(ctx: _ScanContext, node: ast.FunctionDef) -> Finding:
     """Run the full pipeline for one ``test_*`` function and emit a Finding."""
     signals, has_real_io, has_subprocess = _resolve_io_for_test(ctx, node)
-    level, reason = _classify_level(
+    level, reason = classify_level(
         has_real_io=has_real_io,
         has_subprocess=has_subprocess,
         imports_public=bool(ctx.public),
