@@ -11,7 +11,7 @@ from axm_audit.models.results import CheckResult, Severity
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["TestMirrorRule"]
+__all__ = ["MirrorRule"]
 
 _TEST_MIRROR_EXEMPT = {
     "__init__.py",
@@ -24,7 +24,7 @@ _TEST_MIRROR_EXEMPT = {
 
 @dataclass
 @register_rule("practices")
-class TestMirrorRule(ProjectRule):
+class MirrorRule(ProjectRule):
     """Check that every source module has a corresponding test file.
 
     For each ``src/<pkg>/foo.py``, looks for ``tests/**/test_foo.py``
@@ -103,10 +103,24 @@ class TestMirrorRule(ProjectRule):
 
     @staticmethod
     def _collect_test_basenames(tests_path: Path) -> set[str]:
-        """Collect all ``test_*.py`` basenames from the test tree."""
+        """Collect ``test_*.py`` basenames eligible to satisfy the mirror rule.
+
+        Mirror naming (1:1 with source modules) is a unit-level convention.
+        Integration and e2e tests are scenario-named, so they must not count
+        toward mirror coverage. If a ``tests/unit/`` directory exists, search
+        there; otherwise fall back to the whole ``tests/`` tree (legacy flat
+        layout) while still excluding ``integration/`` and ``e2e/`` subdirs.
+        """
         if not tests_path.exists():
             return set()
-        return {f.name for f in tests_path.rglob("test_*.py")}
+        unit_path = tests_path / "unit"
+        if unit_path.exists():
+            return {f.name for f in unit_path.rglob("test_*.py")}
+        return {
+            f.name
+            for f in tests_path.rglob("test_*.py")
+            if "integration" not in f.parts and "e2e" not in f.parts
+        }
 
     @classmethod
     def _find_untested_modules(
