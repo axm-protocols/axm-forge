@@ -32,7 +32,7 @@ def test_security_rule_text_format(tmp_path, monkeypatch):
     from axm_audit.core.rules import security as sec_mod
 
     monkeypatch.setattr(
-        sec_mod, "_run_bandit", lambda src_path, project_path: fake_bandit
+        sec_mod, "run_bandit", lambda src_path, project_path: fake_bandit
     )
 
     result = SecurityRule().check(tmp_path)
