@@ -220,6 +220,11 @@ def test_private_module_cross_package_flagged(tmp_path: Path) -> None:
 
 
 def test_class_method_call_flagged(pkg_root: Path) -> None:
+    """Calling a private class method via attribute access is flagged.
+
+    Asserts the full finding shape: count, access_kind, private_symbol,
+    and import_module. Subsumes the former test_attribute_finding_kind.
+    """
     _write(
         pkg_root / "src" / "pkg" / "mod.py",
         "class Cls:\n    def _m(self):\n        return 1\n",
@@ -230,10 +235,10 @@ def test_class_method_call_flagged(pkg_root: Path) -> None:
     )
     result = PrivateImportsRule().check(pkg_root)
     findings = result.details["findings"]  # type: ignore[index]
-    attr = [f for f in findings if f["access_kind"] == "attribute"]
-    assert len(attr) == 1
-    assert attr[0]["private_symbol"] == "_m"
-    assert attr[0]["import_module"] == "pkg.mod"
+    assert len(findings) == 1
+    assert findings[0]["access_kind"] == "attribute"
+    assert findings[0]["private_symbol"] == "_m"
+    assert findings[0]["import_module"] == "pkg.mod"
 
 
 def test_class_method_no_call_flagged(pkg_root: Path) -> None:
@@ -412,21 +417,6 @@ def test_import_alias_finding_kind(pkg_root: Path) -> None:
     findings = result.details["findings"]  # type: ignore[index]
     assert len(findings) == 1
     assert findings[0]["access_kind"] == "import"
-
-
-def test_attribute_finding_kind(pkg_root: Path) -> None:
-    _write(
-        pkg_root / "src" / "pkg" / "mod.py",
-        "class Cls:\n    def _m(self):\n        return 1\n",
-    )
-    _write(
-        pkg_root / "tests" / "test_x.py",
-        "from pkg.mod import Cls\n\ndef test():\n    Cls._m()\n",
-    )
-    result = PrivateImportsRule().check(pkg_root)
-    findings = result.details["findings"]  # type: ignore[index]
-    assert len(findings) == 1
-    assert findings[0]["access_kind"] == "attribute"
 
 
 def test_render_distinguishes_kinds(pkg_root: Path) -> None:
