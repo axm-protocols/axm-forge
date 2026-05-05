@@ -55,31 +55,36 @@ class TestWeightsTableInvariants:
 class TestQualityScoreNoScoredChecks:
     """When no checks carry a usable score the property returns None."""
 
-    def test_empty_checks_list(self) -> None:
-        assert _make_result([]).quality_score is None
-
-    def test_checks_without_category(self) -> None:
-        checks = [_make_check(category=None, score=80.0)]
-        assert _make_result(checks).quality_score is None
-
-    def test_checks_with_unknown_category(self) -> None:
-        checks = [_make_check(category="unknown", score=80.0)]
-        assert _make_result(checks).quality_score is None
-
-    def test_checks_without_details(self) -> None:
-        checks = [_make_check(category="lint", score=None, has_details=False)]
-        assert _make_result(checks).quality_score is None
-
-    def test_checks_with_details_but_no_score_key(self) -> None:
-        checks = [_make_check(category="lint", score=None)]
-        assert _make_result(checks).quality_score is None
-
-    def test_unscored_categories_ignored(self) -> None:
-        """Categories absent from _CATEGORY_WEIGHTS contribute nothing."""
-        checks = [
-            _make_check(category="structure", score=0.0),
-            _make_check(category="tooling", score=0.0),
-        ]
+    @pytest.mark.parametrize(
+        "checks",
+        [
+            pytest.param([], id="empty"),
+            pytest.param(
+                [_make_check(category=None, score=80.0)],
+                id="no_category",
+            ),
+            pytest.param(
+                [_make_check(category="unknown", score=80.0)],
+                id="unknown_category",
+            ),
+            pytest.param(
+                [_make_check(category="lint", score=None, has_details=False)],
+                id="no_details",
+            ),
+            pytest.param(
+                [_make_check(category="lint", score=None)],
+                id="details_without_score_key",
+            ),
+            pytest.param(
+                [
+                    _make_check(category="structure", score=0.0),
+                    _make_check(category="tooling", score=0.0),
+                ],
+                id="unscored_categories_only",
+            ),
+        ],
+    )
+    def test_quality_score_is_none(self, checks: list[Mock]) -> None:
         assert _make_result(checks).quality_score is None
 
 
