@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import Counter
 from typing import Any
 
@@ -10,6 +11,8 @@ from axm_smelt.core.models import SmeltContext
 from axm_smelt.strategies.base import SmeltStrategy
 
 __all__ = ["DedupValuesStrategy"]
+
+logger = logging.getLogger(__name__)
 
 _MIN_LENGTH = 20
 _MIN_OCCURRENCES = 2
@@ -61,6 +64,11 @@ class DedupValuesStrategy(SmeltStrategy):
         Uses ``ctx.parsed`` when available to skip
         ``json.loads``. Wraps the result in a ``{_refs, _data}``
         envelope.
+
+        The keys ``_refs`` and ``_data`` are reserved for the output
+        envelope. If the input is a dict that already contains either
+        as a top-level key, the strategy is a pass-through to avoid
+        silent collision in the wrapped output.
         """
         parsed = ctx.parsed
         if parsed is None:
@@ -72,6 +80,10 @@ class DedupValuesStrategy(SmeltStrategy):
                 parsed = json.loads(stripped)
             except (json.JSONDecodeError, ValueError):
                 return ctx
+
+        if isinstance(parsed, dict) and ("_refs" in parsed or "_data" in parsed):
+            logger.debug("dedup_values: input has reserved top-level key, skipping")
+            return ctx
 
         strings: list[str] = []
         _collect_strings(parsed, strings)
