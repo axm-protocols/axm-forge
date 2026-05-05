@@ -436,90 +436,92 @@ def test_collect_contract_classes_runtime_checkable_decorator(tmp_path: Path) ->
 # AC12 -----------------------------------------------------------------
 
 
-def test_is_import_smoke_test_positive() -> None:
-    code = textwrap.dedent('''
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        pytest.param(
+            '''
         def test_x():
             """doc"""
             from x import Y
             assert Y is not None
-    ''')
-    func = _find_func(ast.parse(code), "test_x")
-    assert is_import_smoke_test(func) is True
-
-
-def test_is_import_smoke_test_rejects_5_stmts() -> None:
-    code = textwrap.dedent("""
+    ''',
+            True,
+            id="positive_is_not_none",
+        ),
+        pytest.param(
+            """
         def test_x():
             a = 1
             b = 2
             c = 3
             d = 4
             e = 5
-    """)
-    func = _find_func(ast.parse(code), "test_x")
-    assert is_import_smoke_test(func) is False
-
-
-def test_is_import_smoke_test_isinstance_assert() -> None:
-    code = textwrap.dedent("""
+    """,
+            False,
+            id="rejects_5_stmts",
+        ),
+        pytest.param(
+            """
         def test_x():
             from x import Y
             assert isinstance(Y, int)
-    """)
-    func = _find_func(ast.parse(code), "test_x")
-    assert is_import_smoke_test(func) is True
-
-
-def test_is_import_smoke_test_bare_name_assert() -> None:
-    code = textwrap.dedent("""
+    """,
+            True,
+            id="isinstance_assert",
+        ),
+        pytest.param(
+            """
         def test_x():
             from x import Y
             assert Y
-    """)
-    func = _find_func(ast.parse(code), "test_x")
-    assert is_import_smoke_test(func) is True
-
-
-def test_is_import_smoke_test_self_assert_is_not_none() -> None:
-    code = textwrap.dedent("""
+    """,
+            True,
+            id="bare_name_assert",
+        ),
+        pytest.param(
+            """
         def test_x(self):
             from x import Y
             self.assertIsNotNone(Y)
-    """)
-    func = _find_func(ast.parse(code), "test_x")
-    assert is_import_smoke_test(func) is True
-
-
-def test_strong_assert_returns_false() -> None:
-    code = textwrap.dedent("""
+    """,
+            True,
+            id="self_assert_is_not_none",
+        ),
+        pytest.param(
+            """
         def test_x():
             from x import Y
             assert Y == 42
-    """)
-    func = _find_func(ast.parse(code), "test_x")
-    assert is_import_smoke_test(func) is False
-
-
-def test_no_import_returns_false() -> None:
-    code = textwrap.dedent("""
+    """,
+            False,
+            id="strong_assert",
+        ),
+        pytest.param(
+            """
         def test_x():
             assert Y is not None
-    """)
-    func = _find_func(ast.parse(code), "test_x")
-    assert is_import_smoke_test(func) is False
-
-
-def test_body_over_budget_returns_false() -> None:
-    code = textwrap.dedent("""
+    """,
+            False,
+            id="no_import",
+        ),
+        pytest.param(
+            """
         def test_x():
             from x import Y
             assert Y is not None
             a = 1
             b = 2
             c = 3
-    """)
-    func = _find_func(ast.parse(code), "test_x")
-    assert is_import_smoke_test(func) is False
+    """,
+            False,
+            id="body_over_budget",
+        ),
+    ],
+)
+def test_is_import_smoke_test(code: str, expected: bool) -> None:
+    func = _find_func(ast.parse(textwrap.dedent(code)), "test_x")
+    assert is_import_smoke_test(func) is expected
 
 
 # AC13 -----------------------------------------------------------------
