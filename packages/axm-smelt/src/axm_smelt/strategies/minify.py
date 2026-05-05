@@ -38,9 +38,7 @@ class MinifyStrategy(SmeltStrategy):
         parsed = ctx.parsed
         if parsed is not None:
             result = json.dumps(parsed, separators=(",", ":"), ensure_ascii=False)
-            new_ctx = SmeltContext(text=result, format=ctx.format)
-            new_ctx._parsed = parsed
-            return new_ctx
+            return SmeltContext(text=result, format=ctx.format, parsed=parsed)
 
         text = ctx.text
         stripped = text.strip()
@@ -52,9 +50,7 @@ class MinifyStrategy(SmeltStrategy):
             try:
                 data = json.loads(stripped)
                 result = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
-                new_ctx = SmeltContext(text=result, format=ctx.format)
-                new_ctx._parsed = data
-                return new_ctx
+                return SmeltContext(text=result, format=ctx.format, parsed=data)
             except (json.JSONDecodeError, ValueError):
                 pass
 
