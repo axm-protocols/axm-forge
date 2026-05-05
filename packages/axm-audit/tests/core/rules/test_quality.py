@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
@@ -696,20 +698,20 @@ class TestParseMypyErrors:
         assert count == 0
         assert errors == []
 
-    def test_parse_mypy_errors_integer_json(self) -> None:
-        """Integer JSON line should be skipped."""
+    @pytest.mark.parametrize(
+        "stdout",
+        [
+            pytest.param("42\n", id="integer"),
+            pytest.param("null\n", id="null"),
+            pytest.param("true\n", id="boolean"),
+            pytest.param('"plain string"\n', id="string"),
+            pytest.param("[1, 2, 3]\n", id="array"),
+        ],
+    )
+    def test_parse_mypy_errors_skips_non_dict_json(self, stdout: str) -> None:
+        """Non-dict JSON scalars on a line should be skipped."""
         from axm_audit.core.rules.quality import TypeCheckRule
 
-        stdout = "42\n"
-        count, errors = TypeCheckRule.parse_mypy_errors(stdout)
-        assert count == 0
-        assert errors == []
-
-    def test_parse_mypy_errors_null_json(self) -> None:
-        """Null JSON line should be skipped."""
-        from axm_audit.core.rules.quality import TypeCheckRule
-
-        stdout = "null\n"
         count, errors = TypeCheckRule.parse_mypy_errors(stdout)
         assert count == 0
         assert errors == []
