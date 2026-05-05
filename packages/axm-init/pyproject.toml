@@ -200,9 +200,7 @@ exclude = ["src/axm_init/templates/"]
 module = ["tests.*"]
 disallow_untyped_defs = false
 
-[[tool.mypy.overrides]]
-module = ["copier.*", "cyclopts.*", "axm.*"]
-ignore_missing_imports = true
+
 
 [[tool.mypy.overrides]]
 module = ["axm_init.tools.*"]
