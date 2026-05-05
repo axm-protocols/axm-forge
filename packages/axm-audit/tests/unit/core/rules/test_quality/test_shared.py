@@ -348,13 +348,13 @@ def test_fixture_does_io_conftest_cache(tmp_path: Path, mocker: Any) -> None:
 
     _shared._CONFTEST_CACHE.clear()
 
-    first = _shared._load_conftest_fixtures(conftest)
+    first = _shared.load_conftest_fixtures(conftest)
     assert "bar" in first
 
     mocker.patch.object(
         Path, "read_text", side_effect=AssertionError("cache should be hit")
     )
-    second = _shared._load_conftest_fixtures(conftest)
+    second = _shared.load_conftest_fixtures(conftest)
     assert "bar" in second
 
 

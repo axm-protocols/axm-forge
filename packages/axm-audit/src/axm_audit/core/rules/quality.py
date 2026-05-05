@@ -228,7 +228,7 @@ class TypeCheckRule(ProjectRule):
             check=False,
         )
 
-        error_count, errors = self._parse_mypy_errors(result.stdout)
+        error_count, errors = self.parse_mypy_errors(result.stdout)
 
         score = max(0, 100 - error_count * 5)
         passed = error_count == 0
@@ -259,7 +259,7 @@ class TypeCheckRule(ProjectRule):
         )
 
     @staticmethod
-    def _parse_mypy_errors(
+    def parse_mypy_errors(
         stdout: str,
     ) -> tuple[int, list[dict[str, str | int]]]:
         """Parse mypy JSON output and extract errors.
@@ -438,7 +438,7 @@ class DiffSizeRule(ProjectRule):
 
         ideal, max_lines = read_diff_config(project_path)
         lines_changed = self._parse_stat(stdout)
-        score = self._compute_score(lines_changed, ideal, max_lines)
+        score = self.compute_score(lines_changed, ideal, max_lines)
         passed = score >= PASS_THRESHOLD
 
         text = (
@@ -474,7 +474,7 @@ class DiffSizeRule(ProjectRule):
         return insertions + deletions
 
     @staticmethod
-    def _compute_score(
+    def compute_score(
         lines_changed: int,
         ideal: int = _DIFF_IDEAL,
         max_lines: int = _DIFF_MAX,

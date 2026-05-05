@@ -671,7 +671,7 @@ def _collect_fixtures(tree: ast.Module) -> dict[str, ast.FunctionDef]:
     return out
 
 
-def _load_conftest_fixtures(conftest: Path) -> dict[str, ast.FunctionDef]:
+def load_conftest_fixtures(conftest: Path) -> dict[str, ast.FunctionDef]:
     key = conftest.resolve()
     cached = _CONFTEST_CACHE.get(key)
     if cached is not None:
