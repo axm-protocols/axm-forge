@@ -231,19 +231,10 @@ def _render_verdict_entries(meta: dict[str, Any]) -> list[str]:
     return out
 
 
-def _render_cluster_entries(meta: dict[str, Any]) -> list[str]:
-    out: list[str] = []
-    for cluster in meta.get("clusters", []) or []:
-        if isinstance(cluster, dict):
-            members = cluster.get("members") or cluster.get("tests") or []
-            out.append(f"  [{cluster.get('signal', '?')}] {len(members)} test(s)")
-    return out
-
-
 def _render_metadata(meta: Any) -> list[str]:
     if not isinstance(meta, dict):
         return []
-    return _render_verdict_entries(meta) + _render_cluster_entries(meta)
+    return _render_verdict_entries(meta)
 
 
 def _render_fix(f: dict[str, Any]) -> list[str]:
