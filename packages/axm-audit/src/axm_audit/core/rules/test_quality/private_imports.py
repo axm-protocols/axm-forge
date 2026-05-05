@@ -6,9 +6,14 @@ details, turning refactors into multi-file chores.  The rule walks every
 symbols from first-party packages and classifies each hit via
 ``axm_ast.extract_module_info``.
 
+Beyond ``from pkg import _foo`` aliases, the rule also flags attribute
+access on first-party imports — e.g. ``Cls._method()`` after
+``from pkg.mod import Cls``, or ``mod._var`` after ``import pkg.mod as mod``.
+
 Dunders (``__version__``) are always ignored and ``_UPPER_CASE`` constants
 are ignored by default — flip ``include_constants=True`` on the rule
-instance to surface those as well.
+instance to surface those as well.  Namedtuple methods (``_asdict``,
+``_replace`` …) are always ignored.
 """
 
 from __future__ import annotations
@@ -38,6 +43,9 @@ _CONSTANT_RE = re.compile(r"^_[A-Z][A-Z0-9_]+$")
 _DOCS_ANCHOR = "docs/test_quality.md#private-imports"
 _SCORE_PENALTY = 5
 _MAX_TEXT_ITEMS = 20
+_NAMEDTUPLE_API: frozenset[str] = frozenset(
+    {"_asdict", "_replace", "_fields", "_make", "_field_defaults", "_source"}
+)
 
 
 def _relativize(path: str, project_path: Path) -> str:
@@ -53,7 +61,8 @@ def _render_private_imports_text(
 ) -> str:
     """Render top-N private-import findings as a compact bullet list."""
     lines = [
-        f"• {_relativize(f['test_file'], project_path)}:{f['line']} "
+        f"• [{f.get('access_kind', 'import')}] "
+        f"{_relativize(f['test_file'], project_path)}:{f['line']} "
         f"{f['import_module']}.{f['private_symbol']} ({f['symbol_kind']})"
         for f in findings[:_MAX_TEXT_ITEMS]
     ]
@@ -84,6 +93,10 @@ def _is_private_symbol(name: str, include_constants: bool) -> bool:
     return True
 
 
+def _is_first_party_module(mod: str, pkg_prefixes: Iterable[str]) -> bool:
+    return any(mod == p or mod.startswith(p + ".") for p in pkg_prefixes)
+
+
 def _iter_private_aliases(
     node: ast.ImportFrom,
     ctx: _ScanContext,
@@ -92,7 +105,7 @@ def _iter_private_aliases(
     if not node.module:
         return
     mod = node.module
-    if not any(mod == p or mod.startswith(p + ".") for p in ctx.pkg_prefixes):
+    if not _is_first_party_module(mod, ctx.pkg_prefixes):
         return
     for alias in node.names or []:
         name = alias.name
@@ -103,19 +116,24 @@ def _iter_private_aliases(
         yield mod, name
 
 
-def _build_finding(
-    test_file: Path,
-    node: ast.ImportFrom,
-    mod: str,
-    name: str,
-    kind: str,
-) -> dict[str, Any]:
+@dataclass(frozen=True)
+class _FindingSpec:
+    test_file: Path
+    line: int
+    mod: str
+    name: str
+    kind: str
+    access_kind: str = "import"
+
+
+def _build_finding(spec: _FindingSpec) -> dict[str, Any]:
     return {
-        "test_file": str(test_file),
-        "line": node.lineno,
-        "import_module": mod,
-        "private_symbol": name,
-        "symbol_kind": kind,
+        "test_file": str(spec.test_file),
+        "line": spec.line,
+        "import_module": spec.mod,
+        "private_symbol": spec.name,
+        "symbol_kind": spec.kind,
+        "access_kind": spec.access_kind,
     }
 
 
@@ -153,6 +171,112 @@ def _is_same_package_module_import(
     rel = (module + "." + name).replace(".", "/")
     src = project_path / "src"
     return (src / f"{rel}.py").exists() or (src / rel / "__init__.py").exists()
+
+
+# Attribute-access detection helpers
+
+
+def _collect_first_party_imports(
+    tree: ast.AST, ctx: _ScanContext
+) -> dict[str, tuple[str, str, str]]:
+    """Map each local name to ``(module, kind, original)`` for first-party imports.
+
+    ``kind`` is ``"symbol"`` for ``from pkg.mod import Name`` (Name binds a
+    symbol from ``pkg.mod``) and ``"module"`` for ``import pkg.mod`` /
+    ``import pkg.mod as m`` (the local name binds the module itself).
+    ``original`` is the original symbol name (pre-asname) for ``"symbol"``,
+    or the dotted module path for ``"module"``.
+    """
+    out: dict[str, tuple[str, str, str]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            if not mod or not _is_first_party_module(mod, ctx.pkg_prefixes):
+                continue
+            for alias in node.names or []:
+                if alias.name == "*":
+                    continue
+                local = alias.asname or alias.name
+                out[local] = (mod, "symbol", alias.name)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                mod = alias.name
+                if not _is_first_party_module(mod, ctx.pkg_prefixes):
+                    continue
+                if alias.asname:
+                    out[alias.asname] = (mod, "module", mod)
+                else:
+                    root = mod.split(".", 1)[0]
+                    out.setdefault(root, (root, "module", root))
+                    out[mod] = (mod, "module", mod)
+    return out
+
+
+def _attribute_dotted_prefix(node: ast.Attribute) -> str | None:
+    """Return the dotted prefix from ``a.b.c._attr`` (excluding the trailing attr)."""
+    parts: list[str] = []
+    cur: ast.AST = node.value
+    while isinstance(cur, ast.Attribute):
+        parts.insert(0, cur.attr)
+        cur = cur.value
+    if not isinstance(cur, ast.Name):
+        return None
+    parts.insert(0, cur.id)
+    return ".".join(parts)
+
+
+def _resolve_attr_target(
+    node: ast.Attribute, imports_map: dict[str, tuple[str, str, str]]
+) -> tuple[str, str | None] | None:
+    """Resolve ``X._attr`` to ``(module, class_name | None)``.
+
+    Returns ``None`` when the root binding is not a first-party import.
+    For ``Cls._m`` after ``from pkg.mod import Cls`` (or ``as C``), returns
+    ``("pkg.mod", "Cls")``. For ``mod._var`` after
+    ``import pkg.mod as mod`` returns ``("pkg.mod", None)``.
+    For ``mod.Cls._method`` returns ``("pkg.mod", "Cls")``.
+    """
+    prefix = _attribute_dotted_prefix(node)
+    if prefix is None:
+        return None
+    if prefix in imports_map:
+        mod, kind, original = imports_map[prefix]
+        return (mod, None) if kind == "module" else (mod, original)
+    root = prefix.split(".", 1)[0]
+    binding = imports_map.get(root)
+    if binding is None:
+        return None
+    mod, kind, original = binding
+    if kind == "symbol":
+        return (mod, original)
+    rest = prefix[len(root) + 1 :] if "." in prefix else ""
+    head = rest.split(".", 1)[0] if rest else None
+    return (mod, head)
+
+
+def _iter_private_attributes(
+    tree: ast.AST,
+    ctx: _ScanContext,
+    imports_map: dict[str, tuple[str, str, str]],
+) -> Iterator[tuple[str, str | None, str, ast.Attribute]]:
+    """Yield ``(module, class_name, attr_name, node)`` for private attribute access.
+
+    Skips dunder access, namedtuple API, and constants when
+    ``ctx.include_constants`` is False.
+    """
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Attribute):
+            continue
+        attr = node.attr
+        if attr in _NAMEDTUPLE_API:
+            continue
+        if not _is_private_symbol(attr, ctx.include_constants):
+            continue
+        target = _resolve_attr_target(node, imports_map)
+        if target is None:
+            continue
+        module, class_name = target
+        yield module, class_name, attr, node
 
 
 @dataclass
@@ -213,7 +337,7 @@ class PrivateImportsRule(ProjectRule):
         ctx: _ScanContext,
         test_pkg: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Walk *tree* and return one finding per private-symbol import."""
+        """Walk *tree* and return one finding per private-symbol access."""
         findings: list[dict[str, Any]] = []
         for node in ast.walk(tree):
             if not isinstance(node, ast.ImportFrom):
@@ -222,7 +346,38 @@ class PrivateImportsRule(ProjectRule):
                 kind = self._resolve_symbol_kind(
                     mod, name, ctx.project_path, ctx.mod_cache
                 )
-                findings.append(_build_finding(test_file, node, mod, name, kind))
+                findings.append(
+                    _build_finding(
+                        _FindingSpec(
+                            test_file=test_file,
+                            line=node.lineno,
+                            mod=mod,
+                            name=name,
+                            kind=kind,
+                            access_kind="import",
+                        )
+                    )
+                )
+
+        imports_map = _collect_first_party_imports(tree, ctx)
+        for mod, class_name, attr, attr_node in _iter_private_attributes(
+            tree, ctx, imports_map
+        ):
+            kind = self._resolve_attr_kind(mod, class_name, attr, ctx)
+            if kind == "unknown":
+                continue
+            findings.append(
+                _build_finding(
+                    _FindingSpec(
+                        test_file=test_file,
+                        line=attr_node.lineno,
+                        mod=mod,
+                        name=attr,
+                        kind=kind,
+                        access_kind="attribute",
+                    )
+                )
+            )
         return findings
 
     def _build_check_result(
@@ -272,6 +427,38 @@ class PrivateImportsRule(ProjectRule):
             return "unknown"
         return self._lookup_symbol_in_info(info, symbol)
 
+    def _resolve_attr_kind(
+        self,
+        module: str,
+        class_name: str | None,
+        attr: str,
+        ctx: _ScanContext,
+    ) -> str:
+        """Resolve ``attr`` against ``module`` (optionally scoped to a class).
+
+        For ``class_name=None`` (module-level access), reuses
+        :meth:`_resolve_symbol_kind`. For ``class_name=Cls``, the name may
+        also reference a submodule of *module* (``from pkg import _sub``);
+        when ``pkg/_sub.py`` exists, treat as module access. Otherwise look
+        up ``attr`` on the class's methods.
+        """
+        if class_name is not None:
+            sub = f"{module}.{class_name}"
+            sub_info = self._load_module_info(sub, ctx.project_path)
+            if sub_info is not None:
+                ctx.mod_cache.setdefault(sub, sub_info)
+                return self._lookup_symbol_in_info(sub_info, attr)
+        if module not in ctx.mod_cache:
+            ctx.mod_cache[module] = self._load_module_info(module, ctx.project_path)
+        info = ctx.mod_cache[module]
+        if info is None:
+            return "unknown"
+        if class_name is not None:
+            if _class_has_member(info, class_name, attr):
+                return "method"
+            return "unknown"
+        return self._lookup_symbol_in_info(info, attr)
+
     @staticmethod
     def _lookup_symbol_in_info(info: ModuleInfo, symbol: str) -> str:
         dispatch: list[tuple[list[Any], str | Callable[[str], str]]] = [
@@ -305,3 +492,36 @@ class PrivateImportsRule(ProjectRule):
             if cand.exists():
                 return cand
         return None
+
+
+def _class_has_member(info: ModuleInfo, class_name: str, member: str) -> bool:
+    """True when *class_name* exists in *info* and exposes *member* as a
+    method or a class-body variable assignment."""
+    for cls in info.classes:
+        if cls.name != class_name:
+            continue
+        for method in getattr(cls, "methods", []) or []:
+            if method.name == member:
+                return True
+        return _class_has_var(info.path, class_name, member)
+    return False
+
+
+def _class_has_var(module_path: Path, class_name: str, name: str) -> bool:
+    """True when *class_name* in *module_path* defines *name* via assignment."""
+    try:
+        tree = ast.parse(module_path.read_text(), filename=str(module_path))
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef) or node.name != class_name:
+            continue
+        for stmt in node.body:
+            if isinstance(stmt, ast.Assign):
+                for target in stmt.targets:
+                    if isinstance(target, ast.Name) and target.id == name:
+                        return True
+            elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                if stmt.target.id == name:
+                    return True
+    return False
