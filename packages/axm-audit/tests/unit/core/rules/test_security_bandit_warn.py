@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from axm_audit.core.rules import security as security_mod
-from axm_audit.core.rules.security import _run_bandit
+from axm_audit.core.rules.security import run_bandit
 
 _LOGGER_NAME = "axm_audit.core.rules.security"
 
@@ -29,7 +29,7 @@ def test_bandit_rc1_empty_stdout_warns(monkeypatch, caplog):
         _fake_runner(returncode=1, stdout="", stderr="some banner"),
     )
     with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
-        result = _run_bandit(Path("/tmp/src"), Path("/tmp"))
+        result = run_bandit(Path("/tmp/src"), Path("/tmp"))
 
     assert result == {}
     warnings = [
@@ -50,7 +50,7 @@ def test_bandit_rc1_valid_json_no_warn(monkeypatch, caplog):
         _fake_runner(returncode=1, stdout=payload, stderr=""),
     )
     with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
-        result = _run_bandit(Path("/tmp/src"), Path("/tmp"))
+        result = run_bandit(Path("/tmp/src"), Path("/tmp"))
 
     assert "results" in result
     assert result["results"][0]["issue_severity"] == "HIGH"
@@ -69,7 +69,7 @@ def test_bandit_rc0_no_warn(monkeypatch, caplog):
         _fake_runner(returncode=0, stdout="", stderr=""),
     )
     with caplog.at_level(logging.WARNING, logger=_LOGGER_NAME):
-        result = _run_bandit(Path("/tmp/src"), Path("/tmp"))
+        result = run_bandit(Path("/tmp/src"), Path("/tmp"))
 
     assert result == {}
     warnings = [
@@ -87,7 +87,7 @@ def test_bandit_rc2_raises(monkeypatch):
         _fake_runner(returncode=2, stdout="", stderr="bandit crashed"),
     )
     with pytest.raises(RuntimeError) as excinfo:
-        _run_bandit(Path("/tmp/src"), Path("/tmp"))
+        run_bandit(Path("/tmp/src"), Path("/tmp"))
 
     msg = str(excinfo.value)
     assert "2" in msg

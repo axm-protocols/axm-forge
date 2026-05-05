@@ -1,4 +1,4 @@
-"""Unit tests for ``pyramid_level._render_mismatch_text`` and ``_relpath``."""
+"""Unit tests for ``pyramid_level.render_mismatch_text`` and ``relpath``."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from pathlib import Path
 
 from axm_audit.core.rules.test_quality.pyramid_level import (
     Finding,
-    _relpath,
-    _render_mismatch_text,
+    relpath,
+    render_mismatch_text,
 )
 
 
@@ -25,17 +25,17 @@ def _finding(path: str, function: str = "test_x") -> Finding:
 
 def test_relpath_relativizes_inside_project(tmp_path: Path) -> None:
     abs_path = tmp_path / "tests" / "unit" / "test_foo.py"
-    assert _relpath(str(abs_path), tmp_path) == "tests/unit/test_foo.py"
+    assert relpath(str(abs_path), tmp_path) == "tests/unit/test_foo.py"
 
 
 def test_relpath_falls_back_to_absolute_when_outside(tmp_path: Path) -> None:
     outside = "/some/other/place/test_foo.py"
-    assert _relpath(outside, tmp_path) == outside
+    assert relpath(outside, tmp_path) == outside
 
 
 def test_render_uses_relative_paths(tmp_path: Path) -> None:
     f = _finding(str(tmp_path / "tests" / "integration" / "test_a.py"))
-    text = _render_mismatch_text([f], tmp_path)
+    text = render_mismatch_text([f], tmp_path)
     assert str(tmp_path) not in text
     assert "tests/integration/test_a.py:test_x integration→unit (r)" in text
 
@@ -43,7 +43,7 @@ def test_render_uses_relative_paths(tmp_path: Path) -> None:
 def test_render_outside_keeps_absolute(tmp_path: Path) -> None:
     abs_outside = "/totally/outside/test_b.py"
     f = _finding(abs_outside, function="test_y")
-    text = _render_mismatch_text([f], tmp_path)
+    text = render_mismatch_text([f], tmp_path)
     assert abs_outside in text
 
 
@@ -52,5 +52,5 @@ def test_render_caps_with_more_suffix(tmp_path: Path) -> None:
         _finding(str(tmp_path / f"tests/unit/test_{i}.py"), f"test_{i}")
         for i in range(25)
     ]
-    text = _render_mismatch_text(findings, tmp_path)
+    text = render_mismatch_text(findings, tmp_path)
     assert "(+5 more)" in text
