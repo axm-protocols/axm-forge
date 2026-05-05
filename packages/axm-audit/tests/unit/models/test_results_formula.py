@@ -1,4 +1,4 @@
-"""Integration tests for the composite quality score using real registry rules.
+"""Unit tests for the composite quality score using real registry rules.
 
 These tests exercise the rule_id -> category mapping built from the live
 ``@register_rule`` registry, and assert structural properties of the score
@@ -8,6 +8,7 @@ hardcoding the weights table.
 
 from __future__ import annotations
 
+import pytest
 from _registry_helpers import build_rule_category_map
 
 from axm_audit.models.results import AuditResult, CheckResult
@@ -85,7 +86,53 @@ class TestQualityScoreRegistryIntegration:
         assert abs(result.quality_score - 96.33) < 0.1
         assert result.grade == "A"
 
-    def test_single_scored_check_returns_its_score(self) -> None:
-        """With one check, weights cancel out and the score equals the input."""
-        result = AuditResult(checks=[_make_check("QUALITY_COVERAGE", 100)])
-        assert result.quality_score == 100.0
+
+@pytest.mark.parametrize(
+    ("score_inputs", "expected"),
+    [
+        # Single check → weights cancel, score equals the input.
+        pytest.param(
+            [("QUALITY_COVERAGE", 100)],
+            100.0,
+            id="single_check_returns_its_score",
+        ),
+        # All 11 categories at 100 → 100 (full coverage).
+        pytest.param(
+            [
+                ("QUALITY_LINT", 100),
+                ("QUALITY_TYPE", 100),
+                ("QUALITY_COMPLEXITY", 100),
+                ("QUALITY_SECURITY", 100),
+                ("DEPS_AUDIT", 100),
+                ("DEPS_HYGIENE", 100),
+                ("QUALITY_COVERAGE", 100),
+                ("ARCH_COUPLING", 100),
+                ("PRACTICE_DOCSTRING", 100),
+                ("PRACTICE_BARE_EXCEPT", 100),
+                ("PRACTICE_SECURITY", 100),
+            ],
+            100.0,
+            id="all_categories_100",
+        ),
+        # 3 categories, weight_sum = 0.20 + 0.15 + 0.15 = 0.50.
+        # Normalized: (80*0.20 + 60*0.15 + 100*0.15) / 0.50 = 80.0.
+        pytest.param(
+            [
+                ("QUALITY_LINT", 80),
+                ("QUALITY_TYPE", 60),
+                ("QUALITY_COMPLEXITY", 100),
+            ],
+            80.0,
+            id="partial_normalized",
+        ),
+    ],
+)
+def test_quality_score_weighted_average(
+    score_inputs: list[tuple[str, int]],
+    expected: float,
+) -> None:
+    """quality_score normalizes by weight_sum across the present categories."""
+    result = AuditResult(
+        checks=[_make_check(rid, score) for rid, score in score_inputs],
+    )
+    assert result.quality_score == expected
