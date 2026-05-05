@@ -68,9 +68,7 @@ class RoundNumbersStrategy(SmeltStrategy):
         if parsed is not None:
             rounded = _round_walk(parsed, self._precision)
             result = json.dumps(rounded, separators=(",", ":"), ensure_ascii=False)
-            new_ctx = SmeltContext(text=result, format=ctx.format)
-            new_ctx._parsed = rounded
-            return new_ctx
+            return SmeltContext(text=result, format=ctx.format, parsed=rounded)
 
         text = ctx.text
         stripped = text.strip()
@@ -82,16 +80,12 @@ class RoundNumbersStrategy(SmeltStrategy):
                 data = json.loads(stripped)
                 rounded = _round_walk(data, self._precision)
                 result = json.dumps(rounded, separators=(",", ":"), ensure_ascii=False)
-                new_ctx = SmeltContext(text=result, format=ctx.format)
-                new_ctx._parsed = rounded
-                return new_ctx
+                return SmeltContext(text=result, format=ctx.format, parsed=rounded)
             except (json.JSONDecodeError, ValueError):
                 pass
 
         # Fallback: round floats in plain text (post-tabular output, etc.)
         result = self._round_text(text)
         if result != text:
-            new_ctx = SmeltContext(text=result, format=ctx.format)
-            new_ctx._parsed = None  # non-JSON text, prevent reparsing
-            return new_ctx
+            return SmeltContext(text=result, format=ctx.format, parsed=None)
         return ctx
