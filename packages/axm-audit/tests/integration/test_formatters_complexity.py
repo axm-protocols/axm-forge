@@ -18,15 +18,7 @@ def cc_blocks() -> dict[str, int]:
     return {block.name: block.complexity for block in cc_visit(source)}
 
 
-def test_extract_test_quality_cc_within_budget(cc_blocks: dict[str, int]) -> None:
-    assert cc_blocks["_extract_test_quality"] <= CC_BUDGET
-
-
-def test_format_agent_text_cc_within_budget(cc_blocks: dict[str, int]) -> None:
-    assert cc_blocks["format_agent_text"] <= CC_BUDGET
-
-
-def test_new_helpers_within_budget(cc_blocks: dict[str, int]) -> None:
+def test_all_helpers_within_budget(cc_blocks: dict[str, int]) -> None:
     excessive = {name: cc for name, cc in cc_blocks.items() if cc > CC_BUDGET}
     excessive.pop("format_agent", None)
     assert not excessive, f"Functions exceed CC budget {CC_BUDGET}: {excessive}"
