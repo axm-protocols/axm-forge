@@ -6,6 +6,8 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from axm_audit.core.rules.architecture import CouplingMetricRule
 from axm_audit.core.rules.architecture.coupling import (
     build_coupling_result,
@@ -95,22 +97,23 @@ def _build_result(
 # ---------------------------------------------------------------------------
 
 
-def test_warning_severity_borderline() -> None:
-    """Module fan-out=12, threshold=10, multiplier=2 → severity warning."""
-    result = _build_result({"mod_a": 12}, threshold=10, severity_error_multiplier=2)
+@pytest.mark.parametrize(
+    ("fan_out", "expected_severity"),
+    [
+        pytest.param(12, "warning", id="borderline_above_threshold"),
+        pytest.param(20, "warning", id="exact_error_boundary"),
+        pytest.param(21, "error", id="just_past_error_boundary"),
+        pytest.param(25, "error", id="extreme"),
+    ],
+)
+def test_severity_tier_by_fan_out(fan_out: int, expected_severity: str) -> None:
+    """Severity tier (warning vs error) depends on fan-out vs threshold * multiplier."""
+    result = _build_result(
+        {"mod_a": fan_out}, threshold=10, severity_error_multiplier=2
+    )
 
     assert result["n_over_threshold"] == 1
-    entry = result["over_threshold"][0]
-    assert entry["severity"] == "warning"
-
-
-def test_error_severity_extreme() -> None:
-    """Module fan-out=25, threshold=10, multiplier=2 → severity error."""
-    result = _build_result({"mod_a": 25}, threshold=10, severity_error_multiplier=2)
-
-    assert result["n_over_threshold"] == 1
-    entry = result["over_threshold"][0]
-    assert entry["severity"] == "error"
+    assert result["over_threshold"][0]["severity"] == expected_severity
 
 
 def test_passed_true_with_warnings_only(tmp_path: Path) -> None:
