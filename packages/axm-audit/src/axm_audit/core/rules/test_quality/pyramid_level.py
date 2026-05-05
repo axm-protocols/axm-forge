@@ -604,6 +604,21 @@ def scan_test_file(  # noqa: PLR0913
     ]
 
 
+def _filter_mismatches(findings: list[Finding], tests_dir: Path) -> list[Finding]:
+    """Return findings whose location does not match their classified level.
+
+    When the package has opted into the pyramid (any of ``unit``,
+    ``integration``, ``e2e`` exists under ``tests_dir``), root-level tests
+    count as mismatches. Otherwise the legacy lenient behavior is preserved.
+    """
+    pyramid_opted_in = any(
+        (tests_dir / sub).is_dir() for sub in ("unit", "integration", "e2e")
+    )
+    if pyramid_opted_in:
+        return [f for f in findings if f.current_level != f.level]
+    return [f for f in findings if f.current_level not in ("root", f.level)]
+
+
 def scan_package(pkg_root: Path) -> list[Finding]:
     """Scan every test file under ``<pkg_root>/tests`` and return findings."""
     tests_dir = pkg_root / "tests"
@@ -677,9 +692,7 @@ class PyramidLevelRule(ProjectRule):
             )
 
         all_findings = scan_package(project_path)
-        mismatches = [
-            f for f in all_findings if f.current_level not in ("root", f.level)
-        ]
+        mismatches = _filter_mismatches(all_findings, tests_dir)
         count = len(mismatches) if self.strict_mismatches else 0
         score = max(0, 100 - count * _SCORE_PENALTY)
         passed = count == 0
