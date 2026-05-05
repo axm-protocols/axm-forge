@@ -516,26 +516,35 @@ def _attr_signals_in_node(node: ast.AST) -> list[str]:
     return sigs
 
 
+def _resolve_call_target(call: ast.Call) -> str | None:
+    """Return the lookup name for ``call`` or ``None`` if unresolvable.
+
+    Bare names resolve to themselves; ``self.<attr>(...)`` resolves to the
+    method name so class helpers can be looked up; chained attribute calls
+    resolve to the leftmost name (e.g. ``a.b.c()`` -> ``a``).
+    """
+    func = call.func
+    if isinstance(func, ast.Name):
+        return func.id
+    if not isinstance(func, ast.Attribute):
+        return None
+    # `self.<attr>(...)` resolves to the method name, not `self`.
+    if isinstance(func.value, ast.Name) and func.value.id == "self":
+        return func.attr
+    cur: ast.AST = func
+    while isinstance(cur, ast.Attribute):
+        cur = cur.value
+    return cur.id if isinstance(cur, ast.Name) else None
+
+
 def _names_called_in(node: ast.AST) -> set[str]:
-    out: set[str] = set()
-    for child in ast.walk(node):
-        if not isinstance(child, ast.Call):
-            continue
-        func = child.func
-        if isinstance(func, ast.Name):
-            out.add(func.id)
-        elif isinstance(func, ast.Attribute):
-            # `self.<attr>(...)` should resolve to the method name, not `self`,
-            # so class-method helpers can be looked up by name.
-            if isinstance(func.value, ast.Name) and func.value.id == "self":
-                out.add(func.attr)
-                continue
-            cur: ast.AST = func
-            while isinstance(cur, ast.Attribute):
-                cur = cur.value
-            if isinstance(cur, ast.Name):
-                out.add(cur.id)
-    return out
+    """Collect resolvable call-target names reachable from ``node``."""
+    return {
+        name
+        for child in ast.walk(node)
+        if isinstance(child, ast.Call)
+        and (name := _resolve_call_target(child)) is not None
+    }
 
 
 def _fixture_arg_signals(tree: ast.Module) -> list[str]:
