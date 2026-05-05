@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from axm_audit.core.rules.coverage import TestCoverageRule
 from axm_audit.core.test_runner import FailureDetail, TestReport
 from axm_audit.models.results import CheckResult
@@ -32,33 +34,48 @@ class TestTestCoverageRule:
         with patch("axm_audit.core.test_runner.run_tests", return_value=report):
             return rule.check(tmp_path)
 
-    def test_good_coverage_passes(self, tmp_path: Path) -> None:
-        """90% coverage → score=90, passed=True."""
-        result = self._run_with_coverage(
-            tmp_path,
-            report=TestReport(
-                passed=42,
-                failed=0,
-                duration=5.0,
-                coverage=90.0,
+    @pytest.mark.parametrize(
+        ("report", "expected_passed", "expected_score"),
+        [
+            pytest.param(
+                TestReport(passed=42, failed=0, duration=5.0, coverage=90.0),
+                True,
+                90,
+                id="good_coverage",
             ),
-        )
-        assert result.passed is True
+            pytest.param(
+                TestReport(passed=42, failed=0, duration=5.0, coverage=50.0),
+                False,
+                None,
+                id="low_coverage",
+            ),
+            pytest.param(
+                TestReport(passed=42, failed=0, duration=5.0, coverage=None),
+                False,
+                0,
+                id="no_coverage_data",
+            ),
+            pytest.param(
+                TestReport(passed=40, failed=0, errors=1, duration=5.0, coverage=95.0),
+                False,
+                None,
+                id="errors_present",
+            ),
+        ],
+    )
+    def test_classifies_report(
+        self,
+        tmp_path: Path,
+        report: TestReport,
+        expected_passed: bool,
+        expected_score: int | None,
+    ) -> None:
+        """Rule maps (coverage, failures, errors) to (passed, score) correctly."""
+        result = self._run_with_coverage(tmp_path, report=report)
+        assert result.passed is expected_passed
         assert result.details is not None
-        assert result.score == 90
-
-    def test_low_coverage_fails(self, tmp_path: Path) -> None:
-        """50% coverage → score=50, passed=False."""
-        result = self._run_with_coverage(
-            tmp_path,
-            report=TestReport(
-                passed=42,
-                failed=0,
-                duration=5.0,
-                coverage=50.0,
-            ),
-        )
-        assert result.passed is False
+        if expected_score is not None:
+            assert result.score == expected_score
 
     def test_fix_hints_both(self, tmp_path: Path) -> None:
         """Tests that fix hints include both failures and coverage increase."""
@@ -78,21 +95,6 @@ class TestTestCoverageRule:
         assert "Increase test coverage" in result.fix_hint
         assert result.details is not None
         assert result.score == 50
-
-    def test_no_coverage_file(self, tmp_path: Path) -> None:
-        """No coverage data → score=0, passed=False."""
-        result = self._run_with_coverage(
-            tmp_path,
-            report=TestReport(
-                passed=42,
-                failed=0,
-                duration=5.0,
-                coverage=None,
-            ),
-        )
-        assert result.passed is False
-        assert result.details is not None
-        assert result.score == 0
 
     def test_rule_id(self) -> None:
         """Rule ID should be QUALITY_COVERAGE."""
@@ -114,20 +116,6 @@ class TestTestCoverageRule:
         assert result.passed is False
         assert result.details is not None
         assert "2 test(s) failed" in result.message
-
-    def test_errors_cause_fail(self, tmp_path: Path) -> None:
-        """Tests with errors should cause passed=False."""
-        result = self._run_with_coverage(
-            tmp_path,
-            report=TestReport(
-                passed=40,
-                failed=0,
-                errors=1,
-                duration=5.0,
-                coverage=95.0,
-            ),
-        )
-        assert result.passed is False
 
 
 def _make_failure(test: str = "tests/test_x.py::TestX::test_y") -> FailureDetail:
