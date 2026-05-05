@@ -96,3 +96,77 @@ def test_cache_not_poisoned_on_failure(mocker: MockerFixture) -> None:
     second = counter.count(text, model="o200k_base")
     assert second != len(text) // 4
     assert "o200k_base" in counter._ENC
+
+
+@pytest.fixture
+def _reset_warn() -> None:
+    counter._warned = False
+
+
+def test_counter_backend_enum() -> None:
+    from axm_smelt import CounterBackend
+
+    assert CounterBackend.TIKTOKEN
+    assert CounterBackend.FALLBACK
+
+
+def test_count_with_backend_tiktoken_path() -> None:
+    from axm_smelt import CounterBackend
+    from axm_smelt.core.counter import count_with_backend
+
+    n, backend = count_with_backend("hello world")
+    assert isinstance(n, int)
+    assert n > 0
+    assert backend is CounterBackend.TIKTOKEN
+
+
+def test_count_with_backend_fallback_path(
+    monkeypatch: pytest.MonkeyPatch, _reset_warn: None
+) -> None:
+    from axm_smelt import CounterBackend
+    from axm_smelt.core.counter import count_with_backend
+
+    counter._ENC.clear()
+
+    def _raise(model: str) -> Any:
+        raise RuntimeError("mocked")
+
+    monkeypatch.setattr(tiktoken, "get_encoding", _raise)
+    text = "abcdefghijklmnop"
+    n, backend = count_with_backend(text)
+    assert backend is CounterBackend.FALLBACK
+    assert n == len(text) // 4
+
+
+def test_warn_emitted_once(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    _reset_warn: None,
+) -> None:
+    import logging
+
+    from axm_smelt.core.counter import count_with_backend
+
+    counter._ENC.clear()
+
+    def _raise(model: str) -> Any:
+        raise RuntimeError("mocked")
+
+    monkeypatch.setattr(tiktoken, "get_encoding", _raise)
+
+    with caplog.at_level(logging.WARNING):
+        for _ in range(5):
+            count_with_backend("hello")
+
+    matching = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "tiktoken unavailable" in r.getMessage()
+    ]
+    assert len(matching) == 1
+
+
+def test_count_int_signature_unchanged() -> None:
+    result = count("hello")
+    assert isinstance(result, int)
+    assert not isinstance(result, tuple)
