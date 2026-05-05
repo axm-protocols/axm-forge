@@ -44,7 +44,7 @@ class TestEntryPointDepsNotReported:
             """,
         )
         mocker.patch(
-            f"{MODULE}._run_deptry",
+            f"{MODULE}.run_deptry",
             return_value=[
                 _dep_issue("DEP002", "axm_init"),
             ],
@@ -72,7 +72,7 @@ class TestOptionalDepsNotReported:
             """,
         )
         mocker.patch(
-            f"{MODULE}._run_deptry",
+            f"{MODULE}.run_deptry",
             return_value=[
                 _dep_issue("DEP002", "axm_init"),
             ],
@@ -100,7 +100,7 @@ class TestDep001NotFiltered:
             """,
         )
         mocker.patch(
-            f"{MODULE}._run_deptry",
+            f"{MODULE}.run_deptry",
             return_value=[
                 _dep_issue("DEP001", "axm_init"),
             ],
@@ -127,7 +127,7 @@ class TestDep003NotFiltered:
             """,
         )
         mocker.patch(
-            f"{MODULE}._run_deptry",
+            f"{MODULE}.run_deptry",
             return_value=[
                 _dep_issue("DEP003", "axm_init"),
             ],
@@ -154,7 +154,7 @@ class TestGenuineUnusedStillReported:
             """,
         )
         mocker.patch(
-            f"{MODULE}._run_deptry",
+            f"{MODULE}.run_deptry",
             return_value=[
                 _dep_issue("DEP002", "some_unused_lib"),
             ],
@@ -181,7 +181,7 @@ class TestNameNormalization:
             """,
         )
         mocker.patch(
-            f"{MODULE}._run_deptry",
+            f"{MODULE}.run_deptry",
             return_value=[
                 _dep_issue("DEP002", "axm_init"),
             ],
@@ -202,7 +202,7 @@ class TestNoPyprojectToml:
 
     def test_no_filtering_without_pyproject(self, tmp_path: Path, mocker: Any) -> None:
         mocker.patch(
-            f"{MODULE}._run_deptry",
+            f"{MODULE}.run_deptry",
             return_value=[
                 _dep_issue("DEP002", "axm_init"),
             ],
@@ -228,7 +228,7 @@ class TestEmptyEntryPoints:
             """,
         )
         mocker.patch(
-            f"{MODULE}._run_deptry",
+            f"{MODULE}.run_deptry",
             return_value=[
                 _dep_issue("DEP002", "some_lib"),
             ],
@@ -263,7 +263,7 @@ class TestMixedRealAndFalsePositive:
             """,
         )
         mocker.patch(
-            f"{MODULE}._run_deptry",
+            f"{MODULE}.run_deptry",
             return_value=[
                 _dep_issue("DEP002", "axm_init"),
                 _dep_issue("DEP002", "axm_smelt"),
