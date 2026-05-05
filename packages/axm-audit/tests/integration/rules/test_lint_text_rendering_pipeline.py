@@ -9,6 +9,8 @@ import pytest
 from axm_audit.core.rules.quality import LintingRule
 from axm_audit.models import CheckResult
 
+pytestmark = pytest.mark.integration
+
 
 def _make_ruff_output(project_path: Path, count: int = 3) -> str:
     """Build fake ruff JSON output with *count* issues."""
@@ -43,61 +45,13 @@ def lint_result(project_path: Path, monkeypatch: pytest.MonkeyPatch) -> CheckRes
     return rule.check(project_path)
 
 
-# ---------- Unit tests ----------
-
-
-class TestLintTextNoIndent:
-    def test_lines_start_with_bullet(self, lint_result):
-        """text lines start with \u2022 (no leading spaces)."""
-        for line in lint_result.text.splitlines():
-            assert line.startswith("\u2022"), f"Line has leading spaces: {line!r}"
-
-
-class TestLintTextNoBrackets:
-    def test_no_brackets_around_code(self, lint_result):
-        """No [ or ] around ruff code in text."""
-        assert "[" not in lint_result.text
-        assert "]" not in lint_result.text
-
-
 class TestLintTextRelativePaths:
     def test_paths_are_relative(self, lint_result, project_path):
         """Paths in text are relative (no project_path prefix)."""
         abs_prefix = str(project_path)
         for line in lint_result.text.splitlines():
             assert abs_prefix not in line, f"Absolute path found: {line!r}"
-        # Should contain relative path
         assert "src/mod.py" in lint_result.text
-
-
-class TestLintTextNoneWhenPassed:
-    def test_text_is_none(self, project_path, monkeypatch):
-        """text is None when project is clean."""
-        mock_run = MagicMock()
-        mock_run.return_value.stdout = "[]"
-        monkeypatch.setattr("axm_audit.core.rules.quality.run_in_project", mock_run)
-        rule = LintingRule()
-        result = rule.check(project_path)
-        assert result.text is None
-
-
-class TestDetailsUnchanged:
-    def test_details_keys(self, lint_result):
-        """details keys are issue_count, checked, issues; score is on the model."""
-        assert set(lint_result.details.keys()) == {
-            "issue_count",
-            "checked",
-            "issues",
-        }
-        assert lint_result.score is not None
-
-    def test_issues_file_absolute(self, lint_result, project_path):
-        """issues[].file still uses absolute paths."""
-        for issue in lint_result.details["issues"]:
-            assert issue["file"].startswith(str(project_path))
-
-
-# ---------- Functional tests ----------
 
 
 class TestFormatReportIndentation:
@@ -107,7 +61,7 @@ class TestFormatReportIndentation:
         from axm_audit.models import AuditResult
 
         report = format_report(AuditResult(checks=[lint_result]))
-        bullet_lines = [ln for ln in report.splitlines() if "\u2022" in ln]
+        bullet_lines = [ln for ln in report.splitlines() if "•" in ln]
         assert bullet_lines, "expected at least one bullet detail line"
         for line in bullet_lines:
             assert line.startswith("     "), f"Missing 5-space indent: {line!r}"
@@ -121,16 +75,11 @@ class TestFormatReportAlignmentUnchanged:
 
         report = format_report(AuditResult(checks=[lint_result]))
         lines = report.splitlines()
-        # Should have failure header, rule_id, problem, detail lines, fix hint
-        assert any("\u274c" in line for line in lines)
+        assert any("❌" in line for line in lines)
         assert any("Problem:" in line for line in lines)
-        # Detail lines (bullets) should be indented
-        bullet_lines = [ln for ln in lines if "\u2022" in ln]
+        bullet_lines = [ln for ln in lines if "•" in ln]
         for bl in bullet_lines:
             assert bl.startswith("     "), f"Bullet not indented: {bl!r}"
-
-
-# ---------- Edge cases ----------
 
 
 class TestPathOutsideProject:
@@ -203,6 +152,5 @@ class TestOtherRulesTextRendering:
             text="line one\nline two",
         )
         report = format_report(AuditResult(checks=[check]))
-        # Each text line should appear indented in the failure section.
         assert "     line one" in report
         assert "     line two" in report
