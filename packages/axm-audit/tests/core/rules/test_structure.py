@@ -4,31 +4,37 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 
 class TestFileExistsRule:
     """Tests for FileExistsRule."""
 
-    def test_file_exists(self, tmp_path: Path) -> None:
-        """Existing file passes."""
+    @pytest.mark.parametrize(
+        ("create", "expected_passed", "expected_substr"),
+        [
+            pytest.param(True, True, "exists", id="exists"),
+            pytest.param(False, False, "not found", id="missing"),
+        ],
+    )
+    def test_file_presence(
+        self,
+        tmp_path: Path,
+        create: bool,
+        expected_passed: bool,
+        expected_substr: str,
+    ) -> None:
+        """Existing file passes; missing file fails."""
         from axm_audit.core.rules.structure import FileExistsRule
 
-        (tmp_path / "README.md").write_text("# Hello")
+        if create:
+            (tmp_path / "README.md").write_text("# Hello")
 
         rule = FileExistsRule(file_name="README.md")
         result = rule.check(tmp_path)
 
-        assert result.passed is True
-        assert "exists" in result.message
-
-    def test_file_missing(self, tmp_path: Path) -> None:
-        """Missing file fails."""
-        from axm_audit.core.rules.structure import FileExistsRule
-
-        rule = FileExistsRule(file_name="README.md")
-        result = rule.check(tmp_path)
-
-        assert result.passed is False
-        assert "not found" in result.message
+        assert result.passed is expected_passed
+        assert expected_substr in result.message
 
     def test_rule_id_includes_filename(self) -> None:
         """Rule ID should include the filename."""
@@ -41,27 +47,31 @@ class TestFileExistsRule:
 class TestDirectoryExistsRule:
     """Tests for DirectoryExistsRule."""
 
-    def test_directory_exists(self, tmp_path: Path) -> None:
-        """Existing directory passes."""
+    @pytest.mark.parametrize(
+        ("create", "expected_passed", "expected_substr"),
+        [
+            pytest.param(True, True, "exists", id="exists"),
+            pytest.param(False, False, "not found", id="missing"),
+        ],
+    )
+    def test_directory_presence(
+        self,
+        tmp_path: Path,
+        create: bool,
+        expected_passed: bool,
+        expected_substr: str,
+    ) -> None:
+        """Existing directory passes; missing directory fails."""
         from axm_audit.core.rules.structure import DirectoryExistsRule
 
-        (tmp_path / "src").mkdir()
+        if create:
+            (tmp_path / "src").mkdir()
 
         rule = DirectoryExistsRule(dir_name="src")
         result = rule.check(tmp_path)
 
-        assert result.passed is True
-        assert "exists" in result.message
-
-    def test_directory_missing(self, tmp_path: Path) -> None:
-        """Missing directory fails."""
-        from axm_audit.core.rules.structure import DirectoryExistsRule
-
-        rule = DirectoryExistsRule(dir_name="src")
-        result = rule.check(tmp_path)
-
-        assert result.passed is False
-        assert "not found" in result.message
+        assert result.passed is expected_passed
+        assert expected_substr in result.message
 
     def test_rule_id_includes_dirname(self) -> None:
         """Rule ID should include the dir name."""
