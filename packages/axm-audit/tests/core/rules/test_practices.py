@@ -504,13 +504,14 @@ class TestTestMirrorRule:
         assert result.fix_hint is not None
         assert "test_b.py" in result.fix_hint
 
-    def test_exempt_init_and_version(self, tmp_path: Path) -> None:
-        """__init__.py and _version.py should be exempt from test requirement."""
+    def test_exempt_init_main_and_version(self, tmp_path: Path) -> None:
+        """__init__/__main__/_version are exempt from test requirement."""
         from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
         (pkg / "__init__.py").write_text("")
+        (pkg / "__main__.py").write_text("print('hi')\n")
         (pkg / "_version.py").write_text("__version__ = '0.1'\n")
         (pkg / "a.py").write_text("def hello(): pass\n")
 
@@ -521,6 +522,8 @@ class TestTestMirrorRule:
         rule = TestMirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is True
+        assert result.details is not None
+        assert result.details["missing"] == []
 
     def test_nested_test_dirs(self, tmp_path: Path) -> None:
         """Test files in nested directories (tests/core/) should match."""
