@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import difflib
 import logging
+import tomllib
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 from axm_audit.core.rules.base import ProjectRule, register_rule
@@ -21,6 +23,75 @@ _TEST_MIRROR_EXEMPT = {
     "conftest.py",
     "py.typed",
 }
+
+
+def _glob_segments_match(pattern: list[str], parts: list[str]) -> bool:
+    """Match path segments with ``**`` recursive semantics.
+
+    Each segment is compared with :func:`fnmatch.fnmatchcase`, so ``*`` and
+    ``?`` never cross ``/``. A ``**`` segment matches zero or more path
+    segments.
+    """
+    if not pattern:
+        return not parts
+    head, *rest = pattern
+    if head == "**":
+        return not rest or any(
+            _glob_segments_match(rest, parts[i:]) for i in range(len(parts) + 1)
+        )
+    return (
+        bool(parts)
+        and fnmatchcase(parts[0], head)
+        and _glob_segments_match(rest, parts[1:])
+    )
+
+
+@dataclass
+class _MirrorConfig:
+    """Forward-mirror exemption config loaded from ``pyproject.toml``."""
+
+    exempt_paths: list[str]
+    error: str | None = None
+
+
+def _load_mirror_config(project_path: Path) -> _MirrorConfig:
+    """Read ``[tool.axm-audit.mirror]`` from ``pyproject.toml``.
+
+    Missing file/section/key → empty config. Malformed TOML or wrong
+    ``exempt_paths`` type → ``error`` populated, never raises.
+
+    Sample::
+
+        [tool.axm-audit.mirror]
+        exempt_paths = ["commands/*.py", "schemas/*.py", "**/_facade.py"]
+    """
+    pyproject = project_path / "pyproject.toml"
+    if not pyproject.is_file():
+        return _MirrorConfig(exempt_paths=[])
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (tomllib.TOMLDecodeError, OSError, UnicodeDecodeError) as exc:
+        return _MirrorConfig(
+            exempt_paths=[],
+            error=f"malformed pyproject.toml: {exc}",
+        )
+    section = (
+        data.get("tool", {}).get("axm-audit", {}).get("mirror", {})
+        if isinstance(data, dict)
+        else {}
+    )
+    if not isinstance(section, dict) or "exempt_paths" not in section:
+        return _MirrorConfig(exempt_paths=[])
+    raw = section["exempt_paths"]
+    if isinstance(raw, list) and all(isinstance(p, str) for p in raw):
+        return _MirrorConfig(exempt_paths=list(raw))
+    return _MirrorConfig(
+        exempt_paths=[],
+        error=(
+            "[tool.axm-audit.mirror] exempt_paths must be a list of strings "
+            "(malformed config)"
+        ),
+    )
 
 
 @dataclass
@@ -44,6 +115,15 @@ class MirrorRule(ProjectRule):
     Exempt filenames (no test required): ``__init__.py``, ``__main__.py``,
     ``_version.py``, ``conftest.py``, ``py.typed``.
 
+    Forward-mirror exemptions can additionally be declared in
+    ``pyproject.toml`` (path globs anchored at ``src/<top_pkg>/``)::
+
+        [tool.axm-audit.mirror]
+        exempt_paths = ["commands/*.py", "schemas/*.py", "**/_facade.py"]
+
+    Exempted modules do not need a matching test and surface in
+    ``details["exempt"]``. Reverse (orphan) checks ignore exemptions.
+
     Scoring: ``100 - (len(missing) + len(orphan)) * 15``, min 0.
     """
 
@@ -58,9 +138,23 @@ class MirrorRule(ProjectRule):
         if early is not None:
             return early
 
+        config = _load_mirror_config(project_path)
+        if config.error is not None:
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=False,
+                message="Invalid mirror config",
+                severity=Severity.WARNING,
+                score=0,
+                details={"missing": [], "orphan": [], "exempt": []},
+                fix_hint=config.error,
+            )
+
         src_path = project_path / "src"
         tests_path = project_path / "tests"
-        missing = self._find_untested_modules(src_path, tests_path)
+        missing, exempt = self._find_untested_modules(
+            src_path, tests_path, config.exempt_paths
+        )
         orphan = self._collect_orphan_tests(src_path, tests_path)
 
         if not missing and not orphan:
@@ -69,7 +163,8 @@ class MirrorRule(ProjectRule):
                 passed=True,
                 message="All source modules have test files",
                 severity=Severity.INFO,
-                details={"missing": [], "orphan": []},
+                score=100,
+                details={"missing": [], "orphan": [], "exempt": exempt},
             )
 
         violations = len(missing) + len(orphan)
@@ -86,7 +181,7 @@ class MirrorRule(ProjectRule):
             message=message,
             severity=Severity.WARNING if not passed else Severity.INFO,
             score=int(score),
-            details={"missing": missing, "orphan": orphan},
+            details={"missing": missing, "orphan": orphan, "exempt": exempt},
             fix_hint=hint,
             text=text,
         )
@@ -208,47 +303,79 @@ class MirrorRule(ProjectRule):
             bucket.add(stem.lstrip("_"))
         return index
 
+    @staticmethod
+    def _is_exempt_path(rel_posix: str, exempt_paths: list[str]) -> bool:
+        """Return True if ``rel_posix`` matches any glob in ``exempt_paths``.
+
+        Patterns are anchored at ``src/<pkg>/`` and matched segment-by-segment
+        with ``fnmatch.fnmatchcase`` (so ``*`` and ``?`` never cross ``/``).
+        A literal ``**`` segment matches zero or more path segments.
+        """
+        rel_parts = rel_posix.split("/")
+        return any(
+            _glob_segments_match(pattern.split("/"), rel_parts)
+            for pattern in exempt_paths
+        )
+
     @classmethod
     def _find_untested_modules(
         cls,
         src_path: Path,
         tests_path: Path,
-    ) -> list[str]:
+        exempt_paths: list[str] | None = None,
+    ) -> tuple[list[str], list[str]]:
         """Find source modules without corresponding test files.
 
         When ``tests/unit/`` is populated, the mirror is arborescence-aware:
         ``src/<pkg>/<rel>/<name>.py`` requires ``tests/unit/<rel>/test_<name>.py``.
         Otherwise (legacy flat layout, or empty ``tests/unit/``), basename
         matching is used.
+
+        Returns ``(missing, exempt)`` where ``exempt`` is the list of
+        basenames matched by ``exempt_paths`` globs (relative to
+        ``src/<pkg>/``) — they are excluded from ``missing``.
         """
         if not src_path.is_dir():
-            return []
+            return [], []
+        exempt_paths = exempt_paths or []
         unit_index = cls._collect_unit_test_index(tests_path)
-        use_arborescence = bool(unit_index)
+        test_basenames = None if unit_index else cls._collect_test_basenames(tests_path)
         missing: list[str] = []
+        exempt: list[str] = []
         seen: set[str] = set()
         for pkg_dir in sorted(src_path.iterdir()):
             if not pkg_dir.is_dir() or pkg_dir.name == "__pycache__":
                 continue
             for py_file in sorted(pkg_dir.rglob("*.py")):
-                if py_file.name in _TEST_MIRROR_EXEMPT:
-                    continue
-                if py_file.name in seen:
+                if py_file.name in _TEST_MIRROR_EXEMPT or py_file.name in seen:
                     continue
                 seen.add(py_file.name)
-                stem = py_file.stem
-                if use_arborescence:
-                    rel_dir = py_file.parent.relative_to(pkg_dir).as_posix()
-                    rel_dir = "" if rel_dir == "." else rel_dir
-                    available = unit_index.get(rel_dir, set())
-                    if not {stem, stem.lstrip("_")} & available:
-                        missing.append(py_file.name)
-                else:
-                    test_basenames = cls._collect_test_basenames(tests_path)
-                    candidates = {f"test_{stem.lstrip('_')}.py", f"test_{stem}.py"}
-                    if not candidates & test_basenames:
-                        missing.append(py_file.name)
-        return sorted(set(missing))
+                rel_to_pkg = py_file.relative_to(pkg_dir).as_posix()
+                if exempt_paths and cls._is_exempt_path(rel_to_pkg, exempt_paths):
+                    exempt.append(py_file.name)
+                    continue
+                if not cls._has_matching_test(
+                    py_file, pkg_dir, unit_index, test_basenames
+                ):
+                    missing.append(py_file.name)
+        return sorted(set(missing)), sorted(set(exempt))
+
+    @staticmethod
+    def _has_matching_test(
+        py_file: Path,
+        pkg_dir: Path,
+        unit_index: dict[str, set[str]],
+        test_basenames: set[str] | None,
+    ) -> bool:
+        """Return True iff ``py_file`` has a matching test file."""
+        stem = py_file.stem
+        if unit_index:
+            rel_dir = py_file.parent.relative_to(pkg_dir).as_posix()
+            rel_dir = "" if rel_dir == "." else rel_dir
+            available = unit_index.get(rel_dir, set())
+            return bool({stem, stem.lstrip("_")} & available)
+        candidates = {f"test_{stem.lstrip('_')}.py", f"test_{stem}.py"}
+        return bool(candidates & (test_basenames or set()))
 
     @staticmethod
     def _collect_source_index(src_path: Path) -> dict[str, set[str]]:

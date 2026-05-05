@@ -152,6 +152,23 @@ severity_error_multiplier = 2   # default: 2, minimum: 1
 
 When no configuration is present, the default threshold of 10 and multiplier of 2 are used.
 
+### Mirror Exemptions
+
+`MirrorRule` (alias `TestMirrorRule`) reads optional forward-direction
+exemptions from `pyproject.toml`:
+
+```toml
+[tool.axm-audit.mirror]
+exempt_paths = ["commands/*.py", "schemas/*.py", "**/_facade.py"]
+```
+
+Glob patterns are anchored at `src/<top_pkg>/`. `*` and `?` never cross
+`/`; `**` matches zero or more path segments. Exempted modules do not
+require a matching `tests/unit/test_*.py` and surface in
+`details["exempt"]`. Reverse-direction (orphan-test) checks are
+unaffected. Invalid TOML or wrong `exempt_paths` type fails the rule
+with a `fix_hint` instead of raising.
+
 ### UV Workspace Support
 
 `DependencyHygieneRule` automatically detects uv workspaces via `[tool.uv.workspace].members` in the root `pyproject.toml`. When a workspace is detected, deptry runs on each member package independently and results are aggregated into a single `CheckResult` with per-member attribution in `top_issues`.
