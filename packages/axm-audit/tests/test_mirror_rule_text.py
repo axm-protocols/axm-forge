@@ -4,15 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from axm_audit.core.rules.practices.test_mirror import TestMirrorRule
+from axm_audit.core.rules.practices.mirror import MirrorRule
 
 
-class TestTestMirrorRule:
-    """Tests for TestMirrorRule.check text= rendering."""
+class TestMirrorRule:
+    """Tests for MirrorRule.check text= rendering."""
 
     @pytest.fixture()
-    def rule(self) -> TestMirrorRule:
-        return TestMirrorRule()
+    def rule(self) -> MirrorRule:
+        return MirrorRule()
 
     @staticmethod
     def _make_project(
@@ -36,7 +36,7 @@ class TestTestMirrorRule:
     # --- Unit tests ---
 
     def test_fail_missing_tests_has_text(
-        self, rule: TestMirrorRule, tmp_path: Path
+        self, rule: MirrorRule, tmp_path: Path
     ) -> None:
         """Failed result text starts with bullet and contains missing module."""
         project = self._make_project(
@@ -49,9 +49,7 @@ class TestTestMirrorRule:
         assert result.text.startswith("\u2022 untested:")
         assert "b.py" in result.text
 
-    def test_text_truncation_above_five(
-        self, rule: TestMirrorRule, tmp_path: Path
-    ) -> None:
+    def test_text_truncation_above_five(self, rule: MirrorRule, tmp_path: Path) -> None:
         """Text truncates at 5 filenames with (+N more) suffix."""
         project = self._make_project(
             tmp_path,
@@ -65,7 +63,7 @@ class TestTestMirrorRule:
         text_before_suffix = result.text.split("(+")[0]
         assert text_before_suffix.count(".py") == 5
 
-    def test_passed_no_text(self, rule: TestMirrorRule, tmp_path: Path) -> None:
+    def test_passed_no_text(self, rule: MirrorRule, tmp_path: Path) -> None:
         """Passed result (all modules tested) has text=None."""
         project = self._make_project(
             tmp_path,
@@ -78,7 +76,7 @@ class TestTestMirrorRule:
     # --- Edge cases ---
 
     def test_exactly_five_missing_no_suffix(
-        self, rule: TestMirrorRule, tmp_path: Path
+        self, rule: MirrorRule, tmp_path: Path
     ) -> None:
         """Exactly 5 missing modules lists all without (+N more)."""
         project = self._make_project(
@@ -92,7 +90,7 @@ class TestTestMirrorRule:
         assert result.text.count(".py") == 5
 
     def test_single_missing_no_truncation(
-        self, rule: TestMirrorRule, tmp_path: Path
+        self, rule: MirrorRule, tmp_path: Path
     ) -> None:
         """Single missing module: no truncation, just the filename."""
         project = self._make_project(
@@ -105,7 +103,7 @@ class TestTestMirrorRule:
         assert "\u2022 untested: utils.py" in result.text
         assert "(+" not in result.text
 
-    def test_private_module_listed(self, rule: TestMirrorRule, tmp_path: Path) -> None:
+    def test_private_module_listed(self, rule: MirrorRule, tmp_path: Path) -> None:
         """Private module _facade.py appears in text."""
         project = self._make_project(
             tmp_path,
