@@ -245,7 +245,7 @@ def _gather_fixtures_for_test(
         visited.add(current)
         conftest = current / "conftest.py"
         if conftest.exists():
-            for name, fdef in _shared._load_conftest_fixtures(conftest).items():
+            for name, fdef in _shared.load_conftest_fixtures(conftest).items():
                 fixtures.setdefault(name, fdef)
         if current in (tests_dir, pkg_root):
             break

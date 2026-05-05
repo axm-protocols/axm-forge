@@ -528,25 +528,25 @@ class TestDiffSizeRule:
         """300 lines is under new ideal (400) → score 100."""
         from axm_audit.core.rules.quality import DiffSizeRule
 
-        assert DiffSizeRule._compute_score(300) == 100
+        assert DiffSizeRule.compute_score(300) == 100
 
     def test_compute_score_boundary(self) -> None:
         """Exactly at ideal (400) → score 100."""
         from axm_audit.core.rules.quality import DiffSizeRule
 
-        assert DiffSizeRule._compute_score(400) == 100
+        assert DiffSizeRule.compute_score(400) == 100
 
     def test_compute_score_midrange(self) -> None:
         """800 lines → 50 (midpoint of [400, 1200])."""
         from axm_audit.core.rules.quality import DiffSizeRule
 
-        assert DiffSizeRule._compute_score(800) == 50
+        assert DiffSizeRule.compute_score(800) == 50
 
     def test_compute_score_over_max(self) -> None:
         """1200 lines (at max) → score 0."""
         from axm_audit.core.rules.quality import DiffSizeRule
 
-        assert DiffSizeRule._compute_score(1200) == 0
+        assert DiffSizeRule.compute_score(1200) == 0
 
     # -- Config-reading tests --
 
@@ -634,7 +634,7 @@ class TestParseMypyErrors:
         from axm_audit.core.rules.quality import TypeCheckRule
 
         stdout = '"some status string"\n'
-        count, errors = TypeCheckRule._parse_mypy_errors(stdout)
+        count, errors = TypeCheckRule.parse_mypy_errors(stdout)
         assert count == 0
         assert errors == []
 
@@ -643,7 +643,7 @@ class TestParseMypyErrors:
         from axm_audit.core.rules.quality import TypeCheckRule
 
         stdout = '["a", "b"]\n'
-        count, errors = TypeCheckRule._parse_mypy_errors(stdout)
+        count, errors = TypeCheckRule.parse_mypy_errors(stdout)
         assert count == 0
         assert errors == []
 
@@ -661,7 +661,7 @@ class TestParseMypyErrors:
             "code": "return-value",
         }
         stdout = json.dumps(entry) + "\n"
-        count, errors = TypeCheckRule._parse_mypy_errors(stdout)
+        count, errors = TypeCheckRule.parse_mypy_errors(stdout)
         assert count == 1
         assert len(errors) == 1
         assert errors[0]["file"] == "src/main.py"
@@ -683,7 +683,7 @@ class TestParseMypyErrors:
             "code": "assignment",
         }
         stdout = '"some status string"\n' + json.dumps(error_entry) + "\n"
-        count, errors = TypeCheckRule._parse_mypy_errors(stdout)
+        count, errors = TypeCheckRule.parse_mypy_errors(stdout)
         assert count == 1
         assert len(errors) == 1
         assert errors[0]["file"] == "src/bad.py"
@@ -692,7 +692,7 @@ class TestParseMypyErrors:
         """Empty stdout returns (0, [])."""
         from axm_audit.core.rules.quality import TypeCheckRule
 
-        count, errors = TypeCheckRule._parse_mypy_errors("")
+        count, errors = TypeCheckRule.parse_mypy_errors("")
         assert count == 0
         assert errors == []
 
@@ -701,7 +701,7 @@ class TestParseMypyErrors:
         from axm_audit.core.rules.quality import TypeCheckRule
 
         stdout = "42\n"
-        count, errors = TypeCheckRule._parse_mypy_errors(stdout)
+        count, errors = TypeCheckRule.parse_mypy_errors(stdout)
         assert count == 0
         assert errors == []
 
@@ -710,6 +710,6 @@ class TestParseMypyErrors:
         from axm_audit.core.rules.quality import TypeCheckRule
 
         stdout = "null\n"
-        count, errors = TypeCheckRule._parse_mypy_errors(stdout)
+        count, errors = TypeCheckRule.parse_mypy_errors(stdout)
         assert count == 0
         assert errors == []

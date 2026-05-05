@@ -132,7 +132,7 @@ class DocstringCoverageRule(ProjectRule):
                 continue
             if self._is_setter_or_deleter(node):
                 continue
-            if self._is_abstract_stub(node):
+            if self.is_abstract_stub(node):
                 continue
             if self._is_abstract_override(node, class_map, global_classes):
                 continue
@@ -144,7 +144,7 @@ class DocstringCoverageRule(ProjectRule):
         return documented, missing
 
     @staticmethod
-    def _has_abstractmethod_decorator(
+    def has_abstractmethod_decorator(
         node: ast.FunctionDef | ast.AsyncFunctionDef,
     ) -> bool:
         """Return *True* if *node* has an ``@abstractmethod`` decorator."""
@@ -155,7 +155,7 @@ class DocstringCoverageRule(ProjectRule):
         )
 
     @staticmethod
-    def _is_stub_body(
+    def is_stub_body(
         node: ast.FunctionDef | ast.AsyncFunctionDef,
     ) -> bool:
         """Return *True* if *node*'s body is just ``...`` or ``pass``."""
@@ -171,13 +171,13 @@ class DocstringCoverageRule(ProjectRule):
         )
 
     @staticmethod
-    def _is_abstract_stub(
+    def is_abstract_stub(
         node: ast.FunctionDef | ast.AsyncFunctionDef,
     ) -> bool:
         """Check if node is an abstract method stub (body is ``...`` or ``pass``)."""
-        return DocstringCoverageRule._has_abstractmethod_decorator(
+        return DocstringCoverageRule.has_abstractmethod_decorator(
             node
-        ) and DocstringCoverageRule._is_stub_body(node)
+        ) and DocstringCoverageRule.is_stub_body(node)
 
     @staticmethod
     def _is_setter_or_deleter(
@@ -259,7 +259,7 @@ class DocstringCoverageRule(ProjectRule):
                 continue
             if item.name != method_name:
                 continue
-            if self._has_abstractmethod_decorator(item) and self._has_docstring(item):
+            if self.has_abstractmethod_decorator(item) and self._has_docstring(item):
                 return True
         return False
 
