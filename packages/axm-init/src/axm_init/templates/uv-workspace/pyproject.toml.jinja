@@ -57,7 +57,6 @@ source_pkgs = []
 show_missing = true
 fail_under = 80
 
-[tool.mypy]
-python_version = "{{ python_min_version }}"
-strict = true
-warn_unused_configs = true
+# mypy is configured per-package under packages/*/pyproject.toml.
+# No root [tool.mypy] block — keeps `audit type` (per-package) and
+# `make typecheck` consistent. See mypy-consistency skill.
