@@ -161,9 +161,6 @@ ignore_missing_imports = true
 module = ["axm_audit.core.rules.quality"]
 disallow_untyped_calls = false
 
-[[tool.mypy.overrides]]
-module = ["axm.*", "cyclopts.*"]
-ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["axm_audit.tools.*"]
