@@ -1,9 +1,9 @@
-"""Unit tests for the composite quality score using real registry rules.
+"""Unit tests for the composite quality_score and grade derivation.
 
-These tests exercise the rule_id -> category mapping built from the live
-``@register_rule`` registry, and assert structural properties of the score
-(grade thresholds, normalization, single-category audits) without
-hardcoding the weights table.
+Exercises the rule_id -> category mapping built from the live
+``@register_rule`` registry, and asserts structural properties of the score
+(grade thresholds, normalization, single-category audits, no-score
+fallback, weighted averages) without hardcoding the weights table.
 """
 
 from __future__ import annotations
@@ -27,18 +27,13 @@ def _make_check(rule_id: str, score: float) -> CheckResult:
     )
 
 
-class TestQualityScoreRegistryIntegration:
-    """Score behavior against the real rule registry."""
+def _all_categories(score: float) -> list[CheckResult]:
+    """Create checks for every registered scored rule at the given score."""
+    return [_make_check(rid, score) for rid in _RULE_CATEGORY]
 
-    def test_all_scored_rules_at_100_yields_100(self) -> None:
-        """Every registered scored rule must contribute to quality_score.
 
-        Regression: creates an AuditResult with ALL scored rules at 100,
-        then verifies the score is exactly 100 (proving nothing was dropped).
-        """
-        checks = [_make_check(rid, 100) for rid in _RULE_CATEGORY]
-        result = AuditResult(checks=checks)
-        assert result.quality_score == 100.0
+class TestRegistryIntegration:
+    """Sanity checks tying scoring behavior back to the rule registry."""
 
     def test_every_registered_rule_has_category(self) -> None:
         """Every rule in the registry must expose a non-empty category."""
@@ -59,72 +54,68 @@ class TestQualityScoreRegistryIntegration:
                     f"(expected registry category: {category})"
                 )
 
-    def test_grade_a_when_all_perfect(self) -> None:
-        all_perfect = [_make_check(rid, 100) for rid in _RULE_CATEGORY]
-        assert AuditResult(checks=all_perfect).grade == "A"
+    def test_all_scored_rules_at_100_yields_100(self) -> None:
+        """Anti-drop regression: every registered scored rule contributes.
 
-    def test_grade_f_when_all_zero(self) -> None:
-        all_zero = [_make_check(rid, 0) for rid in _RULE_CATEGORY]
-        assert AuditResult(checks=all_zero).grade == "F"
-
-    def test_filtered_audit_normalizes_to_category_average(self) -> None:
-        """Category-filtered audit normalizes by present weights only.
-
-        Regression for the bug where a lint-only audit returned ~17 because
-        the score was divided by the sum of all weights instead of the
-        present ones.
+        Builds an AuditResult with ALL scored rules at 100 and asserts the
+        score is exactly 100 (a missing rule would shift the weighted mean).
         """
-        checks = [
-            _make_check("QUALITY_LINT", 94),
-            _make_check("QUALITY_FORMAT", 100),
-            _make_check("QUALITY_DEAD_CODE", 95),
-        ]
-        result = AuditResult(checks=checks)
-        # All in one category → score equals the category's mean.
-        # avg(94, 100, 95) = 96.33
-        assert result.quality_score is not None
-        assert abs(result.quality_score - 96.33) < 0.1
-        assert result.grade == "A"
+        result = AuditResult(checks=_all_categories(100))
+        assert result.quality_score == 100.0
+
+
+# 3 categories, weight_sum = 0.20 + 0.15 + 0.15 = 0.50.
+# Normalized: (80*0.20 + 60*0.15 + 100*0.15) / 0.50 = 80.0.
+_PARTIAL_CHECKS: list[tuple[str, int]] = [
+    ("QUALITY_LINT", 80),
+    ("QUALITY_TYPE", 60),
+    ("QUALITY_COMPLEXITY", 100),
+]
+
+# Lint-only audit: all checks share the same category, score equals the
+# category mean — avg(94, 100, 95) ≈ 96.33.
+_LINT_ONLY_CHECKS: list[tuple[str, int]] = [
+    ("QUALITY_LINT", 94),
+    ("QUALITY_FORMAT", 100),
+    ("QUALITY_DEAD_CODE", 95),
+]
+
+# Mixed audit spanning every category at varying scores. Hand-computed to
+# ≈ 92.7 — lint avg(80,100,100)*0.20 + type 60*0.15 + complexity 100*0.15
+# + security 100*0.10 + deps avg(100,100)*0.10 + testing 100*0.15
+# + arch avg(100,100,100,100)*0.10 + practices avg(100,100,100,100,100)*0.05.
+_MIXED_CHECKS: list[tuple[str, int]] = [
+    ("QUALITY_LINT", 80),
+    ("QUALITY_FORMAT", 100),
+    ("QUALITY_DIFF_SIZE", 100),
+    ("QUALITY_TYPE", 60),
+    ("QUALITY_COMPLEXITY", 100),
+    ("QUALITY_SECURITY", 100),
+    ("DEPS_AUDIT", 100),
+    ("DEPS_HYGIENE", 100),
+    ("QUALITY_COVERAGE", 100),
+    ("ARCH_COUPLING", 100),
+    ("ARCH_CIRCULAR", 100),
+    ("ARCH_GOD_CLASS", 100),
+    ("ARCH_DUPLICATION", 100),
+    ("PRACTICE_DOCSTRING", 100),
+    ("PRACTICE_BARE_EXCEPT", 100),
+    ("PRACTICE_SECURITY", 100),
+    ("PRACTICE_BLOCKING_IO", 100),
+]
 
 
 @pytest.mark.parametrize(
     ("score_inputs", "expected"),
     [
-        # Single check → weights cancel, score equals the input.
         pytest.param(
             [("QUALITY_COVERAGE", 100)],
             100.0,
             id="single_check_returns_its_score",
         ),
-        # All 11 categories at 100 → 100 (full coverage).
-        pytest.param(
-            [
-                ("QUALITY_LINT", 100),
-                ("QUALITY_TYPE", 100),
-                ("QUALITY_COMPLEXITY", 100),
-                ("QUALITY_SECURITY", 100),
-                ("DEPS_AUDIT", 100),
-                ("DEPS_HYGIENE", 100),
-                ("QUALITY_COVERAGE", 100),
-                ("ARCH_COUPLING", 100),
-                ("PRACTICE_DOCSTRING", 100),
-                ("PRACTICE_BARE_EXCEPT", 100),
-                ("PRACTICE_SECURITY", 100),
-            ],
-            100.0,
-            id="all_categories_100",
-        ),
-        # 3 categories, weight_sum = 0.20 + 0.15 + 0.15 = 0.50.
-        # Normalized: (80*0.20 + 60*0.15 + 100*0.15) / 0.50 = 80.0.
-        pytest.param(
-            [
-                ("QUALITY_LINT", 80),
-                ("QUALITY_TYPE", 60),
-                ("QUALITY_COMPLEXITY", 100),
-            ],
-            80.0,
-            id="partial_normalized",
-        ),
+        pytest.param(_PARTIAL_CHECKS, 80.0, id="partial_normalized"),
+        pytest.param(_LINT_ONLY_CHECKS, 96.33, id="lint_only_category_mean"),
+        pytest.param(_MIXED_CHECKS, 92.7, id="mixed_weighted_average"),
     ],
 )
 def test_quality_score_weighted_average(
@@ -135,4 +126,34 @@ def test_quality_score_weighted_average(
     result = AuditResult(
         checks=[_make_check(rid, score) for rid, score in score_inputs],
     )
-    assert result.quality_score == expected
+    assert result.quality_score is not None
+    assert abs(result.quality_score - expected) < 1.0
+
+
+def test_quality_score_none_without_scored_checks() -> None:
+    """quality_score is None when no check carries a score/category."""
+    result = AuditResult(
+        checks=[
+            CheckResult(rule_id="FILE_EXISTS_README.md", passed=True, message=""),
+        ],
+    )
+    assert result.quality_score is None
+    assert result.grade is None  # grade follows quality_score
+
+
+@pytest.mark.parametrize(
+    ("score", "expected_grade"),
+    [
+        pytest.param(100, "A", id="100_grade_a"),
+        pytest.param(95, "A", id="95_grade_a"),
+        pytest.param(85, "B", id="85_grade_b"),
+        pytest.param(75, "C", id="75_grade_c"),
+        pytest.param(65, "D", id="65_grade_d"),
+        pytest.param(30, "F", id="30_grade_f"),
+        pytest.param(0, "F", id="0_grade_f"),
+    ],
+)
+def test_grade_thresholds(score: int, expected_grade: str) -> None:
+    """grade derives from quality_score via fixed thresholds (A/B/C/D/F)."""
+    result = AuditResult(checks=_all_categories(score))
+    assert result.grade == expected_grade

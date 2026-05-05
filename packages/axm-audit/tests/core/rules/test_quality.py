@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
-    from axm_audit.models.results import CheckResult
-
 
 class TestLintingRule:
     """Tests for LintingRule (ruff integration)."""
@@ -409,73 +407,6 @@ class TestTypeCheckRule:
         assert result.details["issue_count"] > 0
         assert result.score is not None
         assert result.score >= 90
-
-
-class TestAuditResultScoring:
-    """Tests for AuditResult quality_score and grade (8-category model)."""
-
-    def _make_check(self, rule_id: str, score: float) -> CheckResult:
-        """Helper to create a CheckResult with a score and category."""
-        from _registry_helpers import build_rule_category_map
-
-        from axm_audit.models.results import CheckResult
-
-        category_map = build_rule_category_map()
-        return CheckResult(
-            rule_id=rule_id,
-            passed=True,
-            message="",
-            score=int(score),
-            category=category_map.get(rule_id),
-        )
-
-    def test_quality_score_none_without_quality_checks(self) -> None:
-        """quality_score is None if no quality checks present."""
-        from axm_audit.models.results import AuditResult, CheckResult
-
-        result = AuditResult(
-            checks=[
-                CheckResult(rule_id="FILE_EXISTS_README.md", passed=True, message=""),
-            ]
-        )
-        assert result.quality_score is None
-
-    def test_grade_thresholds(self) -> None:
-        """Grade boundaries: A>=90, B>=80, C>=70, D>=60, F<60."""
-        from axm_audit.models.results import AuditResult
-
-        def make_result(score: float) -> AuditResult:
-            # Provide all 8 categories so score = input score
-            return AuditResult(
-                checks=[
-                    self._make_check("QUALITY_LINT", score),
-                    self._make_check("QUALITY_TYPE", score),
-                    self._make_check("QUALITY_COMPLEXITY", score),
-                    self._make_check("QUALITY_SECURITY", score),
-                    self._make_check("DEPS_AUDIT", score),
-                    self._make_check("DEPS_HYGIENE", score),
-                    self._make_check("QUALITY_COVERAGE", score),
-                    self._make_check("ARCH_COUPLING", score),
-                    self._make_check("PRACTICE_DOCSTRING", score),
-                ]
-            )
-
-        assert make_result(95).grade == "A"
-        assert make_result(85).grade == "B"
-        assert make_result(75).grade == "C"
-        assert make_result(65).grade == "D"
-        assert make_result(50).grade == "F"
-
-    def test_grade_none_without_quality_score(self) -> None:
-        """grade is None if quality_score is None."""
-        from axm_audit.models.results import AuditResult, CheckResult
-
-        result = AuditResult(
-            checks=[
-                CheckResult(rule_id="FILE_EXISTS_README.md", passed=True, message=""),
-            ]
-        )
-        assert result.grade is None
 
 
 class TestDiffSizeRule:
