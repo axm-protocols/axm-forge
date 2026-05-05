@@ -103,21 +103,24 @@ class TestDetailsUnchanged:
 class TestFormatReportIndentation:
     def test_detail_lines_indented(self, lint_result):
         """Report output has indented detail lines (5-space prefix)."""
-        from axm_audit.formatters import _format_check_details
+        from axm_audit.formatters import format_report
+        from axm_audit.models import AuditResult
 
-        detail_lines = _format_check_details(lint_result)
-        for line in detail_lines:
+        report = format_report(AuditResult(checks=[lint_result]))
+        bullet_lines = [ln for ln in report.splitlines() if "\u2022" in ln]
+        assert bullet_lines, "expected at least one bullet detail line"
+        for line in bullet_lines:
             assert line.startswith("     "), f"Missing 5-space indent: {line!r}"
 
 
 class TestFormatReportAlignmentUnchanged:
     def test_visual_structure(self, lint_result):
         """Failures section maintains visual alignment."""
-        from axm_audit.formatters import _format_failures
+        from axm_audit.formatters import format_report
         from axm_audit.models import AuditResult
 
-        audit = AuditResult(checks=[lint_result])
-        lines = _format_failures(audit)
+        report = format_report(AuditResult(checks=[lint_result]))
+        lines = report.splitlines()
         # Should have failure header, rule_id, problem, detail lines, fix hint
         assert any("\u274c" in line for line in lines)
         assert any("Problem:" in line for line in lines)
@@ -187,9 +190,9 @@ class TestTwentyIssuesCap:
 
 class TestOtherRulesTextRendering:
     def test_format_check_details_adds_indent(self):
-        """_format_check_details adds indent to any rule's text."""
-        from axm_audit.formatters import _format_check_details
-        from axm_audit.models import CheckResult, Severity
+        """Rendered failure details from check.text are 5-space indented."""
+        from axm_audit.formatters import format_report
+        from axm_audit.models import AuditResult, CheckResult, Severity
 
         check = CheckResult(
             rule_id="OTHER_RULE",
@@ -199,6 +202,7 @@ class TestOtherRulesTextRendering:
             details={},
             text="line one\nline two",
         )
-        lines = _format_check_details(check)
-        for line in lines:
-            assert line.startswith("     "), f"Missing indent: {line!r}"
+        report = format_report(AuditResult(checks=[check]))
+        # Each text line should appear indented in the failure section.
+        assert "     line one" in report
+        assert "     line two" in report
