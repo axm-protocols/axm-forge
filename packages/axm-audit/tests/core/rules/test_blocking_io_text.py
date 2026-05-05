@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 
 
@@ -26,29 +28,30 @@ class TestBlockingIOTextRendering:
         result = rule.check(tmp_path)
         assert result.text is None
 
-    def test_text_bullets_sleep_in_async(self, tmp_path: Path) -> None:
-        """time.sleep in async def produces bullet line."""
-        _write_file(
-            tmp_path,
-            "src/bad.py",
-            "import time\n\nasync def f():\n    time.sleep(1)\n",
-        )
+    @pytest.mark.parametrize(
+        ("source", "expected_bullet"),
+        [
+            pytest.param(
+                "import time\n\nasync def f():\n    time.sleep(1)\n",
+                "\u2022 bad.py:4: time.sleep in async",
+                id="sleep_in_async",
+            ),
+            pytest.param(
+                "import requests\n\ndef f():\n    requests.get('http://example.com')\n",
+                "\u2022 bad.py:4: HTTP call without timeout",
+                id="http_no_timeout",
+            ),
+        ],
+    )
+    def test_text_bullets_violation(
+        self, tmp_path: Path, source: str, expected_bullet: str
+    ) -> None:
+        """Each violation kind produces its expected bullet line."""
+        _write_file(tmp_path, "src/bad.py", source)
         rule = BlockingIORule()
         result = rule.check(tmp_path)
         assert result.text is not None
-        assert "\u2022 bad.py:4: time.sleep in async" in result.text
-
-    def test_text_bullets_no_timeout(self, tmp_path: Path) -> None:
-        """HTTP call without timeout produces bullet line."""
-        _write_file(
-            tmp_path,
-            "src/bad.py",
-            "import requests\n\ndef f():\n    requests.get('http://example.com')\n",
-        )
-        rule = BlockingIORule()
-        result = rule.check(tmp_path)
-        assert result.text is not None
-        assert "\u2022 bad.py:4: HTTP call without timeout" in result.text
+        assert expected_bullet in result.text
 
     def test_text_multiple_violations(self, tmp_path: Path) -> None:
         """Multiple violations produce multiple bullet lines."""
