@@ -117,31 +117,24 @@ class ASTCache:
 
 # ── Module-level cache accessor ──────────────────────────────────────
 
-_ACTIVE_CACHE: ContextVar[ASTCache | None] = ContextVar("axm_audit_ast_cache")
-
-_broadcast_cache: ASTCache | None = None
+_ACTIVE_CACHE: ContextVar[ASTCache | None] = ContextVar(
+    "axm_audit_ast_cache", default=None
+)
 
 
 def set_ast_cache(cache: ASTCache | None) -> Token[ASTCache | None]:
     """Bind *cache* to the current context and return the reset token."""
-    global _broadcast_cache
-    _broadcast_cache = cache
     return _ACTIVE_CACHE.set(cache)
 
 
 def reset_ast_cache(token: Token[ASTCache | None]) -> None:
     """Reset the active cache using a token from :func:`set_ast_cache`."""
-    global _broadcast_cache
     _ACTIVE_CACHE.reset(token)
-    _broadcast_cache = None
 
 
 def get_ast_cache() -> ASTCache | None:
     """Return the active ``ASTCache``, or ``None`` outside audits."""
-    try:
-        return _ACTIVE_CACHE.get()
-    except LookupError:
-        return _broadcast_cache
+    return _ACTIVE_CACHE.get()
 
 
 get_active_cache = get_ast_cache

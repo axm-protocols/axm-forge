@@ -96,18 +96,32 @@ class TestASTCacheAccessors:
         assert get_ast_cache() is None
 
     def test_ast_cache_shared_across_threads(self) -> None:
-        """get_ast_cache() returns the same instance in worker threads (AC1)."""
-        from axm_audit.core.rules._helpers import ASTCache, get_ast_cache, set_ast_cache
+        """get_ast_cache() returns the same instance in worker threads (AC1).
+
+        Worker threads must use copy_context().run to inherit the ContextVar
+        value from the parent context.
+        """
+        import contextvars
+
+        from axm_audit.core.rules._helpers import (
+            ASTCache,
+            get_ast_cache,
+            reset_ast_cache,
+            set_ast_cache,
+        )
 
         cache = ASTCache()
-        set_ast_cache(cache)
+        token = set_ast_cache(cache)
         try:
             results: list[ASTCache | None] = []
 
             def worker() -> None:
                 results.append(get_ast_cache())
 
-            threads = [threading.Thread(target=worker) for _ in range(2)]
+            threads = [
+                threading.Thread(target=contextvars.copy_context().run, args=(worker,))
+                for _ in range(2)
+            ]
             for t in threads:
                 t.start()
             for t in threads:
@@ -116,7 +130,7 @@ class TestASTCacheAccessors:
             assert len(results) == 2
             assert all(r is cache for r in results)
         finally:
-            set_ast_cache(None)
+            reset_ast_cache(token)
 
     def test_ast_cache_parse_count(self, tmp_path: Path) -> None:
         """Same file parsed from 3 threads → exactly 1 cache entry (AC2)."""

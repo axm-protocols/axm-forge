@@ -10,6 +10,7 @@ Rule discovery is automatic: every rule decorated with
 from __future__ import annotations
 
 import concurrent.futures
+import contextvars
 import logging
 import traceback as _traceback
 from pathlib import Path
@@ -155,16 +156,14 @@ def audit_project(
     cache = ASTCache()
     token = set_ast_cache(cache)
     try:
-
-        def _run_rule(rule: ProjectRule) -> CheckResult:
-            t = set_ast_cache(cache)
-            try:
-                return _safe_check(rule, project_path)
-            finally:
-                reset_ast_cache(t)
-
         with concurrent.futures.ThreadPoolExecutor() as pool:
-            checks = list(pool.map(_run_rule, rules))
+            futures = [
+                pool.submit(
+                    contextvars.copy_context().run, _safe_check, rule, project_path
+                )
+                for rule in rules
+            ]
+            checks = [f.result() for f in futures]
     finally:
         reset_ast_cache(token)
 
