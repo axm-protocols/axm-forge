@@ -49,12 +49,6 @@ def test_audit_result_score_combines_categories_within_bounds() -> None:
     assert 60.0 <= result.quality_score <= 90.0
 
 
-def test_audit_result_score_returns_none_with_no_scored_checks() -> None:
-    result = AuditResult(checks=[])
-    assert result.quality_score is None
-    assert result.grade is None
-
-
 def test_audit_result_score_normalizes_partial_categories() -> None:
     """A single-category audit is not penalized for missing categories."""
     checks = [_check("lint_a", "lint", 90)]

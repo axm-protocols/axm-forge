@@ -130,15 +130,23 @@ def test_quality_score_weighted_average(
     assert abs(result.quality_score - expected) < 1.0
 
 
-def test_quality_score_none_without_scored_checks() -> None:
-    """quality_score is None when no check carries a score/category."""
-    result = AuditResult(
-        checks=[
-            CheckResult(rule_id="FILE_EXISTS_README.md", passed=True, message=""),
-        ],
-    )
+@pytest.mark.parametrize(
+    "checks",
+    [
+        pytest.param([], id="no_checks"),
+        pytest.param(
+            [CheckResult(rule_id="FILE_EXISTS_README.md", passed=True, message="")],
+            id="check_without_category_or_score",
+        ),
+    ],
+)
+def test_quality_score_none_without_scored_checks(
+    checks: list[CheckResult],
+) -> None:
+    """quality_score (and grade) is None when no check carries a score/category."""
+    result = AuditResult(checks=checks)
     assert result.quality_score is None
-    assert result.grade is None  # grade follows quality_score
+    assert result.grade is None
 
 
 @pytest.mark.parametrize(
