@@ -84,21 +84,26 @@ def testis_stub_body(source: str, expected: bool) -> None:
 # ---------------------------------------------------------------------------
 
 
-class TestIsAbstractStubEdgeCases:
-    """Edge cases for is_abstract_stub after refactoring."""
-
-    def test_abstract_with_real_body_not_stub(self) -> None:
-        """@abstractmethod with implementation is NOT a stub."""
-        node = _parse_func("""
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(
+            """
             @abstractmethod
             def foo(self):
                 return 42
-        """)
-        assert DocstringCoverageRule.is_abstract_stub(node) is False
-
-    def test_non_abstract_ellipsis_not_stub(self) -> None:
-        """Protocol-style method with ... but no @abstractmethod is NOT a stub."""
-        node = _parse_func("""
+            """,
+            id="abstract_with_real_body",
+        ),
+        pytest.param(
+            """
             def foo(self): ...
-        """)
-        assert DocstringCoverageRule.is_abstract_stub(node) is False
+            """,
+            id="non_abstract_ellipsis",
+        ),
+    ],
+)
+def test_is_abstract_stub_edge_cases_not_stub(source: str) -> None:
+    """False unless BOTH @abstractmethod AND a stub body are present."""
+    node = _parse_func(source)
+    assert DocstringCoverageRule.is_abstract_stub(node) is False
