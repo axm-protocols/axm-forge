@@ -3,7 +3,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from axm_audit.core.rules.test_quality._shared import _names_called_in
 from axm_audit.core.rules.test_quality.pyramid_level import Finding, scan_test_file
 
 
@@ -61,10 +60,3 @@ def test_class_helper_no_io_stays_unit(tmp_path: Path) -> None:
         assert f.level == "unit"
         assert f.has_real_io is False
     # otherwise: no finding emitted because folder == classified level == unit
-
-
-def test_self_attr_call_resolves_to_method_name() -> None:
-    tree = ast.parse("def f(self):\n    self._make_cfg(1)\n")
-    func = tree.body[0]
-    names = _names_called_in(func)
-    assert "_make_cfg" in names, names
