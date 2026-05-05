@@ -30,6 +30,7 @@ __all__ = [
     "_p5_rescues",
     "_p6_rescues",
     "_p7_rescues",
+    "render_clusters_text",
 ]
 
 
@@ -55,7 +56,7 @@ def _render_cluster_members(members: list[dict[str, Any]]) -> str:
     return ", ".join(f"{m.get('file', '')}::{m.get('name', '')}" for m in shown)
 
 
-def _render_clusters_text(clusters: list[dict[str, Any]]) -> str:
+def render_clusters_text(clusters: list[dict[str, Any]]) -> str:
     """Render top-N clusters (signal + ambiguous) as a compact bullet list."""
     ordered = sorted(
         clusters,
@@ -1170,7 +1171,7 @@ class DuplicateTestsRule(ProjectRule):
                 f"{len(clusters)} cluster(s), {n_clustered_pairs} clustered pair(s)"
             )
         slim = _slim_clusters(clusters)
-        text = _render_clusters_text(slim) if not passed else None
+        text = render_clusters_text(slim) if not passed else None
         fix_hint = (
             None
             if passed

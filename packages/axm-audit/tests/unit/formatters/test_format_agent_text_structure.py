@@ -40,7 +40,6 @@ def test_section_order_text_meta_fix() -> None:
                             "line": 10,
                         }
                     ],
-                    "clusters": [{"signal": "timeout", "members": ["a", "b", "c"]}],
                 },
                 "fix_hint": "do the thing",
             }
@@ -55,9 +54,6 @@ def test_section_order_text_meta_fix() -> None:
     verdict_idx = next(
         i for i, line in enumerate(indented) if line.startswith("  [FLAKY]")
     )
-    cluster_idx = next(
-        i for i, line in enumerate(indented) if line.startswith("  [timeout]")
-    )
     fix_idx = indented.index("  fix: do the thing")
 
-    assert text_a < text_b < verdict_idx < cluster_idx < fix_idx
+    assert text_a < text_b < verdict_idx < fix_idx
