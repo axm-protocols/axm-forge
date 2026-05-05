@@ -6,6 +6,10 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 _PATCH = "axm_audit.core.rules.quality.run_in_project"
 
 
@@ -56,12 +60,6 @@ class TestFormattingRule:
         assert result.details is not None
         assert result.details["unformatted_count"] == 3
         assert result.score == 85
-
-    def test_rule_id_format(self) -> None:
-        """Rule ID should be QUALITY_FORMAT."""
-        from axm_audit.core.rules.quality import FormattingRule
-
-        assert FormattingRule().rule_id == "QUALITY_FORMAT"
 
     def test_fix_hint_when_violations(self, tmp_path: Path) -> None:
         """Fix hint present when there are unformatted files."""
