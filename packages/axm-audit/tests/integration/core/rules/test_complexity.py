@@ -1,4 +1,4 @@
-"""Tests for ComplexityRule (radon integration)."""
+"""Integration tests for ComplexityRule (radon integration)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 
-class TestComplexityRule:
+class TestComplexityRuleIO:
     """Tests for ComplexityRule (radon integration)."""
 
     def test_simple_functions_high_score(self, tmp_path: Path) -> None:
@@ -71,13 +71,6 @@ def complex_fn(x: int, y: int, z: int) -> str:
         result = rule.check(tmp_path)
         assert result.details is not None
         assert result.details["high_complexity_count"] > 0
-
-    def test_rule_id_format(self) -> None:
-        """Rule ID should be QUALITY_COMPLEXITY."""
-        from axm_audit.core.rules.complexity import ComplexityRule
-
-        rule = ComplexityRule()
-        assert rule.rule_id == "QUALITY_COMPLEXITY"
 
     def test_complexity_rule_radon_in_project(self, tmp_path: Path) -> None:
         """When radon Python API is importable, use it directly."""
