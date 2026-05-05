@@ -753,6 +753,7 @@ def _p7_rescues(tests: list[_TestFunc]) -> bool:
 
 
 def _pair_key(a: _TestFunc, b: _TestFunc) -> tuple[str, str]:
+    """Return an order-independent identity key for a pair of test functions."""
     ka = f"{a.file}::{a.line}::{a.name}"
     kb = f"{b.file}::{b.line}::{b.name}"
     return (ka, kb) if ka < kb else (kb, ka)
@@ -763,6 +764,7 @@ def _test_key(t: _TestFunc) -> str:
 
 
 def _test_entry(t: _TestFunc) -> dict[str, Any]:
+    """Serialize a test function into the cluster payload shape."""
     return {"file": t.file, "name": t.name, "line": t.line, "call_sig": t.call_sig}
 
 
@@ -981,38 +983,50 @@ def _cluster_s3(
     return raw
 
 
+def _group_by_call_sig(tests: list[_TestFunc]) -> dict[str, list[_TestFunc]]:
+    by_sig: dict[str, list[_TestFunc]] = defaultdict(list)
+    for t in tests:
+        if t.call_sig:
+            by_sig[t.call_sig].append(t)
+    return by_sig
+
+
+def _new_pairs_for_group(
+    group: list[_TestFunc],
+    seen_pairs: set[tuple[str, str]],
+) -> list[tuple[str, str]]:
+    if len(group) < _MIN_PAIR:
+        return []
+    if len({t.has_raises_block for t in group}) < _MIN_PAIR:
+        return []
+    return [
+        _pair_key(a, b)
+        for a, b in combinations(group, 2)
+        if _pair_key(a, b) not in seen_pairs
+    ]
+
+
+def _build_cluster(sig: str, group: list[_TestFunc]) -> dict[str, Any]:
+    return {
+        "signal": "ambiguous_raises_divergence",
+        "reason": f"pytest.raises divergence rescue for SUT {sig}",
+        "similarity": 0.0,
+        "tests": [_test_entry(t) for t in group],
+    }
+
+
 def _cluster_raises_divergence(
     tests: list[_TestFunc],
     seen_pairs: set[tuple[str, str]],
 ) -> list[dict[str, Any]]:
     """Emit ambiguous clusters for tests sharing call_sig but divergent raises usage."""
-    by_sig: dict[str, list[_TestFunc]] = defaultdict(list)
-    for t in tests:
-        if t.call_sig:
-            by_sig[t.call_sig].append(t)
     raw: list[dict[str, Any]] = []
-    for sig, group in by_sig.items():
-        if len(group) < _MIN_PAIR:
+    for sig, group in _group_by_call_sig(tests).items():
+        pairs = _new_pairs_for_group(group, seen_pairs)
+        if not pairs:
             continue
-        if len({t.has_raises_block for t in group}) < _MIN_PAIR:
-            continue
-        new_pairs = [
-            _pair_key(a, b)
-            for a, b in combinations(group, 2)
-            if _pair_key(a, b) not in seen_pairs
-        ]
-        if not new_pairs:
-            continue
-        for pk in new_pairs:
-            seen_pairs.add(pk)
-        raw.append(
-            {
-                "signal": "ambiguous_raises_divergence",
-                "reason": f"pytest.raises divergence rescue for SUT {sig}",
-                "similarity": 0.0,
-                "tests": [_test_entry(t) for t in group],
-            }
-        )
+        seen_pairs.update(pairs)
+        raw.append(_build_cluster(sig, group))
     return raw
 
 
