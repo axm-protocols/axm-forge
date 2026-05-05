@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 
 def _make_pkg(tmp_path: Path, pkg_name: str = "pkg") -> Path:
     """Create a minimal package under tmp_path/src for src_path detection."""
@@ -246,23 +248,23 @@ class TestOrchestratorBonusThreshold:
 class TestReadCouplingConfigOrchestratorBonus:
     """Verify orchestrator_bonus is parsed from pyproject.toml."""
 
-    def test_read_coupling_config_orchestrator_bonus(self, tmp_path: Path) -> None:
-        """orchestrator_bonus = 8 in pyproject.toml → config returns 8."""
+    @pytest.mark.parametrize(
+        ("extra_lines", "expected_bonus"),
+        [
+            pytest.param("orchestrator_bonus = 8\n", 8, id="explicit_value"),
+            pytest.param("orchestrator_bonus = 0\n", 0, id="explicit_zero"),
+            pytest.param("", 5, id="missing_uses_default"),
+        ],
+    )
+    def test_read_coupling_config_orchestrator_bonus(
+        self, tmp_path: Path, extra_lines: str, expected_bonus: int
+    ) -> None:
+        """orchestrator_bonus is parsed from pyproject, defaults to 5 when missing."""
         from axm_audit.core.rules.architecture.coupling import read_coupling_config
 
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text(
-            "[tool.axm-audit.coupling]\nthreshold = 10\norchestrator_bonus = 8\n"
+            f"[tool.axm-audit.coupling]\nthreshold = 10\n{extra_lines}"
         )
-        threshold, _, bonus, _ = read_coupling_config(tmp_path)
-        assert threshold == 10
-        assert bonus == 8
-
-    def test_read_coupling_config_default_bonus(self, tmp_path: Path) -> None:
-        """Missing orchestrator_bonus → default 5."""
-        from axm_audit.core.rules.architecture.coupling import read_coupling_config
-
-        pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text("[tool.axm-audit.coupling]\nthreshold = 10\n")
         _, _, bonus, _ = read_coupling_config(tmp_path)
-        assert bonus == 5
+        assert bonus == expected_bonus
