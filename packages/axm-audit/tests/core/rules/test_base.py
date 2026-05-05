@@ -19,11 +19,13 @@ class TestProjectRule:
         with pytest.raises(TypeError):
             ProjectRule()  # type: ignore[abstract]
 
-    def test_has_rule_id_property(self) -> None:
-        """ProjectRule declares abstract rule_id property."""
+    @pytest.mark.parametrize("attr_name", ["rule_id", "check"])
+    def test_declares_abstract_attribute(self, attr_name: str) -> None:
+        """ProjectRule declares the abstract surface (rule_id, check)."""
         from axm_audit.core.rules.base import ProjectRule
 
-        assert hasattr(ProjectRule, "rule_id")
+        assert hasattr(ProjectRule, attr_name)
+        assert attr_name in ProjectRule.__abstractmethods__
 
     def test_has_category_property(self) -> None:
         """category is concrete, auto-injected by @register_rule."""
@@ -32,12 +34,6 @@ class TestProjectRule:
         assert hasattr(ProjectRule, "category")
         # category is no longer abstract — it reads from _registered_category
         assert "category" not in ProjectRule.__abstractmethods__
-
-    def test_has_check_method(self) -> None:
-        """ProjectRule declares abstract check method."""
-        from axm_audit.core.rules.base import ProjectRule
-
-        assert hasattr(ProjectRule, "check")
 
     def test_check_src_returns_none_when_exists(self, tmp_path: Path) -> None:
         """check_src returns None when src/ exists (rule should continue)."""
