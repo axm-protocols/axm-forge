@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from axm_audit.core.test_runner import (
     FailureDetail,
     build_pytest_cmd,
@@ -209,15 +211,21 @@ class TestParseJsonReport:
         result = parse_json_report(report_file)
         assert result["summary"]["passed"] == 42
 
-    def test_invalid_json(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "content",
+        [
+            pytest.param("not json", id="invalid_json"),
+            pytest.param(None, id="missing_file"),
+        ],
+    )
+    def test_degraded_input_returns_empty_dict(
+        self, tmp_path: Path, content: str | None
+    ) -> None:
+        """Invalid JSON or missing file both return an empty dict."""
         report_file = tmp_path / "report.json"
-        report_file.write_text("not json")
-        result = parse_json_report(report_file)
-        assert result == {}
-
-    def test_missing_file(self, tmp_path: Path) -> None:
-        result = parse_json_report(tmp_path / "nonexistent.json")
-        assert result == {}
+        if content is not None:
+            report_file.write_text(content)
+        assert parse_json_report(report_file) == {}
 
 
 # ---------------------------------------------------------------------------
@@ -233,14 +241,20 @@ class TestParseCoverage:
         assert total == 91.5
         assert per_file["src/pkg/core.py"] == 95.0
 
-    def test_missing_file(self, tmp_path: Path) -> None:
-        total, per_file = parse_coverage(tmp_path / "nonexistent.json")
-        assert total is None
-        assert per_file == {}
-
-    def test_invalid_json(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "content",
+        [
+            pytest.param(None, id="missing_file"),
+            pytest.param("bad", id="invalid_json"),
+        ],
+    )
+    def test_degraded_input_returns_none_total(
+        self, tmp_path: Path, content: str | None
+    ) -> None:
+        """Missing file or invalid JSON both yield (None, {})."""
         cov_file = tmp_path / "cov.json"
-        cov_file.write_text("bad")
+        if content is not None:
+            cov_file.write_text(content)
         total, per_file = parse_coverage(cov_file)
         assert total is None
         assert per_file == {}
