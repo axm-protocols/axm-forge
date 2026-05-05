@@ -136,7 +136,7 @@ _OPTIONAL_FIELDS = ("classifiers", "readme")
 _TOTAL_FIELDS = 9  # required(5) + version + urls + optional(2)
 
 
-def _check_fields(project: dict[str, Any]) -> tuple[int, list[str]]:
+def check_fields(project: dict[str, Any]) -> tuple[int, list[str]]:
     """Check present PEP 621 fields in project table.
 
     Returns (present_count, missing_field_names).
@@ -315,7 +315,7 @@ class PyprojectCompletenessRule(ProjectRule):
                 fix_hint="Fix pyproject.toml syntax",
             )
 
-        present, missing = _check_fields(data.get("project", {}))
+        present, missing = check_fields(data.get("project", {}))
         score = int((present / _TOTAL_FIELDS) * 100)
 
         return CheckResult(

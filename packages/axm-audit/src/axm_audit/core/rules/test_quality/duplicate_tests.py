@@ -23,7 +23,6 @@ __all__ = [
     "DuplicateTestsCheckResult",
     "DuplicateTestsRule",
     "_jaccard_similarity",
-    "_merge_clusters",
     "_p1_rescues",
     "_p2_rescues",
     "_p3_rescues",
@@ -918,7 +917,7 @@ def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
     raw.extend(_cluster_s2(tests, seen_pairs))
     raw.extend(_cluster_s1(tests, seen_pairs))
     raw.extend(_cluster_s3(tests, threshold, seen_pairs))
-    return _merge_clusters(raw)
+    return merge_clusters(raw)
 
 
 def _build_union_find(
@@ -991,7 +990,7 @@ def _aggregate_group(
     return tests_by_key, reasons, signals, max_sim
 
 
-def _merge_clusters(clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def merge_clusters(clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Union-find merge; ambiguous sub-clusters dominate the merged signal."""
     if not clusters:
         return []

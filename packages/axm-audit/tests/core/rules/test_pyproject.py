@@ -8,7 +8,7 @@ import pytest
 
 from axm_audit.core.rules.structure import (
     PyprojectCompletenessRule,
-    _check_fields,
+    check_fields,
 )
 
 
@@ -212,16 +212,16 @@ class TestMissingAndText:
 
 
 # ---------------------------------------------------------------------------
-# Functional tests — _check_fields
+# Functional tests — check_fields
 # ---------------------------------------------------------------------------
 
 
 class TestCheckFields:
-    """Tests for the _check_fields helper."""
+    """Tests for the check_fields helper."""
 
     def test_check_fields_returns_tuple(self) -> None:
-        """_check_fields({\"name\": \"x\"}) returns (1, [8 missing])."""
-        present, missing = _check_fields({"name": "x"})
+        """check_fields({\"name\": \"x\"}) returns (1, [8 missing])."""
+        present, missing = check_fields({"name": "x"})
         assert present == 1
         assert "description" in missing
         assert "requires-python" in missing
@@ -234,7 +234,7 @@ class TestCheckFields:
 
     def test_check_fields_dynamic_version(self) -> None:
         """dynamic=[\"version\"] → version not in missing."""
-        _present, missing = _check_fields({"name": "x", "dynamic": ["version"]})
+        _present, missing = check_fields({"name": "x", "dynamic": ["version"]})
         assert "version" not in missing
 
 
@@ -244,21 +244,21 @@ class TestCheckFields:
 
 
 class TestEdgeCases:
-    """Edge-case scenarios for _check_fields."""
+    """Edge-case scenarios for check_fields."""
 
     def test_empty_project_table(self) -> None:
         """Empty project table → 0 present, 9 missing."""
-        present, missing = _check_fields({})
+        present, missing = check_fields({})
         assert present == 0
         assert len(missing) == 9
 
     def test_dynamic_version_only(self) -> None:
         """dynamic=[\"version\"] but no static version → version present."""
-        present, missing = _check_fields({"dynamic": ["version"]})
+        present, missing = check_fields({"dynamic": ["version"]})
         assert "version" not in missing
         assert present == 1
 
     def test_urls_present_but_empty(self) -> None:
         """Empty urls dict is falsy → urls counted as missing."""
-        _present, missing = _check_fields({"name": "x", "urls": {}})
+        _present, missing = check_fields({"name": "x", "urls": {}})
         assert "urls" in missing
