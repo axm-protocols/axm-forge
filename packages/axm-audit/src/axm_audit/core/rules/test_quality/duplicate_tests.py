@@ -1001,9 +1001,13 @@ def _pairs_in_cluster(n: int) -> int:
     return n * (n - 1) // 2
 
 
-def _buckets(
+_REASON_MAX_LEN = 200
+
+
+def _bucket_counts(
     tests: list[_TestFunc], clusters: list[dict[str, Any]]
-) -> dict[str, list[dict[str, Any]]]:
+) -> dict[str, int]:
+    """Aggregate test classification counts (CLUSTERED/AMBIGUOUS/UNIQUE)."""
     clustered_keys: set[tuple[str, str]] = set()
     ambiguous_keys: set[tuple[str, str]] = set()
     for cluster in clusters:
@@ -1015,21 +1019,46 @@ def _buckets(
             else:
                 clustered_keys.add(key)
 
-    out: dict[str, list[dict[str, Any]]] = {
-        "CLUSTERED": [],
-        "AMBIGUOUS": [],
-        "UNIQUE": [],
-    }
+    counts = {"CLUSTERED": 0, "AMBIGUOUS": 0, "UNIQUE": 0}
     for t in tests:
         key = (t.file, t.name)
-        entry = {"file": t.file, "name": t.name, "line": t.line}
         if key in clustered_keys:
-            out["CLUSTERED"].append(entry)
+            counts["CLUSTERED"] += 1
         elif key in ambiguous_keys:
-            out["AMBIGUOUS"].append(entry)
+            counts["AMBIGUOUS"] += 1
         else:
-            out["UNIQUE"].append(entry)
-    return out
+            counts["UNIQUE"] += 1
+    return counts
+
+
+def _slim_clusters(clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Project clusters to the minimal payload exposed via metadata.
+
+    Drops ``call_sig`` from each member and truncates ``reason`` to
+    ``_REASON_MAX_LEN`` chars to keep the metadata payload bounded for
+    MCP transport.
+    """
+    slim: list[dict[str, Any]] = []
+    for cluster in clusters:
+        reason = cluster.get("reason") or ""
+        if len(reason) > _REASON_MAX_LEN:
+            reason = reason[:_REASON_MAX_LEN]
+        slim.append(
+            {
+                "signal": cluster.get("signal", ""),
+                "reason": reason,
+                "similarity": cluster.get("similarity", 0.0),
+                "members": [
+                    {
+                        "file": t.get("file", ""),
+                        "name": t.get("name", ""),
+                        "line": t.get("line", 0),
+                    }
+                    for t in cluster.get("tests", [])
+                ],
+            }
+        )
+    return slim
 
 
 # ── Collection ────────────────────────────────────────────────────────
@@ -1089,12 +1118,12 @@ class DuplicateTestsRule(ProjectRule):
                 score=100,
                 metadata={
                     "clusters": [],
-                    "buckets": {"CLUSTERED": [], "AMBIGUOUS": [], "UNIQUE": []},
+                    "bucket_counts": {"CLUSTERED": 0, "AMBIGUOUS": 0, "UNIQUE": 0},
                 },
             )
 
         clusters = _cluster(tests, self.ast_similarity_threshold)
-        buckets = _buckets(tests, clusters)
+        bucket_counts = _bucket_counts(tests, clusters)
         n_clustered_pairs = sum(
             _pairs_in_cluster(len(c["tests"]))
             for c in clusters
@@ -1114,5 +1143,8 @@ class DuplicateTestsRule(ProjectRule):
             message=message,
             severity=Severity.WARNING,
             score=score,
-            metadata={"clusters": clusters, "buckets": buckets},
+            metadata={
+                "clusters": _slim_clusters(clusters),
+                "bucket_counts": bucket_counts,
+            },
         )
