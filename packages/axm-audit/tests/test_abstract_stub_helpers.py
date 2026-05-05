@@ -3,6 +3,8 @@ from __future__ import annotations
 import ast
 import textwrap
 
+import pytest
+
 from axm_audit.core.rules.practices.docstring_coverage import DocstringCoverageRule
 
 
@@ -21,35 +23,36 @@ def _parse_func(source: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
 # ---------------------------------------------------------------------------
 
 
-class TestHasAbstractmethodDecorator:
-    """Tests for the extracted _has_abstractmethod_decorator helper."""
-
-    def test_bare_abstractmethod(self) -> None:
-        node = _parse_func("""
-            @abstractmethod
-            def foo(self): ...
-        """)
-        assert DocstringCoverageRule._has_abstractmethod_decorator(node) is True
-
-    def test_qualified_abc_abstractmethod(self) -> None:
-        node = _parse_func("""
-            @abc.abstractmethod
-            def foo(self): ...
-        """)
-        assert DocstringCoverageRule._has_abstractmethod_decorator(node) is True
-
-    def test_no_decorator(self) -> None:
-        node = _parse_func("""
-            def foo(self): ...
-        """)
-        assert DocstringCoverageRule._has_abstractmethod_decorator(node) is False
-
-    def test_other_decorator(self) -> None:
-        node = _parse_func("""
-            @staticmethod
-            def foo(): ...
-        """)
-        assert DocstringCoverageRule._has_abstractmethod_decorator(node) is False
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        pytest.param(
+            "@abstractmethod\ndef foo(self): ...",
+            True,
+            id="bare_abstractmethod",
+        ),
+        pytest.param(
+            "@abc.abstractmethod\ndef foo(self): ...",
+            True,
+            id="qualified_abc_abstractmethod",
+        ),
+        pytest.param(
+            "def foo(self): ...",
+            False,
+            id="no_decorator",
+        ),
+        pytest.param(
+            "@staticmethod\ndef foo(): ...",
+            False,
+            id="other_decorator",
+        ),
+    ],
+)
+def test_has_abstractmethod_decorator(source: str, expected: bool) -> None:
+    """_has_abstractmethod_decorator detects @abstractmethod."""
+    # Also detects @abc.abstractmethod (qualified form).
+    node = _parse_func(source)
+    assert DocstringCoverageRule._has_abstractmethod_decorator(node) is expected
 
 
 # ---------------------------------------------------------------------------
@@ -57,36 +60,23 @@ class TestHasAbstractmethodDecorator:
 # ---------------------------------------------------------------------------
 
 
-class TestIsStubBody:
-    """Tests for the extracted _is_stub_body helper."""
-
-    def test_ellipsis_body(self) -> None:
-        node = _parse_func("""
-            def foo(self): ...
-        """)
-        assert DocstringCoverageRule._is_stub_body(node) is True
-
-    def test_pass_body(self) -> None:
-        node = _parse_func("""
-            def foo(self):
-                pass
-        """)
-        assert DocstringCoverageRule._is_stub_body(node) is True
-
-    def test_real_body(self) -> None:
-        node = _parse_func("""
-            def foo(self):
-                return 42
-        """)
-        assert DocstringCoverageRule._is_stub_body(node) is False
-
-    def test_multi_statement_body(self) -> None:
-        node = _parse_func("""
-            def foo(self):
-                x = 1
-                return x
-        """)
-        assert DocstringCoverageRule._is_stub_body(node) is False
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        pytest.param("def foo(self): ...", True, id="ellipsis_body"),
+        pytest.param("def foo(self):\n    pass", True, id="pass_body"),
+        pytest.param("def foo(self):\n    return 42", False, id="real_body"),
+        pytest.param(
+            "def foo(self):\n    x = 1\n    return x",
+            False,
+            id="multi_statement_body",
+        ),
+    ],
+)
+def test_is_stub_body(source: str, expected: bool) -> None:
+    """_is_stub_body returns True only for `...` or `pass` single-statement bodies."""
+    node = _parse_func(source)
+    assert DocstringCoverageRule._is_stub_body(node) is expected
 
 
 # ---------------------------------------------------------------------------
