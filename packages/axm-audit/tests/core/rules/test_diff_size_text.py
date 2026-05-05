@@ -46,7 +46,7 @@ class TestDiffSizeText:
         _mock_subprocess(mocker, " 1 file changed, 50 insertions(+)\n")
         _mock_config(mocker)
         mocker.patch.object(rule, "_parse_stat", return_value=50)
-        mocker.patch.object(rule, "_compute_score", return_value=100)
+        mocker.patch.object(rule, "compute_score", return_value=100)
 
         result = rule._measure_diff(project_path)
 
@@ -59,7 +59,7 @@ class TestDiffSizeText:
         _mock_subprocess(mocker, " 10 files changed, 1100 insertions(+)\n")
         _mock_config(mocker, ideal=200)
         mocker.patch.object(rule, "_parse_stat", return_value=1100)
-        mocker.patch.object(rule, "_compute_score", return_value=0)
+        mocker.patch.object(rule, "compute_score", return_value=0)
 
         result = rule._measure_diff(project_path)
 
@@ -88,7 +88,7 @@ class TestDiffSizeTextEdgeCases:
         _mock_subprocess(mocker, " 5 files changed, 300 insertions(+)\n")
         _mock_config(mocker)
         mocker.patch.object(rule, "_parse_stat", return_value=300)
-        mocker.patch.object(rule, "_compute_score", return_value=90)
+        mocker.patch.object(rule, "compute_score", return_value=90)
 
         result = rule._measure_diff(project_path)
 
@@ -101,7 +101,7 @@ class TestDiffSizeTextEdgeCases:
         _mock_subprocess(mocker, " 5 files changed, 350 insertions(+)\n")
         _mock_config(mocker, ideal=200)
         mocker.patch.object(rule, "_parse_stat", return_value=350)
-        mocker.patch.object(rule, "_compute_score", return_value=89)
+        mocker.patch.object(rule, "compute_score", return_value=89)
 
         result = rule._measure_diff(project_path)
 
