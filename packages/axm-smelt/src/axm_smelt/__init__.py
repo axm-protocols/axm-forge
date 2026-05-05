@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from axm_smelt.core.counter import count
+from axm_smelt.core.counter import CounterBackend, count
 from axm_smelt.core.models import Format, SmeltReport
 from axm_smelt.core.pipeline import check, smelt
 
@@ -11,4 +11,12 @@ try:
 except Exception:  # noqa: BLE001
     __version__ = "0.0.0"
 
-__all__ = ["Format", "SmeltReport", "__version__", "check", "count", "smelt"]
+__all__ = [
+    "CounterBackend",
+    "Format",
+    "SmeltReport",
+    "__version__",
+    "check",
+    "count",
+    "smelt",
+]

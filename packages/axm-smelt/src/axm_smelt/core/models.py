@@ -10,6 +10,8 @@ from typing import Any, cast
 
 from pydantic import BaseModel
 
+from axm_smelt.core.counter import CounterBackend
+
 __all__ = ["Format", "SmeltContext", "SmeltReport"]
 
 
@@ -89,3 +91,4 @@ class SmeltReport(BaseModel):
     format: Format
     strategies_applied: list[str]
     strategy_estimates: dict[str, float] = {}
+    counter_backend: CounterBackend = CounterBackend.TIKTOKEN
