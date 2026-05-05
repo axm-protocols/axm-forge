@@ -709,3 +709,79 @@ class TestFormatAgentContext:
         result = ProjectResult.from_checks(tmp_path, checks, context="member")
         output = format_agent(result)
         assert output["context"] == "member"
+
+
+class TestMemberSkipsDocsAndDocsDeps:
+    """Member context skips docs/* and deps.docs_group checks (AXM-1651)."""
+
+    @pytest.fixture()
+    def member_path(self, tmp_path: Path) -> Path:
+        """Workspace root + bare member package."""
+        ws_root = tmp_path / "ws"
+        ws_root.mkdir()
+        (ws_root / "pyproject.toml").write_text(
+            '[project]\nname = "ws"\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+        )
+        member = ws_root / "packages" / "foo"
+        member.mkdir(parents=True)
+        (member / "pyproject.toml").write_text('[project]\nname = "foo"\n')
+        return member
+
+    def test_member_skips_skip_for_member(self, member_path: Path) -> None:
+        """Member result must not contain any SKIP_FOR_MEMBER check name."""
+        from axm_init.core.checker import SKIP_FOR_MEMBER
+
+        engine = CheckEngine(member_path)
+        assert engine.context == ProjectContext.MEMBER
+        result = engine.run()
+        check_names = {c.name for c in result.checks}
+        for skip_name in SKIP_FOR_MEMBER:
+            assert skip_name not in check_names, (
+                f"{skip_name} should be skipped for member"
+            )
+
+    def test_member_skip_does_not_skip_unrelated_check(self, member_path: Path) -> None:
+        """Docs-category checks not in SKIP_FOR_MEMBER still run for member."""
+        from axm_init.core.checker import SKIP_FOR_MEMBER
+
+        engine = CheckEngine(member_path)
+        result = engine.run()
+        docs_checks = {
+            c.name
+            for c in result.checks
+            if c.category == "docs" and c.name not in SKIP_FOR_MEMBER
+        }
+        assert docs_checks, (
+            "member should still run at least one docs check not in SKIP_FOR_MEMBER"
+        )
+
+    def test_standalone_runs_skip_for_member_checks(self, tmp_path: Path) -> None:
+        """Standalone projects must still run all SKIP_FOR_MEMBER checks."""
+        from axm_init.core.checker import SKIP_FOR_MEMBER
+
+        standalone = tmp_path / "solo"
+        standalone.mkdir()
+        (standalone / "pyproject.toml").write_text('[project]\nname = "solo"\n')
+
+        engine = CheckEngine(standalone)
+        assert engine.context == ProjectContext.STANDALONE
+        result = engine.run()
+        check_names = {c.name for c in result.checks}
+        for required in SKIP_FOR_MEMBER:
+            assert required in check_names, f"standalone must still run {required}"
+
+    def test_workspace_root_unchanged(self, gold_project: Path) -> None:
+        """Workspace root keeps diataxis_nav skip; other SKIP_FOR_MEMBER run."""
+        from axm_init.core.checker import SKIP_FOR_MEMBER, SKIP_FOR_WORKSPACE
+
+        pyproject = gold_project / "pyproject.toml"
+        content = pyproject.read_text()
+        content += '\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+        pyproject.write_text(content)
+
+        engine = CheckEngine(gold_project)
+        result = engine.run()
+        check_names = {c.name for c in result.checks}
+        assert "docs.diataxis_nav" not in check_names
+        for name in SKIP_FOR_MEMBER - SKIP_FOR_WORKSPACE - {"docs.diataxis_nav"}:
+            assert name in check_names, f"workspace root must still run {name}"

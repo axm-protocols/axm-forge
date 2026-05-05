@@ -6,8 +6,8 @@ import pytest
 
 from axm_init.checks.docs import (
     check_diataxis_nav,
-    check_docs_plugins,
     check_mkdocs_exists,
+    check_plugins,
 )
 
 MKDOCS_FULL = """
@@ -86,12 +86,12 @@ def test_diataxis_nav_workspace_fallback(workspace_member: Path) -> None:
     assert result.passed is True
 
 
-# --- Unit tests: check_docs_plugins ---
+# --- Unit tests: check_plugins ---
 
 
 def test_docs_plugins_workspace_fallback(workspace_member: Path) -> None:
     """Workspace member falls back to root mkdocs.yml for plugins check."""
-    result = check_docs_plugins(workspace_member)
+    result = check_plugins(workspace_member)
     assert result.passed is True
 
 

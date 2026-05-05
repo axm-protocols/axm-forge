@@ -48,7 +48,7 @@ def check_dev_deps(project: Path, data: dict[str, Any]) -> CheckResult:
     weight=2,
     fix="Create pyproject.toml with [dependency-groups] docs group.",
 )
-def check_docs_deps(project: Path, data: dict[str, Any]) -> CheckResult:
+def check_docs_group(project: Path, data: dict[str, Any]) -> CheckResult:
     """Check 30: docs deps include key packages."""
     docs = data.get("dependency-groups", {}).get("docs", [])
     docs_str = " ".join(str(d) for d in docs).lower()
