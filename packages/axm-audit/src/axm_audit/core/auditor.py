@@ -224,42 +224,43 @@ def _merge_check(
 ) -> CheckResult:
     """Merge two CheckResults for the same rule_id (worst-of-N policy)."""
     incoming_prefixed = _prefix_check(incoming, pkg_name)
-    passed = existing.passed and incoming_prefixed.passed
-
-    existing_score = existing.score
-    incoming_score = incoming_prefixed.score
-    new_score: int | None
-    if existing_score is None and incoming_score is None:
-        new_score = None
-    elif existing_score is None:
-        new_score = incoming_score
-    elif incoming_score is None:
-        new_score = existing_score
-    else:
-        new_score = min(existing_score, incoming_score)
-
-    text_parts = [t for t in (existing.text, incoming_prefixed.text) if t]
-    text = "\n".join(text_parts) if text_parts else None
-
-    details: dict[str, object] = {}
-    if existing.details:
-        details.update(existing.details)
-    if incoming_prefixed.details:
-        for key, value in incoming_prefixed.details.items():
-            details[key] = value
-
-    severity = _max_severity(existing.severity, incoming_prefixed.severity)
-
     return existing.model_copy(
         update={
-            "passed": passed,
-            "text": text,
-            "details": details or None,
-            "severity": severity,
+            "passed": existing.passed and incoming_prefixed.passed,
+            "text": _merge_text(existing.text, incoming_prefixed.text),
+            "details": _merge_details(existing.details, incoming_prefixed.details),
+            "severity": _max_severity(existing.severity, incoming_prefixed.severity),
             "message": existing.message,
-            "score": new_score,
+            "score": _merge_score(existing.score, incoming_prefixed.score),
         }
     )
+
+
+def _merge_score(a: int | None, b: int | None) -> int | None:
+    """Worst-of-N score: None if both None, else min of set values."""
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return min(a, b)
+
+
+def _merge_text(a: str | None, b: str | None) -> str | None:
+    """Join non-empty texts with newline; None if both empty."""
+    parts = [t for t in (a, b) if t]
+    return "\n".join(parts) if parts else None
+
+
+def _merge_details(
+    a: dict[str, object] | None, b: dict[str, object] | None
+) -> dict[str, object] | None:
+    """Shallow merge; incoming overrides existing. None if empty."""
+    merged: dict[str, object] = {}
+    if a:
+        merged.update(a)
+    if b:
+        merged.update(b)
+    return merged or None
 
 
 _SEVERITY_RANK = {Severity.INFO: 0, Severity.WARNING: 1, Severity.ERROR: 2}
