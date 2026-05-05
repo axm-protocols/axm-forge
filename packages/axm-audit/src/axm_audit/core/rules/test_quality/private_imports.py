@@ -525,6 +525,17 @@ def _class_has_member(info: ModuleInfo, class_name: str, member: str) -> bool:
     return False
 
 
+def _iter_class_assignments(class_node: ast.ClassDef) -> Iterator[str]:
+    """Yield assigned target names in *class_node* body (Assign + AnnAssign)."""
+    for stmt in class_node.body:
+        if isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name):
+                    yield target.id
+        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            yield stmt.target.id
+
+
 def _class_has_var(module_path: Path, class_name: str, name: str) -> bool:
     """True when *class_name* in *module_path* defines *name* via assignment."""
     try:
@@ -532,14 +543,7 @@ def _class_has_var(module_path: Path, class_name: str, name: str) -> bool:
     except (OSError, SyntaxError, UnicodeDecodeError):
         return False
     for node in ast.walk(tree):
-        if not isinstance(node, ast.ClassDef) or node.name != class_name:
-            continue
-        for stmt in node.body:
-            if isinstance(stmt, ast.Assign):
-                for target in stmt.targets:
-                    if isinstance(target, ast.Name) and target.id == name:
-                        return True
-            elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
-                if stmt.target.id == name:
-                    return True
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            if name in _iter_class_assignments(node):
+                return True
     return False
