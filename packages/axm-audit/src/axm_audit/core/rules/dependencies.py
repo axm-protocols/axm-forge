@@ -187,7 +187,7 @@ _FLAT_LAYOUT_EXCLUDES = {
 }
 
 
-def _has_deptry_config(project_path: Path) -> bool:
+def has_deptry_config(project_path: Path) -> bool:
     """Check if ``[tool.deptry] known_first_party`` is configured."""
     pyproject = project_path / "pyproject.toml"
     if not pyproject.exists():
@@ -202,7 +202,7 @@ def _has_deptry_config(project_path: Path) -> bool:
     return bool(data.get("tool", {}).get("deptry", {}).get("known_first_party"))
 
 
-def _detect_first_party_packages(project_path: Path) -> list[str]:
+def detect_first_party_packages(project_path: Path) -> list[str]:
     """Auto-detect first-party package names from project layout.
 
     Scans ``src/`` for top-level package directories (including namespace
@@ -212,7 +212,7 @@ def _detect_first_party_packages(project_path: Path) -> list[str]:
     Returns an empty list if ``[tool.deptry] known_first_party`` is already
     configured in ``pyproject.toml`` — deptry's own config takes precedence.
     """
-    if _has_deptry_config(project_path):
+    if has_deptry_config(project_path):
         return []
 
     src_dir = project_path / "src"
@@ -232,7 +232,7 @@ def _detect_first_party_packages(project_path: Path) -> list[str]:
     ]
 
 
-def _run_deptry(project_path: Path) -> list[dict[str, Any]]:
+def run_deptry(project_path: Path) -> list[dict[str, Any]]:
     """Run deptry and return parsed JSON issues.
 
     Raises:
@@ -244,7 +244,7 @@ def _run_deptry(project_path: Path) -> list[dict[str, Any]]:
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
         tmp_path = Path(tmp.name)
 
-    first_party = _detect_first_party_packages(project_path)
+    first_party = detect_first_party_packages(project_path)
     cmd = ["deptry", ".", "--json-output", str(tmp_path)]
     for pkg in first_party:
         cmd.extend(["--known-first-party", pkg])
@@ -369,7 +369,7 @@ def _format_issue(issue: dict[str, Any], member: str = "") -> dict[str, str]:
     return formatted
 
 
-def _resolve_workspace_members(project_path: Path) -> list[Path] | None:
+def resolve_workspace_members(project_path: Path) -> list[Path] | None:
     """Resolve workspace member paths from ``[tool.uv.workspace].members``.
 
     Returns ``None`` when the project is not a uv workspace.
@@ -412,7 +412,7 @@ class DependencyHygieneRule(ProjectRule):
 
     def check(self, project_path: Path) -> CheckResult:
         """Check dependency hygiene with deptry."""
-        members = _resolve_workspace_members(project_path)
+        members = resolve_workspace_members(project_path)
         if members is not None:
             return self._check_workspace(project_path, members)
         result = self._check_single(project_path)
@@ -422,14 +422,14 @@ class DependencyHygieneRule(ProjectRule):
     def _run_deptry_safely(
         self, project_path: Path, *, member_name: str = ""
     ) -> tuple[list[dict[str, Any]] | None, CheckResult | None]:
-        """Invoke ``_run_deptry`` and translate failures into a ``CheckResult``.
+        """Invoke ``run_deptry`` and translate failures into a ``CheckResult``.
 
         Returns ``(issues, None)`` on success and ``(None, error_result)`` on
         failure.  When *member_name* is set, non-missing failures are logged so
         workspace callers keep their existing diagnostics.
         """
         try:
-            return _run_deptry(project_path), None
+            return run_deptry(project_path), None
         except FileNotFoundError:
             return None, CheckResult(
                 rule_id=self.rule_id,
