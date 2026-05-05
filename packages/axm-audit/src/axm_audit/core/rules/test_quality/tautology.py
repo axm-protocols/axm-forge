@@ -34,6 +34,23 @@ __all__ = [
 
 
 _SCORE_PENALTY = 2
+_MAX_TEXT_ITEMS = 20
+_NON_TAUTOLOGY_ACTIONS: frozenset[str] = frozenset({"OK", "KEEP"})
+
+
+def _render_tautology_text(verdicts: list[dict[str, Any]]) -> str:
+    """Render top-N tautology verdicts as a compact bullet list."""
+    real = [v for v in verdicts if v.get("verdict", "") not in _NON_TAUTOLOGY_ACTIONS]
+    lines = [
+        f"• {v.get('file', '')}:{v.get('line', '')} "
+        f"{v.get('test', '')} [{v.get('pattern', '')}]"
+        for v in real[:_MAX_TEXT_ITEMS]
+    ]
+    if len(real) > _MAX_TEXT_ITEMS:
+        lines.append(f"(+{len(real) - _MAX_TEXT_ITEMS} more)")
+    return "\n".join(lines)
+
+
 _ASSERT_EQUAL_ARITY = 2
 
 
@@ -532,6 +549,15 @@ class TautologyRule(ProjectRule):
         score = max(0, 100 - n * _SCORE_PENALTY)
         passed = n == 0
         message = "no tautologies found" if passed else f"{n} tautology finding(s)"
+        text = _render_tautology_text(all_verdicts) if not passed else None
+        fix_hint = (
+            None
+            if passed
+            else (
+                "Replace tautological asserts with behavioral assertions "
+                "on real outputs"
+            )
+        )
         return TautologyCheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -539,6 +565,8 @@ class TautologyRule(ProjectRule):
             severity=Severity.WARNING,
             metadata={"verdicts": all_verdicts},
             score=score,
+            text=text,
+            fix_hint=fix_hint,
         )
 
     @staticmethod

@@ -626,6 +626,18 @@ def scan_package(pkg_root: Path) -> list[Finding]:
 
 
 _SCORE_PENALTY = 2
+_MAX_TEXT_ITEMS = 20
+
+
+def _render_mismatch_text(mismatches: list[Finding]) -> str:
+    """Render top-N mismatched findings as a compact bullet list."""
+    lines = [
+        f"• {f.path}:{f.function} {f.current_level}→{f.level} ({f.reason})"
+        for f in mismatches[:_MAX_TEXT_ITEMS]
+    ]
+    if len(mismatches) > _MAX_TEXT_ITEMS:
+        lines.append(f"(+{len(mismatches) - _MAX_TEXT_ITEMS} more)")
+    return "\n".join(lines)
 
 
 @register_rule("test_quality")
@@ -664,6 +676,16 @@ class PyramidLevelRule(ProjectRule):
             if passed
             else f"{count} test(s) mis-located vs. classified pyramid level"
         )
+        details: dict[str, object] = {
+            "mismatches": [f.model_dump() for f in mismatches],
+            "total": len(mismatches),
+        }
+        text = _render_mismatch_text(mismatches) if mismatches else None
+        fix_hint = (
+            None
+            if passed
+            else "Move tests to matching pyramid dir (use /pyramid-relocate)"
+        )
         return PyramidCheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -671,4 +693,7 @@ class PyramidLevelRule(ProjectRule):
             severity=Severity.WARNING,
             findings=all_findings,
             score=score,
+            details=details,
+            text=text,
+            fix_hint=fix_hint,
         )

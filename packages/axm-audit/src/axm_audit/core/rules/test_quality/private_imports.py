@@ -37,6 +37,29 @@ _DUNDER_RE = re.compile(r"^__\w+__$")
 _CONSTANT_RE = re.compile(r"^_[A-Z][A-Z0-9_]+$")
 _DOCS_ANCHOR = "docs/test_quality.md#private-imports"
 _SCORE_PENALTY = 5
+_MAX_TEXT_ITEMS = 20
+
+
+def _relativize(path: str, project_path: Path) -> str:
+    """Return ``path`` relative to ``project_path`` when possible."""
+    try:
+        return str(Path(path).relative_to(project_path))
+    except ValueError:
+        return path
+
+
+def _render_private_imports_text(
+    findings: list[dict[str, Any]], project_path: Path
+) -> str:
+    """Render top-N private-import findings as a compact bullet list."""
+    lines = [
+        f"• {_relativize(f['test_file'], project_path)}:{f['line']} "
+        f"{f['import_module']}.{f['private_symbol']} ({f['symbol_kind']})"
+        for f in findings[:_MAX_TEXT_ITEMS]
+    ]
+    if len(findings) > _MAX_TEXT_ITEMS:
+        lines.append(f"(+{len(findings) - _MAX_TEXT_ITEMS} more)")
+    return "\n".join(lines)
 
 
 @dataclass(frozen=True)
@@ -181,7 +204,7 @@ class PrivateImportsRule(ProjectRule):
                 self._scan_file_for_private_imports(test_file, tree, ctx, test_pkg)
             )
 
-        return self._build_check_result(findings)
+        return self._build_check_result(findings, project_path)
 
     def _scan_file_for_private_imports(
         self,
@@ -202,7 +225,9 @@ class PrivateImportsRule(ProjectRule):
                 findings.append(_build_finding(test_file, node, mod, name, kind))
         return findings
 
-    def _build_check_result(self, findings: list[dict[str, Any]]) -> CheckResult:
+    def _build_check_result(
+        self, findings: list[dict[str, Any]], project_path: Path
+    ) -> CheckResult:
         n = len(findings)
         score = max(0, 100 - n * _SCORE_PENALTY)
         passed = n == 0
@@ -210,6 +235,14 @@ class PrivateImportsRule(ProjectRule):
             message = f"No private imports in tests/ (see {_DOCS_ANCHOR})"
         else:
             message = f"{n} private import(s) in tests/ — see {_DOCS_ANCHOR}"
+        text = (
+            _render_private_imports_text(findings, project_path) if findings else None
+        )
+        fix_hint = (
+            None
+            if passed
+            else "Re-export the symbol publicly or test via the public API"
+        )
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -217,6 +250,8 @@ class PrivateImportsRule(ProjectRule):
             severity=Severity.ERROR,
             score=int(score),
             details={"findings": findings},
+            text=text,
+            fix_hint=fix_hint,
         )
 
     def _resolve_symbol_kind(
