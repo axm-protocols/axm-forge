@@ -620,3 +620,229 @@ class TestMirrorRuleIntegration:
         assert result.passed is False
         assert result.details is not None
         assert "foo.py" in result.details["missing"]
+
+
+# ─── MirrorRule reverse / orphan check (AXM-1665) ────────────────────────────
+
+
+def _write(path: Path, content: str = "") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content)
+
+
+class TestMirrorRuleOrphanIntegration:
+    """Reverse mirror check — orphan unit tests (AC1-AC9)."""
+
+    def test_orphan_test_no_matching_source(self, tmp_path: Path) -> None:
+        """AC1: a tests/unit/test_*.py with no matching src module is orphan."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "foo.py", "x = 1\n")
+        _write(tmp_path / "tests" / "unit" / "test_foo.py", "")
+        _write(tmp_path / "tests" / "unit" / "test_ghost.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.passed is False
+        assert result.details is not None
+        orphan = result.details["orphan"]
+        assert any("test_ghost.py" in o for o in orphan)
+        assert "foo.py" not in result.details["missing"]
+
+    def test_orphan_test_misplaced_arborescence(self, tmp_path: Path) -> None:
+        """AC2: a test at tests/unit/ root that should mirror a nested src is orphan."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "sub" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "sub" / "foo.py", "x = 1\n")
+        _write(tmp_path / "tests" / "unit" / "test_foo.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.passed is False
+        assert result.details is not None
+        orphan = result.details["orphan"]
+        assert any("test_foo.py" in o for o in orphan)
+        assert "foo.py" in result.details["missing"]
+
+    def test_orphan_correct_arborescence_passes(self, tmp_path: Path) -> None:
+        """AC2: a properly-nested test mirroring its src is not orphan."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "sub" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "sub" / "foo.py", "x = 1\n")
+        _write(tmp_path / "tests" / "unit" / "sub" / "test_foo.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.passed is True
+        assert result.details is not None
+        assert result.details["orphan"] == []
+
+    def test_orphan_details_key_distinct_from_missing(self, tmp_path: Path) -> None:
+        """AC3: details['orphan'] and details['missing'] are disjoint."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "alpha.py", "x = 1\n")
+        _write(tmp_path / "src" / "pkg" / "beta.py", "x = 1\n")
+        _write(tmp_path / "tests" / "unit" / "test_alpha.py", "")
+        _write(tmp_path / "tests" / "unit" / "test_orphanxyz.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.details is not None
+        missing = result.details["missing"]
+        orphan = result.details["orphan"]
+        assert missing
+        assert orphan
+        orphan_basenames = {Path(o).name for o in orphan}
+        assert set(missing).isdisjoint(orphan_basenames)
+
+    def test_orphan_fix_hint_suggests_close_match(self, tmp_path: Path) -> None:
+        """AC4: fix_hint proposes the closest source basename for typos."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "helpers.py", "x = 1\n")
+        _write(tmp_path / "tests" / "unit" / "test_helpres.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.fix_hint is not None
+        assert "rename" in result.fix_hint.lower()
+        assert "test_helpers.py" in result.fix_hint
+
+    def test_orphan_fix_hint_no_close_match(self, tmp_path: Path) -> None:
+        """AC4: fix_hint mentions orphan + suggests delete/rename when no match."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "foo.py", "x = 1\n")
+        _write(tmp_path / "tests" / "unit" / "test_zzzzqqqq.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.fix_hint is not None
+        assert "test_zzzzqqqq.py" in result.fix_hint
+        hint_lower = result.fix_hint.lower()
+        assert "delete" in hint_lower or "rename" in hint_lower
+
+    def test_orphan_text_line_present(self, tmp_path: Path) -> None:
+        """AC5: result.text contains a '• orphan:' bullet line."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "foo.py", "x = 1\n")
+        _write(tmp_path / "tests" / "unit" / "test_foo.py", "")
+        _write(tmp_path / "tests" / "unit" / "test_ghost.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.text is not None
+        assert any(line.startswith("• orphan:") for line in result.text.splitlines())
+
+    def test_score_penalizes_both_directions(self, tmp_path: Path) -> None:
+        """AC6: 1 missing + 1 orphan → score == 70."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "foo.py", "x = 1\n")
+        _write(tmp_path / "src" / "pkg" / "bar.py", "x = 1\n")
+        _write(tmp_path / "tests" / "unit" / "test_foo.py", "")
+        _write(tmp_path / "tests" / "unit" / "test_ghost.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.score == 70
+
+    def test_score_one_orphan_only(self, tmp_path: Path) -> None:
+        """AC6: 0 missing + 1 orphan → score == 85."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "foo.py", "x = 1\n")
+        _write(tmp_path / "tests" / "unit" / "test_foo.py", "")
+        _write(tmp_path / "tests" / "unit" / "test_ghost.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.score == 85
+
+    def test_integration_test_not_flagged_as_orphan(self, tmp_path: Path) -> None:
+        """AC7: tests/integration/ files are never orphans."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "foo.py", "x = 1\n")
+        _write(tmp_path / "tests" / "unit" / "test_foo.py", "")
+        _write(tmp_path / "tests" / "integration" / "test_anything.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.passed is True
+        assert result.details is not None
+        assert result.details["orphan"] == []
+
+    def test_e2e_test_not_flagged_as_orphan(self, tmp_path: Path) -> None:
+        """AC7: tests/e2e/ files are never orphans."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "foo.py", "x = 1\n")
+        _write(tmp_path / "tests" / "unit" / "test_foo.py", "")
+        _write(tmp_path / "tests" / "e2e" / "test_anything.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.passed is True
+        assert result.details is not None
+        assert result.details["orphan"] == []
+
+    def test_orphan_init_and_conftest_excluded(self, tmp_path: Path) -> None:
+        """AC8: __init__.py and conftest.py under tests/unit/ are exempt."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "foo.py", "x = 1\n")
+        _write(tmp_path / "tests" / "unit" / "test_foo.py", "")
+        _write(tmp_path / "tests" / "unit" / "__init__.py", "")
+        _write(tmp_path / "tests" / "unit" / "conftest.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.passed is True
+        assert result.details is not None
+        assert result.details["orphan"] == []
+
+    def test_no_unit_dir_no_orphan_check(self, tmp_path: Path) -> None:
+        """AC9: legacy flat layout (no tests/unit/) skips reverse check."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "foo.py", "x = 1\n")
+        _write(tmp_path / "tests" / "test_foo.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.passed is True
+        assert result.details is not None
+        assert result.details["orphan"] == []
+
+    def test_empty_unit_dir_no_orphan(self, tmp_path: Path) -> None:
+        """AC9: empty tests/unit/ produces no orphans."""
+        from axm_audit.core.rules.practices.mirror import MirrorRule
+
+        _write(tmp_path / "src" / "pkg" / "__init__.py")
+        _write(tmp_path / "src" / "pkg" / "foo.py", "x = 1\n")
+        (tmp_path / "tests" / "unit").mkdir(parents=True)
+        _write(tmp_path / "tests" / "test_foo.py", "")
+
+        result = MirrorRule().check(tmp_path)
+
+        assert result.passed is True
+        assert result.details is not None
+        assert result.details["orphan"] == []
