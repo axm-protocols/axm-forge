@@ -147,6 +147,8 @@ ambiguous clusters are surfaced but do not dock points.
 | **P2** — patch context | Pair exercises different `(decorator, with, mocker)` patch shapes → `ambiguous_patch_context`. | `test_retry_on_5xx` vs `test_retry_on_timeout` — same body shape, different `mocker.patch` targets. |
 | **P3** — template pair | Cross-file pair with a ≥ 4-char token diff in filename stem and body ≤ 4 child nodes → `ambiguous_template_pair`. | Per-adapter smoke tests (`test_postgres.py` vs `test_sqlite.py`). |
 | **P4** — body size | Intra-file pair whose largest body has ≤ 8 child nodes → `ambiguous_body_size`. | Trivially small smoke tests that look alike by accident. |
+| **P8** — distinct parent class | Clustered tests live in ≥ 2 distinct enclosing test classes → `ambiguous_distinct_class`. | Per-scenario `TestX` / `TestY` classes sharing a method shape. |
+| **P9** — pytest.raises divergence | Some clustered tests wrap their SUT call in `with pytest.raises(...)` while others do not → `ambiguous_raises_divergence`. | Happy-path vs error-path pairs over the same call signature. |
 
 ## Tautology Triage v4
 

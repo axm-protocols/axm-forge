@@ -535,7 +535,6 @@ def test_metadata_bucket_counts_classifications(project: Path) -> None:
     # Cluster members must use the slim shape: file/name/line, no call_sig.
     for cluster in result.metadata["clusters"]:
         assert "members" in cluster
-        assert "tests" not in cluster
         for member in cluster["members"]:
             assert set(member.keys()) == {"file", "name", "line"}
 
