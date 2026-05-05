@@ -5,6 +5,7 @@ from __future__ import annotations
 import difflib
 import logging
 import tomllib
+from collections.abc import Iterator
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from pathlib import Path
@@ -342,6 +343,23 @@ class MirrorRule(ProjectRule):
         test_basenames = None if unit_index else cls._collect_test_basenames(tests_path)
         missing: list[str] = []
         exempt: list[str] = []
+        for pkg_dir, py_file in cls._iter_source_modules(src_path):
+            label = cls._classify_py_file(
+                py_file, pkg_dir, unit_index, test_basenames, exempt_paths
+            )
+            if label == "exempt":
+                exempt.append(py_file.name)
+            elif label == "missing":
+                missing.append(py_file.name)
+        return sorted(set(missing)), sorted(set(exempt))
+
+    @classmethod
+    def _iter_source_modules(cls, src_path: Path) -> Iterator[tuple[Path, Path]]:
+        """Yield ``(pkg_dir, py_file)`` for each non-exempt source module.
+
+        Skips ``__pycache__``, files in ``_TEST_MIRROR_EXEMPT``, and
+        deduplicates by basename across package directories.
+        """
         seen: set[str] = set()
         for pkg_dir in sorted(src_path.iterdir()):
             if not pkg_dir.is_dir() or pkg_dir.name == "__pycache__":
@@ -350,21 +368,30 @@ class MirrorRule(ProjectRule):
                 if py_file.name in _TEST_MIRROR_EXEMPT or py_file.name in seen:
                     continue
                 seen.add(py_file.name)
-                rel_to_pkg = py_file.relative_to(pkg_dir).as_posix()
-                if exempt_paths and cls._is_exempt_path(rel_to_pkg, exempt_paths):
-                    exempt.append(py_file.name)
-                    continue
-                if not cls._has_matching_test(
-                    py_file, pkg_dir, unit_index, test_basenames
-                ):
-                    missing.append(py_file.name)
-        return sorted(set(missing)), sorted(set(exempt))
+                yield pkg_dir, py_file
+
+    @classmethod
+    def _classify_py_file(
+        cls,
+        py_file: Path,
+        pkg_dir: Path,
+        unit_index: dict[str, set[str]] | None,
+        test_basenames: set[str] | None,
+        exempt_paths: list[str],
+    ) -> str:
+        """Return ``"exempt"``, ``"missing"``, or ``"covered"`` for ``py_file``."""
+        rel_to_pkg = py_file.relative_to(pkg_dir).as_posix()
+        if exempt_paths and cls._is_exempt_path(rel_to_pkg, exempt_paths):
+            return "exempt"
+        if not cls._has_matching_test(py_file, pkg_dir, unit_index, test_basenames):
+            return "missing"
+        return "covered"
 
     @staticmethod
     def _has_matching_test(
         py_file: Path,
         pkg_dir: Path,
-        unit_index: dict[str, set[str]],
+        unit_index: dict[str, set[str]] | None,
         test_basenames: set[str] | None,
     ) -> bool:
         """Return True iff ``py_file`` has a matching test file."""
