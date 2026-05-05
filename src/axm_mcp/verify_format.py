@@ -4,17 +4,50 @@ The raw verify dict can reach 20k-80k tokens (esp. when
 ``TEST_QUALITY_DUPLICATE_TESTS`` returns 100+ clusters). The agent is
 the only consumer, so we drop the raw data and emit a compact text
 report instead.
+
+Rendering policy:
+
+- ``finding.text``: trust the rule — already compact, just indent each
+  line by 2 spaces for visual coherence.
+- ``finding.details``: descend (str → indent; list → top-N items;
+  dict → look up known thematic keys, else JSON-truncate fallback).
+- ``finding.metadata`` (with ``clusters``): keep legacy cluster summary.
+- ``fix_hint`` is shown verbatim, never truncated.
 """
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 __all__ = ["format_verify_text"]
 
-_DETAIL_MAX = 120
-_FIX_MAX = 150
-_LIST_PREVIEW = 3
+_INDENT = "  "
+_LIST_PREVIEW = 30
+_DICT_FALLBACK_MAX = 500
+_HEADER_ERROR_MAX = 60
+
+# Ordered preference for thematic list keys inside ``details`` dicts.
+_KNOWN_LIST_KEYS: tuple[str, ...] = (
+    "findings",
+    "violations",
+    "issues",
+    "errors",
+    "matches",
+    "top_offenders",
+    "clones",
+    "locations",
+    "missing",
+    "mismatches",
+    "cycles",
+    "god_classes",
+    "over_threshold",
+    "top_vulns",
+    "unformatted_files",
+    "top_issues",
+    "symbols",
+    "verdicts",
+)
 
 
 def format_verify_text(result: dict[str, Any]) -> str:
@@ -45,6 +78,9 @@ def format_verify_text(result: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+# ── Header ────────────────────────────────────────────────────────────
+
+
 def _format_header(audit: Any, governance: Any) -> str:
     audit_h = _section_header("audit", audit)
     gov_h = _section_header("governance", governance)
@@ -55,7 +91,10 @@ def _section_header(label: str, section: Any) -> str:
     if not isinstance(section, dict):
         return f"{label}: skipped"
     if "error" in section and len(section) == 1:
-        return f"{label}: error ({_truncate(str(section['error']), 60)})"
+        err = str(section["error"]).replace("\n", " ").strip()
+        if len(err) > _HEADER_ERROR_MAX:
+            err = err[: _HEADER_ERROR_MAX - 1].rstrip() + "…"
+        return f"{label}: error ({err})"
     grade = section.get("grade", "?")
     score = section.get("score", "?")
     passed_count, total = _counts(section)
@@ -75,18 +114,20 @@ def _counts(section: dict[str, Any]) -> tuple[int, int]:
     return passed_n, passed_n + failed_n
 
 
+# ── Finding / governance dispatch ─────────────────────────────────────
+
+
 def _format_finding(failure: dict[str, Any]) -> str:
     rule_id = failure.get("rule_id", "?")
     message = failure.get("message", "")
     lines = [f"✗ {rule_id} · {message}".rstrip(" ·")]
 
-    detail = _detail_line(failure)
-    if detail:
-        lines.append(f"  {_truncate(detail, _DETAIL_MAX)}")
+    detail_lines = _render_finding_detail(failure)
+    lines.extend(detail_lines)
 
     fix_hint = failure.get("fix_hint")
     if fix_hint:
-        lines.append(f"  fix: {_truncate(str(fix_hint), _FIX_MAX)}")
+        lines.append(f"{_INDENT}fix: {str(fix_hint).rstrip()}")
 
     return "\n".join(lines)
 
@@ -95,60 +136,111 @@ def _format_governance(check: dict[str, Any]) -> str:
     name = check.get("name", "?")
     message = check.get("message", "")
     lines = [f"✗ {name} · {message}".rstrip(" ·")]
-    details = check.get("details")
-    detail_str = _stringify_details(details)
-    if detail_str:
-        lines.append(f"  {_truncate(detail_str, _DETAIL_MAX)}")
+
+    detail_lines = _render_finding_detail(check)
+    lines.extend(detail_lines)
+
     fix = check.get("fix")
     if fix:
-        lines.append(f"  fix: {_truncate(str(fix), _FIX_MAX)}")
+        lines.append(f"{_INDENT}fix: {str(fix).rstrip()}")
     return "\n".join(lines)
 
 
-def _detail_line(failure: dict[str, Any]) -> str:
+# ── Detail rendering ──────────────────────────────────────────────────
+
+
+def _render_finding_detail(failure: dict[str, Any]) -> list[str]:
+    """Return indented detail lines for a finding-like dict.
+
+    Resolution order: ``text`` → ``details`` → ``metadata.clusters``.
+    Returns an empty list when nothing meaningful is available.
+    """
     text = failure.get("text")
     if isinstance(text, str) and text.strip():
-        return text.strip().replace("\n", " ")
+        return _indent_block(text)
 
-    details = failure.get("details")
-    detail_str = _stringify_details(details)
-    if detail_str:
-        return detail_str
+    if "details" in failure:
+        details = failure.get("details")
+        if details or details == 0:
+            rendered = _render_details(details)
+            if rendered:
+                return rendered
 
     metadata = failure.get("metadata")
     if isinstance(metadata, dict):
-        return _summarize_metadata(metadata)
+        summary = _summarize_metadata(metadata)
+        if summary:
+            return [f"{_INDENT}{summary}"]
 
-    return ""
+    return []
 
 
-def _stringify_details(details: Any) -> str:
+def _indent_block(text: str) -> list[str]:
+    """Indent every line of *text* uniformly with ``_INDENT``."""
+    return [f"{_INDENT}{line}" for line in text.rstrip("\n").splitlines()]
+
+
+def _render_details(details: Any) -> list[str]:
+    """Render a ``details`` payload (str / list / dict) as indented lines."""
     if isinstance(details, str):
-        return details.strip().replace("\n", " ")
+        if not details.strip():
+            return []
+        return _indent_block(details)
     if isinstance(details, list):
-        if not details:
-            return ""
-        previews = [str(d) for d in details[:_LIST_PREVIEW]]
-        suffix = (
-            f" (+{len(details) - _LIST_PREVIEW} more)"
-            if len(details) > _LIST_PREVIEW
-            else ""
-        )
-        return ", ".join(previews) + suffix
+        return _render_list_details(details)
     if isinstance(details, dict):
-        # E.g. {"findings": [...]} or {"missing_dirs": [...]}
-        return _stringify_dict_details(details)
-    return ""
+        return _render_dict_details(details)
+    return []
 
 
-def _stringify_dict_details(details: dict[str, Any]) -> str:
-    parts: list[str] = []
-    for key, value in list(details.items())[:3]:
-        if isinstance(value, list):
-            parts.append(f"{key}={len(value)}")
-        elif isinstance(value, (str, int, float, bool)):
-            parts.append(f"{key}={value}")
-    return ", ".join(parts)
+def _render_list_details(items: list[Any]) -> list[str]:
+    if not items:
+        return []
+    lines = [f"{_INDENT}- {_compact_item(item)}" for item in items[:_LIST_PREVIEW]]
+    extra = len(items) - _LIST_PREVIEW
+    if extra > 0:
+        lines.append(f"{_INDENT}(+{extra} more)")
+    return lines
+
+
+def _render_dict_details(details: dict[str, Any]) -> list[str]:
+    """Find a thematic list under a known key, else JSON fallback."""
+    for key in _KNOWN_LIST_KEYS:
+        value = details.get(key)
+        if isinstance(value, list) and value:
+            return _render_list_details(value)
+    # Fallback: dump the whole dict, truncated.
+    try:
+        dumped = json.dumps(details, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        dumped = str(details)
+    if len(dumped) > _DICT_FALLBACK_MAX:
+        dumped = dumped[: _DICT_FALLBACK_MAX - 1].rstrip() + "…"
+    return [f"{_INDENT}{dumped}"]
+
+
+def _compact_item(item: Any) -> str:
+    """Render one list item compactly.
+
+    - ``{"file": "...", "line": N, "msg"/"message": "..."}`` → ``file:line msg``.
+    - other dicts → JSON
+    - scalars → ``str(item)``
+    """
+    if isinstance(item, dict):
+        file_ = item.get("file") or item.get("path")
+        line = item.get("line") or item.get("lineno")
+        msg = item.get("msg") or item.get("message") or item.get("reason")
+        if file_ and msg is not None:
+            location = f"{file_}:{line}" if line is not None else str(file_)
+            return f"{location} {msg}"
+        try:
+            return json.dumps(item, ensure_ascii=False, default=str)
+        except (TypeError, ValueError):
+            return str(item)
+    return str(item)
+
+
+# ── Metadata / clusters ───────────────────────────────────────────────
 
 
 def _summarize_metadata(metadata: dict[str, Any]) -> str:
@@ -177,10 +269,3 @@ def _summarize_metadata(metadata: dict[str, Any]) -> str:
         parts.append(f"buckets: {bc}")
 
     return " · ".join(parts)
-
-
-def _truncate(text: str, max_len: int) -> str:
-    text = text.replace("\n", " ").strip()
-    if len(text) <= max_len:
-        return text
-    return text[: max_len - 1].rstrip() + "…"
