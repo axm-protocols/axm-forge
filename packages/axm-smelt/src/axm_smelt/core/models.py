@@ -5,6 +5,7 @@ from __future__ import annotations
 import enum
 import json
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import Any
 
 from pydantic import BaseModel
@@ -24,54 +25,57 @@ class Format(enum.Enum):
     TEXT = "text"
 
 
-_SENTINEL = object()
+_SENTINEL: Any = object()
 
 
-@dataclass
+@dataclass(frozen=True)
 class SmeltContext:
-    """Internal runtime context passed through the strategy pipeline."""
+    """Immutable runtime context passed through the strategy pipeline.
 
-    _text: str = field(repr=False)
+    One of ``text`` or ``parsed`` is the source of truth; the other is
+    derived deterministically and cached on first access. The two
+    representations cannot drift because the instance is frozen.
+    """
+
     format: Format = Format.TEXT
-    _parsed: object = field(default=_SENTINEL, repr=False)
+    _src_text: str | None = field(default=None, repr=False)
+    _src_parsed: Any = field(default=_SENTINEL, repr=False)
 
     def __init__(
         self,
-        text: str = "",
+        text: str | None = None,
         format: Format = Format.TEXT,
-        parsed: object = _SENTINEL,
+        parsed: Any = _SENTINEL,
     ) -> None:
-        self._text = text
-        self.format = format
-        self._parsed = parsed
+        object.__setattr__(self, "format", format)
+        object.__setattr__(self, "_src_text", text)
+        object.__setattr__(self, "_src_parsed", parsed)
 
-    @property
+    @cached_property
     def text(self) -> str:
-        """Current text representation, re-serialized from parsed if needed."""
-        if self._text is None:
-            # Re-serialize from parsed
-            self._text = json.dumps(self._parsed)
-        return self._text
+        """Text representation, derived from ``parsed`` when not provided."""
+        if self._src_text is not None:
+            return self._src_text
+        if self._src_parsed is _SENTINEL or self._src_parsed is None:
+            return ""
+        return json.dumps(
+            self._src_parsed,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
 
-    @text.setter
-    def text(self, value: str) -> None:
-        self._text = value
-        self._parsed = _SENTINEL  # invalidate parsed cache
-
-    @property
+    @cached_property
     def parsed(self) -> dict[str, Any] | list[Any] | None:
-        """Lazy-parsed structured data, decoded from text on first access."""
-        if self._parsed is _SENTINEL:
-            try:
-                self._parsed = json.loads(self._text)
-            except (json.JSONDecodeError, ValueError, TypeError):
-                self._parsed = None
-        return self._parsed  # type: ignore[return-value]
-
-    @parsed.setter
-    def parsed(self, value: dict[str, Any] | list[Any] | None) -> None:
-        self._parsed = value
-        self._text = None  # type: ignore[assignment]  # invalidate text cache
+        """Parsed JSON, derived from ``text`` when not provided."""
+        if self._src_parsed is not _SENTINEL:
+            return self._src_parsed
+        if not self._src_text:
+            return None
+        try:
+            return json.loads(self._src_text)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return None
 
 
 class SmeltReport(BaseModel):

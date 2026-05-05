@@ -76,9 +76,10 @@ def smelt(
 
     strats = _resolve_strategies(strategies, preset)
 
-    ctx = SmeltContext(text=text, format=fmt)
     if detected_parsed is not None:
-        ctx._parsed = detected_parsed
+        ctx = SmeltContext(text=text, format=fmt, parsed=detected_parsed)
+    else:
+        ctx = SmeltContext(text=text, format=fmt)
 
     ctx, applied = _apply_strategies(ctx, strats, original_tokens)
 

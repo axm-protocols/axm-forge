@@ -164,6 +164,10 @@ addopts = [
     "--cov-fail-under=0",
 ]
 filterwarnings = ["error"]
+markers = [
+    "integration: real I/O or public-API scenarios",
+    "e2e: end-to-end subprocess tests",
+]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Coverage Configuration

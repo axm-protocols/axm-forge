@@ -74,7 +74,7 @@ Heuristic detection returns a `Format` enum value (`JSON`, `YAML`, `XML`, `TOML`
 
 ### 7. Models (`core/models.py`)
 
-`SmeltContext` — dataclass carrying the current text, detected format, and a lazily-parsed JSON cache; passed through the strategy pipeline. `SmeltReport` — Pydantic model with `extra = "forbid"`. `Format` — string enum.
+`SmeltContext` — frozen dataclass carrying the detected format plus one source-of-truth representation (text or parsed); the other is derived deterministically and cached on first access. Strategies build a new `SmeltContext` instead of mutating the existing one, so the two representations cannot drift. `SmeltReport` — Pydantic model with `extra = "forbid"`. `Format` — string enum.
 
 ## Data Flow
 

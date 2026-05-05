@@ -115,9 +115,7 @@ class TabularStrategy(SmeltStrategy):
         if isinstance(parsed, list):
             table = _to_table(parsed)
             if table is not None:
-                new_ctx = SmeltContext(text=table, format=ctx.format)
-                new_ctx._parsed = None  # table text is not JSON-parseable
-                return new_ctx
+                return SmeltContext(text=table, format=ctx.format, parsed=None)
             return ctx
 
         if isinstance(parsed, dict):

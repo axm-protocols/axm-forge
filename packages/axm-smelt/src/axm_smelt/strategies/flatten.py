@@ -77,9 +77,7 @@ class FlattenStrategy(SmeltStrategy):
                 separators=(",", ":"),
                 ensure_ascii=False,
             )
-            new_ctx = SmeltContext(text=result, format=ctx.format)
-            new_ctx._parsed = flattened
-            return new_ctx
+            return SmeltContext(text=result, format=ctx.format, parsed=flattened)
 
         text = ctx.text
         stripped = text.strip()
@@ -95,9 +93,7 @@ class FlattenStrategy(SmeltStrategy):
                     separators=(",", ":"),
                     ensure_ascii=False,
                 )
-                new_ctx = SmeltContext(text=result, format=ctx.format)
-                new_ctx._parsed = flattened
-                return new_ctx
+                return SmeltContext(text=result, format=ctx.format, parsed=flattened)
             except (json.JSONDecodeError, ValueError):
                 pass
 

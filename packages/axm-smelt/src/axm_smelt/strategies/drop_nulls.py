@@ -54,9 +54,7 @@ class DropNullsStrategy(SmeltStrategy):
         if parsed is not None:
             cleaned = _clean(parsed)
             result = json.dumps(cleaned, separators=(",", ":"), ensure_ascii=False)
-            new_ctx = SmeltContext(text=result, format=ctx.format)
-            new_ctx._parsed = cleaned
-            return new_ctx
+            return SmeltContext(text=result, format=ctx.format, parsed=cleaned)
 
         text = ctx.text
         stripped = text.strip()
@@ -68,9 +66,7 @@ class DropNullsStrategy(SmeltStrategy):
                 data = json.loads(stripped)
                 cleaned = _clean(data)
                 result = json.dumps(cleaned, separators=(",", ":"), ensure_ascii=False)
-                new_ctx = SmeltContext(text=result, format=ctx.format)
-                new_ctx._parsed = cleaned
-                return new_ctx
+                return SmeltContext(text=result, format=ctx.format, parsed=cleaned)
             except (json.JSONDecodeError, ValueError):
                 pass
 

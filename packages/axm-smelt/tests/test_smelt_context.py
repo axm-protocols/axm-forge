@@ -34,11 +34,17 @@ def test_smelt_context_invalid_json() -> None:
     assert ctx.parsed is None
 
 
-def test_smelt_context_parsed_invalidates_text() -> None:
-    """test_smelt_context_parsed_invalidates_text: setting parsed updates text."""
+def test_smelt_context_is_immutable() -> None:
+    """SmeltContext is frozen: assignment to text/parsed raises."""
+    from dataclasses import FrozenInstanceError
+
+    import pytest
+
     ctx = SmeltContext(text='{"a":1}')
-    ctx.parsed = {"b": 2}
-    assert ctx.text == json.dumps({"b": 2})
+    with pytest.raises(FrozenInstanceError):
+        ctx.text = "x"  # type: ignore[misc]
+    with pytest.raises(FrozenInstanceError):
+        ctx.parsed = {"b": 2}  # type: ignore[misc]
 
 
 def test_smelt_context_format_carried() -> None:
@@ -106,12 +112,9 @@ def test_empty_input_no_crash() -> None:
     assert report.savings_pct == 0.0
 
 
-def test_strategy_changes_text_only_invalidates_parsed() -> None:
-    """When a strategy modifies text, parsed must be invalidated."""
-    ctx = SmeltContext(text='{"key": "value"}')
-    # Force parsed cache
-    _ = ctx.parsed
-    # Simulate a strategy that modifies text (like strip_quotes)
-    ctx.text = '{"key":"value"}'
-    # parsed should re-parse from the new text
-    assert ctx.parsed == {"key": "value"}
+def test_distinct_contexts_are_independent() -> None:
+    """Two SmeltContext instances from the same source are independent."""
+    a = SmeltContext(text='{"key": "value"}')
+    b = SmeltContext(text='{"key":"value"}')
+    assert a.parsed == b.parsed == {"key": "value"}
+    assert a.text != b.text  # text is the source-of-truth, not re-derived
