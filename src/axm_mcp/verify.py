@@ -12,7 +12,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-__all__ = ["verify_project"]
+from axm.tools.base import ToolResult
+
+from axm_mcp.verify_format import format_verify_text
+
+__all__ = ["VerifyTool", "verify_project"]
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +171,38 @@ def _extract_symbols(failure: dict[str, Any]) -> list[str]:
                 return [parts[0].strip("()'\":")]
 
     return []
+
+
+class VerifyTool:
+    """AXMTool wrapper around :func:`verify_project`.
+
+    Returns ``ToolResult(data=..., text=...)`` so MCP consumers see a
+    compact rendered report while programmatic callers (hooks, gates)
+    can still read the structured ``data`` dict.
+    """
+
+    agent_hint = (
+        "One-shot project verification: audit + init check + AST enrichment. "
+        "Returns compact text plus structured data."
+    )
+
+    def __init__(self, tools: dict[str, Any] | None = None) -> None:
+        self._tools: dict[str, Any] = tools if tools is not None else {}
+
+    @property
+    def name(self) -> str:
+        """Tool name used for MCP registration."""
+        return "verify"
+
+    def execute(self, *, path: str = ".", **_: Any) -> ToolResult:
+        """One-shot project verification: audit + init check + AST enrichment.
+
+        Args:
+            path: Path to project root to verify.
+        """
+        data = verify_project(str(path), self._tools)
+        text = format_verify_text(data)
+        return ToolResult(success=True, data=data, text=text)
 
 
 def _unique_modules_from_errors(errors: list[dict[str, Any]]) -> list[str]:
