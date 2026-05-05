@@ -490,7 +490,7 @@ def test_merge_ambiguous_multi() -> None:
     assert merged[0]["signal"] == "ambiguous_multi"
 
 
-def test_metadata_buckets_classifications(project: Path) -> None:
+def test_metadata_bucket_counts_classifications(project: Path) -> None:
     _write(
         project / "tests" / "test_clustered.py",
         """
@@ -525,17 +525,19 @@ def test_metadata_buckets_classifications(project: Path) -> None:
         """,
     )
     result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    buckets = result.metadata["buckets"]
-    all_keys = {"CLUSTERED", "AMBIGUOUS", "UNIQUE"}
-    assert all_keys.issubset(set(buckets.keys()))
+    assert "buckets" not in result.metadata
+    counts = result.metadata["bucket_counts"]
+    assert set(counts.keys()) == {"CLUSTERED", "AMBIGUOUS", "UNIQUE"}
+    assert counts["CLUSTERED"] == 2
+    assert counts["AMBIGUOUS"] == 2
+    assert counts["UNIQUE"] == 1
 
-    def _names(bucket: str) -> set[str]:
-        entries = buckets[bucket]
-        return {e["name"] if isinstance(e, dict) else e for e in entries}
-
-    assert _names("CLUSTERED") == {"test_c1", "test_c2"}
-    assert _names("AMBIGUOUS") == {"test_a1", "test_a2"}
-    assert _names("UNIQUE") == {"test_lonely"}
+    # Cluster members must use the slim shape: file/name/line, no call_sig.
+    for cluster in result.metadata["clusters"]:
+        assert "members" in cluster
+        assert "tests" not in cluster
+        for member in cluster["members"]:
+            assert set(member.keys()) == {"file", "name", "line"}
 
 
 def test_severity_warning_and_scoring(project: Path) -> None:
