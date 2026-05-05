@@ -4,6 +4,14 @@ from __future__ import annotations
 
 import pytest
 
+from axm_smelt.core import counter as _counter
+
+
+@pytest.fixture(autouse=True)
+def _reset_counter_state() -> None:
+    _counter._ENC.clear()
+    _counter._warned = False
+
 
 @pytest.fixture
 def sample_json() -> str:
