@@ -3,6 +3,8 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from axm_audit.core.rules.architecture.coupling import (
     parse_overrides,
     read_coupling_config,
@@ -14,16 +16,17 @@ from axm_audit.core.rules.architecture.coupling import (
 # ---------------------------------------------------------------------------
 
 
-def test_safe_int_valid() -> None:
-    assert safe_int(10, 5) == 10
-
-
-def test_safe_int_string() -> None:
-    assert safe_int("abc", 5) == 5
-
-
-def test_safe_int_negative() -> None:
-    assert safe_int(-3, 5) == 5
+@pytest.mark.parametrize(
+    ("value", "default", "expected"),
+    [
+        pytest.param(10, 5, 10, id="valid_positive"),
+        pytest.param(0, 5, 0, id="valid_zero"),
+        pytest.param("abc", 5, 5, id="non_int_falls_back"),
+        pytest.param(-3, 5, 5, id="negative_falls_back"),
+    ],
+)
+def test_safe_int(value: object, default: int, expected: int) -> None:
+    assert safe_int(value, default) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -31,16 +34,16 @@ def test_safe_int_negative() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_parse_overrides_valid() -> None:
-    assert parse_overrides({"mod": 15}) == {"mod": 15}
-
-
-def test_parse_overrides_invalid_value() -> None:
-    assert parse_overrides({"mod": "abc"}) == {}
-
-
-def test_parse_overrides_not_dict() -> None:
-    assert parse_overrides("invalid") == {}
+@pytest.mark.parametrize(
+    ("input_value", "expected"),
+    [
+        pytest.param({"mod": 15}, {"mod": 15}, id="valid_dict"),
+        pytest.param({"mod": "abc"}, {}, id="invalid_value"),
+        pytest.param("invalid", {}, id="not_a_dict"),
+    ],
+)
+def test_parse_overrides(input_value: object, expected: dict[str, int]) -> None:
+    assert parse_overrides(input_value) == expected
 
 
 # ---------------------------------------------------------------------------
