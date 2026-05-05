@@ -140,12 +140,19 @@ class TestSingleCategoryAveraging:
         checks = [_make_check(category="lint", score=85.0)]
         assert _make_result(checks).quality_score == 85.0
 
-    def test_multiple_checks_in_one_category_averaged(self) -> None:
-        checks = [
-            _make_check(category="lint", score=80.0),
-            _make_check(category="lint", score=90.0),
-        ]
-        assert _make_result(checks).quality_score == 85.0
+    @pytest.mark.parametrize(
+        ("scores", "expected_average"),
+        [
+            pytest.param((80.0, 90.0), 85.0, id="two_checks"),
+            pytest.param((60.0, 80.0, 100.0), 80.0, id="three_checks"),
+            pytest.param((0.0, 100.0), 50.0, id="extremes"),
+        ],
+    )
+    def test_multiple_checks_in_one_category_averaged(
+        self, scores: tuple[float, ...], expected_average: float
+    ) -> None:
+        checks = [_make_check(category="lint", score=s) for s in scores]
+        assert _make_result(checks).quality_score == expected_average
 
     def test_filtered_audit_returns_category_average(self) -> None:
         """With one category, weights cancel out: result == that average."""
@@ -197,11 +204,18 @@ class TestMonotonicity:
 class TestFilteredAuditRenormalization:
     """Missing categories must not penalize the score (filtered audits)."""
 
-    def test_two_perfect_categories_yield_100(self) -> None:
-        checks = [
-            _make_check(category="lint", score=100.0),
-            _make_check(category="security", score=100.0),
-        ]
+    @pytest.mark.parametrize(
+        "categories",
+        [
+            pytest.param(("lint", "security"), id="lint_security"),
+            pytest.param(("lint", "type", "security"), id="three_categories"),
+            pytest.param(tuple(SCORED_CATEGORIES[:1]), id="single_category"),
+        ],
+    )
+    def test_perfect_categories_renormalize_to_100(
+        self, categories: tuple[str, ...]
+    ) -> None:
+        checks = [_make_check(category=cat, score=100.0) for cat in categories]
         assert _make_result(checks).quality_score == 100.0
 
     def test_unscored_and_unknown_inputs_are_ignored(self) -> None:
