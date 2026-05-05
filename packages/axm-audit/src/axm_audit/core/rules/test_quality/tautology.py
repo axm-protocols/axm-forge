@@ -219,6 +219,20 @@ def _eval_binop(node: ast.BinOp) -> tuple[bool, object]:
         return False, None
 
 
+def _eval_and(evaluated: list[object]) -> tuple[bool, object]:
+    for val in evaluated:
+        if not val:
+            return True, val
+    return True, evaluated[-1] if evaluated else True
+
+
+def _eval_or(evaluated: list[object]) -> tuple[bool, object]:
+    for val in evaluated:
+        if val:
+            return True, val
+    return True, evaluated[-1] if evaluated else False
+
+
 def _eval_boolop(node: ast.BoolOp) -> tuple[bool, object]:
     evaluated: list[object] = []
     for v in node.values:
@@ -227,15 +241,9 @@ def _eval_boolop(node: ast.BoolOp) -> tuple[bool, object]:
             return False, None
         evaluated.append(val)
     if isinstance(node.op, ast.And):
-        for val in evaluated:
-            if not val:
-                return True, val
-        return True, evaluated[-1] if evaluated else True
+        return _eval_and(evaluated)
     if isinstance(node.op, ast.Or):
-        for val in evaluated:
-            if val:
-                return True, val
-        return True, evaluated[-1] if evaluated else False
+        return _eval_or(evaluated)
     return False, None
 
 

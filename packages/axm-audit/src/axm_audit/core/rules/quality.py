@@ -438,7 +438,7 @@ class DiffSizeRule(ProjectRule):
 
         ideal, max_lines = read_diff_config(project_path)
         lines_changed = self._parse_stat(stdout)
-        score = self.compute_score(lines_changed, ideal, max_lines)
+        score = self._compute_score(lines_changed, ideal, max_lines)
         passed = score >= PASS_THRESHOLD
 
         text = (
@@ -474,7 +474,7 @@ class DiffSizeRule(ProjectRule):
         return insertions + deletions
 
     @staticmethod
-    def compute_score(
+    def _compute_score(
         lines_changed: int,
         ideal: int = _DIFF_IDEAL,
         max_lines: int = _DIFF_MAX,
