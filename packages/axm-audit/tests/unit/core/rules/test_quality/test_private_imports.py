@@ -217,6 +217,263 @@ def test_private_module_cross_package_flagged(tmp_path: Path) -> None:
     assert any(f["private_symbol"] == "_helper" for f in findings)
 
 
+def test_class_method_call_flagged(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "class Cls:\n    def _m(self):\n        return 1\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "from pkg.mod import Cls\n\ndef test():\n    Cls._m()\n",
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    findings = result.details["findings"]  # type: ignore[index]
+    attr = [f for f in findings if f["access_kind"] == "attribute"]
+    assert len(attr) == 1
+    assert attr[0]["private_symbol"] == "_m"
+    assert attr[0]["import_module"] == "pkg.mod"
+
+
+def test_class_method_no_call_flagged(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "class Cls:\n    def _m(self):\n        return 1\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "from pkg.mod import Cls\n\ndef test():\n    fn = Cls._m\n",
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    assert len(attr) == 1
+
+
+def test_import_module_attribute_flagged(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "_var = 1\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "import pkg.mod as m\n\ndef test():\n    return m._var\n",
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    assert len(attr) == 1
+    assert attr[0]["import_module"] == "pkg.mod"
+    assert attr[0]["private_symbol"] == "_var"
+
+
+def test_import_module_via_root_flagged(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "_var = 1\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "import pkg.mod\n\ndef test():\n    return pkg.mod._var\n",
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    assert len(attr) == 1
+    assert attr[0]["import_module"] == "pkg.mod"
+
+
+def test_asname_import_resolved(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "class Cls:\n    def _m(self):\n        return 1\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "from pkg.mod import Cls as C\n\ndef test():\n    C._m()\n",
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    assert len(attr) == 1
+    assert attr[0]["import_module"] == "pkg.mod"
+
+
+def test_deep_attribute_chain_flagged(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "class Cls:\n    def _method(self):\n        return 1\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "import pkg.mod as mod\n\ndef test():\n    mod.Cls._method()\n",
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    assert len(attr) == 1
+    assert attr[0]["private_symbol"] == "_method"
+
+
+def test_inherited_3rd_party_attr_skipped(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "class Cls:\n    pass\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "from pkg.mod import Cls\n\ndef test():\n    return Cls._not_defined_here\n",
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    assert attr == []
+
+
+def test_dunder_access_skipped(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "class Cls:\n    pass\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "from pkg.mod import Cls\n\ndef test():\n    return Cls.__class__\n",
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    assert attr == []
+
+
+def test_upper_constant_access_skipped(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "class Cls:\n    _UPPER = 1\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "from pkg.mod import Cls\n\ndef test():\n    return Cls._UPPER\n",
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    assert attr == []
+
+
+def test_upper_constant_flagged_when_enabled(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "class Cls:\n    _UPPER = 1\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "from pkg.mod import Cls\n\ndef test():\n    return Cls._UPPER\n",
+    )
+    result = PrivateImportsRule(include_constants=True).check(pkg_root)
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    assert len(attr) == 1
+
+
+def test_namedtuple_api_skipped(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "from typing import NamedTuple\n\nclass Tup(NamedTuple):\n    x: int\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        (
+            "from pkg.mod import Tup\n\n"
+            "def test():\n"
+            "    Tup._asdict\n"
+            "    Tup._replace\n"
+            "    Tup._fields\n"
+            "    Tup._make\n"
+            "    Tup._field_defaults\n"
+        ),
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    assert attr == []
+
+
+def test_third_party_root_skipped(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "import os.path\n\ndef test():\n    return os.path._foo\n",
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    assert attr == []
+
+
+def test_import_alias_finding_kind(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "def _foo():\n    return 1\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "from pkg.mod import _foo\n",
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    findings = result.details["findings"]  # type: ignore[index]
+    assert len(findings) == 1
+    assert findings[0]["access_kind"] == "import"
+
+
+def test_attribute_finding_kind(pkg_root: Path) -> None:
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        "class Cls:\n    def _m(self):\n        return 1\n",
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        "from pkg.mod import Cls\n\ndef test():\n    Cls._m()\n",
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    findings = result.details["findings"]  # type: ignore[index]
+    assert len(findings) == 1
+    assert findings[0]["access_kind"] == "attribute"
+
+
+def test_render_distinguishes_kinds(pkg_root: Path) -> None:
+    """Mixed attribute + import findings produce distinguishable text output."""
+    _write(
+        pkg_root / "src" / "pkg" / "mod.py",
+        (
+            "class Cls:\n    def _m(self):\n        return 1\n\n"
+            "def _foo():\n    return 1\n"
+        ),
+    )
+    _write(
+        pkg_root / "tests" / "test_x.py",
+        ("from pkg.mod import Cls, _foo\n\ndef test():\n    Cls._m()\n    _foo()\n"),
+    )
+    result = PrivateImportsRule().check(pkg_root)
+    text = result.text or ""
+    assert "[import]" in text
+    assert "[attribute]" in text
+
+
+def test_render_helper_distinguishes_kinds_unit(tmp_path: Path) -> None:
+    """Direct unit test of the renderer."""
+    from axm_audit.core.rules.test_quality import private_imports as pi_mod
+
+    render = pi_mod.__dict__["_render_private_imports_text"]
+    findings = [
+        {
+            "test_file": str(tmp_path / "tests" / "test_a.py"),
+            "line": 1,
+            "import_module": "pkg.mod",
+            "private_symbol": "_foo",
+            "symbol_kind": "function",
+            "access_kind": "import",
+        },
+        {
+            "test_file": str(tmp_path / "tests" / "test_b.py"),
+            "line": 5,
+            "import_module": "pkg.mod",
+            "private_symbol": "_m",
+            "symbol_kind": "method",
+            "access_kind": "attribute",
+        },
+    ]
+    text = render(findings, tmp_path)
+    assert "[import]" in text
+    assert "[attribute]" in text
+
+
 def test_check_complexity_within_budget() -> None:
     from axm_audit.core.rules.test_quality import private_imports
 
