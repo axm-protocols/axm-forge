@@ -13,13 +13,8 @@ from axm_audit.core.rules.security import SecurityRule
 from axm_audit.models.results import Severity
 
 
-class TestSecurityRule:
-    """Tests for SecurityRule (Bandit integration)."""
-
-    def test_rule_id(self) -> None:
-        """Rule ID should be QUALITY_SECURITY."""
-        rule = SecurityRule()
-        assert rule.rule_id == "QUALITY_SECURITY"
+class TestIntegrationScope:
+    """Integration-scope tests for SecurityRule (Bandit integration)."""
 
     def test_no_src_directory(self, tmp_path: Path) -> None:
         """Should return passing result if src/ doesn't exist."""
