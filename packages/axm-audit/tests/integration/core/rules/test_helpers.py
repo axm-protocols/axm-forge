@@ -7,8 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-class TestASTCache:
-    """Tests for ASTCache class."""
+class TestIntegrationScope:
+    """Integration tests for ASTCache (filesystem I/O, threading, audit_project)."""
 
     def test_returns_same_object(self, tmp_path: Path) -> None:
         """Two calls with the same path return the same AST object."""
@@ -66,72 +66,6 @@ class TestASTCache:
         assert len(results) == 10
         assert all(r is results[0] for r in results)
 
-
-class TestASTCacheAccessors:
-    """Tests for module-level set/get_ast_cache."""
-
-    def test_default_is_none(self) -> None:
-        """get_ast_cache returns None when not set."""
-        from axm_audit.core.rules._helpers import get_ast_cache
-
-        assert get_ast_cache() is None
-
-    def test_set_and_get(self) -> None:
-        """set_ast_cache stores a cache retrievable by get_ast_cache."""
-        from axm_audit.core.rules._helpers import ASTCache, get_ast_cache, set_ast_cache
-
-        cache = ASTCache()
-        set_ast_cache(cache)
-        try:
-            assert get_ast_cache() is cache
-        finally:
-            set_ast_cache(None)
-
-    def test_clear(self) -> None:
-        """Setting None clears the cache."""
-        from axm_audit.core.rules._helpers import ASTCache, get_ast_cache, set_ast_cache
-
-        set_ast_cache(ASTCache())
-        set_ast_cache(None)
-        assert get_ast_cache() is None
-
-    def test_ast_cache_shared_across_threads(self) -> None:
-        """get_ast_cache() returns the same instance in worker threads (AC1).
-
-        Worker threads must use copy_context().run to inherit the ContextVar
-        value from the parent context.
-        """
-        import contextvars
-
-        from axm_audit.core.rules._helpers import (
-            ASTCache,
-            get_ast_cache,
-            reset_ast_cache,
-            set_ast_cache,
-        )
-
-        cache = ASTCache()
-        token = set_ast_cache(cache)
-        try:
-            results: list[ASTCache | None] = []
-
-            def worker() -> None:
-                results.append(get_ast_cache())
-
-            threads = [
-                threading.Thread(target=contextvars.copy_context().run, args=(worker,))
-                for _ in range(2)
-            ]
-            for t in threads:
-                t.start()
-            for t in threads:
-                t.join()
-
-            assert len(results) == 2
-            assert all(r is cache for r in results)
-        finally:
-            reset_ast_cache(token)
-
     def test_ast_cache_parse_count(self, tmp_path: Path) -> None:
         """Same file parsed from 3 threads → exactly 1 cache entry (AC2)."""
         from axm_audit.core.rules._helpers import ASTCache, set_ast_cache
@@ -157,10 +91,6 @@ class TestASTCacheAccessors:
             assert len(cache._cache) == 1
         finally:
             set_ast_cache(None)
-
-
-class TestASTCacheAuditIntegration:
-    """Functional tests proving cache works end-to-end in audit_project."""
 
     def test_audit_project_uses_cache(self, tmp_path: Path) -> None:
         """audit_project() on toy project → cache has entries (AC2 functional)."""
