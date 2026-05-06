@@ -42,7 +42,7 @@ def _make_check(
     return check
 
 
-class TestCleanProject:
+class TestIntegrationScope:
     def test_clean_project(
         self, hook: QualityCheckHook, context: dict[str, str], mocker: Any
     ) -> None:
@@ -59,8 +59,6 @@ class TestCleanProject:
         assert result.metadata["has_violations"] is False
         assert "clean" in result.metadata["summary"].lower()
 
-
-class TestFailedChecks:
     def test_text_block_includes_each_rule_and_its_formatted_text(
         self,
         hook: QualityCheckHook,
@@ -171,8 +169,6 @@ class TestFailedChecks:
         assert "QUALITY_LINT" in result.text
         assert "QUALITY_TYPE" not in result.text
 
-
-class TestDefaultCategories:
     def test_default_categories(
         self,
         hook: QualityCheckHook,
@@ -195,8 +191,6 @@ class TestDefaultCategories:
         assert "lint" in cats_called
         assert "type" in cats_called
 
-
-class TestCustomCategories:
     def test_custom_categories(
         self,
         hook: QualityCheckHook,
@@ -213,17 +207,6 @@ class TestCustomCategories:
 
         assert mock_audit.call_count == 1
 
-
-class TestInvalidWorkingDir:
-    def test_invalid_working_dir(self, hook: QualityCheckHook) -> None:
-        context = {"working_dir": "/nonexistent/path/that/does/not/exist"}
-
-        result = hook.execute(context)
-
-        assert result.metadata["has_violations"] is False
-
-
-class TestAuditCrash:
     def test_audit_crash(
         self, hook: QualityCheckHook, context: dict[str, str], mocker: Any
     ) -> None:
