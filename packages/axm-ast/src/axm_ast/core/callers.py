@@ -17,6 +17,8 @@ import logging
 from collections.abc import Iterator
 from pathlib import Path
 
+from tree_sitter import Node
+
 from axm_ast.core._call_helpers import (
     extract_call_site,
     is_call_node,
@@ -69,10 +71,10 @@ def extract_references(mod: ModuleInfo) -> set[str]:
     return refs
 
 
-def _visit_references(node: object, refs: set[str]) -> None:
+def _visit_references(node: Node, refs: set[str]) -> None:
     """Recursively find identifiers in non-call reference positions."""
-    node_type = getattr(node, "type", "")
-    children = getattr(node, "children", [])
+    node_type = node.type
+    children = node.children
 
     if node_type == "pair":
         _collect_dict_value_ref(children, refs)
@@ -91,11 +93,11 @@ def _visit_references(node: object, refs: set[str]) -> None:
         _visit_references(child, refs)
 
 
-def _collect_dict_value_ref(children: list[object], refs: set[str]) -> None:
+def _collect_dict_value_ref(children: list[Node], refs: set[str]) -> None:
     """Extract identifier from the value side of a dict pair."""
     past_colon = False
     for child in children:
-        if getattr(child, "type", "") == ":":
+        if child.type == ":":
             past_colon = True
             continue
         if past_colon:
@@ -105,7 +107,7 @@ def _collect_dict_value_ref(children: list[object], refs: set[str]) -> None:
             return
 
 
-def _collect_collection_refs(children: list[object], refs: set[str]) -> None:
+def _collect_collection_refs(children: list[Node], refs: set[str]) -> None:
     """Extract identifier and attribute references from list/tuple/set elements."""
     for child in children:
         name = _extract_ref_name(child)
@@ -113,20 +115,20 @@ def _collect_collection_refs(children: list[object], refs: set[str]) -> None:
             refs.add(name)
 
 
-def _collect_argument_refs(children: list[object], refs: set[str]) -> None:
+def _collect_argument_refs(children: list[Node], refs: set[str]) -> None:
     """Extract bare identifier/attribute refs from positional args.
 
     Skips call nodes (tracked by ``find_callers``) and literals.
     """
     for child in children:
-        if getattr(child, "type", "") == "call":
+        if child.type == "call":
             continue
         name = _extract_ref_name(child)
         if name:
             refs.add(name)
 
 
-def _extract_ref_name(node: object) -> str | None:
+def _extract_ref_name(node: Node) -> str | None:
     """Return the reference name for an identifier or attribute node.
 
     - ``identifier`` nodes → return the identifier text.
@@ -134,18 +136,18 @@ def _extract_ref_name(node: object) -> str | None:
       identifier segment (the attribute name).
     - Everything else → ``None``.
     """
-    node_type = getattr(node, "type", "")
+    node_type = node.type
     if node_type == "identifier":
         return node_text_safe(node) or None
     if node_type == "attribute":
         # Last child with type "identifier" is the attribute name.
-        for child in reversed(getattr(node, "children", [])):
-            if getattr(child, "type", "") == "identifier":
+        for child in reversed(node.children):
+            if child.type == "identifier":
                 return node_text_safe(child) or None
     return None
 
 
-def _collect_kwarg_ref(children: list[object], refs: set[str]) -> None:
+def _collect_kwarg_ref(children: list[Node], refs: set[str]) -> None:
     """Extract identifier from the value side of a kwarg or default param.
 
     Handles ``keyword_argument`` (``f(callback=my_func)``) and
@@ -155,7 +157,7 @@ def _collect_kwarg_ref(children: list[object], refs: set[str]) -> None:
     """
     past_eq = False
     for child in children:
-        if getattr(child, "type", "") == "=":
+        if child.type == "=":
             past_eq = True
             continue
         if past_eq:
@@ -195,7 +197,7 @@ def extract_calls(
 
 
 def _visit_calls(
-    node: object,
+    node: Node,
     module_name: str,
     source_bytes: bytes,
     calls: list[CallSite],
@@ -214,7 +216,7 @@ def _visit_calls(
         if call_site is not None:
             calls.append(call_site)
 
-    for child in node.children:  # type: ignore[attr-defined]
+    for child in node.children:
         _visit_calls(child, module_name, source_bytes, calls, current_context)
 
 
