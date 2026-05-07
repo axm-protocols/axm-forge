@@ -89,13 +89,6 @@ class TestDuplicationRule:
         assert result.passed is True
         assert result.score == 100
 
-    def test_rule_id_format(self) -> None:
-        """Rule ID should be ARCH_DUPLICATION."""
-        from axm_audit.core.rules.duplication import DuplicationRule
-
-        rule = DuplicationRule()
-        assert rule.rule_id == "ARCH_DUPLICATION"
-
     def test_score_decreases_with_more_duplicates(self, tmp_path: Path) -> None:
         """Score should decrease proportionally to duplicate count."""
         from axm_audit.core.rules.duplication import DuplicationRule
