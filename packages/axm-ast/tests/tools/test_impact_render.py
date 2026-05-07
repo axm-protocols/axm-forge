@@ -5,10 +5,10 @@ from typing import Any
 import pytest
 
 from axm_ast.tools.impact import (
-    _render_impact_single,
     render_impact_batch_text,
     render_impact_text,
 )
+from axm_ast.tools.impact_text import _render_impact_single
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -251,7 +251,7 @@ Markdown string with symbol table, caller details, and test footer. The `score` 
 ## `render_impact_text`
 
 ```python
-from axm_ast.tools.impact import render_impact_text
+from axm_ast.tools.impact_text import render_impact_text
 
 render_impact_text(report: dict[str, Any]) -> str
 ```
@@ -325,7 +325,7 @@ Internally delegates to `_trace_entry` (single-entry BFS tracing with result for
 ## `render_impact_batch_text`
 
 ```python
-from axm_ast.tools.impact import render_impact_batch_text
+from axm_ast.tools.impact_text import render_impact_batch_text
 
 render_impact_batch_text(reports: list[dict[str, Any]]) -> str
 ```
