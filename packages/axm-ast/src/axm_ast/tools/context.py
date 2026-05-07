@@ -8,6 +8,8 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.tools._base import safe_execute
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["ContextTool"]
@@ -26,6 +28,7 @@ class ContextTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_context"
 
+    @safe_execute
     def execute(
         self,
         *,
@@ -43,50 +46,45 @@ class ContextTool(AXMTool):
         Returns:
             ToolResult with project context data.
         """
+        project_path = Path(path).resolve()
+        if not project_path.is_dir():
+            return ToolResult(success=False, error=f"Not a directory: {project_path}")
+
         try:
-            project_path = Path(path).resolve()
-            if not project_path.is_dir():
-                return ToolResult(
-                    success=False, error=f"Not a directory: {project_path}"
-                )
-
-            try:
-                from axm_ast.core.workspace import (
-                    build_workspace_context,
-                    format_workspace_context,
-                    format_workspace_text,
-                )
-
-                ctx = build_workspace_context(project_path)
-                formatted = format_workspace_context(
-                    ctx, depth=depth if depth is not None else 1
-                )
-                return ToolResult(
-                    success=True,
-                    data=formatted,
-                    text=format_workspace_text(formatted),
-                )
-            except ValueError:
-                pass
-
-            from axm_ast.core.context import (
-                build_context,
-                format_context_json,
-                format_context_text,
+            from axm_ast.core.workspace import (
+                build_workspace_context,
+                format_workspace_context,
+                format_workspace_text,
             )
 
-            ctx = build_context(project_path)
-            formatted = format_context_json(ctx, depth=depth)
-            try:
-                text = format_context_text(
-                    formatted, depth=depth if depth is not None else 0
-                )
-            except (KeyError, TypeError):
-                text = None
+            ctx = build_workspace_context(project_path)
+            formatted = format_workspace_context(
+                ctx, depth=depth if depth is not None else 1
+            )
             return ToolResult(
                 success=True,
                 data=formatted,
-                text=text,
+                text=format_workspace_text(formatted),
             )
-        except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+        except ValueError:
+            pass
+
+        from axm_ast.core.context import (
+            build_context,
+            format_context_json,
+            format_context_text,
+        )
+
+        ctx = build_context(project_path)
+        formatted = format_context_json(ctx, depth=depth)
+        try:
+            text = format_context_text(
+                formatted, depth=depth if depth is not None else 0
+            )
+        except (KeyError, TypeError):
+            text = None
+        return ToolResult(
+            success=True,
+            data=formatted,
+            text=text,
+        )

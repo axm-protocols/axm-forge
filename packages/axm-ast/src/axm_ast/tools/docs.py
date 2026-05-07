@@ -8,6 +8,8 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.tools._base import safe_execute
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["DocsTool"]
@@ -24,6 +26,7 @@ class DocsTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_docs"
 
+    @safe_execute
     def execute(
         self,
         *,
@@ -43,16 +46,11 @@ class DocsTool(AXMTool):
         Returns:
             ToolResult with documentation data.
         """
-        try:
-            project_path = Path(path).resolve()
-            if not project_path.is_dir():
-                return ToolResult(
-                    success=False, error=f"Not a directory: {project_path}"
-                )
+        project_path = Path(path).resolve()
+        if not project_path.is_dir():
+            return ToolResult(success=False, error=f"Not a directory: {project_path}")
 
-            from axm_ast.core.docs import discover_docs, format_docs_json
+        from axm_ast.core.docs import discover_docs, format_docs_json
 
-            result = discover_docs(project_path, detail=detail, pages=pages)
-            return ToolResult(success=True, data=format_docs_json(result))
-        except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+        result = discover_docs(project_path, detail=detail, pages=pages)
+        return ToolResult(success=True, data=format_docs_json(result))

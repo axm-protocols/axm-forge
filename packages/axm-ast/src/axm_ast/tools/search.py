@@ -10,6 +10,7 @@ from typing import Any
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_ast.core.analyzer import module_dotted_name
+from axm_ast.tools._base import safe_execute
 from axm_ast.tools.search_text import (
     format_func_line,
     format_symbol_line,
@@ -298,6 +299,7 @@ class SearchTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_search"
 
+    @safe_execute
     def execute(
         self,
         *,
@@ -321,21 +323,18 @@ class SearchTool(AXMTool):
         Returns:
             ToolResult with matching symbols.
         """
-        try:
-            pkg = _load_package(path)
-            if isinstance(pkg, ToolResult):
-                return pkg
+        pkg = _load_package(path)
+        if isinstance(pkg, ToolResult):
+            return pkg
 
-            kind_enum = _validate_kind(kind)
-            if isinstance(kind_enum, ToolResult):
-                return kind_enum
+        kind_enum = _validate_kind(kind)
+        if isinstance(kind_enum, ToolResult):
+            return kind_enum
 
-            return _search(
-                pkg,
-                name=name,
-                returns=returns,
-                kind=kind_enum,
-                inherits=inherits,
-            )
-        except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+        return _search(
+            pkg,
+            name=name,
+            returns=returns,
+            kind=kind_enum,
+            inherits=inherits,
+        )

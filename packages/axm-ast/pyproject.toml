@@ -118,7 +118,6 @@ ignore = ["S101", "S603", "S607"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
 "src/axm_ast/cli.py" = ["T201", "PLR0913"]
-"src/axm_ast/tools/*" = ["BLE001"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10

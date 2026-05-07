@@ -159,3 +159,21 @@ Protocol hooks registered via `axm.hooks` entry points. These are called by `axm
 | Session cache | `PackageCache` avoids redundant tree-sitter parsing across chained tool calls |
 | Workspace auto-detect | `[tool.uv.workspace]` triggers multi-package mode transparently |
 | `src/` layout | PEP 621 best practice, no import conflicts |
+
+## Tool Error Handling
+
+All `axm_ast.tools.*` `AXMTool.execute()` methods are wrapped with the
+`@safe_execute` decorator from `axm_ast.tools._base`. The decorator
+centralizes the failure boundary: any uncaught `Exception` is logged at
+`WARNING` (with `exc_info=True`) on the calling module's logger and
+converted into `ToolResult(success=False, error=str(exc))`, so callers
+never see a raised exception.
+
+For inner helpers that return a `dict` instead of `ToolResult`
+(e.g. batch sub-results in `tools/impact.py`), the decorator does not fit;
+those sites instead call `log_and_fallback(logger, exc, fallback)`, which
+applies the same logging policy and returns the supplied fallback.
+
+The single residual `except Exception` lives inside `safe_execute` itself
+and is annotated `# noqa: BLE001 — final boundary` to document that it is
+the intentional last line of defense.
