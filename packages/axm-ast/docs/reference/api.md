@@ -221,6 +221,40 @@ Header line: `{workspace} | workspace | {N} packages`, followed by a `Packages:`
 
 ---
 
+## `score_impact`
+
+```python
+from axm_ast.core.impact import ImpactWeights, score_impact
+
+score_impact(
+    report: ImpactReport | dict[str, Any],
+    weights: ImpactWeights | None = None,
+) -> str
+```
+
+Score a symbol's blast radius as `"LOW"`, `"MEDIUM"`, or `"HIGH"`. The total
+is `callers·caller_weight + reexports·reexport_weight + modules·module_weight + git_coupled·coupled_weight + type_refs·typeref_weight`,
+compared against `medium_threshold` and `high_threshold`.
+
+Pass an `ImpactWeights` instance to override the defaults, or load
+per-package overrides from `[tool.axm-ast.impact]` in `pyproject.toml`
+(keys: `caller_weight`, `reexport_weight`, `module_weight`,
+`coupled_weight`, `typeref_weight`, `medium_threshold`,
+`high_threshold`).
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `report` | `ImpactReport \| dict[str, Any]` | *required* | Report fields: `callers`, `reexports`, `affected_modules`, `git_coupled`, `type_refs`. Extra keys on a dict are ignored |
+| `weights` | `ImpactWeights \| None` | `None` | Override weights/thresholds; defaults to the module-level constants |
+
+### Return value
+
+One of `"LOW"`, `"MEDIUM"`, `"HIGH"`.
+
+---
+
 ## `format_impact_compact`
 
 ```python

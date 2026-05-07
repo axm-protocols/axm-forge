@@ -14,8 +14,11 @@ from __future__ import annotations
 
 import logging
 import re
+import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     from axm_ast.models.nodes import WorkspaceInfo
@@ -30,6 +33,15 @@ from axm_ast.models.nodes import ModuleInfo, PackageInfo
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "CALLER_WEIGHT",
+    "COUPLED_WEIGHT",
+    "IMPACT_HIGH_THRESHOLD",
+    "IMPACT_MEDIUM_THRESHOLD",
+    "MODULE_WEIGHT",
+    "REEXPORT_WEIGHT",
+    "TYPEREF_WEIGHT",
+    "ImpactReport",
+    "ImpactWeights",
     "analyze_impact",
     "analyze_impact_workspace",
     "find_definition",
@@ -422,37 +434,146 @@ def _scan_functions_for_type(
 # ─── Impact scoring ─────────────────────────────────────────────────────────
 
 
-_IMPACT_HIGH_THRESHOLD = 5
-_IMPACT_MEDIUM_THRESHOLD = 2
+# Weight rationale (defaults — overridable via [tool.axm-ast.impact]):
+#
+# - CALLER_WEIGHT (1): the unit of impact — one in-package callsite touched.
+# - REEXPORT_WEIGHT (2): a reexported symbol is part of the public API
+#   surface, so changing it has wider downstream blast radius than an
+#   internal-only caller.
+# - MODULE_WEIGHT (1): one extra unique module touched signals roughly
+#   the same risk as one extra caller.
+# - COUPLED_WEIGHT (1): historically co-changed files raise risk linearly.
+# - TYPEREF_WEIGHT (1): a type annotation reference is a structural
+#   coupling point comparable to a call.
+#
+# IMPACT_HIGH_THRESHOLD (5): chosen to flag changes that ripple across
+# roughly half a dozen touch points — empirically the size at which a
+# refactor warrants extra review.
+# IMPACT_MEDIUM_THRESHOLD (2): the smallest non-trivial fan-out; below
+# this, the change is effectively local.
+CALLER_WEIGHT = 1
+REEXPORT_WEIGHT = 2
+MODULE_WEIGHT = 1
+COUPLED_WEIGHT = 1
+TYPEREF_WEIGHT = 1
+
+IMPACT_HIGH_THRESHOLD = 5
+IMPACT_MEDIUM_THRESHOLD = 2
 
 
-def score_impact(result: dict[str, Any]) -> str:
+class ImpactReport(BaseModel):
+    """Input shape consumed by :func:`score_impact`.
+
+    Captures only the inputs to scoring — display-only fields produced by
+    :func:`analyze_impact` (``symbol``, ``definition``, ``test_files`` …)
+    are intentionally excluded.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    callers: list[Any] = Field(default_factory=list)
+    reexports: list[Any] = Field(default_factory=list)
+    affected_modules: list[Any] = Field(default_factory=list)
+    git_coupled: list[Any] = Field(default_factory=list)
+    type_refs: list[Any] = Field(default_factory=list)
+
+
+class ImpactWeights(BaseModel):
+    """Configurable weights and thresholds for :func:`score_impact`.
+
+    Defaults match the module-level constants. Per-package overrides are
+    loaded from ``[tool.axm-ast.impact]`` in ``pyproject.toml``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    caller_weight: int = CALLER_WEIGHT
+    reexport_weight: int = REEXPORT_WEIGHT
+    module_weight: int = MODULE_WEIGHT
+    coupled_weight: int = COUPLED_WEIGHT
+    typeref_weight: int = TYPEREF_WEIGHT
+    high_threshold: int = IMPACT_HIGH_THRESHOLD
+    medium_threshold: int = IMPACT_MEDIUM_THRESHOLD
+
+
+def _coerce_report(report: ImpactReport | dict[str, Any]) -> ImpactReport:
+    """Return *report* as ``ImpactReport``, dropping unknown dict keys.
+
+    ``analyze_impact`` builds a result dict with display-only fields the
+    model does not capture; this helper lets external callers keep
+    passing those dicts unchanged.
+    """
+    if isinstance(report, ImpactReport):
+        return report
+    return ImpactReport(
+        callers=report.get("callers", []),
+        reexports=report.get("reexports", []),
+        affected_modules=report.get("affected_modules", []),
+        git_coupled=report.get("git_coupled", []),
+        type_refs=report.get("type_refs", []),
+    )
+
+
+def _find_impact_pyproject(path: Path) -> Path | None:
+    """Walk up from *path* (max 4 levels) to find ``pyproject.toml``."""
+    search = path
+    for _ in range(4):
+        candidate = search / "pyproject.toml"
+        if candidate.exists():
+            return candidate
+        if search.parent == search:
+            break
+        search = search.parent
+    return None
+
+
+def _load_impact_weights(path: Path) -> ImpactWeights:
+    """Load impact weights from ``[tool.axm-ast.impact]`` in pyproject.
+
+    Falls back to module-level defaults when the section is absent or
+    the file is unreadable.
+    """
+    pyproject = _find_impact_pyproject(path)
+    if pyproject is None:
+        return ImpactWeights()
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (tomllib.TOMLDecodeError, OSError):
+        return ImpactWeights()
+    section = data.get("tool", {}).get("axm-ast", {}).get("impact", {})
+    if not isinstance(section, dict) or not section:
+        return ImpactWeights()
+    return ImpactWeights(**section)
+
+
+def score_impact(
+    report: ImpactReport | dict[str, Any],
+    weights: ImpactWeights | None = None,
+) -> str:
     """Score impact as LOW, MEDIUM, or HIGH.
 
     Args:
-        result: Dict with callers, reexports, affected_modules,
-            and optionally git_coupled and type_refs.
+        report: ``ImpactReport`` (or dict with the same keys) describing
+            the symbol's caller / reexport / module footprint.
+        weights: Optional override; defaults to module-level weights.
 
     Returns:
         Impact level string.
     """
-    caller_count = len(result.get("callers", []))
-    reexport_count = len(result.get("reexports", []))
-    module_count = len(result.get("affected_modules", []))
-    coupled_count = len(result.get("git_coupled", []))
-    type_ref_count = len(result.get("type_refs", []))
+    impact = _coerce_report(report)
+    w = weights or ImpactWeights()
 
     total = (
-        caller_count
-        + reexport_count * 2
-        + module_count
-        + coupled_count
-        + type_ref_count
+        len(impact.callers) * w.caller_weight
+        + len(impact.reexports) * w.reexport_weight
+        + len(impact.affected_modules) * w.module_weight
+        + len(impact.git_coupled) * w.coupled_weight
+        + len(impact.type_refs) * w.typeref_weight
     )
 
-    if total >= _IMPACT_HIGH_THRESHOLD:
+    if total >= w.high_threshold:
         return "HIGH"
-    if total >= _IMPACT_MEDIUM_THRESHOLD:
+    if total >= w.medium_threshold:
         return "MEDIUM"
     return "LOW"
 
@@ -681,8 +802,21 @@ def analyze_impact(
             lookup_name,
             root,
         )
-    # Score on the FULL caller set before any filtering.
-    result["score"] = score_impact(result)
+    # Score on the FULL caller set before any filtering. A module that
+    # both imports and calls the symbol shows up in *callers* and in
+    # *reexports* (find_reexports flags any `from X import Y`); dropping
+    # caller modules from the reexport scoring set avoids double-counting.
+    weights = _load_impact_weights(path)
+    caller_modules = {c["module"] for c in result["callers"]}
+    scoring_reexports = [r for r in result["reexports"] if r not in caller_modules]
+    report = ImpactReport(
+        callers=result["callers"],
+        reexports=scoring_reexports,
+        affected_modules=result["affected_modules"],
+        git_coupled=result["git_coupled"],
+        type_refs=result["type_refs"],
+    )
+    result["score"] = score_impact(report, weights)
 
     effective = _resolve_effective_filter(test_filter, exclude_tests)
     _apply_test_filter(result, effective)
@@ -844,7 +978,16 @@ def analyze_impact_workspace(
     }
 
     _add_workspace_git_coupling(result, result["definition"], ws, ws_path)
-    result["score"] = score_impact(result)
+    weights = _load_impact_weights(ws_path)
+    caller_modules = {c["module"] for c in result["callers"]}
+    scoring_reexports = [r for r in result["reexports"] if r not in caller_modules]
+    report = ImpactReport(
+        callers=result["callers"],
+        reexports=scoring_reexports,
+        affected_modules=result["affected_modules"],
+        git_coupled=result["git_coupled"],
+    )
+    result["score"] = score_impact(report, weights)
 
     effective = _resolve_effective_test_filter(test_filter, exclude_tests)
     _apply_caller_test_filter(result, effective)
