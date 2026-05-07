@@ -27,13 +27,13 @@ from typing import Any, NamedTuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from axm_ast.core.analyzer import find_module_for_symbol, module_dotted_name
-from axm_ast.core.callers import (
-    _extract_call_site,
-    _is_call_node,
-    _node_text_safe,
-    _update_context,
+from axm_ast.core._call_helpers import (
+    extract_call_site,
+    is_call_node,
+    node_text_safe,
+    update_context,
 )
+from axm_ast.core.analyzer import find_module_for_symbol, module_dotted_name
 from axm_ast.core.parser import parse_source
 from axm_ast.models.calls import CallSite
 from axm_ast.models.nodes import ImportInfo, ModuleInfo, PackageInfo, WorkspaceInfo
@@ -213,7 +213,7 @@ def _check_function_entry(
     if name_node is None:
         return
 
-    func_name = _node_text_safe(name_node)
+    func_name = node_text_safe(name_node)
     start_point = getattr(node, "start_point", (0, 0))
     line = start_point[0] + 1
 
@@ -255,7 +255,7 @@ def _check_decorators(
                 decorators.append(child)
 
     for dec in decorators:
-        dec_text = _node_text_safe(dec).lstrip("@").strip()
+        dec_text = node_text_safe(dec).lstrip("@").strip()
         framework = _match_decorator(dec_text)
         if framework is not None:
             dec_start = getattr(dec, "start_point", (0, 0))
@@ -294,7 +294,7 @@ def _check_main_guard(
     entries: list[EntryPoint],
 ) -> None:
     """Check if an if-statement is a ``__main__`` guard."""
-    text = _node_text_safe(node)
+    text = node_text_safe(node)
     if "__name__" in text and "__main__" in text:
         start_point = getattr(node, "start_point", (0, 0))
         entries.append(
@@ -447,7 +447,7 @@ def _walk_for_functions(
     if node_type in ("function_definition", "class_definition"):
         for child in getattr(node, "children", []):
             if getattr(child, "type", "") == "identifier":
-                name = _node_text_safe(child)
+                name = node_text_safe(child)
                 if name == symbol:
                     start_byte = getattr(node, "start_byte", 0)
                     end_byte = getattr(node, "end_byte", 0)
@@ -480,7 +480,7 @@ def _walk_all_functions(node: object, results: list[_FunctionRange]) -> None:
     if node_type in ("function_definition", "class_definition"):
         for child in getattr(node, "children", []):
             if getattr(child, "type", "") == "identifier":
-                name = _node_text_safe(child)
+                name = node_text_safe(child)
                 start_byte = getattr(node, "start_byte", 0)
                 end_byte = getattr(node, "end_byte", 0)
                 start_point = getattr(node, "start_point", (0, 0))
@@ -525,10 +525,15 @@ def _visit_scoped_calls(
     if node_end < func_range.start_byte or node_start > func_range.end_byte:
         return
 
-    context = _update_context(node, None)
+    context = update_context(node, current=None)
 
-    if _is_call_node(node):
-        call_site = _extract_call_site(node, module_name, source, context)
+    if is_call_node(node):
+        call_site = extract_call_site(
+            node,
+            module=module_name,
+            source_bytes=source.encode("utf-8") if isinstance(source, str) else source,
+            context=context,
+        )
         if call_site is not None:
             # Don't include self-calls (the function calling itself recursively)
             if call_site.symbol != func_range.name:
@@ -1096,7 +1101,7 @@ def _parse_import_from_node(node: object) -> tuple[str, list[str]]:
 
     for child in getattr(node, "children", []):
         ct = getattr(child, "type", "")
-        text = _node_text_safe(child)
+        text = node_text_safe(child)
         if ct == "import":
             seen_import_kw = True
         elif not seen_import_kw and ct in ("dotted_name", "relative_import"):
