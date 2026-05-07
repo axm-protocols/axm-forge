@@ -6,6 +6,8 @@ import pytest
 
 from axm_audit.core.rules.practices.mirror import MirrorRule
 
+pytestmark = pytest.mark.integration
+
 
 class TestMirrorRule:
     """Tests for MirrorRule.check text= rendering."""
