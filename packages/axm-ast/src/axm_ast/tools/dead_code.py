@@ -8,6 +8,8 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.tools._base import safe_execute
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["DeadCodeTool"]
@@ -27,6 +29,7 @@ class DeadCodeTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_dead_code"
 
+    @safe_execute
     def execute(
         self,
         *,
@@ -43,34 +46,31 @@ class DeadCodeTool(AXMTool):
         Returns:
             ToolResult with dead symbols list.
         """
-        try:
-            pkg_path = Path(path).resolve()
-            if not pkg_path.is_dir():
-                return ToolResult(success=False, error=f"Not a directory: {pkg_path}")
+        pkg_path = Path(path).resolve()
+        if not pkg_path.is_dir():
+            return ToolResult(success=False, error=f"Not a directory: {pkg_path}")
 
-            from axm_ast.core.cache import get_package
-            from axm_ast.core.dead_code import find_dead_code
+        from axm_ast.core.cache import get_package
+        from axm_ast.core.dead_code import find_dead_code
 
-            pkg = get_package(pkg_path)
-            dead = find_dead_code(pkg, include_tests=include_tests)
+        pkg = get_package(pkg_path)
+        dead = find_dead_code(pkg, include_tests=include_tests)
 
-            symbols = [
-                {
-                    "name": d.name,
-                    "module_path": d.module_path,
-                    "line": d.line,
-                    "kind": d.kind,
-                }
-                for d in dead
-            ]
+        symbols = [
+            {
+                "name": d.name,
+                "module_path": d.module_path,
+                "line": d.line,
+                "kind": d.kind,
+            }
+            for d in dead
+        ]
 
-            return ToolResult(
-                success=True,
-                data={"dead_symbols": symbols, "total": len(dead)},
-                text=self._render_text(symbols, pkg_root=str(pkg_path)),
-            )
-        except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+        return ToolResult(
+            success=True,
+            data={"dead_symbols": symbols, "total": len(dead)},
+            text=self._render_text(symbols, pkg_root=str(pkg_path)),
+        )
 
     @staticmethod
     def _render_text(symbols: list[dict[str, Any]], *, pkg_root: str) -> str:

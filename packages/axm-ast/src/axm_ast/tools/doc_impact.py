@@ -7,6 +7,8 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.tools._base import safe_execute
+
 __all__ = ["DocImpactTool"]
 
 
@@ -21,6 +23,7 @@ class DocImpactTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_doc_impact"
 
+    @safe_execute
     def execute(
         self,
         *,
@@ -41,20 +44,15 @@ class DocImpactTool(AXMTool):
         if not symbols:
             return ToolResult(success=False, error="symbols parameter is required")
 
-        try:
-            project_path = Path(path).resolve()
-            if not project_path.is_dir():
-                return ToolResult(
-                    success=False, error=f"Not a directory: {project_path}"
-                )
+        project_path = Path(path).resolve()
+        if not project_path.is_dir():
+            return ToolResult(success=False, error=f"Not a directory: {project_path}")
 
-            from axm_ast.core.doc_impact import analyze_doc_impact
+        from axm_ast.core.doc_impact import analyze_doc_impact
 
-            result = analyze_doc_impact(project_path, symbols)
+        result = analyze_doc_impact(project_path, symbols)
 
-            from axm_ast.tools.doc_impact_text import render_doc_impact_text
+        from axm_ast.tools.doc_impact_text import render_doc_impact_text
 
-            text = render_doc_impact_text(result) if isinstance(result, dict) else None
-            return ToolResult(success=True, data=result, text=text)
-        except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+        text = render_doc_impact_text(result) if isinstance(result, dict) else None
+        return ToolResult(success=True, data=result, text=text)

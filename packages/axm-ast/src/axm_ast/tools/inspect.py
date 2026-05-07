@@ -8,6 +8,7 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from ._base import safe_execute
 from .inspect_detail import (
     build_detail,
     class_detail,
@@ -49,6 +50,7 @@ class InspectTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_inspect"
 
+    @safe_execute
     def execute(
         self,
         *,
@@ -77,17 +79,14 @@ class InspectTool(AXMTool):
 
         source = bool(source)
 
-        try:
-            project_path = resolve_path(path)
-            if isinstance(project_path, ToolResult):
-                return project_path
+        project_path = resolve_path(path)
+        if isinstance(project_path, ToolResult):
+            return project_path
 
-            if symbols is not None:
-                return self._inspect_batch(project_path, symbols, source=source)
+        if symbols is not None:
+            return self._inspect_batch(project_path, symbols, source=source)
 
-            return self._inspect_symbol(project_path, symbol, source=source)  # type: ignore[arg-type]
-        except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+        return self._inspect_symbol(project_path, symbol, source=source)  # type: ignore[arg-type]
 
     def _inspect_batch(
         self,

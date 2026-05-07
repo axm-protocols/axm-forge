@@ -8,6 +8,8 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.tools._base import safe_execute
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,6 +25,7 @@ class DiffTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_diff"
 
+    @safe_execute
     def execute(
         self,
         *,
@@ -46,23 +49,18 @@ class DiffTool(AXMTool):
         if not head:
             return ToolResult(success=False, error="head parameter is required")
 
-        try:
-            project_path = Path(path).resolve()
-            if not project_path.is_dir():
-                return ToolResult(
-                    success=False, error=f"Not a directory: {project_path}"
-                )
+        project_path = Path(path).resolve()
+        if not project_path.is_dir():
+            return ToolResult(success=False, error=f"Not a directory: {project_path}")
 
-            from axm_ast.core.structural_diff import structural_diff
+        from axm_ast.core.structural_diff import structural_diff
 
-            result = structural_diff(project_path, base, head)
+        result = structural_diff(project_path, base, head)
 
-            if "error" in result:
-                return ToolResult(success=False, error=result["error"])
+        if "error" in result:
+            return ToolResult(success=False, error=result["error"])
 
-            return ToolResult(
-                success=True,
-                data=result,
-            )
-        except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+        return ToolResult(
+            success=True,
+            data=result,
+        )

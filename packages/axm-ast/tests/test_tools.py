@@ -457,7 +457,7 @@ class TestImpactTool:
         from axm_ast.tools.impact import ImpactTool
 
         tool = ImpactTool()
-        result = tool.execute(path=".", symbols="not_a_list")  # type: ignore[arg-type]
+        result = tool.execute(path=".", symbols="not_a_list")
         assert result.success is False
         assert result.error is not None
         assert "must be a list" in result.error

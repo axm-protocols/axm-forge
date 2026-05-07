@@ -195,7 +195,7 @@ class TestInspectEdgeCases:
         assert "required" in result.error
 
     def test_symbols_invalid_type(self, tool: InspectTool) -> None:
-        result = tool.execute(path=".", symbols="not_a_list")  # type: ignore
+        result = tool.execute(path=".", symbols="not_a_list")
         assert result.success is False
         assert result.error is not None
         assert "must be a list" in result.error

@@ -8,6 +8,8 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.tools._base import safe_execute
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["CallersTool"]
@@ -32,6 +34,7 @@ class CallersTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_callers"
 
+    @safe_execute
     def execute(
         self, *, path: str = ".", symbol: str | None = None, **kwargs: Any
     ) -> ToolResult:
@@ -48,43 +51,38 @@ class CallersTool(AXMTool):
         if not symbol:
             return ToolResult(success=False, error="symbol parameter is required")
 
+        project_path = Path(path).resolve()
+        if not project_path.is_dir():
+            return ToolResult(success=False, error=f"Not a directory: {project_path}")
+
         try:
-            project_path = Path(path).resolve()
-            if not project_path.is_dir():
-                return ToolResult(
-                    success=False, error=f"Not a directory: {project_path}"
-                )
+            from axm_ast.core.callers import find_callers_workspace
+            from axm_ast.core.workspace import analyze_workspace
 
-            try:
-                from axm_ast.core.callers import find_callers_workspace
-                from axm_ast.core.workspace import analyze_workspace
+            ws = analyze_workspace(project_path)
+            callers = find_callers_workspace(ws, symbol)
+        except ValueError:
+            from axm_ast.core.cache import get_package
+            from axm_ast.core.callers import find_callers
 
-                ws = analyze_workspace(project_path)
-                callers = find_callers_workspace(ws, symbol)
-            except ValueError:
-                from axm_ast.core.cache import get_package
-                from axm_ast.core.callers import find_callers
+            pkg = get_package(project_path)
+            callers = find_callers(pkg, symbol)
 
-                pkg = get_package(project_path)
-                callers = find_callers(pkg, symbol)
+        caller_data = [
+            {
+                "module": c.module,
+                "line": c.line,
+                "context": c.context,
+                "call_expression": c.call_expression,
+            }
+            for c in callers
+        ]
 
-            caller_data = [
-                {
-                    "module": c.module,
-                    "line": c.line,
-                    "context": c.context,
-                    "call_expression": c.call_expression,
-                }
-                for c in callers
-            ]
-
-            return ToolResult(
-                success=True,
-                data={"callers": caller_data, "count": len(caller_data)},
-                text=CallersTool._render_text(caller_data, symbol=symbol),
-            )
-        except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+        return ToolResult(
+            success=True,
+            data={"callers": caller_data, "count": len(caller_data)},
+            text=CallersTool._render_text(caller_data, symbol=symbol),
+        )
 
     @staticmethod
     def _render_text(callers: list[dict[str, Any]], *, symbol: str) -> str:

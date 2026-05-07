@@ -8,6 +8,8 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.tools._base import safe_execute
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["CalleesTool"]
@@ -46,6 +48,7 @@ class CalleesTool(AXMTool):
             lines.append(f"{module}:{line} {call_expression}")
         return "\n".join(lines)
 
+    @safe_execute
     def execute(
         self, *, path: str = ".", symbol: str | None = None, **kwargs: Any
     ) -> ToolResult:
@@ -61,39 +64,34 @@ class CalleesTool(AXMTool):
         if not symbol:
             return ToolResult(success=False, error="symbol parameter is required")
 
+        project_path = Path(path).resolve()
+        if not project_path.is_dir():
+            return ToolResult(success=False, error=f"Not a directory: {project_path}")
+
         try:
-            project_path = Path(path).resolve()
-            if not project_path.is_dir():
-                return ToolResult(
-                    success=False, error=f"Not a directory: {project_path}"
-                )
+            from axm_ast.core.flows import find_callees_workspace
+            from axm_ast.core.workspace import analyze_workspace
 
-            try:
-                from axm_ast.core.flows import find_callees_workspace
-                from axm_ast.core.workspace import analyze_workspace
+            ws = analyze_workspace(project_path)
+            callees = find_callees_workspace(ws, symbol)
+        except ValueError:
+            from axm_ast.core.cache import get_package
+            from axm_ast.core.flows import find_callees
 
-                ws = analyze_workspace(project_path)
-                callees = find_callees_workspace(ws, symbol)
-            except ValueError:
-                from axm_ast.core.cache import get_package
-                from axm_ast.core.flows import find_callees
+            pkg = get_package(project_path)
+            callees = find_callees(pkg, symbol)
 
-                pkg = get_package(project_path)
-                callees = find_callees(pkg, symbol)
+        callee_data = [
+            {
+                "module": c.module,
+                "line": c.line,
+                "call_expression": c.call_expression,
+            }
+            for c in callees
+        ]
 
-            callee_data = [
-                {
-                    "module": c.module,
-                    "line": c.line,
-                    "call_expression": c.call_expression,
-                }
-                for c in callees
-            ]
-
-            return ToolResult(
-                success=True,
-                data={"callees": callee_data, "count": len(callee_data)},
-                text=CalleesTool._render_text(callee_data, symbol=symbol),
-            )
-        except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+        return ToolResult(
+            success=True,
+            data={"callees": callee_data, "count": len(callee_data)},
+            text=CalleesTool._render_text(callee_data, symbol=symbol),
+        )
