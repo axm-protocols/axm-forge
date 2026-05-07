@@ -88,7 +88,7 @@ Independent, composable analysis engines:
 | `analyzer.py` | Package discovery (auto-detects src-layout), import graph (absolute + relative), search, stubs | `analyze_package()` |
 | `cache.py` | Thread-safe caching of `PackageInfo` — avoids redundant parsing | `get_package()`, `clear_cache()` |
 | `ranker.py` | PageRank symbol importance | `rank_symbols()` |
-| `callers.py` | Call-site detection | `find_callers()`, `find_callers_workspace()` |
+| `callers.py` | Call-site detection. Shares tree-sitter walker primitives (`is_call_node`, `update_context`, `extract_call_site`, `node_text_safe`) with `flows.py` via the internal `_call_helpers` module — exposed without underscore prefix so cross-module imports remain compliant with the no-private-cross-module-import rule | `find_callers()`, `find_callers_workspace()` |
 | `context.py` | One-shot project dump | `build_context()` |
 | `impact.py` | Change blast radius (callers + reexports + tests + git coupling + cross-package). Workspace analysis delegates to extracted helpers (`_find_workspace_definition`, `_resolve_effective_test_filter`, `_apply_caller_test_filter`) | `analyze_impact()`, `find_definition()`, `analyze_impact_workspace()` |
 | `git_coupling.py` | Git co-change coupling analysis (6-month history) | `git_coupled_files()` |
