@@ -101,18 +101,21 @@ See the [MCP how-to guide](https://forge.axm-protocols.io/audit/howto/mcp/) for 
 
 ## Scoring Model
 
-10-category weighted composite on a 100-point scale:
+9-category weighted composite on a 100-point scale:
 
 | Category | Weight | Tool |
 |---|---|---|
-| Linting | **20%** | Ruff |
+| Linting | **15%** | Ruff |
 | Type Safety | **15%** | mypy |
-| Complexity | **15%** | radon |
+| Complexity | **15%** | radon + complexipy |
 | Security | **10%** | Bandit |
 | Dependencies | **10%** | pip-audit + deptry |
-| Testing | **15%** | pytest-cov |
+| Testing | **10%** | pytest-cov |
+| Test Quality | **10%** | AST analysis |
 | Architecture | **10%** | AST analysis |
 | Practices | **5%** | AST analysis |
+
+Categories `structure` and `tooling` emit findings but are not scored.
 
 ## Categories
 
