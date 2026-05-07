@@ -104,34 +104,6 @@ class TestBuildResultTextFormat:
 
 
 # ---------------------------------------------------------------------------
-# Functional tests
-# ---------------------------------------------------------------------------
-
-
-class TestComplexityCheckTextRendering:
-    """Functional: text lines from check() contain file:function pattern."""
-
-    def test_complexity_check_text_rendering(
-        self, rule: ComplexityRule, tmp_path: object
-    ) -> None:
-        """Simulate _build_result via direct call with realistic data."""
-        offenders = _make_offenders(
-            [
-                ("src/engine.py", "run_pipeline", 22),
-                ("src/parser.py", "parse_tokens", 18),
-                ("src/validator.py", "validate_all", 14),
-            ]
-        )
-        result = rule._build_result(offenders)
-
-        assert result.text is not None
-        for line in result.text.split("\n"):
-            assert ":" in line
-            assert "→" not in line
-            assert "cc=" in line
-
-
-# ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
 
