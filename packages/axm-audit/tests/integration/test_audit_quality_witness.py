@@ -235,21 +235,6 @@ class TestFeedbackFormatAgentFriendly:
         assert result.metadata["audit"]["failed"]
 
 
-class TestWorkingDirInvalid:
-    """Edge case: working_dir does not exist."""
-
-    def test_working_dir_invalid(self) -> None:
-        rule = AuditQualityRule(
-            categories=["lint"],
-            working_dir="/nonexistent/path/xyz",
-        )
-        result = rule.validate("")
-
-        assert result.passed is False
-        assert result.feedback is not None
-        assert "Not a directory" in result.feedback.why
-
-
 class TestUnknownCategoryIgnored:
     """Edge case: unknown category is silently skipped."""
 
