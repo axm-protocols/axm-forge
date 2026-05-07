@@ -18,7 +18,7 @@ from typing import Annotated, Any
 
 import cyclopts
 
-from axm_audit.core.rules.base import PASS_THRESHOLD, PERFECT_SCORE
+from axm_audit.core.rules.base import PASS_THRESHOLD
 from axm_audit.formatters import (
     format_agent,
     format_agent_text,
@@ -104,7 +104,7 @@ def audit(
     else:
         print(format_report(result))
 
-    if result.quality_score is not None and result.quality_score < PERFECT_SCORE:
+    if result.quality_score is not None and result.quality_score < PASS_THRESHOLD:
         raise SystemExit(1)
 
 
