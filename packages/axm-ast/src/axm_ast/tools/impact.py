@@ -86,7 +86,8 @@ class ImpactTool(AXMTool):
                     **tf,
                 )
 
-            assert symbol is not None  # already guarded above
+            if symbol is None:
+                return ToolResult(success=False, error="symbol parameter is required")
             return self._execute_single(
                 project_path,
                 symbol,
