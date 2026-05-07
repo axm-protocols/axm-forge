@@ -378,6 +378,49 @@ Multi-line string starting with `ast_impact | {n} symbols | max={score}`, follow
 
 ---
 
+## `ImpactTool.execute`
+
+```python
+from axm_ast.tools.impact import ImpactTool
+
+tool = ImpactTool()
+result = tool.execute(path=".", symbol="MyClass.method")
+```
+
+Analyze the blast radius of a symbol (single) or a list of symbols (batch).
+Registered as the `ast_impact` MCP tool. Workspace-aware: when `path`
+points at a uv workspace root, the analysis spans every member package.
+
+At least one of `symbol` or `symbols` must be provided; otherwise the
+call returns a `ToolResult` with `success=False` and an explanatory
+`error` (the public surface validates this without relying on
+production `assert`, which `python -O` would strip).
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `path` | `str` | `"."` | Package or workspace directory to analyze |
+| `symbol` | `str \| None` | `None` | Single symbol to analyze (mutually optional with `symbols`) |
+| `symbols` | `list[str] \| None` | `None` | Batch of symbols; routes to per-symbol analysis and aggregated results |
+| `exclude_tests` | `bool` | `False` | If true, drops test files from caller analysis |
+| `detail` | `str \| None` | `None` | Set to `"compact"` for a markdown-table summary instead of the full dict |
+| `**kwargs` | — | — | `test_filter` (`"none"`, `"all"`, `"related"`) controls test caller filtering |
+
+### Return value
+
+`ToolResult`:
+
+| Mode | `data` | `text` |
+|---|---|---|
+| Single, full | Impact dict (callers, reexports, score, …) | Rendered via `render_impact_text` when fields permit |
+| Single, compact | `{}` | Markdown table from `format_impact_compact` |
+| Batch, full | `{"symbols": [report, …]}` | Rendered via `render_impact_batch_text` when fields permit |
+| Batch, compact | `{}` | Markdown table from `format_impact_compact` |
+| Error | — | — (use `error` field) |
+
+---
+
 ## `ImpactHook.execute`
 
 ```python
