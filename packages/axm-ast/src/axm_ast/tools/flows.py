@@ -8,6 +8,7 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.tools._base import safe_execute
 from axm_ast.tools.flows_text import (
     render_compact_text,
     render_entry_points_text,
@@ -37,6 +38,7 @@ class FlowsTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_flows"
 
+    @safe_execute
     def execute(  # noqa: PLR0913
         self,
         *,
@@ -73,45 +75,41 @@ class FlowsTool(AXMTool):
             Returns ``success=False`` when the entry symbol is not found
             in the package.
         """
-        try:
-            pkg_path = Path(path).resolve()
-            if not pkg_path.is_dir():
-                return ToolResult(success=False, error=f"Not a directory: {pkg_path}")
+        pkg_path = Path(path).resolve()
+        if not pkg_path.is_dir():
+            return ToolResult(success=False, error=f"Not a directory: {pkg_path}")
 
-            from axm_ast.core.cache import get_package
-            from axm_ast.core.flows import (
-                VALID_DETAILS,
-                find_entry_points,
-                format_flow_compact,
-                trace_flow,
+        from axm_ast.core.cache import get_package
+        from axm_ast.core.flows import (
+            VALID_DETAILS,
+            find_entry_points,
+            format_flow_compact,
+            trace_flow,
+        )
+
+        if detail not in VALID_DETAILS:
+            return ToolResult(
+                success=False,
+                error=(
+                    f"Invalid detail={detail!r}; must be one of {sorted(VALID_DETAILS)}"
+                ),
             )
 
-            if detail not in VALID_DETAILS:
-                return ToolResult(
-                    success=False,
-                    error=(
-                        f"Invalid detail={detail!r};"
-                        f" must be one of {sorted(VALID_DETAILS)}"
-                    ),
-                )
+        pkg = get_package(pkg_path)
 
-            pkg = get_package(pkg_path)
+        if entry is not None:
+            return self._trace_entry(
+                pkg,
+                entry,
+                max_depth=max_depth,
+                cross_module=cross_module,
+                detail=detail,
+                exclude_stdlib=exclude_stdlib,
+                trace_flow=trace_flow,
+                format_flow_compact=format_flow_compact,
+            )
 
-            if entry is not None:
-                return self._trace_entry(
-                    pkg,
-                    entry,
-                    max_depth=max_depth,
-                    cross_module=cross_module,
-                    detail=detail,
-                    exclude_stdlib=exclude_stdlib,
-                    trace_flow=trace_flow,
-                    format_flow_compact=format_flow_compact,
-                )
-
-            return self._detect_entries(pkg, find_entry_points)
-        except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+        return self._detect_entries(pkg, find_entry_points)
 
     def _trace_entry(  # noqa: PLR0913
         self,

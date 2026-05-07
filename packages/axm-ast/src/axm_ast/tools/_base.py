@@ -1,0 +1,55 @@
+"""Shared error-handling helpers for ``axm_ast`` tool implementations."""
+
+from __future__ import annotations
+
+import functools
+import logging
+from collections.abc import Callable
+from typing import Any
+
+from axm.tools.base import ToolResult
+
+__all__ = ["log_and_fallback", "safe_execute"]
+
+
+def safe_execute(
+    method: Callable[..., ToolResult],
+) -> Callable[..., ToolResult]:
+    """Wrap a tool ``execute`` method to log + return structured failures.
+
+    The wrapper logs any uncaught exception at ``WARNING`` on the calling
+    module's logger with ``exc_info=True``, then returns a
+    ``ToolResult(success=False, error=str(exc))`` so callers never see a
+    raised exception.
+    """
+    logger = logging.getLogger(method.__module__)
+
+    @functools.wraps(method)
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> ToolResult:
+        try:
+            return method(self, *args, **kwargs)
+        except Exception as exc:  # noqa: BLE001 — final boundary
+            logger.warning(
+                "Tool %s failed: %s",
+                type(self).__name__,
+                exc,
+                exc_info=True,
+            )
+            return ToolResult(success=False, error=str(exc))
+
+    return wrapper
+
+
+def log_and_fallback[T](
+    logger: logging.Logger,
+    exc: BaseException,
+    fallback: T,
+) -> T:
+    """Log an exception at ``WARNING`` with ``exc_info`` and return *fallback*.
+
+    Used inside helpers that return a ``dict`` (or other structured value)
+    instead of a ``ToolResult`` — they can't use :func:`safe_execute` but
+    still need centralized logging on the failure boundary.
+    """
+    logger.warning("Tool helper failed: %s", exc, exc_info=True)
+    return fallback

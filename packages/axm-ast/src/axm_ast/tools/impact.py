@@ -8,6 +8,7 @@ from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.tools._base import log_and_fallback, safe_execute
 from axm_ast.tools.impact_text import (
     render_impact_batch_text,
     render_impact_text,
@@ -39,6 +40,7 @@ class ImpactTool(AXMTool):
         """Return tool name for registry lookup."""
         return "ast_impact"
 
+    @safe_execute
     def execute(
         self,
         *,
@@ -67,36 +69,31 @@ class ImpactTool(AXMTool):
         if not symbol and not symbols:
             return ToolResult(success=False, error="symbol parameter is required")
 
-        try:
-            project_path = Path(path).resolve()
-            if not project_path.is_dir():
-                return ToolResult(
-                    success=False, error=f"Not a directory: {project_path}"
-                )
+        project_path = Path(path).resolve()
+        if not project_path.is_dir():
+            raise NotADirectoryError(f"Not a directory: {project_path}")
 
-            test_filter: str | None = kwargs.get("test_filter")
-            tf = {"test_filter": test_filter} if test_filter is not None else {}
+        test_filter: str | None = kwargs.get("test_filter")
+        tf = {"test_filter": test_filter} if test_filter is not None else {}
 
-            if symbols is not None:
-                return self._execute_batch(
-                    project_path,
-                    symbols,
-                    exclude_tests,
-                    detail,
-                    **tf,
-                )
-
-            if symbol is None:
-                return ToolResult(success=False, error="symbol parameter is required")
-            return self._execute_single(
+        if symbols is not None:
+            return self._execute_batch(
                 project_path,
-                symbol,
+                symbols,
                 exclude_tests,
                 detail,
                 **tf,
             )
-        except Exception as exc:
-            return ToolResult(success=False, error=str(exc))
+
+        if symbol is None:
+            return ToolResult(success=False, error="symbol parameter is required")
+        return self._execute_single(
+            project_path,
+            symbol,
+            exclude_tests,
+            detail,
+            **tf,
+        )
 
     def _execute_batch(
         self,
@@ -219,8 +216,8 @@ class ImpactTool(AXMTool):
             if impact.get("definition") is None:
                 return {"symbol": symbol, "error": f"Symbol '{symbol}' not found"}
             return impact
-        except Exception as exc:
-            return {"symbol": symbol, "error": str(exc)}
+        except Exception as exc:  # noqa: BLE001 — final boundary
+            return log_and_fallback(logger, exc, {"symbol": symbol, "error": str(exc)})
 
     def _analyze_single_result(
         self,
