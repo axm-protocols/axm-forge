@@ -190,16 +190,31 @@ class TestTypeCheckVenvAlignment:
 class TestTypeCheckRule:
     """Tests for TypeCheckRule (mypy integration)."""
 
-    def test_typed_project_high_score(self, tmp_path: Path) -> None:
-        """Fully typed project should score 100 and pass."""
+    @pytest.mark.parametrize(
+        ("filename", "source"),
+        [
+            pytest.param(
+                "main.py",
+                'def greet(name: str) -> str:\n    return f"Hello, {name}"\n',
+                id="typed_greet",
+            ),
+            pytest.param(
+                "clean.py",
+                "def double(x: int) -> int:\n    return x * 2\n",
+                id="typed_double",
+            ),
+        ],
+    )
+    def test_typed_project_high_score(
+        self, tmp_path: Path, filename: str, source: str
+    ) -> None:
+        """Fully typed project (zero mypy errors) → passed=True, score=100."""
         from axm_audit.core.rules.quality import TypeCheckRule
 
         src = tmp_path / "src"
         src.mkdir()
         (src / "__init__.py").write_text("")
-        (src / "main.py").write_text(
-            'def greet(name: str) -> str:\n    return f"Hello, {name}"\n'
-        )
+        (src / filename).write_text(source)
 
         rule = TypeCheckRule()
         result = rule.check(tmp_path)
@@ -329,21 +344,6 @@ class TestTypeCheckRule:
         result = rule.check(tmp_path)
         assert result.details is not None
         assert result.details["errors"] == []
-
-    def test_type_check_zero_errors_passes(self, tmp_path: Path) -> None:
-        """Zero mypy errors → passed=True, score=100."""
-        from axm_audit.core.rules.quality import TypeCheckRule
-
-        src = tmp_path / "src"
-        src.mkdir()
-        (src / "__init__.py").write_text("")
-        (src / "clean.py").write_text("def double(x: int) -> int:\n    return x * 2\n")
-
-        rule = TypeCheckRule()
-        result = rule.check(tmp_path)
-        assert result.passed is True
-        assert result.details is not None
-        assert result.score == 100
 
     @pytest.mark.parametrize(
         ("source", "expected_error_count"),

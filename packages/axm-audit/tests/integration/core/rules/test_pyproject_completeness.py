@@ -24,25 +24,47 @@ def _write_pyproject(tmp_path: Path, content: str) -> Path:
 class TestPyprojectCompletenessRuleIO:
     """Tests for PyprojectCompletenessRule (PEP 621 validation) — filesystem I/O."""
 
-    def test_complete_pyproject_passes(self, tmp_path: Path) -> None:
-        """All 9 fields present → score=100, passed=True."""
+    @pytest.mark.parametrize(
+        "content",
+        [
+            pytest.param(
+                "[project]\n"
+                'name = "my-pkg"\n'
+                'version = "1.0.0"\n'
+                'description = "A package"\n'
+                'requires-python = ">=3.12"\n'
+                'license = "MIT"\n'
+                'readme = "README.md"\n'
+                'authors = [{name = "Test"}]\n'
+                'classifiers = ["Development Status :: 3"]\n'
+                "\n"
+                "[project.urls]\n"
+                'Homepage = "https://example.com"\n',
+                id="static_version",
+            ),
+            pytest.param(
+                "[project]\n"
+                'name = "my-pkg"\n'
+                'dynamic = ["version"]\n'
+                'description = "A package"\n'
+                'requires-python = ">=3.12"\n'
+                'license = "MIT"\n'
+                'readme = "README.md"\n'
+                'authors = [{name = "Test"}]\n'
+                'classifiers = ["Development Status :: 3"]\n'
+                "\n"
+                "[project.urls]\n"
+                'Homepage = "https://example.com"\n',
+                id="dynamic_version",
+            ),
+        ],
+    )
+    def test_complete_pyproject_passes(self, tmp_path: Path, content: str) -> None:
+        """All 9 fields present (static or dynamic version) → score=100, passed=True."""
         from axm_audit.core.rules.structure import PyprojectCompletenessRule
 
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text(
-            "[project]\n"
-            'name = "my-pkg"\n'
-            'version = "1.0.0"\n'
-            'description = "A package"\n'
-            'requires-python = ">=3.12"\n'
-            'license = "MIT"\n'
-            'readme = "README.md"\n'
-            'authors = [{name = "Test"}]\n'
-            'classifiers = ["Development Status :: 3"]\n'
-            "\n"
-            "[project.urls]\n"
-            'Homepage = "https://example.com"\n'
-        )
+        pyproject.write_text(content)
 
         rule = PyprojectCompletenessRule()
         result = rule.check(tmp_path)
@@ -65,33 +87,6 @@ class TestPyprojectCompletenessRuleIO:
         assert result.details is not None
         assert result.score is not None
         assert result.score < 50
-
-    def test_dynamic_version_counts(self, tmp_path: Path) -> None:
-        """dynamic = ['version'] should count as version present."""
-        from axm_audit.core.rules.structure import PyprojectCompletenessRule
-
-        pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text(
-            "[project]\n"
-            'name = "my-pkg"\n'
-            'dynamic = ["version"]\n'
-            'description = "A package"\n'
-            'requires-python = ">=3.12"\n'
-            'license = "MIT"\n'
-            'readme = "README.md"\n'
-            'authors = [{name = "Test"}]\n'
-            'classifiers = ["Development Status :: 3"]\n'
-            "\n"
-            "[project.urls]\n"
-            'Homepage = "https://example.com"\n'
-        )
-
-        rule = PyprojectCompletenessRule()
-        result = rule.check(tmp_path)
-
-        assert result.passed is True
-        assert result.details is not None
-        assert result.score == 100
 
     def test_missing_pyproject_fails(self, tmp_path: Path) -> None:
         """No pyproject.toml → score=0, passed=False."""
