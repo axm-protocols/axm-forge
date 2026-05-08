@@ -345,38 +345,37 @@ class TestTypeCheckRule:
         assert result.details is not None
         assert result.score == 100
 
-    def test_type_check_one_error_fails(self, tmp_path: Path) -> None:
-        """One mypy error → passed=False (zero tolerance)."""
+    @pytest.mark.parametrize(
+        ("source", "expected_error_count"),
+        [
+            pytest.param(
+                'def add(a: int, b: int) -> int:\n    return "wrong"\n',
+                1,
+                id="one_error",
+            ),
+            pytest.param(
+                'def add(a: int, b: int) -> int:\n    return "wrong"\n\n'
+                'def sub(a: int, b: int) -> int:\n    return "also wrong"\n',
+                2,
+                id="two_errors",
+            ),
+        ],
+    )
+    def test_type_check_n_errors_fails(
+        self, tmp_path: Path, source: str, expected_error_count: int
+    ) -> None:
+        """N mypy errors → passed=False (zero tolerance)."""
         from axm_audit.core.rules.quality import TypeCheckRule
 
         src = tmp_path / "src"
         src.mkdir()
-        (src / "bad.py").write_text(
-            'def add(a: int, b: int) -> int:\n    return "wrong"\n'
-        )
+        (src / "bad.py").write_text(source)
 
         rule = TypeCheckRule()
         result = rule.check(tmp_path)
         assert result.passed is False
         assert result.details is not None
-        assert result.details["error_count"] == 1
-
-    def test_type_check_two_errors_fails(self, tmp_path: Path) -> None:
-        """Two mypy errors → passed=False (zero tolerance)."""
-        from axm_audit.core.rules.quality import TypeCheckRule
-
-        src = tmp_path / "src"
-        src.mkdir()
-        (src / "bad.py").write_text(
-            'def add(a: int, b: int) -> int:\n    return "wrong"\n\n'
-            'def sub(a: int, b: int) -> int:\n    return "also wrong"\n'
-        )
-
-        rule = TypeCheckRule()
-        result = rule.check(tmp_path)
-        assert result.passed is False
-        assert result.details is not None
-        assert result.details["error_count"] == 2
+        assert result.details["error_count"] == expected_error_count
 
     def test_lint_threshold_unchanged(self, tmp_path: Path) -> None:
         """Lint rule still uses score threshold — no regression from type fix."""
