@@ -3,27 +3,27 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
+from axm_smelt._types import JsonValue
 from axm_smelt.core.models import SmeltContext
 from axm_smelt.strategies.base import SmeltStrategy
 
 __all__ = ["DropNullsStrategy"]
 
 
-def _is_empty(value: Any) -> bool:
+def _is_empty(value: JsonValue) -> bool:
     """Return True if *value* is considered empty."""
     return value is None or value in ("", [], {})
 
 
-def _clean(data: Any) -> Any:
+def _clean(data: JsonValue) -> JsonValue:
     """Recursively remove empty values (bottom-up)."""
     if isinstance(data, dict):
-        cleaned = {}
+        cleaned: dict[str, JsonValue] = {}
         for k, v in data.items():
-            v = _clean(v)
-            if not _is_empty(v):
-                cleaned[k] = v
+            cleaned_v = _clean(v)
+            if not _is_empty(cleaned_v):
+                cleaned[k] = cleaned_v
         return cleaned
     if isinstance(data, list):
         return [_clean(item) for item in data if not _is_empty(_clean(item))]

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json  # noqa: F401 — required for test patching (json.dumps guard)
-from typing import Any
+from typing import cast
 
 from axm.tools.base import AXMTool, ToolResult
+
+from axm_smelt._types import JsonValue
 
 __all__ = ["SmeltTool"]
 
@@ -29,10 +31,10 @@ class SmeltTool(AXMTool):
     def execute(
         self,
         *,
-        data: str | Any = "",
+        data: JsonValue = "",
         strategies: list[str] | None = None,
         preset: str | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Run the smelt compaction pipeline.
 
@@ -52,7 +54,8 @@ class SmeltTool(AXMTool):
             from axm_smelt.core.pipeline import smelt
 
             if not isinstance(data, str):
-                report = smelt(parsed=data, strategies=strategies, preset=preset)
+                parsed = cast("dict[str, JsonValue] | list[JsonValue]", data)
+                report = smelt(parsed=parsed, strategies=strategies, preset=preset)
             else:
                 report = smelt(data, strategies=strategies, preset=preset)
 

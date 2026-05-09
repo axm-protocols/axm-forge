@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import cast
 
 from axm.tools.base import AXMTool, ToolResult
+
+from axm_smelt._types import JsonValue
 
 __all__ = ["SmeltCheckTool"]
 
@@ -28,8 +30,8 @@ class SmeltCheckTool(AXMTool):
     def execute(
         self,
         *,
-        data: str | Any = "",
-        **kwargs: Any,
+        data: JsonValue = "",
+        **kwargs: object,
     ) -> ToolResult:
         """Analyze data for token reduction opportunities.
 
@@ -47,7 +49,9 @@ class SmeltCheckTool(AXMTool):
             from axm_smelt.core.pipeline import check
 
             if not isinstance(data, str):
-                report = check(parsed=data)
+                report = check(
+                    parsed=cast("dict[str, JsonValue] | list[JsonValue]", data)
+                )
             else:
                 report = check(data)
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import logging
 from collections import Counter
-from typing import Any
 
+from axm_smelt._types import JsonValue
 from axm_smelt.core.models import SmeltContext
 from axm_smelt.strategies.base import SmeltStrategy
 
@@ -18,7 +18,7 @@ _MIN_LENGTH = 20
 _MIN_OCCURRENCES = 2
 
 
-def _collect_strings(data: Any, strings: list[str]) -> None:
+def _collect_strings(data: JsonValue, strings: list[str]) -> None:
     """Walk data and collect string values."""
     if isinstance(data, str):
         if len(data) >= _MIN_LENGTH:
@@ -32,9 +32,9 @@ def _collect_strings(data: Any, strings: list[str]) -> None:
 
 
 def _replace_strings(
-    data: Any,
+    data: JsonValue,
     lookup: dict[str, str],
-) -> Any:
+) -> JsonValue:
     """Replace repeated string values with short aliases."""
     if isinstance(data, str) and data in lookup:
         return lookup[data]
