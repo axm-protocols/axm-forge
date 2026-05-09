@@ -11,13 +11,6 @@ from typing import Any
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-SELF_PKG = Path(__file__).resolve().parent.parent / "src" / "axm_ast"
-SELF_ROOT = Path(__file__).resolve().parent.parent
-
 
 @pytest.fixture()
 def sample_project(tmp_path: Path) -> Path:
@@ -85,21 +78,8 @@ def _assert_tool_result(result: Any) -> None:
 # ===========================================================================
 
 
-class TestContextTool:
+class TestContextToolIntegration:
     """Tests for ast_context tool."""
-
-    def test_has_name(self) -> None:
-        from axm_ast.tools.context import ContextTool
-
-        tool = ContextTool()
-        assert tool.name == "ast_context"
-
-    def test_is_axm_tool(self) -> None:
-        from axm_ast.tools.context import ContextTool
-
-        tool = ContextTool()
-        assert hasattr(tool, "execute")
-        assert hasattr(tool, "name")
 
     def test_execute_returns_tool_result(self, sample_project: Path) -> None:
         from axm_ast.tools.context import ContextTool
@@ -115,14 +95,6 @@ class TestContextTool:
         tool = ContextTool()
         result = tool.execute(path=str(sample_project / "src" / "demo"))
         assert "name" in result.data
-
-    def test_execute_bad_path(self) -> None:
-        from axm_ast.tools.context import ContextTool
-
-        tool = ContextTool()
-        result = tool.execute(path="/nonexistent/path")
-        assert result.success is False
-        assert result.error is not None
 
     # --- Depth 0 compact output ---
 
@@ -153,14 +125,8 @@ class TestContextTool:
 # ===========================================================================
 
 
-class TestDescribeTool:
+class TestDescribeToolIntegration:
     """Tests for ast_describe tool."""
-
-    def test_has_name(self) -> None:
-        from axm_ast.tools.describe import DescribeTool
-
-        tool = DescribeTool()
-        assert tool.name == "ast_describe"
 
     def test_execute_returns_modules(self, sample_project: Path) -> None:
         from axm_ast.tools.describe import DescribeTool
@@ -178,13 +144,6 @@ class TestDescribeTool:
         result = tool.execute(path=str(sample_project / "src" / "demo"), compress=True)
         assert result.success is True
         assert "compressed" in result.data
-
-    def test_execute_bad_path(self) -> None:
-        from axm_ast.tools.describe import DescribeTool
-
-        tool = DescribeTool()
-        result = tool.execute(path="/nonexistent/path")
-        assert result.success is False
 
     def test_execute_detailed_includes_docstrings(self, sample_project: Path) -> None:
         from axm_ast.tools.describe import DescribeTool
@@ -317,14 +276,8 @@ class TestDescribeTool:
 # ===========================================================================
 
 
-class TestSearchTool:
+class TestSearchToolIntegration:
     """Tests for ast_search tool."""
-
-    def test_has_name(self) -> None:
-        from axm_ast.tools.search import SearchTool
-
-        tool = SearchTool()
-        assert tool.name == "ast_search"
 
     def test_search_by_name(self, sample_project: Path) -> None:
         from axm_ast.tools.search import SearchTool
@@ -360,14 +313,8 @@ class TestSearchTool:
 # ===========================================================================
 
 
-class TestCallersTool:
+class TestCallersToolIntegration:
     """Tests for ast_callers tool."""
-
-    def test_has_name(self) -> None:
-        from axm_ast.tools.callers import CallersTool
-
-        tool = CallersTool()
-        assert tool.name == "ast_callers"
 
     def test_find_callers(self, sample_project: Path) -> None:
         from axm_ast.tools.callers import CallersTool
@@ -393,14 +340,8 @@ class TestCallersTool:
 # ===========================================================================
 
 
-class TestImpactTool:
+class TestImpactToolIntegration:
     """Tests for ast_impact tool."""
-
-    def test_has_name(self) -> None:
-        from axm_ast.tools.impact import ImpactTool
-
-        tool = ImpactTool()
-        assert tool.name == "ast_impact"
 
     def test_analyze_impact(self, sample_project: Path) -> None:
         from axm_ast.tools.impact import ImpactTool
@@ -452,16 +393,6 @@ class TestImpactTool:
         assert "error" in symbols[1]
         assert symbols[1]["symbol"] == "missing_xyz"
 
-    def test_symbols_invalid_type(self) -> None:
-        """AC5: symbols must be a list, else error."""
-        from axm_ast.tools.impact import ImpactTool
-
-        tool = ImpactTool()
-        result = tool.execute(path=".", symbols="not_a_list")
-        assert result.success is False
-        assert result.error is not None
-        assert "must be a list" in result.error
-
     def test_symbols_precedence(self, sample_project: Path) -> None:
         """Edge: Both symbol and symbols → symbols takes precedence."""
         from axm_ast.tools.impact import ImpactTool
@@ -476,29 +407,14 @@ class TestImpactTool:
         assert "symbols" in result.data
         assert len(result.data["symbols"]) == 1
 
-    def test_symbols_empty_list(self) -> None:
-        """Edge: Empty symbols list falls through to require symbol param."""
-        from axm_ast.tools.impact import ImpactTool
-
-        tool = ImpactTool()
-        result = tool.execute(path=".", symbols=[])
-        assert result.success is False
-        assert "required" in result.error
-
 
 # ===========================================================================
 # ast_inspect
 # ===========================================================================
 
 
-class TestInspectTool:
+class TestInspectToolIntegration:
     """Tests for ast_inspect tool."""
-
-    def test_has_name(self) -> None:
-        from axm_ast.tools.inspect import InspectTool
-
-        tool = InspectTool()
-        assert tool.name == "ast_inspect"
 
     def test_inspect_function(self, sample_project: Path) -> None:
         from axm_ast.tools.inspect import InspectTool
@@ -731,14 +647,8 @@ class TestInspectTool:
 # ===========================================================================
 
 
-class TestGraphTool:
+class TestGraphToolIntegration:
     """Tests for ast_graph tool."""
-
-    def test_has_name(self) -> None:
-        from axm_ast.tools.graph import GraphTool
-
-        tool = GraphTool()
-        assert tool.name == "ast_graph"
 
     def test_graph_returns_edges(self, sample_project: Path) -> None:
         from axm_ast.tools.graph import GraphTool
@@ -765,14 +675,8 @@ class TestGraphTool:
 # ===========================================================================
 
 
-class TestDocsTool:
+class TestDocsToolIntegration:
     """Tests for ast_docs tool."""
-
-    def test_has_name(self) -> None:
-        from axm_ast.tools.docs import DocsTool
-
-        tool = DocsTool()
-        assert tool.name == "ast_docs"
 
     def test_docs_returns_readme(self, sample_project: Path) -> None:
         from axm_ast.tools.docs import DocsTool
@@ -782,13 +686,6 @@ class TestDocsTool:
         _assert_tool_result(result)
         assert result.success is True
         assert "readme" in result.data
-
-    def test_docs_bad_path(self) -> None:
-        from axm_ast.tools.docs import DocsTool
-
-        tool = DocsTool()
-        result = tool.execute(path="/nonexistent/path")
-        assert result.success is False
 
     # --- Progressive disclosure (detail + pages) ---
 
@@ -879,39 +776,6 @@ class TestDocsTool:
         assert len(pages) == 1
         assert "content" not in pages[0]
         assert len(pages[0]["headings"]) == 2
-
-
-# ===========================================================================
-# Dogfood: run tools on axm-ast itself
-# ===========================================================================
-
-
-class TestDogfood:
-    """Run tools on the axm-ast package itself."""
-
-    def test_context_on_self(self) -> None:
-        from axm_ast.tools.context import ContextTool
-
-        tool = ContextTool()
-        result = tool.execute(path=str(SELF_PKG))
-        assert result.success is True
-        assert result.data["name"] == "axm_ast"
-
-    def test_describe_on_self(self) -> None:
-        from axm_ast.tools.describe import DescribeTool
-
-        tool = DescribeTool()
-        result = tool.execute(path=str(SELF_PKG), compress=True)
-        assert result.success is True
-        assert result.data["module_count"] >= 16
-
-    def test_docs_on_self(self) -> None:
-        from axm_ast.tools.docs import DocsTool
-
-        tool = DocsTool()
-        result = tool.execute(path=str(SELF_ROOT))
-        assert result.success is True
-        assert result.data["readme"] is not None
 
 
 """Tests for axm-ast MCP tool wrappers."""
