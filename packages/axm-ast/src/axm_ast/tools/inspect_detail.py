@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from axm_ast.models.nodes import (
     ClassInfo,
@@ -50,9 +49,9 @@ def variable_detail(
     sym: VariableInfo,
     *,
     file: str = "",
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Build detail dict from a VariableInfo."""
-    detail: dict[str, Any] = {
+    detail: dict[str, object] = {
         "name": sym.name,
         "file": file,
         "kind": "variable",
@@ -70,9 +69,9 @@ def function_detail(
     sym: FunctionInfo,
     *,
     file: str = "",
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Build detail dict from a FunctionInfo."""
-    detail: dict[str, Any] = {
+    detail: dict[str, object] = {
         "name": sym.name,
         "kind": "function",
         "file": file,
@@ -96,9 +95,9 @@ def class_detail(
     sym: ClassInfo,
     *,
     file: str = "",
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Build detail dict from a ClassInfo."""
-    detail: dict[str, Any] = {
+    detail: dict[str, object] = {
         "name": sym.name,
         "kind": "class",
         "file": file,
@@ -129,7 +128,7 @@ def build_detail(
     file: str = "",
     abs_path: str = "",
     source: bool = False,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Build detail dict from a FunctionInfo, ClassInfo, or VariableInfo."""
     if isinstance(sym, VariableInfo):
         detail = variable_detail(sym, file=file)
@@ -148,7 +147,9 @@ def build_detail(
     return detail
 
 
-def build_module_detail(pkg: PackageInfo, mod: ModuleInfo, name: str) -> dict[str, Any]:
+def build_module_detail(
+    pkg: PackageInfo, mod: ModuleInfo, name: str
+) -> dict[str, object]:
     """Build detail dict for a module."""
     return {
         "name": name,
