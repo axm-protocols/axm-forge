@@ -34,7 +34,10 @@ def full_report() -> dict[str, Any]:
         ],
         "affected_modules": ["pkg.mod", "pkg.caller"],
         "test_files": ["tests/test_mod.py", "tests/sub/test_other.py"],
-        "git_coupled": ["src/pkg/helper.py", "src/pkg/util.py"],
+        "git_coupled": [
+            {"file": "src/pkg/helper.py", "strength": 0.8, "co_changes": 4},
+            {"file": "src/pkg/util.py", "strength": 0.6, "co_changes": 2},
+        ],
         "cross_package_impact": [
             {"package": "other-pkg", "module": "other_pkg.api"},
             "plain_string_entry",
