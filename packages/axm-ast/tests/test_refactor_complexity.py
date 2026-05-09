@@ -141,19 +141,21 @@ class TestSourceBodyDottedClassMethod:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from axm_ast.hooks.source_body import _resolve_as_class_method
+        from axm_ast.models import ClassInfo, FunctionInfo
 
-        mock_cls = MagicMock()
-        mock_cls.name = "MyClass"
-        mock_cls.methods = [MagicMock(name="my_method", line_start=10, line_end=20)]
-        # Fix: MagicMock.name is special, set it explicitly
-        mock_cls.methods[0].name = "my_method"
+        cls = ClassInfo(
+            name="MyClass",
+            line_start=1,
+            line_end=30,
+            methods=[FunctionInfo(name="my_method", line_start=10, line_end=20)],
+        )
 
         mock_mod = MagicMock()
         mock_mod.path = Path("/root/src/mod.py")
 
         monkeypatch.setattr(
             "axm_ast.hooks.source_body.search_symbols",
-            MagicMock(return_value=[("mod", mock_cls)]),
+            MagicMock(return_value=[("mod", cls)]),
         )
         monkeypatch.setattr(
             "axm_ast.hooks.source_body.find_module_for_symbol",
