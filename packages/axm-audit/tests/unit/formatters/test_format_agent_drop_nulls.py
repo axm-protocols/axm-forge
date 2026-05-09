@@ -41,7 +41,7 @@ def test_format_agent_drops_null_keys_failed() -> None:
             ),
         ],
     )
-    output = format_agent(result)  # type: ignore[arg-type]
+    output = format_agent(result)
     failed = output["failed"]
     assert len(failed) == 1
     assert set(failed[0].keys()) == {"rule_id", "message"}
@@ -61,7 +61,7 @@ def test_format_agent_keeps_non_null_keys_failed() -> None:
             ),
         ],
     )
-    output = format_agent(result)  # type: ignore[arg-type]
+    output = format_agent(result)
     failed = output["failed"]
     assert len(failed) == 1
     assert set(failed[0].keys()) == {
@@ -85,7 +85,7 @@ def test_format_agent_drops_null_fix_hint_passed() -> None:
             ),
         ],
     )
-    output = format_agent(result)  # type: ignore[arg-type]
+    output = format_agent(result)
     passed = output["passed"]
     assert len(passed) == 1
     assert isinstance(passed[0], dict)
@@ -109,7 +109,7 @@ def test_format_agent_all_keys_present_failed() -> None:
             ),
         ],
     )
-    output = format_agent(result)  # type: ignore[arg-type]
+    output = format_agent(result)
     failed = output["failed"]
     assert set(failed[0].keys()) == {
         "rule_id",
@@ -133,7 +133,7 @@ def test_format_agent_only_nullables_null_failed() -> None:
             ),
         ],
     )
-    output = format_agent(result)  # type: ignore[arg-type]
+    output = format_agent(result)
     failed = output["failed"]
     assert set(failed[0].keys()) == {"rule_id", "message"}
 
@@ -152,7 +152,7 @@ def test_format_agent_mixed_nulls_failed() -> None:
             ),
         ],
     )
-    output = format_agent(result)  # type: ignore[arg-type]
+    output = format_agent(result)
     failed = output["failed"]
     assert set(failed[0].keys()) == {"rule_id", "message", "details", "fix_hint"}
     assert "text" not in failed[0]

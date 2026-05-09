@@ -38,7 +38,7 @@ def _fields(v: object) -> tuple[str, str, str]:
     step = getattr(v, "step", None)
     reason = getattr(v, "reason", None)
     if decision is None:
-        decision, step, reason = v[0], v[1], v[2]  # type: ignore[index]
+        decision, step, reason = v[0], v[1], v[2]
     return str(decision), str(step), str(reason)
 
 
