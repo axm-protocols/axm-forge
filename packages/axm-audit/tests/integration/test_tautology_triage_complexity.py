@@ -7,7 +7,7 @@ from radon.complexity import cc_visit
 
 import axm_audit
 
-_PKG_ROOT = Path(__file__).resolve().parents[5]
+_PKG_ROOT = Path(__file__).resolve().parents[2]
 _SRC = (
     _PKG_ROOT
     / "src"
