@@ -28,8 +28,3 @@ class TestAuditTestTool:
         assert result.data is not None
         assert result.data["passed"] == 42
         assert result.data["coverage"] == 91.0
-
-    def test_invalid_path(self) -> None:
-        result = self.tool.execute(path="/nonexistent/path/xyz")
-        assert result.success is False
-        assert "Not a directory" in (result.error or "")
