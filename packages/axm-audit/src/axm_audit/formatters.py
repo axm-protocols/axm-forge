@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from collections.abc import Sized
 
 from axm_audit.core.rules.base import PERFECT_SCORE
 from axm_audit.models.results import AuditResult, CheckResult
@@ -121,7 +121,7 @@ def format_report(result: AuditResult) -> str:
     return "\n".join(lines)
 
 
-def format_json(result: AuditResult) -> dict[str, Any]:
+def format_json(result: AuditResult) -> dict[str, object]:
     """Format audit result as JSON-serializable dict."""
     return {
         "score": result.quality_score,
@@ -141,16 +141,16 @@ def format_json(result: AuditResult) -> dict[str, Any]:
     }
 
 
-def _drop_nulls(d: dict[str, Any]) -> dict[str, Any]:
+def _drop_nulls(d: dict[str, object]) -> dict[str, object]:
     return {k: v for k, v in d.items() if v is not None}
 
 
-def _render_passed_entry(c: CheckResult) -> str | dict[str, Any]:
+def _render_passed_entry(c: CheckResult) -> str | dict[str, object]:
     metadata = getattr(c, "metadata", None) or None
     if not _has_actionable_detail(c) and not metadata:
         return f"{c.rule_id}: {c.message}"
     if c.text:
-        detail: dict[str, Any] = {"text": c.text}
+        detail: dict[str, object] = {"text": c.text}
     elif c.details is not None:
         detail = {"details": c.details}
     else:
@@ -163,9 +163,9 @@ def _render_passed_entry(c: CheckResult) -> str | dict[str, Any]:
     return entry
 
 
-def _render_failed_entry(c: CheckResult) -> dict[str, Any]:
+def _render_failed_entry(c: CheckResult) -> dict[str, object]:
     if c.text:
-        detail: dict[str, Any] = {"text": c.text}
+        detail: dict[str, object] = {"text": c.text}
     elif c.details is not None:
         detail = {"details": c.details}
     else:
@@ -182,7 +182,7 @@ def _render_failed_entry(c: CheckResult) -> dict[str, Any]:
     )
 
 
-def format_agent(result: AuditResult) -> dict[str, Any]:
+def format_agent(result: AuditResult) -> dict[str, object]:
     """Agent-optimized output: passed=summary, failed=full detail.
 
     Minimizes tokens for passing checks while giving full context on
@@ -201,17 +201,17 @@ def format_agent(result: AuditResult) -> dict[str, Any]:
     }
 
 
-def _render_passed(passed: list[Any]) -> list[str]:
+def _render_passed(passed: list[str | dict[str, object]]) -> list[str]:
     rule_ids: list[str] = [
-        p.get("rule_id", "?") if isinstance(p, dict) else p.split(":")[0]
+        str(p.get("rule_id", "?")) if isinstance(p, dict) else p.split(":")[0]
         for p in passed
     ]
     return [f"✓ {' '.join(rule_ids[i : i + 5])}" for i in range(0, len(rule_ids), 5)]
 
 
-def _render_text_or_details(f: dict[str, Any]) -> list[str]:
+def _render_text_or_details(f: dict[str, object]) -> list[str]:
     text = f.get("text")
-    if text:
+    if isinstance(text, str) and text:
         return [f"  {tl}" for tl in text.splitlines()]
     details = f.get("details")
     if isinstance(details, dict):
@@ -219,9 +219,12 @@ def _render_text_or_details(f: dict[str, Any]) -> list[str]:
     return []
 
 
-def _render_verdict_entries(meta: dict[str, Any]) -> list[str]:
+def _render_verdict_entries(meta: dict[str, object]) -> list[str]:
     out: list[str] = []
-    for verdict in meta.get("verdicts", []) or []:
+    raw_verdicts = meta.get("verdicts", []) or []
+    if not isinstance(raw_verdicts, list):
+        return out
+    for verdict in raw_verdicts:
         if isinstance(verdict, dict):
             tag = verdict.get("verdict") or "UNKNOWN"
             out.append(
@@ -231,18 +234,18 @@ def _render_verdict_entries(meta: dict[str, Any]) -> list[str]:
     return out
 
 
-def _render_metadata(meta: Any) -> list[str]:
+def _render_metadata(meta: object) -> list[str]:
     if not isinstance(meta, dict):
         return []
     return _render_verdict_entries(meta)
 
 
-def _render_fix(f: dict[str, Any]) -> list[str]:
+def _render_fix(f: dict[str, object]) -> list[str]:
     fix_hint = f.get("fix_hint")
     return [f"  fix: {fix_hint}"] if fix_hint else []
 
 
-def _render_failed_check(f: dict[str, Any]) -> list[str]:
+def _render_failed_check(f: dict[str, object]) -> list[str]:
     rule_id = f.get("rule_id", "?")
     message = f.get("message", "")
     lines: list[str] = [f"✗ {rule_id} {message}"]
@@ -253,7 +256,7 @@ def _render_failed_check(f: dict[str, Any]) -> list[str]:
 
 
 def format_agent_text(
-    data: dict[str, Any],
+    data: dict[str, object],
     category: str | None = None,
 ) -> str:
     """Render agent-format audit data as compact text for LLM consumption.
@@ -263,8 +266,16 @@ def format_agent_text(
     """
     score = data.get("score")
     grade = data.get("grade")
-    passed = data.get("passed", [])
-    failed = data.get("failed", [])
+    raw_passed = data.get("passed", [])
+    raw_failed = data.get("failed", [])
+    passed: list[str | dict[str, object]] = (
+        list(raw_passed) if isinstance(raw_passed, list) else []
+    )
+    failed: list[dict[str, object]] = (
+        [f for f in raw_failed if isinstance(f, dict)]
+        if isinstance(raw_failed, list)
+        else []
+    )
 
     cat_label = f" {category}" if category else ""
     score_part = f" {grade} {score}" if score is not None and grade is not None else ""
@@ -278,7 +289,7 @@ def format_agent_text(
     return "\n".join(lines)
 
 
-def _legacy_private_entry(f: dict[str, Any]) -> dict[str, Any]:
+def _legacy_private_entry(f: dict[str, object]) -> dict[str, object]:
     return {
         "file": f.get("test_file") or f.get("file") or "",
         "line": f.get("line", 0),
@@ -286,82 +297,112 @@ def _legacy_private_entry(f: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _extract_private(check: Any) -> list[dict[str, Any]]:
-    """Normalize private-import findings from metadata or legacy ``details``."""
-    meta = getattr(check, "metadata", None) or {}
-    if meta.get("private_import_violations"):
-        return list(meta["private_import_violations"])
-    rule = (check.rule_id or "").upper()
-    details = check.details or {}
-    if "PRIVATE" not in rule or not details.get("findings"):
+def _dict_items(value: object) -> list[dict[str, object]]:
+    """Coerce ``value`` to a list of dict entries, dropping non-dict items."""
+    if not isinstance(value, list):
         return []
-    return [_legacy_private_entry(f) for f in details["findings"]]
+    return [item for item in value if isinstance(item, dict)]
 
 
-def _extract_pyramid(check: Any) -> list[dict[str, Any]]:
-    """Normalize pyramid-mismatch entries from metadata or ``findings`` models."""
+def _meta_dict(check: CheckResult) -> dict[str, object]:
+    """Return ``check.metadata`` as a dict (possibly empty)."""
     meta = getattr(check, "metadata", None) or {}
-    if meta.get("pyramid_mismatches"):
-        return list(meta["pyramid_mismatches"])
+    return meta if isinstance(meta, dict) else {}
+
+
+def _legacy_private_findings(check: CheckResult) -> list[dict[str, object]]:
+    """Return legacy ``details.findings`` for PRIVATE rules."""
+    rule = (check.rule_id or "").upper()
+    if "PRIVATE" not in rule:
+        return []
+    details = check.details or {}
+    return [_legacy_private_entry(f) for f in _dict_items(details.get("findings"))]
+
+
+def _extract_private(check: CheckResult) -> list[dict[str, object]]:
+    """Normalize private-import findings from metadata or legacy ``details``."""
+    violations = _dict_items(_meta_dict(check).get("private_import_violations"))
+    if violations:
+        return violations
+    return _legacy_private_findings(check)
+
+
+def _finding_to_dict(f: object) -> dict[str, object]:
+    """Coerce a finding (Pydantic model or mapping) to a plain dict."""
+    dump = getattr(f, "model_dump", None)
+    if callable(dump):
+        result = dump()
+        return result if isinstance(result, dict) else {}
+    if isinstance(f, dict):
+        return f
+    return {}
+
+
+def _pyramid_entry_from_finding(f: object) -> dict[str, object] | None:
+    """Map a single pyramid finding (model or dict) to a normalized entry."""
+    fd = _finding_to_dict(f)
+    current = fd.get("current_level", "")
+    detected = fd.get("level", "")
+    if current in ("root", detected):
+        return None
+    return {
+        "test": f"{fd.get('path', '')}::{fd.get('function', '')}",
+        "current_dir": current,
+        "detected_level": detected,
+    }
+
+
+def _extract_pyramid(check: CheckResult) -> list[dict[str, object]]:
+    """Normalize pyramid-mismatch entries from metadata or ``findings`` models."""
+    mismatches = _dict_items(_meta_dict(check).get("pyramid_mismatches"))
+    if mismatches:
+        return mismatches
     rule = (check.rule_id or "").upper()
     if "PYRAMID" not in rule:
         return []
     findings = getattr(check, "findings", None) or []
-    out: list[dict[str, Any]] = []
-    for f in findings:
-        fd = f.model_dump() if hasattr(f, "model_dump") else dict(f)
-        current = fd.get("current_level", "")
-        detected = fd.get("level", "")
-        if current in ("root", detected):
-            continue
-        out.append(
+    return [e for f in findings if (e := _pyramid_entry_from_finding(f)) is not None]
+
+
+def _cluster_entry(cl: dict[str, object]) -> dict[str, object]:
+    """Normalize a single duplicate cluster entry."""
+    raw_members = cl.get("members") or cl.get("tests") or []
+    return {
+        "signal": cl.get("signal", "?"),
+        "members": [
             {
-                "test": f"{fd.get('path', '')}::{fd.get('function', '')}",
-                "current_dir": current,
-                "detected_level": detected,
+                "test": m.get("test") or m.get("name") or "?",
+                "file": m.get("file", ""),
+                "line": m.get("line", 0),
             }
-        )
-    return out
+            for m in _dict_items(raw_members)
+        ],
+    }
 
 
-def _extract_clusters(check: Any) -> list[dict[str, Any]]:
+def _extract_clusters(check: CheckResult) -> list[dict[str, object]]:
     """Normalize duplicate-test clusters, tolerating ``members``/``tests`` keys."""
-    meta = getattr(check, "metadata", None) or {}
-    return [
-        {
-            "signal": cl.get("signal", "?"),
-            "members": [
-                {
-                    "test": m.get("test") or m.get("name") or "?",
-                    "file": m.get("file", ""),
-                    "line": m.get("line", 0),
-                }
-                for m in (cl.get("members") or cl.get("tests") or [])
-            ],
-        }
-        for cl in (meta.get("clusters") or [])
-    ]
+    return [_cluster_entry(cl) for cl in _dict_items(_meta_dict(check).get("clusters"))]
 
 
-def _extract_verdicts(check: Any) -> list[dict[str, Any]]:
+def _extract_verdicts(check: CheckResult) -> list[dict[str, object]]:
     """Return per-test quality verdicts attached to ``check.metadata``."""
-    meta = getattr(check, "metadata", None) or {}
-    return list(meta.get("verdicts") or [])
+    return _dict_items(_meta_dict(check).get("verdicts"))
 
 
 def _extract_test_quality(
     result: AuditResult,
 ) -> tuple[
-    list[dict[str, Any]],
-    list[dict[str, Any]],
-    list[dict[str, Any]],
-    list[dict[str, Any]],
+    list[dict[str, object]],
+    list[dict[str, object]],
+    list[dict[str, object]],
+    list[dict[str, object]],
 ]:
     """Pull (private, pyramid, clusters, verdicts) entries from any check shape."""
-    private: list[dict[str, Any]] = []
-    pyramid: list[dict[str, Any]] = []
-    clusters: list[dict[str, Any]] = []
-    verdicts: list[dict[str, Any]] = []
+    private: list[dict[str, object]] = []
+    pyramid: list[dict[str, object]] = []
+    clusters: list[dict[str, object]] = []
+    verdicts: list[dict[str, object]] = []
     for c in result.checks:
         private.extend(_extract_private(c))
         pyramid.extend(_extract_pyramid(c))
@@ -370,7 +411,7 @@ def _extract_test_quality(
     return private, pyramid, clusters, verdicts
 
 
-def _format_pyramid_only(pyramid: list[dict[str, Any]]) -> str:
+def _format_pyramid_only(pyramid: list[dict[str, object]]) -> str:
     mismatches = [m for m in pyramid if m.get("current_dir") != m.get("detected_level")]
     lines = ["Pyramid mismatches:"]
     for m in mismatches:
@@ -381,7 +422,7 @@ def _format_pyramid_only(pyramid: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def _format_private_section(private: list[dict[str, Any]]) -> list[str]:
+def _format_private_section(private: list[dict[str, object]]) -> list[str]:
     lines = ["Private imports:"]
     if not private:
         lines.append("  (none)")
@@ -392,7 +433,7 @@ def _format_private_section(private: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
-def _format_pyramid_section(pyramid: list[dict[str, Any]]) -> list[str]:
+def _format_pyramid_section(pyramid: list[dict[str, object]]) -> list[str]:
     lines = ["Pyramid:"]
     if not pyramid:
         lines.append("  (none)")
@@ -404,13 +445,18 @@ def _format_pyramid_section(pyramid: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
-def _format_duplicates_section(clusters: list[dict[str, Any]]) -> list[str]:
+def _format_duplicates_section(clusters: list[dict[str, object]]) -> list[str]:
     lines = ["Duplicates:"]
     if not clusters:
         lines.append("  (none)")
     for cl in clusters:
         lines.append(f"  [{cl.get('signal', '?')}]")
-        for mem in cl.get("members", []):
+        members = cl.get("members", [])
+        if not isinstance(members, list):
+            continue
+        for mem in members:
+            if not isinstance(mem, dict):
+                continue
             lines.append(
                 f"    {mem.get('file', '?')}:{mem.get('line', '?')}  "
                 f"{mem.get('test', '?')}"
@@ -418,7 +464,7 @@ def _format_duplicates_section(clusters: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
-def _format_tautologies_section(verdicts: list[dict[str, Any]]) -> list[str]:
+def _format_tautologies_section(verdicts: list[dict[str, object]]) -> list[str]:
     lines = ["Tautologies:"]
     if not verdicts:
         lines.append("  (none)")
@@ -457,7 +503,7 @@ def format_test_quality_text(
     return "\n".join(lines)
 
 
-def format_test_quality_json(result: AuditResult) -> dict[str, Any]:
+def format_test_quality_json(result: AuditResult) -> dict[str, object]:
     """JSON superset: clusters + verdicts + pyramid + private violations."""
     private, pyramid, clusters, verdicts = _extract_test_quality(result)
     return {
@@ -480,6 +526,6 @@ def _has_actionable_detail(check: CheckResult) -> bool:
         return False
     for key in ("missing", "locations", "matches", "issues", "errors", "top_offenders"):
         items = check.details.get(key)
-        if items and len(items) > 0:
+        if items and isinstance(items, Sized) and len(items) > 0:
             return True
     return False

@@ -10,7 +10,6 @@ import itertools
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +52,15 @@ def find_venv(project_path: Path) -> Path | None:
     return None
 
 
-def run_in_project(
+def run_in_project(  # noqa: PLR0913
     cmd: list[str],
     project_path: Path,
     *,
     timeout: int = _DEFAULT_TIMEOUT,
     with_packages: list[str] | None = None,
-    **kwargs: Any,
+    capture_output: bool = False,
+    text: bool = False,
+    check: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command in the target project's environment.
 
@@ -79,13 +80,16 @@ def run_in_project(
             is found (i.e. when ``uv run`` is used).  Allows audit tools
             to be available in the target project without requiring
             them as declared dependencies.
-        **kwargs: Extra arguments forwarded to ``subprocess.run``.
+        capture_output: Forwarded to ``subprocess.run``; capture stdout/stderr.
+        text: Forwarded to ``subprocess.run``; decode output as text.
+        check: Forwarded to ``subprocess.run``; raise on non-zero exit.
 
     Returns:
         CompletedProcess result.  On timeout, returns a synthetic result
         with ``returncode=124`` and the timeout message in ``stderr``.
     """
     venv = find_venv(project_path)
+    cwd: str | None = None
 
     if venv is not None:
         with_flags: list[str] = []
@@ -94,10 +98,17 @@ def run_in_project(
         full_cmd = ["uv", "run", *with_flags, "--directory", str(project_path), *cmd]
     else:
         full_cmd = cmd
-        kwargs.setdefault("cwd", str(project_path))
+        cwd = str(project_path)
 
     try:
-        return subprocess.run(full_cmd, timeout=timeout, **kwargs)  # noqa: S603
+        return subprocess.run(  # noqa: S603
+            full_cmd,
+            timeout=timeout,
+            capture_output=capture_output,
+            text=text,
+            check=check,
+            cwd=cwd,
+        )
     except subprocess.TimeoutExpired:
         cmd_str = " ".join(full_cmd)
         logger.warning("Command timed out after %ds: %s", timeout, cmd_str)

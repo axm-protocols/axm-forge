@@ -14,7 +14,6 @@ import contextvars
 import logging
 import traceback as _traceback
 from pathlib import Path
-from typing import Any
 
 from axm_audit.core.rules._helpers import (
     ASTCache,
@@ -248,8 +247,8 @@ def _merge_check(
 
 
 def _merge_metadata(
-    a: dict[str, Any] | None, b: dict[str, Any] | None
-) -> dict[str, Any]:
+    a: dict[str, object] | None, b: dict[str, object] | None
+) -> dict[str, object]:
     """Deep-merge two metadata dicts (existing first, incoming second).
 
     Rules: ``None`` is treated as ``{}``; for each shared key,
@@ -262,7 +261,7 @@ def _merge_metadata(
         return dict(b or {})
     if not b:
         return dict(a)
-    merged: dict[str, Any] = dict(a)
+    merged: dict[str, object] = dict(a)
     for key, b_val in b.items():
         if key not in merged:
             merged[key] = b_val

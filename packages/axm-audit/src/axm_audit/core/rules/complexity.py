@@ -10,7 +10,6 @@ import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from axm_audit.core.rules.base import (
     PASS_THRESHOLD,
@@ -71,7 +70,7 @@ class ComplexityRule(ProjectRule):
     def _check_via_api(
         self,
         src_path: Path,
-        cc_visit: Callable[..., list[Any]],
+        cc_visit: Callable[[str], list[object]],
         cc_rank: Callable[[int], str],
         cog_map: dict[tuple[str, str], int],
         cog_disabled: bool,
@@ -88,10 +87,11 @@ class ComplexityRule(ProjectRule):
             for block in blocks:
                 if not hasattr(block, "complexity"):
                     continue
-                cc = int(block.complexity)
+                cc = int(getattr(block, "complexity", 0))
                 rank = cc_rank(cc)
                 classname = getattr(block, "classname", "") or ""
-                name = f"{classname}.{block.name}" if classname else block.name
+                block_name = getattr(block, "name", "") or ""
+                name = f"{classname}.{block_name}" if classname else block_name
                 cognitive = cog_map.get((rel, name), 0)
                 offender = _classify(rel, name, cc, rank, cognitive)
                 if offender is not None:
@@ -228,7 +228,9 @@ class ComplexityRule(ProjectRule):
         )
 
 
-def _try_import_radon() -> tuple[Callable[..., list[Any]], Callable[[int], str]] | None:
+def _try_import_radon() -> (
+    tuple[Callable[[str], list[object]], Callable[[int], str]] | None
+):
     """Try to import radon's ``cc_visit`` and ``cc_rank``.
 
     Returns:
@@ -242,7 +244,7 @@ def _try_import_radon() -> tuple[Callable[..., list[Any]], Callable[[int], str]]
         return None
 
 
-def _try_import_complexipy() -> Callable[..., Any] | None:
+def _try_import_complexipy() -> Callable[[str], object] | None:
     """Try to import complexipy's ``file_complexity``.
 
     Returns:
@@ -299,7 +301,7 @@ def _compute_cognitive_map(
 
 
 def _cognitive_via_api(
-    src_path: Path, file_complexity: Callable[..., Any]
+    src_path: Path, file_complexity: Callable[[str], object]
 ) -> dict[tuple[str, str], int]:
     """Compute cognitive scores via complexipy Python API."""
     result: dict[tuple[str, str], int] = {}

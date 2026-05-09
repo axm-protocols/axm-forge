@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import cyclopts
 
@@ -46,13 +47,13 @@ class _AppFacade:
     def __init__(self, app: cyclopts.App) -> None:
         self._app = app
 
-    def __iter__(self) -> Any:
+    def __iter__(self) -> Iterator[object]:
         return iter(self._app._commands.values())
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        return self._app(*args, **kwargs)
+    def __call__(self, *args: object, **kwargs: object) -> object:
+        return self._app(*args, **kwargs)  # type: ignore[arg-type]
 
-    def __getattr__(self, item: str) -> Any:
+    def __getattr__(self, item: str) -> object:
         return getattr(self._app, item)
 
 
