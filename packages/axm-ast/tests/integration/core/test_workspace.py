@@ -13,7 +13,6 @@ import pytest
 from axm_ast.core.workspace import (
     _find_package_source,
     _parse_member_deps,
-    _parse_workspace_members,
     analyze_workspace,
     build_workspace_context,
     build_workspace_dep_graph,
@@ -165,23 +164,8 @@ class TestDetectWorkspace:
         assert detect_workspace(tmp_path) is None
 
 
-# ─── Parsing Tests ───────────────────────────────────────────────────────────
-
-
-class TestParsing:
-    """Tests for pyproject.toml parsing helpers."""
-
-    def test_parse_workspace_members(self) -> None:
-        text = '[tool.uv.workspace]\nmembers = ["pkg-a", "pkg-b"]'
-        assert _parse_workspace_members(text) == ["pkg-a", "pkg-b"]
-
-    def test_parse_workspace_members_multiline(self) -> None:
-        text = '[tool.uv.workspace]\nmembers = [\n  "alpha",\n  "beta",\n]'
-        assert _parse_workspace_members(text) == ["alpha", "beta"]
-
-    def test_parse_workspace_members_no_section(self) -> None:
-        text = '[project]\nname = "foo"'
-        assert _parse_workspace_members(text) == []
+class TestParsingIntegration:
+    """Filesystem-backed parsing helpers."""
 
     def test_parse_member_deps(self, tmp_path: Path) -> None:
         _make_pyproject(tmp_path / "pyproject.toml", "test", ["dep-a>=1.0", "dep-b"])
