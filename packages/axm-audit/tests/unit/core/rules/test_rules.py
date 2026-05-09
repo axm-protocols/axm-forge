@@ -169,7 +169,7 @@ class TestGetInstances:
         instances = ToolAvailabilityRule.get_instances()
         assert len(instances) == 3
         tool_names = {
-            r.tool_name  # type: ignore[attr-defined]
+            r.tool_name
             for r in instances
         }
         assert tool_names == {"ruff", "mypy", "uv"}

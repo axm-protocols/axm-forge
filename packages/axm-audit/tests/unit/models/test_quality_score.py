@@ -26,7 +26,7 @@ def _make_result(checks: list[Mock]) -> AuditResult:
     """Build an AuditResult with only .checks populated."""
     result = Mock(spec=AuditResult)
     result.checks = checks
-    result.quality_score = AuditResult.quality_score.fget(result)  # type: ignore[attr-defined]
+    result.quality_score = AuditResult.quality_score.fget(result)
     return result
 
 
