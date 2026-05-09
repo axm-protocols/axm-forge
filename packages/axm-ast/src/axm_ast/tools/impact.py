@@ -368,6 +368,26 @@ def _format_test_files_compact(test_files: list[str], limit: int = 5) -> str:
     return f"{shown} (+{len(names) - limit} more)"
 
 
+def _extract_callers(report: Mapping[str, object]) -> list[Mapping[str, object]]:
+    """Narrow ``report['callers']`` to a list of mappings."""
+    callers_raw = report.get("callers", [])
+    if not isinstance(callers_raw, list):
+        return []
+    return [c for c in callers_raw if isinstance(c, Mapping)]
+
+
+def _format_caller_columns(
+    callers: list[Mapping[str, object]],
+    symbol_module: str | None,
+) -> tuple[str, str, str]:
+    """Return (prod, direct, indirect) column strings for a symbol row."""
+    prod, direct, indirect = _classify_callers(callers, symbol_module)
+    prod_str = ", ".join(prod) if prod else "\u2014"
+    direct_str = _format_test_group(direct, cap=None) if direct else "\u2014"
+    indirect_str = _format_test_group(indirect, cap=5) if indirect else "\u2014"
+    return prod_str, direct_str, indirect_str
+
+
 def _format_symbol_row(
     report: Mapping[str, object],
     score: str,
@@ -379,18 +399,12 @@ def _format_symbol_row(
     if not isinstance(defn, Mapping) or report.get("error"):
         return f"| {sym_name} | \u2014 | {score} | not found | | |"
     mod_line = _defn_loc(defn)
-    callers_raw = report.get("callers", [])
-    callers: list[Mapping[str, object]] = (
-        [c for c in callers_raw if isinstance(c, Mapping)]
-        if isinstance(callers_raw, list)
-        else []
-    )
     sym_mod_raw = defn.get("module")
     symbol_module = sym_mod_raw if isinstance(sym_mod_raw, str) else None
-    prod, direct, indirect = _classify_callers(callers, symbol_module)
-    prod_str = ", ".join(prod) if prod else "\u2014"
-    direct_str = _format_test_group(direct, cap=None) if direct else "\u2014"
-    indirect_str = _format_test_group(indirect, cap=5) if indirect else "\u2014"
+    prod_str, direct_str, indirect_str = _format_caller_columns(
+        _extract_callers(report),
+        symbol_module,
+    )
     return (
         f"| {sym_name} | {mod_line} | {score} "
         f"| {prod_str} | {direct_str} | {indirect_str} |"
