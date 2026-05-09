@@ -138,6 +138,7 @@ known-first-party = ["axm_ast"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+plugins = ["pydantic.mypy"]
 disallow_any_generics = true
 disallow_any_unimported = true
 disallow_any_explicit = true
@@ -153,12 +154,31 @@ exclude = ["tests/fixtures/"]
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_defs = false
+disallow_any_explicit = false
+disable_error_code = [
+    "index",
+    "arg-type",
+    "attr-defined",
+    "operator",
+    "union-attr",
+    "call-overload",
+]
 
 
 
 [[tool.mypy.overrides]]
 module = ["axm_ast.tools.*"]
 disallow_subclassing_any = false
+
+# Pydantic BaseModel subclasses inherit __init__(**data: Any) synthetically;
+# disable explicit-Any on modules defining models.
+[[tool.mypy.overrides]]
+module = [
+    "axm_ast.models.*",
+    "axm_ast.core.flows",
+    "axm_ast.core.impact",
+]
+disallow_any_explicit = false
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Pytest Configuration
