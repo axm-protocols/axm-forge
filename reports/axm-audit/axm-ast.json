@@ -1,8 +1,8 @@
 {
-  "score": 81.1,
+  "score": 82.1,
   "grade": "B",
   "total": 23,
-  "failed": 6,
+  "failed": 5,
   "success": false,
   "checks": [
     {
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 15,
         "max_fan_in": 38,
-        "avg_coupling": 5.24,
+        "avg_coupling": 5.22,
         "score": 97,
         "n_over_threshold": 1,
         "over_threshold": [
@@ -135,7 +135,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.33019291161956,
+        "coverage": 91.3282477002468,
         "score": 91,
         "failures": []
       }
@@ -167,74 +167,13 @@
     },
     {
       "rule_id": "QUALITY_LINT",
-      "passed": false,
-      "message": "Lint score: 80/100 (10 issues)",
+      "passed": true,
+      "message": "Lint score: 100/100 (0 issues)",
       "details": {
-        "issue_count": 10,
-        "score": 80,
+        "issue_count": 0,
+        "score": 100,
         "checked": "src/ tests/",
-        "issues": [
-          {
-            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
-            "line": 45,
-            "code": "PLR0913",
-            "message": "Too many arguments in function definition (7 > 5)"
-          },
-          {
-            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
-            "line": 185,
-            "code": "RUF100",
-            "message": "Unused `noqa` directive (non-enabled: `S101`)"
-          },
-          {
-            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
-            "line": 240,
-            "code": "RUF100",
-            "message": "Unused `noqa` directive (non-enabled: `S101`)"
-          },
-          {
-            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
-            "line": 277,
-            "code": "RUF100",
-            "message": "Unused `noqa` directive (non-enabled: `S101`)"
-          },
-          {
-            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
-            "line": 278,
-            "code": "RUF100",
-            "message": "Unused `noqa` directive (non-enabled: `S101`)"
-          },
-          {
-            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
-            "line": 312,
-            "code": "RUF100",
-            "message": "Unused `noqa` directive (non-enabled: `S101`)"
-          },
-          {
-            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
-            "line": 313,
-            "code": "RUF100",
-            "message": "Unused `noqa` directive (non-enabled: `S101`)"
-          },
-          {
-            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
-            "line": 314,
-            "code": "RUF100",
-            "message": "Unused `noqa` directive (non-enabled: `S101`)"
-          },
-          {
-            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/tools/_base.py",
-            "line": 18,
-            "code": "UP047",
-            "message": "Generic function `safe_execute` should use type parameters"
-          },
-          {
-            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/tools/flows.py",
-            "line": 30,
-            "code": "PLR0913",
-            "message": "Too many arguments in function definition (6 > 5)"
-          }
-        ]
+        "issues": []
       }
     },
     {
@@ -251,9 +190,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 13 lines changed (score 100/100)",
+      "message": "Diff size: 6 lines changed (score 100/100)",
       "details": {
-        "lines_changed": 13,
+        "lines_changed": 6,
         "score": 100
       }
     },
