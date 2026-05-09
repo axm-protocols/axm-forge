@@ -91,39 +91,39 @@ class TestGetRulesForCategory:
 
 
 class TestMergeMetadata:
-    """Test the _merge_metadata() helper used by workspace aggregation."""
+    """Test the merge_metadata() helper used by workspace aggregation."""
 
     def test_merge_metadata_concatenates_lists(self):
         """Lists at the same key are concatenated, existing first."""
-        from axm_audit.core.auditor import _merge_metadata
+        from axm_audit.core.auditor import merge_metadata
 
         a = {"verdicts": [1, 2]}
         b = {"verdicts": [3]}
 
-        assert _merge_metadata(a, b) == {"verdicts": [1, 2, 3]}
+        assert merge_metadata(a, b) == {"verdicts": [1, 2, 3]}
 
     def test_merge_metadata_recurses_into_dicts(self):
         """Nested dicts merge recursively, lists at leaves concatenate."""
-        from axm_audit.core.auditor import _merge_metadata
+        from axm_audit.core.auditor import merge_metadata
 
         a = {"x": {"k": [1]}}
         b = {"x": {"k": [2]}}
 
-        assert _merge_metadata(a, b) == {"x": {"k": [1, 2]}}
+        assert merge_metadata(a, b) == {"x": {"k": [1, 2]}}
 
     def test_merge_metadata_scalar_b_wins(self):
         """For scalar values at the same key, incoming (b) overrides existing (a)."""
-        from axm_audit.core.auditor import _merge_metadata
+        from axm_audit.core.auditor import merge_metadata
 
         a = {"k": 1}
         b = {"k": 2}
 
-        assert _merge_metadata(a, b) == {"k": 2}
+        assert merge_metadata(a, b) == {"k": 2}
 
     def test_merge_metadata_handles_none_inputs(self):
         """None inputs are treated as empty dicts; (None, None) returns {}."""
-        from axm_audit.core.auditor import _merge_metadata
+        from axm_audit.core.auditor import merge_metadata
 
-        assert _merge_metadata(None, {"k": 1}) == {"k": 1}
-        assert _merge_metadata({"k": 1}, None) == {"k": 1}
-        assert _merge_metadata(None, None) == {}
+        assert merge_metadata(None, {"k": 1}) == {"k": 1}
+        assert merge_metadata({"k": 1}, None) == {"k": 1}
+        assert merge_metadata(None, None) == {}
