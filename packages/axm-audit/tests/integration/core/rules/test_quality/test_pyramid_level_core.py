@@ -321,6 +321,91 @@ def test_fake_fixture_with_real_io_classifies_integration(tmp_path: Path) -> Non
     assert finding.level == "integration"
 
 
+def test_conftest_fixture_io_is_hard_signal_not_neutralised_by_mock(
+    tmp_path: Path,
+) -> None:
+    """Conftest fixture I/O survives R5 mock-neutralisation (Bug 1).
+
+    A test that mocks an in-body I/O target but consumes a fixture whose
+    setup performs real ``mkdir``/``touch`` must remain ``integration``.
+    The fixture I/O happens at pytest setup time, independent of any mock
+    inside the test body.
+    """
+    _write(tmp_path, "tests/conftest.py", "")
+    _write(
+        tmp_path,
+        "tests/unit/conftest.py",
+        """
+        import pytest
+
+        @pytest.fixture
+        def project_path(tmp_path):
+            (tmp_path / 'src').mkdir()
+            (tmp_path / 'src' / '__init__.py').touch()
+            return tmp_path
+        """,
+    )
+    _write(
+        tmp_path,
+        "tests/unit/test_foo.py",
+        """
+        from unittest.mock import MagicMock
+        import pytest
+
+        def test_x(project_path, monkeypatch):
+            mock = MagicMock()
+            mock.return_value.stdout = '[]'
+            monkeypatch.setattr('shutil.copy', mock)
+            assert mock is not None
+        """,
+    )
+    finding = _first_finding(_check(tmp_path))
+    assert finding.has_real_io is True
+    assert finding.level == "integration"
+    assert any(s.startswith("conftest-fixture-io:") for s in finding.io_signals)
+
+
+def test_path_is_file_detected_as_io(tmp_path: Path) -> None:
+    """``Path.is_file()`` triggers attr-IO signal (Bug 2).
+
+    Stat-family attrs (``is_file``, ``exists``, ``is_dir``, ``stat``,
+    ``lstat``) are real syscalls and must mark a test as ``has_real_io``.
+    """
+    _write(
+        tmp_path,
+        "tests/unit/test_foo.py",
+        """
+        from pathlib import Path
+
+        DOC = Path(__file__).parent / 'somefile.md'
+
+        def test_x():
+            assert DOC.is_file()
+        """,
+    )
+    finding = _first_finding(_check(tmp_path))
+    assert finding.has_real_io is True
+    assert finding.level == "integration"
+    assert "attr:.is_file()" in finding.io_signals
+
+
+def test_path_exists_detected_as_io(tmp_path: Path) -> None:
+    """``Path.exists()`` triggers attr-IO signal (Bug 2)."""
+    _write(
+        tmp_path,
+        "tests/unit/test_foo.py",
+        """
+        from pathlib import Path
+
+        def test_x():
+            assert Path('/tmp').exists()
+        """,
+    )
+    finding = _first_finding(_check(tmp_path))
+    assert finding.has_real_io is True
+    assert "attr:.exists()" in finding.io_signals
+
+
 def test_literal_str_replace_not_treated_as_io(tmp_path: Path) -> None:
     """``str.replace("a","b")`` (formatting) does not mark a test as I/O."""
     _write(
