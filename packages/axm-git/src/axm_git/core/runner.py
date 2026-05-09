@@ -6,7 +6,6 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import ToolResult
 
@@ -78,7 +77,6 @@ def run_git(
     cwd: Path,
     *,
     timeout: float | None = DEFAULT_GIT_TIMEOUT,
-    **kwargs: Any,
 ) -> subprocess.CompletedProcess[str]:
     """Run a git command in the given directory.
 
@@ -87,24 +85,22 @@ def run_git(
         cwd: Working directory (project root).
         timeout: Subprocess timeout in seconds (default 30.0). Use
             ``None`` to disable.
-        **kwargs: Extra arguments forwarded to ``subprocess.run``.
 
     Returns:
-        Completed process result.
+        Completed process result with ``capture_output=True`` and ``text=True``.
 
     Raises:
         subprocess.TimeoutExpired: If the command exceeds *timeout*.
             Callers should catch and convert via :func:`timeout_error_result`.
     """
-    kwargs.setdefault("capture_output", True)
-    kwargs.setdefault("text", True)
-    kwargs.setdefault("check", False)
     try:
         return subprocess.run(
             ["git", *args],
             cwd=str(cwd),
             timeout=timeout,
-            **kwargs,
+            capture_output=True,
+            text=True,
+            check=False,
         )
     except subprocess.TimeoutExpired:
         logger.warning("git %s timed out after %ss", args[0] if args else "", timeout)
@@ -134,7 +130,6 @@ def run_gh(
     cwd: Path,
     *,
     timeout: float | None = DEFAULT_GH_TIMEOUT,
-    **kwargs: Any,
 ) -> subprocess.CompletedProcess[str]:
     """Run a GitHub CLI command.
 
@@ -143,25 +138,23 @@ def run_gh(
         cwd: Working directory (project root).
         timeout: Subprocess timeout in seconds (default 120.0). Use
             ``None`` to disable.
-        **kwargs: Extra arguments forwarded to ``subprocess.run``.
 
     Returns:
-        Completed process result.
+        Completed process result with ``capture_output=True`` and ``text=True``.
 
     Raises:
         FileNotFoundError: If ``gh`` is not installed.
         subprocess.TimeoutExpired: If the command exceeds *timeout*.
             Callers should catch and convert via :func:`timeout_error_result`.
     """
-    kwargs.setdefault("capture_output", True)
-    kwargs.setdefault("text", True)
-    kwargs.setdefault("check", False)
     try:
         return subprocess.run(
             ["gh", *args],
             cwd=str(cwd),
             timeout=timeout,
-            **kwargs,
+            capture_output=True,
+            text=True,
+            check=False,
         )
     except subprocess.TimeoutExpired:
         logger.warning("gh %s timed out after %ss", args[0] if args else "", timeout)

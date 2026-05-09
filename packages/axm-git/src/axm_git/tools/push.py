@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -71,7 +70,7 @@ class GitPushTool(AXMTool):
         remote: str = "origin",
         set_upstream: bool = True,
         force: bool = False,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Push the current branch to a remote.
 

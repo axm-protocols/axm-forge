@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -82,7 +81,7 @@ class GitWorktreeTool(AXMTool):
         branch: str | None = None,
         base: str = "main",
         force: bool = False,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Manage git worktrees.
 

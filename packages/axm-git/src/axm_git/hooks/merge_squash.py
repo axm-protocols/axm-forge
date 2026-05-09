@@ -6,7 +6,7 @@ Merges a session branch back to the target branch with ``--squash``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import cast
 
 from axm.hooks.base import HookResult
 
@@ -27,7 +27,7 @@ class MergeSquashHook:
     ``[AXM] {protocol_name}: {session_id}`` fallback.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -40,8 +40,8 @@ class MergeSquashHook:
             HookResult with ``merged``, ``into``, and ``message`` in metadata.
         """
         working_dir = _resolve_working_dir(params, context)
-        session_id: str = context["session_id"]
-        protocol_name: str = context["protocol_name"]
+        session_id = cast("str", context["session_id"])
+        protocol_name = cast("str", context["protocol_name"])
 
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
@@ -51,7 +51,7 @@ class MergeSquashHook:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
         branch = self._resolve_branch(params, context, session_id)
-        target = params.get("target_branch", "main")
+        target = cast("str", params.get("target_branch", "main"))
 
         # Checkout target branch
         result = run_git(["checkout", target], git_root)
@@ -64,7 +64,10 @@ class MergeSquashHook:
             return HookResult.fail(f"merge --squash failed: {result.stderr}")
 
         # Commit
-        msg = params.get("message") or f"[AXM] {protocol_name}: {session_id}"
+        msg = cast(
+            "str",
+            params.get("message") or f"[AXM] {protocol_name}: {session_id}",
+        )
         result = run_git(["commit", "-m", msg], git_root)
         if result.returncode != 0:
             return HookResult.fail(f"commit failed: {result.stderr}")
@@ -73,8 +76,8 @@ class MergeSquashHook:
 
     @staticmethod
     def _resolve_branch(
-        params: dict[str, Any],
-        context: dict[str, Any],
+        params: dict[str, object],
+        context: dict[str, object],
         session_id: str,
     ) -> str:
         """Resolve branch name from params, context, then fallback."""

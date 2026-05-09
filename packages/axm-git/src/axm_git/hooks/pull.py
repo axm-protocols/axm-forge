@@ -7,7 +7,7 @@ Used after worktree merge to keep the main branch up to date.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import cast
 
 from axm.hooks.base import HookResult
 
@@ -25,7 +25,7 @@ class PullHook:
     Skips gracefully when the working directory is not a git repository.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -44,8 +44,8 @@ class PullHook:
         if not (working_dir / ".git").exists():
             return HookResult.ok(skipped=True, reason="not a git repo")
 
-        remote = params.get("remote", "origin")
-        branch = params.get("branch", "main")
+        remote = cast("str", params.get("remote", "origin"))
+        branch = cast("str", params.get("branch", "main"))
 
         result = run_git(["pull", remote, branch], working_dir)
         if result.returncode != 0:

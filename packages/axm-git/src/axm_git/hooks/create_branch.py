@@ -7,7 +7,7 @@ with priority: ``branch`` param > ticket params > ``{prefix}/{session_id}``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import cast
 
 from axm.hooks.base import HookResult
 
@@ -31,7 +31,7 @@ class CreateBranchHook:
     Skips gracefully when the working directory is not a git repository.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -43,7 +43,7 @@ class CreateBranchHook:
             HookResult with ``branch`` in metadata on success.
         """
         working_dir = _resolve_working_dir(params, context)
-        session_id: str = context["session_id"]
+        session_id = cast("str", context["session_id"])
 
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
@@ -61,7 +61,7 @@ class CreateBranchHook:
         return HookResult.ok(branch=branch)
 
     @staticmethod
-    def _resolve_branch(params: dict[str, Any], session_id: str) -> str:
+    def _resolve_branch(params: dict[str, object], session_id: str) -> str:
         """Resolve branch name from params with fallback to session_id."""
         if branch := params.get("branch"):
             return str(branch)
@@ -69,8 +69,12 @@ class CreateBranchHook:
         ticket_id = params.get("ticket_id")
         ticket_title = params.get("ticket_title")
         if ticket_id and ticket_title:
-            labels = params.get("ticket_labels", [])
-            return branch_name_from_ticket(ticket_id, ticket_title, labels)
+            labels = cast("list[str]", params.get("ticket_labels", []))
+            return branch_name_from_ticket(
+                cast("str", ticket_id),
+                cast("str", ticket_title),
+                labels,
+            )
 
         prefix = params.get("prefix", "axm")
         return f"{prefix}/{session_id}"

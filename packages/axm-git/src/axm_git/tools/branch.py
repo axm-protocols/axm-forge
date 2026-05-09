@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -31,7 +30,7 @@ class GitBranchTool(AXMTool):
         from_ref: str | None = None,
         checkout_only: bool = False,
         path: str = ".",
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Create or checkout a git branch.
 

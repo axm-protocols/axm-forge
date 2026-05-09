@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from axm.hooks.base import HookResult
 
@@ -30,7 +30,7 @@ class WorktreeAddHook:
     or the worktree already exists.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -45,21 +45,29 @@ class WorktreeAddHook:
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
 
-        repo_path = Path(params.get("repo_path", context.get("repo_path", ".")))
+        repo_path = Path(
+            cast(
+                "str | Path",
+                params.get("repo_path", context.get("repo_path", ".")),
+            )
+        )
 
         if find_git_root(repo_path) is None:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
-        ticket_id: str = (
-            params["ticket_id"] if "ticket_id" in params else context["ticket_id"]
+        ticket_id = cast(
+            "str",
+            params["ticket_id"] if "ticket_id" in params else context["ticket_id"],
         )
-        title: str = (
+        title = cast(
+            "str",
             params["ticket_title"]
             if "ticket_title" in params
-            else context["ticket_title"]
+            else context["ticket_title"],
         )
-        labels: list[str] = params.get(
-            "ticket_labels", context.get("ticket_labels", [])
+        labels = cast(
+            "list[str]",
+            params.get("ticket_labels", context.get("ticket_labels", [])),
         )
 
         branch = branch_name_from_ticket(ticket_id, title, labels)
