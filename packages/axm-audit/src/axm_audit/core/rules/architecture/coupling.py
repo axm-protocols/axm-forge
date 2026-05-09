@@ -14,7 +14,6 @@ import tomllib
 from collections import defaultdict
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
 
 from axm_audit.core.rules._helpers import (
     get_ast_cache,
@@ -252,13 +251,20 @@ _COUPLING_DEFAULT_ORCHESTRATOR_BONUS = 5
 _COUPLING_DEFAULT_SEVERITY_MULTIPLIER = 2
 
 
-def safe_int(value: Any, default: int) -> int:
+def safe_int(value: object, default: int) -> int:
     """Convert *value* to a non-negative ``int``, returning *default* on failure."""
-    try:
-        result = int(value)
-    except (TypeError, ValueError):
+    if isinstance(value, bool):
+        # bool is a subclass of int but rejected here as a likely config error
         return default
-    return result if result >= 0 else default
+    if isinstance(value, int):
+        return value if value >= 0 else default
+    if isinstance(value, str | float):
+        try:
+            result = int(value)
+        except (TypeError, ValueError):
+            return default
+        return result if result >= 0 else default
+    return default
 
 
 def parse_overrides(raw: object) -> dict[str, int]:
@@ -368,7 +374,7 @@ def build_coupling_result(  # noqa: PLR0913
     imports_map: dict[str, list[str]] | None = None,
     src_path: Path | None = None,
     severity_error_multiplier: int = _COUPLING_DEFAULT_SEVERITY_MULTIPLIER,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Compute coupling summary from fan-out / fan-in metrics.
 
     Classifies each over-threshold module as ``"warning"`` or ``"error"``
@@ -384,7 +390,7 @@ def build_coupling_result(  # noqa: PLR0913
     _overrides = overrides or {}
     _imports_map = imports_map or {}
 
-    over: list[dict[str, Any]] = []
+    over: list[dict[str, object]] = []
     for name, fo in fan_out.items():
         eff, role = _resolve_effective_threshold(
             name,
@@ -406,7 +412,11 @@ def build_coupling_result(  # noqa: PLR0913
                 }
             )
 
-    over.sort(key=lambda x: x.get("fan_out", 0), reverse=True)
+    def _fan_out_key(entry: dict[str, object]) -> int:
+        value = entry.get("fan_out", 0)
+        return value if isinstance(value, int) else 0
+
+    over.sort(key=_fan_out_key, reverse=True)
 
     return {
         "max_fan_out": max(fan_out.values()),
@@ -423,7 +433,7 @@ def _compute_coupling_metrics(
     overrides: dict[str, int] | None = None,
     orchestrator_bonus: int = 0,
     severity_error_multiplier: int = _COUPLING_DEFAULT_SEVERITY_MULTIPLIER,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Compute fan-in/fan-out coupling metrics for all modules.
 
     ``__init__.py`` files are excluded — their purpose is to re-export
@@ -454,7 +464,7 @@ def _compute_coupling_metrics(
 
 
 def _resolve_coupling_severity(
-    over: list[dict[str, Any]],
+    over: list[dict[str, object]],
 ) -> tuple[int, int, Severity]:
     """Return ``(n_warnings, n_errors, worst_severity)`` from over-threshold entries."""
     n_warnings = sum(1 for m in over if m["severity"] == "warning")

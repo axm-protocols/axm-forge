@@ -20,10 +20,10 @@ from __future__ import annotations
 
 import ast
 import re
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Protocol, TypedDict
 
 from axm_ast import ModuleInfo
 from axm_ast.core.parser import extract_module_info
@@ -48,6 +48,23 @@ _NAMEDTUPLE_API: frozenset[str] = frozenset(
 )
 
 
+class _NamedEntry(Protocol):
+    """Structural type for ``ModuleInfo`` entries that expose a ``name``."""
+
+    name: str
+
+
+class _PrivateImportFinding(TypedDict):
+    """Serialized payload for one private-symbol access in a test file."""
+
+    test_file: str
+    line: int
+    import_module: str
+    private_symbol: str
+    symbol_kind: str
+    access_kind: str
+
+
 def _relativize(path: str, project_path: Path) -> str:
     """Return ``path`` relative to ``project_path`` when possible."""
     try:
@@ -57,7 +74,7 @@ def _relativize(path: str, project_path: Path) -> str:
 
 
 def _render_private_imports_text(
-    findings: list[dict[str, Any]], project_path: Path
+    findings: list[_PrivateImportFinding], project_path: Path
 ) -> str:
     """Render top-N private-import findings as a compact bullet list."""
     lines = [
@@ -126,7 +143,7 @@ class _FindingSpec:
     access_kind: str = "import"
 
 
-def _build_finding(spec: _FindingSpec) -> dict[str, Any]:
+def _build_finding(spec: _FindingSpec) -> _PrivateImportFinding:
     return {
         "test_file": str(spec.test_file),
         "line": spec.line,
@@ -329,7 +346,7 @@ class PrivateImportsRule(ProjectRule):
             return early
 
         pkg_prefixes = get_pkg_prefixes(project_path)
-        findings: list[dict[str, Any]] = []
+        findings: list[_PrivateImportFinding] = []
         mod_cache: dict[str, ModuleInfo | None] = {}
 
         ctx = _ScanContext(
@@ -354,9 +371,9 @@ class PrivateImportsRule(ProjectRule):
         tree: ast.AST,
         ctx: _ScanContext,
         test_pkg: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[_PrivateImportFinding]:
         """Walk *tree* and return one finding per private-symbol access."""
-        findings: list[dict[str, Any]] = []
+        findings: list[_PrivateImportFinding] = []
         for node in ast.walk(tree):
             if not isinstance(node, ast.ImportFrom):
                 continue
@@ -399,7 +416,7 @@ class PrivateImportsRule(ProjectRule):
         return findings
 
     def _build_check_result(
-        self, findings: list[dict[str, Any]], project_path: Path
+        self, findings: list[_PrivateImportFinding], project_path: Path
     ) -> CheckResult:
         n = len(findings)
         score = max(0, 100 - n * _SCORE_PENALTY)
@@ -479,7 +496,7 @@ class PrivateImportsRule(ProjectRule):
 
     @staticmethod
     def _lookup_symbol_in_info(info: ModuleInfo, symbol: str) -> str:
-        dispatch: list[tuple[list[Any], str | Callable[[str], str]]] = [
+        dispatch: list[tuple[Sequence[_NamedEntry], str | Callable[[str], str]]] = [
             (info.functions, "function"),
             (info.classes, "class"),
             (info.variables, _variable_kind),

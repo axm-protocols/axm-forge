@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any
 
 from axm.hooks.base import HookResult
 
@@ -28,7 +27,7 @@ def _parse_fixed_count(stdout: str) -> int:
 class AutofixHook:
     """Run ruff fix + format as a pre-gate hook."""
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Run ``ruff check --fix .`` then ``ruff format .``.
 
         Args:
@@ -38,7 +37,8 @@ class AutofixHook:
         Returns:
             HookResult with ``fixed`` count in metadata.
         """
-        project_path = Path(context.get("working_dir", "."))
+        working_dir = context.get("working_dir", ".")
+        project_path = Path(working_dir if isinstance(working_dir, str) else ".")
 
         try:
             fix_result = run_in_project(

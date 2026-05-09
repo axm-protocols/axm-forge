@@ -7,7 +7,6 @@ import logging
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from axm_audit.core.rules._helpers import (
     get_ast_cache,
@@ -241,9 +240,16 @@ class CouplingMetricRule(ProjectRule):
             orchestrator_bonus,
             severity_error_multiplier=multiplier,
         )
-        n_over: int = metrics["n_over_threshold"]
-        over: list[dict[str, Any]] = metrics["over_threshold"]
-        avg: float = metrics["avg_coupling"]
+        n_over_raw = metrics["n_over_threshold"]
+        n_over: int = n_over_raw if isinstance(n_over_raw, int) else 0
+        over_raw = metrics["over_threshold"]
+        over: list[dict[str, object]] = (
+            [m for m in over_raw if isinstance(m, dict)]
+            if isinstance(over_raw, list)
+            else []
+        )
+        avg_raw = metrics["avg_coupling"]
+        avg: float = avg_raw if isinstance(avg_raw, int | float) else 0.0
 
         n_warnings, n_errors, severity = _resolve_coupling_severity(over)
         score = max(0, 100 - (n_warnings * 3 + n_errors * 5))
@@ -261,12 +267,17 @@ class CouplingMetricRule(ProjectRule):
             hint = "Reduce imports in:\n" + "\n".join(lines)
 
         _sev = {"warning": "\u26a0", "error": "\u2718"}
-        text_lines = [
-            f"\u2022 {m['module'].rsplit('.', 1)[-1]}"
-            f" fo:{m['fan_out']}/{m['effective_threshold']}"
-            f" {_sev.get(m['severity'], '?')}"
-            for m in over
-        ]
+        text_lines: list[str] = []
+        for m in over:
+            module_val = m.get("module", "")
+            module_str = module_val if isinstance(module_val, str) else ""
+            severity_val = m.get("severity", "")
+            severity_str = severity_val if isinstance(severity_val, str) else ""
+            text_lines.append(
+                f"\u2022 {module_str.rsplit('.', 1)[-1]}"
+                f" fo:{m.get('fan_out')}/{m.get('effective_threshold')}"
+                f" {_sev.get(severity_str, '?')}"
+            )
 
         return CheckResult(
             rule_id=self.rule_id,

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -33,7 +32,7 @@ class AuditTool(AXMTool):
         *,
         path: str = ".",
         category: str | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Audit a Python project's code quality.
 

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import logging
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 _logger = logging.getLogger(__name__)
 
@@ -71,7 +74,7 @@ def format_categories_help() -> str:
 
 
 def collect_category_scores(
-    checks: list[Any],
+    checks: Sequence[CheckResult],
 ) -> dict[str, list[float]]:
     """Group valid scores by category, filtering out unusable checks.
 
@@ -103,7 +106,7 @@ class Severity(StrEnum):
     INFO = "info"  # Informational only
 
 
-class CheckResult(BaseModel):
+class CheckResult(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """Result of a single compliance check.
 
     Designed for machine parsing by AI Agents.
@@ -113,7 +116,7 @@ class CheckResult(BaseModel):
     passed: bool = Field(..., description="Whether the check passed")
     message: str = Field(..., description="Human-readable result message")
     severity: Severity = Field(default=Severity.ERROR, description="Severity level")
-    details: dict[str, Any] | None = Field(
+    details: dict[str, object] | None = Field(
         default=None, description="Structured data (cycles, metrics)"
     )
     text: str | None = Field(
@@ -123,7 +126,7 @@ class CheckResult(BaseModel):
     category: str | None = Field(
         default=None, description="Scoring category (injected by auditor)"
     )
-    metadata: dict[str, Any] = Field(
+    metadata: dict[str, object] = Field(
         default_factory=dict,
         description="Rule-specific structured payload (clusters, verdicts, ...)",
     )
@@ -134,10 +137,10 @@ class CheckResult(BaseModel):
         description="Numeric score in [0, 100] for scored categories",
     )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(extra="forbid")
 
 
-class AuditResult(BaseModel):
+class AuditResult(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """Aggregated result of a project audit.
 
     Contains all individual check results and computed summary.
@@ -217,4 +220,4 @@ class AuditResult(BaseModel):
         ]
         return next((g for t, g in _thresholds if score >= t), "F")
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(extra="forbid")

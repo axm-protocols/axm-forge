@@ -5,7 +5,6 @@ from __future__ import annotations
 import dataclasses
 import logging
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -33,7 +32,7 @@ class AuditTestTool(AXMTool):
         files: list[str] | None = None,
         markers: list[str] | None = None,
         stop_on_first: bool = True,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Run tests with structured output.
 

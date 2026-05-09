@@ -7,7 +7,6 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from axm_audit.core.rules._helpers import get_python_files
 from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
@@ -21,7 +20,7 @@ _BANDIT_ERROR_RC = 2
 _BANDIT_ISSUES_RC = 1
 
 
-def run_bandit(src_path: Path, project_path: Path) -> dict[str, Any]:
+def run_bandit(src_path: Path, project_path: Path) -> dict[str, object]:
     """Run Bandit and return parsed JSON output.
 
     Raises:
@@ -38,7 +37,7 @@ def run_bandit(src_path: Path, project_path: Path) -> dict[str, Any]:
     )
     try:
         if result.stdout.strip():
-            data: dict[str, Any] = json.loads(result.stdout)
+            data: dict[str, object] = json.loads(result.stdout)
             return data
     except json.JSONDecodeError:
         pass
@@ -60,43 +59,66 @@ def run_bandit(src_path: Path, project_path: Path) -> dict[str, Any]:
     return {}
 
 
-def _extract_top_issues(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _extract_top_issues(results: list[dict[str, object]]) -> list[dict[str, object]]:
     """Extract top 5 issues sorted by severity (HIGH first)."""
     sorted_issues = sorted(
         results,
         key=lambda x: (
             0 if x.get("issue_severity") == "HIGH" else 1,
-            x.get("line_number", 0),
+            _as_int(x.get("line_number", 0)),
         ),
     )[:5]
-    return [
-        {
-            "severity": issue.get("issue_severity"),
-            "code": issue.get("test_id"),
-            "message": issue.get("issue_text"),
-            "file": Path(issue.get("filename", "")).name,
-            "line": issue.get("line_number"),
-        }
-        for issue in sorted_issues
-    ]
+    extracted: list[dict[str, object]] = []
+    for issue in sorted_issues:
+        filename_raw = issue.get("filename", "")
+        filename = filename_raw if isinstance(filename_raw, str) else ""
+        extracted.append(
+            {
+                "severity": issue.get("issue_severity"),
+                "code": issue.get("test_id"),
+                "message": issue.get("issue_text"),
+                "file": Path(filename).name,
+                "line": issue.get("line_number"),
+            }
+        )
+    return extracted
 
 
-def _count_severities(results: list[dict[str, Any]]) -> tuple[int, int]:
+def _as_int(value: object) -> int:
+    """Best-effort int coercion for sort keys."""
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
+
+
+def _count_severities(results: list[dict[str, object]]) -> tuple[int, int]:
     """Return (high, medium) severity counts from Bandit results."""
     high = sum(1 for r in results if r.get("issue_severity") == "HIGH")
     med = sum(1 for r in results if r.get("issue_severity") == "MEDIUM")
     return high, med
 
 
-def _format_top_issue_lines(top_issues: list[dict[str, Any]]) -> list[str]:
+def _format_top_issue_lines(top_issues: list[dict[str, object]]) -> list[str]:
     """Format top issues as bullet lines for the text report."""
-    return [
-        f"\u2022 {i['severity'][0]} {i['code']} {i['file']}:{i['line']} {i['message']}"
-        for i in top_issues
-    ]
+    lines: list[str] = []
+    for i in top_issues:
+        severity = i.get("severity")
+        sev_letter = severity[0] if isinstance(severity, str) and severity else "?"
+        lines.append(
+            f"\u2022 {sev_letter} {i.get('code')} {i.get('file')}:{i.get('line')}"
+            f" {i.get('message')}"
+        )
+    return lines
 
 
-def _build_security_result(rule_id: str, results: list[dict[str, Any]]) -> CheckResult:
+def _build_security_result(
+    rule_id: str, results: list[dict[str, object]]
+) -> CheckResult:
     """Assemble a CheckResult from Bandit scan results.
 
     Aggregates severity counts, derives a 0-100 score (HIGH=-15, MEDIUM=-5),
@@ -173,7 +195,13 @@ class SecurityRule(ProjectRule):
                 fix_hint="Check bandit installation: uv run bandit --version",
             )
 
-        return _build_security_result(self.rule_id, data.get("results", []))
+        raw_results = data.get("results", [])
+        results: list[dict[str, object]] = (
+            [r for r in raw_results if isinstance(r, dict)]
+            if isinstance(raw_results, list)
+            else []
+        )
+        return _build_security_result(self.rule_id, results)
 
 
 @dataclass

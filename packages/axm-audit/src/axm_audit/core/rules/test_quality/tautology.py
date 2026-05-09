@@ -12,7 +12,7 @@ import ast
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Protocol, TypedDict, cast
 
 from pydantic import Field
 
@@ -38,12 +38,23 @@ _MAX_TEXT_ITEMS = 20
 _NON_TAUTOLOGY_ACTIONS: frozenset[str] = frozenset({"OK", "KEEP"})
 
 
-def _render_tautology_text(verdicts: list[dict[str, Any]]) -> str:
+class _TautologyVerdict(TypedDict):
+    """Serialized verdict payload for one tautology finding."""
+
+    file: str
+    test: str
+    line: int
+    pattern: str
+    rule: str
+    verdict: str
+    reason: str
+
+
+def _render_tautology_text(verdicts: list[_TautologyVerdict]) -> str:
     """Render top-N tautology verdicts as a compact bullet list."""
-    real = [v for v in verdicts if v.get("verdict", "") not in _NON_TAUTOLOGY_ACTIONS]
+    real = [v for v in verdicts if v["verdict"] not in _NON_TAUTOLOGY_ACTIONS]
     lines = [
-        f"• {v.get('file', '')}:{v.get('line', '')} "
-        f"{v.get('test', '')} [{v.get('pattern', '')}]"
+        f"• {v['file']}:{v['line']} {v['test']} [{v['pattern']}]"
         for v in real[:_MAX_TEXT_ITEMS]
     ]
     if len(real) > _MAX_TEXT_ITEMS:
@@ -65,10 +76,10 @@ class Finding:
     path: str = ""
 
 
-class TautologyCheckResult(CheckResult):
+class TautologyCheckResult(CheckResult):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """:class:`CheckResult` with ``metadata`` carrying the verdict list."""
 
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, object] = Field(default_factory=dict)
     score: int = 100
 
     model_config = {"extra": "forbid"}
@@ -150,45 +161,135 @@ def _is_none_compare(node: ast.expr) -> bool:
     return False
 
 
-_PURE_BUILTINS: dict[str, Callable[..., object]] = {
-    "int": int,
-    "float": float,
-    "str": str,
-    "bool": bool,
-    "len": len,
-    "abs": abs,
-    "round": round,
-    "min": min,
-    "max": max,
+class _PureBuiltin(Protocol):
+    """A side-effect-free callable accepting positional ``object`` arguments."""
+
+    def __call__(self, *args: object) -> object: ...
+
+
+_PURE_BUILTINS: dict[str, _PureBuiltin] = {
+    "int": cast(_PureBuiltin, int),
+    "float": cast(_PureBuiltin, float),
+    "str": cast(_PureBuiltin, str),
+    "bool": cast(_PureBuiltin, bool),
+    "len": cast(_PureBuiltin, len),
+    "abs": cast(_PureBuiltin, abs),
+    "round": cast(_PureBuiltin, round),
+    "min": cast(_PureBuiltin, min),
+    "max": cast(_PureBuiltin, max),
 }
 
 
-_UNARY_OPS: dict[type, Callable[[Any], Any]] = {
-    ast.USub: lambda v: -v,
-    ast.UAdd: lambda v: +v,
-    ast.Not: lambda v: not v,
-    ast.Invert: lambda v: ~v,
+def _u_usub(v: object) -> object:
+    return -cast(int, v)
+
+
+def _u_uadd(v: object) -> object:
+    return +cast(int, v)
+
+
+def _u_not(v: object) -> object:
+    return not v
+
+
+def _u_invert(v: object) -> object:
+    return ~cast(int, v)
+
+
+_UnaryOpFn = Callable[[object], object]
+
+_UNARY_OPS: dict[type, _UnaryOpFn] = {
+    ast.USub: _u_usub,
+    ast.UAdd: _u_uadd,
+    ast.Not: _u_not,
+    ast.Invert: _u_invert,
 }
 
-_BINARY_OPS: dict[type, Callable[[Any, Any], Any]] = {
-    ast.Add: lambda a, b: a + b,
-    ast.Sub: lambda a, b: a - b,
-    ast.Mult: lambda a, b: a * b,
-    ast.Div: lambda a, b: a / b,
-    ast.FloorDiv: lambda a, b: a // b,
-    ast.Mod: lambda a, b: a % b,
-    ast.Pow: lambda a, b: a**b,
+
+def _b_add(a: object, b: object) -> object:
+    return cast(int, a) + cast(int, b)
+
+
+def _b_sub(a: object, b: object) -> object:
+    return cast(int, a) - cast(int, b)
+
+
+def _b_mult(a: object, b: object) -> object:
+    return cast(int, a) * cast(int, b)
+
+
+def _b_div(a: object, b: object) -> object:
+    return cast(int, a) / cast(int, b)
+
+
+def _b_floordiv(a: object, b: object) -> object:
+    return cast(int, a) // cast(int, b)
+
+
+def _b_mod(a: object, b: object) -> object:
+    return cast(int, a) % cast(int, b)
+
+
+def _b_pow(a: object, b: object) -> object:
+    return cast(int, a) ** cast(int, b)
+
+
+_BinaryOpFn = Callable[[object, object], object]
+
+_BINARY_OPS: dict[type, _BinaryOpFn] = {
+    ast.Add: _b_add,
+    ast.Sub: _b_sub,
+    ast.Mult: _b_mult,
+    ast.Div: _b_div,
+    ast.FloorDiv: _b_floordiv,
+    ast.Mod: _b_mod,
+    ast.Pow: _b_pow,
 }
 
-_COMPARE_OPS: dict[type, Callable[[Any, Any], bool]] = {
-    ast.Eq: lambda a, b: a == b,
-    ast.NotEq: lambda a, b: a != b,
-    ast.Lt: lambda a, b: a < b,
-    ast.LtE: lambda a, b: a <= b,
-    ast.Gt: lambda a, b: a > b,
-    ast.GtE: lambda a, b: a >= b,
-    ast.Is: lambda a, b: a is b,
-    ast.IsNot: lambda a, b: a is not b,
+
+def _c_eq(a: object, b: object) -> bool:
+    return a == b
+
+
+def _c_neq(a: object, b: object) -> bool:
+    return a != b
+
+
+def _c_lt(a: object, b: object) -> bool:
+    return cast(int, a) < cast(int, b)
+
+
+def _c_lte(a: object, b: object) -> bool:
+    return cast(int, a) <= cast(int, b)
+
+
+def _c_gt(a: object, b: object) -> bool:
+    return cast(int, a) > cast(int, b)
+
+
+def _c_gte(a: object, b: object) -> bool:
+    return cast(int, a) >= cast(int, b)
+
+
+def _c_is(a: object, b: object) -> bool:
+    return a is b
+
+
+def _c_is_not(a: object, b: object) -> bool:
+    return a is not b
+
+
+_CompareOpFn = Callable[[object, object], bool]
+
+_COMPARE_OPS: dict[type, _CompareOpFn] = {
+    ast.Eq: _c_eq,
+    ast.NotEq: _c_neq,
+    ast.Lt: _c_lt,
+    ast.LtE: _c_lte,
+    ast.Gt: _c_gt,
+    ast.GtE: _c_gte,
+    ast.Is: _c_is,
+    ast.IsNot: _c_is_not,
 }
 
 
@@ -286,12 +387,16 @@ def _eval_compare(node: ast.Compare) -> tuple[bool, object]:
     return True, True
 
 
-_EVAL_DISPATCH: dict[type, Callable[[Any], tuple[bool, object]]] = {
-    ast.UnaryOp: _eval_unary,
-    ast.BinOp: _eval_binop,
-    ast.BoolOp: _eval_boolop,
-    ast.Call: _eval_call,
-    ast.Compare: _eval_compare,
+class _EvalFn(Protocol):
+    def __call__(self, node: ast.expr, /) -> tuple[bool, object]: ...
+
+
+_EVAL_DISPATCH: dict[type, _EvalFn] = {
+    ast.UnaryOp: cast(_EvalFn, _eval_unary),
+    ast.BinOp: cast(_EvalFn, _eval_binop),
+    ast.BoolOp: cast(_EvalFn, _eval_boolop),
+    ast.Call: cast(_EvalFn, _eval_call),
+    ast.Compare: cast(_EvalFn, _eval_compare),
 }
 
 
@@ -704,7 +809,7 @@ def _collect_helpers(tree: ast.Module) -> list[ast.FunctionDef]:
 class TautologyRule(ProjectRule):
     """Detect tautological test assertions and triage each finding."""
 
-    _verdicts: list[dict[str, Any]] = field(
+    _verdicts: list[_TautologyVerdict] = field(
         default_factory=list, init=False, repr=False
     )
 
@@ -718,7 +823,7 @@ class TautologyRule(ProjectRule):
         pkg_symbols = collect_pkg_public_symbols(project_path)
         contracts = collect_pkg_contract_classes(project_path)
 
-        all_verdicts: list[dict[str, Any]] = []
+        all_verdicts: list[_TautologyVerdict] = []
         for test_file, tree in self._iter_test_files_with_fallback(project_path):
             if tree is None:
                 continue
@@ -771,9 +876,9 @@ class TautologyRule(ProjectRule):
         test_file: Path,
         tree: ast.Module,
         project_path: Path,
-        pkg_symbols: Any,
-        contracts: Any,
-    ) -> list[dict[str, Any]]:
+        pkg_symbols: set[str],
+        contracts: set[str],
+    ) -> list[_TautologyVerdict]:
         try:
             source = test_file.read_text()
         except (OSError, UnicodeDecodeError):
@@ -786,7 +891,7 @@ class TautologyRule(ProjectRule):
         if not findings:
             return []
         helpers = _collect_helpers(tree)
-        verdicts: list[dict[str, Any]] = []
+        verdicts: list[_TautologyVerdict] = []
         for f in findings:
             loc = _find_func(tree, f.test)
             if loc is None:
