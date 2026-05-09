@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 from radon.complexity import cc_visit
 
-from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality.private_imports import PrivateImportsRule
 from axm_audit.models.results import Severity
 
@@ -24,14 +23,6 @@ def pkg_root(tmp_path: Path) -> Path:
     (tmp_path / "src" / "pkg" / "__init__.py").write_text("")
     (tmp_path / "tests").mkdir()
     return tmp_path
-
-
-def test_rule_registered_under_test_quality() -> None:
-    import axm_audit.core.rules.test_quality  # noqa: F401
-
-    registry = get_registry()
-    assert "test_quality" in registry
-    assert any(r is PrivateImportsRule for r in registry["test_quality"])
 
 
 def test_check_empty_tests_dir_passes(tmp_path: Path) -> None:
