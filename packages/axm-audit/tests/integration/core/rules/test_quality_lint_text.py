@@ -9,6 +9,8 @@ import pytest
 from axm_audit.core.rules.quality import LintingRule
 from axm_audit.models import CheckResult
 
+pytestmark = pytest.mark.integration
+
 
 def _make_ruff_output(project_path: Path, count: int = 3) -> str:
     """Build fake ruff JSON output with *count* issues."""
