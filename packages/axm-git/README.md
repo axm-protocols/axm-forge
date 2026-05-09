@@ -29,7 +29,7 @@
 - 🔀 **PR** — Create GitHub pull requests with optional auto-merge
 - 🧭 **Error Recovery** — When called on a non-git directory, tools suggest nearby git repos
 - 🪝 **Hooks** — Lifecycle hook actions (preflight, create-branch, branch-delete, commit-phase, merge-squash, worktree-add, worktree-remove, push, create-pr, await-merge, pull-main) with `enabled` guard, auto-discovered via entry-points
-- 🪪 **Identity** — Resolve git author from `git-profiles.toml` with schedule-based or explicit profile selection
+- 🪪 **Identity** — Resolve git author from `git-profiles.toml` with schedule-based or explicit profile selection. Schedule rules apply only under user-configured `workspace_paths`; comparison is timezone-aware via the optional `timezone` field (default `Europe/Paris`)
 - 🔎 **Phase Lookup** — `get_phase_commit()` retrieves commit hashes for protocol phases
 
 ## Installation

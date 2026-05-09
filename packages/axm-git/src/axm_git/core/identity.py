@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import tomllib
 from datetime import datetime, time
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
 
@@ -17,7 +19,8 @@ __all__ = [
     "resolve_identity",
 ]
 
-_AXM_WORKSPACE_PREFIX = "/Users/gabriel/Documents/Code/python/axm-workspaces/axm-"
+logger = logging.getLogger(__name__)
+
 _DEFAULT_CONFIG_PATH = Path.home() / "axm" / "git-profiles.toml"
 
 _DAY_MAP: dict[str, int] = {
@@ -59,28 +62,54 @@ class GitProfileConfig(BaseModel):
     default: GitIdentity
     profiles: dict[str, GitIdentity] = {}
     schedule: Schedule = Schedule()
+    workspace_paths: list[Path] = []
+    timezone: str = "Europe/Paris"
 
 
 def load_config(config_path: Path | None = None) -> GitProfileConfig | None:
     """Load and validate a git-profiles TOML config file.
 
-    Returns ``None`` if the file is missing, empty, or invalid.
+    File-absent returns ``None`` silently. File-present-but-malformed
+    returns ``None`` and emits a ``WARNING`` referencing *path* and the
+    exception class. After successful parse, also warns when
+    ``schedule.rules`` is non-empty but ``workspace_paths`` is empty
+    (governance config is configured but cannot apply).
     """
     path = config_path or _DEFAULT_CONFIG_PATH
     try:
         data = path.read_bytes()
-        if not data:
-            return None
-        parsed: dict[str, Any] = tomllib.loads(data.decode())
-        return GitProfileConfig.model_validate(parsed)
-    except (OSError, tomllib.TOMLDecodeError, ValueError, KeyError):
+    except FileNotFoundError:
         return None
+    except OSError as exc:
+        logger.warning(
+            "Cannot read git-profiles config at %s: %s", path, exc.__class__.__name__
+        )
+        return None
+    if not data:
+        return None
+    try:
+        parsed: dict[str, Any] = tomllib.loads(data.decode())
+        config = GitProfileConfig.model_validate(parsed)
+    except (tomllib.TOMLDecodeError, ValueError, KeyError) as exc:
+        logger.warning(
+            "Invalid git-profiles config at %s: %s", path, exc.__class__.__name__
+        )
+        return None
+    if config.schedule.rules and not config.workspace_paths:
+        logger.warning(
+            "git-profiles config at %s defines schedule.rules but "
+            "workspace_paths is empty — schedule is inert",
+            path,
+        )
+    return config
 
 
 def _matches_schedule(rule: ScheduleRule, now: datetime) -> bool:
     """Check if *now* falls within the rule's day + time window.
 
-    Start is inclusive, end is exclusive.
+    Start is inclusive, end is exclusive. Accepts both naive and
+    tz-aware ``datetime``; the schedule windows are expressed in
+    wall-clock time of *now*.
     """
     weekday = now.weekday()
     if weekday not in [_DAY_MAP[d] for d in rule.days]:
@@ -91,10 +120,24 @@ def _matches_schedule(rule: ScheduleRule, now: datetime) -> bool:
     return start <= current_time < end
 
 
-def _is_axm_workspace(path: Path) -> bool:
-    """Return ``True`` if *path* resolves under an axm workspace."""
-    resolved = str(path.resolve())
-    return resolved.startswith(_AXM_WORKSPACE_PREFIX)
+def _is_axm_workspace(path: Path, workspace_paths: list[Path]) -> bool:
+    """Return ``True`` if *path* resolves under any of *workspace_paths*.
+
+    Empty *workspace_paths* always returns ``False``.
+    """
+    if not workspace_paths:
+        return False
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    for root in workspace_paths:
+        try:
+            resolved.relative_to(root.resolve())
+        except (ValueError, OSError):
+            continue
+        return True
+    return False
 
 
 def _resolve_by_override(
@@ -123,7 +166,7 @@ def _resolve_by_schedule(
     Returns ``None`` when the path is outside AXM workspaces or no
     schedule rule matches.
     """
-    if not _is_axm_workspace(workspace_path):
+    if not _is_axm_workspace(workspace_path, config.workspace_paths):
         return None
     for rule in config.schedule.rules:
         if _matches_schedule(rule, now) and rule.profile in config.profiles:
@@ -151,7 +194,13 @@ def resolve_identity(
     if profile_override is not None:
         return override
 
-    effective_now = now or datetime.now()
+    tz = ZoneInfo(config.timezone)
+    if now is None:
+        effective_now = datetime.now(tz=tz)
+    elif now.tzinfo is None:
+        effective_now = now
+    else:
+        effective_now = now.astimezone(tz)
     return _resolve_by_schedule(config, workspace_path, effective_now) or config.default
 
 
