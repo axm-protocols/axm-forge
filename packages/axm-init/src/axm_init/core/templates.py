@@ -14,8 +14,12 @@ from pydantic import BaseModel, ConfigDict
 TEMPLATES_PKG = files("axm_init.templates")
 
 
-class TemplateInfo(BaseModel):
-    """Template metadata."""
+class TemplateInfo(BaseModel):  # type: ignore[explicit-any]
+    """Template metadata.
+
+    Note: ``type: ignore[explicit-any]`` flags pydantic ``BaseModel``
+    internals (third-party).
+    """
 
     name: str
     description: str
