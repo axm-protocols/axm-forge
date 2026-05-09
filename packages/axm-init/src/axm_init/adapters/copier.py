@@ -5,10 +5,11 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from collections.abc import Mapping
 from io import StringIO
 from pathlib import Path
 
-from copier import run_copy  # type: ignore[import-untyped]
+from copier import run_copy
 from pydantic import BaseModel, ConfigDict
 
 from axm_init.models.results import ScaffoldResult
@@ -16,12 +17,16 @@ from axm_init.models.results import ScaffoldResult
 logger = logging.getLogger(__name__)
 
 
-class CopierConfig(BaseModel):
-    """Configuration for Copier execution."""
+class CopierConfig(BaseModel):  # type: ignore[explicit-any]
+    """Configuration for Copier execution.
+
+    Note: ``type: ignore[explicit-any]`` flags pydantic ``BaseModel``
+    internals (third-party).
+    """
 
     template_path: Path
     destination: Path
-    data: dict[str, object]
+    data: Mapping[str, object]
     defaults: bool = True
     overwrite: bool = False
     trust_template: bool = False
@@ -51,10 +56,13 @@ class CopierAdapter:
         import concurrent.futures
 
         def _run() -> None:
+            # ``run_copy`` declares ``data: dict[str, Any] | None``;
+            # converting our ``Mapping[str, object]`` to a plain ``dict``
+            # widens cleanly to the expected type.
             run_copy(
                 src_path=str(config.template_path),
                 dst_path=config.destination,
-                data=config.data,
+                data=dict(config.data),
                 defaults=config.defaults,
                 overwrite=config.overwrite,
                 unsafe=config.trust_template,

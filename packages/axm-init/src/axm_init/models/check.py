@@ -36,8 +36,12 @@ def compute_grade(score: int | float) -> Grade:
     return Grade.F
 
 
-class CheckResult(BaseModel):
-    """Result of a single audit check."""
+class CheckResult(BaseModel):  # type: ignore[explicit-any]
+    """Result of a single audit check.
+
+    Note: ``type: ignore[explicit-any]`` flags pydantic ``BaseModel``
+    internals (third-party).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -56,8 +60,12 @@ class CheckResult(BaseModel):
         return self.weight if self.passed else 0
 
 
-class CategoryScore(BaseModel):
-    """Aggregated score for a category."""
+class CategoryScore(BaseModel):  # type: ignore[explicit-any]
+    """Aggregated score for a category.
+
+    Note: ``type: ignore[explicit-any]`` flags pydantic ``BaseModel``
+    internals (third-party).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -93,8 +101,12 @@ def _group_categories(checks: list[CheckResult]) -> dict[str, CategoryScore]:
     }
 
 
-class ProjectResult(BaseModel):
-    """Complete project check result with score and grade."""
+class ProjectResult(BaseModel):  # type: ignore[explicit-any]
+    """Complete project check result with score and grade.
+
+    Note: ``type: ignore[explicit-any]`` flags pydantic ``BaseModel``
+    internals (third-party).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
