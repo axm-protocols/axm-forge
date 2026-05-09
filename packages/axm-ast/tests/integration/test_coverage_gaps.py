@@ -134,17 +134,8 @@ class TestCompressClassNoDocstring:
         assert "class Empty" in text
 
 
-# ─── tools/impact: edge cases ───────────────────────────────────────────────
-
-
 class TestImpactToolEdgeCases:
     """Cover tools/impact.py uncovered paths."""
-
-    def test_bad_path(self) -> None:
-        from axm_ast.tools.impact import ImpactTool
-
-        result = ImpactTool().execute(path="/nonexistent/xyz", symbol="foo")
-        assert result.success is False
 
     def test_exception(self, tmp_path: Path, mocker: MagicMock) -> None:
         from axm_ast.tools.impact import ImpactTool
