@@ -20,7 +20,6 @@ from axm_init.models.check import CheckResult, ProjectResult
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -321,7 +320,7 @@ def format_report(result: ProjectResult, *, verbose: bool = False) -> str:
     return "\n".join(lines)
 
 
-def format_json(result: ProjectResult) -> dict[str, Any]:
+def format_json(result: ProjectResult) -> dict[str, object]:
     """Format check result as JSON-serializable dict."""
     return {
         "project": str(result.project_path),
@@ -358,7 +357,7 @@ def format_json(result: ProjectResult) -> dict[str, Any]:
     }
 
 
-def format_agent(result: ProjectResult) -> dict[str, Any]:
+def format_agent(result: ProjectResult) -> dict[str, object]:
     """Agent-optimized output: passed_count=N, failed=full detail.
 
     Minimizes tokens by replacing the full passed-check list with a count.

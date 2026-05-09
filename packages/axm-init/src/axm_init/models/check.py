@@ -8,7 +8,7 @@ import logging
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, ConfigDict, computed_field
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ def compute_grade(score: int | float) -> Grade:
 class CheckResult(BaseModel):
     """Result of a single audit check."""
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(extra="forbid")
 
     name: str
     category: str
@@ -59,7 +59,7 @@ class CheckResult(BaseModel):
 class CategoryScore(BaseModel):
     """Aggregated score for a category."""
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(extra="forbid")
 
     category: str
     earned: int
@@ -96,7 +96,7 @@ def _group_categories(checks: list[CheckResult]) -> dict[str, CategoryScore]:
 class ProjectResult(BaseModel):
     """Complete project check result with score and grade."""
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(extra="forbid")
 
     project_path: Path
     checks: list[CheckResult]

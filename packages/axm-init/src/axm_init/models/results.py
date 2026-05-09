@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ScaffoldResult(BaseModel):
     """Result of a scaffolding operation."""
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(extra="forbid")
 
     success: bool
     path: str
@@ -19,7 +19,7 @@ class ScaffoldResult(BaseModel):
 class ReserveResult(BaseModel):
     """Result of PyPI reservation operation."""
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(extra="forbid")
 
     success: bool
     package_name: str

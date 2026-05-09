@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import ToolResult
 
@@ -32,21 +31,33 @@ class InitScaffoldTool:
 
     def _validate_inputs(
         self,
-        kwargs: dict[str, Any],
+        kwargs: dict[str, object],
     ) -> tuple[str, str | None, str, str, str, str, str, bool, str | None] | ToolResult:
         """Extract and validate inputs from kwargs.
 
         Returns a tuple of validated values or a ToolResult on error.
         """
-        path: str = kwargs.get("path", ".")
-        name: str | None = kwargs.get("name")
-        org: str = kwargs.get("org", "")
-        author: str = kwargs.get("author", "")
-        email: str = kwargs.get("email", "")
-        license_type: str = kwargs.get("license", "Apache-2.0")
-        description: str = kwargs.get("description", "")
-        workspace: bool = kwargs.get("workspace", False)
-        member: str | None = kwargs.get("member")
+
+        def _str(key: str, default: str = "") -> str:
+            v = kwargs.get(key, default)
+            return v if isinstance(v, str) else default
+
+        def _opt_str(key: str) -> str | None:
+            v = kwargs.get(key)
+            return v if isinstance(v, str) else None
+
+        path: str = _str("path", ".")
+        name: str | None = _opt_str("name")
+        org: str = _str("org")
+        author: str = _str("author")
+        email: str = _str("email")
+        license_type: str = _str("license", "Apache-2.0")
+        description: str = _str("description")
+        workspace_raw = kwargs.get("workspace", False)
+        workspace: bool = (
+            bool(workspace_raw) if isinstance(workspace_raw, bool) else False
+        )
+        member: str | None = _opt_str("member")
 
         if not org or not author or not email:
             return ToolResult(
@@ -89,7 +100,7 @@ class InitScaffoldTool:
             "author_email": meta.author_email,
         }
 
-    def execute(self, **kwargs: Any) -> ToolResult:
+    def execute(self, **kwargs: object) -> ToolResult:
         """Initialize a new Python project.
 
         Args:
