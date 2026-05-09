@@ -28,17 +28,64 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "DocsResult",
+    "FileEntry",
+    "Heading",
+    "PageEntry",
     "build_docs_tree",
     "discover_docs",
     "extract_headings",
     "format_docs",
     "format_docs_json",
 ]
+
+
+# ─── Public TypedDicts ─────────────────────────────────────────────────
+
+
+class Heading(TypedDict):
+    """Markdown heading entry."""
+
+    level: int
+    text: str
+
+
+class FileEntry(TypedDict):
+    """On-disk file with its raw content (README, mkdocs)."""
+
+    path: str
+    content: str
+
+
+class PageEntry(TypedDict, total=False):
+    """Documentation page entry; shape varies by detail level.
+
+    - ``full``: ``path``, ``content``
+    - ``toc``: ``path``, ``headings``, ``line_count``
+    - ``summary``: ``path``, ``headings``, ``summaries``, ``line_count``
+    """
+
+    path: str
+    content: str
+    headings: list[Heading]
+    summaries: dict[str, str]
+    line_count: int
+
+
+class DocsResult(TypedDict):
+    """Result of :func:`discover_docs`."""
+
+    project: str
+    readme: FileEntry | None
+    mkdocs: FileEntry | None
+    tree: str | None
+    pages: list[PageEntry]
+
 
 # ─── README variants (priority order) ───────────────────────────────────────
 
@@ -58,7 +105,7 @@ _README_NAMES = [
 _HEADING_RE = re.compile(r"^(#{1,3})\s+(.+)$", re.MULTILINE)
 
 
-def extract_headings(content: str) -> list[dict[str, int | str]]:
+def extract_headings(content: str) -> list[Heading]:
     """Extract H1/H2/H3 headings from markdown content.
 
     Args:
@@ -120,7 +167,7 @@ def discover_docs(
     *,
     detail: str = "full",
     pages: list[str] | None = None,
-) -> dict[str, Any]:
+) -> DocsResult:
     """Walk project root, find README, mkdocs.yml, and docs/**/*.md.
 
     Args:
@@ -151,7 +198,7 @@ def discover_docs(
     }
 
 
-def _find_readme(root: Path) -> dict[str, str] | None:
+def _find_readme(root: Path) -> FileEntry | None:
     """Find README file by priority order."""
     for name in _README_NAMES:
         path = root / name
@@ -160,7 +207,7 @@ def _find_readme(root: Path) -> dict[str, str] | None:
     return None
 
 
-def _find_mkdocs(root: Path) -> dict[str, str] | None:
+def _find_mkdocs(root: Path) -> FileEntry | None:
     """Find mkdocs.yml or mkdocs.yaml."""
     for name in ("mkdocs.yml", "mkdocs.yaml"):
         path = root / name
@@ -169,7 +216,7 @@ def _find_mkdocs(root: Path) -> dict[str, str] | None:
     return None
 
 
-def _build_page_entry(detail: str, content: str, rel: str) -> dict[str, Any]:
+def _build_page_entry(detail: str, content: str, rel: str) -> PageEntry:
     """Build a page entry dict based on the requested detail level."""
     match detail:
         case "toc":
@@ -194,7 +241,7 @@ def _find_docs_pages(
     *,
     detail: str = "full",
     pages: list[str] | None = None,
-) -> list[dict[str, Any]]:
+) -> list[PageEntry]:
     """Find markdown files in docs/ directory with progressive detail.
 
     Args:
@@ -206,7 +253,7 @@ def _find_docs_pages(
     if not docs_dir.is_dir():
         return []
 
-    result: list[dict[str, Any]] = []
+    result: list[PageEntry] = []
     pages_lower = [p.lower() for p in pages] if pages else None
 
     for path in sorted(docs_dir.rglob("*.md")):
@@ -256,7 +303,7 @@ def _walk_tree(path: Path, prefix: str, lines: list[str]) -> None:
 # ─── Formatting ──────────────────────────────────────────────────────────────
 
 
-def format_docs(result: dict[str, Any], *, tree_only: bool = False) -> str:
+def format_docs(result: DocsResult, *, tree_only: bool = False) -> str:
     """Format documentation dump as human-readable text.
 
     Args:
@@ -279,7 +326,7 @@ def format_docs(result: dict[str, Any], *, tree_only: bool = False) -> str:
     return "\n".join(parts)
 
 
-def _fmt_tree_only(result: dict[str, Any]) -> str:
+def _fmt_tree_only(result: DocsResult) -> str:
     """Format tree-only output."""
     parts: list[str] = []
     tree = result.get("tree")
@@ -295,7 +342,7 @@ def _fmt_tree_only(result: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-def _fmt_readme(result: dict[str, Any], parts: list[str]) -> None:
+def _fmt_readme(result: DocsResult, parts: list[str]) -> None:
     """Format README section."""
     readme = result.get("readme")
     if readme:
@@ -305,7 +352,7 @@ def _fmt_readme(result: dict[str, Any], parts: list[str]) -> None:
         parts.append("")
 
 
-def _fmt_mkdocs(result: dict[str, Any], parts: list[str]) -> None:
+def _fmt_mkdocs(result: DocsResult, parts: list[str]) -> None:
     """Format mkdocs section."""
     mkdocs = result.get("mkdocs")
     if mkdocs:
@@ -315,7 +362,7 @@ def _fmt_mkdocs(result: dict[str, Any], parts: list[str]) -> None:
         parts.append("")
 
 
-def _fmt_tree_section(result: dict[str, Any], parts: list[str]) -> None:
+def _fmt_tree_section(result: DocsResult, parts: list[str]) -> None:
     """Format tree section."""
     tree = result.get("tree")
     if tree:
@@ -325,11 +372,11 @@ def _fmt_tree_section(result: dict[str, Any], parts: list[str]) -> None:
         parts.append("")
 
 
-def _fmt_full_page(page: dict[str, Any]) -> list[str]:
+def _fmt_full_page(page: PageEntry) -> list[str]:
     return [page["content"].rstrip()]
 
 
-def _fmt_headings(headings: list[dict[str, Any]]) -> list[str]:
+def _fmt_headings(headings: list[Heading]) -> list[str]:
     return [
         f"{'  ' * (h['level'] - 1)}{'#' * h['level']} {h['text']}" for h in headings
     ]
@@ -344,16 +391,17 @@ def _fmt_summaries(summaries: dict[str, str]) -> list[str]:
     ]
 
 
-def _fmt_toc_page(page: dict[str, Any]) -> list[str]:
+def _fmt_toc_page(page: PageEntry) -> list[str]:
     out: list[str] = []
-    if page.get("line_count"):
-        out.append(f"({page['line_count']} lines)")
+    line_count = page.get("line_count")
+    if line_count:
+        out.append(f"({line_count} lines)")
     out.extend(_fmt_headings(page.get("headings", [])))
     out.extend(_fmt_summaries(page.get("summaries", {})))
     return out
 
 
-def _fmt_one_page(page: dict[str, Any]) -> list[str]:
+def _fmt_one_page(page: PageEntry) -> list[str]:
     out = [f"📄 {page['path']}", "─" * 40]
     if "content" in page:
         out.extend(_fmt_full_page(page))
@@ -363,13 +411,13 @@ def _fmt_one_page(page: dict[str, Any]) -> list[str]:
     return out
 
 
-def _fmt_pages(result: dict[str, Any], parts: list[str]) -> None:
+def _fmt_pages(result: DocsResult, parts: list[str]) -> None:
     """Format documentation pages."""
     for page in result.get("pages", []):
         parts.extend(_fmt_one_page(page))
 
 
-def format_docs_json(result: dict[str, Any]) -> dict[str, Any]:
+def format_docs_json(result: DocsResult) -> DocsResult:
     """Format documentation dump as JSON-serializable dict.
 
     Args:
@@ -379,7 +427,7 @@ def format_docs_json(result: dict[str, Any]) -> dict[str, Any]:
         JSON-serializable dict.
     """
     return {
-        "project": result.get("project"),
+        "project": result["project"],
         "readme": result.get("readme"),
         "mkdocs": result.get("mkdocs"),
         "tree": result.get("tree"),

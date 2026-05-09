@@ -15,7 +15,7 @@ import logging
 import shutil
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from axm_ast.core.analyzer import (
     build_import_graph,
@@ -28,6 +28,12 @@ from axm_ast.models.nodes import PackageInfo
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "ContextResult",
+    "FormattedContext",
+    "ModuleSummary",
+    "NormalizedPackage",
+    "PatternsInfo",
+    "SubPackageEntry",
     "build_context",
     "detect_axm_tools",
     "detect_patterns",
@@ -36,6 +42,113 @@ __all__ = [
     "format_context_json",
     "format_context_text",
 ]
+
+
+# ─── Structured payload shapes ──────────────────────────────────────────
+
+
+class PatternsInfo(TypedDict):
+    """Coding-pattern counters returned by :func:`detect_patterns`."""
+
+    all_exports_count: int
+    layout: str
+    test_count: int
+    module_count: int
+    function_count: int
+    class_count: int
+
+
+class ModuleSummary(TypedDict):
+    """Per-module summary with PageRank-derived importance stars."""
+
+    name: str
+    stars: int
+    symbols: list[str]
+    symbol_count: int
+
+
+class ContextResult(TypedDict):
+    """Shape of the dict returned by :func:`build_context`."""
+
+    name: str
+    root: str
+    python: str | None
+    stack: dict[str, list[str]]
+    axm_tools: dict[str, str]
+    patterns: PatternsInfo
+    modules: list[ModuleSummary]
+    dependency_graph: dict[str, list[str]]
+
+
+class SubPackageEntry(TypedDict, total=False):
+    """Single sub-package entry produced by :func:`_group_by_subpackage`.
+
+    ``modules`` and ``symbols`` are always present; ``symbol_names`` and
+    ``symbol_names_truncated`` are only emitted at leaf level when symbol
+    names are listed for navigation.
+    """
+
+    modules: int
+    symbols: int
+    symbol_names: list[str]
+    symbol_names_truncated: int
+
+
+class _TopModuleEntry(TypedDict):
+    """Compact module record used in depth=0 JSON output."""
+
+    name: str
+    symbol_count: int
+    stars: int
+
+
+class _PatternsSummary(TypedDict):
+    """Compacted patterns dict embedded in :class:`FormattedContext`."""
+
+    module_count: int
+    function_count: int
+    class_count: int
+    layout: str
+
+
+class FormattedContext(TypedDict, total=False):
+    """Shape of the dict returned by :func:`format_context_json`.
+
+    ``total=False`` because the dict is either passthrough (full
+    :class:`ContextResult` keys) or a compacted variant containing
+    ``top_modules`` (depth=0) or ``packages`` (depth>=1).
+    """
+
+    # Compact-variant keys.
+    name: str
+    python: str | None
+    stack: dict[str, list[str]]
+    patterns: _PatternsSummary
+    top_modules: list[_TopModuleEntry]
+    packages: dict[str, SubPackageEntry] | list[NormalizedPackage]
+    # Passthrough keys (depth=None returns the full ContextResult).
+    root: str
+    axm_tools: dict[str, str]
+    modules: list[ModuleSummary]
+    dependency_graph: dict[str, list[str]]
+
+
+class _PackageModuleEntry(TypedDict, total=False):
+    """Module entry inside a workspace-style package list."""
+
+    name: str
+    symbols: list[str]
+
+
+class NormalizedPackage(TypedDict):
+    """Normalized package shape yielded by :func:`_iter_packages`."""
+
+    name: str
+    module_count: int
+    symbol_count: int
+    symbol_names: list[str]
+    symbol_names_total: int
+    modules: list[_PackageModuleEntry]
 
 
 # ─── Stack categories ────────────────────────────────────────────────────────
@@ -187,7 +300,7 @@ def detect_axm_tools() -> dict[str, str]:
 # ─── Pattern detection ───────────────────────────────────────────────────────
 
 
-def detect_patterns(pkg: PackageInfo, project_root: Path) -> dict[str, Any]:
+def detect_patterns(pkg: PackageInfo, project_root: Path) -> PatternsInfo:
     """Detect coding patterns in the analyzed package.
 
     Args:
@@ -210,14 +323,14 @@ def detect_patterns(pkg: PackageInfo, project_root: Path) -> dict[str, Any]:
     func_count = sum(len(m.functions) for m in pkg.modules)
     class_count = sum(len(m.classes) for m in pkg.modules)
 
-    return {
-        "all_exports_count": all_count,
-        "layout": layout,
-        "test_count": test_count,
-        "module_count": len(pkg.modules),
-        "function_count": func_count,
-        "class_count": class_count,
-    }
+    return PatternsInfo(
+        all_exports_count=all_count,
+        layout=layout,
+        test_count=test_count,
+        module_count=len(pkg.modules),
+        function_count=func_count,
+        class_count=class_count,
+    )
 
 
 def _detect_layout(pkg: PackageInfo, project_root: Path) -> str:
@@ -243,7 +356,7 @@ def build_context(
     path: Path,
     *,
     project_root: Path | None = None,
-) -> dict[str, Any]:
+) -> ContextResult:
     """Build complete project context in one call.
 
     Orchestrates: analyze_package + detect_stack + detect_axm_tools
@@ -272,16 +385,16 @@ def build_context(
     # Build module summaries with rank stars
     modules = _build_module_summaries(pkg, scores)
 
-    return {
-        "name": pkg.name,
-        "root": str(pkg.root),
-        "python": _detect_python_version(project_root),
-        "stack": stack,
-        "axm_tools": axm_tools,
-        "patterns": patterns,
-        "modules": modules,
-        "dependency_graph": graph,
-    }
+    return ContextResult(
+        name=pkg.name,
+        root=str(pkg.root),
+        python=_detect_python_version(project_root),
+        stack=stack,
+        axm_tools=axm_tools,
+        patterns=patterns,
+        modules=modules,
+        dependency_graph=graph,
+    )
 
 
 def _infer_project_root(path: Path) -> Path:
@@ -307,9 +420,9 @@ def _detect_python_version(root: Path) -> str | None:
 def _build_module_summaries(
     pkg: PackageInfo,
     scores: dict[str, float],
-) -> list[dict[str, Any]]:
+) -> list[ModuleSummary]:
     """Build module summaries with importance stars."""
-    summaries: list[dict[str, Any]] = []
+    summaries: list[ModuleSummary] = []
 
     for mod in pkg.modules:
         mod_name = module_dotted_name(mod.path, pkg.root)
@@ -331,12 +444,12 @@ def _build_module_summaries(
         stars = _score_to_stars(max_score, len(sym_names))
 
         summaries.append(
-            {
-                "name": mod_name,
-                "stars": stars,
-                "symbols": sym_names,
-                "symbol_count": len(sym_names),
-            }
+            ModuleSummary(
+                name=mod_name,
+                stars=stars,
+                symbols=sym_names,
+                symbol_count=len(sym_names),
+            )
         )
 
     # Sort by importance
@@ -371,7 +484,7 @@ def _score_to_stars(score: float, symbol_count: int) -> int:
 # ─── Formatting ──────────────────────────────────────────────────────────────
 
 
-def format_context(ctx: dict[str, Any]) -> str:
+def format_context(ctx: ContextResult) -> str:
     """Format context as human-readable text.
 
     Args:
@@ -384,22 +497,26 @@ def format_context(ctx: dict[str, Any]) -> str:
         _fmt_header(ctx),
         _fmt_stack(ctx.get("stack", {})),
         _fmt_tools(ctx.get("axm_tools", {})),
-        _fmt_patterns(ctx.get("patterns", {})),
+        _fmt_patterns(ctx.get("patterns")),
         _fmt_modules(ctx.get("modules", [])),
         _fmt_graph(ctx.get("dependency_graph", {})),
     ]
     return "\n".join(s for s in sections if s)
 
 
-def _fmt_header(ctx: dict[str, Any]) -> str:
+def _fmt_header(ctx: ContextResult) -> str:
     """Format the header section."""
     lines = [f"📋 {ctx['name']}"]
-    patterns = ctx.get("patterns", {})
+    patterns = ctx.get("patterns")
+    layout = patterns["layout"] if patterns else "?"
+    module_count = patterns["module_count"] if patterns else 0
+    function_count = patterns["function_count"] if patterns else 0
+    class_count = patterns["class_count"] if patterns else 0
     lines.append(
-        f"  layout: {patterns.get('layout', '?')}"
-        f" ({patterns.get('module_count', 0)} modules,"
-        f" {patterns.get('function_count', 0)} functions,"
-        f" {patterns.get('class_count', 0)} classes)"
+        f"  layout: {layout}"
+        f" ({module_count} modules,"
+        f" {function_count} functions,"
+        f" {class_count} classes)"
     )
     py = ctx.get("python")
     if py:
@@ -430,20 +547,19 @@ def _fmt_tools(axm_tools: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
-def _fmt_patterns(patterns: dict[str, Any]) -> str:
+def _fmt_patterns(patterns: PatternsInfo | None) -> str:
     """Format the patterns section."""
     lines = ["📐 Patterns"]
-    lines.append(
-        f"  exports: __all__ in {patterns.get('all_exports_count', 0)} modules"
-    )
-    tests = patterns.get("test_count", 0)
+    all_exports = patterns["all_exports_count"] if patterns else 0
+    lines.append(f"  exports: __all__ in {all_exports} modules")
+    tests = patterns["test_count"] if patterns else 0
     if tests:
         lines.append(f"  tests: {tests} test files")
     lines.append("")
     return "\n".join(lines)
 
 
-def _fmt_modules(modules: list[dict[str, Any]]) -> str:
+def _fmt_modules(modules: list[ModuleSummary]) -> str:
     """Format the modules section."""
     if not modules:
         return ""
@@ -476,10 +592,10 @@ def _fmt_graph(graph: dict[str, list[str]]) -> str:
 
 
 def format_context_json(
-    ctx: dict[str, Any],
+    ctx: ContextResult,
     *,
     depth: int | None = None,
-) -> dict[str, Any]:
+) -> FormattedContext:
     """Format context as JSON-serializable dict.
 
     The *depth* parameter controls the level of detail returned:
@@ -499,31 +615,47 @@ def format_context_json(
         project does not declare ``requires-python``.
     """
     if depth is None:
-        return ctx
+        # Passthrough: ContextResult is structurally a superset of
+        # FormattedContext (all keys are declared optional via total=False).
+        return FormattedContext(
+            name=ctx["name"],
+            root=ctx["root"],
+            python=ctx["python"],
+            stack=ctx["stack"],
+            axm_tools=ctx["axm_tools"],
+            modules=ctx["modules"],
+            dependency_graph=ctx["dependency_graph"],
+            patterns=_PatternsSummary(
+                module_count=ctx["patterns"]["module_count"],
+                function_count=ctx["patterns"]["function_count"],
+                class_count=ctx["patterns"]["class_count"],
+                layout=ctx["patterns"]["layout"],
+            ),
+        )
 
-    patterns = ctx.get("patterns", {})
-    base: dict[str, Any] = {
-        "name": ctx.get("name", ""),
-        "python": ctx.get("python"),
-        "stack": ctx.get("stack", {}),
-        "patterns": {
-            "module_count": patterns.get("module_count", 0),
-            "function_count": patterns.get("function_count", 0),
-            "class_count": patterns.get("class_count", 0),
-            "layout": patterns.get("layout", ""),
-        },
+    patterns = ctx["patterns"]
+    base: FormattedContext = {
+        "name": ctx["name"],
+        "python": ctx["python"],
+        "stack": ctx["stack"],
+        "patterns": _PatternsSummary(
+            module_count=patterns["module_count"],
+            function_count=patterns["function_count"],
+            class_count=patterns["class_count"],
+            layout=patterns["layout"],
+        ),
     }
 
-    modules: list[dict[str, Any]] = ctx.get("modules", [])
+    modules: list[ModuleSummary] = ctx["modules"]
 
     if depth == 0:
         # Compact: top-5 modules by PageRank
         base["top_modules"] = [
-            {
-                "name": m["name"],
-                "symbol_count": m["symbol_count"],
-                "stars": m["stars"],
-            }
+            _TopModuleEntry(
+                name=m["name"],
+                symbol_count=m["symbol_count"],
+                stars=m["stars"],
+            )
             for m in modules[:5]
         ]
     else:
@@ -533,7 +665,7 @@ def format_context_json(
     return base
 
 
-def format_context_text(data: dict[str, Any], *, depth: int = 0) -> str:
+def format_context_text(data: FormattedContext, *, depth: int = 0) -> str:
     """Format context data as compact plain text for ToolResult.text.
 
     Operates on the dict returned by :func:`format_context_json`, not the
@@ -580,33 +712,35 @@ def format_context_text(data: dict[str, Any], *, depth: int = 0) -> str:
     return "\n".join(lines)
 
 
-def _iter_packages(packages: Any) -> Iterator[dict[str, Any]]:
+def _iter_packages(
+    packages: dict[str, SubPackageEntry] | list[NormalizedPackage],
+) -> Iterator[NormalizedPackage]:
     """Yield normalized package dicts from either dict or list shape."""
     if isinstance(packages, dict):
         for pkg_name in sorted(packages):
-            pkg = packages[pkg_name]
-            sym_names = pkg.get("symbol_names", [])
-            yield {
-                "name": pkg_name,
-                "module_count": pkg.get("modules", 0),
-                "symbol_count": pkg.get("symbols", 0),
-                "symbol_names": sym_names,
-                "symbol_names_total": pkg.get("symbol_names_truncated", len(sym_names)),
-                "modules": [],
-            }
+            entry = packages[pkg_name]
+            sym_names = entry.get("symbol_names", [])
+            yield NormalizedPackage(
+                name=pkg_name,
+                module_count=entry.get("modules", 0),
+                symbol_count=entry.get("symbols", 0),
+                symbol_names=sym_names,
+                symbol_names_total=entry.get("symbol_names_truncated", len(sym_names)),
+                modules=[],
+            )
     else:
         for pkg in packages:
-            yield {
-                "name": pkg["name"],
-                "module_count": pkg.get("module_count", 0),
-                "symbol_count": pkg.get("symbol_count", 0),
-                "symbol_names": [],
-                "symbol_names_total": 0,
-                "modules": pkg.get("modules") or [],
-            }
+            yield NormalizedPackage(
+                name=pkg["name"],
+                module_count=pkg.get("module_count", 0),
+                symbol_count=pkg.get("symbol_count", 0),
+                symbol_names=[],
+                symbol_names_total=0,
+                modules=pkg.get("modules") or [],
+            )
 
 
-def _format_one_package(pkg: dict[str, Any]) -> list[str]:
+def _format_one_package(pkg: NormalizedPackage) -> list[str]:
     """Format a single normalized package as one or more text lines."""
     line = f"  {pkg['name']}: {pkg['module_count']} mod, {pkg['symbol_count']} sym"
     if pkg["symbol_names"]:
@@ -618,9 +752,9 @@ def _format_one_package(pkg: dict[str, Any]) -> list[str]:
     return out
 
 
-def _format_packages(data: dict[str, Any], lines: list[str]) -> None:
+def _format_packages(data: FormattedContext, lines: list[str]) -> None:
     """Append package lines for depth >= 1 context text."""
-    packages = data.get("packages", [])
+    packages = data.get("packages")
     if not packages:
         return
     lines.append("Packages:")
@@ -642,9 +776,9 @@ def _fmt_sym_bracket(symbols: list[str], total: int) -> str:
 
 
 def _group_by_subpackage(
-    modules: list[dict[str, Any]],
+    modules: list[ModuleSummary],
     depth: int,
-) -> dict[str, Any]:
+) -> dict[str, SubPackageEntry]:
     """Group modules by sub-package prefix at the given depth.
 
     Args:
@@ -658,7 +792,7 @@ def _group_by_subpackage(
         Dict mapping group key → summary dict with counts and
         optional symbol names (at the leaf level).
     """
-    groups: dict[str, list[dict[str, Any]]] = {}
+    groups: dict[str, list[ModuleSummary]] = {}
 
     for mod in modules:
         parts = mod["name"].split(".")
@@ -666,12 +800,12 @@ def _group_by_subpackage(
         key = ".".join(parts[: min(depth, len(parts))])
         groups.setdefault(key, []).append(mod)
 
-    result: dict[str, Any] = {}
+    result: dict[str, SubPackageEntry] = {}
     for key in sorted(groups):
         members = groups[key]
         total_symbols = sum(m.get("symbol_count", 0) for m in members)
 
-        entry: dict[str, Any] = {
+        entry: SubPackageEntry = {
             "modules": len(members),
             "symbols": total_symbols,
         }

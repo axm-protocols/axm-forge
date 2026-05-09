@@ -8,21 +8,37 @@ project context as ``HookResult`` metadata. Registered as
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Protocol
 
 from axm.hooks.base import HookResult
+
+if TYPE_CHECKING:
+    from axm_ast.core.context import ContextResult, FormattedContext
+    from axm_ast.models.nodes import WorkspaceInfo
+
+
+class _FormatContextJson(Protocol):
+    """Protocol for ``format_context_json`` (kw-only ``depth``)."""
+
+    def __call__(
+        self, ctx: ContextResult, *, depth: int | None = None
+    ) -> FormattedContext: ...
+
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["ContextHook"]
 
-# Lazy imports
-build_context: Any = None
-format_context_json: Any = None
-detect_workspace: Any = None
-build_workspace_context: Any = None
+# Lazy imports — populated on first ``execute`` call to keep import
+# cost out of hook discovery. Typed as Callable so static analysis
+# tracks signatures; ``None`` sentinel triggers the one-time load.
+build_context: Callable[[Path], ContextResult] | None = None
+format_context_json: _FormatContextJson | None = None
+detect_workspace: Callable[[Path], WorkspaceInfo | None] | None = None
+build_workspace_context: Callable[[Path], dict[str, object]] | None = None
 
 
 @dataclass
@@ -36,7 +52,7 @@ class ContextHook:
     The result is injected into session context via ``inject_result``.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -48,13 +64,24 @@ class ContextHook:
         Returns:
             HookResult with ``project_context`` dict in metadata on success.
         """
-        path = params.get("path") or context.get("working_dir", ".")
-        working_dir = Path(path).resolve()
+        raw_path = params.get("path") or context.get("working_dir", ".")
+        if not isinstance(raw_path, (str, Path)):
+            return HookResult.fail(
+                f"path must be str or Path, got {type(raw_path).__name__}"
+            )
+        working_dir = Path(raw_path).resolve()
 
         if not working_dir.is_dir():
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
-        depth = params.get("depth")
+        raw_depth = params.get("depth")
+        depth: int | None
+        if raw_depth is None or isinstance(raw_depth, int):
+            depth = raw_depth
+        else:
+            return HookResult.fail(
+                f"depth must be int or None, got {type(raw_depth).__name__}"
+            )
 
         try:
             # Lazy imports
@@ -74,10 +101,14 @@ class ContextHook:
                 detect_workspace = _dw
                 build_workspace_context = _bwc
 
+            assert detect_workspace is not None
+            assert build_workspace_context is not None
+            assert format_context_json is not None
+
             ws = detect_workspace(working_dir)
             if ws is not None:
-                ctx = build_workspace_context(working_dir)
-                return HookResult.ok(project_context=ctx)
+                ws_ctx = build_workspace_context(working_dir)
+                return HookResult.ok(project_context=ws_ctx)
 
             ctx = build_context(working_dir)
             formatted = format_context_json(ctx, depth=depth)

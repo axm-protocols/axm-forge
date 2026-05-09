@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from axm_ast.core.search import SearchFilters, SearchResultEntry, Suggestion
 
 __all__ = [
     "format_func_line",
@@ -23,7 +23,7 @@ _KIND_ABBREV_LEN = 4
 
 def format_text_header(
     *,
-    search_filters: dict[str, Any],
+    search_filters: SearchFilters,
     count: int,
     suggestion_count: int = 0,
 ) -> str:
@@ -71,9 +71,9 @@ def _extract_params_block(sig: str) -> str:
     return rest
 
 
-def format_func_line(sym: dict[str, Any]) -> str:
+def format_func_line(sym: SearchResultEntry) -> str:
     """Format a function-like symbol as a compact text line."""
-    params = _extract_params_block(sym.get("signature", ""))
+    params = _extract_params_block(sym.get("signature") or "")
     line = f"{sym['name']}{params}"
     ret = sym.get("return_type")
     if ret is not None:
@@ -81,7 +81,7 @@ def format_func_line(sym: dict[str, Any]) -> str:
     return line
 
 
-def format_variable_line(sym: dict[str, Any]) -> str:
+def format_variable_line(sym: SearchResultEntry) -> str:
     """Format a variable symbol as a compact text line."""
     name = sym["name"]
     ann = sym.get("annotation")
@@ -95,7 +95,7 @@ def format_variable_line(sym: dict[str, Any]) -> str:
     return str(name)
 
 
-def format_symbol_line(sym: dict[str, Any]) -> str:
+def format_symbol_line(sym: SearchResultEntry) -> str:
     """Render one symbol dict as a compact text line."""
     kind = sym.get("kind", "")
     if kind in _FUNC_KINDS:
@@ -105,7 +105,7 @@ def format_symbol_line(sym: dict[str, Any]) -> str:
     return format_variable_line(sym)
 
 
-def render_suggestion_line(suggestion: dict[str, Any]) -> str:
+def render_suggestion_line(suggestion: Suggestion) -> str:
     """Render one suggestion as a compact ``?``-prefixed text line."""
     name = suggestion["name"]
     score = (
@@ -124,12 +124,12 @@ def render_suggestion_line(suggestion: dict[str, Any]) -> str:
 
 
 def _group_symbols(
-    symbols: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    symbols: list[SearchResultEntry],
+) -> tuple[list[SearchResultEntry], list[SearchResultEntry], list[SearchResultEntry]]:
     """Partition symbols into (funcs, classes, variables)."""
-    funcs: list[dict[str, Any]] = []
-    classes: list[dict[str, Any]] = []
-    variables: list[dict[str, Any]] = []
+    funcs: list[SearchResultEntry] = []
+    classes: list[SearchResultEntry] = []
+    variables: list[SearchResultEntry] = []
     for s in symbols:
         k = s.get("kind", "")
         if k in _FUNC_KINDS:
@@ -141,7 +141,7 @@ def _group_symbols(
     return funcs, classes, variables
 
 
-def _render_symbol_lines(symbols: list[dict[str, Any]]) -> list[str]:
+def _render_symbol_lines(symbols: list[SearchResultEntry]) -> list[str]:
     """Build formatted lines for grouped symbols (funcs, classes, variables)."""
     funcs, classes, variables = _group_symbols(symbols)
     lines = [format_symbol_line(s) for s in funcs]
@@ -151,16 +151,16 @@ def _render_symbol_lines(symbols: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
-def _render_suggestion_lines(suggestions: list[dict[str, Any]]) -> list[str]:
+def _render_suggestion_lines(suggestions: list[Suggestion]) -> list[str]:
     """Build ``?``-prefixed suggestion lines."""
     return [render_suggestion_line(s) for s in suggestions]
 
 
 def render_text(
-    symbols: list[dict[str, Any]],
+    symbols: list[SearchResultEntry],
     *,
-    search_filters: dict[str, Any],
-    suggestions: list[dict[str, Any]] | None = None,
+    search_filters: SearchFilters,
+    suggestions: list[Suggestion] | None = None,
 ) -> str:
     """Group symbols by kind and render as compact text."""
     suggestions = suggestions or []

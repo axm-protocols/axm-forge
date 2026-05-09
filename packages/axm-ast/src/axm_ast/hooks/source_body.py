@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import NotRequired, TypedDict
 
 from axm.hooks.base import HookResult
 
@@ -22,10 +22,35 @@ from axm_ast.core.analyzer import (
     find_module_for_symbol,
     search_symbols,
 )
+from axm_ast.models.nodes import (
+    ClassInfo,
+    FunctionInfo,
+    ModuleInfo,
+    PackageInfo,
+    VariableInfo,
+)
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["SourceBodyHook"]
+
+
+class _SymbolEntry(TypedDict):
+    """Result entry for one symbol extraction (success or not-found).
+
+    On success ``body`` is a non-empty string and ``file``/``start_line``/
+    ``end_line`` are populated; on failure ``body`` is ``None`` and
+    ``error`` is set instead. ``value_repr`` is only present for
+    module-level variables.
+    """
+
+    symbol: str
+    body: str | None
+    file: NotRequired[str]
+    start_line: NotRequired[int]
+    end_line: NotRequired[int]
+    value_repr: NotRequired[str | None]
+    error: NotRequired[str]
 
 
 def _read_body(file_path: Path, start: int, end: int) -> str:
@@ -34,7 +59,7 @@ def _read_body(file_path: Path, start: int, end: int) -> str:
     return "".join(lines[start - 1 : end])
 
 
-def _not_found(symbol_name: str) -> dict[str, Any]:
+def _not_found(symbol_name: str) -> _SymbolEntry:
     """Return a not-found result dict."""
     return {
         "symbol": symbol_name,
@@ -43,10 +68,13 @@ def _not_found(symbol_name: str) -> dict[str, Any]:
     }
 
 
-def _build_body(sym: Any, mod: Any, symbol_name: str, pkg_root: Path) -> dict[str, Any]:
+def _build_body(
+    sym: FunctionInfo | ClassInfo | VariableInfo,
+    mod: ModuleInfo,
+    symbol_name: str,
+    pkg_root: Path,
+) -> _SymbolEntry:
     """Build a body result dict from a resolved symbol and module."""
-    from axm_ast.models.nodes import VariableInfo
-
     rel = (
         mod.path.relative_to(pkg_root)
         if mod.path.is_relative_to(pkg_root)
@@ -73,12 +101,12 @@ def _build_body(sym: Any, mod: Any, symbol_name: str, pkg_root: Path) -> dict[st
 
 
 def _build_method_body(
-    pkg: Any,
-    cls: Any,
-    method: Any,
+    pkg: PackageInfo,
+    cls: ClassInfo,
+    method: FunctionInfo,
     symbol_name: str,
     pkg_root: Path,
-) -> dict[str, Any] | None:
+) -> _SymbolEntry | None:
     """Build body dict for a resolved class method."""
     mod = find_module_for_symbol(pkg, cls)
     if mod is None:
@@ -99,12 +127,12 @@ def _build_method_body(
 
 
 def _resolve_as_class_method(
-    pkg: Any,
+    pkg: PackageInfo,
     class_name: str,
     member_name: str,
     symbol_name: str,
     pkg_root: Path,
-) -> dict[str, Any] | None:
+) -> _SymbolEntry | None:
     """Try ``ClassName.method`` resolution.
 
     Returns body dict on success, not-found dict if the class exists
@@ -114,7 +142,11 @@ def _resolve_as_class_method(
         pkg, name=class_name, returns=None, kind=None, inherits=None
     )
     cls = next(
-        (c for _, c in classes if hasattr(c, "methods") and c.name == class_name),
+        (
+            c
+            for _, c in classes
+            if isinstance(c, ClassInfo) and c.name == class_name
+        ),
         None,
     )
     if cls is None:
@@ -130,29 +162,27 @@ def _resolve_as_class_method(
 
 
 def _resolve_as_nested_class(
-    pkg: Any,
+    pkg: PackageInfo,
     parts: list[str],
     symbol_name: str,
     pkg_root: Path,
-) -> dict[str, Any] | None:
+) -> _SymbolEntry | None:
     """Resolve ``Outer.Inner.method`` via outermost class + innermost member."""
     return _resolve_as_class_method(pkg, parts[0], parts[-1], symbol_name, pkg_root)
 
 
-def _get_module_map(pkg: Any) -> dict[str, Any]:
+def _get_module_map(pkg: PackageInfo) -> dict[str, ModuleInfo]:
     """Build a name → module mapping from a package."""
     mods = pkg.modules
-    if isinstance(mods, dict):
-        return mods
     return dict(zip(pkg.module_names, mods, strict=True))
 
 
 def _resolve_as_module_symbol(
-    pkg: Any,
+    pkg: PackageInfo,
     parts: list[str],
     symbol_name: str,
     pkg_root: Path,
-) -> dict[str, Any] | None:
+) -> _SymbolEntry | None:
     """Try ``module.symbol`` resolution with longest-prefix matching."""
     from axm_ast.core.analyzer import find_module_for_symbol, search_symbols
 
@@ -177,25 +207,29 @@ def _resolve_as_module_symbol(
 
 
 def _validate_source_body_params(
-    context: dict[str, Any],
-    params: dict[str, Any],
+    context: dict[str, object],
+    params: dict[str, object],
 ) -> tuple[str | None, Path | None, str | None]:
     """Extract and validate params for source-body extraction."""
-    symbol = params.get("symbol")
-    if not symbol:
+    raw_symbol = params.get("symbol")
+    if not raw_symbol:
         return None, None, "Missing required param 'symbol'"
-    path = params.get("path") or context.get("working_dir", ".")
-    working_dir = Path(path).resolve()
+    if not isinstance(raw_symbol, str):
+        return None, None, (f"symbol must be str, got {type(raw_symbol).__name__}")
+    raw_path = params.get("path") or context.get("working_dir", ".")
+    if not isinstance(raw_path, (str, Path)):
+        return None, None, (f"path must be str or Path, got {type(raw_path).__name__}")
+    working_dir = Path(raw_path).resolve()
     if not working_dir.is_dir():
         return None, None, f"working_dir not a directory: {working_dir}"
-    return symbol, working_dir, None
+    return raw_symbol, working_dir, None
 
 
 def _resolve_dotted(
-    pkg: Any,
+    pkg: PackageInfo,
     symbol_name: str,
     pkg_root: Path,
-) -> dict[str, Any] | None:
+) -> _SymbolEntry | None:
     """Resolve a dotted symbol like ``ClassName.method`` or ``module.func``.
 
     Returns a body dict on success, or *None* if no resolution matched
@@ -219,13 +253,11 @@ def _resolve_dotted(
 
 
 def _extract_symbol(
-    pkg: Any,
+    pkg: PackageInfo,
     symbol_name: str,
     pkg_root: Path,
-) -> dict[str, Any]:
+) -> _SymbolEntry:
     """Look up *symbol_name* in *pkg* and return its body dict."""
-    from axm_ast.core.analyzer import find_module_for_symbol, search_symbols
-    from axm_ast.models.nodes import VariableInfo
 
     # Dotted name resolution (e.g. "ClassName.method" or "module.func").
     if "." in symbol_name:
@@ -283,7 +315,7 @@ def _extract_symbol(
 
 
 def _format_as_markdown(
-    results: list[dict[str, Any]],
+    results: list[_SymbolEntry],
     working_dir: Path,
 ) -> str:
     """Format extraction results as grouped markdown.
@@ -356,7 +388,7 @@ class SourceBodyHook:
     characters, each line is processed independently.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.core.context import ContextResult, FormattedContext
 from axm_ast.tools._base import safe_execute
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class ContextTool(AXMTool):
         *,
         path: str = ".",
         depth: int | None = 1,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Dump complete project context for AI agents.
 
@@ -57,14 +58,14 @@ class ContextTool(AXMTool):
                 format_workspace_text,
             )
 
-            ctx = build_workspace_context(project_path)
-            formatted = format_workspace_context(
-                ctx, depth=depth if depth is not None else 1
+            ws_ctx = build_workspace_context(project_path)
+            ws_formatted = format_workspace_context(
+                ws_ctx, depth=depth if depth is not None else 1
             )
             return ToolResult(
                 success=True,
-                data=formatted,
-                text=format_workspace_text(formatted),
+                data=ws_formatted,
+                text=format_workspace_text(ws_formatted),
             )
         except ValueError:
             pass
@@ -75,16 +76,20 @@ class ContextTool(AXMTool):
             format_context_text,
         )
 
-        ctx = build_context(project_path)
-        formatted = format_context_json(ctx, depth=depth)
+        ctx: ContextResult = build_context(project_path)
+        formatted: FormattedContext = format_context_json(ctx, depth=depth)
+        text: str | None
         try:
             text = format_context_text(
                 formatted, depth=depth if depth is not None else 0
             )
         except (KeyError, TypeError):
             text = None
+        # ``ToolResult.data`` is declared ``dict[str, Any]`` upstream
+        # (axm.tools.base); ``FormattedContext`` is structurally compatible
+        # but ``TypedDict`` is invariant under ``dict[...]`` — narrow cast.
         return ToolResult(
             success=True,
-            data=formatted,
+            data=cast("dict[str, object]", formatted),
             text=text,
         )

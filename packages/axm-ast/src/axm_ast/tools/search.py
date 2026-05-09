@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 from difflib import SequenceMatcher, get_close_matches
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, TypedDict, cast
 
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_ast.core.analyzer import module_dotted_name
+from axm_ast.core.search import SearchFilters, SearchResultEntry, Suggestion
 from axm_ast.tools._base import safe_execute
 from axm_ast.tools.search_text import (
     format_func_line,
@@ -19,6 +20,17 @@ from axm_ast.tools.search_text import (
     render_suggestion_line,
     render_text,
 )
+
+if TYPE_CHECKING:
+    from axm_ast.models import SymbolKind
+    from axm_ast.models.nodes import (
+        ClassInfo,
+        FunctionInfo,
+        FunctionKind,
+        ModuleInfo,
+        PackageInfo,
+        VariableInfo,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +42,20 @@ _FUNC_KINDS = frozenset(
 )
 
 
-def _kind_str(kind: Any) -> str:
+class _SearchData(TypedDict, total=False):
+    """``ToolResult.data`` payload for ``ast_search``."""
+
+    results: list[SearchResultEntry]
+    suggestions: list[Suggestion]
+
+
+def _kind_str(kind: str | FunctionKind | SymbolKind) -> str:
     """Return the string form of a symbol kind (enum value or str)."""
     return kind if isinstance(kind, str) else kind.value
 
 
 def _collect_function_candidates(
-    mod: Any,
+    mod: ModuleInfo,
     kind: str | None,
     candidates: dict[str, list[tuple[str, str, str]]],
     mod_name: str,
@@ -51,7 +70,7 @@ def _collect_function_candidates(
 
 
 def _collect_class_candidates(
-    mod: Any,
+    mod: ModuleInfo,
     kind: str | None,
     candidates: dict[str, list[tuple[str, str, str]]],
     mod_name: str,
@@ -75,7 +94,7 @@ def _collect_class_candidates(
 
 
 def _collect_variable_candidates(
-    mod: Any,
+    mod: ModuleInfo,
     kind: str | None,
     candidates: dict[str, list[tuple[str, str, str]]],
     mod_name: str,
@@ -90,7 +109,7 @@ def _collect_variable_candidates(
 
 
 def _collect_module_candidates(
-    mod: Any,
+    mod: ModuleInfo,
     kind: str | None,
     candidates: dict[str, list[tuple[str, str, str]]],
     root: Path | None = None,
@@ -110,8 +129,8 @@ def _collect_module_candidates(
 
 
 def _find_suggestions(
-    pkg: Any, name: str, *, kind: str | None = None
-) -> list[dict[str, Any]]:
+    pkg: PackageInfo, name: str, *, kind: str | None = None
+) -> list[Suggestion]:
     """Find fuzzy suggestions for a symbol name query.
 
     Passes ``pkg.root`` to ``_collect_module_candidates`` so module
@@ -127,7 +146,7 @@ def _find_suggestions(
 
     matches = get_close_matches(name.lower(), list(candidates.keys()), n=10, cutoff=0.6)
 
-    seen: dict[str, dict[str, Any]] = {}
+    seen: dict[str, Suggestion] = {}
     for match_key in matches:
         for original_name, sym_kind, module in candidates[match_key]:
             score = round(SequenceMatcher(None, name.lower(), match_key).ratio(), 2)
@@ -142,7 +161,7 @@ def _find_suggestions(
     return sorted(seen.values(), key=lambda s: s["score"], reverse=True)
 
 
-def _add_variable_fields(entry: dict[str, Any], sym: Any) -> None:
+def _add_variable_fields(entry: SearchResultEntry, sym: VariableInfo) -> None:
     """Populate annotation and value_repr on a variable entry."""
     if sym.annotation:
         entry["annotation"] = sym.annotation
@@ -150,16 +169,23 @@ def _add_variable_fields(entry: dict[str, Any], sym: Any) -> None:
         entry["value_repr"] = sym.value_repr
 
 
-def _resolve_kind(sym: Any) -> str | None:
-    """Resolve kind string from a fallback symbol."""
+def _resolve_kind(sym: object) -> str | None:
+    """Resolve kind string from a fallback symbol.
+
+    Defensive fallback used when ``sym`` is not a known
+    :class:`FunctionInfo` / :class:`ClassInfo` / :class:`VariableInfo`.
+    """
     if hasattr(sym, "value_repr"):
         return "variable"
-    if hasattr(sym, "kind"):
-        return sym.kind if isinstance(sym.kind, str) else sym.kind.value
-    return None
+    raw_kind = getattr(sym, "kind", None)
+    if raw_kind is None:
+        return None
+    return raw_kind if isinstance(raw_kind, str) else str(raw_kind.value)
 
 
-def _format_symbol(sym: Any, module_name: str) -> dict[str, Any]:
+def _format_symbol(
+    sym: FunctionInfo | ClassInfo | VariableInfo, module_name: str
+) -> SearchResultEntry:
     """Format an AST symbol into a serialized dict entry.
 
     Returns a dict with keys ``name``, ``module``, and optionally
@@ -169,7 +195,7 @@ def _format_symbol(sym: Any, module_name: str) -> dict[str, Any]:
     """
     from axm_ast.models.nodes import ClassInfo, FunctionInfo, VariableInfo
 
-    entry: dict[str, Any] = {
+    entry: SearchResultEntry = {
         "name": sym.name,
         "module": module_name,
     }
@@ -192,7 +218,7 @@ def _format_symbol(sym: Any, module_name: str) -> dict[str, Any]:
     return entry
 
 
-def _load_package(path: str) -> Any:
+def _load_package(path: str) -> PackageInfo | ToolResult:
     """Resolve path and load package. Returns PackageInfo or ToolResult on error."""
     project_path = Path(path).resolve()
     if not project_path.is_dir():
@@ -202,7 +228,7 @@ def _load_package(path: str) -> Any:
     return get_package(project_path)
 
 
-def _validate_kind(kind: str | None) -> Any:
+def _validate_kind(kind: str | None) -> SymbolKind | ToolResult | None:
     """Validate kind string.
 
     Returns SymbolKind on success or ToolResult on error.
@@ -222,11 +248,11 @@ def _validate_kind(kind: str | None) -> Any:
 
 
 def _search(
-    pkg: Any,
+    pkg: PackageInfo,
     *,
     name: str | None,
     returns: str | None,
-    kind: Any,
+    kind: SymbolKind | None,
     inherits: str | None,
 ) -> ToolResult:
     """Run symbol search across a package and return formatted results.
@@ -243,29 +269,32 @@ def _search(
         kind=kind,
         inherits=inherits,
     )
-    symbols = [SearchTool._format_symbol(sym, mod_name) for mod_name, sym in results]
+    symbols: list[SearchResultEntry] = [
+        SearchTool._format_symbol(sym, mod_name) for mod_name, sym in results
+    ]
 
-    suggestions: list[dict[str, Any]] = []
+    suggestions: list[Suggestion] = []
     if not symbols and name is not None and pkg is not None:
-        kind_str = (
-            kind
-            if isinstance(kind, str)
-            else (kind.value if kind is not None else None)
-        )
+        kind_str = kind.value if kind is not None else None
         suggestions = _find_suggestions(pkg, name, kind=kind_str)
 
-    sf = {"name": name, "returns": returns, "kind": kind, "inherits": inherits}
+    sf: SearchFilters = {
+        "name": name,
+        "returns": returns,
+        "kind": kind,
+        "inherits": inherits,
+    }
     text = render_text(
         symbols,
         search_filters=sf,
         suggestions=suggestions,
     )
-    data: dict[str, Any] = {"results": symbols}
+    data: _SearchData = {"results": symbols}
     if suggestions:
         data["suggestions"] = suggestions
     return ToolResult(
         success=True,
-        data=data,
+        data=cast("dict[str, object]", data),
         text=text,
     )
 
@@ -308,7 +337,7 @@ class SearchTool(AXMTool):
         returns: str | None = None,
         kind: str | None = None,
         inherits: str | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Search symbols across a package.
 
