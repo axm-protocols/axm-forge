@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_audit.core.rules.test_quality.pyramid_level import PyramidLevelRule
+
+pytestmark = pytest.mark.integration
 
 
 def _make_pkg(root: Path) -> Path:
