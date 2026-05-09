@@ -39,6 +39,14 @@ class _TraceKwargs(TypedDict):
 _TraceValue = list[dict[str, object]] | str
 
 
+@dataclass
+class _FormatOpts:
+    """Presentation options for trace output."""
+
+    compact: bool
+    format_fn: Callable[[list[FlowStep]], str]
+
+
 class _TraceFlow(Protocol):
     """Protocol mirroring ``axm_ast.core.flows.trace_flow``."""
 
@@ -71,6 +79,45 @@ _MAX_UNSCOPED_ENTRIES = 20
 def _concat_compact_traces(traces: dict[str, _TraceValue]) -> str:
     """Join per-symbol compact trace strings into a single output."""
     return "\n".join(f"{sym}:\n{body}" for sym, body in traces.items())
+
+
+def _discover_entries(pkg: PackageInfo) -> list[EntryPoint]:
+    """Find entry points, drop ``__all__`` exports, cap at safety threshold."""
+    assert find_entry_points is not None
+    entries = [e for e in find_entry_points(pkg) if e.kind != "export"]
+    if len(entries) > _MAX_UNSCOPED_ENTRIES:
+        logger.warning(
+            "ast:flows: %d entry points detected without explicit entry param, "
+            "capping to %d. Pass 'entry' to target specific symbols.",
+            len(entries),
+            _MAX_UNSCOPED_ENTRIES,
+        )
+        entries = entries[:_MAX_UNSCOPED_ENTRIES]
+    return entries
+
+
+def _trace_entries_to_values(
+    pkg: PackageInfo,
+    entries: list[EntryPoint],
+    index: dict[tuple[str, str], list[CallSite]],
+    kw: _TraceKwargs,
+    fmt: _FormatOpts,
+) -> dict[str, _TraceValue]:
+    """Trace each entry and format steps as compact string or dict list."""
+    assert trace_flow is not None
+    traces: dict[str, _TraceValue] = {}
+    for e in entries:
+        steps, _truncated = trace_flow(pkg, e.name, callee_index=index, **kw)
+        if not steps:
+            continue
+        if fmt.compact:
+            traces[e.name] = fmt.format_fn(steps)
+        else:
+            traces[e.name] = [
+                cast("dict[str, object]", s.model_dump(exclude_none=True))
+                for s in steps
+            ]
+    return traces
 
 
 @dataclass
@@ -310,40 +357,16 @@ class FlowsHook:
         assert build_callee_index is not None
         assert trace_flow is not None
 
-        entries = find_entry_points(pkg)
-
-        # Filter out __all__ exports — they're re-exports, not functional entry points
-        entries = [e for e in entries if e.kind != "export"]
-
-        if len(entries) > _MAX_UNSCOPED_ENTRIES:
-            logger.warning(
-                "ast:flows: %d entry points detected without explicit entry param, "
-                "capping to %d. Pass 'entry' to target specific symbols.",
-                len(entries),
-                _MAX_UNSCOPED_ENTRIES,
-            )
-            entries = entries[:_MAX_UNSCOPED_ENTRIES]
-
-        # Build index once for all entries
+        entries = _discover_entries(pkg)
         index = build_callee_index(pkg)
-        kw: _TraceKwargs = {
-            "max_depth": opts.max_depth,
-            "cross_module": opts.cross_module,
-            "detail": opts.detail,
-            "exclude_stdlib": opts.exclude_stdlib,
-        }
-        traces: dict[str, _TraceValue] = {}
-        for e in entries:
-            steps, _truncated = trace_flow(pkg, e.name, callee_index=index, **kw)
-            if steps:
-                if compact:
-                    traces[e.name] = format_flow_compact(steps)
-                else:
-                    # ``model_dump`` returns ``dict[str, Any]`` upstream.
-                    traces[e.name] = [
-                        cast("dict[str, object]", s.model_dump(exclude_none=True))
-                        for s in steps
-                    ]
+        kw = _trace_opts_kwargs(opts)
+        traces = _trace_entries_to_values(
+            pkg,
+            entries,
+            index,
+            kw,
+            _FormatOpts(compact=compact, format_fn=format_flow_compact),
+        )
 
         if compact:
             return HookResult.ok(traces=_concat_compact_traces(traces))

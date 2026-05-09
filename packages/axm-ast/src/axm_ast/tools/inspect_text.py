@@ -68,6 +68,30 @@ def _format_param(param: Mapping[str, object]) -> str:
     return s
 
 
+def _append_params_line(lines: list[str], detail: Mapping[str, object]) -> None:
+    """Append ``Params: ...`` line if any parameter mappings present."""
+    params = detail.get("parameters")
+    if not isinstance(params, Sequence) or isinstance(params, str | bytes):
+        return
+    parts = [_format_param(p) for p in params if isinstance(p, Mapping)]
+    if parts:
+        lines.append(f"Params: {', '.join(parts)}")
+
+
+def _append_function_body(lines: list[str], detail: Mapping[str, object]) -> None:
+    """Append signature, docstring, params, return type lines."""
+    sig = detail.get("signature")
+    if isinstance(sig, str) and sig:
+        lines.append(sig)
+    doc = detail.get("docstring")
+    if isinstance(doc, str) and doc:
+        lines.append(_truncate_docstring(doc))
+    _append_params_line(lines, detail)
+    ret = detail.get("return_type")
+    if isinstance(ret, str) and ret:
+        lines.append(f"Returns: {ret}")
+
+
 def render_function_text(detail: Mapping[str, object]) -> str:
     """Render a function detail dict as compact text."""
     name = _as_str(detail["name"])
@@ -76,25 +100,7 @@ def render_function_text(detail: Mapping[str, object]) -> str:
     end = _as_int(detail.get("end_line"), start)
 
     lines = [_header(name, file, start, end)]
-
-    sig = detail.get("signature")
-    if isinstance(sig, str) and sig:
-        lines.append(sig)
-
-    doc = detail.get("docstring")
-    if isinstance(doc, str) and doc:
-        lines.append(_truncate_docstring(doc))
-
-    params = detail.get("parameters")
-    if isinstance(params, Sequence) and not isinstance(params, str | bytes):
-        parts = [_format_param(p) for p in params if isinstance(p, Mapping)]
-        if parts:
-            lines.append(f"Params: {', '.join(parts)}")
-
-    ret = detail.get("return_type")
-    if isinstance(ret, str) and ret:
-        lines.append(f"Returns: {ret}")
-
+    _append_function_body(lines, detail)
     _append_source(lines, detail)
     return "\n".join(lines)
 

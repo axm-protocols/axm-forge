@@ -122,6 +122,40 @@ def _resolve_scope(base_path: Path, test_dir: str | None) -> Path:
     return scoped if scoped.is_dir() else base_path
 
 
+def _validate_trace_params(
+    context: dict[str, object],
+    params: dict[str, object],
+) -> tuple[Path, str] | HookResult:
+    """Validate entry and path; return (working_dir, entry) or HookResult.fail."""
+    raw_entry = params.get("entry")
+    if not raw_entry:
+        return HookResult.fail("Missing required param 'entry'")
+    if not isinstance(raw_entry, str):
+        return HookResult.fail(f"entry must be str, got {type(raw_entry).__name__}")
+
+    raw_path = params.get("path") or context.get("working_dir", ".")
+    if not isinstance(raw_path, (str, Path)):
+        return HookResult.fail(
+            f"path must be str or Path, got {type(raw_path).__name__}"
+        )
+    working_dir = Path(raw_path)
+    if not working_dir.is_dir():
+        return HookResult.fail(f"working_dir not a directory: {working_dir}")
+    return working_dir, raw_entry
+
+
+def _ensure_trace_imports() -> None:
+    """Load lazy imports for trace analysis."""
+    global analyze_package, trace_flow
+    if analyze_package is not None:
+        return
+    from axm_ast.core.analyzer import analyze_package as _ap
+    from axm_ast.core.flows import trace_flow as _tf
+
+    analyze_package = _ap
+    trace_flow = _tf
+
+
 @dataclass
 class TraceSourceHook:
     """Run ``trace_flow(detail="source")`` and return the enriched trace.
@@ -145,37 +179,16 @@ class TraceSourceHook:
         Returns:
             HookResult with ``trace`` list in metadata on success.
         """
-        raw_entry = params.get("entry")
-        if not raw_entry:
-            return HookResult.fail("Missing required param 'entry'")
-        if not isinstance(raw_entry, str):
-            return HookResult.fail(f"entry must be str, got {type(raw_entry).__name__}")
-
-        raw_path = params.get("path") or context.get("working_dir", ".")
-        if not isinstance(raw_path, (str, Path)):
-            return HookResult.fail(
-                f"path must be str or Path, got {type(raw_path).__name__}"
-            )
-        working_dir = Path(raw_path)
-        if not working_dir.is_dir():
-            return HookResult.fail(f"working_dir not a directory: {working_dir}")
+        validated = _validate_trace_params(context, params)
+        if isinstance(validated, HookResult):
+            return validated
+        working_dir, raw_entry = validated
 
         try:
-            # Lazy imports
-            global analyze_package, trace_flow
-            if analyze_package is None:
-                from axm_ast.core.analyzer import (
-                    analyze_package as _ap,
-                )
-                from axm_ast.core.flows import trace_flow as _tf
-
-                analyze_package = _ap
-                trace_flow = _tf
-
+            _ensure_trace_imports()
             assert analyze_package is not None
             assert trace_flow is not None
 
-            # Parse entry format and scope analysis path
             symbol_name, test_dir = _parse_entry(raw_entry)
             scoped_path = _resolve_scope(working_dir, test_dir)
 
