@@ -9,7 +9,7 @@ import pytest
 
 from axm_ast.cli import app
 
-FIXTURES = Path(__file__).parent / "fixtures"
+FIXTURES = Path(__file__).parent.parent / "fixtures"
 SAMPLE_PKG = FIXTURES / "sample_pkg"
 
 
