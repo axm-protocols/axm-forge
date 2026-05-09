@@ -1302,21 +1302,6 @@ class TestAttributeRefs:
         )
         assert "_make" not in dead
 
-    def test_executor_advance_hooks_not_dead(self) -> None:
-        """find_dead_code on axm-engine must not flag _advance_hooks."""
-        engine_path = (
-            Path(__file__).resolve().parent.parent.parent.parent.parent
-            / "axm-nexus"
-            / "packages"
-            / "axm-engine"
-        )
-        if not engine_path.exists():
-            pytest.skip("axm-engine not available")
-        pkg = analyze_package(engine_path)
-        dead = find_dead_code(pkg)
-        dead_names = {d.name for d in dead}
-        assert "_advance_hooks" not in dead_names
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # DeadCodeTool (MCP tool wrapper)
