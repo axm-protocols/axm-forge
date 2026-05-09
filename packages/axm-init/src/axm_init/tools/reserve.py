@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from axm.tools.base import ToolResult
 
 __all__ = ["InitReserveTool"]
@@ -37,7 +35,7 @@ class InitReserveTool:
         """Tool name used for MCP registration."""
         return "init_reserve"
 
-    def execute(self, **kwargs: Any) -> ToolResult:
+    def execute(self, **kwargs: object) -> ToolResult:
         """Reserve a package name on PyPI.
 
         Args:
@@ -50,12 +48,16 @@ class InitReserveTool:
         Returns:
             ToolResult with reservation status.
         """
-        if "name" not in kwargs:
+        name_raw = kwargs.get("name")
+        if not isinstance(name_raw, str) or not name_raw:
             return ToolResult(success=False, error="'name' is required")
-        name: str = kwargs["name"]
-        author: str = kwargs.get("author", "")
-        email: str = kwargs.get("email", "")
-        dry_run: bool = kwargs.get("dry_run", False)
+        name: str = name_raw
+        author_raw = kwargs.get("author", "")
+        email_raw = kwargs.get("email", "")
+        dry_run_raw = kwargs.get("dry_run", False)
+        author: str = author_raw if isinstance(author_raw, str) else ""
+        email: str = email_raw if isinstance(email_raw, str) else ""
+        dry_run: bool = bool(dry_run_raw) if isinstance(dry_run_raw, bool) else False
 
         error = _validate_identity(author, email)
         if error:

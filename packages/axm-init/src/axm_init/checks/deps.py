@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
-from axm_init.checks._utils import requires_toml
+from axm_init.checks._utils import TomlTable, requires_toml, section
 from axm_init.models.check import CheckResult
 
 
@@ -15,9 +14,10 @@ from axm_init.models.check import CheckResult
     weight=3,
     fix="Create pyproject.toml with [dependency-groups] dev group.",
 )
-def check_dev_deps(project: Path, data: dict[str, Any]) -> CheckResult:
+def check_dev_deps(project: Path, data: TomlTable) -> CheckResult:
     """Check 29: dev deps include pytest, ruff, mypy, pre-commit."""
-    dev = data.get("dependency-groups", {}).get("dev", [])
+    raw_dev = section(data, "dependency-groups").get("dev", [])
+    dev = raw_dev if isinstance(raw_dev, list) else []
     dev_str = " ".join(str(d) for d in dev).lower()
     required = ["pytest", "ruff", "mypy", "pre-commit"]
     missing = [d for d in required if d not in dev_str]
@@ -48,9 +48,10 @@ def check_dev_deps(project: Path, data: dict[str, Any]) -> CheckResult:
     weight=2,
     fix="Create pyproject.toml with [dependency-groups] docs group.",
 )
-def check_docs_group(project: Path, data: dict[str, Any]) -> CheckResult:
+def check_docs_group(project: Path, data: TomlTable) -> CheckResult:
     """Check 30: docs deps include key packages."""
-    docs = data.get("dependency-groups", {}).get("docs", [])
+    raw_docs = section(data, "dependency-groups").get("docs", [])
+    docs = raw_docs if isinstance(raw_docs, list) else []
     docs_str = " ".join(str(d) for d in docs).lower()
     required = [
         "mkdocs-material",

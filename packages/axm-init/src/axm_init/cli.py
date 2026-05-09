@@ -14,13 +14,13 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, NoReturn
+from typing import TYPE_CHECKING, Annotated, NoReturn
 
 import cyclopts
 
 if TYPE_CHECKING:
     from axm_init.adapters.credentials import CredentialManager
-    from axm_init.models.results import ReserveResult
+    from axm_init.models.results import ReserveResult, ScaffoldResult
 
 __all__ = ["app"]
 
@@ -132,7 +132,7 @@ def _check_pypi_availability(project_name: str, *, json_output: bool) -> None:
 
 
 def _print_scaffold_result(
-    result: Any,
+    result: ScaffoldResult,
     project_name: str,
     target_path: Path,
     *,

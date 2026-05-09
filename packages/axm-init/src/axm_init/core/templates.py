@@ -8,7 +8,7 @@ from enum import StrEnum
 from importlib.resources import files
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 # Bundled templates package
 TEMPLATES_PKG = files("axm_init.templates")
@@ -21,7 +21,7 @@ class TemplateInfo(BaseModel):
     description: str
     path: Path
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(extra="forbid")
 
 
 class TemplateType(StrEnum):

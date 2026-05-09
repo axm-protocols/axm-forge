@@ -10,7 +10,8 @@ from __future__ import annotations
 import logging
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+
+from axm_init.checks._utils import TomlTable, section
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class ProjectContext(StrEnum):
     MEMBER = "member"
 
 
-def _load_pyproject(path: Path) -> dict[str, Any] | None:
+def _load_pyproject(path: Path) -> dict[str, object] | None:
     """Load pyproject.toml at *path*, return ``None`` on failure."""
     toml_path = path / "pyproject.toml"
     if not toml_path.exists():
@@ -48,15 +49,14 @@ def _load_pyproject(path: Path) -> dict[str, Any] | None:
         return None
 
 
-def _has_workspace_section(data: dict[str, Any]) -> bool:
+def _has_workspace_section(data: TomlTable) -> bool:
     """Check if parsed TOML data contains ``[tool.uv.workspace]``."""
-    return bool(data.get("tool", {}).get("uv", {}).get("workspace"))
+    return bool(section(section(data, "tool"), "uv").get("workspace"))
 
 
-def _get_workspace_config(data: dict[str, Any]) -> dict[str, Any]:
+def _get_workspace_config(data: TomlTable) -> TomlTable:
     """Extract the ``[tool.uv.workspace]`` section."""
-    result: dict[str, Any] = data.get("tool", {}).get("uv", {}).get("workspace", {})
-    return result
+    return section(section(section(data, "tool"), "uv"), "workspace")
 
 
 def find_workspace_root(path: Path) -> Path | None:
@@ -162,14 +162,26 @@ def get_workspace_members(path: Path) -> list[str]:
         return []
 
     resolved = path.resolve()
+    members_raw = ws_config.get("members", [])
+    exclude_raw = ws_config.get("exclude", [])
+    members = (
+        [m for m in members_raw if isinstance(m, str)]
+        if isinstance(members_raw, list)
+        else []
+    )
+    excludes = (
+        [e for e in exclude_raw if isinstance(e, str)]
+        if isinstance(exclude_raw, list)
+        else []
+    )
     member_dirs = _resolve_glob_dirs(
         resolved,
-        ws_config.get("members", []),
+        members,
         require_pyproject=True,
     )
     exclude_dirs = _resolve_glob_dirs(
         resolved,
-        ws_config.get("exclude", []),
+        excludes,
     )
 
     return sorted(m.name for m in member_dirs - exclude_dirs)
