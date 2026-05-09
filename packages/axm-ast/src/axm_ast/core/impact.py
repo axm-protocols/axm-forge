@@ -16,12 +16,17 @@ import logging
 import re
 import tomllib
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
-    from axm_ast.models.nodes import WorkspaceInfo
+    from axm_ast.models.nodes import (
+        ClassInfo,
+        FunctionInfo,
+        WorkspaceInfo,
+    )
 
 from axm_ast.core.analyzer import module_dotted_name
 from axm_ast.core.cache import get_package
@@ -29,6 +34,65 @@ from axm_ast.core.callers import find_callers, find_callers_workspace
 from axm_ast.core.git_coupling import git_coupled_files
 from axm_ast.core.workspace import analyze_workspace
 from axm_ast.models.nodes import ModuleInfo, PackageInfo
+
+# ─── Structured payload shapes ──────────────────────────────────────────────
+
+
+class DefinitionInfo(TypedDict):
+    """Resolved definition location for a symbol.
+
+    ``module``, ``line`` and ``kind`` are always present; ``signature`` and
+    ``name`` are only set for function/class lookups; ``package`` is added
+    by workspace-level resolution.
+    """
+
+    module: str
+    line: int
+    kind: str
+    signature: NotRequired[str | None]
+    name: NotRequired[str]
+    package: NotRequired[str]
+
+
+class CallerEntry(TypedDict):
+    """Caller record as serialized into the impact result dict."""
+
+    module: str
+    line: int
+    context: str | None
+    call_expression: str
+
+
+class TypeRefEntry(TypedDict):
+    """Single type-reference record (param/return/alias)."""
+
+    function: str
+    module: str
+    line: int
+    ref_type: str
+
+
+class ImpactResult(TypedDict, total=False):
+    """Output shape of :func:`analyze_impact` / :func:`analyze_impact_workspace`.
+
+    ``total=False`` because workspace results omit ``cross_package_impact``
+    and ``test_files_by_import``, and add ``workspace`` instead.
+    """
+
+    symbol: str
+    workspace: str
+    definition: DefinitionInfo | None
+    callers: list[CallerEntry]
+    type_refs: list[TypeRefEntry]
+    reexports: list[str]
+    affected_modules: list[str]
+    test_files: list[str]
+    test_files_by_import: list[str]
+    # Heterogeneous payload from git_coupling (file/strength/co_changes).
+    git_coupled: list[Mapping[str, object]]
+    cross_package_impact: list[str]
+    score: str
+
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +153,10 @@ def _split_dotted_symbol(symbol: str) -> tuple[str, str] | None:
 
 
 def _find_method_in_class(
-    cls: Any,
+    cls: ClassInfo,
     method_path: str,
     mod_name: str,
-) -> dict[str, Any] | None:
+) -> DefinitionInfo | None:
     """Search a class body for a method (supports nested paths).
 
     Args:
@@ -117,12 +181,12 @@ def _find_method_in_class(
     # Direct method lookup
     for method in cls.methods:
         if method.name == method_path:
-            return {
-                "module": mod_name,
-                "line": method.line_start,
-                "kind": method.kind or "method",
-                "signature": method.signature,
-            }
+            return DefinitionInfo(
+                module=mod_name,
+                line=method.line_start,
+                kind=method.kind or "method",
+                signature=method.signature,
+            )
     return None
 
 
@@ -130,7 +194,7 @@ def _find_dotted_definition(
     pkg: PackageInfo,
     class_name: str,
     method_path: str,
-) -> dict[str, Any] | None:
+) -> DefinitionInfo | None:
     """Resolve a dotted symbol (Class.method) definition."""
     for mod in pkg.modules:
         mod_name = module_dotted_name(mod.path, pkg.root)
@@ -145,30 +209,30 @@ def _find_dotted_definition(
 def _find_plain_definition(
     pkg: PackageInfo,
     symbol: str,
-) -> dict[str, Any] | None:
+) -> DefinitionInfo | None:
     """Resolve a plain (non-dotted) symbol definition."""
     for mod in pkg.modules:
         mod_name = module_dotted_name(mod.path, pkg.root)
         for fn in mod.functions:
             if fn.name == symbol:
-                return {
-                    "module": mod_name,
-                    "line": fn.line_start,
-                    "kind": "function",
-                    "signature": fn.signature,
-                }
+                return DefinitionInfo(
+                    module=mod_name,
+                    line=fn.line_start,
+                    kind="function",
+                    signature=fn.signature,
+                )
         for cls in mod.classes:
             if cls.name == symbol:
-                return {
-                    "module": mod_name,
-                    "line": cls.line_start,
-                    "kind": "class",
-                    "name": cls.name,
-                }
+                return DefinitionInfo(
+                    module=mod_name,
+                    line=cls.line_start,
+                    kind="class",
+                    name=cls.name,
+                )
     return None
 
 
-def find_definition(pkg: PackageInfo, symbol: str) -> dict[str, Any] | None:
+def find_definition(pkg: PackageInfo, symbol: str) -> DefinitionInfo | None:
     """Locate where a symbol is defined.
 
     Supports dotted paths like ``ClassName.method`` to find
@@ -336,7 +400,7 @@ def _type_name_pattern(type_name: str) -> re.Pattern[str]:
 def find_type_refs(
     pkg: PackageInfo,
     type_name: str,
-) -> list[dict[str, Any]]:
+) -> list[TypeRefEntry]:
     """Find functions that reference a type in their signatures.
 
     Scans all function parameters, return types, and module-level
@@ -356,7 +420,7 @@ def find_type_refs(
         and ``ref_type`` (``"param"``, ``"return"``, or ``"alias"``).
     """
     pattern = _type_name_pattern(type_name)
-    refs: list[dict[str, Any]] = []
+    refs: list[TypeRefEntry] = []
 
     for mod in pkg.modules:
         mod_name = module_dotted_name(mod.path, pkg.root)
@@ -385,18 +449,18 @@ def find_type_refs(
             val = var.value_repr or ""
             if pattern.search(ann) or pattern.search(val):
                 refs.append(
-                    {
-                        "function": var.name,
-                        "module": mod_name,
-                        "line": var.line,
-                        "ref_type": "alias",
-                    }
+                    TypeRefEntry(
+                        function=var.name,
+                        module=mod_name,
+                        line=var.line,
+                        ref_type="alias",
+                    )
                 )
 
     return refs
 
 
-def _match_param_type(fn: Any, pattern: re.Pattern[str]) -> bool:
+def _match_param_type(fn: FunctionInfo, pattern: re.Pattern[str]) -> bool:
     """Check whether any parameter annotation matches *pattern*."""
     return any(
         param.annotation and pattern.search(param.annotation) for param in fn.params
@@ -404,14 +468,14 @@ def _match_param_type(fn: Any, pattern: re.Pattern[str]) -> bool:
 
 
 def _scan_functions_for_type(
-    functions: list[Any],
+    functions: list[FunctionInfo],
     mod_name: str,
     pattern: re.Pattern[str],
     *,
     class_name: str | None = None,
-) -> list[dict[str, Any]]:
+) -> list[TypeRefEntry]:
     """Scan a list of functions for type references in signatures."""
-    refs: list[dict[str, Any]] = []
+    refs: list[TypeRefEntry] = []
     for fn in functions:
         fn_label = f"{class_name}.{fn.name}" if class_name else fn.name
         if _match_param_type(fn, pattern):
@@ -421,12 +485,12 @@ def _scan_functions_for_type(
         else:
             continue
         refs.append(
-            {
-                "function": fn_label,
-                "module": mod_name,
-                "line": fn.line_start,
-                "ref_type": ref_type,
-            }
+            TypeRefEntry(
+                function=fn_label,
+                module=mod_name,
+                line=fn.line_start,
+                ref_type=ref_type,
+            )
         )
     return refs
 
@@ -471,11 +535,14 @@ class ImpactReport(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    callers: list[Any] = Field(default_factory=list)
-    reexports: list[Any] = Field(default_factory=list)
-    affected_modules: list[Any] = Field(default_factory=list)
-    git_coupled: list[Any] = Field(default_factory=list)
-    type_refs: list[Any] = Field(default_factory=list)
+    # Scoring only consumes ``len()`` of each list, so element shape is
+    # irrelevant here. ``list[object]`` accepts any Python value at runtime
+    # (and forbids implicit ``Any`` propagation at type-check time).
+    callers: list[object] = Field(default_factory=list)
+    reexports: list[object] = Field(default_factory=list)
+    affected_modules: list[object] = Field(default_factory=list)
+    git_coupled: list[object] = Field(default_factory=list)
+    type_refs: list[object] = Field(default_factory=list)
 
 
 class ImpactWeights(BaseModel):
@@ -496,7 +563,7 @@ class ImpactWeights(BaseModel):
     medium_threshold: int = IMPACT_MEDIUM_THRESHOLD
 
 
-def _coerce_report(report: ImpactReport | dict[str, Any]) -> ImpactReport:
+def _coerce_report(report: ImpactReport | ImpactResult) -> ImpactReport:
     """Return *report* as ``ImpactReport``, dropping unknown dict keys.
 
     ``analyze_impact`` builds a result dict with display-only fields the
@@ -505,12 +572,14 @@ def _coerce_report(report: ImpactReport | dict[str, Any]) -> ImpactReport:
     """
     if isinstance(report, ImpactReport):
         return report
+    # Widen each list to ``list[object]`` (invariant) so the precise
+    # TypedDict element types do not clash with the model field type.
     return ImpactReport(
-        callers=report.get("callers", []),
-        reexports=report.get("reexports", []),
-        affected_modules=report.get("affected_modules", []),
-        git_coupled=report.get("git_coupled", []),
-        type_refs=report.get("type_refs", []),
+        callers=list(report.get("callers", [])),
+        reexports=list(report.get("reexports", [])),
+        affected_modules=list(report.get("affected_modules", [])),
+        git_coupled=list(report.get("git_coupled", [])),
+        type_refs=list(report.get("type_refs", [])),
     )
 
 
@@ -547,7 +616,7 @@ def _load_impact_weights(path: Path) -> ImpactWeights:
 
 
 def score_impact(
-    report: ImpactReport | dict[str, Any],
+    report: ImpactReport | ImpactResult,
     weights: ImpactWeights | None = None,
 ) -> str:
     """Score impact as LOW, MEDIUM, or HIGH.
@@ -591,8 +660,8 @@ def _resolve_project_root(path: Path, explicit: Path | None) -> Path:
 
 
 def _add_git_coupling(
-    result: dict[str, Any],
-    definition: dict[str, Any] | None,
+    result: ImpactResult,
+    definition: DefinitionInfo | None,
     pkg: PackageInfo,
     project_root: Path,
 ) -> None:
@@ -607,12 +676,14 @@ def _add_git_coupling(
         file_rel = file_abs.relative_to(project_root)
     except ValueError:
         return
-    result["git_coupled"] = git_coupled_files(str(file_rel), project_root)
+    # Coerce element type at the boundary: git_coupled_files() returns
+    # list[dict[str, Any]] upstream; we narrow to Mapping[str, object] here.
+    result["git_coupled"] = [dict(c) for c in git_coupled_files(str(file_rel), project_root)]
 
 
 def _add_import_based_tests(
-    result: dict[str, Any],
-    definition: dict[str, Any] | None,
+    result: ImpactResult,
+    definition: DefinitionInfo | None,
     test_files: list[Path],
     project_root: Path,
 ) -> None:
@@ -704,7 +775,7 @@ def _resolve_effective_filter(
     return "none" if exclude_tests else None
 
 
-def _apply_test_filter(result: dict[str, Any], effective: str | None) -> None:
+def _apply_test_filter(result: ImpactResult, effective: str | None) -> None:
     """Filter test callers/type_refs from result based on effective filter."""
     if effective == "none":
         result["callers"] = [
@@ -726,7 +797,7 @@ def analyze_impact(
     project_root: Path | None = None,
     exclude_tests: bool = False,
     test_filter: str | None = None,
-) -> dict[str, Any]:
+) -> ImpactResult:
     """Full impact analysis for a symbol.
 
     Combines definition location, callers, re-exports, tests,
@@ -773,16 +844,16 @@ def analyze_impact(
         {c.module for c in callers} | set(reexports) | type_ref_modules
     )
 
-    result: dict[str, Any] = {
+    result: ImpactResult = {
         "symbol": symbol,
         "definition": definition,
         "callers": [
-            {
-                "module": c.module,
-                "line": c.line,
-                "context": c.context,
-                "call_expression": c.call_expression,
-            }
+            CallerEntry(
+                module=c.module,
+                line=c.line,
+                context=c.context,
+                call_expression=c.call_expression,
+            )
             for c in callers
         ],
         "type_refs": type_refs,
@@ -809,12 +880,15 @@ def analyze_impact(
     weights = _load_impact_weights(path)
     caller_modules = {c["module"] for c in result["callers"]}
     scoring_reexports = [r for r in result["reexports"] if r not in caller_modules]
+    # ``ImpactReport`` lists are typed ``list[object]`` (scoring only uses
+    # ``len()``); widen each input list explicitly so list invariance does
+    # not reject the more specific result types.
     report = ImpactReport(
-        callers=result["callers"],
-        reexports=scoring_reexports,
-        affected_modules=result["affected_modules"],
-        git_coupled=result["git_coupled"],
-        type_refs=result["type_refs"],
+        callers=list(result["callers"]),
+        reexports=list(scoring_reexports),
+        affected_modules=list(result["affected_modules"]),
+        git_coupled=list(result["git_coupled"]),
+        type_refs=list(result["type_refs"]),
     )
     result["score"] = score_impact(report, weights)
 
@@ -851,8 +925,8 @@ def _collect_workspace_tests(
 
 
 def _add_workspace_git_coupling(
-    result: dict[str, Any],
-    definition: dict[str, Any] | None,
+    result: ImpactResult,
+    definition: DefinitionInfo | None,
     ws: WorkspaceInfo,
     ws_path: Path,
 ) -> None:
@@ -870,14 +944,17 @@ def _add_workspace_git_coupling(
                 except ValueError:
                     file_rel = None
                 if file_rel is not None:
-                    result["git_coupled"] = git_coupled_files(str(file_rel), ws_path)
+                    # See _add_git_coupling: same boundary coercion.
+                    result["git_coupled"] = [
+                        dict(c) for c in git_coupled_files(str(file_rel), ws_path)
+                    ]
             break
 
 
 def _find_workspace_definition(
-    ws: Any,
+    ws: WorkspaceInfo,
     symbol: str,
-) -> dict[str, Any] | None:
+) -> DefinitionInfo | None:
     """Search all workspace packages for *symbol*'s definition."""
     for pkg in ws.packages:
         defn = find_definition(pkg, symbol)
@@ -905,7 +982,7 @@ def _resolve_effective_test_filter(
 
 
 def _apply_caller_test_filter(
-    result: dict[str, Any],
+    result: ImpactResult,
     effective: str | None,
 ) -> None:
     """Filter test callers from *result* in place."""
@@ -921,7 +998,7 @@ def analyze_impact_workspace(
     *,
     exclude_tests: bool = False,
     test_filter: str | None = None,
-) -> dict[str, Any]:
+) -> ImpactResult:
     """Full impact analysis for a symbol across a workspace.
 
     Searches all packages for definition, callers, re-exports,
@@ -957,17 +1034,17 @@ def analyze_impact_workspace(
     test_files = _collect_workspace_tests(ws, lookup_name)
     affected_modules = sorted({c.module for c in callers} | set(reexports))
 
-    result: dict[str, Any] = {
+    result: ImpactResult = {
         "symbol": symbol,
         "workspace": ws.name,
         "definition": _find_workspace_definition(ws, symbol),
         "callers": [
-            {
-                "module": c.module,
-                "line": c.line,
-                "context": c.context,
-                "call_expression": c.call_expression,
-            }
+            CallerEntry(
+                module=c.module,
+                line=c.line,
+                context=c.context,
+                call_expression=c.call_expression,
+            )
             for c in callers
         ],
         "reexports": reexports,
@@ -981,11 +1058,12 @@ def analyze_impact_workspace(
     weights = _load_impact_weights(ws_path)
     caller_modules = {c["module"] for c in result["callers"]}
     scoring_reexports = [r for r in result["reexports"] if r not in caller_modules]
+    # See analyze_impact: widen invariant lists for ImpactReport.
     report = ImpactReport(
-        callers=result["callers"],
-        reexports=scoring_reexports,
-        affected_modules=result["affected_modules"],
-        git_coupled=result["git_coupled"],
+        callers=list(result["callers"]),
+        reexports=list(scoring_reexports),
+        affected_modules=list(result["affected_modules"]),
+        git_coupled=list(result["git_coupled"]),
     )
     result["score"] = score_impact(report, weights)
 
