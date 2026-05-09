@@ -246,6 +246,15 @@ def _merge_check(
     )
 
 
+def _combine_metadata_values(a_val: object, b_val: object) -> object:
+    """Combine two metadata values per the merge rules (incoming wins by default)."""
+    if isinstance(a_val, list) and isinstance(b_val, list):
+        return a_val + b_val
+    if isinstance(a_val, dict) and isinstance(b_val, dict):
+        return _merge_metadata(a_val, b_val)
+    return b_val
+
+
 def _merge_metadata(
     a: dict[str, object] | None, b: dict[str, object] | None
 ) -> dict[str, object]:
@@ -263,14 +272,8 @@ def _merge_metadata(
         return dict(a)
     merged: dict[str, object] = dict(a)
     for key, b_val in b.items():
-        if key not in merged:
-            merged[key] = b_val
-            continue
-        a_val = merged[key]
-        if isinstance(a_val, list) and isinstance(b_val, list):
-            merged[key] = a_val + b_val
-        elif isinstance(a_val, dict) and isinstance(b_val, dict):
-            merged[key] = _merge_metadata(a_val, b_val)
+        if key in merged:
+            merged[key] = _combine_metadata_values(merged[key], b_val)
         else:
             merged[key] = b_val
     return merged
