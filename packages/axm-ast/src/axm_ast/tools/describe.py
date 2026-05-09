@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -41,7 +40,7 @@ class DescribeTool(AXMTool):
         compress: bool = False,
         detail: str = "summary",
         modules: list[str] | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Describe a Python package.
 
@@ -96,6 +95,7 @@ class DescribeTool(AXMTool):
         pkg = get_package(project_path)
         pkg = filter_modules(pkg, modules)
 
+        result_data: dict[str, object]
         if detail == "toc":
             toc = format_toc(pkg)
             result_data = {

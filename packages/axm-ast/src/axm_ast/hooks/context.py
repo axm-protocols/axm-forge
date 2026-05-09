@@ -17,6 +17,7 @@ from axm.hooks.base import HookResult
 
 if TYPE_CHECKING:
     from axm_ast.core.context import ContextResult, FormattedContext
+    from axm_ast.core.workspace import WorkspaceContext
     from axm_ast.models.nodes import WorkspaceInfo
 
 
@@ -38,7 +39,7 @@ __all__ = ["ContextHook"]
 build_context: Callable[[Path], ContextResult] | None = None
 format_context_json: _FormatContextJson | None = None
 detect_workspace: Callable[[Path], WorkspaceInfo | None] | None = None
-build_workspace_context: Callable[[Path], dict[str, object]] | None = None
+build_workspace_context: Callable[[Path], WorkspaceContext] | None = None
 
 
 @dataclass

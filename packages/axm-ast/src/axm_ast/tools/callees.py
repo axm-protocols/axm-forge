@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -12,7 +12,15 @@ from axm_ast.tools._base import safe_execute
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["CalleesTool"]
+__all__ = ["CalleeEntry", "CalleesTool"]
+
+
+class CalleeEntry(TypedDict):
+    """Serialized callee record for ``ast_callees`` output."""
+
+    module: str
+    line: int
+    call_expression: str
 
 
 class CalleesTool(AXMTool):
@@ -35,7 +43,7 @@ class CalleesTool(AXMTool):
         return "ast_callees"
 
     @staticmethod
-    def _render_text(callees: list[dict[str, Any]], *, symbol: str) -> str:
+    def _render_text(callees: list[CalleeEntry], *, symbol: str) -> str:
         """Render callees as compact text for token-efficient MCP responses."""
         header = f"ast_callees | {symbol} | {len(callees)} callees"
         if not callees:
@@ -50,7 +58,7 @@ class CalleesTool(AXMTool):
 
     @safe_execute
     def execute(
-        self, *, path: str = ".", symbol: str | None = None, **kwargs: Any
+        self, *, path: str = ".", symbol: str | None = None, **kwargs: object
     ) -> ToolResult:
         """Find all callees of a symbol.
 
@@ -81,7 +89,7 @@ class CalleesTool(AXMTool):
             pkg = get_package(project_path)
             callees = find_callees(pkg, symbol)
 
-        callee_data = [
+        callee_data: list[CalleeEntry] = [
             {
                 "module": c.module,
                 "line": c.line,

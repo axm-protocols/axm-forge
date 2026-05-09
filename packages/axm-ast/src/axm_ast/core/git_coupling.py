@@ -19,11 +19,20 @@ import logging
 import subprocess
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["git_coupled_files"]
+__all__ = ["CoupledFileEntry", "git_coupled_files"]
+
+
+class CoupledFileEntry(TypedDict):
+    """Single co-changed file entry returned by :func:`git_coupled_files`."""
+
+    file: str
+    strength: float
+    co_changes: int
+
 
 _COMMIT_HASH_LEN = 40
 
@@ -156,7 +165,7 @@ def _compute_coupling_scores(
     *,
     min_strength: float,
     min_co_changes: int,
-) -> list[dict[str, Any]]:
+) -> list[CoupledFileEntry]:
     """Compute coupling strength between *target* and all co-changed files."""
     file_changes, co_changes = _count_co_changes(target, commits)
 
@@ -164,16 +173,16 @@ def _compute_coupling_scores(
     if target_changes == 0:
         return []
 
-    coupled: list[dict[str, Any]] = []
+    coupled: list[CoupledFileEntry] = []
     for other_file, co_count in co_changes.items():
         strength = co_count / max(target_changes, file_changes[other_file])
         if strength >= min_strength and co_count >= min_co_changes:
             coupled.append(
-                {
-                    "file": other_file,
-                    "strength": round(strength, 4),
-                    "co_changes": co_count,
-                }
+                CoupledFileEntry(
+                    file=other_file,
+                    strength=round(strength, 4),
+                    co_changes=co_count,
+                )
             )
 
     coupled.sort(key=lambda x: x["strength"], reverse=True)
@@ -187,7 +196,7 @@ def git_coupled_files(
     months: int = 6,
     min_strength: float = 0.3,
     min_co_changes: int = 3,
-) -> list[dict[str, Any]]:
+) -> list[CoupledFileEntry]:
     """Find files that historically co-change with the target file.
 
     Analyzes ``git log`` over ``months`` of history to compute

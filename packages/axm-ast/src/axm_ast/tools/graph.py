@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -30,7 +29,7 @@ class GraphTool(AXMTool):
 
     @safe_execute
     def execute(
-        self, *, path: str = ".", format: str = "json", **kwargs: Any
+        self, *, path: str = ".", format: str = "json", **kwargs: object
     ) -> ToolResult:
         """Generate import dependency graph.
 
@@ -75,7 +74,7 @@ class GraphTool(AXMTool):
         text = self._render_ws_text(
             ws_name=ws_name, graph=graph, mermaid_str=mermaid_str
         )
-        data: dict[str, Any] = {"graph": graph, "nodes": nodes}
+        data: dict[str, object] = {"graph": graph, "nodes": nodes}
 
         if format == "mermaid":
             data["mermaid"] = mermaid_str
@@ -93,7 +92,7 @@ class GraphTool(AXMTool):
         pkg = get_package(project_path)
         graph = build_import_graph(pkg)
         nodes = [module_dotted_name(mod.path, pkg.root) for mod in pkg.modules]
-        data: dict[str, Any] = {"graph": graph, "nodes": nodes}
+        data: dict[str, object] = {"graph": graph, "nodes": nodes}
 
         mermaid_str = None
         if format == "mermaid":

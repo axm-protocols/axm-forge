@@ -9,8 +9,9 @@ as ``ast:file-header`` via ``axm.hooks`` entry point.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from axm.hooks.base import HookResult
 
@@ -21,43 +22,60 @@ __all__ = ["FileHeaderHook"]
 _MAX_HEADER_LINES = 30
 
 
-def _extract_files_from_source_body(source_body: dict[str, Any]) -> list[str]:
+class _HeaderEntry(TypedDict):
+    """Single ``{file, header}`` entry returned in ``headers`` metadata."""
+
+    file: str
+    header: str
+
+
+def _extract_files_from_source_body(source_body: dict[str, object]) -> list[str]:
     """Extract file paths from source_body metadata."""
     files = source_body.get("files")
     if not files:
         return []
-    return list(files)
+    if isinstance(files, str):
+        return [files]
+    if isinstance(files, Iterable):
+        return [str(f) for f in files]
+    return []
 
 
 def _resolve_working_dir(
-    params: dict[str, Any],
-    context: dict[str, Any],
+    params: dict[str, object],
+    context: dict[str, object],
 ) -> Path:
     """Resolve the working directory from params or context."""
-    path = params.get("path") or context.get("working_dir", ".")
-    return Path(path).resolve()
+    raw_path = params.get("path") or context.get("working_dir", ".")
+    if not isinstance(raw_path, (str, Path)):
+        return Path(".").resolve()
+    return Path(raw_path).resolve()
 
 
 def _parse_file_list(
-    params: dict[str, Any],
-    context: dict[str, Any],
+    params: dict[str, object],
+    context: dict[str, object],
 ) -> list[str] | None:
     """Parse and deduplicate the file list from params or source_body.
 
     Returns ``None`` when no files can be determined (caller should
     return an empty result).
     """
-    files = params.get("files")
-    if files is None:
+    raw_files = params.get("files")
+    files: list[str]
+    if raw_files is None:
         source_body = context.get("source_body")
-        if not source_body:
+        if not isinstance(source_body, dict):
             return None
         files = _extract_files_from_source_body(source_body)
         if not files:
             return None
-
-    if isinstance(files, str):
-        files = [f.strip() for f in files.splitlines() if f.strip()]
+    elif isinstance(raw_files, str):
+        files = [f.strip() for f in raw_files.splitlines() if f.strip()]
+    elif isinstance(raw_files, Iterable):
+        files = [str(f) for f in raw_files]
+    else:
+        return None
 
     return list(dict.fromkeys(files))
 
@@ -65,7 +83,7 @@ def _parse_file_list(
 def _extract_single_header(
     working_dir: Path,
     file: str,
-) -> dict[str, str] | None:
+) -> _HeaderEntry | None:
     """Read the header of a single file, returning ``None`` on skip."""
     file_path = working_dir / file
     try:
@@ -89,7 +107,7 @@ class FileHeaderHook:
     extracts file paths from ``source_body`` in context.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
