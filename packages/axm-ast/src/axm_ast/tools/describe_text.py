@@ -2,17 +2,59 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TypedDict, cast
 
 __all__ = [
     "render_describe_text",
 ]
 
 
-def render_describe_text(data: dict[str, Any], detail: str) -> str:
+class _FunctionEntry(TypedDict, total=False):
+    """Function row produced by ``_format_function_json``."""
+
+    name: str
+    signature: str
+    kind: str
+    is_public: bool
+    summary: str | None
+
+
+class _ClassEntry(TypedDict, total=False):
+    """Class row produced by ``_format_class_json``."""
+
+    name: str
+    bases: list[str]
+    is_public: bool
+    summary: str | None
+    methods: list[_FunctionEntry]
+
+
+class _ModuleEntry(TypedDict, total=False):
+    """Module row — superset of ``format_toc`` and ``_format_module_json``."""
+
+    name: str
+    path: str
+    docstring: str | None
+    functions: list[_FunctionEntry]
+    classes: list[_ClassEntry]
+    function_count: int
+    class_count: int
+    symbol_count: int
+
+
+class _DescribeData(TypedDict, total=False):
+    """Top-level payload accepted by :func:`render_describe_text`."""
+
+    modules: list[_ModuleEntry]
+    module_count: int
+    compressed: str
+
+
+def render_describe_text(data: dict[str, object], detail: str) -> str:
     """Render describe data as compact text for a given detail level."""
-    modules: list[dict[str, Any]] = data.get("modules", [])
-    count = data.get("module_count", len(modules))
+    typed = cast("_DescribeData", data)
+    modules: list[_ModuleEntry] = typed.get("modules", [])
+    count = typed.get("module_count", len(modules))
     header = f"ast_describe | {detail} | {count} modules"
 
     match detail:
@@ -24,7 +66,7 @@ def render_describe_text(data: dict[str, Any], detail: str) -> str:
             return _render_summary(modules, header)
 
 
-def _render_toc(modules: list[dict[str, Any]], header: str) -> str:
+def _render_toc(modules: list[_ModuleEntry], header: str) -> str:
     if not modules:
         return header
     lines: list[str] = [header]
@@ -39,7 +81,7 @@ def _render_toc(modules: list[dict[str, Any]], header: str) -> str:
             parts.append(f"{fn_count}fn")
         if cls_count:
             parts.append(f"{cls_count}cls")
-        counts = " ".join(parts) if parts else "\u2014"
+        counts = " ".join(parts) if parts else "—"
 
         line = f"  {name}  ({counts})"
         if docstring:
@@ -54,17 +96,17 @@ def _strip_def(sig: str) -> str:
     return sig
 
 
-def _render_function_signature(fn: dict[str, Any]) -> str:
+def _render_function_signature(fn: _FunctionEntry) -> str:
     return f"  {_strip_def(fn['signature'])}"
 
 
-def _render_class_label(cls: dict[str, Any]) -> str:
+def _render_class_label(cls: _ClassEntry) -> str:
     bases = ", ".join(cls["bases"]) if cls.get("bases") else ""
     label = f"class {cls['name']}({bases})" if bases else f"class {cls['name']}"
     return f"  {label}"
 
 
-def _render_module_section(mod: dict[str, Any]) -> list[str] | None:
+def _render_module_section(mod: _ModuleEntry) -> list[str] | None:
     functions = mod.get("functions", [])
     classes = mod.get("classes", [])
     if not functions and not classes:
@@ -75,7 +117,7 @@ def _render_module_section(mod: dict[str, Any]) -> list[str] | None:
     return lines
 
 
-def _render_summary(modules: list[dict[str, Any]], header: str) -> str:
+def _render_summary(modules: list[_ModuleEntry], header: str) -> str:
     """Render the signature-level summary view, skipping empty modules."""
     lines: list[str] = [header]
     for mod in modules:
@@ -85,7 +127,7 @@ def _render_summary(modules: list[dict[str, Any]], header: str) -> str:
     return "\n".join(lines)
 
 
-def _render_functions(functions: list[dict[str, Any]], lines: list[str]) -> None:
+def _render_functions(functions: list[_FunctionEntry], lines: list[str]) -> None:
     for fn in functions:
         sig = fn["signature"]
         if sig.startswith("def "):
@@ -97,7 +139,7 @@ def _render_functions(functions: list[dict[str, Any]], lines: list[str]) -> None
             lines.append(f"  {sig}")
 
 
-def _render_method_line(method: dict[str, Any]) -> str:
+def _render_method_line(method: _FunctionEntry) -> str:
     msig = _strip_def(method["signature"])
     msummary = method.get("summary")
     if msummary:
@@ -105,7 +147,7 @@ def _render_method_line(method: dict[str, Any]) -> str:
     return f"    .{msig}"
 
 
-def _render_class_block(cls: dict[str, Any]) -> list[str]:
+def _render_class_block(cls: _ClassEntry) -> list[str]:
     label = _render_class_label(cls)
     summary = cls.get("summary")
     block = [f"{label}  # {summary}" if summary else label]
@@ -113,13 +155,13 @@ def _render_class_block(cls: dict[str, Any]) -> list[str]:
     return block
 
 
-def _render_classes(classes: list[dict[str, Any]], lines: list[str]) -> None:
+def _render_classes(classes: list[_ClassEntry], lines: list[str]) -> None:
     """Append rendered class blocks (label + methods) to ``lines``."""
     for cls in classes:
         lines.extend(_render_class_block(cls))
 
 
-def _render_detailed(modules: list[dict[str, Any]], header: str) -> str:
+def _render_detailed(modules: list[_ModuleEntry], header: str) -> str:
     lines: list[str] = [header]
     for mod in modules:
         functions = mod.get("functions", [])
@@ -132,7 +174,7 @@ def _render_detailed(modules: list[dict[str, Any]], header: str) -> str:
         mod_header = f"## {mod['name']}"
         if docstring:
             first_line = docstring.strip().split("\n")[0]
-            mod_header += f" \u2014 {first_line}"
+            mod_header += f" — {first_line}"
         lines.append(mod_header)
 
         _render_functions(functions, lines)

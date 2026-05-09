@@ -7,26 +7,68 @@ functionalities. Registered as ``ast:flows`` via ``axm.hooks`` entry point.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 
 from axm.hooks.base import HookResult
+
+if TYPE_CHECKING:
+    from axm_ast.core.flows import EntryPoint, FlowStep
+    from axm_ast.models.calls import CallSite
+    from axm_ast.models.nodes import PackageInfo
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["FlowsHook"]
 
-# Lazy imports
-get_package: Any = None
-trace_flow: Any = None
-find_entry_points: Any = None
-build_callee_index: Any = None
+
+class _TraceKwargs(TypedDict):
+    """Keyword arguments forwarded to ``trace_flow``."""
+
+    max_depth: int
+    cross_module: bool
+    detail: str
+    exclude_stdlib: bool
+
+
+# Concrete value type held in the ``traces`` mapping returned to callers:
+# either a list of model-dumped FlowStep dicts, or a compact string
+# representation when ``detail='compact'``.
+_TraceValue = list[dict[str, object]] | str
+
+
+class _TraceFlow(Protocol):
+    """Protocol mirroring ``axm_ast.core.flows.trace_flow``."""
+
+    def __call__(
+        self,
+        pkg: PackageInfo,
+        entry: str,
+        *,
+        max_depth: int = ...,
+        cross_module: bool = ...,
+        detail: str = ...,
+        callee_index: dict[tuple[str, str], list[CallSite]] | None = ...,
+        exclude_stdlib: bool = ...,
+    ) -> tuple[list[FlowStep], bool]: ...
+
+
+# Lazy imports — populated on first ``execute`` call to keep import
+# cost out of hook discovery. Typed as Callable so static analysis
+# tracks signatures; ``None`` sentinel triggers the one-time load.
+get_package: Callable[[Path], PackageInfo] | None = None
+trace_flow: _TraceFlow | None = None
+find_entry_points: Callable[[PackageInfo], list[EntryPoint]] | None = None
+build_callee_index: (
+    Callable[[PackageInfo], dict[tuple[str, str], list[CallSite]]] | None
+) = None
 
 _MAX_UNSCOPED_ENTRIES = 20
 
 
-def _concat_compact_traces(traces: dict[str, Any]) -> str:
+def _concat_compact_traces(traces: dict[str, _TraceValue]) -> str:
     """Join per-symbol compact trace strings into a single output."""
     return "\n".join(f"{sym}:\n{body}" for sym, body in traces.items())
 
@@ -57,7 +99,7 @@ def _ensure_flow_imports() -> None:
     build_callee_index = _bci
 
 
-def _build_trace_opts(params: dict[str, Any]) -> tuple[_TraceOpts, bool]:
+def _build_trace_opts(params: dict[str, object]) -> tuple[_TraceOpts, bool]:
     """Build trace options and compact flag from hook parameters."""
     from axm_ast.core.flows import VALID_DETAILS
 
@@ -66,8 +108,10 @@ def _build_trace_opts(params: dict[str, Any]) -> tuple[_TraceOpts, bool]:
         msg = f"Invalid detail={detail!r}; must be one of {sorted(VALID_DETAILS)}"
         raise ValueError(msg)
     is_compact = detail == "compact"
+    raw_max_depth = params.get("max_depth", 5)
+    max_depth = int(raw_max_depth) if isinstance(raw_max_depth, (int, str)) else 5
     opts = _TraceOpts(
-        max_depth=int(params.get("max_depth", 5)),
+        max_depth=max_depth,
         cross_module=bool(params.get("cross_module", False)),
         detail=detail,
         exclude_stdlib=bool(params.get("exclude_stdlib", True)),
@@ -80,7 +124,7 @@ def _parse_entry_symbols(entry: str) -> list[str]:
     return list(dict.fromkeys(s.strip() for s in entry.splitlines() if s.strip()))
 
 
-def _trace_opts_kwargs(opts: _TraceOpts) -> dict[str, Any]:
+def _trace_opts_kwargs(opts: _TraceOpts) -> _TraceKwargs:
     """Convert _TraceOpts to keyword arguments for trace_flow."""
     return {
         "max_depth": opts.max_depth,
@@ -104,7 +148,11 @@ class FlowsHook:
     them (excluding ``__all__`` exports, capped at 20).
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    # ``context``/``params`` are heterogeneous user payloads; ``object``
+    # forces explicit narrowing at every read site (mirrors hooks/context.py).
+    def execute(
+        self, context: dict[str, object], **params: object
+    ) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -121,8 +169,12 @@ class FlowsHook:
             (concatenated with entry-name headers for multi-symbol traces).
             Otherwise, ``traces`` is a dict of symbol → step-dicts.
         """
-        path = params.get("path") or context.get("working_dir", ".")
-        working_dir = Path(path).resolve()
+        raw_path = params.get("path") or context.get("working_dir", ".")
+        if not isinstance(raw_path, (str, Path)):
+            return HookResult.fail(
+                f"path must be str or Path, got {type(raw_path).__name__}"
+            )
+        working_dir = Path(raw_path).resolve()
 
         if not working_dir.is_dir():
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
@@ -130,10 +182,15 @@ class FlowsHook:
         try:
             opts, is_compact = _build_trace_opts(params)
             _ensure_flow_imports()
+            assert get_package is not None  # noqa: S101 — populated above
             pkg = get_package(working_dir)
 
             entry = params.get("entry")
             if entry is not None:
+                if not isinstance(entry, str):
+                    return HookResult.fail(
+                        f"entry must be str, got {type(entry).__name__}"
+                    )
                 return self._trace_entries(pkg, entry, opts, compact=is_compact)
             return self._trace_all(pkg, opts, compact=is_compact)
 
@@ -149,19 +206,24 @@ class FlowsHook:
 
     @staticmethod
     def _format_symbol_traces(
-        steps: list[Any],
+        steps: list[FlowStep],
         sym: str,
         compact: bool,
-        format_fn: Any,
-    ) -> Any:
+        format_fn: Callable[[list[FlowStep]], str],
+    ) -> _TraceValue:
         """Format traced steps as compact string or dict list."""
         if compact:
             return format_fn(steps)
-        return [s.model_dump(exclude_none=True) for s in steps]
+        # ``model_dump`` is upstream-typed ``dict[str, Any]`` (pydantic);
+        # cast to ``dict[str, object]`` at this boundary.
+        return [
+            cast("dict[str, object]", s.model_dump(exclude_none=True))
+            for s in steps
+        ]
 
     @staticmethod
     def _trace_entries(
-        pkg: Any,
+        pkg: PackageInfo,
         entry: str,
         opts: _TraceOpts,
         *,
@@ -174,6 +236,8 @@ class FlowsHook:
         Deduplication runs before compact/dict formatting.
         """
         from axm_ast.core.flows import format_flow_compact
+
+        assert trace_flow is not None  # noqa: S101 — populated by _ensure_flow_imports
 
         symbols = _parse_entry_symbols(entry)
         symbols = FlowsHook._deduplicate_entry_symbols(symbols)
@@ -203,15 +267,18 @@ class FlowsHook:
 
     @staticmethod
     def _trace_multi_entries(
-        pkg: Any,
+        pkg: PackageInfo,
         symbols: list[str],
-        kw: dict[str, Any],
+        kw: _TraceKwargs,
         compact: bool,
-        format_fn: Any,
+        format_fn: Callable[[list[FlowStep]], str],
     ) -> HookResult:
         """Trace multiple entry symbols with cross-trace deduplication."""
+        assert build_callee_index is not None  # noqa: S101
+        assert trace_flow is not None  # noqa: S101
+
         index = build_callee_index(pkg)
-        traces: dict[str, Any] = {}
+        traces: dict[str, _TraceValue] = {}
         seen: set[str] = set()
         for sym in symbols:
             try:
@@ -234,13 +301,17 @@ class FlowsHook:
 
     @staticmethod
     def _trace_all(
-        pkg: Any,
+        pkg: PackageInfo,
         opts: _TraceOpts,
         *,
         compact: bool = False,
     ) -> HookResult:
         """Discover entry points and trace them (with safety caps)."""
         from axm_ast.core.flows import format_flow_compact
+
+        assert find_entry_points is not None  # noqa: S101
+        assert build_callee_index is not None  # noqa: S101
+        assert trace_flow is not None  # noqa: S101
 
         entries = find_entry_points(pkg)
 
@@ -258,20 +329,24 @@ class FlowsHook:
 
         # Build index once for all entries
         index = build_callee_index(pkg)
-        kw: dict[str, Any] = {
+        kw: _TraceKwargs = {
             "max_depth": opts.max_depth,
             "cross_module": opts.cross_module,
             "detail": opts.detail,
             "exclude_stdlib": opts.exclude_stdlib,
         }
-        traces: dict[str, Any] = {}
+        traces: dict[str, _TraceValue] = {}
         for e in entries:
             steps, _truncated = trace_flow(pkg, e.name, callee_index=index, **kw)
             if steps:
                 if compact:
                     traces[e.name] = format_flow_compact(steps)
                 else:
-                    traces[e.name] = [s.model_dump(exclude_none=True) for s in steps]
+                    # ``model_dump`` returns ``dict[str, Any]`` upstream.
+                    traces[e.name] = [
+                        cast("dict[str, object]", s.model_dump(exclude_none=True))
+                        for s in steps
+                    ]
 
         if compact:
             return HookResult.ok(traces=_concat_compact_traces(traces))

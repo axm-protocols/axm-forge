@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.core.impact import ImpactResult
 from axm_ast.tools._base import log_and_fallback, safe_execute
 from axm_ast.tools.impact_text import (
     render_impact_batch_text,
@@ -49,7 +51,7 @@ class ImpactTool(AXMTool):
         symbols: list[str] | None = None,
         exclude_tests: bool = False,
         detail: str | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Analyze change impact for a symbol.
 
@@ -73,8 +75,11 @@ class ImpactTool(AXMTool):
         if not project_path.is_dir():
             raise NotADirectoryError(f"Not a directory: {project_path}")
 
-        test_filter: str | None = kwargs.get("test_filter")
-        tf = {"test_filter": test_filter} if test_filter is not None else {}
+        raw_filter = kwargs.get("test_filter")
+        test_filter: str | None = raw_filter if isinstance(raw_filter, str) else None
+        tf: dict[str, str | None] = (
+            {"test_filter": test_filter} if test_filter is not None else {}
+        )
 
         if symbols is not None:
             return self._execute_batch(
@@ -114,9 +119,11 @@ class ImpactTool(AXMTool):
             return ToolResult(success=False, error="symbols parameter must be a list")
         if not symbols:
             return ToolResult(success=False, error="symbols list must not be empty")
-        results: list[dict[str, Any]] = []
+        results: list[ImpactResult] = []
         for sym in symbols:
-            tf = {"test_filter": test_filter} if test_filter is not None else {}
+            tf: dict[str, str | None] = (
+                {"test_filter": test_filter} if test_filter is not None else {}
+            )
             results.append(
                 self._analyze_single(
                     project_path,
@@ -129,17 +136,21 @@ class ImpactTool(AXMTool):
             return ToolResult(
                 success=True,
                 data={},
-                text=format_impact_compact(results),
+                text=format_impact_compact(cast("list[Mapping[str, object]]", results)),
             )
         text = self._render_batch_text(results)
-        return ToolResult(success=True, data={"symbols": results}, text=text)
+        return ToolResult(
+            success=True,
+            data={"symbols": cast("list[dict[str, object]]", results)},
+            text=text,
+        )
 
     @staticmethod
-    def _render_batch_text(results: list[dict[str, Any]]) -> str | None:
+    def _render_batch_text(results: list[ImpactResult]) -> str | None:
         """Render batch text from results, returning *None* on failure."""
         try:
             if any("score" in r or "callers" in r for r in results):
-                return render_impact_batch_text(results)
+                return render_impact_batch_text([dict(r) for r in results])
         except (KeyError, TypeError):
             pass
         return None
@@ -186,7 +197,7 @@ class ImpactTool(AXMTool):
         *,
         exclude_tests: bool = False,
         test_filter: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> ImpactResult:
         """Run impact analysis for a single symbol.
 
         Returns:
@@ -214,10 +225,16 @@ class ImpactTool(AXMTool):
                 )
 
             if impact.get("definition") is None:
-                return {"symbol": symbol, "error": f"Symbol '{symbol}' not found"}
+                return cast(
+                    "ImpactResult",
+                    {"symbol": symbol, "error": f"Symbol '{symbol}' not found"},
+                )
             return impact
         except Exception as exc:  # noqa: BLE001 — final boundary
-            return log_and_fallback(logger, exc, {"symbol": symbol, "error": str(exc)})
+            return cast(
+                "ImpactResult",
+                log_and_fallback(logger, exc, {"symbol": symbol, "error": str(exc)}),
+            )
 
     def _analyze_single_result(
         self,
@@ -228,7 +245,9 @@ class ImpactTool(AXMTool):
         test_filter: str | None = None,
     ) -> ToolResult:
         """Run single-symbol impact analysis and return a ToolResult."""
-        tf = {"test_filter": test_filter} if test_filter is not None else {}
+        tf: dict[str, str | None] = (
+            {"test_filter": test_filter} if test_filter is not None else {}
+        )
         result = self._analyze_single(
             project_path,
             symbol,
@@ -236,20 +255,24 @@ class ImpactTool(AXMTool):
             **tf,
         )
         if "error" in result:
-            return ToolResult(success=False, error=result["error"])
+            err = result.get("error", "")
+            return ToolResult(
+                success=False,
+                error=err if isinstance(err, str) else str(err),
+            )
         try:
-            text = render_impact_text(result)
+            text: str | None = render_impact_text(dict(result))
         except (KeyError, TypeError):
             text = None
         return ToolResult(
             success=True,
-            data=result,
+            data=cast("dict[str, object]", result),
             text=text,
         )
 
 
 def _classify_callers(
-    callers: list[dict[str, Any]],
+    callers: list[Mapping[str, object]],
     symbol_module: str | None,
 ) -> tuple[list[str], dict[str, list[int]], dict[str, list[int]]]:
     """Split callers into prod, direct-test, and indirect-test groups.
@@ -266,15 +289,18 @@ def _classify_callers(
     mod_suffix = symbol_module.rsplit(".", 1)[-1] if symbol_module else None
 
     for c in callers:
-        mod = c.get("module", "?")
-        line = c.get("line")
+        mod_raw = c.get("module", "?")
+        mod = mod_raw if isinstance(mod_raw, str) else "?"
+        line_raw = c.get("line")
+        line = line_raw if isinstance(line_raw, int) else None
         # Extract file-level name (last dotted component)
         file_name = mod.rsplit(".", 1)[-1]
         if "test" in file_name:
             bucket = direct if mod_suffix and mod_suffix in file_name else indirect
             bucket.setdefault(file_name, []).append(line or 0)
         else:
-            name = c.get("name")
+            name_raw = c.get("name")
+            name = name_raw if isinstance(name_raw, str) else None
             loc = f"{mod}:{line}" if line else mod
             prod.append(f"{name} ({loc})" if name else loc)
     return prod, direct, indirect
@@ -304,7 +330,7 @@ def _format_test_group(tests: dict[str, list[int]], cap: int | None) -> str:
 
 
 def _format_callers_compact(
-    callers: list[dict[str, Any]],
+    callers: list[Mapping[str, object]],
     symbol_module: str | None = None,
 ) -> str:
     """Format caller list with prod/test separation and grouping."""
@@ -336,17 +362,24 @@ def _format_test_files_compact(test_files: list[str], limit: int = 5) -> str:
 
 
 def _format_symbol_row(
-    report: dict[str, Any],
+    report: Mapping[str, object],
     score: str,
 ) -> str:
     """Format a single symbol as one table row with per-symbol callers."""
-    sym_name = report.get("symbol", "?")
+    sym_name_raw = report.get("symbol", "?")
+    sym_name = sym_name_raw if isinstance(sym_name_raw, str) else "?"
     defn = report.get("definition")
-    if defn is None or report.get("error"):
+    if not isinstance(defn, Mapping) or report.get("error"):
         return f"| {sym_name} | \u2014 | {score} | not found | | |"
     mod_line = _defn_loc(defn)
-    callers = report.get("callers", [])
-    symbol_module = defn.get("module")
+    callers_raw = report.get("callers", [])
+    callers: list[Mapping[str, object]] = (
+        [c for c in callers_raw if isinstance(c, Mapping)]
+        if isinstance(callers_raw, list)
+        else []
+    )
+    sym_mod_raw = defn.get("module")
+    symbol_module = sym_mod_raw if isinstance(sym_mod_raw, str) else None
     prod, direct, indirect = _classify_callers(callers, symbol_module)
     prod_str = ", ".join(prod) if prod else "\u2014"
     direct_str = _format_test_group(direct, cap=None) if direct else "\u2014"
@@ -358,7 +391,7 @@ def _format_symbol_row(
 
 
 def format_impact_compact_multi(
-    reports: list[dict[str, Any]],
+    reports: list[Mapping[str, object]],
     score: str,
 ) -> str:
     """Format multiple impact reports as a compact table with per-symbol callers.
@@ -378,15 +411,19 @@ def format_impact_compact_multi(
         "|---|---|---|---|---|---|",
     ]
     for report in reports:
-        row_score = report.get("score", "LOW")
+        row_score_raw = report.get("score", "LOW")
+        row_score = row_score_raw if isinstance(row_score_raw, str) else "LOW"
         lines.append(_format_symbol_row(report, row_score))
 
     # Aggregate test_files across all reports
     seen: set[str] = set()
     all_test_files: list[str] = []
     for report in reports:
-        for tf in report.get("test_files", []):
-            if tf not in seen:
+        report_tfs = report.get("test_files", [])
+        if not isinstance(report_tfs, list):
+            continue
+        for tf in report_tfs:
+            if isinstance(tf, str) and tf not in seen:
                 seen.add(tf)
                 all_test_files.append(tf)
     lines.append("")
@@ -395,7 +432,7 @@ def format_impact_compact_multi(
 
 
 def format_impact_compact(
-    impact: dict[str, Any] | list[dict[str, Any]],
+    impact: Mapping[str, object] | list[Mapping[str, object]],
 ) -> str:
     """Format impact analysis as a compact markdown table.
 
@@ -413,23 +450,27 @@ def format_impact_compact(
         return format_impact_compact_multi(impact, score)
 
     # Single-report dict path
-    score = impact.get("score", "UNKNOWN")
+    score_raw = impact.get("score", "UNKNOWN")
+    score = score_raw if isinstance(score_raw, str) else "UNKNOWN"
     return format_impact_compact_multi([impact], score)
 
 
-def _max_score(reports: list[dict[str, Any]]) -> str:
+def _max_score(reports: list[Mapping[str, object]]) -> str:
     """Compute the max score across a list of impact reports."""
     score_order = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
     best = "LOW"
     for report in reports:
-        rpt_score = report.get("score", "LOW")
+        rpt_score_raw = report.get("score", "LOW")
+        rpt_score = rpt_score_raw if isinstance(rpt_score_raw, str) else "LOW"
         if score_order.get(rpt_score, 0) > score_order.get(best, 0):
             best = rpt_score
     return best
 
 
-def _defn_loc(defn: dict[str, Any]) -> str:
+def _defn_loc(defn: Mapping[str, object]) -> str:
     """Format definition location as ``module:line``."""
-    module = defn.get("module", "\u2014")
-    line = defn.get("line")
+    module_raw = defn.get("module", "\u2014")
+    module = module_raw if isinstance(module_raw, str) else "\u2014"
+    line_raw = defn.get("line")
+    line = line_raw if isinstance(line_raw, int) else None
     return f"{module}:{line}" if line else module

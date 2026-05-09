@@ -9,7 +9,6 @@ from __future__ import annotations
 import enum
 import logging
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -113,7 +112,7 @@ class FunctionInfo(BaseModel):
         """Whether this function is part of the public API."""
         return not self.name.startswith("_")
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, __context: object) -> None:
         """Compute signature if not explicitly provided.
 
         Strips ``Annotated[T, ...]`` wrappers from parameter and return-type
@@ -208,10 +207,12 @@ class ModuleInfo(BaseModel):
     path: Path = Field(description="File path")
     name: str | None = Field(default=None, description="Module name")
     docstring: str | None = Field(default=None, description="Module-level docstring")
-    functions: list[Any] = Field(
+    functions: list[FunctionInfo] = Field(
         default_factory=list, description="Top-level functions"
     )
-    classes: list[Any] = Field(default_factory=list, description="Top-level classes")
+    classes: list[ClassInfo] = Field(
+        default_factory=list, description="Top-level classes"
+    )
     imports: list[ImportInfo] = Field(
         default_factory=list, description="Import statements"
     )
