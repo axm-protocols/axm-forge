@@ -104,7 +104,7 @@ def test_execute_batch_non_list_symbols(tool: ImpactTool, project_path: Path) ->
     """Non-list symbols param returns success=False with error."""
     out = tool._execute_batch(
         project_path,
-        symbols="single_string",  # type: ignore[arg-type]
+        symbols="single_string",
         exclude_tests=True,
         detail=None,
     )

@@ -483,7 +483,7 @@ class TestImpactTool:
         tool = ImpactTool()
         result = tool.execute(path=".", symbols=[])
         assert result.success is False
-        assert "required" in result.error  # type: ignore[operator]
+        assert "required" in result.error
 
 
 # ===========================================================================

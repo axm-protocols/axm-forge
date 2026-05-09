@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Mapping
+
+from axm_ast.core.impact import CallerEntry, DefinitionInfo, ImpactResult
 
 __all__ = ["render_impact_batch_text", "render_impact_text"]
 
 
-def _render_definition_section(defn: dict[str, Any]) -> list[str]:
+def _render_definition_section(defn: DefinitionInfo) -> list[str]:
     """Render the definition section lines."""
     kind = defn.get("kind", "")
     mod = defn.get("module", "?")
@@ -19,7 +21,7 @@ def _render_definition_section(defn: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _render_callers_section(callers: list[dict[str, Any]]) -> list[str]:
+def _render_callers_section(callers: list[CallerEntry]) -> list[str]:
     """Render the callers section lines."""
     if not callers:
         return ["Callers: none"]
@@ -41,31 +43,50 @@ def _render_tests_section(test_files: list[str]) -> list[str]:
     return [f"Tests: {', '.join(names)}"]
 
 
-def _render_git_coupled_section(git_coupled: list[str]) -> list[str]:
+def _render_git_coupled_section(git_coupled: list[Mapping[str, object]]) -> list[str]:
     """Render the git-coupled section lines."""
     if not git_coupled:
         return []
-    names = [f.rsplit("/", 1)[-1] for f in git_coupled]
+    names: list[str] = []
+    for entry in git_coupled:
+        file_val = entry.get("file", "")
+        file_str = str(file_val) if file_val else ""
+        if file_str:
+            names.append(file_str.rsplit("/", 1)[-1])
+    if not names:
+        return []
     return [f"Git-coupled: {', '.join(names)}"]
 
 
-def _render_cross_package_section(cross: list[Any]) -> list[str]:
-    """Render the cross-package impact section lines."""
+def _render_cross_package_section(
+    cross: list[str] | list[Mapping[str, object]],
+) -> list[str]:
+    """Render the cross-package impact section lines.
+
+    Accepts both the documented ``list[str]`` shape produced by
+    ``analyze_impact`` and the legacy ``list[Mapping[str, object]]``
+    shape (``{"package": ..., "module": ...}``) that older callers
+    still pass.
+    """
     if not cross:
         return []
-    pkgs = ", ".join(
-        str(c.get("package", c.get("module", "?"))) if isinstance(c, dict) else str(c)
-        for c in cross
-    )
-    return [f"Cross-package: {pkgs}"]
+    parts: list[str] = []
+    for c in cross:
+        if isinstance(c, Mapping):
+            value = c.get("package", c.get("module", "?"))
+            parts.append(str(value))
+        else:
+            parts.append(str(c))
+    return [f"Cross-package: {', '.join(parts)}"]
 
 
-def _render_impact_single(report: dict[str, Any]) -> str:
+def _render_impact_single(report: ImpactResult) -> str:
     """Render a single impact report dict as text."""
     symbol = report.get("symbol", "?")
 
-    if "error" in report:
-        return f"ast_impact | {symbol} | error\n{report['error']}"
+    err = report.get("error")
+    if err is not None:
+        return f"ast_impact | {symbol} | error\n{err}"
 
     score = report.get("score", "UNKNOWN")
     lines: list[str] = [f"ast_impact | {symbol} | {score}"]
@@ -87,7 +108,7 @@ def _render_impact_single(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def render_impact_text(report: dict[str, Any]) -> str:
+def render_impact_text(report: ImpactResult) -> str:
     """Render a single impact report as human-readable text."""
     try:
         return _render_impact_single(report)
@@ -96,7 +117,7 @@ def render_impact_text(report: dict[str, Any]) -> str:
         return f"ast_impact | {symbol} | render error"
 
 
-def render_impact_batch_text(reports: list[dict[str, Any]]) -> str:
+def render_impact_batch_text(reports: list[ImpactResult]) -> str:
     """Render multiple impact reports as human-readable text."""
     if not reports:
         return ""

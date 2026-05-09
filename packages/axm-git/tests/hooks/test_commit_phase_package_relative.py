@@ -153,7 +153,7 @@ class TestRetryOnAutofixDualResolution:
 
         import axm_git.hooks.commit_phase as cp
 
-        real_run_git = cp.run_git  # type: ignore[attr-defined]
+        real_run_git = cp.run_git
         call_log: list[tuple[list[str], ...]] = []
         commit_attempts = {"n": 0}
 

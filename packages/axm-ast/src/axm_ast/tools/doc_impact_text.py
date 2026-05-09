@@ -1,17 +1,46 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TypedDict
 
-__all__ = ["render_doc_impact_text"]
+__all__ = [
+    "DocImpactResult",
+    "DocRefEntry",
+    "StaleSignature",
+    "render_doc_impact_text",
+]
 
 
-def _header(result: dict[str, Any]) -> str:
+class DocRefEntry(TypedDict):
+    """Single documentation reference for a symbol."""
+
+    file: str
+    line: int
+
+
+class StaleSignature(TypedDict):
+    """Stale documentation signature entry."""
+
+    symbol: str
+    file: str
+    line: int
+    doc_sig: str
+    actual_sig: str
+
+
+class DocImpactResult(TypedDict):
+    """Result shape returned by ``analyze_doc_impact``."""
+
+    doc_refs: dict[str, list[DocRefEntry]]
+    undocumented: list[str]
+    stale_signatures: list[StaleSignature]
+
+
+def _header(result: DocImpactResult) -> str:
     """Build header line with counts."""
-    doc_refs = result.get("doc_refs", {})
-    undocumented = result.get("undocumented", [])
-    stale = result.get("stale_signatures", [])
+    doc_refs = result["doc_refs"]
+    undocumented = result["undocumented"]
+    stale = result["stale_signatures"]
 
-    n_symbols = len(doc_refs) | len(set(doc_refs) | set(undocumented))
     # Count all unique symbols from doc_refs keys + undocumented
     all_symbols = set(doc_refs) | set(undocumented)
     n_symbols = len(all_symbols)
@@ -27,7 +56,7 @@ def _header(result: dict[str, Any]) -> str:
     )
 
 
-def _render_refs(doc_refs: dict[str, list[dict[str, Any]]]) -> str:
+def _render_refs(doc_refs: dict[str, list[DocRefEntry]]) -> str:
     """Render refs section grouped by file."""
     lines: list[str] = []
     for symbol, refs in doc_refs.items():
@@ -46,7 +75,7 @@ def _render_refs(doc_refs: dict[str, list[dict[str, Any]]]) -> str:
     return "refs:\n" + "\n".join(lines)
 
 
-def _render_stale(stale: list[dict[str, Any]]) -> str:
+def _render_stale(stale: list[StaleSignature]) -> str:
     """Render stale signatures section."""
     if not stale:
         return ""
@@ -58,19 +87,19 @@ def _render_stale(stale: list[dict[str, Any]]) -> str:
     return "stale:\n" + "\n".join(lines)
 
 
-def render_doc_impact_text(result: dict[str, Any]) -> str:
+def render_doc_impact_text(result: DocImpactResult) -> str:
     """Render doc impact result as compact text."""
     parts = [_header(result)]
 
-    refs_text = _render_refs(result.get("doc_refs", {}))
+    refs_text = _render_refs(result["doc_refs"])
     if refs_text:
         parts.append(refs_text)
 
-    undocumented = result.get("undocumented", [])
+    undocumented = result["undocumented"]
     if undocumented:
         parts.append(f"undocumented: {', '.join(undocumented)}")
 
-    stale_text = _render_stale(result.get("stale_signatures", []))
+    stale_text = _render_stale(result["stale_signatures"])
     if stale_text:
         parts.append(stale_text)
 

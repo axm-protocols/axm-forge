@@ -4,17 +4,42 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Protocol
 
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_ast.tools._base import safe_execute
 from axm_ast.tools.flows_text import (
+    EntryPointDict,
+    FlowStepDict,
     render_compact_text,
     render_entry_points_text,
     render_source_text,
     render_trace_text,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from axm_ast.core.flows import EntryPoint, FlowStep
+    from axm_ast.models.nodes import PackageInfo
+
+    class TraceFlow(Protocol):
+        """Signature of :func:`axm_ast.core.flows.trace_flow`."""
+
+        def __call__(
+            self,
+            pkg: PackageInfo,
+            entry: str,
+            *,
+            max_depth: int,
+            cross_module: bool,
+            detail: str,
+            exclude_stdlib: bool,
+        ) -> tuple[list[FlowStep], bool]: ...
+
+    FormatFlowCompact = Callable[[list[FlowStep]], str]
+    FindEntryPoints = Callable[[PackageInfo], list[EntryPoint]]
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +73,7 @@ class FlowsTool(AXMTool):
         cross_module: bool = False,
         detail: str = "trace",
         exclude_stdlib: bool = True,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Detect entry points or trace flows from a symbol.
 
@@ -113,15 +138,15 @@ class FlowsTool(AXMTool):
 
     def _trace_entry(  # noqa: PLR0913
         self,
-        pkg: Any,
+        pkg: PackageInfo,
         entry: str,
         *,
         max_depth: int,
         cross_module: bool,
         detail: str,
         exclude_stdlib: bool,
-        trace_flow: Any,
-        format_flow_compact: Any,
+        trace_flow: TraceFlow,
+        format_flow_compact: FormatFlowCompact,
     ) -> ToolResult:
         """Trace a single entry point and build the result."""
         steps, truncated = trace_flow(
@@ -136,7 +161,7 @@ class FlowsTool(AXMTool):
 
         if detail == "compact":
             compact = format_flow_compact(steps)
-            data = {
+            compact_data: dict[str, object] = {
                 "entry": entry,
                 "compact": compact,
                 "traces": compact,
@@ -147,7 +172,7 @@ class FlowsTool(AXMTool):
             }
             return ToolResult(
                 success=True,
-                data=data,
+                data=compact_data,
                 text=render_compact_text(
                     entry=entry,
                     compact=compact,
@@ -159,7 +184,7 @@ class FlowsTool(AXMTool):
             )
 
         step_dicts = _build_step_dicts(steps)
-        data = {
+        data: dict[str, object] = {
             "entry": entry,
             "steps": step_dicts,
             "depth": actual_depth,
@@ -182,17 +207,20 @@ class FlowsTool(AXMTool):
         )
 
     @staticmethod
-    def _detect_entries(pkg: Any, find_entry_points: Any) -> ToolResult:
+    def _detect_entries(
+        pkg: PackageInfo,
+        find_entry_points: FindEntryPoints,
+    ) -> ToolResult:
         """Detect entry points in the package."""
         entries = find_entry_points(pkg)
-        entry_dicts = [
-            {
-                "name": e.name,
-                "module": e.module,
-                "kind": e.kind,
-                "line": e.line,
-                "framework": e.framework,
-            }
+        entry_dicts: list[EntryPointDict] = [
+            EntryPointDict(
+                name=e.name,
+                module=e.module,
+                kind=e.kind,
+                line=e.line,
+                framework=e.framework,
+            )
             for e in entries
         ]
         return ToolResult(
@@ -205,11 +233,11 @@ class FlowsTool(AXMTool):
         )
 
 
-def _build_step_dicts(steps: list[Any]) -> list[dict[str, object]]:
+def _build_step_dicts(steps: list[FlowStep]) -> list[FlowStepDict]:
     """Convert FlowStep objects to serializable dicts."""
-    step_dicts: list[dict[str, object]] = []
+    step_dicts: list[FlowStepDict] = []
     for s in steps:
-        d: dict[str, object] = {
+        d: FlowStepDict = {
             "name": s.name,
             "module": s.module,
             "line": s.line,

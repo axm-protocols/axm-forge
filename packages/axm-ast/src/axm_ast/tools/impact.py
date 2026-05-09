@@ -150,7 +150,7 @@ class ImpactTool(AXMTool):
         """Render batch text from results, returning *None* on failure."""
         try:
             if any("score" in r or "callers" in r for r in results):
-                return render_impact_batch_text([dict(r) for r in results])
+                return render_impact_batch_text(results)
         except (KeyError, TypeError):
             pass
         return None
@@ -261,7 +261,7 @@ class ImpactTool(AXMTool):
                 error=err if isinstance(err, str) else str(err),
             )
         try:
-            text: str | None = render_impact_text(dict(result))
+            text: str | None = render_impact_text(result)
         except (KeyError, TypeError):
             text = None
         return ToolResult(

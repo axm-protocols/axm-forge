@@ -2,14 +2,38 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import NotRequired, TypedDict
 
 __all__ = [
+    "EntryPointDict",
+    "FlowStepDict",
     "render_compact_text",
     "render_entry_points_text",
     "render_source_text",
     "render_trace_text",
 ]
+
+
+class FlowStepDict(TypedDict):
+    """Serialized :class:`axm_ast.core.flows.FlowStep`."""
+
+    name: str
+    module: str
+    line: int
+    depth: int
+    chain: list[str]
+    resolved_module: NotRequired[str]
+    source: NotRequired[str]
+
+
+class EntryPointDict(TypedDict):
+    """Serialized :class:`axm_ast.core.flows.EntryPoint`."""
+
+    name: str
+    module: str
+    kind: str
+    line: int
+    framework: str
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────────
@@ -35,17 +59,18 @@ def _trace_params(
     return " ".join(parts)
 
 
-def _format_step_line(step: dict[str, Any], *, show_resolved: bool = True) -> str:
+def _format_step_line(step: FlowStepDict, *, show_resolved: bool = True) -> str:
     """Format a single trace step as an indented line."""
     indent = "  " * step["depth"]
     loc = f"{step['module']}:{step['line']}"
     suffix = ""
-    if show_resolved and step.get("resolved_module"):
-        suffix = f" \u2192 {step['resolved_module']}"
+    resolved = step.get("resolved_module")
+    if show_resolved and resolved:
+        suffix = f" \u2192 {resolved}"
     return f"{indent}{step['name']}  {loc}{suffix}"
 
 
-def _format_entry(e: dict[str, Any]) -> str:
+def _format_entry(e: EntryPointDict) -> str:
     """Format a single entry point inline."""
     name = e["name"]
     line = e["line"]
@@ -71,7 +96,7 @@ def _format_entry(e: dict[str, Any]) -> str:
 # ─── Public renderers ───────────────────────────────────────────────────────────────
 
 
-def render_entry_points_text(entries: list[dict[str, Any]], count: int) -> str:
+def render_entry_points_text(entries: list[EntryPointDict], count: int) -> str:
     """Render entry points grouped by module with default elision."""
     hdr = _header("entry_points", "", count, "entries").replace(" |  | ", " | ")
 
@@ -96,7 +121,7 @@ def render_entry_points_text(entries: list[dict[str, Any]], count: int) -> str:
 
 def render_trace_text(  # noqa: PLR0913
     entry: str,
-    steps: list[dict[str, Any]],
+    steps: list[FlowStepDict],
     depth: int,
     cross_module: bool,
     count: int,
@@ -130,7 +155,7 @@ def render_compact_text(  # noqa: PLR0913
 
 def render_source_text(  # noqa: PLR0913
     entry: str,
-    steps: list[dict[str, Any]],
+    steps: list[FlowStepDict],
     depth: int,
     cross_module: bool,
     count: int,
