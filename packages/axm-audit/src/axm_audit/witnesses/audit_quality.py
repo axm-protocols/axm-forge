@@ -117,20 +117,47 @@ class AuditQualityRule:
             metadata={"audit": agent_output},
         )
 
-    def validate(self, content: str, **kwargs: object) -> WitnessResult:
-        """Run audit categories and aggregate results.
-
-        Each category runs independently — failures in one do not
-        prevent execution of the others.
-        """
+    def _resolve_project_path(self, kwargs: dict[str, object]) -> Path:
+        """Resolve the working directory from kwargs or instance default."""
         working_dir_param = kwargs.get("working_dir")
         working_dir = (
             working_dir_param
             if isinstance(working_dir_param, str)
             else self.working_dir
         )
-        project_path = Path(working_dir).resolve()
+        return Path(working_dir).resolve()
 
+    @staticmethod
+    def _coerce_failed_items(raw_failed: object) -> list[dict[str, object]]:
+        """Filter ``raw_failed`` to a list of dicts, dropping non-dict entries."""
+        if not isinstance(raw_failed, list):
+            return []
+        return [item for item in raw_failed if isinstance(item, dict)]
+
+    def _aggregate_audit_output(
+        self,
+        results: list[AuditResult],
+        categories: list[str],
+    ) -> tuple[dict[str, object], list[dict[str, object]]]:
+        """Merge category results, run extra_dirs audits, and filter exclusions."""
+        self._audit_extra_dirs(categories, results)
+        all_checks: list[object] = []
+        for r in results:
+            all_checks.extend(r.checks)
+        merged = AuditResult(checks=all_checks)
+        agent_output = format_agent(merged)
+        failed_input = self._coerce_failed_items(agent_output.get("failed", []))
+        failed_items = self._filter_excluded(failed_input)
+        agent_output["failed"] = failed_items
+        return agent_output, failed_items
+
+    def validate(self, content: str, **kwargs: object) -> WitnessResult:
+        """Run audit categories and aggregate results.
+
+        Each category runs independently — failures in one do not
+        prevent execution of the others.
+        """
+        project_path = self._resolve_project_path(kwargs)
         if not project_path.is_dir():
             return WitnessResult.failure(
                 feedback=ValidationFeedback(
@@ -141,7 +168,6 @@ class AuditQualityRule:
                 ),
             )
 
-        # Filter to known categories, skip unknowns
         categories = [c for c in self.categories if c in VALID_CATEGORIES]
         if not categories:
             return WitnessResult.success()
@@ -156,30 +182,7 @@ class AuditQualityRule:
                 ),
             )
 
-        # Run audits on extra_dirs and aggregate
-        self._audit_extra_dirs(categories, results)
-
-        # Aggregate: merge all check results into a single AuditResult
-        all_checks = []
-        for r in results:
-            all_checks.extend(r.checks)
-
-        merged = AuditResult(checks=all_checks)
-        agent_output = format_agent(merged)
-
-        # Filter excluded rules before counting failures
-        raw_failed = agent_output.get("failed", [])
-        failed_input: list[dict[str, object]] = (
-            [item for item in raw_failed if isinstance(item, dict)]
-            if isinstance(raw_failed, list)
-            else []
-        )
-        failed_items = self._filter_excluded(failed_input)
-        agent_output["failed"] = failed_items
-
+        agent_output, failed_items = self._aggregate_audit_output(results, categories)
         if not failed_items:
-            return WitnessResult.success(
-                metadata={"audit": agent_output},
-            )
-
+            return WitnessResult.success(metadata={"audit": agent_output})
         return self._build_failure_result(agent_output, failed_items)
