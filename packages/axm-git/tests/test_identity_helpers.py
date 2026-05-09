@@ -40,7 +40,19 @@ def personal_identity() -> GitIdentity:
 
 
 @pytest.fixture()
-def config(default_identity, work_identity, personal_identity):
+def axm_workspace_root(tmp_path: Path) -> Path:
+    root = tmp_path / "workspaces"
+    root.mkdir()
+    return root
+
+
+@pytest.fixture()
+def config(
+    default_identity: GitIdentity,
+    work_identity: GitIdentity,
+    personal_identity: GitIdentity,
+    axm_workspace_root: Path,
+) -> MagicMock:
     """Minimal config mock with default + two named profiles + one schedule rule."""
     rule = MagicMock()
     rule.days = ["mon", "tue", "wed", "thu", "fri"]
@@ -55,17 +67,23 @@ def config(default_identity, work_identity, personal_identity):
         "personal": personal_identity,
     }
     cfg.schedule.rules = [rule]
+    cfg.workspace_paths = [axm_workspace_root]
+    cfg.timezone = "Europe/Paris"
     return cfg
 
 
 @pytest.fixture()
-def axm_workspace_path() -> Path:
-    return Path("/Users/gabriel/Documents/Code/python/axm-workspaces/axm-forge")
+def axm_workspace_path(axm_workspace_root: Path) -> Path:
+    sub = axm_workspace_root / "axm-forge"
+    sub.mkdir()
+    return sub
 
 
 @pytest.fixture()
-def non_axm_path() -> Path:
-    return Path("/Users/gabriel/Documents/other-project")
+def non_axm_path(tmp_path: Path) -> Path:
+    other = tmp_path / "other-project"
+    other.mkdir()
+    return other
 
 
 # ---------------------------------------------------------------------------
