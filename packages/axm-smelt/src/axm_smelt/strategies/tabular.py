@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from collections.abc import Mapping
 
+from axm_smelt._types import JsonValue
 from axm_smelt.core.models import SmeltContext
 from axm_smelt.strategies.base import SmeltStrategy
 
@@ -25,7 +26,7 @@ def _format_cell(value: object) -> str:
     return s
 
 
-def _collect_ordered_keys(items: list[dict[str, Any]]) -> list[str]:
+def _collect_ordered_keys(items: list[dict[str, JsonValue]]) -> list[str]:
     """Collect unique keys from dicts in first-seen insertion order."""
     keys: list[str] = []
     seen: set[str] = set()
@@ -37,7 +38,7 @@ def _collect_ordered_keys(items: list[dict[str, Any]]) -> list[str]:
     return keys
 
 
-def _render_rows(items: list[dict[str, Any]], keys: list[str]) -> list[str]:
+def _render_rows(items: list[dict[str, JsonValue]], keys: list[str]) -> list[str]:
     """Render each dict as a pipe-separated row according to *keys*."""
     rows: list[str] = []
     for item in items:
@@ -59,7 +60,7 @@ def _to_table(data: object) -> str | None:
     return "\n".join([header, *rows])
 
 
-def _tabularize_dict(data: dict[str, object]) -> tuple[dict[str, object], bool]:
+def _tabularize_dict(data: Mapping[str, object]) -> tuple[dict[str, object], bool]:
     """Recursively convert list-of-dict values to tables at any depth."""
     changed = False
     result: dict[str, object] = {}

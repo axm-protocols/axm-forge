@@ -6,10 +6,11 @@ import enum
 import json
 from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Any, cast
+from typing import cast
 
 from pydantic import BaseModel
 
+from axm_smelt._types import JsonValue
 from axm_smelt.core.counter import CounterBackend
 
 __all__ = ["Format", "SmeltContext", "SmeltReport"]
@@ -27,7 +28,7 @@ class Format(enum.Enum):
     TEXT = "text"
 
 
-_SENTINEL: Any = object()
+_SENTINEL: object = object()
 
 
 @dataclass(frozen=True)
@@ -41,13 +42,13 @@ class SmeltContext:
 
     format: Format = Format.TEXT
     _src_text: str | None = field(default=None, repr=False)
-    _src_parsed: Any = field(default=_SENTINEL, repr=False)
+    _src_parsed: JsonValue | object = field(default=_SENTINEL, repr=False)
 
     def __init__(
         self,
         text: str | None = None,
         format: Format = Format.TEXT,
-        parsed: Any = _SENTINEL,
+        parsed: JsonValue | object = _SENTINEL,
     ) -> None:
         object.__setattr__(self, "format", format)
         object.__setattr__(self, "_src_text", text)
@@ -68,19 +69,24 @@ class SmeltContext:
         )
 
     @cached_property
-    def parsed(self) -> dict[str, Any] | list[Any] | None:
+    def parsed(self) -> dict[str, JsonValue] | list[JsonValue] | None:
         """Parsed JSON, derived from ``text`` when not provided."""
         if self._src_parsed is not _SENTINEL:
-            return cast("dict[str, Any] | list[Any] | None", self._src_parsed)
+            return cast(
+                "dict[str, JsonValue] | list[JsonValue] | None", self._src_parsed
+            )
         if not self._src_text:
             return None
         try:
-            return cast("dict[str, Any] | list[Any] | None", json.loads(self._src_text))
+            return cast(
+                "dict[str, JsonValue] | list[JsonValue] | None",
+                json.loads(self._src_text),
+            )
         except (json.JSONDecodeError, ValueError, TypeError):
             return None
 
 
-class SmeltReport(BaseModel):
+class SmeltReport(BaseModel):  # type: ignore[explicit-any]  # reason: pydantic plugin synthesizes __init__ with Any kwargs
     """Report produced by the smelt pipeline."""
 
     original: str
