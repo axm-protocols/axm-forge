@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
+from axm_ast.core.impact import ImpactResult
 from axm_ast.tools.impact import (
     render_impact_batch_text,
     render_impact_text,
@@ -218,12 +219,16 @@ class TestRenderImpactBatchText:
     def test_batch_header_max_score(
         self, full_report: dict[str, Any], minimal_report: dict[str, Any]
     ) -> None:
-        result = render_impact_batch_text([full_report, minimal_report])
+        result = render_impact_batch_text(
+            cast("list[ImpactResult]", [full_report, minimal_report])
+        )
         assert result.startswith("ast_impact | 2 symbols | max=HIGH")
 
     def test_batch_contains_all_symbols(
         self, full_report: dict[str, Any], minimal_report: dict[str, Any]
     ) -> None:
-        result = render_impact_batch_text([full_report, minimal_report])
+        result = render_impact_batch_text(
+            cast("list[ImpactResult]", [full_report, minimal_report])
+        )
         assert "## my_func | HIGH" in result
         assert "## bare_sym | LOW" in result

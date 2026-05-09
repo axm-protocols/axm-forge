@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 from axm_ast.core.context import (
+    ContextResult,
     build_context,
     detect_patterns,
     format_context_json,
@@ -162,7 +162,7 @@ class TestDepthMode:
 
     def _ctx(
         self, tmp_path: Path, *, modules: dict[str, str] | None = None
-    ) -> dict[str, Any]:
+    ) -> ContextResult:
         """Build a context from a temp package."""
         m = modules or {
             "core.py": (
