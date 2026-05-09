@@ -289,46 +289,49 @@ def test_is_import_smoke_test(code: str, expected: bool) -> None:
 # AC14 -----------------------------------------------------------------
 
 
-def test_extract_mock_targets_patch_string() -> None:
-    code = textwrap.dedent("""
+@pytest.mark.parametrize(
+    ("code", "expected_target"),
+    [
+        pytest.param(
+            """
         def test_x():
             with patch("pkg.mod.run"):
                 pass
-    """)
-    func = _find_func(ast.parse(code), "test_x")
-    targets = extract_mock_targets(func)
-    assert "pkg.mod.run" in targets
-
-
-def test_extract_mock_targets_patch_object() -> None:
-    code = textwrap.dedent("""
+    """,
+            "pkg.mod.run",
+            id="patch_string",
+        ),
+        pytest.param(
+            """
         def test_x():
             with patch.object(obj, "attr"):
                 pass
-    """)
-    func = _find_func(ast.parse(code), "test_x")
-    targets = extract_mock_targets(func)
-    assert "obj.attr" in targets
-
-
-def test_extract_mock_targets_monkeypatch_setattr_2_args() -> None:
-    code = textwrap.dedent("""
+    """,
+            "obj.attr",
+            id="patch_object",
+        ),
+        pytest.param(
+            """
         def test_x(monkeypatch):
             monkeypatch.setattr("pkg.mod.run", X)
-    """)
-    func = _find_func(ast.parse(code), "test_x")
-    targets = extract_mock_targets(func)
-    assert "pkg.mod.run" in targets
-
-
-def test_extract_mock_targets_mock_factories() -> None:
-    code = textwrap.dedent("""
+    """,
+            "pkg.mod.run",
+            id="monkeypatch_setattr_2_args",
+        ),
+        pytest.param(
+            """
         def test_x():
             m = MagicMock()
-    """)
-    func = _find_func(ast.parse(code), "test_x")
+    """,
+            "mock-factory:MagicMock",
+            id="mock_factories",
+        ),
+    ],
+)
+def test_extract_mock_targets(code: str, expected_target: str) -> None:
+    func = _find_func(ast.parse(textwrap.dedent(code)), "test_x")
     targets = extract_mock_targets(func)
-    assert "mock-factory:MagicMock" in targets
+    assert expected_target in targets
 
 
 # AC15 -----------------------------------------------------------------

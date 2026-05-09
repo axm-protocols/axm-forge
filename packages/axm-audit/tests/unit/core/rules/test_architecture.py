@@ -1,5 +1,7 @@
 """Tests for Architecture Rules — RED phase."""
 
+import pytest
+
 
 class TestCircularImportRuleUnit:
     """Pure tests for CircularImportRule (no I/O)."""
@@ -37,32 +39,33 @@ class TestCouplingMetricRuleUnit:
 class TestStripPrefix:
     """Tests for _strip_prefix helper."""
 
-    def test_strips_shared_prefix(self) -> None:
-        """Removes common top-level package from all modules."""
+    @pytest.mark.parametrize(
+        ("modules", "expected"),
+        [
+            pytest.param(
+                ["pkg.core.a", "pkg.core.b", "pkg.models.c"],
+                ["core.a", "core.b", "models.c"],
+                id="strips_shared_prefix",
+            ),
+            pytest.param(["a", "b"], ["a", "b"], id="no_dot_returns_unchanged"),
+            pytest.param(
+                ["pkg_a.mod", "pkg_b.mod"],
+                ["pkg_a.mod", "pkg_b.mod"],
+                id="mixed_prefix_returns_unchanged",
+            ),
+        ],
+    )
+    def test_strip_prefix(self, modules: list[str], expected: list[str]) -> None:
+        """strip_prefix removes a shared top-level package only when present."""
         from axm_audit.core.rules.architecture.coupling import strip_prefix
 
-        result = strip_prefix(["pkg.core.a", "pkg.core.b", "pkg.models.c"])
-        assert result == ["core.a", "core.b", "models.c"]
-
-    def test_no_dot_returns_unchanged(self) -> None:
-        """Bare module names (no dot) are returned as-is."""
-        from axm_audit.core.rules.architecture.coupling import strip_prefix
-
-        result = strip_prefix(["a", "b"])
-        assert result == ["a", "b"]
+        assert strip_prefix(modules) == expected
 
     def test_empty_list_returns_empty(self) -> None:
         """Empty input returns empty."""
         from axm_audit.core.rules.architecture.coupling import strip_prefix
 
         assert strip_prefix([]) == []
-
-    def test_mixed_prefix_returns_unchanged(self) -> None:
-        """If modules don't share a prefix, return unchanged."""
-        from axm_audit.core.rules.architecture.coupling import strip_prefix
-
-        result = strip_prefix(["pkg_a.mod", "pkg_b.mod"])
-        assert result == ["pkg_a.mod", "pkg_b.mod"]
 
 
 class TestTarjanSCC:
@@ -77,13 +80,32 @@ class TestTarjanSCC:
         assert len(sccs) == 1
         assert set(sccs[0]) == {"A", "B"}
 
-    def test_tarjan_iterative_no_cycle(self) -> None:
-        """A→B→C linear chain produces no SCCs."""
+    @pytest.mark.parametrize(
+        ("graph", "expected"),
+        [
+            pytest.param(
+                {"A": {"B"}, "B": {"C"}, "C": set()},
+                [],
+                id="linear_chain_no_cycle",
+            ),
+            pytest.param(
+                {f"n{i}": {f"n{i + 1}"} if i < 1999 else set() for i in range(2000)},
+                [],
+                id="deep_chain_no_recursion_error",
+            ),
+            pytest.param({"A": {"A"}}, [], id="self_loop_filtered"),
+            pytest.param(
+                {"A": set(), "B": set(), "C": set()}, [], id="disconnected_nodes"
+            ),
+        ],
+    )
+    def test_tarjan_returns_no_sccs(
+        self, graph: dict[str, set[str]], expected: list[list[str]]
+    ) -> None:
+        """tarjan_scc returns no SCCs for acyclic / self-loop / disconnected graphs."""
         from axm_audit.core.rules.architecture.coupling import tarjan_scc
 
-        graph = {"A": {"B"}, "B": {"C"}, "C": set()}
-        sccs = tarjan_scc(graph)
-        assert sccs == []
+        assert tarjan_scc(graph) == expected
 
     def test_tarjan_iterative_multiple_sccs(self) -> None:
         """Two independent cycles both detected."""
@@ -100,31 +122,3 @@ class TestTarjanSCC:
         scc_sets = [set(scc) for scc in sccs]
         assert {"A", "B"} in scc_sets
         assert {"C", "D"} in scc_sets
-
-    def test_tarjan_deep_chain_no_recursion_error(self) -> None:
-        """2000-node linear chain completes without RecursionError."""
-        from axm_audit.core.rules.architecture.coupling import tarjan_scc
-
-        n = 2000
-        graph: dict[str, set[str]] = {}
-        for i in range(n):
-            graph[f"n{i}"] = {f"n{i + 1}"} if i < n - 1 else set()
-        # Should not raise RecursionError
-        sccs = tarjan_scc(graph)
-        assert sccs == []
-
-    def test_tarjan_self_loop(self) -> None:
-        """A→A self-loop is not reported (len=1 filtered)."""
-        from axm_audit.core.rules.architecture.coupling import tarjan_scc
-
-        graph = {"A": {"A"}}
-        sccs = tarjan_scc(graph)
-        assert sccs == []
-
-    def test_tarjan_disconnected_nodes(self) -> None:
-        """Nodes with no edges produce no SCCs."""
-        from axm_audit.core.rules.architecture.coupling import tarjan_scc
-
-        graph: dict[str, set[str]] = {"A": set(), "B": set(), "C": set()}
-        sccs = tarjan_scc(graph)
-        assert sccs == []

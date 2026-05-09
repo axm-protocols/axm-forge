@@ -187,59 +187,72 @@ class TestIsAbstractStubEdgeCases:
         assert DocstringCoverageRule.is_abstract_stub(node) is False
 
 
-def test_abstract_override_no_parent_docstring(rule: DocstringCoverageRule) -> None:
-    """Abstract parent without docstring → override still requires docstring."""
-    cls = _parse_class("""
-        class Base:
-            @abstractmethod
-            def do_work(self):
+@pytest.mark.parametrize(
+    ("source", "method", "expected"),
+    [
+        pytest.param(
+            """
+            class Base:
+                @abstractmethod
+                def do_work(self):
+                    pass
+            """,
+            "do_work",
+            False,
+            id="abstract_no_parent_docstring",
+        ),
+        pytest.param(
+            """
+            class Base:
+                @abstractmethod
+                def do_work(self):
+                    \"\"\"Do the work.\"\"\"
+                    pass
+            """,
+            "do_work",
+            True,
+            id="abstract_parent_with_docstring",
+        ),
+        pytest.param(
+            """
+            class Empty:
                 pass
-    """)
-    assert rule._check_abstract_parent(cls, "do_work") is False
-
-
-def test_abstract_parent_with_docstring(rule: DocstringCoverageRule) -> None:
-    """Abstract parent with docstring → returns True."""
-    cls = _parse_class("""
-        class Base:
-            @abstractmethod
-            def do_work(self):
-                \"\"\"Do the work.\"\"\"
-                pass
-    """)
-    assert rule._check_abstract_parent(cls, "do_work") is True
-
-
-def test_empty_class_body(rule: DocstringCoverageRule) -> None:
-    """Base class with no methods → returns False."""
-    cls = _parse_class("""
-        class Empty:
-            pass
-    """)
-    assert rule._check_abstract_parent(cls, "anything") is False
-
-
-def test_method_name_matches_but_not_abstract(rule: DocstringCoverageRule) -> None:
-    """Same name but no @abstractmethod decorator → returns False."""
-    cls = _parse_class("""
-        class Base:
-            def do_work(self):
-                \"\"\"Documented but not abstract.\"\"\"
-                pass
-    """)
-    assert rule._check_abstract_parent(cls, "do_work") is False
-
-
-def test_async_abstractmethod(rule: DocstringCoverageRule) -> None:
-    """async def with @abstractmethod and docstring → correctly identified."""
-    cls = _parse_class("""
-        class Base:
-            @abstractmethod
-            async def fetch(self):
-                \"\"\"Fetch data.\"\"\"
-                pass
-    """)
-    assert rule._check_abstract_parent(cls, "fetch") is True
+            """,
+            "anything",
+            False,
+            id="empty_class_body",
+        ),
+        pytest.param(
+            """
+            class Base:
+                def do_work(self):
+                    \"\"\"Documented but not abstract.\"\"\"
+                    pass
+            """,
+            "do_work",
+            False,
+            id="method_name_matches_but_not_abstract",
+        ),
+        pytest.param(
+            """
+            class Base:
+                @abstractmethod
+                async def fetch(self):
+                    \"\"\"Fetch data.\"\"\"
+                    pass
+            """,
+            "fetch",
+            True,
+            id="async_abstractmethod",
+        ),
+    ],
+)
+def test_check_abstract_parent(
+    rule: DocstringCoverageRule, source: str, method: str, expected: bool
+) -> None:
+    """_check_abstract_parent: True iff parent has @abstractmethod and docstring."""
+    cls = _parse_class(source)
+    assert rule._check_abstract_parent(cls, method) is expected
 
 
 def _parse_class(source: str) -> ast.ClassDef:
