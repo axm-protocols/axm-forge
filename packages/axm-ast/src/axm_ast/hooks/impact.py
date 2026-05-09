@@ -17,9 +17,28 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, cast
 
 from axm.hooks.base import HookResult
+
+from axm_ast.core.impact import ImpactResult
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from typing import NotRequired
+
+
+class EnrichedImpactResult(ImpactResult, total=False):
+    """ImpactResult enriched with witness-friendly aliases.
+
+    Adds ``test_paths`` (alias for ``test_files``) and ``packages``
+    (space-separated dirs from ``cross_package_impact``) so that
+    witness templates can extract them directly.
+    """
+
+    test_paths: NotRequired[list[str]]
+    packages: NotRequired[str]
+
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +60,8 @@ _MERGE_FIELDS: tuple[tuple[str, bool], ...] = (
 
 def _merge_impact_reports(
     symbol: str,
-    reports: list[dict[str, Any]],
-) -> dict[str, Any]:
+    reports: list[ImpactResult],
+) -> dict[str, object]:
     """Merge multiple impact reports into a single result.
 
     Uses max-score semantics and deduplicates ``affected_modules``
@@ -53,9 +72,10 @@ def _merge_impact_reports(
         reports: List of individual impact analysis dicts.
 
     Returns:
-        Single merged impact dict.
+        Single merged impact dict (untyped — has a ``definitions`` list
+        that does not exist in :class:`ImpactResult`).
     """
-    merged: dict[str, Any] = {
+    merged: dict[str, object] = {
         "symbol": symbol,
         "definitions": [],
         "score": "LOW",
@@ -66,24 +86,28 @@ def _merge_impact_reports(
     for report in reports:
         defn = report.get("definition")
         if defn:
-            merged["definitions"].append(defn)
+            cast("list[object]", merged["definitions"]).append(defn)
         for key, _dedup in _MERGE_FIELDS:
-            merged[key].extend(report.get(key, []))
+            cast("list[object]", merged[key]).extend(
+                cast("list[object]", report.get(key, []))
+            )
         rpt_score = report.get("score", "LOW")
-        if _SCORE_ORDER.get(rpt_score, 0) > _SCORE_ORDER.get(merged["score"], 0):
+        if _SCORE_ORDER.get(rpt_score, 0) > _SCORE_ORDER.get(
+            cast("str", merged["score"]), 0
+        ):
             merged["score"] = rpt_score
 
     # Deduplicate sortable lists.
     for key, dedup in _MERGE_FIELDS:
         if dedup:
-            merged[key] = sorted(set(merged[key]))
+            merged[key] = sorted(set(cast("list[str]", merged[key])))
 
     return merged
 
 
 def _parse_impact_params(
-    context: dict[str, Any],
-    params: dict[str, Any],
+    context: dict[str, object],
+    params: dict[str, object],
 ) -> tuple[Path, str, list[str], bool, str | None] | HookResult:
     """Parse and validate ImpactHook parameters.
 
@@ -92,40 +116,52 @@ def _parse_impact_params(
         or a ``HookResult`` on validation failure.
     """
     symbol = params.get("symbol")
-    if not symbol:
+    if not symbol or not isinstance(symbol, str):
         return HookResult.fail("Missing required param 'symbol'")
 
-    path = params.get("path") or context.get("working_dir", ".")
-    working_dir = Path(path)
+    raw_path = params.get("path") or context.get("working_dir", ".")
+    if not isinstance(raw_path, (str, Path)):
+        return HookResult.fail(
+            f"path must be str or Path, got {type(raw_path).__name__}"
+        )
+    working_dir = Path(raw_path)
     if not working_dir.is_dir():
         return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
     exclude_tests = bool(params.get("exclude_tests", False))
-    detail = params.get("detail")
+    raw_detail = params.get("detail")
+    detail: str | None
+    if raw_detail is None or isinstance(raw_detail, str):
+        detail = raw_detail
+    else:
+        return HookResult.fail(
+            f"detail must be str or None, got {type(raw_detail).__name__}"
+        )
     symbols = [s.strip() for s in symbol.splitlines() if s.strip()]
 
     return working_dir, symbol, symbols, exclude_tests, detail
 
 
-def _enrich_report(report: dict[str, Any]) -> dict[str, Any]:
+def _enrich_report(report: ImpactResult) -> EnrichedImpactResult:
     """Add witness-friendly aliases to a structured impact report.
 
     Adds ``test_paths`` (alias for ``test_files``) and ``packages``
     (space-separated dirs from ``cross_package_impact``) so that
     witness templates can extract them directly.
     """
-    report["test_paths"] = report.get("test_files", [])
+    enriched = cast("EnrichedImpactResult", report)
+    enriched["test_paths"] = list(report.get("test_files", []))
 
     cross = report.get("cross_package_impact", [])
     if isinstance(cross, list):
-        dirs = [
+        dirs: list[str] = [
             entry.get("path", "") if isinstance(entry, dict) else str(entry)
             for entry in cross
         ]
-        report["packages"] = " ".join(d for d in dirs if d)
+        enriched["packages"] = " ".join(d for d in dirs if d)
     else:
-        report["packages"] = ""
-    return report
+        enriched["packages"] = ""
+    return enriched
 
 
 @dataclass
@@ -138,7 +174,7 @@ class ImpactHook:
     merged (max score, concatenated lists, deduplicated modules/tests).
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -167,8 +203,9 @@ class ImpactHook:
                 render_impact_text,
             )
 
+            text: str | None = None
             if len(symbols) == 1:
-                report = analyze_impact(
+                single_report: ImpactResult = analyze_impact(
                     working_dir,
                     symbols[0],
                     project_root=working_dir.parent,
@@ -176,7 +213,7 @@ class ImpactHook:
                 )
             else:
 
-                def _analyze(sym: str) -> dict[str, Any]:
+                def _analyze(sym: str) -> ImpactResult:
                     return analyze_impact(
                         working_dir,
                         sym,
@@ -185,29 +222,42 @@ class ImpactHook:
                     )
 
                 with ThreadPoolExecutor(max_workers=min(len(symbols), 4)) as pool:
-                    reports = list(pool.map(_analyze, symbols))
+                    reports: list[ImpactResult] = list(pool.map(_analyze, symbols))
 
                 if detail == "compact":
                     from axm_ast.tools.impact import format_impact_compact
 
                     return HookResult.ok(
-                        impact=format_impact_compact(reports),
+                        impact=format_impact_compact(
+                            cast("list[Mapping[str, object]]", reports)
+                        ),
                     )
                 text = render_impact_batch_text(reports)
-                report = _merge_impact_reports(symbol, reports)
+                merged = _merge_impact_reports(symbol, reports)
+                # The merged dict is a superset of ImpactResult (adds
+                # ``definitions``), but downstream consumers only read
+                # ImpactResult-shaped fields plus the enrichment additions.
+                single_report = cast("ImpactResult", merged)
 
             if detail == "compact":
                 from axm_ast.tools.impact import format_impact_compact
 
-                return HookResult.ok(impact=format_impact_compact(report))
+                return HookResult.ok(
+                    impact=format_impact_compact(
+                        cast("Mapping[str, object]", single_report)
+                    )
+                )
 
             if len(symbols) == 1:
-                text = render_impact_text(report)
+                text = render_impact_text(single_report)
 
-            report = _enrich_report(report)
+            enriched = _enrich_report(single_report)
             return HookResult(
                 success=True,
-                metadata={"impact": report, "packages": report.get("packages", "")},
+                metadata={
+                    "impact": enriched,
+                    "packages": enriched.get("packages", ""),
+                },
                 text=text,
             )
         except Exception as exc:  # noqa: BLE001
@@ -222,7 +272,7 @@ class DocImpactHook:
     characters, each line is treated as a separate symbol.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -235,11 +285,15 @@ class DocImpactHook:
                 ``stale_signatures``) in metadata on success.
         """
         symbol = params.get("symbol")
-        if not symbol:
+        if not symbol or not isinstance(symbol, str):
             return HookResult.fail("Missing required param 'symbol'")
 
-        path = params.get("path") or context.get("working_dir", ".")
-        working_dir = Path(path)
+        raw_path = params.get("path") or context.get("working_dir", ".")
+        if not isinstance(raw_path, (str, Path)):
+            return HookResult.fail(
+                f"path must be str or Path, got {type(raw_path).__name__}"
+            )
+        working_dir = Path(raw_path)
         if not working_dir.is_dir():
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
@@ -248,6 +302,6 @@ class DocImpactHook:
 
             symbols = [s.strip() for s in symbol.splitlines() if s.strip()]
             report = analyze_doc_impact(working_dir, symbols)
-            return HookResult.ok(**report)
+            return HookResult.ok(**cast("dict[str, object]", report))
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Doc impact analysis failed: {exc}")
