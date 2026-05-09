@@ -9,6 +9,15 @@ import pytest
 
 from axm_ast.core.git_coupling import git_coupled_files
 
+
+def _find_git_root(start: Path) -> Path | None:
+    """Walk up from *start* looking for a `.git` directory."""
+    for parent in [start, *start.parents]:
+        if (parent / ".git").exists():
+            return parent
+    return None
+
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 
@@ -329,14 +338,14 @@ class TestImpactWithCoupling:
         assert levels[score_with] > levels[score_without]
 
     @pytest.mark.skipif(
-        not (Path(__file__).parent.parent / ".git").exists(),
+        not _find_git_root(Path(__file__).resolve()),
         reason="Not in a git repo",
     )
     def test_impact_on_real_symbol_has_coupling(self) -> None:
         """Dogfood: analyze_impact on real symbol includes git_coupled."""
         from axm_ast.core.impact import analyze_impact
 
-        root = Path(__file__).parent.parent
+        root = Path(__file__).resolve().parents[1]
         ast_dir = root / "src" / "axm_ast"
         if ast_dir.exists():
             result = analyze_impact(ast_dir, "get_package", project_root=root)

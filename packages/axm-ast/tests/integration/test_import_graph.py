@@ -118,7 +118,7 @@ class TestRealProjectGraph:
     """Smoke test on axm-ast source itself."""
 
     def test_axm_ast_has_edges(self) -> None:
-        src = Path(__file__).parent.parent / "src" / "axm_ast"
+        src = Path(__file__).resolve().parents[2] / "src" / "axm_ast"
         if not src.is_dir():
             pytest.skip("Source not available")
         result = analyze_package(src)
