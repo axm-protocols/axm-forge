@@ -62,10 +62,10 @@ def _make_dispatcher_module() -> tuple[Any, dict[str, Any], types.ModuleType]:
 
     # Bind to a fake module so _collect_dispatcher_params can find _ACTIONS
     mod = types.ModuleType("fake_dispatcher_mod")
-    mod._FAKE_ACTIONS = actions  # type: ignore[attr-defined]
+    mod._FAKE_ACTIONS = actions
     dispatcher.__module__ = mod.__name__
     # Patch inspect.getmodule to return our fake module
-    mod.dispatcher = dispatcher  # type: ignore[attr-defined]
+    mod.dispatcher = dispatcher
 
     return dispatcher, actions, mod
 
