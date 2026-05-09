@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
+from axm_smelt._types import JsonValue
 from axm_smelt.core.counter import (  # noqa: F401
     CounterBackend,
     count,
@@ -27,8 +27,8 @@ def _worst(a: CounterBackend, b: CounterBackend) -> CounterBackend:
 
 def _resolve_input(
     text: str | None,
-    parsed: dict[str, Any] | list[Any] | None,
-) -> tuple[str, dict[str, Any] | list[Any] | None]:
+    parsed: dict[str, JsonValue] | list[JsonValue] | None,
+) -> tuple[str, dict[str, JsonValue] | list[JsonValue] | None]:
     """Normalize inputs into ``(text, parsed)``."""
     if parsed is not None:
         return json.dumps(parsed, separators=(",", ":")), parsed
@@ -77,7 +77,7 @@ def smelt(
     strategies: list[str] | None = None,
     preset: str | None = None,
     *,
-    parsed: dict[str, Any] | list[Any] | None = None,
+    parsed: dict[str, JsonValue] | list[JsonValue] | None = None,
 ) -> SmeltReport:
     """Run the compaction pipeline and return a report."""
     text, parsed = _resolve_input(text, parsed)
@@ -118,7 +118,7 @@ def smelt(
 def check(
     text: str | None = None,
     *,
-    parsed: dict[str, Any] | list[Any] | None = None,
+    parsed: dict[str, JsonValue] | list[JsonValue] | None = None,
 ) -> SmeltReport:
     """Analyze *text* without transforming it."""
     from axm_smelt.strategies import _REGISTRY

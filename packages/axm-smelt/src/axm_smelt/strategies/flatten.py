@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
+from axm_smelt._types import JsonValue
 from axm_smelt.core.models import SmeltContext
 from axm_smelt.strategies.base import SmeltStrategy
 
@@ -12,12 +12,12 @@ __all__ = ["FlattenStrategy"]
 
 
 def _flatten_dict(
-    data: dict[str, Any],
+    data: dict[str, JsonValue],
     max_depth: int | None,
     depth: int = 0,
-) -> dict[str, Any]:
+) -> dict[str, JsonValue]:
     """Collapse single-child wrapper dicts into dotted keys."""
-    result: dict[str, Any] = {}
+    result: dict[str, JsonValue] = {}
     for key, value in data.items():
         if (
             isinstance(value, dict)
@@ -37,7 +37,7 @@ def _flatten_dict(
     return result
 
 
-def _flatten_node(data: Any, max_depth: int | None, depth: int = 0) -> Any:
+def _flatten_node(data: JsonValue, max_depth: int | None, depth: int = 0) -> JsonValue:
     """Recursively flatten dicts in any structure."""
     if isinstance(data, dict):
         return _flatten_dict(data, max_depth, depth)
