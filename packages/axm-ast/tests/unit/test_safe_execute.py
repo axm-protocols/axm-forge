@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 import pytest
-from axm import ToolResult
+from axm.tools.base import ToolResult
 
 from axm_ast.tools._base import safe_execute
 
