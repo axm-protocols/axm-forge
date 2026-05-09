@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from axm.hooks.base import HookResult
 
@@ -26,7 +26,7 @@ class WorktreeRemoveHook:
     Skips gracefully when the path doesn't exist or isn't a git repo.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -40,7 +40,7 @@ class WorktreeRemoveHook:
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
 
-        repo_path = Path(context.get("repo_path", "."))
+        repo_path = Path(cast("str | Path", context.get("repo_path", ".")))
 
         if find_git_root(repo_path) is None:
             return HookResult.ok(skipped=True, reason="not a git repo")

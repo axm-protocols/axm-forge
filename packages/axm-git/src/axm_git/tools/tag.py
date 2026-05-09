@@ -8,7 +8,6 @@ import re
 import subprocess
 import tomllib
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -228,7 +227,7 @@ class GitTagTool(AXMTool):
         *,
         path: str = ".",
         version: str | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Create and push a semver tag.
 

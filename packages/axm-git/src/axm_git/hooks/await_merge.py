@@ -9,7 +9,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from axm.hooks.base import HookResult
 
@@ -23,9 +23,9 @@ _DEFAULT_INTERVAL = 30  # seconds
 
 
 def _resolve_pr_ref(
-    params: dict[str, Any],
-    context: dict[str, Any],
-) -> Any:
+    params: dict[str, object],
+    context: dict[str, object],
+) -> object | None:
     """Resolve a PR reference from params or context.
 
     Checks ``pr_number`` then ``pr_url`` in *params* first,
@@ -50,7 +50,7 @@ class AwaitMergeHook:
     10 minutes by default.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -74,8 +74,8 @@ class AwaitMergeHook:
         if not pr_ref:
             return HookResult.fail("no pr_number or pr_url in params or context")
 
-        timeout = int(params.get("timeout", _DEFAULT_TIMEOUT))
-        interval = int(params.get("interval", _DEFAULT_INTERVAL))
+        timeout = int(cast("int", params.get("timeout", _DEFAULT_TIMEOUT)))
+        interval = int(cast("int", params.get("interval", _DEFAULT_INTERVAL)))
 
         elapsed = 0
         while elapsed < timeout:

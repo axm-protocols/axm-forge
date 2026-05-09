@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 __all__ = ["_resolve_working_dir"]
 
 
 def _resolve_working_dir(
-    params: dict[str, Any],
-    context: dict[str, Any],
+    params: dict[str, object],
+    context: dict[str, object],
     *,
     param_key: str = "working_dir",
 ) -> Path:
@@ -27,10 +27,11 @@ def _resolve_working_dir(
     Returns:
         Resolved working directory as a Path.
     """
-    raw = params.get(
+    raw: object = params.get(
         param_key,
         context.get("worktree_path", context.get("working_dir", ".")),
     )
     if isinstance(raw, dict):
-        raw = raw.get("worktree_path", raw.get("path", "."))
-    return Path(raw)
+        nested = cast("dict[str, object]", raw)
+        raw = nested.get("worktree_path", nested.get("path", "."))
+    return Path(cast("str | Path", raw))
