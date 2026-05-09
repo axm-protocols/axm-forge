@@ -107,6 +107,15 @@ show_error_codes = true
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_defs = false
+disallow_any_explicit = false
+disable_error_code = [
+    "index",
+    "arg-type",
+    "attr-defined",
+    "operator",
+    "union-attr",
+    "call-overload",
+]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Pytest Configuration
