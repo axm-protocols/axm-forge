@@ -345,7 +345,7 @@ class TestImpactWithCoupling:
         """Dogfood: analyze_impact on real symbol includes git_coupled."""
         from axm_ast.core.impact import analyze_impact
 
-        root = Path(__file__).resolve().parents[1]
+        root = Path(__file__).resolve().parents[2]
         ast_dir = root / "src" / "axm_ast"
         if ast_dir.exists():
             result = analyze_impact(ast_dir, "get_package", project_root=root)

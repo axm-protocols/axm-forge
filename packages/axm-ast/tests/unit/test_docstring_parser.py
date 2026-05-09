@@ -6,7 +6,7 @@ from pathlib import Path
 
 from axm_ast.docstring_parser import ParsedDocstring, parse_docstring
 
-FIXTURES = Path(__file__).parent / "fixtures"
+FIXTURES = Path(__file__).parent.parent / "fixtures"
 SAMPLE_PKG = FIXTURES / "sample_pkg"
 
 

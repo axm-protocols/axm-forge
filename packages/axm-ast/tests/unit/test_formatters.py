@@ -8,7 +8,7 @@ from pathlib import Path
 from axm_ast.core.analyzer import analyze_package
 from axm_ast.formatters import format_json, format_mermaid, format_text
 
-FIXTURES = Path(__file__).parent / "fixtures"
+FIXTURES = Path(__file__).parent.parent / "fixtures"
 SAMPLE_PKG = FIXTURES / "sample_pkg"
 
 
