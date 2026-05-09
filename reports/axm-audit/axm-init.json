@@ -61,7 +61,7 @@
       "passed": true,
       "message": "Test coverage: 97% (96/100)",
       "details": {
-        "coverage": 96.80232558139535,
+        "coverage": 96.80895151263987,
         "score": 96,
         "failures": []
       }
@@ -119,9 +119,12 @@
             "name": "pip",
             "version": "26.0.1",
             "vuln_ids": [
-              "CVE-2026-3219"
+              "CVE-2026-3219",
+              "CVE-2026-6357"
             ],
-            "fix_versions": []
+            "fix_versions": [
+              "26.1"
+            ]
           }
         ]
       }

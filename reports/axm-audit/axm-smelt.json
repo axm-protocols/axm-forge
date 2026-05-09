@@ -1,8 +1,8 @@
 {
-  "score": 97.2,
+  "score": 94.5,
   "grade": "A",
   "total": 23,
-  "failed": 2,
+  "failed": 3,
   "success": false,
   "checks": [
     {
@@ -29,8 +29,8 @@
       "message": "Coupling: 0 modules above threshold (max fan-out: 7)",
       "details": {
         "max_fan_out": 7,
-        "max_fan_in": 12,
-        "avg_coupling": 3.43,
+        "max_fan_in": 13,
+        "avg_coupling": 3.76,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -49,20 +49,26 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": true,
-      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
       "details": {
-        "high_complexity_count": 0,
-        "top_offenders": [],
-        "score": 100
+        "high_complexity_count": 1,
+        "top_offenders": [
+          {
+            "file": "dedup_values.py",
+            "function": "DedupValuesStrategy.apply",
+            "cc": 12
+          }
+        ],
+        "score": 90
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 92% (91/100)",
+      "message": "Test coverage: 92% (92/100)",
       "details": {
-        "coverage": 91.81434599156118,
-        "score": 91,
+        "coverage": 92.46688741721854,
+        "score": 92,
         "failures": []
       }
     },
@@ -119,9 +125,12 @@
             "name": "pip",
             "version": "26.0.1",
             "vuln_ids": [
-              "CVE-2026-3219"
+              "CVE-2026-3219",
+              "CVE-2026-6357"
             ],
-            "fix_versions": []
+            "fix_versions": [
+              "26.1"
+            ]
           }
         ]
       }
@@ -139,11 +148,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (41/41)",
+      "message": "Docstring coverage: 100% (42/42)",
       "details": {
         "coverage": 1.0,
-        "total": 41,
-        "documented": 41,
+        "total": 42,
+        "documented": 42,
         "missing": [],
         "score": 100
       }
@@ -183,12 +192,18 @@
     },
     {
       "rule_id": "PRACTICE_SECURITY",
-      "passed": true,
-      "message": "0 potential secret(s) found",
+      "passed": false,
+      "message": "1 potential secret(s) found",
       "details": {
-        "secret_count": 0,
-        "matches": [],
-        "score": 100
+        "secret_count": 1,
+        "matches": [
+          {
+            "file": "axm_smelt/core/counter.py",
+            "line": 21,
+            "pattern": "token"
+          }
+        ],
+        "score": 75
       }
     },
     {

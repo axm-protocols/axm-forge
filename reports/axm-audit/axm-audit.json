@@ -1,8 +1,8 @@
 {
-  "score": 94.9,
+  "score": 91.8,
   "grade": "A",
   "total": 23,
-  "failed": 2,
+  "failed": 3,
   "success": false,
   "checks": [
     {
@@ -26,28 +26,14 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 5 module(s) above threshold (-15 pts)",
+      "message": "Coupling: 4 module(s) above threshold (-12 pts)",
       "details": {
-        "max_fan_out": 12,
-        "max_fan_in": 29,
-        "avg_coupling": 6.0,
-        "score": 85,
-        "n_over_threshold": 5,
+        "max_fan_out": 11,
+        "max_fan_in": 33,
+        "avg_coupling": 6.76,
+        "score": 88,
+        "n_over_threshold": 4,
         "over_threshold": [
-          {
-            "module": "axm_audit.core.rules.test_quality.tautology",
-            "fan_out": 12,
-            "role": "leaf",
-            "effective_threshold": 10,
-            "severity": "warning"
-          },
-          {
-            "module": "axm_audit.core.rules.test_quality.duplicate_tests",
-            "fan_out": 12,
-            "role": "leaf",
-            "effective_threshold": 10,
-            "severity": "warning"
-          },
           {
             "module": "axm_audit.core.rules.quality",
             "fan_out": 11,
@@ -57,6 +43,13 @@
           },
           {
             "module": "axm_audit.core.rules.complexity",
+            "fan_out": 11,
+            "role": "leaf",
+            "effective_threshold": 10,
+            "severity": "warning"
+          },
+          {
+            "module": "axm_audit.core.rules.test_quality.duplicate_tests",
             "fan_out": 11,
             "role": "leaf",
             "effective_threshold": 10,
@@ -84,27 +77,37 @@
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": true,
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "passed": false,
+      "message": "Complexity score: 70/100 (3 high-complexity functions)",
       "details": {
-        "high_complexity_count": 1,
+        "high_complexity_count": 3,
         "top_offenders": [
           {
             "file": "_shared.py",
             "function": "_cli_runner_signal",
             "cc": 10
+          },
+          {
+            "file": "mirror.py",
+            "function": "MirrorRule._build_fix_hint",
+            "cc": 10
+          },
+          {
+            "file": "anti_mirror.py",
+            "function": "_collect_source_basenames",
+            "cc": 10
           }
         ],
-        "score": 90
+        "score": 70
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 92% (92/100)",
+      "message": "Test coverage: 92% (91/100)",
       "details": {
-        "coverage": 92.0176437108708,
-        "score": 92,
+        "coverage": 91.57477388179903,
+        "score": 91,
         "failures": []
       }
     },
@@ -161,9 +164,12 @@
             "name": "pip",
             "version": "26.0.1",
             "vuln_ids": [
-              "CVE-2026-3219"
+              "CVE-2026-3219",
+              "CVE-2026-6357"
             ],
-            "fix_versions": []
+            "fix_versions": [
+              "26.1"
+            ]
           }
         ]
       }
@@ -181,13 +187,15 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (85/85)",
+      "message": "Docstring coverage: 99% (106/107)",
       "details": {
-        "coverage": 1.0,
-        "total": 85,
-        "documented": 85,
-        "missing": [],
-        "score": 100
+        "coverage": 0.99,
+        "total": 107,
+        "documented": 106,
+        "missing": [
+          "axm_audit/core/rules/test_quality/_shared.py:load_conftest_fixtures"
+        ],
+        "score": 99
       }
     },
     {
@@ -216,12 +224,12 @@
       "details": {
         "missing": [
           "__main__.py",
+          "anti_mirror.py",
           "autofix.py",
-          "coupling.py",
-          "models.py",
+          "bare_except.py",
+          "blocking_io.py",
+          "mirror.py",
           "pyramid_level.py",
-          "registry.py",
-          "severity.py",
           "tautology.py",
           "tautology_triage.py"
         ],
@@ -280,7 +288,7 @@
             "code": "B607",
             "message": "Starting a process with a partial executable path",
             "file": "dead_code.py",
-            "line": 82
+            "line": 83
           }
         ]
       }

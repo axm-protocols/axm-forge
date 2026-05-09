@@ -1,8 +1,8 @@
 {
-  "score": 97.9,
-  "grade": "A",
+  "score": 81.8,
+  "grade": "B",
   "total": 23,
-  "failed": 1,
+  "failed": 4,
   "success": false,
   "checks": [
     {
@@ -29,8 +29,8 @@
       "message": "Coupling: 0 modules above threshold (max fan-out: 14)",
       "details": {
         "max_fan_out": 14,
-        "max_fan_in": 38,
-        "avg_coupling": 4.89,
+        "max_fan_in": 40,
+        "avg_coupling": 5.06,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -49,20 +49,26 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": true,
-      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
       "details": {
-        "high_complexity_count": 0,
-        "top_offenders": [],
-        "score": 100
+        "high_complexity_count": 1,
+        "top_offenders": [
+          {
+            "file": "impact.py",
+            "function": "analyze_impact",
+            "cc": 10
+          }
+        ],
+        "score": 90
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": true,
-      "message": "Test coverage: 91% (91/100)",
+      "passed": false,
+      "message": "No coverage data (pytest-cov not configured)",
       "details": {
-        "coverage": 91.26062492517659,
-        "score": 91,
+        "coverage": 0.0,
+        "score": 0,
         "failures": []
       }
     },
@@ -119,9 +125,12 @@
             "name": "pip",
             "version": "26.0.1",
             "vuln_ids": [
-              "CVE-2026-3219"
+              "CVE-2026-3219",
+              "CVE-2026-6357"
             ],
-            "fix_versions": []
+            "fix_versions": [
+              "26.1"
+            ]
           }
         ]
       }
@@ -139,13 +148,15 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (160/160)",
+      "message": "Docstring coverage: 99% (166/167)",
       "details": {
-        "coverage": 1.0,
-        "total": 160,
-        "documented": 160,
-        "missing": [],
-        "score": 100
+        "coverage": 0.99,
+        "total": 167,
+        "documented": 166,
+        "missing": [
+          "axm_ast/tools/_base.py:wrapper"
+        ],
+        "score": 99
       }
     },
     {
@@ -169,9 +180,14 @@
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
-      "passed": true,
-      "message": "All source modules have test files",
-      "details": null
+      "passed": false,
+      "message": "1 source module(s) without tests",
+      "details": {
+        "missing": [
+          "_base.py"
+        ],
+        "score": 85
+      }
     },
     {
       "rule_id": "PRACTICE_SECURITY",
@@ -196,13 +212,20 @@
     },
     {
       "rule_id": "QUALITY_TYPE",
-      "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
+      "passed": false,
+      "message": "Type score: 95/100 (1 errors)",
       "details": {
-        "error_count": 0,
-        "score": 100,
+        "error_count": 1,
+        "score": 95,
         "checked": "src/ tests/",
-        "errors": []
+        "errors": [
+          {
+            "file": "tests/unit/test_safe_execute.py",
+            "line": 8,
+            "message": "Module \"axm\" has no attribute \"ToolResult\"",
+            "code": "attr-defined"
+          }
+        ]
       }
     },
     {
