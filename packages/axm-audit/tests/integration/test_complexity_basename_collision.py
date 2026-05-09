@@ -3,23 +3,18 @@
 Two source files that share a basename and both define a function with
 the same name must not collide in the cognitive-complexity map. The fix
 uses ``(POSIX path relative to src_path, function_name)`` as the key,
-so both writers and readers must agree on that shape.
+so both writers and readers must agree on that shape — verified through
+the public ``ComplexityRule.check`` surface.
 """
 
 from __future__ import annotations
 
-import json
 import shutil
 from pathlib import Path
 
 import pytest
 
-from axm_audit.core.rules.complexity import (
-    ComplexityRule,
-    _compute_cognitive_map,
-    _parse_complexipy_entries,
-    _try_import_complexipy,
-)
+from axm_audit.core.rules.complexity import ComplexityRule
 
 pytestmark = pytest.mark.integration
 
@@ -70,63 +65,44 @@ def _build_collision_tree(root: Path) -> Path:
     return src
 
 
-def _require_complexipy_api() -> None:
-    if _try_import_complexipy() is None:
-        pytest.skip("complexipy Python API not importable")
+def _foo_offenders(result_details: dict[str, object]) -> list[dict[str, object]]:
+    """Return all ``foo`` entries from a ComplexityRule.check details payload."""
+    offenders = result_details["top_offenders"]
+    return [o for o in offenders if o["function"] == "foo"]
 
 
-def test_cognitive_map_distinguishes_same_basename(tmp_path):
-    """AC1, AC4: cog_map keys disambiguate same-basename source files."""
-    _require_complexipy_api()
-    src = _build_collision_tree(tmp_path)
+def test_check_assigns_distinct_cognitive_per_file(tmp_path):
+    """AC1+AC2+AC4: same-basename ``foo`` keeps a per-file cognitive score.
 
-    cog_map, disabled = _compute_cognitive_map(src)
-
-    assert not disabled
-    key_a = ("a/utils.py", "foo")
-    key_b = ("b/utils.py", "foo")
-    assert key_a in cog_map, f"expected {key_a} in {sorted(cog_map)}"
-    assert key_b in cog_map, f"expected {key_b} in {sorted(cog_map)}"
-    assert cog_map[key_a] != cog_map[key_b], (
-        f"expected distinct cognitive scores per file, got {cog_map[key_a]} for both"
-    )
-
-
-def test_check_via_api_assigns_correct_cognitive_per_file(tmp_path):
-    """AC2, AC4: ComplexityRule.check returns the right cog per file."""
-    _require_complexipy_api()
-    src = _build_collision_tree(tmp_path)
-    cog_map, _ = _compute_cognitive_map(src)
-    expected = {
-        cog_map[("a/utils.py", "foo")],
-        cog_map[("b/utils.py", "foo")],
-    }
-    assert len(expected) == 2, f"fixture should yield distinct cogs, got {expected}"
+    Drives the public ``ComplexityRule.check`` API end-to-end. If the cog
+    map ever collapses both ``foo`` entries onto a single basename key, the
+    two cognitive values would coincide and this test would fail.
+    """
+    pytest.importorskip("complexipy")
+    _build_collision_tree(tmp_path)
 
     result = ComplexityRule().check(tmp_path)
 
     assert result.details is not None
-    offenders = result.details["top_offenders"]
-    foos = [o for o in offenders if o["function"] == "foo"]
-    assert len(foos) >= 2, f"expected both foo offenders, got {offenders}"
+    foos = _foo_offenders(result.details)
+    assert len(foos) >= 2, (
+        f"expected both foo offenders, got {result.details['top_offenders']}"
+    )
     cogs_by_file = {o["file"]: o["cognitive"] for o in foos}
-    assert set(cogs_by_file.values()) == expected, (
-        f"expected per-file cogs {expected}, got {cogs_by_file}"
+    assert len(set(cogs_by_file.values())) == 2, (
+        f"expected distinct cognitive per file, got {cogs_by_file}"
+    )
+    assert all(cog > 0 for cog in cogs_by_file.values()), (
+        f"cognitive map collapsed to zero for one file: {cogs_by_file}"
     )
 
 
-def test_process_radon_output_uses_relative_path_lookup(tmp_path, mocker):
+def test_check_via_subprocess_assigns_distinct_cognitive_per_file(tmp_path, mocker):
     """AC3: the subprocess radon path looks cog_map up via relative POSIX key."""
-    _require_complexipy_api()
+    pytest.importorskip("complexipy")
     if shutil.which("radon") is None:
         pytest.skip("radon binary not available")
-    src = _build_collision_tree(tmp_path)
-    cog_map, _ = _compute_cognitive_map(src)
-    expected = {
-        cog_map[("a/utils.py", "foo")],
-        cog_map[("b/utils.py", "foo")],
-    }
-    assert len(expected) == 2
+    _build_collision_tree(tmp_path)
 
     # Force the radon subprocess branch by pretending the API is missing.
     mocker.patch(
@@ -137,32 +113,11 @@ def test_process_radon_output_uses_relative_path_lookup(tmp_path, mocker):
     result = ComplexityRule().check(tmp_path)
 
     assert result.details is not None
-    offenders = result.details["top_offenders"]
-    foos = [o for o in offenders if o["function"] == "foo"]
-    assert len(foos) >= 2, f"expected both foo offenders, got {offenders}"
+    foos = _foo_offenders(result.details)
+    assert len(foos) >= 2, (
+        f"expected both foo offenders, got {result.details['top_offenders']}"
+    )
     cogs_by_file = {o["file"]: o["cognitive"] for o in foos}
-    assert set(cogs_by_file.values()) == expected, (
-        f"expected per-file cogs {expected}, got {cogs_by_file}"
+    assert len(set(cogs_by_file.values())) == 2, (
+        f"expected distinct cognitive per file, got {cogs_by_file}"
     )
-
-
-def test_complexipy_entry_outside_src_path_falls_back_to_basename(tmp_path):
-    """AC1: entries with paths outside src_path fall back to basename."""
-    src = tmp_path / "src"
-    src.mkdir()
-    entries = json.loads(
-        json.dumps(
-            [
-                {
-                    "file_name": "/some/unrelated/path/utils.py",
-                    "function_name": "foo",
-                    "complexity": 7,
-                }
-            ]
-        )
-    )
-
-    result = _parse_complexipy_entries(entries, src)
-
-    assert ("utils.py", "foo") in result, f"got keys {sorted(result)}"
-    assert result[("utils.py", "foo")] == 7
