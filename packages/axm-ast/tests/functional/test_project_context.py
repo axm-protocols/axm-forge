@@ -153,6 +153,7 @@ def _patch_context(monkeypatch, tmp_path):
 
     monkeypatch.setattr(mod, "detect_workspace", lambda _: None)
     monkeypatch.setattr(mod, "build_context", lambda _: {"dummy": True})
+    monkeypatch.setattr(mod, "build_workspace_context", lambda _: {})
 
     def fake_format(ctx, *, depth=None):
         if depth == 0:
