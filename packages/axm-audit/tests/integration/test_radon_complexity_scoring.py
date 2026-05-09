@@ -567,7 +567,7 @@ def _write_from_unit(tmp_path: Path, body: str) -> Path:
 
 
 def test_complexipy_dep_declared_from_unit() -> None:
-    pkg_root = Path(__file__).resolve().parents[4]
+    pkg_root = Path(__file__).resolve().parents[2]
     pyproject = pkg_root / "pyproject.toml"
     cfg = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     deps = cfg["project"]["dependencies"]
