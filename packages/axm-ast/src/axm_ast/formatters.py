@@ -13,7 +13,7 @@ Example:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TypedDict
 
 from axm_ast.core.analyzer import build_import_graph
 from axm_ast.docstring_parser import parse_docstring
@@ -27,6 +27,11 @@ from axm_ast.models.nodes import (
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "ClassEntry",
+    "FunctionEntry",
+    "ModuleEntry",
+    "PackageDescription",
+    "TocEntry",
     "filter_modules",
     "format_compressed",
     "format_json",
@@ -38,6 +43,67 @@ __all__ = [
 ]
 
 DetailLevel = str  # "toc" | "summary" | "detailed"
+
+
+class FunctionEntry(TypedDict, total=False):
+    """JSON-serializable shape for a function emitted by :func:`format_json`.
+
+    ``summary`` is present only when ``detail="detailed"``.
+    """
+
+    name: str
+    signature: str | None
+    kind: str
+    is_public: bool
+    summary: str | None
+
+
+class ClassEntry(TypedDict, total=False):
+    """JSON-serializable shape for a class emitted by :func:`format_json`.
+
+    ``summary`` and ``methods`` are present only when ``detail="detailed"``.
+    """
+
+    name: str
+    bases: list[str]
+    is_public: bool
+    summary: str | None
+    methods: list[FunctionEntry]
+
+
+class ModuleEntry(TypedDict, total=False):
+    """JSON-serializable shape for a module emitted by :func:`format_json`.
+
+    ``docstring`` is present only when ``detail="detailed"``.
+    """
+
+    name: str
+    path: str
+    functions: list[FunctionEntry]
+    classes: list[ClassEntry]
+    docstring: str | None
+
+
+class PackageDescription(TypedDict):
+    """JSON-serializable shape returned by :func:`format_json`."""
+
+    name: str
+    root: str
+    module_count: int
+    modules: list[ModuleEntry]
+
+
+class TocEntry(TypedDict, total=False):
+    """JSON-serializable shape for a single entry in :func:`format_toc`.
+
+    ``docstring`` is present only when the module has a parseable summary.
+    """
+
+    name: str
+    function_count: int
+    class_count: int
+    symbol_count: int
+    docstring: str
 
 
 # ─── Text formatter ──────────────────────────────────────────────────────────
@@ -389,7 +455,7 @@ def format_json(
     pkg: PackageInfo,
     *,
     detail: DetailLevel = "summary",
-) -> dict[str, Any]:
+) -> PackageDescription:
     """Format package info as a JSON-serializable dict.
 
     Args:
@@ -419,22 +485,16 @@ def _format_module_json(
     pkg: PackageInfo,
     *,
     detail: DetailLevel,
-) -> dict[str, Any]:
+) -> ModuleEntry:
     """Format a single module as a JSON dict."""
     from axm_ast.core.analyzer import module_dotted_name
 
-    result: dict[str, Any] = {
+    result: ModuleEntry = {
         "name": module_dotted_name(mod.path, pkg.root),
         "path": str(mod.path),
+        "functions": [_format_function_json(fn, detail=detail) for fn in mod.functions],
+        "classes": [_format_class_json(cls, detail=detail) for cls in mod.classes],
     }
-
-    # Functions
-    result["functions"] = [
-        _format_function_json(fn, detail=detail) for fn in mod.functions
-    ]
-
-    # Classes
-    result["classes"] = [_format_class_json(cls, detail=detail) for cls in mod.classes]
 
     if detail == "detailed":
         result["docstring"] = mod.docstring
@@ -442,9 +502,9 @@ def _format_module_json(
     return result
 
 
-def _format_function_json(fn: FunctionInfo, *, detail: DetailLevel) -> dict[str, Any]:
+def _format_function_json(fn: FunctionInfo, *, detail: DetailLevel) -> FunctionEntry:
     """Format a function as a JSON dict."""
-    result: dict[str, Any] = {
+    result: FunctionEntry = {
         "name": fn.name,
         "signature": fn.signature,
         "kind": fn.kind.value,
@@ -456,9 +516,9 @@ def _format_function_json(fn: FunctionInfo, *, detail: DetailLevel) -> dict[str,
     return result
 
 
-def _format_class_json(cls: ClassInfo, *, detail: DetailLevel) -> dict[str, Any]:
+def _format_class_json(cls: ClassInfo, *, detail: DetailLevel) -> ClassEntry:
     """Format a class as a JSON dict."""
-    result: dict[str, Any] = {
+    result: ClassEntry = {
         "name": cls.name,
         "bases": cls.bases,
         "is_public": cls.is_public,
@@ -475,7 +535,7 @@ def _format_class_json(cls: ClassInfo, *, detail: DetailLevel) -> dict[str, Any]
 # ─── TOC formatter ───────────────────────────────────────────────────────────
 
 
-def format_toc(pkg: PackageInfo) -> list[dict[str, Any]]:
+def format_toc(pkg: PackageInfo) -> list[TocEntry]:
     """Format package as a table-of-contents — module names and counts only.
 
     Returns lightweight module summaries WITHOUT individual function/class
@@ -497,13 +557,13 @@ def format_toc(pkg: PackageInfo) -> list[dict[str, Any]]:
     """
     from axm_ast.core.analyzer import module_dotted_name
 
-    modules: list[dict[str, Any]] = []
+    modules: list[TocEntry] = []
     for mod in pkg.modules:
         mod_name = module_dotted_name(mod.path, pkg.root)
         summary = parse_docstring(mod.docstring).summary if mod.docstring else None
         func_count = len(mod.functions)
         cls_count = len(mod.classes)
-        entry: dict[str, Any] = {
+        entry: TocEntry = {
             "name": mod_name,
             "function_count": func_count,
             "class_count": cls_count,

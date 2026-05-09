@@ -6,16 +6,49 @@ import ast
 import logging
 import re
 from pathlib import Path
-from typing import Any
+from typing import NotRequired, TypedDict
 
 log = logging.getLogger(__name__)
 
 __all__ = [
+    "DocImpactResult",
+    "DocRefEntry",
+    "StaleSignature",
     "analyze_doc_impact",
     "find_doc_refs",
     "find_stale_signatures",
     "find_undocumented",
 ]
+
+
+class DocRefEntry(TypedDict):
+    """Single documentation reference (backtick mention or heading hit)."""
+
+    file: str
+    line: int
+
+
+class StaleSignature(TypedDict):
+    """Stale signature record extracted from a doc code block.
+
+    ``actual_sig`` is added only after matching against the AST signatures;
+    intermediate entries produced by :func:`_match_signature_line` omit it.
+    """
+
+    symbol: str
+    file: str
+    doc_sig: str
+    line: int
+    actual_sig: NotRequired[str]
+
+
+class DocImpactResult(TypedDict):
+    """Output shape of :func:`analyze_doc_impact`."""
+
+    doc_refs: dict[str, list[DocRefEntry]]
+    undocumented: list[str]
+    stale_signatures: list[StaleSignature]
+
 
 _CODE_FENCE_RE = re.compile(r"^```(?:python|py)?\s*$", re.IGNORECASE)
 _CODE_FENCE_END_RE = re.compile(r"^```\s*$")
@@ -43,13 +76,13 @@ def _search_symbol_in_file(
     path: Path,
     symbol: str,
     root: Path,
-) -> list[dict[str, Any]]:
+) -> list[DocRefEntry]:
     """Search for symbol mentions in a documentation file.
 
     Only matches backtick-wrapped references (`` `symbol` ``)
     or markdown headings containing the symbol name.
     """
-    refs: list[dict[str, Any]] = []
+    refs: list[DocRefEntry] = []
     try:
         content = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
@@ -120,7 +153,7 @@ def _match_signature_line(
     symbols: set[str],
     path: Path,
     root: Path,
-) -> dict[str, Any] | None:
+) -> StaleSignature | None:
     """Return a signature dict if *line* matches a tracked symbol."""
     m = _DEF_RE.match(line)
     if not m or m.group(2) not in symbols:
@@ -134,9 +167,9 @@ def _extract_doc_signatures(
     path: Path,
     symbols: set[str],
     root: Path,
-) -> list[dict[str, Any]]:
+) -> list[StaleSignature]:
     """Extract def/class signatures from code blocks in a doc file."""
-    results: list[dict[str, Any]] = []
+    results: list[StaleSignature] = []
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError):
@@ -162,7 +195,7 @@ def _extract_doc_signatures(
 def find_doc_refs(
     root: Path,
     symbols: list[str],
-) -> dict[str, list[dict[str, Any]]]:
+) -> dict[str, list[DocRefEntry]]:
     """Find documentation references for given symbols.
 
     Args:
@@ -174,7 +207,7 @@ def find_doc_refs(
         (each with ``file`` and ``line`` keys).
     """
     doc_files = _collect_doc_files(root)
-    refs: dict[str, list[dict[str, Any]]] = {s: [] for s in symbols}
+    refs: dict[str, list[DocRefEntry]] = {s: [] for s in symbols}
     for sym in symbols:
         for doc_file in doc_files:
             hits = _search_symbol_in_file(doc_file, sym, root)
@@ -183,7 +216,7 @@ def find_doc_refs(
 
 
 def find_undocumented(
-    doc_refs: dict[str, list[dict[str, Any]]],
+    doc_refs: dict[str, list[DocRefEntry]],
 ) -> list[str]:
     """Return symbols that have no documentation references.
 
@@ -199,7 +232,7 @@ def find_undocumented(
 def find_stale_signatures(
     root: Path,
     symbols: list[str] | None = None,
-) -> list[dict[str, Any]]:
+) -> list[StaleSignature]:
     """Detect stale code signatures in documentation.
 
     Compares ``def`` / ``class`` signatures in doc code blocks
@@ -224,7 +257,7 @@ def find_stale_signatures(
     for qkey in ast_sigs:
         bare = qkey.rsplit(".", 1)[-1]
         bare_index.setdefault(bare, []).append(qkey)
-    stale: list[dict[str, Any]] = []
+    stale: list[StaleSignature] = []
     for doc_file in doc_files:
         doc_sigs = _extract_doc_signatures(doc_file, sym_set, root)
         for entry in doc_sigs:
@@ -243,7 +276,7 @@ def find_stale_signatures(
 def analyze_doc_impact(
     root: Path,
     symbols: list[str],
-) -> dict[str, Any]:
+) -> DocImpactResult:
     """Full doc impact analysis for a set of symbols.
 
     Combines doc refs, undocumented detection, and stale

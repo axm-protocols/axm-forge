@@ -23,9 +23,10 @@ from collections import deque
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import NamedTuple, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
+from tree_sitter import Tree
 
 from axm_ast.core._call_helpers import (
     extract_call_site,
@@ -44,6 +45,7 @@ __all__ = [
     "VALID_DETAILS",
     "EntryPoint",
     "FlowStep",
+    "TraceKwargs",
     "build_callee_index",
     "find_callees",
     "find_callees_workspace",
@@ -89,6 +91,20 @@ class FlowStep(BaseModel):
         default=None,
         description="Source code of the symbol (when detail='source')",
     )
+
+
+class TraceKwargs(TypedDict):
+    """Keyword arguments forwarded to :func:`trace_flow`.
+
+    Public mirror of the kwargs accepted by :func:`trace_flow` so call sites
+    (notably :mod:`axm_ast.hooks.flows`) can build typed kwargs dicts without
+    redefining the contract locally.
+    """
+
+    max_depth: int
+    cross_module: bool
+    detail: str
+    exclude_stdlib: bool
 
 
 # ─── Decorator patterns ─────────────────────────────────────────────────────
@@ -340,7 +356,7 @@ def find_callees_workspace(
         List of CallSite objects for each call made by the symbol.
     """
     all_callees: list[CallSite] = []
-    cache: dict[str, tuple[Any, str]] = {}
+    cache: dict[str, tuple[Tree, str]] = {}
 
     for pkg in ws.packages:
         callees = find_callees(pkg, symbol, _parse_cache=cache)
@@ -355,7 +371,7 @@ def find_callees(
     pkg: PackageInfo,
     symbol: str,
     *,
-    _parse_cache: dict[str, tuple[Any, str]] | None = None,
+    _parse_cache: dict[str, tuple[Tree, str]] | None = None,
 ) -> list[CallSite]:
     """Find all functions called by a given symbol (forward call graph).
 
@@ -784,7 +800,7 @@ class _CrossModuleContext:
     visited: set[tuple[str, str]]
     queue: deque[tuple[str, int, list[str], PackageInfo, str]]
     steps: list[FlowStep]
-    parse_cache: dict[str, tuple[Any, str]] = field(default_factory=dict)
+    parse_cache: dict[str, tuple[Tree, str]] = field(default_factory=dict)
     detail: str = "trace"
     exclude_stdlib: bool = True
     pkg_symbols: frozenset[str] = field(default_factory=frozenset)
@@ -1135,7 +1151,7 @@ def _resolve_relative_module(import_module: str, resolved_dotted: str) -> str:
 
 
 def _try_resolve_reexport_node(
-    node: Any,
+    node: object,
     symbol: str,
     resolved_dotted: str,
     original_pkg: PackageInfo,
@@ -1164,7 +1180,7 @@ def _try_resolve_reexport_node(
     return None
 
 
-def _parse_source_safe(path: Path) -> Any | None:
+def _parse_source_safe(path: Path) -> Tree | None:
     """Parse a source file, returning the tree or ``None`` on failure."""
     try:
         raw = path.read_bytes()
