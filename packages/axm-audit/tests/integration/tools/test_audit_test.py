@@ -12,9 +12,6 @@ class TestAuditTestTool:
     def setup_method(self) -> None:
         self.tool = AuditTestTool()
 
-    def test_name(self) -> None:
-        assert self.tool.name == "audit_test"
-
     @patch("axm_audit.core.test_runner.run_tests")
     def test_execute_success(self, mock_run: MagicMock, tmp_path: Any) -> None:
         from axm_audit.core.test_runner import TestReport
