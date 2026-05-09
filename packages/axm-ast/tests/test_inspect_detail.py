@@ -119,20 +119,18 @@ class TestBuildDetail:
         from pathlib import Path
         from unittest.mock import MagicMock
 
-        from axm_ast.models import ModuleInfo, PackageInfo
+        from axm_ast.models import ClassInfo, FunctionInfo, ModuleInfo, PackageInfo
         from axm_ast.tools.inspect_detail import build_module_detail
 
         mod = ModuleInfo(
             path=Path("/fake/src/mypkg/core.py"),
             name="core",
             docstring="core module",
-            functions=[MagicMock(name="fn1", spec=["name"])],
-            classes=[MagicMock(name="Cls1", spec=["name"])],
+            functions=[FunctionInfo(name="fn1", line_start=1, line_end=2)],
+            classes=[ClassInfo(name="Cls1", line_start=4, line_end=10)],
             variables=[],
             imports=[],
         )
-        mod.functions[0].name = "fn1"
-        mod.classes[0].name = "Cls1"
         pkg = MagicMock(spec=PackageInfo)
         pkg.root = Path("/fake/src/mypkg")
 
