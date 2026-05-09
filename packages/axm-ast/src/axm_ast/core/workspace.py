@@ -9,12 +9,39 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from axm_ast.core.cache import get_package
 from axm_ast.models.nodes import PackageInfo, WorkspaceInfo
 
 logger = logging.getLogger(__name__)
+
+
+class PackageSummary(TypedDict, total=False):
+    """Per-package summary entry inside a :class:`WorkspaceContext`.
+
+    ``total=False`` so depth-0 outputs (name only) remain valid.
+    """
+
+    name: str
+    root: str
+    module_count: int
+    function_count: int
+    class_count: int
+
+
+class WorkspaceContext(TypedDict, total=False):
+    """Aggregate workspace context returned by :func:`build_workspace_context`.
+
+    ``total=False`` because the depth-0 view from
+    :func:`format_workspace_context` drops ``package_graph``.
+    """
+
+    workspace: str
+    root: str
+    package_count: int
+    packages: list[PackageSummary]
+    package_graph: dict[str, list[str]]
 
 
 # ─── Workspace Detection ────────────────────────────────────────────────────
@@ -364,7 +391,7 @@ def format_workspace_graph_mermaid(ws: WorkspaceInfo) -> str:
 # ─── Workspace Context ──────────────────────────────────────────────────────
 
 
-def build_workspace_context(path: Path) -> dict[str, Any]:
+def build_workspace_context(path: Path) -> WorkspaceContext:
     """Build complete workspace context in one call.
 
     Lists all packages, their mutual dependencies, per-package stats,
@@ -379,30 +406,30 @@ def build_workspace_context(path: Path) -> dict[str, Any]:
     ws = analyze_workspace(path)
     graph = build_workspace_dep_graph(ws)
 
-    pkg_summaries = []
+    pkg_summaries: list[PackageSummary] = []
     for pkg in ws.packages:
         fn_count = sum(len(m.functions) for m in pkg.modules)
         cls_count = sum(len(m.classes) for m in pkg.modules)
         pkg_summaries.append(
-            {
-                "name": pkg.name,
-                "root": str(pkg.root),
-                "module_count": len(pkg.modules),
-                "function_count": fn_count,
-                "class_count": cls_count,
-            }
+            PackageSummary(
+                name=pkg.name,
+                root=str(pkg.root),
+                module_count=len(pkg.modules),
+                function_count=fn_count,
+                class_count=cls_count,
+            )
         )
 
-    return {
-        "workspace": ws.name,
-        "root": str(ws.root),
-        "package_count": len(ws.packages),
-        "packages": pkg_summaries,
-        "package_graph": graph,
-    }
+    return WorkspaceContext(
+        workspace=ws.name,
+        root=str(ws.root),
+        package_count=len(ws.packages),
+        packages=pkg_summaries,
+        package_graph=graph,
+    )
 
 
-def format_workspace_text(ctx: dict[str, Any]) -> str:
+def format_workspace_text(ctx: WorkspaceContext) -> str:
     """Format workspace context as compact plain text for ToolResult.text.
 
     Args:
@@ -441,7 +468,9 @@ def format_workspace_text(ctx: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def format_workspace_context(ctx: dict[str, Any], *, depth: int = 1) -> dict[str, Any]:
+def format_workspace_context(
+    ctx: WorkspaceContext, *, depth: int = 1
+) -> WorkspaceContext:
     """Apply depth-based filtering to workspace context.
 
     Args:
@@ -455,9 +484,9 @@ def format_workspace_context(ctx: dict[str, Any], *, depth: int = 1) -> dict[str
     if depth >= 1:
         return ctx
 
-    return {
-        "workspace": ctx["workspace"],
-        "root": ctx["root"],
-        "package_count": ctx["package_count"],
-        "packages": [{"name": pkg["name"]} for pkg in ctx["packages"]],
-    }
+    return WorkspaceContext(
+        workspace=ctx["workspace"],
+        root=ctx["root"],
+        package_count=ctx["package_count"],
+        packages=[PackageSummary(name=pkg["name"]) for pkg in ctx["packages"]],
+    )

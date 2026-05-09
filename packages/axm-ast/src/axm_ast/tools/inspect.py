@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -58,7 +58,7 @@ class InspectTool(AXMTool):
         symbol: str | None = None,
         symbols: list[str] | None = None,
         source: bool = False,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Inspect a symbol by name.
 
@@ -98,11 +98,11 @@ class InspectTool(AXMTool):
         """Inspect multiple symbols in batch."""
         if not isinstance(symbols, list):
             return ToolResult(success=False, error="symbols parameter must be a list")
-        results: list[dict[str, Any]] = []
+        results: list[dict[str, object]] = []
         for sym in symbols:
             res = self._inspect_symbol(project_path, sym, source=source)
             if res.success and res.data and "symbol" in res.data:
-                results.append(res.data["symbol"])
+                results.append(cast("dict[str, object]", res.data["symbol"]))
             else:
                 results.append({"name": sym, "error": res.error})
         try:

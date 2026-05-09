@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -12,7 +12,16 @@ from axm_ast.tools._base import safe_execute
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["CallersTool"]
+__all__ = ["CallerEntry", "CallersTool"]
+
+
+class CallerEntry(TypedDict):
+    """Serialized call-site record for ``ast_callers`` output."""
+
+    module: str
+    line: int
+    context: str | None
+    call_expression: str
 
 
 class CallersTool(AXMTool):
@@ -36,7 +45,7 @@ class CallersTool(AXMTool):
 
     @safe_execute
     def execute(
-        self, *, path: str = ".", symbol: str | None = None, **kwargs: Any
+        self, *, path: str = ".", symbol: str | None = None, **kwargs: object
     ) -> ToolResult:
         """Find all callers of a symbol.
 
@@ -68,7 +77,7 @@ class CallersTool(AXMTool):
             pkg = get_package(project_path)
             callers = find_callers(pkg, symbol)
 
-        caller_data = [
+        caller_data: list[CallerEntry] = [
             {
                 "module": c.module,
                 "line": c.line,
@@ -85,7 +94,7 @@ class CallersTool(AXMTool):
         )
 
     @staticmethod
-    def _render_text(callers: list[dict[str, Any]], *, symbol: str) -> str:
+    def _render_text(callers: list[CallerEntry], *, symbol: str) -> str:
         """Render callers as compact text for token-efficient MCP responses."""
         header = f"ast_callers | {symbol} | {len(callers)} callers"
         if not callers:

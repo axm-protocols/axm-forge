@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -12,7 +12,16 @@ from axm_ast.tools._base import safe_execute
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["DeadCodeTool"]
+__all__ = ["DeadCodeTool", "DeadSymbolEntry"]
+
+
+class DeadSymbolEntry(TypedDict):
+    """Serialized dead-symbol record for ``ast_dead_code`` output."""
+
+    name: str
+    module_path: str
+    line: int
+    kind: str
 
 
 _KIND_SHORT = {"function": "func", "method": "meth", "class": "class"}
@@ -35,7 +44,7 @@ class DeadCodeTool(AXMTool):
         *,
         path: str = ".",
         include_tests: bool = False,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Find dead code in a Python package.
 
@@ -56,7 +65,7 @@ class DeadCodeTool(AXMTool):
         pkg = get_package(pkg_path)
         dead = find_dead_code(pkg, include_tests=include_tests)
 
-        symbols = [
+        symbols: list[DeadSymbolEntry] = [
             {
                 "name": d.name,
                 "module_path": d.module_path,
@@ -73,7 +82,7 @@ class DeadCodeTool(AXMTool):
         )
 
     @staticmethod
-    def _render_text(symbols: list[dict[str, Any]], *, pkg_root: str) -> str:
+    def _render_text(symbols: list[DeadSymbolEntry], *, pkg_root: str) -> str:
         """Render dead symbols as compact text for token-efficient MCP responses."""
         header = f"ast_dead_code | {len(symbols)} dead symbols"
         if not symbols:

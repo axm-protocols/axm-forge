@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_ast.core.docs import DocsResult
 from axm_ast.tools._base import safe_execute
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ class DocsTool(AXMTool):
         path: str = ".",
         detail: str = "full",
         pages: list[str] | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Dump project documentation.
 
@@ -52,5 +53,8 @@ class DocsTool(AXMTool):
 
         from axm_ast.core.docs import discover_docs, format_docs_json
 
-        result = discover_docs(project_path, detail=detail, pages=pages)
-        return ToolResult(success=True, data=format_docs_json(result))
+        result: DocsResult = discover_docs(project_path, detail=detail, pages=pages)
+        return ToolResult(
+            success=True,
+            data=cast("dict[str, object]", format_docs_json(result)),
+        )

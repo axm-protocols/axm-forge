@@ -9,19 +9,44 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Protocol, cast
 
 from axm.hooks.base import HookResult
+
+if TYPE_CHECKING:
+    from axm_ast.core.flows import FlowStep
+    from axm_ast.models.calls import CallSite
+    from axm_ast.models.nodes import PackageInfo
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["TraceSourceHook", "_parse_entry", "_resolve_scope"]
 
-# Lazy imports — avoid importing heavy tree-sitter at module level
-analyze_package: Any = None
-trace_flow: Any = None
+
+class _TraceFlow(Protocol):
+    """Protocol mirroring ``axm_ast.core.flows.trace_flow``."""
+
+    def __call__(  # noqa: PLR0913 — mirrors upstream trace_flow signature
+        self,
+        pkg: PackageInfo,
+        entry: str,
+        *,
+        max_depth: int = ...,
+        cross_module: bool = ...,
+        detail: str = ...,
+        callee_index: dict[tuple[str, str], list[CallSite]] | None = ...,
+        exclude_stdlib: bool = ...,
+    ) -> tuple[list[FlowStep], bool]: ...
+
+
+# Lazy imports — avoid importing heavy tree-sitter at module level.
+# Typed as Callable / Protocol so static analysis tracks signatures;
+# ``None`` sentinel triggers the one-time load in ``execute``.
+analyze_package: Callable[[Path], PackageInfo] | None = None
+trace_flow: _TraceFlow | None = None
 
 # SWE-bench format: "test_name (module.path.ClassName)"
 _SWE_RE = re.compile(r"^([\w.]+)\s*\(([^)]+)\)")
@@ -109,7 +134,7 @@ class TraceSourceHook:
     for faster analysis on large repos.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -120,12 +145,18 @@ class TraceSourceHook:
         Returns:
             HookResult with ``trace`` list in metadata on success.
         """
-        entry = params.get("entry")
-        if not entry:
+        raw_entry = params.get("entry")
+        if not raw_entry:
             return HookResult.fail("Missing required param 'entry'")
+        if not isinstance(raw_entry, str):
+            return HookResult.fail(f"entry must be str, got {type(raw_entry).__name__}")
 
-        path = params.get("path") or context.get("working_dir", ".")
-        working_dir = Path(path)
+        raw_path = params.get("path") or context.get("working_dir", ".")
+        if not isinstance(raw_path, (str, Path)):
+            return HookResult.fail(
+                f"path must be str or Path, got {type(raw_path).__name__}"
+            )
+        working_dir = Path(raw_path)
         if not working_dir.is_dir():
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
@@ -141,12 +172,18 @@ class TraceSourceHook:
                 analyze_package = _ap
                 trace_flow = _tf
 
+            assert analyze_package is not None
+            assert trace_flow is not None
+
             # Parse entry format and scope analysis path
-            symbol_name, test_dir = _parse_entry(entry)
+            symbol_name, test_dir = _parse_entry(raw_entry)
             scoped_path = _resolve_scope(working_dir, test_dir)
 
             pkg = analyze_package(scoped_path)
-            max_depth = int(params.get("max_depth", 5))
+            raw_max_depth = params.get("max_depth", 5)
+            max_depth = (
+                int(raw_max_depth) if isinstance(raw_max_depth, (int, str)) else 5
+            )
             cross_module = bool(params.get("cross_module", False))
 
             steps, _truncated = trace_flow(
@@ -157,7 +194,10 @@ class TraceSourceHook:
                 detail="source",
             )
             return HookResult.ok(
-                trace=[s.model_dump(exclude_none=True) for s in steps],
+                trace=[
+                    cast("dict[str, object]", s.model_dump(exclude_none=True))
+                    for s in steps
+                ],
             )
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Trace failed: {exc}")

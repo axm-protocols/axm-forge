@@ -16,13 +16,66 @@ import logging
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from axm_ast.core.analyzer import analyze_package
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["structural_diff"]
+__all__ = [
+    "DiffError",
+    "DiffSummary",
+    "ModifiedSymbol",
+    "StructuralDiffResult",
+    "SymbolEntry",
+    "structural_diff",
+]
+
+
+class SymbolEntry(TypedDict):
+    """Single symbol record extracted from a package at a given ref."""
+
+    name: str
+    kind: str
+    file: str
+    signature: str | None
+
+
+class ModifiedSymbol(TypedDict):
+    """Symbol whose signature differs between base and head."""
+
+    name: str
+    kind: str
+    file: str
+    old_signature: str | None
+    new_signature: str | None
+
+
+class DiffSummary(TypedDict):
+    """Aggregate counts for a structural diff."""
+
+    added: int
+    removed: int
+    modified: int
+
+
+class StructuralDiffResult(TypedDict, total=False):
+    """Output of :func:`structural_diff`.
+
+    ``total=False`` so the error variant (``{"error": str}``) also matches.
+    """
+
+    added: list[SymbolEntry]
+    removed: list[SymbolEntry]
+    modified: list[ModifiedSymbol]
+    summary: DiffSummary
+    error: str
+
+
+class DiffError(TypedDict):
+    """Error payload returned when validation or extraction fails."""
+
+    error: str
 
 
 def _find_project_root(pkg_path: Path) -> Path:
@@ -72,7 +125,7 @@ def _validate_ref(project_root: Path, ref: str) -> bool:
 
 def _extract_symbols(
     pkg_path: Path,
-) -> dict[tuple[str, str], dict[str, Any]]:
+) -> dict[tuple[str, str], SymbolEntry]:
     """Extract all symbols from a package as a keyed dict.
 
     Args:
@@ -83,7 +136,7 @@ def _extract_symbols(
     """
     pkg_path = pkg_path.resolve()
     pkg = analyze_package(pkg_path)
-    symbols: dict[tuple[str, str], dict[str, Any]] = {}
+    symbols: dict[tuple[str, str], SymbolEntry] = {}
 
     for mod in pkg.modules:
         # Build relative module name
@@ -95,12 +148,12 @@ def _extract_symbols(
 
         for fn in mod.functions:
             key = (mod_name, fn.name)
-            symbols[key] = {
-                "name": fn.name,
-                "kind": str(fn.kind.value),
-                "file": mod_name,
-                "signature": fn.signature,
-            }
+            symbols[key] = SymbolEntry(
+                name=fn.name,
+                kind=str(fn.kind.value),
+                file=mod_name,
+                signature=fn.signature,
+            )
 
         for cls in mod.classes:
             key = (mod_name, cls.name)
@@ -108,12 +161,12 @@ def _extract_symbols(
             methods_str = ", ".join(m.name for m in cls.methods)
             bases_str = ", ".join(cls.bases) if cls.bases else ""
             cls_sig = f"class {cls.name}({bases_str}): [{methods_str}]"
-            symbols[key] = {
-                "name": cls.name,
-                "kind": "class",
-                "file": mod_name,
-                "signature": cls_sig,
-            }
+            symbols[key] = SymbolEntry(
+                name=cls.name,
+                kind="class",
+                file=mod_name,
+                signature=cls_sig,
+            )
 
     return symbols
 
@@ -122,7 +175,7 @@ def _extract_symbols_at_ref(
     project_root: Path,
     pkg_rel: Path,
     ref: str,
-) -> dict[tuple[str, str], dict[str, Any]] | str:
+) -> dict[tuple[str, str], SymbolEntry] | str:
     """Extract symbols from a package at a specific git ref via worktree.
 
     Args:
@@ -162,9 +215,9 @@ def _extract_symbols_at_ref(
 
 
 def _compute_diff(
-    base_symbols: dict[tuple[str, str], dict[str, Any]],
-    head_symbols: dict[tuple[str, str], dict[str, Any]],
-) -> dict[str, Any]:
+    base_symbols: dict[tuple[str, str], SymbolEntry],
+    head_symbols: dict[tuple[str, str], SymbolEntry],
+) -> StructuralDiffResult:
     """Compute the structural diff between two symbol sets.
 
     Args:
@@ -190,58 +243,58 @@ def _compute_diff(
         key=lambda s: (s["file"], s["name"]),
     )
 
-    modified: list[dict[str, Any]] = []
+    modified: list[ModifiedSymbol] = []
     for key in sorted(common_keys):
         base_sig = base_symbols[key]["signature"]
         head_sig = head_symbols[key]["signature"]
         if base_sig != head_sig:
             modified.append(
-                {
-                    "name": head_symbols[key]["name"],
-                    "kind": head_symbols[key]["kind"],
-                    "file": head_symbols[key]["file"],
-                    "old_signature": base_sig,
-                    "new_signature": head_sig,
-                }
+                ModifiedSymbol(
+                    name=head_symbols[key]["name"],
+                    kind=head_symbols[key]["kind"],
+                    file=head_symbols[key]["file"],
+                    old_signature=base_sig,
+                    new_signature=head_sig,
+                )
             )
 
-    return {
-        "added": added,
-        "removed": removed,
-        "modified": modified,
-        "summary": {
-            "added": len(added),
-            "removed": len(removed),
-            "modified": len(modified),
-        },
-    }
+    return StructuralDiffResult(
+        added=added,
+        removed=removed,
+        modified=modified,
+        summary=DiffSummary(
+            added=len(added),
+            removed=len(removed),
+            modified=len(modified),
+        ),
+    )
 
 
 def _validate_diff_inputs(
     pkg_path: Path,
     base: str,
     head: str,
-) -> dict[str, str] | tuple[Path, Path]:
+) -> DiffError | tuple[Path, Path]:
     """Validate inputs for structural diff.
 
     Returns:
         On success: (project_root, pkg_rel) tuple.
-        On error: dict with ``error`` key.
+        On error: :class:`DiffError` dict with ``error`` key.
     """
     try:
         project_root = _find_project_root(pkg_path)
     except RuntimeError as exc:
-        return {"error": str(exc)}
+        return DiffError(error=str(exc))
 
     if not _validate_ref(project_root, base):
-        return {"error": f"Invalid git ref: {base}"}
+        return DiffError(error=f"Invalid git ref: {base}")
     if not _validate_ref(project_root, head):
-        return {"error": f"Invalid git ref: {head}"}
+        return DiffError(error=f"Invalid git ref: {head}")
 
     try:
         pkg_rel = pkg_path.relative_to(project_root)
     except ValueError:
-        return {"error": "Package path is not inside the git repository"}
+        return DiffError(error="Package path is not inside the git repository")
 
     return project_root, pkg_rel
 
@@ -250,7 +303,7 @@ def structural_diff(
     pkg_path: Path,
     base: str,
     head: str,
-) -> dict[str, Any]:
+) -> StructuralDiffResult:
     """Compare two git refs at symbol level.
 
     Uses git worktrees to checkout the *base* ref, runs
@@ -276,15 +329,15 @@ def structural_diff(
 
     validated = _validate_diff_inputs(pkg_path, base, head)
     if isinstance(validated, dict):
-        return validated
+        return StructuralDiffResult(error=validated["error"])
     project_root, pkg_rel = validated
 
     head_symbols = _extract_symbols_at_ref(project_root, pkg_rel, head)
     if isinstance(head_symbols, str):
-        return {"error": head_symbols}
+        return StructuralDiffResult(error=head_symbols)
 
     base_symbols = _extract_symbols_at_ref(project_root, pkg_rel, base)
     if isinstance(base_symbols, str):
-        return {"error": base_symbols}
+        return StructuralDiffResult(error=base_symbols)
 
     return _compute_diff(base_symbols, head_symbols)
