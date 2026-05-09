@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from axm_git.core import runner
 from axm_git.core.runner import (
     detect_package_name,
     find_git_root,
@@ -15,6 +16,11 @@ from axm_git.core.runner import (
     run_git,
     suggest_git_repos,
 )
+
+
+def test_all_has_no_duplicates() -> None:
+    """AC1: ``runner.__all__`` exposes each symbol exactly once."""
+    assert len(runner.__all__) == len(set(runner.__all__))
 
 
 class TestRunGit:
