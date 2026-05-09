@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 from pathlib import Path
 from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_git.core.identity import author_args, resolve_identity
-from axm_git.core.runner import not_a_repo_error, run_git
+from axm_git.core.runner import not_a_repo_error, run_git, timeout_error_result
 
 __all__ = ["GitCommitTool"]
 
@@ -216,23 +217,26 @@ class GitCommitTool(AXMTool):
         if not commit_list:
             return ToolResult(success=False, error="No commits provided")
 
-        # Fail fast with suggestions if not a git repo
-        check = run_git(["rev-parse", "--git-dir"], resolved)
-        if check.returncode != 0:
-            return not_a_repo_error(check.stderr, resolved)
+        try:
+            # Fail fast with suggestions if not a git repo
+            check = run_git(["rev-parse", "--git-dir"], resolved)
+            if check.returncode != 0:
+                return not_a_repo_error(check.stderr, resolved)
 
-        # Resolve identity once for the entire batch
-        identity = resolve_identity(resolved, profile_override=profile)
-        identity_args = author_args(identity)
+            # Resolve identity once for the entire batch
+            identity = resolve_identity(resolved, profile_override=profile)
+            identity_args = author_args(identity)
 
-        results: list[dict[str, Any]] = []
+            results: list[dict[str, Any]] = []
 
-        for i, spec in enumerate(commit_list):
-            failure = _process_single_commit(
-                spec, i + 1, identity_args, resolved, results
-            )
-            if failure:
-                return failure
+            for i, spec in enumerate(commit_list):
+                failure = _process_single_commit(
+                    spec, i + 1, identity_args, resolved, results
+                )
+                if failure:
+                    return failure
+        except subprocess.TimeoutExpired as exc:
+            return timeout_error_result(exc)
 
         return ToolResult(
             success=True,

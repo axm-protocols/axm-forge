@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from axm_git.tools import tag as tag_mod
 from axm_git.tools.tag import GitTagTool, _get_tag_prefix
 
 
@@ -22,6 +23,38 @@ def _mock_completed(
         stdout=stdout,
         stderr=stderr,
     )
+
+
+class TestVerifyHatchVcsTimeouts:
+    """AC4 — _verify_hatch_vcs: 600s timeout for uv sync, None on TimeoutExpired."""
+
+    @patch("axm_git.tools.tag.subprocess.run")
+    def test_uv_sync_uses_600s_timeout(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="1.2.3", stderr=""
+        )
+        tag_mod._verify_hatch_vcs(tmp_path, "1.2.3")
+        uv_sync_calls = [
+            c
+            for c in mock_run.call_args_list
+            if c.args
+            and len(c.args[0]) >= 2
+            and c.args[0][0] == "uv"
+            and c.args[0][1] == "sync"
+        ]
+        assert uv_sync_calls, "uv sync was not invoked"
+        assert uv_sync_calls[0].kwargs.get("timeout") == 600
+
+    @patch(
+        "axm_git.tools.tag.subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd=["uv", "sync"], timeout=600),
+    )
+    def test_returns_none_on_uv_sync_timeout(
+        self, _mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        assert tag_mod._verify_hatch_vcs(tmp_path, "1.2.3") is None
 
 
 class TestGitTagTool:

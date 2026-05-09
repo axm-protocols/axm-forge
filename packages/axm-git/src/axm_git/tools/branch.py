@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_git.core.runner import not_a_repo_error, run_git
+from axm_git.core.runner import not_a_repo_error, run_git, timeout_error_result
 
 __all__ = ["GitBranchTool"]
 
@@ -45,29 +46,32 @@ class GitBranchTool(AXMTool):
         """
         resolved = Path(path).resolve()
 
-        # Verify this is a git repo.
-        check = run_git(["rev-parse", "--git-dir"], resolved)
-        if check.returncode != 0:
-            return not_a_repo_error(check.stderr, resolved)
+        try:
+            # Verify this is a git repo.
+            check = run_git(["rev-parse", "--git-dir"], resolved)
+            if check.returncode != 0:
+                return not_a_repo_error(check.stderr, resolved)
 
-        # Build the checkout command.
-        if checkout_only:
-            cmd = ["checkout", name]
-        else:
-            cmd = ["checkout", "-b", name]
-            if from_ref is not None:
-                cmd.append(from_ref)
+            # Build the checkout command.
+            if checkout_only:
+                cmd = ["checkout", name]
+            else:
+                cmd = ["checkout", "-b", name]
+                if from_ref is not None:
+                    cmd.append(from_ref)
 
-        result = run_git(cmd, resolved)
-        if result.returncode != 0:
-            return ToolResult(
-                success=False,
-                error=result.stderr.strip() or result.stdout.strip(),
-            )
+            result = run_git(cmd, resolved)
+            if result.returncode != 0:
+                return ToolResult(
+                    success=False,
+                    error=result.stderr.strip() or result.stdout.strip(),
+                )
 
-        # Confirm the current branch.
-        current = run_git(["branch", "--show-current"], resolved)
-        branch = current.stdout.strip()
+            # Confirm the current branch.
+            current = run_git(["branch", "--show-current"], resolved)
+            branch = current.stdout.strip()
+        except subprocess.TimeoutExpired as exc:
+            return timeout_error_result(exc)
 
         return ToolResult(
             success=True,

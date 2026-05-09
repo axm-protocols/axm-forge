@@ -101,7 +101,7 @@ Each tool exposes an `execute(*, path, ..., **kwargs) → ToolResult` method wit
 
 Shared logic used by multiple tools:
 
-- **`runner.py`** — `find_git_root()` locates the repository root via `rev-parse --show-toplevel`, `run_git()` and `run_gh()` subprocess wrappers, `gh_available()` auth check, `detect_package_name()` from `pyproject.toml`. Also provides `suggest_git_repos()` (scans for child directories that are git repos) and `not_a_repo_error()` (enriches "not a git repository" errors with suggestions for nearby repos).
+- **`runner.py`** — `find_git_root()` locates the repository root via `rev-parse --show-toplevel`, `run_git()` and `run_gh()` subprocess wrappers, `gh_available()` auth check, `detect_package_name()` from `pyproject.toml`. Also provides `suggest_git_repos()` (scans for child directories that are git repos) and `not_a_repo_error()` (enriches "not a git repository" errors with suggestions for nearby repos). All subprocess call-sites pass an explicit `timeout=` kwarg (defaults: `DEFAULT_GIT_TIMEOUT=30s`, `DEFAULT_GH_TIMEOUT=120s`, `uv sync`=600s); `run_git`/`run_gh` log a warning and re-raise `subprocess.TimeoutExpired`, which tool entry points catch and convert to `ToolResult` via `timeout_error_result()`. This is an interim shim pending `axm-common.run_safe`.
 - **`semver.py`** — `parse_tag()` for version parsing, `compute_bump()` for Conventional Commits analysis (returns `VersionBump` with next version + reason).
 - **`phase_commit.py`** — `get_phase_commit()` looks up the commit hash for a given protocol phase name by searching git log.
 

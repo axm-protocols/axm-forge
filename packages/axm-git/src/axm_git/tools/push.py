@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_git.core.runner import not_a_repo_error, run_git
+from axm_git.core.runner import not_a_repo_error, run_git, timeout_error_result
 
 __all__ = ["GitPushTool"]
 
@@ -85,46 +86,49 @@ class GitPushTool(AXMTool):
         """
         resolved = Path(path).resolve()
 
-        # 1. Verify this is a git repo.
-        check = run_git(["rev-parse", "--git-dir"], resolved)
-        if check.returncode != 0:
-            return not_a_repo_error(check.stderr, resolved)
+        try:
+            # 1. Verify this is a git repo.
+            check = run_git(["rev-parse", "--git-dir"], resolved)
+            if check.returncode != 0:
+                return not_a_repo_error(check.stderr, resolved)
 
-        # 2. Dirty check.
-        dirty_err = _check_dirty(resolved)
-        if dirty_err is not None:
-            return dirty_err
+            # 2. Dirty check.
+            dirty_err = _check_dirty(resolved)
+            if dirty_err is not None:
+                return dirty_err
 
-        # 3. Get current branch.
-        branch_result = run_git(["branch", "--show-current"], resolved)
-        branch = branch_result.stdout.strip()
-        if not branch:
-            return ToolResult(
-                success=False,
-                error="No branch checked out (detached HEAD).",
+            # 3. Get current branch.
+            branch_result = run_git(["branch", "--show-current"], resolved)
+            branch = branch_result.stdout.strip()
+            if not branch:
+                return ToolResult(
+                    success=False,
+                    error="No branch checked out (detached HEAD).",
+                )
+
+            # 4. Detect upstream.
+            upstream = run_git(
+                ["rev-parse", "--abbrev-ref", "@{u}"],
+                resolved,
             )
+            has_upstream = upstream.returncode == 0
 
-        # 4. Detect upstream.
-        upstream = run_git(
-            ["rev-parse", "--abbrev-ref", "@{u}"],
-            resolved,
-        )
-        has_upstream = upstream.returncode == 0
-
-        # 5. Push.
-        cmd = _build_push_cmd(
-            force=force,
-            has_upstream=has_upstream,
-            set_upstream=set_upstream,
-            remote=remote,
-            branch=branch,
-        )
-        push_result = run_git(cmd, resolved)
-        if push_result.returncode != 0:
-            return ToolResult(
-                success=False,
-                error=(push_result.stderr.strip() or push_result.stdout.strip()),
+            # 5. Push.
+            cmd = _build_push_cmd(
+                force=force,
+                has_upstream=has_upstream,
+                set_upstream=set_upstream,
+                remote=remote,
+                branch=branch,
             )
+            push_result = run_git(cmd, resolved)
+            if push_result.returncode != 0:
+                return ToolResult(
+                    success=False,
+                    error=(push_result.stderr.strip() or push_result.stdout.strip()),
+                )
+        except subprocess.TimeoutExpired as exc:
+            return timeout_error_result(exc)
 
         return ToolResult(
             success=True,

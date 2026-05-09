@@ -221,9 +221,13 @@ def _format_spec_files(
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=120,
             )
         except FileNotFoundError:
             logger.debug("ruff not found, skipping pre-commit format")
+            return
+        except subprocess.TimeoutExpired:
+            logger.warning("%s timed out after 120s", cmd[0])
             return
 
 
