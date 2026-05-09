@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 from axm_ast.core.docs import (
+    DocsResult,
     build_docs_tree,
     discover_docs,
     format_docs,
@@ -211,7 +211,7 @@ class TestFormatDocs:
         """JSON format has correct keys and types."""
         _make_project(tmp_path, docs={"index.md": "# Home\n"})
         result = discover_docs(tmp_path)
-        j: dict[str, Any] = format_docs_json(result)
+        j: DocsResult = format_docs_json(result)
         assert "readme" in j
         assert "mkdocs" in j
         assert "pages" in j

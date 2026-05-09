@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
+from axm_ast.core.impact import ImpactResult
 from axm_ast.hooks.trace_source import TraceSourceHook, _parse_entry, _resolve_scope
 
 # ── _parse_entry tests ──────────────────────────────────────────────
@@ -194,7 +195,7 @@ class TestMergeImpactReports:
             "git_coupled": [],
             "score": "MEDIUM",
         }
-        result = _merge_impact_reports("Foo", [report])
+        result = _merge_impact_reports("Foo", cast("list[ImpactResult]", [report]))
         assert result["callers"] == [{"name": "bar"}]
         assert result["score"] == "MEDIUM"
         assert result["affected_modules"] == ["mod_a"]
@@ -223,7 +224,7 @@ class TestMergeImpactReports:
             "git_coupled": [],
             "score": "HIGH",
         }
-        result = _merge_impact_reports("A\nB", [r1, r2])
+        result = _merge_impact_reports("A\nB", cast("list[ImpactResult]", [r1, r2]))
         assert result["score"] == "HIGH"
         assert len(result["callers"]) == 2
         assert len(result["definitions"]) == 2
@@ -252,7 +253,7 @@ class TestMergeImpactReports:
             "git_coupled": [],
             "score": "LOW",
         }
-        result = _merge_impact_reports("A\nB", [r1, r2])
+        result = _merge_impact_reports("A\nB", cast("list[ImpactResult]", [r1, r2]))
         assert result["affected_modules"] == ["mod_a", "mod_b", "mod_c"]
         assert result["test_files"] == ["test_x.py", "test_y.py"]
 

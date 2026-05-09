@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from axm_ast.models.nodes import SymbolKind
 from axm_ast.tools.search import SearchTool
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ class TestFormatTextHeader:
             search_filters={
                 "name": "x",
                 "returns": None,
-                "kind": "class",
+                "kind": SymbolKind.CLASS,
                 "inherits": None,
             },
             count=3,
