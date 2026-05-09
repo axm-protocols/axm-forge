@@ -22,70 +22,54 @@ def _make_pkg(tmp_path: Path, pkg_name: str = "pkg") -> Path:
 class TestClassifyModuleRole:
     """Verify orchestrator vs leaf classification based on sibling diversity."""
 
-    def test_classify_orchestrator_3_siblings(self, tmp_path: Path) -> None:
-        """3 distinct sibling imports → orchestrator."""
+    @pytest.mark.parametrize(
+        ("module", "imports", "expected"),
+        [
+            pytest.param(
+                "pkg.core.rules.quality",
+                ["pkg.core.rules.a", "pkg.core.rules.b", "pkg.core.rules.c"],
+                "orchestrator",
+                id="orchestrator_3_siblings",
+            ),
+            pytest.param(
+                "pkg.core.rules.quality",
+                ["pkg.core.rules.a", "pkg.core.rules.b"],
+                "leaf",
+                id="leaf_2_siblings",
+            ),
+            pytest.param(
+                "pkg.core.rules.quality",
+                ["os", "pathlib", "typing", "pkg.core.rules.a"],
+                "leaf",
+                id="ignores_external_imports",
+            ),
+            pytest.param(
+                "pkg.module_x",
+                ["pkg.module_a", "pkg.module_b", "pkg.module_c"],
+                "leaf",
+                id="flat_package_all_leaf",
+            ),
+            pytest.param(
+                "pkg.a.b.c.f",
+                ["pkg.a.b.c.d", "pkg.a.b.c.e"],
+                "leaf",
+                id="one_deep_subpackage_2_siblings",
+            ),
+        ],
+    )
+    def test_classify_module_role(
+        self,
+        tmp_path: Path,
+        module: str,
+        imports: list[str],
+        expected: str,
+    ) -> None:
+        """classify_module_role: orchestrator iff >=3 distinct sibling imports."""
         from axm_audit.core.rules.architecture.coupling import classify_module_role
 
         src_path = _make_pkg(tmp_path, "pkg")
-        imports = [
-            "pkg.core.rules.a",
-            "pkg.core.rules.b",
-            "pkg.core.rules.c",
-        ]
-        result = classify_module_role("pkg.core.rules.quality", imports, src_path)
-        assert result == "orchestrator"
-
-    def test_classify_leaf_2_siblings(self, tmp_path: Path) -> None:
-        """Only 2 sibling imports → leaf."""
-        from axm_audit.core.rules.architecture.coupling import classify_module_role
-
-        src_path = _make_pkg(tmp_path, "pkg")
-        imports = [
-            "pkg.core.rules.a",
-            "pkg.core.rules.b",
-        ]
-        result = classify_module_role("pkg.core.rules.quality", imports, src_path)
-        assert result == "leaf"
-
-    def test_classify_ignores_external_imports(self, tmp_path: Path) -> None:
-        """External imports (stdlib/third-party) are excluded from sibling count."""
-        from axm_audit.core.rules.architecture.coupling import classify_module_role
-
-        src_path = _make_pkg(tmp_path, "pkg")
-        imports = [
-            "os",
-            "pathlib",
-            "typing",
-            "pkg.core.rules.a",
-        ]
-        result = classify_module_role("pkg.core.rules.quality", imports, src_path)
-        assert result == "leaf"
-
-    def test_flat_package_all_leaf(self, tmp_path: Path) -> None:
-        """Flat package (no subpackages) — all modules classified as leaf."""
-        from axm_audit.core.rules.architecture.coupling import classify_module_role
-
-        src_path = _make_pkg(tmp_path, "pkg")
-        # Top-level modules, no dotted subpackage structure
-        imports = [
-            "pkg.module_a",
-            "pkg.module_b",
-            "pkg.module_c",
-        ]
-        result = classify_module_role("pkg.module_x", imports, src_path)
-        assert result == "leaf"
-
-    def test_one_deep_subpackage_2_siblings(self, tmp_path: Path) -> None:
-        """Two siblings under one deep subpackage → 2 < 3 → leaf."""
-        from axm_audit.core.rules.architecture.coupling import classify_module_role
-
-        src_path = _make_pkg(tmp_path, "pkg")
-        imports = [
-            "pkg.a.b.c.d",
-            "pkg.a.b.c.e",
-        ]
-        result = classify_module_role("pkg.a.b.c.f", imports, src_path)
-        assert result == "leaf"
+        result = classify_module_role(module, imports, src_path)
+        assert result == expected
 
 
 # ---------------------------------------------------------------------------
