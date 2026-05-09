@@ -271,6 +271,21 @@ class ImpactTool(AXMTool):
         )
 
 
+def _caller_fields(c: Mapping[str, object]) -> tuple[str, int | None, str | None]:
+    mod_raw = c.get("module", "?")
+    mod = mod_raw if isinstance(mod_raw, str) else "?"
+    line_raw = c.get("line")
+    line = line_raw if isinstance(line_raw, int) else None
+    name_raw = c.get("name")
+    name = name_raw if isinstance(name_raw, str) else None
+    return mod, line, name
+
+
+def _format_prod_ref(mod: str, line: int | None, name: str | None) -> str:
+    loc = f"{mod}:{line}" if line else mod
+    return f"{name} ({loc})" if name else loc
+
+
 def _classify_callers(
     callers: list[Mapping[str, object]],
     symbol_module: str | None,
@@ -285,24 +300,16 @@ def _classify_callers(
     prod: list[str] = []
     direct: dict[str, list[int]] = {}
     indirect: dict[str, list[int]] = {}
-    # Extract last component of symbol module for direct-test heuristic
     mod_suffix = symbol_module.rsplit(".", 1)[-1] if symbol_module else None
 
     for c in callers:
-        mod_raw = c.get("module", "?")
-        mod = mod_raw if isinstance(mod_raw, str) else "?"
-        line_raw = c.get("line")
-        line = line_raw if isinstance(line_raw, int) else None
-        # Extract file-level name (last dotted component)
+        mod, line, name = _caller_fields(c)
         file_name = mod.rsplit(".", 1)[-1]
-        if "test" in file_name:
-            bucket = direct if mod_suffix and mod_suffix in file_name else indirect
-            bucket.setdefault(file_name, []).append(line or 0)
-        else:
-            name_raw = c.get("name")
-            name = name_raw if isinstance(name_raw, str) else None
-            loc = f"{mod}:{line}" if line else mod
-            prod.append(f"{name} ({loc})" if name else loc)
+        if "test" not in file_name:
+            prod.append(_format_prod_ref(mod, line, name))
+            continue
+        bucket = direct if mod_suffix and mod_suffix in file_name else indirect
+        bucket.setdefault(file_name, []).append(line or 0)
     return prod, direct, indirect
 
 
