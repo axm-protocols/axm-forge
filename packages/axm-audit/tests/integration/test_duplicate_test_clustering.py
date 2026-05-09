@@ -64,67 +64,186 @@ def test_s2_cross_file_same_name_high_similarity(project: Path) -> None:
     assert s2[0]["similarity"] >= 0.95
 
 
-def test_s3_intra_file_similarity(project: Path) -> None:
-    # Same public SUT set on both sides so P7 (distinct-SUT rescue)
-    # does not fire.  A kwarg-only divergence on the asserted call
-    # breaks the S1 ``call_sig`` match (kwargs are part of the sig)
-    # while keeping ``stmt_set`` Jaccard ≥ threshold, leaving S3 as
-    # the only signal that can cluster the pair.
-    _write(
-        project / "tests" / "test_mod.py",
-        """
-        def test_alpha():
-            x = foo(1)
-            y = bar(x)
-            z = baz(y, mode="strict")
-            assert z == 5
+@pytest.mark.parametrize(
+    ("files", "expected_signal_in"),
+    [
+        pytest.param(
+            [
+                (
+                    "test_mod.py",
+                    """
+                def test_alpha():
+                    x = foo(1)
+                    y = bar(x)
+                    z = baz(y, mode="strict")
+                    assert z == 5
 
-        def test_gamma():
-            x = foo(1)
-            y = bar(x)
-            z = baz(y, mode="loose")
-            assert z == 5
-        """,
-    )
+                def test_gamma():
+                    x = foo(1)
+                    y = bar(x)
+                    z = baz(y, mode="loose")
+                    assert z == 5
+                """,
+                )
+            ],
+            "signal3_intra_file_similarity",
+            id="s3_intra_file_similarity",
+        ),
+        pytest.param(
+            [
+                (
+                    "test_mod.py",
+                    """
+                from unittest.mock import patch
+
+                def test_parse_one():
+                    with patch("mod.dep"):
+                        result = parse(1)
+                        assert result == 1
+
+                def test_parse_two():
+                    result = parse(1)
+                    assert result == 1
+                """,
+                )
+            ],
+            "ambiguous_patch_context",
+            id="p2_patch_context",
+        ),
+        pytest.param(
+            [
+                (
+                    "test_mod.py",
+                    """
+                def test_parse_one(mocker):
+                    mocker.patch("mod.dep")
+                    result = parse(1)
+                    assert result == 1
+
+                def test_parse_two():
+                    result = parse(1)
+                    assert result == 1
+                """,
+                )
+            ],
+            "ambiguous_patch_context",
+            id="p2_mocker_patch_asymmetry",
+        ),
+        pytest.param(
+            [
+                (
+                    "test_json_parser.py",
+                    """
+                    def test_parse():
+                        result = run(1)
+                        assert result == 1
+                    """,
+                ),
+                (
+                    "test_yaml_parser.py",
+                    """
+                    def test_parse():
+                        result = run(1)
+                        assert result == 1
+                    """,
+                ),
+            ],
+            "ambiguous_template_pair",
+            id="p3_cross_file_template_pair",
+        ),
+        pytest.param(
+            [
+                (
+                    "test_mod.py",
+                    """
+                def test_alpha():
+                    x = foo(1)
+                    y = bar(x)
+                    z = baz(y)
+                    w = qux(z)
+                    assert w == 5
+
+                def test_beta():
+                    x = foo(2)
+                    y = bar(x)
+                    z = baz(y)
+                    assert z == 5
+                """,
+                )
+            ],
+            "ambiguous_body_size",
+            id="p4_intra_file_body_size_delta",
+        ),
+        pytest.param(
+            [
+                (
+                    "test_mod.py",
+                    """
+                def test_applies_shading():
+                    cell = make_cell()
+                    shade_cell(cell, "RED")
+                    assert cell.color == "RED"
+
+                def test_replaces_existing_shading():
+                    cell = make_cell()
+                    shade_cell(cell, "RED")
+                    shade_cell(cell, "BLUE")
+                    assert cell.color == "BLUE"
+                """,
+                )
+            ],
+            "ambiguous_call_multiplicity",
+            id="p6_call_multiplicity_rescues_s1",
+        ),
+    ],
+)
+def test_signal_present(
+    project: Path, files: list[tuple[str, str]], expected_signal_in: str
+) -> None:
+    """Each (body, expected) pair pins one positive signal path."""
+    for filename, body in files:
+        _write(project / "tests" / filename, body)
     result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
     signals = _cluster_signals(result)
-    assert "signal3_intra_file_similarity" in signals
+    assert expected_signal_in in signals
 
 
-def test_p1_distinct_literals_rescues_s1(project: Path) -> None:
-    _write(
-        project / "tests" / "test_mod.py",
-        """
-        def test_parse_one():
-            result = parse("foo")
-            assert result == "alpha"
+@pytest.mark.parametrize(
+    ("body", "expected_signals"),
+    [
+        pytest.param(
+            """
+            def test_parse_one():
+                result = parse("foo")
+                assert result == "alpha"
 
-        def test_parse_two():
-            result = parse("bar")
-            assert result == "beta"
-        """,
-    )
+            def test_parse_two():
+                result = parse("bar")
+                assert result == "beta"
+            """,
+            ["ambiguous_distinct_literals"],
+            id="p1_distinct_literals_rescues_s1",
+        ),
+        pytest.param(
+            """
+            def test_parse_one():
+                result = parse("foo")
+                assert result == 1
+
+            def test_parse_two():
+                result = parse("bar")
+                assert result == 1
+            """,
+            ["signal1_call_assert"],
+            id="p1_single_literal_diff_does_not_rescue",
+        ),
+    ],
+)
+def test_exact_signals(project: Path, body: str, expected_signals: list[str]) -> None:
+    _write(project / "tests" / "test_mod.py", body)
     result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
     signals = _cluster_signals(result)
-    assert signals == ["ambiguous_distinct_literals"]
-
-
-def test_p1_single_literal_diff_does_not_rescue(project: Path) -> None:
-    _write(
-        project / "tests" / "test_mod.py",
-        """
-        def test_parse_one():
-            result = parse("foo")
-            assert result == 1
-
-        def test_parse_two():
-            result = parse("bar")
-            assert result == 1
-        """,
-    )
-    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    signals = _cluster_signals(result)
-    assert signals == ["signal1_call_assert"]
+    assert signals == expected_signals
 
 
 def test_p1_docstring_diff_ignored(project: Path) -> None:
@@ -146,59 +265,6 @@ def test_p1_docstring_diff_ignored(project: Path) -> None:
     signals = _cluster_signals(result)
     assert "ambiguous_distinct_literals" not in signals
     assert signals == ["signal1_call_assert"]
-
-
-def test_p2_patch_context_rescues(project: Path) -> None:
-    _write(
-        project / "tests" / "test_mod.py",
-        """
-        from unittest.mock import patch
-
-        def test_parse_one():
-            with patch("mod.dep"):
-                result = parse(1)
-                assert result == 1
-
-        def test_parse_two():
-            result = parse(1)
-            assert result == 1
-        """,
-    )
-    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    signals = _cluster_signals(result)
-    assert "ambiguous_patch_context" in signals
-
-
-def test_p2_mocker_patch_asymmetry(project: Path) -> None:
-    _write(
-        project / "tests" / "test_mod.py",
-        """
-        def test_parse_one(mocker):
-            mocker.patch("mod.dep")
-            result = parse(1)
-            assert result == 1
-
-        def test_parse_two():
-            result = parse(1)
-            assert result == 1
-        """,
-    )
-    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    signals = _cluster_signals(result)
-    assert "ambiguous_patch_context" in signals
-
-
-def test_p3_cross_file_template_pair_rescues(project: Path) -> None:
-    body = """
-        def test_parse():
-            result = run(1)
-            assert result == 1
-    """
-    _write(project / "tests" / "test_json_parser.py", body)
-    _write(project / "tests" / "test_yaml_parser.py", body)
-    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    signals = _cluster_signals(result)
-    assert "ambiguous_template_pair" in signals
 
 
 _P3_SHORT_BODY = """
@@ -342,51 +408,6 @@ def test_guard_does_not_rescue(
     result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
     signals = _cluster_signals(result)
     assert absent_signal not in signals
-
-
-def test_p4_intra_file_body_size_delta_rescues(project: Path) -> None:
-    _write(
-        project / "tests" / "test_mod.py",
-        """
-        def test_alpha():
-            x = foo(1)
-            y = bar(x)
-            z = baz(y)
-            w = qux(z)
-            assert w == 5
-
-        def test_beta():
-            x = foo(2)
-            y = bar(x)
-            z = baz(y)
-            assert z == 5
-        """,
-    )
-    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    signals = _cluster_signals(result)
-    assert "ambiguous_body_size" in signals
-
-
-def test_p6_call_multiplicity_rescues_s1(project: Path) -> None:
-    """Common public SUT called once vs twice -> demoted to call_multiplicity."""
-    _write(
-        project / "tests" / "test_mod.py",
-        """
-        def test_applies_shading():
-            cell = make_cell()
-            shade_cell(cell, "RED")
-            assert cell.color == "RED"
-
-        def test_replaces_existing_shading():
-            cell = make_cell()
-            shade_cell(cell, "RED")
-            shade_cell(cell, "BLUE")
-            assert cell.color == "BLUE"
-        """,
-    )
-    result = DuplicateTestsRule(ast_similarity_threshold=0.8).check(project)
-    signals = _cluster_signals(result)
-    assert "ambiguous_call_multiplicity" in signals
 
 
 def test_p7_distinct_sut_rescues_s3(project: Path) -> None:

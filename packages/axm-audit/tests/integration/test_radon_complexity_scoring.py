@@ -574,69 +574,77 @@ def test_complexipy_dep_declared_from_unit() -> None:
     assert any(d.startswith("complexipy") for d in deps), deps
 
 
-def test_low_cc_high_cognitive_flagged_from_unit(
-    tmp_path: Path, rule_from_unit: ComplexityRule
+_LOW_CC_HIGH_COG_BODY = (
+    "def deeply_nested(items, flag):\n"
+    "    for a in items:\n"
+    "        if flag:\n"
+    "            for b in a:\n"
+    "                if b:\n"
+    "                    for c in b:\n"
+    "                        if c:\n"
+    "                            return c\n"
+    "    return None\n"
+)
+
+_HIGH_CC_LOW_COG_CASES = "\n".join(
+    f"        case {i}: return {i}" for i in range(1, 13)
+)
+_HIGH_CC_LOW_COG_BODY = (
+    f"def big_match(x):\n    match x:\n{_HIGH_CC_LOW_COG_CASES}\n"
+    f"        case _: return -1\n"
+)
+
+_BOTH_THRESHOLDS_BODY = (
+    "def both(items, a, b, c, d, e):\n"
+    "    for x in items:\n"
+    "        if a:\n"
+    "            for y in x:\n"
+    "                if b:\n"
+    "                    for z in y:\n"
+    "                        if c:\n"
+    "                            if d:\n"
+    "                                if e:\n"
+    "                                    return z\n"
+    "                        elif a and b:\n"
+    "                            return y\n"
+    "                elif c and d:\n"
+    "                    return x\n"
+    "        elif b or c:\n"
+    "            return a\n"
+    "    return None\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("body", "expected_reason"),
+    [
+        pytest.param(
+            _LOW_CC_HIGH_COG_BODY, "cog", id="low_cc_high_cognitive_flagged_from_unit"
+        ),
+        pytest.param(
+            _HIGH_CC_LOW_COG_BODY,
+            "cc",
+            id="high_cc_low_cognitive_flagged_as_cc_from_unit",
+        ),
+        pytest.param(
+            _BOTH_THRESHOLDS_BODY,
+            "cc+cog",
+            id="both_thresholds_single_violation_from_unit",
+        ),
+    ],
+)
+def test_complexity_offender_reason_from_unit(
+    tmp_path: Path,
+    rule_from_unit: ComplexityRule,
+    body: str,
+    expected_reason: str,
 ) -> None:
-    body = (
-        "def deeply_nested(items, flag):\n"
-        "    for a in items:\n"
-        "        if flag:\n"
-        "            for b in a:\n"
-        "                if b:\n"
-        "                    for c in b:\n"
-        "                        if c:\n"
-        "                            return c\n"
-        "    return None\n"
-    )
     project = _write_from_unit(tmp_path, body)
     result = rule_from_unit.check(project)
     assert result.details is not None
     assert result.details["high_complexity_count"] == 1
     top = result.details["top_offenders"][0]
-    assert top["reason"] == "cog"
-
-
-def test_high_cc_low_cognitive_flagged_as_cc_from_unit(
-    tmp_path: Path, rule_from_unit: ComplexityRule
-) -> None:
-    cases = "\n".join(f"        case {i}: return {i}" for i in range(1, 13))
-    body = f"def big_match(x):\n    match x:\n{cases}\n        case _: return -1\n"
-    project = _write_from_unit(tmp_path, body)
-    result = rule_from_unit.check(project)
-    assert result.details is not None
-    assert result.details["high_complexity_count"] == 1
-    top = result.details["top_offenders"][0]
-    assert top["reason"] == "cc"
-
-
-def test_both_thresholds_single_violation_from_unit(
-    tmp_path: Path, rule_from_unit: ComplexityRule
-) -> None:
-    body = (
-        "def both(items, a, b, c, d, e):\n"
-        "    for x in items:\n"
-        "        if a:\n"
-        "            for y in x:\n"
-        "                if b:\n"
-        "                    for z in y:\n"
-        "                        if c:\n"
-        "                            if d:\n"
-        "                                if e:\n"
-        "                                    return z\n"
-        "                        elif a and b:\n"
-        "                            return y\n"
-        "                elif c and d:\n"
-        "                    return x\n"
-        "        elif b or c:\n"
-        "            return a\n"
-        "    return None\n"
-    )
-    project = _write_from_unit(tmp_path, body)
-    result = rule_from_unit.check(project)
-    assert result.details is not None
-    assert result.details["high_complexity_count"] == 1
-    top = result.details["top_offenders"][0]
-    assert top["reason"] == "cc+cog"
+    assert top["reason"] == expected_reason
 
 
 def test_offenders_sorted_by_max_metric_from_unit(
