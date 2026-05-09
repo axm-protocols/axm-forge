@@ -7,10 +7,9 @@ import os
 import sys
 from io import StringIO
 from pathlib import Path
-from typing import Any
 
-from copier import run_copy
-from pydantic import BaseModel
+from copier import run_copy  # type: ignore[import-untyped]
+from pydantic import BaseModel, ConfigDict
 
 from axm_init.models.results import ScaffoldResult
 
@@ -22,12 +21,12 @@ class CopierConfig(BaseModel):
 
     template_path: Path
     destination: Path
-    data: dict[str, Any]
+    data: dict[str, object]
     defaults: bool = True
     overwrite: bool = False
     trust_template: bool = False
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(extra="forbid")
 
 
 class CopierAdapter:

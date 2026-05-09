@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import ToolResult
 
@@ -21,7 +20,7 @@ class InitCheckTool:
         """Tool name used for MCP registration."""
         return "init_check"
 
-    def execute(self, **kwargs: Any) -> ToolResult:
+    def execute(self, **kwargs: object) -> ToolResult:
         """Check a project against the AXM gold standard.
 
         Args:
@@ -32,8 +31,10 @@ class InitCheckTool:
         Returns:
             ToolResult with check scores and details.
         """
-        path: str = kwargs.get("path", ".")
-        category: str | None = kwargs.get("category")
+        path_raw = kwargs.get("path", ".")
+        category_raw = kwargs.get("category")
+        path: str = path_raw if isinstance(path_raw, str) else "."
+        category: str | None = category_raw if isinstance(category_raw, str) else None
         try:
             project_path = Path(path).resolve()
             if not project_path.is_dir():
