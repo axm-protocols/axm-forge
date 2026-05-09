@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     class TraceFlow(Protocol):
         """Signature of :func:`axm_ast.core.flows.trace_flow`."""
 
-        def __call__(
+        def __call__(  # noqa: PLR0913 — mirrors core.flows.trace_flow signature
             self,
             pkg: PackageInfo,
             entry: str,

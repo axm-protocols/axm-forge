@@ -5,19 +5,15 @@ from __future__ import annotations
 import functools
 import logging
 from collections.abc import Callable
-from typing import ParamSpec
 
 from axm.tools.base import ToolResult
 
 __all__ = ["log_and_fallback", "safe_execute"]
 
 
-_P = ParamSpec("_P")
-
-
-def safe_execute(
-    method: Callable[_P, ToolResult],
-) -> Callable[_P, ToolResult]:
+def safe_execute[**P](
+    method: Callable[P, ToolResult],
+) -> Callable[P, ToolResult]:
     """Wrap a tool ``execute`` method to log + return structured failures.
 
     The wrapper logs any uncaught exception at ``WARNING`` on the calling
@@ -28,7 +24,7 @@ def safe_execute(
     logger = logging.getLogger(method.__module__)
 
     @functools.wraps(method)
-    def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> ToolResult:
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> ToolResult:
         try:
             return method(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001 — final boundary
