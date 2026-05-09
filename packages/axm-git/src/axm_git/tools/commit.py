@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -63,7 +63,7 @@ def _attempt_commit(
 
 
 def _validation_failure(
-    *, error: str, results: list[dict[str, Any]], total: int
+    *, error: str, results: list[dict[str, object]], total: int
 ) -> ToolResult:
     """Build a validation/staging ``ToolResult`` with consistent text."""
     data = {"results": results, "total": total, "succeeded": len(results)}
@@ -76,9 +76,9 @@ def _validation_failure(
 
 
 def _validate_commit_spec(
-    spec: dict[str, Any],
+    spec: dict[str, object],
     index: int,
-    results: list[dict[str, Any]],
+    results: list[dict[str, object]],
     total: int,
 ) -> ToolResult | None:
     """Validate a single commit spec, returning a ToolResult error or None."""
@@ -98,7 +98,7 @@ def _validate_commit_spec(
 
 
 def _build_failure_data(  # noqa: PLR0913
-    results: list[dict[str, Any]],
+    results: list[dict[str, object]],
     *,
     index: int,
     message: str,
@@ -106,7 +106,7 @@ def _build_failure_data(  # noqa: PLR0913
     retried: bool,
     auto_fixed: list[str],
     total: int,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Build failure data dict for a failed commit.
 
     *auto_fixed* is the list of files captured by ``_attempt_commit``
@@ -128,11 +128,11 @@ def _build_failure_data(  # noqa: PLR0913
 
 
 def _process_single_commit(  # noqa: PLR0913
-    spec: dict[str, Any],
+    spec: dict[str, object],
     index: int,
     identity_args: list[str],
     path: Path,
-    results: list[dict[str, Any]],
+    results: list[dict[str, object]],
     total: int,
 ) -> ToolResult | None:
     """Process one commit spec: validate, stage, commit, record result.
@@ -144,9 +144,9 @@ def _process_single_commit(  # noqa: PLR0913
     if validation_err:
         return validation_err
 
-    files: list[str] = spec["files"]
-    message: str = spec["message"]
-    body: str | None = spec.get("body")
+    files = cast("list[str]", spec["files"])
+    message = cast("str", spec["message"])
+    body = cast("str | None", spec.get("body"))
 
     # Stage files
     add_err = _stage_files(files, path)
@@ -223,9 +223,9 @@ class GitCommitTool(AXMTool):
         self,
         *,
         path: str = ".",
-        commits: list[dict[str, Any]] | None = None,
+        commits: list[dict[str, object]] | None = None,
         profile: str | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Execute batched commits.
 
@@ -243,7 +243,7 @@ class GitCommitTool(AXMTool):
             ``author`` key (``{name, email}`` or ``None``).
         """
         resolved = Path(path).resolve()
-        commit_list: list[dict[str, Any]] = commits or []
+        commit_list: list[dict[str, object]] = commits or []
         total = len(commit_list)
 
         if not commit_list:
@@ -272,7 +272,7 @@ class GitCommitTool(AXMTool):
             identity = resolve_identity(resolved, profile_override=profile)
             identity_args = author_args(identity)
 
-            results: list[dict[str, Any]] = []
+            results: list[dict[str, object]] = []
 
             for i, spec in enumerate(commit_list):
                 failure = _process_single_commit(
