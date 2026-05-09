@@ -1,6 +1,6 @@
 {
-  "score": 91.8,
-  "grade": "A",
+  "score": 84.4,
+  "grade": "B",
   "total": 23,
   "failed": 3,
   "success": false,
@@ -26,23 +26,16 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 4 module(s) above threshold (-12 pts)",
+      "message": "Coupling: 3 module(s) above threshold (-9 pts)",
       "details": {
         "max_fan_out": 11,
         "max_fan_in": 33,
-        "avg_coupling": 6.76,
-        "score": 88,
-        "n_over_threshold": 4,
+        "avg_coupling": 6.51,
+        "score": 91,
+        "n_over_threshold": 3,
         "over_threshold": [
           {
             "module": "axm_audit.core.rules.quality",
-            "fan_out": 11,
-            "role": "leaf",
-            "effective_threshold": 10,
-            "severity": "warning"
-          },
-          {
-            "module": "axm_audit.core.rules.complexity",
             "fan_out": 11,
             "role": "leaf",
             "effective_threshold": 10,
@@ -78,10 +71,35 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 70/100 (3 high-complexity functions)",
+      "message": "Complexity score: 20/100 (8 high-complexity functions)",
       "details": {
-        "high_complexity_count": 3,
+        "high_complexity_count": 8,
         "top_offenders": [
+          {
+            "file": "__init__.py",
+            "function": "CouplingMetricRule.check",
+            "cc": 14
+          },
+          {
+            "file": "auditor.py",
+            "function": "_merge_metadata",
+            "cc": 12
+          },
+          {
+            "file": "audit_quality.py",
+            "function": "AuditQualityRule.validate",
+            "cc": 12
+          },
+          {
+            "file": "dependencies.py",
+            "function": "_summarize_vuln",
+            "cc": 11
+          },
+          {
+            "file": "dependencies.py",
+            "function": "run_deptry",
+            "cc": 10
+          },
           {
             "file": "_shared.py",
             "function": "_cli_runner_signal",
@@ -98,15 +116,15 @@
             "cc": 10
           }
         ],
-        "score": 70
+        "score": 20
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 92% (91/100)",
+      "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.57477388179903,
+        "coverage": 91.45145863223338,
         "score": 91,
         "failures": []
       }
@@ -146,9 +164,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "No uncommitted changes",
+      "message": "Diff size: 18 lines changed (score 100/100)",
       "details": {
-        "lines_changed": 0,
+        "lines_changed": 18,
         "score": 100
       }
     },
@@ -220,14 +238,17 @@
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
-      "message": "8 source module(s) without tests",
+      "message": "11 source module(s) without tests",
       "details": {
         "missing": [
           "__main__.py",
           "anti_mirror.py",
           "bare_except.py",
           "blocking_io.py",
+          "complexity.py",
+          "dependencies.py",
           "mirror.py",
+          "private_imports.py",
           "pyramid_level.py",
           "tautology.py",
           "tautology_triage.py"

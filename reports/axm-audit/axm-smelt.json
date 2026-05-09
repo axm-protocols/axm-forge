@@ -1,5 +1,5 @@
 {
-  "score": 94.5,
+  "score": 94.4,
   "grade": "A",
   "total": 23,
   "failed": 3,
@@ -26,11 +26,11 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 0 modules above threshold (max fan-out: 7)",
+      "message": "Coupling: 0 modules above threshold (max fan-out: 8)",
       "details": {
-        "max_fan_out": 7,
-        "max_fan_in": 13,
-        "avg_coupling": 3.76,
+        "max_fan_out": 8,
+        "max_fan_in": 12,
+        "avg_coupling": 3.73,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -65,9 +65,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 92% (92/100)",
+      "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 92.46688741721854,
+        "coverage": 92.51028806584362,
         "score": 92,
         "failures": []
       }
@@ -107,9 +107,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "No uncommitted changes",
+      "message": "Diff size: 18 lines changed (score 100/100)",
       "details": {
-        "lines_changed": 0,
+        "lines_changed": 18,
         "score": 100
       }
     },
@@ -179,15 +179,16 @@
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
-      "message": "4 source module(s) without tests",
+      "message": "5 source module(s) without tests",
       "details": {
         "missing": [
           "__main__.py",
+          "_types.py",
           "check.py",
           "count.py",
           "smelt.py"
         ],
-        "score": 40
+        "score": 25
       }
     },
     {
@@ -199,7 +200,7 @@
         "matches": [
           {
             "file": "axm_smelt/core/counter.py",
-            "line": 21,
+            "line": 20,
             "pattern": "token"
           }
         ],

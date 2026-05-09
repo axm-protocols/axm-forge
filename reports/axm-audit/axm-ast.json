@@ -1,8 +1,8 @@
 {
-  "score": 96.2,
-  "grade": "A",
+  "score": 81.1,
+  "grade": "B",
   "total": 23,
-  "failed": 2,
+  "failed": 6,
   "success": false,
   "checks": [
     {
@@ -26,40 +26,108 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 0 modules above threshold (max fan-out: 14)",
+      "message": "Coupling: 1 module(s) above threshold (-3 pts)",
       "details": {
-        "max_fan_out": 14,
-        "max_fan_in": 40,
-        "avg_coupling": 5.06,
-        "score": 100,
-        "n_over_threshold": 0,
-        "over_threshold": []
+        "max_fan_out": 15,
+        "max_fan_in": 38,
+        "avg_coupling": 5.24,
+        "score": 97,
+        "n_over_threshold": 1,
+        "over_threshold": [
+          {
+            "module": "axm_ast.cli",
+            "fan_out": 12,
+            "role": "leaf",
+            "effective_threshold": 10,
+            "severity": "warning"
+          }
+        ]
       }
     },
     {
       "rule_id": "ARCH_DUPLICATION",
-      "passed": true,
-      "message": "0 duplicate block(s) found",
+      "passed": false,
+      "message": "1 duplicate block(s) found",
       "details": {
-        "dup_count": 0,
-        "clones": [],
-        "score": 100
+        "dup_count": 1,
+        "clones": [
+          {
+            "source": "axm_ast/hooks/trace_source.py:__call__:32",
+            "target": "axm_ast/hooks/flows.py:__call__:45"
+          }
+        ],
+        "score": 90
       }
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": true,
-      "message": "Complexity score: 90/100 (1 high-complexity functions)",
+      "passed": false,
+      "message": "Complexity score: 0/100 (12 high-complexity functions)",
       "details": {
-        "high_complexity_count": 1,
+        "high_complexity_count": 12,
         "top_offenders": [
+          {
+            "file": "context.py",
+            "function": "ContextHook",
+            "cc": 13
+          },
+          {
+            "file": "trace_source.py",
+            "function": "TraceSourceHook",
+            "cc": 13
+          },
+          {
+            "file": "impact.py",
+            "function": "_classify_callers",
+            "cc": 12
+          },
+          {
+            "file": "inspect_text.py",
+            "function": "render_function_text",
+            "cc": 12
+          },
+          {
+            "file": "context.py",
+            "function": "ContextHook.execute",
+            "cc": 12
+          },
+          {
+            "file": "trace_source.py",
+            "function": "TraceSourceHook.execute",
+            "cc": 12
+          },
+          {
+            "file": "flows.py",
+            "function": "FlowsHook._trace_all",
+            "cc": 12
+          },
+          {
+            "file": "impact.py",
+            "function": "_format_symbol_row",
+            "cc": 11
+          },
           {
             "file": "impact.py",
             "function": "analyze_impact",
             "cc": 10
+          },
+          {
+            "file": "flows.py",
+            "function": "FlowsHook._trace_multi_entries",
+            "cc": 10
+          },
+          {
+            "file": "impact.py",
+            "function": "_parse_impact_params",
+            "cc": 10
+          },
+          {
+            "file": "impact.py",
+            "function": "DocImpactHook",
+            "cc": 10
           }
         ],
-        "score": 90
+        "score": 0
       }
     },
     {
@@ -67,30 +135,106 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.31672597864768,
+        "coverage": 91.33019291161956,
         "score": 91,
         "failures": []
       }
     },
     {
       "rule_id": "QUALITY_DEAD_CODE",
-      "passed": true,
-      "message": "No dead code detected.",
+      "passed": false,
+      "message": "Found 1 dead (unreferenced) symbol(s).",
       "details": {
-        "score": 100.0,
-        "dead_count": 0,
-        "symbols": []
+        "score": 95.0,
+        "dead_count": 1,
+        "symbols": [
+          {
+            "name": "_DescribeData",
+            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/tools/describe_text.py",
+            "line": 45,
+            "kind": "class"
+          }
+        ],
+        "top_offenders": [
+          {
+            "name": "_DescribeData",
+            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/tools/describe_text.py",
+            "line": 45,
+            "kind": "class"
+          }
+        ]
       }
     },
     {
       "rule_id": "QUALITY_LINT",
-      "passed": true,
-      "message": "Lint score: 100/100 (0 issues)",
+      "passed": false,
+      "message": "Lint score: 80/100 (10 issues)",
       "details": {
-        "issue_count": 0,
-        "score": 100,
+        "issue_count": 10,
+        "score": 80,
         "checked": "src/ tests/",
-        "issues": []
+        "issues": [
+          {
+            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
+            "line": 45,
+            "code": "PLR0913",
+            "message": "Too many arguments in function definition (7 > 5)"
+          },
+          {
+            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
+            "line": 185,
+            "code": "RUF100",
+            "message": "Unused `noqa` directive (non-enabled: `S101`)"
+          },
+          {
+            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
+            "line": 240,
+            "code": "RUF100",
+            "message": "Unused `noqa` directive (non-enabled: `S101`)"
+          },
+          {
+            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
+            "line": 277,
+            "code": "RUF100",
+            "message": "Unused `noqa` directive (non-enabled: `S101`)"
+          },
+          {
+            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
+            "line": 278,
+            "code": "RUF100",
+            "message": "Unused `noqa` directive (non-enabled: `S101`)"
+          },
+          {
+            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
+            "line": 312,
+            "code": "RUF100",
+            "message": "Unused `noqa` directive (non-enabled: `S101`)"
+          },
+          {
+            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
+            "line": 313,
+            "code": "RUF100",
+            "message": "Unused `noqa` directive (non-enabled: `S101`)"
+          },
+          {
+            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/hooks/flows.py",
+            "line": 314,
+            "code": "RUF100",
+            "message": "Unused `noqa` directive (non-enabled: `S101`)"
+          },
+          {
+            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/tools/_base.py",
+            "line": 18,
+            "code": "UP047",
+            "message": "Generic function `safe_execute` should use type parameters"
+          },
+          {
+            "file": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/tools/flows.py",
+            "line": 30,
+            "code": "PLR0913",
+            "message": "Too many arguments in function definition (6 > 5)"
+          }
+        ]
       }
     },
     {
@@ -107,9 +251,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "No uncommitted changes",
+      "message": "Diff size: 13 lines changed (score 100/100)",
       "details": {
-        "lines_changed": 0,
+        "lines_changed": 13,
         "score": 100
       }
     },
