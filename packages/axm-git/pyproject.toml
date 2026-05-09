@@ -123,6 +123,9 @@ known-first-party = ["axm_git"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+disallow_any_generics = true
+disallow_any_unimported = true
+disallow_any_explicit = true
 pretty = true
 warn_return_any = true
 warn_unused_ignores = true
