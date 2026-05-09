@@ -42,7 +42,7 @@ _TraceValue = list[dict[str, object]] | str
 class _TraceFlow(Protocol):
     """Protocol mirroring ``axm_ast.core.flows.trace_flow``."""
 
-    def __call__(
+    def __call__(  # noqa: PLR0913 — mirrors core.flows.trace_flow signature
         self,
         pkg: PackageInfo,
         entry: str,
@@ -150,9 +150,7 @@ class FlowsHook:
 
     # ``context``/``params`` are heterogeneous user payloads; ``object``
     # forces explicit narrowing at every read site (mirrors hooks/context.py).
-    def execute(
-        self, context: dict[str, object], **params: object
-    ) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -182,7 +180,7 @@ class FlowsHook:
         try:
             opts, is_compact = _build_trace_opts(params)
             _ensure_flow_imports()
-            assert get_package is not None  # noqa: S101 — populated above
+            assert get_package is not None
             pkg = get_package(working_dir)
 
             entry = params.get("entry")
@@ -217,8 +215,7 @@ class FlowsHook:
         # ``model_dump`` is upstream-typed ``dict[str, Any]`` (pydantic);
         # cast to ``dict[str, object]`` at this boundary.
         return [
-            cast("dict[str, object]", s.model_dump(exclude_none=True))
-            for s in steps
+            cast("dict[str, object]", s.model_dump(exclude_none=True)) for s in steps
         ]
 
     @staticmethod
@@ -237,7 +234,7 @@ class FlowsHook:
         """
         from axm_ast.core.flows import format_flow_compact
 
-        assert trace_flow is not None  # noqa: S101 — populated by _ensure_flow_imports
+        assert trace_flow is not None
 
         symbols = _parse_entry_symbols(entry)
         symbols = FlowsHook._deduplicate_entry_symbols(symbols)
@@ -274,8 +271,8 @@ class FlowsHook:
         format_fn: Callable[[list[FlowStep]], str],
     ) -> HookResult:
         """Trace multiple entry symbols with cross-trace deduplication."""
-        assert build_callee_index is not None  # noqa: S101
-        assert trace_flow is not None  # noqa: S101
+        assert build_callee_index is not None
+        assert trace_flow is not None
 
         index = build_callee_index(pkg)
         traces: dict[str, _TraceValue] = {}
@@ -309,9 +306,9 @@ class FlowsHook:
         """Discover entry points and trace them (with safety caps)."""
         from axm_ast.core.flows import format_flow_compact
 
-        assert find_entry_points is not None  # noqa: S101
-        assert build_callee_index is not None  # noqa: S101
-        assert trace_flow is not None  # noqa: S101
+        assert find_entry_points is not None
+        assert build_callee_index is not None
+        assert trace_flow is not None
 
         entries = find_entry_points(pkg)
 
