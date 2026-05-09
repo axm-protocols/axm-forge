@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_audit.core.rules.architecture.coupling import classify_module_role
+
+pytestmark = pytest.mark.integration
 
 # ---------------------------------------------------------------------------
 # Behavioral tests — exercise prefix detection / internal-import logic
