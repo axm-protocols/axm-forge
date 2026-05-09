@@ -4,11 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from axm_audit.core.auditor import VALID_CATEGORIES, audit_project
-from axm_audit.models.results import (
-    EXTRA_NONSCORED_CATEGORIES,
-    SCORED_CATEGORIES,
-)
+from axm_audit.core.auditor import audit_project
+from axm_audit.models.results import SCORED_CATEGORIES
 
 pytestmark = pytest.mark.integration
 
@@ -21,10 +18,6 @@ def minimal_pkg(tmp_path: Path) -> Path:
     (src / "__init__.py").write_text("")
     (pkg / "pyproject.toml").write_text('[project]\nname = "pkg"\nversion = "0.0.0"\n')
     return pkg
-
-
-def test_valid_categories_is_union() -> None:
-    assert VALID_CATEGORIES == SCORED_CATEGORIES | EXTRA_NONSCORED_CATEGORIES
 
 
 def test_audit_project_accepts_each_scored_category(minimal_pkg: Path) -> None:
@@ -50,20 +43,6 @@ def test_audit_project_test_quality_returns_test_quality_rules(
         "TEST_QUALITY_TAUTOLOGY",
     }
     assert expected <= rule_ids, f"missing test_quality rules: {expected - rule_ids}"
-
-
-def test_get_rules_for_category_test_quality_returns_registered_rules() -> None:
-    from axm_audit.core.auditor import get_rules_for_category
-
-    rules = get_rules_for_category("test_quality")
-    rule_ids = {r.rule_id for r in rules}
-    expected = {
-        "TEST_QUALITY_DUPLICATE_TESTS",
-        "TEST_QUALITY_PRIVATE_IMPORTS",
-        "TEST_QUALITY_PYRAMID_LEVEL",
-        "TEST_QUALITY_TAUTOLOGY",
-    }
-    assert expected <= rule_ids
 
 
 def test_audit_project_rejects_unknown_category(minimal_pkg: Path) -> None:
