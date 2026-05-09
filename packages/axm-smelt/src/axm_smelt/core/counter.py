@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import logging
 from enum import StrEnum
-from typing import Any
 
 import tiktoken
 
 __all__ = ["CounterBackend", "count", "count_with_backend"]
 
 _log = logging.getLogger(__name__)
-_ENC: dict[str, Any] = {}
+_ENC: dict[str, tiktoken.Encoding] = {}
 _warned: bool = False
 
 
