@@ -282,6 +282,8 @@ def _signal_is_hard(sig: str) -> bool:
     if sig.startswith("attr:."):
         attr = sig[len("attr:.") :].rstrip("()")
         return attr in _IO_WRITER_ATTRS
+    if sig.startswith("conftest-fixture-io:"):
+        return True
     return False
 
 

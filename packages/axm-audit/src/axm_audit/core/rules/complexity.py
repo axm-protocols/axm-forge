@@ -84,6 +84,7 @@ class ComplexityRule(ProjectRule):
                 blocks = cc_visit(source)
             except (SyntaxError, UnicodeDecodeError):
                 continue
+            rel = _relative_key(str(py_file), src_path)
             for block in blocks:
                 if not hasattr(block, "complexity"):
                     continue
@@ -91,8 +92,8 @@ class ComplexityRule(ProjectRule):
                 rank = cc_rank(cc)
                 classname = getattr(block, "classname", "") or ""
                 name = f"{classname}.{block.name}" if classname else block.name
-                cognitive = cog_map.get((py_file.name, name), 0)
-                offender = _classify(py_file.name, name, cc, rank, cognitive)
+                cognitive = cog_map.get((rel, name), 0)
+                offender = _classify(rel, name, cc, rank, cognitive)
                 if offender is not None:
                     offenders.append(offender)
         return self._build_result(offenders, cog_disabled)
@@ -119,12 +120,14 @@ class ComplexityRule(ProjectRule):
             )
 
         try:
-            proc = subprocess.run(  # noqa: S603
-                [radon_bin, "cc", "--json", str(src_path)],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+            with tempfile.TemporaryDirectory() as _cwd:
+                proc = subprocess.run(  # noqa: S603
+                    [radon_bin, "cc", "--json", str(src_path)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    cwd=_cwd,
+                )
             data: dict[str, list[dict[str, object]]] = (
                 json.loads(proc.stdout) if proc.stdout.strip() else {}
             )
@@ -143,20 +146,21 @@ class ComplexityRule(ProjectRule):
                 fix_hint="Check radon installation",
             )
 
-        return self._process_radon_output(data, cog_map, cog_disabled)
+        return self._process_radon_output(data, cog_map, cog_disabled, src_path)
 
     def _process_radon_output(
         self,
         data: dict[str, list[dict[str, object]]],
         cog_map: dict[tuple[str, str], int] | None = None,
         cog_disabled: bool = False,
+        src_path: Path | None = None,
     ) -> CheckResult:
         """Process JSON output from radon cc."""
         if cog_map is None:
             cog_map = {}
         offenders: list[dict[str, str | int]] = []
         for file_path, blocks in data.items():
-            file_name = Path(file_path).name
+            file_key = _relative_key(file_path, src_path)
             for block in blocks:
                 if not isinstance(block, dict):
                     continue
@@ -166,8 +170,8 @@ class ComplexityRule(ProjectRule):
                 raw_name = str(block.get("name", ""))
                 classname = str(block.get("classname", ""))
                 name = f"{classname}.{raw_name}" if classname else raw_name
-                cognitive = cog_map.get((file_name, name), 0)
-                offender = _classify(file_name, name, cc, rank, cognitive)
+                cognitive = cog_map.get((file_key, name), 0)
+                offender = _classify(file_key, name, cc, rank, cognitive)
                 if offender is not None:
                     offenders.append(offender)
         return self._build_result(offenders, cog_disabled)
@@ -305,11 +309,12 @@ def _cognitive_via_api(
         except (OSError, SyntaxError, UnicodeDecodeError, ValueError) as exc:
             logger.debug("complexipy file_complexity failed for %s: %s", py_file, exc)
             continue
+        rel = _relative_key(str(py_file), src_path)
         for fn in getattr(fc, "functions", []) or []:
             name = getattr(fn, "name", "") or getattr(fn, "function_name", "")
             score = int(getattr(fn, "complexity", 0) or 0)
             if name:
-                result[(py_file.name, name)] = score
+                result[(rel, name)] = score
     return result
 
 
@@ -343,11 +348,18 @@ def _cognitive_via_subprocess(
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("complexipy JSON parse failed: %s", exc, exc_info=True)
             return {}
-    return _parse_complexipy_entries(entries)
+    return _parse_complexipy_entries(entries, src_path)
 
 
-def _parse_complexipy_entries(entries: object) -> dict[tuple[str, str], int]:
-    """Parse complexipy JSON entries into a ``(file, function) -> score`` map."""
+def _parse_complexipy_entries(
+    entries: object, src_path: Path | None = None
+) -> dict[tuple[str, str], int]:
+    """Parse complexipy JSON entries into a ``(file, function) -> score`` map.
+
+    Keys use the POSIX path relative to ``src_path`` when resolvable; entries
+    whose path lies outside ``src_path`` (or when ``src_path`` is ``None``)
+    fall back to the basename to preserve legacy behavior.
+    """
     result: dict[tuple[str, str], int] = {}
     if not isinstance(entries, list):
         return result
@@ -358,5 +370,16 @@ def _parse_complexipy_entries(entries: object) -> dict[tuple[str, str], int]:
         function = str(entry.get("function_name", ""))
         score = entry.get("complexity", 0)
         if file_name and function and isinstance(score, int | float):
-            result[(file_name, function)] = int(score)
+            key = _relative_key(file_name, src_path)
+            result[(key, function)] = int(score)
     return result
+
+
+def _relative_key(file_path: str, src_path: Path | None) -> str:
+    """Return ``file_path`` relative to ``src_path`` (POSIX), or its basename."""
+    if src_path is None:
+        return Path(file_path).name
+    try:
+        return Path(file_path).resolve().relative_to(src_path.resolve()).as_posix()
+    except (ValueError, OSError):
+        return Path(file_path).name
