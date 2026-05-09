@@ -11,15 +11,27 @@ import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Protocol, cast
 
 from axm.hooks.base import HookResult
 
 from axm_git.core.identity import (  # noqa: F401 (author_args: mock target)
+    GitIdentity,
     author_args,
     resolve_identity,
 )
 from axm_git.core.runner import find_git_root, run_git
+
+
+class _GitResultLike(Protocol):
+    """Minimal protocol matching ``subprocess.CompletedProcess`` and the
+    ``SimpleNamespace`` fallback returned by :func:`_retry_commit_on_autofix`.
+    """
+
+    returncode: int
+    stdout: str
+    stderr: str
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +41,8 @@ _REQUIRED_SPEC_KEYS = {"message", "files"}
 
 
 def _validate_commit_spec(
-    spec: dict[str, Any] | None,
-) -> tuple[dict[str, Any] | None, str | None]:
+    spec: dict[str, object] | None,
+) -> tuple[dict[str, object] | None, str | None]:
     """Validate a ``commit_spec`` dict.
 
     Returns:
@@ -234,7 +246,7 @@ def _format_spec_files(
 def _build_commit_result(
     git_root: Path,
     message: str,
-    identity: Any,
+    identity: GitIdentity | None,
     warnings: list[str],
 ) -> HookResult:
     """Build a successful commit :class:`HookResult`.
@@ -243,7 +255,7 @@ def _build_commit_result(
     with optional identity and warning fields.
     """
     hash_result = run_git(["rev-parse", "--short", "HEAD"], git_root)
-    result_kw: dict[str, Any] = {
+    result_kw: dict[str, str | list[str]] = {
         "commit": hash_result.stdout.strip(),
         "message": message,
     }
@@ -259,10 +271,10 @@ def _retry_commit_on_autofix(
     files: list[str],
     cmd: list[str],
     git_root: Path,
-    first_result: Any,
+    first_result: _GitResultLike,
     *,
     working_dir: Path | None = None,
-) -> Any:
+) -> _GitResultLike:
     """Handle pre-commit autofix retry for a failed commit.
 
     If *first_result* stderr contains ``"files were modified"``, re-stage
@@ -295,7 +307,7 @@ class CommitPhaseHook:
     Only the listed files are staged (no ``git add -A``).
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -308,7 +320,8 @@ class CommitPhaseHook:
         Returns:
             HookResult with ``commit`` hash and ``message`` in metadata.
         """
-        working_dir = Path(params.get("working_dir", context.get("working_dir", ".")))
+        wd_raw = params.get("working_dir", context.get("working_dir", "."))
+        working_dir = Path(cast("str | Path", wd_raw))
 
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
@@ -316,10 +329,10 @@ class CommitPhaseHook:
         if find_git_root(working_dir) is None:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
-        profile: str | None = params.pop("profile", None)
+        profile = cast("str | None", params.pop("profile", None))
 
         if params.get("from_outputs"):
-            skip_hooks = params.get("skip_hooks", False)
+            skip_hooks = bool(params.get("skip_hooks", False))
             return self._commit_from_outputs(
                 context, working_dir, skip_hooks=skip_hooks, profile=profile
             )
@@ -328,11 +341,11 @@ class CommitPhaseHook:
 
     def _commit_legacy(
         self,
-        context: dict[str, Any],
+        context: dict[str, object],
         working_dir: Path,
         *,
         profile: str | None = None,
-        **params: Any,
+        **params: object,
     ) -> HookResult:
         """Legacy mode: stage all changes and commit with a format string.
 
@@ -348,7 +361,7 @@ class CommitPhaseHook:
             **params: Extra params; ``message_format`` controls the
                 commit message template (default ``"[axm] {phase}"``).
         """
-        phase_name: str = context["phase_name"]
+        phase_name = cast("str", context["phase_name"])
 
         # Resolve author identity
         identity = resolve_identity(working_dir, profile_override=profile)
@@ -363,9 +376,8 @@ class CommitPhaseHook:
             return HookResult.ok(skipped=True, reason="nothing to commit")
 
         # Commit
-        msg = params.get("message_format", "[axm] {phase}").format(
-            phase=phase_name,
-        )
+        message_format = cast("str", params.get("message_format", "[axm] {phase}"))
+        msg = message_format.format(phase=phase_name)
         commit_cmd = _build_commit_cmd(msg, None, author=author)
         result = run_git(commit_cmd, working_dir)
         if result.returncode != 0:
@@ -373,7 +385,7 @@ class CommitPhaseHook:
 
         # Get commit hash
         hash_result = run_git(["rev-parse", "--short", "HEAD"], working_dir)
-        result_kw: dict[str, Any] = {
+        result_kw: dict[str, str] = {
             "commit": hash_result.stdout.strip(),
             "message": msg,
         }
@@ -384,7 +396,7 @@ class CommitPhaseHook:
 
     def _commit_from_outputs(
         self,
-        context: dict[str, Any],
+        context: dict[str, object],
         working_dir: Path,
         *,
         skip_hooks: bool = False,
@@ -406,15 +418,17 @@ class CommitPhaseHook:
                 hooks run and surface failures via ``HookResult.fail``.
             profile: Optional identity profile name override.
         """
-        spec, err = _validate_commit_spec(context.get("commit_spec"))
+        spec, err = _validate_commit_spec(
+            cast("dict[str, object] | None", context.get("commit_spec"))
+        )
         if err:
             return HookResult.fail(err)
         # spec is guaranteed non-None when err is None
-        spec = cast("dict[str, Any]", spec)
+        spec = cast("dict[str, object]", spec)
 
-        files: list[str] = spec["files"]
-        message: str = spec["message"]
-        body: str | None = spec.get("body")
+        files = cast("list[str]", spec["files"])
+        message = cast("str", spec["message"])
+        body = cast("str | None", spec.get("body"))
 
         git_root = find_git_root(working_dir) or working_dir
 
@@ -440,7 +454,7 @@ class CommitPhaseHook:
             message, body, skip_hooks=skip_hooks, author=author
         )
 
-        result = run_git(commit_cmd, git_root)
+        result: _GitResultLike = run_git(commit_cmd, git_root)
         if result.returncode != 0:
             result = _retry_commit_on_autofix(
                 files, commit_cmd, git_root, result, working_dir=working_dir

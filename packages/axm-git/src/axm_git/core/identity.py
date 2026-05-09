@@ -6,7 +6,6 @@ import logging
 import tomllib
 from datetime import datetime, time
 from pathlib import Path
-from typing import Any
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
@@ -34,14 +33,14 @@ _DAY_MAP: dict[str, int] = {
 }
 
 
-class GitIdentity(BaseModel):
+class GitIdentity(BaseModel):  # type: ignore[explicit-any]  # pydantic BaseModel exposes Any in its API
     """A git author identity."""
 
     name: str
     email: str
 
 
-class ScheduleRule(BaseModel):
+class ScheduleRule(BaseModel):  # type: ignore[explicit-any]  # pydantic BaseModel exposes Any in its API
     """A time-based rule mapping to a profile."""
 
     profile: str
@@ -50,13 +49,13 @@ class ScheduleRule(BaseModel):
     end: str
 
 
-class Schedule(BaseModel):
+class Schedule(BaseModel):  # type: ignore[explicit-any]  # pydantic BaseModel exposes Any in its API
     """Schedule configuration with rules."""
 
     rules: list[ScheduleRule] = []
 
 
-class GitProfileConfig(BaseModel):
+class GitProfileConfig(BaseModel):  # type: ignore[explicit-any]  # pydantic BaseModel exposes Any in its API
     """Full git-profiles.toml configuration."""
 
     default: GitIdentity
@@ -88,7 +87,7 @@ def load_config(config_path: Path | None = None) -> GitProfileConfig | None:
     if not data:
         return None
     try:
-        parsed: dict[str, Any] = tomllib.loads(data.decode())
+        parsed: dict[str, object] = tomllib.loads(data.decode())
         config = GitProfileConfig.model_validate(parsed)
     except (tomllib.TOMLDecodeError, ValueError, KeyError) as exc:
         logger.warning(

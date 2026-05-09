@@ -12,14 +12,36 @@ The header pattern follows the AXM convention
 
 from __future__ import annotations
 
-from typing import Any
-
 __all__ = [
     "format_commit_line",
     "format_text_header",
     "render_failure_text",
     "render_text",
 ]
+
+
+def _as_int(value: object, default: int) -> int:
+    """Narrow *value* to ``int`` (heterogeneous ``dict[str, object]`` payload)."""
+    return value if isinstance(value, int) and not isinstance(value, bool) else default
+
+
+def _as_str(value: object, default: str = "") -> str:
+    """Narrow *value* to ``str`` (heterogeneous ``dict[str, object]`` payload)."""
+    return value if isinstance(value, str) else default
+
+
+def _as_str_list(value: object) -> list[str]:
+    """Narrow *value* to ``list[str]`` (heterogeneous ``dict[str, object]`` payload)."""
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
+
+
+def _as_results(value: object) -> list[dict[str, object]]:
+    """Narrow *value* to a list of result dicts."""
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
 
 
 def format_text_header(
@@ -47,28 +69,28 @@ def format_text_header(
     return header
 
 
-def format_commit_line(result: dict[str, Any]) -> str:
+def format_commit_line(result: dict[str, object]) -> str:
     """Format one successful commit record as ``{sha} [↻ ]{message}``."""
-    sha = result.get("sha", "")
-    message = result.get("message", "")
+    sha = _as_str(result.get("sha"))
+    message = _as_str(result.get("message"))
     if result.get("retried"):
         return f"{sha} ↻ {message}"
     return f"{sha} {message}"
 
 
-def _retried_count(results: list[dict[str, Any]]) -> int:
+def _retried_count(results: list[dict[str, object]]) -> int:
     """Count entries in *results* that were retried after a hook auto-fix."""
     return sum(1 for r in results if r.get("retried"))
 
 
-def render_text(data: dict[str, Any]) -> str:
+def render_text(data: dict[str, object]) -> str:
     """Render the success-path ``data`` dict.
 
     Header + one ``format_commit_line`` per entry in ``data['results']``.
     """
-    results: list[dict[str, Any]] = data.get("results", [])
-    total = data.get("total", len(results))
-    succeeded = data.get("succeeded", len(results))
+    results = _as_results(data.get("results"))
+    total = _as_int(data.get("total"), len(results))
+    succeeded = _as_int(data.get("succeeded"), len(results))
     header = format_text_header(
         status="ok",
         succeeded=succeeded,
@@ -101,14 +123,14 @@ def _format_validation_reason(error: str) -> str:
 
 def _render_failed_commit(
     *,
-    data: dict[str, Any],
-    failed: dict[str, Any],
+    data: dict[str, object],
+    failed: dict[str, object],
 ) -> str:
     """Render the M7 (pre-commit failed) failure branch."""
-    results: list[dict[str, Any]] = data.get("results", [])
-    succeeded = data.get("succeeded", len(results))
-    total = data.get("total", succeeded + 1)
-    index = failed.get("index", succeeded + 1)
+    results = _as_results(data.get("results"))
+    succeeded = _as_int(data.get("succeeded"), len(results))
+    total = _as_int(data.get("total"), succeeded + 1)
+    index = _as_int(failed.get("index"), succeeded + 1)
     retried = bool(failed.get("retried"))
     extra = f"pre-commit failed at #{index}"
     if retried:
@@ -123,11 +145,11 @@ def _render_failed_commit(
     lines = [header]
     for r in results:
         lines.append(f"ok: {format_commit_line(r)}")
-    lines.append(f"fail: {failed.get('message', '')}")
-    auto_fixed = failed.get("auto_fixed_files") or []
+    lines.append(f"fail: {_as_str(failed.get('message'))}")
+    auto_fixed = _as_str_list(failed.get("auto_fixed_files"))
     if auto_fixed:
         lines.append(f"auto-fixed: {', '.join(auto_fixed)}")
-    output = (failed.get("precommit_output") or "").rstrip()
+    output = _as_str(failed.get("precommit_output")).rstrip()
     if output:
         lines.append("hook output:")
         lines.extend(f"  {line}" for line in output.splitlines())
@@ -153,12 +175,12 @@ def _render_suggestions(
 def _render_validation(
     *,
     error: str,
-    data: dict[str, Any],
+    data: dict[str, object],
 ) -> str:
     """Render the M5/M6 (validation / git add) failure branch."""
-    results: list[dict[str, Any]] = data.get("results", [])
-    succeeded = data.get("succeeded", len(results))
-    total = data.get("total", succeeded + 1)
+    results = _as_results(data.get("results"))
+    succeeded = _as_int(data.get("succeeded"), len(results))
+    total = _as_int(data.get("total"), succeeded + 1)
     header = format_text_header(
         status="error",
         succeeded=succeeded,
@@ -171,7 +193,7 @@ def _render_validation(
 def render_failure_text(
     *,
     error: str,
-    data: dict[str, Any] | None,
+    data: dict[str, object] | None,
 ) -> str:
     """Render the failure-path text representation.
 
@@ -186,12 +208,10 @@ def render_failure_text(
     if data is None:
         msg = error.lower() if error.startswith("No commits") else error
         return f"git_commit | error: {msg}"
-    if data.get("suggestions"):
-        return _render_suggestions(
-            error=error,
-            suggestions=list(data["suggestions"]),
-        )
+    suggestions = _as_str_list(data.get("suggestions"))
+    if suggestions:
+        return _render_suggestions(error=error, suggestions=suggestions)
     failed = data.get("failed_commit")
-    if failed is not None:
+    if isinstance(failed, dict):
         return _render_failed_commit(data=data, failed=failed)
     return _render_validation(error=error, data=data)
