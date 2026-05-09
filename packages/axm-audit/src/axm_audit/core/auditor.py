@@ -14,6 +14,7 @@ import contextvars
 import logging
 import traceback as _traceback
 from pathlib import Path
+from typing import Any
 
 from axm_audit.core.rules._helpers import (
     ASTCache,
@@ -222,8 +223,16 @@ def _prefix_check(check: CheckResult, pkg_name: str) -> CheckResult:
 def _merge_check(
     existing: CheckResult, incoming: CheckResult, pkg_name: str
 ) -> CheckResult:
-    """Merge two CheckResults for the same rule_id (worst-of-N policy)."""
+    """Merge two CheckResults for the same rule_id (worst-of-N policy).
+
+    ``passed`` is AND'd, ``severity`` takes the max, ``score`` takes the
+    worst (min) of set values, ``metadata`` is deep-merged via
+    :func:`_merge_metadata`, and ``findings`` are concatenated so workspace
+    aggregation preserves per-package diagnostics instead of dropping them.
+    """
     incoming_prefixed = _prefix_check(incoming, pkg_name)
+    existing_findings = list(getattr(existing, "findings", []) or [])
+    incoming_findings = list(getattr(incoming_prefixed, "findings", []) or [])
     return existing.model_copy(
         update={
             "passed": existing.passed and incoming_prefixed.passed,
@@ -232,8 +241,40 @@ def _merge_check(
             "severity": _max_severity(existing.severity, incoming_prefixed.severity),
             "message": existing.message,
             "score": _merge_score(existing.score, incoming_prefixed.score),
+            "metadata": _merge_metadata(existing.metadata, incoming_prefixed.metadata),
+            "findings": existing_findings + incoming_findings,
         }
     )
+
+
+def _merge_metadata(
+    a: dict[str, Any] | None, b: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Deep-merge two metadata dicts (existing first, incoming second).
+
+    Rules: ``None`` is treated as ``{}``; for each shared key,
+    list+list concatenates (existing then incoming), dict+dict recurses,
+    and any other combination keeps ``b`` (incoming wins).
+    """
+    if not a and not b:
+        return {}
+    if not a:
+        return dict(b or {})
+    if not b:
+        return dict(a)
+    merged: dict[str, Any] = dict(a)
+    for key, b_val in b.items():
+        if key not in merged:
+            merged[key] = b_val
+            continue
+        a_val = merged[key]
+        if isinstance(a_val, list) and isinstance(b_val, list):
+            merged[key] = a_val + b_val
+        elif isinstance(a_val, dict) and isinstance(b_val, dict):
+            merged[key] = _merge_metadata(a_val, b_val)
+        else:
+            merged[key] = b_val
+    return merged
 
 
 def _merge_score(a: int | None, b: int | None) -> int | None:
