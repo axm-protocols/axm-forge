@@ -43,27 +43,58 @@ def test_deps_audit_text_single_cve(rule: DependencyAuditRule, tmp_path: Path) -
     assert result.text == "\u2022 requests 2.28.0\u21922.31.0 CVE-2023-32681"
 
 
-def test_deps_audit_text_multi_cve(rule: DependencyAuditRule, tmp_path: Path) -> None:
-    raw = [
-        _vuln(
-            "requests",
-            "2.28.0",
+@pytest.mark.parametrize(
+    ("raw", "expected_substring"),
+    [
+        pytest.param(
             [
-                _entry("CVE-2023-32681", ["2.31.0"]),
-                _entry("CVE-2023-99999", ["2.31.0"]),
+                _vuln(
+                    "requests",
+                    "2.28.0",
+                    [
+                        _entry("CVE-2023-32681", ["2.31.0"]),
+                        _entry("CVE-2023-99999", ["2.31.0"]),
+                    ],
+                )
             ],
-        )
-    ]
+            "+1",
+            id="multi_cve",
+        ),
+        pytest.param(
+            [_vuln("pkg", "1.0.0", [_entry("CVE-2024-0001")])],
+            "\u2192?",
+            id="no_fix",
+        ),
+        pytest.param(
+            [
+                _vuln(
+                    "pkg",
+                    "1.0.0",
+                    [
+                        _entry("CVE-2024-0001", ["2.0"]),
+                        _entry("CVE-2024-0002", ["2.1"]),
+                    ],
+                )
+            ],
+            "\u21922.0,2.1",
+            id="multiple_fix_versions",
+        ),
+        pytest.param(
+            [_vuln("pkg", "1.0.0", [])],
+            "pkg",
+            id="empty_vuln_ids",
+        ),
+    ],
+)
+def test_deps_audit_text_substring(
+    rule: DependencyAuditRule,
+    tmp_path: Path,
+    raw: list[dict[str, object]],
+    expected_substring: str,
+) -> None:
     result = _check_with_vulns(rule, tmp_path, raw)
     assert result.text is not None
-    assert "+1" in result.text
-
-
-def test_deps_audit_text_no_fix(rule: DependencyAuditRule, tmp_path: Path) -> None:
-    raw = [_vuln("pkg", "1.0.0", [_entry("CVE-2024-0001")])]
-    result = _check_with_vulns(rule, tmp_path, raw)
-    assert result.text is not None
-    assert "\u2192?" in result.text
+    assert expected_substring in result.text
 
 
 def test_deps_audit_text_passed(rule: DependencyAuditRule, tmp_path: Path) -> None:
@@ -72,32 +103,6 @@ def test_deps_audit_text_passed(rule: DependencyAuditRule, tmp_path: Path) -> No
 
 
 # --- Edge cases ---
-
-
-def test_deps_audit_text_multiple_fix_versions(
-    rule: DependencyAuditRule, tmp_path: Path
-) -> None:
-    raw = [
-        _vuln(
-            "pkg",
-            "1.0.0",
-            [_entry("CVE-2024-0001", ["2.0"]), _entry("CVE-2024-0002", ["2.1"])],
-        )
-    ]
-    result = _check_with_vulns(rule, tmp_path, raw)
-    assert result.text is not None
-    assert "\u21922.0,2.1" in result.text
-
-
-def test_deps_audit_text_empty_vuln_ids(
-    rule: DependencyAuditRule, tmp_path: Path
-) -> None:
-    raw = [_vuln("pkg", "1.0.0", [])]
-    result = _check_with_vulns(rule, tmp_path, raw)
-    # _summarize_vuln produces vuln_ids=[], fix_versions=[]
-    # Formatting must not crash and must still mention the package name.
-    assert result.text is not None
-    assert "pkg" in result.text
 
 
 def test_deps_audit_text_top_vulns_cap(
