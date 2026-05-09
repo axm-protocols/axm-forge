@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from axm.hooks.base import HookResult
 
@@ -18,7 +18,7 @@ from axm_git.hooks._resolve import _resolve_working_dir
 __all__ = ["CreatePRHook"]
 
 
-def _format_pr_title(commit_spec: dict[str, Any], ticket_id: str) -> str:
+def _format_pr_title(commit_spec: dict[str, object], ticket_id: str) -> str:
     """Format PR title from commit spec message.
 
     If the message already contains ``[AXM-...]``, use it as-is.
@@ -39,7 +39,7 @@ class CreatePRHook:
     Skips gracefully when ``gh`` is not installed.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -59,14 +59,15 @@ class CreatePRHook:
 
         working_dir = _resolve_working_dir(params, context)
 
-        commit_spec: dict[str, Any] = params.get(
-            "commit_spec", context.get("commit_spec", {})
+        commit_spec = cast(
+            "dict[str, object]",
+            params.get("commit_spec", context.get("commit_spec", {})),
         )
-        ticket_id: str = params.get("ticket_id", context.get("ticket_id", ""))
-        base = params.get("base", "main")
+        ticket_id = cast("str", params.get("ticket_id", context.get("ticket_id", "")))
+        base = cast("str", params.get("base", "main"))
 
         title = _format_pr_title(commit_spec, ticket_id)
-        body = commit_spec.get("body", "")
+        body = cast("str", commit_spec.get("body", ""))
 
         # Create the PR
         create_args = [

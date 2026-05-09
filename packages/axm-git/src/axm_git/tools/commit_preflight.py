@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -69,7 +68,7 @@ class GitPreflightTool(AXMTool):
         *,
         path: str = ".",
         diff_lines: int = 200,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Show current working tree status and diff summary.
 

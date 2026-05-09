@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -38,7 +37,7 @@ class GitPRTool(AXMTool):
         base: str = "main",
         auto_merge: bool = True,
         path: str = ".",
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Create a GitHub pull request.
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from axm.hooks.base import HookResult
 
@@ -90,7 +90,7 @@ class PreflightHook:
         ``diff_lines`` — max diff lines (default 200, 0 to disable).
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -106,7 +106,7 @@ class PreflightHook:
             return HookResult.ok(skipped=True, reason="git disabled")
 
         working_dir = _resolve_working_dir(params, context, param_key="path").resolve()
-        max_diff_lines: int = int(params.get("diff_lines", 200))
+        max_diff_lines = int(cast("int | str", params.get("diff_lines", 200)))
 
         git_root = find_git_root(working_dir)
         if git_root is None:

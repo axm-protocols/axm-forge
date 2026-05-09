@@ -7,7 +7,7 @@ with priority: ``branch`` param > ``branch`` context key.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import cast
 
 from axm.hooks.base import HookResult
 
@@ -30,7 +30,7 @@ class BranchDeleteHook:
     a git repository.
     """
 
-    def execute(self, context: dict[str, Any], **params: Any) -> HookResult:
+    def execute(self, context: dict[str, object], **params: object) -> HookResult:
         """Execute the hook action.
 
         Args:
@@ -49,7 +49,7 @@ class BranchDeleteHook:
         if git_root is None:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
-        branch = params.get("branch") or context.get("branch")
+        branch = cast("str | None", params.get("branch") or context.get("branch"))
         if not branch:
             return HookResult.fail("no branch specified in params or context")
 
