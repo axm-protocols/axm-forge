@@ -134,6 +134,11 @@ _IO_ATTRS: frozenset[str] = frozenset(
         "iterdir",
         "glob",
         "rglob",
+        "is_file",
+        "is_dir",
+        "exists",
+        "stat",
+        "lstat",
     }
 )
 
