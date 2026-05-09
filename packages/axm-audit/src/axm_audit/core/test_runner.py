@@ -11,7 +11,7 @@ import logging
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from axm_audit.core.runner import run_in_project
 
@@ -78,7 +78,7 @@ class TestReport:
 # ---------------------------------------------------------------------------
 
 
-def parse_failures(tests: list[dict[str, Any]]) -> list[FailureDetail]:
+def parse_failures(tests: list[dict[str, object]]) -> list[FailureDetail]:
     """Extract ``FailureDetail`` items from pytest-json-report tests list."""
     failures: list[FailureDetail] = []
     for test in tests:
@@ -86,10 +86,12 @@ def parse_failures(tests: list[dict[str, Any]]) -> list[FailureDetail]:
         if outcome not in ("failed", "error"):
             continue
 
-        nodeid: str = test.get("nodeid", "unknown")
-        call_info: dict[str, Any] = test.get("call") or test.get("setup") or {}
-        crash: dict[str, Any] = call_info.get("crash", {})
-        tb_text: str = call_info.get("longrepr", "")
+        nodeid = cast(str, test.get("nodeid", "unknown"))
+        call_info = cast(
+            "dict[str, object]", test.get("call") or test.get("setup") or {}
+        )
+        crash = cast("dict[str, object]", call_info.get("crash", {}))
+        tb_text = cast(str, call_info.get("longrepr", ""))
 
         # Truncate traceback to _MAX_TB_LINES
         tb_lines = tb_text.strip().splitlines()
@@ -98,7 +100,7 @@ def parse_failures(tests: list[dict[str, Any]]) -> list[FailureDetail]:
         short_tb = "\n".join(tb_lines)
 
         # Extract error type from the crash message
-        message = crash.get("message", "")
+        message = cast(str, crash.get("message", ""))
         error_type = "Error"
         if ":" in message:
             error_type = message.split(":")[0].strip()
@@ -108,8 +110,8 @@ def parse_failures(tests: list[dict[str, Any]]) -> list[FailureDetail]:
                 test=nodeid,
                 error_type=error_type,
                 message=message,
-                file=crash.get("path", ""),
-                line=crash.get("lineno", 0),
+                file=cast(str, crash.get("path", "")),
+                line=cast(int, crash.get("lineno", 0)),
                 traceback=short_tb,
             )
         )
@@ -117,7 +119,7 @@ def parse_failures(tests: list[dict[str, Any]]) -> list[FailureDetail]:
 
 
 def parse_collector_errors(
-    collectors: list[dict[str, Any]],
+    collectors: list[dict[str, object]],
 ) -> list[FailureDetail]:
     """Extract ``FailureDetail`` items from pytest-json-report collectors list.
 
@@ -126,11 +128,11 @@ def parse_collector_errors(
     """
     failures: list[FailureDetail] = []
     for collector in collectors:
-        longrepr = collector.get("longrepr", "")
+        longrepr = cast(str, collector.get("longrepr", ""))
         if not longrepr:
             continue
 
-        nodeid: str = collector.get("nodeid", "unknown")
+        nodeid = cast(str, collector.get("nodeid", "unknown"))
 
         # Truncate traceback
         tb_lines = longrepr.strip().splitlines()
@@ -159,10 +161,10 @@ def parse_collector_errors(
     return failures
 
 
-def parse_json_report(report_path: Path) -> dict[str, Any]:
+def parse_json_report(report_path: Path) -> dict[str, object]:
     """Read and parse a pytest-json-report JSON file."""
     try:
-        return json.loads(report_path.read_text())  # type: ignore[no-any-return]
+        return cast("dict[str, object]", json.loads(report_path.read_text()))
     except (json.JSONDecodeError, OSError) as exc:
         logger.warning("Failed to parse JSON report: %s", exc)
         return {}
@@ -181,16 +183,19 @@ def parse_coverage(coverage_path: Path) -> tuple[float | None, dict[str, float]]
     if not coverage_path.exists():
         return None, {}
     try:
-        data = json.loads(coverage_path.read_text())
+        data = cast("dict[str, object]", json.loads(coverage_path.read_text()))
     except (json.JSONDecodeError, OSError):
         return None, {}
 
-    total_pct = data.get("totals", {}).get("percent_covered")
+    totals = cast("dict[str, object]", data.get("totals", {}))
+    total_pct = cast("float | None", totals.get("percent_covered"))
     per_file: dict[str, float] = {}
-    for fpath, fdata in data.get("files", {}).items():
+    files_map = cast("dict[str, dict[str, object]]", data.get("files", {}))
+    for fpath, fdata in files_map.items():
         if Path(fpath).name == "__main__.py":
             continue
-        per_file[fpath] = fdata.get("summary", {}).get("percent_covered", 0.0)
+        summary = cast("dict[str, object]", fdata.get("summary", {}))
+        per_file[fpath] = cast(float, summary.get("percent_covered", 0.0))
 
     return total_pct, per_file
 
@@ -309,7 +314,7 @@ def run_tests(
 
 def build_test_report(
     *,
-    report_data: dict[str, Any],
+    report_data: dict[str, object],
     total_cov: float | None,
     per_file_cov: dict[str, float],
     mode: str | None = None,
@@ -321,21 +326,21 @@ def build_test_report(
     Returns ``None`` for ``failures`` and ``coverage_by_file`` when no
     data exists.
     """
-    summary = report_data.get("summary", {})
-    tests_list: list[dict[str, Any]] = report_data.get("tests", [])
+    summary = cast("dict[str, object]", report_data.get("summary", {}))
+    tests_list = cast("list[dict[str, object]]", report_data.get("tests", []))
 
     # Always parse failures
     failures = parse_failures(tests_list)
-    collectors_list: list[dict[str, Any]] = report_data.get("collectors", [])
+    collectors_list = cast("list[dict[str, object]]", report_data.get("collectors", []))
     failures.extend(parse_collector_errors(collectors_list))
 
     return TestReport(
-        passed=summary.get("passed", 0),
-        failed=summary.get("failed", 0),
-        errors=summary.get("error", 0),
-        skipped=summary.get("skipped", 0),
-        warnings=summary.get("warnings", 0),
-        duration=report_data.get("duration", 0.0),
+        passed=cast(int, summary.get("passed", 0)),
+        failed=cast(int, summary.get("failed", 0)),
+        errors=cast(int, summary.get("error", 0)),
+        skipped=cast(int, summary.get("skipped", 0)),
+        warnings=cast(int, summary.get("warnings", 0)),
+        duration=cast(float, report_data.get("duration", 0.0)),
         coverage=total_cov,
         failures=failures or None,
         coverage_by_file=per_file_cov or None,

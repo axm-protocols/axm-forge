@@ -9,11 +9,11 @@ from __future__ import annotations
 import ast
 import re
 from collections import Counter, defaultdict
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from itertools import combinations
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from pydantic import Field
 
@@ -35,6 +35,28 @@ __all__ = [
 ]
 
 
+class _TestEntry(TypedDict, total=False):
+    """Serialized test-function record used inside cluster payloads."""
+
+    file: str
+    name: str
+    line: int
+    call_sig: str
+
+
+class _Cluster(TypedDict, total=False):
+    """Cluster payload exposed via :class:`DuplicateTestsCheckResult.metadata`."""
+
+    signal: str
+    reason: str
+    similarity: float
+    tests: list[_TestEntry]
+    members: list[_TestEntry]
+
+
+_RescuePredicate = Callable[[list["_TestFunc"]], bool]
+
+
 _P1_MIN_SYMDIFF = 2
 _P3_MIN_TOKEN_LEN = 4
 _P3_MAX_BODY = 4
@@ -47,7 +69,7 @@ _MAX_TEXT_CLUSTERS = 10
 _MAX_MEMBERS_INLINE = 5
 
 
-def _render_cluster_members(members: list[dict[str, Any]]) -> str:
+def _render_cluster_members(members: list[_TestEntry]) -> str:
     shown = members[:_MAX_MEMBERS_INLINE]
     files = {m.get("file", "") for m in shown}
     if len(files) == 1:
@@ -57,7 +79,7 @@ def _render_cluster_members(members: list[dict[str, Any]]) -> str:
     return ", ".join(f"{m.get('file', '')}::{m.get('name', '')}" for m in shown)
 
 
-def render_clusters_text(clusters: list[dict[str, Any]]) -> str:
+def render_clusters_text(clusters: list[_Cluster]) -> str:
     """Render top-N clusters (signal + ambiguous) as a compact bullet list."""
     ordered = sorted(
         clusters,
@@ -153,10 +175,10 @@ _P6_EXCLUDED_NAMES: frozenset[str] = frozenset(
 )
 
 
-class DuplicateTestsCheckResult(CheckResult):
+class DuplicateTestsCheckResult(CheckResult):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """:class:`CheckResult` with cluster metadata."""
 
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, object] = Field(default_factory=dict)
 
     model_config = {"extra": "forbid"}
 
@@ -763,12 +785,12 @@ def _test_key(t: _TestFunc) -> str:
     return f"{t.file}::{t.line}::{t.name}"
 
 
-def _test_entry(t: _TestFunc) -> dict[str, Any]:
+def _test_entry(t: _TestFunc) -> _TestEntry:
     """Serialize a test function into the cluster payload shape."""
     return {"file": t.file, "name": t.name, "line": t.line, "call_sig": t.call_sig}
 
 
-_S1_RESCUES: tuple[tuple[Any, str, str], ...] = (
+_S1_RESCUES: tuple[tuple[_RescuePredicate, str, str], ...] = (
     (_p1_rescues, "ambiguous_distinct_literals", "distinct literals rescue for SUT"),
     (_p2_rescues, "ambiguous_patch_context", "patch-context rescue for SUT"),
     (_p5_rescues, "ambiguous_setup_divergence", "setup divergence rescue for SUT"),
@@ -795,7 +817,7 @@ def _classify_s1(tests: list[_TestFunc], sig: str, pattern: str) -> tuple[str, s
     return "signal1_call_assert", f"same SUT: {sig}{tail}"
 
 
-_S2_RESCUES: tuple[tuple[Any, str, str], ...] = (
+_S2_RESCUES: tuple[tuple[_RescuePredicate, str, str], ...] = (
     (_p1_rescues, "ambiguous_distinct_literals", "distinct literals rescue"),
     (_p3_rescues, "ambiguous_template_pair", "template-pair rescue"),
     (_p2_rescues, "ambiguous_patch_context", "patch-context rescue"),
@@ -813,7 +835,7 @@ def _classify_s2(tests: list[_TestFunc], name: str, sim: float) -> tuple[str, st
 
 
 _S3_RESCUES: tuple[
-    tuple[Any, str, str],
+    tuple[_RescuePredicate, str, str],
     ...,
 ] = (
     (_p1_rescues, "ambiguous_distinct_literals", "distinct literals rescue"),
@@ -838,7 +860,7 @@ def _try_emit_s2_pair(
     a: _TestFunc,
     b: _TestFunc,
     seen_pairs: set[tuple[str, str]],
-) -> dict[str, Any] | None:
+) -> _Cluster | None:
     """Return cluster dict if ``a``/``b`` form a valid S2 pair, else ``None``."""
     if a.file == b.file:
         return None
@@ -866,9 +888,9 @@ def _is_valid_s2_group(group: list[_TestFunc]) -> bool:
 def _cluster_s2(
     tests: list[_TestFunc],
     seen_pairs: set[tuple[str, str]],
-) -> list[dict[str, Any]]:
+) -> list[_Cluster]:
     """S2 — cross-file same-name with Jaccard ≥ ``_S2_HIGH_SIM``."""
-    raw: list[dict[str, Any]] = []
+    raw: list[_Cluster] = []
     by_name: dict[str, list[_TestFunc]] = defaultdict(list)
     for t in tests:
         by_name[t.name].append(t)
@@ -904,7 +926,7 @@ def _build_s1_cluster(
     sig: str,
     pattern: str,
     seen_pairs: set[tuple[str, str]],
-) -> dict[str, Any] | None:
+) -> _Cluster | None:
     """Build the S1 cluster dict for a single subgroup, or ``None`` if too small."""
     claimed: set[str] = set()
     for a, b in combinations(subgroup, 2):
@@ -929,9 +951,9 @@ def _build_s1_cluster(
 def _emit_s1_clusters(
     groups: dict[str, dict[str, list[_TestFunc]]],
     seen_pairs: set[tuple[str, str]],
-) -> list[dict[str, Any]]:
+) -> list[_Cluster]:
     """Emit raw S1 cluster dicts for each ``(sig, pattern)`` group."""
-    raw: list[dict[str, Any]] = []
+    raw: list[_Cluster] = []
     for sig, subgroups in groups.items():
         for pattern, subgroup in subgroups.items():
             if len(subgroup) < _MIN_PAIR:
@@ -945,7 +967,7 @@ def _emit_s1_clusters(
 def _cluster_s1(
     tests: list[_TestFunc],
     seen_pairs: set[tuple[str, str]],
-) -> list[dict[str, Any]]:
+) -> list[_Cluster]:
     """S1 — same ``call_sig`` and same ``assert_pattern``."""
     return _emit_s1_clusters(_group_by_s1_key(tests), seen_pairs)
 
@@ -954,9 +976,9 @@ def _cluster_s3(
     tests: list[_TestFunc],
     threshold: float,
     seen_pairs: set[tuple[str, str]],
-) -> list[dict[str, Any]]:
+) -> list[_Cluster]:
     """S3 — intra-file Jaccard ≥ ``threshold``."""
-    raw: list[dict[str, Any]] = []
+    raw: list[_Cluster] = []
     by_file: dict[str, list[_TestFunc]] = defaultdict(list)
     for t in tests:
         by_file[t.file].append(t)
@@ -1006,7 +1028,7 @@ def _new_pairs_for_group(
     ]
 
 
-def _build_cluster(sig: str, group: list[_TestFunc]) -> dict[str, Any]:
+def _build_cluster(sig: str, group: list[_TestFunc]) -> _Cluster:
     return {
         "signal": "ambiguous_raises_divergence",
         "reason": f"pytest.raises divergence rescue for SUT {sig}",
@@ -1018,9 +1040,9 @@ def _build_cluster(sig: str, group: list[_TestFunc]) -> dict[str, Any]:
 def _cluster_raises_divergence(
     tests: list[_TestFunc],
     seen_pairs: set[tuple[str, str]],
-) -> list[dict[str, Any]]:
+) -> list[_Cluster]:
     """Emit ambiguous clusters for tests sharing call_sig but divergent raises usage."""
-    raw: list[dict[str, Any]] = []
+    raw: list[_Cluster] = []
     for sig, group in _group_by_call_sig(tests).items():
         pairs = _new_pairs_for_group(group, seen_pairs)
         if not pairs:
@@ -1030,10 +1052,10 @@ def _cluster_raises_divergence(
     return raw
 
 
-def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
+def _cluster(tests: list[_TestFunc], threshold: float) -> list[_Cluster]:
     """Return merged cluster dicts for *tests* across S1/S2/S3 signals."""
     seen_pairs: set[tuple[str, str]] = set()
-    raw: list[dict[str, Any]] = []
+    raw: list[_Cluster] = []
     raw.extend(_cluster_s2(tests, seen_pairs))
     raw.extend(_cluster_s1(tests, seen_pairs))
     raw.extend(_cluster_s3(tests, threshold, seen_pairs))
@@ -1042,10 +1064,10 @@ def _cluster(tests: list[_TestFunc], threshold: float) -> list[dict[str, Any]]:
 
 
 def _build_union_find(
-    clusters: list[dict[str, Any]],
+    clusters: list[_Cluster],
 ) -> dict[int, list[int]]:
     """Return ``{root: [indices]}`` after union-find over shared tests."""
-    test_to_idx: dict[tuple[Any, ...], list[int]] = defaultdict(list)
+    test_to_idx: dict[tuple[object, ...], list[int]] = defaultdict(list)
     for i, cluster in enumerate(clusters):
         for t in cluster.get("tests", []):
             key = (t.get("file"), t.get("name"), t.get("line", 0))
@@ -1090,11 +1112,11 @@ def _pick_merged_signal(signals: list[str]) -> str:
 
 
 def _aggregate_group(
-    clusters: list[dict[str, Any]],
+    clusters: list[_Cluster],
     indices: list[int],
-) -> tuple[dict[tuple[Any, ...], dict[str, Any]], list[str], list[str], float]:
+) -> tuple[dict[tuple[object, ...], _TestEntry], list[str], list[str], float]:
     """Collapse a union-find group into (tests_by_key, reasons, signals, max_sim)."""
-    tests_by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
+    tests_by_key: dict[tuple[object, ...], _TestEntry] = {}
     reasons: list[str] = []
     signals: list[str] = []
     max_sim = 0.0
@@ -1111,13 +1133,13 @@ def _aggregate_group(
     return tests_by_key, reasons, signals, max_sim
 
 
-def merge_clusters(clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def merge_clusters(clusters: list[_Cluster]) -> list[_Cluster]:
     """Union-find merge; ambiguous sub-clusters dominate the merged signal."""
     if not clusters:
         return []
 
     groups = _build_union_find(clusters)
-    merged: list[dict[str, Any]] = []
+    merged: list[_Cluster] = []
     for indices in groups.values():
         tests_by_key, reasons, signals, max_sim = _aggregate_group(clusters, indices)
         if len(tests_by_key) < _MIN_PAIR:
@@ -1144,9 +1166,7 @@ def _pairs_in_cluster(n: int) -> int:
 _REASON_MAX_LEN = 200
 
 
-def _bucket_counts(
-    tests: list[_TestFunc], clusters: list[dict[str, Any]]
-) -> dict[str, int]:
+def _bucket_counts(tests: list[_TestFunc], clusters: list[_Cluster]) -> dict[str, int]:
     """Aggregate test classification counts (CLUSTERED/AMBIGUOUS/UNIQUE)."""
     clustered_keys: set[tuple[str, str]] = set()
     ambiguous_keys: set[tuple[str, str]] = set()
@@ -1160,8 +1180,8 @@ def _bucket_counts(
                 clustered_keys.add(key)
 
     counts = {"CLUSTERED": 0, "AMBIGUOUS": 0, "UNIQUE": 0}
-    for t in tests:
-        key = (t.file, t.name)
+    for tf in tests:
+        key = (tf.file, tf.name)
         if key in clustered_keys:
             counts["CLUSTERED"] += 1
         elif key in ambiguous_keys:
@@ -1171,19 +1191,19 @@ def _bucket_counts(
     return counts
 
 
-def _slim_clusters(clusters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _slim_clusters(clusters: list[_Cluster]) -> list[_Cluster]:
     """Project clusters to the minimal payload exposed via metadata.
 
     Drops ``call_sig`` from each member and truncates ``reason`` to
     ``_REASON_MAX_LEN`` chars to keep the metadata payload bounded for
     MCP transport.
     """
-    slim: list[dict[str, Any]] = []
+    slim: list[_Cluster] = []
     for cluster in clusters:
         reason = cluster.get("reason") or ""
         if len(reason) > _REASON_MAX_LEN:
             reason = reason[:_REASON_MAX_LEN]
-        members = [
+        members: list[_TestEntry] = [
             {
                 "file": t.get("file", ""),
                 "name": t.get("name", ""),

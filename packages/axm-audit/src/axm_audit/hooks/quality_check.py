@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
 from axm.hooks.base import HookResult
 
@@ -79,8 +78,8 @@ class QualityCheckHook:
 
     def execute(
         self,
-        context: dict[str, Any],
-        **params: Any,
+        context: dict[str, object],
+        **params: object,
     ) -> HookResult:
         """Run audit on a project directory.
 
@@ -94,13 +93,19 @@ class QualityCheckHook:
             with its pre-formatted per-violation lines (file:line, code,
             message) ready for direct LLM consumption.
         """
-        working_dir = params.get("working_dir") or context.get("working_dir", ".")
+        working_dir_param = params.get("working_dir") or context.get("working_dir", ".")
+        working_dir = working_dir_param if isinstance(working_dir_param, str) else "."
         project_path = Path(working_dir)
 
         if not project_path.is_dir():
             return _clean_result()
 
-        categories: list[str] = params.get("categories", _DEFAULT_CATEGORIES)
+        categories_param = params.get("categories", _DEFAULT_CATEGORIES)
+        categories: list[str] = (
+            [c for c in categories_param if isinstance(c, str)]
+            if isinstance(categories_param, list)
+            else _DEFAULT_CATEGORIES
+        )
         failed_checks = _failed_checks_from(_run_audits(project_path, categories))
 
         if not failed_checks:

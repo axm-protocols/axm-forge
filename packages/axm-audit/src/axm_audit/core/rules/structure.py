@@ -6,7 +6,6 @@ import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
 from axm_audit.models.results import CheckResult, Severity
@@ -136,7 +135,7 @@ _OPTIONAL_FIELDS = ("classifiers", "readme")
 _TOTAL_FIELDS = 9  # required(5) + version + urls + optional(2)
 
 
-def check_fields(project: dict[str, Any]) -> tuple[int, list[str]]:
+def check_fields(project: dict[str, object]) -> tuple[int, list[str]]:
     """Check present PEP 621 fields in project table.
 
     Returns (present_count, missing_field_names).
@@ -144,7 +143,9 @@ def check_fields(project: dict[str, Any]) -> tuple[int, list[str]]:
     missing: list[str] = [f for f in _REQUIRED_FIELDS if f not in project]
 
     # Version: static or dynamic
-    has_version = "version" in project or "version" in project.get("dynamic", [])
+    dynamic = project.get("dynamic", [])
+    dynamic_list: list[object] = dynamic if isinstance(dynamic, list) else []
+    has_version = "version" in project or "version" in dynamic_list
     if not has_version:
         missing.append("version")
 

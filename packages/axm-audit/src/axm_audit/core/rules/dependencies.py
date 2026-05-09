@@ -7,7 +7,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from axm_audit.core.rules.base import PASS_THRESHOLD, ProjectRule, register_rule
 from axm_audit.core.runner import run_in_project
@@ -16,7 +16,7 @@ from axm_audit.models.results import CheckResult, Severity
 logger = logging.getLogger(__name__)
 
 
-def _run_pip_audit(project_path: Path) -> dict[str, Any] | list[Any]:
+def _run_pip_audit(project_path: Path) -> dict[str, object] | list[object]:
     """Run pip-audit and return parsed JSON output.
 
     Raises:
@@ -33,7 +33,7 @@ def _run_pip_audit(project_path: Path) -> dict[str, Any] | list[Any]:
     )
     try:
         if result.stdout.strip():
-            data: dict[str, Any] | list[Any] = json.loads(result.stdout)
+            data: dict[str, object] | list[object] = json.loads(result.stdout)
             return data
     except json.JSONDecodeError:
         pass
@@ -46,7 +46,16 @@ def _run_pip_audit(project_path: Path) -> dict[str, Any] | list[Any]:
     return {}
 
 
-def _format_vuln_line(v: dict[str, Any]) -> str:
+class _VulnSummary(TypedDict):
+    """Summary entry for a single vulnerable package."""
+
+    name: str
+    version: str
+    vuln_ids: list[str]
+    fix_versions: list[str]
+
+
+def _format_vuln_line(v: _VulnSummary) -> str:
     """Format a single summarized vuln entry as a text line."""
     fix = ",".join(v["fix_versions"]) if v["fix_versions"] else "?"
     cves = v["vuln_ids"]
@@ -59,17 +68,35 @@ def _format_vuln_line(v: dict[str, Any]) -> str:
     return f"\u2022 {v['name']} {v['version']}\u2192{fix} {cve_str}"
 
 
-def _summarize_vuln(v: dict[str, Any]) -> dict[str, Any]:
+def _summarize_vuln(v: dict[str, object]) -> _VulnSummary:
     """Build a top_vulns summary entry for a single vulnerable package."""
-    vuln_entries = v.get("vulns", [])
-    return {
-        "name": v.get("name", ""),
-        "version": v.get("version", ""),
-        "vuln_ids": [vi.get("id", "") for vi in vuln_entries],
-        "fix_versions": sorted(
-            {fv for vi in vuln_entries for fv in vi.get("fix_versions", [])}
-        ),
-    }
+    raw_entries = v.get("vulns", [])
+    vuln_entries: list[dict[str, object]] = (
+        [e for e in raw_entries if isinstance(e, dict)]
+        if isinstance(raw_entries, list)
+        else []
+    )
+    name_raw = v.get("name", "")
+    version_raw = v.get("version", "")
+
+    vuln_ids: list[str] = []
+    fix_versions_set: set[str] = set()
+    for vi in vuln_entries:
+        vid = vi.get("id", "")
+        if isinstance(vid, str):
+            vuln_ids.append(vid)
+        fv_raw = vi.get("fix_versions", [])
+        if isinstance(fv_raw, list):
+            for fv in fv_raw:
+                if isinstance(fv, str):
+                    fix_versions_set.add(fv)
+
+    return _VulnSummary(
+        name=name_raw if isinstance(name_raw, str) else "",
+        version=version_raw if isinstance(version_raw, str) else "",
+        vuln_ids=vuln_ids,
+        fix_versions=sorted(fix_versions_set),
+    )
 
 
 _ENV_TOOLS: frozenset[str] = frozenset(
@@ -84,14 +111,27 @@ _ENV_TOOLS: frozenset[str] = frozenset(
 )
 
 
-def _parse_vulns(data: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
+def _parse_vulns(
+    data: dict[str, object] | list[object],
+) -> list[dict[str, object]]:
     """Extract vulnerable packages from pip-audit output, excluding env tools."""
-    deps = data if isinstance(data, list) else data.get("dependencies", [])
-    return [
-        d
-        for d in deps
-        if d.get("vulns") and d.get("name", "").lower() not in _ENV_TOOLS
-    ]
+    if isinstance(data, list):
+        deps_raw: list[object] = data
+    else:
+        deps_value = data.get("dependencies", [])
+        deps_raw = deps_value if isinstance(deps_value, list) else []
+
+    result: list[dict[str, object]] = []
+    for dep in deps_raw:
+        if not isinstance(dep, dict):
+            continue
+        name_val = dep.get("name", "")
+        if not dep.get("vulns"):
+            continue
+        if isinstance(name_val, str) and name_val.lower() in _ENV_TOOLS:
+            continue
+        result.append(dep)
+    return result
 
 
 @dataclass
@@ -232,7 +272,7 @@ def detect_first_party_packages(project_path: Path) -> list[str]:
     ]
 
 
-def run_deptry(project_path: Path) -> list[dict[str, Any]]:
+def run_deptry(project_path: Path) -> list[dict[str, object]]:
     """Run deptry and return parsed JSON issues.
 
     Raises:
@@ -259,7 +299,10 @@ def run_deptry(project_path: Path) -> list[dict[str, Any]]:
             check=False,
         )
         if tmp_path.exists() and tmp_path.stat().st_size > 0:
-            return json.loads(tmp_path.read_text())  # type: ignore[no-any-return]
+            parsed = json.loads(tmp_path.read_text())
+            if isinstance(parsed, list):
+                return [item for item in parsed if isinstance(item, dict)]
+            return []
 
         if result.returncode != 0:
             stderr = result.stderr.strip() if result.stderr else "unknown error"
@@ -326,17 +369,21 @@ def _optional_dep_packages(project_path: Path) -> set[str]:
 
 
 def _filter_false_positives(
-    issues: list[dict[str, Any]], project_path: Path
-) -> list[dict[str, Any]]:
+    issues: list[dict[str, object]], project_path: Path
+) -> list[dict[str, object]]:
     """Remove DEP002 false positives for entry-point and optional-dep packages."""
     allowed = _entry_point_packages(project_path) | _optional_dep_packages(project_path)
     if not allowed:
         return issues
 
-    filtered: list[dict[str, Any]] = []
+    filtered: list[dict[str, object]] = []
     for issue in issues:
-        code = issue.get("error", {}).get("code", "") or issue.get("error_code", "")
-        module = _normalize_pkg(issue.get("module", ""))
+        error_obj = issue.get("error", {})
+        error_code = error_obj.get("code", "") if isinstance(error_obj, dict) else ""
+        fallback_code = issue.get("error_code", "")
+        code = error_code or fallback_code
+        module_raw = issue.get("module", "")
+        module = _normalize_pkg(module_raw if isinstance(module_raw, str) else "")
         if code == "DEP002" and module in allowed:
             continue
         filtered.append(issue)
@@ -351,18 +398,23 @@ _DEPTRY_LABELS: dict[str, str] = {
 }
 
 
-def _format_issue(issue: dict[str, Any], member: str = "") -> dict[str, str]:
+def _format_issue(issue: dict[str, object], member: str = "") -> dict[str, str]:
     """Format a single deptry issue for reporting."""
+    code: object = ""
+    message: object = ""
     if "error" in issue:
-        code = issue["error"].get("code", "")
-        message = issue["error"].get("message", "")
+        error_obj = issue["error"]
+        if isinstance(error_obj, dict):
+            code = error_obj.get("code", "")
+            message = error_obj.get("message", "")
     else:
         code = issue.get("error_code", "")
         message = issue.get("message", "")
+    module_raw = issue.get("module", "")
     formatted: dict[str, str] = {
-        "code": code,
-        "module": issue.get("module", ""),
-        "message": message,
+        "code": code if isinstance(code, str) else "",
+        "module": module_raw if isinstance(module_raw, str) else "",
+        "message": message if isinstance(message, str) else "",
     }
     if member:
         formatted["member"] = member
@@ -421,7 +473,7 @@ class DependencyHygieneRule(ProjectRule):
 
     def _run_deptry_safely(
         self, project_path: Path, *, member_name: str = ""
-    ) -> tuple[list[dict[str, Any]] | None, CheckResult | None]:
+    ) -> tuple[list[dict[str, object]] | None, CheckResult | None]:
         """Invoke ``run_deptry`` and translate failures into a ``CheckResult``.
 
         Returns ``(issues, None)`` on success and ``(None, error_result)`` on
@@ -455,7 +507,9 @@ class DependencyHygieneRule(ProjectRule):
                 fix_hint="Check deptry installation: uv run deptry --version",
             )
 
-    def _build_single_check_result(self, issues: list[dict[str, Any]]) -> CheckResult:
+    def _build_single_check_result(
+        self, issues: list[dict[str, object]]
+    ) -> CheckResult:
         """Build the success-path ``CheckResult`` for single-package mode."""
         issue_count = len(issues)
         score = max(0, 100 - issue_count * 10)
@@ -487,7 +541,7 @@ class DependencyHygieneRule(ProjectRule):
 
     def _check_single(
         self, project_path: Path, *, member_name: str = ""
-    ) -> CheckResult | list[dict[str, Any]]:
+    ) -> CheckResult | list[dict[str, object]]:
         """Run deptry on a single package and return a CheckResult or issue list.
 
         When *member_name* is set the method returns filtered issues (for
@@ -504,9 +558,9 @@ class DependencyHygieneRule(ProjectRule):
 
     def _collect_member_issues(
         self, members: list[Path]
-    ) -> list[tuple[str, dict[str, Any]]]:
+    ) -> list[tuple[str, dict[str, object]]]:
         """Run deptry on each workspace member and collect tagged issues."""
-        all_issues: list[tuple[str, dict[str, Any]]] = []
+        all_issues: list[tuple[str, dict[str, object]]] = []
         for member in members:
             member_name = member.name
             issues = self._check_single(member, member_name=member_name)
@@ -516,7 +570,7 @@ class DependencyHygieneRule(ProjectRule):
         return all_issues
 
     def _build_workspace_result(
-        self, all_issues: list[tuple[str, dict[str, Any]]]
+        self, all_issues: list[tuple[str, dict[str, object]]]
     ) -> CheckResult:
         """Score and format aggregated member issues into a CheckResult."""
         issue_count = len(all_issues)

@@ -55,7 +55,7 @@ _TMP_PATH_NAMES: frozenset[str] = frozenset({"tmp_path", "tmp_path_factory"})
 _TAINT_PASSES = 2
 
 
-class Finding(BaseModel):
+class Finding(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """One classification verdict for a single test function."""
 
     path: str
@@ -74,7 +74,7 @@ class Finding(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-class PyramidCheckResult(CheckResult):
+class PyramidCheckResult(CheckResult):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """:class:`CheckResult` subclass exposing ``findings`` and ``score``."""
 
     findings: list[Finding] = Field(default_factory=list)

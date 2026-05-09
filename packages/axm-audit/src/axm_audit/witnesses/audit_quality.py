@@ -11,7 +11,6 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from axm.witnesses import ValidationFeedback, WitnessResult
 
@@ -81,8 +80,8 @@ class AuditQualityRule:
         return results
 
     def _filter_excluded(
-        self, failed_items: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+        self, failed_items: list[dict[str, object]]
+    ) -> list[dict[str, object]]:
         """Remove items whose rule_id matches any exclude prefix."""
         if not self.exclude_rules or not failed_items:
             return failed_items
@@ -90,15 +89,15 @@ class AuditQualityRule:
             item
             for item in failed_items
             if not any(
-                item.get("rule_id", "").startswith(prefix)
+                str(item.get("rule_id", "")).startswith(prefix)
                 for prefix in self.exclude_rules
             )
         ]
 
     def _build_failure_result(
         self,
-        agent_output: dict[str, Any],
-        failed_items: list[dict[str, Any]],
+        agent_output: dict[str, object],
+        failed_items: list[dict[str, object]],
     ) -> WitnessResult:
         """Build a WitnessResult.failure with structured feedback."""
         why_lines = json.dumps(failed_items, indent=2, ensure_ascii=False)
@@ -118,13 +117,18 @@ class AuditQualityRule:
             metadata={"audit": agent_output},
         )
 
-    def validate(self, content: str, **kwargs: Any) -> WitnessResult:
+    def validate(self, content: str, **kwargs: object) -> WitnessResult:
         """Run audit categories and aggregate results.
 
         Each category runs independently — failures in one do not
         prevent execution of the others.
         """
-        working_dir = kwargs.get("working_dir") or self.working_dir
+        working_dir_param = kwargs.get("working_dir")
+        working_dir = (
+            working_dir_param
+            if isinstance(working_dir_param, str)
+            else self.working_dir
+        )
         project_path = Path(working_dir).resolve()
 
         if not project_path.is_dir():
@@ -164,7 +168,13 @@ class AuditQualityRule:
         agent_output = format_agent(merged)
 
         # Filter excluded rules before counting failures
-        failed_items = self._filter_excluded(agent_output.get("failed", []))
+        raw_failed = agent_output.get("failed", [])
+        failed_input: list[dict[str, object]] = (
+            [item for item in raw_failed if isinstance(item, dict)]
+            if isinstance(raw_failed, list)
+            else []
+        )
+        failed_items = self._filter_excluded(failed_input)
         agent_output["failed"] = failed_items
 
         if not failed_items:
