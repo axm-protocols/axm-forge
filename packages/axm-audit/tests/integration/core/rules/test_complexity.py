@@ -680,14 +680,3 @@ def test_offender_dict_has_cognitive_key_from_unit(
     top = result.details["top_offenders"][0]
     assert "cognitive" in top
     assert top["cognitive"] == 0
-
-
-class TestComplexityRuleUnitFromUnit:
-    """Pure unit tests for ComplexityRule (no I/O)."""
-
-    def test_rule_id_format(self) -> None:
-        """Rule ID should be QUALITY_COMPLEXITY."""
-        from axm_audit.core.rules.complexity import ComplexityRule
-
-        rule = ComplexityRule()
-        assert rule.rule_id == "QUALITY_COMPLEXITY"
