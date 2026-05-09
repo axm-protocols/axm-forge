@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_git.core.runner import find_git_root, not_a_repo_error, run_git
+from axm_git.core.runner import (
+    find_git_root,
+    not_a_repo_error,
+    run_git,
+    timeout_error_result,
+)
 
 __all__ = ["GitWorktreeTool"]
 
@@ -118,7 +124,10 @@ class GitWorktreeTool(AXMTool):
         if git_root is None:
             return not_a_repo_error("not a git repository", path)
 
-        result = run_git(["worktree", "list", "--porcelain"], git_root)
+        try:
+            result = run_git(["worktree", "list", "--porcelain"], git_root)
+        except subprocess.TimeoutExpired as exc:
+            return timeout_error_result(exc)
         if result.returncode != 0:
             return ToolResult(
                 success=False,
@@ -149,7 +158,10 @@ class GitWorktreeTool(AXMTool):
         cmd.append(str(path))
         cmd.append(base)
 
-        result = run_git(cmd, git_root)
+        try:
+            result = run_git(cmd, git_root)
+        except subprocess.TimeoutExpired as exc:
+            return timeout_error_result(exc)
         if result.returncode != 0:
             return ToolResult(
                 success=False,
@@ -175,7 +187,10 @@ class GitWorktreeTool(AXMTool):
         if force:
             cmd.append("--force")
 
-        result = run_git(cmd, git_root)
+        try:
+            result = run_git(cmd, git_root)
+        except subprocess.TimeoutExpired as exc:
+            return timeout_error_result(exc)
         if result.returncode != 0:
             return ToolResult(
                 success=False,

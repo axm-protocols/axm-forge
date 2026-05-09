@@ -19,6 +19,9 @@ from axm_git.core.runner import (
     run_gh,
     run_git,
 )
+from axm_git.core.runner import (
+    timeout_error_result as _timeout_error_result,
+)
 from axm_git.core.semver import compute_bump
 
 __all__ = ["GitTagTool"]
@@ -112,6 +115,7 @@ def _verify_hatch_vcs(path: Path, pkg_name: str) -> str | None:
             capture_output=True,
             text=True,
             check=False,
+            timeout=600,
         )
         if sync.returncode != 0:
             return None
@@ -127,10 +131,11 @@ def _verify_hatch_vcs(path: Path, pkg_name: str) -> str | None:
             capture_output=True,
             text=True,
             check=False,
+            timeout=60,
         )
         if ver.returncode == 0:
             return ver.stdout.strip()
-    except FileNotFoundError:
+    except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
     return None
 
@@ -237,40 +242,43 @@ class GitTagTool(AXMTool):
         resolved = Path(path).resolve()
         tag_prefix = _get_tag_prefix(resolved)
 
-        # 1. Preflight: repo, clean tree, CI, commits
-        result = _preflight(resolved, tag_prefix=tag_prefix)
-        if isinstance(result, ToolResult):
-            return result
-        ci_check, current_tag, commits = result
+        try:
+            # 1. Preflight: repo, clean tree, CI, commits
+            result = _preflight(resolved, tag_prefix=tag_prefix)
+            if isinstance(result, ToolResult):
+                return result
+            ci_check, current_tag, commits = result
 
-        # 2. Compute version
-        next_version, bump_type, breaking = _resolve_version(
-            version, current_tag, commits, tag_prefix=tag_prefix
-        )
-        logger.info(
-            "Tagging %s (bump=%s, breaking=%s)",
-            next_version,
-            bump_type,
-            breaking,
-        )
-
-        # 3. Create annotated tag
-        full_tag = f"{tag_prefix}{next_version}"
-        tag_result = run_git(["tag", "-a", full_tag, "-m", full_tag], resolved)
-        if tag_result.returncode != 0:
-            return ToolResult(
-                success=False,
-                error=f"Failed to create tag: {tag_result.stderr.strip()}",
+            # 2. Compute version
+            next_version, bump_type, breaking = _resolve_version(
+                version, current_tag, commits, tag_prefix=tag_prefix
+            )
+            logger.info(
+                "Tagging %s (bump=%s, breaking=%s)",
+                next_version,
+                bump_type,
+                breaking,
             )
 
-        # 4. Verify hatch-vcs (best-effort)
-        resolved_version = None
-        pkg_name = detect_package_name(resolved)
-        if pkg_name:
-            resolved_version = _verify_hatch_vcs(resolved, pkg_name)
+            # 3. Create annotated tag
+            full_tag = f"{tag_prefix}{next_version}"
+            tag_result = run_git(["tag", "-a", full_tag, "-m", full_tag], resolved)
+            if tag_result.returncode != 0:
+                return ToolResult(
+                    success=False,
+                    error=f"Failed to create tag: {tag_result.stderr.strip()}",
+                )
 
-        # 5. Push tag
-        push = run_git(["push", "origin", full_tag], resolved)
+            # 4. Verify hatch-vcs (best-effort)
+            resolved_version = None
+            pkg_name = detect_package_name(resolved)
+            if pkg_name:
+                resolved_version = _verify_hatch_vcs(resolved, pkg_name)
+
+            # 5. Push tag
+            push = run_git(["push", "origin", full_tag], resolved)
+        except subprocess.TimeoutExpired as exc:
+            return _timeout_error_result(exc)
 
         return ToolResult(
             success=True,

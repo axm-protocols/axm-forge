@@ -188,3 +188,53 @@ class TestFindGitRoot:
     def test_not_a_repo(self, tmp_path: Path) -> None:
         """Returns None when path is not inside any git repo."""
         assert find_git_root(tmp_path) is None
+
+
+class TestRunnerTimeouts:
+    """AC1, AC2, AC3 — explicit subprocess timeouts."""
+
+    @patch("axm_git.core.runner.subprocess.run")
+    def test_run_git_passes_default_timeout(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git"], returncode=0, stdout="", stderr=""
+        )
+        run_git(["status"], cwd=Path("/tmp"))
+        _, kwargs = mock_run.call_args
+        assert kwargs["timeout"] == 30.0
+
+    @patch("axm_git.core.runner.subprocess.run")
+    def test_run_git_caller_timeout_overrides_default(
+        self, mock_run: MagicMock
+    ) -> None:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git"], returncode=0, stdout="", stderr=""
+        )
+        run_git(["status"], cwd=Path("/tmp"), timeout=5.0)
+        _, kwargs = mock_run.call_args
+        assert kwargs["timeout"] == 5.0
+
+    @patch("axm_git.core.runner.subprocess.run")
+    def test_run_gh_passes_default_timeout(self, mock_run: MagicMock) -> None:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["gh"], returncode=0, stdout="", stderr=""
+        )
+        run_gh(["pr", "list"], cwd=Path("/tmp"))
+        _, kwargs = mock_run.call_args
+        assert kwargs["timeout"] == 120.0
+
+    @patch(
+        "axm_git.core.runner.subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd=["git"], timeout=30.0),
+    )
+    def test_find_git_root_returns_none_on_timeout(self, _mock_run: MagicMock) -> None:
+        assert find_git_root(Path("/tmp")) is None
+
+    @patch(
+        "axm_git.core.runner.subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd=["gh"], timeout=30.0),
+    )
+    @patch("axm_git.core.runner.shutil.which", return_value="/usr/bin/gh")
+    def test_gh_available_returns_false_on_timeout(
+        self, _which: MagicMock, _mock_run: MagicMock
+    ) -> None:
+        assert gh_available() is False
