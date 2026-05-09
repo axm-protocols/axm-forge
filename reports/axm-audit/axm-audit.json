@@ -104,7 +104,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.45105520448313,
+        "coverage": 91.23643734350782,
         "score": 91,
         "failures": []
       }
@@ -185,11 +185,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 99% (106/107)",
+      "message": "Docstring coverage: 99% (108/109)",
       "details": {
         "coverage": 0.99,
-        "total": 107,
-        "documented": 106,
+        "total": 109,
+        "documented": 108,
         "missing": [
           "axm_audit/core/rules/test_quality/_shared.py:load_conftest_fixtures"
         ],

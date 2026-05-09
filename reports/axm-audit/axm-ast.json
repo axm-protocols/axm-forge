@@ -1,6 +1,6 @@
 {
-  "score": 82.1,
-  "grade": "B",
+  "score": 91.1,
+  "grade": "A",
   "total": 23,
   "failed": 5,
   "success": false,
@@ -53,7 +53,7 @@
         "clones": [
           {
             "source": "axm_ast/hooks/trace_source.py:__call__:32",
-            "target": "axm_ast/hooks/flows.py:__call__:45"
+            "target": "axm_ast/hooks/flows.py:__call__:53"
           }
         ],
         "score": 90
@@ -62,50 +62,10 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 0/100 (12 high-complexity functions)",
+      "message": "Complexity score: 60/100 (4 high-complexity functions)",
       "details": {
-        "high_complexity_count": 12,
+        "high_complexity_count": 4,
         "top_offenders": [
-          {
-            "file": "context.py",
-            "function": "ContextHook",
-            "cc": 13
-          },
-          {
-            "file": "trace_source.py",
-            "function": "TraceSourceHook",
-            "cc": 13
-          },
-          {
-            "file": "impact.py",
-            "function": "_classify_callers",
-            "cc": 12
-          },
-          {
-            "file": "inspect_text.py",
-            "function": "render_function_text",
-            "cc": 12
-          },
-          {
-            "file": "context.py",
-            "function": "ContextHook.execute",
-            "cc": 12
-          },
-          {
-            "file": "trace_source.py",
-            "function": "TraceSourceHook.execute",
-            "cc": 12
-          },
-          {
-            "file": "flows.py",
-            "function": "FlowsHook._trace_all",
-            "cc": 12
-          },
-          {
-            "file": "impact.py",
-            "function": "_format_symbol_row",
-            "cc": 11
-          },
           {
             "file": "impact.py",
             "function": "analyze_impact",
@@ -127,7 +87,7 @@
             "cc": 10
           }
         ],
-        "score": 0
+        "score": 60
       }
     },
     {
@@ -135,7 +95,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.3282477002468,
+        "coverage": 91.34604661536746,
         "score": 91,
         "failures": []
       }
