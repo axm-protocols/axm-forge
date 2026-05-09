@@ -12,6 +12,8 @@ from axm_audit.core.rules.dependencies import (
     run_deptry,
 )
 
+pytestmark = pytest.mark.integration
+
 # ---------------------------------------------------------------------------
 # Unit tests for _detect_first_party_packages
 # ---------------------------------------------------------------------------
