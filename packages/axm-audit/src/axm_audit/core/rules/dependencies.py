@@ -68,34 +68,43 @@ def _format_vuln_line(v: _VulnSummary) -> str:
     return f"\u2022 {v['name']} {v['version']}\u2192{fix} {cve_str}"
 
 
-def _summarize_vuln(v: dict[str, object]) -> _VulnSummary:
-    """Build a top_vulns summary entry for a single vulnerable package."""
-    raw_entries = v.get("vulns", [])
-    vuln_entries: list[dict[str, object]] = (
-        [e for e in raw_entries if isinstance(e, dict)]
-        if isinstance(raw_entries, list)
-        else []
-    )
-    name_raw = v.get("name", "")
-    version_raw = v.get("version", "")
+def _coerce_str(value: object, default: str = "") -> str:
+    """Return ``value`` if it is a str, else ``default``."""
+    return value if isinstance(value, str) else default
 
+
+def _coerce_dict_list(value: object) -> list[dict[str, object]]:
+    """Return ``value`` filtered to dict elements, or ``[]`` if not a list."""
+    if not isinstance(value, list):
+        return []
+    return [e for e in value if isinstance(e, dict)]
+
+
+def _collect_vuln_fix_versions(
+    entries: list[dict[str, object]],
+) -> tuple[list[str], list[str]]:
+    """Extract (vuln_ids, sorted_fix_versions) from raw vulnerability entries."""
     vuln_ids: list[str] = []
     fix_versions_set: set[str] = set()
-    for vi in vuln_entries:
+    for vi in entries:
         vid = vi.get("id", "")
         if isinstance(vid, str):
             vuln_ids.append(vid)
         fv_raw = vi.get("fix_versions", [])
         if isinstance(fv_raw, list):
-            for fv in fv_raw:
-                if isinstance(fv, str):
-                    fix_versions_set.add(fv)
+            fix_versions_set.update(fv for fv in fv_raw if isinstance(fv, str))
+    return vuln_ids, sorted(fix_versions_set)
 
+
+def _summarize_vuln(v: dict[str, object]) -> _VulnSummary:
+    """Build a top_vulns summary entry for a single vulnerable package."""
+    vuln_entries = _coerce_dict_list(v.get("vulns", []))
+    vuln_ids, fix_versions = _collect_vuln_fix_versions(vuln_entries)
     return _VulnSummary(
-        name=name_raw if isinstance(name_raw, str) else "",
-        version=version_raw if isinstance(version_raw, str) else "",
+        name=_coerce_str(v.get("name", "")),
+        version=_coerce_str(v.get("version", "")),
         vuln_ids=vuln_ids,
-        fix_versions=sorted(fix_versions_set),
+        fix_versions=fix_versions,
     )
 
 
