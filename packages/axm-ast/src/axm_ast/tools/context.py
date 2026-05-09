@@ -64,7 +64,7 @@ class ContextTool(AXMTool):
             )
             return ToolResult(
                 success=True,
-                data=ws_formatted,
+                data=cast("dict[str, object]", ws_formatted),
                 text=format_workspace_text(ws_formatted),
             )
         except ValueError:

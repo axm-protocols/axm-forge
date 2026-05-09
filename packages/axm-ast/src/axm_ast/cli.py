@@ -28,6 +28,7 @@ from axm_ast.core.cache import get_package
 from axm_ast.core.context import FormattedContext
 from axm_ast.core.impact import CallerEntry, ImpactResult, TypeRefEntry
 from axm_ast.formatters import (
+    TocEntry,
     format_json,
     format_mermaid,
     format_text,
@@ -184,7 +185,7 @@ def describe(
         print(format_text(pkg, detail=detail, budget=budget, rank=rank))
 
 
-def _print_toc(toc: list[dict[str, object]], *, json_output: bool) -> None:
+def _print_toc(toc: list[TocEntry], *, json_output: bool) -> None:
     """Print table-of-contents output."""
     if json_output:
         print(json.dumps({"modules": toc, "module_count": len(toc)}, indent=2))
@@ -799,7 +800,7 @@ def diff_cmd(
 
     from axm_ast.core.structural_diff import structural_diff
 
-    result = cast(_StructuralDiffResult, structural_diff(project_path, base, head))
+    result = structural_diff(project_path, base, head)
 
     if "error" in result:
         print(f"❌ {result['error']}", file=sys.stderr)

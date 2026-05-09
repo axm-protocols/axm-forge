@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -32,7 +32,7 @@ class DiffTool(AXMTool):
         path: str = ".",
         base: str = "",
         head: str = "",
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Compare two branches at symbol level.
 
@@ -58,9 +58,13 @@ class DiffTool(AXMTool):
         result = structural_diff(project_path, base, head)
 
         if "error" in result:
-            return ToolResult(success=False, error=result["error"])
+            err = result["error"]
+            return ToolResult(
+                success=False,
+                error=err if isinstance(err, str) else str(err),
+            )
 
         return ToolResult(
             success=True,
-            data=result,
+            data=cast("dict[str, object]", result),
         )
