@@ -221,39 +221,40 @@ async def f():
         result = rule.check(tmp_path)
         assert result.passed is True
 
-    def test_fail_sleep_in_async(self, tmp_path: Path) -> None:
-        """time.sleep inside async def should fail."""
-        from axm_audit.core.rules.practices.blocking_io import BlockingIORule
-
-        src = tmp_path / "src"
-        src.mkdir()
-        (src / "bad.py").write_text("""\
+    @pytest.mark.parametrize(
+        ("source", "expected_issue"),
+        [
+            pytest.param(
+                """\
 import time
 
 async def handler():
     time.sleep(1)
-""")
-
-        rule = BlockingIORule()
-        result = rule.check(tmp_path)
-        assert result.passed is False
-        assert result.details is not None
-        violations = result.details["violations"]
-        assert len(violations) == 1
-        assert violations[0]["issue"] == "time.sleep in async"
-
-    def test_fail_no_timeout(self, tmp_path: Path) -> None:
-        """requests.get without timeout should fail."""
-        from axm_audit.core.rules.practices.blocking_io import BlockingIORule
-
-        src = tmp_path / "src"
-        src.mkdir()
-        (src / "bad.py").write_text("""\
+""",
+                "time.sleep in async",
+                id="sleep_in_async",
+            ),
+            pytest.param(
+                """\
 import requests
 
 def fetch():
     requests.get("https://example.com")
-""")
+""",
+                "HTTP call without timeout",
+                id="http_no_timeout",
+            ),
+        ],
+    )
+    def test_fail_blocking_violation(
+        self, tmp_path: Path, source: str, expected_issue: str
+    ) -> None:
+        """Blocking-IO violations are detected with the expected issue label."""
+        from axm_audit.core.rules.practices.blocking_io import BlockingIORule
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "bad.py").write_text(source)
 
         rule = BlockingIORule()
         result = rule.check(tmp_path)
@@ -261,7 +262,7 @@ def fetch():
         assert result.details is not None
         violations = result.details["violations"]
         assert len(violations) == 1
-        assert violations[0]["issue"] == "HTTP call without timeout"
+        assert violations[0]["issue"] == expected_issue
 
     def test_pass_with_timeout(self, tmp_path: Path) -> None:
         """requests.get with timeout should pass."""
@@ -1032,35 +1033,27 @@ class TestAntiMirrorRuleIntegration:
     Flags integration/e2e tests named after source modules.
     """
 
-    def test_anti_mirror_flags_integration_test_named_after_source(
-        self, tmp_path: Path
+    @pytest.mark.parametrize(
+        "test_dir",
+        [
+            pytest.param("integration", id="integration"),
+            pytest.param("e2e", id="e2e"),
+        ],
+    )
+    def test_anti_mirror_flags_test_named_after_source(
+        self, tmp_path: Path, test_dir: str
     ) -> None:
-        """AC1, AC2, AC3: integration test named after a source module is flagged."""
+        """AC1-AC3: integration/e2e test named after a source module is flagged."""
         from axm_audit.core.rules.practices.anti_mirror import AntiMirrorRule
 
         _mk_src_module(tmp_path, "foo.py")
-        _mk_test(tmp_path, "integration/test_foo.py")
+        _mk_test(tmp_path, f"{test_dir}/test_foo.py")
 
         result = AntiMirrorRule().check(tmp_path)
 
         assert result.passed is False
         assert result.details is not None
-        assert "tests/integration/test_foo.py" in result.details["anti_mirror"]
-
-    def test_anti_mirror_flags_e2e_test_named_after_source(
-        self, tmp_path: Path
-    ) -> None:
-        """AC2, AC3: e2e test named after a source module is flagged."""
-        from axm_audit.core.rules.practices.anti_mirror import AntiMirrorRule
-
-        _mk_src_module(tmp_path, "foo.py")
-        _mk_test(tmp_path, "e2e/test_foo.py")
-
-        result = AntiMirrorRule().check(tmp_path)
-
-        assert result.passed is False
-        assert result.details is not None
-        assert "tests/e2e/test_foo.py" in result.details["anti_mirror"]
+        assert f"tests/{test_dir}/test_foo.py" in result.details["anti_mirror"]
 
     def test_anti_mirror_passes_when_scenario_named(self, tmp_path: Path) -> None:
         """AC4: scenario-named tests pass.
