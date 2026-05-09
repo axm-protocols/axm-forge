@@ -51,7 +51,7 @@ def test_flags_private_function_import(pkg_root: Path) -> None:
     )
     result = PrivateImportsRule().check(pkg_root)
     assert result.passed is False
-    findings = result.details["findings"]  # type: ignore[index]
+    findings = result.details["findings"]
     assert len(findings) == 1
     assert findings[0]["symbol_kind"] == "function"
     assert findings[0]["private_symbol"] == "_private"
@@ -67,7 +67,7 @@ def test_flags_private_class_import(pkg_root: Path) -> None:
         "from pkg.mod import _Base\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    findings = result.details["findings"]  # type: ignore[index]
+    findings = result.details["findings"]
     assert len(findings) == 1
     assert findings[0]["symbol_kind"] == "class"
 
@@ -83,7 +83,7 @@ def test_skips_dunder_imports(pkg_root: Path) -> None:
     )
     result = PrivateImportsRule().check(pkg_root)
     assert result.passed is True
-    assert result.details["findings"] == []  # type: ignore[index]
+    assert result.details["findings"] == []
 
 
 def test_skips_upper_case_constants_by_default(pkg_root: Path) -> None:
@@ -97,7 +97,7 @@ def test_skips_upper_case_constants_by_default(pkg_root: Path) -> None:
     )
     result = PrivateImportsRule().check(pkg_root)
     assert result.passed is True
-    assert result.details["findings"] == []  # type: ignore[index]
+    assert result.details["findings"] == []
 
 
 def test_flags_upper_case_when_include_constants(pkg_root: Path) -> None:
@@ -110,7 +110,7 @@ def test_flags_upper_case_when_include_constants(pkg_root: Path) -> None:
         "from pkg.mod import _REGISTRY\n",
     )
     result = PrivateImportsRule(include_constants=True).check(pkg_root)
-    findings = result.details["findings"]  # type: ignore[index]
+    findings = result.details["findings"]
     assert len(findings) == 1
     assert findings[0]["symbol_kind"] == "constant"
 
@@ -171,7 +171,7 @@ def test_unknown_kind_fallback(pkg_root: Path) -> None:
         "from pkg.mod import _ghost\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    findings = result.details["findings"]  # type: ignore[index]
+    findings = result.details["findings"]
     assert len(findings) == 1
     assert findings[0]["symbol_kind"] == "unknown"
 
@@ -188,7 +188,7 @@ def test_private_module_same_package_allowed(tmp_path: Path) -> None:
 
     result = PrivateImportsRule().check(tmp_path)
 
-    assert result.details["findings"] == []  # type: ignore[index]
+    assert result.details["findings"] == []
     assert result.passed is True
 
 
@@ -205,7 +205,7 @@ def test_private_module_cross_package_flagged(tmp_path: Path) -> None:
 
     result = PrivateImportsRule().check(tmp_path)
 
-    findings = result.details["findings"]  # type: ignore[index]
+    findings = result.details["findings"]
     assert len(findings) >= 1
     assert any(f["private_symbol"] == "_helper" for f in findings)
 
@@ -225,7 +225,7 @@ def test_class_method_call_flagged(pkg_root: Path) -> None:
         "from pkg.mod import Cls\n\ndef test():\n    Cls._m()\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    findings = result.details["findings"]  # type: ignore[index]
+    findings = result.details["findings"]
     assert len(findings) == 1
     assert findings[0]["access_kind"] == "attribute"
     assert findings[0]["private_symbol"] == "_m"
@@ -242,7 +242,7 @@ def test_class_method_no_call_flagged(pkg_root: Path) -> None:
         "from pkg.mod import Cls\n\ndef test():\n    fn = Cls._m\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
     assert len(attr) == 1
 
 
@@ -256,7 +256,7 @@ def test_import_module_attribute_flagged(pkg_root: Path) -> None:
         "import pkg.mod as m\n\ndef test():\n    return m._var\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
     assert len(attr) == 1
     assert attr[0]["import_module"] == "pkg.mod"
     assert attr[0]["private_symbol"] == "_var"
@@ -272,7 +272,7 @@ def test_import_module_via_root_flagged(pkg_root: Path) -> None:
         "import pkg.mod\n\ndef test():\n    return pkg.mod._var\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
     assert len(attr) == 1
     assert attr[0]["import_module"] == "pkg.mod"
 
@@ -287,7 +287,7 @@ def test_asname_import_resolved(pkg_root: Path) -> None:
         "from pkg.mod import Cls as C\n\ndef test():\n    C._m()\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
     assert len(attr) == 1
     assert attr[0]["import_module"] == "pkg.mod"
 
@@ -302,7 +302,7 @@ def test_deep_attribute_chain_flagged(pkg_root: Path) -> None:
         "import pkg.mod as mod\n\ndef test():\n    mod.Cls._method()\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
     assert len(attr) == 1
     assert attr[0]["private_symbol"] == "_method"
 
@@ -317,7 +317,7 @@ def test_inherited_3rd_party_attr_skipped(pkg_root: Path) -> None:
         "from pkg.mod import Cls\n\ndef test():\n    return Cls._not_defined_here\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
     assert attr == []
 
 
@@ -331,7 +331,7 @@ def test_dunder_access_skipped(pkg_root: Path) -> None:
         "from pkg.mod import Cls\n\ndef test():\n    return Cls.__class__\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
     assert attr == []
 
 
@@ -345,7 +345,7 @@ def test_upper_constant_access_skipped(pkg_root: Path) -> None:
         "from pkg.mod import Cls\n\ndef test():\n    return Cls._UPPER\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
     assert attr == []
 
 
@@ -359,7 +359,7 @@ def test_upper_constant_flagged_when_enabled(pkg_root: Path) -> None:
         "from pkg.mod import Cls\n\ndef test():\n    return Cls._UPPER\n",
     )
     result = PrivateImportsRule(include_constants=True).check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
     assert len(attr) == 1
 
 
@@ -381,7 +381,7 @@ def test_namedtuple_api_skipped(pkg_root: Path) -> None:
         ),
     )
     result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
     assert attr == []
 
 
@@ -391,7 +391,7 @@ def test_third_party_root_skipped(pkg_root: Path) -> None:
         "import os.path\n\ndef test():\n    return os.path._foo\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]  # type: ignore[index]
+    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
     assert attr == []
 
 
@@ -405,7 +405,7 @@ def test_import_alias_finding_kind(pkg_root: Path) -> None:
         "from pkg.mod import _foo\n",
     )
     result = PrivateImportsRule().check(pkg_root)
-    findings = result.details["findings"]  # type: ignore[index]
+    findings = result.details["findings"]
     assert len(findings) == 1
     assert findings[0]["access_kind"] == "import"
 
