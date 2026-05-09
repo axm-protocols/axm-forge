@@ -192,6 +192,62 @@ class GodClassRule(ProjectRule):
             )
 
 
+_COUPLING_SEVERITY_GLYPHS = {"warning": "⚠", "error": "✘"}
+
+
+def _extract_typed_coupling_fields(
+    metrics: dict[str, object],
+) -> tuple[int, list[dict[str, object]], float]:
+    """Coerce raw metrics fields to (n_over, over_list, avg_coupling)."""
+    n_over_raw = metrics["n_over_threshold"]
+    n_over: int = n_over_raw if isinstance(n_over_raw, int) else 0
+    over_raw = metrics["over_threshold"]
+    over: list[dict[str, object]] = (
+        [m for m in over_raw if isinstance(m, dict)]
+        if isinstance(over_raw, list)
+        else []
+    )
+    avg_raw = metrics["avg_coupling"]
+    avg: float = avg_raw if isinstance(avg_raw, int | float) else 0.0
+    return n_over, over, avg
+
+
+def _coupling_message(n_over: int, penalty: int, max_fan_out: object) -> str:
+    """Build the human-readable summary message for the coupling rule."""
+    if n_over:
+        return f"Coupling: {n_over} module(s) above threshold (-{penalty} pts)"
+    return f"Coupling: 0 modules above threshold (max fan-out: {max_fan_out})"
+
+
+def _format_coupling_hint(over: list[dict[str, object]]) -> str | None:
+    """Format the fix hint listing modules to reduce imports in."""
+    if not over:
+        return None
+    lines = [f"  • {m['module']} (fan-out: {m['fan_out']})" for m in over]
+    return "Reduce imports in:\n" + "\n".join(lines)
+
+
+def _format_coupling_violation_line(m: dict[str, object]) -> str:
+    """Render one violation as a short bullet line."""
+    module_val = m.get("module", "")
+    module_str = module_val if isinstance(module_val, str) else ""
+    severity_val = m.get("severity", "")
+    severity_str = severity_val if isinstance(severity_val, str) else ""
+    glyph = _COUPLING_SEVERITY_GLYPHS.get(severity_str, "?")
+    return (
+        f"• {module_str.rsplit('.', 1)[-1]}"
+        f" fo:{m.get('fan_out')}/{m.get('effective_threshold')}"
+        f" {glyph}"
+    )
+
+
+def _format_coupling_text(over: list[dict[str, object]]) -> str | None:
+    """Render one short line per violation, or ``None`` if there are none."""
+    if not over:
+        return None
+    return "\n".join(_format_coupling_violation_line(m) for m in over)
+
+
 @dataclass
 @register_rule("architecture")
 class CouplingMetricRule(ProjectRule):
@@ -228,56 +284,13 @@ class CouplingMetricRule(ProjectRule):
         if early is not None:
             return early
 
-        src_path = project_path / "src"
-
-        threshold, overrides, orchestrator_bonus, multiplier = read_coupling_config(
-            project_path
-        )
-        metrics = _compute_coupling_metrics(
-            src_path,
-            threshold,
-            overrides,
-            orchestrator_bonus,
-            severity_error_multiplier=multiplier,
-        )
-        n_over_raw = metrics["n_over_threshold"]
-        n_over: int = n_over_raw if isinstance(n_over_raw, int) else 0
-        over_raw = metrics["over_threshold"]
-        over: list[dict[str, object]] = (
-            [m for m in over_raw if isinstance(m, dict)]
-            if isinstance(over_raw, list)
-            else []
-        )
-        avg_raw = metrics["avg_coupling"]
-        avg: float = avg_raw if isinstance(avg_raw, int | float) else 0.0
+        metrics = self._collect_metrics(project_path)
+        n_over, over, avg = _extract_typed_coupling_fields(metrics)
 
         n_warnings, n_errors, severity = _resolve_coupling_severity(over)
-        score = max(0, 100 - (n_warnings * 3 + n_errors * 5))
-
-        if n_over:
-            penalty = n_warnings * 3 + n_errors * 5
-            msg = f"Coupling: {n_over} module(s) above threshold (-{penalty} pts)"
-        else:
-            max_fo = metrics["max_fan_out"]
-            msg = f"Coupling: 0 modules above threshold (max fan-out: {max_fo})"
-
-        hint = None
-        if over:
-            lines = [f"  \u2022 {m['module']} (fan-out: {m['fan_out']})" for m in over]
-            hint = "Reduce imports in:\n" + "\n".join(lines)
-
-        _sev = {"warning": "\u26a0", "error": "\u2718"}
-        text_lines: list[str] = []
-        for m in over:
-            module_val = m.get("module", "")
-            module_str = module_val if isinstance(module_val, str) else ""
-            severity_val = m.get("severity", "")
-            severity_str = severity_val if isinstance(severity_val, str) else ""
-            text_lines.append(
-                f"\u2022 {module_str.rsplit('.', 1)[-1]}"
-                f" fo:{m.get('fan_out')}/{m.get('effective_threshold')}"
-                f" {_sev.get(severity_str, '?')}"
-            )
+        penalty = n_warnings * 3 + n_errors * 5
+        score = max(0, 100 - penalty)
+        msg = _coupling_message(n_over, penalty, metrics["max_fan_out"])
 
         return CheckResult(
             rule_id=self.rule_id,
@@ -292,6 +305,19 @@ class CouplingMetricRule(ProjectRule):
                 "n_over_threshold": n_over,
                 "over_threshold": over,
             },
-            text="\n".join(text_lines) if text_lines else None,
-            fix_hint=hint,
+            text=_format_coupling_text(over),
+            fix_hint=_format_coupling_hint(over),
+        )
+
+    def _collect_metrics(self, project_path: Path) -> dict[str, object]:
+        """Read config and compute coupling metrics for ``project_path``."""
+        threshold, overrides, orchestrator_bonus, multiplier = read_coupling_config(
+            project_path
+        )
+        return _compute_coupling_metrics(
+            project_path / "src",
+            threshold,
+            overrides,
+            orchestrator_bonus,
+            severity_error_multiplier=multiplier,
         )
