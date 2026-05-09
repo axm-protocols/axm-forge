@@ -15,7 +15,7 @@ from typing import Any
 
 import pytest
 
-PKG_ROOT = Path(__file__).resolve().parents[5]
+PKG_ROOT = Path(__file__).resolve().parents[2]
 PYRAMID_LEVEL = (
     PKG_ROOT
     / "src"
