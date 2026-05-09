@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
 
+from axm_smelt._types import JsonValue
 from axm_smelt.core.models import SmeltContext
 from axm_smelt.strategies.base import SmeltStrategy
 
@@ -23,7 +23,7 @@ def _round_in_str(text: str, precision: int) -> str:
     )
 
 
-def _round_walk(data: Any, precision: int) -> Any:
+def _round_walk(data: JsonValue, precision: int) -> JsonValue:
     """Recursively round float values (and floats embedded in strings)."""
     if isinstance(data, dict):
         return {k: _round_walk(v, precision) for k, v in data.items()}

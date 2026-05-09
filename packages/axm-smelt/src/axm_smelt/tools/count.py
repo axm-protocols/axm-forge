@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
+
+from axm_smelt._types import JsonValue
 
 __all__ = ["SmeltCountTool"]
 
@@ -29,9 +30,9 @@ class SmeltCountTool(AXMTool):
     def execute(
         self,
         *,
-        data: str | Any = "",
+        data: JsonValue = "",
         model: str = "o200k_base",
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Count tokens in data.
 
