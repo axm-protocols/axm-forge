@@ -5,8 +5,12 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class ScaffoldResult(BaseModel):
-    """Result of a scaffolding operation."""
+class ScaffoldResult(BaseModel):  # type: ignore[explicit-any]
+    """Result of a scaffolding operation.
+
+    Note: ``type: ignore[explicit-any]`` flags pydantic ``BaseModel``
+    internals (third-party).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -16,8 +20,12 @@ class ScaffoldResult(BaseModel):
     files_created: list[str] = Field(default_factory=list)
 
 
-class ReserveResult(BaseModel):
-    """Result of PyPI reservation operation."""
+class ReserveResult(BaseModel):  # type: ignore[explicit-any]
+    """Result of PyPI reservation operation.
+
+    Note: ``type: ignore[explicit-any]`` flags pydantic ``BaseModel``
+    internals (third-party).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
