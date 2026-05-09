@@ -10,6 +10,8 @@ from axm_audit.models.results import (
     SCORED_CATEGORIES,
 )
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def minimal_pkg(tmp_path: Path) -> Path:
