@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from radon.complexity import cc_visit
 
-_PKG_ROOT = Path(__file__).resolve().parents[5] / "src" / "axm_audit"
+_PKG_ROOT = Path(__file__).resolve().parents[2] / "src" / "axm_audit"
 _SHARED = _PKG_ROOT / "core" / "rules" / "test_quality" / "_shared.py"
 _TAUTOLOGY = _PKG_ROOT / "core" / "rules" / "test_quality" / "tautology.py"
 
