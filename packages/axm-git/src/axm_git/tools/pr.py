@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_git.core.runner import gh_available, not_a_repo_error, run_gh, run_git
+from axm_git.core.runner import (
+    gh_available,
+    not_a_repo_error,
+    run_gh,
+    run_git,
+    timeout_error_result,
+)
 
 __all__ = ["GitPRTool"]
 
@@ -47,47 +54,50 @@ class GitPRTool(AXMTool):
         """
         resolved = Path(path).resolve()
 
-        # 1. Verify this is a git repo.
-        check = run_git(["rev-parse", "--git-dir"], resolved)
-        if check.returncode != 0:
-            return not_a_repo_error(check.stderr, resolved)
+        try:
+            # 1. Verify this is a git repo.
+            check = run_git(["rev-parse", "--git-dir"], resolved)
+            if check.returncode != 0:
+                return not_a_repo_error(check.stderr, resolved)
 
-        # 2. Check gh availability.
-        if not gh_available():
-            return ToolResult(
-                success=False,
-                error="gh CLI not available",
-            )
+            # 2. Check gh availability.
+            if not gh_available():
+                return ToolResult(
+                    success=False,
+                    error="gh CLI not available",
+                )
 
-        # 3. Create the PR.
-        create_args = ["pr", "create", "--title", title, "--base", base]
-        if body:
-            create_args.extend(["--body", body])
+            # 3. Create the PR.
+            create_args = ["pr", "create", "--title", title, "--base", base]
+            if body:
+                create_args.extend(["--body", body])
 
-        result = run_gh(create_args, resolved)
-        if result.returncode != 0:
-            return ToolResult(
-                success=False,
-                error=result.stderr.strip() or result.stdout.strip(),
-            )
+            result = run_gh(create_args, resolved)
+            if result.returncode != 0:
+                return ToolResult(
+                    success=False,
+                    error=result.stderr.strip() or result.stdout.strip(),
+                )
 
-        pr_url = result.stdout.strip()
-        pr_number = pr_url.rstrip("/").rsplit("/", maxsplit=1)[-1]
+            pr_url = result.stdout.strip()
+            pr_number = pr_url.rstrip("/").rsplit("/", maxsplit=1)[-1]
 
-        # 4. Enable auto-merge if requested.
-        if auto_merge:
-            merge_result = run_gh(
-                ["pr", "merge", pr_number, "--auto", "--squash"],
-                resolved,
-            )
-            return ToolResult(
-                success=True,
-                data={
-                    "pr_url": pr_url,
-                    "pr_number": pr_number,
-                    "auto_merge": merge_result.returncode == 0,
-                },
-            )
+            # 4. Enable auto-merge if requested.
+            if auto_merge:
+                merge_result = run_gh(
+                    ["pr", "merge", pr_number, "--auto", "--squash"],
+                    resolved,
+                )
+                return ToolResult(
+                    success=True,
+                    data={
+                        "pr_url": pr_url,
+                        "pr_number": pr_number,
+                        "auto_merge": merge_result.returncode == 0,
+                    },
+                )
+        except subprocess.TimeoutExpired as exc:
+            return timeout_error_result(exc)
 
         return ToolResult(
             success=True,

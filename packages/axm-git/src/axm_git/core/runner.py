@@ -13,6 +13,8 @@ from axm.tools.base import ToolResult
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "DEFAULT_GH_TIMEOUT",
+    "DEFAULT_GIT_TIMEOUT",
     "detect_package_name",
     "find_git_root",
     "gh_available",
@@ -20,7 +22,25 @@ __all__ = [
     "run_gh",
     "run_git",
     "suggest_git_repos",
+    "timeout_error_result",
 ]
+
+# Interim defaults — will be replaced by axm-common.run_safe.
+DEFAULT_GIT_TIMEOUT = 30.0
+DEFAULT_GH_TIMEOUT = 120.0
+
+
+def timeout_error_result(exc: subprocess.TimeoutExpired) -> ToolResult:
+    """Build a ``ToolResult`` for a ``subprocess.TimeoutExpired``."""
+    cmd = exc.cmd
+    if isinstance(cmd, (list, tuple)) and cmd:
+        cmd_str = str(cmd[0])
+    else:
+        cmd_str = str(cmd)
+    return ToolResult(
+        success=False,
+        error=f"{cmd_str} timed out after {exc.timeout}s",
+    )
 
 
 def find_git_root(path: Path) -> Path | None:
@@ -37,12 +57,17 @@ def find_git_root(path: Path) -> Path | None:
         Repository root as a ``Path``, or ``None`` if *path* is not
         inside a git repository.
     """
-    result = subprocess.run(
-        ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=DEFAULT_GIT_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning("git rev-parse timed out after %ss", DEFAULT_GIT_TIMEOUT)
+        return None
     if result.returncode != 0:
         return None
     return Path(result.stdout.strip())
@@ -51,6 +76,8 @@ def find_git_root(path: Path) -> Path | None:
 def run_git(
     args: list[str],
     cwd: Path,
+    *,
+    timeout: float | None = DEFAULT_GIT_TIMEOUT,
     **kwargs: Any,
 ) -> subprocess.CompletedProcess[str]:
     """Run a git command in the given directory.
@@ -58,37 +85,55 @@ def run_git(
     Args:
         args: Git subcommand and arguments (e.g. ``["status", "--short"]``).
         cwd: Working directory (project root).
+        timeout: Subprocess timeout in seconds (default 30.0). Use
+            ``None`` to disable.
         **kwargs: Extra arguments forwarded to ``subprocess.run``.
 
     Returns:
         Completed process result.
+
+    Raises:
+        subprocess.TimeoutExpired: If the command exceeds *timeout*.
+            Callers should catch and convert via :func:`timeout_error_result`.
     """
     kwargs.setdefault("capture_output", True)
     kwargs.setdefault("text", True)
     kwargs.setdefault("check", False)
-    return subprocess.run(
-        ["git", *args],
-        cwd=str(cwd),
-        **kwargs,
-    )
+    try:
+        return subprocess.run(
+            ["git", *args],
+            cwd=str(cwd),
+            timeout=timeout,
+            **kwargs,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning("git %s timed out after %ss", args[0] if args else "", timeout)
+        raise
 
 
 def gh_available() -> bool:
     """Check whether the GitHub CLI is installed and authenticated."""
     if not shutil.which("gh"):
         return False
-    result = subprocess.run(
-        ["gh", "auth", "status"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "auth", "status"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=DEFAULT_GIT_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning("gh auth status timed out after %ss", DEFAULT_GIT_TIMEOUT)
+        return False
     return result.returncode == 0
 
 
 def run_gh(
     args: list[str],
     cwd: Path,
+    *,
+    timeout: float | None = DEFAULT_GH_TIMEOUT,
     **kwargs: Any,
 ) -> subprocess.CompletedProcess[str]:
     """Run a GitHub CLI command.
@@ -96,6 +141,8 @@ def run_gh(
     Args:
         args: gh subcommand and arguments.
         cwd: Working directory (project root).
+        timeout: Subprocess timeout in seconds (default 120.0). Use
+            ``None`` to disable.
         **kwargs: Extra arguments forwarded to ``subprocess.run``.
 
     Returns:
@@ -103,15 +150,22 @@ def run_gh(
 
     Raises:
         FileNotFoundError: If ``gh`` is not installed.
+        subprocess.TimeoutExpired: If the command exceeds *timeout*.
+            Callers should catch and convert via :func:`timeout_error_result`.
     """
     kwargs.setdefault("capture_output", True)
     kwargs.setdefault("text", True)
     kwargs.setdefault("check", False)
-    return subprocess.run(
-        ["gh", *args],
-        cwd=str(cwd),
-        **kwargs,
-    )
+    try:
+        return subprocess.run(
+            ["gh", *args],
+            cwd=str(cwd),
+            timeout=timeout,
+            **kwargs,
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning("gh %s timed out after %ss", args[0] if args else "", timeout)
+        raise
 
 
 def detect_package_name(project_path: Path) -> str | None:
