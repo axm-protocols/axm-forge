@@ -42,6 +42,44 @@ detect_workspace: Callable[[Path], WorkspaceInfo | None] | None = None
 build_workspace_context: Callable[[Path], WorkspaceContext] | None = None
 
 
+def _validate_context_params(
+    context: dict[str, object],
+    params: dict[str, object],
+) -> tuple[Path, int | None] | HookResult:
+    """Validate path and depth params; return (path, depth) or HookResult.fail."""
+    raw_path = params.get("path") or context.get("working_dir", ".")
+    if not isinstance(raw_path, (str, Path)):
+        return HookResult.fail(
+            f"path must be str or Path, got {type(raw_path).__name__}"
+        )
+    working_dir = Path(raw_path).resolve()
+    if not working_dir.is_dir():
+        return HookResult.fail(f"working_dir not a directory: {working_dir}")
+
+    raw_depth = params.get("depth")
+    if raw_depth is not None and not isinstance(raw_depth, int):
+        return HookResult.fail(
+            f"depth must be int or None, got {type(raw_depth).__name__}"
+        )
+    return working_dir, raw_depth
+
+
+def _ensure_context_imports() -> None:
+    """Load lazy imports for context building."""
+    global build_context, format_context_json, detect_workspace, build_workspace_context
+    if build_context is not None:
+        return
+    from axm_ast.core.context import build_context as _bc
+    from axm_ast.core.context import format_context_json as _fcj
+    from axm_ast.core.workspace import build_workspace_context as _bwc
+    from axm_ast.core.workspace import detect_workspace as _dw
+
+    build_context = _bc
+    format_context_json = _fcj
+    detect_workspace = _dw
+    build_workspace_context = _bwc
+
+
 @dataclass
 class ContextHook:
     """Run one-shot project context dump.
@@ -65,43 +103,14 @@ class ContextHook:
         Returns:
             HookResult with ``project_context`` dict in metadata on success.
         """
-        raw_path = params.get("path") or context.get("working_dir", ".")
-        if not isinstance(raw_path, (str, Path)):
-            return HookResult.fail(
-                f"path must be str or Path, got {type(raw_path).__name__}"
-            )
-        working_dir = Path(raw_path).resolve()
-
-        if not working_dir.is_dir():
-            return HookResult.fail(f"working_dir not a directory: {working_dir}")
-
-        raw_depth = params.get("depth")
-        depth: int | None
-        if raw_depth is None or isinstance(raw_depth, int):
-            depth = raw_depth
-        else:
-            return HookResult.fail(
-                f"depth must be int or None, got {type(raw_depth).__name__}"
-            )
+        validated = _validate_context_params(context, params)
+        if isinstance(validated, HookResult):
+            return validated
+        working_dir, depth = validated
 
         try:
-            # Lazy imports
-            global \
-                build_context, \
-                format_context_json, \
-                detect_workspace, \
-                build_workspace_context
-            if build_context is None:
-                from axm_ast.core.context import build_context as _bc
-                from axm_ast.core.context import format_context_json as _fcj
-                from axm_ast.core.workspace import build_workspace_context as _bwc
-                from axm_ast.core.workspace import detect_workspace as _dw
-
-                build_context = _bc
-                format_context_json = _fcj
-                detect_workspace = _dw
-                build_workspace_context = _bwc
-
+            _ensure_context_imports()
+            assert build_context is not None
             assert detect_workspace is not None
             assert build_workspace_context is not None
             assert format_context_json is not None
