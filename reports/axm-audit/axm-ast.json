@@ -1,8 +1,8 @@
 {
-  "score": 81.8,
-  "grade": "B",
+  "score": 96.2,
+  "grade": "A",
   "total": 23,
-  "failed": 4,
+  "failed": 2,
   "success": false,
   "checks": [
     {
@@ -64,11 +64,11 @@
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": false,
-      "message": "No coverage data (pytest-cov not configured)",
+      "passed": true,
+      "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 0.0,
-        "score": 0,
+        "coverage": 91.31672597864768,
+        "score": 91,
         "failures": []
       }
     },
@@ -212,20 +212,13 @@
     },
     {
       "rule_id": "QUALITY_TYPE",
-      "passed": false,
-      "message": "Type score: 95/100 (1 errors)",
+      "passed": true,
+      "message": "Type score: 100/100 (0 errors)",
       "details": {
-        "error_count": 1,
-        "score": 95,
+        "error_count": 0,
+        "score": 100,
         "checked": "src/ tests/",
-        "errors": [
-          {
-            "file": "tests/unit/test_safe_execute.py",
-            "line": 8,
-            "message": "Module \"axm\" has no attribute \"ToolResult\"",
-            "code": "attr-defined"
-          }
-        ]
+        "errors": []
       }
     },
     {

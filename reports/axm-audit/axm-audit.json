@@ -220,12 +220,11 @@
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
-      "message": "9 source module(s) without tests",
+      "message": "8 source module(s) without tests",
       "details": {
         "missing": [
           "__main__.py",
           "anti_mirror.py",
-          "autofix.py",
           "bare_except.py",
           "blocking_io.py",
           "mirror.py",
