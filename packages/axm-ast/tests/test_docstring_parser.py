@@ -184,7 +184,7 @@ class TestParseDocstringEdgeCases:
             ValueError: bad.
         """
         result = parse_docstring(doc)
-        assert "Line one" in result.summary  # type: ignore[operator]
+        assert "Line one" in result.summary
         # Two lines joined
         assert result.summary is not None
 

@@ -15,8 +15,8 @@ from __future__ import annotations
 import logging
 import re
 import tomllib
-from pathlib import Path
 from collections.abc import Mapping
+from pathlib import Path
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -61,6 +61,9 @@ class CallerEntry(TypedDict):
     line: int
     context: str | None
     call_expression: str
+    # Optional defensive field consumed by ``render_impact_text`` —
+    # never set by ``analyze_impact``; reserved for legacy callers.
+    name: NotRequired[str]
 
 
 class TypeRefEntry(TypedDict):
@@ -92,6 +95,9 @@ class ImpactResult(TypedDict, total=False):
     git_coupled: list[Mapping[str, object]]
     cross_package_impact: list[str]
     score: str
+    # Set by tool-layer fallbacks (e.g. ``ImpactTool._analyze_single``
+    # when the symbol cannot be resolved); the renderer surfaces it.
+    error: NotRequired[str]
 
 
 logger = logging.getLogger(__name__)
@@ -678,7 +684,9 @@ def _add_git_coupling(
         return
     # Coerce element type at the boundary: git_coupled_files() returns
     # list[dict[str, Any]] upstream; we narrow to Mapping[str, object] here.
-    result["git_coupled"] = [dict(c) for c in git_coupled_files(str(file_rel), project_root)]
+    result["git_coupled"] = [
+        dict(c) for c in git_coupled_files(str(file_rel), project_root)
+    ]
 
 
 def _add_import_based_tests(

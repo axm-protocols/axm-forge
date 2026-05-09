@@ -17,7 +17,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, TypedDict, cast
 
 import cyclopts
 
@@ -25,12 +25,55 @@ from axm_ast.core.analyzer import (
     search_symbols,
 )
 from axm_ast.core.cache import get_package
+from axm_ast.core.context import FormattedContext
+from axm_ast.core.impact import CallerEntry, ImpactResult, TypeRefEntry
 from axm_ast.formatters import (
     format_json,
     format_mermaid,
     format_text,
 )
 from axm_ast.models.nodes import SymbolKind
+
+
+class _DiffSymbol(TypedDict):
+    """Compact symbol record in a structural diff (added/removed)."""
+
+    name: str
+    kind: str
+    file: str
+    signature: str | None
+
+
+class _DiffModified(TypedDict):
+    """Symbol whose signature changed between two refs."""
+
+    name: str
+    kind: str
+    file: str
+    old_signature: str | None
+    new_signature: str | None
+
+
+class _DiffSummary(TypedDict):
+    """Counts for the structural diff."""
+
+    added: int
+    removed: int
+    modified: int
+
+
+class _StructuralDiffResult(TypedDict, total=False):
+    """Structural diff payload returned by :func:`structural_diff`.
+
+    ``total=False`` so the error variant (``{"error": str}``) also matches.
+    """
+
+    added: list[_DiffSymbol]
+    removed: list[_DiffSymbol]
+    modified: list[_DiffModified]
+    summary: _DiffSummary
+    error: str
+
 
 logger = logging.getLogger(__name__)
 
@@ -577,11 +620,9 @@ def _print_workspace_context(
 _DISPLAY_SYMS = 5
 
 
-def _print_compact_context(data: dict[str, object]) -> None:
+def _print_compact_context(data: FormattedContext) -> None:
     """Print a compact context summary."""
-    from typing import Any, cast
-
-    d = cast(dict[str, Any], data)
+    d = data
     print(f"📋 {d['name']}")
     print(f"  python: {d['python']}")
     p = d["patterns"]
@@ -598,7 +639,7 @@ def _print_compact_context(data: dict[str, object]) -> None:
             stars = "★" * m["stars"] + "☆" * (5 - m["stars"])
             print(f"  {m['name']:30s} {stars}  ({m['symbol_count']} symbols)")
     packages = d.get("packages")
-    if packages:
+    if isinstance(packages, dict):
         print("\n📦 Packages")
         for name, info in packages.items():
             syms = info.get("symbol_names", [])
@@ -672,10 +713,10 @@ def impact(
     elif json_output:
         print(json.dumps(tool_result.data, indent=2))
     else:
-        _print_impact(tool_result.data)
+        _print_impact(cast(ImpactResult, tool_result.data))
 
 
-def _print_impact(result: dict[str, Any]) -> None:
+def _print_impact(result: ImpactResult) -> None:
     """Pretty-print impact analysis."""
     sym = result["symbol"]
     score = result["score"]
@@ -693,7 +734,7 @@ def _print_impact(result: dict[str, Any]) -> None:
     _print_impact_list("📦 Re-exported in", result.get("reexports", []))
 
 
-def _print_impact_callers(callers: list[dict[str, Any]]) -> None:
+def _print_impact_callers(callers: list[CallerEntry]) -> None:
     """Print callers section."""
     if not callers:
         return
@@ -705,7 +746,7 @@ def _print_impact_callers(callers: list[dict[str, Any]]) -> None:
 
 
 def _print_impact_type_refs(
-    type_refs: list[dict[str, Any]],
+    type_refs: list[TypeRefEntry],
 ) -> None:
     """Print type references section."""
     if not type_refs:
@@ -758,7 +799,7 @@ def diff_cmd(
 
     from axm_ast.core.structural_diff import structural_diff
 
-    result = structural_diff(project_path, base, head)
+    result = cast(_StructuralDiffResult, structural_diff(project_path, base, head))
 
     if "error" in result:
         print(f"❌ {result['error']}", file=sys.stderr)
@@ -770,7 +811,7 @@ def diff_cmd(
         _print_diff(result, base, head)
 
 
-def _print_diff(result: dict[str, Any], base: str, head: str) -> None:
+def _print_diff(result: _StructuralDiffResult, base: str, head: str) -> None:
     """Pretty-print structural diff."""
     added = result["added"]
     removed = result["removed"]
@@ -788,8 +829,8 @@ def _print_diff(result: dict[str, Any], base: str, head: str) -> None:
 
     if modified:
         print(f"  Symbols modified ({len(modified)}):")
-        for s in modified:
-            print(f"    ~ {s['name']} ({s['kind']}) — {s['file']}")
+        for m in modified:
+            print(f"    ~ {m['name']} ({m['kind']}) — {m['file']}")
         print()
 
     if removed:

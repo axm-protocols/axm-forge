@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import functools
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any
 
 from axm_init.models.check import CheckResult
 
@@ -17,16 +16,36 @@ except ModuleNotFoundError:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
+# Parsed TOML data is a heterogeneous nested mapping.  We type it as
+# ``Mapping[str, object]`` for read-only views and ``dict[str, object]``
+# for the mutable internals (deep merge).  Callers narrow with isinstance
+# at use sites.
+type TomlTable = Mapping[str, object]
+
 __all__ = [
+    "TomlTable",
     "load_exclusions",
     "load_toml",
     "load_toml_with_workspace_fallback",
     "merge_tool_sections",
     "requires_toml",
+    "section",
 ]
 
 
-def load_toml(project: Path) -> dict[str, Any] | None:
+def section(data: TomlTable, key: str) -> TomlTable:
+    """Return ``data[key]`` if it is a mapping, otherwise an empty mapping.
+
+    Helper for safely walking nested TOML structures without leaking
+    ``object`` typing through ``.get()`` chains.
+    """
+    value = data.get(key)
+    if isinstance(value, Mapping):
+        return value
+    return {}
+
+
+def load_toml(project: Path) -> dict[str, object] | None:
     """Load pyproject.toml, return None if missing/corrupt."""
     path = project / "pyproject.toml"
     if not path.exists():
@@ -38,7 +57,9 @@ def load_toml(project: Path) -> dict[str, Any] | None:
         return None
 
 
-def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+def _deep_merge(
+    base: dict[str, object], override: dict[str, object]
+) -> dict[str, object]:
     """Recursively merge *override* into *base*; override wins on conflicts.
 
     Only ``dict`` values are merged recursively.  All other types (lists,
@@ -46,17 +67,18 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     """
     merged = dict(base)
     for key, value in override.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
-            merged[key] = _deep_merge(merged[key], value)
+        existing = merged.get(key)
+        if isinstance(existing, dict) and isinstance(value, dict):
+            merged[key] = _deep_merge(existing, value)
         else:
             merged[key] = value
     return merged
 
 
 def merge_tool_sections(
-    base: dict[str, Any],
-    override: dict[str, Any],
-) -> dict[str, Any]:
+    base: dict[str, object],
+    override: dict[str, object],
+) -> dict[str, object]:
     """Deep-merge tool sections: *override* wins at leaf level.
 
     For each tool key (ruff, mypy, coverage, …), nested dicts are merged
@@ -64,17 +86,18 @@ def merge_tool_sections(
     Non-dict values use the override if present, else the base.
     Non-tool keys always come from *override*.
     """
-    merged = dict(override)
-    base_tool = base.get("tool", {})
-    override_tool = override.get("tool", {})
-    if not base_tool:
+    merged: dict[str, object] = dict(override)
+    base_tool = base.get("tool")
+    override_tool = override.get("tool")
+    if not isinstance(base_tool, dict):
         return merged
-    combined_tool = _deep_merge(base_tool, override_tool)
-    merged["tool"] = combined_tool
+    if not isinstance(override_tool, dict):
+        override_tool = {}
+    merged["tool"] = _deep_merge(base_tool, override_tool)
     return merged
 
 
-def load_toml_with_workspace_fallback(project: Path) -> dict[str, Any] | None:
+def load_toml_with_workspace_fallback(project: Path) -> dict[str, object] | None:
     """Load pyproject.toml, merging workspace root tool sections for members.
 
     When *project* is a UV workspace member, the workspace root's tool
@@ -104,7 +127,7 @@ def requires_toml(
     weight: int,
     fix: str,
 ) -> Callable[
-    [Callable[[Path, dict[str, Any]], CheckResult]],
+    [Callable[[Path, TomlTable], CheckResult]],
     Callable[[Path], CheckResult],
 ]:
     """Decorator that loads pyproject.toml and passes data to the check.
@@ -124,7 +147,7 @@ def requires_toml(
     """
 
     def decorator(
-        fn: Callable[[Path, dict[str, Any]], CheckResult],
+        fn: Callable[[Path, TomlTable], CheckResult],
     ) -> Callable[[Path], CheckResult]:
         """Wrap a check function with TOML pre-loading."""
 
@@ -171,7 +194,7 @@ def load_exclusions(project: Path) -> set[str]:
     if data is None:
         return set()
 
-    axm_init_config: dict[str, Any] = data.get("tool", {}).get("axm-init", {})
+    axm_init_config = section(section(data, "tool"), "axm-init")
     if not axm_init_config:
         return set()
 

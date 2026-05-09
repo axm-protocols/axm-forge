@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
-from axm_init.checks._utils import load_toml, requires_toml
+from axm_init.checks._utils import TomlTable, load_toml, requires_toml, section
 from axm_init.models.check import CheckResult
 
 logger = logging.getLogger(__name__)
@@ -53,10 +52,10 @@ def check_pyproject_exists(project: Path) -> CheckResult:
     weight=3,
     fix="Create pyproject.toml with [project.urls] section.",
 )
-def check_pyproject_urls(project: Path, data: dict[str, Any]) -> CheckResult:
+def check_pyproject_urls(project: Path, data: TomlTable) -> CheckResult:
     """Check 2: [project.urls] with 4 keys."""
     required = {"Homepage", "Documentation", "Repository", "Issues"}
-    urls = data.get("project", {}).get("urls", {})
+    urls = section(section(data, "project"), "urls")
     present = set(urls.keys()) & required
     missing = required - present
     if missing:
@@ -91,12 +90,14 @@ def check_pyproject_urls(project: Path, data: dict[str, Any]) -> CheckResult:
     weight=3,
     fix="Create pyproject.toml with dynamic version using hatch-vcs.",
 )
-def check_pyproject_dynamic_version(project: Path, data: dict[str, Any]) -> CheckResult:
+def check_pyproject_dynamic_version(project: Path, data: TomlTable) -> CheckResult:
     """Check 3: dynamic = ['version'] + hatch-vcs."""
-    dynamic = data.get("project", {}).get("dynamic", [])
-    requires = data.get("build-system", {}).get("requires", [])
+    dynamic_raw = section(data, "project").get("dynamic", [])
+    requires_raw = section(data, "build-system").get("requires", [])
+    dynamic = dynamic_raw if isinstance(dynamic_raw, list) else []
+    requires = requires_raw if isinstance(requires_raw, list) else []
     has_dynamic = "version" in dynamic
-    has_hatch_vcs = any("hatch-vcs" in r for r in requires)
+    has_hatch_vcs = any(isinstance(r, str) and "hatch-vcs" in r for r in requires)
     problems = []
     if not has_dynamic:
         problems.append('Missing: dynamic = ["version"]')
@@ -126,7 +127,7 @@ def check_pyproject_dynamic_version(project: Path, data: dict[str, Any]) -> Chec
 STRICT_IMPLIES = {"disallow_incomplete_defs", "check_untyped_defs"}
 
 
-def _filter_strict_implied(missing: list[str], mypy: dict[str, Any]) -> list[str]:
+def _filter_strict_implied(missing: list[str], mypy: TomlTable) -> list[str]:
     """Remove keys implied by strict=True unless explicitly set to False."""
     if mypy.get("strict") is not True:
         return missing
@@ -139,9 +140,9 @@ def _filter_strict_implied(missing: list[str], mypy: dict[str, Any]) -> list[str
     weight=3,
     fix="Create pyproject.toml with [tool.mypy] section.",
 )
-def check_pyproject_mypy(project: Path, data: dict[str, Any]) -> CheckResult:
+def check_pyproject_mypy(project: Path, data: TomlTable) -> CheckResult:
     """Check 4: strict + pretty + disallow_incomplete_defs + check_untyped_defs."""
-    mypy = data.get("tool", {}).get("mypy", {})
+    mypy = section(section(data, "tool"), "mypy")
     required = {
         "strict": True,
         "pretty": True,
@@ -181,13 +182,13 @@ def check_pyproject_mypy(project: Path, data: dict[str, Any]) -> CheckResult:
     weight=3,
     fix="Create pyproject.toml with [tool.ruff.lint] section.",
 )
-def check_pyproject_ruff(project: Path, data: dict[str, Any]) -> CheckResult:
+def check_pyproject_ruff(project: Path, data: TomlTable) -> CheckResult:
     """Check 5: per-file-ignores + known-first-party."""
-    ruff_lint = data.get("tool", {}).get("ruff", {}).get("lint", {})
+    ruff_lint = section(section(section(data, "tool"), "ruff"), "lint")
     problems = []
     if "per-file-ignores" not in ruff_lint:
         problems.append("Missing: [tool.ruff.lint.per-file-ignores]")
-    isort = ruff_lint.get("isort", {})
+    isort = section(ruff_lint, "isort")
     if "known-first-party" not in isort:
         problems.append("Missing: known-first-party in [tool.ruff.lint.isort]")
     if problems:
@@ -217,10 +218,12 @@ def check_pyproject_ruff(project: Path, data: dict[str, Any]) -> CheckResult:
     weight=4,
     fix="Create pyproject.toml with [tool.pytest.ini_options].",
 )
-def check_pyproject_pytest(project: Path, data: dict[str, Any]) -> CheckResult:
+def check_pyproject_pytest(project: Path, data: TomlTable) -> CheckResult:
     """Check 6: pytest config completeness."""
-    pytest_cfg = data.get("tool", {}).get("pytest", {}).get("ini_options", {})
-    addopts = " ".join(pytest_cfg.get("addopts", []))
+    pytest_cfg = section(section(section(data, "tool"), "pytest"), "ini_options")
+    addopts_raw = pytest_cfg.get("addopts", [])
+    addopts_list = addopts_raw if isinstance(addopts_raw, list) else []
+    addopts = " ".join(str(a) for a in addopts_list)
     problems = []
     if "--strict-markers" not in addopts:
         problems.append("Missing: --strict-markers in addopts")
@@ -259,10 +262,10 @@ def check_pyproject_pytest(project: Path, data: dict[str, Any]) -> CheckResult:
     weight=4,
     fix="Create pyproject.toml with [tool.coverage] sections.",
 )
-def check_pyproject_coverage(project: Path, data: dict[str, Any]) -> CheckResult:
+def check_pyproject_coverage(project: Path, data: TomlTable) -> CheckResult:
     """Check 7: branch, relative_files, xml output, exclude_lines."""
-    cov = data.get("tool", {}).get("coverage", {})
-    run_cfg = cov.get("run", {})
+    cov = section(section(data, "tool"), "coverage")
+    run_cfg = section(cov, "run")
     problems = []
     if not run_cfg.get("branch"):
         problems.append("Missing: branch = true in [tool.coverage.run]")
@@ -270,7 +273,7 @@ def check_pyproject_coverage(project: Path, data: dict[str, Any]) -> CheckResult
         problems.append("Missing: relative_files = true in [tool.coverage.run]")
     if "xml" not in cov:
         problems.append("Missing: [tool.coverage.xml] section")
-    if "exclude_lines" not in cov.get("report", {}):
+    if "exclude_lines" not in section(cov, "report"):
         problems.append("Missing: exclude_lines in [tool.coverage.report]")
     if problems:
         return CheckResult(
@@ -299,9 +302,14 @@ def check_pyproject_coverage(project: Path, data: dict[str, Any]) -> CheckResult
     weight=1,
     fix="Add classifiers to [project] in pyproject.toml.",
 )
-def check_pyproject_classifiers(project: Path, data: dict[str, Any]) -> CheckResult:
+def check_pyproject_classifiers(project: Path, data: TomlTable) -> CheckResult:
     """Check 36: required classifiers (Dev Status, Python, Typed)."""
-    classifiers = data.get("project", {}).get("classifiers", [])
+    classifiers_raw = section(data, "project").get("classifiers", [])
+    classifiers: list[str] = (
+        [c for c in classifiers_raw if isinstance(c, str)]
+        if isinstance(classifiers_raw, list)
+        else []
+    )
     required_prefixes = {
         "Development Status": "Development Status ::",
         "Python version": "Programming Language :: Python :: 3",
@@ -342,11 +350,21 @@ def check_pyproject_classifiers(project: Path, data: dict[str, Any]) -> CheckRes
     weight=2,
     fix="Add [tool.ruff.lint] select with E, F, I, UP, B, S, BLE, PLR, N.",
 )
-def check_pyproject_ruff_rules(project: Path, data: dict[str, Any]) -> CheckResult:
+def check_pyproject_ruff_rules(project: Path, data: TomlTable) -> CheckResult:
     """Check 37: essential ruff rule codes activated."""
-    ruff_lint = data.get("tool", {}).get("ruff", {}).get("lint", {})
-    select = set(ruff_lint.get("select", []))
-    extend = set(ruff_lint.get("extend-select", []))
+    ruff_lint = section(section(section(data, "tool"), "ruff"), "lint")
+    select_raw = ruff_lint.get("select", [])
+    extend_raw = ruff_lint.get("extend-select", [])
+    select: set[str] = (
+        {s for s in select_raw if isinstance(s, str)}
+        if isinstance(select_raw, list)
+        else set()
+    )
+    extend: set[str] = (
+        {s for s in extend_raw if isinstance(s, str)}
+        if isinstance(extend_raw, list)
+        else set()
+    )
     all_rules = select | extend
     required = {"E", "F", "I", "UP", "B", "S", "BLE", "PLR", "N"}
     # "ALL" includes everything
