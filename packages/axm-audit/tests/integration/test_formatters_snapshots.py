@@ -14,7 +14,9 @@ from axm_audit.formatters import (
 
 pytestmark = pytest.mark.integration
 
-SNAPSHOT_DIR = Path(__file__).parent / "snapshots" / "formatters"
+SNAPSHOT_DIR = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "snapshots" / "formatters"
+)
 
 
 def _assert_snapshot(name: str, actual: str) -> None:

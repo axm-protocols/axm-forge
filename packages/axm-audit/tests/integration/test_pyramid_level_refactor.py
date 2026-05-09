@@ -25,8 +25,8 @@ PYRAMID_LEVEL = (
     / "test_quality"
     / "pyramid_level.py"
 )
-BASELINE_DIR = Path(__file__).parent / "_baselines"
-ALL_BASELINE = BASELINE_DIR / "axm_audit_all.json"
+FIXTURE_DIR = PKG_ROOT / "tests" / "fixtures"
+ALL_BASELINE = FIXTURE_DIR / "axm_audit_all_baseline.json"
 
 CC_BUDGET = 10
 
@@ -67,7 +67,7 @@ def test_package_root_all_unchanged() -> None:
 
     current = sorted(axm_audit.__all__)
     if not ALL_BASELINE.exists():
-        BASELINE_DIR.mkdir(parents=True, exist_ok=True)
+        FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
         ALL_BASELINE.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
         pytest.skip("baseline captured; rerun to validate")
     baseline = json.loads(ALL_BASELINE.read_text(encoding="utf-8"))
