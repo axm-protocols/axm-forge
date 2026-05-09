@@ -168,10 +168,7 @@ class TestGetInstances:
 
         instances = ToolAvailabilityRule.get_instances()
         assert len(instances) == 3
-        tool_names = {
-            r.tool_name
-            for r in instances
-        }
+        tool_names = {r.tool_name for r in instances}
         assert tool_names == {"ruff", "mypy", "uv"}
 
     def test_duplication_rule_category_from_registry(self) -> None:
