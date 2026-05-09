@@ -43,7 +43,7 @@ def _make_minimal_project(root: Path) -> None:
     )
 
 
-@pytest.mark.integration
+@pytest.mark.e2e
 def test_test_quality_cli_emits_valid_json(tmp_path: Path) -> None:
     """`test-quality --json` emits parseable JSON regardless of pass/fail."""
     _make_minimal_project(tmp_path)
@@ -63,7 +63,7 @@ def test_test_quality_cli_emits_valid_json(tmp_path: Path) -> None:
     assert isinstance(payload, dict | list)
 
 
-@pytest.mark.integration
+@pytest.mark.e2e
 def test_test_quality_cli_clean_project_no_findings(tmp_path: Path) -> None:
     """On a clean project, no tautology verdicts are emitted."""
     _make_minimal_project(tmp_path)
@@ -81,7 +81,7 @@ def test_test_quality_cli_clean_project_no_findings(tmp_path: Path) -> None:
     assert verdicts == [], f"clean project unexpectedly produced verdicts: {verdicts}"
 
 
-@pytest.mark.integration
+@pytest.mark.e2e
 def test_test_quality_cli_detects_tautology(tmp_path: Path) -> None:
     """`test-quality` flags an obvious tautology when present."""
     (tmp_path / "src" / "sample").mkdir(parents=True)
