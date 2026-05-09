@@ -1,4 +1,4 @@
-"""Unit tests for ``_merge_check`` semantics in workspace aggregation."""
+"""Unit tests for ``merge_check`` semantics in workspace aggregation."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ from axm_audit.models.results import CheckResult, Severity
 
 
 class TestMergeCheckPreservesFindings:
-    """``_merge_check`` concatenates ``findings`` lists.
+    """``merge_check`` concatenates ``findings`` lists.
 
     Ordering is (existing, incoming).
     """
 
     def test_workspace_aggregate_concatenates_findings(self):
         """AC4 — findings from both packages survive concatenation."""
-        from axm_audit.core.auditor import _merge_check
+        from axm_audit.core.auditor import merge_check
         from axm_audit.core.rules.test_quality.pyramid_level import (
             Finding,
             PyramidCheckResult,
@@ -52,7 +52,7 @@ class TestMergeCheckPreservesFindings:
             findings=[finding_b],
         )
 
-        merged = cast(PyramidCheckResult, _merge_check(existing, incoming, "b"))
+        merged = cast(PyramidCheckResult, merge_check(existing, incoming, "b"))
 
         assert [f.path for f in merged.findings] == [
             "packages/a/tests/unit/test_x.py",
@@ -69,7 +69,7 @@ class TestMergeCheckExistingSemanticsUnchanged:
 
     def test_existing_merge_semantics_unchanged(self):
         """AC5 — worst-of-N for passed/score/severity, joined text, shallow details."""
-        from axm_audit.core.auditor import _merge_check
+        from axm_audit.core.auditor import merge_check
 
         existing = CheckResult(
             rule_id="r",
@@ -90,7 +90,7 @@ class TestMergeCheckExistingSemanticsUnchanged:
             score=40,
         )
 
-        merged = _merge_check(existing, incoming, "b")
+        merged = merge_check(existing, incoming, "b")
 
         assert merged.passed is False
         assert merged.score == 40

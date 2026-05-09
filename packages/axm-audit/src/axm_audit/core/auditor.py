@@ -199,7 +199,7 @@ def _audit_workspace(
                 order.append(check.rule_id)
                 merged[check.rule_id] = _prefix_check(check, pkg_name)
                 continue
-            merged[check.rule_id] = _merge_check(merged[check.rule_id], check, pkg_name)
+            merged[check.rule_id] = merge_check(merged[check.rule_id], check, pkg_name)
 
     return AuditResult(
         project_path=str(workspace_path),
@@ -219,14 +219,14 @@ def _prefix_check(check: CheckResult, pkg_name: str) -> CheckResult:
     )
 
 
-def _merge_check(
+def merge_check(
     existing: CheckResult, incoming: CheckResult, pkg_name: str
 ) -> CheckResult:
     """Merge two CheckResults for the same rule_id (worst-of-N policy).
 
     ``passed`` is AND'd, ``severity`` takes the max, ``score`` takes the
     worst (min) of set values, ``metadata`` is deep-merged via
-    :func:`_merge_metadata`, and ``findings`` are concatenated so workspace
+    :func:`merge_metadata`, and ``findings`` are concatenated so workspace
     aggregation preserves per-package diagnostics instead of dropping them.
     """
     incoming_prefixed = _prefix_check(incoming, pkg_name)
@@ -240,7 +240,7 @@ def _merge_check(
             "severity": _max_severity(existing.severity, incoming_prefixed.severity),
             "message": existing.message,
             "score": _merge_score(existing.score, incoming_prefixed.score),
-            "metadata": _merge_metadata(existing.metadata, incoming_prefixed.metadata),
+            "metadata": merge_metadata(existing.metadata, incoming_prefixed.metadata),
             "findings": existing_findings + incoming_findings,
         }
     )
@@ -251,11 +251,11 @@ def _combine_metadata_values(a_val: object, b_val: object) -> object:
     if isinstance(a_val, list) and isinstance(b_val, list):
         return a_val + b_val
     if isinstance(a_val, dict) and isinstance(b_val, dict):
-        return _merge_metadata(a_val, b_val)
+        return merge_metadata(a_val, b_val)
     return b_val
 
 
-def _merge_metadata(
+def merge_metadata(
     a: dict[str, object] | None, b: dict[str, object] | None
 ) -> dict[str, object]:
     """Deep-merge two metadata dicts (existing first, incoming second).
