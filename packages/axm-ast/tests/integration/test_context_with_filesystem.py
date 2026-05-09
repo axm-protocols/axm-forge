@@ -322,8 +322,9 @@ def test_context_text_contains_sections(tmp_path: Path) -> None:
 @pytest.mark.integration
 def test_context_real_package() -> None:
     """Dogfood: run on axm-ast itself."""
-    ast_root = FIXTURES.parent / "src" / "axm_ast"
-    project_root = FIXTURES.parent
+    package_root = Path(__file__).resolve().parents[2]
+    ast_root = package_root / "src" / "axm_ast"
+    project_root = package_root
     if not ast_root.exists():
         pytest.skip("axm-ast source not found at expected path")
     ctx = build_context(ast_root, project_root=project_root)
