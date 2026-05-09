@@ -108,7 +108,7 @@ class TestDetailEdgeCases:
     def test_none_detail_rejected(self) -> None:
         pkg = MagicMock()
         with pytest.raises(ValueError, match="detail"):
-            trace_flow(pkg, "main", detail=None)  # type: ignore[arg-type]
+            trace_flow(pkg, "main", detail=None)
 
     def test_build_trace_opts_invalid_detail(self) -> None:
         with pytest.raises(ValueError, match="detail"):

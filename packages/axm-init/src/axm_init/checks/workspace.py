@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
-from axm_init.checks._utils import load_toml
+from axm_init.checks._utils import TomlTable, load_toml, section
 from axm_init.models.check import CheckResult
 
 logger = logging.getLogger(__name__)
@@ -30,13 +29,15 @@ def _resolve_member_dirs(project: Path) -> list[Path]:
     if data is None:
         return []
 
-    ws_config = data.get("tool", {}).get("uv", {}).get("workspace", {})
-    member_globs = ws_config.get("members", [])
-    if not member_globs:
+    ws_config = section(section(section(data, "tool"), "uv"), "workspace")
+    member_globs_raw = ws_config.get("members", [])
+    if not isinstance(member_globs_raw, list) or not member_globs_raw:
         return []
 
     dirs: list[Path] = []
-    for pattern in member_globs:
+    for pattern in member_globs_raw:
+        if not isinstance(pattern, str):
+            continue
         for candidate in project.glob(pattern):
             if candidate.is_dir() and (candidate / "pyproject.toml").exists():
                 dirs.append(candidate)
@@ -222,7 +223,7 @@ def check_requires_python_compat(project: Path) -> CheckResult:
         data = load_toml(member)
         if data is None:
             continue
-        req = data.get("project", {}).get("requires-python")
+        req = section(data, "project").get("requires-python")
         if isinstance(req, str):
             specs[member.name] = req
 
@@ -270,7 +271,7 @@ def _get_member_names(project: Path) -> list[str]:
     for member_dir in _resolve_member_dirs(project):
         data = load_toml(member_dir)
         if data is not None:
-            name = data.get("project", {}).get("name")
+            name = section(data, "project").get("name")
             if isinstance(name, str):
                 names.append(name)
     return names
@@ -290,7 +291,8 @@ def check_root_name_collision(project: Path) -> CheckResult:
             fix="",
         )
 
-    root_name = data.get("project", {}).get("name", "")
+    root_name_raw = section(data, "project").get("name", "")
+    root_name = root_name_raw if isinstance(root_name_raw, str) else ""
     member_names = _get_member_names(project)
     if not member_names:
         return CheckResult(
@@ -330,12 +332,9 @@ def check_root_name_collision(project: Path) -> CheckResult:
     )
 
 
-def _get_pytest_config(data: dict[str, Any]) -> dict[str, Any]:
+def _get_pytest_config(data: TomlTable) -> TomlTable:
     """Extract [tool.pytest.ini_options] section."""
-    tool: dict[str, Any] = data.get("tool", {})
-    pytest_cfg: dict[str, Any] = tool.get("pytest", {})
-    ini_opts: dict[str, Any] = pytest_cfg.get("ini_options", {})
-    return ini_opts
+    return section(section(section(data, "tool"), "pytest"), "ini_options")
 
 
 def check_pytest_importmode(project: Path) -> CheckResult:
@@ -392,7 +391,12 @@ def check_pytest_testpaths(project: Path) -> CheckResult:
         )
 
     pytest_cfg = _get_pytest_config(data)
-    testpaths = pytest_cfg.get("testpaths", [])
+    testpaths_raw = pytest_cfg.get("testpaths", [])
+    testpaths: list[str] = (
+        [tp for tp in testpaths_raw if isinstance(tp, str)]
+        if isinstance(testpaths_raw, list)
+        else []
+    )
 
     if not testpaths:
         return CheckResult(
