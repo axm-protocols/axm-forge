@@ -153,70 +153,59 @@ class TestRunInProjectIntegration:
             assert args[:4] == ["uv", "run", "--directory", str(tmp_path)]
             assert args[4:] == ["ruff", "check", "src"]
 
-    def test_workspace_subpackage_uses_uv_run(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        ("build_layout",),
+        [
+            pytest.param(
+                "direct_sibling",
+                id="workspace_subpackage_direct_sibling",
+            ),
+            pytest.param(
+                "packages_dir",
+                id="workspace_subpackage_packages_dir",
+            ),
+        ],
+    )
+    def test_workspace_subpackage_uses_uv_run(
+        self, tmp_path: Path, build_layout: str
+    ) -> None:
         """Workspace member uses uv run when .venv is at monorepo root.
 
-        Regression test for AXM-290: audit_test returned 0 tests for
-        workspace subpackages because run_in_project only checked for
-        .venv in project_path directly, missing workspace-root venvs.
+        Covers both direct-sibling (AXM-290) and packages/-intermediary
+        (AXM-300) layouts.
         """
         from axm_audit.core.runner import run_in_project
 
-        # Simulate uv monorepo: root has .venv, subpackage does not
-        workspace_root = tmp_path / "axm-protocols"
-        workspace_root.mkdir()
-        (workspace_root / "pyproject.toml").touch()
-        venv_bin = workspace_root / ".venv" / "bin"
-        venv_bin.mkdir(parents=True)
-        (venv_bin / "python").touch()
-
-        sub = workspace_root / "axm-commons"
-        sub.mkdir()
-        (sub / "pyproject.toml").touch()
-        # No .venv in sub — must walk up to workspace_root
-
-        with patch("axm_audit.core.runner.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0, stdout="", stderr=""
-            )
-            run_in_project(["pytest", "--no-header"], sub)
-
-            args = mock_run.call_args[0][0]
-            # Must use uv run (not bare cmd)
-            assert args[0] == "uv"
-            assert "--directory" in args
-            # --directory must point to the *subpackage*, not workspace root
-            dir_idx = args.index("--directory")
-            assert args[dir_idx + 1] == str(sub)
-
-    def test_workspace_packages_member_uses_uv_run(self, tmp_path: Path) -> None:
-        """Workspace member under packages/ uses uv run.
-
-        Regression test for AXM-300: _find_venv stopped at the
-        intermediate ``packages/`` directory (no ``pyproject.toml``),
-        causing run_in_project to fall back to bare pytest.
-        """
-        from axm_audit.core.runner import run_in_project
-
-        # workspace/
-        # ├── .venv/bin/python
-        # ├── pyproject.toml
-        # └── packages/          ← no pyproject.toml
-        #     └── axm-word/
-        #         └── pyproject.toml
-        workspace = tmp_path / "axm-office"
-        workspace.mkdir()
-        (workspace / "pyproject.toml").touch()
-        venv_bin = workspace / ".venv" / "bin"
-        venv_bin.mkdir(parents=True)
-        (venv_bin / "python").touch()
-
-        packages = workspace / "packages"
-        packages.mkdir()
-
-        pkg = packages / "axm-word"
-        pkg.mkdir()
-        (pkg / "pyproject.toml").touch()
+        if build_layout == "direct_sibling":
+            # Simulate uv monorepo: root has .venv, subpackage does not
+            workspace_root = tmp_path / "axm-protocols"
+            workspace_root.mkdir()
+            (workspace_root / "pyproject.toml").touch()
+            venv_bin = workspace_root / ".venv" / "bin"
+            venv_bin.mkdir(parents=True)
+            (venv_bin / "python").touch()
+            sub = workspace_root / "axm-commons"
+            sub.mkdir()
+            (sub / "pyproject.toml").touch()
+            pkg = sub
+        else:
+            # workspace/
+            # ├── .venv/bin/python
+            # ├── pyproject.toml
+            # └── packages/          ← no pyproject.toml
+            #     └── axm-word/
+            #         └── pyproject.toml
+            workspace = tmp_path / "axm-office"
+            workspace.mkdir()
+            (workspace / "pyproject.toml").touch()
+            venv_bin = workspace / ".venv" / "bin"
+            venv_bin.mkdir(parents=True)
+            (venv_bin / "python").touch()
+            packages = workspace / "packages"
+            packages.mkdir()
+            pkg = packages / "axm-word"
+            pkg.mkdir()
+            (pkg / "pyproject.toml").touch()
 
         with patch("axm_audit.core.runner.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(
