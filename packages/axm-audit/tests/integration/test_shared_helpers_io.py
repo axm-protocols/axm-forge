@@ -7,6 +7,8 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from axm_audit.core.rules.test_quality._shared import (
     analyze_imports,
     collect_pkg_contract_classes,
@@ -182,19 +184,41 @@ def test_collect_pkg_public_symbols_functions_classes_vars(tmp_path: Path) -> No
     assert {"f", "C", "X"}.issubset(set(symbols))
 
 
-def test_collect_contract_classes_local_protocol(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("source_code", "expected_class"),
+    [
+        pytest.param(
+            textwrap.dedent("""
+            from typing import Protocol
+
+            class Foo(Protocol):
+                def run(self): ...
+        """),
+            "Foo",
+            id="local_protocol",
+        ),
+        pytest.param(
+            textwrap.dedent("""
+            from typing import Protocol, runtime_checkable
+
+            @runtime_checkable
+            class Baz(Protocol):
+                def run(self): ...
+        """),
+            "Baz",
+            id="runtime_checkable_decorator",
+        ),
+    ],
+)
+def test_collect_contract_classes_local(
+    tmp_path: Path, source_code: str, expected_class: str
+) -> None:
+    """Protocol classes (plain and runtime_checkable) are collected from local src."""
     (tmp_path / "src" / "pkg").mkdir(parents=True)
     (tmp_path / "src" / "pkg" / "__init__.py").write_text("")
-    (tmp_path / "src" / "pkg" / "p.py").write_text(
-        textwrap.dedent("""
-        from typing import Protocol
-
-        class Foo(Protocol):
-            def run(self): ...
-    """)
-    )
+    (tmp_path / "src" / "pkg" / "p.py").write_text(source_code)
     classes = collect_pkg_contract_classes(tmp_path)
-    assert "Foo" in classes
+    assert expected_class in classes
 
 
 def test_collect_contract_classes_sibling_package(tmp_path: Path) -> None:
@@ -215,22 +239,6 @@ def test_collect_contract_classes_sibling_package(tmp_path: Path) -> None:
     )
     classes = collect_pkg_contract_classes(pkg1)
     assert "Bar" in classes
-
-
-def test_collect_contract_classes_runtime_checkable_decorator(tmp_path: Path) -> None:
-    (tmp_path / "src" / "pkg").mkdir(parents=True)
-    (tmp_path / "src" / "pkg" / "__init__.py").write_text("")
-    (tmp_path / "src" / "pkg" / "p.py").write_text(
-        textwrap.dedent("""
-        from typing import Protocol, runtime_checkable
-
-        @runtime_checkable
-        class Baz(Protocol):
-            def run(self): ...
-    """)
-    )
-    classes = collect_pkg_contract_classes(tmp_path)
-    assert "Baz" in classes
 
 
 def test_lazy_import_context_filename(tmp_path: Path) -> None:
