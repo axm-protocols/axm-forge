@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from textwrap import dedent
 
+import pytest
+
 from axm_audit.core.rules.test_quality.pyramid_level import (
     Finding,
     PyramidCheckResult,
@@ -148,31 +150,28 @@ def test_r3_transitive_helper_depth_guard(tmp_path: Path) -> None:
     assert "attr:.write_text()" not in finding.io_signals
 
 
-def test_r3_fixture_io_guard_matches_io_fixture(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("fixture_arg", "expected_signal"),
+    [
+        pytest.param(
+            "tmp_path_factory", "fixture-arg:tmp_path_factory", id="io_fixture"
+        ),
+        pytest.param("my_pkg", "fixture-arg:my_pkg", id="suffix_match"),
+    ],
+)
+def test_r3_fixture_io_guard_detected(
+    tmp_path: Path, fixture_arg: str, expected_signal: str
+) -> None:
     _write(
         tmp_path,
         "tests/unit/test_foo.py",
-        """
-        def test_x(tmp_path_factory):
-            assert tmp_path_factory is not None
+        f"""
+        def test_x({fixture_arg}):
+            assert {fixture_arg} is not None
         """,
     )
     finding = _first_finding(_check(tmp_path))
-    assert "fixture-arg:tmp_path_factory" in finding.io_signals
-    assert finding.has_real_io is True
-
-
-def test_r3_fixture_io_guard_matches_suffix(tmp_path: Path) -> None:
-    _write(
-        tmp_path,
-        "tests/unit/test_foo.py",
-        """
-        def test_x(my_pkg):
-            assert my_pkg is not None
-        """,
-    )
-    finding = _first_finding(_check(tmp_path))
-    assert "fixture-arg:my_pkg" in finding.io_signals
+    assert expected_signal in finding.io_signals
     assert finding.has_real_io is True
 
 
