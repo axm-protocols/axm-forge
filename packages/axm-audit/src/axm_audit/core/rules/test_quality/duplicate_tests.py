@@ -61,6 +61,9 @@ _P1_MIN_SYMDIFF = 2
 _P3_MIN_TOKEN_LEN = 4
 _P3_MAX_BODY = 4
 _P4_MAX_BODY = 8
+_P10_LINE_DIST = 300
+_P10_HIGH_JACCARD = 0.85
+_P10_MIN_SHARED = 3
 _P5_SETUP_DIVERGENCE_THRESHOLD = 0.5
 _S2_HIGH_SIM = 0.95
 _SCORE_PENALTY = 5
@@ -764,6 +767,58 @@ def _p9_rescues(tests: list[_TestFunc]) -> bool:
     return len(flags) >= _MIN_PAIR
 
 
+def _asserted_attr_names(node: ast.FunctionDef) -> set[str]:
+    """Return the set of attribute names appearing inside assert expressions."""
+    out: set[str] = set()
+    for parent in ast.walk(node):
+        if not isinstance(parent, ast.Assert):
+            continue
+        for child in ast.walk(parent):
+            if isinstance(child, ast.Attribute):
+                out.add(child.attr)
+    return out
+
+
+def _pair_is_very_strong(a: _TestFunc, b: _TestFunc) -> bool:
+    """True if ``a``/``b`` carry a very strong direct duplication signal.
+
+    A pair bypasses the locality rescue when any of the following holds:
+
+    - ``stmt_set`` Jaccard ≥ :data:`_P10_HIGH_JACCARD`,
+    - they share at least :data:`_P10_MIN_SHARED` asserted attribute names, or
+    - they have the same non-empty ``call_sig`` and share at least
+      :data:`_P10_MIN_SHARED` string literals.
+    """
+    if _jaccard_similarity(a.stmt_set, b.stmt_set) >= _P10_HIGH_JACCARD:
+        return True
+    shared_attrs = _asserted_attr_names(a.node) & _asserted_attr_names(b.node)
+    if len(shared_attrs) >= _P10_MIN_SHARED:
+        return True
+    if a.call_sig and a.call_sig == b.call_sig:
+        shared_lits = _string_literals(a.node) & _string_literals(b.node)
+        if len(shared_lits) >= _P10_MIN_SHARED:
+            return True
+    return False
+
+
+def _p10_rescues(tests: list[_TestFunc]) -> bool:
+    """Locality rescue: demote when all pairs are far apart with no strong signal.
+
+    Returns True iff every pair in ``tests`` has line distance greater than
+    :data:`_P10_LINE_DIST` AND no pair carries a very strong direct signal
+    (:func:`_pair_is_very_strong`). Tests that match this pattern are almost
+    always coincidental matches the user does not want flagged firmly.
+    """
+    if len(tests) < _MIN_PAIR:
+        return False
+    for a, b in combinations(tests, 2):
+        if abs(a.line - b.line) <= _P10_LINE_DIST:
+            return False
+        if _pair_is_very_strong(a, b):
+            return False
+    return True
+
+
 def _p7_rescues(tests: list[_TestFunc]) -> bool:
     """P7 — tests' direct-call SUT sets are not in subset relation.
 
@@ -825,6 +880,7 @@ _S1_RESCUES: tuple[tuple[_RescuePredicate, str, str], ...] = (
         "ambiguous_raises_divergence",
         "pytest.raises divergence rescue for SUT",
     ),
+    (_p10_rescues, "ambiguous_locality", "locality rescue for SUT"),
 )
 
 
@@ -865,6 +921,7 @@ _S3_RESCUES: tuple[
     (_p7_rescues, "ambiguous_distinct_sut", "distinct public SUT rescue"),
     (_p8_rescues, "ambiguous_distinct_class", "distinct parent class rescue"),
     (_p9_rescues, "ambiguous_raises_divergence", "pytest.raises divergence rescue"),
+    (_p10_rescues, "ambiguous_locality", "locality rescue (intra-file)"),
 )
 
 
