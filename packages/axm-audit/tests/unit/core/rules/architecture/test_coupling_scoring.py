@@ -44,21 +44,19 @@ class TestExtractImports:
         assert len(imports) == 1
         assert imports[0] == "axm_init.models"
 
-    def test_plain_import(self) -> None:
-        """'import os' = 1 import."""
+    @pytest.mark.parametrize(
+        ("code", "expected"),
+        [
+            pytest.param("import os", ["os"], id="plain_import"),
+            pytest.param("from . import x", [], id="relative_import_no_module"),
+        ],
+    )
+    def test_single_statement(self, code: str, expected: list[str]) -> None:
+        """Single import statement produces the expected module list."""
         from axm_audit.core.rules.architecture.coupling import extract_imports
 
-        tree = ast.parse("import os")
-        imports = extract_imports(tree)
-        assert imports == ["os"]
-
-    def test_relative_import_no_module(self) -> None:
-        """'from . import x' (module=None) produces 0 imports."""
-        from axm_audit.core.rules.architecture.coupling import extract_imports
-
-        tree = ast.parse("from . import x")
-        imports = extract_imports(tree)
-        assert imports == []
+        imports = extract_imports(ast.parse(code))
+        assert imports == expected
 
     def test_multiple_imports(self) -> None:
         """Multiple distinct import statements are counted separately."""
@@ -81,11 +79,10 @@ class TestExtractImports:
 
     def test_future_import_only(self) -> None:
         """Module with only __future__ import has 0 fan-out."""
+        # covered by test_future_import_excluded
         from axm_audit.core.rules.architecture.coupling import extract_imports
 
-        code = "from __future__ import annotations"
-        tree = ast.parse(code)
-        imports = extract_imports(tree)
+        imports = extract_imports(ast.parse("from __future__ import annotations"))
         assert imports == []
 
 

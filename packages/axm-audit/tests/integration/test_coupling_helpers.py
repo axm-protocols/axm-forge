@@ -3,35 +3,26 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from axm_audit.core.rules.architecture.coupling import (
     read_coupling_config,
 )
 
 
 class TestCouplingHelpersIntegration:
-    def test_no_pyproject(self, tmp_path: Path) -> None:
-        """No pyproject.toml -> all defaults."""
-        result = read_coupling_config(tmp_path)
-        # Returns the 4-tuple of defaults
-        assert isinstance(result, tuple)
-        assert len(result) == 4
-
-    def test_malformed_toml(self, tmp_path: Path) -> None:
-        """Invalid TOML content -> all defaults."""
-        (tmp_path / "pyproject.toml").write_text("{{not valid toml", encoding="utf-8")
-        result = read_coupling_config(tmp_path)
-        assert isinstance(result, tuple)
-        assert len(result) == 4
-
-    def test_missing_coupling_section(self, tmp_path: Path) -> None:
-        """Valid TOML without [tool.axm-audit.coupling] -> all defaults."""
-        (tmp_path / "pyproject.toml").write_text(
-            textwrap.dedent("""\
-            [project]
-            name = "demo"
-            """),
-            encoding="utf-8",
-        )
+    @pytest.mark.parametrize(
+        ("toml_content",),
+        [
+            pytest.param(None, id="no_pyproject"),
+            pytest.param("{{not valid toml", id="malformed_toml"),
+            pytest.param('[project]\nname = "demo"\n', id="missing_coupling_section"),
+        ],
+    )
+    def test_defaults_returned(self, tmp_path: Path, toml_content: str | None) -> None:
+        """No/malformed/missing-section pyproject.toml -> 4-tuple of defaults."""
+        if toml_content is not None:
+            (tmp_path / "pyproject.toml").write_text(toml_content, encoding="utf-8")
         result = read_coupling_config(tmp_path)
         assert isinstance(result, tuple)
         assert len(result) == 4
