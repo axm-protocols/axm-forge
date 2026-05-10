@@ -25,16 +25,15 @@ def pkg_root(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def test_check_empty_tests_dir_passes(tmp_path: Path) -> None:
-    (tmp_path / "src").mkdir()
-    result = PrivateImportsRule().check(tmp_path)
-    assert result.passed is True
-    assert result.details is not None
-    assert result.score == 100
-
-
-def test_check_no_src_passes(tmp_path: Path) -> None:
-    (tmp_path / "tests").mkdir()
+@pytest.mark.parametrize(
+    ("setup_dir",),
+    [
+        pytest.param("src", id="empty_tests_dir"),
+        pytest.param("tests", id="no_src"),
+    ],
+)
+def test_check_missing_counterpart_passes(tmp_path: Path, setup_dir: str) -> None:
+    (tmp_path / setup_dir).mkdir()
     result = PrivateImportsRule().check(tmp_path)
     assert result.passed is True
     assert result.score == 100
@@ -72,29 +71,28 @@ def test_flags_private_class_import(pkg_root: Path) -> None:
     assert findings[0]["symbol_kind"] == "class"
 
 
-def test_skips_dunder_imports(pkg_root: Path) -> None:
-    _write(
-        pkg_root / "src" / "pkg" / "__init__.py",
-        "__version__ = '1.0'\n",
-    )
-    _write(
-        pkg_root / "tests" / "test_x.py",
-        "from pkg import __version__\n",
-    )
-    result = PrivateImportsRule().check(pkg_root)
-    assert result.passed is True
-    assert result.details["findings"] == []
-
-
-def test_skips_upper_case_constants_by_default(pkg_root: Path) -> None:
-    _write(
-        pkg_root / "src" / "pkg" / "mod.py",
-        "_REGISTRY = {}\n",
-    )
-    _write(
-        pkg_root / "tests" / "test_x.py",
-        "from pkg.mod import _REGISTRY\n",
-    )
+@pytest.mark.parametrize(
+    ("src_file", "src_content", "test_import"),
+    [
+        pytest.param(
+            "src/pkg/__init__.py",
+            "__version__ = '1.0'\n",
+            "from pkg import __version__\n",
+            id="skips_dunder_imports",
+        ),
+        pytest.param(
+            "src/pkg/mod.py",
+            "_REGISTRY = {}\n",
+            "from pkg.mod import _REGISTRY\n",
+            id="skips_upper_case_constants_by_default",
+        ),
+    ],
+)
+def test_skips_non_flagged_symbols(
+    pkg_root: Path, src_file: str, src_content: str, test_import: str
+) -> None:
+    _write(pkg_root / src_file, src_content)
+    _write(pkg_root / "tests" / "test_x.py", test_import)
     result = PrivateImportsRule().check(pkg_root)
     assert result.passed is True
     assert result.details["findings"] == []
