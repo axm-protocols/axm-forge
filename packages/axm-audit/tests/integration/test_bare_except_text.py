@@ -64,19 +64,45 @@ def test_bare_except_text_bullets_on_failure(
         assert line.startswith(BULLET)
 
 
-def test_bare_except_text_short_paths(tmp_path: Path, rule: BareExceptRule) -> None:
-    """Bare except in pkg/sub/module.py -> bullet shows sub/module.py:N."""
+@pytest.mark.parametrize(
+    ("rel_path", "expected_fragment", "excluded_fragment"),
+    [
+        pytest.param(
+            "sub/module.py",
+            "sub/module.py:",
+            "pkg/sub/module.py",
+            id="short_paths",
+        ),
+        pytest.param(
+            "cli.py",
+            "cli.py:",
+            "pkg/cli.py",
+            id="top_level_file",
+        ),
+        pytest.param(
+            "a/b/c/deep.py",
+            "c/deep.py:",
+            "a/b/c/deep.py",
+            id="deeply_nested",
+        ),
+    ],
+)
+def test_bare_except_text_path_shortening(
+    tmp_path: Path,
+    rule: BareExceptRule,
+    rel_path: str,
+    expected_fragment: str,
+    excluded_fragment: str,
+) -> None:
+    """Bare excepts show shortened paths in text bullets."""
     project = _make_project(
         tmp_path,
-        {
-            "sub/module.py": "try:\n    pass\nexcept:\n    pass\n",
-        },
+        {rel_path: "try:\n    pass\nexcept:\n    pass\n"},
     )
     result = rule.check(project)
     assert result.text is not None
-    assert "sub/module.py:" in result.text
-    # Must NOT contain the full path with package prefix
-    assert "pkg/sub/module.py" not in result.text
+    assert expected_fragment in result.text
+    assert excluded_fragment not in result.text
 
 
 def test_bare_except_text_single_location(tmp_path: Path, rule: BareExceptRule) -> None:
@@ -98,36 +124,6 @@ def test_bare_except_text_single_location(tmp_path: Path, rule: BareExceptRule) 
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
-
-
-def test_bare_except_text_top_level_file(tmp_path: Path, rule: BareExceptRule) -> None:
-    """Bare except in pkg/cli.py (1 part after package) -> cli.py:N."""
-    project = _make_project(
-        tmp_path,
-        {
-            "cli.py": "try:\n    pass\nexcept:\n    pass\n",
-        },
-    )
-    result = rule.check(project)
-    assert result.text is not None
-    assert "cli.py:" in result.text
-    # Should NOT include pkg/ prefix
-    assert "pkg/cli.py" not in result.text
-
-
-def test_bare_except_text_deeply_nested(tmp_path: Path, rule: BareExceptRule) -> None:
-    """Bare except in pkg/a/b/c/deep.py -> c/deep.py:N (last 2 parts)."""
-    project = _make_project(
-        tmp_path,
-        {
-            "a/b/c/deep.py": "try:\n    pass\nexcept:\n    pass\n",
-        },
-    )
-    result = rule.check(project)
-    assert result.text is not None
-    assert "c/deep.py:" in result.text
-    # Must not show full nested path
-    assert "a/b/c/deep.py" not in result.text
 
 
 def test_bare_except_details_unchanged(tmp_path: Path, rule: BareExceptRule) -> None:
