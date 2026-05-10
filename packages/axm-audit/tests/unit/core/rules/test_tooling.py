@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 
 class TestToolAvailabilityRule:
     """Tests for tool availability checks."""
@@ -31,25 +33,26 @@ class TestToolAvailabilityRule:
         rule = ToolAvailabilityRule(tool_name="ruff")
         assert rule.rule_id == "TOOL_RUFF"
 
-    def test_non_critical_missing_tool_has_warning_severity(self) -> None:
-        """Non-critical missing tool should have WARNING severity."""
+    @pytest.mark.parametrize(
+        ("critical", "expected_severity"),
+        [
+            pytest.param(
+                False, "WARNING", id="non_critical_missing_tool_has_warning_severity"
+            ),
+            pytest.param(True, "ERROR", id="critical_missing_tool_has_error_severity"),
+        ],
+    )
+    def test_missing_tool_severity_by_criticality(
+        self, critical: bool, expected_severity: str
+    ) -> None:
+        """Missing tool severity depends on the `critical` flag."""
         from axm_audit.core.rules.tooling import ToolAvailabilityRule
         from axm_audit.models.results import Severity
 
-        rule = ToolAvailabilityRule(tool_name="nonexistent_xyz", critical=False)
+        rule = ToolAvailabilityRule(tool_name="nonexistent_xyz", critical=critical)
         result = rule.check(Path("."))
         assert result.passed is False
-        assert result.severity == Severity.WARNING
-
-    def test_critical_missing_tool_has_error_severity(self) -> None:
-        """Critical missing tool should have ERROR severity."""
-        from axm_audit.core.rules.tooling import ToolAvailabilityRule
-        from axm_audit.models.results import Severity
-
-        rule = ToolAvailabilityRule(tool_name="nonexistent_xyz", critical=True)
-        result = rule.check(Path("."))
-        assert result.passed is False
-        assert result.severity == Severity.ERROR
+        assert result.severity == Severity[expected_severity]
 
     def test_found_tool_has_info_severity(self) -> None:
         """Found tool should have INFO severity."""
