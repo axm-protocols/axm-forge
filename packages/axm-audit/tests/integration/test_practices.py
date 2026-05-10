@@ -918,32 +918,29 @@ class TestMirrorRuleOrphanIntegration:
         assert result.text is not None
         assert any(line.startswith("• orphan:") for line in result.text.splitlines())
 
-    def test_score_penalizes_both_directions(self, tmp_path: Path) -> None:
-        """AC6: 1 missing + 1 orphan → score == 70."""
+    @pytest.mark.parametrize(
+        ("extra_src", "expected_score"),
+        [
+            pytest.param(["bar.py"], 70, id="one_missing_one_orphan"),
+            pytest.param([], 85, id="zero_missing_one_orphan"),
+        ],
+    )
+    def test_score_missing_and_orphan(
+        self, tmp_path: Path, extra_src: list[str], expected_score: int
+    ) -> None:
+        """AC6: score reflects missing + orphan penalties."""
         from axm_audit.core.rules.practices.mirror import MirrorRule
 
         _write(tmp_path / "src" / "pkg" / "__init__.py")
         _write(tmp_path / "src" / "pkg" / "foo.py", "x = 1\n")
-        _write(tmp_path / "src" / "pkg" / "bar.py", "x = 1\n")
+        for name in extra_src:
+            _write(tmp_path / "src" / "pkg" / name, "x = 1\n")
         _write(tmp_path / "tests" / "unit" / "test_foo.py", "")
         _write(tmp_path / "tests" / "unit" / "test_ghost.py", "")
 
         result = MirrorRule().check(tmp_path)
 
-        assert result.score == 70
-
-    def test_score_one_orphan_only(self, tmp_path: Path) -> None:
-        """AC6: 0 missing + 1 orphan → score == 85."""
-        from axm_audit.core.rules.practices.mirror import MirrorRule
-
-        _write(tmp_path / "src" / "pkg" / "__init__.py")
-        _write(tmp_path / "src" / "pkg" / "foo.py", "x = 1\n")
-        _write(tmp_path / "tests" / "unit" / "test_foo.py", "")
-        _write(tmp_path / "tests" / "unit" / "test_ghost.py", "")
-
-        result = MirrorRule().check(tmp_path)
-
-        assert result.score == 85
+        assert result.score == expected_score
 
     @pytest.mark.parametrize(
         "extra_files",
