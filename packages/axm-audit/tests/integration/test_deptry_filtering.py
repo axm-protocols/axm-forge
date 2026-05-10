@@ -4,6 +4,8 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from axm_audit.core.rules.dependencies import DependencyHygieneRule
 
 MODULE = "axm_audit.core.rules.dependencies"
@@ -28,21 +30,42 @@ def _dep_issue(code: str, module: str, message: str = "") -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-class TestEntryPointDepsNotReported:
-    """DEP002 for packages consumed via entry-points should be filtered."""
+class TestDep002FalsePositiveFiltered:
+    """DEP002 for packages reachable via entry-points or optional-deps."""
 
-    def test_entry_point_deps_filtered(self, tmp_path: Path, mocker: Any) -> None:
-        _make_pyproject(
-            tmp_path,
-            """\
-            [project]
-            name = "test-pkg"
-            dependencies = ["axm-init"]
+    # noqa: entry-point and optional-dep false positives should be filtered
 
-            [project.entry-points."axm.tools"]
-            init = "axm_init.tool:InitTool"
-            """,
-        )
+    @pytest.mark.parametrize(
+        "pyproject_content",
+        [
+            pytest.param(
+                """\
+                [project]
+                name = "test-pkg"
+                dependencies = ["axm-init"]
+
+                [project.entry-points."axm.tools"]
+                init = "axm_init.tool:InitTool"
+                """,
+                id="entry_point_dep_filtered",
+            ),
+            pytest.param(
+                """\
+                [project]
+                name = "test-pkg"
+                dependencies = []
+
+                [project.optional-dependencies]
+                init = ["axm-init"]
+                """,
+                id="optional_dep_filtered",
+            ),
+        ],
+    )
+    def test_dep002_false_positive_filtered(
+        self, tmp_path: Path, mocker: Any, pyproject_content: str
+    ) -> None:
+        _make_pyproject(tmp_path, pyproject_content)
         mocker.patch(
             f"{MODULE}.run_deptry",
             return_value=[
@@ -56,80 +79,46 @@ class TestEntryPointDepsNotReported:
         assert result.details["issue_count"] == 0
 
 
-class TestOptionalDepsNotReported:
-    """DEP002 for packages in optional-dependencies should be filtered."""
+class TestNonDep002CodesPreserved:
+    """DEP001/DEP003 must NOT be filtered for entry-point/optional-dep pkgs."""
 
-    def test_optional_deps_filtered(self, tmp_path: Path, mocker: Any) -> None:
-        _make_pyproject(
-            tmp_path,
-            """\
-            [project]
-            name = "test-pkg"
-            dependencies = []
+    @pytest.mark.parametrize(
+        ("dep_code", "pyproject_content"),
+        [
+            pytest.param(
+                "DEP001",
+                """\
+                [project]
+                name = "test-pkg"
+                dependencies = []
 
-            [project.optional-dependencies]
-            init = ["axm-init"]
-            """,
-        )
+                [project.entry-points."axm.tools"]
+                init = "axm_init.tool:InitTool"
+                """,
+                id="dep001_entry_point_not_filtered",
+            ),
+            pytest.param(
+                "DEP003",
+                """\
+                [project]
+                name = "test-pkg"
+                dependencies = []
+
+                [project.optional-dependencies]
+                init = ["axm-init"]
+                """,
+                id="dep003_optional_dep_not_filtered",
+            ),
+        ],
+    )
+    def test_non_dep002_code_preserved(
+        self, tmp_path: Path, mocker: Any, dep_code: str, pyproject_content: str
+    ) -> None:
+        _make_pyproject(tmp_path, pyproject_content)
         mocker.patch(
             f"{MODULE}.run_deptry",
             return_value=[
-                _dep_issue("DEP002", "axm_init"),
-            ],
-        )
-        rule = DependencyHygieneRule()
-        result = rule.check(tmp_path)
-        assert result.passed
-        assert result.details is not None
-        assert result.details["issue_count"] == 0
-
-
-class TestDep001NotFiltered:
-    """DEP001 (missing) must NOT be filtered even for entry-point packages."""
-
-    def test_dep001_preserved(self, tmp_path: Path, mocker: Any) -> None:
-        _make_pyproject(
-            tmp_path,
-            """\
-            [project]
-            name = "test-pkg"
-            dependencies = []
-
-            [project.entry-points."axm.tools"]
-            init = "axm_init.tool:InitTool"
-            """,
-        )
-        mocker.patch(
-            f"{MODULE}.run_deptry",
-            return_value=[
-                _dep_issue("DEP001", "axm_init"),
-            ],
-        )
-        rule = DependencyHygieneRule()
-        result = rule.check(tmp_path)
-        assert result.details is not None
-        assert result.details["issue_count"] == 1
-
-
-class TestDep003NotFiltered:
-    """DEP003 (transitive) must NOT be filtered even for extras packages."""
-
-    def test_dep003_preserved(self, tmp_path: Path, mocker: Any) -> None:
-        _make_pyproject(
-            tmp_path,
-            """\
-            [project]
-            name = "test-pkg"
-            dependencies = []
-
-            [project.optional-dependencies]
-            init = ["axm-init"]
-            """,
-        )
-        mocker.patch(
-            f"{MODULE}.run_deptry",
-            return_value=[
-                _dep_issue("DEP003", "axm_init"),
+                _dep_issue(dep_code, "axm_init"),
             ],
         )
         rule = DependencyHygieneRule()
