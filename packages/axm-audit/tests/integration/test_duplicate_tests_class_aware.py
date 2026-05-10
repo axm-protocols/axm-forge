@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from axm_audit.core.rules.test_quality.duplicate_tests import DuplicateTestsRule
 
 
@@ -41,32 +43,49 @@ def test_cross_class_pair_demoted(tmp_path: Path) -> None:
     assert pair["signal"] == "ambiguous_distinct_class"
 
 
-def test_same_class_pair_still_clustered(tmp_path: Path) -> None:
-    body = (
-        "class TestFoo:\n"
-        "    def test_first(self):\n"
-        "        result = process(1)\n"
-        "        assert result == 2\n"
-        "    def test_second(self):\n"
-        "        result = process(1)\n"
-        "        assert result == 2\n"
-    )
-    project = _write(tmp_path, {"test_a.py": body})
+@pytest.mark.parametrize(
+    ("files", "pair_names"),
+    [
+        pytest.param(
+            {
+                "test_a.py": (
+                    "class TestFoo:\n"
+                    "    def test_first(self):\n"
+                    "        result = process(1)\n"
+                    "        assert result == 2\n"
+                    "    def test_second(self):\n"
+                    "        result = process(1)\n"
+                    "        assert result == 2\n"
+                ),
+            },
+            {"test_first", "test_second"},
+            id="same_class_pair_still_clustered",
+        ),
+        pytest.param(
+            {
+                "test_a.py": (
+                    "def test_alpha():\n"
+                    "    result = process(1)\n"
+                    "    assert result == 2\n"
+                ),
+                "test_b.py": (
+                    "def test_beta():\n"
+                    "    result = process(1)\n"
+                    "    assert result == 2\n"
+                ),
+            },
+            {"test_alpha", "test_beta"},
+            id="module_level_pair_unaffected",
+        ),
+    ],
+)
+def test_pair_clusters_with_signal1_or_signal3(
+    tmp_path: Path, files: dict[str, str], pair_names: set[str]
+) -> None:
+    project = _write(tmp_path, files)
 
     result = DuplicateTestsRule().check(project)
 
-    pair = _find_pair(result.metadata["clusters"], {"test_first", "test_second"})
-    assert pair is not None
-    assert pair["signal"].startswith(("signal1_", "signal3_"))
-
-
-def test_module_level_pair_unaffected(tmp_path: Path) -> None:
-    body_a = "def test_alpha():\n    result = process(1)\n    assert result == 2\n"
-    body_b = "def test_beta():\n    result = process(1)\n    assert result == 2\n"
-    project = _write(tmp_path, {"test_a.py": body_a, "test_b.py": body_b})
-
-    result = DuplicateTestsRule().check(project)
-
-    pair = _find_pair(result.metadata["clusters"], {"test_alpha", "test_beta"})
+    pair = _find_pair(result.metadata["clusters"], pair_names)
     assert pair is not None
     assert pair["signal"].startswith(("signal1_", "signal3_"))
