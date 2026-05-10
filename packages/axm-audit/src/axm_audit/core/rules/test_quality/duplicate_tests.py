@@ -358,6 +358,25 @@ def _has_pytest_raises_block(node: ast.FunctionDef) -> bool:
     return False
 
 
+def _collect_assert_call_sigs(node: ast.FunctionDef) -> set[str]:
+    """Return ``_call_sig`` set for every :class:`ast.Call` inside an assert.
+
+    Tests written as ``assert helper(args) == expected`` would otherwise have
+    an empty ``call_sig`` (the taint-propagation pass only follows assigns).
+    Including these calls lets S1/S2 group such tests by SUT.
+    """
+    out: set[str] = set()
+    for parent in ast.walk(node):
+        if not isinstance(parent, ast.Assert):
+            continue
+        for child in ast.walk(parent):
+            if isinstance(child, ast.Call):
+                sig = _call_sig(child)
+                if sig is not None:
+                    out.add(sig)
+    return out
+
+
 def _collect_raises_call_sigs(node: ast.FunctionDef) -> set[str]:
     sigs: set[str] = set()
     for child in ast.walk(node):
@@ -1238,6 +1257,7 @@ def _make_test_func(
     )
     sigs, tainted = _propagate_taint(node)
     sigs |= _collect_raises_call_sigs(node)
+    sigs |= _collect_assert_call_sigs(node)
     tf.call_sig = ">".join(sorted(sigs))
     tf.assert_pattern = _compute_assert_pattern(node)
     tf.stmt_set = _statement_set(node)
