@@ -10,18 +10,17 @@ import pytest
 
 from axm_init.adapters.credentials import CredentialManager
 
-# ── CredentialManager CRUD ───────────────────────────────────────────────────
-
 
 class TestCredentialManager:
-    """Tests for credential management."""
+    """Tests for credential management with real filesystem I/O."""
 
-    def test_get_pypi_token_from_env(self) -> None:
-        """Token from PYPI_API_TOKEN env var takes priority."""
-        with patch.dict(os.environ, {"PYPI_API_TOKEN": "pypi-test-token"}):
-            manager = CredentialManager()
-            token = manager.get_pypi_token()
-            assert token == "pypi-test-token"
+    def test_save_pypi_token_permission_error(self, tmp_path: Path) -> None:
+        """save_pypi_token returns False on PermissionError."""
+        manager = CredentialManager(pypirc_path=tmp_path / ".pypirc")
+
+        with patch.object(Path, "write_text", side_effect=PermissionError("read-only")):
+            result = manager.save_pypi_token("pypi-test")
+            assert result is False
 
     def test_get_pypi_token_from_pypirc(self, tmp_path: Path) -> None:
         """Token from ~/.pypirc when env not set."""
@@ -46,34 +45,12 @@ password = pypi-from-file
             token = manager.get_pypi_token()
             assert token is None
 
-    def test_validate_token_format(self) -> None:
-        """Validates pypi- token prefix."""
-        manager = CredentialManager()
-        assert manager.validate_token("pypi-abc123") is True
-        assert manager.validate_token("invalid-token") is False
-        assert manager.validate_token("") is False
-
-    def test_save_pypi_token_permission_error(self, tmp_path: Path) -> None:
-        """save_pypi_token returns False on PermissionError."""
-        manager = CredentialManager(pypirc_path=tmp_path / ".pypirc")
-
-        with patch.object(Path, "write_text", side_effect=PermissionError("read-only")):
-            result = manager.save_pypi_token("pypi-test")
-            assert result is False
-
 
 # ── resolve_pypi_token ───────────────────────────────────────────────────────
 
 
 class TestResolvePypiToken:
     """resolve_pypi_token() — env → .pypirc → prompt → persist."""
-
-    def test_env_var_takes_priority(self) -> None:
-        """PYPI_API_TOKEN env var returns immediately, no prompt."""
-        with patch.dict(os.environ, {"PYPI_API_TOKEN": "pypi-env-token"}):
-            creds = CredentialManager()
-            token = creds.resolve_pypi_token()
-            assert token == "pypi-env-token"
 
     def test_pypirc_fallback(self, tmp_path: Path) -> None:
         """Reads from .pypirc when no env var."""
