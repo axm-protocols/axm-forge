@@ -136,20 +136,34 @@ class TestDeadCodeRule:
         assert "parse" in result.message.lower()
         assert result.text is None
 
-    def test_dead_code_text_truncation(
-        self, rule: DeadCodeRule, mocker: MockerFixture, tmp_path: Path
+    @pytest.mark.parametrize(
+        ("symbol_count", "expected"),
+        [
+            pytest.param(10, (10, None), id="exactly_10_no_overflow"),
+            pytest.param(11, (11, "\u2022 +1 more"), id="11_symbols_plus_1_more"),
+            pytest.param(12, (11, "\u2022 +2 more"), id="12_symbols_plus_2_more"),
+        ],
+    )
+    def test_dead_code_text_overflow(
+        self,
+        rule: DeadCodeRule,
+        mocker: MockerFixture,
+        tmp_path: Path,
+        symbol_count: int,
+        expected: tuple[int, str | None],
     ) -> None:
-        """12 dead symbols should produce 10 bullets + a '+2 more' line."""
+        """Symbol list is capped at 10 bullets with optional '+N more' overflow."""
+        expected_lines, overflow_marker = expected
         mocker.patch("shutil.which", return_value="/usr/bin/axm-ast")
 
         symbols = [
             {
                 "name": f"sym_{i}",
-                "file": f"src/pkg/mod{i}.py",
+                "file": f"pkg/mod{i}.py",
                 "line": i,
                 "kind": "function",
             }
-            for i in range(12)
+            for i in range(symbol_count)
         ]
         mock_run = mocker.patch("axm_audit.core.rules.dead_code.subprocess.run")
         mock_result = mocker.Mock()
@@ -161,8 +175,11 @@ class TestDeadCodeRule:
 
         assert result.text is not None
         lines = result.text.strip().splitlines()
-        assert len(lines) == 11  # 10 bullets + 1 overflow
-        assert "\u2022 +2 more" in lines[-1]
+        assert len(lines) == expected_lines
+        if overflow_marker is None:
+            assert "more" not in result.text
+        else:
+            assert overflow_marker in lines[-1]
 
     def test_dead_code_text_strips_src_prefix(
         self, rule: DeadCodeRule, mocker: MockerFixture, tmp_path: Path
@@ -230,62 +247,6 @@ class TestDeadCodeRule:
 
         assert result.text is not None
         assert expected_substring in result.text
-
-    def test_dead_code_text_exactly_10_symbols(
-        self, rule: DeadCodeRule, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """Exactly 10 symbols should produce 10 bullets with no overflow line."""
-        mocker.patch("shutil.which", return_value="/usr/bin/axm-ast")
-
-        symbols = [
-            {
-                "name": f"sym_{i}",
-                "file": f"pkg/mod{i}.py",
-                "line": i,
-                "kind": "function",
-            }
-            for i in range(10)
-        ]
-        mock_run = mocker.patch("axm_audit.core.rules.dead_code.subprocess.run")
-        mock_result = mocker.Mock()
-        mock_result.stdout = json.dumps(symbols)
-        mock_result.returncode = 0
-        mock_run.return_value = mock_result
-
-        result = rule.check(tmp_path)
-
-        assert result.text is not None
-        lines = result.text.strip().splitlines()
-        assert len(lines) == 10
-        assert "more" not in result.text
-
-    def test_dead_code_text_11_symbols(
-        self, rule: DeadCodeRule, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """11 symbols should produce 10 bullets + '+1 more' line."""
-        mocker.patch("shutil.which", return_value="/usr/bin/axm-ast")
-
-        symbols = [
-            {
-                "name": f"sym_{i}",
-                "file": f"pkg/mod{i}.py",
-                "line": i,
-                "kind": "function",
-            }
-            for i in range(11)
-        ]
-        mock_run = mocker.patch("axm_audit.core.rules.dead_code.subprocess.run")
-        mock_result = mocker.Mock()
-        mock_result.stdout = json.dumps(symbols)
-        mock_result.returncode = 0
-        mock_run.return_value = mock_result
-
-        result = rule.check(tmp_path)
-
-        assert result.text is not None
-        lines = result.text.strip().splitlines()
-        assert len(lines) == 11
-        assert "\u2022 +1 more" in lines[-1]
 
     def test_dead_code_subprocess_args(
         self, rule: DeadCodeRule, mocker: MockerFixture, tmp_path: Path
