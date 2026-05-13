@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
 from axm_init.checks._utils import (
     load_toml,
     load_toml_with_workspace_fallback,
@@ -22,14 +24,17 @@ class TestLoadToml:
         assert data is not None
         assert data["project"]["name"] == "test-pkg"
 
-    def test_load_toml_missing(self, tmp_path: Path) -> None:
-        """Missing pyproject.toml returns None."""
-        data = load_toml(tmp_path)
-        assert data is None
-
-    def test_load_toml_corrupt(self, tmp_path: Path) -> None:
-        """Corrupt TOML returns None."""
-        (tmp_path / "pyproject.toml").write_text("{{invalid toml}}")
+    @pytest.mark.parametrize(
+        "content",
+        [
+            pytest.param(None, id="missing"),
+            pytest.param("{{invalid toml}}", id="corrupt"),
+        ],
+    )
+    def test_load_toml_returns_none(self, tmp_path: Path, content: str | None) -> None:
+        """Missing or corrupt pyproject.toml returns None."""
+        if content is not None:
+            (tmp_path / "pyproject.toml").write_text(content)
         data = load_toml(tmp_path)
         assert data is None
 

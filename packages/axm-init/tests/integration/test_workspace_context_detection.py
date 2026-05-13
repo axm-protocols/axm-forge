@@ -135,16 +135,28 @@ class TestGetWorkspaceMembers:
         assert "internal" not in members
         assert "pkg-a" in members
 
-    def test_empty(self, tmp_path: Path) -> None:
-        """Workspace with no matching member directories."""
-        toml = dedent("""\
-            [project]
-            name = "empty-ws"
+    @pytest.mark.parametrize(
+        "pyproject_content",
+        [
+            pytest.param(
+                dedent("""\
+                    [project]
+                    name = "empty-ws"
 
-            [tool.uv.workspace]
-            members = ["nonexistent/*"]
-        """)
-        (tmp_path / "pyproject.toml").write_text(toml)
+                    [tool.uv.workspace]
+                    members = ["nonexistent/*"]
+                """),
+                id="empty_glob",
+            ),
+            pytest.param(None, id="no_pyproject"),
+        ],
+    )
+    def test_get_workspace_members_empty(
+        self, tmp_path: Path, pyproject_content: str | None
+    ) -> None:
+        """get_workspace_members returns [] for empty workspaces or no pyproject."""
+        if pyproject_content is not None:
+            (tmp_path / "pyproject.toml").write_text(pyproject_content)
         assert get_workspace_members(tmp_path) == []
 
 
@@ -154,13 +166,19 @@ class TestGetWorkspaceMembers:
 
 
 class TestEdgeCases:
-    def test_missing_pyproject(self, tmp_path: Path) -> None:
-        """Directory with no pyproject.toml → STANDALONE."""
-        assert detect_context(tmp_path) == ProjectContext.STANDALONE
-
-    def test_corrupt_toml(self, tmp_path: Path) -> None:
-        """Invalid pyproject.toml → STANDALONE (graceful fallback)."""
-        (tmp_path / "pyproject.toml").write_text("{{invalid toml!!")
+    @pytest.mark.parametrize(
+        "content",
+        [
+            pytest.param(None, id="missing_pyproject"),
+            pytest.param("{{invalid toml!!", id="corrupt_toml"),
+        ],
+    )
+    def test_detect_context_falls_back_to_standalone(
+        self, tmp_path: Path, content: str | None
+    ) -> None:
+        """Missing or corrupt pyproject.toml → STANDALONE (graceful fallback)."""
+        if content is not None:
+            (tmp_path / "pyproject.toml").write_text(content)
         assert detect_context(tmp_path) == ProjectContext.STANDALONE
 
     def test_nested_workspaces(self, tmp_path: Path) -> None:
@@ -197,23 +215,6 @@ class TestEdgeCases:
         root = find_workspace_root(pkg)
         assert root is not None
         assert root.resolve() == inner.resolve()
-
-    def test_glob_no_match(self, tmp_path: Path) -> None:
-        """members glob matches no dirs → empty list."""
-        (tmp_path / "pyproject.toml").write_text(
-            dedent("""\
-            [project]
-            name = "ws"
-
-            [tool.uv.workspace]
-            members = ["nonexistent/*"]
-        """)
-        )
-        assert get_workspace_members(tmp_path) == []
-
-    def test_get_members_no_pyproject(self, tmp_path: Path) -> None:
-        """get_workspace_members on path without pyproject.toml → empty."""
-        assert get_workspace_members(tmp_path) == []
 
 
 # ---------------------------------------------------------------------------
