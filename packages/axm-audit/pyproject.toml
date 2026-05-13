@@ -126,6 +126,7 @@ known-first-party = ["axm_audit"]
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.deptry]
 known_first_party = ["axm_audit"]
+extend_exclude = ["scripts"]
 
 [tool.deptry.per_rule_ignores]
 DEP004 = ["mkdocs_gen_files"]
