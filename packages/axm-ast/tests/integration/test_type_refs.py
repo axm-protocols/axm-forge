@@ -7,18 +7,17 @@ integration with analyze_impact().
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 from axm_ast.core.analyzer import analyze_package
-from axm_ast.core.impact import find_type_refs, score_impact
+from axm_ast.core.impact import find_type_refs
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
-SELF_PKG = Path(__file__).resolve().parent.parent / "src" / "axm_ast"
+SELF_PKG = Path(__file__).resolve().parent.parent.parent / "src" / "axm_ast"
 
 
 @pytest.fixture()
@@ -175,44 +174,6 @@ class TestImpactTypeRefs:
         )
         assert "type_refs" in result
         assert len(result["type_refs"]) > 0
-
-    def test_impact_score_with_types(self) -> None:
-        """AC3: Score is HIGH when type is used by 5+ functions."""
-        result = {
-            "callers": [],
-            "reexports": [],
-            "affected_modules": [],
-            "git_coupled": [],
-            "type_refs": [
-                {"function": f"fn{i}", "module": "mod", "line": i} for i in range(5)
-            ],
-        }
-        assert score_impact(result) == "HIGH"
-
-    def test_score_medium_with_type_refs(self) -> None:
-        """Score MEDIUM with 2 type refs and no callers."""
-        result = {
-            "callers": [],
-            "reexports": [],
-            "affected_modules": [],
-            "git_coupled": [],
-            "type_refs": [
-                {"function": "fn1", "module": "mod", "line": 1},
-                {"function": "fn2", "module": "mod", "line": 2},
-            ],
-        }
-        assert score_impact(result) == "MEDIUM"
-
-    def test_score_low_without_type_refs(self) -> None:
-        """Score LOW with no type refs and no callers."""
-        result: dict[str, Any] = {
-            "callers": [],
-            "reexports": [],
-            "affected_modules": [],
-            "git_coupled": [],
-            "type_refs": [],
-        }
-        assert score_impact(result) == "LOW"
 
     def test_type_refs_modules_in_affected(
         self,
