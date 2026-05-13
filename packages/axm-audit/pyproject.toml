@@ -91,7 +91,7 @@ docs = [
 [tool.ruff]
 target-version = "py312"
 line-length = 88
-exclude = ["*/_version.py"]
+exclude = ["*/_version.py", "scripts/*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20", "RUF"]
