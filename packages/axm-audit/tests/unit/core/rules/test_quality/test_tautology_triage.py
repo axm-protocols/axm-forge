@@ -1,3 +1,5 @@
+"""Unit tests for tautology_triage.triage step rules (DELETE + STRENGTHEN paths)."""
+
 from __future__ import annotations
 
 import ast

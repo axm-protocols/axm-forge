@@ -1,3 +1,8 @@
+"""Unit tests for TautologyRule and detect_tautologies.
+
+Covers registry membership and per-pattern detection.
+"""
+
 from __future__ import annotations
 
 import ast
