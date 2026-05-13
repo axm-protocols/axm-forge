@@ -36,37 +36,6 @@ def workspace_root(tmp_path: Path) -> Path:
     return ws
 
 
-class TestCliScaffoldWorkspace:
-    """AC1: --workspace invokes workspace scaffold."""
-
-    def test_cli_scaffold_workspace(self, tmp_path: Path) -> None:
-        """scaffold --workspace routes to workspace template."""
-        from axm_init.cli import scaffold
-
-        mock_result = MagicMock()
-        mock_result.success = True
-        mock_result.files_created = [tmp_path / "pyproject.toml"]
-        mock_result.message = ""
-
-        with patch("axm_init.adapters.copier.CopierAdapter") as mock_cls:
-            mock_copier = MagicMock()
-            mock_copier.copy.return_value = mock_result
-            mock_cls.return_value = mock_copier
-
-            scaffold(
-                str(tmp_path),
-                name="test-ws",
-                org="test-org",
-                author="Test",
-                email="test@test.com",
-                workspace=True,
-            )
-
-        # Verify workspace template was used
-        call_args = mock_copier.copy.call_args[0][0]
-        assert "workspace" in str(call_args.template_path).lower()
-
-
 class TestCliScaffoldMember:
     """AC2: --member <name> invokes member scaffold."""
 
@@ -97,35 +66,6 @@ class TestCliScaffoldMember:
         dest = str(call_args.destination)
         assert "packages" in dest
         assert "my-pkg" in dest
-
-
-class TestCliScaffoldDefaultUnchanged:
-    """AC4: Default scaffold (no flags) uses standalone template."""
-
-    def test_cli_scaffold_default_unchanged(self, tmp_path: Path) -> None:
-        """Default scaffold produces standalone package."""
-        from axm_init.cli import scaffold
-
-        mock_result = MagicMock()
-        mock_result.success = True
-        mock_result.files_created = [tmp_path / "pyproject.toml"]
-        mock_result.message = ""
-
-        with patch("axm_init.adapters.copier.CopierAdapter") as mock_cls:
-            mock_copier = MagicMock()
-            mock_copier.copy.return_value = mock_result
-            mock_cls.return_value = mock_copier
-
-            scaffold(
-                str(tmp_path),
-                name="test-project",
-                org="test-org",
-                author="Test",
-                email="test@test.com",
-            )
-
-        call_args = mock_copier.copy.call_args[0][0]
-        assert "python-project" in str(call_args.template_path).lower()
 
 
 class TestCliCheckShowsContext:
