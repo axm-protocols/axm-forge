@@ -106,23 +106,58 @@ def test_r3_attr_write_text_per_function(tmp_path: Path) -> None:
     assert finding.level == "integration"
 
 
-def test_r3_transitive_helper_at_depth_2(tmp_path: Path) -> None:
-    _write(
-        tmp_path,
-        "tests/unit/test_foo.py",
-        """
-        def helper_b(p):
-            p.mkdir()
+@pytest.mark.parametrize(
+    ("relpath", "body", "expected_signal"),
+    [
+        pytest.param(
+            "tests/unit/test_foo.py",
+            """
+            def helper_b(p):
+                p.mkdir()
 
-        def helper_a(p):
-            helper_b(p)
+            def helper_a(p):
+                helper_b(p)
 
-        def test_x(p):
-            helper_a(p)
-        """,
-    )
+            def test_x(p):
+                helper_a(p)
+            """,
+            "attr:.mkdir()",
+            id="transitive_helper_at_depth_2",
+        ),
+        pytest.param(
+            "tests/integration/test_foo.py",
+            """
+            def f(p):
+                return p
+
+            def test_x(tmp_path):
+                f(tmp_path / "a")
+            """,
+            "tmp_path-as-arg",
+            id="tmp_path_as_arg_taint",
+        ),
+        pytest.param(
+            "tests/integration/test_foo.py",
+            """
+            def f(p):
+                return p
+
+            def test_x(tmp_path):
+                p = tmp_path / "a"
+                q = p
+                f(q)
+            """,
+            "tmp_path-as-arg",
+            id="tmp_path_aliased_reaches_call",
+        ),
+    ],
+)
+def test_r3_io_signal_detected(
+    tmp_path: Path, relpath: str, body: str, expected_signal: str
+) -> None:
+    _write(tmp_path, relpath, body)
     finding = _first_finding(_check(tmp_path))
-    assert "attr:.mkdir()" in finding.io_signals
+    assert expected_signal in finding.io_signals
 
 
 def test_r3_transitive_helper_depth_guard(tmp_path: Path) -> None:
@@ -188,40 +223,6 @@ def test_r3_fixture_io_guard_skips_mock_name(tmp_path: Path) -> None:
     findings = list(result.findings)
     if findings:
         assert not any(s.startswith("fixture-arg:") for s in findings[0].io_signals)
-
-
-def test_r3_tmp_path_as_arg_taint(tmp_path: Path) -> None:
-    _write(
-        tmp_path,
-        "tests/integration/test_foo.py",
-        """
-        def f(p):
-            return p
-
-        def test_x(tmp_path):
-            f(tmp_path / "a")
-        """,
-    )
-    finding = _first_finding(_check(tmp_path))
-    assert "tmp_path-as-arg" in finding.io_signals
-
-
-def test_r3_tmp_path_aliased_reaches_call(tmp_path: Path) -> None:
-    _write(
-        tmp_path,
-        "tests/integration/test_foo.py",
-        """
-        def f(p):
-            return p
-
-        def test_x(tmp_path):
-            p = tmp_path / "a"
-            q = p
-            f(q)
-        """,
-    )
-    finding = _first_finding(_check(tmp_path))
-    assert "tmp_path-as-arg" in finding.io_signals
 
 
 def test_tmp_path_boundary_write_text(tmp_path: Path) -> None:
