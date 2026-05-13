@@ -46,49 +46,39 @@ class TestReserveToolValidation:
         assert result.success is False
         assert expected_substring in (result.error or "").lower()
 
+    @pytest.mark.parametrize(
+        ("reserve_success", "reserve_version", "reserve_message"),
+        [
+            pytest.param(True, "0.1.0", "Reserved test-package", id="success"),
+            pytest.param(False, "", "Package name taken", id="failure"),
+        ],
+    )
     @patch("axm_init.core.reserver.reserve_pypi")
     @patch("axm_init.adapters.credentials.CredentialManager")
-    def test_reserve_success(
-        self, mock_creds: MagicMock, mock_reserve: MagicMock
+    def test_reserve_propagates_result_success(
+        self,
+        mock_creds: MagicMock,
+        mock_reserve: MagicMock,
+        reserve_success: bool,
+        reserve_version: str,
+        reserve_message: str,
     ) -> None:
-        """Test successful execution of InitReserveTool."""
+        """InitReserveTool propagates underlying reserve_pypi success flag."""
         from axm_init.models.results import ReserveResult
         from axm_init.tools.reserve import InitReserveTool
 
         mock_creds.return_value.get_pypi_token.return_value = "fake-token"
         mock_reserve.return_value = ReserveResult(
-            success=True,
+            success=reserve_success,
             package_name="test-package",
-            version="0.1.0",
-            message="Reserved test-package",
+            version=reserve_version,
+            message=reserve_message,
         )
         tool = InitReserveTool()
         result = tool.execute(
             name="test-package", author="Author", email="email@test.com"
         )
-        assert result.success is True
-
-    @patch("axm_init.core.reserver.reserve_pypi")
-    @patch("axm_init.adapters.credentials.CredentialManager")
-    def test_reserve_failure(
-        self, mock_creds: MagicMock, mock_reserve: MagicMock
-    ) -> None:
-        """Test failed execution of InitReserveTool."""
-        from axm_init.models.results import ReserveResult
-        from axm_init.tools.reserve import InitReserveTool
-
-        mock_creds.return_value.get_pypi_token.return_value = "fake-token"
-        mock_reserve.return_value = ReserveResult(
-            success=False,
-            package_name="test-package",
-            version="",
-            message="Package name taken",
-        )
-        tool = InitReserveTool()
-        result = tool.execute(
-            name="test-package", author="Author", email="email@test.com"
-        )
-        assert result.success is False
+        assert result.success is reserve_success
 
     @patch("axm_init.adapters.credentials.CredentialManager")
     def test_reserve_system_exit_caught(self, mock_creds: MagicMock) -> None:
@@ -133,16 +123,27 @@ class TestReserveNoToken:
 class TestReserveDryRun:
     """Cover line 80: dry_run path where token may be None."""
 
+    @pytest.mark.parametrize(
+        ("stored_token", "expected_token_arg"),
+        [
+            pytest.param(None, "", id="no_token_uses_empty"),
+            pytest.param("real-token", "real-token", id="with_token_passes_through"),
+        ],
+    )
     @patch("axm_init.core.reserver.reserve_pypi")
     @patch("axm_init.adapters.credentials.CredentialManager")
-    def test_dry_run_no_token_uses_empty(
-        self, mock_creds: MagicMock, mock_reserve: MagicMock
+    def test_dry_run_token_handling(
+        self,
+        mock_creds: MagicMock,
+        mock_reserve: MagicMock,
+        stored_token: str | None,
+        expected_token_arg: str,
     ) -> None:
-        """dry_run=True with no token uses empty string."""
+        """dry_run=True forwards stored token (or '' if absent) to reserve_pypi."""
         from axm_init.models.results import ReserveResult
         from axm_init.tools.reserve import InitReserveTool
 
-        mock_creds.return_value.get_pypi_token.return_value = None
+        mock_creds.return_value.get_pypi_token.return_value = stored_token
         mock_reserve.return_value = ReserveResult(
             success=True,
             package_name="test-pkg",
@@ -161,39 +162,7 @@ class TestReserveDryRun:
             name="test-pkg",
             author="Real Author",
             email="real@email.com",
-            token="",
-            dry_run=True,
-        )
-
-    @patch("axm_init.core.reserver.reserve_pypi")
-    @patch("axm_init.adapters.credentials.CredentialManager")
-    def test_dry_run_with_token(
-        self, mock_creds: MagicMock, mock_reserve: MagicMock
-    ) -> None:
-        """dry_run=True with existing token passes token through."""
-        from axm_init.models.results import ReserveResult
-        from axm_init.tools.reserve import InitReserveTool
-
-        mock_creds.return_value.get_pypi_token.return_value = "real-token"
-        mock_reserve.return_value = ReserveResult(
-            success=True,
-            package_name="test-pkg",
-            version="0.0.1",
-            message="Dry run OK",
-        )
-        tool = InitReserveTool()
-        result = tool.execute(
-            name="test-pkg",
-            author="Real Author",
-            email="real@email.com",
-            dry_run=True,
-        )
-        assert result.success is True
-        mock_reserve.assert_called_once_with(
-            name="test-pkg",
-            author="Real Author",
-            email="real@email.com",
-            token="real-token",
+            token=expected_token_arg,
             dry_run=True,
         )
 

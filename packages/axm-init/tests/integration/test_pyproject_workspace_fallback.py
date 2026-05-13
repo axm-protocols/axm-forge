@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import textwrap
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from axm_init.checks.pyproject import (
     check_pyproject_coverage,
@@ -71,40 +74,73 @@ members = ["packages/*"]
 # ---------------------------------------------------------------------------
 
 
-class TestRuffRulesFromWorkspaceRoot:
-    """test_ruff_rules_from_workspace_root.
+_RUFF_RULES_SECTION = textwrap.dedent("""\
 
-    Workspace root has ruff rules, member does not.
-    """
+    [tool.ruff.lint]
+    select = ["E", "F", "I", "UP", "B", "S", "BLE", "PLR", "N"]
+""")
 
-    def test_passes_when_rules_in_workspace_root(self, tmp_path: Path) -> None:
-        root_toml = ROOT_WORKSPACE_HEADER + textwrap.dedent("""\
+_MYPY_SECTION = textwrap.dedent("""\
 
-            [tool.ruff.lint]
-            select = ["E", "F", "I", "UP", "B", "S", "BLE", "PLR", "N"]
-        """)
+    [tool.mypy]
+    strict = true
+    pretty = true
+    disallow_incomplete_defs = true
+    check_untyped_defs = true
+""")
+
+_PYTEST_SECTION = textwrap.dedent("""\
+
+    [tool.pytest.ini_options]
+    addopts = ["--strict-markers", "--strict-config", "--import-mode=importlib"]
+    pythonpath = ["src"]
+    filterwarnings = ["error"]
+""")
+
+_COVERAGE_SECTION = textwrap.dedent("""\
+
+    [tool.coverage.run]
+    branch = true
+    relative_files = true
+
+    [tool.coverage.xml]
+    output = "coverage.xml"
+
+    [tool.coverage.report]
+    exclude_lines = ["pragma: no cover"]
+""")
+
+_RUFF_SECTION = textwrap.dedent("""\
+
+    [tool.ruff.lint]
+    per-file-ignores = { "tests/**" = ["S101"] }
+
+    [tool.ruff.lint.isort]
+    known-first-party = ["pkg"]
+""")
+
+
+class TestCheckPassesWhenConfigInWorkspaceRoot:
+    """Each tooling check resolves config from the workspace root."""
+
+    @pytest.mark.parametrize(
+        ("section", "checker"),
+        [
+            pytest.param(
+                _RUFF_RULES_SECTION, check_pyproject_ruff_rules, id="ruff_rules"
+            ),
+            pytest.param(_MYPY_SECTION, check_pyproject_mypy, id="mypy"),
+            pytest.param(_PYTEST_SECTION, check_pyproject_pytest, id="pytest"),
+            pytest.param(_COVERAGE_SECTION, check_pyproject_coverage, id="coverage"),
+            pytest.param(_RUFF_SECTION, check_pyproject_ruff, id="ruff"),
+        ],
+    )
+    def test_passes_when_section_in_workspace_root(
+        self, tmp_path: Path, section: str, checker: Any
+    ) -> None:
+        root_toml = ROOT_WORKSPACE_HEADER + section
         member = _make_workspace(tmp_path, root_toml)
-        result = check_pyproject_ruff_rules(member)
-        assert result.passed, f"Expected pass, got: {result.details}"
-
-
-class TestMypyFromWorkspaceRoot:
-    """test_mypy_from_workspace_root.
-
-    Workspace root has mypy config, member does not.
-    """
-
-    def test_passes_when_mypy_in_workspace_root(self, tmp_path: Path) -> None:
-        root_toml = ROOT_WORKSPACE_HEADER + textwrap.dedent("""\
-
-            [tool.mypy]
-            strict = true
-            pretty = true
-            disallow_incomplete_defs = true
-            check_untyped_defs = true
-        """)
-        member = _make_workspace(tmp_path, root_toml)
-        result = check_pyproject_mypy(member)
+        result = checker(member)
         assert result.passed, f"Expected pass, got: {result.details}"
 
 
@@ -225,57 +261,3 @@ class TestMemberPartialOverride:
 # ---------------------------------------------------------------------------
 # Additional AC coverage: pytest and coverage from workspace root
 # ---------------------------------------------------------------------------
-
-
-class TestPytestFromWorkspaceRoot:
-    """AC4: pytest config resolved from workspace root."""
-
-    def test_passes_when_pytest_in_workspace_root(self, tmp_path: Path) -> None:
-        root_toml = ROOT_WORKSPACE_HEADER + textwrap.dedent("""\
-
-            [tool.pytest.ini_options]
-            addopts = ["--strict-markers", "--strict-config", "--import-mode=importlib"]
-            pythonpath = ["src"]
-            filterwarnings = ["error"]
-        """)
-        member = _make_workspace(tmp_path, root_toml)
-        result = check_pyproject_pytest(member)
-        assert result.passed, f"Expected pass, got: {result.details}"
-
-
-class TestCoverageFromWorkspaceRoot:
-    """AC5: coverage config resolved from workspace root."""
-
-    def test_passes_when_coverage_in_workspace_root(self, tmp_path: Path) -> None:
-        root_toml = ROOT_WORKSPACE_HEADER + textwrap.dedent("""\
-
-            [tool.coverage.run]
-            branch = true
-            relative_files = true
-
-            [tool.coverage.xml]
-            output = "coverage.xml"
-
-            [tool.coverage.report]
-            exclude_lines = ["pragma: no cover"]
-        """)
-        member = _make_workspace(tmp_path, root_toml)
-        result = check_pyproject_coverage(member)
-        assert result.passed, f"Expected pass, got: {result.details}"
-
-
-class TestRuffFromWorkspaceRoot:
-    """AC1: ruff config (per-file-ignores + known-first-party) from workspace root."""
-
-    def test_passes_when_ruff_in_workspace_root(self, tmp_path: Path) -> None:
-        root_toml = ROOT_WORKSPACE_HEADER + textwrap.dedent("""\
-
-            [tool.ruff.lint]
-            per-file-ignores = { "tests/**" = ["S101"] }
-
-            [tool.ruff.lint.isort]
-            known-first-party = ["pkg"]
-        """)
-        member = _make_workspace(tmp_path, root_toml)
-        result = check_pyproject_ruff(member)
-        assert result.passed, f"Expected pass, got: {result.details}"

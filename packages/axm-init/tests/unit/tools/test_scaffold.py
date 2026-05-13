@@ -119,17 +119,28 @@ def base_kwargs() -> dict[str, Any]:
     }
 
 
-class TestScaffoldToolWorkspaceMode:
-    """AC2: InitScaffoldTool.execute() accepts workspace=True → workspace template."""
+class TestScaffoldToolTemplateSelection:
+    """InitScaffoldTool.execute() selects template based on workspace flag."""
 
-    def test_scaffold_tool_workspace_mode(
+    @pytest.mark.parametrize(
+        ("workspace_flag", "expected_template_name", "expected_template_type"),
+        [
+            pytest.param(True, "workspace", "WORKSPACE", id="workspace_mode"),
+            pytest.param(None, "standalone", "STANDALONE", id="default_standalone"),
+        ],
+    )
+    def test_scaffold_tool_template_selection(  # noqa: PLR0913
         self,
         scaffold_tool: InitScaffoldTool,
         tmp_path: Path,
         base_kwargs: dict[str, Any],
+        workspace_flag: bool | None,
+        expected_template_name: str,
+        expected_template_type: str,
     ) -> None:
         base_kwargs["path"] = str(tmp_path)
-        base_kwargs["workspace"] = True
+        if workspace_flag is not None:
+            base_kwargs["workspace"] = workspace_flag
 
         mock_result = MagicMock()
         mock_result.success = True
@@ -148,43 +159,10 @@ class TestScaffoldToolWorkspaceMode:
 
         assert tool_result.success is True
         assert tool_result.data is not None
-        assert tool_result.data["template"] == "workspace"
+        assert tool_result.data["template"] == expected_template_name
 
         from axm_init.core.templates import TemplateType
 
-        mock_get_path.assert_called_once_with(TemplateType.WORKSPACE)
-
-
-class TestScaffoldToolDefaultStandalone:
-    """AC4: Default scaffold (no workspace/member) uses standalone template."""
-
-    def test_scaffold_tool_default_standalone(
-        self,
-        scaffold_tool: InitScaffoldTool,
-        tmp_path: Path,
-        base_kwargs: dict[str, Any],
-    ) -> None:
-        base_kwargs["path"] = str(tmp_path)
-
-        mock_result = MagicMock()
-        mock_result.success = True
-        mock_result.files_created = [tmp_path / "pyproject.toml"]
-
-        with (
-            patch("axm_init.adapters.copier.CopierAdapter") as mock_copier_cls,
-            patch("axm_init.core.templates.get_template_path") as mock_get_path,
-        ):
-            mock_copier = MagicMock()
-            mock_copier.copy.return_value = mock_result
-            mock_copier_cls.return_value = mock_copier
-            mock_get_path.return_value = Path("/fake/template")
-
-            tool_result = scaffold_tool.execute(**base_kwargs)
-
-        assert tool_result.success is True
-        assert tool_result.data is not None
-        assert tool_result.data["template"] == "standalone"
-
-        from axm_init.core.templates import TemplateType
-
-        mock_get_path.assert_called_once_with(TemplateType.STANDALONE)
+        mock_get_path.assert_called_once_with(
+            getattr(TemplateType, expected_template_type)
+        )
