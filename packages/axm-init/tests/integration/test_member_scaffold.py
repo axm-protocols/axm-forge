@@ -52,14 +52,17 @@ class TestMemberTemplateStructure:
     def test_docs_files(self, member_template: Path) -> None:
         assert (member_template / "docs" / "index.md.jinja").is_file()
 
-    def test_pyproject_has_hatch_vcs(self, member_template: Path) -> None:
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("hatch-vcs", id="hatch_vcs"),
+            pytest.param("tag-pattern", id="tag_pattern"),
+            pytest.param("{{ member_name }}", id="member_name"),
+        ],
+    )
+    def test_pyproject_contains(self, member_template: Path, needle: str) -> None:
         content = (member_template / "pyproject.toml.jinja").read_text()
-        assert "hatch-vcs" in content
-        assert "tag-pattern" in content
-
-    def test_pyproject_has_member_name(self, member_template: Path) -> None:
-        content = (member_template / "pyproject.toml.jinja").read_text()
-        assert "{{ member_name }}" in content
+        assert needle in content
 
     def test_mkdocs_is_nav_only(self, member_template: Path) -> None:
         content = (member_template / "mkdocs.yml.jinja").read_text()

@@ -79,13 +79,22 @@ class TestCopierAdapterUnit:
             "description": "A test package",
         }
 
-    def test_copier_copy_respects_trust_flag(self, tmp_path: Path) -> None:
-        """unsafe=False is passed to run_copy when trust_template=False."""
+    @pytest.mark.parametrize(
+        ("trust", "expected_unsafe", "dest_name"),
+        [
+            pytest.param(False, False, "untrusted", id="trust_false_unsafe_false"),
+            pytest.param(True, True, "trusted", id="trust_true_unsafe_true"),
+        ],
+    )
+    def test_copier_copy_propagates_trust_flag(
+        self, tmp_path: Path, trust: bool, expected_unsafe: bool, dest_name: str
+    ) -> None:
+        """trust_template propagates to run_copy's unsafe kwarg."""
         config = CopierConfig(
             template_path=Path("/templates/python"),
-            destination=tmp_path / "untrusted",
+            destination=tmp_path / dest_name,
             data={"package_name": "test"},
-            trust_template=False,
+            trust_template=trust,
         )
         adapter = CopierAdapter()
 
@@ -93,25 +102,7 @@ class TestCopierAdapterUnit:
             mock_run.return_value = MagicMock()
             adapter.copy(config)
 
-        call_kwargs = mock_run.call_args.kwargs
-        assert call_kwargs["unsafe"] is False
-
-    def test_copier_copy_passes_unsafe_true(self, tmp_path: Path) -> None:
-        """unsafe=True is passed to run_copy when trust_template=True."""
-        config = CopierConfig(
-            template_path=Path("/templates/python"),
-            destination=tmp_path / "trusted",
-            data={"package_name": "test"},
-            trust_template=True,
-        )
-        adapter = CopierAdapter()
-
-        with patch("axm_init.adapters.copier.run_copy") as mock_run:
-            mock_run.return_value = MagicMock()
-            adapter.copy(config)
-
-        call_kwargs = mock_run.call_args.kwargs
-        assert call_kwargs["unsafe"] is True
+        assert mock_run.call_args.kwargs["unsafe"] is expected_unsafe
 
     def test_copier_copy_warns_when_unsafe(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture

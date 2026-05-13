@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 
 class TestMakefileDetection:
     """Tests for Makefile target detection."""
@@ -15,69 +17,68 @@ class TestMakefileDetection:
         targets = detect_makefile_targets(tmp_path)
         assert targets == set()
 
-    def test_detect_targets_finds_lint_target(self, tmp_path: Path) -> None:
-        """Detects 'lint' target in Makefile."""
+    @pytest.mark.parametrize(
+        ("makefile_body", "expected"),
+        [
+            pytest.param(
+                "lint:\n\tuv run ruff check .\n\ntest:\n\tuv run pytest\n",
+                {"lint", "test"},
+                id="lint_and_test",
+            ),
+            pytest.param(
+                "check: lint test\n\t@echo 'All checks passed'\n",
+                {"check"},
+                id="check_target",
+            ),
+        ],
+    )
+    def test_detect_targets_finds(
+        self, tmp_path: Path, makefile_body: str, expected: set[str]
+    ) -> None:
+        """detect_makefile_targets surfaces declared targets."""
         from axm_init.adapters.makefile import detect_makefile_targets
 
-        makefile = tmp_path / "Makefile"
-        makefile.write_text("lint:\n\tuv run ruff check .\n\ntest:\n\tuv run pytest\n")
-
-        targets = detect_makefile_targets(tmp_path)
-        assert "lint" in targets
-        assert "test" in targets
-
-    def test_detect_targets_finds_check_target(self, tmp_path: Path) -> None:
-        """Detects 'check' target in Makefile."""
-        from axm_init.adapters.makefile import detect_makefile_targets
-
-        makefile = tmp_path / "Makefile"
-        makefile.write_text("check: lint test\n\t@echo 'All checks passed'\n")
-
-        targets = detect_makefile_targets(tmp_path)
-        assert "check" in targets
+        (tmp_path / "Makefile").write_text(makefile_body)
+        assert expected <= detect_makefile_targets(tmp_path)
 
 
 class TestGetToolCommand:
     """Tests for tool command resolution."""
 
-    def test_returns_make_target_when_available(self, tmp_path: Path) -> None:
-        """Uses make target when Makefile has it."""
+    @pytest.mark.parametrize(
+        ("makefile_body", "expected"),
+        [
+            pytest.param(
+                "lint:\n\tuv run ruff check .\n",
+                ["make", "lint"],
+                id="make_target_available",
+            ),
+            pytest.param(
+                None,
+                ["uv", "run", "ruff", "check", "."],
+                id="no_makefile",
+            ),
+            pytest.param(
+                "build:\n\tpython -m build\n",
+                ["uv", "run", "ruff", "check", "."],
+                id="target_missing",
+            ),
+        ],
+    )
+    def test_get_tool_command(
+        self, tmp_path: Path, makefile_body: str | None, expected: list[str]
+    ) -> None:
+        """get_tool_command prefers make target, otherwise returns fallback."""
         from axm_init.adapters.makefile import get_tool_command
 
-        makefile = tmp_path / "Makefile"
-        makefile.write_text("lint:\n\tuv run ruff check .\n")
-
+        if makefile_body is not None:
+            (tmp_path / "Makefile").write_text(makefile_body)
         cmd = get_tool_command(
             project_path=tmp_path,
             makefile_target="lint",
             fallback_cmd=["uv", "run", "ruff", "check", "."],
         )
-        assert cmd == ["make", "lint"]
-
-    def test_returns_fallback_when_no_makefile(self, tmp_path: Path) -> None:
-        """Uses fallback command when no Makefile."""
-        from axm_init.adapters.makefile import get_tool_command
-
-        cmd = get_tool_command(
-            project_path=tmp_path,
-            makefile_target="lint",
-            fallback_cmd=["uv", "run", "ruff", "check", "."],
-        )
-        assert cmd == ["uv", "run", "ruff", "check", "."]
-
-    def test_returns_fallback_when_target_missing(self, tmp_path: Path) -> None:
-        """Uses fallback when target not in Makefile."""
-        from axm_init.adapters.makefile import get_tool_command
-
-        makefile = tmp_path / "Makefile"
-        makefile.write_text("build:\n\tpython -m build\n")
-
-        cmd = get_tool_command(
-            project_path=tmp_path,
-            makefile_target="lint",
-            fallback_cmd=["uv", "run", "ruff", "check", "."],
-        )
-        assert cmd == ["uv", "run", "ruff", "check", "."]
+        assert cmd == expected
 
 
 # ── Edge cases ───────────────────────────────────────────────────────────────

@@ -200,10 +200,13 @@ class TestWorkspaceScaffoldFlow:
         failed = [c for c in ws_checks if not c.passed]
         assert not failed, f"Workspace checks failed: {[c.name for c in failed]}"
 
-    def test_workspace_has_pre_commit(self, scaffolded_workspace: Path) -> None:
-        """Generated workspace has .pre-commit-config.yaml."""
-        assert (scaffolded_workspace / ".pre-commit-config.yaml").is_file()
-
-    def test_workspace_has_contributing(self, scaffolded_workspace: Path) -> None:
-        """Generated workspace has CONTRIBUTING.md."""
-        assert (scaffolded_workspace / "CONTRIBUTING.md").is_file()
+    @pytest.mark.parametrize(
+        "relpath",
+        [
+            pytest.param(".pre-commit-config.yaml", id="pre_commit"),
+            pytest.param("CONTRIBUTING.md", id="contributing"),
+        ],
+    )
+    def test_workspace_has_file(self, scaffolded_workspace: Path, relpath: str) -> None:
+        """Generated workspace contains the expected scaffolded file."""
+        assert (scaffolded_workspace / relpath).is_file()
