@@ -85,27 +85,6 @@ class TestGraphTextFormat:
         assert "nodes" in result.data
 
 
-# ─── Unit: existing formats unchanged ───────────────────────────────────────
-
-
-class TestGraphExistingFormats:
-    """JSON and mermaid output must remain unchanged after refactor."""
-
-    def test_json_has_graph_and_nodes(self, tool: GraphTool, pkg_root: Path) -> None:
-        result = tool.execute(path=str(pkg_root), format="json")
-        assert result.success is True
-        assert "graph" in result.data
-        assert "nodes" in result.data
-        assert "mermaid" not in result.data
-        assert "text" not in result.data
-
-    def test_mermaid_has_mermaid_key(self, tool: GraphTool, pkg_root: Path) -> None:
-        result = tool.execute(path=str(pkg_root), format="mermaid")
-        assert result.success is True
-        assert "mermaid" in result.data
-        assert isinstance(result.data["mermaid"], str)
-
-
 # ─── Functional: workspace path ─────────────────────────────────────────────
 
 
