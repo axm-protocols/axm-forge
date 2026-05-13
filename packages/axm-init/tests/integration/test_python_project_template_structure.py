@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 # Template root = src/axm_init/templates/python-project/{package_name}/
 TEMPLATE_ROOT = (
     Path(__file__).resolve().parents[2]
@@ -78,36 +80,36 @@ class TestTemplatePyprojectVersion:
 class TestTemplatePyprojectUrls:
     """[project.urls] must be present with 4 URLs."""
 
-    def test_has_project_urls(self) -> None:
-        assert "[project.urls]" in PYPROJECT
-
-    def test_has_homepage(self) -> None:
-        assert "Homepage" in PYPROJECT
-
-    def test_has_documentation(self) -> None:
-        assert "Documentation" in PYPROJECT
-
-    def test_has_repository(self) -> None:
-        assert "Repository" in PYPROJECT
-
-    def test_has_issues(self) -> None:
-        assert "Issues" in PYPROJECT
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("[project.urls]", id="has_project_urls"),
+            pytest.param("Homepage", id="has_homepage"),
+            pytest.param("Documentation", id="has_documentation"),
+            pytest.param("Repository", id="has_repository"),
+            pytest.param("Issues", id="has_issues"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in PYPROJECT
 
 
 class TestTemplatePyprojectMypy:
     """MyPy must have gold-standard settings."""
 
-    def test_strict(self) -> None:
-        assert "strict = true" in PYPROJECT
-
-    def test_pretty(self) -> None:
-        assert "pretty = true" in PYPROJECT
-
-    def test_disallow_incomplete_defs(self) -> None:
-        assert "disallow_incomplete_defs = true" in PYPROJECT
-
-    def test_check_untyped_defs(self) -> None:
-        assert "check_untyped_defs = true" in PYPROJECT
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("strict = true", id="strict"),
+            pytest.param("pretty = true", id="pretty"),
+            pytest.param(
+                "disallow_incomplete_defs = true", id="disallow_incomplete_defs"
+            ),
+            pytest.param("check_untyped_defs = true", id="check_untyped_defs"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in PYPROJECT
 
 
 class TestTemplatePyprojectRuff:
@@ -124,20 +126,18 @@ class TestTemplatePyprojectRuff:
 class TestTemplatePyprojectPytest:
     """Pytest must have gold-standard options."""
 
-    def test_strict_markers(self) -> None:
-        assert '"--strict-markers"' in PYPROJECT
-
-    def test_strict_config(self) -> None:
-        assert '"--strict-config"' in PYPROJECT
-
-    def test_import_mode_importlib(self) -> None:
-        assert '"--import-mode=importlib"' in PYPROJECT
-
-    def test_pythonpath(self) -> None:
-        assert 'pythonpath = ["src"]' in PYPROJECT
-
-    def test_filterwarnings(self) -> None:
-        assert "filterwarnings" in PYPROJECT
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param('"--strict-markers"', id="strict_markers"),
+            pytest.param('"--strict-config"', id="strict_config"),
+            pytest.param('"--import-mode=importlib"', id="import_mode_importlib"),
+            pytest.param('pythonpath = ["src"]', id="pythonpath"),
+            pytest.param("filterwarnings", id="filterwarnings"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in PYPROJECT
 
     def test_cov_report_html(self) -> None:
         assert "html" in PYPROJECT and "cov-report" in PYPROJECT
@@ -146,144 +146,133 @@ class TestTemplatePyprojectPytest:
 class TestTemplatePyprojectCoverage:
     """Coverage must have gold-standard settings."""
 
-    def test_branch(self) -> None:
-        assert "branch = true" in PYPROJECT
-
-    def test_relative_files(self) -> None:
-        assert "relative_files = true" in PYPROJECT
-
-    def test_xml_output(self) -> None:
-        assert "[tool.coverage.xml]" in PYPROJECT
-
-    def test_exclude_lines(self) -> None:
-        assert "exclude_lines" in PYPROJECT
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("branch = true", id="branch"),
+            pytest.param("relative_files = true", id="relative_files"),
+            pytest.param("[tool.coverage.xml]", id="xml_output"),
+            pytest.param("exclude_lines", id="exclude_lines"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in PYPROJECT
 
 
 class TestTemplatePyprojectDocs:
     """Docs deps must include gen-files and literate-nav."""
 
-    def test_mkdocs_material(self) -> None:
-        assert "mkdocs-material" in PYPROJECT
-
-    def test_mkdocstrings(self) -> None:
-        assert "mkdocstrings" in PYPROJECT
-
-    def test_gen_files(self) -> None:
-        assert "mkdocs-gen-files" in PYPROJECT
-
-    def test_literate_nav(self) -> None:
-        assert "mkdocs-literate-nav" in PYPROJECT
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("mkdocs-material", id="mkdocs_material"),
+            pytest.param("mkdocstrings", id="mkdocstrings"),
+            pytest.param("mkdocs-gen-files", id="gen_files"),
+            pytest.param("mkdocs-literate-nav", id="literate_nav"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in PYPROJECT
 
 
 class TestTemplateMkdocsDiataxis:
     """mkdocs.yml must have Diátaxis nav structure."""
 
-    def test_tutorials_section(self) -> None:
-        assert "Tutorials:" in MKDOCS
-
-    def test_howto_section(self) -> None:
-        assert "How-To" in MKDOCS
-
-    def test_reference_section(self) -> None:
-        assert "Reference:" in MKDOCS
-
-    def test_explanation_section(self) -> None:
-        assert "Explanation:" in MKDOCS
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("Tutorials:", id="tutorials_section"),
+            pytest.param("How-To", id="howto_section"),
+            pytest.param("Reference:", id="reference_section"),
+            pytest.param("Explanation:", id="explanation_section"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in MKDOCS
 
 
 class TestTemplateMkdocsPlugins:
     """mkdocs.yml must have gold-standard plugins."""
 
-    def test_gen_files_plugin(self) -> None:
-        assert "gen-files" in MKDOCS
-
-    def test_literate_nav_plugin(self) -> None:
-        assert "literate-nav" in MKDOCS
-
-    def test_mkdocstrings_plugin(self) -> None:
-        assert "mkdocstrings" in MKDOCS
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("gen-files", id="gen_files_plugin"),
+            pytest.param("literate-nav", id="literate_nav_plugin"),
+            pytest.param("mkdocstrings", id="mkdocstrings_plugin"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in MKDOCS
 
 
 class TestTemplateMkdocsExtensions:
     """mkdocs.yml must have gold-standard extensions."""
 
-    def test_mermaid_fence(self) -> None:
-        assert "mermaid" in MKDOCS
-
-    def test_tables(self) -> None:
-        assert "tables" in MKDOCS
-
-    def test_admonition(self) -> None:
-        assert "admonition" in MKDOCS
-
-    def test_superfences(self) -> None:
-        assert "superfences" in MKDOCS
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("mermaid", id="mermaid_fence"),
+            pytest.param("tables", id="tables"),
+            pytest.param("admonition", id="admonition"),
+            pytest.param("superfences", id="superfences"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in MKDOCS
 
 
 class TestTemplateReadme:
     """README.md must follow axm-bib standard."""
 
-    def test_has_bold_tagline(self) -> None:
-        """Bold description tagline like axm-bib."""
-        assert "**{{ description }}**" in README
-
-    def test_has_features_section(self) -> None:
-        assert "## Features" in README
-
-    def test_has_installation_section(self) -> None:
-        assert "## Installation" in README
-
-    def test_has_quick_start_section(self) -> None:
-        assert "## Quick Start" in README
-
-    def test_has_development_section(self) -> None:
-        assert "## Development" in README
-
-    def test_has_license_section(self) -> None:
-        assert "## License" in README
-
-    def test_license_uses_holder(self) -> None:
-        """License references license_holder variable."""
-        assert "license_holder" in README
-
-    def test_has_separator_after_badges(self) -> None:
-        """--- separator after badges like axm-bib."""
-        assert "---" in README
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("**{{ description }}**", id="has_bold_tagline"),
+            pytest.param("## Features", id="has_features_section"),
+            pytest.param("## Installation", id="has_installation_section"),
+            pytest.param("## Quick Start", id="has_quick_start_section"),
+            pytest.param("## Development", id="has_development_section"),
+            pytest.param("## License", id="has_license_section"),
+            pytest.param("license_holder", id="license_uses_holder"),
+            pytest.param("---", id="has_separator_after_badges"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in README
 
 
 class TestTemplatePrecommit:
     """Pre-commit must match axm-init reference."""
 
-    def test_ruff(self) -> None:
-        assert "ruff" in PRECOMMIT
-
-    def test_mypy(self) -> None:
-        assert "mypy" in PRECOMMIT
-
-    def test_conventional_commits(self) -> None:
-        assert "conventional-pre-commit" in PRECOMMIT
-
-    def test_trailing_whitespace(self) -> None:
-        assert "trailing-whitespace" in PRECOMMIT
-
-    def test_end_of_file_fixer(self) -> None:
-        assert "end-of-file-fixer" in PRECOMMIT
-
-    def test_check_yaml(self) -> None:
-        assert "check-yaml" in PRECOMMIT
-
-    def test_check_large_files(self) -> None:
-        assert "check-added-large-files" in PRECOMMIT
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("ruff", id="ruff"),
+            pytest.param("mypy", id="mypy"),
+            pytest.param("conventional-pre-commit", id="conventional_commits"),
+            pytest.param("trailing-whitespace", id="trailing_whitespace"),
+            pytest.param("end-of-file-fixer", id="end_of_file_fixer"),
+            pytest.param("check-yaml", id="check_yaml"),
+            pytest.param("check-added-large-files", id="check_large_files"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in PRECOMMIT
 
 
 class TestTemplateMakefile:
     """Makefile must be aligned with axm-bib."""
 
-    def test_has_coverage_html_in_clean(self) -> None:
-        assert "coverage_html" in MAKEFILE
-
-    def test_has_pycache_cleanup(self) -> None:
-        assert "__pycache__" in MAKEFILE
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("coverage_html", id="has_coverage_html_in_clean"),
+            pytest.param("__pycache__", id="has_pycache_cleanup"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in MAKEFILE
 
 
 class TestTemplateAxmBadge:
