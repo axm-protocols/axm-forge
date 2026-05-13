@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from axm_init.adapters.pypi import AvailabilityStatus, PyPIAdapter
 
 
@@ -27,26 +29,22 @@ class TestAvailabilityStatus:
 class TestPyPIAdapter:
     """Tests for PyPI availability checking."""
 
-    def test_check_taken_package(self) -> None:
-        """Known packages return TAKEN."""
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            pytest.param("requests", AvailabilityStatus.TAKEN, id="taken"),
+            pytest.param(
+                "axm-test-pkg-xyz-12345-nonexistent",
+                AvailabilityStatus.AVAILABLE,
+                id="available",
+            ),
+            pytest.param("", AvailabilityStatus.ERROR, id="invalid"),
+        ],
+    )
+    def test_check_availability(self, name: str, expected: AvailabilityStatus) -> None:
+        """check_availability returns the expected status for each name."""
         adapter = PyPIAdapter()
-        # 'requests' is definitely taken
-        status = adapter.check_availability("requests")
-        assert status == AvailabilityStatus.TAKEN
-
-    def test_check_available_package(self) -> None:
-        """Random unique name returns AVAILABLE."""
-        adapter = PyPIAdapter()
-        # Very unlikely to be taken
-        status = adapter.check_availability("axm-test-pkg-xyz-12345-nonexistent")
-        assert status == AvailabilityStatus.AVAILABLE
-
-    def test_check_invalid_name(self) -> None:
-        """Invalid package names handled gracefully."""
-        adapter = PyPIAdapter()
-        # Empty or invalid names
-        status = adapter.check_availability("")
-        assert status == AvailabilityStatus.ERROR
+        assert adapter.check_availability(name) == expected
 
 
 # ── Error path edge cases ────────────────────────────────────────────────────
