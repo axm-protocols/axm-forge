@@ -112,7 +112,7 @@ class TestWithPackagesInjectionUnit:
     """Unit: dependency rules inject with_packages (no real src/ dir)."""
 
     def test_pip_audit_injects_pip_audit(self, tmp_path: Path) -> None:
-        """DependencyAuditRule passes with_packages=["pip-audit"]."""
+        """DependencyAuditRule passes with_packages=[\"pip-audit\"]."""
         from axm_audit.core.rules.dependencies import DependencyAuditRule
 
         with patch("axm_audit.core.rules.dependencies.run_in_project") as mock:
@@ -121,10 +121,29 @@ class TestWithPackagesInjectionUnit:
             assert mock.call_args[1]["with_packages"] == ["pip-audit"]
 
     def test_deptry_injects_deptry(self, tmp_path: Path) -> None:
-        """DependencyHygieneRule passes with_packages=["deptry"]."""
+        """DependencyHygieneRule passes with_packages=[\"deptry\"]."""
         from axm_audit.core.rules.dependencies import DependencyHygieneRule
 
         with patch("axm_audit.core.rules.dependencies.run_in_project") as mock:
             mock.return_value = MagicMock(stdout="[]", stderr="", returncode=0)
             DependencyHygieneRule().check(tmp_path)
             assert mock.call_args[1]["with_packages"] == ["deptry"]
+
+
+# --- find_venv: public surface (AC3) ---
+
+
+def test_find_venv_public() -> None:
+    """find_venv is importable as a public callable."""
+    from axm_audit.core.runner import find_venv
+
+    assert callable(find_venv)
+
+
+def test_find_venv_private_alias_removed() -> None:
+    """_find_venv shim is gone from core.runner."""
+    from axm_audit.core import runner
+
+    assert not hasattr(runner, "_find_venv"), (
+        "deprecated private alias _find_venv still exposed"
+    )

@@ -134,6 +134,9 @@ DEP004 = ["mkdocs_gen_files"]
 # ─────────────────────────────────────────────────────────────────────────────
 # MyPy Configuration
 # ─────────────────────────────────────────────────────────────────────────────
+[tool.axm-audit.mirror]
+exempt_paths = ["**/__init__.py", "_version.py", "__main__.py"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

@@ -4,10 +4,21 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from axm_audit.core.test_runner import (
     FailureDetail,
     parse_collector_errors,
     parse_failures,
+)
+
+_PUBLIC = (
+    "build_test_report",
+    "parse_coverage",
+    "parse_failures",
+    "parse_json_report",
+    "parse_collector_errors",
+    "build_pytest_cmd",
 )
 
 _SETUP_ERROR_REPORT: dict[str, Any] = {
@@ -152,3 +163,132 @@ class TestParseCollectorErrors:
         assert f.error_type == "ModuleNotFoundError"
         assert "nonexistent" in f.message
         assert f.traceback != ""
+
+
+def test_test_runner_public_parsing_api() -> None:
+    """All parsing helpers importable as public symbols."""
+    from axm_audit.core import test_runner
+
+    for name in _PUBLIC:
+        assert hasattr(test_runner, name), f"missing public symbol: {name}"
+        assert callable(getattr(test_runner, name))
+
+
+@pytest.mark.parametrize("name", _PUBLIC)
+def test_private_alias_removed(name: str) -> None:
+    """Underscore-prefixed aliases removed (no shim left behind)."""
+    from axm_audit.core import test_runner
+
+    assert not hasattr(test_runner, f"_{name}"), (
+        f"deprecated private alias _{name} still exposed"
+    )
+
+
+# --- build_test_report: unified report parsing ---
+
+
+from axm_audit.core.test_runner import TestReport, build_test_report  # noqa: E402
+
+
+def _make_report_data(*, num_failed: int = 0, num_passed: int = 5) -> dict[str, object]:
+    """Build minimal pytest JSON report data."""
+    tests: list[dict[str, object]] = []
+    for i in range(num_passed):
+        tests.append(
+            {"nodeid": f"tests/test_ex.py::test_pass_{i}", "outcome": "passed"}
+        )
+    for i in range(num_failed):
+        tests.append(
+            {
+                "nodeid": f"tests/test_ex.py::test_fail_{i}",
+                "outcome": "failed",
+                "call": {"longrepr": f"AssertionError: {i}"},
+            }
+        )
+    return {
+        "summary": {
+            "passed": num_passed,
+            "failed": num_failed,
+            "error": 0,
+            "skipped": 0,
+            "warnings": 0,
+        },
+        "tests": tests,
+        "duration": 1.0,
+    }
+
+
+class TestBuildReportAlwaysParsesFailures:
+    """AC1: _build_test_report always parses failures — no mode branching."""
+
+    def test_build_report_always_parses_failures(self):
+        report_data = _make_report_data(num_failed=1)
+        report = build_test_report(
+            report_data=report_data,
+            total_cov=80.0,
+            per_file_cov={"src/a.py": 80.0},
+        )
+        assert report.failures is not None
+        assert len(report.failures) == 1
+
+
+class TestBuildReportCoverageNone:
+    """AC4: coverage_by_file is None when no coverage data."""
+
+    def test_build_report_coverage_none_when_empty(self):
+        report_data = _make_report_data()
+        report = build_test_report(
+            report_data=report_data,
+            total_cov=None,
+            per_file_cov={},
+        )
+        assert report.coverage_by_file is None
+
+
+class TestBuildReportFailuresNone:
+    """AC5: failures is None when no failures exist."""
+
+    def test_build_report_failures_none_when_no_fails(self):
+        report_data = _make_report_data(num_failed=0)
+        report = build_test_report(
+            report_data=report_data,
+            total_cov=90.0,
+            per_file_cov={"src/a.py": 90.0},
+        )
+        assert report.failures is None
+
+
+class TestCoverageRuleHandlesFailuresNone:
+    """Edge: _report_to_result handles failures=None without crash."""
+
+    def test_report_to_result_failures_none(self):
+        from axm_audit.core.rules.coverage import TestCoverageRule
+
+        rule = TestCoverageRule()
+        report = TestReport(
+            passed=5,
+            failed=0,
+            errors=0,
+            coverage=80.0,
+            failures=None,
+        )
+        result = rule._report_to_result(report)
+        details = result.details
+        assert details is not None
+        assert details["failures"] == []
+
+
+class TestDeprecatedDeltaMode:
+    """Edge: delta mode accepted silently, same behavior as any other mode."""
+
+    def test_delta_mode_same_behavior(self):
+        report_data = _make_report_data(num_failed=1)
+        per_file = {"src/a.py": 85.0}
+        report = build_test_report(
+            report_data=report_data,
+            total_cov=85.0,
+            per_file_cov=per_file,
+        )
+        assert report.coverage_by_file == per_file
+        assert report.failures is not None
+        assert len(report.failures) == 1
