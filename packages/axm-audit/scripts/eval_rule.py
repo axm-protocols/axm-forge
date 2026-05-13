@@ -538,9 +538,9 @@ def _prod_clusters_for_file_full(
                 if isinstance(child, ast.FunctionDef) and child.name.startswith(
                     "test_"
                 ):
-                    tests.append(_prod._make_test_func(file, child, node.name))
+                    tests.append(_prod.make_test_func(file, child, node.name))
         elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-            tests.append(_prod._make_test_func(file, node, None))
+            tests.append(_prod.make_test_func(file, node, None))
     if not tests:
         return ()
     clusters = _prod._cluster(tests, threshold=0.8)
@@ -577,9 +577,9 @@ def _prod_clusters_for_file(
                 if isinstance(child, ast.FunctionDef) and child.name.startswith(
                     "test_"
                 ):
-                    tests.append(_prod._make_test_func(file, child, node.name))
+                    tests.append(_prod.make_test_func(file, child, node.name))
         elif isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-            tests.append(_prod._make_test_func(file, node, None))
+            tests.append(_prod.make_test_func(file, node, None))
     if not tests:
         return ()
     clusters = _prod._cluster(tests, threshold=0.8)
