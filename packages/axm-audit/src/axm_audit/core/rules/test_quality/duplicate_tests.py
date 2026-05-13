@@ -361,7 +361,7 @@ def _has_pytest_raises_block(node: ast.FunctionDef) -> bool:
     return False
 
 
-def _collect_assert_call_sigs(node: ast.FunctionDef) -> set[str]:
+def collect_assert_call_sigs(node: ast.FunctionDef) -> set[str]:
     """Return ``_call_sig`` set for every :class:`ast.Call` inside an assert.
 
     Tests written as ``assert helper(args) == expected`` would otherwise have
@@ -801,7 +801,7 @@ def _pair_is_very_strong(a: _TestFunc, b: _TestFunc) -> bool:
     return False
 
 
-def _p10_rescues(tests: list[_TestFunc]) -> bool:
+def p10_rescues(tests: list[_TestFunc]) -> bool:
     """Locality rescue: demote when all pairs are far apart with no strong signal.
 
     Returns True iff every pair in ``tests`` has line distance greater than
@@ -880,7 +880,7 @@ _S1_RESCUES: tuple[tuple[_RescuePredicate, str, str], ...] = (
         "ambiguous_raises_divergence",
         "pytest.raises divergence rescue for SUT",
     ),
-    (_p10_rescues, "ambiguous_locality", "locality rescue for SUT"),
+    (p10_rescues, "ambiguous_locality", "locality rescue for SUT"),
 )
 
 
@@ -921,7 +921,7 @@ _S3_RESCUES: tuple[
     (_p7_rescues, "ambiguous_distinct_sut", "distinct public SUT rescue"),
     (_p8_rescues, "ambiguous_distinct_class", "distinct parent class rescue"),
     (_p9_rescues, "ambiguous_raises_divergence", "pytest.raises divergence rescue"),
-    (_p10_rescues, "ambiguous_locality", "locality rescue (intra-file)"),
+    (p10_rescues, "ambiguous_locality", "locality rescue (intra-file)"),
 )
 
 
@@ -1302,7 +1302,7 @@ def _slim_clusters(clusters: list[_Cluster]) -> list[_Cluster]:
 # ── Collection ────────────────────────────────────────────────────────
 
 
-def _make_test_func(
+def make_test_func(
     rel: str, node: ast.FunctionDef, class_name: str | None
 ) -> _TestFunc:
     tf = _TestFunc(
@@ -1314,7 +1314,7 @@ def _make_test_func(
     )
     sigs, tainted = _propagate_taint(node)
     sigs |= _collect_raises_call_sigs(node)
-    sigs |= _collect_assert_call_sigs(node)
+    sigs |= collect_assert_call_sigs(node)
     tf.call_sig = ">".join(sorted(sigs))
     tf.assert_pattern = _compute_assert_pattern(node)
     tf.stmt_set = _statement_set(node)
@@ -1355,7 +1355,7 @@ def _collect_tests(project_path: Path) -> list[_TestFunc]:
             continue
         rel = str(test_file.relative_to(project_path))
         for node, class_name in _iter_test_functions(tree):
-            out.append(_make_test_func(rel, node, class_name))
+            out.append(make_test_func(rel, node, class_name))
     return out
 
 
