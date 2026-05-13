@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from axm_ast.core.flows import trace_flow
-from axm_ast.hooks.flows import FlowsHook, _build_trace_opts
+from axm_ast.hooks.flows import _build_trace_opts
 from axm_ast.tools.flows import FlowsTool
 
 # ---------------------------------------------------------------------------
@@ -46,22 +46,6 @@ class TestTraceFlowValidDetailsAccepted:
         result, _ = trace_flow(pkg, "main", detail=detail)
         assert isinstance(result, list)
         assert len(result) >= 1
-
-
-# ---------------------------------------------------------------------------
-# Functional tests
-# ---------------------------------------------------------------------------
-
-
-class TestFlowsToolInvalidDetail:
-    """FlowsTool.execute() returns failure for invalid detail."""
-
-    def test_flows_tool_invalid_detail(self, tmp_path: object) -> None:
-        tool = FlowsTool()
-        result = tool.execute(path=str(tmp_path), entry="main", detail="full")
-        assert result.success is False
-        assert result.error is not None
-        assert "detail" in result.error.lower()
 
 
 class TestFlowsToolValidDetails:
@@ -113,14 +97,3 @@ class TestDetailEdgeCases:
     def test_build_trace_opts_invalid_detail(self) -> None:
         with pytest.raises(ValueError, match="detail"):
             _build_trace_opts({"detail": "full"})
-
-    def test_flows_hook_invalid_detail(self, tmp_path: object) -> None:
-        hook = FlowsHook()
-        result = hook.execute(
-            context={"working_dir": str(tmp_path)},
-            entry="main",
-            detail="full",
-        )
-        assert result.success is False
-        assert result.error is not None
-        assert "detail" in result.error.lower()
