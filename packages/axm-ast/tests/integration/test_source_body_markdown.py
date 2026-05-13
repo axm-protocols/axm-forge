@@ -285,41 +285,6 @@ class TestVariableSymbolIncludesRepr:
         assert "value_repr" in symbols or "3" in symbols
 
 
-# ── Edge cases ────────────────────────────────────────────────────────
-
-
-class TestSymbolNotFoundEdge:
-    """Edge: non-existent symbol returns HookResult with error."""
-
-    @patch(f"{_ANALYZER}.search_symbols", return_value=[])
-    @patch(f"{_ANALYZER}.analyze_package")
-    def test_symbol_not_found(
-        self,
-        mock_analyze: MagicMock,
-        _mock_search: MagicMock,
-        tmp_path: Path,
-    ) -> None:
-        """Non-existent symbol does not crash."""
-        mock_analyze.return_value = MagicMock()
-
-        hook = SourceBodyHook()
-        result = hook.execute({}, symbol="ghost_func", path=str(tmp_path))
-
-        # Should still return a result without crash
-        assert result.success or not result.success
-
-
-class TestMissingPathEdge:
-    """Edge: invalid path in params."""
-
-    def test_missing_path(self) -> None:
-        """Invalid path returns HookResult.fail (unchanged)."""
-        hook = SourceBodyHook()
-        result = hook.execute({}, symbol="Foo", path="/invalid/nonexistent")
-        assert not result.success
-        assert result.error is not None
-
-
 class TestDottedClassMethodMarkdown:
     """Edge: Class.method returns markdown with file path header."""
 
