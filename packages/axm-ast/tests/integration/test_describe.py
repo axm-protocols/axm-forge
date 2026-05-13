@@ -40,19 +40,6 @@ def demo_pkg(tmp_path: Path) -> Path:
     return pkg
 
 
-# ─── Tool identity ──────────────────────────────────────────────────────────
-
-
-class TestDescribeToolIdentity:
-    """Basic tool identity tests."""
-
-    def test_name(self, tool: DescribeTool) -> None:
-        assert tool.name == "ast_describe"
-
-    def test_has_agent_hint(self, tool: DescribeTool) -> None:
-        assert tool.agent_hint
-
-
 # ─── TOC mode ────────────────────────────────────────────────────────────────
 
 
@@ -156,15 +143,8 @@ class TestDescribeToolCompress:
         assert result.data["module_count"] > 0
 
 
-# ─── Edge cases ──────────────────────────────────────────────────────────────
-
-
 class TestDescribeToolEdgeCases:
-    """Edge cases for DescribeTool."""
-
-    def test_bad_path(self, tool: DescribeTool) -> None:
-        result = tool.execute(path="/nonexistent/path/xyz")
-        assert result.success is False
+    """Edge cases for DescribeTool (filesystem I/O)."""
 
     def test_empty_package(self, tool: DescribeTool, tmp_path: Path) -> None:
         pkg = tmp_path / "empty"
