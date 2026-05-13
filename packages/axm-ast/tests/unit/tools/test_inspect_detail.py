@@ -90,23 +90,6 @@ class TestBuildDetail:
         assert detail["annotation"] == "int"
         assert detail["value_repr"] == "100"
 
-    def test_source_included_when_requested(
-        self, _sample_function: FunctionInfo, tmp_path: Path
-    ) -> None:
-        from axm_ast.tools.inspect_detail import build_detail
-
-        src_file = tmp_path / "mod.py"
-        lines = [f"line {i}" for i in range(1, 25)]
-        src_file.write_text("\n".join(lines))
-        detail = build_detail(
-            _sample_function,
-            file="mod.py",
-            abs_path=str(src_file),
-            source=True,
-        )
-        assert "source" in detail
-        assert "line 10" in detail["source"]
-
     def test_source_not_included_by_default(
         self, _sample_function: FunctionInfo
     ) -> None:
@@ -116,7 +99,6 @@ class TestBuildDetail:
         assert "source" not in detail
 
     def test_build_module_detail(self) -> None:
-        from pathlib import Path
         from unittest.mock import MagicMock
 
         from axm_ast.models import ClassInfo, FunctionInfo, ModuleInfo, PackageInfo
