@@ -15,10 +15,31 @@ from axm_init.checks._utils import load_exclusions
 # ---------------------------------------------------------------------------
 
 
-class TestLoadExclusionsEmpty:
-    def test_no_axm_init_section(self, tmp_path: Path) -> None:
-        """pyproject.toml with no [tool.axm-init] → empty set."""
-        (tmp_path / "pyproject.toml").write_text('[project]\nname = "pkg"\n')
+class TestLoadExclusionsEmptyResult:
+    """Configurations that should yield an empty exclusion set."""
+
+    @pytest.mark.parametrize(
+        ("pyproject_content",),
+        [
+            pytest.param('[project]\nname = "pkg"\n', id="no_axm_init_section"),
+            pytest.param(
+                dedent("""\
+                [project]
+                name = "pkg"
+
+                [tool.axm-init]
+                other_key = true
+            """),
+                id="section_but_no_exclude",
+            ),
+            pytest.param(None, id="no_pyproject"),
+        ],
+    )
+    def test_returns_empty_set(
+        self, tmp_path: Path, pyproject_content: str | None
+    ) -> None:
+        if pyproject_content is not None:
+            (tmp_path / "pyproject.toml").write_text(pyproject_content)
         assert load_exclusions(tmp_path) == set()
 
 
@@ -34,27 +55,6 @@ class TestLoadExclusionsValid:
         """)
         )
         assert load_exclusions(tmp_path) == {"cli", "changelog"}
-
-
-class TestLoadExclusionsMissingKey:
-    def test_section_but_no_exclude(self, tmp_path: Path) -> None:
-        """[tool.axm-init] exists but no exclude key."""
-        (tmp_path / "pyproject.toml").write_text(
-            dedent("""\
-            [project]
-            name = "pkg"
-
-            [tool.axm-init]
-            other_key = true
-        """)
-        )
-        assert load_exclusions(tmp_path) == set()
-
-
-class TestLoadExclusionsNoToml:
-    def test_no_pyproject(self, tmp_path: Path) -> None:
-        """No pyproject.toml at path → empty set."""
-        assert load_exclusions(tmp_path) == set()
 
 
 class TestLoadExclusionsInvalidWarns:

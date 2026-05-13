@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 
 class TestReserveToolValidation:
     """Validate required kwargs handling."""
@@ -17,47 +19,32 @@ class TestReserveToolValidation:
         assert result.success is False
         assert "'name' is required" in (result.error or "")
 
-    def test_tool_rejects_empty_author(self) -> None:
-        """Empty author returns error."""
+    @pytest.mark.parametrize(
+        ("author", "email", "expected_substring"),
+        [
+            pytest.param("", "a@b.com", "author", id="empty_author"),
+            pytest.param(
+                "John Doe", "real@email.com", "placeholder", id="placeholder_author"
+            ),
+            pytest.param("Real Author", "", "email", id="empty_email"),
+            pytest.param(
+                "Real Author",
+                "john.doe@example.com",
+                "placeholder",
+                id="placeholder_email",
+            ),
+        ],
+    )
+    def test_tool_rejects_invalid_identity(
+        self, author: str, email: str, expected_substring: str
+    ) -> None:
+        """Invalid author/email values return ToolResult error."""
         from axm_init.tools.reserve import InitReserveTool
 
         tool = InitReserveTool()
-        result = tool.execute(name="test-pkg", author="", email="a@b.com")
+        result = tool.execute(name="test-pkg", author=author, email=email)
         assert result.success is False
-        assert "author" in (result.error or "").lower()
-
-    def test_tool_rejects_placeholder_author(self) -> None:
-        """Placeholder 'John Doe' author returns error."""
-        from axm_init.tools.reserve import InitReserveTool
-
-        tool = InitReserveTool()
-        result = tool.execute(
-            name="test-pkg", author="John Doe", email="real@email.com"
-        )
-        assert result.success is False
-        assert "placeholder" in (result.error or "").lower()
-
-    def test_tool_rejects_empty_email(self) -> None:
-        """Empty email returns error."""
-        from axm_init.tools.reserve import InitReserveTool
-
-        tool = InitReserveTool()
-        result = tool.execute(name="test-pkg", author="Real Author", email="")
-        assert result.success is False
-        assert "email" in (result.error or "").lower()
-
-    def test_tool_rejects_placeholder_email(self) -> None:
-        """Placeholder email returns error."""
-        from axm_init.tools.reserve import InitReserveTool
-
-        tool = InitReserveTool()
-        result = tool.execute(
-            name="test-pkg",
-            author="Real Author",
-            email="john.doe@example.com",
-        )
-        assert result.success is False
-        assert "placeholder" in (result.error or "").lower()
+        assert expected_substring in (result.error or "").lower()
 
     @patch("axm_init.core.reserver.reserve_pypi")
     @patch("axm_init.adapters.credentials.CredentialManager")
