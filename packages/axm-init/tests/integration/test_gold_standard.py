@@ -34,29 +34,33 @@ class TestTemplateDocsStructure:
         """Old flat getting-started.md should NOT exist."""
         assert not (DOCS_DIR / "getting-started.md.jinja").exists()
 
-    def test_tutorials_dir_exists(self) -> None:
-        assert (DOCS_DIR / "tutorials").is_dir()
+    @pytest.mark.parametrize(
+        "subdir",
+        [
+            pytest.param("tutorials", id="tutorials"),
+            pytest.param("howto", id="howto"),
+            pytest.param("reference", id="reference"),
+            pytest.param("explanation", id="explanation"),
+        ],
+    )
+    def test_diataxis_dir_exists(self, subdir: str) -> None:
+        assert (DOCS_DIR / subdir).is_dir()
 
-    def test_tutorials_getting_started_exists(self) -> None:
-        assert (DOCS_DIR / "tutorials" / "getting-started.md.jinja").exists()
-
-    def test_howto_dir_exists(self) -> None:
-        assert (DOCS_DIR / "howto").is_dir()
-
-    def test_howto_index_exists(self) -> None:
-        assert (DOCS_DIR / "howto" / "index.md").exists()
-
-    def test_reference_dir_exists(self) -> None:
-        assert (DOCS_DIR / "reference").is_dir()
-
-    def test_reference_cli_exists(self) -> None:
-        assert (DOCS_DIR / "reference" / "cli.md.jinja").exists()
-
-    def test_explanation_dir_exists(self) -> None:
-        assert (DOCS_DIR / "explanation").is_dir()
-
-    def test_explanation_architecture_exists(self) -> None:
-        assert (DOCS_DIR / "explanation" / "architecture.md.jinja").exists()
+    @pytest.mark.parametrize(
+        "relpath",
+        [
+            pytest.param(
+                "tutorials/getting-started.md.jinja", id="tutorials_getting_started"
+            ),
+            pytest.param("howto/index.md", id="howto_index"),
+            pytest.param("reference/cli.md.jinja", id="reference_cli"),
+            pytest.param(
+                "explanation/architecture.md.jinja", id="explanation_architecture"
+            ),
+        ],
+    )
+    def test_diataxis_file_exists(self, relpath: str) -> None:
+        assert (DOCS_DIR / relpath).exists()
 
     def test_gen_ref_pages_exists(self) -> None:
         assert (DOCS_DIR / "gen_ref_pages.py.jinja").exists()
