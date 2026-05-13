@@ -285,3 +285,47 @@ def gold_project(tmp_path: Path) -> Path:
 def empty_project(tmp_path: Path) -> Path:
     """An empty directory — worst case."""
     return tmp_path
+
+
+@pytest.fixture()
+def workspace_root(tmp_path: Path) -> Path:
+    """Create a minimal workspace root structure for patcher tests."""
+    root = tmp_path / "my-workspace"
+    root.mkdir()
+
+    (root / "Makefile").write_text(
+        ".PHONY: test-all lint-all\n\n"
+        "test-all:\n\tuv run pytest packages/ -q\n\n"
+        "lint-all:\n\tuv run ruff check packages/\n"
+    )
+
+    (root / "mkdocs.yml").write_text(
+        'site_name: "my-workspace"\n\n'
+        "plugins:\n  - search\n  - monorepo\n\n"
+        "nav:\n  - Home: index.md\n"
+    )
+
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "my-workspace"\nversion = "0.1.0"\n\n'
+        "dependencies = []\n\n"
+        "[tool.uv.workspace]\n"
+        'members = ["packages/*"]\n'
+    )
+
+    ci_dir = root / ".github" / "workflows"
+    ci_dir.mkdir(parents=True)
+
+    (ci_dir / "ci.yml").write_text(
+        "name: CI\n\n"
+        "jobs:\n  test:\n    strategy:\n      matrix:\n"
+        "        package:\n          - existing-pkg\n"
+        "    steps:\n      - uses: actions/checkout@v4\n"
+    )
+
+    (ci_dir / "publish.yml").write_text(
+        "name: Publish\n\non:\n  push:\n    tags:\n"
+        '      - "v*"\n\njobs:\n  publish:\n'
+        "    runs-on: ubuntu-latest\n"
+    )
+
+    return root
