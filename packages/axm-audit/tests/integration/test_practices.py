@@ -520,66 +520,60 @@ class TestMirrorRuleIntegration:
         result = rule.check(tmp_path)
         assert result.passed is True
 
-    def test_private_module_no_test(self, tmp_path: Path) -> None:
-        """_facade.py with no matching test should appear in missing."""
+    # --- Pyramid scoping & private modules: missing-list behavior ---
+
+    @pytest.mark.parametrize(
+        ("src_module", "test_dirs", "test_files", "expected_missing"),
+        [
+            pytest.param(
+                "_facade.py",
+                ("tests",),
+                (),
+                "_facade.py",
+                id="private_module_no_test",
+            ),
+            pytest.param(
+                "foo.py",
+                ("tests/unit", "tests/integration"),
+                (("tests/integration/test_foo.py", "def test_foo(): pass\n"),),
+                "foo.py",
+                id="unit_dir_present_only_unit_counts",
+            ),
+            pytest.param(
+                "foo.py",
+                ("tests/e2e",),
+                (("tests/e2e/test_foo.py", "def test_foo(): pass\n"),),
+                "foo.py",
+                id="flat_layout_excludes_integration_and_e2e",
+            ),
+        ],
+    )
+    def test_module_missing_test_appears_in_missing(
+        self,
+        tmp_path: Path,
+        src_module: str,
+        test_dirs: tuple[str, ...],
+        test_files: tuple[tuple[str, str], ...],
+        expected_missing: str,
+    ) -> None:
+        """Modules without a unit-level test are reported in details['missing']."""
         from axm_audit.core.rules.practices.mirror import MirrorRule
 
         pkg = tmp_path / "src" / "pkg"
         pkg.mkdir(parents=True)
         (pkg / "__init__.py").write_text("")
-        (pkg / "_facade.py").write_text("class Facade: pass\n")
+        (pkg / src_module).write_text("class X: pass\n")
 
-        tests = tmp_path / "tests"
-        tests.mkdir()
-        # No test file at all
-
-        rule = MirrorRule()
-        result = rule.check(tmp_path)
-        assert result.passed is False
-        assert result.details is not None
-        assert "_facade.py" in result.details["missing"]
-
-    # --- Pyramid scoping: mirror only counts unit-level tests ---
-
-    def test_unit_dir_present_only_unit_counts(self, tmp_path: Path) -> None:
-        """When tests/unit/ exists, integration/e2e tests do not satisfy the mirror."""
-        from axm_audit.core.rules.practices.mirror import MirrorRule
-
-        pkg = tmp_path / "src" / "pkg"
-        pkg.mkdir(parents=True)
-        (pkg / "__init__.py").write_text("")
-        (pkg / "foo.py").write_text("def foo(): pass\n")
-
-        unit = tmp_path / "tests" / "unit"
-        unit.mkdir(parents=True)
-        integ = tmp_path / "tests" / "integration"
-        integ.mkdir(parents=True)
-        (integ / "test_foo.py").write_text("def test_foo(): pass\n")
+        for rel_dir in test_dirs:
+            (tmp_path / rel_dir).mkdir(parents=True, exist_ok=True)
+        for rel_file, content in test_files:
+            (tmp_path / rel_file).write_text(content)
 
         rule = MirrorRule()
         result = rule.check(tmp_path)
         assert result.passed is False
         assert result.details is not None
-        assert "foo.py" in result.details["missing"]
-
-    def test_flat_layout_excludes_integration_and_e2e(self, tmp_path: Path) -> None:
-        """In flat layout (no tests/unit/), integration/e2e subdirs are excluded."""
-        from axm_audit.core.rules.practices.mirror import MirrorRule
-
-        pkg = tmp_path / "src" / "pkg"
-        pkg.mkdir(parents=True)
-        (pkg / "__init__.py").write_text("")
-        (pkg / "foo.py").write_text("def foo(): pass\n")
-
-        e2e = tmp_path / "tests" / "e2e"
-        e2e.mkdir(parents=True)
-        (e2e / "test_foo.py").write_text("def test_foo(): pass\n")
-
-        rule = MirrorRule()
-        result = rule.check(tmp_path)
-        assert result.passed is False
-        assert result.details is not None
-        assert "foo.py" in result.details["missing"]
+        assert expected_missing in result.details["missing"]
 
     # --- AXM-1666: forward mirror exemptions via pyproject.toml ---
 

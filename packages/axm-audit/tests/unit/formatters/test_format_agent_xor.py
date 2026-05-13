@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from typing import Any
+
+import pytest
+
 from axm_audit.formatters import format_agent
 from axm_audit.models import AuditResult, CheckResult
 
@@ -9,84 +13,80 @@ def _make_result(*checks: CheckResult) -> AuditResult:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests — failed checks XOR
+# Unit tests - text/details XOR (failed and passed-actionable buckets)
 # ---------------------------------------------------------------------------
 
 
-def test_format_agent_failed_with_text() -> None:
-    """Failed check with text and details emits text only — details omitted."""
+@pytest.mark.parametrize(
+    "case",
+    [
+        pytest.param(
+            {
+                "rule_id": "R001",
+                "passed": False,
+                "bucket": "failed",
+                "text": "• issue",
+                "details": {"items": [1, 2]},
+                "expected_key": "text",
+                "expected_value": "• issue",
+            },
+            id="failed_with_text",
+        ),
+        pytest.param(
+            {
+                "rule_id": "R002",
+                "passed": False,
+                "bucket": "failed",
+                "text": None,
+                "details": {"items": [1, 2]},
+                "expected_key": "details",
+                "expected_value": {"items": [1, 2]},
+            },
+            id="failed_without_text",
+        ),
+        pytest.param(
+            {
+                "rule_id": "R003",
+                "passed": True,
+                "bucket": "passed",
+                "text": "• item",
+                "details": {"missing": ["a", "b"]},
+                "expected_key": "text",
+                "expected_value": "• item",
+            },
+            id="passed_actionable_with_text",
+        ),
+        pytest.param(
+            {
+                "rule_id": "R004",
+                "passed": True,
+                "bucket": "passed",
+                "text": None,
+                "details": {"missing": ["a", "b"]},
+                "expected_key": "details",
+                "expected_value": {"missing": ["a", "b"]},
+            },
+            id="passed_actionable_without_text",
+        ),
+    ],
+)
+def test_format_agent_text_details_xor(case: dict[str, Any]) -> None:
     cr = CheckResult(
-        rule_id="R001",
-        message="some failure",
-        passed=False,
-        text="\u2022 issue",
-        details={"items": [1, 2]},
-        fix_hint="fix it",
+        rule_id=case["rule_id"],
+        message="msg",
+        passed=case["passed"],
+        text=case["text"],
+        details=case["details"],
+        fix_hint="fix",
     )
     out = format_agent(_make_result(cr))
-    entry = out["failed"][0]
-    assert "text" in entry
-    assert entry["text"] == "\u2022 issue"
-    assert "details" not in entry
-
-
-def test_format_agent_failed_without_text() -> None:
-    """Failed check without text emits details, not text."""
-    cr = CheckResult(
-        rule_id="R002",
-        message="another failure",
-        passed=False,
-        text=None,
-        details={"items": [1, 2]},
-        fix_hint="fix it",
-    )
-    out = format_agent(_make_result(cr))
-    entry = out["failed"][0]
-    assert "details" in entry
-    assert entry["details"] == {"items": [1, 2]}
-    assert "text" not in entry
-
-
-# ---------------------------------------------------------------------------
-# Unit tests — passed-with-actionable checks XOR
-# ---------------------------------------------------------------------------
-
-
-def test_format_agent_passed_actionable_with_text() -> None:
-    """Passed actionable check with text emits text, not details."""
-    cr = CheckResult(
-        rule_id="R003",
-        message="actionable pass",
-        passed=True,
-        text="\u2022 item",
-        details={"missing": ["a", "b"]},
-        fix_hint="add them",
-    )
-    out = format_agent(_make_result(cr))
-    # Should be a dict (actionable), not a string
-    entry = out["passed"][0]
+    entry = out[case["bucket"]][0]
     assert isinstance(entry, dict)
-    assert "text" in entry
-    assert entry["text"] == "\u2022 item"
-    assert "details" not in entry
-
-
-def test_format_agent_passed_actionable_without_text() -> None:
-    """Passed actionable check without text emits details, not text."""
-    cr = CheckResult(
-        rule_id="R004",
-        message="actionable pass",
-        passed=True,
-        text=None,
-        details={"missing": ["a", "b"]},
-        fix_hint="add them",
-    )
-    out = format_agent(_make_result(cr))
-    entry = out["passed"][0]
-    assert isinstance(entry, dict)
-    assert "details" in entry
-    assert entry["details"] == {"missing": ["a", "b"]}
-    assert "text" not in entry
+    expected_key = case["expected_key"]
+    other = "details" if expected_key == "text" else "text"
+    assert expected_key in entry
+    assert entry[expected_key] == case["expected_value"]
+    assert other not in entry
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ def test_format_agent_passed_actionable_without_text() -> None:
 
 
 def test_format_agent_failed_empty_text_preserved() -> None:
-    """Empty string text is falsy — falls back to details, text omitted."""
+    """Empty string text is falsy - falls back to details, text omitted."""
     cr = CheckResult(
         rule_id="R005",
         message="edge empty",
@@ -112,7 +112,7 @@ def test_format_agent_failed_empty_text_preserved() -> None:
 
 
 def test_format_agent_failed_both_none() -> None:
-    """Both text and details None — both dropped after AXM-1410."""
+    """Both text and details None - both dropped after AXM-1410."""
     cr = CheckResult(
         rule_id="R006",
         message="both none",

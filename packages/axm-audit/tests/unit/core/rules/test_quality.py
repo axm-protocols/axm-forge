@@ -125,31 +125,21 @@ class TestDiffSizeRuleUnit:
         rule = DiffSizeRule()
         assert rule.rule_id == "QUALITY_DIFF_SIZE"
 
-    # -- compute_score with new defaults --
+    # -- compute_score curve --
 
-    def test_compute_score_new_defaults(self) -> None:
-        """300 lines is under new ideal (400) → score 100."""
+    @pytest.mark.parametrize(
+        ("lines", "expected_score"),
+        [
+            pytest.param(300, 100, id="new_defaults_under_ideal"),
+            pytest.param(400, 100, id="boundary_at_ideal"),
+            pytest.param(800, 50, id="midrange"),
+            pytest.param(1200, 0, id="over_max"),
+        ],
+    )
+    def test_compute_score(self, lines: int, expected_score: int) -> None:
         from axm_audit.core.rules.quality import DiffSizeRule
 
-        assert DiffSizeRule.compute_score(300) == 100
-
-    def test_compute_score_boundary(self) -> None:
-        """Exactly at ideal (400) → score 100."""
-        from axm_audit.core.rules.quality import DiffSizeRule
-
-        assert DiffSizeRule.compute_score(400) == 100
-
-    def test_compute_score_midrange(self) -> None:
-        """800 lines → 50 (midpoint of [400, 1200])."""
-        from axm_audit.core.rules.quality import DiffSizeRule
-
-        assert DiffSizeRule.compute_score(800) == 50
-
-    def test_compute_score_over_max(self) -> None:
-        """1200 lines (at max) → score 0."""
-        from axm_audit.core.rules.quality import DiffSizeRule
-
-        assert DiffSizeRule.compute_score(1200) == 0
+        assert DiffSizeRule.compute_score(lines) == expected_score
 
 
 class TestLintingRuleUnit:
