@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 
 class TestScaffoldExecuteException:
     """Cover lines 173-174: exception in execute."""
@@ -91,20 +93,23 @@ class TestScaffoldResolveWorkspaceRoot:
             result = tool._resolve_workspace_root(tmp_path)
         assert result is None
 
-    def test_read_workspace_name_fallback(self, tmp_path: Path) -> None:
-        """No pyproject.toml → falls back to directory name."""
+    @pytest.mark.parametrize(
+        ("toml_body", "expected"),
+        [
+            pytest.param(None, None, id="fallback-to-dirname"),
+            pytest.param('[project]\nname = "my-ws"\n', "my-ws", id="from-toml"),
+        ],
+    )
+    def test_read_workspace_name(
+        self, tmp_path: Path, toml_body: str | None, expected: str | None
+    ) -> None:
+        """read_workspace_name reads pyproject.toml or falls back to dir name."""
         from axm_init.tools.scaffold import read_workspace_name
 
+        if toml_body is not None:
+            (tmp_path / "pyproject.toml").write_text(toml_body)
         result = read_workspace_name(tmp_path)
-        assert result == tmp_path.name
-
-    def test_read_workspace_name_from_toml(self, tmp_path: Path) -> None:
-        """Reads name from pyproject.toml."""
-        from axm_init.tools.scaffold import read_workspace_name
-
-        (tmp_path / "pyproject.toml").write_text('[project]\nname = "my-ws"\n')
-        result = read_workspace_name(tmp_path)
-        assert result == "my-ws"
+        assert result == (expected if expected is not None else tmp_path.name)
 
 
 class TestScaffoldMember:
