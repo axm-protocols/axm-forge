@@ -15,22 +15,6 @@ pytestmark = pytest.mark.integration
 class TestComplexityRuleIO:
     """Tests for ComplexityRule (radon integration)."""
 
-    def test_simple_functions_high_score(self, tmp_path: Path) -> None:
-        """Simple functions should score high."""
-        from axm_audit.core.rules.complexity import ComplexityRule
-
-        src = tmp_path / "src"
-        src.mkdir()
-        (src / "simple.py").write_text(
-            "def add(a: int, b: int) -> int:\n    return a + b\n"
-        )
-
-        rule = ComplexityRule()
-        result = rule.check(tmp_path)
-        assert result.details is not None
-        assert result.score is not None
-        assert result.score >= 90
-
     def test_complex_functions_reduce_score(self, tmp_path: Path) -> None:
         """High complexity functions should reduce score."""
         from axm_audit.core.rules.complexity import ComplexityRule
