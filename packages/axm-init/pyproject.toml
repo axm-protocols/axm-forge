@@ -227,6 +227,21 @@ branch = true
 relative_files = true
 omit = ["*/tests/*", "*/templates/*"]
 
+[tool.axm-audit.mirror]
+exempt_paths = [
+    "checks/changelog.py",
+    "checks/ci.py",
+    "checks/deps.py",
+    "checks/docs.py",
+    "checks/pyproject.py",
+    "checks/structure.py",
+    "checks/tooling.py",
+    "adapters/filesystem.py",
+    "adapters/makefile.py",
+    "adapters/workspace_patcher.py",
+    "templates/**/*.py",
+]
+
 [tool.coverage.xml]
 output = "coverage.xml"
 
