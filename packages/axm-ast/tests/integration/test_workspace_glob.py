@@ -8,20 +8,8 @@ import pytest
 from axm_ast.core.workspace import (
     _build_package_edges,
     _expand_workspace_members,
-    _parse_workspace_members,
     analyze_workspace,
 )
-
-# ---------------------------------------------------------------------------
-# Unit tests
-# ---------------------------------------------------------------------------
-
-
-def test_parse_workspace_members_glob() -> None:
-    """_parse_workspace_members returns raw glob strings unchanged."""
-    text = '[tool.uv.workspace]\nmembers = ["packages/*"]\n'
-    result = _parse_workspace_members(text)
-    assert result == ["packages/*"]
 
 
 def test_expand_members_glob(tmp_path: Path) -> None:
