@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Template root = src/axm_init/templates/workspace-member/
 TEMPLATE_ROOT = (
-    Path(__file__).resolve().parents[3]
+    Path(__file__).resolve().parents[2]
     / "src"
     / "axm_init"
     / "templates"
