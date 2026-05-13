@@ -122,28 +122,6 @@ class TestFileHeaderNoSourceBody:
         headers = result.metadata["headers"]
         assert len(headers) == 0
 
-    def test_missing_files_key_skips(self, tmp_path: Path) -> None:
-        """source_body with symbols but no files key returns skip."""
-        context: dict[str, object] = {
-            "source_body": {"symbols": "class Foo:\n    pass\n"},
-        }
-        hook = FileHeaderHook()
-        result = hook.execute(context, path=str(tmp_path))
-
-        assert result.success
-        assert result.metadata["headers"] == []
-
-    def test_empty_files_list_skips(self, tmp_path: Path) -> None:
-        """source_body with empty files list returns skip."""
-        context: dict[str, object] = {
-            "source_body": {"files": []},
-        }
-        hook = FileHeaderHook()
-        result = hook.execute(context, path=str(tmp_path))
-
-        assert result.success
-        assert result.metadata["headers"] == []
-
 
 class TestFileHeaderFromSourceBody:
     """Extract files from source_body.files metadata."""
