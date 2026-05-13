@@ -188,12 +188,6 @@ class TestFormatReport:
         assert "100" in report
         assert "A" in report
 
-    def test_contains_failures(self, tmp_path: Path) -> None:
-        result = _make_result(tmp_path, passed=False)
-        report = format_report(result)
-        assert "❌" in report
-        assert "Run fix command" in report
-
 
 class TestFormatJson:
     """Tests for format_json()."""
@@ -288,7 +282,7 @@ class TestFormatReportVerbose:
         assert "✅" in report
 
     def test_default_always_shows_failures(self, tmp_path: Path) -> None:
-        """Failures are always shown in default mode."""
+        """Failures are always shown in default mode (failure icon + fix hint)."""
         result = _make_result(tmp_path, passed=False)
         report = format_report(result)
         assert "❌" in report
@@ -364,8 +358,22 @@ class TestEngineMember:
 class TestWorkspaceSkipsNewEntries:
     """Workspace root skips pyproject.mypy, ruff, ruff_rules, changelog.gitcliff."""
 
-    def test_workspace_skips_pyproject_mypy(self, gold_project: Path) -> None:
-        """Workspace root must not report pyproject.mypy failure."""
+    @pytest.mark.parametrize(
+        "skipped_names",
+        [
+            pytest.param(["pyproject.pyproject_mypy"], id="pyproject_mypy"),
+            pytest.param(
+                ["pyproject.pyproject_ruff", "pyproject.pyproject_ruff_rules"],
+                id="ruff_config",
+            ),
+            pytest.param(["changelog.gitcliff_config"], id="gitcliff"),
+            pytest.param(["docs.diataxis_nav"], id="diataxis_nav"),
+        ],
+    )
+    def test_workspace_skips(
+        self, gold_project: Path, skipped_names: list[str]
+    ) -> None:
+        """Workspace root must not report the listed check names."""
         pyproject = gold_project / "pyproject.toml"
         content = pyproject.read_text()
         content += '\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
@@ -374,44 +382,8 @@ class TestWorkspaceSkipsNewEntries:
         engine = CheckEngine(gold_project)
         result = engine.run()
         check_names = {c.name for c in result.checks}
-        assert "pyproject.pyproject_mypy" not in check_names
-
-    def test_workspace_skips_ruff_config(self, gold_project: Path) -> None:
-        """Workspace root must not report pyproject.ruff or ruff_rules."""
-        pyproject = gold_project / "pyproject.toml"
-        content = pyproject.read_text()
-        content += '\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
-        pyproject.write_text(content)
-
-        engine = CheckEngine(gold_project)
-        result = engine.run()
-        check_names = {c.name for c in result.checks}
-        assert "pyproject.pyproject_ruff" not in check_names
-        assert "pyproject.pyproject_ruff_rules" not in check_names
-
-    def test_workspace_skips_gitcliff(self, gold_project: Path) -> None:
-        """Workspace root must not report changelog.gitcliff."""
-        pyproject = gold_project / "pyproject.toml"
-        content = pyproject.read_text()
-        content += '\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
-        pyproject.write_text(content)
-
-        engine = CheckEngine(gold_project)
-        result = engine.run()
-        check_names = {c.name for c in result.checks}
-        assert "changelog.gitcliff_config" not in check_names
-
-    def test_workspace_skips_diataxis_nav(self, gold_project: Path) -> None:
-        """Workspace root must not report docs.diataxis_nav."""
-        pyproject = gold_project / "pyproject.toml"
-        content = pyproject.read_text()
-        content += '\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
-        pyproject.write_text(content)
-
-        engine = CheckEngine(gold_project)
-        result = engine.run()
-        check_names = {c.name for c in result.checks}
-        assert "docs.diataxis_nav" not in check_names
+        for name in skipped_names:
+            assert name not in check_names
 
 
 class TestMemberRedirectsStructure:
@@ -447,71 +419,27 @@ class TestMemberRedirectsStructure:
         (member / "pyproject.toml").write_text('[project]\nname = "pkg-a"\n')
         return ws_root, member
 
-    def test_member_redirects_license(self, ws_with_member: tuple[Path, Path]) -> None:
-        """Member without LICENSE passes when workspace root has it."""
-        _ws_root, member = ws_with_member
-        engine = CheckEngine(member)
-        result = engine.run()
-        license_checks = [c for c in result.checks if c.name == "structure.license"]
-        assert len(license_checks) == 1
-        assert license_checks[0].passed
-
-    def test_member_redirects_python_version(
-        self, ws_with_member: tuple[Path, Path]
+    @pytest.mark.parametrize(
+        "check_name",
+        [
+            pytest.param("structure.license", id="license"),
+            pytest.param("structure.python_version", id="python_version"),
+            pytest.param("structure.contributing", id="contributing"),
+            pytest.param("tooling.makefile", id="makefile"),
+            pytest.param("tooling.precommit_installed", id="precommit_installed"),
+            pytest.param("ci.dependabot", id="dependabot"),
+        ],
+    )
+    def test_member_redirects(
+        self, ws_with_member: tuple[Path, Path], check_name: str
     ) -> None:
-        """Member without .python-version passes when workspace root has it."""
+        """Member without the file passes when workspace root provides it."""
         _ws_root, member = ws_with_member
         engine = CheckEngine(member)
         result = engine.run()
-        pv_checks = [c for c in result.checks if c.name == "structure.python_version"]
-        assert len(pv_checks) == 1
-        assert pv_checks[0].passed
-
-    def test_member_redirects_contributing(
-        self, ws_with_member: tuple[Path, Path]
-    ) -> None:
-        """Member without CONTRIBUTING passes when workspace root has it."""
-        _ws_root, member = ws_with_member
-        engine = CheckEngine(member)
-        result = engine.run()
-        contrib_checks = [
-            c for c in result.checks if c.name == "structure.contributing"
-        ]
-        assert len(contrib_checks) == 1
-        assert contrib_checks[0].passed
-
-    def test_member_redirects_makefile(self, ws_with_member: tuple[Path, Path]) -> None:
-        """Member without Makefile passes when workspace root has it."""
-        _ws_root, member = ws_with_member
-        engine = CheckEngine(member)
-        result = engine.run()
-        makefile_checks = [c for c in result.checks if c.name == "tooling.makefile"]
-        assert len(makefile_checks) == 1
-        assert makefile_checks[0].passed
-
-    def test_member_redirects_precommit_installed(
-        self, ws_with_member: tuple[Path, Path]
-    ) -> None:
-        """Member without .git/hooks/pre-commit passes when workspace root has it."""
-        _ws_root, member = ws_with_member
-        engine = CheckEngine(member)
-        result = engine.run()
-        precommit_checks = [
-            c for c in result.checks if c.name == "tooling.precommit_installed"
-        ]
-        assert len(precommit_checks) == 1
-        assert precommit_checks[0].passed
-
-    def test_member_redirects_dependabot(
-        self, ws_with_member: tuple[Path, Path]
-    ) -> None:
-        """Member without .github/dependabot.yml passes when workspace root has it."""
-        _ws_root, member = ws_with_member
-        engine = CheckEngine(member)
-        result = engine.run()
-        dependabot_checks = [c for c in result.checks if c.name == "ci.dependabot"]
-        assert len(dependabot_checks) == 1
-        assert dependabot_checks[0].passed
+        matching = [c for c in result.checks if c.name == check_name]
+        assert len(matching) == 1
+        assert matching[0].passed
 
 
 class TestEngineExclusion:

@@ -42,35 +42,23 @@ class TestGradeEnum:
 class TestComputeGrade:
     """Grade boundaries: A≥90, B≥75, C≥60, D≥40, F<40."""
 
-    def test_100_is_a(self) -> None:
-        assert compute_grade(100) == Grade.A
-
-    def test_90_is_a(self) -> None:
-        assert compute_grade(90) == Grade.A
-
-    def test_89_is_b(self) -> None:
-        assert compute_grade(89) == Grade.B
-
-    def test_75_is_b(self) -> None:
-        assert compute_grade(75) == Grade.B
-
-    def test_74_is_c(self) -> None:
-        assert compute_grade(74) == Grade.C
-
-    def test_60_is_c(self) -> None:
-        assert compute_grade(60) == Grade.C
-
-    def test_59_is_d(self) -> None:
-        assert compute_grade(59) == Grade.D
-
-    def test_40_is_d(self) -> None:
-        assert compute_grade(40) == Grade.D
-
-    def test_39_is_f(self) -> None:
-        assert compute_grade(39) == Grade.F
-
-    def test_0_is_f(self) -> None:
-        assert compute_grade(0) == Grade.F
+    @pytest.mark.parametrize(
+        ("score", "expected"),
+        [
+            pytest.param(100, Grade.A, id="100_is_a"),
+            pytest.param(90, Grade.A, id="90_is_a"),
+            pytest.param(89, Grade.B, id="89_is_b"),
+            pytest.param(75, Grade.B, id="75_is_b"),
+            pytest.param(74, Grade.C, id="74_is_c"),
+            pytest.param(60, Grade.C, id="60_is_c"),
+            pytest.param(59, Grade.D, id="59_is_d"),
+            pytest.param(40, Grade.D, id="40_is_d"),
+            pytest.param(39, Grade.F, id="39_is_f"),
+            pytest.param(0, Grade.F, id="0_is_f"),
+        ],
+    )
+    def test_compute_grade(self, score: int, expected: Grade) -> None:
+        assert compute_grade(score) == expected
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -231,20 +219,24 @@ class TestProjectResult:
             )
         return results
 
-    def test_perfect_score(self) -> None:
-        r = ProjectResult.from_checks(Path("."), self._make_checks(100, 0))
-        assert r.score == 100
-        assert r.grade == Grade.A
-
-    def test_zero_score(self) -> None:
-        r = ProjectResult.from_checks(Path("."), self._make_checks(0, 100))
-        assert r.score == 0
-        assert r.grade == Grade.F
-
-    def test_mixed_score(self) -> None:
-        r = ProjectResult.from_checks(Path("."), self._make_checks(75, 25))
-        assert r.score == 75
-        assert r.grade == Grade.B
+    @pytest.mark.parametrize(
+        ("pass_w", "fail_w", "expected_score", "expected_grade"),
+        [
+            pytest.param(100, 0, 100, Grade.A, id="perfect_score"),
+            pytest.param(0, 100, 0, Grade.F, id="zero_score"),
+            pytest.param(75, 25, 75, Grade.B, id="mixed_score"),
+        ],
+    )
+    def test_score_and_grade(
+        self,
+        pass_w: int,
+        fail_w: int,
+        expected_score: int,
+        expected_grade: Grade,
+    ) -> None:
+        r = ProjectResult.from_checks(Path("."), self._make_checks(pass_w, fail_w))
+        assert r.score == expected_score
+        assert r.grade == expected_grade
 
     def test_failures_list(self) -> None:
         r = ProjectResult.from_checks(Path("."), self._make_checks(80, 20))

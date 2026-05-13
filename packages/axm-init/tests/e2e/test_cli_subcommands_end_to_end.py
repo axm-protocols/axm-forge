@@ -186,21 +186,18 @@ class TestCommandsRegistered:
         """Extract command names from the app."""
         return set(app._commands.keys())
 
-    def test_scaffold_command_exists(self) -> None:
-        """scaffold command is registered."""
-        assert "scaffold" in self._command_names()
-
-    def test_reserve_command_exists(self) -> None:
-        """reserve command is registered."""
-        assert "reserve" in self._command_names()
-
-    def test_version_command_exists(self) -> None:
-        """version command is registered."""
-        assert "version" in self._command_names()
-
-    def test_check_command_exists(self) -> None:
-        """check command is registered."""
-        assert "check" in self._command_names()
+    @pytest.mark.parametrize(
+        "command_name",
+        [
+            pytest.param("scaffold", id="scaffold"),
+            pytest.param("reserve", id="reserve"),
+            pytest.param("version", id="version"),
+            pytest.param("check", id="check"),
+        ],
+    )
+    def test_command_exists(self, command_name: str) -> None:
+        """Command is registered on the app."""
+        assert command_name in self._command_names()
 
 
 # ── check command ────────────────────────────────────────────────────────────

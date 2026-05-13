@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_init.checks.structure import (
     check_contributing,
     check_license_file,
@@ -142,31 +144,24 @@ class TestCheckTestsDir:
         r = check_tests_dir(empty_project)
         assert r.passed is False
 
-    def test_check_tests_dir_fails_when_unit_missing(self, tmp_path: Path) -> None:
-        tests = tmp_path / "tests"
-        (tests / "integration").mkdir(parents=True)
-        (tests / "e2e").mkdir()
-        r = check_tests_dir(tmp_path)
-        assert r.passed is False
-        assert "tests/unit/" in r.fix
-
-    def test_check_tests_dir_fails_when_integration_missing(
-        self, tmp_path: Path
+    @pytest.mark.parametrize(
+        ("present", "missing"),
+        [
+            pytest.param(("integration", "e2e"), "unit", id="unit_missing"),
+            pytest.param(("unit", "e2e"), "integration", id="integration_missing"),
+            pytest.param(("unit", "integration"), "e2e", id="e2e_missing"),
+        ],
+    )
+    def test_check_tests_dir_fails_when_subdir_missing(
+        self, tmp_path: Path, present: tuple[str, str], missing: str
     ) -> None:
         tests = tmp_path / "tests"
-        (tests / "unit").mkdir(parents=True)
-        (tests / "e2e").mkdir()
+        tests.mkdir()
+        for sub in present:
+            (tests / sub).mkdir()
         r = check_tests_dir(tmp_path)
         assert r.passed is False
-        assert "tests/integration/" in r.fix
-
-    def test_check_tests_dir_fails_when_e2e_missing(self, tmp_path: Path) -> None:
-        tests = tmp_path / "tests"
-        (tests / "unit").mkdir(parents=True)
-        (tests / "integration").mkdir()
-        r = check_tests_dir(tmp_path)
-        assert r.passed is False
-        assert "tests/e2e/" in r.fix
+        assert f"tests/{missing}/" in r.fix
 
     def test_check_tests_dir_fails_when_all_subdirs_missing(
         self, tmp_path: Path
