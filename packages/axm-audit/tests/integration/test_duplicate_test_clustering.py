@@ -547,8 +547,8 @@ def _find_pair(
     return None
 
 
-def test_distinct_self_attr_sut_not_clustered(project: Path) -> None:
-    body = (
+_DISTINCT_SELF_ATTR_SETUP_VARIANTS = {
+    "setUp": (
         "class TestX:\n"
         "    def setUp(self):\n"
         "        self.parser_a = ParserA()\n"
@@ -559,7 +559,48 @@ def test_distinct_self_attr_sut_not_clustered(project: Path) -> None:
         "    def test_second(self):\n"
         "        result = self.parser_b.run()\n"
         "        assert result == 1\n"
-    )
+    ),
+    "setup_method": (
+        "class TestX:\n"
+        "    def setup_method(self, method):\n"
+        "        self.parser_a = ParserA()\n"
+        "        self.parser_b = ParserB()\n"
+        "    def test_first(self):\n"
+        "        result = self.parser_a.run()\n"
+        "        assert result == 1\n"
+        "    def test_second(self):\n"
+        "        result = self.parser_b.run()\n"
+        "        assert result == 1\n"
+    ),
+    "pytest_fixture": (
+        "import pytest\n\n"
+        "class TestX:\n"
+        "    @pytest.fixture(autouse=True)\n"
+        "    def _setup(self):\n"
+        "        self.parser_a = ParserA()\n"
+        "        self.parser_b = ParserB()\n"
+        "    def test_first(self):\n"
+        "        result = self.parser_a.run()\n"
+        "        assert result == 1\n"
+        "    def test_second(self):\n"
+        "        result = self.parser_b.run()\n"
+        "        assert result == 1\n"
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "setup_variant",
+    [
+        pytest.param("setUp", id="distinct_self_attr_setUp"),
+        pytest.param("setup_method", id="setup_method_variant"),
+        pytest.param("pytest_fixture", id="pytest_fixture_class_attr"),
+    ],
+)
+def test_distinct_self_attr_sut_not_clustered(
+    project: Path, setup_variant: str
+) -> None:
+    body = _DISTINCT_SELF_ATTR_SETUP_VARIANTS[setup_variant]
     _write(project / "tests" / "test_a.py", body)
 
     result = DuplicateTestsRule().check(project)
@@ -586,45 +627,3 @@ def test_same_self_attr_sut_still_clustered(project: Path) -> None:
     pair = _find_pair(result.metadata["clusters"], {"test_first", "test_second"})
     assert pair is not None
     assert pair["signal"].startswith(("signal1_", "signal3_"))
-
-
-def test_setup_method_variant(project: Path) -> None:
-    body = (
-        "class TestX:\n"
-        "    def setup_method(self, method):\n"
-        "        self.parser_a = ParserA()\n"
-        "        self.parser_b = ParserB()\n"
-        "    def test_first(self):\n"
-        "        result = self.parser_a.run()\n"
-        "        assert result == 1\n"
-        "    def test_second(self):\n"
-        "        result = self.parser_b.run()\n"
-        "        assert result == 1\n"
-    )
-    _write(project / "tests" / "test_a.py", body)
-
-    result = DuplicateTestsRule().check(project)
-
-    assert not _has_pair(result.metadata["clusters"], {"test_first", "test_second"})
-
-
-def test_pytest_fixture_class_attr(project: Path) -> None:
-    body = (
-        "import pytest\n\n"
-        "class TestX:\n"
-        "    @pytest.fixture(autouse=True)\n"
-        "    def _setup(self):\n"
-        "        self.parser_a = ParserA()\n"
-        "        self.parser_b = ParserB()\n"
-        "    def test_first(self):\n"
-        "        result = self.parser_a.run()\n"
-        "        assert result == 1\n"
-        "    def test_second(self):\n"
-        "        result = self.parser_b.run()\n"
-        "        assert result == 1\n"
-    )
-    _write(project / "tests" / "test_a.py", body)
-
-    result = DuplicateTestsRule().check(project)
-
-    assert not _has_pair(result.metadata["clusters"], {"test_first", "test_second"})
