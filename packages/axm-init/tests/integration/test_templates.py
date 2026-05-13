@@ -14,19 +14,14 @@ from axm_init.models.results import ScaffoldResult
 # ── get_template_path / TemplateInfo ─────────────────────────────────────────
 
 
-class TestGetTemplatePath:
-    """Tests for get_template_path()."""
+class TestGetTemplatePathIntegration:
+    """Tests for get_template_path() — filesystem-touching scope."""
 
     def test_path_exists(self) -> None:
         """Returned path points to an existing directory."""
         result = get_template_path()
         assert result.exists()
         assert result.is_dir()
-
-    def test_path_is_python_project(self) -> None:
-        """Returned path is the python-project template."""
-        result = get_template_path()
-        assert result.name == "python-project"
 
 
 class TestTemplateInfo:
