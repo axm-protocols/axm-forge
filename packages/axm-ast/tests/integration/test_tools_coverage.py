@@ -248,20 +248,8 @@ class TestDiffException:
         assert "git failed" in (result.error or "")
 
 
-class TestDocImpactToolEdgeCases:
-    """DocImpactTool edge cases — name, empty symbols, bad path, exception."""
-
-    def test_name(self, doc_impact_tool: DocImpactTool) -> None:
-        assert doc_impact_tool.name == "ast_doc_impact"
-
-    def test_empty_symbols(self, doc_impact_tool: DocImpactTool) -> None:
-        result = doc_impact_tool.execute(path=".")
-        assert result.success is False
-        assert "symbols" in (result.error or "")
-
-    def test_bad_path(self, doc_impact_tool: DocImpactTool) -> None:
-        result = doc_impact_tool.execute(path="/nonexistent/path/xyz", symbols=["foo"])
-        assert result.success is False
+class TestDocImpactToolEdgeCasesIntegration:
+    """DocImpactTool edge cases — exception."""
 
     def test_exception(
         self, doc_impact_tool: DocImpactTool, simple_pkg: Path, mocker: MagicMock
@@ -275,19 +263,8 @@ class TestDocImpactToolEdgeCases:
         assert "boom" in (result.error or "")
 
 
-class TestCalleesToolEdgeCases:
-    """CalleesTool — name, bad path, exception."""
-
-    def test_name(self) -> None:
-        from axm_ast.tools.callees import CalleesTool
-
-        assert CalleesTool().name == "ast_callees"
-
-    def test_bad_path(self) -> None:
-        from axm_ast.tools.callees import CalleesTool
-
-        result = CalleesTool().execute(path="/nonexistent/path/xyz", symbol="foo")
-        assert result.success is False
+class TestCalleesToolEdgeCasesIntegration:
+    """CalleesTool — exception."""
 
     def test_exception(self, simple_pkg: Path, mocker: MagicMock) -> None:
         from axm_ast.tools.callees import CalleesTool
@@ -301,23 +278,8 @@ class TestCalleesToolEdgeCases:
         assert "callees boom" in (result.error or "")
 
 
-class TestFlowsToolEdgeCases:
-    """FlowsTool — name, bad path."""
-
-    def test_name(self, flows_tool: FlowsTool) -> None:
-        assert flows_tool.name == "ast_flows"
-
-    def test_bad_path(self, flows_tool: FlowsTool) -> None:
-        result = flows_tool.execute(path="/nonexistent/path/xyz")
-        assert result.success is False
-
-
-class TestCallersToolEdgeCases:
-    """CallersTool — bad path, exception."""
-
-    def test_bad_path(self, callers_tool: CallersTool) -> None:
-        result = callers_tool.execute(path="/nonexistent/path/xyz", symbol="foo")
-        assert result.success is False
+class TestCallersToolEdgeCasesIntegration:
+    """CallersTool — exception."""
 
     def test_exception(
         self, callers_tool: CallersTool, simple_pkg: Path, mocker: MagicMock
