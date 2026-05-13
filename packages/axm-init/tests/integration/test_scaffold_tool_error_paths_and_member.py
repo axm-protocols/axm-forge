@@ -93,17 +93,17 @@ class TestScaffoldResolveWorkspaceRoot:
 
     def test_read_workspace_name_fallback(self, tmp_path: Path) -> None:
         """No pyproject.toml → falls back to directory name."""
-        from axm_init.tools.scaffold import InitScaffoldTool
+        from axm_init.tools.scaffold import read_workspace_name
 
-        result = InitScaffoldTool._read_workspace_name(tmp_path)
+        result = read_workspace_name(tmp_path)
         assert result == tmp_path.name
 
     def test_read_workspace_name_from_toml(self, tmp_path: Path) -> None:
         """Reads name from pyproject.toml."""
-        from axm_init.tools.scaffold import InitScaffoldTool
+        from axm_init.tools.scaffold import read_workspace_name
 
         (tmp_path / "pyproject.toml").write_text('[project]\nname = "my-ws"\n')
-        result = InitScaffoldTool._read_workspace_name(tmp_path)
+        result = read_workspace_name(tmp_path)
         assert result == "my-ws"
 
 

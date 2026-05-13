@@ -7,7 +7,19 @@ from pathlib import Path
 
 from axm.tools.base import ToolResult
 
-__all__ = ["InitScaffoldTool"]
+__all__ = ["InitScaffoldTool", "read_workspace_name"]
+
+
+def read_workspace_name(workspace_root: Path) -> str:
+    """Read workspace name from pyproject.toml or fall back to dir name."""
+    import tomllib
+
+    root_pyproject = workspace_root / "pyproject.toml"
+    if root_pyproject.is_file():
+        with open(root_pyproject, "rb") as f:
+            root_data = tomllib.load(f)
+        return str(root_data.get("project", {}).get("name", workspace_root.name))
+    return workspace_root.name
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,18 +212,6 @@ class InitScaffoldTool:
             return find_workspace_root(target_path)
         return None
 
-    @staticmethod
-    def _read_workspace_name(workspace_root: Path) -> str:
-        """Read workspace name from pyproject.toml or fall back to dir name."""
-        import tomllib
-
-        root_pyproject = workspace_root / "pyproject.toml"
-        if root_pyproject.is_file():
-            with open(root_pyproject, "rb") as f:
-                root_data = tomllib.load(f)
-            return str(root_data.get("project", {}).get("name", workspace_root.name))
-        return workspace_root.name
-
     def _scaffold_member(
         self,
         target_path: Path,
@@ -244,7 +244,7 @@ class InitScaffoldTool:
                 error=f"Member '{member_name}' already exists at {member_dir}",
             )
 
-        ws_name = self._read_workspace_name(workspace_root)
+        ws_name = read_workspace_name(workspace_root)
         data = {
             "member_name": member_name,
             "workspace_name": ws_name,
