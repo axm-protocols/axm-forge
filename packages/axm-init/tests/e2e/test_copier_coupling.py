@@ -48,7 +48,7 @@ class TestCopierLazyImports:
         import ast
 
         copier_path = (
-            Path(__file__).resolve().parents[3]
+            Path(__file__).resolve().parents[2]
             / "src"
             / "axm_init"
             / "adapters"
