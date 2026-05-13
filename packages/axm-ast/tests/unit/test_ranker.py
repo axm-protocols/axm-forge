@@ -11,24 +11,14 @@ from axm_ast.core.ranker import (
     rank_symbols,
 )
 
-FIXTURES = Path(__file__).parent / "fixtures"
+FIXTURES = Path(__file__).parents[1] / "fixtures"
 
 
 # ─── Unit: _build_symbol_graph ───────────────────────────────────────────────
 
 
-class TestBuildSymbolGraph:
-    """Test the symbol-level reference graph builder."""
-
-    def test_empty_package(self, tmp_path: Path) -> None:
-        """An empty package produces an empty graph."""
-        pkg_dir = tmp_path / "empty"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text('"""Empty."""')
-        pkg = analyze_package(pkg_dir)
-        graph = _build_symbol_graph(pkg)
-        # Module node exists but has no symbol edges
-        assert all(targets == set() for targets in graph.values())
+class TestBuildSymbolGraphUnit:
+    """Test the symbol-level reference graph builder (unit)."""
 
     def test_import_creates_edge(self) -> None:
         """Importing a symbol from another module creates an edge."""
@@ -45,37 +35,6 @@ class TestBuildSymbolGraph:
         # incoming edges from the module node
         has_greet_edge = any("greet" in targets for targets in graph.values())
         assert has_greet_edge, "greet (in __all__) should have incoming edges"
-
-    def test_base_class_edge(self, tmp_path: Path) -> None:
-        """Inheriting a class creates an edge to the base class."""
-        pkg_dir = tmp_path / "inherit_pkg"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text(
-            '"""Inherit test."""\n'
-            "class Base:\n"
-            '    """Base class."""\n'
-            "    pass\n"
-            "class Child(Base):\n"
-            '    """Child class."""\n'
-            "    pass\n"
-        )
-        pkg = analyze_package(pkg_dir)
-        graph = _build_symbol_graph(pkg)
-        # Child → Base edge should exist (Child references Base)
-        has_base_edge = any("Base" in targets for targets in graph.values())
-        assert has_base_edge, "inheritance should create edge to Base"
-
-    def test_self_loops_excluded(self, tmp_path: Path) -> None:
-        """No self-referencing edges in the graph."""
-        pkg_dir = tmp_path / "selfref"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text(
-            '"""Self ref."""\ndef foo() -> None:\n    """Foo."""\n    pass\n'
-        )
-        pkg = analyze_package(pkg_dir)
-        graph = _build_symbol_graph(pkg)
-        for source, targets in graph.items():
-            assert source not in targets, f"self-loop on {source}"
 
 
 # ─── Unit: _pagerank ────────────────────────────────────────────────────────
@@ -152,8 +111,8 @@ class TestPageRank:
 # ─── Unit: rank_symbols ─────────────────────────────────────────────────────
 
 
-class TestRankSymbols:
-    """Test the high-level rank_symbols function."""
+class TestRankSymbolsUnit:
+    """Test the high-level rank_symbols function (unit)."""
 
     def test_returns_dict(self) -> None:
         """Returns a dict mapping symbol names to float scores."""
@@ -177,67 +136,11 @@ class TestRankSymbols:
         if "_internal_helper" in result:
             assert result["greet"] > result["_internal_helper"]
 
-    def test_empty_package(self, tmp_path: Path) -> None:
-        """Empty package returns empty dict."""
-        pkg_dir = tmp_path / "empty"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text('"""Empty."""')
-        pkg = analyze_package(pkg_dir)
-        result = rank_symbols(pkg)
-        assert result == {}
-
     def test_scores_non_negative(self) -> None:
         """All scores must be >= 0."""
         pkg = analyze_package(FIXTURES / "sample_pkg")
         result = rank_symbols(pkg)
         assert all(v >= 0 for v in result.values())
-
-
-# ─── Edge cases ──────────────────────────────────────────────────────────────
-
-
-class TestRankerEdgeCases:
-    """Edge cases for the ranking system."""
-
-    def test_single_module_uniform(self, tmp_path: Path) -> None:
-        """Package with one module, no imports → scores are set."""
-        pkg_dir = tmp_path / "solo"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text(
-            '"""Solo."""\n'
-            "def a() -> None:\n"
-            '    """A."""\n'
-            "    pass\n"
-            "def b() -> None:\n"
-            '    """B."""\n'
-            "    pass\n"
-        )
-        pkg = analyze_package(pkg_dir)
-        result = rank_symbols(pkg)
-        assert len(result) >= 2
-
-    def test_circular_imports_safe(self, tmp_path: Path) -> None:
-        """Circular imports don't cause infinite loops."""
-        pkg_dir = tmp_path / "circular"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text('"""Circular."""')
-        (pkg_dir / "a.py").write_text(
-            '"""A module."""\nfrom . import b\n'
-            "def func_a() -> None:\n"
-            '    """A func."""\n'
-            "    pass\n"
-        )
-        (pkg_dir / "b.py").write_text(
-            '"""B module."""\nfrom . import a\n'
-            "def func_b() -> None:\n"
-            '    """B func."""\n'
-            "    pass\n"
-        )
-        pkg = analyze_package(pkg_dir)
-        result = rank_symbols(pkg)
-        # Should complete without hanging; both symbols must be ranked
-        assert "func_a" in result or "a.func_a" in result
-        assert "func_b" in result or "b.func_b" in result
 
 
 # ─── Functional: formatter integration ───────────────────────────────────────
