@@ -127,28 +127,26 @@ def test_r3_attr_write_text_per_function(tmp_path: Path) -> None:
         pytest.param(
             "tests/integration/test_foo.py",
             """
-            def f(p):
-                return p
+            import subprocess
 
             def test_x(tmp_path):
-                f(tmp_path / "a")
+                subprocess.run(["ls", str(tmp_path / "a")])
             """,
             "tmp_path-as-arg",
-            id="tmp_path_as_arg_taint",
+            id="tmp_path_as_arg_taint_to_io_sink",
         ),
         pytest.param(
             "tests/integration/test_foo.py",
             """
-            def f(p):
-                return p
+            import subprocess
 
             def test_x(tmp_path):
                 p = tmp_path / "a"
                 q = p
-                f(q)
+                subprocess.run(["ls", str(q)])
             """,
             "tmp_path-as-arg",
-            id="tmp_path_aliased_reaches_call",
+            id="tmp_path_aliased_reaches_io_sink",
         ),
     ],
 )
@@ -494,3 +492,140 @@ def test_empty_tests_returns_pass(tmp_path: Path) -> None:
     assert result.passed is True
     assert result.score == 100
     assert list(result.findings) == []
+
+
+# ---------------------------------------------------------------------------
+# tmp_path false-positive regression suite (refined `_tmp_path_reaches_call`
+# + structural `fixture-arg:tmp_path` suppression).
+# ---------------------------------------------------------------------------
+
+
+def test_tmp_path_in_pytest_raises_with_str_wrapper_is_unit(tmp_path: Path) -> None:
+    """`scaffold(str(tmp_path), ...)` inside pytest.raises classifies as unit."""
+    _write(
+        tmp_path,
+        "tests/unit/test_foo.py",
+        """
+        import pytest
+
+        def scaffold(path, *, workspace=False, member=None):
+            raise SystemExit(1)
+
+        def test_x(tmp_path):
+            with pytest.raises(SystemExit, match="1"):
+                scaffold(str(tmp_path), workspace=True, member="foo")
+        """,
+    )
+    finding = _first_finding(_check(tmp_path))
+    assert finding.level == "unit"
+    assert finding.has_real_io is False
+    assert "tmp_path-as-arg" not in finding.io_signals
+    assert "fixture-arg:tmp_path" not in finding.io_signals
+
+
+def test_tmp_path_to_pydantic_constructor_is_unit(tmp_path: Path) -> None:
+    """`Cfg(destination=tmp_path / 'x')` with attribute-only access is unit."""
+    _write(
+        tmp_path,
+        "tests/unit/test_foo.py",
+        """
+        from dataclasses import dataclass
+        from pathlib import Path
+
+        @dataclass
+        class Cfg:
+            destination: Path
+
+        def test_x(tmp_path):
+            cfg = Cfg(destination=tmp_path / "project")
+            assert cfg.destination.name == "project"
+        """,
+    )
+    finding = _first_finding(_check(tmp_path))
+    assert finding.level == "unit"
+    assert finding.has_real_io is False
+    assert "tmp_path-as-arg" not in finding.io_signals
+    assert "fixture-arg:tmp_path" not in finding.io_signals
+
+
+def test_tmp_path_to_pydantic_validation_in_pytest_raises_is_unit(
+    tmp_path: Path,
+) -> None:
+    """`Cfg(destination=tmp_path)` inside pytest.raises classifies as unit."""
+    _write(
+        tmp_path,
+        "tests/unit/test_foo.py",
+        """
+        import pytest
+
+        class Cfg:
+            def __init__(self, *, destination, data):
+                raise ValueError("missing template_path")
+
+        def test_x(tmp_path):
+            with pytest.raises(ValueError):
+                Cfg(destination=tmp_path, data={})
+        """,
+    )
+    finding = _first_finding(_check(tmp_path))
+    assert finding.level == "unit"
+    assert finding.has_real_io is False
+
+
+def test_tmp_path_write_text_still_integration(tmp_path: Path) -> None:
+    """True positive: ``tmp_path.write_text`` must remain integration."""
+    _write(
+        tmp_path,
+        "tests/unit/test_foo.py",
+        """
+        def test_x(tmp_path):
+            tmp_path.write_text("x")
+        """,
+    )
+    finding = _first_finding(_check(tmp_path))
+    assert finding.level == "integration"
+    assert finding.has_real_io is True
+    assert "tmp_path+write/read" in finding.io_signals
+
+
+def test_tmp_path_to_subprocess_still_e2e(tmp_path: Path) -> None:
+    """True positive: ``subprocess.run([..., str(tmp_path)])`` stays e2e."""
+    _write(
+        tmp_path,
+        "tests/unit/test_foo.py",
+        """
+        import subprocess
+
+        def test_x(tmp_path):
+            subprocess.run(["ls", str(tmp_path)])
+        """,
+    )
+    finding = _first_finding(_check(tmp_path))
+    assert finding.has_subprocess is True
+    assert finding.level == "e2e"
+    assert finding.has_real_io is True
+
+
+def test_tmp_path_ctor_then_method_call_still_integration(tmp_path: Path) -> None:
+    """True positive: constructor result used in method call → integration."""
+    _write(
+        tmp_path,
+        "tests/unit/test_foo.py",
+        """
+        from pathlib import Path
+
+        class Manager:
+            def __init__(self, *, pypirc_path):
+                self.pypirc_path = pypirc_path
+            def save(self, token):
+                return self.pypirc_path.write_text(token)
+
+        def test_x(tmp_path):
+            manager = Manager(pypirc_path=tmp_path / ".pypirc")
+            manager.save("x")
+        """,
+    )
+    finding = _first_finding(_check(tmp_path))
+    assert finding.level == "integration"
+    assert finding.has_real_io is True
+    assert "fixture-arg:tmp_path" in finding.io_signals

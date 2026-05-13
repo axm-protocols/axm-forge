@@ -564,6 +564,7 @@ def _fixture_arg_signals(tree: ast.Module) -> list[str]:
 
 
 def _dotted_call_name(func: ast.Attribute) -> str | None:
+    """Return the dotted name of an attribute call target, or ``None``."""
     parts: list[str] = []
     cur: ast.AST = func
     while isinstance(cur, ast.Attribute):
