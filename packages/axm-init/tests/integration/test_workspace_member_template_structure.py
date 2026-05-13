@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 # Template root = src/axm_init/templates/workspace-member/
 TEMPLATE_ROOT = (
     Path(__file__).resolve().parents[2]
@@ -37,28 +39,20 @@ class TestMemberMkdocsDiataxis:
         assert "Explanation:" in MKDOCS
 
 
-class TestMemberMkdocsNavOnly:
-    """Workspace-member mkdocs.yml must NOT have plugins — parent handles them."""
+class TestMemberMkdocsInheritsFromRoot:
+    """Workspace-member mkdocs.yml must not redeclare blocks set at root."""
 
-    def test_no_plugins_block(self) -> None:
-        """Plugins are declared in the workspace root mkdocs.yml only."""
-        assert "plugins:" not in MKDOCS
-
-
-class TestMemberMkdocsMonorepoCompat:
-    """Workspace-member mkdocs.yml must be monorepo-compatible."""
-
-    def test_no_theme_block(self) -> None:
-        """Theme is inherited from workspace root — no local theme block."""
-        assert "theme:" not in MKDOCS
-
-    def test_no_site_url(self) -> None:
-        """site_url is set at workspace root level."""
-        assert "site_url:" not in MKDOCS
-
-    def test_no_repo_url(self) -> None:
-        """repo_url is set at workspace root level."""
-        assert "repo_url:" not in MKDOCS
+    @pytest.mark.parametrize(
+        "forbidden",
+        [
+            pytest.param("plugins:", id="no_plugins_block"),
+            pytest.param("theme:", id="no_theme_block"),
+            pytest.param("site_url:", id="no_site_url"),
+            pytest.param("repo_url:", id="no_repo_url"),
+        ],
+    )
+    def test_no_block(self, forbidden: str) -> None:
+        assert forbidden not in MKDOCS
 
 
 class TestMemberDocsIndex:

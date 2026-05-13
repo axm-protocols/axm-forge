@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_init.checks.tooling import (
     check_makefile,
     check_precommit_basic,
@@ -101,15 +103,19 @@ class TestCheckPrecommitInstalled:
         assert r.passed is False
         assert "pre-commit install" in r.fix
 
-    def test_fail_git_dir_no_hooks(self, tmp_path: Path) -> None:
-        """.git/ exists but no hooks/ -> FAIL."""
+    @pytest.mark.parametrize(
+        "create_git_dir",
+        [
+            pytest.param(True, id="git_dir_no_hooks"),
+            pytest.param(False, id="no_git_dir"),
+        ],
+    )
+    def test_fail_when_hooks_missing(
+        self, tmp_path: Path, create_git_dir: bool
+    ) -> None:
+        """Config exists but hooks not installed -> FAIL."""
         (tmp_path / ".pre-commit-config.yaml").write_text("repos:\n")
-        (tmp_path / ".git").mkdir()
-        r = check_precommit_installed(tmp_path)
-        assert r.passed is False
-
-    def test_fail_no_git_dir(self, tmp_path: Path) -> None:
-        """Config exists but not a git repo -> FAIL."""
-        (tmp_path / ".pre-commit-config.yaml").write_text("repos:\n")
+        if create_git_dir:
+            (tmp_path / ".git").mkdir()
         r = check_precommit_installed(tmp_path)
         assert r.passed is False

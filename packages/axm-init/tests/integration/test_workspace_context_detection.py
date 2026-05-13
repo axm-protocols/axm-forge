@@ -80,14 +80,24 @@ def member_path(workspace_root: Path) -> Path:
 
 
 class TestDetectContext:
-    def test_detect_standalone(self, standalone_project: Path) -> None:
-        assert detect_context(standalone_project) == ProjectContext.STANDALONE
-
-    def test_detect_workspace(self, workspace_root: Path) -> None:
-        assert detect_context(workspace_root) == ProjectContext.WORKSPACE
-
-    def test_detect_member(self, member_path: Path) -> None:
-        assert detect_context(member_path) == ProjectContext.MEMBER
+    @pytest.mark.parametrize(
+        ("fixture_name", "expected"),
+        [
+            pytest.param(
+                "standalone_project", ProjectContext.STANDALONE, id="standalone"
+            ),
+            pytest.param("workspace_root", ProjectContext.WORKSPACE, id="workspace"),
+            pytest.param("member_path", ProjectContext.MEMBER, id="member"),
+        ],
+    )
+    def test_detect(
+        self,
+        request: pytest.FixtureRequest,
+        fixture_name: str,
+        expected: ProjectContext,
+    ) -> None:
+        path = request.getfixturevalue(fixture_name)
+        assert detect_context(path) == expected
 
 
 # ---------------------------------------------------------------------------

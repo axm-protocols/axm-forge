@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 # Template root = src/axm_init/templates/python-project/{package_name}/
 TEMPLATE_ROOT = (
     Path(__file__).resolve().parents[2]
@@ -76,26 +78,20 @@ class TestTemplateAxmWorkflow:
             TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
         ).exists()
 
-    def test_axm_workflow_has_check_step(self) -> None:
-        """Workflow must run axm-init check via uvx."""
+    @pytest.mark.parametrize(
+        "expected",
+        [
+            pytest.param("uvx axm-init check", id="check_step"),
+            pytest.param("peaceiris/actions-gh-pages", id="badge_push"),
+            pytest.param("axm-protocols/axm-init", id="fetches_logo"),
+        ],
+    )
+    def test_axm_workflow_contains(self, expected: str) -> None:
+        """Workflow must contain expected literal."""
         wf = (
             TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
         ).read_text()
-        assert "uvx axm-init check" in wf
-
-    def test_axm_workflow_has_badge_push(self) -> None:
-        """Workflow must push badge to gh-pages."""
-        wf = (
-            TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
-        ).read_text()
-        assert "peaceiris/actions-gh-pages" in wf
-
-    def test_axm_workflow_fetches_logo(self) -> None:
-        """Workflow must fetch logo from axm-protocols/axm-init repo."""
-        wf = (
-            TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
-        ).read_text()
-        assert "axm-protocols/axm-init" in wf
+        assert expected in wf
 
 
 class TestTemplateAxmAuditWorkflow:
@@ -107,23 +103,17 @@ class TestTemplateAxmAuditWorkflow:
             TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
         ).exists()
 
-    def test_axm_audit_workflow_has_audit_step(self) -> None:
-        """Workflow must run axm-audit via uvx."""
+    @pytest.mark.parametrize(
+        "expected",
+        [
+            pytest.param("uvx axm-audit audit", id="audit_step"),
+            pytest.param("peaceiris/actions-gh-pages", id="badge_push"),
+            pytest.param("axm-protocols/axm-audit", id="fetches_logo"),
+        ],
+    )
+    def test_axm_audit_workflow_contains(self, expected: str) -> None:
+        """Workflow must contain expected literal."""
         wf = (
             TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
         ).read_text()
-        assert "uvx axm-audit audit" in wf
-
-    def test_axm_audit_workflow_has_badge_push(self) -> None:
-        """Workflow must push badge to gh-pages."""
-        wf = (
-            TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
-        ).read_text()
-        assert "peaceiris/actions-gh-pages" in wf
-
-    def test_axm_audit_workflow_fetches_logo(self) -> None:
-        """Workflow must fetch logo from axm-protocols/axm-audit repo."""
-        wf = (
-            TEMPLATE_ROOT / ".github" / "workflows" / "axm-quality.yml.jinja"
-        ).read_text()
-        assert "axm-protocols/axm-audit" in wf
+        assert expected in wf
