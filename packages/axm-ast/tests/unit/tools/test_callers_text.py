@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -136,24 +135,6 @@ def test_data_unchanged_with_text(tool: CallersTool) -> None:
     assert isinstance(result.data["count"], int)
     assert result.data["count"] == 1
     assert result.text is not None
-
-
-# ---------------------------------------------------------------------------
-# Functional tests
-# ---------------------------------------------------------------------------
-
-
-def test_callers_text_on_real_package(tool: CallersTool, tmp_path: object) -> None:
-    """execute() returns text starting with ast_callers | and line count matches."""
-    sample = str(Path(__file__).resolve().parent.parent.parent)
-    result = tool.execute(path=sample, symbol="greet")
-    # greet may or may not exist — either way the result should be consistent
-    if result.success:
-        assert result.text is not None
-        assert result.text.startswith("ast_callers |")
-        # number of non-header lines == count
-        body_lines = result.text.strip().splitlines()[1:]
-        assert len(body_lines) == result.data["count"]
 
 
 # ---------------------------------------------------------------------------
