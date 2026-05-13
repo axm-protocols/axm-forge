@@ -6,7 +6,7 @@ from pathlib import Path
 
 # Template root = src/axm_init/templates/python-project/{package_name}/
 TEMPLATE_ROOT = (
-    Path(__file__).resolve().parents[2]
+    Path(__file__).resolve().parents[3]
     / "src"
     / "axm_init"
     / "templates"
@@ -23,9 +23,9 @@ MAKEFILE = (TEMPLATE_ROOT / "Makefile").read_text()
 DOCS_DIR = TEMPLATE_ROOT / "docs"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────
 # AXM check badge & workflow tests
-# ─────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────
 
 DOCS_INDEX = (DOCS_DIR / "index.md.jinja").read_text()
 
