@@ -39,36 +39,53 @@ def test_check_missing_counterpart_passes(tmp_path: Path, setup_dir: str) -> Non
     assert result.score == 100
 
 
-def test_flags_private_function_import(pkg_root: Path) -> None:
-    _write(
-        pkg_root / "src" / "pkg" / "mod.py",
-        "def _private():\n    return 1\n",
-    )
-    _write(
-        pkg_root / "tests" / "test_x.py",
-        "from pkg.mod import _private\n",
-    )
-    result = PrivateImportsRule().check(pkg_root)
-    assert result.passed is False
+@pytest.mark.parametrize(
+    ("src_content", "test_import", "include_constants", "expected_kind"),
+    [
+        pytest.param(
+            "def _private():\n    return 1\n",
+            "from pkg.mod import _private\n",
+            False,
+            "function",
+            id="private_function",
+        ),
+        pytest.param(
+            "class _Base:\n    pass\n",
+            "from pkg.mod import _Base\n",
+            False,
+            "class",
+            id="private_class",
+        ),
+        pytest.param(
+            "_REGISTRY = {}\n",
+            "from pkg.mod import _REGISTRY\n",
+            True,
+            "constant",
+            id="upper_case_when_include_constants",
+        ),
+        pytest.param(
+            "def other():\n    return 1\n",
+            "from pkg.mod import _ghost\n",
+            False,
+            "unknown",
+            id="unknown_kind_fallback",
+        ),
+    ],
+)
+def test_flags_private_import_kind(
+    pkg_root: Path,
+    src_content: str,
+    test_import: str,
+    include_constants: bool,
+    expected_kind: str,
+) -> None:
+    _write(pkg_root / "src" / "pkg" / "mod.py", src_content)
+    _write(pkg_root / "tests" / "test_x.py", test_import)
+    rule = PrivateImportsRule(include_constants=include_constants)
+    result = rule.check(pkg_root)
     findings = result.details["findings"]
     assert len(findings) == 1
-    assert findings[0]["symbol_kind"] == "function"
-    assert findings[0]["private_symbol"] == "_private"
-
-
-def test_flags_private_class_import(pkg_root: Path) -> None:
-    _write(
-        pkg_root / "src" / "pkg" / "mod.py",
-        "class _Base:\n    pass\n",
-    )
-    _write(
-        pkg_root / "tests" / "test_x.py",
-        "from pkg.mod import _Base\n",
-    )
-    result = PrivateImportsRule().check(pkg_root)
-    findings = result.details["findings"]
-    assert len(findings) == 1
-    assert findings[0]["symbol_kind"] == "class"
+    assert findings[0]["symbol_kind"] == expected_kind
 
 
 @pytest.mark.parametrize(
@@ -96,21 +113,6 @@ def test_skips_non_flagged_symbols(
     result = PrivateImportsRule().check(pkg_root)
     assert result.passed is True
     assert result.details["findings"] == []
-
-
-def test_flags_upper_case_when_include_constants(pkg_root: Path) -> None:
-    _write(
-        pkg_root / "src" / "pkg" / "mod.py",
-        "_REGISTRY = {}\n",
-    )
-    _write(
-        pkg_root / "tests" / "test_x.py",
-        "from pkg.mod import _REGISTRY\n",
-    )
-    result = PrivateImportsRule(include_constants=True).check(pkg_root)
-    findings = result.details["findings"]
-    assert len(findings) == 1
-    assert findings[0]["symbol_kind"] == "constant"
 
 
 def test_severity_is_error(pkg_root: Path) -> None:
@@ -157,21 +159,6 @@ def test_message_links_to_docs(pkg_root: Path) -> None:
     )
     result = PrivateImportsRule().check(pkg_root)
     assert "docs/test_quality.md#private-imports" in result.message
-
-
-def test_unknown_kind_fallback(pkg_root: Path) -> None:
-    _write(
-        pkg_root / "src" / "pkg" / "mod.py",
-        "def other():\n    return 1\n",
-    )
-    _write(
-        pkg_root / "tests" / "test_x.py",
-        "from pkg.mod import _ghost\n",
-    )
-    result = PrivateImportsRule().check(pkg_root)
-    findings = result.details["findings"]
-    assert len(findings) == 1
-    assert findings[0]["symbol_kind"] == "unknown"
 
 
 def test_private_module_same_package_allowed(tmp_path: Path) -> None:
@@ -260,49 +247,43 @@ def test_import_module_attribute_flagged(pkg_root: Path) -> None:
     assert attr[0]["private_symbol"] == "_var"
 
 
-def test_import_module_via_root_flagged(pkg_root: Path) -> None:
-    _write(
-        pkg_root / "src" / "pkg" / "mod.py",
-        "_var = 1\n",
-    )
-    _write(
-        pkg_root / "tests" / "test_x.py",
-        "import pkg.mod\n\ndef test():\n    return pkg.mod._var\n",
-    )
+@pytest.mark.parametrize(
+    ("src_content", "test_content", "expected_symbol"),
+    [
+        pytest.param(
+            "_var = 1\n",
+            "import pkg.mod\n\ndef test():\n    return pkg.mod._var\n",
+            "_var",
+            id="import_module_via_root",
+        ),
+        pytest.param(
+            "class Cls:\n    def _m(self):\n        return 1\n",
+            "from pkg.mod import Cls as C\n\ndef test():\n    C._m()\n",
+            "_m",
+            id="asname_import_resolved",
+        ),
+        pytest.param(
+            "class Cls:\n    def _method(self):\n        return 1\n",
+            "import pkg.mod as mod\n\ndef test():\n    mod.Cls._method()\n",
+            "_method",
+            id="deep_attribute_chain",
+        ),
+    ],
+)
+def test_attribute_access_resolved_to_pkg_mod(
+    pkg_root: Path,
+    src_content: str,
+    test_content: str,
+    expected_symbol: str,
+) -> None:
+    """Various import styles all resolve attribute access to ``pkg.mod``."""
+    _write(pkg_root / "src" / "pkg" / "mod.py", src_content)
+    _write(pkg_root / "tests" / "test_x.py", test_content)
     result = PrivateImportsRule().check(pkg_root)
     attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
     assert len(attr) == 1
     assert attr[0]["import_module"] == "pkg.mod"
-
-
-def test_asname_import_resolved(pkg_root: Path) -> None:
-    _write(
-        pkg_root / "src" / "pkg" / "mod.py",
-        "class Cls:\n    def _m(self):\n        return 1\n",
-    )
-    _write(
-        pkg_root / "tests" / "test_x.py",
-        "from pkg.mod import Cls as C\n\ndef test():\n    C._m()\n",
-    )
-    result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
-    assert len(attr) == 1
-    assert attr[0]["import_module"] == "pkg.mod"
-
-
-def test_deep_attribute_chain_flagged(pkg_root: Path) -> None:
-    _write(
-        pkg_root / "src" / "pkg" / "mod.py",
-        "class Cls:\n    def _method(self):\n        return 1\n",
-    )
-    _write(
-        pkg_root / "tests" / "test_x.py",
-        "import pkg.mod as mod\n\ndef test():\n    mod.Cls._method()\n",
-    )
-    result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
-    assert len(attr) == 1
-    assert attr[0]["private_symbol"] == "_method"
+    assert attr[0]["private_symbol"] == expected_symbol
 
 
 def test_inherited_3rd_party_attr_skipped(pkg_root: Path) -> None:
