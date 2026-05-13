@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 
 class TestAtomicFileWrites:
     """write_file and create_dir succeed against a real filesystem."""
@@ -33,24 +35,19 @@ class TestAtomicFileWrites:
         assert result is True
         assert target.exists()
 
-    def test_create_dir_creates_directory(self, tmp_path: Path) -> None:
-        """create_dir creates a new directory."""
+    @pytest.mark.parametrize(
+        "relpath",
+        [
+            pytest.param(("newdir",), id="flat"),
+            pytest.param(("a", "b", "c"), id="nested"),
+        ],
+    )
+    def test_create_dir(self, tmp_path: Path, relpath: tuple[str, ...]) -> None:
+        """create_dir creates flat and nested directories."""
         from axm_init.adapters.filesystem import FileSystemAdapter
 
         adapter = FileSystemAdapter()
-        target = tmp_path / "newdir"
-
-        result = adapter.create_dir(target)
-
-        assert result is True
-        assert target.is_dir()
-
-    def test_create_dir_nested(self, tmp_path: Path) -> None:
-        """create_dir creates nested directories."""
-        from axm_init.adapters.filesystem import FileSystemAdapter
-
-        adapter = FileSystemAdapter()
-        target = tmp_path / "a" / "b" / "c"
+        target = tmp_path.joinpath(*relpath)
 
         result = adapter.create_dir(target)
 

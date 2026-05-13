@@ -121,22 +121,23 @@ def _mock_scaffold(tmp_path: Path) -> Iterator[tuple[Path, MagicMock]]:
 class TestScaffoldReturnsFileList:
     """AC1: scaffold_project() returns a list of all created file paths."""
 
-    def test_scaffold_returns_file_list(self, tmp_path: Path) -> None:
-        """Mock scaffold returns non-empty files list."""
-        files = _build_scaffold_tree(tmp_path, "file-list-test")
-        result = ScaffoldResult(
-            success=True,
-            path=str(tmp_path),
-            message="ok",
-            files_created=files,
-        )
-        assert result.success is True
-        assert len(result.files_created) > 0, "files list should not be empty"
+    @pytest.mark.parametrize(
+        ("name", "pre_existing"),
+        [
+            pytest.param("file-list-test", False, id="empty_dir"),
+            pytest.param("existing-dir-test", True, id="existing_file_in_dir"),
+        ],
+    )
+    def test_scaffold_returns_file_list(
+        self, tmp_path: Path, name: str, pre_existing: bool
+    ) -> None:
+        """Mock scaffold returns non-empty files list.
 
-    def test_scaffold_file_list_in_existing_dir(self, tmp_path: Path) -> None:
-        """Edge case: existing file in dir doesn't break scaffold result."""
-        (tmp_path / "existing.txt").write_text("pre-existing")
-        files = _build_scaffold_tree(tmp_path, "existing-dir-test")
+        Covers with or without pre-existing files.
+        """
+        if pre_existing:
+            (tmp_path / "existing.txt").write_text("pre-existing")
+        files = _build_scaffold_tree(tmp_path, name)
         result = ScaffoldResult(
             success=True,
             path=str(tmp_path),
