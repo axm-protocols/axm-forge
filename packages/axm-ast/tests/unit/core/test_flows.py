@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from axm_ast.core.flows import EntryPoint, FlowStep, format_flows
+from axm_ast.core.flows import EntryPoint, FlowStep, format_flow_compact, format_flows
 
 
 class TestEntryPointExtraForbid:
@@ -160,3 +160,11 @@ class TestResolveRelativeModule:
 
         result = _resolve_relative_module(".", "django.http")
         assert result == "django.http"
+
+
+class TestEmptyFlowFormat:
+    """format_flow_compact pure-function behavior on empty input."""
+
+    def test_format_compact_empty_input(self) -> None:
+        """format_flow_compact([]) returns empty string."""
+        assert format_flow_compact([]) == ""

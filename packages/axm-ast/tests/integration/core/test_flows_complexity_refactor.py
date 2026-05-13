@@ -12,7 +12,6 @@ from pathlib import Path
 
 from axm_ast.core.cache import get_package
 from axm_ast.core.flows import (
-    format_flow_compact,
     trace_flow,
 )
 from axm_ast.hooks.flows import FlowsHook
@@ -218,7 +217,7 @@ class TestReexportChain:
         assert traces  # non-empty
 
 
-class TestEmptyFlow:
+class TestEmptyFlowTrace:
     """Entry with no callees returns empty steps list."""
 
     def test_no_callees_returns_empty_steps(self, tmp_path: Path) -> None:
@@ -238,7 +237,3 @@ class TestEmptyFlow:
         if steps:
             # Only the root entry itself, no children
             assert all(s.depth == 0 for s in steps)
-
-    def test_format_compact_empty_input(self) -> None:
-        """format_flow_compact([]) returns empty string."""
-        assert format_flow_compact([]) == ""
