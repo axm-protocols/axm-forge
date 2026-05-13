@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_audit.core.rules._helpers import iter_src_dirs
 from axm_audit.core.rules.base import ProjectRule
 from axm_audit.models.results import CheckResult, Severity
@@ -54,28 +56,37 @@ def test_check_src_prefers_single_when_both_present(tmp_path: Path) -> None:
     assert targets == [tmp_path / "src"]
 
 
-def test_iter_src_dirs_single_package(tmp_path: Path) -> None:
-    (tmp_path / "src").mkdir()
-    assert iter_src_dirs(tmp_path) == [tmp_path / "src"]
-
-
-def test_iter_src_dirs_multi_package_sorted(tmp_path: Path) -> None:
-    for name in ("c", "a", "b"):
-        (tmp_path / "packages" / name / "src").mkdir(parents=True)
-    assert iter_src_dirs(tmp_path) == [
-        tmp_path / "packages" / "a" / "src",
-        tmp_path / "packages" / "b" / "src",
-        tmp_path / "packages" / "c" / "src",
-    ]
-
-
-def test_iter_src_dirs_packages_dir_with_no_src_subdir_is_skipped(
+@pytest.mark.parametrize(
+    ("dirs_to_make", "expected_relative"),
+    [
+        pytest.param(
+            ("src",),
+            ("src",),
+            id="single_package",
+        ),
+        pytest.param(
+            ("packages/c/src", "packages/a/src", "packages/b/src"),
+            ("packages/a/src", "packages/b/src", "packages/c/src"),
+            id="multi_package_sorted",
+        ),
+        pytest.param(
+            ("packages/a", "packages/b/src"),
+            ("packages/b/src",),
+            id="packages_dir_with_no_src_subdir_is_skipped",
+        ),
+        pytest.param(
+            (),
+            (),
+            id="empty_when_no_layout",
+        ),
+    ],
+)
+def test_iter_src_dirs(
     tmp_path: Path,
+    dirs_to_make: tuple[str, ...],
+    expected_relative: tuple[str, ...],
 ) -> None:
-    (tmp_path / "packages" / "a").mkdir(parents=True)
-    (tmp_path / "packages" / "b" / "src").mkdir(parents=True)
-    assert iter_src_dirs(tmp_path) == [tmp_path / "packages" / "b" / "src"]
-
-
-def test_iter_src_dirs_empty_when_no_layout(tmp_path: Path) -> None:
-    assert iter_src_dirs(tmp_path) == []
+    for rel in dirs_to_make:
+        (tmp_path / rel).mkdir(parents=True)
+    expected = [tmp_path / rel for rel in expected_relative]
+    assert iter_src_dirs(tmp_path) == expected
