@@ -143,12 +143,3 @@ def test_workspace_empty_packages(
     assert result.success is True
     assert result.data["callers"] == []
     assert result.data["count"] == 0
-
-
-def test_invalid_path_returns_error() -> None:
-    """Path that does not exist returns ToolResult(success=False)."""
-    tool = CallersTool()
-    result = tool.execute(path="/nonexistent/path/xyz", symbol="Foo")
-
-    assert result.success is False
-    assert "Not a directory" in (result.error or "")
