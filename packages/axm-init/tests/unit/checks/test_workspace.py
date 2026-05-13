@@ -10,4 +10,4 @@ without duplicating test logic.
 
 from __future__ import annotations
 
-from tests.unit.checks.test_workspace_checks import *  # noqa: F403
+from tests.integration.test_workspace_checks import *  # noqa: F403

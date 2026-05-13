@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-TEMPLATES_ROOT = Path(__file__).resolve().parents[3] / "src" / "axm_init" / "templates"
+TEMPLATES_ROOT = Path(__file__).resolve().parents[2] / "src" / "axm_init" / "templates"
 
 # Templates that produce a *package* (and therefore must ship the pyramid).
 # `uv-workspace` is excluded: it scaffolds the workspace shell, not a package.
