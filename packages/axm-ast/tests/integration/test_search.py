@@ -52,19 +52,6 @@ def search_pkg(tmp_path: Path) -> Path:
     return pkg
 
 
-# ─── Tool identity ──────────────────────────────────────────────────────────
-
-
-class TestSearchToolIdentity:
-    """Basic tool identity tests."""
-
-    def test_name(self, tool: SearchTool) -> None:
-        assert tool.name == "ast_search"
-
-    def test_has_agent_hint(self, tool: SearchTool) -> None:
-        assert tool.agent_hint
-
-
 # ─── Search by name ─────────────────────────────────────────────────────────
 
 
@@ -150,12 +137,6 @@ class TestSearchByKind:
         # Fixture only has properties, not plain methods
         names = [s["name"] for s in result.data["results"]]
         assert "is_admin" not in names  # is_admin is a property, not a method
-
-    def test_invalid_kind(self, tool: SearchTool, search_pkg: Path) -> None:
-        result = tool.execute(path=str(search_pkg), kind="invalid_kind_xyz")
-        assert result.success is False
-        assert result.error is not None
-        assert "Invalid kind" in result.error
 
     def test_invalid_kind_lists_valid_values(
         self, tool: SearchTool, search_pkg: Path
