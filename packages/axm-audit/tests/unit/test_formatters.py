@@ -336,48 +336,56 @@ class _DropNullsAuditResult:
 
 
 class TestFormatAgentDropNulls:
-    def test_format_agent_drops_null_keys_failed(self) -> None:
-        """Failed dict with all nullable fields None has only rule_id + message."""
+    @pytest.mark.parametrize(
+        ("check_kwargs", "expected_keys"),
+        [
+            pytest.param(
+                {"rule_id": "R001", "message": "something failed"},
+                {"rule_id", "message"},
+                id="all_nullables_none_yields_rule_id_message",
+            ),
+            pytest.param(
+                {
+                    "rule_id": "R002",
+                    "message": "check failed",
+                    "text": "• issue",
+                    "fix_hint": "fix it",
+                    "score": 50,
+                },
+                {"rule_id", "message", "text", "fix_hint"},
+                id="text_and_fix_hint_kept",
+            ),
+            pytest.param(
+                {
+                    "rule_id": "R010",
+                    "message": "full check",
+                    "text": "detail text",
+                    "fix_hint": "try this",
+                    "score": 80,
+                },
+                {"rule_id", "message", "text", "fix_hint"},
+                id="all_keys_text_wins_xor",
+            ),
+            pytest.param(
+                {"rule_id": "R011", "message": "minimal"},
+                {"rule_id", "message"},
+                id="only_nullables_null",
+            ),
+        ],
+    )
+    def test_format_agent_failed_key_set(
+        self,
+        check_kwargs: dict[str, Any],
+        expected_keys: set[str],
+    ) -> None:
+        """Failed entry exposes exactly the non-null keys (text XOR details)."""
         result = _DropNullsAuditResult(
-            checks=[
-                _DropNullsCheckResult(
-                    rule_id="R001",
-                    message="something failed",
-                    passed=False,
-                    details=None,
-                    text=None,
-                    fix_hint=None,
-                ),
-            ],
+            checks=[_DropNullsCheckResult(passed=False, **check_kwargs)],
         )
         output = format_agent(result)
         failed = output["failed"]
         assert len(failed) == 1
-        assert set(failed[0].keys()) == {"rule_id", "message"}
-
-    def test_format_agent_keeps_non_null_keys_failed(self) -> None:
-        """Failed dict with text and details — only text emitted (XOR)."""
-        result = _DropNullsAuditResult(
-            checks=[
-                _DropNullsCheckResult(
-                    rule_id="R002",
-                    message="check failed",
-                    passed=False,
-                    score=50,
-                    text="• issue",
-                    fix_hint="fix it",
-                ),
-            ],
-        )
-        output = format_agent(result)
-        failed = output["failed"]
-        assert len(failed) == 1
-        assert set(failed[0].keys()) == {
-            "rule_id",
-            "message",
-            "text",
-            "fix_hint",
-        }
+        assert set(failed[0].keys()) == expected_keys
 
     def test_format_agent_drops_null_fix_hint_passed(self) -> None:
         """Passed actionable dict with fix_hint=None omits fix_hint key."""
@@ -397,47 +405,6 @@ class TestFormatAgentDropNulls:
         assert len(passed) == 1
         assert isinstance(passed[0], dict)
         assert "fix_hint" not in passed[0]
-
-    def test_format_agent_all_keys_present_failed(self) -> None:
-        """When all fields are populated, text wins — details excluded (XOR)."""
-        result = _DropNullsAuditResult(
-            checks=[
-                _DropNullsCheckResult(
-                    rule_id="R010",
-                    message="full check",
-                    passed=False,
-                    text="detail text",
-                    score=80,
-                    fix_hint="try this",
-                ),
-            ],
-        )
-        output = format_agent(result)
-        failed = output["failed"]
-        assert set(failed[0].keys()) == {
-            "rule_id",
-            "message",
-            "text",
-            "fix_hint",
-        }
-
-    def test_format_agent_only_nullables_null_failed(self) -> None:
-        """Failed dict with all nullable fields None yields only rule_id + message."""
-        result = _DropNullsAuditResult(
-            checks=[
-                _DropNullsCheckResult(
-                    rule_id="R011",
-                    message="minimal",
-                    passed=False,
-                    details=None,
-                    text=None,
-                    fix_hint=None,
-                ),
-            ],
-        )
-        output = format_agent(result)
-        failed = output["failed"]
-        assert set(failed[0].keys()) == {"rule_id", "message"}
 
     def test_format_agent_mixed_nulls_failed(self) -> None:
         """Failed dict with text=None but details and fix_hint present has 4 keys."""
