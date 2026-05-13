@@ -58,41 +58,34 @@ class TestLoadExclusionsValid:
 
 
 class TestLoadExclusionsInvalidWarns:
-    def test_non_string_entries_warn(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    @pytest.mark.parametrize(
+        ("exclude_literal", "warn_substring"),
+        [
+            pytest.param("[42]", "Invalid exclusion entry", id="non_string_entry"),
+            pytest.param("42", "Invalid [tool.axm-init].exclude", id="non_list_value"),
+        ],
+    )
+    def test_invalid_exclude_warns(
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+        exclude_literal: str,
+        warn_substring: str,
     ) -> None:
-        """Non-string entries in exclude list → logged warning."""
+        """Invalid exclude values → empty set + logged warning."""
         (tmp_path / "pyproject.toml").write_text(
-            dedent("""\
+            dedent(f"""\
             [project]
             name = "pkg"
 
             [tool.axm-init]
-            exclude = [42]
+            exclude = {exclude_literal}
         """)
         )
         with caplog.at_level(logging.WARNING):
             result = load_exclusions(tmp_path)
         assert result == set()
-        assert "Invalid exclusion entry" in caplog.text
-
-    def test_non_list_value_warns(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """exclude = 42 (not list, not string) → logged warning."""
-        (tmp_path / "pyproject.toml").write_text(
-            dedent("""\
-            [project]
-            name = "pkg"
-
-            [tool.axm-init]
-            exclude = 42
-        """)
-        )
-        with caplog.at_level(logging.WARNING):
-            result = load_exclusions(tmp_path)
-        assert result == set()
-        assert "Invalid [tool.axm-init].exclude" in caplog.text
+        assert warn_substring in caplog.text
 
 
 # ---------------------------------------------------------------------------
