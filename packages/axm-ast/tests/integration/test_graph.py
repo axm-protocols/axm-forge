@@ -46,46 +46,6 @@ def fake_workspace_no_deps():
     return ws, graph
 
 
-# ---------- Unit tests ----------
-
-
-def test_workspace_graph_text_format(
-    graph_tool: GraphTool, fake_workspace: tuple[SimpleNamespace, dict[str, list[str]]]
-) -> None:
-    """_execute_workspace format='text' returns data['text'] with Nodes: and Edges:."""
-    ws, graph = fake_workspace
-    with (
-        patch("axm_ast.core.workspace.analyze_workspace", return_value=ws),
-        patch("axm_ast.core.workspace.build_workspace_dep_graph", return_value=graph),
-    ):
-        result = graph_tool._execute_workspace(Path("/fake"), format="text")
-
-    assert result.success is True
-    text = result.data["text"]
-    assert isinstance(text, str)
-    assert "Nodes:" in text
-    assert "Edges:" in text
-
-
-def test_workspace_graph_text_contains_packages(
-    graph_tool: GraphTool, fake_workspace: tuple[SimpleNamespace, dict[str, list[str]]]
-) -> None:
-    """Text output lists known package names."""
-    ws, graph = fake_workspace
-    with (
-        patch("axm_ast.core.workspace.analyze_workspace", return_value=ws),
-        patch("axm_ast.core.workspace.build_workspace_dep_graph", return_value=graph),
-    ):
-        result = graph_tool._execute_workspace(Path("/fake"), format="text")
-
-    text = result.data["text"]
-    assert "axm-alpha" in text
-    assert "axm-beta" in text
-
-
-# ---------- Functional tests ----------
-
-
 def test_graph_tool_workspace_text(
     graph_tool: GraphTool, fake_workspace: tuple[SimpleNamespace, dict[str, list[str]]]
 ) -> None:
