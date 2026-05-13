@@ -92,7 +92,7 @@ class TestCalleesDogfood:
     """Run on axm-ast itself — trace_flow has known callees."""
 
     def test_callees_dogfood(self) -> None:
-        src_path = Path(__file__).parent.parent / "src" / "axm_ast"
+        src_path = Path(__file__).parent.parent.parent / "src" / "axm_ast"
         if not src_path.exists():
             return  # Skip if not in dev layout
         pkg = analyze_package(src_path)
@@ -179,7 +179,7 @@ class TestCalleesCLI:
             ],
             capture_output=True,
             text=True,
-            cwd=Path(__file__).parent.parent,
+            cwd=Path(__file__).parent.parent.parent,
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -199,7 +199,7 @@ class TestCalleesCLI:
             ["uv", "run", "axm-ast", "callees", str(pkg_path), "--symbol", "noop"],
             capture_output=True,
             text=True,
-            cwd=Path(__file__).parent.parent,
+            cwd=Path(__file__).parent.parent.parent,
         )
         assert result.returncode == 0
         assert "No callees" in result.stdout or "📭" in result.stdout
