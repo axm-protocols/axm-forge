@@ -74,11 +74,26 @@ class TestCheckSelfTest:
 # --- workspace scaffold flags ---
 
 
-class TestCliScaffoldWorkspace:
-    """AC1: --workspace invokes workspace scaffold."""
+class TestCliScaffoldTemplateRouting:
+    """AC1/AC4: --workspace flag routes to correct template."""
 
-    def test_cli_scaffold_workspace(self, tmp_path: Path) -> None:
-        """scaffold --workspace routes to workspace template."""
+    @pytest.mark.parametrize(
+        ("name", "workspace", "expected_in_path"),
+        [
+            pytest.param("test-ws", True, "workspace", id="workspace_flag"),
+            pytest.param(
+                "test-project", False, "python-project", id="default_standalone"
+            ),
+        ],
+    )
+    def test_cli_scaffold_template_routing(
+        self,
+        tmp_path: Path,
+        name: str,
+        workspace: bool,
+        expected_in_path: str,
+    ) -> None:
+        """scaffold routes to workspace or standalone template based on flag."""
         from axm_init.cli import scaffold
 
         mock_result = MagicMock()
@@ -91,46 +106,18 @@ class TestCliScaffoldWorkspace:
             mock_copier.copy.return_value = mock_result
             mock_cls.return_value = mock_copier
 
-            scaffold(
-                str(tmp_path),
-                name="test-ws",
-                org="test-org",
-                author="Test",
-                email="test@test.com",
-                workspace=True,
-            )
+            kwargs: dict[str, object] = {
+                "name": name,
+                "org": "test-org",
+                "author": "Test",
+                "email": "test@test.com",
+            }
+            if workspace:
+                kwargs["workspace"] = True
+            scaffold(str(tmp_path), **kwargs)
 
         call_args = mock_copier.copy.call_args[0][0]
-        assert "workspace" in str(call_args.template_path).lower()
-
-
-class TestCliScaffoldDefaultUnchanged:
-    """AC4: Default scaffold (no flags) uses standalone template."""
-
-    def test_cli_scaffold_default_unchanged(self, tmp_path: Path) -> None:
-        """Default scaffold produces standalone package."""
-        from axm_init.cli import scaffold
-
-        mock_result = MagicMock()
-        mock_result.success = True
-        mock_result.files_created = [tmp_path / "pyproject.toml"]
-        mock_result.message = ""
-
-        with patch("axm_init.adapters.copier.CopierAdapter") as mock_cls:
-            mock_copier = MagicMock()
-            mock_copier.copy.return_value = mock_result
-            mock_cls.return_value = mock_copier
-
-            scaffold(
-                str(tmp_path),
-                name="test-project",
-                org="test-org",
-                author="Test",
-                email="test@test.com",
-            )
-
-        call_args = mock_copier.copy.call_args[0][0]
-        assert "python-project" in str(call_args.template_path).lower()
+        assert expected_in_path in str(call_args.template_path).lower()
 
 
 class TestCliScaffoldMutualExclusive:

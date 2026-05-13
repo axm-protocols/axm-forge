@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 # ── Member-dir resolution edge cases (via public check_members_consistent) ──
 
 
@@ -15,30 +17,25 @@ class TestResolveMemberDirsEdge:
     same branches that previously imported _resolve_member_dirs directly.
     """
 
-    def test_no_pyproject_returns_empty(self, tmp_path: Path) -> None:
-        """No pyproject.toml → check passes with "No members yet"."""
+    @pytest.mark.parametrize(
+        "pyproject_content",
+        [
+            pytest.param(None, id="no_pyproject"),
+            pytest.param(
+                '[project]\nname = "ws"\n[tool.uv.workspace]\nmembers = []\n',
+                id="empty_members",
+            ),
+            pytest.param('[project]\nname = "ws"\n', id="no_workspace_section"),
+        ],
+    )
+    def test_no_members_returns_empty(
+        self, tmp_path: Path, pyproject_content: str | None
+    ) -> None:
+        """Empty/absent member resolution → check passes with 'No members yet'."""
         from axm_init.checks.workspace import check_members_consistent
 
-        result = check_members_consistent(tmp_path)
-        assert result.passed
-        assert "No members yet" in result.message
-
-    def test_no_member_globs_returns_empty(self, tmp_path: Path) -> None:
-        """Workspace section with empty members → check passes with "No members yet"."""
-        from axm_init.checks.workspace import check_members_consistent
-
-        (tmp_path / "pyproject.toml").write_text(
-            '[project]\nname = "ws"\n[tool.uv.workspace]\nmembers = []\n'
-        )
-        result = check_members_consistent(tmp_path)
-        assert result.passed
-        assert "No members yet" in result.message
-
-    def test_no_workspace_section_returns_empty(self, tmp_path: Path) -> None:
-        """No workspace section → check passes with 'No members yet'."""
-        from axm_init.checks.workspace import check_members_consistent
-
-        (tmp_path / "pyproject.toml").write_text('[project]\nname = "ws"\n')
+        if pyproject_content is not None:
+            (tmp_path / "pyproject.toml").write_text(pyproject_content)
         result = check_members_consistent(tmp_path)
         assert result.passed
         assert "No members yet" in result.message
