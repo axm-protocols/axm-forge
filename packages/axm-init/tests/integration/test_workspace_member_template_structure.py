@@ -26,17 +26,17 @@ COPIER_YML = (TEMPLATE_ROOT / "copier.yml").read_text()
 class TestMemberMkdocsDiataxis:
     """mkdocs.yml must have Diátaxis nav structure."""
 
-    def test_tutorials_section(self) -> None:
-        assert "Tutorials:" in MKDOCS
-
-    def test_howto_section(self) -> None:
-        assert "How-To" in MKDOCS
-
-    def test_reference_section(self) -> None:
-        assert "Reference:" in MKDOCS
-
-    def test_explanation_section(self) -> None:
-        assert "Explanation:" in MKDOCS
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("Tutorials:", id="tutorials_section"),
+            pytest.param("How-To", id="howto_section"),
+            pytest.param("Reference:", id="reference_section"),
+            pytest.param("Explanation:", id="explanation_section"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in MKDOCS
 
 
 class TestMemberMkdocsInheritsFromRoot:
@@ -58,30 +58,24 @@ class TestMemberMkdocsInheritsFromRoot:
 class TestMemberDocsIndex:
     """docs/index.md must follow workspace-member standard."""
 
-    def test_has_member_name_heading(self) -> None:
-        assert "{{ member_name }}" in DOCS_INDEX
-
-    def test_has_description(self) -> None:
-        assert "{{ description }}" in DOCS_INDEX
-
-    def test_has_install_section(self) -> None:
-        assert "## Installation" in DOCS_INDEX
-
-    def test_has_quick_start(self) -> None:
-        assert "## Quick Start" in DOCS_INDEX
-
-    def test_has_features(self) -> None:
-        assert "## Features" in DOCS_INDEX
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("{{ member_name }}", id="has_member_name_heading"),
+            pytest.param("{{ description }}", id="has_description"),
+            pytest.param("## Installation", id="has_install_section"),
+            pytest.param("## Quick Start", id="has_quick_start"),
+            pytest.param("## Features", id="has_features"),
+            pytest.param("axm-init.json", id="has_axm_init_badge"),
+            pytest.param("axm-audit.json", id="has_axm_audit_badge"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in DOCS_INDEX
 
     def test_has_cta_buttons(self) -> None:
         assert "Get Started" in DOCS_INDEX
         assert "Reference" in DOCS_INDEX
-
-    def test_has_axm_init_badge(self) -> None:
-        assert "axm-init.json" in DOCS_INDEX
-
-    def test_has_axm_audit_badge(self) -> None:
-        assert "axm-audit.json" in DOCS_INDEX
 
     def test_uses_workspace_badge_paths(self) -> None:
         """Badge URLs must use workspace_name/member_name path pattern."""
@@ -92,31 +86,30 @@ class TestMemberDocsIndex:
 class TestMemberReadme:
     """README.md must follow workspace-member standard."""
 
-    def test_has_development_section(self) -> None:
-        assert "## Development" in README
-
-    def test_has_license_section(self) -> None:
-        assert "## License" in README
-
-    def test_readme_has_axm_audit_badge(self) -> None:
-        """README must link to the axm-audit.json endpoint badge."""
-        assert "axm-audit.json" in README
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("## Development", id="has_development_section"),
+            pytest.param("## License", id="has_license_section"),
+            pytest.param("axm-audit.json", id="readme_has_axm_audit_badge"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in README
 
 
 class TestMemberCopierVariables:
     """copier.yml must define all variables used by doc templates."""
 
-    def test_has_member_name(self) -> None:
-        assert "member_name:" in COPIER_YML
-
-    def test_has_module_name(self) -> None:
-        assert "module_name:" in COPIER_YML
-
-    def test_has_workspace_name(self) -> None:
-        assert "workspace_name:" in COPIER_YML
-
-    def test_has_org(self) -> None:
-        assert "org:" in COPIER_YML
-
-    def test_has_description(self) -> None:
-        assert "description:" in COPIER_YML
+    @pytest.mark.parametrize(
+        "needle",
+        [
+            pytest.param("member_name:", id="has_member_name"),
+            pytest.param("module_name:", id="has_module_name"),
+            pytest.param("workspace_name:", id="has_workspace_name"),
+            pytest.param("org:", id="has_org"),
+            pytest.param("description:", id="has_description"),
+        ],
+    )
+    def test_contains(self, needle: str) -> None:
+        assert needle in COPIER_YML
