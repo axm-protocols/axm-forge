@@ -9,7 +9,7 @@ import pytest
 from axm_ast.tools.graph import GraphTool
 
 AXM_AST_PATH = str(
-    Path(__file__).resolve().parents[2]  # tests/functional/.. -> axm-ast root
+    Path(__file__).resolve().parents[3]  # tests/unit/tools/.. -> axm-ast root
 )
 
 
