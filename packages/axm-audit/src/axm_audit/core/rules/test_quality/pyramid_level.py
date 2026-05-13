@@ -25,8 +25,11 @@ from axm_audit.core.rules.test_quality._shared import (
     _FIXTURE_MOCK_PREFIXES,
     _FIXTURE_MOCK_SUBSTRS,
     _FIXTURE_NAME_SUFFIXES,
+    _IO_ATTRS,
+    _IO_CALLS,
     _IO_FIXTURES,
     _IO_WRITER_ATTRS,
+    _dotted_call_name,
     analyze_imports,
     current_level_from_path,
     detect_real_io,
@@ -52,6 +55,17 @@ __all__ = [
 
 
 _TMP_PATH_NAMES: frozenset[str] = frozenset({"tmp_path", "tmp_path_factory"})
+
+# Context-manager calls that catch the runtime effect of the wrapped block.
+# When every reference to ``tmp_path`` lives inside one of these blocks the
+# test exercises pre-flight validation, not real I/O.
+_RAISES_CMS: frozenset[str] = frozenset({"raises", "warns", "deprecated_call"})
+
+# Pure structural wrappers around a path-like value. ``str(tmp_path)`` /
+# ``Path(tmp_path)`` / ``os.fspath(tmp_path)`` produce data, never I/O.
+_STRUCTURAL_WRAPPERS: frozenset[str] = frozenset(
+    {"str", "repr", "Path", "PurePath", "PurePosixPath", "PureWindowsPath", "fspath"}
+)
 _TAINT_PASSES = 2
 
 
@@ -143,13 +157,192 @@ def _is_mock_arg(name: str) -> bool:
     return any(s in lower for s in _FIXTURE_MOCK_SUBSTRS)
 
 
+def _is_pytest_raises_call(call: ast.Call) -> bool:
+    """True for ``pytest.raises(...)`` / ``raises(...)`` / ``pytest.warns(...)`` etc."""
+    if isinstance(call.func, ast.Attribute):
+        return call.func.attr in _RAISES_CMS
+    if isinstance(call.func, ast.Name):
+        return call.func.id in _RAISES_CMS
+    return False
+
+
+def _collect_pytest_raises_blocks(func: ast.FunctionDef) -> list[ast.With]:
+    """Return every ``with pytest.raises(...)`` / ``pytest.warns(...)`` block."""
+    blocks: list[ast.With] = []
+    for node in ast.walk(func):
+        if not isinstance(node, ast.With):
+            continue
+        if any(
+            isinstance(item.context_expr, ast.Call)
+            and _is_pytest_raises_call(item.context_expr)
+            for item in node.items
+        ):
+            blocks.append(node)
+    return blocks
+
+
+def _node_inside_blocks(node: ast.AST, blocks: list[ast.With]) -> bool:
+    """True if *node* is a descendant of any of the given ``with`` blocks."""
+    if not blocks:
+        return False
+    return any(any(child is node for child in ast.walk(block)) for block in blocks)
+
+
+def _is_class_constructor_call(call: ast.Call) -> bool:
+    """True if *call* targets a PEP-8 capitalised name (class instantiation)."""
+    target = call.func
+    if isinstance(target, ast.Attribute):
+        name = target.attr
+    elif isinstance(target, ast.Name):
+        name = target.id
+    else:
+        return False
+    return bool(name) and name[0].isupper()
+
+
+def _enclosing_call_for_name(
+    name_node: ast.Name, func: ast.FunctionDef
+) -> ast.Call | None:
+    """Return the nearest enclosing ``ast.Call`` for *name_node*."""
+    for node in ast.walk(func):
+        if not isinstance(node, ast.Call):
+            continue
+        for sub in _call_subexprs(node):
+            if any(child is name_node for child in ast.walk(sub)):
+                return node
+    return None
+
+
+def _ctor_result_names(func: ast.FunctionDef, ctor_calls: set[int]) -> set[str]:
+    """Names bound (``x = SomeClass(...)``) to one of the given ctor calls."""
+    names: set[str] = set()
+    for node in ast.walk(func):
+        if not isinstance(node, ast.Assign):
+            continue
+        if not isinstance(node.value, ast.Call) or id(node.value) not in ctor_calls:
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                names.add(target.id)
+    return names
+
+
+def _method_call_touches_names(call: ast.Call, names: set[str]) -> bool:
+    """True if a method call's receiver or any subexpr is a name in *names*."""
+    if not isinstance(call.func, ast.Attribute):
+        return False
+    receiver = call.func.value
+    if isinstance(receiver, ast.Name) and receiver.id in names:
+        return True
+    for sub in _call_subexprs(call):
+        for child in ast.walk(sub):
+            if isinstance(child, ast.Name) and child.id in names:
+                return True
+    return False
+
+
+def _name_used_in_method_call(func: ast.FunctionDef, names: set[str]) -> bool:
+    """True if any of *names* appears in a method call (receiver or arg)."""
+    if not names:
+        return False
+    return any(
+        isinstance(node, ast.Call) and _method_call_touches_names(node, names)
+        for node in ast.walk(func)
+    )
+
+
+def _is_structural_wrapper_call(call: ast.Call) -> bool:
+    """True for ``str(...)`` / ``Path(...)`` / ``os.fspath(...)`` etc."""
+    target = call.func
+    if isinstance(target, ast.Name):
+        return target.id in _STRUCTURAL_WRAPPERS
+    if isinstance(target, ast.Attribute):
+        return target.attr in _STRUCTURAL_WRAPPERS
+    return False
+
+
+def _tmp_path_in_structural_wrapper(name_node: ast.Name, func: ast.FunctionDef) -> bool:
+    """True if *name_node* sits inside a ``str()/Path()``-style wrapper call."""
+    for node in ast.walk(func):
+        if not isinstance(node, ast.Call) or not _is_structural_wrapper_call(node):
+            continue
+        for sub in _call_subexprs(node):
+            if any(child is name_node for child in ast.walk(sub)):
+                return True
+    return False
+
+
+def _classify_tmp_path_ref(
+    node: ast.Name,
+    func: ast.FunctionDef,
+    raises_blocks: list[ast.With],
+) -> tuple[bool, ast.Call | None]:
+    """Decide whether *node* is a structural ``tmp_path`` reference.
+
+    Returns ``(structural, ctor_call)`` where *ctor_call* is the
+    capitalised-name call that consumes *node* when applicable (used by
+    the caller to track bound names that must not later flow into method
+    calls). ``structural=False`` means the reference escapes the
+    heuristic and the whole function must be considered non-structural.
+    """
+    in_raises = _node_inside_blocks(node, raises_blocks)
+    if in_raises and _tmp_path_in_structural_wrapper(node, func):
+        return True, None
+    enclosing = _enclosing_call_for_name(node, func)
+    if enclosing is None:
+        return False, None
+    if _is_class_constructor_call(enclosing):
+        return True, enclosing
+    if in_raises and _is_structural_wrapper_call(enclosing):
+        return True, None
+    return False, None
+
+
+def _tmp_path_uses_are_structural(func: ast.FunctionDef) -> bool:
+    """True when every ``tmp_path`` reference is structural-only.
+
+    A reference is structural when consumed by a capitalised-name call
+    (PEP-8 class constructor — Pydantic/dataclass style) whose bound
+    name is never re-used as a method-call receiver/argument, or when
+    wrapped in a structural builtin (``str``, ``Path``, …) inside a
+    ``with pytest.raises(...)`` / ``pytest.warns(...)`` block. The
+    pytest.raises ancestor alone is NOT sufficient: a bare
+    ``patch_makefile(tmp_path)`` inside ``pytest.raises`` still performs
+    real I/O before the exception.
+    """
+    raises_blocks = _collect_pytest_raises_blocks(func)
+    found_any = False
+    ctor_calls: set[int] = set()
+    for node in ast.walk(func):
+        if not (isinstance(node, ast.Name) and node.id in _TMP_PATH_NAMES):
+            continue
+        found_any = True
+        structural, ctor = _classify_tmp_path_ref(node, func, raises_blocks)
+        if not structural:
+            return False
+        if ctor is not None:
+            ctor_calls.add(id(ctor))
+    if not found_any:
+        return False
+    bound_names = _ctor_result_names(func, ctor_calls)
+    return not _name_used_in_method_call(func, bound_names)
+
+
 def _fixture_io_signals(func: ast.FunctionDef) -> list[str]:
     sigs: list[str] = []
+    structural_tmp = _tmp_path_uses_are_structural(func)
     for arg in func.args.args:
         name = arg.arg
         if name == "self":
             continue
         if _is_mock_arg(name):
+            continue
+        # ``tmp_path`` matches the generic ``_path`` suffix; suppress the
+        # noisy ``fixture-arg:tmp_path`` signal when every reference is
+        # structural (inside ``pytest.raises`` or only feeding a class
+        # constructor). The dedicated ``_collect_tmp_path_signals`` scan
+        # still catches real attr-IO and known-sink uses.
+        if name in _TMP_PATH_NAMES and structural_tmp:
             continue
         if name in _IO_FIXTURES or name.endswith(_FIXTURE_NAME_SUFFIXES):
             sigs.append(f"fixture-arg:{name}")
@@ -196,15 +389,46 @@ def _call_subexprs(call: ast.Call) -> Iterator[ast.expr]:
     yield from (kw.value for kw in call.keywords if kw.value is not None)
 
 
+def _is_io_sink_call(call: ast.Call) -> bool:
+    """True if *call* targets a known I/O sink.
+
+    Recognises two shapes:
+
+    * method call whose attribute is in :data:`_IO_ATTRS`
+      (``p.write_text(...)``, ``p.mkdir(...)`` …);
+    * dotted call whose fully-qualified name is in :data:`_IO_CALLS`
+      (``subprocess.run(...)``, ``shutil.copy(...)`` …).
+
+    Plain user-defined calls (``f(p)``, ``CopierConfig(destination=p)``,
+    ``scaffold(str(p), ...)``) and structural builtins (``str``, ``Path``)
+    return ``False`` — they do not perform I/O on their own.
+    """
+    if not isinstance(call.func, ast.Attribute):
+        return False
+    if call.func.attr in _IO_ATTRS:
+        return True
+    dotted = _dotted_call_name(call.func)
+    return dotted is not None and dotted in _IO_CALLS
+
+
 def _tmp_path_reaches_call(func: ast.FunctionDef, tainted: set[str]) -> bool:
+    """True if tainted ``tmp_path`` aliases reach a known I/O sink call.
+
+    Restricted to sinks recognised by :func:`_is_io_sink_call` so that
+    passing ``tmp_path`` to a Pydantic constructor, ``pytest.raises``
+    body, ``str()``/``Path()`` wrapper or any other plain user-defined
+    function does NOT trip the ``tmp_path-as-arg`` signal.
+    """
     if not tainted:
         return False
-    return any(
-        _expr_touches(expr, tainted)
-        for node in ast.walk(func)
-        if isinstance(node, ast.Call)
-        for expr in _call_subexprs(node)
-    )
+    for node in ast.walk(func):
+        if not isinstance(node, ast.Call):
+            continue
+        if not _is_io_sink_call(node):
+            continue
+        if any(_expr_touches(expr, tainted) for expr in _call_subexprs(node)):
+            return True
+    return False
 
 
 def _detect_tmp_path_usage(func: ast.FunctionDef) -> bool:
