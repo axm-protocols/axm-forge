@@ -11,3 +11,13 @@ class TestAuditTestTool:
 
     def test_name(self) -> None:
         assert self.tool.name == "audit_test"
+
+
+class TestAuditTestToolInvalidPath:
+    def setup_method(self) -> None:
+        self.tool = AuditTestTool()
+
+    def test_invalid_path(self) -> None:
+        result = self.tool.execute(path="/nonexistent/path/xyz")
+        assert result.success is False
+        assert "Not a directory" in (result.error or "")

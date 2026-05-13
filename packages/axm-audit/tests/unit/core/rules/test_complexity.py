@@ -1,8 +1,14 @@
+"""Unit tests for ComplexityRule (no I/O)."""
+
 from __future__ import annotations
 
 import pytest
 
 from axm_audit.core.rules.complexity import ComplexityRule
+
+# ---------------------------------------------------------------------------
+# Fixtures & helpers
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -46,7 +52,21 @@ def _make_offenders(
 
 
 # ---------------------------------------------------------------------------
-# Unit tests
+# Rule ID
+# ---------------------------------------------------------------------------
+
+
+class TestComplexityRuleUnit:
+    """Pure unit tests for ComplexityRule (no I/O)."""
+
+    def test_rule_id_format(self) -> None:
+        """Rule ID should be QUALITY_COMPLEXITY."""
+        rule = ComplexityRule()
+        assert rule.rule_id == "QUALITY_COMPLEXITY"
+
+
+# ---------------------------------------------------------------------------
+# Text format
 # ---------------------------------------------------------------------------
 
 
@@ -131,3 +151,15 @@ class TestBuildResultEdgeCases:
         assert result.text is not None
         assert "\n" not in result.text
         assert result.text == "• a.py:heavy cc=25 (D) cog=0 [cc]"
+
+
+# ---------------------------------------------------------------------------
+# Threshold removed
+# ---------------------------------------------------------------------------
+
+
+def test_no_complexity_threshold_constant():
+    """AC4: ``COMPLEXITY_THRESHOLD`` must be removed from rules.base."""
+    from axm_audit.core.rules import base
+
+    assert not hasattr(base, "COMPLEXITY_THRESHOLD")
