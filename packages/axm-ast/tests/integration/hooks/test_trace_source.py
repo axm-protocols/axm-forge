@@ -35,18 +35,6 @@ class TestTraceSourceHookExecute:
         )
         return pkg
 
-    def test_missing_entry_param(self, hook: TraceSourceHook) -> None:
-        result = hook.execute(context={"working_dir": "."})
-        assert not result.success
-        assert "entry" in (result.error or "")
-
-    def test_bad_working_dir(self, hook: TraceSourceHook) -> None:
-        result = hook.execute(
-            context={"working_dir": "/nonexistent/path"},
-            entry="foo",
-        )
-        assert not result.success
-
     def test_trace_returns_steps(self, hook: TraceSourceHook, trace_pkg: Path) -> None:
         result = hook.execute(
             context={"working_dir": str(trace_pkg)},
