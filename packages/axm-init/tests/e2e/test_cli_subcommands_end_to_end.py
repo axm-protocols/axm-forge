@@ -353,46 +353,28 @@ class TestScaffoldEdgeCases:
         assert code == 0
         assert "my-awesome-project" in stdout
 
-    def test_scaffold_missing_org_exits(self, tmp_path: Path) -> None:
-        """Missing --org causes exit with error."""
-        _, _, code = _run(
-            "scaffold",
-            str(tmp_path),
-            "--name",
-            "x",
-            "--author",
-            "A",
-            "--email",
-            "e@e.com",
-        )
-        assert code != 0
-
-    def test_scaffold_missing_author_exits(self, tmp_path: Path) -> None:
-        """Missing --author causes exit with error."""
-        _, _, code = _run(
-            "scaffold",
-            str(tmp_path),
-            "--name",
-            "x",
-            "--org",
-            "o",
-            "--email",
-            "e@e.com",
-        )
-        assert code != 0
-
-    def test_scaffold_missing_email_exits(self, tmp_path: Path) -> None:
-        """Missing --email causes exit with error."""
-        _, _, code = _run(
-            "scaffold",
-            str(tmp_path),
-            "--name",
-            "x",
-            "--org",
-            "o",
-            "--author",
-            "A",
-        )
+    @pytest.mark.parametrize(
+        "args",
+        [
+            pytest.param(
+                ("--name", "x", "--author", "A", "--email", "e@e.com"),
+                id="missing-org",
+            ),
+            pytest.param(
+                ("--name", "x", "--org", "o", "--email", "e@e.com"),
+                id="missing-author",
+            ),
+            pytest.param(
+                ("--name", "x", "--org", "o", "--author", "A"),
+                id="missing-email",
+            ),
+        ],
+    )
+    def test_scaffold_missing_required_arg_exits(
+        self, tmp_path: Path, args: tuple[str, ...]
+    ) -> None:
+        """Missing a required scaffold arg causes exit with error."""
+        _, _, code = _run("scaffold", str(tmp_path), *args)
         assert code != 0
 
     @patch("axm_init.adapters.copier.CopierAdapter")
