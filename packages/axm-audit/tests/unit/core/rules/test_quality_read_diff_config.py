@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 
 def test_read_diff_config_public() -> None:
     """read_diff_config is importable as a public callable."""
@@ -10,19 +12,24 @@ def test_read_diff_config_public() -> None:
     assert callable(read_diff_config)
 
 
-def test_read_diff_config_private_alias_removed() -> None:
-    """Underscore alias is gone."""
+@pytest.mark.parametrize(
+    ("attr", "reason"),
+    [
+        pytest.param(
+            "_read_diff_config",
+            "deprecated private alias _read_diff_config still exposed",
+            id="private_alias_removed",
+        ),
+        pytest.param(
+            "get_audit_targets",
+            "_get_audit_targets must remain private"
+            " (drives only one rule, no test usage)",
+            id="get_audit_targets_remains_private",
+        ),
+    ],
+)
+def test_quality_module_attribute_absent(attr: str, reason: str) -> None:
+    """AC4 surface: certain attributes must NOT be exposed on the quality module."""
     from axm_audit.core.rules import quality
 
-    assert not hasattr(quality, "_read_diff_config"), (
-        "deprecated private alias _read_diff_config still exposed"
-    )
-
-
-def test_get_audit_targets_remains_private() -> None:
-    """AC4 leaves _get_audit_targets private — guard against promotion."""
-    from axm_audit.core.rules import quality
-
-    assert not hasattr(quality, "get_audit_targets"), (
-        "_get_audit_targets must remain private (drives only one rule, no test usage)"
-    )
+    assert not hasattr(quality, attr), reason
