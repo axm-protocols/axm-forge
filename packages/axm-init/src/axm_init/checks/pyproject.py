@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 
 from axm_init.checks._utils import TomlTable, load_toml, requires_toml, section
@@ -293,6 +294,126 @@ def check_pyproject_coverage(project: Path, data: TomlTable) -> CheckResult:
         message="Coverage fully configured",
         details=[],
         fix="",
+    )
+
+
+def _derive_package_import_path(data: TomlTable) -> str:
+    """Derive the wheel import path from ``[tool.hatch.build.targets.wheel].packages``.
+
+    Returns the first ``packages`` entry stripped of any ``src/`` prefix
+    (e.g. ``["src/axm_audit"]`` -> ``"axm_audit"``). Falls back to the
+    ``[project].name`` with hyphens converted to underscores, then to
+    ``"pkg"`` if neither is available.
+    """
+    wheel_cfg = section(
+        section(section(section(data, "tool"), "hatch"), "build"), "targets"
+    )
+    wheel_section = section(wheel_cfg, "wheel")
+    packages_raw = wheel_section.get("packages", [])
+    if isinstance(packages_raw, list):
+        for entry in packages_raw:
+            if isinstance(entry, str) and entry:
+                stripped = entry.removeprefix("src/").removeprefix("./")
+                if stripped:
+                    return stripped.split("/")[-1]
+    project_name = section(data, "project").get("name", "")
+    if isinstance(project_name, str) and project_name:
+        return project_name.replace("-", "_")
+    return "pkg"
+
+
+def _expected_doc_files(project: Path, data: TomlTable) -> tuple[list[str], bool]:
+    """Return ``(doc_files, is_explicit)``.
+
+    Resolution order: explicit ``[tool.axm-init.wheel-doc].files`` list
+    wins; otherwise auto-detect ``docs/*.md`` from disk. An empty list
+    with no ``docs/`` dir means "no docs to ship" and the check passes.
+    """
+    wheel_doc_section = section(section(data, "tool"), "axm-init").get("wheel-doc")
+    if isinstance(wheel_doc_section, Mapping):
+        files_raw = wheel_doc_section.get("files", [])
+        if isinstance(files_raw, list):
+            return [f for f in files_raw if isinstance(f, str)], True
+        return [], True
+    docs_dir = project / "docs"
+    if not docs_dir.is_dir():
+        return [], False
+    discovered = sorted(f"docs/{p.name}" for p in docs_dir.glob("*.md") if p.is_file())
+    return discovered, False
+
+
+@requires_toml(
+    check_name="pyproject.wheel_doc_shipping",
+    category="pyproject",
+    weight=2,
+    fix="Add pyproject.toml to enable wheel-doc shipping checks.",
+)
+def check_pyproject_wheel_doc_shipping(project: Path, data: TomlTable) -> CheckResult:
+    """Check 38: docs declared for shipping appear in wheel force-include.
+
+    Verifies that markdown docs intended to ship inside the wheel are
+    explicitly wired through
+    ``[tool.hatch.build.targets.wheel.force-include]``. Without this
+    wiring, ``hatchling`` excludes them from the built wheel and they
+    are silently missing from the published distribution.
+
+    Resolution order:
+      1. Explicit ``[tool.axm-init.wheel-doc].files`` list (opt-in).
+      2. Auto-detect ``docs/*.md`` on disk (WARNING-level failure when
+         present but not force-included).
+      3. No docs anywhere -> pass silently.
+    """
+    doc_files, is_explicit = _expected_doc_files(project, data)
+    if not doc_files:
+        return CheckResult(
+            name="pyproject.wheel_doc_shipping",
+            category="pyproject",
+            passed=True,
+            weight=2,
+            message="No wheel-doc files declared or discovered",
+            details=[],
+            fix="",
+        )
+    wheel_cfg = section(
+        section(section(section(data, "tool"), "hatch"), "build"), "targets"
+    )
+    force_include = section(section(wheel_cfg, "wheel"), "force-include")
+    missing = [f for f in doc_files if f not in force_include]
+    if not missing:
+        return CheckResult(
+            name="pyproject.wheel_doc_shipping",
+            category="pyproject",
+            passed=True,
+            weight=2,
+            message=f"All {len(doc_files)} wheel-doc file(s) force-included",
+            details=[],
+            fix="",
+        )
+    import_path = _derive_package_import_path(data)
+    snippet_lines = ["[tool.hatch.build.targets.wheel.force-include]"]
+    for f in missing:
+        snippet_lines.append(f'"{f}" = "{import_path}/{f}"')
+    snippet = "\n".join(snippet_lines)
+    if is_explicit:
+        message = (
+            f"{len(missing)} declared wheel-doc file(s) missing from force-include"
+        )
+        fix = f"Add to pyproject.toml:\n{snippet}"
+    else:
+        message = f"{len(missing)} auto-detected docs/*.md file(s) not force-included"
+        fix = (
+            "Either opt in by force-including the files:\n"
+            f"{snippet}\n"
+            "or opt out by adding `[tool.axm-init.wheel-doc]` with `files = []`."
+        )
+    return CheckResult(
+        name="pyproject.wheel_doc_shipping",
+        category="pyproject",
+        passed=False,
+        weight=2,
+        message=message,
+        details=missing,
+        fix=fix,
     )
 
 
