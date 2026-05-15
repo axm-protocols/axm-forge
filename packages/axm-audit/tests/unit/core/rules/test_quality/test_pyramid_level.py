@@ -97,32 +97,142 @@ def test_rule_registered() -> None:
     assert PyramidLevelRule in classes
 
 
+def test_classify_level_e2e_requires_in_package_subprocess() -> None:
+    level, reason = classify_level(
+        has_real_io=False,
+        has_subprocess=True,
+        has_in_package_subprocess=False,
+        imports_public=True,
+        imports_internal=False,
+    )
+
+    assert level == "unit"
+    assert reason == "public API import, no real I/O (pure function unit test)"
+
+
+def test_classify_level_in_package_subprocess_wins() -> None:
+    level, reason = classify_level(
+        has_real_io=True,
+        has_subprocess=True,
+        has_in_package_subprocess=True,
+        imports_public=True,
+        imports_internal=True,
+    )
+
+    assert level == "e2e"
+    assert "CLI" in reason
+
+
 @pytest.mark.parametrize(
-    ("has_real_io", "has_subprocess", "imports_public", "imports_internal", "expected"),
+    ("signals", "expected"),
     [
-        (False, True, False, False, "e2e"),
-        (True, True, True, True, "e2e"),
-        (False, False, True, False, "unit"),
-        (True, False, True, False, "integration"),
-        (True, False, False, True, "integration"),
-        (True, False, False, False, "integration"),
-        (False, False, False, True, "unit"),
-        (False, False, False, False, "unit"),
+        (
+            {
+                "has_real_io": False,
+                "has_subprocess": True,
+                "has_in_package_subprocess": False,
+                "imports_public": False,
+                "imports_internal": False,
+            },
+            "unit",
+        ),
+        (
+            {
+                "has_real_io": True,
+                "has_subprocess": True,
+                "has_in_package_subprocess": False,
+                "imports_public": True,
+                "imports_internal": True,
+            },
+            "integration",
+        ),
+        (
+            {
+                "has_real_io": False,
+                "has_subprocess": True,
+                "has_in_package_subprocess": True,
+                "imports_public": False,
+                "imports_internal": False,
+            },
+            "e2e",
+        ),
+        (
+            {
+                "has_real_io": True,
+                "has_subprocess": True,
+                "has_in_package_subprocess": True,
+                "imports_public": True,
+                "imports_internal": True,
+            },
+            "e2e",
+        ),
+        (
+            {
+                "has_real_io": False,
+                "has_subprocess": False,
+                "has_in_package_subprocess": False,
+                "imports_public": True,
+                "imports_internal": False,
+            },
+            "unit",
+        ),
+        (
+            {
+                "has_real_io": True,
+                "has_subprocess": False,
+                "has_in_package_subprocess": False,
+                "imports_public": True,
+                "imports_internal": False,
+            },
+            "integration",
+        ),
+        (
+            {
+                "has_real_io": True,
+                "has_subprocess": False,
+                "has_in_package_subprocess": False,
+                "imports_public": False,
+                "imports_internal": True,
+            },
+            "integration",
+        ),
+        (
+            {
+                "has_real_io": True,
+                "has_subprocess": False,
+                "has_in_package_subprocess": False,
+                "imports_public": False,
+                "imports_internal": False,
+            },
+            "integration",
+        ),
+        (
+            {
+                "has_real_io": False,
+                "has_subprocess": False,
+                "has_in_package_subprocess": False,
+                "imports_public": False,
+                "imports_internal": True,
+            },
+            "unit",
+        ),
+        (
+            {
+                "has_real_io": False,
+                "has_subprocess": False,
+                "has_in_package_subprocess": False,
+                "imports_public": False,
+                "imports_internal": False,
+            },
+            "unit",
+        ),
     ],
 )
 def test_classify_level_8_branches_table_driven(
-    has_real_io: bool,
-    has_subprocess: bool,
-    imports_public: bool,
-    imports_internal: bool,
+    signals: dict[str, bool],
     expected: str,
 ) -> None:
-    level, reason = classify_level(
-        has_real_io=has_real_io,
-        has_subprocess=has_subprocess,
-        imports_public=imports_public,
-        imports_internal=imports_internal,
-    )
+    level, reason = classify_level(**signals)
     assert level == expected
     assert reason
 

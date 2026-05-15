@@ -81,11 +81,8 @@ def test_clean_project_yields_no_pyramid_mismatches(tmp_path: Path) -> None:
     )
 
 
-def test_subprocess_test_in_unit_dir_is_flagged(tmp_path: Path) -> None:
-    """A subprocess-using test under tests/unit/ is flagged as misplaced.
-
-    Should be e2e.
-    """
+def test_plumbing_subprocess_test_in_unit_dir_is_unchanged(tmp_path: Path) -> None:
+    """A plumbing subprocess test under tests/unit/ is not a mismatch."""
     (tmp_path / "src" / "sample").mkdir(parents=True)
     (tmp_path / "src" / "sample" / "__init__.py").write_text(
         "def hello() -> str:\n    return 'hi'\n"
@@ -108,7 +105,7 @@ def test_subprocess_test_in_unit_dir_is_flagged(tmp_path: Path) -> None:
 
     payload = _run_test_quality(tmp_path)
     mismatches = payload.get("pyramid_mismatches", [])
-    assert mismatches, (
-        f"subprocess in tests/unit/ should be flagged as a pyramid mismatch; "
-        f"got payload: {payload}"
+    assert mismatches == [], (
+        f"plumbing subprocess in tests/unit/ should not be flagged as a pyramid "
+        f"mismatch; got payload: {payload}"
     )
