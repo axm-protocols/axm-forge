@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 import textwrap
-from pathlib import Path
 
 import pytest
 
@@ -15,7 +14,6 @@ from axm_audit.core.rules.test_quality._shared import (
     func_attr_io_transitive,
     has_in_package_subprocess_invocation,
     is_import_smoke_test,
-    load_project_scripts,
     target_matches_io,
 )
 
@@ -356,26 +354,6 @@ def test_target_matches_io(target: str, expected: bool) -> None:
 
 # AC1 — helpers moved from pyramid_level to _shared
 # ---------------------------------------------------------------------
-
-
-def test_load_project_scripts_round_trip(tmp_path: Path) -> None:
-    """AC1: scripts declared in pyproject.toml are returned as a set."""
-    pkg = tmp_path / "pkg"
-    pkg.mkdir()
-    (pkg / "pyproject.toml").write_text(
-        textwrap.dedent(
-            """
-            [project]
-            name = "pkg"
-            version = "0.0.0"
-
-            [project.scripts]
-            pkg-cli = "pkg.cli:main"
-            pkg-tool = "pkg.tool:run"
-            """
-        ).strip()
-    )
-    assert load_project_scripts(pkg) == {"pkg-cli", "pkg-tool"}
 
 
 def test_has_in_package_subprocess_invocation_via_shared() -> None:

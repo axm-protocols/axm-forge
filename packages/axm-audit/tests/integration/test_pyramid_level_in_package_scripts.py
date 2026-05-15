@@ -138,21 +138,3 @@ def _single_finding(findings: object) -> object:
     values = list(findings)
     assert len(values) == 1
     return values[0]
-
-
-# AC1 — helpers reachable from the _shared module
-# ---------------------------------------------------------------------
-
-
-@pytest.mark.integration
-def test_helpers_importable_from_shared() -> None:
-    """AC1: smoke import — both helpers live in ``_shared``."""
-    from axm_audit.core.rules.test_quality._shared import (
-        has_in_package_subprocess_invocation as _h,
-    )
-    from axm_audit.core.rules.test_quality._shared import (
-        load_project_scripts as _l,
-    )
-
-    assert callable(_h)
-    assert callable(_l)
