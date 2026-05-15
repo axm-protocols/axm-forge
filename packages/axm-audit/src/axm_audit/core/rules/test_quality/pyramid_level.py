@@ -107,17 +107,20 @@ def classify_level(
     *,
     has_real_io: bool,
     has_subprocess: bool,
+    has_in_package_subprocess: bool,
     imports_public: bool,
     imports_internal: bool,
 ) -> tuple[str, str]:
     """Return ``(level, reason)`` for the given soft signals.
 
-    R2 public-only rescue MUST fire before the generic
-    ``has_public \u2192 integration`` branch; otherwise pure-function unit
-    tests at integration/ would be mis-classified.
+    ``has_subprocess`` preserves raw subprocess diagnostics, while
+    ``has_in_package_subprocess`` is the narrower signal that promotes a test
+    to e2e. R2 public-only rescue MUST fire before the generic
+    ``has_public \u2192 integration`` branch; otherwise pure-function unit tests at
+    integration/ would be mis-classified.
     """
-    if has_subprocess:
-        return "e2e", "subprocess / CLI runner invocation (end-to-end)"
+    if has_in_package_subprocess:
+        return "e2e", "in-package CLI invocation via subprocess (end-to-end)"
     if not has_real_io and imports_public and not imports_internal:
         return "unit", "public API import, no real I/O (pure function unit test)"
     if has_real_io:
@@ -749,15 +752,15 @@ def _apply_r1_import_signals(
 ) -> bool:
     """Append R1 import-IO signals referenced by *node*; return whether any fired."""
     referenced = _func_references_names(node, io_module_names)
-    fired = False
+    matched: list[str] = []
     for sig in file_import_signals:
         mod_from_sig = sig.removeprefix("imports ").split(".")[0]
         if any(
             ref == mod_from_sig or ref.startswith(mod_from_sig) for ref in referenced
         ):
             signals.append(sig)
-            fired = True
-    return fired
+            matched.append(sig)
+    return _has_non_subprocess_io_signal(matched)
 
 
 def _merge_unique(target: list[str], items: list[str]) -> None:
@@ -765,6 +768,19 @@ def _merge_unique(target: list[str], items: list[str]) -> None:
     for sig in items:
         if sig not in target:
             target.append(sig)
+
+
+def _is_subprocess_only_signal(sig: str) -> bool:
+    return (
+        sig == "imports subprocess"
+        or sig.startswith("imports subprocess.")
+        or sig.startswith("call:subprocess.")
+        or sig.startswith("cli:")
+    )
+
+
+def _has_non_subprocess_io_signal(signals: list[str]) -> bool:
+    return any(not _is_subprocess_only_signal(sig) for sig in signals)
 
 
 def _collect_signals(  # noqa: PLR0913
@@ -789,13 +805,13 @@ def _collect_signals(  # noqa: PLR0913
     # File-scope CLI runner / call-based I/O bleeds to every function
     if file_has_io:
         _merge_unique(signals, file_signals)
-        has_real_io = True
+        has_real_io = has_real_io or _has_non_subprocess_io_signal(file_signals)
 
     # R3 — per-function attr-IO (transitive)
     attr_sigs = func_attr_io_transitive(node, helpers, max_depth=2)
     if attr_sigs:
         _merge_unique(signals, list(attr_sigs))
-        has_real_io = True
+        has_real_io = has_real_io or _has_non_subprocess_io_signal(list(attr_sigs))
 
     # R3 — fixture-arg IO guard
     fixture_sigs = _fixture_io_signals(node)
@@ -903,8 +919,8 @@ def _build_scan_context(  # noqa: PLR0913
 
 def _resolve_io_for_test(
     ctx: _ScanContext, node: ast.FunctionDef
-) -> tuple[list[str], bool, bool]:
-    """Run R1+R3+R4+R5 and return ``(signals, has_real_io, has_subprocess)``."""
+) -> tuple[list[str], bool, bool, bool]:
+    """Return signals plus real I/O, raw subprocess, and in-package subprocess."""
     signals, has_real_io, attr_sigs = _collect_signals(
         node,
         io_module_names=ctx.io_module_names,
@@ -913,7 +929,8 @@ def _resolve_io_for_test(
         file_signals=ctx.file_signals,
         helpers=ctx.helpers,
     )
-    has_subprocess = _has_in_package_subprocess_for_test(ctx, node)
+    has_subprocess = ctx.file_has_subprocess
+    has_in_package_subprocess = _has_in_package_subprocess_for_test(ctx, node)
 
     # R4 — conftest fixture IO (skipped when R3 attr-scan already fired)
     if not attr_sigs:
@@ -928,13 +945,13 @@ def _resolve_io_for_test(
         )
         has_real_io = has_real_io or fired
 
-    # R5 — mock neutralization (hard invariant B: never fires on subprocess)
-    if not has_subprocess:
+    # R5 — mock neutralization (hard invariant B: never fires on in-package subprocess)
+    if not has_in_package_subprocess:
         keep, signals = _apply_mock_neutralization(node, signals)
         if not keep:
             has_real_io = False
 
-    return signals, has_real_io, has_subprocess
+    return signals, has_real_io, has_subprocess, has_in_package_subprocess
 
 
 def _has_in_package_subprocess_for_test(
@@ -942,8 +959,10 @@ def _has_in_package_subprocess_for_test(
 ) -> bool:
     if not ctx.file_has_subprocess:
         return False
-    if not ctx.project_scripts:
+    if any(sig.startswith("cli:") for sig in ctx.file_signals):
         return True
+    if not ctx.project_scripts:
+        return False
     return any(
         has_in_package_subprocess_invocation(
             call=call,
@@ -957,10 +976,16 @@ def _has_in_package_subprocess_for_test(
 
 def _classify_test_function(ctx: _ScanContext, node: ast.FunctionDef) -> Finding:
     """Run the full pipeline for one ``test_*`` function and emit a Finding."""
-    signals, has_real_io, has_subprocess = _resolve_io_for_test(ctx, node)
+    (
+        signals,
+        has_real_io,
+        has_subprocess,
+        has_in_package_subprocess,
+    ) = _resolve_io_for_test(ctx, node)
     level, reason = classify_level(
         has_real_io=has_real_io,
         has_subprocess=has_subprocess,
+        has_in_package_subprocess=has_in_package_subprocess,
         imports_public=bool(ctx.public),
         imports_internal=bool(ctx.internal),
     )

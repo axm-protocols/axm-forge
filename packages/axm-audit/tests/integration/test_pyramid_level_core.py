@@ -588,8 +588,8 @@ def test_tmp_path_write_text_still_integration(tmp_path: Path) -> None:
     assert "tmp_path+write/read" in finding.io_signals
 
 
-def test_tmp_path_to_subprocess_still_e2e(tmp_path: Path) -> None:
-    """True positive: ``subprocess.run([..., str(tmp_path)])`` stays e2e."""
+def test_tmp_path_to_subprocess_classifies_integration(tmp_path: Path) -> None:
+    """Raw subprocess with real filesystem I/O classifies as integration."""
     _write(
         tmp_path,
         "tests/unit/test_foo.py",
@@ -602,7 +602,7 @@ def test_tmp_path_to_subprocess_still_e2e(tmp_path: Path) -> None:
     )
     finding = _first_finding(_check(tmp_path))
     assert finding.has_subprocess is True
-    assert finding.level == "e2e"
+    assert finding.level == "integration"
     assert finding.has_real_io is True
 
 
