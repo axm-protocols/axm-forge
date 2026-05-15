@@ -236,8 +236,6 @@ def _local_list_bindings(
             break
         if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.List):
             argv = _argv_from_list(stmt.value, constants)
-            if argv is None:
-                continue
             for target in stmt.targets:
                 if isinstance(target, ast.Name):
                     bindings[target.id] = argv
@@ -261,7 +259,14 @@ def _argv_from_call(call: ast.Call, module_ast: ast.Module) -> list[str] | None:
     return None
 
 
-def _argv_from_list(node: ast.List, constants: dict[str, str]) -> list[str] | None:
+def _argv_from_list(node: ast.List, constants: dict[str, str]) -> list[str]:
+    """Reconstruct a best-effort argv from an ``ast.List`` literal.
+
+    Non-resolvable elements (e.g. ``str(tmp_path)``, f-strings, attribute
+    accesses other than ``sys.executable``) are skipped rather than aborting
+    the whole reconstruction — downstream consumers match on string equality
+    over the resolved tokens, so partial argvs are still useful.
+    """
     argv: list[str] = []
     for item in node.elts:
         if isinstance(item, ast.Constant) and isinstance(item.value, str):
@@ -275,8 +280,6 @@ def _argv_from_list(node: ast.List, constants: dict[str, str]) -> list[str] | No
             and item.attr == "executable"
         ):
             argv.append("python")
-        else:
-            return None
     return argv
 
 

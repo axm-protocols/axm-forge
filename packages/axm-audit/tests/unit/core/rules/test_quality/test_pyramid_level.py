@@ -73,6 +73,32 @@ def test_in_package_subprocess_ignores_plumbing_only_commands() -> None:
         )
 
 
+def test_in_package_subprocess_tolerates_non_resolvable_argv_elements() -> None:
+    """Regression: a non-resolvable element (e.g. ``str(tmp_path)``) must not
+    abort the whole argv reconstruction — the remaining tokens are enough to
+    detect the in-package CLI invocation."""
+    source = """
+def test_runs_with_dynamic_path(tmp_path):
+    subprocess.run(
+        ["uv", "run", "axm-audit", "audit", str(tmp_path), "--category", "structure"]
+    )
+"""
+
+    module_ast = ast.parse(source)
+    run_call = next(
+        node
+        for node in ast.walk(module_ast)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "run"
+    )
+    assert has_in_package_subprocess_invocation(
+        call=run_call,
+        module_ast=module_ast,
+        project_scripts={"axm-audit"},
+    )
+
+
 def test_in_package_subprocess_resolves_constants_and_local_cmd_binding() -> None:
     source = """
 BIN = "axm-audit"
