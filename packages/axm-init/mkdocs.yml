@@ -14,6 +14,8 @@ nav:
     - Use via MCP: howto/mcp.md
   - Reference:
     - CLI: reference/cli.md
+    - Checks:
+      - wheel-doc-shipping: reference/checks/wheel-doc-shipping.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Check Grades: explanation/check-grades.md
