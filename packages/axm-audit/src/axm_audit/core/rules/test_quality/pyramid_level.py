@@ -957,6 +957,47 @@ def _resolve_io_for_test(
     return signals, has_real_io, has_subprocess, has_in_package_subprocess
 
 
+def _helper_callees(node: ast.AST, helpers: dict[str, ast.FunctionDef]) -> list[str]:
+    """Names directly called inside ``node`` that resolve in ``helpers``."""
+    out: list[str] = []
+    for sub in ast.walk(node):
+        if not isinstance(sub, ast.Call):
+            continue
+        func = sub.func
+        name = (
+            func.id
+            if isinstance(func, ast.Name)
+            else func.attr
+            if isinstance(func, ast.Attribute)
+            else None
+        )
+        if name is not None and name in helpers:
+            out.append(name)
+    return out
+
+
+def _closure_bodies(
+    test_node: ast.FunctionDef, helpers: dict[str, ast.FunctionDef]
+) -> list[ast.AST]:
+    """Return test body + transitively-called module-level helper bodies.
+
+    Follows ``ast.Name`` and ``ast.Attribute`` callees that resolve in
+    ``helpers``. Scope is intentionally narrow: only module-level helpers
+    (and non-test methods of Test* classes already merged into ``helpers``).
+    """
+    seen: set[str] = set()
+    stack: list[str] = list(_helper_callees(test_node, helpers))
+    while stack:
+        name = stack.pop()
+        if name in seen:
+            continue
+        seen.add(name)
+        stack.extend(
+            cand for cand in _helper_callees(helpers[name], helpers) if cand not in seen
+        )
+    return [test_node, *(helpers[n] for n in seen)]
+
+
 def _has_in_package_subprocess_for_test(
     ctx: _ScanContext, node: ast.FunctionDef
 ) -> bool:
@@ -966,13 +1007,15 @@ def _has_in_package_subprocess_for_test(
         return True
     if not ctx.project_scripts:
         return False
+    bodies = _closure_bodies(node, ctx.helpers)
     return any(
         has_in_package_subprocess_invocation(
             call=call,
             module_ast=ctx.tree,
             project_scripts=ctx.project_scripts,
         )
-        for call in ast.walk(node)
+        for body in bodies
+        for call in ast.walk(body)
         if isinstance(call, ast.Call)
     )
 
