@@ -13,7 +13,6 @@ stubbed here as identities — ticket #4b replaces the two placeholders.
 from __future__ import annotations
 
 import ast
-import tomllib
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,7 +38,9 @@ from axm_audit.core.rules.test_quality._shared import (
     func_attr_io_transitive,
     get_init_all,
     get_pkg_prefixes,
+    has_in_package_subprocess_invocation,
     iter_test_files,
+    load_project_scripts,
     target_matches_io,
 )
 from axm_audit.models.results import CheckResult, Severity
@@ -136,151 +137,9 @@ def classify_level(
     return "unit", "no real I/O, no package import (unit)"
 
 
-def load_project_scripts(pkg_root: Path) -> set[str]:
-    """Return scripts declared by ``[project.scripts]`` in pyproject.toml."""
-    pyproject = pkg_root / "pyproject.toml"
-    if not pyproject.exists():
-        return set()
-    with pyproject.open("rb") as handle:
-        data = tomllib.load(handle)
-    scripts = data.get("project", {}).get("scripts", {})
-    if not isinstance(scripts, dict):
-        return set()
-    return {name for name in scripts if isinstance(name, str)}
-
-
-def has_in_package_subprocess_invocation(
-    *,
-    call: ast.Call,
-    module_ast: ast.Module,
-    project_scripts: set[str],
-) -> bool:
-    """Return true when *call* invokes a declared package script."""
-    if not project_scripts:
-        return False
-    argv = _argv_from_call(call, module_ast)
-    if argv is None:
-        return False
-    return _argv_contains_package_entrypoint(argv, project_scripts)
-
-
-def _script_module_aliases(project_scripts: set[str]) -> set[str]:
-    return {script.replace("-", "_") for script in project_scripts}
-
-
-def _argv_contains_package_entrypoint(
-    argv: list[str], project_scripts: set[str]
-) -> bool:
-    module_aliases = _script_module_aliases(project_scripts)
-    for index, arg in enumerate(argv):
-        if arg in project_scripts:
-            return True
-        if arg == "-m" and index + 1 < len(argv):
-            module = argv[index + 1]
-            if any(
-                module == alias or module.startswith(f"{alias}.")
-                for alias in module_aliases
-            ):
-                return True
-    return False
-
-
-def _module_string_constants(module_ast: ast.Module) -> dict[str, str]:
-    constants: dict[str, str] = {}
-    for stmt in module_ast.body:
-        if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Constant):
-            if not isinstance(stmt.value.value, str):
-                continue
-            for target in stmt.targets:
-                if isinstance(target, ast.Name):
-                    constants[target.id] = stmt.value.value
-    return constants
-
-
-def _enclosing_function(
-    module_ast: ast.Module, call: ast.Call
-) -> ast.FunctionDef | None:
-    for node in ast.walk(module_ast):
-        end_lineno = getattr(node, "end_lineno", None)
-        if (
-            isinstance(node, ast.FunctionDef)
-            and end_lineno is not None
-            and node.lineno <= call.lineno <= end_lineno
-        ):
-            return node
-    return None
-
-
-def _local_string_constants(func: ast.FunctionDef, call: ast.Call) -> dict[str, str]:
-    constants: dict[str, str] = {}
-    for stmt in func.body:
-        if getattr(stmt, "lineno", 0) >= call.lineno:
-            break
-        if (
-            isinstance(stmt, ast.Assign)
-            and isinstance(stmt.value, ast.Constant)
-            and isinstance(stmt.value.value, str)
-        ):
-            for target in stmt.targets:
-                if isinstance(target, ast.Name):
-                    constants[target.id] = stmt.value.value
-    return constants
-
-
-def _local_list_bindings(
-    func: ast.FunctionDef, call: ast.Call, constants: dict[str, str]
-) -> dict[str, list[str]]:
-    bindings: dict[str, list[str]] = {}
-    for stmt in func.body:
-        if getattr(stmt, "lineno", 0) >= call.lineno:
-            break
-        if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.List):
-            argv = _argv_from_list(stmt.value, constants)
-            for target in stmt.targets:
-                if isinstance(target, ast.Name):
-                    bindings[target.id] = argv
-    return bindings
-
-
-def _argv_from_call(call: ast.Call, module_ast: ast.Module) -> list[str] | None:
-    if not call.args:
-        return None
-    constants = _module_string_constants(module_ast)
-    func = _enclosing_function(module_ast, call)
-    list_bindings: dict[str, list[str]] = {}
-    if func is not None:
-        constants |= _local_string_constants(func, call)
-        list_bindings = _local_list_bindings(func, call, constants)
-    arg = call.args[0]
-    if isinstance(arg, ast.List):
-        return _argv_from_list(arg, constants)
-    if isinstance(arg, ast.Name):
-        return list_bindings.get(arg.id)
-    return None
-
-
-def _argv_from_list(node: ast.List, constants: dict[str, str]) -> list[str]:
-    """Reconstruct a best-effort argv from an ``ast.List`` literal.
-
-    Non-resolvable elements (e.g. ``str(tmp_path)``, f-strings, attribute
-    accesses other than ``sys.executable``) are skipped rather than aborting
-    the whole reconstruction — downstream consumers match on string equality
-    over the resolved tokens, so partial argvs are still useful.
-    """
-    argv: list[str] = []
-    for item in node.elts:
-        if isinstance(item, ast.Constant) and isinstance(item.value, str):
-            argv.append(item.value)
-        elif isinstance(item, ast.Name) and item.id in constants:
-            argv.append(constants[item.id])
-        elif (
-            isinstance(item, ast.Attribute)
-            and isinstance(item.value, ast.Name)
-            and item.value.id == "sys"
-            and item.attr == "executable"
-        ):
-            argv.append("python")
-    return argv
+# `load_project_scripts` and `has_in_package_subprocess_invocation` are
+# re-exported from ``_shared`` to preserve the public surface; the
+# definitions live there (AC1, AXM-1721).
 
 
 # ── Per-function helpers ──────────────────────────────────────────────

@@ -8,6 +8,7 @@ from here; no ``@register_rule`` lives here.
 from __future__ import annotations
 
 import ast
+import tomllib
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,10 +28,14 @@ __all__ = [
     "get_init_all",
     "get_module_all",
     "get_pkg_prefixes",
+    "has_in_package_subprocess_invocation",
     "is_import_smoke_test",
     "iter_test_files",
+    "load_project_scripts",
     "target_matches_io",
+    "test_invokes_in_package_script",
     "test_is_in_lazy_import_context",
+    "test_references_first_party",
 ]
 
 
@@ -1101,3 +1106,511 @@ def target_matches_io(target: str) -> bool:
     leaf_io_mods = {m.split(".")[-1] for m in _IO_MODULES}
     tokens = target.split(".")
     return any(tok in leaf_io_mods for tok in tokens)
+
+
+# ── In-package script detection ───────────────────────────────
+#
+# `load_project_scripts` and `has_in_package_subprocess_invocation` are the
+# single source of truth for the ``[project.scripts]`` + argv heuristic.
+# ``pyramid_level`` and ``no_package_symbol`` both import these helpers.
+# Tightening the argv reconstruction would regress PYRAMID findings on
+# ``axm-audit`` (AXM-1720) — keep the permissive contract intact.
+
+
+def load_project_scripts(pkg_root: Path) -> set[str]:
+    """Return scripts declared by ``[project.scripts]`` in pyproject.toml."""
+    pyproject = pkg_root / "pyproject.toml"
+    if not pyproject.exists():
+        return set()
+    with pyproject.open("rb") as handle:
+        data = tomllib.load(handle)
+    scripts = data.get("project", {}).get("scripts", {})
+    if not isinstance(scripts, dict):
+        return set()
+    return {name for name in scripts if isinstance(name, str)}
+
+
+def has_in_package_subprocess_invocation(
+    *,
+    call: ast.Call,
+    module_ast: ast.Module,
+    project_scripts: set[str],
+) -> bool:
+    """Return true when *call* invokes a declared package script."""
+    if not project_scripts:
+        return False
+    argv = _argv_from_call(call, module_ast)
+    if argv is None:
+        return False
+    return _argv_contains_package_entrypoint(argv, project_scripts)
+
+
+def _script_module_aliases(project_scripts: set[str]) -> set[str]:
+    return {script.replace("-", "_") for script in project_scripts}
+
+
+def _argv_contains_package_entrypoint(
+    argv: list[str], project_scripts: set[str]
+) -> bool:
+    module_aliases = _script_module_aliases(project_scripts)
+    for index, arg in enumerate(argv):
+        if arg in project_scripts:
+            return True
+        if arg == "-m" and index + 1 < len(argv):
+            module = argv[index + 1]
+            if any(
+                module == alias or module.startswith(f"{alias}.")
+                for alias in module_aliases
+            ):
+                return True
+    return False
+
+
+def _module_string_constants(module_ast: ast.Module) -> dict[str, str]:
+    constants: dict[str, str] = {}
+    for stmt in module_ast.body:
+        if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Constant):
+            if not isinstance(stmt.value.value, str):
+                continue
+            for target in stmt.targets:
+                if isinstance(target, ast.Name):
+                    constants[target.id] = stmt.value.value
+    return constants
+
+
+def _enclosing_function(
+    module_ast: ast.Module, call: ast.Call
+) -> ast.FunctionDef | None:
+    for node in ast.walk(module_ast):
+        end_lineno = getattr(node, "end_lineno", None)
+        if (
+            isinstance(node, ast.FunctionDef)
+            and end_lineno is not None
+            and node.lineno <= call.lineno <= end_lineno
+        ):
+            return node
+    return None
+
+
+def _local_string_constants(func: ast.FunctionDef, call: ast.Call) -> dict[str, str]:
+    constants: dict[str, str] = {}
+    for stmt in func.body:
+        if getattr(stmt, "lineno", 0) >= call.lineno:
+            break
+        if (
+            isinstance(stmt, ast.Assign)
+            and isinstance(stmt.value, ast.Constant)
+            and isinstance(stmt.value.value, str)
+        ):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name):
+                    constants[target.id] = stmt.value.value
+    return constants
+
+
+def _local_list_bindings(
+    func: ast.FunctionDef, call: ast.Call, constants: dict[str, str]
+) -> dict[str, list[str]]:
+    bindings: dict[str, list[str]] = {}
+    for stmt in func.body:
+        if getattr(stmt, "lineno", 0) >= call.lineno:
+            break
+        if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.List):
+            argv = _argv_from_list(stmt.value, constants)
+            for target in stmt.targets:
+                if isinstance(target, ast.Name):
+                    bindings[target.id] = argv
+    return bindings
+
+
+def _argv_from_call(call: ast.Call, module_ast: ast.Module) -> list[str] | None:
+    if not call.args:
+        return None
+    constants = _module_string_constants(module_ast)
+    func = _enclosing_function(module_ast, call)
+    list_bindings: dict[str, list[str]] = {}
+    if func is not None:
+        constants |= _local_string_constants(func, call)
+        list_bindings = _local_list_bindings(func, call, constants)
+    arg = call.args[0]
+    if isinstance(arg, ast.List):
+        return _argv_from_list(arg, constants)
+    if isinstance(arg, ast.Name):
+        return list_bindings.get(arg.id)
+    return None
+
+
+def _argv_from_list(node: ast.List, constants: dict[str, str]) -> list[str]:
+    """Reconstruct a best-effort argv from an ``ast.List`` literal.
+
+    Non-resolvable elements (e.g. ``str(tmp_path)``, f-strings, attribute
+    accesses other than ``sys.executable``) are skipped rather than aborting
+    the whole reconstruction — downstream consumers match on string equality
+    over the resolved tokens, so partial argvs are still useful.
+    """
+    argv: list[str] = []
+    for item in node.elts:
+        if isinstance(item, ast.Constant) and isinstance(item.value, str):
+            argv.append(item.value)
+        elif isinstance(item, ast.Name) and item.id in constants:
+            argv.append(constants[item.id])
+        elif (
+            isinstance(item, ast.Attribute)
+            and isinstance(item.value, ast.Name)
+            and item.value.id == "sys"
+            and item.attr == "executable"
+        ):
+            argv.append("python")
+    return argv
+
+
+# ── First-party symbol detection ──────────────────────────────
+#
+# Helpers ported from `scripts/test_orga/tuple_naming_proto.py` (functions
+# `_collect_package_imports`, `_used_names_in_node`, `_closure_nodes_for_test`,
+# `_resolve_fixture_symbol`). They power criterion (a) of the
+# TEST_QUALITY_NO_PACKAGE_SYMBOL rule.
+
+
+def _aliases_from_import_from(
+    node: ast.ImportFrom, pkg_prefixes: set[str]
+) -> dict[str, str]:
+    """``from pkg.x import y`` → ``{y: 'pkg.x.y'}`` when ``pkg`` is first-party."""
+    mod = node.module or ""
+    if mod.split(".", 1)[0] not in pkg_prefixes:
+        return {}
+    return {(alias.asname or alias.name): f"{mod}.{alias.name}" for alias in node.names}
+
+
+def _aliases_from_import(node: ast.Import, pkg_prefixes: set[str]) -> dict[str, str]:
+    """``import pkg.x as y`` → ``{y: 'pkg.x'}`` when ``pkg`` is first-party."""
+    out: dict[str, str] = {}
+    for alias in node.names:
+        if alias.name.split(".", 1)[0] not in pkg_prefixes:
+            continue
+        local = alias.asname or alias.name.split(".")[0]
+        out[local] = alias.name
+    return out
+
+
+def _collect_first_party_aliases(
+    tree: ast.AST, pkg_prefixes: set[str]
+) -> dict[str, str]:
+    """Return ``{local_name: dotted_origin}`` for every first-party import."""
+    if not pkg_prefixes:
+        return {}
+    aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            aliases.update(_aliases_from_import_from(node, pkg_prefixes))
+        elif isinstance(node, ast.Import):
+            aliases.update(_aliases_from_import(node, pkg_prefixes))
+    return aliases
+
+
+def _module_level_funcs_by_name(tree: ast.Module) -> dict[str, ast.FunctionDef]:
+    return {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+
+
+def _module_level_classes_by_name(tree: ast.Module) -> dict[str, ast.ClassDef]:
+    return {n.name: n for n in tree.body if isinstance(n, ast.ClassDef)}
+
+
+def _direct_callee_names(node: ast.AST) -> set[str]:
+    callees: set[str] = set()
+    for sub in ast.walk(node):
+        if not isinstance(sub, ast.Call):
+            continue
+        func = sub.func
+        if isinstance(func, ast.Name):
+            callees.add(func.id)
+        elif isinstance(func, ast.Attribute):
+            callees.add(func.attr)
+    return callees
+
+
+def _referenced_class_names_in(
+    nodes: list[ast.AST],
+    mod_classes: dict[str, ast.ClassDef],
+) -> set[str]:
+    """Collect names of module-level classes referenced inside *nodes*."""
+    names: set[str] = set()
+    for n in nodes:
+        for sub in ast.walk(n):
+            if isinstance(sub, ast.Name) and sub.id in mod_classes:
+                names.add(sub.id)
+    return names
+
+
+def _seed_visit_list(
+    test_func: ast.FunctionDef,
+    mod_funcs: dict[str, ast.FunctionDef],
+) -> list[str]:
+    """Return the initial work-list for the intra-module call-graph walk."""
+    if test_func.name in mod_funcs:
+        return [test_func.name]
+    return [c for c in _direct_callee_names(test_func) if c in mod_funcs]
+
+
+def _walk_call_graph(
+    seed: list[str], mod_funcs: dict[str, ast.FunctionDef]
+) -> set[str]:
+    """Return the set of module-level helper names reachable from *seed*."""
+    seen: set[str] = set()
+    work = list(seed)
+    while work:
+        name = work.pop()
+        if name in seen or name not in mod_funcs:
+            continue
+        seen.add(name)
+        for callee in _direct_callee_names(mod_funcs[name]):
+            if callee in mod_funcs and callee not in seen:
+                work.append(callee)
+    return seen
+
+
+def _closure_nodes_for_test(
+    test_func: ast.FunctionDef,
+    mod_funcs: dict[str, ast.FunctionDef],
+    mod_classes: dict[str, ast.ClassDef],
+) -> list[ast.AST]:
+    """Return the test body + bodies of transitively-called module helpers.
+
+    Mirrors `scripts/test_orga/tuple_naming_proto.py:_closure_nodes_for_test`:
+    walks the intra-module call graph, includes top-level classes referenced
+    by name (synthetic subclasses, etc.), and seeds the closure with helpers
+    a method-style test directly calls. No cross-file resolution.
+    """
+    seen_funcs = _walk_call_graph(_seed_visit_list(test_func, mod_funcs), mod_funcs)
+    nodes: list[ast.AST] = [mod_funcs[n] for n in seen_funcs if n in mod_funcs]
+    if test_func.name not in seen_funcs:
+        nodes.append(test_func)
+    for cname in _referenced_class_names_in(nodes, mod_classes):
+        nodes.append(mod_classes[cname])
+    return nodes
+
+
+def _walk_touches_known(node: ast.AST, known: set[str]) -> bool:
+    """True if any ``ast.Name`` or attribute root inside *node* is in *known*."""
+    if not known:
+        return False
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name) and sub.id in known:
+            return True
+        if isinstance(sub, ast.Attribute):
+            root: ast.AST = sub
+            while isinstance(root, ast.Attribute):
+                root = root.value
+            if isinstance(root, ast.Name) and root.id in known:
+                return True
+    return False
+
+
+def _is_pytest_fixture_decorator(func: ast.FunctionDef) -> bool:
+    for dec in func.decorator_list:
+        target = dec.func if isinstance(dec, ast.Call) else dec
+        if isinstance(target, ast.Name) and target.id == "fixture":
+            return True
+        if isinstance(target, ast.Attribute) and target.attr == "fixture":
+            return True
+    return False
+
+
+def _attribute_root_id_if_known(node: ast.Attribute, known: set[str]) -> str | None:
+    """Return the root ``ast.Name.id`` of an attribute chain if it is in *known*."""
+    root: ast.AST = node
+    while isinstance(root, ast.Attribute):
+        root = root.value
+    if isinstance(root, ast.Name) and root.id in known:
+        return root.id
+    return None
+
+
+def _known_id_from_expr(node: ast.AST, known: set[str]) -> str | None:
+    """Return the *known* identifier from a value expression, or ``None``."""
+    value = node
+    if isinstance(value, ast.Call):
+        value = value.func
+    if isinstance(value, ast.Name) and value.id in known:
+        return value.id
+    if isinstance(value, ast.Attribute):
+        return _attribute_root_id_if_known(value, known)
+    return None
+
+
+def _resolve_return_annotation(returns: ast.AST | None, known: set[str]) -> str | None:
+    """Map a ``-> X`` return annotation to a *known* alias, when applicable."""
+    if isinstance(returns, ast.Name) and returns.id in known:
+        return returns.id
+    if isinstance(returns, ast.Attribute):
+        return _attribute_root_id_if_known(returns, known)
+    return None
+
+
+def _returned_value(sub: ast.AST) -> ast.AST | None:
+    """Return the value expression of ``return X`` / ``yield X`` nodes."""
+    if isinstance(sub, ast.Return):
+        return sub.value
+    if isinstance(sub, ast.Expr) and isinstance(sub.value, ast.Yield):
+        return sub.value.value
+    return None
+
+
+def _last_known_in_body(func: ast.FunctionDef, known: set[str]) -> str | None:
+    """Return the last *known* alias appearing in a ``return``/``yield`` value."""
+    candidate: str | None = None
+    for sub in ast.walk(func):
+        value = _returned_value(sub)
+        if value is None:
+            continue
+        resolved = _known_id_from_expr(value, known)
+        if resolved is not None:
+            candidate = resolved
+    return candidate
+
+
+def _resolve_first_party_fixture_symbol(
+    func: ast.FunctionDef, known: set[str]
+) -> str | None:
+    """Return the first-party alias this fixture yields/returns, if any.
+
+    Resolution order (per ``tuple_naming_proto.py``):
+        1. return-type annotation (``-> Rule``)
+        2. last ``return X(...) | return X`` in the body
+        3. last ``yield X(...) | yield X`` in the body
+    Only names present in *known* (i.e. imported from a first-party package)
+    are accepted.
+    """
+    hit = _resolve_return_annotation(func.returns, known)
+    if hit is not None:
+        return hit
+    return _last_known_in_body(func, known)
+
+
+def _collect_first_party_fixture_map(
+    tree: ast.Module, known: set[str]
+) -> dict[str, str]:
+    """Return ``{fixture_name: first_party_alias}`` for top-level fixtures."""
+    mapping: dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and _is_pytest_fixture_decorator(node):
+            sym = _resolve_first_party_fixture_symbol(node, known)
+            if sym is not None:
+                mapping[node.name] = sym
+    return mapping
+
+
+def _func_param_names(func: ast.FunctionDef) -> set[str]:
+    args = func.args
+    names: set[str] = {a.arg for a in args.args + args.kwonlyargs}
+    if args.vararg:
+        names.add(args.vararg.arg)
+    if args.kwarg:
+        names.add(args.kwarg.arg)
+    return names
+
+
+def test_references_first_party(
+    *,
+    test_func: ast.FunctionDef,
+    module_ast: ast.Module,
+    pkg_prefixes: set[str],
+) -> bool:
+    """True when *test_func* exercises a first-party Python symbol.
+
+    Criterion (a) of the TEST_QUALITY_NO_PACKAGE_SYMBOL rule. A symbol is
+    "exercised" if it is referenced anywhere in the intra-module closure
+    of *test_func* (its body + bodies of every top-level helper it calls
+    transitively), or indirectly via a fixture whose return-type annotation
+    or return/yield expression resolves to a first-party alias.
+    """
+    aliases = _collect_first_party_aliases(module_ast, pkg_prefixes)
+    if not aliases:
+        return False
+    known: set[str] = set(aliases)
+    mod_funcs = _module_level_funcs_by_name(module_ast)
+    mod_classes = _module_level_classes_by_name(module_ast)
+    closure = _closure_nodes_for_test(test_func, mod_funcs, mod_classes)
+    if any(_walk_touches_known(node, known) for node in closure):
+        return True
+    fixture_map = _collect_first_party_fixture_map(module_ast, known)
+    if not fixture_map:
+        return False
+    params = _func_param_names(test_func)
+    return any(name in params for name in fixture_map)
+
+
+# Pytest sees the ``test_`` prefix and tries to collect these helpers when a
+# test module imports them. The ``__test__ = False`` attribute is the
+# documented opt-out (https://docs.pytest.org/en/stable/example/pythoncollection.html).
+test_references_first_party.__test__ = False  # type: ignore[attr-defined]
+
+
+# ── In-package CLI invocation ───────────────────────────────
+#
+# Criterion (b): the closure invokes a declared script via ``subprocess.run``
+# or `CliRunner().invoke(app, [...])`. CliRunner support is single-binary
+# only — multi-binary apps would require per-import tracking (see
+# `scripts/test_orga/tuple_naming_e2e_proto.py:282-292`).
+
+
+def _is_subprocess_call(call: ast.Call) -> bool:
+    func = call.func
+    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
+        return func.value.id == "subprocess" and func.attr in {
+            "run",
+            "call",
+            "check_call",
+            "check_output",
+            "Popen",
+        }
+    if isinstance(func, ast.Name):
+        return func.id in {"run", "check_output", "check_call", "call", "Popen"}
+    return False
+
+
+def _is_clirunner_invoke_call(call: ast.Call) -> bool:
+    return isinstance(call.func, ast.Attribute) and call.func.attr == "invoke"
+
+
+def _calls_in_nodes(nodes: list[ast.AST]) -> Iterator[ast.Call]:
+    seen: set[int] = set()
+    for node in nodes:
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Call) and id(sub) not in seen:
+                seen.add(id(sub))
+                yield sub
+
+
+def test_invokes_in_package_script(
+    *,
+    test_func: ast.FunctionDef,
+    module_ast: ast.Module,
+    project_scripts: set[str],
+) -> bool:
+    """True when the test's closure invokes a declared package script.
+
+    Criterion (b) of TEST_QUALITY_NO_PACKAGE_SYMBOL. Recognises
+    ``subprocess.run(["script", ...])`` (also ``python -m pkg ...``) and
+    ``CliRunner().invoke(app, [...])`` shapes. The walk uses the same
+    intra-module closure as criterion (a) so a helper-wrapped invocation
+    still counts.
+    """
+    if not project_scripts:
+        return False
+    mod_funcs = _module_level_funcs_by_name(module_ast)
+    mod_classes = _module_level_classes_by_name(module_ast)
+    closure = _closure_nodes_for_test(test_func, mod_funcs, mod_classes)
+    for call in _calls_in_nodes(closure):
+        if _is_subprocess_call(call) and has_in_package_subprocess_invocation(
+            call=call,
+            module_ast=module_ast,
+            project_scripts=project_scripts,
+        ):
+            return True
+        if _is_clirunner_invoke_call(call) and call.args:
+            return True
+    return False
+
+
+test_invokes_in_package_script.__test__ = False  # type: ignore[attr-defined]
