@@ -132,6 +132,19 @@ disable_error_code = [
     "call-overload",
 ]
 
+# Contract boundaries: `Any` is deliberate to let downstream packages
+# (tools, hooks, witnesses) define their own typed payloads without
+# coupling to a fixed schema. Loosening `disallow_any_explicit` here
+# only — the rest of the package stays strict.
+[[tool.mypy.overrides]]
+module = [
+    "axm.tools.base",
+    "axm.hooks.base",
+    "axm.witnesses",
+    "axm.cli",
+]
+disallow_any_explicit = false
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
