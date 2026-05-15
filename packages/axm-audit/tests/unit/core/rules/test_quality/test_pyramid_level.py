@@ -16,6 +16,7 @@ from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality._shared import fixture_does_io
 from axm_audit.core.rules.test_quality.pyramid_level import (
     PyramidLevelRule,
+    _has_in_package_subprocess_for_test,
     classify_level,
     has_in_package_subprocess_invocation,
 )
@@ -134,6 +135,55 @@ def test_classify_level_e2e_requires_in_package_subprocess() -> None:
 
     assert level == "unit"
     assert reason == "public API import, no real I/O (pure function unit test)"
+
+
+def test_subprocess_detection_walks_module_level_helper_closure() -> None:
+    """Regression: helper indirection must not hide in-package subprocess calls.
+
+    Before the closure-walk fix, ``ast.walk(test_node)`` only inspected the
+    test body, so a ``subprocess.run([sys.executable, '-m', pkg])`` hidden
+    inside a module-level helper made the test fall through to integration.
+    """
+    from pathlib import Path
+
+    from axm_audit.core.rules.test_quality.pyramid_level import _build_scan_context
+
+    source = textwrap.dedent(
+        """
+        import subprocess
+        import sys
+
+
+        def _run_cli(project):
+            return subprocess.run(
+                [sys.executable, "-m", "axm_audit", "test-quality", str(project)],
+                check=False,
+            )
+
+
+        def test_uses_helper(tmp_path):
+            _run_cli(tmp_path)
+        """
+    ).lstrip()
+    tree = ast.parse(source)
+    pkg_root = Path("/tmp/fake-pkg")
+    ctx = _build_scan_context(
+        test_file=pkg_root / "tests" / "e2e" / "test_x.py",
+        tree=tree,
+        pkg_root=pkg_root,
+        pkg_prefixes={"axm_audit"},
+        init_all=None,
+        tests_dir=pkg_root / "tests",
+    )
+    # Force project_scripts since pkg_root is fake and has no pyproject.
+    ctx.project_scripts = {"axm-audit"}
+    test_node = next(
+        n
+        for n in tree.body
+        if isinstance(n, ast.FunctionDef) and n.name == "test_uses_helper"
+    )
+
+    assert _has_in_package_subprocess_for_test(ctx, test_node)
 
 
 def test_classify_level_in_package_subprocess_wins() -> None:
