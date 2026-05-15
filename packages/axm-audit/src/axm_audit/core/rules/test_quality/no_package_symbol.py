@@ -151,6 +151,60 @@ def _classify_test(
     return ("NO_PACKAGE_SYMBOL", a_passed, b_passed)
 
 
+@dataclass(frozen=True)
+class _FileAggregate:
+    any_a: bool
+    any_b: bool
+
+
+def _aggregate_file_verdicts(
+    tree: ast.Module, level: str, ctx: _ScanContext
+) -> _FileAggregate | None:
+    any_a = False
+    any_b = False
+    had_unmarked_test = False
+    for func in _iter_test_funcs(tree):
+        if _has_per_test_marker(func):
+            continue
+        had_unmarked_test = True
+        verdict = _classify_test(func, tree, level, ctx)
+        if verdict is None:
+            return None
+        any_a = any_a or verdict[1]
+        any_b = any_b or verdict[2]
+    if not had_unmarked_test:
+        return None
+    return _FileAggregate(any_a=any_a, any_b=any_b)
+
+
+def _finding_for_aggregate(rel: str, agg: _FileAggregate, level: str) -> _Finding:
+    if agg.any_a and not agg.any_b and level == "e2e":
+        return _Finding(
+            test_file=rel,
+            verdict="MISLOCATED_INTEGRATION",
+            criterion_a_passed=True,
+            criterion_b_passed=False,
+        )
+    return _Finding(
+        test_file=rel,
+        verdict="NO_PACKAGE_SYMBOL",
+        criterion_a_passed=agg.any_a,
+        criterion_b_passed=agg.any_b,
+    )
+
+
+def _pick_fix_hint(findings: list[_Finding]) -> str | None:
+    if not findings:
+        return None
+    has_mis = any(f.verdict == "MISLOCATED_INTEGRATION" for f in findings)
+    has_no_sym = any(f.verdict == "NO_PACKAGE_SYMBOL" for f in findings)
+    if has_mis and not has_no_sym:
+        return _FIX_HINT_MISLOCATED
+    if has_no_sym and not has_mis:
+        return _FIX_HINT_NO_SYMBOL
+    return _FIX_HINT_NO_SYMBOL + " — also: " + _FIX_HINT_MISLOCATED
+
+
 @register_rule(category="test_quality")
 class NoPackageSymbolRule(ProjectRule):
     """Flag integration / e2e tests that exercise neither symbol nor CLI."""
@@ -204,42 +258,14 @@ class NoPackageSymbolRule(ProjectRule):
         """
         if _file_has_module_marker(tree):
             return []
+        aggregate = _aggregate_file_verdicts(tree, level, ctx)
+        if aggregate is None:
+            return []
         try:
             rel = test_file.relative_to(ctx.project_path).as_posix()
         except ValueError:
             rel = str(test_file)
-        any_a = False
-        any_b = False
-        had_unmarked_test = False
-        for func in _iter_test_funcs(tree):
-            if _has_per_test_marker(func):
-                continue
-            had_unmarked_test = True
-            verdict = _classify_test(func, tree, level, ctx)
-            if verdict is None:
-                # The test is fine — reset offence and exit; file is OK.
-                return []
-            any_a = any_a or verdict[1]
-            any_b = any_b or verdict[2]
-        if not had_unmarked_test:
-            return []
-        if any_a and not any_b and level == "e2e":
-            return [
-                _Finding(
-                    test_file=rel,
-                    verdict="MISLOCATED_INTEGRATION",
-                    criterion_a_passed=True,
-                    criterion_b_passed=False,
-                )
-            ]
-        return [
-            _Finding(
-                test_file=rel,
-                verdict="NO_PACKAGE_SYMBOL",
-                criterion_a_passed=any_a,
-                criterion_b_passed=any_b,
-            )
-        ]
+        return [_finding_for_aggregate(rel, aggregate, level)]
 
     def _build_check_result(self, findings: list[_Finding]) -> CheckResult:
         n = len(findings)
@@ -249,19 +275,6 @@ class NoPackageSymbolRule(ProjectRule):
             message = "every integration/e2e test exercises the package"
         else:
             message = f"{n} integration/e2e test(s) exercise no package symbol or CLI"
-        fix_hint: str | None
-        if passed:
-            fix_hint = None
-        elif any(f.verdict == "MISLOCATED_INTEGRATION" for f in findings) and not any(
-            f.verdict == "NO_PACKAGE_SYMBOL" for f in findings
-        ):
-            fix_hint = _FIX_HINT_MISLOCATED
-        elif any(f.verdict == "NO_PACKAGE_SYMBOL" for f in findings) and not any(
-            f.verdict == "MISLOCATED_INTEGRATION" for f in findings
-        ):
-            fix_hint = _FIX_HINT_NO_SYMBOL
-        else:
-            fix_hint = _FIX_HINT_NO_SYMBOL + " — also: " + _FIX_HINT_MISLOCATED
         return CheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -269,5 +282,5 @@ class NoPackageSymbolRule(ProjectRule):
             severity=Severity.WARNING,
             score=score,
             details={"findings": [f.as_dict() for f in findings]},
-            fix_hint=fix_hint,
+            fix_hint=_pick_fix_hint(findings),
         )
