@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import tomllib
+from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,11 +19,14 @@ from axm_audit.core.rules._helpers import get_ast_cache, parse_file_safe
 
 __all__ = [
     "analyze_imports",
+    "canonical_filename",
+    "cli_invocation_tuple",
     "collect_pkg_contract_classes",
     "collect_pkg_public_symbols",
     "current_level_from_path",
     "detect_real_io",
     "extract_mock_targets",
+    "first_party_symbol_counts",
     "fixture_does_io",
     "func_attr_io_transitive",
     "get_init_all",
@@ -36,6 +40,7 @@ __all__ = [
     "test_invokes_in_package_script",
     "test_is_in_lazy_import_context",
     "test_references_first_party",
+    "to_snake_token",
 ]
 
 
@@ -1614,3 +1619,202 @@ def test_invokes_in_package_script(
 
 
 test_invokes_in_package_script.__test__ = False  # type: ignore[attr-defined]
+
+
+# ── Canonical filename emission (FILE_NAMING) ─────────────────
+#
+# Helpers ported from ``scripts/test_orga/tuple_naming_proto.py`` and
+# ``tuple_naming_e2e_proto.py``. They power TEST_QUALITY_FILE_NAMING: count
+# first-party symbol usage and CLI invocations in a test body (no closure
+# walk), then emit the canonical ``test_{tuple}.py`` filename.
+
+_FILE_NAMING_TOP_K = 2
+
+
+def to_snake_token(name: str) -> str:
+    """Normalize a PascalCase / kebab-case token to snake_case.
+
+    Used to compose canonical filenames. Empty input returns empty.
+    """
+    if not name:
+        return name
+    name = name.replace("-", "_")
+    out: list[str] = []
+    for i, ch in enumerate(name):
+        if (
+            ch.isupper()
+            and i > 0
+            and (name[i - 1].islower() or (i + 1 < len(name) and name[i + 1].islower()))
+        ):
+            out.append("_")
+        out.append(ch.lower())
+    return "".join(out).lstrip("_")
+
+
+def _ref_name(node: ast.AST) -> str | None:
+    """Return the bound name for an ``ast.Name`` / ``ast.Attribute`` root."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        root: ast.AST = node
+        while isinstance(root, ast.Attribute):
+            root = root.value
+        if isinstance(root, ast.Name):
+            return root.id
+    return None
+
+
+def first_party_symbol_counts(
+    *,
+    test_func: ast.FunctionDef,
+    mod_ast: ast.Module,
+    pkg_prefixes: set[str],
+) -> Counter[str]:
+    """Count direct references to first-party symbols inside *test_func*.
+
+    Aliases are resolved from the module's imports (``from pkg.x import Y``
+    or ``import pkg.x as y``). Per the FILE_NAMING design, only the bare
+    test body is walked — no helper closure — because tuple emission must
+    reflect direct usage frequency, not transitive reachability.
+    """
+    aliases = _collect_first_party_aliases(mod_ast, pkg_prefixes)
+    if not aliases:
+        return Counter()
+    known = set(aliases)
+    counts: Counter[str] = Counter()
+    for sub in ast.walk(test_func):
+        name = _ref_name(sub) if isinstance(sub, (ast.Name, ast.Attribute)) else None
+        if name is not None and name in known:
+            counts[name] += 1
+    return counts
+
+
+def _has_shell_true(call: ast.Call) -> bool:
+    """Return True if *call* has ``shell=True`` among its keywords."""
+    return any(
+        kw.arg == "shell"
+        and isinstance(kw.value, ast.Constant)
+        and kw.value.value is True
+        for kw in call.keywords
+    )
+
+
+def _match_script_in_argv(
+    argv: list[str],
+    project_scripts: set[str],
+    script_modules: dict[str, str],
+) -> tuple[str, str] | None:
+    """Find the first project-script match in *argv*.
+
+    Return ``(script, sub_cmd)`` or *None*.
+    """
+    match_idx: int | None = None
+    match_script: str | None = None
+    for i, tok in enumerate(argv):
+        if tok in project_scripts:
+            match_idx, match_script = i, tok
+            break
+        if tok in script_modules:
+            match_idx, match_script = i, script_modules[tok]
+            break
+    if match_idx is None or match_script is None:
+        return None
+    sub_cmd = ""
+    sub_idx = match_idx + 1
+    if len(argv) > sub_idx and not argv[sub_idx].startswith("-"):
+        sub_cmd = argv[sub_idx]
+    return match_script, sub_cmd
+
+
+def cli_invocation_tuple(
+    *,
+    test_func: ast.FunctionDef,
+    mod_ast: ast.Module,
+    project_scripts: set[str],
+) -> Counter[tuple[str, str]]:
+    """Count ``(bin, sub)`` invocations of declared scripts in *test_func*.
+
+    Recognises ``subprocess.run(["bin", "sub", ...])`` shapes (including
+    module aliases like ``python -m pkg ...`` and indirect list/string
+    bindings already handled by ``_argv_from_call``). The sub-command is the
+    first non-flag argv element after the matched binary, or ``""`` when the
+    bare binary is invoked. Non-package invocations (``git init``,
+    ``shutil.which``-resolved plumbing) yield an empty counter.
+    """
+    if not project_scripts:
+        return Counter()
+    counts: Counter[tuple[str, str]] = Counter()
+    script_modules = {s.replace("-", "_"): s for s in project_scripts}
+    for sub in ast.walk(test_func):
+        if not isinstance(sub, ast.Call) or not _is_subprocess_call(sub):
+            continue
+        if _has_shell_true(sub):
+            continue
+        argv = _argv_from_call(sub, mod_ast)
+        if not argv:
+            continue
+        result = _match_script_in_argv(argv, project_scripts, script_modules)
+        if result is not None:
+            counts[result] += 1
+    return counts
+
+
+def canonical_filename(
+    *,
+    symbols_or_tuples: object,
+    tier: str,
+    single_binary: str | None,
+) -> str:
+    """Emit the canonical ``test_*.py`` filename for a tier's tuple.
+
+    For ``tier="integration"``, *symbols_or_tuples* is an iterable of
+    first-party symbol names; the top-K=2 (already sorted) are snake-cased
+    and dash-joined. For ``tier="e2e"``, *symbols_or_tuples* is an iterable
+    of ``(bin, sub)`` tuples; the same K=2 rule applies. When *single_binary*
+    is not None, the redundant binary prefix is stripped: ``(axm-audit,
+    audit)`` emits ``test_audit.py``; ``(axm-audit, "")`` emits the bare
+    binary ``test_axm_audit.py``.
+
+    K=0 yields ``test_UNKNOWN.py`` — but the FILE_NAMING rule never emits
+    K=0 findings (that case is NO_PACKAGE_SYMBOL's concern).
+    """
+    items = list(symbols_or_tuples)  # type: ignore[call-overload]
+    if not items:
+        return "test_UNKNOWN.py"
+    if tier == "e2e":
+        tokens = _e2e_tokens(items, single_binary)
+    else:
+        tokens = sorted({to_snake_token(s) for s in items if s})[:_FILE_NAMING_TOP_K]
+    if not tokens:
+        return "test_UNKNOWN.py"
+    return "test_" + "-".join(tokens) + ".py"
+
+
+def _e2e_tokens(
+    items: list[tuple[str, str]],
+    single_binary: str | None,
+) -> list[str]:
+    """Build the snake-cased dash-joined tokens for an e2e canonical name.
+
+    When ``single_binary`` is set, the binary prefix is stripped: each
+    ``(bin, sub)`` collapses to ``sub`` (or to ``bin`` if no sub is set,
+    so a bare-binary invocation still surfaces a name).
+    """
+    if single_binary is not None:
+        collapsed: list[str] = []
+        for bin_name, sub in items[:_FILE_NAMING_TOP_K]:
+            token = sub if sub else bin_name
+            collapsed.append(to_snake_token(token))
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for tok in collapsed:
+            if tok and tok not in seen:
+                seen.add(tok)
+                ordered.append(tok)
+        return ordered
+    pieces: list[str] = []
+    for bin_name, sub in items[:_FILE_NAMING_TOP_K]:
+        bin_tok = to_snake_token(bin_name)
+        sub_tok = to_snake_token(sub) if sub else ""
+        pieces.append(f"{bin_tok}-{sub_tok}" if sub_tok else bin_tok)
+    return pieces

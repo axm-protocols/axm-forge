@@ -50,6 +50,13 @@ KNOWN_FALSE_E2E_DIVERGENCES: set[str] = {
     # the spec entry refers to its former e2e location, so the scan never
     # produces a mismatch on this path.
     str(AXM_AUDIT / "tests/e2e/test_coverage_rule_excludes_main.py"),
+    # Same pattern for axm-init: the three files below were either renamed
+    # or relocated in subsequent axm-init refactors and no longer exist at
+    # their tests/e2e/ path. The scanner therefore never emits a mismatch
+    # for these paths.
+    str(AXM_INIT / "tests/e2e/test_checker_coupling.py"),
+    str(AXM_INIT / "tests/e2e/test_cli_subcommands_end_to_end.py"),
+    str(AXM_INIT / "tests/e2e/test_copier_coupling.py"),
 }
 
 KNOWN_TRUE_E2E_DIVERGENCES: set[str] = {
