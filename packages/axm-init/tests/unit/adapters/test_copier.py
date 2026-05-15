@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import logging
+import subprocess
+import sys
+import textwrap
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -145,3 +148,28 @@ class TestCopierAdapterUnit:
             adapter.copy(config)
 
         assert not any("unsafe" in r.message.lower() for r in caplog.records)
+
+
+def test_copier_imports_at_runtime() -> None:
+    """Importing copier adapter in a fresh interpreter raises no ImportError."""
+    code = textwrap.dedent("""
+        from axm_init.adapters.copier import CopierAdapter, CopierConfig
+        print("OK")
+    """)
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, f"ImportError: {result.stderr}"
+    assert "OK" in result.stdout
+
+
+def test_copier_adapter_instantiation() -> None:
+    """CopierAdapter can be instantiated after import refactor."""
+    from axm_init.adapters.copier import CopierAdapter
+
+    adapter = CopierAdapter()
+    assert hasattr(adapter, "copy")
+    assert hasattr(adapter, "_do_copy")
