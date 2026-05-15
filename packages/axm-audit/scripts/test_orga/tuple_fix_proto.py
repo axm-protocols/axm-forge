@@ -683,17 +683,108 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
                 f'"""Tests for canonical tuple ``{canonical}`` — split from '
                 f"{op.source.name}.\"\"\"\n"
             )
-        plan = move_symbols(
-            source_path=op.source,
-            target_path=target,
-            symbol_names=unit_names,
-            workspace_root=project_path,
-            shared_helpers="duplicate",
+        sub_warnings, _ = _safe_move_units(
+            op.source, target, unit_names, project_path
         )
-        warnings.extend(plan.warnings)
+        warnings.extend(sub_warnings)
     if op.source.exists() and op.source.name != anchor:
-        _git_mv(op.source, op.source.parent / anchor)
+        # The residual source contains the anchor group. Rename it to
+        # the anchor canonical — but if a file with that name already
+        # exists (cross-file SPLIT collision), do a safe merge into it.
+        target = op.source.parent / anchor
+        if target.exists() and target != op.source:
+            tree = ast.parse(op.source.read_text())
+            residual_units = _movable_units_at_top_level(tree)
+            if residual_units:
+                sub_warnings, _ = _safe_move_units(
+                    op.source, target, residual_units, project_path
+                )
+                warnings.extend(sub_warnings)
+            _delete_source_if_empty_tests(op.source)
+        else:
+            _git_mv(op.source, target)
     return warnings
+
+
+def _safe_move_units(
+    source: Path,
+    target: Path,
+    unit_names: list[str],
+    project_path: Path,
+) -> tuple[list[str], list[str]]:
+    """Move units from source to target, resolving cross-file name collisions.
+
+    Strategy on each colliding name:
+      * If both are test_* funcs and bodies identical → drop from source.
+      * Otherwise → rename in source with suffix ``__from_<source_stem>``.
+
+    Returns (warnings, actually_moved_names) — moved names are the
+    final names anvil received (possibly with suffix).
+    """
+    if not unit_names:
+        return [], []
+    source_tree = ast.parse(source.read_text())
+    target_tree = ast.parse(target.read_text())
+    target_top_names = {
+        n.name
+        for n in target_tree.body
+        if isinstance(n, ast.FunctionDef | ast.ClassDef)
+    }
+    source_funcs = {
+        n.name: n
+        for n in source_tree.body
+        if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")
+    }
+    target_funcs = {
+        n.name: n
+        for n in target_tree.body
+        if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")
+    }
+
+    warnings: list[str] = []
+    rename_map: dict[str, str] = {}
+    final_units: list[str] = []
+    suffix = f"__from_{source.stem.removeprefix('test_')}"
+
+    for name in unit_names:
+        if name not in target_top_names:
+            final_units.append(name)
+            continue
+        # Collision detected
+        if name in source_funcs and name in target_funcs:
+            if _func_body_hash(source_funcs[name]) == _func_body_hash(
+                target_funcs[name]
+            ):
+                warnings.append(
+                    f"dedup: dropped {source.name}::{name} "
+                    f"(identical body to {target.name}::{name})"
+                )
+                _delete_function_from_source(source, name)
+                continue
+        # Different bodies, or class collision → rename
+        new_name = name + suffix
+        rename_map[name] = new_name
+        final_units.append(new_name)
+        warnings.append(
+            f"rename: {source.name}::{name} -> {new_name} "
+            f"(collision with {target.name})"
+        )
+
+    if rename_map:
+        _rename_top_level_in_source(source, rename_map)
+
+    if not final_units:
+        return warnings, []
+
+    plan = move_symbols(
+        source_path=source,
+        target_path=target,
+        symbol_names=final_units,
+        workspace_root=project_path,
+        shared_helpers="duplicate",
+    )
+    warnings.extend(plan.warnings)
+    return warnings, final_units
 
 
 def _func_body_hash(func: ast.FunctionDef) -> str:
@@ -726,97 +817,17 @@ def _movable_units_at_top_level(tree: ast.Module) -> list[str]:
 
 
 def _execute_merge(op: FileOp, project_path: Path) -> list[str]:
-    """MERGE source's units into target via move_symbols.
-
-    Strategy on name collision:
-      * If source's test body is structurally identical to target's
-        (after stripping docstrings), it's a duplicate — drop from source.
-      * Otherwise, rename source's test with suffix ``__from_<source_stem>``
-        and proceed.
-    """
-    assert move_symbols is not None, "axm-anvil not importable"
+    """MERGE source's units into target via _safe_move_units."""
     assert isinstance(op.target, Path)
     if not op.source.exists() or not op.target.exists():
         return [f"merge skipped: missing ({op.source} -> {op.target})"]
     source_tree = ast.parse(op.source.read_text())
-    target_tree = ast.parse(op.target.read_text())
-
     source_units = _movable_units_at_top_level(source_tree)
     if not source_units:
         return [f"merge skipped: {op.source} has no top-level movable units"]
-
-    # Index target test bodies by name (for dedup decisions)
-    target_funcs = {
-        n.name: n
-        for n in target_tree.body
-        if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")
-    }
-    target_classes = {
-        n.name: n
-        for n in target_tree.body
-        if isinstance(n, ast.ClassDef) and n.name.startswith("Test")
-    }
-    source_funcs = {
-        n.name: n
-        for n in source_tree.body
-        if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")
-    }
-
-    warnings: list[str] = []
-    rename_map: dict[str, str] = {}
-    units_to_move: list[str] = []
-    suffix = f"__from_{op.source.stem.replace('test_', '', 1)}"
-
-    for name in source_units:
-        if name in target_funcs and name in source_funcs:
-            # Body comparison: drop duplicate, suffix divergent
-            if _func_body_hash(source_funcs[name]) == _func_body_hash(
-                target_funcs[name]
-            ):
-                warnings.append(
-                    f"merge: dropped duplicate test {op.source.name}::{name} "
-                    f"(identical to {op.target.name}::{name})"
-                )
-                _delete_function_from_source(op.source, name)
-                continue
-            new_name = name + suffix
-            rename_map[name] = new_name
-            units_to_move.append(name)
-            warnings.append(
-                f"merge: renamed {op.source.name}::{name} -> {new_name} "
-                f"(name collision with {op.target.name}, divergent body)"
-            )
-        elif name in target_classes or name in target_funcs:
-            # Class vs func collision, or class-class: rename
-            new_name = name + suffix
-            rename_map[name] = new_name
-            units_to_move.append(name)
-            warnings.append(
-                f"merge: renamed {op.source.name}::{name} -> {new_name} "
-                f"(name collision with {op.target.name})"
-            )
-        else:
-            units_to_move.append(name)
-
-    if not units_to_move:
-        # Everything was duplicate — just drop the source file
-        _delete_source_if_empty_tests(op.source)
-        return warnings
-
-    # Rename in-source first (anvil's `rename=` validates target absence
-    # under the ORIGINAL name, so it can't resolve collisions itself).
-    if rename_map:
-        _rename_top_level_in_source(op.source, rename_map)
-        units_to_move = [rename_map.get(n, n) for n in units_to_move]
-
-    plan = move_symbols(
-        source_path=op.source,
-        target_path=op.target,
-        symbol_names=units_to_move,
-        workspace_root=project_path,
-        shared_helpers="duplicate",
+    warnings, _ = _safe_move_units(
+        op.source, op.target, source_units, project_path
     )
-    warnings.extend(plan.warnings)
     _delete_source_if_empty_tests(op.source)
     return warnings
 
@@ -909,16 +920,25 @@ def run(
         if apply and relocate_ops:
             warnings.extend(execute(relocate_ops, project_path))
 
-    # Stages 2-4: FILE_NAMING (planned AFTER flatten + relocate)
+    # Stages 2-4: FILE_NAMING (planned AFTER flatten + relocate).
+    # Re-plan between stages to act on post-mutation paths — the audit
+    # path field becomes stale after SPLIT moves files around.
     if "TEST_QUALITY_FILE_NAMING" in rules:
-        splits, merges, renames = plan_naming(project_path)
-        report.ops.extend(splits)
-        report.ops.extend(merges)
-        report.ops.extend(renames)
         if apply:
+            splits, _, _ = plan_naming(project_path)
+            report.ops.extend(splits)
             warnings.extend(execute(splits, project_path))
+            _, merges, _ = plan_naming(project_path)  # re-plan post-SPLIT
+            report.ops.extend(merges)
             warnings.extend(execute(merges, project_path))
+            _, _, renames = plan_naming(project_path)  # re-plan post-MERGE
+            report.ops.extend(renames)
             warnings.extend(execute(renames, project_path))
+        else:
+            splits, merges, renames = plan_naming(project_path)
+            report.ops.extend(splits)
+            report.ops.extend(merges)
+            report.ops.extend(renames)
 
     report.warnings = warnings
 
