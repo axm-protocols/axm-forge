@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
+import textwrap
 
 from axm_init.core.checker import ALL_CHECKS
 
@@ -91,3 +93,30 @@ def test_redirect_for_member_no_coverage_upload():
     from axm_init.core.checker import REDIRECT_FOR_MEMBER
 
     assert "ci.ci_coverage_upload" not in REDIRECT_FOR_MEMBER
+
+
+def test_checker_imports_at_runtime() -> None:
+    """Importing checker in a fresh interpreter raises no ImportError."""
+    code = textwrap.dedent("""
+        from axm_init.core.checker import CheckEngine
+        print("OK")
+    """)
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, f"ImportError: {result.stderr}"
+    assert "OK" in result.stdout
+
+
+def test_all_checks_registry_populated() -> None:
+    """ALL_CHECKS registry is populated with callable check functions."""
+    from axm_init.core.checker import ALL_CHECKS
+
+    assert isinstance(ALL_CHECKS, dict)
+    assert len(ALL_CHECKS) > 0
+    for category, fns in ALL_CHECKS.items():
+        assert isinstance(category, str)
+        assert all(callable(fn) for fn in fns)
