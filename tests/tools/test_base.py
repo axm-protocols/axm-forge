@@ -108,11 +108,6 @@ class TestAXMTool:
         assert result.success is True
         assert result.data == {"path": "/tmp"}
 
-    def test_isinstance_check(self) -> None:
-        """runtime_checkable Protocol supports isinstance()."""
-        tool = ConcreteTool()
-        assert isinstance(tool, AXMTool)
-
     def test_explicit_param_tool(self) -> None:
         """Tool with explicit params satisfies the protocol."""
         tool = ExplicitParamTool()

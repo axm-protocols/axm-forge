@@ -6,7 +6,6 @@ from importlib.metadata import EntryPoint
 from typing import Any
 from unittest.mock import patch
 
-import cyclopts
 import pytest
 
 from axm.cli import _EP_GROUP, create_app
@@ -20,10 +19,11 @@ def _make_entry_point(name: str, value: str, group: str) -> EntryPoint:
 class TestCreateApp:
     """Tests for create_app factory."""
 
-    def test_returns_cyclopts_app(self) -> None:
-        """create_app returns a cyclopts.App instance."""
+    def test_returns_callable_app_with_help_text(self) -> None:
+        """create_app returns an app whose help text identifies AXM."""
         app = create_app()
-        assert isinstance(app, cyclopts.App)
+        assert app.help == "AXM — Protocol execution ecosystem."
+        assert callable(app)
 
     def test_app_name_is_axm(self) -> None:
         """The app is named 'axm'."""
@@ -31,11 +31,11 @@ class TestCreateApp:
         assert app.name == ("axm",)
 
     def test_no_commands_without_plugins(self) -> None:
-        """Without installed plugins, a default handler is registered."""
+        """Without installed plugins, the no-commands fallback is registered."""
         with patch("axm.cli.importlib.metadata.entry_points", return_value=[]):
             app = create_app()
-        # App should still be created (with default handler)
-        assert isinstance(app, cyclopts.App)
+        assert app.default_command is not None
+        assert app.default_command.__name__ == "_no_commands"
 
     def test_no_commands_handler_exits(self) -> None:
         """The no-commands fallback writes to stderr and exits."""
@@ -72,13 +72,14 @@ class TestAutodiscovery:
         ):
             app = create_app()
 
-        # The command should be registered and callable
-        assert isinstance(app, cyclopts.App)
         registered_names = list(app)
         assert "fake" in registered_names
 
-    def test_failed_entry_point_logged_not_fatal(self) -> None:
-        """A broken entry point logs a warning but doesn't crash."""
+    def test_failed_entry_point_logged_not_fatal(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A broken entry point logs a warning and falls back to no-commands."""
 
         class BrokenEP:
             name = "broken"
@@ -87,14 +88,21 @@ class TestAutodiscovery:
             def load(self) -> Any:
                 raise ImportError("missing dependency")
 
-        with patch(
-            "axm.cli.importlib.metadata.entry_points",
-            return_value=[BrokenEP()],
+        with (
+            caplog.at_level("WARNING", logger="axm.cli"),
+            patch(
+                "axm.cli.importlib.metadata.entry_points",
+                return_value=[BrokenEP()],
+            ),
         ):
-            # Should not raise
             app = create_app()
 
-        assert isinstance(app, cyclopts.App)
+        assert any(
+            "broken" in record.message and record.levelname == "WARNING"
+            for record in caplog.records
+        )
+        assert app.default_command is not None
+        assert app.default_command.__name__ == "_no_commands"
 
     def test_ep_group_constant(self) -> None:
         """The entry-point group matches the convention."""
