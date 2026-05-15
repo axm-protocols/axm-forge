@@ -308,6 +308,75 @@ live in `axm_audit.core.rules.test_quality._shared`
 their private helpers). Both `NoPackageSymbolRule` and `PyramidLevelRule`
 consume them — no duplicate definitions.
 
+## File-Naming
+
+**Rule ID**: `TEST_QUALITY_FILE_NAMING`
+**Class**: `axm_audit.core.rules.test_quality.FileNamingRule`
+**Severities**: `INFO` (NAME_MISMATCH), `WARNING` (SPLIT, COLLIDE)
+**Score**: `max(0, 100 - 1 * n_info - 3 * n_warning)`
+
+Derives a canonical `test_*.py` filename for every `tests/integration/**`
+and `tests/e2e/**` file from the top-K=2 tuple of (first-party symbols
+| `(bin, sub)` CLI invocations) and compares it with the current
+basename. `tests/unit/**` is skipped — that naming convention is
+enforced by `PRACTICE_TEST_MIRROR`.
+
+### Canonical filename emission
+
+| Tier | Input tuple | Emission |
+| -- | -- | -- |
+| `integration` | top-K=2 first-party symbols, alphabetical | `test_{s1}-{s2}.py` (snake_case, dash-joined) |
+| `integration` | top-K=1 | `test_{s1}.py` |
+| `e2e` (multi-binary) | top-K=2 `(bin, sub)` | `test_{bin1}-{sub1}-{bin2}-{sub2}.py` |
+| `e2e` (single-binary) | `(axm-audit, "audit")` | `test_audit.py` (binary prefix stripped) |
+| `e2e` (single-binary) | `(axm-audit, "")` | `test_axm_audit.py` (bare binary kept) |
+
+Single-binary collapse is gated on `len([project.scripts]) == 1`. Multi-binary
+CliRunner attribution falls back to "skip" when ambiguous.
+
+### Verdicts
+
+| Verdict | Severity | Triggered when | Payload fields |
+| -- | -- | -- | -- |
+| `NAME_MISMATCH` | INFO | the file's basename differs from its canonical emission | `current_name`, `proposed_name`, `tuple`, `tier` |
+| `SPLIT` | WARNING | the file's tests resolve to ≥2 distinct canonical tuples | `tuples`, `suggested_splits`, `tier` |
+| `COLLIDE` | WARNING | two or more files in the same tier emit the same canonical name | `canonical_name`, `files`, `tier` |
+
+`NAME_MISMATCH` is INFO because, on packages with ≥70% cohesion, human
+scenario names often communicate more than the canonical tuple — the
+finding surfaces the divergence as signal, not as a defect. `SPLIT` and
+`COLLIDE` are WARNING because they describe pathologies of the file
+boundary, independent of name choice.
+
+### Marker opt-out
+
+Use `pytest.mark.scenario_name_ok` to declare that the current basename
+is intentional. The marker suppresses `NAME_MISMATCH` **only**; `SPLIT`
+and `COLLIDE` still apply:
+
+```python
+import pytest
+
+pytestmark = pytest.mark.scenario_name_ok  # file-wide
+```
+
+### Baseline snapshot
+
+Running the rule on `axm-audit` itself produces a non-zero, stable set of
+findings — the documented historical drift. A normalized snapshot lives
+at `tests/unit/core/rules/test_quality/_baselines/axm_audit_file_naming.json`
+and the integration test
+`tests/integration/test_file_naming_baseline_on_axm_audit.py` asserts
+parity with the live rule output. Regenerate the baseline only when an
+intentional drift is part of the work in flight.
+
+### Shared helpers
+
+`canonical_filename`, `first_party_symbol_counts`, and `cli_invocation_tuple`
+live in `axm_audit.core.rules.test_quality._shared` (alongside the
+`NoPackageSymbolRule` helpers). They consume the bare test body — no
+helper closure — so the canonical tuple reflects direct usage frequency.
+
 ## Validation
 
 The v6 / v4 stacks were validated against the internal AXM corpus and an
