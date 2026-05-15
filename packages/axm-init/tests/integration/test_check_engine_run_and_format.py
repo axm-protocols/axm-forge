@@ -160,7 +160,7 @@ class TestCheckEngineRun:
         result = engine.run()
         assert result.score == 100
         assert result.grade == Grade.A
-        assert len(result.checks) == 39
+        assert len(result.checks) == 40
 
     def test_run_single_category(self, gold_project: Path) -> None:
         """Filtering to tooling returns only tooling checks."""
@@ -301,7 +301,7 @@ class TestEngineStandalone:
         result = engine.run()
         assert result.score == 100
         assert result.grade == Grade.A
-        assert len(result.checks) == 39
+        assert len(result.checks) == 40
         assert result.context == "standalone"
         assert result.workspace_root is None
         assert result.excluded_checks == []
@@ -473,7 +473,7 @@ class TestEngineExclusion:
         engine = CheckEngine(gold_project)
         result = engine.run()
         assert result.score == 100
-        assert len(result.checks) == 39
+        assert len(result.checks) == 40
 
 
 class TestProjectResultContext:
