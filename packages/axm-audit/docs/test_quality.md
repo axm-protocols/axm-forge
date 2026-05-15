@@ -12,12 +12,14 @@ asserts, or mock patterns that drift from production behavior.
 axm-audit test-quality [PATH] [--json] [--mismatches-only] [--agent]
 ```
 
-Runs the `test_quality` category and prints the four sections (private
-imports → pyramid → duplicates → tautologies). Use `--json` for the
-machine-readable superset (`format_test_quality_json`), `--agent` for the
-compact agent renderer, or `--mismatches-only` to focus on pyramid
-folder↔level violations. Exits `1` when the aggregate score falls below
-`PASS_THRESHOLD`. See the [CLI reference](reference/cli.md) for details.
+Runs the `test_quality` category and prints the five sections (private
+imports → pyramid → duplicates → tautologies → no-package-symbol). Use
+`--json` for the machine-readable superset (`format_test_quality_json`,
+which also exposes a sorted `rules` array of every `TEST_QUALITY_*` rule
+id that was evaluated), `--agent` for the compact agent renderer, or
+`--mismatches-only` to focus on pyramid folder↔level violations. Exits
+`1` when the aggregate score falls below `PASS_THRESHOLD`. See the
+[CLI reference](reference/cli.md) for details.
 
 ## Private Imports
 
@@ -246,6 +248,65 @@ forms above are the documentation convention for this page.
 - `rule` — triage step that fired (e.g. `step_0b_n_copies_constructor`)
 - `verdict` — `DELETE` / `STRENGTHEN` / `UNKNOWN`
 - `reason` — human-readable explanation from the triage step
+
+## No-Package-Symbol
+
+**Rule ID**: `TEST_QUALITY_NO_PACKAGE_SYMBOL`
+**Class**: `axm_audit.core.rules.test_quality.NoPackageSymbolRule`
+**Severity**: `WARNING`
+**Score**: `max(0, 100 - n_findings * 2)`
+
+Flags `tests/integration/**` and `tests/e2e/**` test files that satisfy
+**neither** criterion:
+
+* **Criterion (a) — first-party symbol exercise.** The test (or any
+  module-level helper it transitively calls, or any `pytest.fixture`
+  whose return-type annotation or return/yield value resolves to a
+  first-party alias) references a symbol imported from a package
+  declared under `src/`.
+* **Criterion (b) — in-package script invocation.** The closure invokes
+  a declared `[project.scripts]` entrypoint via `subprocess.run`,
+  `subprocess.call`, ``python -m <pkg>`` (after the script's hyphen→underscore
+  alias), or `CliRunner().invoke(app, [...])` for single-script packages.
+
+`tests/unit/**` is skipped — the rule does not apply at the unit tier.
+
+### Verdicts
+
+| Verdict | Triggered when | Fix |
+| -- | -- | -- |
+| `MISLOCATED_INTEGRATION` | only criterion (a) passes, and the file lives in `tests/e2e/` | Move the file to `tests/integration/` — it exercises Python symbols, not the package CLI. |
+| `NO_PACKAGE_SYMBOL` | neither criterion passes | Express the invariant as a versioned rule of the target package, or move the check to a doc/packaging linter outside the pytest suite. |
+
+A file is reported only when **every** unmarked test in the file fails
+both criteria — a mix of one fixture-validation test plus one
+symbol-exercising test is still OK.
+
+### Marker opt-out
+
+Use `pytest.mark.no_package_symbol_ok` to suppress the rule on a single
+test or an entire file:
+
+```python
+import pytest
+
+pytestmark = pytest.mark.no_package_symbol_ok  # file-wide
+
+@pytest.mark.no_package_symbol_ok            # per-test
+def test_distributable_artefact_packaging(): ...
+```
+
+The marker is appropriate when the test legitimately verifies a
+non-package property (e.g. a packaging invariant, a packaging-linter
+output) that the project deliberately encodes as pytest.
+
+### Single source of truth
+
+`[project.scripts]` resolution and the permissive argv reconstruction
+live in `axm_audit.core.rules.test_quality._shared`
+(`load_project_scripts`, `has_in_package_subprocess_invocation` and
+their private helpers). Both `NoPackageSymbolRule` and `PyramidLevelRule`
+consume them — no duplicate definitions.
 
 ## Validation
 

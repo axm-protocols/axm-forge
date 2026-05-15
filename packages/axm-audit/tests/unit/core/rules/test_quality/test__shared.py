@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import textwrap
+from pathlib import Path
 
 import pytest
 
@@ -12,7 +13,9 @@ from axm_audit.core.rules.test_quality._shared import (
     extract_mock_targets,
     fixture_does_io,
     func_attr_io_transitive,
+    has_in_package_subprocess_invocation,
     is_import_smoke_test,
+    load_project_scripts,
     target_matches_io,
 )
 
@@ -349,3 +352,60 @@ def test_extract_mock_targets(code: str, expected_target: str) -> None:
 def test_target_matches_io(target: str, expected: bool) -> None:
     """target_matches_io detects I/O targets via dotted suffix or leaf token."""
     assert target_matches_io(target) is expected
+
+
+# AC1 — helpers moved from pyramid_level to _shared
+# ---------------------------------------------------------------------
+
+
+def test_load_project_scripts_round_trip(tmp_path: Path) -> None:
+    """AC1: scripts declared in pyproject.toml are returned as a set."""
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """
+            [project]
+            name = "pkg"
+            version = "0.0.0"
+
+            [project.scripts]
+            pkg-cli = "pkg.cli:main"
+            pkg-tool = "pkg.tool:run"
+            """
+        ).strip()
+    )
+    assert load_project_scripts(pkg) == {"pkg-cli", "pkg-tool"}
+
+
+def test_has_in_package_subprocess_invocation_via_shared() -> None:
+    """AC1: helper returns True for in-package, False for plumbing."""
+    in_pkg = ast.parse(
+        textwrap.dedent(
+            """
+            import subprocess
+            subprocess.run(["pkg-cli", "do"], check=True)
+            """
+        ).strip()
+    )
+    plumbing = ast.parse(
+        textwrap.dedent(
+            """
+            import subprocess
+            subprocess.run(["git", "init"], check=True)
+            """
+        ).strip()
+    )
+    in_pkg_call = next(n for n in ast.walk(in_pkg) if isinstance(n, ast.Call))
+    plumb_call = next(n for n in ast.walk(plumbing) if isinstance(n, ast.Call))
+
+    assert has_in_package_subprocess_invocation(
+        call=in_pkg_call,
+        module_ast=in_pkg,
+        project_scripts={"pkg-cli"},
+    )
+    assert not has_in_package_subprocess_invocation(
+        call=plumb_call,
+        module_ast=plumbing,
+        project_scripts={"pkg-cli"},
+    )
