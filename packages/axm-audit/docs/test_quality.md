@@ -109,6 +109,12 @@ contains a writer attribute call like `.write_text`, R5 cannot neutralize it,
 even under `@patch("module.open")`. This prevents a misplaced patch decorator
 from lying about real I/O.
 
+Subprocess detection is narrowed to package-owned entry points when the package
+declares `[project.scripts]`: runner prefixes such as `uv run` are peeled until
+a declared script is found, and `python -m package.module` matches the module
+alias derived from that script name. Plumbing commands such as `git`, `pip`,
+`uv venv`, and `python -c` do not force `e2e` classification on their own.
+
 ### Classification branches
 
 | `has_real_io` | `has_subprocess` | `imports_public` | `imports_internal` | Level | Reason |
