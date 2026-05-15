@@ -349,8 +349,8 @@ def test_r5_tmp_path_write_read_with_mock_stays_integration(tmp_path: Path) -> N
     assert finding.level == "integration", (finding.level, finding.io_signals)
 
 
-def test_r5_subprocess_with_mock_stays_e2e(tmp_path: Path) -> None:
-    """AC7 (hard invariant B): subprocess/CliRunner -> R5 NEVER fires."""
+def test_r5_subprocess_with_mock_stays_unit(tmp_path: Path) -> None:
+    """Raw subprocess stays diagnostic and does not trigger R5 neutralization."""
     test = """
         from unittest.mock import patch
         import subprocess
@@ -361,7 +361,7 @@ def test_r5_subprocess_with_mock_stays_e2e(tmp_path: Path) -> None:
         """
     pkg = _make_pkg(tmp_path, test, test_subdir="e2e")
     finding = _find(pkg)
-    assert finding.level == "e2e", (finding.level, finding.io_signals)
+    assert finding.level == "unit", (finding.level, finding.io_signals)
     assert not any(sig.startswith("mock-neutralized") for sig in finding.io_signals), (
         finding.io_signals
     )
