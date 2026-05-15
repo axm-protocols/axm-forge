@@ -42,9 +42,14 @@ TRUE_E2E_FILES: set[str] = {
 # divergence set itself is the test's signal — shrinking it requires
 # either a classifier fix or a spec correction in a follow-up ticket.
 KNOWN_FALSE_E2E_DIVERGENCES: set[str] = {
-    # File listed in the spec does not exist on disk in the current
-    # corpus; cannot be reclassified by an empty scan result.
+    # Files listed in the spec do not exist at the expected path in the
+    # current corpus; cannot be reclassified by a scan that does not see
+    # them.
     str(AXM_AUDIT / "tests/e2e/test_docs_packaging.py"),
+    # Relocated to tests/integration/ in commit 7e1d64f (pre-AXM-1721);
+    # the spec entry refers to its former e2e location, so the scan never
+    # produces a mismatch on this path.
+    str(AXM_AUDIT / "tests/e2e/test_coverage_rule_excludes_main.py"),
 }
 
 KNOWN_TRUE_E2E_DIVERGENCES: set[str] = {

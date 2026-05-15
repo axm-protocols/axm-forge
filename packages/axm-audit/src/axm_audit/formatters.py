@@ -390,6 +390,14 @@ def _extract_verdicts(check: CheckResult) -> list[dict[str, object]]:
     return _dict_items(_meta_dict(check).get("verdicts"))
 
 
+def _extract_no_package_symbol(check: CheckResult) -> list[dict[str, object]]:
+    """Pull NO_PACKAGE_SYMBOL findings from the rule's ``details``."""
+    if (check.rule_id or "") != "TEST_QUALITY_NO_PACKAGE_SYMBOL":
+        return []
+    details = check.details or {}
+    return _dict_items(details.get("findings"))
+
+
 def _extract_test_quality(
     result: AuditResult,
 ) -> tuple[
@@ -397,18 +405,21 @@ def _extract_test_quality(
     list[dict[str, object]],
     list[dict[str, object]],
     list[dict[str, object]],
+    list[dict[str, object]],
 ]:
-    """Pull (private, pyramid, clusters, verdicts) entries from any check shape."""
+    """Pull (private, pyramid, clusters, verdicts, no_pkg) entries from checks."""
     private: list[dict[str, object]] = []
     pyramid: list[dict[str, object]] = []
     clusters: list[dict[str, object]] = []
     verdicts: list[dict[str, object]] = []
+    no_pkg: list[dict[str, object]] = []
     for c in result.checks:
         private.extend(_extract_private(c))
         pyramid.extend(_extract_pyramid(c))
         clusters.extend(_extract_clusters(c))
         verdicts.extend(_extract_verdicts(c))
-    return private, pyramid, clusters, verdicts
+        no_pkg.extend(_extract_no_package_symbol(c))
+    return private, pyramid, clusters, verdicts, no_pkg
 
 
 def _format_pyramid_only(pyramid: list[dict[str, object]]) -> str:
@@ -486,7 +497,7 @@ def format_test_quality_text(
     With ``mismatches_only=True`` only the pyramid section is emitted,
     filtered to entries whose folder differs from the classified level.
     """
-    private, pyramid, clusters, verdicts = _extract_test_quality(result)
+    private, pyramid, clusters, verdicts, no_pkg = _extract_test_quality(result)
 
     if mismatches_only:
         return _format_pyramid_only(pyramid)
@@ -499,21 +510,40 @@ def format_test_quality_text(
     lines.extend(_format_duplicates_section(clusters))
     lines.append("")
     lines.extend(_format_tautologies_section(verdicts))
+    if no_pkg:
+        lines.append("")
+        lines.append("TEST_QUALITY_NO_PACKAGE_SYMBOL:")
+        for entry in no_pkg:
+            lines.append(
+                f"  [{entry.get('verdict', '?')}] {entry.get('test_file', '?')}"
+            )
 
     return "\n".join(lines)
 
 
 def format_test_quality_json(result: AuditResult) -> dict[str, object]:
     """JSON superset: clusters + verdicts + pyramid + private violations."""
-    private, pyramid, clusters, verdicts = _extract_test_quality(result)
-    return {
+    private, pyramid, clusters, verdicts, no_pkg = _extract_test_quality(result)
+    rule_ids = sorted(
+        {
+            c.rule_id
+            for c in result.checks
+            if (c.rule_id or "").startswith("TEST_QUALITY_")
+        }
+    )
+    payload: dict[str, object] = {
         "score": result.quality_score,
         "grade": result.grade,
+        "rules": rule_ids,
         "clusters": clusters,
         "verdicts": verdicts,
         "pyramid_mismatches": pyramid,
         "private_import_violations": private,
+        "no_package_symbol": [
+            {**entry, "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL"} for entry in no_pkg
+        ],
     }
+    return payload
 
 
 def _has_actionable_detail(check: CheckResult) -> bool:
