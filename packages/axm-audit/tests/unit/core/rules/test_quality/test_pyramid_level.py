@@ -17,7 +17,77 @@ from axm_audit.core.rules.test_quality._shared import fixture_does_io
 from axm_audit.core.rules.test_quality.pyramid_level import (
     PyramidLevelRule,
     classify_level,
+    has_in_package_subprocess_invocation,
 )
+
+
+def _run_call(source: str) -> ast.Call:
+    module = ast.parse(source)
+    calls = [node for node in ast.walk(module) if isinstance(node, ast.Call)]
+    assert calls
+    return calls[-1]
+
+
+def test_in_package_subprocess_detects_uv_run_declared_script() -> None:
+    source = """
+UV_BIN = "uv"
+
+def test_runs_declared_script():
+    subprocess.run([UV_BIN, "run", "axm-audit", "audit"])
+"""
+
+    assert has_in_package_subprocess_invocation(
+        call=_run_call(source),
+        module_ast=ast.parse(source),
+        project_scripts={"axm-audit"},
+    )
+
+
+def test_in_package_subprocess_detects_python_module_submodule() -> None:
+    source = """
+def test_runs_declared_module_submodule():
+    subprocess.run([sys.executable, "-m", "axm_init.cli", "--help"])
+"""
+
+    assert has_in_package_subprocess_invocation(
+        call=_run_call(source),
+        module_ast=ast.parse(source),
+        project_scripts={"axm-init"},
+    )
+
+
+def test_in_package_subprocess_ignores_plumbing_only_commands() -> None:
+    sources = [
+        'subprocess.run(["git", "init"])',
+        'subprocess.run(["pip", "install", "-e", "."])',
+        'subprocess.run(["python", "-c", "print(1)"])',
+        'subprocess.run(["uv", "venv"])',
+    ]
+
+    for source in sources:
+        module_ast = ast.parse(source)
+        assert not has_in_package_subprocess_invocation(
+            call=_run_call(source),
+            module_ast=module_ast,
+            project_scripts={"axm-audit"},
+        )
+
+
+def test_in_package_subprocess_resolves_constants_and_local_cmd_binding() -> None:
+    source = """
+BIN = "axm-audit"
+
+def test_runs_bound_command():
+    sub = "audit"
+    cmd = [BIN, sub]
+    subprocess.run(cmd)
+"""
+
+    assert has_in_package_subprocess_invocation(
+        call=_run_call(source),
+        module_ast=ast.parse(source),
+        project_scripts={"axm-audit"},
+    )
 
 
 def test_rule_registered() -> None:
