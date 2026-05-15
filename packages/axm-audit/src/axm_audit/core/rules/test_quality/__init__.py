@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from axm_audit.core.rules.test_quality import (  # noqa: F401  (side-effect: registration)
     duplicate_tests,
+    file_naming,
     no_package_symbol,
     private_imports,
     pyramid_level,
