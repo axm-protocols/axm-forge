@@ -64,6 +64,7 @@ packages = ["src/axm_audit"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "docs/test_quality.md" = "axm_audit/docs/test_quality.md"
+"docs/index.md" = "axm_audit/docs/index.md"
 
 [dependency-groups]
 dev = [
