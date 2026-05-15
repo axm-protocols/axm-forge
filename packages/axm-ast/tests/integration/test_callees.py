@@ -121,7 +121,7 @@ class TestCalleesSymbolNotFound:
         assert callees == []
 
 
-class TestCalleesMCPTool:
+class TestCalleesMCPToolIntegration:
     """CalleesTool MCP wrapper returns ToolResult."""
 
     def test_mcp_tool_success(self, tmp_path: Path) -> None:
@@ -142,14 +142,6 @@ class TestCalleesMCPTool:
         callee = result.data["callees"][0]
         assert "call_expression" in callee
         assert "symbol" not in callee
-
-    def test_mcp_tool_missing_symbol(self) -> None:
-        from axm_ast.tools.callees import CalleesTool
-
-        tool = CalleesTool()
-        result = tool.execute(path=".")
-        assert result.success is False
-        assert "symbol" in (result.error or "").lower()
 
 
 # ─── CLI tests ──────────────────────────────────────────────────────────────
