@@ -50,6 +50,9 @@ version-file = "src/axm/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/axm"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"docs/index.md" = "axm/docs/index.md"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # UV Configuration
 # ─────────────────────────────────────────────────────────────────────────────
