@@ -18,14 +18,14 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.mark.integration
 def test_impact_tool_works_under_python_optimize() -> None:
-    """Run ``tests/integration/tools/test_impact.py`` with ``python -O``."""
+    """Run ``tests/unit/tools/test_impact.py`` with ``python -O``."""
     proc = subprocess.run(
         [
             sys.executable,
             "-O",
             "-m",
             "pytest",
-            "tests/integration/tools/test_impact.py",
+            "tests/unit/tools/test_impact.py",
             "-q",
             "--no-header",
             "-p",

@@ -1370,13 +1370,8 @@ class TestDeadCodeToolExecute:
         assert result.data["total"] == 0
 
 
-@pytest.mark.integration
 class TestDeadCodeToolEdgeCases:
     """Edge cases for DeadCodeTool."""
-
-    def test_bad_path(self, tool: DeadCodeTool) -> None:
-        result = tool.execute(path="/nonexistent/path")
-        assert result.success is False
 
     def test_not_a_directory(self, tool: DeadCodeTool, tmp_path: Path) -> None:
         f = tmp_path / "file.py"
