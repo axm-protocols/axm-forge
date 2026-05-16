@@ -271,3 +271,83 @@ def test_step5_unknown_for_unclassified() -> None:
     v = _triage_first(src, target_test="test_a")
     assert v.action == "UNKNOWN"
     assert v.rule == "step5_default_unknown"
+
+
+def test_step0_marker_opt_out_per_test_function_decorator() -> None:
+    """AC1, AC2: per-test decorator marker yields KEEP via step0."""
+    src = (
+        "import pytest\n"
+        "\n"
+        "@pytest.mark.tautology_ok\n"
+        "def test_x():\n"
+        "    x = object()\n"
+        "    assert isinstance(x, object)\n"
+    )
+    v = _triage_first(src)
+    assert v.action == "KEEP"
+    assert v.rule == "step0_marker_opt_out"
+
+
+def test_step0_marker_opt_out_file_level_pytestmark() -> None:
+    """AC1, AC2: file-level `pytestmark = pytest.mark.tautology_ok` yields KEEP."""
+    src = (
+        "import pytest\n"
+        "\n"
+        "pytestmark = pytest.mark.tautology_ok\n"
+        "\n"
+        "def test_x():\n"
+        "    x = object()\n"
+        "    assert isinstance(x, object)\n"
+    )
+    v = _triage_first(src)
+    assert v.action == "KEEP"
+
+
+def test_step0_marker_opt_out_captures_reason_arg() -> None:
+    """AC3: positional string arg on marker becomes verdict.reason."""
+    src = (
+        "import pytest\n"
+        "\n"
+        '@pytest.mark.tautology_ok("mypy narrow")\n'
+        "def test_x():\n"
+        "    x = object()\n"
+        "    assert isinstance(x, object)\n"
+    )
+    v = _triage_first(src)
+    assert v.reason == "mypy narrow"
+
+
+def test_step0_marker_opt_out_default_reason_when_bare() -> None:
+    """AC3: bare marker yields default reason string."""
+    src = (
+        "import pytest\n"
+        "\n"
+        "@pytest.mark.tautology_ok\n"
+        "def test_x():\n"
+        "    x = object()\n"
+        "    assert isinstance(x, object)\n"
+    )
+    v = _triage_first(src)
+    assert v.reason == "intentional tautology (no reason given)"
+
+
+def test_step0_marker_opt_out_fires_before_import_smoke() -> None:
+    """AC2: marker beats `_exit_import_smoke` (which would DELETE otherwise)."""
+    src = (
+        "import pytest\n"
+        "\n"
+        "@pytest.mark.tautology_ok\n"
+        "def test_smoke():\n"
+        "    from mypkg import Y\n"
+        "    assert Y is not None\n"
+    )
+    v = _triage_first(src)
+    assert v.action == "KEEP"
+    assert v.action != "DELETE"
+
+
+def test_marker_absent_falls_through_to_normal_triage() -> None:
+    """AC1: without the marker, existing triage behavior is preserved."""
+    src = "def test_x():\n    x = object()\n    assert isinstance(x, object)\n"
+    v = _triage_first(src)
+    assert v.action != "KEEP"
