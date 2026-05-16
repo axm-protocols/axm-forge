@@ -226,7 +226,6 @@ markers = [
 | -- | -- | -- | -- |
 | `step_0_self_compare` | STRENGTHEN | `self_compare` pattern — always rescued (author signals intent) | `axm-market/tests/test_ohlc.py::test_bar_equals_itself` — contract conformance. |
 | `step_0c_contract_conformance` | STRENGTHEN | `isinstance(x, T)` where T is a local Protocol / stdlib ABC | `axm-portfolio/tests/test_positions.py::test_position_is_mapping`. |
-| `step_0d_explicit_contract_name` | STRENGTHEN | Test name encodes a contract (`_satisfies_`, `_is_a_`, …) | `axm-ticket/tests/test_schema.py::test_satisfies_ticket_protocol`. |
 
 #### Strengthen-side uniqueness signals
 

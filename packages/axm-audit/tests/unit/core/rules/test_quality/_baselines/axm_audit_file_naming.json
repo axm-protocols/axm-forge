@@ -2236,6 +2236,17 @@
       "verdict": "SPLIT"
     },
     {
+      "current_name": "test_tautology_name_opt_out_removed.py",
+      "path": "tests/integration/test_tautology_name_opt_out_removed.py",
+      "proposed_name": "test_tautology_rule.py",
+      "severity": "info",
+      "tier": "integration",
+      "tuple": [
+        "TautologyRule"
+      ],
+      "verdict": "NAME_MISMATCH"
+    },
+    {
       "current_name": "test_tautology_triage_complexity.py",
       "path": "tests/integration/test_tautology_triage_complexity.py",
       "proposed_name": "test_axm_audit.py",
