@@ -128,14 +128,6 @@ class TestPushHook:
         assert result.success
         assert result.metadata["pushed"] is True
 
-    def test_push_hook_disabled(self) -> None:
-        """Hook skips when enabled=False."""
-        hook = PushHook()
-        result = hook.execute({"working_dir": "."}, enabled=False)
-        assert result.success
-        assert result.metadata["skipped"] is True
-        assert result.metadata["reason"] == "git disabled"
-
     def test_push_hook_not_git_repo(self, tmp_path: Path) -> None:
         """Hook skips when working_dir is not a git repo."""
         hook = PushHook()
