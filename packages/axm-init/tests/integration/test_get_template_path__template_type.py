@@ -9,14 +9,30 @@ import pytest
 from axm_init.core.templates import TemplateType, get_template_path
 
 
-def test_workspace_template_path() -> None:
-    path = get_template_path(TemplateType.WORKSPACE)
-    assert path.name == "uv-workspace"
+@pytest.mark.parametrize(
+    ("template_type", "expected_name"),
+    [
+        pytest.param(TemplateType.WORKSPACE, "uv-workspace", id="workspace"),
+        pytest.param(TemplateType.MEMBER, "workspace-member", id="member"),
+    ],
+)
+def test_template_path_resolves_to_named_directory(
+    template_type: TemplateType, expected_name: str
+) -> None:
+    path = get_template_path(template_type)
+    assert path.name == expected_name
     assert path.is_dir()
 
 
-def test_workspace_has_copier_yml() -> None:
-    path = get_template_path(TemplateType.WORKSPACE)
+@pytest.mark.parametrize(
+    "template_type",
+    [
+        pytest.param(TemplateType.WORKSPACE, id="workspace"),
+        pytest.param(TemplateType.MEMBER, id="member"),
+    ],
+)
+def test_template_has_copier_yml(template_type: TemplateType) -> None:
+    path = get_template_path(template_type)
     assert (path / "copier.yml").is_file()
 
 
@@ -73,19 +89,6 @@ class TestWorkspaceTemplateStructure:
         ci = ws_template / ".github" / "workflows" / "ci.yml.jinja"
         content = ci.read_text()
         assert "--package" in content
-
-
-class TestMemberTemplateType:
-    """Tests for TemplateType.MEMBER and get_template_path dispatch."""
-
-    def test_member_template_path(self) -> None:
-        path = get_template_path(TemplateType.MEMBER)
-        assert path.name == "workspace-member"
-        assert path.is_dir()
-
-    def test_member_has_copier_yml(self) -> None:
-        path = get_template_path(TemplateType.MEMBER)
-        assert (path / "copier.yml").is_file()
 
 
 class TestMemberTemplateStructure:

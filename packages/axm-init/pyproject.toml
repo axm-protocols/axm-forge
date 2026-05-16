@@ -245,6 +245,22 @@ exempt_paths = [
     "templates/**/*.py",
 ]
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7d18a25d6d01"
+reason = "TestWorkspaceTemplateStructure.test_root_files and TestMemberTemplateStructure.test_root_files verify different fixtures (ws_template vs member_template) with different expected filename lists per template type — intentional structural separation, not duplicated coverage."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "563e11fa07a0"
+reason = "test_dependabot asserts one specific CI metadata file while test_docs_files asserts three distinct docs files — different observation surfaces (CI infra vs docs scaffolding) with different cardinalities."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f7c645dfe553"
+reason = "test_pyproject_has_workspace_config verifies the uv workspace declaration in pyproject.toml.jinja with two specific TOML key assertions; test_mkdocs_has_monorepo verifies the monorepo plugin marker in mkdocs.yml.jinja — different template files and different configuration contracts."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1e61607587a7"
+reason = "test_fail_missing_new_rules verifies all four missing rule names appear in details; test_fail_subset_of_new_rules verifies a different rule subset AND the exact pluralised message string (‘Missing 2 essential ruff rule(s)’), so the two cover distinct contracts (details enumeration vs message templating)."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 

@@ -33,6 +33,17 @@ class TestLoadExclusionsEmptyResult:
                 id="section_but_no_exclude",
             ),
             pytest.param(None, id="no_pyproject"),
+            pytest.param(
+                dedent("""\
+                [project]
+                name = "pkg"
+
+                [tool.axm-init]
+                exclude = []
+            """),
+                id="empty_list",
+            ),
+            pytest.param("{{not valid toml!!", id="corrupt_toml"),
         ],
     )
     def test_returns_empty_set(
@@ -44,17 +55,30 @@ class TestLoadExclusionsEmptyResult:
 
 
 class TestLoadExclusionsValid:
-    def test_valid_exclusions(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        ("exclude_literal", "expected"),
+        [
+            pytest.param(
+                '["cli", "changelog"]',
+                {"cli", "changelog"},
+                id="list_of_strings",
+            ),
+            pytest.param('"cli"', {"cli"}, id="string_value_wrapped"),
+        ],
+    )
+    def test_valid_exclusions(
+        self, tmp_path: Path, exclude_literal: str, expected: set[str]
+    ) -> None:
         (tmp_path / "pyproject.toml").write_text(
-            dedent("""\
+            dedent(f"""\
             [project]
             name = "pkg"
 
             [tool.axm-init]
-            exclude = ["cli", "changelog"]
+            exclude = {exclude_literal}
         """)
         )
-        assert load_exclusions(tmp_path) == {"cli", "changelog"}
+        assert load_exclusions(tmp_path) == expected
 
 
 class TestLoadExclusionsInvalidWarns:
@@ -94,37 +118,6 @@ class TestLoadExclusionsInvalidWarns:
 
 
 class TestLoadExclusionsEdgeCases:
-    def test_string_value_wrapped(self, tmp_path: Path) -> None:
-        """exclude = "cli" (string not list) → wraps in list."""
-        (tmp_path / "pyproject.toml").write_text(
-            dedent("""\
-            [project]
-            name = "pkg"
-
-            [tool.axm-init]
-            exclude = "cli"
-        """)
-        )
-        assert load_exclusions(tmp_path) == {"cli"}
-
-    def test_empty_list(self, tmp_path: Path) -> None:
-        """exclude = [] → empty set."""
-        (tmp_path / "pyproject.toml").write_text(
-            dedent("""\
-            [project]
-            name = "pkg"
-
-            [tool.axm-init]
-            exclude = []
-        """)
-        )
-        assert load_exclusions(tmp_path) == set()
-
-    def test_corrupt_toml(self, tmp_path: Path) -> None:
-        """Corrupt pyproject.toml → empty set (graceful)."""
-        (tmp_path / "pyproject.toml").write_text("{{not valid toml!!")
-        assert load_exclusions(tmp_path) == set()
-
     def test_mixed_valid_invalid(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
