@@ -1769,7 +1769,8 @@ def canonical_filename(
 
     For ``tier="integration"``, *symbols_or_tuples* is an iterable of
     first-party symbol names; the top-K=2 (already sorted) are snake-cased
-    and dash-joined. For ``tier="e2e"``, *symbols_or_tuples* is an iterable
+    and joined by ``__`` (PEP 8 module name; a single ``-`` would break
+    Python imports). For ``tier="e2e"``, *symbols_or_tuples* is an iterable
     of ``(bin, sub)`` tuples; the same K=2 rule applies. When *single_binary*
     is not None, the redundant binary prefix is stripped: ``(axm-audit,
     audit)`` emits ``test_audit.py``; ``(axm-audit, "")`` emits the bare
@@ -1787,14 +1788,20 @@ def canonical_filename(
         tokens = sorted({to_snake_token(s) for s in items if s})[:_FILE_NAMING_TOP_K]
     if not tokens:
         return "test_UNKNOWN.py"
-    return "test_" + "-".join(tokens) + ".py"
+    # Join tokens with ``__`` (PEP 8 module name) rather than ``-``: a
+    # dash is invalid in Python identifiers, which breaks
+    # ``from tests.<tier>.test_a-b import *`` re-exports (a real pattern
+    # used to satisfy PRACTICE_TEST_MIRROR) and IDE module navigation.
+    # ``importlib`` mode lets pytest *collect* dash files, but Python
+    # imports of those modules still raise SyntaxError.
+    return "test_" + "__".join(tokens) + ".py"
 
 
 def _e2e_tokens(
     items: list[tuple[str, str]],
     single_binary: str | None,
 ) -> list[str]:
-    """Build the snake-cased dash-joined tokens for an e2e canonical name.
+    """Build the snake-cased ``__``-joined tokens for an e2e canonical name.
 
     When ``single_binary`` is set, the binary prefix is stripped: each
     ``(bin, sub)`` collapses to ``sub`` (or to ``bin`` if no sub is set,
@@ -1816,5 +1823,6 @@ def _e2e_tokens(
     for bin_name, sub in items[:_FILE_NAMING_TOP_K]:
         bin_tok = to_snake_token(bin_name)
         sub_tok = to_snake_token(sub) if sub else ""
-        pieces.append(f"{bin_tok}-{sub_tok}" if sub_tok else bin_tok)
+        # ``__`` (not ``-``) — see ``canonical_filename`` comment above.
+        pieces.append(f"{bin_tok}__{sub_tok}" if sub_tok else bin_tok)
     return pieces
