@@ -300,3 +300,104 @@ def test_criterion_b_unresolved_argv_skipped() -> None:
         )
         is True
     )
+
+
+# ----------------------------------------------------------------------
+# Closure extension — fixture bodies consumed by the test
+# ----------------------------------------------------------------------
+
+
+def test_criterion_a_first_party_only_in_fixture_body() -> None:
+    """Closure extension: a fixture body that touches a first-party alias
+    counts toward criterion (a), even when the fixture's return type and
+    return value are stdlib (e.g. ``Path`` for a scaffolded directory).
+    """
+    mod = _parse(
+        """
+        from pathlib import Path
+        import pytest
+        from pkg.cli import app
+
+        @pytest.fixture(scope="module")
+        def scaffolded(tmp_path_factory) -> Path:
+            target = tmp_path_factory.mktemp("scaffold")
+            app(["scaffold", str(target)])
+            return target
+
+        def test_x(scaffolded):
+            assert scaffolded.exists()
+        """
+    )
+    test_func = next(
+        n for n in mod.body if isinstance(n, ast.FunctionDef) and n.name == "test_x"
+    )
+    assert (
+        test_references_first_party(
+            test_func=test_func,
+            module_ast=mod,
+            pkg_prefixes={"pkg"},
+        )
+        is True
+    )
+
+
+def test_criterion_b_subprocess_only_in_fixture_body() -> None:
+    """Closure extension: criterion (b) sees in-package script calls that
+    live inside a top-level fixture consumed by the test.
+    """
+    mod = _parse(
+        """
+        import subprocess
+        import pytest
+
+        @pytest.fixture
+        def started(tmp_path):
+            subprocess.run(["pkg-cli", "init"], cwd=tmp_path, check=True)
+            return tmp_path
+
+        def test_x(started):
+            assert started.exists()
+        """
+    )
+    test_func = next(
+        n for n in mod.body if isinstance(n, ast.FunctionDef) and n.name == "test_x"
+    )
+    assert (
+        test_invokes_in_package_script(
+            test_func=test_func,
+            module_ast=mod,
+            project_scripts={"pkg-cli"},
+        )
+        is True
+    )
+
+
+def test_criterion_a_unconsumed_fixture_does_not_leak() -> None:
+    """Closure extension is param-gated: a first-party-touching fixture that
+    the test does NOT consume must not satisfy criterion (a).
+    """
+    mod = _parse(
+        """
+        import pytest
+        from pkg.cli import app
+
+        @pytest.fixture
+        def unused():
+            app(["noop"])
+            return None
+
+        def test_x(tmp_path):
+            assert (tmp_path / "x").parent == tmp_path
+        """
+    )
+    test_func = next(
+        n for n in mod.body if isinstance(n, ast.FunctionDef) and n.name == "test_x"
+    )
+    assert (
+        test_references_first_party(
+            test_func=test_func,
+            module_ast=mod,
+            pkg_prefixes={"pkg"},
+        )
+        is False
+    )
