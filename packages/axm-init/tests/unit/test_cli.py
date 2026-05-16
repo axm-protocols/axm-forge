@@ -119,14 +119,16 @@ class TestScaffoldCommandOptions:
         output = self._capture_help()
         assert "scaffold" in output.lower() or "path" in output.lower()
 
-    def test_scaffold_help_shows_org_flag(self) -> None:
-        assert "--org" in self._capture_help()
-
-    def test_scaffold_help_shows_author_flag(self) -> None:
-        assert "--author" in self._capture_help()
-
-    def test_scaffold_help_shows_email_flag(self) -> None:
-        assert "--email" in self._capture_help()
+    @pytest.mark.parametrize(
+        "flag",
+        [
+            pytest.param("--org", id="org"),
+            pytest.param("--author", id="author"),
+            pytest.param("--email", id="email"),
+        ],
+    )
+    def test_scaffold_help_shows_flag(self, flag: str) -> None:
+        assert flag in self._capture_help()
 
     def test_scaffold_help_no_template_flag(self) -> None:
         """scaffold --help must NOT show --template flag (removed)."""
