@@ -13,12 +13,15 @@ _log = logging.getLogger(__name__)
 _ENC: dict[str, tiktoken.Encoding] = {}
 _warned: bool = False
 
+_TIKTOKEN_VALUE = "tiktoken"
+_FALLBACK_VALUE = "fallback"
+
 
 class CounterBackend(StrEnum):
     """Backend used to produce a token count."""
 
-    TIKTOKEN = "tiktoken"
-    FALLBACK = "fallback"
+    TIKTOKEN = _TIKTOKEN_VALUE
+    FALLBACK = _FALLBACK_VALUE
 
 
 def count_with_backend(
