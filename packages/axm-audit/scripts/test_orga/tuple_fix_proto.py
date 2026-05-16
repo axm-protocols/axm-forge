@@ -176,11 +176,11 @@ def _abspath(p: str, project_path: Path) -> Path:
 def _safe_filename(name: str) -> str:
     """Make a canonical filename PEP8-importable.
 
-    The FILE_NAMING rule emits ``test_<a>-<b>.py`` (dash separator).  Python
-    rejects ``-`` in module names (ruff N999), and even though pytest
-    collects such files, downstream tooling (importlib, mypy, IDE) breaks.
-    Substitute ``-`` with ``__`` (double underscore) — keeps the visual
-    separation between top-K elements while staying a valid identifier.
+    Current ``FILE_NAMING`` emits ``test_<a>__<b>.py`` (``__`` separator,
+    PEP 8 compliant). This function is now a near-identity defensive
+    pass: it strips any legacy ``-`` separators an older audit version
+    could still produce, preserving forward compatibility without
+    changing the proto's behaviour on output of the current rule.
     """
     if not name.endswith(".py"):
         return name
@@ -225,6 +225,133 @@ def _retier(p: Path, root: Path, target_lvl: str) -> Path:
     return root / Path(*parts)
 
 
+def _tier_for_path(path: Path) -> str | None:
+    """Return ``unit``/``integration``/``e2e`` for a test path, or None.
+
+    Walks up the parents until a tier component is found. Tolerates
+    nested test layouts like ``tests/integration/hooks/test_x.py``
+    where ``path.parent.name`` is ``hooks`` rather than ``integration``.
+    """
+    for part in path.parts:
+        if part in ("unit", "integration", "e2e"):
+            return part
+    return None
+
+
+def flatten_tier_layout(project_path: Path) -> list[str]:
+    """Flatten ``tests/integration/`` and ``tests/e2e/`` subdirectories.
+
+    The AXM convention (CLAUDE.md) requires integration and e2e tests
+    to live *directly* under their tier directory — no nested
+    ``tests/integration/hooks/test_x.py``. This stage moves every
+    nested ``test_*.py`` up to the tier root, renames on collision
+    by prefixing the subdirectory name (``hooks/test_x.py`` →
+    ``test_hooks_x.py``), rewrites importers via
+    ``_rewrite_cross_test_imports``, and removes the now-empty
+    subdirectories (preserving ``__init__.py`` / ``conftest.py`` by
+    skipping the prune if those remain).
+
+    Runs AFTER Stage 1 (RELOCATE) so it acts on the final tier
+    classification, and BEFORE Stages 2-4 (SPLIT/MERGE/RENAME) which
+    assume a flat layout.
+
+    Unit tests intentionally MIRROR the source layout — nested
+    subdirectories are correct there, so this stage skips ``tests/unit``.
+    """
+    msgs: list[str] = []
+    tests_root = project_path / "tests"
+    if not tests_root.is_dir():
+        return msgs
+    for tier in ("integration", "e2e"):
+        tier_dir = tests_root / tier
+        if not tier_dir.is_dir():
+            continue
+        msgs.extend(_flatten_single_tier(project_path, tier_dir))
+    return msgs
+
+
+def _flatten_single_tier(project_path: Path, tier_dir: Path) -> list[str]:
+    """Move every nested ``test_*.py`` under *tier_dir* up to *tier_dir* root."""
+    msgs: list[str] = []
+    nested = sorted(
+        p for p in tier_dir.rglob("test_*.py")
+        if p.is_file() and p.parent != tier_dir
+    )
+    if not nested:
+        return msgs
+    for src in nested:
+        rel_parents = src.relative_to(tier_dir).parts[:-1]
+        target = tier_dir / src.name
+        old_mod = _module_path_for_test_file(src, project_path)
+        # Collision handling: prefix with subdir chain.
+        if target.exists() and target != src:
+            prefix = "_".join(rel_parents)
+            stem = src.stem.removeprefix("test_")
+            target = tier_dir / f"test_{prefix}_{stem}.py"
+            # If even the prefixed name collides, append numeric suffix.
+            counter = 2
+            while target.exists():
+                target = tier_dir / f"test_{prefix}_{stem}_{counter}.py"
+                counter += 1
+        src_depth = _file_depth_from_project(src, project_path)
+        tgt_depth = _file_depth_from_project(target, project_path)
+        _git_mv(src, target)
+        depth_delta = tgt_depth - src_depth
+        if depth_delta != 0:
+            msgs.extend(_patch_file_dunder_depth(target, depth_delta))
+        new_mod = _module_path_for_test_file(target, project_path)
+        if old_mod and new_mod and old_mod != new_mod:
+            msgs.extend(_rewrite_cross_test_imports(
+                project_path, old_mod, [new_mod],
+                skip_paths={src, target},
+            ))
+        msgs.append(
+            f"flattened {src.relative_to(project_path)} -> "
+            f"{target.relative_to(project_path)}"
+        )
+    # Prune now-empty subdirectories (keep dirs that still hold non-test
+    # python files, e.g. ``__init__.py``, ``conftest.py``, helpers).
+    _prune_empty_test_subdirs(tier_dir)
+    return msgs
+
+
+def _prune_empty_test_subdirs(tier_dir: Path) -> None:
+    """Remove subdirectories under *tier_dir* that contain no ``test_*.py``.
+
+    Walks bottom-up so empty parents become eligible after their
+    children are removed. Always keeps the tier directory itself.
+    ``__init__.py`` / ``conftest.py`` alone don't keep a subdir
+    alive — they're scaffolding for tests that have moved out.
+    """
+    subdirs = sorted(
+        (p for p in tier_dir.rglob("*") if p.is_dir()),
+        key=lambda p: len(p.parts),
+        reverse=True,
+    )
+    for sub in subdirs:
+        if sub == tier_dir:
+            continue
+        has_test = any(
+            f.is_file() and f.name.startswith("test_") and f.suffix == ".py"
+            for f in sub.iterdir()
+        )
+        if has_test:
+            continue
+        # Remove scaffolding files, then the dir.
+        for f in sub.iterdir():
+            if f.is_file():
+                rc = subprocess.run(
+                    ["git", "rm", "-q", str(f)],
+                    capture_output=True, text=True,
+                )
+                if rc.returncode != 0:
+                    f.unlink()
+        try:
+            sub.rmdir()
+        except OSError:
+            pass
+
+
 def plan_flatten(project_path: Path) -> list[FileOp]:
     """Stage 0: detect Test* classes with divergent method tuples → flatten.
 
@@ -253,7 +380,7 @@ def plan_flatten(project_path: Path) -> list[FileOp]:
                     if pp.is_absolute() and pp.exists():
                         candidate_paths.add(pp)
     for src in sorted(candidate_paths):
-        tier_str = src.parent.name
+        tier_str = _tier_for_path(src)
         if tier_str not in ("integration", "e2e"):
             continue
         tree = ast.parse(src.read_text())
@@ -381,6 +508,7 @@ def plan_naming(project_path: Path) -> tuple[list[FileOp], list[FileOp], list[Fi
         # if absent, fall back to the file's `tuple` field flattened.
         suggested = d.get("suggested_splits") or [d.get("proposed_name", "")]
         suggested = [_safe_filename(s) for s in suggested if s]
+        suggested = [s for s in suggested if s != "test_UNKNOWN.py"]
         targets = [src.parent / s for s in suggested]
         splits.append(
             FileOp(
@@ -417,7 +545,7 @@ def plan_naming(project_path: Path) -> tuple[list[FileOp], list[FileOp], list[Fi
         if src in consumed:
             continue
         proposed = _safe_filename(d.get("proposed_name", ""))
-        if not proposed or src.name == proposed:
+        if not proposed or src.name == proposed or proposed == "test_UNKNOWN.py":
             continue
         renames.append(
             FileOp(
@@ -464,7 +592,19 @@ def collect_unfixable(project_path: Path) -> list[dict[str, Any]]:
 
 
 def _git_mv(src: Path, dst: Path) -> None:
+    """Move *src* to *dst* via ``git mv``, with a non-destructive fallback.
+
+    If *dst* already exists, the fallback ``shutil.move`` used to silently
+    overwrite it — losing 25+ moved tests when RENAME / RELOCATE landed
+    on a file the SPLIT/MERGE stages had just populated. Refuse to
+    overwrite: raise ``FileExistsError`` so the caller (e.g.
+    ``_execute_rename``) can re-route through ``_safe_move_units``.
+    """
     dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.exists():
+        raise FileExistsError(
+            f"refusing to overwrite existing {dst} with {src} via git_mv"
+        )
     rc = subprocess.run(
         ["git", "mv", str(src), str(dst)],
         capture_output=True,
@@ -474,14 +614,349 @@ def _git_mv(src: Path, dst: Path) -> None:
         shutil.move(str(src), str(dst))
 
 
-def _execute_relocate(op: FileOp) -> None:
-    assert isinstance(op.target, Path)
-    _git_mv(op.source, op.target)
+def _patch_file_dunder_depth(
+    file: Path,
+    depth_delta: int,
+) -> list[str]:
+    """Rewrite ``Path(__file__).parents[N]`` / ``.parent.parent...`` after a move.
+
+    When a file is relocated by *depth_delta* directory levels
+    (``depth_delta = target_depth - source_depth``; negative if moved
+    closer to project root, positive if moved deeper), any constant of
+    the form ``Path(__file__).parents[N]`` or
+    ``Path(__file__).parent.parent...`` will resolve to a different
+    ancestor unless ``N`` is adjusted. We compute the new ``N`` so the
+    constant continues to resolve to the *same* directory it did before
+    the move:
+
+        N_new = N_old + depth_delta
+
+    Reasoning: a file at depth ``D`` has ``parents[N]`` at depth
+    ``D - N - 1`` from project root. Moving the file to depth ``D'``
+    means ``parents[N']`` is at ``D' - N' - 1``. For these to be equal,
+    ``N' = N + (D' - D)`` = ``N + depth_delta``.
+
+    Two surface forms supported (in order of preference, since some
+    files mix them):
+
+      * Subscript: ``Path(__file__).parents[N]`` (with optional
+        ``.resolve()``). N is decremented by ``depth_delta``.
+      * Chained: ``Path(__file__).parent.parent[.parent]*`` (with
+        optional ``.resolve()``). The number of ``.parent`` accessors
+        is reduced by ``depth_delta``.
+
+    If the resulting N would be ``<= 0``, we leave the constant alone
+    and emit a warning — the file was moved too close to root for the
+    resolution to be expressible, indicating the relocate is suspect.
+    """
+    if depth_delta == 0 or not file.exists():
+        return []
+    module = _cst_load(file)
+    if module is None:
+        return []
+    msgs: list[str] = []
+
+    class _DunderPatcher(cst.CSTTransformer):
+        def leave_Subscript(
+            self,
+            original_node: cst.Subscript,
+            updated_node: cst.Subscript,
+        ) -> cst.BaseExpression:
+            # Match ``<expr>.parents[N]`` where <expr> reduces to
+            # ``Path(__file__)`` (possibly via ``.resolve()``).
+            value = updated_node.value
+            if not isinstance(value, cst.Attribute):
+                return updated_node
+            if value.attr.value != "parents":
+                return updated_node
+            if not _is_file_dunder_chain(value.value):
+                return updated_node
+            slices = updated_node.slice
+            if len(slices) != 1:
+                return updated_node
+            elt = slices[0].slice
+            if not isinstance(elt, cst.Index):
+                return updated_node
+            n_node = elt.value
+            if not isinstance(n_node, cst.Integer):
+                return updated_node
+            old_n = int(n_node.value)
+            new_n = old_n + depth_delta
+            if new_n <= 0:
+                msgs.append(
+                    f"file-depth-drift: refusing to patch {file.name} "
+                    f"parents[{old_n}] (delta={depth_delta} would make "
+                    f"N<=0; relocate suspicious)"
+                )
+                return updated_node
+            msgs.append(
+                f"file-depth-drift: {file.name} parents[{old_n}] -> "
+                f"parents[{new_n}] (file moved by {depth_delta} level(s))"
+            )
+            return updated_node.with_changes(
+                slice=[
+                    cst.SubscriptElement(
+                        slice=cst.Index(value=cst.Integer(value=str(new_n)))
+                    )
+                ]
+            )
+
+        def leave_Attribute(
+            self,
+            original_node: cst.Attribute,
+            updated_node: cst.Attribute,
+        ) -> cst.BaseExpression:
+            # Match chains ending in ``.parent`` — but only the OUTERMOST
+            # ``.parent`` of a chain, so we don't double-patch nested
+            # accesses. Identify by checking the parent attribute is NOT
+            # itself ``.parent`` of the same chain — actually easier to
+            # just rewrite the whole chain at once: count consecutive
+            # ``.parent`` accessors and check the chain root is
+            # ``Path(__file__)``.
+            if updated_node.attr.value != "parent":
+                return updated_node
+            # Count chain length from this node going inward.
+            count = 1
+            inner: cst.BaseExpression = updated_node.value
+            while (
+                isinstance(inner, cst.Attribute)
+                and inner.attr.value == "parent"
+            ):
+                count += 1
+                inner = inner.value
+            # `inner` is now the chain root. It must reduce to Path(__file__).
+            if not _is_file_dunder_chain(inner):
+                return updated_node
+            # Skip if our parent (one level up) is also `.parent` — we
+            # only patch the outermost chain link. Without parent info
+            # here, we detect by re-entering: if `original_node` would
+            # also be matched by an enclosing `leave_Attribute` call,
+            # libcst visits children first — so we're the innermost
+            # call by traversal order. Use a different strategy: only
+            # rewrite when count > 1 AND the chain is the outermost
+            # (no surrounding .parent). We can't know that from here
+            # alone, so we conservatively skip count == 1 (a single
+            # ``.parent`` is too ambiguous — could be re-bound) and
+            # only patch chains of >= 2. The outermost-only constraint
+            # is handled by a post-visit pass — see ``_PatchChainOnce``.
+            return updated_node
+
+    class _PatchChainOnce(cst.CSTTransformer):
+        """Rewrite the outermost ``.parent.parent...`` chain on
+        ``Path(__file__)`` exactly once.
+
+        Two-pass alternative would be cleaner but more code; instead
+        we identify outermost chains by their immediate parent context:
+        if our own ``leave_Attribute`` is called for a node whose
+        ``.value`` is the chain root (Path(__file__)) and whose
+        outer enclosing isn't another ``.parent``, we rewrite.
+        """
+
+        def __init__(self) -> None:
+            self._patched_ids: set[int] = set()
+
+        def visit_Attribute(self, node: cst.Attribute) -> None:
+            # Identify outermost chain on first pre-visit; rewrite
+            # happens in leave_*.
+            pass
+
+        def leave_Attribute(
+            self,
+            original_node: cst.Attribute,
+            updated_node: cst.Attribute,
+        ) -> cst.BaseExpression:
+            if id(original_node) in self._patched_ids:
+                return updated_node
+            if updated_node.attr.value != "parent":
+                return updated_node
+            # Chain root + count.
+            count = 1
+            inner: cst.BaseExpression = updated_node.value
+            chain_ids = [id(original_node)]
+            cur = original_node.value
+            while (
+                isinstance(inner, cst.Attribute)
+                and inner.attr.value == "parent"
+            ):
+                count += 1
+                chain_ids.append(id(cur))
+                inner = inner.value
+                if isinstance(cur, cst.Attribute):
+                    cur = cur.value
+            if not _is_file_dunder_chain(inner):
+                return updated_node
+            new_count = count + depth_delta
+            if new_count <= 0:
+                msgs.append(
+                    f"file-depth-drift: refusing to patch {file.name} "
+                    f"chain of {count} .parent (delta={depth_delta} "
+                    f"would leave <=0 .parent; relocate suspicious)"
+                )
+                for cid in chain_ids:
+                    self._patched_ids.add(cid)
+                return updated_node
+            # Rebuild: inner.parent × new_count.
+            rebuilt: cst.BaseExpression = inner
+            for _ in range(new_count):
+                rebuilt = cst.Attribute(
+                    value=rebuilt,
+                    attr=cst.Name(value="parent"),
+                )
+            msgs.append(
+                f"file-depth-drift: {file.name} "
+                f".parent x{count} -> .parent x{new_count} "
+                f"(file moved by {depth_delta} level(s))"
+            )
+            for cid in chain_ids:
+                self._patched_ids.add(cid)
+            return rebuilt
+
+    # First pass: subscript form ``parents[N]``.
+    new_module = module.visit(_DunderPatcher())
+    assert isinstance(new_module, cst.Module)
+    # Second pass: chained ``.parent.parent...`` form.
+    new_module = new_module.visit(_PatchChainOnce())
+    assert isinstance(new_module, cst.Module)
+    if new_module.code != module.code:
+        _cst_save(file, new_module)
+    return msgs
 
 
-def _execute_rename(op: FileOp) -> None:
+def _is_file_dunder_chain(expr: cst.BaseExpression) -> bool:
+    """True if *expr* is a syntactic ``Path(__file__)`` or
+    ``Path(__file__).resolve()`` (possibly nested via ``Path(__file__)``)."""
+    # Strip a trailing ``.resolve()`` call.
+    if (
+        isinstance(expr, cst.Call)
+        and isinstance(expr.func, cst.Attribute)
+        and expr.func.attr.value == "resolve"
+        and not expr.args
+    ):
+        expr = expr.func.value
+    # Must be ``Path(__file__)``.
+    if not isinstance(expr, cst.Call):
+        return False
+    if not isinstance(expr.func, cst.Name) or expr.func.value != "Path":
+        return False
+    if len(expr.args) != 1:
+        return False
+    arg = expr.args[0].value
+    return isinstance(arg, cst.Name) and arg.value == "__file__"
+
+
+def _file_depth_from_project(path: Path, project_path: Path) -> int:
+    """Number of path parts between *path*'s file and *project_path*.
+
+    For ``/p/tests/unit/core/test_X.py`` under ``/p``, returns 4
+    (``tests``, ``unit``, ``core``, ``test_X.py``). Independent of
+    ``project_path``'s own depth. Used to compute ``depth_delta`` when
+    a file is relocated, so ``Path(__file__).parents[N]`` constants
+    can be re-pointed to the same ancestor.
+    """
+    try:
+        rel = path.resolve().relative_to(project_path.resolve())
+    except ValueError:
+        return 0
+    return len(rel.parts)
+
+
+def _execute_relocate(op: FileOp, project_path: Path) -> list[str]:
+    """RELOCATE op: ``git mv`` between pyramid tiers.
+
+    Same collision risk as ``_execute_rename``: a target file may
+    already exist (different package mapping happens to land on the
+    same path). Route through ``_safe_move_units`` rather than letting
+    ``_git_mv`` overwrite.
+    """
     assert isinstance(op.target, Path)
+    if op.target.exists() and op.target != op.source:
+        if not op.source.exists():
+            return [f"relocate skipped: source missing ({op.source})"]
+        warnings: list[str] = [
+            f"relocate: target {op.target} already exists; "
+            f"re-routing {op.source.name} through _safe_move_units"
+        ]
+        old_mod = _module_path_for_test_file(op.source, project_path)
+        new_mod = _module_path_for_test_file(op.target, project_path)
+        tree = ast.parse(op.source.read_text())
+        units = _movable_units_at_top_level(tree)
+        if units:
+            sub_warnings, _ = _safe_move_units(
+                op.source, op.target, units, project_path
+            )
+            warnings.extend(sub_warnings)
+        _delete_source_if_empty_tests(op.source)
+        if old_mod and new_mod and old_mod != new_mod and not op.source.exists():
+            warnings.extend(_rewrite_cross_test_imports(
+                project_path, old_mod, [new_mod],
+                skip_paths={op.source, op.target},
+            ))
+        return warnings
+    old_mod = _module_path_for_test_file(op.source, project_path)
+    new_mod = _module_path_for_test_file(op.target, project_path)
+    src_depth = _file_depth_from_project(op.source, project_path)
+    tgt_depth = _file_depth_from_project(op.target, project_path)
     _git_mv(op.source, op.target)
+    warnings: list[str] = []
+    depth_delta = tgt_depth - src_depth
+    if depth_delta != 0:
+        warnings.extend(_patch_file_dunder_depth(op.target, depth_delta))
+    if old_mod and new_mod and old_mod != new_mod:
+        warnings.extend(_rewrite_cross_test_imports(
+            project_path, old_mod, [new_mod], skip_paths={op.source, op.target}
+        ))
+    return warnings
+
+
+def _execute_rename(op: FileOp, project_path: Path) -> list[str]:
+    """RENAME op: ``git mv`` the source file to its canonical name.
+
+    When ``op.target`` already exists (typical when a prior SPLIT/MERGE
+    stage created the canonical destination), a naive ``git mv`` would
+    overwrite it and silently destroy the merged tests. Route through
+    ``_safe_move_units`` instead — the residual source's units are
+    moved into the existing target, then the source is deleted.
+    """
+    assert isinstance(op.target, Path)
+    if op.target.exists() and op.target != op.source:
+        if not op.source.exists():
+            return [
+                f"rename skipped: source missing ({op.source})"
+            ]
+        warnings: list[str] = [
+            f"rename: target {op.target.name} already exists; "
+            f"re-routing {op.source.name} through _safe_move_units"
+        ]
+        old_mod = _module_path_for_test_file(op.source, project_path)
+        new_mod = _module_path_for_test_file(op.target, project_path)
+        tree = ast.parse(op.source.read_text())
+        units = _movable_units_at_top_level(tree)
+        if units:
+            sub_warnings, _ = _safe_move_units(
+                op.source, op.target, units, project_path
+            )
+            warnings.extend(sub_warnings)
+        _delete_source_if_empty_tests(op.source)
+        if old_mod and new_mod and old_mod != new_mod and not op.source.exists():
+            warnings.extend(_rewrite_cross_test_imports(
+                project_path, old_mod, [new_mod],
+                skip_paths={op.source, op.target},
+            ))
+        return warnings
+    old_mod = _module_path_for_test_file(op.source, project_path)
+    new_mod = _module_path_for_test_file(op.target, project_path)
+    src_depth = _file_depth_from_project(op.source, project_path)
+    tgt_depth = _file_depth_from_project(op.target, project_path)
+    _git_mv(op.source, op.target)
+    warnings = []
+    depth_delta = tgt_depth - src_depth
+    if depth_delta != 0:
+        warnings.extend(_patch_file_dunder_depth(op.target, depth_delta))
+    if old_mod and new_mod and old_mod != new_mod:
+        warnings.extend(_rewrite_cross_test_imports(
+            project_path, old_mod, [new_mod], skip_paths={op.source, op.target}
+        ))
+    return warnings
 
 
 TOP_K = 2
@@ -608,13 +1083,17 @@ def _per_unit_canonical(
     scripts = _load_project_scripts(project_path)
     single_binary = next(iter(scripts)) if len(scripts) == 1 else None
     routes: dict[str, list[str]] = defaultdict(list)
-    # Top-level funcs
+    # Top-level funcs. A canonical of ``test_UNKNOWN.py`` means the function
+    # carries no first-party signal — leave it in the source file rather
+    # than emit a nonsense target that ruff/audit will flag.
     for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
             name = _safe_filename(_func_canonical(
                 node, tree, tier=tier, pkg_prefixes=pkg_prefixes,
                 scripts=scripts, single_binary=single_binary,
             ))
+            if name == "test_UNKNOWN.py":
+                continue
             routes[name].append(node.name)
     # Test* classes — only if homogeneous (else caller should flatten)
     for cls in _top_level_test_classes(tree):
@@ -627,7 +1106,10 @@ def _per_unit_canonical(
             if isinstance(c, ast.FunctionDef) and c.name.startswith("test_")
         }
         if len(method_canonicals) == 1:
-            routes[next(iter(method_canonicals))].append(cls.name)
+            only = next(iter(method_canonicals))
+            if only == "test_UNKNOWN.py":
+                continue
+            routes[only].append(cls.name)
         # else: divergent — handled by Stage 0 flatten
     return dict(routes)
 
@@ -715,7 +1197,7 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
     """
     assert move_symbols is not None, "axm-anvil not importable"
     assert isinstance(op.target, list)
-    tier_str = op.source.parent.name
+    tier_str = _tier_for_path(op.source)
     if tier_str not in ("integration", "e2e"):
         return [f"split skipped: source not under tests/integration|e2e ({op.source})"]
     if not op.source.exists():
@@ -748,6 +1230,9 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
         ]
     anchor = max(routes.items(), key=lambda kv: (len(kv[1]), kv[0]))[0]
     warnings: list[str] = []
+    original_source = op.source
+    original_module = _module_path_for_test_file(original_source, project_path)
+    post_split_paths: list[Path] = []
     for canonical, unit_names in routes.items():
         if canonical == anchor:
             continue
@@ -761,6 +1246,7 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
             op.source, target, unit_names, project_path
         )
         warnings.extend(sub_warnings)
+        post_split_paths.append(target)
     if op.source.exists() and op.source.name != anchor:
         # The residual source contains the anchor group. Rename it to
         # the anchor canonical — but if a file with that name already
@@ -777,6 +1263,24 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
             _delete_source_if_empty_tests(op.source)
         else:
             _git_mv(op.source, target)
+        post_split_paths.append(target)
+    elif op.source.exists():
+        post_split_paths.append(op.source)
+    # Rewrite cross-file importers — the original module path no longer
+    # resolves; expand to the (possibly multiple) post-split modules.
+    if original_module:
+        new_modules = []
+        seen: set[str] = set()
+        for p in post_split_paths:
+            mod = _module_path_for_test_file(p, project_path)
+            if mod and mod != original_module and mod not in seen:
+                new_modules.append(mod)
+                seen.add(mod)
+        if new_modules:
+            warnings.extend(_rewrite_cross_test_imports(
+                project_path, original_module, new_modules,
+                skip_paths={original_source, *post_split_paths},
+            ))
     return warnings
 
 
@@ -818,7 +1322,19 @@ def _safe_move_units(
     warnings: list[str] = []
     rename_map: dict[str, str] = {}
     final_units: list[str] = []
-    suffix = f"__from_{source.stem.removeprefix('test_')}"
+    # Two suffix forms: snake_case for functions (``test_x__from_foo``,
+    # already PEP 8) and CapWords for classes (``TestX_FromFoo``).
+    # Using snake_case on a class triggers ruff N801 because the
+    # double-underscore disrupts CapWords parsing.
+    stem = source.stem.removeprefix("test_")
+    fn_suffix = f"__from_{stem}"
+    # CapWords for classes: ``TestX`` + ``From`` + ``CapsStem`` =>
+    # ``TestXFromCapsStem``. No leading underscore (ruff N801 reads
+    # ``_`` as a CapWords break), no double-underscore.
+    cls_suffix = "From" + "".join(p.capitalize() for p in stem.split("_") if p)
+    source_class_names = {
+        n.name for n in source_tree.body if isinstance(n, ast.ClassDef)
+    }
 
     for name in unit_names:
         if name not in target_top_names:
@@ -835,7 +1351,10 @@ def _safe_move_units(
                 )
                 _delete_function_from_source(source, name)
                 continue
-        # Different bodies, or class collision → rename
+        # Different bodies, or class collision → rename.
+        # Pick the suffix variant that keeps the new identifier
+        # lint-clean (N801 / CapWords for classes, snake_case for funcs).
+        suffix = cls_suffix if name in source_class_names else fn_suffix
         new_name = name + suffix
         rename_map[name] = new_name
         final_units.append(new_name)
@@ -849,6 +1368,93 @@ def _safe_move_units(
 
     if not final_units:
         return warnings, []
+
+    # ----------------------------------------------------------------------
+    # Helper-body conflict resolution (Bugs 1+3+4: _make_pkg / rich_pkg /
+    # _make_project_with_test_callers signature drift across test files).
+    #
+    # The moving units carry references to top-level helpers/fixtures in
+    # source. If the same name exists in target with a DIFFERENT body, the
+    # moved tests bind to target's body at runtime and fail with
+    # TypeError / AssertionError / "Symbol not found". Anvil's
+    # ``shared_helpers="duplicate"`` doesn't help: when target already
+    # declares the name, anvil skips the copy (and even if it duplicated,
+    # the in-file def would shadow the import).
+    #
+    # Resolution: detect the conflict, rename the helper IN SOURCE (def
+    # + every reference, in the whole module — both moving and remaining
+    # tests get the new name in source; in target only the moved tests
+    # get the new name via the copied helper). Now there's no name
+    # collision, and anvil duplicates the helper cleanly.
+    # ----------------------------------------------------------------------
+    # Re-parse source: it may have been mutated by ``_rename_top_level_in_source``
+    # above. final_units is the up-to-date list of names that will move.
+    source_tree = ast.parse(source.read_text())
+    helper_renames = _resolve_helper_conflicts(
+        source_tree, target_tree, final_units, stem,
+        target=target, project_path=project_path,
+    )
+    if helper_renames:
+        _rename_name_in_module(source, helper_renames)
+        for old, new in sorted(helper_renames.items()):
+            warnings.append(
+                f"helper-rename: {source.name}::{old} -> {new} "
+                f"(body-mismatch with {target.name}::{old})"
+            )
+
+    # ----------------------------------------------------------------------
+    # Conftest-shadowing resolution (Bug 4 residual: rich_pkg in
+    # test_inspect_tool.py).
+    #
+    # When source has NO local def for a helper/fixture `H` (it uses a
+    # conftest-provided one) but target HAS a local `H` that shadows
+    # conftest, the moved tests bind to target's local `H` after the
+    # move and break (different body). Resolution: rename target's
+    # local `H` to ``H__local_<target_stem>`` (def + refs in target
+    # ONLY, before move). Target's existing tests get the new name;
+    # moved tests still reference `H` and pytest resolves to conftest.
+    # ----------------------------------------------------------------------
+    target_stem = target.stem.removeprefix("test_")
+    target_local_renames = _resolve_conftest_shadowing(
+        source_tree, target_tree, final_units,
+        target, project_path, target_stem,
+    )
+    if target_local_renames:
+        _rename_name_in_module(target, target_local_renames)
+        # Re-parse target so the next steps (anvil move, post-checks)
+        # see the renamed definitions.
+        target_tree = ast.parse(target.read_text())
+        for old, new in sorted(target_local_renames.items()):
+            warnings.append(
+                f"target-helper-rename: {target.name}::{old} -> {new} "
+                f"(shadowed conftest fixture needed by moved tests)"
+            )
+
+    # ----------------------------------------------------------------------
+    # ``@pytest.mark.usefixtures("X")`` tracking (Bug 2: _mock_flows /
+    # _no_workspace).
+    #
+    # Anvil walks AST references on moving symbols but treats marker
+    # arguments as string literals, not name references. Fixtures
+    # injected via marker stay in source and disappear when source is
+    # stripped to empty. We scan moving units for marker fixture names,
+    # and if the fixture is defined in source and not in target (and not
+    # in any conftest visible from target — for simplicity we check only
+    # the test file level here), we add it to symbol_names so anvil moves
+    # it alongside the tests.
+    # ----------------------------------------------------------------------
+    # Re-parse after possible rename so we see current state.
+    source_tree = ast.parse(source.read_text())
+    extra_fixtures = _collect_marker_fixtures_to_move(
+        source_tree, target_tree, final_units, project_path, target
+    )
+    if extra_fixtures:
+        final_units = list(final_units) + sorted(extra_fixtures)
+        for fx in sorted(extra_fixtures):
+            warnings.append(
+                f"usefixtures-followup: moving fixture `{fx}` "
+                f"from {source.name} alongside its dependents"
+            )
 
     plan = move_symbols(
         source_path=source,
@@ -867,6 +1473,373 @@ def _safe_move_units(
     if source.exists():
         _reorder_module_statements(source)
     return warnings, final_units
+
+
+def _top_level_helpers(
+    tree: ast.Module,
+) -> dict[str, tuple[str, ast.stmt]]:
+    """Return ``{name: (body_hash, node)}`` for every top-level helper.
+
+    A helper is a top-level FunctionDef / ClassDef that is NOT a test
+    (``test_*`` / ``Test*``) plus single-target uppercase ``NAME = ...``
+    constants. Fixtures (``@pytest.fixture``) are included — they're
+    helpers from the body-conflict perspective.
+    """
+    out: dict[str, tuple[str, ast.stmt]] = {}
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef):
+            if node.name.startswith("test_"):
+                continue
+            out[node.name] = (_helper_body_hash(node), node)
+        elif isinstance(node, ast.ClassDef):
+            if node.name.startswith("Test"):
+                continue
+            out[node.name] = (_helper_body_hash(node), node)
+        elif isinstance(node, ast.Assign) and len(node.targets) == 1:
+            tgt = node.targets[0]
+            if isinstance(tgt, ast.Name) and tgt.id.isupper():
+                out[tgt.id] = (_const_value_hash(node), node)
+    return out
+
+
+def _names_referenced_in_unit(node: ast.stmt) -> set[str]:
+    """Return every ``ast.Name`` id referenced inside *node*.
+
+    Used to determine which top-level helpers a moving unit (test_*
+    function or Test* class) depends on. We also pick up marker
+    arguments — ``@pytest.mark.usefixtures("X")`` is a string literal
+    inside the decorator, NOT an ast.Name, so it's handled separately
+    by ``_marker_fixtures_in_unit``.
+    """
+    return {
+        n.id for n in ast.walk(node)
+        if isinstance(n, ast.Name)
+    }
+
+
+def _resolve_helper_conflicts(
+    source_tree: ast.Module,
+    target_tree: ast.Module,
+    moving_unit_names: list[str],
+    source_stem: str,
+    target: Path | None = None,
+    project_path: Path | None = None,
+) -> dict[str, str]:
+    """Build a rename map for helpers whose body differs between source & target.
+
+    For every top-level helper ``H`` referenced by a moving unit:
+
+      * If ``H`` is in source AND in target with a different body hash
+        (Bug 1/3 case), rename ``H`` in source to ``H__from_<stem>``.
+        Anvil's ``shared_helpers="duplicate"`` then copies the renamed
+        helper to target without collision.
+
+      * If ``H`` is in source but NOT in target AND a conftest on
+        target's ancestor chain provides a fixture named ``H``
+        (Bug 4 residual: ``rich_pkg``), rename in source too. Reason:
+        anvil would duplicate source's ``H`` into target, shadowing
+        conftest — breaking any test in target (whether pre-existing
+        or moved later) that relies on conftest's body. Renaming
+        source's ``H`` keeps both worlds working: moved tests bind to
+        the renamed helper (their original body), target's other
+        tests bind to conftest.
+
+    Helpers that are identical in source and target (same body_hash)
+    don't need renaming — anvil's duplicate logic correctly skips the
+    copy. Helpers only in source with no conftest shadow get
+    duplicated as-is.
+    """
+    source_helpers = _top_level_helpers(source_tree)
+    target_helpers = _top_level_helpers(target_tree)
+    moving_nodes = [
+        n for n in source_tree.body
+        if isinstance(n, ast.FunctionDef | ast.ClassDef)
+        and n.name in set(moving_unit_names)
+    ]
+    referenced: set[str] = set()
+    for node in moving_nodes:
+        referenced |= _names_referenced_in_unit(node)
+        referenced |= _marker_fixtures_in_unit(node)
+    conftest_fixtures: set[str] = set()
+    if target is not None and project_path is not None:
+        conftest_fixtures = _collect_conftest_fixtures(target, project_path)
+    rename: dict[str, str] = {}
+    suffix = f"__from_{source_stem}"
+    for name in sorted(referenced):
+        if name not in source_helpers:
+            continue
+        if name in target_helpers:
+            if source_helpers[name][0] == target_helpers[name][0]:
+                continue
+            # Different body in target → source-rename to avoid collision.
+        elif name not in conftest_fixtures:
+            continue
+        new_name = name + suffix
+        # If the renamed form already exists in source (idempotent re-run)
+        # or in target (very rare), skip — leave the operator to inspect.
+        if new_name in source_helpers or new_name in target_helpers:
+            continue
+        rename[name] = new_name
+    return rename
+
+
+def _resolve_conftest_shadowing(
+    source_tree: ast.Module,
+    target_tree: ast.Module,
+    moving_unit_names: list[str],
+    target: Path,
+    project_path: Path,
+    target_stem: str,
+) -> dict[str, str]:
+    """Build a rename map for target-local helpers that shadow conftest.
+
+    Resolves Bug 4 residual (``rich_pkg`` in ``test_inspect_tool.py``).
+    When a moved test references ``H`` (via parameter injection or
+    ``@pytest.mark.usefixtures("H")``) AND:
+
+      * source has no top-level ``H`` definition → source's tests
+        relied on conftest's ``H``;
+      * target has a top-level ``H`` definition → it would shadow
+        conftest, binding the moved tests to the wrong body;
+      * a conftest on target's ancestor chain provides ``H``.
+
+    Then we rename target's local ``H`` to ``H__local_<target_stem>``
+    (def + every reference inside target's existing tests). Target's
+    own tests keep working with the renamed local; the soon-to-be-moved
+    tests reference ``H`` and pytest resolves to conftest's version.
+    """
+    moving = set(moving_unit_names)
+    moving_nodes = [
+        n for n in source_tree.body
+        if isinstance(n, ast.FunctionDef | ast.ClassDef)
+        and n.name in moving
+    ]
+    if not moving_nodes:
+        return {}
+    referenced: set[str] = set()
+    for node in moving_nodes:
+        referenced |= _names_referenced_in_unit(node)
+        referenced |= _marker_fixtures_in_unit(node)
+    source_helpers = _top_level_helpers(source_tree)
+    target_helpers = _top_level_helpers(target_tree)
+    conftest_fixtures = _collect_conftest_fixtures(target, project_path)
+    rename: dict[str, str] = {}
+    suffix = f"__local_{target_stem}"
+    for name in sorted(referenced):
+        if name in source_helpers:
+            continue
+        if name not in target_helpers:
+            continue
+        if name not in conftest_fixtures:
+            continue
+        new_name = name + suffix
+        if new_name in target_helpers:
+            continue
+        rename[name] = new_name
+    return rename
+
+
+def _rename_name_in_module(path: Path, old_to_new: dict[str, str]) -> None:
+    """Rename every occurrence of name X across module *path* (def + refs).
+
+    Renames at three sites simultaneously:
+      * the ``cst.FunctionDef`` / ``cst.ClassDef`` definition itself,
+      * every ``cst.Name`` reference in the module body,
+      * marker-argument string literals like
+        ``@pytest.mark.usefixtures("X")`` so usefixtures still resolves
+        after the rename.
+
+    Preserves formatting via libcst. Unlike
+    ``_rename_top_level_in_source`` (which only renames the def header
+    — needed for cross-file move collisions), this rewrites references
+    too — needed when source helpers get renamed to avoid colliding with
+    target's same-named helpers.
+    """
+    if not old_to_new:
+        return
+    module = _cst_load(path)
+    if module is None:
+        return
+
+    class _Renamer(cst.CSTTransformer):
+        def __init__(self, mapping: dict[str, str]) -> None:
+            self.mapping = mapping
+
+        def leave_Name(
+            self, original_node: cst.Name, updated_node: cst.Name
+        ) -> cst.BaseExpression:
+            if updated_node.value in self.mapping:
+                return updated_node.with_changes(
+                    value=self.mapping[updated_node.value]
+                )
+            return updated_node
+
+        def leave_FunctionDef(
+            self,
+            original_node: cst.FunctionDef,
+            updated_node: cst.FunctionDef,
+        ) -> cst.BaseStatement:
+            if updated_node.name.value in self.mapping:
+                return updated_node.with_changes(
+                    name=cst.Name(
+                        value=self.mapping[updated_node.name.value]
+                    )
+                )
+            return updated_node
+
+        def leave_ClassDef(
+            self,
+            original_node: cst.ClassDef,
+            updated_node: cst.ClassDef,
+        ) -> cst.BaseStatement:
+            if updated_node.name.value in self.mapping:
+                return updated_node.with_changes(
+                    name=cst.Name(
+                        value=self.mapping[updated_node.name.value]
+                    )
+                )
+            return updated_node
+
+        def leave_SimpleString(
+            self,
+            original_node: cst.SimpleString,
+            updated_node: cst.SimpleString,
+        ) -> cst.BaseExpression:
+            # Rewrite ``@pytest.mark.usefixtures("X", "Y")`` argument
+            # strings. Conservative: only rewrite the bare quoted value
+            # if it matches a renamed name exactly. Pytest accepts both
+            # single and double quotes; libcst preserves the prefix.
+            raw = updated_node.value
+            if len(raw) < 2:
+                return updated_node
+            quote = raw[0]
+            if quote not in {'"', "'"}:
+                return updated_node
+            inner = raw[1:-1]
+            if inner in self.mapping:
+                return updated_node.with_changes(
+                    value=f"{quote}{self.mapping[inner]}{quote}"
+                )
+            return updated_node
+
+    new_module = module.visit(_Renamer(old_to_new))
+    assert isinstance(new_module, cst.Module)
+    _cst_save(path, new_module)
+
+
+def _marker_fixtures_in_unit(node: ast.stmt) -> set[str]:
+    """Return fixture names declared via ``@pytest.mark.usefixtures("X", ...)``.
+
+    Scans the unit's decorator list (and its methods' decorator lists if
+    it's a class) for ``pytest.mark.usefixtures`` calls and collects
+    every string-literal argument. Other markers (``pytest.mark.parametrize``,
+    ``pytest.mark.skipif``, ...) are ignored.
+    """
+    out: set[str] = set()
+    nodes_to_scan: list[ast.AST] = [node]
+    if isinstance(node, ast.ClassDef):
+        nodes_to_scan.extend(
+            sub for sub in node.body
+            if isinstance(sub, ast.FunctionDef)
+        )
+    for n in nodes_to_scan:
+        decorators = getattr(n, "decorator_list", []) or []
+        for deco in decorators:
+            if not isinstance(deco, ast.Call):
+                continue
+            # Match ``<...>.usefixtures(...)``
+            fn = deco.func
+            if not (isinstance(fn, ast.Attribute) and fn.attr == "usefixtures"):
+                continue
+            for arg in deco.args:
+                if (
+                    isinstance(arg, ast.Constant)
+                    and isinstance(arg.value, str)
+                ):
+                    out.add(arg.value)
+    return out
+
+
+def _collect_marker_fixtures_to_move(
+    source_tree: ast.Module,
+    target_tree: ast.Module,
+    moving_unit_names: list[str],
+    project_path: Path,
+    target: Path,
+) -> set[str]:
+    """Return source-defined fixtures referenced via usefixtures markers.
+
+    A fixture qualifies for follow-up move when:
+      * It is referenced via ``@pytest.mark.usefixtures("X")`` on one
+        of the moving units.
+      * It is defined as a ``@pytest.fixture``-decorated function at
+        the top level of *source*.
+      * It is NOT already defined at the top level of *target* and NOT
+        defined in a conftest visible to *target* (ancestor-chain).
+    """
+    moving = set(moving_unit_names)
+    needed: set[str] = set()
+    for node in source_tree.body:
+        if isinstance(node, ast.FunctionDef | ast.ClassDef) and node.name in moving:
+            needed |= _marker_fixtures_in_unit(node)
+    if not needed:
+        return set()
+    source_fixtures: dict[str, ast.FunctionDef] = {}
+    for node in source_tree.body:
+        if isinstance(node, ast.FunctionDef) and _is_pytest_fixture(node):
+            source_fixtures[node.name] = node
+    target_top_names = {
+        n.name
+        for n in target_tree.body
+        if isinstance(n, ast.FunctionDef | ast.ClassDef)
+    }
+    conftest_fixtures = _collect_conftest_fixtures(target, project_path)
+    return {
+        name for name in needed
+        if name in source_fixtures
+        and name not in target_top_names
+        and name not in conftest_fixtures
+    }
+
+
+def _collect_conftest_fixtures(target: Path, project_path: Path) -> set[str]:
+    """Return fixtures defined in any conftest on target's ancestor chain.
+
+    Walks from target's parent up to ``project_path`` (inclusive),
+    parsing every ``conftest.py`` and collecting top-level
+    ``@pytest.fixture``-decorated function names. Used to short-circuit
+    follow-up moves when the marker fixture is already provided.
+    """
+    out: set[str] = set()
+    cur = target.parent
+    try:
+        root = project_path.resolve()
+    except OSError:
+        return out
+    while True:
+        conftest = cur / "conftest.py"
+        if conftest.exists():
+            try:
+                tree = ast.parse(conftest.read_text())
+            except (SyntaxError, OSError):
+                pass
+            else:
+                for node in tree.body:
+                    if (
+                        isinstance(node, ast.FunctionDef)
+                        and _is_pytest_fixture(node)
+                    ):
+                        out.add(node.name)
+        try:
+            if cur.resolve() == root:
+                break
+        except OSError:
+            break
+        parent = cur.parent
+        if parent == cur:
+            break
+        cur = parent
+    return out
 
 
 def _func_body_hash(func: ast.FunctionDef) -> str:
@@ -907,10 +1880,17 @@ def _execute_merge(op: FileOp, project_path: Path) -> list[str]:
     source_units = _movable_units_at_top_level(source_tree)
     if not source_units:
         return [f"merge skipped: {op.source} has no top-level movable units"]
+    old_mod = _module_path_for_test_file(op.source, project_path)
+    new_mod = _module_path_for_test_file(op.target, project_path)
     warnings, _ = _safe_move_units(
         op.source, op.target, source_units, project_path
     )
     _delete_source_if_empty_tests(op.source)
+    if old_mod and new_mod and old_mod != new_mod and not op.source.exists():
+        warnings.extend(_rewrite_cross_test_imports(
+            project_path, old_mod, [new_mod],
+            skip_paths={op.source, op.target},
+        ))
     return warnings
 
 
@@ -1116,6 +2096,49 @@ def _scan_tests_for_import(
     return _project_import_index(project_path).get(name)
 
 
+def _synth_import_from_helpers(
+    name: str, project_path: Path, target: Path
+) -> tuple[ast.stmt, ast.stmt | None] | None:
+    """Synthesize ``from tests.<tier>._helpers import <name>`` if defined there.
+
+    Scans every ``tests/<tier>/_helpers.py`` for a top-level ``def name``
+    or ``class name`` or ``NAME = ...`` and returns a freshly-parsed
+    ``ast.ImportFrom`` node ready to be transplanted by
+    ``_backfill_missing_imports``. The second tuple element (enclosing
+    block) is always ``None`` — these synthesized imports are top-level.
+    """
+    tests_root = project_path / "tests"
+    if not tests_root.is_dir():
+        return None
+    for tier in ("integration", "e2e", "unit"):
+        helpers = tests_root / tier / "_helpers.py"
+        if not helpers.is_file():
+            continue
+        try:
+            tree = ast.parse(helpers.read_text())
+        except (SyntaxError, OSError):
+            continue
+        for node in tree.body:
+            defined = (
+                (isinstance(node, ast.FunctionDef | ast.ClassDef)
+                 and node.name == name)
+                or (
+                    isinstance(node, ast.Assign)
+                    and len(node.targets) == 1
+                    and isinstance(node.targets[0], ast.Name)
+                    and node.targets[0].id == name
+                )
+            )
+            if not defined:
+                continue
+            module = _module_path_for_test_file(helpers, project_path)
+            if module is None:
+                return None
+            stmt = ast.parse(f"from {module} import {name}").body[0]
+            return (stmt, None)
+    return None
+
+
 def _backfill_missing_imports(
     source: Path, target: Path, project_path: Path | None = None
 ) -> list[str]:
@@ -1163,6 +2186,24 @@ def _backfill_missing_imports(
             found = _scan_tests_for_import(project_path, name)
             if found is not None:
                 recoverable[name] = found
+        # Last-resort fallback: scan ``tests/<tier>/_helpers.py`` for the
+        # *definition* of ``name``. Covers the case where a freshly
+        # extracted helper (promoted into ``_helpers.py``) is referenced
+        # by another freshly extracted helper (promoted into ``conftest.py``
+        # or another ``_helpers.py``) — neither donor file imports the
+        # name, so the import-index fallback doesn't surface it. We
+        # synthesise an ``from tests.<tier>._helpers import <name>``
+        # statement so the destination ends up self-contained.
+        still_missing2 = (
+            missing - set(recoverable.keys())
+        )
+        if still_missing2 and project_path is not None:
+            for name in still_missing2:
+                synth = _synth_import_from_helpers(
+                    name, project_path, target
+                )
+                if synth is not None:
+                    recoverable[name] = synth
 
     if not recoverable:
         return []
@@ -1682,6 +2723,640 @@ def _delete_source_if_empty_tests(source: Path) -> None:
         source.unlink()
 
 
+def _module_path_for_test_file(path: Path, project_path: Path) -> str | None:
+    """Return the dotted module path used by ``from`` imports for *path*.
+
+    For ``project/tests/integration/test_foo.py`` this returns
+    ``tests.integration.test_foo``. Returns None if *path* is not under
+    ``project_path/tests/``.
+    """
+    try:
+        rel = path.resolve().relative_to(project_path.resolve())
+    except ValueError:
+        return None
+    parts = rel.with_suffix("").parts
+    if not parts or parts[0] != "tests":
+        return None
+    return ".".join(parts)
+
+
+def _rewrite_cross_test_imports(
+    project_path: Path,
+    old_module: str,
+    new_modules: list[str],
+    skip_paths: set[Path],
+) -> list[str]:
+    """Rewrite ``from <old_module> import ...`` across the project.
+
+    When a SPLIT/MERGE/RENAME changes which file owns the symbols
+    previously imported via ``from tests.<old_stem> import <names>``,
+    the importing test files must be rewritten or pytest collection
+    breaks (real bug observed on axm-init: ``test_workspace_checks`` was
+    split into N files but ``tests/unit/checks/test_workspace.py``
+    still tried to import the now-missing module).
+
+    Args:
+        old_module: dotted module the importer used to reference.
+        new_modules: replacement modules. For RENAME/MERGE this is a
+            single-element list. For SPLIT this is the post-split list
+            of canonical module paths.
+        skip_paths: paths to skip (typically op.source, op.target).
+
+    Returns: list of human-readable rewrite messages.
+    """
+    if not new_modules:
+        return []
+    skip_resolved = {p.resolve() for p in skip_paths}
+    msgs: list[str] = []
+    for py in project_path.rglob("*.py"):
+        if py.resolve() in skip_resolved:
+            continue
+        try:
+            text = py.read_text()
+        except OSError:
+            continue
+        if old_module not in text:
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        # Locate the matching ImportFrom node(s).
+        edits: list[tuple[ast.ImportFrom, str]] = []
+        text_lines = text.splitlines()
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.level == 0
+                and node.module == old_module
+            ):
+                names_segment = ", ".join(
+                    a.name if a.asname is None else f"{a.name} as {a.asname}"
+                    for a in node.names
+                )
+                # Preserve a trailing ``# noqa`` (or any other tail
+                # comment) from the original import line — useful for
+                # ``from x import *  # noqa: F403`` patterns.
+                trailing = ""
+                orig_line = text_lines[node.lineno - 1] if 0 <= node.lineno - 1 < len(text_lines) else ""
+                hash_idx = orig_line.find("#")
+                if hash_idx != -1:
+                    trailing = "  " + orig_line[hash_idx:].rstrip()
+                replacement_lines = [
+                    f"from {mod} import {names_segment}{trailing}"
+                    for mod in new_modules
+                ]
+                edits.append((node, "\n".join(replacement_lines)))
+        if not edits:
+            continue
+        lines = text.splitlines(keepends=True)
+        # Sort descending by lineno so earlier edits don't shift later offsets.
+        edits.sort(key=lambda e: e[0].lineno, reverse=True)
+        for node, replacement in edits:
+            start = node.lineno - 1
+            end = node.end_lineno or node.lineno
+            # Preserve trailing newline of the original block.
+            had_trailing_nl = lines[end - 1].endswith("\n")
+            tail = "\n" if had_trailing_nl else ""
+            lines[start:end] = [replacement + tail]
+        py.write_text("".join(lines))
+        msgs.append(
+            f"rewrote import in {py.relative_to(project_path)}: "
+            f"{old_module} -> {new_modules}"
+        )
+    return msgs
+
+
+def _extract_shared_helpers(project_path: Path) -> list[str]:
+    """Iterate ``_extract_shared_helpers_once`` until fixed-point.
+
+    A single pass cannot catch every duplicate: promoting helper A can
+    expose helper B as duplicate (e.g. A's body referenced B locally,
+    so B looked non-shared until A moved out). Loop until no further
+    extraction happens. Capped at ``_EXTRACT_MAX_ITERS`` to fail loud
+    on a buggy fixed-point.
+
+    ``ambiguous fixture`` messages are re-emitted on every iteration
+    (the same fixtures stay ambiguous forever) — collapse them so the
+    operator sees each one exactly once.
+    """
+    all_msgs: list[str] = []
+    seen_ambiguous: set[str] = set()
+    for _ in range(_EXTRACT_MAX_ITERS):
+        msgs = _extract_shared_helpers_once(project_path)
+        # Real progress = any non-ambiguous message produced.
+        progress = [m for m in msgs if "ambiguous fixture" not in m]
+        deduped: list[str] = list(progress)
+        for m in msgs:
+            if "ambiguous fixture" in m and m not in seen_ambiguous:
+                seen_ambiguous.add(m)
+                deduped.append(m)
+        all_msgs.extend(deduped)
+        if not progress:
+            break
+    return all_msgs
+
+
+_EXTRACT_MAX_ITERS = 10
+
+
+def _extract_shared_helpers_once(project_path: Path) -> list[str]:
+    """Promote helpers duplicated across a tier into ``tests/<tier>/_helpers.py``.
+
+    Anvil's ``shared_helpers="duplicate"`` mode (the only one currently
+    implemented — ``"extract"`` is reserved for Phase 3) leaves a copy
+    of every shared helper in each post-move file. After SPLIT this
+    means N identical copies of helpers like ``gold_project``, ``_make_result``.
+    We collapse those copies into a single module-level definition in
+    ``tests/<tier>/_helpers.py`` and rewrite call sites with an import.
+
+    Algorithm:
+        1. For each tier (integration, e2e, unit), walk every test file
+           and collect top-level *helper* defs — i.e. ``def name(...)`` /
+           ``class Name(...)`` that does NOT start with ``test_`` /
+           ``Test`` (so we never touch test functions themselves).
+        2. Group by ``(name, body_hash)``. If a group has >=2 files,
+           the helper is a real duplicate (same body, different files).
+        3. Move the canonical definition to ``tests/<tier>/_helpers.py``
+           (append if file exists, create otherwise). Strip the
+           duplicated def from each file, prepend an import.
+        4. Helpers whose names collide across tiers but with different
+           bodies are left alone (rare; safer than guessing).
+
+    We deliberately do NOT convert helpers into ``@pytest.fixture``
+    here — fixture migration requires per-call-site signature analysis
+    (uniform args? multiple calls per test? cascade dependencies?)
+    and is the proper job of ``axm-anvil`` Phase 3. See
+    README_FIX_PROTO.md for the rationale.
+
+    Returns: list of human-readable extraction messages.
+    """
+    msgs: list[str] = []
+    tests_root = project_path / "tests"
+    if not tests_root.is_dir():
+        return msgs
+    for tier in ("integration", "e2e", "unit"):
+        tier_dir = tests_root / tier
+        if not tier_dir.is_dir():
+            continue
+        msgs.extend(_extract_shared_helpers_in_tier(project_path, tier_dir))
+    return msgs
+
+
+def _extract_shared_helpers_in_tier(
+    project_path: Path, tier_dir: Path
+) -> list[str]:
+    """Process a single tier. Splitting per-tier keeps imports local."""
+    # Gather candidate helper defs per file. We capture the source text
+    # NOW (before any mutation) so subsequent strip operations on one
+    # file don't invalidate cached lineno/col offsets of helpers
+    # discovered in other files. We also tag each helper as ``fixture``
+    # (decorated with ``@pytest.fixture``) or ``pure`` — the destination
+    # differs: fixtures go to ``conftest.py`` (pytest auto-discovery
+    # requires it), pures go to ``_helpers.py`` with explicit import.
+    per_file: dict[Path, dict[str, tuple[str, str, str]]] = {}
+    # Names that were ignored upstream (e.g. ``FIXTURES = Path(__file__)...``)
+    # — never enter ``by_name`` but cascade-skipped consumers must see
+    # them as unavailable dependencies.
+    location_skipped_names: set[str] = set()
+    for py in tier_dir.rglob("*.py"):
+        if py.name in {"__init__.py", "conftest.py", "_helpers.py"}:
+            continue
+        try:
+            text = py.read_text()
+            tree = ast.parse(text)
+        except (SyntaxError, OSError):
+            continue
+        helpers: dict[str, tuple[str, str, str]] = {}
+        for node in tree.body:
+            name: str | None = None
+            body_hash: str | None = None
+            kind: str = "pure"
+            if isinstance(node, ast.FunctionDef):
+                if node.name.startswith("test_"):
+                    continue
+                name, body_hash = node.name, _helper_body_hash(node)
+                if _is_pytest_fixture(node):
+                    kind = "fixture"
+            elif isinstance(node, ast.ClassDef):
+                if node.name.startswith("Test"):
+                    continue
+                name, body_hash = node.name, _helper_body_hash(node)
+            elif isinstance(node, ast.Assign) and len(node.targets) == 1:
+                tgt = node.targets[0]
+                if isinstance(tgt, ast.Name) and tgt.id.isupper():
+                    # Skip constants that reference ``__file__`` — their
+                    # value depends on the file's *physical location*.
+                    # Promoting ``FIXTURES = Path(__file__).parent.parent``
+                    # from a tests/unit/foo.py file to tests/unit/_helpers.py
+                    # silently breaks downstream consumers because
+                    # ``Path(__file__).parent.parent`` now resolves to the
+                    # tests dir instead of the package root. Each
+                    # original file must keep its own copy.
+                    if _references_file_dunder(node.value):
+                        # Record the name so cascade skips can see it as
+                        # an unavailable dependency of other candidates.
+                        location_skipped_names.add(tgt.id)
+                        continue
+                    name, body_hash = tgt.id, _const_value_hash(node)
+            if name is None or body_hash is None:
+                continue
+            src_seg = _source_segment_with_decorators(text, node)
+            if src_seg is None:
+                continue
+            helpers[name] = (src_seg, body_hash, kind)
+        if helpers:
+            per_file[py] = helpers
+    # Group by (name, body_hash) → list of files, keyed by kind too so
+    # that an extracted fixture doesn't collide with a same-named pure
+    # helper in another file (unlikely but cheap to be defensive).
+    by_signature: dict[tuple[str, str, str], list[Path]] = defaultdict(list)
+    for py, helpers in per_file.items():
+        for h_name, (_, body_hash, kind) in helpers.items():
+            by_signature[(h_name, body_hash, kind)].append(py)
+    # Only true duplicates (>=2 files with same body) qualify for extraction.
+    # When the same name has multiple bodies, the policy depends on kind:
+    #   * pure helpers — pick the largest group, leave the minority bodies
+    #     in place. They're a different helper that happens to share the
+    #     name; promoting the majority wins most of the deduplication
+    #     without overwriting divergent semantics.
+    #   * fixtures — refuse to extract entirely. Multiple bodies for
+    #     a fixture name almost always indicate an intentional override
+    #     pattern (a richer local fixture overriding a baseline conftest),
+    #     and stripping the local one silently regresses the dependent
+    #     tests. Report these as ``ambiguous_fixtures`` for the operator.
+    skip_msgs: list[str] = []
+    # Names that won't make it into ``_helpers.py`` — used to detect
+    # cascading dependencies (a constant that references a skipped name
+    # would NameError after extraction). Seeded with names already
+    # filtered out upstream (e.g. ``Path(__file__)`` constants).
+    skipped_names: set[str] = set(location_skipped_names)
+    by_name: dict[str, list[tuple[str, str, list[Path]]]] = defaultdict(list)
+    for (h_name, body_hash, kind), files in by_signature.items():
+        by_name[h_name].append((body_hash, kind, files))
+    # Collect dependency edges: for every candidate, which other
+    # candidates (or already-skipped names) does it reference in its
+    # body? Used to cascade skips when an extractable constant
+    # depends on a non-extractable one (e.g. ``SAMPLE_PKG = FIXTURES / "x"``
+    # where ``FIXTURES`` was skipped for using ``Path(__file__)``).
+    deps_by_name: dict[str, set[str]] = defaultdict(set)
+    known_names = set(by_name) | location_skipped_names
+    for py, helpers_dict in per_file.items():
+        for h_name, (src_text, _hash, _kind) in helpers_dict.items():
+            try:
+                sub_tree = ast.parse(src_text)
+            except SyntaxError:
+                continue
+            referenced = {
+                n.id for n in ast.walk(sub_tree)
+                if isinstance(n, ast.Name) and n.id != h_name
+            }
+            deps_by_name[h_name] |= referenced & known_names
+    duplicates: dict[tuple[str, str, str], list[Path]] = {}
+    for h_name, groups in by_name.items():
+        kinds = {k for _, k, _ in groups}
+        # Refuse to extract any helper (fixture, pure function, class,
+        # constant) whose name has divergent bodies across the tier.
+        # Multi-body means callers depend on *different* implementations
+        # — picking the majority and stripping the minority silently
+        # breaks the minority's consumers. Real cases observed:
+        #   * fixtures with intentional local override (gold_project)
+        #   * helpers ``_make_pkg`` whose signature evolved across
+        #     files (axm-ast: 11 TypeError unexpected keyword)
+        #   * fixtures ``workspace_repo`` that commit vs. don't commit
+        if len(groups) > 1:
+            # Build a per-body inventory so the operator can review
+            # without grepping. Each line lists the body hash and its
+            # host files, so divergence is visible at a glance.
+            groups.sort(key=lambda g: (-len(g[2]), g[0]))
+            kind_label = (
+                "fixture" if "fixture" in kinds
+                else "helper" if "pure" in kinds
+                else "constant"
+            )
+            body_lines = []
+            for idx, (body_hash, _kind, files) in enumerate(groups, 1):
+                files_rel = sorted(
+                    str(f.relative_to(project_path)) for f in files
+                )
+                body_lines.append(
+                    f"    body#{idx} ({body_hash[:8]}, {len(files)} file(s)): "
+                    + ", ".join(files_rel)
+                )
+            file_count = sum(len(files) for _, _, files in groups)
+            skip_msgs.append(
+                f"ambiguous {kind_label} `{h_name}` not extracted: "
+                f"{len(groups)} divergent bodies across {file_count} files "
+                "(likely intentional override or signature drift — "
+                "review manually):\n"
+                + "\n".join(body_lines)
+                + "\n    Resolution: keep each body where its callers "
+                "depend on it, or unify the bodies and remove the "
+                "others; consumers of the wrong body fail silently "
+                "with state-mismatch / TypeError, not ImportError."
+            )
+            skipped_names.add(h_name)
+            continue
+        # Largest group wins; ties broken by hash for determinism.
+        groups.sort(key=lambda g: (-len(g[2]), g[0]))
+        winning_hash, winning_kind, winning_files = groups[0]
+        if len(winning_files) < 2:
+            continue
+        duplicates[(h_name, winning_hash, winning_kind)] = winning_files
+    # Cascade skips: if a candidate references any already-skipped
+    # name, extracting it would NameError at import time of
+    # ``_helpers.py``. Propagate to fixpoint.
+    changed = True
+    while changed:
+        changed = False
+        for h_name, refs in deps_by_name.items():
+            if h_name in skipped_names:
+                continue
+            cascade_blockers = refs & skipped_names
+            if cascade_blockers:
+                # Find and remove this name from duplicates if present.
+                for sig in list(duplicates):
+                    if sig[0] == h_name:
+                        del duplicates[sig]
+                        skip_msgs.append(
+                            f"cascading skip `{h_name}` not extracted: "
+                            f"references skipped name(s) "
+                            f"{sorted(cascade_blockers)} — extracting it "
+                            "alone would NameError at import time."
+                        )
+                        skipped_names.add(h_name)
+                        changed = True
+                        break
+
+    if not duplicates and not skip_msgs:
+        return []
+    if not duplicates:
+        return skip_msgs
+    msgs: list[str] = []
+    helpers_path = tier_dir / "_helpers.py"
+    # Fixtures land in the tests-root conftest so that cross-tier
+    # ``from tests.<tier>.X import *`` re-exports (the pattern used to
+    # satisfy ``PRACTICE_TEST_MIRROR``) still find them. Tier-local
+    # conftest would scope-out unit/e2e consumers of an integration
+    # fixture and break them silently.
+    conftest_path = tier_dir.parent / "conftest.py"
+    helpers_module_path = _module_path_for_test_file(helpers_path, project_path)
+    if helpers_module_path is None:
+        return []
+    # Two destinations: pure helpers go to ``_helpers.py`` (explicit
+    # import in each consumer), fixtures go to ``conftest.py`` (pytest
+    # auto-discovery, no import needed). Routing by ``kind`` preserves
+    # pytest semantics — extracting a fixture into ``_helpers.py``
+    # would break ``def test_x(my_fixture)`` injection.
+    helpers_module = _load_or_create_helpers_module(
+        helpers_path, tier_dir.name, helpers_module_path
+    )
+    conftest_module = _load_or_create_conftest_module(conftest_path)
+    if helpers_module is None or conftest_module is None:
+        return []
+    helpers_existing = {
+        s.name.value
+        for s in helpers_module.body
+        if isinstance(s, cst.FunctionDef | cst.ClassDef)
+    }
+    conftest_existing = {
+        s.name.value
+        for s in conftest_module.body
+        if isinstance(s, cst.FunctionDef | cst.ClassDef)
+    }
+    helpers_body = list(helpers_module.body)
+    conftest_body = list(conftest_module.body)
+    helpers_touched = False
+    conftest_touched = False
+    sorted_dups = sorted(duplicates.items(), key=lambda kv: kv[0][0])
+    for (name, _, kind), files in sorted_dups:
+        canonical_file = sorted(files)[0]
+        canonical_src = per_file[canonical_file][name][0]
+        try:
+            parsed = cst.parse_module(canonical_src).body
+        except cst.ParserSyntaxError:
+            continue
+        if kind == "fixture":
+            if name not in conftest_existing:
+                conftest_body.extend(parsed)
+                conftest_existing.add(name)
+                conftest_touched = True
+                msgs.append(
+                    f"extracted fixture `{name}` -> "
+                    f"{conftest_path.relative_to(project_path)} "
+                    f"(was duplicated in {len(files)} files)"
+                )
+            # Fixtures: strip from each file. NO import needed — pytest
+            # auto-discovers via conftest in the test's directory tree.
+            for f in files:
+                _strip_def_only(f, name)
+        else:
+            if name not in helpers_existing:
+                helpers_body.extend(parsed)
+                helpers_existing.add(name)
+                helpers_touched = True
+                msgs.append(
+                    f"extracted helper `{name}` -> "
+                    f"{helpers_path.relative_to(project_path)} "
+                    f"(was duplicated in {len(files)} files)"
+                )
+            # Pure helpers: strip + add explicit import.
+            for f in files:
+                _strip_def_and_inject_import(
+                    f, name, helpers_module_path, project_path
+                )
+    if helpers_touched:
+        _cst_save(helpers_path, helpers_module.with_changes(body=helpers_body))
+    if conftest_touched:
+        _cst_save(conftest_path, conftest_module.with_changes(body=conftest_body))
+    # Backfill any names referenced by the freshly-added defs but not
+    # yet imported in the destination module. Each destination is
+    # backfilled from an arbitrary donor file in the tier — names lived
+    # there originally; ``_scan_tests_for_import`` is the cross-file
+    # fallback for everything else.
+    donor = next(iter(per_file.keys()), None)
+    if donor is not None:
+        if helpers_touched:
+            msgs.extend(
+                _backfill_missing_imports(donor, helpers_path, project_path)
+            )
+        if conftest_touched:
+            msgs.extend(
+                _backfill_missing_imports(donor, conftest_path, project_path)
+            )
+    # Surface skipped ambiguous fixtures so the operator can decide.
+    msgs.extend(skip_msgs)
+    return msgs
+
+
+def _is_pytest_fixture(node: ast.FunctionDef) -> bool:
+    """True if *node* has a ``@pytest.fixture`` (or bare ``@fixture``) decorator."""
+    for deco in node.decorator_list:
+        target = deco.func if isinstance(deco, ast.Call) else deco
+        # ``@pytest.fixture`` / ``@pytest.fixture(...)``
+        if (
+            isinstance(target, ast.Attribute)
+            and isinstance(target.value, ast.Name)
+            and target.value.id == "pytest"
+            and target.attr == "fixture"
+        ):
+            return True
+        # ``@fixture`` / ``@fixture(...)`` (when imported directly)
+        if isinstance(target, ast.Name) and target.id == "fixture":
+            return True
+    return False
+
+
+def _load_or_create_helpers_module(
+    helpers_path: Path, tier_name: str, helpers_module_path: str
+) -> cst.Module | None:
+    if helpers_path.exists():
+        return _cst_load(helpers_path)
+    return cst.parse_module(
+        f'"""Shared helpers for ``tests/{tier_name}``.\n\n'
+        "Promoted from duplicate top-level defs found across files.\n"
+        f"Import explicitly: ``from {helpers_module_path} import <name>``.\n"
+        '"""\n\n'
+        "from __future__ import annotations\n"
+    )
+
+
+def _load_or_create_conftest_module(conftest_path: Path) -> cst.Module | None:
+    if conftest_path.exists():
+        return _cst_load(conftest_path)
+    return cst.parse_module(
+        '"""Pytest fixtures auto-discovered by tests in this directory.\n\n'
+        "Promoted from duplicate ``@pytest.fixture`` definitions originally\n"
+        "scattered across multiple test files.\n"
+        '"""\n\n'
+        "from __future__ import annotations\n"
+    )
+
+
+def _strip_def_only(file: Path, name: str) -> None:
+    """Remove the top-level def of *name* from *file* without injecting an import.
+
+    Used for fixtures whose new home (``conftest.py``) is auto-discovered
+    by pytest — no import would be valid syntactically (it would shadow
+    the injected fixture parameter) and none is needed.
+    """
+    module = _cst_load(file)
+    if module is None:
+        return
+    new_body: list[cst.BaseStatement] = []
+    stripped = False
+    for stmt in module.body:
+        if (
+            isinstance(stmt, cst.FunctionDef | cst.ClassDef)
+            and stmt.name.value == name
+        ):
+            stripped = True
+            continue
+        new_body.append(stmt)
+    if stripped:
+        _cst_save(file, module.with_changes(body=new_body))
+
+
+def _source_segment_with_decorators(text: str, node: ast.AST) -> str | None:
+    """Like ``ast.get_source_segment`` but includes the decorator lines.
+
+    ``ast.get_source_segment`` returns the segment starting at ``node.lineno``,
+    which for a decorated function/class is the ``def``/``class`` line —
+    decorators are lost. We extend the start back to the first decorator's
+    lineno so that ``@pytest.fixture()`` is preserved when relocating a
+    fixture to ``conftest.py``.
+    """
+    base = ast.get_source_segment(text, node)
+    if base is None:
+        return None
+    decorators = getattr(node, "decorator_list", None)
+    if not decorators:
+        return base
+    first_deco_line = min(d.lineno for d in decorators)
+    lines = text.splitlines(keepends=True)
+    prefix = "".join(lines[first_deco_line - 1 : node.lineno - 1])
+    return prefix + base
+
+
+def _helper_body_hash(node: ast.FunctionDef | ast.ClassDef) -> str:
+    """Hash a helper's body via ast.dump (stable, ignores comments).
+
+    We hash body only so that two functions with identical body but
+    different decorators are still treated as duplicates — decorator
+    order/format is irrelevant to runtime semantics for normal helpers.
+    """
+    import hashlib
+    body_repr = "\n".join(ast.dump(s, annotate_fields=False) for s in node.body)
+    return hashlib.sha1(body_repr.encode()).hexdigest()[:12]
+
+
+def _const_value_hash(node: ast.Assign) -> str:
+    """Hash a module-level constant assignment."""
+    import hashlib
+    return hashlib.sha1(ast.dump(node.value).encode()).hexdigest()[:12]
+
+
+def _references_file_dunder(node: ast.AST) -> bool:
+    """True if *node* tree contains any reference to ``__file__``."""
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name) and child.id == "__file__":
+            return True
+    return False
+
+
+def _strip_def_and_inject_import(
+    file: Path, name: str, helpers_module: str, project_path: Path
+) -> None:
+    """Remove the top-level def of ``name`` from *file* and import it instead."""
+    module = _cst_load(file)
+    if module is None:
+        return
+    new_body: list[cst.BaseStatement] = []
+    stripped = False
+    for stmt in module.body:
+        if (
+            isinstance(stmt, cst.FunctionDef | cst.ClassDef)
+            and stmt.name.value == name
+        ):
+            stripped = True
+            continue
+        # Module-level constant: ``NAME = ...`` (single-target Assign)
+        if (
+            isinstance(stmt, cst.SimpleStatementLine)
+            and len(stmt.body) == 1
+            and isinstance(stmt.body[0], cst.Assign)
+            and len(stmt.body[0].targets) == 1
+            and isinstance(stmt.body[0].targets[0].target, cst.Name)
+            and stmt.body[0].targets[0].target.value == name
+        ):
+            stripped = True
+            continue
+        new_body.append(stmt)
+    if not stripped:
+        return
+    # Inject ``from <helpers_module> import <name>`` after the existing
+    # top-level imports (or at the very top after the docstring).
+    import_stmt = cst.parse_statement(
+        f"from {helpers_module} import {name}"
+    )
+    assert isinstance(import_stmt, cst.SimpleStatementLine)
+    insert_at = 0
+    for idx, stmt in enumerate(new_body):
+        if _is_cst_import(stmt) or (
+            isinstance(stmt, cst.SimpleStatementLine)
+            and len(stmt.body) == 1
+            and isinstance(stmt.body[0], cst.Expr)
+            and isinstance(stmt.body[0].value, cst.SimpleString | cst.ConcatenatedString)
+        ):
+            insert_at = idx + 1
+        else:
+            break
+    new_body.insert(insert_at, import_stmt)
+    new_module = module.with_changes(body=new_body)
+    new_module = _dedupe_imports_cst(new_module)
+    _cst_save(file, new_module)
+
+
 def execute(ops: list[FileOp], project_path: Path) -> list[str]:
     """Apply ops in order. Returns aggregated warnings."""
     warnings: list[str] = []
@@ -1689,9 +3364,9 @@ def execute(ops: list[FileOp], project_path: Path) -> list[str]:
         if op.kind == "flatten":
             warnings.extend(_execute_flatten(op, project_path))
         elif op.kind == "relocate":
-            _execute_relocate(op)
+            warnings.extend(_execute_relocate(op, project_path))
         elif op.kind == "rename":
-            _execute_rename(op)
+            warnings.extend(_execute_rename(op, project_path))
         elif op.kind == "split":
             warnings.extend(_execute_split(op, project_path))
         elif op.kind == "merge":
@@ -1728,6 +3403,16 @@ def run(
             warnings.extend(execute(relocate_ops, project_path))
             _invalidate_import_index(project_path)
 
+    # Stage 1.5: FLATTEN_LAYOUT. Bring nested ``tests/integration/<subdir>/``
+    # and ``tests/e2e/<subdir>/`` files up to the tier root so Stages 2-4
+    # operate on the AXM-standard flat layout. Skipped for unit tests
+    # which intentionally mirror src/ structure.
+    if apply and "TEST_QUALITY_PYRAMID_LEVEL" in rules:
+        flatten_msgs = flatten_tier_layout(project_path)
+        if flatten_msgs:
+            warnings.extend(flatten_msgs)
+            _invalidate_import_index(project_path)
+
     # Stages 2-4: FILE_NAMING (planned AFTER flatten + relocate).
     # Re-plan between stages to act on post-mutation paths — the audit
     # path field becomes stale after SPLIT moves files around.
@@ -1750,10 +3435,32 @@ def run(
             report.ops.extend(merges)
             report.ops.extend(renames)
 
-    # Post-pipeline polish: run `ruff check --fix-only` (F401/I001/UP034
-    # sweep) then `ruff format` (line wrapping). Best-effort — failures
-    # surface as warnings, never abort the apply.
+    # Post-pipeline polish: extract shared helpers (collapse duplicates
+    # left by anvil's ``shared_helpers="duplicate"`` into a single
+    # ``tests/<tier>/_helpers.py`` module), then run ruff fix + format.
     if apply:
+        extraction_msgs = _extract_shared_helpers(project_path)
+        warnings.extend(extraction_msgs)
+        # Each extracted helper retroactively resolves any anvil
+        # ``Helper '<name>' ... — duplicated in target`` warning for
+        # that same name. Drop the obsolete warnings to keep the
+        # report aligned with the final state on disk.
+        extracted_names = {
+            m.split("`")[1] for m in extraction_msgs
+            if (
+                m.startswith("extracted helper `")
+                or m.startswith("extracted fixture `")
+            )
+            and "`" in m
+        }
+        if extracted_names:
+            warnings = [
+                w for w in warnings
+                if not (
+                    "duplicated in target" in w
+                    and any(f"Helper '{n}'" in w for n in extracted_names)
+                )
+            ]
         warnings.extend(_ruff_format_tests(project_path))
 
     report.warnings = warnings
