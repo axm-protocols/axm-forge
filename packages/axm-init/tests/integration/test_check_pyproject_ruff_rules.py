@@ -3,6 +3,8 @@
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from axm_init.checks.pyproject import check_pyproject_ruff_rules
 from tests.integration._helpers import (
     ROOT_WORKSPACE_HEADER,
@@ -16,10 +18,34 @@ class TestCheckPyprojectRuffRules:
         assert r.passed is True
         assert r.weight == 2
 
-    def test_fail_no_select(self, tmp_path: Path) -> None:
-        (tmp_path / "pyproject.toml").write_text('[project]\nname="x"\n')
+    @pytest.mark.parametrize(
+        ("toml_body", "expected_passed"),
+        [
+            pytest.param(
+                '[project]\nname="x"\n',
+                False,
+                id="fail_no_select",
+            ),
+            pytest.param(
+                '[project]\nname="x"\n[tool.ruff.lint]\nselect = ["ALL"]\n',
+                True,
+                id="pass_with_all",
+            ),
+            pytest.param(
+                '[project]\nname="x"\n[tool.ruff.lint]\n'
+                'select = ["E", "F", "S"]\n'
+                'extend-select = ["I", "UP", "B", "BLE", "PLR", "N"]\n',
+                True,
+                id="pass_with_extend_select",
+            ),
+        ],
+    )
+    def test_pyproject_passed_flag(
+        self, tmp_path: Path, toml_body: str, expected_passed: bool
+    ) -> None:
+        (tmp_path / "pyproject.toml").write_text(toml_body)
         r = check_pyproject_ruff_rules(tmp_path)
-        assert r.passed is False
+        assert r.passed is expected_passed
 
     def test_fail_missing_new_rules(self, tmp_path: Path) -> None:
         """Old 5-rule set should now fail — missing S, BLE, PLR, N."""
@@ -35,23 +61,6 @@ class TestCheckPyprojectRuffRules:
         assert "BLE" in missing
         assert "PLR" in missing
         assert "N" in missing
-
-    def test_pass_with_all(self, tmp_path: Path) -> None:
-        """select = ['ALL'] includes everything — should pass."""
-        toml = '[project]\nname="x"\n[tool.ruff.lint]\nselect = ["ALL"]\n'
-        (tmp_path / "pyproject.toml").write_text(toml)
-        r = check_pyproject_ruff_rules(tmp_path)
-        assert r.passed is True
-
-    def test_pass_with_extend_select(self, tmp_path: Path) -> None:
-        toml = (
-            '[project]\nname="x"\n[tool.ruff.lint]\n'
-            'select = ["E", "F", "S"]\n'
-            'extend-select = ["I", "UP", "B", "BLE", "PLR", "N"]\n'
-        )
-        (tmp_path / "pyproject.toml").write_text(toml)
-        r = check_pyproject_ruff_rules(tmp_path)
-        assert r.passed is True
 
     def test_fail_subset_of_new_rules(self, tmp_path: Path) -> None:
         """Only S and N added — should fail listing BLE, PLR."""
