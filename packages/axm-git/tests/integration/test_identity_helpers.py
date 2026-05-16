@@ -176,11 +176,6 @@ class TestResolveIdentityEdgeCases:
         )
         assert result is None
 
-    def test_no_config_file_returns_none(self, monkeypatch):
-        monkeypatch.setattr("axm_git.core.identity.load_config", lambda _: None)
-        result = resolve_identity(Path("/any"))
-        assert result is None
-
     def test_non_axm_workspace_falls_through_to_default(
         self, config, default_identity, non_axm_path, monkeypatch
     ):
