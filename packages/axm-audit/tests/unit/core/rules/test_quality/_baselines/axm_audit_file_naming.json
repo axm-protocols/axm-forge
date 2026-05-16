@@ -1022,6 +1022,17 @@
       "verdict": "NAME_MISMATCH"
     },
     {
+      "current_name": "test_duplicate_tests_payload_size.py",
+      "path": "tests/integration/test_duplicate_tests_payload_size.py",
+      "proposed_name": "test_duplicate_tests_rule.py",
+      "severity": "info",
+      "tier": "integration",
+      "tuple": [
+        "DuplicateTestsRule"
+      ],
+      "verdict": "NAME_MISMATCH"
+    },
+    {
       "current_name": "test_duplicate_tests_raises_divergence.py",
       "path": "tests/integration/test_duplicate_tests_raises_divergence.py",
       "proposed_name": "test_duplicate_tests_rule.py",
@@ -2498,6 +2509,7 @@
       "current_name": "",
       "files": [
         "tests/integration/test_duplicate_tests_class_aware.py",
+        "tests/integration/test_duplicate_tests_payload_size.py",
         "tests/integration/test_duplicate_tests_raises_divergence.py",
         "tests/integration/test_duplicate_tests_rendering.py"
       ],

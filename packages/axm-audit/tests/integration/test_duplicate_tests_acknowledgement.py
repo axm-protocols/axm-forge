@@ -16,6 +16,7 @@ import pytest
 from axm_audit.core.rules.test_quality.duplicate_tests import (
     DuplicateTestsRule,
     _cluster_hash,
+    _TestEntry,
 )
 
 pytestmark = pytest.mark.integration
@@ -251,11 +252,11 @@ def test_cluster_hash_consistency_via_public_boundary(project: Path) -> None:
     result = DuplicateTestsRule().check(project)
     cluster = result.metadata["clusters"][0]
     # Reconstruct a raw-shape cluster (tests with file+name only) and re-hash.
-    members: list[dict[str, Any]] = [
+    members: list[_TestEntry] = [
         {"file": m["file"], "name": m["name"], "line": m.get("line", 0)}
-        for m in cluster.get("members", cluster.get("tests", []))
+        for m in cluster["members"]
     ]
     expected = _cluster_hash(
-        {"signal": cluster["signal"], "similarity": 1.0, "tests": members}  # type: ignore[typeddict-item]
+        {"signal": cluster["signal"], "similarity": 1.0, "members": members}
     )
     assert cluster["cluster_hash"] == expected

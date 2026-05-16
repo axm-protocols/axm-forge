@@ -531,7 +531,7 @@ def test_empty_tests_returns_pass(tmp_path: Path) -> None:
 
 def _has_pair(clusters: list[dict[str, Any]], names: set[str]) -> bool:
     for c in clusters:
-        cluster_names = {t["name"] for t in c["tests"]}
+        cluster_names = {t["name"] for t in c["members"]}
         if names.issubset(cluster_names):
             return True
     return False
@@ -541,7 +541,7 @@ def _find_pair(
     clusters: list[dict[str, Any]], names: set[str]
 ) -> dict[str, Any] | None:
     for c in clusters:
-        cluster_names = {t["name"] for t in c["tests"]}
+        cluster_names = {t["name"] for t in c["members"]}
         if names.issubset(cluster_names):
             return c
     return None
