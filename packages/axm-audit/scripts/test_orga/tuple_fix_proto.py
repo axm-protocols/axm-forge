@@ -601,9 +601,9 @@ def _git_mv(src: Path, dst: Path) -> None:
     ``_execute_rename``) can re-route through ``_safe_move_units``.
     """
     dst.parent.mkdir(parents=True, exist_ok=True)
-    if dst.exists():
+    if dst.is_file():
         raise FileExistsError(
-            f"refusing to overwrite existing {dst} with {src} via git_mv"
+            f"refusing to overwrite existing file {dst} with {src} via git_mv"
         )
     rc = subprocess.run(
         ["git", "mv", str(src), str(dst)],
@@ -869,7 +869,7 @@ def _execute_relocate(op: FileOp, project_path: Path) -> list[str]:
     ``_git_mv`` overwrite.
     """
     assert isinstance(op.target, Path)
-    if op.target.exists() and op.target != op.source:
+    if op.target.is_file() and op.target != op.source:
         if not op.source.exists():
             return [f"relocate skipped: source missing ({op.source})"]
         warnings: list[str] = [
@@ -918,7 +918,7 @@ def _execute_rename(op: FileOp, project_path: Path) -> list[str]:
     moved into the existing target, then the source is deleted.
     """
     assert isinstance(op.target, Path)
-    if op.target.exists() and op.target != op.source:
+    if op.target.is_file() and op.target != op.source:
         if not op.source.exists():
             return [
                 f"rename skipped: source missing ({op.source})"
