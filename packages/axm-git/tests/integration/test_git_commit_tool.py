@@ -10,12 +10,17 @@ from __future__ import annotations
 import stat
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from axm_git.tools.commit import GitCommitTool
 
 pytestmark = pytest.mark.integration
+
+MODULE = "axm_git.tools.commit"
 
 
 def _init_repo(path: Path) -> None:
@@ -189,3 +194,87 @@ class TestCommitFlow:
             check=True,
         )
         assert ls.stdout.strip() == ""
+
+
+# ---------------------------------------------------------------------------
+# Mid-batch failure (formerly tests/integration/test_commit.py)
+# ---------------------------------------------------------------------------
+
+
+def _git_result(
+    returncode: int = 0, stdout: str = "", stderr: str = ""
+) -> SimpleNamespace:
+    return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
+
+
+class TestMidBatchFailure:
+    """Commit 2/3 fails pre-commit → failure with succeeded=1, partial results."""
+
+    @pytest.fixture()
+    def three_commits(self) -> list[dict[str, Any]]:
+        return [
+            {"files": ["a.py"], "message": "first commit"},
+            {"files": ["b.py"], "message": "second commit"},
+            {"files": ["c.py"], "message": "third commit"},
+        ]
+
+    @patch(f"{MODULE}.author_args", return_value=[])
+    @patch(f"{MODULE}.resolve_identity", return_value=None)
+    @patch(f"{MODULE}.run_git")
+    def test_mid_batch_precommit_failure(
+        self,
+        mock_run_git: MagicMock,
+        _mock_identity: MagicMock,
+        _mock_args: MagicMock,
+        tmp_path: Path,
+        three_commits: list[dict[str, Any]],
+    ) -> None:
+        mock_run_git.side_effect = [
+            _git_result(0),
+            _git_result(0),
+            _git_result(0, stdout="[main abc1234] first commit\n"),
+            _git_result(0, stdout="abc1234abcdef1234567890\n"),
+            _git_result(0),
+            _git_result(1, stderr="pre-commit hook failed"),
+        ]
+
+        tool = GitCommitTool()
+        result = tool.execute(path=str(tmp_path), commits=three_commits)
+
+        assert result.success is False
+        assert result.error is not None
+        assert "Commit 2" in result.error
+        assert "pre-commit failed" in result.error
+        assert result.data["succeeded"] == 1
+        assert len(result.data["results"]) == 1
+        assert result.data["results"][0]["message"] == "first commit"
+        assert result.data["results"][0]["sha"] == "abc1234"
+        assert mock_run_git.call_count == 6
+
+    @patch(f"{MODULE}.author_args", return_value=[])
+    @patch(f"{MODULE}.resolve_identity", return_value=None)
+    @patch(f"{MODULE}.run_git")
+    def test_mid_batch_failure_includes_failed_commit_details(
+        self,
+        mock_run_git: MagicMock,
+        _mock_identity: MagicMock,
+        _mock_args: MagicMock,
+        tmp_path: Path,
+        three_commits: list[dict[str, Any]],
+    ) -> None:
+        mock_run_git.side_effect = [
+            _git_result(0),
+            _git_result(0),
+            _git_result(0, stdout="[main aaa] first\n"),
+            _git_result(0, stdout="aaaaaaa\n"),
+            _git_result(0),
+            _git_result(1, stderr="hook error output"),
+        ]
+
+        tool = GitCommitTool()
+        result = tool.execute(path=str(tmp_path), commits=three_commits)
+
+        failed = result.data["failed_commit"]
+        assert failed["index"] == 2
+        assert failed["message"] == "second commit"
+        assert failed["retried"] is False
