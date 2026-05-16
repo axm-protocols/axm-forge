@@ -42,6 +42,11 @@ class TestCheckDiscovery:
         """Private modules like _utils are not included."""
         assert "_utils" not in ALL_CHECKS
 
+    def test_workspace_category_discovered(self) -> None:
+        """workspace category exists in ALL_CHECKS with the expected 9 checks."""
+        assert "workspace" in ALL_CHECKS
+        assert len(ALL_CHECKS["workspace"]) == 9
+
 
 class TestCLILazyImports:
     """Verify CLI adapter imports are lazy."""

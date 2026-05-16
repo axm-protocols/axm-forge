@@ -20,4 +20,3 @@ from tests.integration.test_check_pytest_testpaths import *  # noqa: F403
 from tests.integration.test_check_quality_workflow import *  # noqa: F403
 from tests.integration.test_check_requires_python_compat import *  # noqa: F403
 from tests.integration.test_check_root_name_collision import *  # noqa: F403
-from tests.unit.test_all_checks import *  # noqa: F403
