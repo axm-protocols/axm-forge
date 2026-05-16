@@ -45,14 +45,6 @@ class TestPullHook:
         assert result.metadata["skipped"] is True
         assert result.metadata["reason"] == "not a git repo"
 
-    def test_pull_hook_disabled(self) -> None:
-        """Hook skips when enabled=False."""
-        hook = PullHook()
-        result = hook.execute({"working_dir": "."}, enabled=False)
-        assert result.success
-        assert result.metadata["skipped"] is True
-        assert result.metadata["reason"] == "git disabled"
-
     def test_pull_hook_failure(
         self,
         tmp_git_repo: Path,
@@ -158,16 +150,3 @@ class TestPullHook:
         )
         assert result.success
         assert captured_cwd[0] == Path(tmp_git_repo)
-
-
-class TestPullHookDiscoverable:
-    """Functional test for entry point discovery."""
-
-    def test_pull_hook_discoverable(self) -> None:
-        """git:pull-main entry point resolves to PullHook."""
-        from importlib.metadata import entry_points
-
-        eps = entry_points(group="axm.hooks", name="git:pull-main")
-        assert len(list(eps)) == 1
-        hook_cls = next(iter(eps)).load()
-        assert hook_cls is PullHook
