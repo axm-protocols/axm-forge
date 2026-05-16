@@ -45,6 +45,7 @@ from .tests_ast import (
     _func_body_hash,
     _marker_fixtures_in_unit,
     _names_referenced_in_unit,
+    _string_literal_fixtures_in_unit,
     _top_level_helpers,
 )
 
@@ -385,6 +386,7 @@ def _resolve_helper_conflicts(
     for node in moving_nodes:
         referenced |= _names_referenced_in_unit(node)
         referenced |= _marker_fixtures_in_unit(node)
+        referenced |= _string_literal_fixtures_in_unit(node)
     # Transitive closure: a moving test may reference a fixture defined
     # in source; that fixture's body in turn references _write or
     # another helper that target also defines with a different body —
@@ -403,6 +405,10 @@ def _resolve_helper_conflicts(
                     referenced.add(n)
                     next_frontier.add(n)
             for fx in _marker_fixtures_in_unit(helper):
+                if fx not in referenced:
+                    referenced.add(fx)
+                    next_frontier.add(fx)
+            for fx in _string_literal_fixtures_in_unit(helper):
                 if fx not in referenced:
                     referenced.add(fx)
                     next_frontier.add(fx)
@@ -464,6 +470,7 @@ def _resolve_conftest_shadowing(
     for node in moving_nodes:
         referenced |= _names_referenced_in_unit(node)
         referenced |= _marker_fixtures_in_unit(node)
+        referenced |= _string_literal_fixtures_in_unit(node)
     source_helpers = _top_level_helpers(source_tree)
     target_helpers = _top_level_helpers(target_tree)
     conftest_fixtures = _collect_conftest_fixtures(target, project_path)
@@ -493,12 +500,22 @@ def _safe_move_units(
     target: Path,
     unit_names: list[str],
     project_path: Path,
+    keep_in_source: set[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Move units from source to target, resolving cross-file name collisions.
 
     Strategy on each colliding name:
       * If both are test_* funcs and bodies identical → drop from source.
       * Otherwise → rename in source with suffix ``__from_<source_stem>``.
+
+    ``keep_in_source`` is the set of fixture/helper names that must stay
+    in source even if the moving units reference them — used by
+    ``_execute_split`` to ensure the anchor (which will become target
+    later via _git_mv) doesn't lose fixtures the non-anchor moves would
+    otherwise duplicate-and-delete. The follow-up
+    ``_collect_marker_fixtures_to_move`` excludes these names; anvil
+    sees them as still-used by remaining source content and leaves
+    the definitions alone.
 
     Returns (warnings, actually_moved_names) — moved names are the
     final names anvil received (possibly with suffix).
@@ -620,6 +637,8 @@ def _safe_move_units(
     extra_fixtures = _collect_marker_fixtures_to_move(
         source_tree, target_tree, final_units, project_path, target
     )
+    if keep_in_source:
+        extra_fixtures = extra_fixtures - keep_in_source
     if extra_fixtures:
         final_units = list(final_units) + sorted(extra_fixtures)
         for fx in sorted(extra_fixtures):
