@@ -261,6 +261,42 @@ reason = "test_pyproject_has_workspace_config verifies the uv workspace declarat
 hash = "1e61607587a7"
 reason = "test_fail_missing_new_rules verifies all four missing rule names appear in details; test_fail_subset_of_new_rules verifies a different rule subset AND the exact pluralised message string (‘Missing 2 essential ruff rule(s)’), so the two cover distinct contracts (details enumeration vs message templating)."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9fbf3e249d01"
+reason = "test_full_reserve_success, test_reserve_build_fails, and test_reserve_publish_fails exercise three distinct branches of reserve_pypi with different mock setups (build OK+publish OK vs build fail vs build OK+publish fail) and assert on different message literals ('Reserved' vs 'Build failed' vs 'Publish failed')."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9db99ab739b6"
+reason = "test_reserve_race_condition (TAKEN on recheck), test_reserve_idempotent_rerun (AVAILABLE on recheck), and test_reserve_availability_error (initial ERROR, no build/publish mocks) cover three distinct PyPIAdapter side-effect scenarios with divergent mock setups and divergent message literals ('taken by another user' vs 'already reserved' vs 'availability')."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "93bfc85f33aa"
+reason = "test_cli_reserve_no_author_exits patches _git_config_get with return_value='' (no author at all) and asserts '--author' in stderr; test_cli_reserve_no_email_exits uses side_effect=['Real Author', ''] (author present, email missing) and asserts '--email' — two distinct config-resolution branches with divergent mock topology."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d8e1ea58007a"
+reason = "test_no_members_passes writes a pyproject with empty members and asserts 'No members' in message; test_no_pyproject_passes writes nothing (no pyproject.toml at root) and asserts 'No pyproject.toml' in message — two disjoint setups exercising distinct early-return branches of check_root_name_collision."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1221afb14327"
+reason = "test_root_name_collision_detected asserts both not result.passed AND 'collides' in result.message (exact-match collision branch); test_case_insensitive_collision uses different literals ('My-App' vs 'my-app') and only asserts not result.passed — different case-folding branch with weaker assertion granularity."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4c1c5bc60a4a"
+reason = "The 9 check_plugins scenarios cover distinct workspace-fallback branches: success via workspace_member fixture; local-nav-only with root resolving all 3; local has some + root has rest; self-contained local member (no root needed); standalone non-workspace failure; nav-only + nav-only root failure; standalone not under packages/; workspace member with no root mkdocs.yml. Each uses a different fixture (workspace_member / workspace_project / workspace / standalone_project / tmp_path) and asserts on different result.details[0] / result.message substrings — they aren't variations of one scenario but eight distinct branches of the local/root mkdocs resolution logic."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "2a74775d2299"
+reason = "test_quality_workflow_missing has no axm-quality.yml at all and asserts 'not found' in message; test_missing_audit writes a workflow without 'audit' and asserts 'audit' in message; test_missing_coverage writes one without 'coverage' and asserts 'coverage' in message; test_missing_both writes neither and asserts both substrings — four distinct file-presence/content branches with divergent assertion targets."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d4ac5367f675"
+reason = "test_pass_flat_package (src/pkg/__init__.py → pass + '1 package'), test_pass_namespace_package (src/ns/pkg/__init__.py → pass + '1 package'), test_fail_empty_src (empty src/ → fail + 'No Python package found'), and test_pass_mixed_layout (flat + nested → pass + '2 package') exercise four distinct layout branches with diverging pass/fail outcomes and message-literal cardinalities."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "aeadf89a56b0"
+reason = "test_gen_ref_pages_in_workspace (file at workspace root → pass), test_gen_ref_pages_nowhere (workspace layout, no file → fail), and test_gen_ref_pages_no_workspace (standalone, no workspace structure → fail) cover three distinct filesystem-shape branches with disjoint setups and pass/fail outcomes."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 
