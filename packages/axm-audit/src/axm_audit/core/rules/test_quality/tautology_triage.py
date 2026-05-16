@@ -29,6 +29,9 @@ __all__ = [
 _ISINSTANCE_ARITY = 2
 _SIGNIFICANT_SETUP_MIN_STMTS = 4
 
+_MARKER_NAME = "tautology_ok"
+_MARKER_DEFAULT_REASON = "intentional tautology (no reason given)"
+
 
 _TEST_INFRA_CALLS: frozenset[str] = frozenset(
     {
@@ -850,6 +853,76 @@ class _EarlyExitCtx:
     siblings: _SiblingInfo
 
 
+def _decorator_has_marker(dec: ast.expr) -> bool:
+    target = dec.func if isinstance(dec, ast.Call) else dec
+    if isinstance(target, ast.Attribute) and target.attr == _MARKER_NAME:
+        return True
+    return isinstance(target, ast.Name) and target.id == _MARKER_NAME
+
+
+def _has_per_test_marker(func: ast.FunctionDef) -> bool:
+    return any(_decorator_has_marker(d) for d in func.decorator_list)
+
+
+def _value_marks_node(value: ast.AST) -> bool:
+    if isinstance(value, ast.Attribute) and value.attr == _MARKER_NAME:
+        return True
+    if isinstance(value, ast.Call):
+        return _value_marks_node(value.func)
+    if isinstance(value, (ast.List, ast.Tuple)):
+        return any(_value_marks_node(elt) for elt in value.elts)
+    return False
+
+
+def _is_pytestmark_assign(stmt: ast.stmt) -> TypeGuard[ast.Assign]:
+    if not isinstance(stmt, ast.Assign):
+        return False
+    return any(isinstance(t, ast.Name) and t.id == "pytestmark" for t in stmt.targets)
+
+
+def _file_has_module_marker(tree: ast.Module) -> bool:
+    return any(
+        _is_pytestmark_assign(stmt) and _value_marks_node(stmt.value)
+        for stmt in tree.body
+    )
+
+
+def _marker_call_reason(dec: ast.expr) -> str | None:
+    if not isinstance(dec, ast.Call):
+        return None
+    if not _decorator_has_marker(dec):
+        return None
+    for arg in dec.args:
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            return arg.value
+    return None
+
+
+def _module_marker_reason(tree: ast.Module) -> str | None:
+    for stmt in tree.body:
+        if not _is_pytestmark_assign(stmt):
+            continue
+        reason = _marker_call_reason(stmt.value)
+        if reason is not None:
+            return reason
+    return None
+
+
+def _extract_marker_reason(func: ast.FunctionDef, tree: ast.Module) -> str | None:
+    for dec in func.decorator_list:
+        reason = _marker_call_reason(dec)
+        if reason is not None:
+            return reason
+    return _module_marker_reason(tree)
+
+
+def _exit_marker_opt_out(ctx: _EarlyExitCtx) -> Verdict | None:
+    if not (_has_per_test_marker(ctx.func) or _file_has_module_marker(ctx.tree)):
+        return None
+    reason = _extract_marker_reason(ctx.func, ctx.tree) or _MARKER_DEFAULT_REASON
+    return Verdict("KEEP", "step0_marker_opt_out", reason)
+
+
 def _exit_import_smoke(ctx: _EarlyExitCtx) -> Verdict | None:
     if not is_import_smoke_test(ctx.func):
         return None
@@ -943,6 +1016,7 @@ def _exit_isinstance_conformance(ctx: _EarlyExitCtx) -> Verdict | None:
 
 
 _EARLY_EXIT_BUILDERS = (
+    _exit_marker_opt_out,
     _exit_import_smoke,
     _exit_toplevel_import_not_none,
     _exit_no_siblings,
