@@ -235,3 +235,19 @@ include_path = "packages/axm-git/**"
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.deptry]
 known_first_party = ["axm_git"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# axm-audit Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.axm-audit.mirror]
+# I/O-heavy git hooks: fully covered by tests/integration/ scenarios that
+# exercise real subprocess calls. Unit-level mock-everything tests would
+# duplicate coverage with weaker assertions.
+exempt_paths = [
+    "hooks/branch_delete.py",
+    "hooks/create_branch.py",
+    "hooks/merge_squash.py",
+    "hooks/worktree_add.py",
+    "hooks/worktree_remove.py",
+    "core/phase_commit.py",
+]
