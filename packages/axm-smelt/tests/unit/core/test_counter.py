@@ -1,13 +1,23 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import pytest
 import tiktoken
 from pytest_mock import MockerFixture
 
+from axm_smelt import CounterBackend
 from axm_smelt.core import counter
-from axm_smelt.core.counter import count
+from axm_smelt.core.counter import count, count_with_backend
+
+
+@pytest.fixture(autouse=True)
+def _reset_warn() -> None:
+    counter._warned = False
+
+
+# --- count() ---
 
 
 def test_count_basic() -> None:
@@ -57,6 +67,15 @@ def test_count_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result == 4
 
 
+def test_count_int_signature_unchanged() -> None:
+    result = count("hello")
+    assert isinstance(result, int)
+    assert not isinstance(result, tuple)
+
+
+# --- encoding cache ---
+
+
 def test_count_caches_encoding_once(mocker: MockerFixture) -> None:
     counter._ENC.clear()
     spy = mocker.spy(tiktoken, "get_encoding")
@@ -98,34 +117,22 @@ def test_cache_not_poisoned_on_failure(mocker: MockerFixture) -> None:
     assert "o200k_base" in counter._ENC
 
 
-@pytest.fixture
-def _reset_warn() -> None:
-    counter._warned = False
+# --- CounterBackend enum + count_with_backend() ---
 
 
 def test_counter_backend_enum() -> None:
-    from axm_smelt import CounterBackend
-
     assert CounterBackend.TIKTOKEN
     assert CounterBackend.FALLBACK
 
 
 def test_count_with_backend_tiktoken_path() -> None:
-    from axm_smelt import CounterBackend
-    from axm_smelt.core.counter import count_with_backend
-
     n, backend = count_with_backend("hello world")
     assert isinstance(n, int)
     assert n > 0
     assert backend is CounterBackend.TIKTOKEN
 
 
-def test_count_with_backend_fallback_path(
-    monkeypatch: pytest.MonkeyPatch, _reset_warn: None
-) -> None:
-    from axm_smelt import CounterBackend
-    from axm_smelt.core.counter import count_with_backend
-
+def test_count_with_backend_fallback_path(monkeypatch: pytest.MonkeyPatch) -> None:
     counter._ENC.clear()
 
     def _raise(model: str) -> Any:
@@ -141,12 +148,7 @@ def test_count_with_backend_fallback_path(
 def test_warn_emitted_once(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
-    _reset_warn: None,
 ) -> None:
-    import logging
-
-    from axm_smelt.core.counter import count_with_backend
-
     counter._ENC.clear()
 
     def _raise(model: str) -> Any:
@@ -164,9 +166,3 @@ def test_warn_emitted_once(
         if r.levelno == logging.WARNING and "tiktoken unavailable" in r.getMessage()
     ]
     assert len(matching) == 1
-
-
-def test_count_int_signature_unchanged() -> None:
-    result = count("hello")
-    assert isinstance(result, int)
-    assert not isinstance(result, tuple)
