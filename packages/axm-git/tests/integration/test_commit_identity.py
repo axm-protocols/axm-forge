@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from axm_git.tools.commit import GitCommitTool
+from tests.integration._helpers import _git_result
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -15,12 +16,6 @@ from axm_git.tools.commit import GitCommitTool
 
 _AXIOM_IDENTITY = SimpleNamespace(name="Axiom", email="axiom@axm-protocol.io")
 _AUTHOR_FLAG = "--author=Axiom <axiom@axm-protocol.io>"
-
-
-def _git_result(
-    stdout: str = "", stderr: str = "", returncode: int = 0
-) -> SimpleNamespace:
-    return SimpleNamespace(stdout=stdout, stderr=stderr, returncode=returncode)
 
 
 def _make_run_git_ok(

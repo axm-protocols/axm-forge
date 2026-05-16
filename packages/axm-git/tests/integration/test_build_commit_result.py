@@ -7,16 +7,14 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.integration._helpers import _git_result
+
 MODULE = "axm_git.hooks.commit_phase"
 
 
 @pytest.fixture
 def git_root(tmp_path: Path) -> Path:
     return tmp_path
-
-
-def _git_result(stdout: str = "", stderr: str = "", returncode: int = 0) -> Any:
-    return SimpleNamespace(stdout=stdout, stderr=stderr, returncode=returncode)
 
 
 def _identity(name: str = "Dev", email: str = "dev@test.com") -> Any:
