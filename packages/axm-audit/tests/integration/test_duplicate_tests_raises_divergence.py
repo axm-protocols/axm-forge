@@ -20,7 +20,7 @@ def _find_pair(
     clusters: list[dict[str, Any]], names: set[str]
 ) -> dict[str, Any] | None:
     for c in clusters:
-        cluster_names = {t["name"] for t in c["tests"]}
+        cluster_names = {t["name"] for t in c["members"]}
         if names.issubset(cluster_names):
             return c
     return None

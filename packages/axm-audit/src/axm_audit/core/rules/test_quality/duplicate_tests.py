@@ -55,7 +55,6 @@ class _Cluster(TypedDict, total=False):
     signal: str
     reason: str
     similarity: float
-    tests: list[_TestEntry]
     members: list[_TestEntry]
     cluster_hash: str
     acknowledged: bool
@@ -87,7 +86,7 @@ def _cluster_hash(cluster: _Cluster) -> str:
     """
     members: list[list[str]] = sorted(
         [str(t.get("file", "")), str(t.get("name", ""))]
-        for t in cluster.get("tests", [])
+        for t in cluster.get("members", [])
     )
     blob = json.dumps(members, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:_HASH_LEN]
@@ -295,9 +294,13 @@ class DuplicateTestsCheckResult(CheckResult):  # type: ignore[explicit-any]  # p
 
     ``metadata`` keys:
 
-    * ``clusters`` — list of cluster payloads, each with ``cluster_hash``
-      and an optional ``acknowledged`` flag (``True`` when the hash is
-      present in ``[[tool.axm-audit.duplicate_tests.acknowledged]]``).
+    * ``clusters`` — list of cluster payloads, each with ``cluster_hash``,
+      a ``members`` list of test entries, and an optional ``acknowledged``
+      flag (``True`` when the hash is present in
+      ``[[tool.axm-audit.duplicate_tests.acknowledged]]``). The cluster
+      shape exposes ``members`` only; the legacy ``tests`` alias was
+      removed in axm-1728 — consumers reading ``cluster["tests"]`` get
+      a ``KeyError`` by design.
     * ``bucket_counts`` — CLUSTERED / AMBIGUOUS / UNIQUE test counts.
     * ``stale_acknowledged`` — acknowledgement entries (``{hash, reason}``)
       whose hash no longer matches any vivant cluster. Informational only:
@@ -1078,7 +1081,7 @@ def _try_emit_s2_pair(
         "signal": signal,
         "reason": reason,
         "similarity": sim,
-        "tests": [_test_entry(a), _test_entry(b)],
+        "members": [_test_entry(a), _test_entry(b)],
     }
 
 
@@ -1146,7 +1149,7 @@ def _build_s1_cluster(
         "signal": signal,
         "reason": reason,
         "similarity": 0.0,
-        "tests": [_test_entry(t) for t in confirmed],
+        "members": [_test_entry(t) for t in confirmed],
     }
 
 
@@ -1200,7 +1203,7 @@ def _cluster_s3(
                     "signal": signal,
                     "reason": reason,
                     "similarity": sim,
-                    "tests": [_test_entry(a), _test_entry(b)],
+                    "members": [_test_entry(a), _test_entry(b)],
                 }
             )
             seen_pairs.add(pk)
@@ -1235,7 +1238,7 @@ def _build_cluster(sig: str, group: list[_TestFunc]) -> _Cluster:
         "signal": "ambiguous_raises_divergence",
         "reason": f"pytest.raises divergence rescue for SUT {sig}",
         "similarity": 0.0,
-        "tests": [_test_entry(t) for t in group],
+        "members": [_test_entry(t) for t in group],
     }
 
 
@@ -1271,7 +1274,7 @@ def _build_union_find(
     """Return ``{root: [indices]}`` after union-find over shared tests."""
     test_to_idx: dict[tuple[object, ...], list[int]] = defaultdict(list)
     for i, cluster in enumerate(clusters):
-        for t in cluster.get("tests", []):
+        for t in cluster.get("members", []):
             key = (t.get("file"), t.get("name"), t.get("line", 0))
             test_to_idx[key].append(i)
 
@@ -1329,7 +1332,7 @@ def _aggregate_group(
         if signal := cluster.get("signal"):
             signals.append(signal)
         max_sim = max(max_sim, cluster.get("similarity") or 0.0)
-        for t in cluster.get("tests", []):
+        for t in cluster.get("members", []):
             key = (t.get("file"), t.get("name"), t.get("line", 0))
             tests_by_key[key] = t
     return tests_by_key, reasons, signals, max_sim
@@ -1352,10 +1355,10 @@ def merge_clusters(clusters: list[_Cluster]) -> list[_Cluster]:
                 "signal": _pick_merged_signal(signals),
                 "reason": " + ".join(unique_reasons[:3]),
                 "similarity": max_sim,
-                "tests": list(tests_by_key.values()),
+                "members": list(tests_by_key.values()),
             }
         )
-    return sorted(merged, key=lambda c: -len(c["tests"]))
+    return sorted(merged, key=lambda c: -len(c["members"]))
 
 
 # ── Buckets & scoring ─────────────────────────────────────────────────
@@ -1374,7 +1377,7 @@ def _bucket_counts(tests: list[_TestFunc], clusters: list[_Cluster]) -> dict[str
     ambiguous_keys: set[tuple[str, str]] = set()
     for cluster in clusters:
         signal = cluster["signal"]
-        for t in cluster["tests"]:
+        for t in cluster["members"]:
             key = (t["file"], t["name"])
             if signal.startswith("ambiguous_"):
                 ambiguous_keys.add(key)
@@ -1413,7 +1416,7 @@ def _slim_clusters(clusters: list[_Cluster]) -> list[_Cluster]:
                 "name": t.get("name", ""),
                 "line": t.get("line", 0),
             }
-            for t in cluster.get("tests", [])
+            for t in cluster.get("members", [])
         ]
         slim.append(
             {
@@ -1421,9 +1424,8 @@ def _slim_clusters(clusters: list[_Cluster]) -> list[_Cluster]:
                 "reason": reason,
                 "similarity": cluster.get("similarity", 0.0),
                 "members": members,
-                "tests": members,
                 "cluster_hash": _cluster_hash(
-                    {"tests": members},
+                    {"members": members},
                 ),
             }
         )
@@ -1539,7 +1541,7 @@ class DuplicateTestsRule(ProjectRule):
         ]
 
         n_clustered_pairs = sum(
-            _pairs_in_cluster(len(c.get("tests", [])))
+            _pairs_in_cluster(len(c.get("members", [])))
             for c in slim
             if not c.get("signal", "").startswith("ambiguous_")
             and not c.get("acknowledged", False)
