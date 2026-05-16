@@ -297,6 +297,38 @@ reason = "test_pass_flat_package (src/pkg/__init__.py → pass + '1 package'), t
 hash = "aeadf89a56b0"
 reason = "test_gen_ref_pages_in_workspace (file at workspace root → pass), test_gen_ref_pages_nowhere (workspace layout, no file → fail), and test_gen_ref_pages_no_workspace (standalone, no workspace structure → fail) cover three distinct filesystem-shape branches with disjoint setups and pass/fail outcomes."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c128c5e3dd03"
+reason = "test_mkdocs_exists_workspace_member (workspace_member fixture, asserts passed=True via root fallback), test_mkdocs_exists_standalone (standalone_project tmp_path fixture, asserts passed=False), and test_mkdocs_exists_packages_parent_no_workspace_mkdocs (workspace_member_no_root_mkdocs fixture: packages/ parent without root mkdocs.yml, asserts passed=False) exercise three distinct fixture-shape branches with divergent pass/fail outcomes. Parametrize via getfixturevalue confuses the pyramid auditor; keeping them separate preserves the integration-level classification."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "bfd1190b6904"
+reason = "test_non_tty_exits (stdin.isatty=False, no getpass patch), test_invalid_token_exits (tty=True + getpass='not-a-valid-token' → prefix-validation branch), and test_empty_input_exits (tty=True + getpass='' → empty-string branch) exercise three distinct resolve_pypi_token exit paths with divergent mock topology (no-getpass vs getpass-with-invalid vs getpass-with-empty)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7eb0d1a0a905"
+reason = "test_nonexistent_path_returns_error and test_file_path_returns_error both assert 'Not a directory' but exercise distinct filesystem branches (missing path vs file-not-dir); test_check_engine_exception_caught patches CheckEngine to raise and asserts the propagated 'engine failure' literal — a separate exception-handling branch with different mock surface and divergent error message."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "329dd2f25a4d"
+reason = "test_marker_present_but_no_list_items (tags marker with non-list child → preserves 'nothing_here: true'), test_no_tags_marker_creates_section (no tags marker → creates push.tags + asserts 'push:'/'tags:'/'\"my-lib/v*\"'), and test_existing_tags_with_default_indent (existing tags list → asserts both '- \"existing/v*\"' and '- \"my-lib/v*\"' with detected indent) cover three distinct YAML-mutation branches with divergent assertion shapes and content literals."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "fe9ff27e6b54"
+reason = "test_missing_tests uses ws_root fixture, deletes tests/ directory via shutil.rmtree, and asserts 'tests/' appears in details; test_missing_pyproject_in_member uses raw tmp_path to scaffold a member without src/ and asserts 'src/' in details — different setup approach (fixture-mutation vs tmp_path builder) and different missing-artifact assertion targets."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d064727e0f25"
+reason = "test_pass_no_config uses empty_project fixture (no .pre-commit-config.yaml → PASS, weight=2) while test_fail_when_hooks_missing writes a config and parametrizes over .git/ presence (config + missing hooks → FAIL) — opposite pass/fail outcomes with divergent setups."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "00d1abdb1a4c"
+reason = "test_fails_without_workspace writes a standalone pyproject.toml without any ruff config at tmp_path root; test_falls_back_to_member_only creates packages/pkg/pyproject.toml (member-only, no workspace root pyproject) — both assert not result.passed but exercise distinct filesystem-shape fallback branches."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "556ba8b3ac5f"
+reason = "test_importmode_missing uses ws_root fixture and asserts 'importlib' literal in message (missing import_mode branch); test_no_pyproject_fails uses bare tmp_path with no pyproject.toml and asserts 'No pyproject.toml' literal (file-absent branch) — two disjoint early-return paths with divergent message assertions."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 
