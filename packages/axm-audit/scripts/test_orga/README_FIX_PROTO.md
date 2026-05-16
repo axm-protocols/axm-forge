@@ -95,7 +95,89 @@ Three real-world surprises documented in the code:
    `_backfill_missing_imports()` walks `if TYPE_CHECKING:` blocks and
    reproduces the wrapper at the target.
 
-## What remains — DO NOT delete the proto until done
+## Pass 11 (2026-05-16) — silent-test-loss + body-mismatch hardening
+
+Pass 10 left a non-trivial regression budget on `axm-ast` (the largest
+corpus): 64 failures + 7 errors pre-fix, 25 failures + 7 errors after
+a first wave of helper-rename heuristics. Pass 11 closes the gap to
+**0 failures, 0 errors, 1625 passed** (vs `1628 / 0 / 0` on the
+unmodified repo — a 3-test delta attributed to runtime-conditional
+skip parametrisation, not regressions).
+
+Six concrete bug classes were identified and fixed:
+
+* **Bug 1 — `_make_pkg` signature drift across files.** SPLIT/MERGE
+  moves a test depending on `_make_pkg(tmp_path, dict)` into a file
+  whose local `_make_pkg(root, list, edges)` shadows it. Resolution:
+  `_resolve_helper_conflicts()` detects when a helper name exists in
+  both source and target with different body hashes and renames the
+  source-side helper (def + references) to `H__from_<stem>` before
+  the anvil move. `shared_helpers="duplicate"` then copies cleanly.
+  11 renames triggered on axm-ast.
+
+* **Bug 2 — `@pytest.mark.usefixtures("X")` invisible to anvil.**
+  Anvil walks AST references on moving symbols, but marker arguments
+  are string literals, not name references — so fixtures injected
+  via marker stayed in source and disappeared when source was stripped.
+  `_marker_fixtures_in_unit()` + `_collect_marker_fixtures_to_move()`
+  now scan moving units for `usefixtures` markers and add the
+  referenced fixtures to the move list when they're source-defined
+  and not target-visible (including conftest chain). 4 fixtures
+  followed their dependents on axm-ast (`_mock_flows`, `_no_workspace`,
+  `_mock_context`, `_patch_context`).
+
+* **Bug 3 — `Path(__file__).parents[N]` drift after relocate.** A
+  file moved from `tests/unit/core/test_X.py` (4-deep) to
+  `tests/integration/test_X.py` (3-deep) keeps its
+  `FIXTURES = Path(__file__).parents[2] / "fixtures"` constant —
+  which now points to project root instead of `tests/`.
+  `_patch_file_dunder_depth()` detects the depth delta from
+  `_file_depth_from_project()` and rewrites both surface forms
+  (`parents[N]` subscript and `.parent.parent...` chains) via libcst.
+  Wired into `_execute_relocate`, `_execute_rename`, and
+  `_flatten_single_tier`. 7 patches on axm-ast.
+
+* **Bug 4 — conftest fixture shadowing on MERGE.** When source has
+  no local `rich_pkg` (relies on conftest's body) but target has a
+  local `rich_pkg` with a different body, the moved tests bind to
+  target's local at runtime and fail with `Symbol 'Greeter' not
+  found`. Resolution extended `_resolve_helper_conflicts()` to also
+  rename source's helper when target lacks it BUT a conftest on
+  target's ancestor chain provides a fixture of the same name —
+  preventing the anvil-duplicated helper from shadowing conftest.
+  `_collect_conftest_fixtures()` walks the conftest chain.
+
+* **Bug 6 — `_git_mv` silently overwrites destination.** The
+  `shutil.move` fallback used when `git mv` refused (target exists)
+  destroyed 25+ tests on axm-ast (`test_import_graph.py` was
+  RENAME'd onto a `test_analyze_package.py` already populated by
+  Stage 3 MERGE). `_git_mv()` now raises `FileExistsError` on
+  pre-existing targets, and `_execute_relocate` / `_execute_rename`
+  re-route through `_safe_move_units` instead — same pattern
+  Stage 2 SPLIT already used for cross-split collisions.
+
+* **Bug 7 — promoted helper's dependencies left behind.** When
+  `_extract_shared_helpers_in_tier()` promotes a fixture
+  (`pkg_with_tests`) to `tests/conftest.py`, its helper dependencies
+  (`_write_pyproject`, `_write_src_module`, `_write_test_modules`)
+  that already live in `tests/integration/_helpers.py` are not
+  imported by the destination conftest. `_synth_import_from_helpers()`
+  is a last-resort backfill in `_backfill_missing_imports()` that
+  scans every `tests/<tier>/_helpers.py` for a top-level definition
+  of the missing name and synthesises a
+  `from tests.<tier>._helpers import <name>` statement.
+
+### Validation matrix (axm-ast, after pass 11)
+
+| Phase | Passed | Failed | Errors | Skipped | Ruff |
+| ----- | ------ | ------ | ------ | ------- | ---- |
+| Real repo (reference) | 1628 | 0 | 0 | 1 | 0 |
+| Pass 10 baseline | 1529 | 64 | 7 | ? | 5 |
+| Pass 11 final | **1625** | **0** | **0** | 4 | **0** |
+
+The 3-test delta vs the real repo is runtime-conditional (skip
+parametrisation depending on project path), not deterministic
+regression. Ruff is clean.
 
 ### Pass 10 resolved blockers
 
