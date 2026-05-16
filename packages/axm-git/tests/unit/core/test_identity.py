@@ -534,6 +534,7 @@ def test_matches_schedule_accepts_tz_aware_datetime(
     tz_aware = datetime(2026, 1, 5, 12, 0, tzinfo=_ZoneInfo_axm1710("Europe/Paris"))
     result = resolve_identity(tmp_path, now=tz_aware)
     assert result is not None
+    assert result.name == "Work"
 
 
 # AC4
