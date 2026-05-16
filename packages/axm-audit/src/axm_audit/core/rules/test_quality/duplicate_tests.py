@@ -1492,6 +1492,76 @@ def _collect_tests(project_path: Path) -> list[_TestFunc]:
     return out
 
 
+# ── Rule helpers ──────────────────────────────────────────────────────
+
+
+_FIX_HINT = (
+    "Merge duplicate tests, or use parametrize, or differentiate "
+    "via distinct fixtures/asserts"
+)
+
+
+def _mark_acknowledged(
+    slim: list[_Cluster], acknowledged: list[dict[str, str]]
+) -> None:
+    hashes = {entry["hash"] for entry in acknowledged}
+    for cluster in slim:
+        if cluster.get("cluster_hash") in hashes:
+            cluster["acknowledged"] = True
+
+
+def _stale_acknowledged(
+    slim: list[_Cluster], acknowledged: list[dict[str, str]]
+) -> list[dict[str, str]]:
+    vivant = {c["cluster_hash"] for c in slim if "cluster_hash" in c}
+    return [entry for entry in acknowledged if entry["hash"] not in vivant]
+
+
+def _is_counted(cluster: _Cluster) -> bool:
+    signal = cluster.get("signal", "")
+    if isinstance(signal, str) and signal.startswith("ambiguous_"):
+        return False
+    return not cluster.get("acknowledged", False)
+
+
+def _count_clustered_pairs(slim: list[_Cluster]) -> int:
+    return sum(
+        _pairs_in_cluster(len(c.get("members", []))) for c in slim if _is_counted(c)
+    )
+
+
+def _build_message(clusters: list[_Cluster], n_clustered_pairs: int) -> str:
+    if not clusters:
+        return "no duplicate-test clusters found"
+    return f"{len(clusters)} cluster(s), {n_clustered_pairs} clustered pair(s)"
+
+
+def _build_text(
+    slim: list[_Cluster],
+    stale_acknowledged: list[dict[str, str]],
+    passed: bool,
+) -> str | None:
+    if passed and not stale_acknowledged:
+        return None
+    return render_clusters_text(slim, stale_acknowledged)
+
+
+def _build_metadata(
+    slim: list[_Cluster],
+    bucket_counts: dict[str, int],
+    stale_acknowledged: list[dict[str, str]],
+    config_error: str | None,
+) -> dict[str, object]:
+    metadata: dict[str, object] = {
+        "clusters": slim,
+        "bucket_counts": bucket_counts,
+        "stale_acknowledged": stale_acknowledged,
+    }
+    if config_error:
+        metadata["config_error"] = config_error
+    return metadata
+
+
 # ── Rule ──────────────────────────────────────────────────────────────
 
 
@@ -1511,69 +1581,24 @@ class DuplicateTestsRule(ProjectRule):
         """Cluster duplicate tests in ``project_path`` and return verdicts."""
         tests = _collect_tests(project_path)
         if not tests:
-            return DuplicateTestsCheckResult(
-                rule_id=self.rule_id,
-                passed=True,
-                message="no tests found",
-                severity=Severity.INFO,
-                score=100,
-                metadata={
-                    "clusters": [],
-                    "bucket_counts": {"CLUSTERED": 0, "AMBIGUOUS": 0, "UNIQUE": 0},
-                },
-            )
+            return self._empty_result()
 
         config = _load_duplicate_tests_config(project_path)
-        acknowledged_hashes: set[str] = {entry["hash"] for entry in config.acknowledged}
-
         clusters = _cluster(tests, self.ast_similarity_threshold)
         bucket_counts = _bucket_counts(tests, clusters)
         slim = _slim_clusters(clusters)
-        for cluster in slim:
-            if cluster.get("cluster_hash") in acknowledged_hashes:
-                cluster["acknowledged"] = True
+        _mark_acknowledged(slim, config.acknowledged)
+        stale_acknowledged = _stale_acknowledged(slim, config.acknowledged)
 
-        vivant_hashes: set[str] = {
-            c["cluster_hash"] for c in slim if "cluster_hash" in c
-        }
-        stale_acknowledged: list[dict[str, str]] = [
-            entry for entry in config.acknowledged if entry["hash"] not in vivant_hashes
-        ]
-
-        n_clustered_pairs = sum(
-            _pairs_in_cluster(len(c.get("members", [])))
-            for c in slim
-            if not c.get("signal", "").startswith("ambiguous_")
-            and not c.get("acknowledged", False)
-        )
-        score = max(0, 100 - n_clustered_pairs * _SCORE_PENALTY)
+        n_clustered_pairs = _count_clustered_pairs(slim)
         passed = n_clustered_pairs == 0
-        if not clusters:
-            message = "no duplicate-test clusters found"
-        else:
-            message = (
-                f"{len(clusters)} cluster(s), {n_clustered_pairs} clustered pair(s)"
-            )
-        text = (
-            render_clusters_text(slim, stale_acknowledged)
-            if not passed or stale_acknowledged
-            else None
+        score = max(0, 100 - n_clustered_pairs * _SCORE_PENALTY)
+        message = _build_message(clusters, n_clustered_pairs)
+        text = _build_text(slim, stale_acknowledged, passed)
+        fix_hint = None if passed else _FIX_HINT
+        metadata = _build_metadata(
+            slim, bucket_counts, stale_acknowledged, config.error
         )
-        fix_hint = (
-            None
-            if passed
-            else (
-                "Merge duplicate tests, or use parametrize, or differentiate "
-                "via distinct fixtures/asserts"
-            )
-        )
-        metadata: dict[str, object] = {
-            "clusters": slim,
-            "bucket_counts": bucket_counts,
-            "stale_acknowledged": stale_acknowledged,
-        }
-        if config.error:
-            metadata["config_error"] = config.error
         return DuplicateTestsCheckResult(
             rule_id=self.rule_id,
             passed=passed,
@@ -1583,4 +1608,17 @@ class DuplicateTestsRule(ProjectRule):
             metadata=metadata,
             text=text,
             fix_hint=fix_hint,
+        )
+
+    def _empty_result(self) -> DuplicateTestsCheckResult:
+        return DuplicateTestsCheckResult(
+            rule_id=self.rule_id,
+            passed=True,
+            message="no tests found",
+            severity=Severity.INFO,
+            score=100,
+            metadata={
+                "clusters": [],
+                "bucket_counts": {"CLUSTERED": 0, "AMBIGUOUS": 0, "UNIQUE": 0},
+            },
         )
