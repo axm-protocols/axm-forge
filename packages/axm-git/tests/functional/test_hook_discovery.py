@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from importlib.metadata import entry_points
 
+from axm_git.hooks.commit_phase import CommitPhaseHook
+from axm_git.hooks.preflight import PreflightHook
+
 
 class TestHookDiscovery:
-    """Verify hooks are discoverable via entry points."""
+    """Verify hooks are discoverable via entry points and load correctly."""
 
     def test_preflight_hook_discoverable(self) -> None:
         eps = entry_points(group="axm.hooks")
@@ -21,11 +24,9 @@ class TestHookDiscovery:
     def test_preflight_hook_loads(self) -> None:
         eps = entry_points(group="axm.hooks")
         ep = next(ep for ep in eps if ep.name == "git:preflight")
-        cls = ep.load()
-        assert cls.__name__ == "PreflightHook"
+        assert ep.load() is PreflightHook
 
     def test_commit_phase_hook_loads(self) -> None:
         eps = entry_points(group="axm.hooks")
         ep = next(ep for ep in eps if ep.name == "git:commit-phase")
-        cls = ep.load()
-        assert cls.__name__ == "CommitPhaseHook"
+        assert ep.load() is CommitPhaseHook
