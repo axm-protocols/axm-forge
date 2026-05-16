@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import subprocess
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from axm_git.tools.commit_preflight import GitPreflightTool
+import pytest
+from pytest_mock import MockerFixture
+
+from axm_git.tools.commit_preflight import GitPreflightTool, _render_text
 
 
 def _completed(
@@ -15,6 +19,12 @@ def _completed(
     return subprocess.CompletedProcess(
         args=["git"], returncode=returncode, stdout=stdout, stderr=stderr
     )
+
+
+def _git_result(
+    stdout: str = "", stderr: str = "", returncode: int = 0
+) -> SimpleNamespace:
+    return SimpleNamespace(stdout=stdout, stderr=stderr, returncode=returncode)
 
 
 SAMPLE_DIFF = """\
@@ -150,3 +160,249 @@ class TestGitPreflightTool:
         result = GitPreflightTool().execute(path="/tmp/test")
         assert result.success
         assert getattr(result, "hint", None) is None
+
+
+# ---------------------------------------------------------------------------
+# _render_text + execute helpers (formerly tests/unit/test_commit_preflight.py)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def tool() -> GitPreflightTool:
+    return GitPreflightTool()
+
+
+def test_render_text_clean() -> None:
+    result = _render_text(
+        files=[], diff_stat="", diff="", diff_truncated=False, max_diff_lines=200
+    )
+    assert result == "git_preflight | clean"
+
+
+def test_render_text_dirty() -> None:
+    files = [
+        {"path": "src/foo.py", "status": "M"},
+        {"path": "src/bar.py", "status": "A"},
+    ]
+    diff_stat = " 2 files changed, 10 insertions(+), 3 deletions(-)"
+    diff = "diff --git a/src/foo.py b/src/foo.py\n--- a/src/foo.py\n+++ b/src/foo.py"
+    result = _render_text(
+        files=files,
+        diff_stat=diff_stat,
+        diff=diff,
+        diff_truncated=False,
+        max_diff_lines=200,
+    )
+    assert "git_preflight | 2 files · dirty" in result
+    assert "M  src/foo.py" in result
+    assert "A  src/bar.py" in result
+    assert diff_stat in result
+    assert diff in result
+
+
+def test_render_text_nodiff() -> None:
+    files = [{"path": "src/foo.py", "status": "M"}]
+    diff_stat = " 1 file changed, 5 insertions(+)"
+    result = _render_text(
+        files=files,
+        diff_stat=diff_stat,
+        diff="",
+        diff_truncated=False,
+        max_diff_lines=200,
+    )
+    assert "git_preflight | 1 files · dirty" in result
+    assert "M  src/foo.py" in result
+    assert diff_stat in result
+    assert "diff --git" not in result
+
+
+def test_render_text_truncated() -> None:
+    files = [{"path": "src/foo.py", "status": "M"}]
+    diff = "diff --git a/src/foo.py b/src/foo.py"
+    result = _render_text(
+        files=files,
+        diff_stat=" 1 file changed",
+        diff=diff,
+        diff_truncated=True,
+        max_diff_lines=200,
+    )
+    assert result.endswith("[diff truncated at 200 lines]")
+
+
+def test_render_text_file_status_format() -> None:
+    files = [{"path": "src/mod.py", "status": "M"}]
+    result = _render_text(
+        files=files,
+        diff_stat="",
+        diff="",
+        diff_truncated=False,
+        max_diff_lines=200,
+    )
+    lines = result.splitlines()
+    file_line = next(ln for ln in lines if "src/mod.py" in ln)
+    assert file_line.startswith("M  ")
+
+
+def test_render_text_untracked_format() -> None:
+    files = [{"path": "new_file.py", "status": "??"}]
+    result = _render_text(
+        files=files,
+        diff_stat="",
+        diff="",
+        diff_truncated=False,
+        max_diff_lines=200,
+    )
+    lines = result.splitlines()
+    file_line = next(ln for ln in lines if "new_file.py" in ln)
+    assert file_line.startswith("?? ")
+
+
+def _mock_run_git_dirty(cmd: list[str], cwd: Any) -> SimpleNamespace:
+    if cmd[0] == "status":
+        return _git_result(stdout=" M src/foo.py\n")
+    if cmd[0] == "diff" and "-U2" in cmd:
+        return _git_result(stdout="diff --git a/src/foo.py b/src/foo.py")
+    return _git_result(stdout=" 1 file changed, 2 insertions(+)")
+
+
+def test_execute_sets_text(
+    tool: GitPreflightTool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("axm_git.tools.commit_preflight.find_git_root", lambda p: p)
+    monkeypatch.setattr("axm_git.tools.commit_preflight.run_git", _mock_run_git_dirty)
+    result = tool.execute(path="/tmp/repo")
+    assert result.text is not None
+    assert isinstance(result.text, str)
+
+
+def test_execute_preserves_data(
+    tool: GitPreflightTool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("axm_git.tools.commit_preflight.find_git_root", lambda p: p)
+    monkeypatch.setattr("axm_git.tools.commit_preflight.run_git", _mock_run_git_dirty)
+    result = tool.execute(path="/tmp/repo")
+    assert "files" in result.data
+    assert "clean" in result.data
+    assert "diff" in result.data
+    assert result.data["clean"] is False
+    assert len(result.data["files"]) == 1
+    assert result.data["files"][0]["path"] == "src/foo.py"
+    assert result.data["files"][0]["status"] == "M"
+
+
+def test_execute_clean_text(
+    tool: GitPreflightTool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("axm_git.tools.commit_preflight.find_git_root", lambda p: p)
+    monkeypatch.setattr(
+        "axm_git.tools.commit_preflight.run_git",
+        lambda cmd, cwd: _git_result(stdout=""),
+    )
+    result = tool.execute(path="/tmp/repo")
+    assert result.text == "git_preflight | clean"
+
+
+def test_render_text_empty_diff_stat() -> None:
+    """Clean repo — no blank stat section in text."""
+    result = _render_text(
+        files=[], diff_stat="", diff="", diff_truncated=False, max_diff_lines=200
+    )
+    assert result == "git_preflight | clean"
+    assert "\n\n\n" not in result
+
+
+def test_render_text_single_file() -> None:
+    """Single changed file — header shows '1 files · dirty'."""
+    files = [{"path": "README.md", "status": "M"}]
+    result = _render_text(
+        files=files, diff_stat="", diff="", diff_truncated=False, max_diff_lines=200
+    )
+    assert "1 files · dirty" in result
+
+
+def test_render_text_long_file_paths() -> None:
+    """200+ char paths shown in full, no truncation."""
+    long_path = "a" * 210 + ".py"
+    files = [{"path": long_path, "status": "M"}]
+    result = _render_text(
+        files=files, diff_stat="", diff="", diff_truncated=False, max_diff_lines=200
+    )
+    assert long_path in result
+
+
+class TestDiffLinesZeroCleanTree:
+    """AC1 + AC3: clean repo with diff_lines=0 skips diff --stat subprocess."""
+
+    def test_clean_tree(self, tool: GitPreflightTool, mocker: MockerFixture) -> None:
+        mock_run = mocker.patch(
+            "axm_git.tools.commit_preflight.run_git",
+            return_value=_git_result(stdout=""),
+        )
+
+        result = tool.execute(path="/tmp/repo", diff_lines=0)
+
+        assert result.success is True
+        mock_run.assert_called_once()
+        assert result.data["diff_stat"] == ""
+        assert result.data["clean"] is True
+
+
+class TestDiffLinesZeroDirtyTree:
+    """Verify dirty tree with diff_lines=0 still populates diff_stat."""
+
+    def test_dirty_tree(self, tool: GitPreflightTool, mocker: MockerFixture) -> None:
+        status_out = " M src/foo.py\n?? newfile.txt"
+        diff_stat_out = " src/foo.py | 3 ++-\n 1 file changed"
+
+        def side_effect(args: list[str], cwd: object) -> SimpleNamespace:
+            if args[0] == "status":
+                return _git_result(stdout=status_out)
+            if args[:2] == ["diff", "--stat"]:
+                return _git_result(stdout=diff_stat_out)
+            return _git_result()
+
+        mocker.patch(
+            "axm_git.tools.commit_preflight.run_git",
+            side_effect=side_effect,
+        )
+
+        result = tool.execute(path="/tmp/repo", diff_lines=0)
+
+        assert result.success is True
+        assert result.data["diff_stat"] == diff_stat_out.strip()
+        assert result.data["file_count"] == 2
+        assert result.data["clean"] is False
+
+
+class TestDiffLinesZeroNoHint:
+    """AC2: hint parameter must not appear on ToolResult."""
+
+    def test_no_hint_in_result(
+        self, tool: GitPreflightTool, mocker: MockerFixture
+    ) -> None:
+        mocker.patch(
+            "axm_git.tools.commit_preflight.run_git",
+            return_value=_git_result(stdout=""),
+        )
+
+        result = tool.execute(path="/tmp/repo", diff_lines=0)
+
+        assert getattr(result, "hint", None) is None
+
+
+class TestDiffLinesZeroCleanRepoPerf:
+    """Edge: clean repo must not spawn git diff --stat subprocess."""
+
+    def test_no_diff_stat_call_when_clean(
+        self, tool: GitPreflightTool, mocker: MockerFixture
+    ) -> None:
+        mock_run = mocker.patch(
+            "axm_git.tools.commit_preflight.run_git",
+            return_value=_git_result(stdout=""),
+        )
+
+        tool.execute(path="/tmp/repo", diff_lines=0)
+
+        assert mock_run.call_count == 1
+        args = mock_run.call_args[0][0]
+        assert args[0] == "status"
