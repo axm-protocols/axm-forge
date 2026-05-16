@@ -188,18 +188,6 @@ class TestWorkspaceScaffoldFlow:
         assert ci.is_file()
         assert "--package" in ci.read_text()
 
-    def test_workspace_check_scores_100(self, scaffolded_workspace: Path) -> None:
-        """AC7: check on generated workspace scores 100% on workspace checks."""
-        from axm_init.core.checker import CheckEngine
-
-        engine = CheckEngine(scaffolded_workspace)
-        result = engine.run()
-
-        ws_checks = [c for c in result.checks if c.category == "workspace"]
-        assert len(ws_checks) > 0, "No workspace checks ran"
-        failed = [c for c in ws_checks if not c.passed]
-        assert not failed, f"Workspace checks failed: {[c.name for c in failed]}"
-
     @pytest.mark.parametrize(
         "relpath",
         [

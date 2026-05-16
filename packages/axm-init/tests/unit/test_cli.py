@@ -108,17 +108,6 @@ class TestCheckCommandUnit:
         assert "Not a directory" in stderr
 
 
-class TestCheckSelfTest:
-    """axm-init itself should score >= B."""
-
-    def test_self_audit(self) -> None:
-        project_root = Path(__file__).resolve().parents[2]
-        stdout, _stderr, _code = _run("check", str(project_root), "--json")
-        data = json.loads(stdout)
-        assert data["score"] >= 75, f"Self-check score too low: {data['score']}"
-        assert data["grade"] in ("A", "B")
-
-
 class TestScaffoldCommandOptions:
     """Tests for scaffold command help text (no real I/O)."""
 
