@@ -263,3 +263,21 @@ class TestGitCommitTool:
         assert not result.success
         assert result.data["failed_commit"]["retried"] is True
         assert "a.py" in result.data["failed_commit"]["auto_fixed_files"]
+
+
+class TestEmptyCommitList:
+    """commits=[] returns success=False with clear error."""
+
+    def test_empty_list(self) -> None:
+        tool = GitCommitTool()
+        result = tool.execute(path="/tmp/repo", commits=[])
+
+        assert result.success is False
+        assert result.error == "No commits provided"
+
+    def test_none_defaults_to_empty(self) -> None:
+        tool = GitCommitTool()
+        result = tool.execute(path="/tmp/repo", commits=None)
+
+        assert result.success is False
+        assert result.error == "No commits provided"
