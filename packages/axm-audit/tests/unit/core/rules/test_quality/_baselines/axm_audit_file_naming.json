@@ -980,11 +980,12 @@
     {
       "current_name": "test_duplicate_tests_acknowledgement.py",
       "path": "tests/integration/test_duplicate_tests_acknowledgement.py",
-      "proposed_name": "test_cluster_hash__duplicate_tests_rule.py",
+      "proposed_name": "test_duplicate_tests_rule__test_entry.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
         "DuplicateTestsRule",
+        "_TestEntry",
         "_cluster_hash"
       ],
       "verdict": "NAME_MISMATCH"
@@ -992,10 +993,10 @@
     {
       "current_name": "test_duplicate_tests_acknowledgement.py",
       "path": "tests/integration/test_duplicate_tests_acknowledgement.py",
-      "proposed_name": "test_cluster_hash__duplicate_tests_rule.py",
+      "proposed_name": "test_duplicate_tests_rule__test_entry.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_cluster_hash__duplicate_tests_rule.py",
+        "test_cluster_hash__test_entry.py",
         "test_duplicate_tests_rule.py"
       ],
       "tier": "integration",
@@ -1004,7 +1005,7 @@
           "DuplicateTestsRule"
         ],
         [
-          "DuplicateTestsRule",
+          "_TestEntry",
           "_cluster_hash"
         ]
       ],
@@ -1113,6 +1114,17 @@
     {
       "current_name": "test_file_naming_rule_on_synthetic_projects.py",
       "path": "tests/integration/test_file_naming_rule_on_synthetic_projects.py",
+      "proposed_name": "test_file_naming_rule.py",
+      "severity": "info",
+      "tier": "integration",
+      "tuple": [
+        "FileNamingRule"
+      ],
+      "verdict": "NAME_MISMATCH"
+    },
+    {
+      "current_name": "test_file_naming_text_payload_size.py",
+      "path": "tests/integration/test_file_naming_text_payload_size.py",
       "proposed_name": "test_file_naming_rule.py",
       "severity": "info",
       "tier": "integration",
@@ -2524,7 +2536,8 @@
       "current_name": "",
       "files": [
         "tests/integration/test_file_naming_baseline_on_axm_audit.py",
-        "tests/integration/test_file_naming_rule_on_synthetic_projects.py"
+        "tests/integration/test_file_naming_rule_on_synthetic_projects.py",
+        "tests/integration/test_file_naming_text_payload_size.py"
       ],
       "path": "",
       "proposed_name": "test_file_naming_rule.py",
