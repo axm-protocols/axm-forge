@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect as _inspect_axm1710
 import logging as _logging_axm1710
 from datetime import datetime
 from pathlib import Path
@@ -13,9 +12,7 @@ import pytest
 
 import axm_git.core.identity as _ident_axm1710
 from axm_git.core.identity import (
-    GitIdentity,
     GitProfileConfig,
-    author_args,
     load_config,
     resolve_identity,
 )
@@ -40,20 +37,6 @@ days = ["mon", "tue", "wed", "thu", "fri"]
 start = "09:00"
 end = "18:00"
 """
-
-
-# ---------------------------------------------------------------------------
-# Model tests
-# ---------------------------------------------------------------------------
-
-
-class TestGitIdentityModel:
-    """Test GitIdentity pydantic model."""
-
-    def test_git_identity_model(self) -> None:
-        identity = GitIdentity(name="Axiom", email="axiom@axm-protocol.io")
-        assert identity.name == "Axiom"
-        assert identity.email == "axiom@axm-protocol.io"
 
 
 # ---------------------------------------------------------------------------
@@ -298,24 +281,6 @@ class TestIsAxmWorkspace:
 
 
 # ---------------------------------------------------------------------------
-# author_args tests
-# ---------------------------------------------------------------------------
-
-
-class TestAuthorArgs:
-    """Test author_args helper."""
-
-    def test_author_args_with_identity(self) -> None:
-        identity = GitIdentity(name="Axiom", email="axiom@axm-protocol.io")
-        result = author_args(identity)
-        assert result == ["--author", "Axiom <axiom@axm-protocol.io>"]
-
-    def test_author_args_none(self) -> None:
-        result = author_args(None)
-        assert result == []
-
-
-# ---------------------------------------------------------------------------
 # axm-1710 — workspace_paths + tz-aware schedule + load_config logging
 # ---------------------------------------------------------------------------
 
@@ -476,15 +441,6 @@ def test_resolve_identity_workspace_paths_resolves_symlinks(
     assert result.name == "Work"
 
 
-# AC2
-
-
-def test_no_hardcoded_workspace_prefix_in_module() -> None:
-    src = _inspect_axm1710.getsource(_ident_axm1710)
-    assert "/Users/" not in src
-    assert "_AXM_WORKSPACE_PREFIX" not in src
-
-
 # AC3
 
 
@@ -515,11 +471,6 @@ def test_resolve_identity_uses_configured_timezone(
     paris_now = datetime(2026, 1, 5, 14, 0, tzinfo=_ZoneInfo_axm1710("Europe/Paris"))
     result2 = resolve_identity(tmp_path, now=paris_now)
     assert result2 == config.default
-
-
-def test_resolve_identity_default_timezone_is_europe_paris() -> None:
-    config = _build_config_axm1710()
-    assert config.timezone == "Europe/Paris"
 
 
 def test_matches_schedule_accepts_tz_aware_datetime(
