@@ -55,6 +55,9 @@ version-file = "src/axm_smelt/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/axm_smelt"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"docs/index.md" = "axm_smelt/docs/index.md"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
