@@ -1,11 +1,15 @@
-"""Tests for hook entry point discoverability."""
+"""Integration tests: axm hook entry point discoverability via importlib.metadata."""
 
 from __future__ import annotations
 
 from importlib.metadata import entry_points
 
+import pytest
+
 from axm_git.hooks.commit_phase import CommitPhaseHook
 from axm_git.hooks.preflight import PreflightHook
+
+pytestmark = pytest.mark.integration
 
 
 def test_preflight_hook_discoverable() -> None:
