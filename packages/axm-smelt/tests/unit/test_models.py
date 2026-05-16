@@ -27,8 +27,10 @@ def test_text_constructor_caches_parsed() -> None:
 
 def test_parsed_constructor_caches_text() -> None:
     ctx = SmeltContext(parsed={"a": 1}, format=Format.JSON)
-    assert ctx.text == ctx.text
-    assert json.loads(ctx.text) == {"a": 1}
+    first = ctx.text
+    second = ctx.text
+    assert first is second
+    assert json.loads(first) == {"a": 1}
 
 
 def test_parsed_serialization_is_deterministic() -> None:
