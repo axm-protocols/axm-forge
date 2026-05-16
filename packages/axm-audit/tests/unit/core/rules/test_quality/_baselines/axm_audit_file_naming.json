@@ -123,7 +123,7 @@
     {
       "current_name": "test_actionable_findings.py",
       "path": "tests/integration/test_actionable_findings.py",
-      "proposed_name": "test_private_imports_rule-pyramid_level_rule.py",
+      "proposed_name": "test_private_imports_rule__pyramid_level_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -137,7 +137,7 @@
     {
       "current_name": "test_actionable_findings.py",
       "path": "tests/integration/test_actionable_findings.py",
-      "proposed_name": "test_private_imports_rule-pyramid_level_rule.py",
+      "proposed_name": "test_private_imports_rule__pyramid_level_rule.py",
       "severity": "warning",
       "suggested_splits": [
         "test_duplicate_tests_rule.py",
@@ -176,7 +176,7 @@
     {
       "current_name": "test_architecture.py",
       "path": "tests/integration/test_architecture.py",
-      "proposed_name": "test_circular_import_rule-god_class_rule.py",
+      "proposed_name": "test_circular_import_rule__god_class_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -189,7 +189,7 @@
     {
       "current_name": "test_architecture.py",
       "path": "tests/integration/test_architecture.py",
-      "proposed_name": "test_circular_import_rule-god_class_rule.py",
+      "proposed_name": "test_circular_import_rule__god_class_rule.py",
       "severity": "warning",
       "suggested_splits": [
         "test_circular_import_rule.py",
@@ -224,7 +224,7 @@
     {
       "current_name": "test_audit_category_test_quality.py",
       "path": "tests/integration/test_audit_category_test_quality.py",
-      "proposed_name": "test_audit_project-auditor_module.py",
+      "proposed_name": "test_audit_project__auditor_module.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -238,12 +238,12 @@
     {
       "current_name": "test_audit_category_test_quality.py",
       "path": "tests/integration/test_audit_category_test_quality.py",
-      "proposed_name": "test_audit_project-auditor_module.py",
+      "proposed_name": "test_audit_project__auditor_module.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_audit_project-auditor_module.py",
         "test_audit_project.py",
-        "test_audit_result-qc_module.py"
+        "test_audit_project__auditor_module.py",
+        "test_audit_result__qc_module.py"
       ],
       "tier": "integration",
       "tuples": [
@@ -264,7 +264,7 @@
     {
       "current_name": "test_audit_metadata_round_trip.py",
       "path": "tests/integration/test_audit_metadata_round_trip.py",
-      "proposed_name": "test_audit_project-format_agent.py",
+      "proposed_name": "test_audit_project__format_agent.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -276,7 +276,7 @@
     {
       "current_name": "test_audit_project_pipeline.py",
       "path": "tests/integration/test_audit_project_pipeline.py",
-      "proposed_name": "test_audit_project-linting_rule.py",
+      "proposed_name": "test_audit_project__linting_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -289,12 +289,12 @@
     {
       "current_name": "test_audit_project_pipeline.py",
       "path": "tests/integration/test_audit_project_pipeline.py",
-      "proposed_name": "test_audit_project-linting_rule.py",
+      "proposed_name": "test_audit_project__linting_rule.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_audit_project-audit_result.py",
-        "test_audit_project-linting_rule.py",
-        "test_audit_project.py"
+        "test_audit_project.py",
+        "test_audit_project__audit_result.py",
+        "test_audit_project__linting_rule.py"
       ],
       "tier": "integration",
       "tuples": [
@@ -315,7 +315,7 @@
     {
       "current_name": "test_audit_project_public_api.py",
       "path": "tests/integration/test_audit_project_public_api.py",
-      "proposed_name": "test_audit_project-security_rule.py",
+      "proposed_name": "test_audit_project__security_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -328,11 +328,11 @@
     {
       "current_name": "test_audit_project_public_api.py",
       "path": "tests/integration/test_audit_project_public_api.py",
-      "proposed_name": "test_audit_project-security_rule.py",
+      "proposed_name": "test_audit_project__security_rule.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_audit_project-audit_result.py",
-        "test_audit_project-security_rule.py"
+        "test_audit_project__audit_result.py",
+        "test_audit_project__security_rule.py"
       ],
       "tier": "integration",
       "tuples": [
@@ -361,7 +361,7 @@
     {
       "current_name": "test_audit_quality_witness.py",
       "path": "tests/integration/test_audit_quality_witness.py",
-      "proposed_name": "test_audit_quality_rule-audit_result.py",
+      "proposed_name": "test_audit_quality_rule__audit_result.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -406,7 +406,7 @@
     {
       "current_name": "test_auditor_categories.py",
       "path": "tests/integration/test_auditor_categories.py",
-      "proposed_name": "test_audit_project-scored_categories.py",
+      "proposed_name": "test_audit_project__scored_categories.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -418,11 +418,11 @@
     {
       "current_name": "test_auditor_categories.py",
       "path": "tests/integration/test_auditor_categories.py",
-      "proposed_name": "test_audit_project-scored_categories.py",
+      "proposed_name": "test_audit_project__scored_categories.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_audit_project-scored_categories.py",
-        "test_audit_project.py"
+        "test_audit_project.py",
+        "test_audit_project__scored_categories.py"
       ],
       "tier": "integration",
       "tuples": [
@@ -450,7 +450,7 @@
     {
       "current_name": "test_bandit_security_scan.py",
       "path": "tests/integration/test_bandit_security_scan.py",
-      "proposed_name": "test_security_rule-severity.py",
+      "proposed_name": "test_security_rule__severity.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -462,11 +462,11 @@
     {
       "current_name": "test_bandit_security_scan.py",
       "path": "tests/integration/test_bandit_security_scan.py",
-      "proposed_name": "test_security_rule-severity.py",
+      "proposed_name": "test_security_rule__severity.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_security_rule-severity.py",
-        "test_security_rule.py"
+        "test_security_rule.py",
+        "test_security_rule__severity.py"
       ],
       "tier": "integration",
       "tuples": [
@@ -516,7 +516,7 @@
     {
       "current_name": "test_check_src_existence_handling.py",
       "path": "tests/integration/test_check_src_existence_handling.py",
-      "proposed_name": "test_check_result-project_rule.py",
+      "proposed_name": "test_check_result__project_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -550,7 +550,7 @@
     {
       "current_name": "test_cli_agent.py",
       "path": "tests/integration/test_cli_agent.py",
-      "proposed_name": "test_audit-test.py",
+      "proposed_name": "test_audit__test.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -562,7 +562,7 @@
     {
       "current_name": "test_cli_agent.py",
       "path": "tests/integration/test_cli_agent.py",
-      "proposed_name": "test_audit-test.py",
+      "proposed_name": "test_audit__test.py",
       "severity": "warning",
       "suggested_splits": [
         "test_audit.py",
@@ -604,7 +604,7 @@
     {
       "current_name": "test_complexity_cognitive.py",
       "path": "tests/integration/test_complexity_cognitive.py",
-      "proposed_name": "test_complexity_module-complexity_rule.py",
+      "proposed_name": "test_complexity_module__complexity_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -627,7 +627,7 @@
     {
       "current_name": "test_concurrent_audit_isolation.py",
       "path": "tests/integration/test_concurrent_audit_isolation.py",
-      "proposed_name": "test_audit_project-get_active_cache.py",
+      "proposed_name": "test_audit_project__get_active_cache.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -639,7 +639,7 @@
     {
       "current_name": "test_coupling_config.py",
       "path": "tests/integration/test_coupling_config.py",
-      "proposed_name": "test_coupling_metric_rule-read_coupling_config.py",
+      "proposed_name": "test_coupling_metric_rule__read_coupling_config.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -651,7 +651,7 @@
     {
       "current_name": "test_coupling_config.py",
       "path": "tests/integration/test_coupling_config.py",
-      "proposed_name": "test_coupling_metric_rule-read_coupling_config.py",
+      "proposed_name": "test_coupling_metric_rule__read_coupling_config.py",
       "severity": "warning",
       "suggested_splits": [
         "test_coupling_metric_rule.py",
@@ -682,7 +682,7 @@
     {
       "current_name": "test_coupling_orchestrator.py",
       "path": "tests/integration/test_coupling_orchestrator.py",
-      "proposed_name": "test_build_coupling_result-classify_module_role.py",
+      "proposed_name": "test_build_coupling_result__classify_module_role.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -695,7 +695,7 @@
     {
       "current_name": "test_coupling_orchestrator.py",
       "path": "tests/integration/test_coupling_orchestrator.py",
-      "proposed_name": "test_build_coupling_result-classify_module_role.py",
+      "proposed_name": "test_build_coupling_result__classify_module_role.py",
       "severity": "warning",
       "suggested_splits": [
         "test_build_coupling_result.py",
@@ -730,7 +730,7 @@
     {
       "current_name": "test_coupling_severity.py",
       "path": "tests/integration/test_coupling_severity.py",
-      "proposed_name": "test_coupling_metric_rule-read_coupling_config.py",
+      "proposed_name": "test_coupling_metric_rule__read_coupling_config.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -743,11 +743,11 @@
     {
       "current_name": "test_coupling_severity.py",
       "path": "tests/integration/test_coupling_severity.py",
-      "proposed_name": "test_coupling_metric_rule-read_coupling_config.py",
+      "proposed_name": "test_coupling_metric_rule__read_coupling_config.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_coupling_metric_rule-severity.py",
         "test_coupling_metric_rule.py",
+        "test_coupling_metric_rule__severity.py",
         "test_read_coupling_config.py"
       ],
       "tier": "integration",
@@ -834,7 +834,7 @@
     {
       "current_name": "test_dependency_hygiene_workspace.py",
       "path": "tests/integration/test_dependency_hygiene_workspace.py",
-      "proposed_name": "test_dependency_hygiene_rule-resolve_workspace_members.py",
+      "proposed_name": "test_dependency_hygiene_rule__resolve_workspace_members.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -847,7 +847,7 @@
     {
       "current_name": "test_dependency_hygiene_workspace.py",
       "path": "tests/integration/test_dependency_hygiene_workspace.py",
-      "proposed_name": "test_dependency_hygiene_rule-resolve_workspace_members.py",
+      "proposed_name": "test_dependency_hygiene_rule__resolve_workspace_members.py",
       "severity": "warning",
       "suggested_splits": [
         "test_dependency_audit_rule.py",
@@ -882,7 +882,7 @@
     {
       "current_name": "test_deptry_first_party.py",
       "path": "tests/integration/test_deptry_first_party.py",
-      "proposed_name": "test_detect_first_party_packages-run_deptry.py",
+      "proposed_name": "test_detect_first_party_packages__run_deptry.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -894,7 +894,7 @@
     {
       "current_name": "test_deptry_first_party.py",
       "path": "tests/integration/test_deptry_first_party.py",
-      "proposed_name": "test_detect_first_party_packages-run_deptry.py",
+      "proposed_name": "test_detect_first_party_packages__run_deptry.py",
       "severity": "warning",
       "suggested_splits": [
         "test_detect_first_party_packages.py",
@@ -947,7 +947,7 @@
     {
       "current_name": "test_duplicate_test_clustering.py",
       "path": "tests/integration/test_duplicate_test_clustering.py",
-      "proposed_name": "test_duplicate_tests_rule-severity.py",
+      "proposed_name": "test_duplicate_tests_rule__severity.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -959,11 +959,11 @@
     {
       "current_name": "test_duplicate_test_clustering.py",
       "path": "tests/integration/test_duplicate_test_clustering.py",
-      "proposed_name": "test_duplicate_tests_rule-severity.py",
+      "proposed_name": "test_duplicate_tests_rule__severity.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_duplicate_tests_rule-severity.py",
-        "test_duplicate_tests_rule.py"
+        "test_duplicate_tests_rule.py",
+        "test_duplicate_tests_rule__severity.py"
       ],
       "tier": "integration",
       "tuples": [
@@ -973,6 +973,39 @@
         [
           "DuplicateTestsRule",
           "Severity"
+        ]
+      ],
+      "verdict": "SPLIT"
+    },
+    {
+      "current_name": "test_duplicate_tests_acknowledgement.py",
+      "path": "tests/integration/test_duplicate_tests_acknowledgement.py",
+      "proposed_name": "test_cluster_hash__duplicate_tests_rule.py",
+      "severity": "info",
+      "tier": "integration",
+      "tuple": [
+        "DuplicateTestsRule",
+        "_cluster_hash"
+      ],
+      "verdict": "NAME_MISMATCH"
+    },
+    {
+      "current_name": "test_duplicate_tests_acknowledgement.py",
+      "path": "tests/integration/test_duplicate_tests_acknowledgement.py",
+      "proposed_name": "test_cluster_hash__duplicate_tests_rule.py",
+      "severity": "warning",
+      "suggested_splits": [
+        "test_cluster_hash__duplicate_tests_rule.py",
+        "test_duplicate_tests_rule.py"
+      ],
+      "tier": "integration",
+      "tuples": [
+        [
+          "DuplicateTestsRule"
+        ],
+        [
+          "DuplicateTestsRule",
+          "_cluster_hash"
         ]
       ],
       "verdict": "SPLIT"
@@ -1035,7 +1068,7 @@
     {
       "current_name": "test_file_naming_rule_in_audit_pipeline.py",
       "path": "tests/integration/test_file_naming_rule_in_audit_pipeline.py",
-      "proposed_name": "test_audit_tool-file_naming_rule.py",
+      "proposed_name": "test_audit_tool__file_naming_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1048,11 +1081,11 @@
     {
       "current_name": "test_file_naming_rule_in_audit_pipeline.py",
       "path": "tests/integration/test_file_naming_rule_in_audit_pipeline.py",
-      "proposed_name": "test_audit_tool-file_naming_rule.py",
+      "proposed_name": "test_audit_tool__file_naming_rule.py",
       "severity": "warning",
       "suggested_splits": [
         "test_audit_tool.py",
-        "test_file_naming_rule-no_package_symbol_rule.py"
+        "test_file_naming_rule__no_package_symbol_rule.py"
       ],
       "tier": "integration",
       "tuples": [
@@ -1080,7 +1113,7 @@
     {
       "current_name": "test_formatters_snapshots.py",
       "path": "tests/integration/test_formatters_snapshots.py",
-      "proposed_name": "test_format_agent-format_agent_text.py",
+      "proposed_name": "test_format_agent__format_agent_text.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1094,10 +1127,10 @@
     {
       "current_name": "test_formatters_snapshots.py",
       "path": "tests/integration/test_formatters_snapshots.py",
-      "proposed_name": "test_format_agent-format_agent_text.py",
+      "proposed_name": "test_format_agent__format_agent_text.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_format_agent-format_agent_text.py",
+        "test_format_agent__format_agent_text.py",
         "test_format_report.py",
         "test_format_test_quality_text.py"
       ],
@@ -1119,7 +1152,7 @@
     {
       "current_name": "test_formatting.py",
       "path": "tests/integration/test_formatting.py",
-      "proposed_name": "test_audit_project-formatting_rule.py",
+      "proposed_name": "test_audit_project__formatting_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1131,7 +1164,7 @@
     {
       "current_name": "test_formatting.py",
       "path": "tests/integration/test_formatting.py",
-      "proposed_name": "test_audit_project-formatting_rule.py",
+      "proposed_name": "test_audit_project__formatting_rule.py",
       "severity": "warning",
       "suggested_splits": [
         "test_audit_project.py",
@@ -1173,7 +1206,7 @@
     {
       "current_name": "test_helpers.py",
       "path": "tests/integration/test_helpers.py",
-      "proposed_name": "test_ast_cache-audit_project.py",
+      "proposed_name": "test_ast_cache__audit_project.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1187,13 +1220,13 @@
     {
       "current_name": "test_helpers.py",
       "path": "tests/integration/test_helpers.py",
-      "proposed_name": "test_ast_cache-audit_project.py",
+      "proposed_name": "test_ast_cache__audit_project.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_ast_cache-audit_project.py",
-        "test_ast_cache-set_ast_cache.py",
         "test_ast_cache.py",
-        "test_audit_project-get_ast_cache.py"
+        "test_ast_cache__audit_project.py",
+        "test_ast_cache__set_ast_cache.py",
+        "test_audit_project__get_ast_cache.py"
       ],
       "tier": "integration",
       "tuples": [
@@ -1229,7 +1262,7 @@
     {
       "current_name": "test_lint_text_rendering_pipeline.py",
       "path": "tests/integration/test_lint_text_rendering_pipeline.py",
-      "proposed_name": "test_audit_result-format_report.py",
+      "proposed_name": "test_audit_result__format_report.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1241,7 +1274,7 @@
     {
       "current_name": "test_linting_rule_public_api.py",
       "path": "tests/integration/test_linting_rule_public_api.py",
-      "proposed_name": "test_linting_rule-q_mod.py",
+      "proposed_name": "test_linting_rule__q_mod.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1264,7 +1297,7 @@
     {
       "current_name": "test_no_package_symbol_on_self.py",
       "path": "tests/integration/test_no_package_symbol_on_self.py",
-      "proposed_name": "test_no_package_symbol_rule-pyramid_level_rule.py",
+      "proposed_name": "test_no_package_symbol_rule__pyramid_level_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1276,11 +1309,11 @@
     {
       "current_name": "test_no_package_symbol_on_self.py",
       "path": "tests/integration/test_no_package_symbol_on_self.py",
-      "proposed_name": "test_no_package_symbol_rule-pyramid_level_rule.py",
+      "proposed_name": "test_no_package_symbol_rule__pyramid_level_rule.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_no_package_symbol_rule-pyramid_level_rule.py",
-        "test_no_package_symbol_rule.py"
+        "test_no_package_symbol_rule.py",
+        "test_no_package_symbol_rule__pyramid_level_rule.py"
       ],
       "tier": "integration",
       "tuples": [
@@ -1308,7 +1341,7 @@
     {
       "current_name": "test_no_package_symbol_rule_on_synthetic_projects.py",
       "path": "tests/integration/test_no_package_symbol_rule_on_synthetic_projects.py",
-      "proposed_name": "test_no_package_symbol_rule-severity.py",
+      "proposed_name": "test_no_package_symbol_rule__severity.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1320,11 +1353,11 @@
     {
       "current_name": "test_no_package_symbol_rule_on_synthetic_projects.py",
       "path": "tests/integration/test_no_package_symbol_rule_on_synthetic_projects.py",
-      "proposed_name": "test_no_package_symbol_rule-severity.py",
+      "proposed_name": "test_no_package_symbol_rule__severity.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_no_package_symbol_rule-severity.py",
-        "test_no_package_symbol_rule.py"
+        "test_no_package_symbol_rule.py",
+        "test_no_package_symbol_rule__severity.py"
       ],
       "tier": "integration",
       "tuples": [
@@ -1352,7 +1385,7 @@
     {
       "current_name": "test_pipeline.py",
       "path": "tests/integration/test_pipeline.py",
-      "proposed_name": "test_audit_project-audit_result.py",
+      "proposed_name": "test_audit_project__audit_result.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1366,13 +1399,13 @@
     {
       "current_name": "test_pipeline.py",
       "path": "tests/integration/test_pipeline.py",
-      "proposed_name": "test_audit_project-audit_result.py",
+      "proposed_name": "test_audit_project__audit_result.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_audit_project-audit_result.py",
-        "test_audit_project-format_agent.py",
-        "test_audit_project-format_report.py",
-        "test_audit_project.py"
+        "test_audit_project.py",
+        "test_audit_project__audit_result.py",
+        "test_audit_project__format_agent.py",
+        "test_audit_project__format_report.py"
       ],
       "tier": "integration",
       "tuples": [
@@ -1397,7 +1430,7 @@
     {
       "current_name": "test_practices.py",
       "path": "tests/integration/test_practices.py",
-      "proposed_name": "test_anti_mirror_rule-mirror_rule.py",
+      "proposed_name": "test_anti_mirror_rule__mirror_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1415,16 +1448,16 @@
     {
       "current_name": "test_practices.py",
       "path": "tests/integration/test_practices.py",
-      "proposed_name": "test_anti_mirror_rule-mirror_rule.py",
+      "proposed_name": "test_anti_mirror_rule__mirror_rule.py",
       "severity": "warning",
       "suggested_splits": [
         "test_anti_mirror_rule.py",
         "test_bare_except_rule.py",
         "test_blocking_io_rule.py",
-        "test_check_result-mirror_rule.py",
+        "test_check_result__mirror_rule.py",
         "test_docstring_coverage_rule.py",
-        "test_mirror_rule-severity.py",
         "test_mirror_rule.py",
+        "test_mirror_rule__severity.py",
         "test_security_pattern_rule.py"
       ],
       "tier": "integration",
@@ -1461,7 +1494,7 @@
     {
       "current_name": "test_private_import_detection.py",
       "path": "tests/integration/test_private_import_detection.py",
-      "proposed_name": "test_private_imports_rule-severity.py",
+      "proposed_name": "test_private_imports_rule__severity.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1475,13 +1508,13 @@
     {
       "current_name": "test_private_import_detection.py",
       "path": "tests/integration/test_private_import_detection.py",
-      "proposed_name": "test_private_imports_rule-severity.py",
+      "proposed_name": "test_private_imports_rule__severity.py",
       "severity": "warning",
       "suggested_splits": [
         "test_pi_mod.py",
         "test_private_imports.py",
-        "test_private_imports_rule-severity.py",
-        "test_private_imports_rule.py"
+        "test_private_imports_rule.py",
+        "test_private_imports_rule__severity.py"
       ],
       "tier": "integration",
       "tuples": [
@@ -1537,7 +1570,7 @@
     {
       "current_name": "test_pyramid_directory_layout.py",
       "path": "tests/integration/test_pyramid_directory_layout.py",
-      "proposed_name": "test_file_exists_rule-tests_pyramid_rule.py",
+      "proposed_name": "test_file_exists_rule__tests_pyramid_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1550,7 +1583,7 @@
     {
       "current_name": "test_pyramid_directory_layout.py",
       "path": "tests/integration/test_pyramid_directory_layout.py",
-      "proposed_name": "test_file_exists_rule-tests_pyramid_rule.py",
+      "proposed_name": "test_file_exists_rule__tests_pyramid_rule.py",
       "severity": "warning",
       "suggested_splits": [
         "test_directory_exists_rule.py",
@@ -1585,7 +1618,7 @@
     {
       "current_name": "test_pyramid_level_core.py",
       "path": "tests/integration/test_pyramid_level_core.py",
-      "proposed_name": "test_pyramid_level_rule-severity.py",
+      "proposed_name": "test_pyramid_level_rule__severity.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1597,7 +1630,7 @@
     {
       "current_name": "test_pyramid_level_core.py",
       "path": "tests/integration/test_pyramid_level_core.py",
-      "proposed_name": "test_pyramid_level_rule-severity.py",
+      "proposed_name": "test_pyramid_level_rule__severity.py",
       "severity": "warning",
       "suggested_splits": [
         "test_pyramid_level_rule.py",
@@ -1617,7 +1650,7 @@
     {
       "current_name": "test_pyramid_level_in_package_scripts.py",
       "path": "tests/integration/test_pyramid_level_in_package_scripts.py",
-      "proposed_name": "test_has_in_package_subprocess_invocation-scan_package.py",
+      "proposed_name": "test_has_in_package_subprocess_invocation__scan_package.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1630,10 +1663,10 @@
     {
       "current_name": "test_pyramid_level_in_package_scripts.py",
       "path": "tests/integration/test_pyramid_level_in_package_scripts.py",
-      "proposed_name": "test_has_in_package_subprocess_invocation-scan_package.py",
+      "proposed_name": "test_has_in_package_subprocess_invocation__scan_package.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_has_in_package_subprocess_invocation-load_project_scripts.py",
+        "test_has_in_package_subprocess_invocation__load_project_scripts.py",
         "test_scan_package.py"
       ],
       "tier": "integration",
@@ -1673,7 +1706,7 @@
     {
       "current_name": "test_pyramid_level_render.py",
       "path": "tests/integration/test_pyramid_level_render.py",
-      "proposed_name": "test_relpath-render_mismatch_text.py",
+      "proposed_name": "test_relpath__render_mismatch_text.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1685,7 +1718,7 @@
     {
       "current_name": "test_pyramid_level_render.py",
       "path": "tests/integration/test_pyramid_level_render.py",
-      "proposed_name": "test_relpath-render_mismatch_text.py",
+      "proposed_name": "test_relpath__render_mismatch_text.py",
       "severity": "warning",
       "suggested_splits": [
         "test_relpath.py",
@@ -1727,7 +1760,7 @@
     {
       "current_name": "test_pyramid_rule_in_audit.py",
       "path": "tests/integration/test_pyramid_rule_in_audit.py",
-      "proposed_name": "test_audit_project-tests_pyramid_rule.py",
+      "proposed_name": "test_audit_project__tests_pyramid_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1739,7 +1772,7 @@
     {
       "current_name": "test_pytest_invocation_and_parsing.py",
       "path": "tests/integration/test_pytest_invocation_and_parsing.py",
-      "proposed_name": "test_build_pytest_cmd-run_tests.py",
+      "proposed_name": "test_build_pytest_cmd__run_tests.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1753,7 +1786,7 @@
     {
       "current_name": "test_pytest_invocation_and_parsing.py",
       "path": "tests/integration/test_pytest_invocation_and_parsing.py",
-      "proposed_name": "test_build_pytest_cmd-run_tests.py",
+      "proposed_name": "test_build_pytest_cmd__run_tests.py",
       "severity": "warning",
       "suggested_splits": [
         "test_build_pytest_cmd.py",
@@ -1781,7 +1814,7 @@
     {
       "current_name": "test_python_file_discovery.py",
       "path": "tests/integration/test_python_file_discovery.py",
-      "proposed_name": "test_get_python_files-parse_file_safe.py",
+      "proposed_name": "test_get_python_files__parse_file_safe.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1793,7 +1826,7 @@
     {
       "current_name": "test_python_file_discovery.py",
       "path": "tests/integration/test_python_file_discovery.py",
-      "proposed_name": "test_get_python_files-parse_file_safe.py",
+      "proposed_name": "test_get_python_files__parse_file_safe.py",
       "severity": "warning",
       "suggested_splits": [
         "test_get_python_files.py",
@@ -1824,7 +1857,7 @@
     {
       "current_name": "test_quality_check_hook_public_api.py",
       "path": "tests/integration/test_quality_check_hook_public_api.py",
-      "proposed_name": "test_audit_result-check_result.py",
+      "proposed_name": "test_audit_result__check_result.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1858,7 +1891,7 @@
     {
       "current_name": "test_quality_rule_io.py",
       "path": "tests/integration/test_quality_rule_io.py",
-      "proposed_name": "test_linting_rule-type_check_rule.py",
+      "proposed_name": "test_linting_rule__type_check_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1872,7 +1905,7 @@
     {
       "current_name": "test_quality_rule_io.py",
       "path": "tests/integration/test_quality_rule_io.py",
-      "proposed_name": "test_linting_rule-type_check_rule.py",
+      "proposed_name": "test_linting_rule__type_check_rule.py",
       "severity": "warning",
       "suggested_splits": [
         "test_linting_rule.py",
@@ -1955,7 +1988,7 @@
     {
       "current_name": "test_security_rule_public_api.py",
       "path": "tests/integration/test_security_rule_public_api.py",
-      "proposed_name": "test_sec_mod-security_rule.py",
+      "proposed_name": "test_sec_mod__security_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1978,7 +2011,7 @@
     {
       "current_name": "test_shared_helpers_io.py",
       "path": "tests/integration/test_shared_helpers_io.py",
-      "proposed_name": "test_analyze_imports-current_level_from_path.py",
+      "proposed_name": "test_analyze_imports__current_level_from_path.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -1998,7 +2031,7 @@
     {
       "current_name": "test_shared_helpers_io.py",
       "path": "tests/integration/test_shared_helpers_io.py",
-      "proposed_name": "test_analyze_imports-current_level_from_path.py",
+      "proposed_name": "test_analyze_imports__current_level_from_path.py",
       "severity": "warning",
       "suggested_splits": [
         "test_analyze_imports.py",
@@ -2050,7 +2083,7 @@
     {
       "current_name": "test_structure_fix_hint.py",
       "path": "tests/integration/test_structure_fix_hint.py",
-      "proposed_name": "test_directory_exists_rule-file_exists_rule.py",
+      "proposed_name": "test_directory_exists_rule__file_exists_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -2062,11 +2095,11 @@
     {
       "current_name": "test_structure_fix_hint.py",
       "path": "tests/integration/test_structure_fix_hint.py",
-      "proposed_name": "test_directory_exists_rule-file_exists_rule.py",
+      "proposed_name": "test_directory_exists_rule__file_exists_rule.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_directory_exists_rule-file_exists_rule.py",
         "test_directory_exists_rule.py",
+        "test_directory_exists_rule__file_exists_rule.py",
         "test_file_exists_rule.py"
       ],
       "tier": "integration",
@@ -2098,7 +2131,7 @@
     {
       "current_name": "test_subprocess_runner_layouts.py",
       "path": "tests/integration/test_subprocess_runner_layouts.py",
-      "proposed_name": "test_find_venv-run_in_project.py",
+      "proposed_name": "test_find_venv__run_in_project.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -2119,18 +2152,18 @@
     {
       "current_name": "test_subprocess_runner_layouts.py",
       "path": "tests/integration/test_subprocess_runner_layouts.py",
-      "proposed_name": "test_find_venv-run_in_project.py",
+      "proposed_name": "test_find_venv__run_in_project.py",
       "severity": "warning",
       "suggested_splits": [
         "test_build_test_report.py",
-        "test_find_venv-max_venv_search_depth.py",
         "test_find_venv.py",
+        "test_find_venv__max_venv_search_depth.py",
         "test_formatting_rule.py",
         "test_linting_rule.py",
         "test_run_in_project.py",
         "test_run_tests.py",
         "test_security_rule.py",
-        "test_test_coverage_rule-test_report.py",
+        "test_test_coverage_rule__test_report.py",
         "test_type_check_rule.py"
       ],
       "tier": "integration",
@@ -2173,7 +2206,7 @@
     {
       "current_name": "test_tautology_detect.py",
       "path": "tests/integration/test_tautology_detect.py",
-      "proposed_name": "test_severity-tautology_rule.py",
+      "proposed_name": "test_severity__tautology_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -2185,10 +2218,10 @@
     {
       "current_name": "test_tautology_detect.py",
       "path": "tests/integration/test_tautology_detect.py",
-      "proposed_name": "test_severity-tautology_rule.py",
+      "proposed_name": "test_severity__tautology_rule.py",
       "severity": "warning",
       "suggested_splits": [
-        "test_severity-tautology_rule.py",
+        "test_severity__tautology_rule.py",
         "test_tautology_rule.py"
       ],
       "tier": "integration",
@@ -2206,7 +2239,7 @@
     {
       "current_name": "test_tautology_marker_opt_out.py",
       "path": "tests/integration/test_tautology_marker_opt_out.py",
-      "proposed_name": "test_private_imports_rule-tautology_rule.py",
+      "proposed_name": "test_private_imports_rule__tautology_rule.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -2218,7 +2251,7 @@
     {
       "current_name": "test_tautology_marker_opt_out.py",
       "path": "tests/integration/test_tautology_marker_opt_out.py",
-      "proposed_name": "test_private_imports_rule-tautology_rule.py",
+      "proposed_name": "test_private_imports_rule__tautology_rule.py",
       "severity": "warning",
       "suggested_splits": [
         "test_private_imports_rule.py",
@@ -2271,7 +2304,7 @@
     {
       "current_name": "test_workspace_merge_preserves_metadata.py",
       "path": "tests/integration/test_workspace_merge_preserves_metadata.py",
-      "proposed_name": "test_auditor_mod-severity.py",
+      "proposed_name": "test_auditor_mod__severity.py",
       "severity": "info",
       "tier": "integration",
       "tuple": [
@@ -2422,14 +2455,14 @@
       "verdict": "COLLIDE"
     },
     {
-      "canonical_name": "test_coupling_metric_rule-read_coupling_config.py",
+      "canonical_name": "test_coupling_metric_rule__read_coupling_config.py",
       "current_name": "",
       "files": [
         "tests/integration/test_coupling_config.py",
         "tests/integration/test_coupling_severity.py"
       ],
       "path": "",
-      "proposed_name": "test_coupling_metric_rule-read_coupling_config.py",
+      "proposed_name": "test_coupling_metric_rule__read_coupling_config.py",
       "severity": "warning",
       "tier": "integration",
       "verdict": "COLLIDE"
