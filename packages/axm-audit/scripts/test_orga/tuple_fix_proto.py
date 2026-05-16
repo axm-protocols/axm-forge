@@ -134,6 +134,7 @@ class PipelineReport:
     unfixable: list[dict[str, Any]] = field(default_factory=list)
     applied: bool = False
     warnings: list[str] = field(default_factory=list)
+    iterations: int = 0
 
     def by_kind(self) -> dict[str, int]:
         c: Counter[str] = Counter()
@@ -236,6 +237,77 @@ def _tier_for_path(path: Path) -> str | None:
         if part in ("unit", "integration", "e2e"):
             return part
     return None
+
+
+CANONICAL_TIERS: frozenset[str] = frozenset({"unit", "integration", "e2e"})
+
+
+def relocate_non_canonical_tiers(project_path: Path) -> list[str]:
+    """Move ``tests/<non_canonical>/test_*.py`` into ``tests/integration/``.
+
+    Tiers ``unit/``, ``integration/``, ``e2e/`` are the only canonical
+    pyramid directories (per CLAUDE.md). Files living under any other
+    direct child of ``tests/`` — e.g. ``tests/functional/``,
+    ``tests/hooks/``, ``tests/tools/`` — cannot be processed by SPLIT /
+    MERGE / RENAME because ``_tier_for_path`` returns ``None`` for them.
+
+    Default destination is ``tests/integration/`` (the tier for real I/O
+    + first-party import), which is the most common landing for legacy
+    ``functional/`` tests. Stage 1 RELOCATE will subsequently re-tier
+    each file to its correct level based on PYRAMID_LEVEL findings.
+
+    Runs BEFORE Stage 1 so RELOCATE sees only canonical-tier paths.
+    """
+    msgs: list[str] = []
+    tests_root = project_path / "tests"
+    if not tests_root.is_dir():
+        return msgs
+    integration = tests_root / "integration"
+    for child in sorted(tests_root.iterdir()):
+        if not child.is_dir() or child.name in CANONICAL_TIERS:
+            continue
+        if child.name.startswith("_") or child.name.startswith("."):
+            continue  # _helpers, __pycache__
+        nested_tests = sorted(p for p in child.rglob("test_*.py") if p.is_file())
+        if not nested_tests:
+            continue
+        integration.mkdir(exist_ok=True)
+        # Ensure tests/integration/__init__.py exists for cohesion (some
+        # downstream helpers expect it). Don't overwrite.
+        init_pkg = integration / "__init__.py"
+        if not init_pkg.exists() and (child / "__init__.py").exists():
+            init_pkg.write_text("")
+        for src in nested_tests:
+            target = integration / src.name
+            counter = 2
+            while target.exists() and target != src:
+                target = integration / f"{src.stem}_{counter}.py"
+                counter += 1
+            old_mod = _module_path_for_test_file(src, project_path)
+            src_depth = _file_depth_from_project(src, project_path)
+            tgt_depth = _file_depth_from_project(target, project_path)
+            _git_mv(src, target)
+            depth_delta = tgt_depth - src_depth
+            if depth_delta != 0:
+                msgs.extend(_patch_file_dunder_depth(target, depth_delta))
+            new_mod = _module_path_for_test_file(target, project_path)
+            if old_mod and new_mod and old_mod != new_mod:
+                msgs.extend(_rewrite_cross_test_imports(
+                    project_path, old_mod, [new_mod],
+                    skip_paths={src, target},
+                ))
+            msgs.append(
+                f"non-canonical-tier moved {src.relative_to(project_path)} -> "
+                f"{target.relative_to(project_path)}"
+            )
+        # Prune empty subdirectories left behind. Keep dirs that still
+        # hold non-test python files (helpers, conftest, scaffolding).
+        _prune_empty_test_subdirs(child)
+        # If the entire child dir is now empty (no helpers, no conftest),
+        # remove it too — it's just stale scaffolding.
+        if child.exists() and not any(child.iterdir()):
+            child.rmdir()
+    return msgs
 
 
 def flatten_tier_layout(project_path: Path) -> list[str]:
@@ -503,6 +575,16 @@ def plan_naming(project_path: Path) -> tuple[list[FileOp], list[FileOp], list[Fi
     # 2. SPLIT
     for d in by_verdict.get("SPLIT", []):
         src = Path(d["path"])
+        # B2 defensive: SPLIT executor refuses anything outside
+        # tests/integration|e2e. Filter at plan time so the report
+        # doesn't surface ops that will silently skip.
+        if _tier_for_path(src) not in ("integration", "e2e"):
+            continue
+        # B1 defensive: SPLIT cannot proceed when the file still has a
+        # pathological Test* class (Stage 0 was unable to flatten it).
+        # Skip — collect_unfixable surfaces these as unfixable.
+        if src.exists() and _file_has_pathological_class(src):
+            continue
         consumed.add(src)
         # AXM-1722 should expose `suggested_splits` (list of canonical names);
         # if absent, fall back to the file's `tuple` field flattened.
@@ -526,6 +608,10 @@ def plan_naming(project_path: Path) -> tuple[list[FileOp], list[FileOp], list[Fi
         files = sorted(Path(p) for p in d.get("files", []))
         if len(files) < 2:
             continue
+        # B2 defensive: MERGE relies on anvil moves which operate within
+        # a canonical tier. Drop collisions that include non-canonical paths.
+        if any(_tier_for_path(f) not in ("integration", "e2e") for f in files):
+            continue
         anchor = files[0]
         for other in files[1:]:
             consumed.add(other)
@@ -543,6 +629,11 @@ def plan_naming(project_path: Path) -> tuple[list[FileOp], list[FileOp], list[Fi
     for d in by_verdict.get("NAME_MISMATCH", []):
         src = Path(d["path"])
         if src in consumed:
+            continue
+        # B2 defensive: a non-canonical-tier file should be relocated by
+        # Stage 0.5, not renamed in place. Skip — next iteration will see
+        # it under its canonical tier.
+        if _tier_for_path(src) not in ("integration", "e2e"):
             continue
         proposed = _safe_filename(d.get("proposed_name", ""))
         if not proposed or src.name == proposed or proposed == "test_UNKNOWN.py":
@@ -566,23 +657,46 @@ def plan_naming(project_path: Path) -> tuple[list[FileOp], list[FileOp], list[Fi
 
 
 def collect_unfixable(project_path: Path) -> list[dict[str, Any]]:
-    """Re-audit and return NO_PACKAGE_SYMBOL findings.
+    """Re-audit and return NO_PACKAGE_SYMBOL + pathological FILE_NAMING findings.
 
     Defensive: post-apply, axm-audit's internal AST cache may hold stale
     paths if files were renamed in-flight. Swallow that exception — the
     caller (proto reporter) treats absence as "no unfixable findings".
+
+    Pathological FILE_NAMING cases: a Test* class with divergent
+    canonicals AND a feature (``self.<x>``, custom base, ``__init__``)
+    that blocks deterministic flattening. Surfaced as unfixable so the
+    user invokes ``/scenario-rename`` or rewrites by hand instead of
+    silently leaving the SPLIT finding unresolved.
     """
+    out: list[dict[str, Any]] = []
     try:
         result = audit_project(project_path, category="test_quality")
     except FileNotFoundError:
-        return []
-    out: list[dict[str, Any]] = []
-    for check in result.checks:
-        rid = getattr(check, "rule_id", "")
-        if rid not in NON_DETERMINISTIC_RULES:
-            continue
-        for d in _findings(check):
-            out.append({"rule_id": rid, **d})
+        result = None
+    if result is not None:
+        for check in result.checks:
+            rid = getattr(check, "rule_id", "")
+            if rid not in NON_DETERMINISTIC_RULES:
+                continue
+            for d in _findings(check):
+                out.append({"rule_id": rid, **d})
+    # B1: surface pathological flatten cases. plan_flatten emits a
+    # FileOp per class with rationale starting "PATHOLOGICAL" — those
+    # are FILE_NAMING SPLIT victims the proto cannot fix.
+    for op in plan_flatten(project_path):
+        if op.rationale.startswith("PATHOLOGICAL"):
+            try:
+                tf = str(op.source.relative_to(project_path))
+            except ValueError:
+                tf = str(op.source)
+            out.append({
+                "rule_id": "TEST_QUALITY_FILE_NAMING",
+                "verdict": "PATHOLOGICAL",
+                "test_file": tf,
+                "path": tf,
+                "reason": op.rationale,
+            })
     return out
 
 
@@ -1000,6 +1114,48 @@ def _top_level_test_classes(tree: ast.Module) -> list[ast.ClassDef]:
     return out
 
 
+def _file_has_pathological_class(source: Path) -> bool:
+    """True iff *source* contains a Test* class that ``_class_is_pathological``
+    flags AND that has divergent method canonicals.
+
+    Used by ``plan_naming`` SPLIT and ``_execute_split`` to short-circuit
+    when Stage 0 was unable to flatten — avoids planning a SPLIT that
+    will only partially route and leave the file mid-state.
+
+    Cheap: only walks classes, no canonicalisation. Pathological with a
+    *single* canonical is fine: the class is homogeneous and SPLIT will
+    move it as a block.
+    """
+    try:
+        tree = ast.parse(source.read_text())
+    except (OSError, SyntaxError):
+        return False
+    for cls in _top_level_test_classes(tree):
+        if _class_is_pathological(cls) is None:
+            continue
+        # Count distinct test method names that would land in different
+        # canonical buckets — cheap proxy without full canonicalisation:
+        # if all method names share a common prefix the class is likely
+        # homogeneous; otherwise divergent.
+        test_methods = [
+            c for c in cls.body
+            if isinstance(c, ast.FunctionDef) and c.name.startswith("test_")
+        ]
+        if len(test_methods) <= 1:
+            continue
+        # Cheap heuristic: distinct second-token across methods is a
+        # strong proxy for divergent canonical filenames (e.g.
+        # test_patch_ci_* vs test_patch_publish_* land in different
+        # buckets). Avoids invoking the full canonical machinery here.
+        second_tokens = {
+            m.name.split("_")[1] if len(m.name.split("_")) > 1 else ""
+            for m in test_methods
+        }
+        if len(second_tokens) >= 2:
+            return True
+    return False
+
+
 def _class_is_pathological(cls: ast.ClassDef) -> str | None:
     """Return a reason if the class cannot be safely flattened, else None.
 
@@ -1216,9 +1372,12 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
         )
     ]
     if leftover:
+        # B1: pathological-AND-heterogeneous classes survive Stage 0.
+        # Bail explicitly; collect_unfixable surfaces these.
         return [
-            f"split skipped: {op.source.name} still has heterogeneous "
-            f"Test* classes after Stage 0: {leftover} (likely pathological)"
+            f"split skipped (pathological): {op.source.name} has "
+            f"heterogeneous Test* classes that cannot be flattened: "
+            f"{leftover}"
         ]
     routes = _per_unit_canonical(op.source, tier_str, project_path)
     if not routes:
@@ -3379,21 +3538,52 @@ def execute(ops: list[FileOp], project_path: Path) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def run(
-    project_path: Path, *, apply: bool, rules: set[str]
-) -> PipelineReport:
-    report = PipelineReport(applied=apply)
+MAX_ITERATIONS = 6
 
-    warnings: list[str] = []
+
+def _run_one_iteration(
+    project_path: Path,
+    *,
+    apply: bool,
+    rules: set[str],
+    report: PipelineReport,
+    warnings: list[str],
+) -> int:
+    """Execute one full pass of the pipeline; return number of ops emitted.
+
+    Returns 0 when nothing remained to fix this iteration (convergence
+    signal for the outer loop). ops + warnings accumulate into the
+    caller-owned report/warnings list across iterations.
+    """
+    iter_ops = 0
+
+    # Stage 0.5: relocate non-canonical tier dirs (tests/functional/, ...)
+    # into tests/integration/ so the rest of the pipeline sees only
+    # canonical tier paths. Stage 1 RELOCATE will then re-tier each file
+    # to its correct pyramid level based on PYRAMID_LEVEL findings.
+    if apply and "TEST_QUALITY_PYRAMID_LEVEL" in rules:
+        non_canon_msgs = relocate_non_canonical_tiers(project_path)
+        if non_canon_msgs:
+            warnings.extend(non_canon_msgs)
+            iter_ops += len(non_canon_msgs)
+            _invalidate_import_index(project_path)
 
     # Stage 0: FLATTEN heterogeneous Test* classes (FILE_NAMING preflight).
     # Done first so RELOCATE / SPLIT / MERGE / RENAME see top-level units only.
     if "TEST_QUALITY_FILE_NAMING" in rules:
         flatten_ops = plan_flatten(project_path)
-        report.ops.extend(flatten_ops)
-        if apply and flatten_ops:
-            warnings.extend(execute(flatten_ops, project_path))
+        # Don't count pathological flatten ops as "work emitted" — they
+        # only emit a warning and re-fire every iteration, breaking
+        # convergence. They are surfaced via collect_unfixable instead.
+        actionable_flatten = [
+            op for op in flatten_ops
+            if not op.rationale.startswith("PATHOLOGICAL")
+        ]
+        report.ops.extend(actionable_flatten)
+        if apply and actionable_flatten:
+            warnings.extend(execute(actionable_flatten, project_path))
             _invalidate_import_index(project_path)
+            iter_ops += len(actionable_flatten)
 
     # Stage 1: RELOCATE
     if "TEST_QUALITY_PYRAMID_LEVEL" in rules:
@@ -3402,6 +3592,7 @@ def run(
         if apply and relocate_ops:
             warnings.extend(execute(relocate_ops, project_path))
             _invalidate_import_index(project_path)
+            iter_ops += len(relocate_ops)
 
     # Stage 1.5: FLATTEN_LAYOUT. Bring nested ``tests/integration/<subdir>/``
     # and ``tests/e2e/<subdir>/`` files up to the tier root so Stages 2-4
@@ -3411,6 +3602,7 @@ def run(
         flatten_msgs = flatten_tier_layout(project_path)
         if flatten_msgs:
             warnings.extend(flatten_msgs)
+            iter_ops += len(flatten_msgs)
             _invalidate_import_index(project_path)
 
     # Stages 2-4: FILE_NAMING (planned AFTER flatten + relocate).
@@ -3420,20 +3612,59 @@ def run(
         if apply:
             splits, _, _ = plan_naming(project_path)
             report.ops.extend(splits)
-            warnings.extend(execute(splits, project_path))
-            _invalidate_import_index(project_path)
+            if splits:
+                warnings.extend(execute(splits, project_path))
+                _invalidate_import_index(project_path)
+                iter_ops += len(splits)
             _, merges, _ = plan_naming(project_path)  # re-plan post-SPLIT
             report.ops.extend(merges)
-            warnings.extend(execute(merges, project_path))
-            _invalidate_import_index(project_path)
+            if merges:
+                warnings.extend(execute(merges, project_path))
+                _invalidate_import_index(project_path)
+                iter_ops += len(merges)
             _, _, renames = plan_naming(project_path)  # re-plan post-MERGE
             report.ops.extend(renames)
-            warnings.extend(execute(renames, project_path))
+            if renames:
+                warnings.extend(execute(renames, project_path))
+                iter_ops += len(renames)
         else:
             splits, merges, renames = plan_naming(project_path)
             report.ops.extend(splits)
             report.ops.extend(merges)
             report.ops.extend(renames)
+            iter_ops += len(splits) + len(merges) + len(renames)
+    return iter_ops
+
+
+def run(
+    project_path: Path, *, apply: bool, rules: set[str]
+) -> PipelineReport:
+    report = PipelineReport(applied=apply)
+
+    warnings: list[str] = []
+
+    # B3 fixed-point loop. The cascade of RELOCATE → SPLIT → MERGE →
+    # RENAME mutates classification: a test moved across tiers may
+    # change its `current_level` (integration tests with no I/O become
+    # unit after RELOCATE), a SPLIT may free a NAME_MISMATCH that only
+    # appeared because the audit saw the pre-split tuple. Re-iterate
+    # until either nothing new is planned or we hit the iteration cap.
+    # In dry-run mode we only need one pass (no mutation).
+    if apply:
+        for i in range(MAX_ITERATIONS):
+            report.iterations = i + 1
+            iter_ops = _run_one_iteration(
+                project_path,
+                apply=True, rules=rules, report=report, warnings=warnings,
+            )
+            if iter_ops == 0:
+                break
+    else:
+        _run_one_iteration(
+            project_path,
+            apply=False, rules=rules, report=report, warnings=warnings,
+        )
+        report.iterations = 1
 
     # Post-pipeline polish: extract shared helpers (collapse duplicates
     # left by anvil's ``shared_helpers="duplicate"`` into a single
@@ -3525,7 +3756,8 @@ def _fmt_target(t: Path | list[Path], root: Path) -> str:
 def format_report(r: PipelineReport, project_path: Path) -> str:
     lines: list[str] = []
     head = "applied" if r.applied else "dry-run"
-    lines.append(f"\nPipeline ({head}) on {project_path}")
+    iter_suffix = f" — {r.iterations} iteration(s)" if r.applied else ""
+    lines.append(f"\nPipeline ({head}{iter_suffix}) on {project_path}")
     lines.append("=" * 78)
     counts = r.by_kind()
     total = sum(counts.values())
