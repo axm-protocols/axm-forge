@@ -244,23 +244,6 @@ _MOCK_CALL_NAMES: frozenset[str] = frozenset(
     }
 )
 
-_CONTRACT_NAME_INFIXES: tuple[str, ...] = (
-    "_is_a_",
-    "_is_an_",
-    "_is_instance",
-    "_is_cyclopts",
-    "_satisfies_",
-    "_satisfies",
-    "_implements_",
-    "_implements",
-    "_conforms_to_",
-    "_conforms_",
-    "_is_axm_tool",
-    "_is_tool_result",
-    "_is_provider_port",
-    "_compliance",
-)
-
 
 @dataclass
 class Verdict:
@@ -405,11 +388,6 @@ def _is_contract_conformance_test(func: ast.FunctionDef, contracts: set[str]) ->
     if not target:
         return False
     return target in contracts or target in _STDLIB_CONTRACT_NAMES
-
-
-def _name_is_explicit_contract(name: str) -> bool:
-    low = name.lower()
-    return any(inf in low for inf in _CONTRACT_NAME_INFIXES)
 
 
 # ── Sibling traversal ─────────────────────────────────────────────────
@@ -932,12 +910,6 @@ def _exit_import_smoke(ctx: _EarlyExitCtx) -> Verdict | None:
             "step0c_contract_conformance",
             "import + isinstance against Protocol/ABC — contract test",
         )
-    if _name_is_explicit_contract(ctx.func.name):
-        return Verdict(
-            "STRENGTHEN",
-            "step0d_explicit_contract_name",
-            f"name `{ctx.func.name}` declares explicit contract check",
-        )
     if test_is_in_lazy_import_context(ctx.func, ctx.tree, ctx.test_file):
         return Verdict(
             "STRENGTHEN",
@@ -991,18 +963,6 @@ def _exit_self_compare(ctx: _EarlyExitCtx) -> Verdict | None:
     )
 
 
-def _exit_isinstance_explicit_contract(ctx: _EarlyExitCtx) -> Verdict | None:
-    if ctx.finding.pattern != "isinstance_only":
-        return None
-    if not _name_is_explicit_contract(ctx.func.name):
-        return None
-    return Verdict(
-        "STRENGTHEN",
-        "step0d_explicit_contract_name",
-        f"name `{ctx.func.name}` declares explicit contract check",
-    )
-
-
 def _exit_isinstance_conformance(ctx: _EarlyExitCtx) -> Verdict | None:
     if ctx.finding.pattern != "isinstance_only":
         return None
@@ -1021,7 +981,6 @@ _EARLY_EXIT_BUILDERS = (
     _exit_toplevel_import_not_none,
     _exit_no_siblings,
     _exit_self_compare,
-    _exit_isinstance_explicit_contract,
     _exit_isinstance_conformance,
 )
 
