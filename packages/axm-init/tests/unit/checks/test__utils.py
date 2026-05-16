@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from axm_init.checks._utils import merge_tool_sections
 
 
@@ -76,18 +78,6 @@ class TestDeepMergeMemberOnlyKey:
         assert result["tool"]["mypy"] == {"strict": True}
 
 
-class TestMemberEmptyToolSection:
-    """Member has an empty tool section — root config used entirely."""
-
-    def test_member_empty_tool_section(self) -> None:
-        base = {"tool": {"mypy": {"strict": True, "pretty": True}}}
-        override: dict[str, Any] = {"tool": {"mypy": {}}}
-
-        result = merge_tool_sections(base, override)
-
-        assert result["tool"]["mypy"] == {"strict": True, "pretty": True}
-
-
 class TestDeeplyNestedOverride:
     """Deeply nested keys from root and member are both preserved."""
 
@@ -101,21 +91,39 @@ class TestDeeplyNestedOverride:
         assert result["tool"]["ruff"]["lint"]["select"] == ["I"]
 
 
-class TestNonDictToolValue:
-    """Non-dict tool value — member replaces root (no recursion)."""
+@pytest.mark.parametrize(
+    ("base", "override", "key", "expected"),
+    [
+        pytest.param(
+            {"tool": {"mypy": {"strict": True, "pretty": True}}},
+            {"tool": {"mypy": {}}},
+            "mypy",
+            {"strict": True, "pretty": True},
+            id="member_empty_tool_section",
+        ),
+        pytest.param(
+            {"tool": {"setuptools": "legacy"}},
+            {"tool": {"setuptools": "modern"}},
+            "setuptools",
+            "modern",
+            id="non_dict_tool_value_string",
+        ),
+        pytest.param(
+            {"tool": {"setuptools": ["a", "b"]}},
+            {"tool": {"setuptools": ["c"]}},
+            "setuptools",
+            ["c"],
+            id="non_dict_tool_value_list",
+        ),
+    ],
+)
+def test_merge_tool_sections_non_recursive_override(
+    base: dict[str, Any],
+    override: dict[str, Any],
+    key: str,
+    expected: object,
+) -> None:
+    """Non-recursive override branches: empty member dict & non-dict leaf values."""
+    result = merge_tool_sections(base, override)
 
-    def test_non_dict_tool_value_string(self) -> None:
-        base = {"tool": {"setuptools": "legacy"}}
-        override = {"tool": {"setuptools": "modern"}}
-
-        result = merge_tool_sections(base, override)
-
-        assert result["tool"]["setuptools"] == "modern"
-
-    def test_non_dict_tool_value_list(self) -> None:
-        base = {"tool": {"setuptools": ["a", "b"]}}
-        override = {"tool": {"setuptools": ["c"]}}
-
-        result = merge_tool_sections(base, override)
-
-        assert result["tool"]["setuptools"] == ["c"]
+    assert result["tool"][key] == expected
