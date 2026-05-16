@@ -14,6 +14,7 @@ Example:
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -87,6 +88,8 @@ def _visit_references(node: Node, refs: set[str]) -> None:
         _collect_kwarg_ref(children, refs)
     elif node_type == "argument_list":
         _collect_argument_refs(children, refs)
+    elif node_type == "string" and _is_forward_ref_string(node):
+        _extract_forward_refs(node, refs)
 
     # Recurse into all children.
     for child in children:
@@ -165,6 +168,126 @@ def _collect_kwarg_ref(children: list[Node], refs: set[str]) -> None:
             if name:
                 refs.add(name)
             return
+
+
+# ─── Forward-reference (string-typed) detection ─────────────────────────────
+
+_IDENT_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+
+# Tree-sitter parent node types that wrap a string used as a type annotation.
+# A bare `type` node covers variable / return / parameter annotations.
+_ANNOTATION_PARENT_TYPES = frozenset({"type"})
+
+
+def _is_forward_ref_string(node: Node) -> bool:
+    """Return True when ``node`` is a string in a typing position.
+
+    Typing positions covered (Python tree-sitter grammar):
+
+    * Direct child of a ``type`` node (variable / return / parameter
+      annotation, including generic args via ``generic_type`` →
+      ``type_parameter`` → ``type``).
+    * 1st argument of a ``call`` whose function identifier is ``cast``.
+
+    Excluded:
+
+    * ``Annotated[T, *meta]`` — only the first ``type`` is a real type
+      position; the rest are metadata.
+    * ``Literal[...]`` — args are values, not types.
+    """
+    parent = node.parent
+    if parent is None:
+        return False
+    parent_type = parent.type
+    if parent_type == "argument_list":
+        return _is_cast_first_string_arg(node, parent)
+    if parent_type in _ANNOTATION_PARENT_TYPES:
+        return _is_real_type_position(parent)
+    return False
+
+
+def _is_real_type_position(type_node: Node) -> bool:
+    """True when a ``type`` node sits in a real type-position slot.
+
+    Filters out ``Annotated[T, *metadata]`` non-first args and
+    ``Literal[...]`` args, which the grammar still wraps in ``type``
+    nodes despite being values/metadata semantically.
+    """
+    parent = type_node.parent
+    if parent is None or parent.type != "type_parameter":
+        return True
+    container = _generic_container_name(parent.parent)
+    if container == "Literal":
+        return False
+    if container == "Annotated":
+        return _is_first_type_in_parameter(type_node, parent)
+    return True
+
+
+def _generic_container_name(generic_type: Node | None) -> str | None:
+    """Return the container name of a ``generic_type`` node."""
+    if generic_type is None or generic_type.type != "generic_type":
+        return None
+    for child in generic_type.children:
+        name = _trailing_identifier(child)
+        if name is not None:
+            return name
+    return None
+
+
+def _is_first_type_in_parameter(type_node: Node, type_parameter: Node) -> bool:
+    """True when ``type_node`` is the first ``type`` child of ``type_parameter``."""
+    for child in type_parameter.children:
+        if child.type == "type":
+            return child.id == type_node.id
+    return False
+
+
+def _is_cast_first_string_arg(node: Node, argument_list: Node) -> bool:
+    """True when ``node`` is the 1st arg of ``cast(...)``."""
+    call_node = argument_list.parent
+    if call_node is None or call_node.type != "call":
+        return False
+    func = call_node.child_by_field_name("function")
+    if func is None:
+        return False
+    if _trailing_identifier(func) != "cast":
+        return False
+    # First non-punctuation child of argument_list is the 1st positional arg.
+    for child in argument_list.children:
+        if child.type in ("(", ")", ","):
+            continue
+        return child.id == node.id
+    return False
+
+
+def _trailing_identifier(node: Node) -> str | None:
+    """Return the last identifier segment of an identifier/attribute node."""
+    if node.type == "identifier":
+        return node_text_safe(node) or None
+    if node.type == "attribute":
+        for child in reversed(node.children):
+            if child.type == "identifier":
+                return node_text_safe(child) or None
+    return None
+
+
+def _extract_forward_refs(node: Node, refs: set[str]) -> None:
+    """Pull every Python identifier out of a string-literal node."""
+    text = node_text_safe(node)
+    if not text:
+        return
+    # Strip the surrounding quote characters so the regex sees only the content.
+    body = text.strip()
+    for quote in ('"""', "'''", '"', "'"):
+        if (
+            body.startswith(quote)
+            and body.endswith(quote)
+            and len(body) >= 2 * len(quote)
+        ):
+            body = body[len(quote) : -len(quote)]
+            break
+    refs.update(_IDENT_RE.findall(body))
 
 
 # ─── Call extraction ─────────────────────────────────────────────────────────
