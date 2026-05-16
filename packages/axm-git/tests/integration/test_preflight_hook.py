@@ -312,3 +312,24 @@ class TestPreflightHook:
 
         assert result.success
         assert result.metadata["file_count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Entry-point discovery (formerly tests/integration/test_entry_points.py)
+# ---------------------------------------------------------------------------
+
+
+def test_preflight_hook_discoverable() -> None:
+    from importlib.metadata import entry_points
+
+    eps = entry_points(group="axm.hooks")
+    names = [ep.name for ep in eps]
+    assert "git:preflight" in names
+
+
+def test_preflight_hook_loads() -> None:
+    from importlib.metadata import entry_points
+
+    eps = entry_points(group="axm.hooks")
+    ep = next(ep for ep in eps if ep.name == "git:preflight")
+    assert ep.load() is PreflightHook
