@@ -9,6 +9,8 @@ from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality.duplicate_tests import (
     _MAX_TEXT_CLUSTERS,
     DuplicateTestsRule,
+    _cluster_hash,
+    _slim_clusters,
     collect_assert_call_sigs,
     make_test_func,
     merge_clusters,
@@ -238,3 +240,98 @@ def test_text_caps_at_max_text_clusters() -> None:
     bullet_lines = [ln for ln in text.splitlines() if ln.startswith("•")]
     assert len(bullet_lines) == _MAX_TEXT_CLUSTERS
     assert "(+5 more clusters)" in text
+
+
+# ---------------------------------------------------------------------------
+# Hash-based cluster acknowledgement (axm-1727)
+# ---------------------------------------------------------------------------
+
+
+def _raw_cluster(signal: str, tests: list[tuple[str, str, int]]) -> dict[str, Any]:
+    """Build a raw cluster shaped like the ones fed to _slim_clusters."""
+    return {
+        "signal": signal,
+        "similarity": 0.9,
+        "tests": [{"file": f, "name": n, "line": ln} for f, n, ln in tests],
+    }
+
+
+def test_cluster_hash_is_deterministic_and_order_independent() -> None:
+    """AC1: same (file, name) members in different order → identical 12-char hash."""
+    cluster_a = _raw_cluster(
+        "signal1_call_assert",
+        [
+            ("tests/test_a.py", "test_x", 10),
+            ("tests/test_b.py", "test_y", 20),
+        ],
+    )
+    cluster_b = _raw_cluster(
+        "signal1_call_assert",
+        [
+            ("tests/test_b.py", "test_y", 20),
+            ("tests/test_a.py", "test_x", 10),
+        ],
+    )
+    h_a = _cluster_hash(cluster_a)
+    h_b = _cluster_hash(cluster_b)
+    assert h_a == h_b
+    assert len(h_a) == 12
+    assert all(c in "0123456789abcdef" for c in h_a)
+
+
+def test_cluster_hash_changes_when_member_added() -> None:
+    """AC1: adding a member must change the hash (composition-stable contract)."""
+    cluster_a = _raw_cluster(
+        "signal1_call_assert",
+        [
+            ("tests/test_a.py", "test_x", 10),
+            ("tests/test_b.py", "test_y", 20),
+        ],
+    )
+    cluster_b = _raw_cluster(
+        "signal1_call_assert",
+        [
+            ("tests/test_a.py", "test_x", 10),
+            ("tests/test_b.py", "test_y", 20),
+            ("tests/test_c.py", "test_z", 30),
+        ],
+    )
+    assert _cluster_hash(cluster_a) != _cluster_hash(cluster_b)
+
+
+def test_cluster_hash_ignores_line_field() -> None:
+    """AC1: line drifts on every edit — must not invalidate acknowledgement."""
+    cluster_a = _raw_cluster(
+        "signal1_call_assert",
+        [
+            ("tests/test_a.py", "test_x", 10),
+            ("tests/test_b.py", "test_y", 20),
+        ],
+    )
+    cluster_b = _raw_cluster(
+        "signal1_call_assert",
+        [
+            ("tests/test_a.py", "test_x", 999),
+            ("tests/test_b.py", "test_y", 1),
+        ],
+    )
+    assert _cluster_hash(cluster_a) == _cluster_hash(cluster_b)
+
+
+def test_slim_clusters_attaches_hash_field() -> None:
+    """AC1: every emitted cluster carries `cluster_hash` (12 hex chars)."""
+    raw = _raw_cluster(
+        "signal1_call_assert",
+        [
+            ("tests/test_a.py", "test_x", 10),
+            ("tests/test_b.py", "test_y", 20),
+        ],
+    )
+    slim = _slim_clusters([raw])  # type: ignore[list-item]
+    assert len(slim) == 1
+    out = slim[0]
+    assert "cluster_hash" in out
+    h = out["cluster_hash"]
+    assert isinstance(h, str)
+    assert len(h) == 12
+    assert all(c in "0123456789abcdef" for c in h)

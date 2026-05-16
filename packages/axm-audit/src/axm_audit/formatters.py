@@ -135,6 +135,7 @@ def format_json(result: AuditResult) -> dict[str, object]:
                 "passed": c.passed,
                 "message": c.message,
                 "details": c.details,
+                "metadata": c.metadata or None,
             }
             for c in result.checks
         ],

@@ -7,7 +7,10 @@ ported from the ``detect_duplicates.py`` prototype.
 from __future__ import annotations
 
 import ast
+import hashlib
+import json
 import re
+import tomllib
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -23,6 +26,7 @@ from axm_audit.models.results import CheckResult, Severity
 __all__ = [
     "DuplicateTestsCheckResult",
     "DuplicateTestsRule",
+    "_cluster_hash",
     "_jaccard_similarity",
     "_p1_rescues",
     "_p2_rescues",
@@ -31,6 +35,7 @@ __all__ = [
     "_p5_rescues",
     "_p6_rescues",
     "_p7_rescues",
+    "_slim_clusters",
     "render_clusters_text",
 ]
 
@@ -52,6 +57,99 @@ class _Cluster(TypedDict, total=False):
     similarity: float
     tests: list[_TestEntry]
     members: list[_TestEntry]
+    cluster_hash: str
+    acknowledged: bool
+
+
+@dataclass
+class _DuplicateTestsConfig:
+    """Acknowledgement config loaded from ``pyproject.toml``.
+
+    Each entry in ``acknowledged`` is a dict ``{"hash": str, "reason": str}``.
+    ``error`` is populated on malformed TOML or wrong schema; never raises.
+    """
+
+    acknowledged: list[dict[str, str]]
+    error: str | None = None
+
+
+_HASH_LEN = 12
+_HASH_HEX_PATTERN = re.compile(r"^[0-9a-f]{12}$")
+
+
+def _cluster_hash(cluster: _Cluster) -> str:
+    """Compute a stable 12-hex-char hash of a cluster's ``(file, name)`` set.
+
+    The hash is order-independent (members are sorted before serialization)
+    and line-independent (only ``file`` and ``name`` participate). This makes
+    the hash robust to line drift while remaining sensitive to membership
+    changes — the exact composition is the acknowledgement contract.
+    """
+    members: list[list[str]] = sorted(
+        [str(t.get("file", "")), str(t.get("name", ""))]
+        for t in cluster.get("tests", [])
+    )
+    blob = json.dumps(members, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:_HASH_LEN]
+
+
+def _load_duplicate_tests_config(project_path: Path) -> _DuplicateTestsConfig:
+    """Read ``[tool.axm-audit.duplicate_tests].acknowledged`` from pyproject.
+
+    Missing file/section → empty list. Malformed TOML or wrong schema →
+    empty list + ``error``, never raises.
+
+    Sample::
+
+        [[tool.axm-audit.duplicate_tests.acknowledged]]
+        hash = "a1b2c3d4e5f6"
+        reason = "validated: distinct fixtures, parametrize would hurt"
+    """
+    pyproject = project_path / "pyproject.toml"
+    if not pyproject.is_file():
+        return _DuplicateTestsConfig(acknowledged=[])
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (tomllib.TOMLDecodeError, OSError, UnicodeDecodeError) as exc:
+        return _DuplicateTestsConfig(
+            acknowledged=[],
+            error=f"malformed pyproject.toml: {exc}",
+        )
+    section: object = (
+        data.get("tool", {}).get("axm-audit", {}).get("duplicate_tests", {})
+        if isinstance(data, dict)
+        else {}
+    )
+    if not isinstance(section, dict) or "acknowledged" not in section:
+        return _DuplicateTestsConfig(acknowledged=[])
+    raw = section["acknowledged"]
+    if not isinstance(raw, list):
+        return _DuplicateTestsConfig(
+            acknowledged=[],
+            error=(
+                "[tool.axm-audit.duplicate_tests] acknowledged must be a list "
+                "of tables (schema error)"
+            ),
+        )
+    parsed: list[dict[str, str]] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            error = "acknowledged entry must be a table (schema error)"
+        elif not isinstance(entry.get("hash"), str) or not _HASH_HEX_PATTERN.match(
+            entry.get("hash", "")
+        ):
+            error = "acknowledged.hash must be a 12-char hex string (schema error)"
+        elif (
+            not isinstance(entry.get("reason"), str)
+            or not str(entry.get("reason", "")).strip()
+        ):
+            error = "acknowledged.reason must be a non-empty string (schema error)"
+        else:
+            error = None
+        if error is not None:
+            return _DuplicateTestsConfig(acknowledged=[], error=error)
+        parsed.append({"hash": entry["hash"], "reason": entry["reason"]})
+    return _DuplicateTestsConfig(acknowledged=parsed)
 
 
 _RescuePredicate = Callable[[list["_TestFunc"]], bool]
@@ -82,8 +180,17 @@ def _render_cluster_members(members: list[_TestEntry]) -> str:
     return ", ".join(f"{m.get('file', '')}::{m.get('name', '')}" for m in shown)
 
 
-def render_clusters_text(clusters: list[_Cluster]) -> str:
-    """Render top-N clusters (signal + ambiguous) as a compact bullet list."""
+def render_clusters_text(
+    clusters: list[_Cluster],
+    stale_acknowledged: list[dict[str, str]] | None = None,
+) -> str:
+    """Render top-N clusters (signal + ambiguous) as a compact bullet list.
+
+    When ``stale_acknowledged`` is provided, append one warning line per
+    stale entry of the form
+    ``⚠ stale acknowledged cluster: <hash> (<reason>)``. Stale warnings
+    are suffix-only and never affect ``passed`` / ``score`` / ``severity``.
+    """
     ordered = sorted(
         clusters,
         key=lambda c: (-len(c.get("members", [])), c.get("signal", "")),
@@ -99,6 +206,11 @@ def render_clusters_text(clusters: list[_Cluster]) -> str:
         )
     if len(ordered) > _MAX_TEXT_CLUSTERS:
         lines.append(f"(+{len(ordered) - _MAX_TEXT_CLUSTERS} more clusters)")
+    for entry in stale_acknowledged or []:
+        lines.append(
+            f"⚠ stale acknowledged cluster: {entry.get('hash', '')} "
+            f"({entry.get('reason', '')})"
+        )
     return "\n".join(lines)
 
 
@@ -179,7 +291,21 @@ _P6_EXCLUDED_NAMES: frozenset[str] = frozenset(
 
 
 class DuplicateTestsCheckResult(CheckResult):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
-    """:class:`CheckResult` with cluster metadata."""
+    """:class:`CheckResult` with cluster metadata.
+
+    ``metadata`` keys:
+
+    * ``clusters`` — list of cluster payloads, each with ``cluster_hash``
+      and an optional ``acknowledged`` flag (``True`` when the hash is
+      present in ``[[tool.axm-audit.duplicate_tests.acknowledged]]``).
+    * ``bucket_counts`` — CLUSTERED / AMBIGUOUS / UNIQUE test counts.
+    * ``stale_acknowledged`` — acknowledgement entries (``{hash, reason}``)
+      whose hash no longer matches any vivant cluster. Informational only:
+      does not affect ``passed`` / ``score`` / ``severity``.
+    * ``config_error`` — present when ``pyproject.toml`` is malformed or
+      the ``[tool.axm-audit.duplicate_tests]`` schema is invalid. The audit
+      falls back to "no acknowledgements" rather than crashing.
+    """
 
     metadata: dict[str, object] = Field(default_factory=dict)
 
@@ -1272,7 +1398,9 @@ def _slim_clusters(clusters: list[_Cluster]) -> list[_Cluster]:
 
     Drops ``call_sig`` from each member and truncates ``reason`` to
     ``_REASON_MAX_LEN`` chars to keep the metadata payload bounded for
-    MCP transport.
+    MCP transport. Each output cluster carries a stable ``cluster_hash``
+    derived from the sorted ``(file, name)`` membership set — used as
+    the acknowledgement key in ``pyproject.toml``.
     """
     slim: list[_Cluster] = []
     for cluster in clusters:
@@ -1294,6 +1422,9 @@ def _slim_clusters(clusters: list[_Cluster]) -> list[_Cluster]:
                 "similarity": cluster.get("similarity", 0.0),
                 "members": members,
                 "tests": members,
+                "cluster_hash": _cluster_hash(
+                    {"tests": members},
+                ),
             }
         )
     return slim
@@ -1390,12 +1521,28 @@ class DuplicateTestsRule(ProjectRule):
                 },
             )
 
+        config = _load_duplicate_tests_config(project_path)
+        acknowledged_hashes: set[str] = {entry["hash"] for entry in config.acknowledged}
+
         clusters = _cluster(tests, self.ast_similarity_threshold)
         bucket_counts = _bucket_counts(tests, clusters)
+        slim = _slim_clusters(clusters)
+        for cluster in slim:
+            if cluster.get("cluster_hash") in acknowledged_hashes:
+                cluster["acknowledged"] = True
+
+        vivant_hashes: set[str] = {
+            c["cluster_hash"] for c in slim if "cluster_hash" in c
+        }
+        stale_acknowledged: list[dict[str, str]] = [
+            entry for entry in config.acknowledged if entry["hash"] not in vivant_hashes
+        ]
+
         n_clustered_pairs = sum(
-            _pairs_in_cluster(len(c["tests"]))
-            for c in clusters
-            if not c["signal"].startswith("ambiguous_")
+            _pairs_in_cluster(len(c.get("tests", [])))
+            for c in slim
+            if not c.get("signal", "").startswith("ambiguous_")
+            and not c.get("acknowledged", False)
         )
         score = max(0, 100 - n_clustered_pairs * _SCORE_PENALTY)
         passed = n_clustered_pairs == 0
@@ -1405,8 +1552,11 @@ class DuplicateTestsRule(ProjectRule):
             message = (
                 f"{len(clusters)} cluster(s), {n_clustered_pairs} clustered pair(s)"
             )
-        slim = _slim_clusters(clusters)
-        text = render_clusters_text(slim) if not passed else None
+        text = (
+            render_clusters_text(slim, stale_acknowledged)
+            if not passed or stale_acknowledged
+            else None
+        )
         fix_hint = (
             None
             if passed
@@ -1415,16 +1565,20 @@ class DuplicateTestsRule(ProjectRule):
                 "via distinct fixtures/asserts"
             )
         )
+        metadata: dict[str, object] = {
+            "clusters": slim,
+            "bucket_counts": bucket_counts,
+            "stale_acknowledged": stale_acknowledged,
+        }
+        if config.error:
+            metadata["config_error"] = config.error
         return DuplicateTestsCheckResult(
             rule_id=self.rule_id,
             passed=passed,
             message=message,
             severity=Severity.WARNING,
             score=score,
-            metadata={
-                "clusters": slim,
-                "bucket_counts": bucket_counts,
-            },
+            metadata=metadata,
             text=text,
             fix_hint=fix_hint,
         )
