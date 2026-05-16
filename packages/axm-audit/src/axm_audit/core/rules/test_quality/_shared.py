@@ -1384,15 +1384,34 @@ def _closure_nodes_for_test(
     Mirrors `scripts/test_orga/tuple_naming_proto.py:_closure_nodes_for_test`:
     walks the intra-module call graph, includes top-level classes referenced
     by name (synthetic subclasses, etc.), and seeds the closure with helpers
-    a method-style test directly calls. No cross-file resolution.
+    a method-style test directly calls. Top-level pytest fixtures consumed
+    by the test as parameters are also seeded, so a fixture body that
+    exercises the package counts toward the test. No cross-file resolution.
     """
-    seen_funcs = _walk_call_graph(_seed_visit_list(test_func, mod_funcs), mod_funcs)
+    seed = _seed_visit_list(test_func, mod_funcs)
+    for fixture_name in _consumed_fixture_names(test_func, mod_funcs):
+        if fixture_name not in seed:
+            seed.append(fixture_name)
+    seen_funcs = _walk_call_graph(seed, mod_funcs)
     nodes: list[ast.AST] = [mod_funcs[n] for n in seen_funcs if n in mod_funcs]
     if test_func.name not in seen_funcs:
         nodes.append(test_func)
     for cname in _referenced_class_names_in(nodes, mod_classes):
         nodes.append(mod_classes[cname])
     return nodes
+
+
+def _consumed_fixture_names(
+    test_func: ast.FunctionDef,
+    mod_funcs: dict[str, ast.FunctionDef],
+) -> list[str]:
+    """Return names of top-level pytest fixtures the test consumes by parameter."""
+    params = _func_param_names(test_func)
+    return [
+        name
+        for name in params
+        if name in mod_funcs and _is_pytest_fixture_decorator(mod_funcs[name])
+    ]
 
 
 def _walk_touches_known(node: ast.AST, known: set[str]) -> bool:
