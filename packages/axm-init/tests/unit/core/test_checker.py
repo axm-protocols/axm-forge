@@ -18,6 +18,12 @@ class TestCheckDiscovery:
         assert total == 49
         assert len(ALL_CHECKS) == 8
 
+    def test_discover_checks_includes_wheel_doc_shipping(self) -> None:
+        """Auto-discovery picks up the wheel-doc-shipping check (AXM-1715)."""
+        pyproject_fns = ALL_CHECKS.get("pyproject", [])
+        names = {fn.__name__ for fn in pyproject_fns}
+        assert "check_pyproject_wheel_doc_shipping" in names
+
     def test_discovery_categories(self) -> None:
         """All expected categories are discovered."""
         expected = {
