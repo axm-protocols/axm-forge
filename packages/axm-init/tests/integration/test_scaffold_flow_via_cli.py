@@ -10,16 +10,7 @@ from pathlib import Path
 import pytest
 
 from axm_init.cli import app
-
-# Required args for scaffold
-SCAFFOLD_ARGS = [
-    "--org",
-    "test-org",
-    "--author",
-    "Test Author",
-    "--email",
-    "test@test.com",
-]
+from tests.integration._helpers import SCAFFOLD_ARGS
 
 
 def _run(args: list[str]) -> tuple[str, int]:
