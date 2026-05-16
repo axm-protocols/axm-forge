@@ -38,6 +38,7 @@ __all__ = [
     "_references_file_dunder",
     "_source_segment_with_decorators",
     "_marker_fixtures_in_unit",
+    "_string_literal_fixtures_in_unit",
     "_collect_marker_fixtures_to_move",
     "_collect_conftest_fixtures",
 ]
@@ -476,6 +477,63 @@ def _marker_fixtures_in_unit(node: ast.stmt) -> set[str]:
     return out
 
 
+def _string_literal_fixtures_in_unit(node: ast.stmt) -> set[str]:
+    """Return fixture names referenced via runtime string lookup.
+
+    Two pytest idioms route a fixture through a string literal that
+    static reference walks miss:
+
+      * ``request.getfixturevalue("X")`` — dynamic fixture resolution
+        inside a test body. Anvil's reference scan only sees
+        ``request.getfixturevalue`` (an Attribute call) and the literal
+        ``"X"`` (a Constant), so the fixture ``X`` looks unused and
+        anvil leaves it in source.
+      * ``pytest.param("X", ..., id=...)`` inside
+        ``@pytest.mark.parametrize(("fixture_name", ...), [...])`` — the
+        parametrized argument is a fixture name later resolved via
+        ``request.getfixturevalue``. Same blind spot.
+
+    This helper collects the string-literal arguments at those two
+    sites so ``_collect_marker_fixtures_to_move`` can move the
+    fixtures alongside their dependents. We're intentionally
+    permissive: any ``request.getfixturevalue("X")`` call and any
+    ``pytest.param("X", ...)`` first-arg string counts. If the string
+    doesn't match a top-level fixture in source, the caller filters
+    it out anyway.
+    """
+    out: set[str] = set()
+    nodes_to_scan: list[ast.AST] = [node]
+    if isinstance(node, ast.ClassDef):
+        nodes_to_scan.extend(node.body)
+    for n in nodes_to_scan:
+        for child in ast.walk(n):
+            if not isinstance(child, ast.Call):
+                continue
+            fn = child.func
+            # request.getfixturevalue("X")
+            if (
+                isinstance(fn, ast.Attribute)
+                and fn.attr == "getfixturevalue"
+                and child.args
+                and isinstance(child.args[0], ast.Constant)
+                and isinstance(child.args[0].value, str)
+            ):
+                out.add(child.args[0].value)
+                continue
+            # pytest.param("X", ...)
+            if (
+                isinstance(fn, ast.Attribute)
+                and fn.attr == "param"
+                and isinstance(fn.value, ast.Name)
+                and fn.value.id == "pytest"
+                and child.args
+                and isinstance(child.args[0], ast.Constant)
+                and isinstance(child.args[0].value, str)
+            ):
+                out.add(child.args[0].value)
+    return out
+
+
 def _collect_conftest_fixtures(target: Path, project_path: Path) -> set[str]:
     """Return fixtures defined in any conftest on target's ancestor chain.
 
@@ -538,6 +596,7 @@ def _collect_marker_fixtures_to_move(
     for node in source_tree.body:
         if isinstance(node, ast.FunctionDef | ast.ClassDef) and node.name in moving:
             needed |= _marker_fixtures_in_unit(node)
+            needed |= _string_literal_fixtures_in_unit(node)
     if not needed:
         return set()
     source_fixtures: dict[str, ast.FunctionDef] = {}
