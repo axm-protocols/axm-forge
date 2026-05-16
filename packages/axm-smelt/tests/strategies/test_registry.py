@@ -3,18 +3,18 @@ from __future__ import annotations
 import pytest
 
 from axm_smelt.strategies import get_preset, get_strategy
-from axm_smelt.strategies.strip_quotes import StripQuotesStrategy
-from axm_smelt.strategies.tabular import TabularStrategy
 
 
 class TestGetStrategy:
     def test_get_strategy_tabular(self) -> None:
         s = get_strategy("tabular")
-        assert isinstance(s, TabularStrategy)
+        assert s.name == "tabular"
+        assert s.category == "structural"
 
     def test_get_strategy_strip_quotes(self) -> None:
         s = get_strategy("strip_quotes")
-        assert isinstance(s, StripQuotesStrategy)
+        assert s.name == "strip_quotes"
+        assert s.category == "cosmetic"
 
     def test_unknown_strategy(self) -> None:
         with pytest.raises(ValueError, match="Unknown strategy"):
