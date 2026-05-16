@@ -833,7 +833,10 @@ class TautologyRule(ProjectRule):
                 )
             )
 
-        n = len(all_verdicts)
+        counted = [
+            v for v in all_verdicts if v["verdict"] not in _NON_TAUTOLOGY_ACTIONS
+        ]
+        n = len(counted)
         score = max(0, 100 - n * _SCORE_PENALTY)
         passed = n == 0
         message = "no tautologies found" if passed else f"{n} tautology finding(s)"

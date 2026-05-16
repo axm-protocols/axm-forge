@@ -190,6 +190,27 @@ bands: **delete-side** (N-prefixed precondition checks that force
 the strengthen ladder), and **strengthen-side** (uniqueness / edge-case
 signals that keep the test).
 
+#### Marker opt-out (highest priority)
+
+`@pytest.mark.tautology_ok` (per-test) or `pytestmark = pytest.mark.tautology_ok` (file-level) lets authors explicitly mark an assertion as an intentional tautology. The marker fires **first** in the early-exit ladder, so it overrides every other step including the delete-side ones.
+
+| Step | Verdict | Fires when | AXM example |
+| -- | -- | -- | -- |
+| `step0_marker_opt_out` | KEEP | Test or its enclosing module carries `pytest.mark.tautology_ok` | `axm-word/tests/unit/test_layout.py::test_default_pt_size_is_safe` — narrows a `float` to satisfy mypy before a typed call. |
+
+The marker accepts an optional positional reason string (`@pytest.mark.tautology_ok("mypy narrow before typed call")`) which is captured into the verdict's `reason` field. Bare markers fall back to `"intentional tautology (no reason given)"`.
+
+`KEEP` verdicts remain in `metadata["verdicts"]` for JSON consumers and audit trails but are excluded from the finding count (`_NON_TAUTOLOGY_ACTIONS`) and from the text rendering.
+
+Downstream consumers using `--strict-markers` should register the marker in their own `pyproject.toml`:
+
+```toml
+[tool.pytest.ini_options]
+markers = [
+    "tautology_ok: opt out of TEST_QUALITY_TAUTOLOGY (optional reason arg)",
+]
+```
+
 #### Delete-side preconditions
 
 | Step | Verdict | Fires when | AXM example |
@@ -246,7 +267,7 @@ forms above are the documentation convention for this page.
 - `line` — line number of the triggering assert
 - `pattern` — one of the six detection patterns above
 - `rule` — triage step that fired (e.g. `step_0b_n_copies_constructor`)
-- `verdict` — `DELETE` / `STRENGTHEN` / `UNKNOWN`
+- `verdict` — `DELETE` / `STRENGTHEN` / `UNKNOWN` / `KEEP` (`KEEP` set by the marker opt-out; counted toward `metadata["verdicts"]` but excluded from the rule's finding count)
 - `reason` — human-readable explanation from the triage step
 
 ## No-Package-Symbol
