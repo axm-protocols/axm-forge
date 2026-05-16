@@ -158,20 +158,6 @@ def test_step0c_contract_conformance_stdlib_mapping() -> None:
     assert v.action == "STRENGTHEN"
 
 
-def test_step0d_explicit_contract_name() -> None:
-    src = (
-        "def test_Foo_satisfies_AXMTool():\n"
-        "    x = object()\n"
-        "    assert isinstance(x, object)\n"
-        "\n"
-        "def test_other():\n"
-        "    assert True\n"
-    )
-    v = _triage_first(src, target_test="test_Foo_satisfies_AXMTool")
-    assert v.action == "STRENGTHEN"
-    assert v.rule == "step0d_explicit_contract_name"
-
-
 def test_step1a_unique_fn_strengthens() -> None:
     src = (
         "from mypkg import foo, bar\n"
@@ -351,3 +337,47 @@ def test_marker_absent_falls_through_to_normal_triage() -> None:
     src = "def test_x():\n    x = object()\n    assert isinstance(x, object)\n"
     v = _triage_first(src)
     assert v.action != "KEEP"
+
+
+def test_name_with_contract_infix_no_longer_short_circuits_strengthen() -> None:
+    """AC1, AC2: name-based opt-out is gone — verdict cannot be step0d."""
+    src = (
+        "def test_Foo_satisfies_AXMTool():\n"
+        "    x = object()\n"
+        "    assert isinstance(x, object)\n"
+        "def test_sibling():\n"
+        "    assert 1 == 1\n"
+    )
+    v = _triage_first(
+        src,
+        target_test="test_Foo_satisfies_AXMTool",
+        contracts=set(),
+    )
+    assert not (
+        v.action == "STRENGTHEN" and v.rule == "step0d_explicit_contract_name"
+    ), "name-based opt-out should be removed"
+
+
+def test_structural_conformance_still_strengthens() -> None:
+    """AC3: structural Protocol/ABC isinstance still produces step0c."""
+    src = (
+        "def test_x():\n"
+        "    obj = object()\n"
+        "    assert isinstance(obj, MyProtocol)\n"
+        "def test_sibling():\n"
+        "    assert 1 == 1\n"
+    )
+    v = _triage_first(src, contracts={"MyProtocol"})
+    assert v.action == "STRENGTHEN"
+    assert v.rule == "step0c_contract_conformance"
+
+
+def test_import_smoke_no_longer_rescued_by_name() -> None:
+    """AC1: import-smoke test with contract-like name now gets DELETE."""
+    src = (
+        "def test_module_implements_protocol():\n"
+        "    from mypkg import Thing\n"
+        "    assert Thing is not None\n"
+    )
+    v = _triage_first(src, contracts=set())
+    assert v.action == "DELETE"
