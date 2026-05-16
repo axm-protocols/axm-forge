@@ -41,6 +41,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+import libcst as cst
 from axm_audit.core.auditor import audit_project
 from axm_audit.core.rules.test_quality._shared import (
     canonical_filename,
@@ -53,6 +54,48 @@ try:
     from axm_anvil.core.move import move_symbols
 except ImportError:  # pragma: no cover
     move_symbols = None  # type: ignore[assignment]
+
+
+# ---------------------------------------------------------------------------
+# libcst helpers — source-fidelity writes
+# ---------------------------------------------------------------------------
+#
+# The proto reads with ast (fast, sufficient for analysis) but writes with
+# libcst (preserves quote style, indentation, comments, trailing whitespace
+# — everything ast.unparse silently loses). Migrating mutating helpers to
+# libcst is what gives us back the triple-quoted strings, comments, and
+# blank-line spacing that ast.unparse erases. axm-anvil itself works the
+# same way under the hood.
+
+
+def _cst_load(path: Path) -> cst.Module | None:
+    """Read *path* and parse it as a libcst Module. None on parse error."""
+    try:
+        return cst.parse_module(path.read_text())
+    except cst.ParserSyntaxError:
+        return None
+
+
+def _cst_save(path: Path, module: cst.Module) -> None:
+    """Write *module* back to *path* using its serialised form."""
+    path.write_text(module.code)
+
+
+def _cst_top_level(module: cst.Module) -> list[cst.BaseStatement]:
+    """Return the module's top-level body as a mutable list."""
+    return list(module.body)
+
+
+def _cst_unwrap(stmt: cst.BaseStatement) -> cst.BaseSmallStatement | cst.BaseCompoundStatement:
+    """Unwrap a SimpleStatementLine to its first small statement, if any.
+
+    libcst wraps top-level small statements (imports, assigns) inside
+    ``SimpleStatementLine``. For comparisons / extraction we usually want
+    the inner statement (Import, ImportFrom, Assign, …).
+    """
+    if isinstance(stmt, cst.SimpleStatementLine) and stmt.body:
+        return stmt.body[0]
+    return stmt  # type: ignore[return-value]
 
 NON_DETERMINISTIC_RULES = frozenset(
     {
@@ -128,6 +171,21 @@ def _abspath(p: str, project_path: Path) -> Path:
     """Normalise a finding path (which may be relative or absolute)."""
     pp = Path(p)
     return pp if pp.is_absolute() else (project_path / pp)
+
+
+def _safe_filename(name: str) -> str:
+    """Make a canonical filename PEP8-importable.
+
+    The FILE_NAMING rule emits ``test_<a>-<b>.py`` (dash separator).  Python
+    rejects ``-`` in module names (ruff N999), and even though pytest
+    collects such files, downstream tooling (importlib, mypy, IDE) breaks.
+    Substitute ``-`` with ``__`` (double underscore) — keeps the visual
+    separation between top-K elements while staying a valid identifier.
+    """
+    if not name.endswith(".py"):
+        return name
+    stem = name[:-3]
+    return stem.replace("-", "__") + ".py"
 
 
 def _check_by_rule(project_path: Path, rule_id: str) -> list[dict[str, Any]]:
@@ -254,6 +312,7 @@ def _execute_flatten(op: FileOp, project_path: Path) -> list[str]:
     for class_name in op.split_map.keys():
         text = _flatten_class_to_top_level(text, class_name)
     op.source.write_text(text)
+    _reorder_module_statements(op.source)
     return [f"flatten: rewrote {op.source.name} ({list(op.split_map.keys())})"]
 
 
@@ -321,7 +380,7 @@ def plan_naming(project_path: Path) -> tuple[list[FileOp], list[FileOp], list[Fi
         # AXM-1722 should expose `suggested_splits` (list of canonical names);
         # if absent, fall back to the file's `tuple` field flattened.
         suggested = d.get("suggested_splits") or [d.get("proposed_name", "")]
-        suggested = [s for s in suggested if s]
+        suggested = [_safe_filename(s) for s in suggested if s]
         targets = [src.parent / s for s in suggested]
         splits.append(
             FileOp(
@@ -357,7 +416,7 @@ def plan_naming(project_path: Path) -> tuple[list[FileOp], list[FileOp], list[Fi
         src = Path(d["path"])
         if src in consumed:
             continue
-        proposed = d.get("proposed_name", "")
+        proposed = _safe_filename(d.get("proposed_name", ""))
         if not proposed or src.name == proposed:
             continue
         renames.append(
@@ -552,18 +611,18 @@ def _per_unit_canonical(
     # Top-level funcs
     for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-            name = _func_canonical(
+            name = _safe_filename(_func_canonical(
                 node, tree, tier=tier, pkg_prefixes=pkg_prefixes,
                 scripts=scripts, single_binary=single_binary,
-            )
+            ))
             routes[name].append(node.name)
     # Test* classes — only if homogeneous (else caller should flatten)
     for cls in _top_level_test_classes(tree):
         method_canonicals = {
-            _func_canonical(
+            _safe_filename(_func_canonical(
                 c, tree, tier=tier, pkg_prefixes=pkg_prefixes,
                 scripts=scripts, single_binary=single_binary,
-            )
+            ))
             for c in cls.body
             if isinstance(c, ast.FunctionDef) and c.name.startswith("test_")
         }
@@ -584,10 +643,10 @@ def _class_needs_flatten(
 ) -> bool:
     """True iff this class's methods have ≥2 distinct canonical filenames."""
     canonicals = {
-        _func_canonical(
+        _safe_filename(_func_canonical(
             c, tree, tier=tier, pkg_prefixes=pkg_prefixes,
             scripts=scripts, single_binary=single_binary,
-        )
+        ))
         for c in cls.body
         if isinstance(c, ast.FunctionDef) and c.name.startswith("test_")
     }
@@ -598,35 +657,50 @@ def _flatten_class_to_top_level(source_text: str, class_name: str) -> str:
     """Transform `class TestX: def test_a(self, ...): ...` into top-level funcs.
 
     Removes the class wrapper; promotes each test_* method by dropping
-    `self` from its parameter list. Decorators on methods are preserved.
+    `self` from its parameter list. Decorators, comments and blank lines
+    around each method are preserved (libcst is lossless on these).
     Other bodies inside the class (helpers, fixtures) are also promoted
     to top-level — they may conflict with module-level names; caller is
     expected to verify with _class_is_pathological first.
     """
-    tree = ast.parse(source_text)
-    new_body: list[ast.stmt] = []
-    for node in tree.body:
-        if not (
-            isinstance(node, ast.ClassDef) and node.name == class_name
-        ):
-            new_body.append(node)
+    module = cst.parse_module(source_text)
+    new_body: list[cst.BaseStatement] = []
+    for stmt in module.body:
+        if not (isinstance(stmt, cst.ClassDef) and stmt.name.value == class_name):
+            new_body.append(stmt)
             continue
-        for child in node.body:
-            if isinstance(child, ast.FunctionDef):
-                # Drop `self` parameter if present
-                args = child.args
-                if args.args and args.args[0].arg == "self":
-                    args.args = args.args[1:]
-                new_body.append(child)
-            elif isinstance(child, ast.Expr) and isinstance(
-                child.value, ast.Constant
-            ):
-                # docstring — drop (it was the class docstring)
-                pass
-            else:
-                new_body.append(child)
-    tree.body = new_body
-    return ast.unparse(tree) + "\n"
+        # Drop the class wrapper; promote its body. The class body is an
+        # IndentedBlock whose children are BaseStatement-level nodes.
+        for child in stmt.body.body:
+            promoted = _flatten_class_child(child)
+            if promoted is not None:
+                new_body.append(promoted)
+    return module.with_changes(body=new_body).code
+
+
+def _flatten_class_child(
+    child: cst.BaseStatement,
+) -> cst.BaseStatement | None:
+    """Promote one child of a Test* class body to module level.
+
+    Returns None to drop (class docstring); returns the (possibly
+    rewritten) statement otherwise. For FunctionDef, strips the ``self``
+    parameter so the promoted top-level function takes the same args
+    pytest expects.
+    """
+    # Class docstring: SimpleStatementLine wrapping a single Expr(SimpleString)
+    if isinstance(child, cst.SimpleStatementLine) and len(child.body) == 1:
+        inner = child.body[0]
+        if isinstance(inner, cst.Expr) and isinstance(
+            inner.value, cst.SimpleString | cst.ConcatenatedString
+        ):
+            return None
+    if isinstance(child, cst.FunctionDef):
+        params = child.params
+        if params.params and params.params[0].name.value == "self":
+            new_params = params.with_changes(params=tuple(params.params[1:]))
+            return child.with_changes(params=new_params)
+    return child
 
 
 def _execute_split(op: FileOp, project_path: Path) -> list[str]:
@@ -679,10 +753,10 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
             continue
         target = op.source.parent / canonical
         if not target.exists():
-            target.write_text(
-                f'"""Tests for canonical tuple ``{canonical}`` — split from '
-                f"{op.source.name}.\"\"\"\n"
-            )
+            # Minimal docstring — the file name already names the
+            # canonical tuple, so we only record the provenance to make
+            # the split traceable on review.
+            target.write_text(f'"""Split from ``{op.source.name}``."""\n')
         sub_warnings, _ = _safe_move_units(
             op.source, target, unit_names, project_path
         )
@@ -784,6 +858,14 @@ def _safe_move_units(
         shared_helpers="duplicate",
     )
     warnings.extend(plan.warnings)
+    # Post-move corrections (anvil leaves some gaps that break import/runtime):
+    #   - missing imports for names appearing only in type annotations
+    #   - module-level assignments that reference functions defined later
+    backfilled = _backfill_missing_imports(source, target, project_path)
+    warnings.extend(backfilled)
+    _reorder_module_statements(target)
+    if source.exists():
+        _reorder_module_statements(source)
     return warnings, final_units
 
 
@@ -833,31 +915,755 @@ def _execute_merge(op: FileOp, project_path: Path) -> list[str]:
 
 
 def _delete_function_from_source(source: Path, func_name: str) -> None:
-    """Remove a top-level FunctionDef from source by rewriting the AST."""
-    tree = ast.parse(source.read_text())
-    tree.body = [
-        n
-        for n in tree.body
-        if not (isinstance(n, ast.FunctionDef) and n.name == func_name)
+    """Remove a top-level FunctionDef from source, preserving formatting."""
+    module = _cst_load(source)
+    if module is None:
+        return
+    new_body = [
+        stmt
+        for stmt in module.body
+        if not (isinstance(stmt, cst.FunctionDef) and stmt.name.value == func_name)
     ]
-    source.write_text(ast.unparse(tree) + "\n")
+    _cst_save(source, module.with_changes(body=new_body))
+
+
+_BUILTINS = set(dir(__builtins__) if isinstance(__builtins__, dict) else dir(__builtins__))
+
+
+def _collect_imported_names(
+    tree: ast.Module,
+) -> dict[str, tuple[ast.stmt, ast.stmt | None]]:
+    """Return {imported_name: (import_stmt, enclosing_block_or_None)}.
+
+    Walks the whole module — not just top-level — so that ``if TYPE_CHECKING``
+    blocks are scanned too.  ``enclosing_block`` is the ``if TYPE_CHECKING:``
+    statement (or similar) wrapping the import, or None for top-level.
+
+    For ``from x import y`` and ``from x import y as z``, the mapping uses
+    the local binding name (``y`` or ``z``).
+    """
+    out: dict[str, tuple[ast.stmt, ast.stmt | None]] = {}
+
+    def visit(stmts: list[ast.stmt], enclosing: ast.stmt | None) -> None:
+        for stmt in stmts:
+            if isinstance(stmt, ast.Import):
+                for alias in stmt.names:
+                    local = alias.asname or alias.name.split(".")[0]
+                    out[local] = (stmt, enclosing)
+            elif isinstance(stmt, ast.ImportFrom):
+                for alias in stmt.names:
+                    local = alias.asname or alias.name
+                    out[local] = (stmt, enclosing)
+            elif isinstance(stmt, ast.If):
+                # if TYPE_CHECKING: ... — walk into both branches with self
+                # as the enclosing wrapper
+                visit(stmt.body, stmt)
+                visit(stmt.orelse, stmt)
+            elif isinstance(stmt, ast.Try):
+                visit(stmt.body, stmt)
+                for handler in stmt.handlers:
+                    visit(handler.body, stmt)
+                visit(stmt.orelse, stmt)
+                visit(stmt.finalbody, stmt)
+
+    visit(tree.body, None)
+    return out
+
+
+def _collect_defined_names(tree: ast.Module) -> set[str]:
+    """Names defined at module top-level (functions, classes, assignments)."""
+    out: set[str] = set()
+    for stmt in tree.body:
+        if isinstance(stmt, ast.FunctionDef | ast.ClassDef | ast.AsyncFunctionDef):
+            out.add(stmt.name)
+        elif isinstance(stmt, ast.Assign):
+            for tgt in stmt.targets:
+                if isinstance(tgt, ast.Name):
+                    out.add(tgt.id)
+        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            out.add(stmt.target.id)
+    return out
+
+
+def _collect_referenced_names(tree: ast.Module) -> set[str]:
+    """Names actually referenced from live top-level symbols.
+
+    Restricted to ``Name(Load)`` reachable from:
+      * decorators on top-level FunctionDef / ClassDef
+      * class bases and keywords
+      * argument annotations + default expressions of top-level functions
+      * function bodies of top-level FunctionDef / ClassDef methods
+        (excluding nested string literals, which ast.walk would otherwise
+        pick up if someone embedded a textwrap.dedent block)
+      * top-level Assign / AnnAssign right-hand sides
+
+    Walking the *whole module* — as the previous implementation did —
+    picks up identifiers inside dead branches, string literals parsed by
+    callers via ``ast.parse(some_dedent_block)``, etc. and triggers F401
+    backfills for names that aren't really used.
+    """
+    out: set[str] = set()
+
+    def add_names(node: ast.AST) -> None:
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
+                out.add(sub.id)
+
+    for stmt in tree.body:
+        if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef):
+            for dec in stmt.decorator_list:
+                add_names(dec)
+            for arg in (
+                *stmt.args.posonlyargs,
+                *stmt.args.args,
+                *stmt.args.kwonlyargs,
+            ):
+                if arg.annotation is not None:
+                    add_names(arg.annotation)
+            if stmt.args.vararg and stmt.args.vararg.annotation:
+                add_names(stmt.args.vararg.annotation)
+            if stmt.args.kwarg and stmt.args.kwarg.annotation:
+                add_names(stmt.args.kwarg.annotation)
+            for default in (*stmt.args.defaults, *stmt.args.kw_defaults):
+                if default is not None:
+                    add_names(default)
+            if stmt.returns is not None:
+                add_names(stmt.returns)
+            for child in stmt.body:
+                add_names(child)
+        elif isinstance(stmt, ast.ClassDef):
+            for dec in stmt.decorator_list:
+                add_names(dec)
+            for base in stmt.bases:
+                add_names(base)
+            for kw in stmt.keywords:
+                add_names(kw.value)
+            for child in stmt.body:
+                add_names(child)
+        elif isinstance(stmt, ast.Assign):
+            add_names(stmt.value)
+        elif isinstance(stmt, ast.AnnAssign):
+            if stmt.annotation is not None:
+                add_names(stmt.annotation)
+            if stmt.value is not None:
+                add_names(stmt.value)
+        elif isinstance(stmt, ast.If):
+            # if TYPE_CHECKING: imports live here, not interesting; but
+            # other guarded code (e.g. version checks) may reference real
+            # symbols. Walk the bodies but not the test (which uses names
+            # like TYPE_CHECKING that we don't want to flag).
+            for child in (*stmt.body, *stmt.orelse):
+                add_names(child)
+    return out
+
+
+_PROJECT_IMPORT_INDEX_CACHE: dict[
+    Path, dict[str, tuple[ast.stmt, ast.stmt | None]]
+] = {}
+
+
+def _project_import_index(
+    project_path: Path,
+) -> dict[str, tuple[ast.stmt, ast.stmt | None]]:
+    """Build (and cache) ``{name: (import_stmt, enclosing_block)}`` for the project.
+
+    Walks every ``test_*.py`` under ``tests/`` ONCE and indexes every
+    imported name. Subsequent calls reuse the cache — without it,
+    ``_scan_tests_for_import`` re-parses ~170 files per missing name and
+    dominates wall time (7 min+ on the corpus).
+
+    Cache is invalidated by callers when they know files have changed
+    (see ``_invalidate_import_index``). Within a stage that only adds new
+    imports to already-indexed files, the cache stays consistent because
+    we only ever LOOK UP names — we don't depend on which file an import
+    came from beyond the AST nodes themselves.
+    """
+    if project_path in _PROJECT_IMPORT_INDEX_CACHE:
+        return _PROJECT_IMPORT_INDEX_CACHE[project_path]
+    index: dict[str, tuple[ast.stmt, ast.stmt | None]] = {}
+    seen_dirs: set[Path] = set()
+    for tdir in ("tests/integration", "tests/e2e", "tests/unit", "tests"):
+        d = project_path / tdir
+        if not d.exists() or d in seen_dirs:
+            continue
+        seen_dirs.add(d)
+        for p in d.rglob("test_*.py"):
+            try:
+                tree = ast.parse(p.read_text())
+            except (SyntaxError, OSError):
+                continue
+            for name, pair in _collect_imported_names(tree).items():
+                index.setdefault(name, pair)
+    _PROJECT_IMPORT_INDEX_CACHE[project_path] = index
+    return index
+
+
+def _invalidate_import_index(project_path: Path) -> None:
+    """Drop the cached import index for *project_path*.
+
+    Called between pipeline stages that may move files around (RELOCATE,
+    SPLIT, MERGE, RENAME) — those changes could in principle add new
+    imports or remove a file, and the next consumer should see a fresh
+    snapshot. Cheap: the next lookup repopulates lazily.
+    """
+    _PROJECT_IMPORT_INDEX_CACHE.pop(project_path, None)
+
+
+def _scan_tests_for_import(
+    project_path: Path, name: str
+) -> tuple[ast.stmt, ast.stmt | None] | None:
+    """O(1) lookup of an imported *name* anywhere in the project's tests."""
+    return _project_import_index(project_path).get(name)
+
+
+def _backfill_missing_imports(
+    source: Path, target: Path, project_path: Path | None = None
+) -> list[str]:
+    """Copy imports from *source* into *target* for names target uses but doesn't define.
+
+    Falls back to scanning all test files under ``project_path`` if the
+    immediate source doesn't have the import — covers cases where the
+    original import was lost by an earlier move.
+
+    Hybrid: analyse with ast (cheap, well-tested), write with libcst so
+    triple-quoted strings, blank lines, and comments in the target file
+    are preserved byte-for-byte.
+    """
+    if not target.exists():
+        return []
+    try:
+        tgt_tree = ast.parse(target.read_text())
+    except SyntaxError:
+        return []
+    src_tree: ast.Module | None = None
+    if source.exists():
+        try:
+            src_tree = ast.parse(source.read_text())
+        except SyntaxError:
+            src_tree = None
+
+    src_imports = _collect_imported_names(src_tree) if src_tree else {}
+    tgt_imports = _collect_imported_names(tgt_tree)
+    tgt_defined = _collect_defined_names(tgt_tree)
+    tgt_refs = _collect_referenced_names(tgt_tree)
+
+    missing = (
+        tgt_refs
+        - set(tgt_imports.keys())
+        - tgt_defined
+        - _BUILTINS
+        - {"self", "cls", "True", "False", "None"}
+    )
+    recoverable: dict[str, tuple[ast.stmt, ast.stmt | None]] = {
+        name: src_imports[name] for name in missing if name in src_imports
+    }
+    still_missing = missing - set(recoverable.keys())
+    if still_missing and project_path is not None:
+        for name in still_missing:
+            found = _scan_tests_for_import(project_path, name)
+            if found is not None:
+                recoverable[name] = found
+
+    if not recoverable:
+        return []
+
+    # Bucket recovered imports: top-level vs TYPE_CHECKING-wrapped.
+    # We dedupe by ast-stmt identity, so a single ``from x import a, b``
+    # that supplied two missing names is added once.
+    top_level_ast: list[ast.stmt] = []
+    type_checking_ast: list[ast.stmt] = []
+    seen_top: set[int] = set()
+    seen_tc: set[int] = set()
+    msgs: list[str] = []
+    for name, (stmt, enclosing) in recoverable.items():
+        msgs.append(f"backfilled import for `{name}` from {source.name}")
+        is_tc = (
+            enclosing is not None
+            and isinstance(enclosing, ast.If)
+            and isinstance(enclosing.test, ast.Name)
+            and enclosing.test.id == "TYPE_CHECKING"
+        )
+        bucket, seen = (
+            (type_checking_ast, seen_tc) if is_tc else (top_level_ast, seen_top)
+        )
+        if id(stmt) not in seen:
+            bucket.append(stmt)
+            seen.add(id(stmt))
+
+    # Convert each ast import → fresh libcst statement (we don't try to
+    # transplant the source's libcst node because the source file may
+    # have been mutated since the analysis read).
+    top_level_cst = [_ast_import_to_cst(s) for s in top_level_ast]
+    type_checking_cst = [_ast_import_to_cst(s) for s in type_checking_ast]
+
+    cst_module = _cst_load(target)
+    if cst_module is None:
+        return msgs
+    new_body = _insert_imports_cst(
+        cst_module, top_level_cst, type_checking_cst
+    )
+    new_module = cst_module.with_changes(body=new_body)
+    new_module = _dedupe_imports_cst(new_module)
+    _cst_save(target, new_module)
+    return msgs
+
+
+def _ast_import_to_cst(stmt: ast.stmt) -> cst.SimpleStatementLine:
+    """Convert an ast import statement to a libcst SimpleStatementLine.
+
+    Handles ``import x``, ``import x as y``, ``import x.y``, ``from m
+    import a, b as c``, and relative ``from .m import x`` forms. Any
+    other ast node is wrapped as a trailing comment line — should not
+    happen in practice since the buckets only contain ast.Import /
+    ast.ImportFrom from ``_collect_imported_names``.
+    """
+    if isinstance(stmt, ast.Import):
+        names = [
+            cst.ImportAlias(
+                name=_dotted_name_to_cst(a.name),
+                asname=cst.AsName(name=cst.Name(a.asname)) if a.asname else None,
+            )
+            for a in stmt.names
+        ]
+        return cst.SimpleStatementLine(body=[cst.Import(names=names)])
+    if isinstance(stmt, ast.ImportFrom):
+        names = [
+            cst.ImportAlias(
+                name=cst.Name(a.name),
+                asname=cst.AsName(name=cst.Name(a.asname)) if a.asname else None,
+            )
+            for a in stmt.names
+        ]
+        module = (
+            _dotted_name_to_cst(stmt.module) if stmt.module else None
+        )
+        return cst.SimpleStatementLine(
+            body=[
+                cst.ImportFrom(
+                    module=module,
+                    names=names,
+                    relative=[cst.Dot()] * (stmt.level or 0),
+                )
+            ]
+        )
+    # Defensive fallback: emit a placeholder comment line (parses but is
+    # visually obvious). This branch should be unreachable.
+    return cst.SimpleStatementLine(
+        body=[cst.Expr(cst.SimpleString(value='"# unrecognised import"'))]
+    )
+
+
+def _dotted_name_to_cst(dotted: str) -> cst.Attribute | cst.Name:
+    """Build a libcst dotted name from ``a.b.c``."""
+    parts = dotted.split(".")
+    node: cst.Attribute | cst.Name = cst.Name(parts[0])
+    for part in parts[1:]:
+        node = cst.Attribute(value=node, attr=cst.Name(part))
+    return node
+
+
+def _is_cst_import(stmt: cst.BaseStatement) -> bool:
+    """True iff stmt is a SimpleStatementLine wrapping Import/ImportFrom."""
+    if not isinstance(stmt, cst.SimpleStatementLine):
+        return False
+    return any(
+        isinstance(small, cst.Import | cst.ImportFrom) for small in stmt.body
+    )
+
+
+def _is_cst_type_checking_block(stmt: cst.BaseStatement) -> bool:
+    """True iff stmt is ``if TYPE_CHECKING:`` (no elif, no else conditions matter)."""
+    if not isinstance(stmt, cst.If):
+        return False
+    test = stmt.test
+    return isinstance(test, cst.Name) and test.value == "TYPE_CHECKING"
+
+
+def _insert_imports_cst(
+    module: cst.Module,
+    top_level: list[cst.SimpleStatementLine],
+    type_checking: list[cst.SimpleStatementLine],
+) -> list[cst.BaseStatement]:
+    """Return a new top-level body with the new imports placed sensibly.
+
+    Top-level imports go after the last existing top-level import (or at
+    the start). TYPE_CHECKING-bucket imports go into an existing
+    ``if TYPE_CHECKING:`` block if present, else into a new one
+    (preceded by ``from typing import TYPE_CHECKING`` if needed).
+    """
+    body = list(module.body)
+
+    last_import_idx = -1
+    for i, stmt in enumerate(body):
+        if _is_cst_import(stmt):
+            last_import_idx = i
+    insert_at = last_import_idx + 1
+    if top_level:
+        body = body[:insert_at] + list(top_level) + body[insert_at:]
+
+    if not type_checking:
+        return body
+
+    # Existing TYPE_CHECKING block?
+    for i, stmt in enumerate(body):
+        if _is_cst_type_checking_block(stmt):
+            assert isinstance(stmt, cst.If)
+            new_inner = list(stmt.body.body) + list(type_checking)
+            body[i] = stmt.with_changes(
+                body=stmt.body.with_changes(body=new_inner)
+            )
+            return body
+
+    # New block needed. Add ``from typing import TYPE_CHECKING`` first
+    # if it isn't already imported.
+    has_tc_import = False
+    for stmt in body:
+        if not isinstance(stmt, cst.SimpleStatementLine):
+            continue
+        for small in stmt.body:
+            if isinstance(small, cst.ImportFrom):
+                mod = small.module
+                if (
+                    isinstance(mod, cst.Name)
+                    and mod.value == "typing"
+                    and any(
+                        isinstance(a.name, cst.Name)
+                        and a.name.value == "TYPE_CHECKING"
+                        for a in small.names
+                    )
+                ):
+                    has_tc_import = True
+
+    new_block = cst.If(
+        test=cst.Name("TYPE_CHECKING"),
+        body=cst.IndentedBlock(body=list(type_checking)),
+    )
+    insert_pos = last_import_idx + 1 + len(top_level)
+    if has_tc_import:
+        body = body[:insert_pos] + [new_block] + body[insert_pos:]
+    else:
+        tc_import = cst.SimpleStatementLine(
+            body=[
+                cst.ImportFrom(
+                    module=cst.Name("typing"),
+                    names=[cst.ImportAlias(name=cst.Name("TYPE_CHECKING"))],
+                    relative=[],
+                )
+            ]
+        )
+        body = body[:insert_pos] + [tc_import, new_block] + body[insert_pos:]
+    return body
+
+
+def _dedupe_imports_cst(module: cst.Module) -> cst.Module:
+    """Collapse duplicate import bindings at module top-level and in TC blocks.
+
+    Two-level dedup:
+      1. Exact-triple ``(module, name, asname)`` — the obvious case where
+         the same merge re-injects an identical import.
+      2. **Local-binding shadow** — when a later alias would shadow an
+         earlier *local name* even though it comes from a different
+         module (e.g. ``from a import X`` then ``from a.b import X``).
+         Ruff's F811 catches this; we drop the later one (first import
+         wins, matching Python's normal "first binding survives until
+         re-bound" execution semantics — which is what authors usually
+         expected when both happened to land in the same file via merges).
+    """
+    seen_triples: set[tuple[str, str, str | None]] = set()
+    seen_locals: set[str] = set()
+
+    def key_of(prefix: str, alias: cst.ImportAlias) -> tuple[str, str, str | None]:
+        name = _cst_name_to_str(alias.name)
+        asname = (
+            _cst_name_to_str(alias.asname.name)
+            if alias.asname is not None
+            else None
+        )
+        return (prefix, name, asname)
+
+    def local_name(prefix: str, alias: cst.ImportAlias) -> str:
+        """The local binding name introduced by an alias."""
+        if alias.asname is not None:
+            return _cst_name_to_str(alias.asname.name)
+        full = _cst_name_to_str(alias.name)
+        # For ``import a.b.c`` the local binding is ``a``; for
+        # ``from m import a.b`` (illegal but defensive) take the head.
+        # For ``from m import x`` the local binding is just ``x``.
+        if prefix == "":
+            return full.split(".")[0]
+        return full
+
+    def is_duplicate(prefix: str, alias: cst.ImportAlias) -> bool:
+        if key_of(prefix, alias) in seen_triples:
+            return True
+        if local_name(prefix, alias) in seen_locals:
+            return True
+        return False
+
+    def record(prefix: str, alias: cst.ImportAlias) -> None:
+        seen_triples.add(key_of(prefix, alias))
+        seen_locals.add(local_name(prefix, alias))
+
+    def dedupe_simple(stmt: cst.SimpleStatementLine) -> cst.SimpleStatementLine | None:
+        new_small: list[cst.BaseSmallStatement] = []
+        for small in stmt.body:
+            if isinstance(small, cst.Import):
+                kept = [a for a in small.names if not is_duplicate("", a)]
+                for a in kept:
+                    record("", a)
+                if kept:
+                    new_small.append(small.with_changes(names=kept))
+            elif isinstance(small, cst.ImportFrom):
+                level = len(small.relative)
+                module_str = _cst_name_to_str(small.module) if small.module else ""
+                prefix = "." * level + module_str
+                if isinstance(small.names, cst.ImportStar):
+                    new_small.append(small)
+                    continue
+                kept = [a for a in small.names if not is_duplicate(prefix, a)]
+                for a in kept:
+                    record(prefix, a)
+                if kept:
+                    new_small.append(small.with_changes(names=kept))
+            else:
+                new_small.append(small)
+        if not new_small:
+            return None
+        return stmt.with_changes(body=new_small)
+
+    new_body: list[cst.BaseStatement] = []
+    for stmt in module.body:
+        if isinstance(stmt, cst.SimpleStatementLine):
+            replaced = dedupe_simple(stmt)
+            if replaced is not None:
+                new_body.append(replaced)
+            continue
+        if _is_cst_type_checking_block(stmt):
+            assert isinstance(stmt, cst.If)
+            new_inner: list[cst.BaseStatement] = []
+            for inner in stmt.body.body:
+                if isinstance(inner, cst.SimpleStatementLine):
+                    replaced = dedupe_simple(inner)
+                    if replaced is not None:
+                        new_inner.append(replaced)
+                else:
+                    new_inner.append(inner)
+            if new_inner:
+                new_body.append(
+                    stmt.with_changes(
+                        body=stmt.body.with_changes(body=new_inner)
+                    )
+                )
+            continue
+        new_body.append(stmt)
+    return module.with_changes(body=new_body)
+
+
+def _cst_name_to_str(node: cst.BaseExpression | cst.Name | cst.Attribute) -> str:
+    """Stringify a (possibly dotted) cst Name/Attribute."""
+    if isinstance(node, cst.Name):
+        return node.value
+    if isinstance(node, cst.Attribute):
+        return f"{_cst_name_to_str(node.value)}.{node.attr.value}"
+    return ""
+
+
+def _stmt_defines(stmt: ast.stmt) -> set[str]:
+    """Names a top-level statement defines (for the module-level scope)."""
+    out: set[str] = set()
+    if isinstance(stmt, ast.FunctionDef | ast.ClassDef | ast.AsyncFunctionDef):
+        out.add(stmt.name)
+    elif isinstance(stmt, ast.Assign):
+        for tgt in stmt.targets:
+            if isinstance(tgt, ast.Name):
+                out.add(tgt.id)
+    elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+        out.add(stmt.target.id)
+    elif isinstance(stmt, ast.Import):
+        for alias in stmt.names:
+            out.add(alias.asname or alias.name.split(".")[0])
+    elif isinstance(stmt, ast.ImportFrom):
+        for alias in stmt.names:
+            out.add(alias.asname or alias.name)
+    return out
+
+
+def _stmt_references(stmt: ast.stmt) -> set[str]:
+    """Names a statement references at MODULE-EXECUTION time.
+
+    For a FunctionDef/ClassDef, this is the *decorators* and class bases,
+    NOT the body (the body executes when the function is called, not at
+    module import). For an Assign, this is the right-hand side.
+    """
+    out: set[str] = set()
+    if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef):
+        for dec in stmt.decorator_list:
+            for sub in ast.walk(dec):
+                if isinstance(sub, ast.Name):
+                    out.add(sub.id)
+    elif isinstance(stmt, ast.ClassDef):
+        for dec in stmt.decorator_list:
+            for sub in ast.walk(dec):
+                if isinstance(sub, ast.Name):
+                    out.add(sub.id)
+        for base in stmt.bases:
+            for sub in ast.walk(base):
+                if isinstance(sub, ast.Name):
+                    out.add(sub.id)
+        for kw in stmt.keywords:
+            for sub in ast.walk(kw.value):
+                if isinstance(sub, ast.Name):
+                    out.add(sub.id)
+    elif isinstance(stmt, ast.Assign):
+        for sub in ast.walk(stmt.value):
+            if isinstance(sub, ast.Name):
+                out.add(sub.id)
+    elif isinstance(stmt, ast.AnnAssign):
+        if stmt.value is not None:
+            for sub in ast.walk(stmt.value):
+                if isinstance(sub, ast.Name):
+                    out.add(sub.id)
+    elif isinstance(stmt, ast.Expr):
+        for sub in ast.walk(stmt.value):
+            if isinstance(sub, ast.Name):
+                out.add(sub.id)
+    return out
+
+
+def _reorder_module_statements(path: Path) -> None:
+    """Reorder a module's top-level statements so definitions precede uses.
+
+    After SPLIT/MERGE/FLATTEN, axm-anvil can leave statements in an order
+    that breaks Python's module-execution semantics:
+      * ``_skip_no_tools = pytest.mark.skipif(_tools_available())`` before
+        ``def _tools_available()`` → NameError at import.
+      * ``@_skip_no_tools`` decorator on a class, before the assign that
+        defines ``_skip_no_tools`` → NameError.
+
+    Strategy: stable topological sort. Imports stay first (they have no
+    intra-module deps). For the rest, each statement is placed after the
+    last statement that defines a name it references at module-execution
+    time. References inside function bodies do NOT count — they're
+    deferred. Order is preserved within independent groups.
+
+    Implementation note: we parse twice — once with libcst (the source
+    of truth for formatting; what we'll write back) and once with ast
+    (for cheap defines/references analysis). The libcst statements are
+    reordered by index, not rebuilt, so triple-quoted strings, comments,
+    and blank-line spacing all survive intact.
+
+    Idempotent.
+    """
+    cst_module = _cst_load(path)
+    if cst_module is None:
+        return
+    text = cst_module.code
+    try:
+        ast_tree = ast.parse(text)
+    except SyntaxError:
+        return
+    # The two parsers MUST produce body lists of equal length — they
+    # parse the same text. (cst stores top-level stmts in `module.body`,
+    # ast in `tree.body`; both are 1:1 with source statements.)
+    if len(cst_module.body) != len(ast_tree.body):
+        return
+
+    body_ast = ast_tree.body
+    body_cst = list(cst_module.body)
+
+    # Separate imports + leading docstring (head) from the rest.
+    head_idx: list[int] = []
+    rest_idx: list[int] = []
+    seen_non_head = False
+    for i, stmt in enumerate(body_ast):
+        if not seen_non_head and isinstance(stmt, ast.Import | ast.ImportFrom):
+            head_idx.append(i)
+        elif (
+            not seen_non_head
+            and isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Constant)
+            and isinstance(stmt.value.value, str)
+        ):
+            head_idx.append(i)
+        else:
+            seen_non_head = True
+            rest_idx.append(i)
+
+    # Lift any stray imports that appear later (anvil sometimes places
+    # them mid-body); they go to head — imports have no intra-module deps.
+    stray_imports: list[int] = []
+    rest_clean: list[int] = []
+    for i in rest_idx:
+        if isinstance(body_ast[i], ast.Import | ast.ImportFrom):
+            stray_imports.append(i)
+        else:
+            rest_clean.append(i)
+    head_idx = head_idx + stray_imports
+    rest_idx = rest_clean
+
+    # Names defined by the head (used to ignore self-refs when ranking rest).
+    head_names: set[str] = set()
+    for i in head_idx:
+        head_names |= _stmt_defines(body_ast[i])
+
+    # name → position in the rest sequence (0-based, last wins).
+    name_to_pos: dict[str, int] = {}
+    for pos, i in enumerate(rest_idx):
+        for n in _stmt_defines(body_ast[i]):
+            name_to_pos[n] = pos
+
+    n = len(rest_idx)
+    earliest: list[int] = [0] * n
+    needs_change = False
+    for pos, i in enumerate(rest_idx):
+        refs = _stmt_references(body_ast[i]) - head_names
+        min_pos = 0
+        for ref in refs:
+            if ref in name_to_pos:
+                min_pos = max(min_pos, name_to_pos[ref] + 1)
+        earliest[pos] = min_pos
+        if min_pos > pos:
+            needs_change = True
+
+    if not needs_change:
+        return
+
+    # Stable sort of rest positions by (earliest, original_position).
+    order = sorted(range(n), key=lambda p: (earliest[p], p))
+    new_rest_idx = [rest_idx[p] for p in order]
+    new_body_cst = [body_cst[i] for i in head_idx] + [
+        body_cst[i] for i in new_rest_idx
+    ]
+    new_module = cst_module.with_changes(body=new_body_cst)
+    new_text = new_module.code
+    if new_text != text:
+        path.write_text(new_text)
 
 
 def _rename_top_level_in_source(source: Path, old_to_new: dict[str, str]) -> None:
-    """Rename top-level FunctionDef / ClassDef in *source* via AST rewrite.
+    """Rename top-level FunctionDef / ClassDef in *source*, preserving formatting.
 
-    This is a workaround for axm-anvil's ``rename=`` parameter, which
-    validates target absence under the ORIGINAL name before applying the
-    rename — so it cannot resolve cross-file collisions on its own.
-    By renaming in source first, we hand anvil a clean conflict-free move.
+    Workaround for axm-anvil's ``rename=`` parameter, which validates
+    target absence under the ORIGINAL name before applying the rename —
+    so it cannot resolve cross-file collisions on its own. By renaming in
+    source first, we hand anvil a clean conflict-free move.
     """
     if not old_to_new:
         return
-    tree = ast.parse(source.read_text())
-    for node in tree.body:
-        if isinstance(node, ast.FunctionDef | ast.ClassDef) and node.name in old_to_new:
-            node.name = old_to_new[node.name]
-    source.write_text(ast.unparse(tree) + "\n")
+    module = _cst_load(source)
+    if module is None:
+        return
+    new_body = []
+    for stmt in module.body:
+        if (
+            isinstance(stmt, cst.FunctionDef | cst.ClassDef)
+            and stmt.name.value in old_to_new
+        ):
+            stmt = stmt.with_changes(
+                name=cst.Name(value=old_to_new[stmt.name.value])
+            )
+        new_body.append(stmt)
+    _cst_save(source, module.with_changes(body=new_body))
 
 
 def _delete_source_if_empty_tests(source: Path) -> None:
@@ -912,6 +1718,7 @@ def run(
         report.ops.extend(flatten_ops)
         if apply and flatten_ops:
             warnings.extend(execute(flatten_ops, project_path))
+            _invalidate_import_index(project_path)
 
     # Stage 1: RELOCATE
     if "TEST_QUALITY_PYRAMID_LEVEL" in rules:
@@ -919,6 +1726,7 @@ def run(
         report.ops.extend(relocate_ops)
         if apply and relocate_ops:
             warnings.extend(execute(relocate_ops, project_path))
+            _invalidate_import_index(project_path)
 
     # Stages 2-4: FILE_NAMING (planned AFTER flatten + relocate).
     # Re-plan between stages to act on post-mutation paths — the audit
@@ -928,9 +1736,11 @@ def run(
             splits, _, _ = plan_naming(project_path)
             report.ops.extend(splits)
             warnings.extend(execute(splits, project_path))
+            _invalidate_import_index(project_path)
             _, merges, _ = plan_naming(project_path)  # re-plan post-SPLIT
             report.ops.extend(merges)
             warnings.extend(execute(merges, project_path))
+            _invalidate_import_index(project_path)
             _, _, renames = plan_naming(project_path)  # re-plan post-MERGE
             report.ops.extend(renames)
             warnings.extend(execute(renames, project_path))
@@ -940,10 +1750,55 @@ def run(
             report.ops.extend(merges)
             report.ops.extend(renames)
 
+    # Post-pipeline polish: run `ruff check --fix-only` (F401/I001/UP034
+    # sweep) then `ruff format` (line wrapping). Best-effort — failures
+    # surface as warnings, never abort the apply.
+    if apply:
+        warnings.extend(_ruff_format_tests(project_path))
+
     report.warnings = warnings
 
     report.unfixable = collect_unfixable(project_path)
     return report
+
+
+def _ruff_format_tests(project_path: Path) -> list[str]:
+    """Run ``ruff format`` and ``ruff check --fix-only`` on ``tests/``.
+
+    Idempotent. ``format`` resolves E501 + UP034; ``check --fix-only``
+    with safe fixes resolves F401 (unused imports the proto over-copied
+    despite Fix 1, e.g. in edge cases) + I001 (import order).
+
+    Failures are caught and turned into warnings — we never want this
+    polish step to abort an otherwise-successful apply.
+    """
+    tests = project_path / "tests"
+    if not tests.exists():
+        return []
+    msgs: list[str] = []
+    for cmd_args, label in (
+        (
+            [
+                "ruff", "check", "--fix-only",
+                "--select", "F401,I001,UP034",
+                str(tests),
+            ],
+            "ruff --fix F401/I001/UP034",
+        ),
+        (["ruff", "format", str(tests)], "ruff format"),
+    ):
+        try:
+            rc = subprocess.run(
+                cmd_args, capture_output=True, text=True, cwd=project_path
+            )
+        except FileNotFoundError:
+            msgs.append(f"{label} skipped: ruff not on PATH")
+            return msgs
+        if rc.returncode not in (0, 1):
+            # 0 = clean, 1 = changes applied (for --fix-only) or files
+            # reformatted (for format). Anything else is an error.
+            msgs.append(f"{label} returned exit {rc.returncode}: {rc.stderr[:200]}")
+    return msgs
 
 
 # ---------------------------------------------------------------------------
