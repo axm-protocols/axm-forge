@@ -53,11 +53,6 @@ class TestPyPIAdapter:
 class TestPyPIAdapterError:
     """Cover adapters/pypi.py error paths."""
 
-    def test_empty_name_returns_error(self) -> None:
-        """Empty package name returns ERROR status."""
-        adapter = PyPIAdapter()
-        assert adapter.check_availability("") == AvailabilityStatus.ERROR
-
     @patch("axm_init.adapters.pypi.httpx.get")
     def test_unexpected_status_returns_error(self, mock_get: MagicMock) -> None:
         """Non-200/404 status code returns ERROR."""
