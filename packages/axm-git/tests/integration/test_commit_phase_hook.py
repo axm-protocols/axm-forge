@@ -636,3 +636,24 @@ class TestCommitPhaseWorkspace:
         assert result.success
         assert result.metadata["skipped"] is True
         assert result.metadata["reason"] == "nothing to commit"
+
+
+# ---------------------------------------------------------------------------
+# Entry-point discovery (formerly tests/integration/test_entry_points.py)
+# ---------------------------------------------------------------------------
+
+
+def test_commit_phase_hook_discoverable() -> None:
+    from importlib.metadata import entry_points
+
+    eps = entry_points(group="axm.hooks")
+    names = [ep.name for ep in eps]
+    assert "git:commit-phase" in names
+
+
+def test_commit_phase_hook_loads() -> None:
+    from importlib.metadata import entry_points
+
+    eps = entry_points(group="axm.hooks")
+    ep = next(ep for ep in eps if ep.name == "git:commit-phase")
+    assert ep.load() is CommitPhaseHook
