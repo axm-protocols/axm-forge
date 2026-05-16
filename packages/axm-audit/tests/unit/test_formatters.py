@@ -1268,7 +1268,7 @@ def test_clusters_member_key_tolerance() -> None:
                 passed=False,
                 message="tests key",
                 metadata={
-                    "clusters": [{"signal": "sig_b", "tests": [member]}],
+                    "clusters": [{"signal": "sig_b", "members": [member]}],
                 },
             ),
         ]

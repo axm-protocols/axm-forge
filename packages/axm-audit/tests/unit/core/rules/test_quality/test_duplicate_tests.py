@@ -38,7 +38,7 @@ def _make_cluster(signal: str, tests: list[tuple[str, str]]) -> dict[str, Any]:
     return {
         "signal": signal,
         "similarity": 0.9,
-        "tests": [{"file": f, "name": n} for f, n in tests],
+        "members": [{"file": f, "name": n} for f, n in tests],
     }
 
 
@@ -252,7 +252,7 @@ def _raw_cluster(signal: str, tests: list[tuple[str, str, int]]) -> dict[str, An
     return {
         "signal": signal,
         "similarity": 0.9,
-        "tests": [{"file": f, "name": n, "line": ln} for f, n, ln in tests],
+        "members": [{"file": f, "name": n, "line": ln} for f, n, ln in tests],
     }
 
 
@@ -335,3 +335,80 @@ def test_slim_clusters_attaches_hash_field() -> None:
     assert isinstance(h, str)
     assert len(h) == 12
     assert all(c in "0123456789abcdef" for c in h)
+
+
+# ---------------------------------------------------------------------------
+# Cluster payload dedup — members-only shape (axm-1728)
+# ---------------------------------------------------------------------------
+
+
+from axm_audit.core.rules.test_quality.duplicate_tests import (  # noqa: E402
+    _bucket_counts,
+    _Cluster,
+)
+from axm_audit.core.rules.test_quality.duplicate_tests import (  # noqa: E402
+    _cluster as _cluster_fn,
+)
+
+
+def test_slim_clusters_emits_members_only_no_tests_key() -> None:
+    """AC1: _slim_clusters emits `members` only; `tests` key is absent."""
+    raw = {
+        "signal": "signal1_call_assert",
+        "similarity": 0.9,
+        "members": [
+            {"file": "tests/test_a.py", "name": "test_x", "line": 10},
+            {"file": "tests/test_b.py", "name": "test_y", "line": 20},
+        ],
+    }
+    out = _slim_clusters([raw])  # type: ignore[list-item]
+    assert len(out) == 1
+    assert "members" in out[0]
+    assert "tests" not in out[0]
+
+
+def test_internal_raw_clusters_use_members_key() -> None:
+    """AC2: _cluster (internal raw constructor) emits clusters keyed on `members`."""
+    src = "def test_a():\n    result = compute(1, 2)\n    assert result == 3\n"
+    tf_a = _make_tf(src, 10)
+    tf_b = _make_tf(src, 20)
+    raw_clusters = _cluster_fn(tests=[tf_a, tf_b], threshold=0.8)
+    assert raw_clusters, "expected at least one raw cluster from two duplicate tests"
+    for cluster in raw_clusters:
+        assert "members" in cluster
+        assert "tests" not in cluster
+
+
+def test_bucket_counts_reads_members() -> None:
+    """AC3: _bucket_counts reads cluster[\"members\"] without KeyError."""
+    tf_a = _make_tf(
+        "def test_a():\n    result = compute(1, 2)\n    assert result == 3\n", 10
+    )
+    tf_b = _make_tf(
+        "def test_b():\n    result = compute(1, 2)\n    assert result == 3\n", 20
+    )
+    cluster: _Cluster = {
+        "signal": "signal1_call_assert",
+        "similarity": 0.9,
+        "members": [
+            {"file": "tests/test_mod.py", "name": "test_a"},
+            {"file": "tests/test_mod.py", "name": "test_b"},
+        ],
+    }
+    counts = _bucket_counts([tf_a, tf_b], [cluster])
+    assert counts.get("CLUSTERED", 0) == 2
+
+
+def test_render_clusters_text_reads_members() -> None:
+    """AC3: render_clusters_text renders both members from `members` key."""
+    cluster = {
+        "signal": "signal1_call_assert",
+        "similarity": 0.9,
+        "members": [
+            {"file": "tests/test_a.py", "name": "test_x"},
+            {"file": "tests/test_b.py", "name": "test_y"},
+        ],
+    }
+    text = render_clusters_text([cluster])  # type: ignore[list-item]
+    assert "tests/test_a.py::test_x" in text
+    assert "tests/test_b.py::test_y" in text

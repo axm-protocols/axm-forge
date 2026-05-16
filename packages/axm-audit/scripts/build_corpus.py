@@ -244,7 +244,7 @@ def get_clusters_at(sha: str) -> set[tuple[str, str]]:
         for check in result.checks:
             if "Duplicate" in check.__class__.__name__:
                 clusters = check.model_dump()["metadata"]["clusters"]
-                return {(t["file"], t["name"]) for c in clusters for t in c["tests"]}
+                return {(t["file"], t["name"]) for c in clusters for t in c["members"]}
     except Exception:
         return set()
     return set()
