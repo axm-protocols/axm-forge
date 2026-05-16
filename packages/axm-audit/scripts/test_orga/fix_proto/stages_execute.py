@@ -11,12 +11,15 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import libcst as cst
+
 try:
     from axm_anvil.core.move import move_symbols
 except ImportError:  # pragma: no cover
     move_symbols = None  # type: ignore[assignment]
 
 from .cst_rewrite import (
+    _backfill_missing_imports,
     _delete_source_if_empty_tests,
     _flatten_class_to_top_level,
     _patch_file_dunder_depth,
@@ -28,7 +31,7 @@ from .findings import (
     _per_unit_canonical,
     get_pkg_prefixes,
 )
-from .io_primitives import _git_mv
+from .io_primitives import _cst_load, _cst_save, _git_mv
 from .layout_and_move import (
     _rewrite_cross_test_imports,
     _safe_move_units,
@@ -40,7 +43,9 @@ from .paths import (
     _tier_for_path,
 )
 from .tests_ast import (
+    _marker_fixtures_in_unit,
     _movable_units_at_top_level,
+    _string_literal_fixtures_in_unit,
     _top_level_test_classes,
 )
 
@@ -183,6 +188,158 @@ def _execute_rename(op: FileOp, project_path: Path) -> list[str]:
     return warnings
 
 
+def _recover_anchor_fixtures(
+    anchor_path: Path,
+    anchor_fixture_refs: set[str],
+    post_split_paths: list[Path],
+) -> list[str]:
+    """Copy fixtures referenced by the anchor but missing from its file.
+
+    Background: when ``TestDetectContext`` (the SPLIT anchor) routes to
+    its fixtures only via ``pytest.param("X", ...) +
+    request.getfixturevalue``, anvil's static analysis sees no usage of
+    fixture ``X`` from the anchor and freely moves ``X`` to whichever
+    non-anchor target it was also referenced by. After the anvil pass,
+    the anchor file lacks the fixture entirely.
+
+    This function reads the anchor's current AST, identifies which
+    members of ``anchor_fixture_refs`` are missing top-level, then for
+    each missing fixture walks the sibling ``post_split_paths`` and
+    copies the first matching ``@pytest.fixture``-decorated definition
+    into the anchor (appended at end of file, preserving formatting via
+    libcst).
+    """
+    msgs: list[str] = []
+    if not anchor_path.exists() or not anchor_fixture_refs:
+        return msgs
+    try:
+        anchor_tree = ast.parse(anchor_path.read_text())
+    except (OSError, SyntaxError):
+        return msgs
+    anchor_top = {
+        n.name for n in anchor_tree.body
+        if isinstance(n, ast.FunctionDef | ast.ClassDef)
+    }
+    missing = sorted(anchor_fixture_refs - anchor_top)
+    if not missing:
+        return msgs
+    anchor_module = _cst_load(anchor_path)
+    if anchor_module is None:
+        return msgs
+    new_body = list(anchor_module.body)
+    anchor_defined = set(anchor_top)
+    recovered: set[str] = set()
+
+    def _stmt_defines_name(stmt: cst.BaseStatement, name: str) -> bool:
+        if isinstance(stmt, cst.FunctionDef | cst.ClassDef):
+            return stmt.name.value == name
+        if isinstance(stmt, cst.SimpleStatementLine):
+            for small in stmt.body:
+                if isinstance(small, cst.Assign):
+                    for tgt in small.targets:
+                        if (
+                            isinstance(tgt.target, cst.Name)
+                            and tgt.target.value == name
+                        ):
+                            return True
+                elif isinstance(small, cst.AnnAssign):
+                    if (
+                        isinstance(small.target, cst.Name)
+                        and small.target.value == name
+                    ):
+                        return True
+        return False
+
+    def _names_in_node(node: cst.CSTNode) -> set[str]:
+        out: set[str] = set()
+        class _C(cst.CSTVisitor):
+            def visit_Name(self, n: cst.Name) -> None:
+                out.add(n.value)
+        node.visit(_C())
+        return out
+
+    for fx_name in missing:
+        for sibling in post_split_paths:
+            if sibling == anchor_path or not sibling.exists():
+                continue
+            sib_module = _cst_load(sibling)
+            if sib_module is None:
+                continue
+            sib_stmts_by_name: dict[str, cst.BaseStatement] = {}
+            for stmt in sib_module.body:
+                if isinstance(stmt, cst.FunctionDef | cst.ClassDef):
+                    sib_stmts_by_name[stmt.name.value] = stmt
+                elif isinstance(stmt, cst.SimpleStatementLine):
+                    for small in stmt.body:
+                        if isinstance(small, cst.Assign):
+                            for tgt in small.targets:
+                                if isinstance(tgt.target, cst.Name):
+                                    sib_stmts_by_name[tgt.target.value] = stmt
+                        elif isinstance(small, cst.AnnAssign):
+                            if isinstance(small.target, cst.Name):
+                                sib_stmts_by_name[small.target.value] = stmt
+            fx_stmt = sib_stmts_by_name.get(fx_name)
+            if fx_stmt is None or not isinstance(fx_stmt, cst.FunctionDef):
+                continue
+            # Closure: recover the fixture + any top-level name it
+            # references that isn't already defined in the anchor.
+            to_copy: list[tuple[str, cst.BaseStatement]] = [(fx_name, fx_stmt)]
+            queue: list[str] = [fx_name]
+            visited: set[str] = {fx_name}
+            while queue:
+                cur = queue.pop()
+                cur_stmt = sib_stmts_by_name.get(cur)
+                if cur_stmt is None:
+                    continue
+                for ref in _names_in_node(cur_stmt):
+                    if ref in visited:
+                        continue
+                    visited.add(ref)
+                    if ref in anchor_defined:
+                        continue
+                    if ref in sib_stmts_by_name:
+                        ref_stmt = sib_stmts_by_name[ref]
+                        # Only copy module-level constants (UPPER_SNAKE_CASE
+                        # or similar) and helper functions — never copy
+                        # other tests/classes (would duplicate test runs).
+                        if (
+                            isinstance(ref_stmt, cst.SimpleStatementLine)
+                            or (
+                                isinstance(ref_stmt, cst.FunctionDef)
+                                and not ref_stmt.name.value.startswith("test_")
+                            )
+                        ):
+                            to_copy.append((ref, ref_stmt))
+                            queue.append(ref)
+            # Append in source order: walk sib_module.body and pick the
+            # to-copy stmts so dependencies precede dependents.
+            copy_names = {n for n, _ in to_copy}
+            ordered_copy: list[cst.BaseStatement] = []
+            for stmt in sib_module.body:
+                for n in copy_names:
+                    if _stmt_defines_name(stmt, n):
+                        ordered_copy.append(stmt)
+                        anchor_defined.add(n)
+                        if n != fx_name:
+                            msgs.append(
+                                f"anchor-fixture-dep-recovered: "
+                                f"{anchor_path.name}::{n} copied from "
+                                f"{sibling.name} (used by {fx_name})"
+                            )
+                        break
+            new_body.extend(ordered_copy)
+            recovered.add(fx_name)
+            msgs.append(
+                f"anchor-fixture-recovered: {anchor_path.name}::"
+                f"{fx_name} copied from {sibling.name}"
+            )
+            break
+    if recovered:
+        _cst_save(anchor_path, anchor_module.with_changes(body=new_body))
+        _backfill_missing_imports(anchor_path, anchor_path, anchor_path.parent.parent.parent)
+    return msgs
+
+
 def _execute_split(op: FileOp, project_path: Path) -> list[str]:
     """SPLIT a file by routing each *movable unit* to its canonical target.
 
@@ -236,6 +393,31 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
     original_source = op.source
     original_module = _module_path_for_test_file(original_source, project_path)
     post_split_paths: list[Path] = []
+    # Compute fixtures the anchor will still need after non-anchor moves.
+    # When a non-anchor unit also references a fixture, marker-fixture
+    # follow-up duplicates that fixture into target — but anvil deletes
+    # the source-side definition if it's no longer used by remaining
+    # source content. The anchor (which stays in source then becomes
+    # the target via _git_mv) thus loses its fixtures silently.
+    # Solution: pin anchor-referenced fixtures so non-anchor moves see
+    # them as "needed by remaining content" and leave them in source.
+    anchor_unit_names = set(routes[anchor])
+    anchor_nodes = [
+        n for n in tree.body
+        if isinstance(n, ast.FunctionDef | ast.ClassDef)
+        and n.name in anchor_unit_names
+    ]
+    anchor_fixture_refs: set[str] = set()
+    for node in anchor_nodes:
+        anchor_fixture_refs |= _string_literal_fixtures_in_unit(node)
+        anchor_fixture_refs |= _marker_fixtures_in_unit(node)
+        # Also pick up fixtures used as direct params (no markers).
+        if isinstance(node, ast.ClassDef):
+            for m in node.body:
+                if isinstance(m, ast.FunctionDef):
+                    anchor_fixture_refs |= {a.arg for a in m.args.args}
+        else:
+            anchor_fixture_refs |= {a.arg for a in node.args.args}
     for canonical, unit_names in routes.items():
         if canonical == anchor:
             continue
@@ -243,10 +425,12 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
         if not target.exists():
             target.write_text(f'"""Split from ``{op.source.name}``."""\n')
         sub_warnings, _ = _safe_move_units(
-            op.source, target, unit_names, project_path
+            op.source, target, unit_names, project_path,
+            keep_in_source=anchor_fixture_refs,
         )
         warnings.extend(sub_warnings)
         post_split_paths.append(target)
+    anchor_path: Path | None = None
     if op.source.exists() and op.source.name != anchor:
         target = op.source.parent / anchor
         if target.exists() and target != op.source:
@@ -261,8 +445,20 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
         else:
             _git_mv(op.source, target)
         post_split_paths.append(target)
+        anchor_path = target
     elif op.source.exists():
         post_split_paths.append(op.source)
+        anchor_path = op.source
+    # Post-split fixture recovery: when the anchor references a fixture
+    # by string-literal (pytest.param("X", ...) + request.getfixturevalue),
+    # anvil's earlier moves saw no direct usage and removed the def from
+    # source. The anchor (now its own file) is left referencing missing
+    # names. Find each missing fixture in the sibling post-split paths
+    # and copy its definition back into the anchor.
+    if anchor_path is not None and anchor_fixture_refs:
+        warnings.extend(_recover_anchor_fixtures(
+            anchor_path, anchor_fixture_refs, post_split_paths,
+        ))
     if original_module:
         new_modules = []
         seen: set[str] = set()
