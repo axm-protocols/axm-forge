@@ -46,6 +46,8 @@ _INFO_PENALTY = 1
 _WARNING_PENALTY = 3
 _MIN_DISTINCT_FOR_SPLIT = 2
 _MIN_FILES_FOR_COLLIDE = 2
+_MAX_TEXT_WARNINGS = 10
+_MAX_TEXT_INFOS = 5
 
 
 @dataclass(frozen=True)
@@ -398,4 +400,33 @@ class FileNamingRule(ProjectRule):
             severity=Severity.WARNING if n_warning else Severity.INFO,
             score=score,
             details={"findings": [f.as_dict() for f in findings]},
+            text=_render_findings_text(findings),
         )
+
+
+def _render_findings_text(findings: list[_Finding]) -> str | None:
+    """Render top-N findings as a compact bullet list.
+
+    Caps at ``_MAX_TEXT_WARNINGS`` warnings + ``_MAX_TEXT_INFOS`` infos.
+    Returns ``None`` for empty input, matching the convention used by
+    ``render_clusters_text`` for the passing case.
+    """
+    if not findings:
+        return None
+    warnings = [f for f in findings if f.severity == Severity.WARNING]
+    infos = [f for f in findings if f.severity == Severity.INFO]
+    shown_warnings = warnings[:_MAX_TEXT_WARNINGS]
+    shown_infos = infos[:_MAX_TEXT_INFOS]
+    lines = [
+        f"• [{f.severity.name}] {f.path} → {f.proposed_name}"
+        for f in (*shown_warnings, *shown_infos)
+    ]
+    truncated_warnings = len(warnings) - len(shown_warnings)
+    truncated_infos = len(infos) - len(shown_infos)
+    extra = truncated_warnings + truncated_infos
+    if extra:
+        lines.append(
+            f"(+{extra} more findings: "
+            f"{truncated_warnings} WARNING, {truncated_infos} INFO)"
+        )
+    return "\n".join(lines)
