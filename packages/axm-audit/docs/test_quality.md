@@ -345,9 +345,9 @@ enforced by `PRACTICE_TEST_MIRROR`.
 
 | Tier | Input tuple | Emission |
 | -- | -- | -- |
-| `integration` | top-K=2 first-party symbols, alphabetical | `test_{s1}-{s2}.py` (snake_case, dash-joined) |
+| `integration` | top-K=2 first-party symbols, alphabetical | `test_{s1}__{s2}.py` (snake_case, joined by `__`) |
 | `integration` | top-K=1 | `test_{s1}.py` |
-| `e2e` (multi-binary) | top-K=2 `(bin, sub)` | `test_{bin1}-{sub1}-{bin2}-{sub2}.py` |
+| `e2e` (multi-binary) | top-K=2 `(bin, sub)` | `test_{bin1}__{sub1}__{bin2}__{sub2}.py` |
 | `e2e` (single-binary) | `(axm-audit, "audit")` | `test_audit.py` (binary prefix stripped) |
 | `e2e` (single-binary) | `(axm-audit, "")` | `test_axm_audit.py` (bare binary kept) |
 
