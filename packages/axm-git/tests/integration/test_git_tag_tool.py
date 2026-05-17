@@ -202,7 +202,7 @@ class TestTagPrefixExecution:
     @patch("axm_git.tools.tag.run_git")
     @patch("axm_git.tools.tag.gh_available", return_value=False)
     @patch("axm_git.tools.tag.detect_package_name", return_value=None)
-    @patch("axm_git.tools.tag._get_tag_prefix", return_value="git/")
+    @patch("axm_git.tools.tag.get_tag_prefix", return_value="git/")
     def test_tag_execute_uses_prefix(
         self,
         _prefix: MagicMock,
@@ -238,7 +238,7 @@ class TestTagPrefixExecution:
     @patch("axm_git.tools.tag.run_git")
     @patch("axm_git.tools.tag.gh_available", return_value=False)
     @patch("axm_git.tools.tag.detect_package_name", return_value=None)
-    @patch("axm_git.tools.tag._get_tag_prefix", return_value="")
+    @patch("axm_git.tools.tag.get_tag_prefix", return_value="")
     def test_tag_execute_standalone_no_prefix(
         self,
         _prefix: MagicMock,
