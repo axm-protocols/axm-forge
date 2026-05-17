@@ -59,7 +59,7 @@ packages = ["src/axm_smelt"]
 "docs/index.md" = "axm_smelt/docs/index.md"
 
 [tool.axm-audit.mirror]
-exempt_paths = ["_types.py"]
+exempt_paths = ["_types.py", "_version.py", "__main__.py", "**/__init__.py", "cli.py"]
 
 [dependency-groups]
 dev = [
