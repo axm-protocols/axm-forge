@@ -379,3 +379,19 @@ class TestIdentityEdgeCases:
         assert len(commit_calls) == 1
         commit_args = commit_calls[0][0][0]
         assert all(not arg.startswith("--author") for arg in commit_args)
+
+
+def test_commit_phase_hook_discoverable() -> None:
+    from importlib.metadata import entry_points
+
+    eps = entry_points(group="axm.hooks")
+    names = [ep.name for ep in eps]
+    assert "git:commit-phase" in names
+
+
+def test_commit_phase_hook_loads() -> None:
+    from importlib.metadata import entry_points
+
+    eps = entry_points(group="axm.hooks")
+    ep = next(ep for ep in eps if ep.name == "git:commit-phase")
+    assert ep.load() is CommitPhaseHook

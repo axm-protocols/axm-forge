@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from axm_git.hooks.preflight import _truncate_diff
+from axm_git.hooks.preflight import PreflightHook, _truncate_diff
 
 
 class TestTruncateDiff:
@@ -27,3 +27,19 @@ class TestTruncateDiff:
         stdout = "\n".join(f"line {i}" for i in range(10))
         result = _truncate_diff(stdout, max_lines=0)
         assert result == ""
+
+
+def test_preflight_hook_discoverable() -> None:
+    from importlib.metadata import entry_points
+
+    eps = entry_points(group="axm.hooks")
+    names = [ep.name for ep in eps]
+    assert "git:preflight" in names
+
+
+def test_preflight_hook_loads() -> None:
+    from importlib.metadata import entry_points
+
+    eps = entry_points(group="axm.hooks")
+    ep = next(ep for ep in eps if ep.name == "git:preflight")
+    assert ep.load() is PreflightHook
