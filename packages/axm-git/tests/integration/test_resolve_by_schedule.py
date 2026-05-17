@@ -96,29 +96,46 @@ class TestResolveBySchedule:
         result = resolve_by_schedule(config, axm_workspace_path, now)
         assert result == work_identity
 
-    def test_axm_workspace_outside_schedule_returns_none(
-        self, config, axm_workspace_path
+    @pytest.mark.parametrize(
+        ("now", "use_axm_path", "mutate_profile"),
+        [
+            pytest.param(
+                datetime(2026, 4, 6, 20, 0),  # Monday 20:00
+                True,
+                False,
+                id="axm_outside_schedule",
+            ),
+            pytest.param(
+                datetime(2026, 4, 11, 10, 0),  # Saturday 10:00
+                True,
+                False,
+                id="axm_weekend",
+            ),
+            pytest.param(
+                datetime(2026, 4, 6, 10, 0),  # Monday 10:00
+                False,
+                False,
+                id="non_axm_workspace",
+            ),
+            pytest.param(
+                datetime(2026, 4, 6, 10, 0),  # Monday 10:00
+                True,
+                True,
+                id="unknown_profile",
+            ),
+        ],
+    )
+    def test_returns_none(
+        self,
+        config,
+        axm_workspace_path,
+        non_axm_path,
+        now,
+        use_axm_path,
+        mutate_profile,
     ):
-        # Monday 20:00 — outside schedule hours
-        now = datetime(2026, 4, 6, 20, 0)  # Monday
-        result = resolve_by_schedule(config, axm_workspace_path, now)
-        assert result is None
-
-    def test_axm_workspace_weekend_returns_none(self, config, axm_workspace_path):
-        # Saturday 10:00 — weekend, not in schedule days
-        now = datetime(2026, 4, 11, 10, 0)  # Saturday
-        result = resolve_by_schedule(config, axm_workspace_path, now)
-        assert result is None
-
-    def test_non_axm_workspace_returns_none(self, config, non_axm_path, work_identity):
-        # Monday 10:00 — within schedule but not AXM workspace
-        now = datetime(2026, 4, 6, 10, 0)
-        result = resolve_by_schedule(config, non_axm_path, now)
-        assert result is None
-
-    def test_schedule_with_unknown_profile_skips_rule(self, config, axm_workspace_path):
-        # Rule references a profile that doesn't exist in config.profiles
-        config.schedule.rules[0].profile = "deleted_profile"
-        now = datetime(2026, 4, 6, 10, 0)  # Monday
-        result = resolve_by_schedule(config, axm_workspace_path, now)
+        if mutate_profile:
+            config.schedule.rules[0].profile = "deleted_profile"
+        path = axm_workspace_path if use_axm_path else non_axm_path
+        result = resolve_by_schedule(config, path, now)
         assert result is None

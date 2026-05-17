@@ -229,8 +229,15 @@ def test_render_text_truncated() -> None:
     assert result.endswith("[diff truncated at 200 lines]")
 
 
-def test_render_text_file_status_format() -> None:
-    files = [{"path": "src/mod.py", "status": "M"}]
+@pytest.mark.parametrize(
+    ("path", "status", "prefix"),
+    [
+        pytest.param("src/mod.py", "M", "M  ", id="file_status"),
+        pytest.param("new_file.py", "??", "?? ", id="untracked"),
+    ],
+)
+def test_render_text_status_line_format(path: str, status: str, prefix: str) -> None:
+    files = [{"path": path, "status": status}]
     result = render_text(
         files=files,
         diff_stat="",
@@ -239,22 +246,8 @@ def test_render_text_file_status_format() -> None:
         max_diff_lines=200,
     )
     lines = result.splitlines()
-    file_line = next(ln for ln in lines if "src/mod.py" in ln)
-    assert file_line.startswith("M  ")
-
-
-def test_render_text_untracked_format() -> None:
-    files = [{"path": "new_file.py", "status": "??"}]
-    result = render_text(
-        files=files,
-        diff_stat="",
-        diff="",
-        diff_truncated=False,
-        max_diff_lines=200,
-    )
-    lines = result.splitlines()
-    file_line = next(ln for ln in lines if "new_file.py" in ln)
-    assert file_line.startswith("?? ")
+    file_line = next(ln for ln in lines if path in ln)
+    assert file_line.startswith(prefix)
 
 
 def _mock_run_git_dirty(cmd: list[str], cwd: Any) -> SimpleNamespace:
