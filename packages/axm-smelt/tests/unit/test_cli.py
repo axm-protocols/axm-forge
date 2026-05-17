@@ -88,3 +88,22 @@ class TestCliUnit:
         err = capsys.readouterr().err
         assert "Traceback" not in err
         assert "No such file" in err
+
+
+# --- merged from test_version.py (package public-API surface tests; __init__.py
+# and _version.py are exempt from the 1:1 mirror and have no canonical test
+# location, so they live alongside the CLI public-surface tests) ---
+
+
+class TestVersionUnit:
+    def test_version_importable(self) -> None:
+        from axm_smelt import __version__
+
+        assert isinstance(__version__, str)
+        assert len(__version__) > 0
+
+    def test_public_api_exports(self) -> None:
+        import axm_smelt
+
+        assert hasattr(axm_smelt, "__all__")
+        assert "__version__" in axm_smelt.__all__
