@@ -6,10 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from axm_ast.hooks.source_body import SourceBodyHook
-
-# ── Unit tests ─────────────────────────────────────────────────────
-
-_ANALYZER = "axm_ast.core.analyzer"
+from tests.unit._helpers import _ANALYZER
 
 
 class TestSourceBodyMissingPath:
