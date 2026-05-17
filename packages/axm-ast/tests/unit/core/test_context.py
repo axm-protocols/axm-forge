@@ -1,13 +1,44 @@
-"""Unit tests for axm_ast.core.context."""
-
 from __future__ import annotations
 
 import re
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
-from axm_ast.core.context import format_context_text
+from axm_ast.core.context import detect_axm_tools, format_context_text
+
+# ── detect_axm_tools ──
+
+
+class TestDetectAxmTools:
+    """Test AXM ecosystem tool detection."""
+
+    def test_detect_axm_tools_available(self) -> None:
+        """Finds installed AXM tools."""
+        with patch("shutil.which", return_value="/usr/bin/axm-ast"):
+            tools = detect_axm_tools()
+        assert "axm-ast" in tools
+
+    def test_detect_axm_tools_missing(self) -> None:
+        """Missing tools are not included."""
+        with patch("shutil.which", return_value=None):
+            tools = detect_axm_tools()
+        assert tools == {}
+
+    def test_detect_axm_tools_partial(self) -> None:
+        """Only installed tools are returned."""
+
+        def _mock_which(name: str) -> str | None:
+            return "/usr/bin/" + name if name == "axm-ast" else None
+
+        with patch("shutil.which", side_effect=_mock_which):
+            tools = detect_axm_tools()
+        assert "axm-ast" in tools
+        assert "axm-audit" not in tools
+
+
+# ── format_context_text ──
 
 
 def _base(
@@ -104,7 +135,7 @@ def test_text_depth0_header(depth0_data: dict[str, Any]) -> None:
 
 def test_text_depth0_modules(depth0_data: dict[str, Any]) -> None:
     text = format_context_text(depth0_data, depth=0)
-    assert "\u2605" in text  # ★
+    assert "★" in text  # ★
     assert "core.engine" in text
     assert "utils.helpers" in text
 
@@ -156,4 +187,4 @@ def test_empty_package(empty_package_data: dict[str, Any]) -> None:
     # No modules or packages section content beyond header
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     # Only header line(s), no module listing
-    assert not any("\u2605" in line for line in lines)
+    assert not any("★" in line for line in lines)

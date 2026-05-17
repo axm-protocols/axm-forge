@@ -1,5 +1,3 @@
-"""Unit tests extracted from test_docs.py."""
-
 from __future__ import annotations
 
 import json
@@ -9,9 +7,7 @@ import pytest
 
 from axm_ast.core.docs import discover_docs
 
-# ─── Helpers ─────────────────────────────────────────────────────────────────
-
-FIXTURES = Path(__file__).parent.parent / "fixtures"
+FIXTURES = Path(__file__).parent.parent.parent / "fixtures"
 
 
 class TestCliDocs:
@@ -29,7 +25,7 @@ class TestCliDocs:
 
     def test_cli_docs_dogfood(self) -> None:
         """Dogfood: discover_docs works on axm-ast project root."""
-        project_root = Path(__file__).parent.parent.parent
+        project_root = Path(__file__).parent.parent.parent.parent
         result = discover_docs(project_root)
         assert result["readme"] is not None
         assert "axm-ast" in result["readme"]["content"]
