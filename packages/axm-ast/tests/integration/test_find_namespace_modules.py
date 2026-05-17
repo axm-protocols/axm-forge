@@ -40,7 +40,7 @@ class TestLazyImportNamespaceDetectionIntegration:
     """Lazy `from pkg import mod` inside function bodies detects namespace modules."""
 
     def test_lazy_import_namespace_module_detected(self, tmp_path: Path) -> None:
-        from axm_ast.core.dead_code import _find_namespace_modules
+        from axm_ast.core.dead_code import find_namespace_modules
 
         pkg_dir = tmp_path / "mypkg"
         pkg_dir.mkdir()
@@ -58,14 +58,14 @@ class TestLazyImportNamespaceDetectionIntegration:
         mod_b = _make_ns_module(mod_b_path, imports=[])
         pkg = _make_ns_pkg([mod_a, mod_b])
 
-        result = _find_namespace_modules(pkg)
+        result = find_namespace_modules(pkg)
 
         assert mod_b_path in result
 
     def test_lazy_import_private_fn_module_still_namespace(
         self, tmp_path: Path
     ) -> None:
-        from axm_ast.core.dead_code import _find_namespace_modules
+        from axm_ast.core.dead_code import find_namespace_modules
 
         pkg_dir = tmp_path / "mypkg"
         pkg_dir.mkdir()
@@ -83,13 +83,13 @@ class TestLazyImportNamespaceDetectionIntegration:
         mod_b = _make_ns_module(mod_b_path, imports=[])
         pkg = _make_ns_pkg([mod_a, mod_b])
 
-        result = _find_namespace_modules(pkg)
+        result = find_namespace_modules(pkg)
 
         assert mod_b_path in result
 
     def test_lazy_symbol_import_not_namespace(self, tmp_path: Path) -> None:
         """from pkg.mod import func (symbol, not module) → mod NOT namespace."""
-        from axm_ast.core.dead_code import _find_namespace_modules
+        from axm_ast.core.dead_code import find_namespace_modules
 
         pkg_dir = tmp_path / "mypkg"
         pkg_dir.mkdir()
@@ -107,12 +107,12 @@ class TestLazyImportNamespaceDetectionIntegration:
         mod_b = _make_ns_module(mod_b_path, imports=[])
         pkg = _make_ns_pkg([mod_a, mod_b])
 
-        result = _find_namespace_modules(pkg)
+        result = find_namespace_modules(pkg)
 
         assert mod_b_path not in result
 
     def test_both_module_level_and_lazy(self, tmp_path: Path) -> None:
-        from axm_ast.core.dead_code import _find_namespace_modules
+        from axm_ast.core.dead_code import find_namespace_modules
 
         pkg_dir = tmp_path / "mypkg"
         pkg_dir.mkdir()
@@ -136,12 +136,12 @@ class TestLazyImportNamespaceDetectionIntegration:
         mod_b = _make_ns_module(mod_b_path, imports=[])
         pkg = _make_ns_pkg([mod_a, mod_c, mod_b])
 
-        result = _find_namespace_modules(pkg)
+        result = find_namespace_modules(pkg)
 
         assert mod_b_path in result
 
     def test_lazy_import_with_alias(self, tmp_path: Path) -> None:
-        from axm_ast.core.dead_code import _find_namespace_modules
+        from axm_ast.core.dead_code import find_namespace_modules
 
         pkg_dir = tmp_path / "mypkg"
         pkg_dir.mkdir()
@@ -159,12 +159,12 @@ class TestLazyImportNamespaceDetectionIntegration:
         mod_b = _make_ns_module(mod_b_path, imports=[])
         pkg = _make_ns_pkg([mod_a, mod_b])
 
-        result = _find_namespace_modules(pkg)
+        result = find_namespace_modules(pkg)
 
         assert mod_b_path in result
 
     def test_lazy_import_in_nested_function(self, tmp_path: Path) -> None:
-        from axm_ast.core.dead_code import _find_namespace_modules
+        from axm_ast.core.dead_code import find_namespace_modules
 
         pkg_dir = tmp_path / "mypkg"
         pkg_dir.mkdir()
@@ -187,12 +187,12 @@ class TestLazyImportNamespaceDetectionIntegration:
         mod_b = _make_ns_module(mod_b_path, imports=[])
         pkg = _make_ns_pkg([mod_a, mod_b])
 
-        result = _find_namespace_modules(pkg)
+        result = find_namespace_modules(pkg)
 
         assert mod_b_path in result
 
     def test_no_imports_returns_empty_set(self, tmp_path: Path) -> None:
-        from axm_ast.core.dead_code import _find_namespace_modules
+        from axm_ast.core.dead_code import find_namespace_modules
 
         pkg_dir = tmp_path / "mypkg"
         pkg_dir.mkdir()
@@ -210,12 +210,12 @@ class TestLazyImportNamespaceDetectionIntegration:
         mod_b = _make_ns_module(mod_b_path, imports=[])
         pkg = _make_ns_pkg([mod_a, mod_b])
 
-        result = _find_namespace_modules(pkg)
+        result = find_namespace_modules(pkg)
 
         assert result == set()
 
     def test_mixed_bare_and_from_imports_single_entry(self, tmp_path: Path) -> None:
-        from axm_ast.core.dead_code import _find_namespace_modules
+        from axm_ast.core.dead_code import find_namespace_modules
 
         pkg_dir = tmp_path / "mypkg"
         pkg_dir.mkdir()
@@ -235,7 +235,7 @@ class TestLazyImportNamespaceDetectionIntegration:
         mod_b = _make_ns_module(mod_b_path, imports=[])
         pkg = _make_ns_pkg([mod_a, mod_b])
 
-        result = _find_namespace_modules(pkg)
+        result = find_namespace_modules(pkg)
 
         assert mod_b_path in result
         assert len(result) == 1

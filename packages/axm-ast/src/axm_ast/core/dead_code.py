@@ -812,7 +812,7 @@ def _iter_namespace_stems(mod: ModuleInfo) -> Iterator[str]:
     yield from _extract_lazy_namespace_names(mod)
 
 
-def _find_namespace_modules(pkg: PackageInfo) -> set[Path]:
+def find_namespace_modules(pkg: PackageInfo) -> set[Path]:
     """Find modules that are imported as namespace objects somewhere in *pkg*.
 
     A module is considered a "namespace import" when it appears as:
@@ -868,7 +868,7 @@ def find_dead_code(
     for ep in find_entry_points(pkg):
         entry_points.add(ep.name)
 
-    namespace_modules = _find_namespace_modules(pkg)
+    namespace_modules = find_namespace_modules(pkg)
 
     ctx = _ScanContext(
         entry_points=entry_points,

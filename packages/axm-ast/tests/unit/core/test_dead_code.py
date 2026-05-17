@@ -42,10 +42,10 @@ class TestLazyImportNamespaceDetectionUnit:
     """Pure unit cases (no filesystem I/O)."""
 
     def test_empty_package_returns_empty_set(self) -> None:
-        from axm_ast.core.dead_code import _find_namespace_modules
+        from axm_ast.core.dead_code import find_namespace_modules
 
         pkg = _make_ns_pkg([])
-        result = _find_namespace_modules(pkg)
+        result = find_namespace_modules(pkg)
 
         assert result == set()
 
