@@ -312,7 +312,6 @@ class SearchTool(AXMTool):
 
     _load_package = staticmethod(_load_package)
     _validate_kind = staticmethod(_validate_kind)
-    _search = staticmethod(_search)
     _format_symbol = staticmethod(_format_symbol)
     _find_suggestions = staticmethod(_find_suggestions)
     _format_text_header = staticmethod(format_text_header)

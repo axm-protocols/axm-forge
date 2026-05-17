@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -448,7 +449,7 @@ def test_format_symbol_line_variable_bare() -> None:
 
 
 class TestSearchResultNoCountKey:
-    """Verify that _search does not include a 'count' key in result.data."""
+    """Verify that ``ast_search`` does not include a 'count' key in result.data."""
 
     @patch.object(SearchTool, "_format_symbol", return_value={"name": "Foo"})
     @patch("axm_ast.core.analyzer.search_symbols")
@@ -456,14 +457,12 @@ class TestSearchResultNoCountKey:
         self,
         mock_search: MagicMock,
         mock_fmt: MagicMock,
-        _mock_pkg: MagicMock,
+        tmp_path: Path,
     ) -> None:
         """Run a search and assert 'count' is not in result.data."""
         mock_search.return_value = [("mod", MagicMock())]
 
-        result = SearchTool._search(
-            _mock_pkg, name="Foo", returns=None, kind=None, inherits=None
-        )
+        result = SearchTool().execute(path=str(tmp_path), name="Foo")
 
         assert result.success is True
         assert "count" not in result.data
@@ -476,14 +475,12 @@ class TestSearchResultNoCountKey:
         self,
         mock_search: MagicMock,
         mock_fmt: MagicMock,
-        _mock_pkg: MagicMock,
+        tmp_path: Path,
     ) -> None:
         """Empty search results should return data={'results': []} with no count key."""
         mock_search.return_value = []
 
-        result = SearchTool._search(
-            _mock_pkg, name="NonExistent", returns=None, kind=None, inherits=None
-        )
+        result = SearchTool().execute(path=str(tmp_path), name="NonExistent")
 
         assert result.success is True
         assert result.data == {"results": []}
@@ -615,11 +612,10 @@ class TestFindSuggestionsEdgeCases:
 
 
 class TestSearchWithSuggestions:
-    """Functional tests for suggestions wired into _search."""
+    """Functional tests for suggestions wired into ast_search."""
 
-    def test_search_with_suggestions_text(self) -> None:
+    def test_search_with_suggestions_text(self, tmp_path: Path) -> None:
         """Zero results + suggestions produces header and ?-prefixed lines (AC5)."""
-        pkg = _make_pkg()
         suggestions = [
             _suggestion("get_session", 0.92, "function", "core.analyzer"),
             _suggestion("get_sessions", 0.85, "function", "core.analyzer"),
@@ -631,9 +627,7 @@ class TestSearchWithSuggestions:
                 return_value=suggestions,
             ),
         ):
-            result = SearchTool._search(
-                pkg, name="get_sesion", returns=None, kind=None, inherits=None
-            )
+            result = SearchTool().execute(path=str(tmp_path), name="get_sesion")
 
         assert result.text is not None
         assert "suggestion" in result.text.lower()
@@ -641,35 +635,28 @@ class TestSearchWithSuggestions:
         suggestion_lines = [ln for ln in lines if ln.startswith("?")]
         assert len(suggestion_lines) >= 2
 
-    def test_search_with_results_no_suggestions(self) -> None:
+    def test_search_with_results_no_suggestions(self, tmp_path: Path) -> None:
         """When results exist, no suggestions key in data (AC3)."""
         func = _make_func("search_symbols")
-        pkg = _make_pkg()
         with patch(
             "axm_ast.core.analyzer.search_symbols",
             return_value=[("core.analyzer", func)],
         ):
-            result = SearchTool._search(
-                pkg, name="search", returns=None, kind=None, inherits=None
-            )
+            result = SearchTool().execute(path=str(tmp_path), name="search")
 
         assert "results" in result.data
         assert "suggestions" not in result.data
 
-    def test_search_no_name_no_suggestions(self) -> None:
+    def test_search_no_name_no_suggestions(self, tmp_path: Path) -> None:
         """When name is None and no results, no suggestions key (AC4)."""
-        pkg = _make_pkg()
         with patch("axm_ast.core.analyzer.search_symbols", return_value=[]):
-            result = SearchTool._search(
-                pkg, name=None, returns=None, kind=None, inherits=None
-            )
+            result = SearchTool().execute(path=str(tmp_path))
 
         assert "results" in result.data
         assert "suggestions" not in result.data
 
-    def test_search_suggestions_data_shape(self) -> None:
+    def test_search_suggestions_data_shape(self, tmp_path: Path) -> None:
         """Suggestions data has correct shape alongside empty results (AC4)."""
-        pkg = _make_pkg()
         suggestions = [
             _suggestion("get_session", 0.92, "function", "core.analyzer"),
         ]
@@ -680,9 +667,7 @@ class TestSearchWithSuggestions:
                 return_value=suggestions,
             ),
         ):
-            result = SearchTool._search(
-                pkg, name="get_sesion", returns=None, kind=None, inherits=None
-            )
+            result = SearchTool().execute(path=str(tmp_path), name="get_sesion")
 
         assert result.data["results"] == []
         assert "suggestions" in result.data
