@@ -6,6 +6,8 @@ import subprocess
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from axm_git.tools.tag import (
     GitTagTool,
 )
@@ -58,6 +60,13 @@ class TestGitTagTool:
         assert result.data["tag"] == "v0.8.0"
         assert result.data["bump"] == "minor"
 
+    @pytest.mark.parametrize(
+        ("version_input", "expected_tag"),
+        [
+            pytest.param("v9.0.0", "v9.0.0", id="with_v_prefix"),
+            pytest.param("2.0.0", "v2.0.0", id="no_v_prefix_added"),
+        ],
+    )
     @patch("axm_git.tools.tag.run_git")
     @patch("axm_git.tools.tag.gh_available", return_value=False)
     @patch("axm_git.tools.tag.detect_package_name", return_value=None)
@@ -66,38 +75,13 @@ class TestGitTagTool:
         _pkg: MagicMock,
         _gh: MagicMock,
         mock_git: MagicMock,
+        version_input: str,
+        expected_tag: str,
     ) -> None:
-        def _side_effect(
-            args: list[str], cwd: Any, **kw: Any
-        ) -> subprocess.CompletedProcess[str]:
-            if args[0] == "status":
-                return _mock_completed("")
-            if args[0] == "tag" and "--sort=-v:refname" in args:
-                return _mock_completed("v0.7.0")
-            if args[0] == "log":
-                return _mock_completed("abc fix: bug")
-            if args[0] == "tag" and "-a" in args:
-                return _mock_completed("", rc=0)
-            if args[0] == "push":
-                return _mock_completed("", rc=0)
-            return _mock_completed("")
+        """Explicit version override produces expected tag.
 
-        mock_git.side_effect = _side_effect
-        result = GitTagTool().execute(path="/tmp/test", version="v9.0.0")
-        assert result.success
-        assert result.data["tag"] == "v9.0.0"
-        assert result.data["bump"] == "override"
-
-    @patch("axm_git.tools.tag.run_git")
-    @patch("axm_git.tools.tag.gh_available", return_value=False)
-    @patch("axm_git.tools.tag.detect_package_name", return_value=None)
-    def test_version_override_no_v_prefix(
-        self,
-        _pkg: MagicMock,
-        _gh: MagicMock,
-        mock_git: MagicMock,
-    ) -> None:
-        """Version without v prefix gets it added."""
+        Adds v prefix if missing.
+        """
 
         def _side_effect(
             args: list[str], cwd: Any, **kw: Any
@@ -115,9 +99,9 @@ class TestGitTagTool:
             return _mock_completed("")
 
         mock_git.side_effect = _side_effect
-        result = GitTagTool().execute(path="/tmp/test", version="2.0.0")
+        result = GitTagTool().execute(path="/tmp/test", version=version_input)
         assert result.success
-        assert result.data["tag"] == "v2.0.0"
+        assert result.data["tag"] == expected_tag
 
     @patch("axm_git.tools.tag.run_git")
     @patch("axm_git.tools.tag.gh_available", return_value=False)
