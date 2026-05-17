@@ -73,23 +73,36 @@ def config(
 class TestResolveByOverride:
     """Tests for resolve_by_override helper."""
 
-    def test_override_default_returns_default_identity(self, config, default_identity):
-        result = resolve_by_override(config, "default")
-        assert result == default_identity
+    @pytest.mark.parametrize(
+        ("override", "expected_fixture"),
+        [
+            pytest.param(
+                "default", "default_identity", id="default_returns_default_identity"
+            ),
+            pytest.param("work", "work_identity", id="named_profile_returns_profile"),
+            pytest.param("personal", "personal_identity", id="another_named_profile"),
+        ],
+    )
+    def test_override_returns_matching_identity(
+        self,
+        config: MagicMock,
+        request: pytest.FixtureRequest,
+        override: str,
+        expected_fixture: str,
+    ) -> None:
+        expected = request.getfixturevalue(expected_fixture)
+        result = resolve_by_override(config, override)
+        assert result == expected
 
-    def test_override_named_profile_returns_profile(self, config, work_identity):
-        result = resolve_by_override(config, "work")
-        assert result == work_identity
-
-    def test_override_another_named_profile(self, config, personal_identity):
-        result = resolve_by_override(config, "personal")
-        assert result == personal_identity
-
-    def test_override_unknown_profile_returns_none(self, config):
-        result = resolve_by_override(config, "nonexistent")
-        assert result is None
-
-    def test_override_none_returns_none(self, config):
-        """When profile_override is None, helper should return None (no match)."""
-        result = resolve_by_override(config, None)
+    @pytest.mark.parametrize(
+        "override",
+        [
+            pytest.param("nonexistent", id="unknown_profile_returns_none"),
+            pytest.param(None, id="none_returns_none"),
+        ],
+    )
+    def test_override_returns_none_when_no_match(
+        self, config: MagicMock, override: str | None
+    ) -> None:
+        result = resolve_by_override(config, override)
         assert result is None
