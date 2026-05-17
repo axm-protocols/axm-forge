@@ -33,60 +33,98 @@ class TestComputeBump:
         assert result.next == "v0.7.1"
         assert not result.breaking
 
-    def test_patch_docs_chore(self) -> None:
-        result = compute_bump(
-            ["abc docs: readme", "def chore: cleanup"],
-            "v0.7.0",
-        )
-        assert result.bump == "patch"
-        assert result.next == "v0.7.1"
-
-    def test_minor_feat(self) -> None:
-        result = compute_bump(["abc feat: new api"], "v0.7.0")
-        assert result.bump == "minor"
-        assert result.next == "v0.8.0"
-
-    def test_minor_breaking_pre1(self) -> None:
-        """Pre-1.0: breaking change = minor bump (not major)."""
-        result = compute_bump(["abc feat!: breaking"], "v0.7.0")
-        assert result.bump == "minor"
-        assert result.next == "v0.8.0"
-        assert result.breaking
-
-    def test_major_breaking_post1(self) -> None:
-        """Post-1.0: breaking change = major bump."""
-        result = compute_bump(["abc feat!: breaking"], "v1.0.0")
-        assert result.bump == "major"
-        assert result.next == "v2.0.0"
-        assert result.breaking
-
     def test_breaking_change_in_body(self) -> None:
         result = compute_bump(["abc BREAKING CHANGE: removed api"], "v1.0.0")
         assert result.bump == "major"
         assert result.breaking
 
-    def test_no_tags_defaults(self) -> None:
-        """When no tag exists, v0.0.0 base → first feat gives v0.1.0."""
-        result = compute_bump(["abc feat: initial"], "v0.0.0")
-        assert result.bump == "minor"
-        assert result.next == "v0.1.0"
-
-    def test_scoped_feat(self) -> None:
-        result = compute_bump(["abc feat(cli): add flag"], "v0.5.0")
-        assert result.bump == "minor"
-        assert result.next == "v0.6.0"
-
-    def test_scoped_breaking(self) -> None:
-        result = compute_bump(["abc fix(core)!: rename"], "v0.5.0")
-        assert result.bump == "minor"
-        assert result.next == "v0.6.0"
-        assert result.breaking
-
-    def test_minor_feat_post1(self) -> None:
-        """Post-1.0: feat = minor bump."""
-        result = compute_bump(["abc feat: new api"], "v1.2.0")
-        assert result.bump == "minor"
-        assert result.next == "v1.3.0"
+    @pytest.mark.parametrize(
+        (
+            "commits",
+            "previous_tag",
+            "expected_bump",
+            "expected_next",
+            "expected_breaking",
+        ),
+        [
+            pytest.param(
+                ["abc docs: readme", "def chore: cleanup"],
+                "v0.7.0",
+                "patch",
+                "v0.7.1",
+                False,
+                id="patch_docs_chore",
+            ),
+            pytest.param(
+                ["abc feat: new api"],
+                "v0.7.0",
+                "minor",
+                "v0.8.0",
+                False,
+                id="minor_feat",
+            ),
+            pytest.param(
+                ["abc feat: initial"],
+                "v0.0.0",
+                "minor",
+                "v0.1.0",
+                False,
+                id="no_tags_defaults",
+            ),
+            pytest.param(
+                ["abc feat(cli): add flag"],
+                "v0.5.0",
+                "minor",
+                "v0.6.0",
+                False,
+                id="scoped_feat",
+            ),
+            pytest.param(
+                ["abc feat: new api"],
+                "v1.2.0",
+                "minor",
+                "v1.3.0",
+                False,
+                id="minor_feat_post1",
+            ),
+            pytest.param(
+                ["abc feat!: breaking"],
+                "v0.7.0",
+                "minor",
+                "v0.8.0",
+                True,
+                id="minor_breaking_pre1",
+            ),
+            pytest.param(
+                ["abc feat!: breaking"],
+                "v1.0.0",
+                "major",
+                "v2.0.0",
+                True,
+                id="major_breaking_post1",
+            ),
+            pytest.param(
+                ["abc fix(core)!: rename"],
+                "v0.5.0",
+                "minor",
+                "v0.6.0",
+                True,
+                id="scoped_breaking",
+            ),
+        ],
+    )
+    def test_bump_matrix(
+        self,
+        commits: list[str],
+        previous_tag: str,
+        expected_bump: str,
+        expected_next: str,
+        expected_breaking: bool,
+    ) -> None:
+        result = compute_bump(commits, previous_tag)
+        assert result.bump == expected_bump
+        assert result.next == expected_next
+        assert result.breaking is expected_breaking
 
     def test_returns_version_bump(self) -> None:
         result = compute_bump(["abc fix: x"], "v1.0.0")
