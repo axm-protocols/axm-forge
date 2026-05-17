@@ -251,3 +251,15 @@ exempt_paths = [
     "hooks/worktree_remove.py",
     "core/phase_commit.py",
 ]
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "99ce49e6bcd9"
+reason = "6 failure-path tests across 3 classes assert on distinct error messages (commit_spec presence, type, files key, missing-file diagnostics, retry exhaustion) and use different fixtures (mock-based vs real-repo) -- parametrization would erase the validation/diagnostic divergence"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7e0906172112"
+reason = "tests cover two distinct repo layouts (flat git repo via tmp_git_repo vs nested workspace via tmp_workspace_repo with tuple unpacking) -- different fixtures and scenarios, no shared data to parametrize"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "5ef18a0e31ec"
+reason = "tests cover opposite branches of retry-on-autofix control flow (retry path with 4 mocked git calls and stage call_count==2 vs clean path with 3 mocked git calls and stage call_count==1) -- collapsing them would obscure the call-sequence verification that is the whole point"
