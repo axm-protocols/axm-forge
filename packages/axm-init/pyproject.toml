@@ -405,6 +405,26 @@ reason = "Cross-SUT cluster: test_idempotent in test_patch_ci.py exercises patch
 hash = "7764f5b61077"
 reason = "test_category_filter (TestCheckCommand in test_availability_status.py) and test_category_pyproject (TestCheckCategoryFilter in test_check_command_output_modes.py) both invoke `axm-init check --category pyproject` but rely on two distinct locally-defined gold_project fixtures with divergent tests/ layouts (flat tests/ vs unit/integration/e2e tree) and divergent pyproject literals (single-line vs dedented multi-line). The two files house different CLI scenario suites — keeping each smoke test alongside its file's specific fixture preserves the per-file documentation of which fixture shape exercises the --category path."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "0785955b6a95"
+reason = "test_scaffold_pypi_taken_json_output (test_availability_status.py) invokes the `scaffold` CLI subcommand with `--check-pypi --json` patching axm_init.adapters.pypi.PyPIAdapter to return AvailabilityStatus.TAKEN and asserts 'error' in the JSON payload; test_reserve_no_token_json_exits (test_cli.py) invokes the `reserve` CLI subcommand with `--json` patching axm_init.adapters.credentials.CredentialManager so resolve_pypi_token raises SystemExit(1) and asserts 'error' in the JSON payload. Two distinct CLI subcommands, two distinct adapters mocked, two distinct failure branches (PyPI-name-taken vs missing-credential) — only the `data = json.loads(stdout); assert 'error' in data` idiom is shared."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "93a744de499e"
+reason = "test_standalone_skips_workspace (test_check_engine.py) invokes CheckEngine(tmp_path).run() against a minimal standalone pyproject and asserts len([c for c in result.checks if c.category == 'workspace']) == 0 — exercising the workspace-context filter on CheckEngine. test_transaction_tracks_created_files (test_file_system_adapter.py) invokes FileSystemAdapter().transaction() as a context manager, writes a file via tx.write_file, and asserts len(tx.created_files) == 1 — exercising in-transaction file tracking on a completely different SUT. Two disjoint modules, two disjoint behavioural contracts; only the `len(...) == N` assertion shape coincides."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "02d5a3872d8e"
+reason = "test_checker_fan_out_at_most_10 (test_check_engine.py) and test_copier_fan_out_at_most_10 (test_copier_config.py) both ast.parse a module file and assert len(modules) <= 10, but each documents the architectural fan-out contract for a DIFFERENT source file (src/axm_init/core/checker.py vs src/axm_init/adapters/copier.py) with a different failure-message literal naming the offending module. Keeping them per-module preserves the per-SUT documentation of which file the contract guards and avoids hiding the contract behind a shared helper."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8dd1c4c0d0ab"
+reason = "test_member_skips_skip_for_member (test_project_context__skip_for_member.py) builds a workspace+member tmp_path via the local member_path fixture, asserts engine.context == ProjectContext.MEMBER, and iterates SKIP_FOR_MEMBER asserting each name is absent. test_engine_workspace_skips_package_checks (test_project_context__skip_for_workspace.py) mutates the shared gold_project__from_check_engine_run_and_format fixture by appending `[tool.uv.workspace]`, asserts engine.context == ProjectContext.WORKSPACE, and iterates SKIP_FOR_WORKSPACE. Different fixtures, different ProjectContext values, different SKIP_* constants — two distinct context-routing branches of CheckEngine."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c0ea7c1a26b8"
+reason = "test_copy_handles_copier_error (integration test_copier_adapter__copier_config.py) patches axm_init.adapters.copier.run_copy with RuntimeError('Template not found') side_effect and asserts result.success is False AND 'Template not found' in result.message — exception branch with message-literal contract. test_copy_returns_scaffold_result (unit tests/unit/adapters/test_copier.py) patches run_copy with a MagicMock return_value and asserts result.success is True AND 'test-project' in result.path — happy-path branch with path-literal contract. Mirror branches (success vs failure) on the same SUT with divergent assertion fields (path vs message) and divergent mock topology (return_value vs side_effect)."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 
