@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -8,9 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from axm_ast.tools.graph import GraphTool
-
-_NODE_DECL_RE = re.compile(r'^\s+(\w+)\[".*"\]', re.MULTILINE)
-_EDGE_RE = re.compile(r"^\s+(\S+)\s+-->\s+(\S+)", re.MULTILINE)
+from tests.unit._helpers import _EDGE_RE, _NODE_DECL_RE
 
 
 @pytest.fixture

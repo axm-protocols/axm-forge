@@ -10,19 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from axm_ast.core.context import detect_axm_tools, detect_stack, format_context_text
-
-
-def _make_pyproject(path: Path, deps: list[str], *, build: str = "hatchling") -> None:
-    """Write a minimal pyproject.toml."""
-    dep_lines = ", ".join(f'"{d}"' for d in deps)
-    (path / "pyproject.toml").write_text(
-        f"[project]\n"
-        f'name = "testpkg"\n'
-        f"dependencies = [{dep_lines}]\n"
-        f"[build-system]\n"
-        f'requires = ["{build}"]\n'
-        f'build-backend = "{build}.build"\n'
-    )
+from tests.unit._helpers import _make_pyproject
 
 
 class TestDetectStack:
