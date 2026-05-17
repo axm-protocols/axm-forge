@@ -1,8 +1,8 @@
+"""Unit tests for axm_ast.hooks.flows."""
+
 from __future__ import annotations
 
-# ---------------------------------------------------------------------------
-# Unit tests
-# ---------------------------------------------------------------------------
+# ── _build_trace_opts ──
 
 
 class TestBuildTraceOptsCompactPassthrough:
@@ -21,11 +21,6 @@ class TestBuildTraceOptsCompactPassthrough:
         opts, is_compact = _build_trace_opts({"detail": "trace"})
         assert opts.detail == "trace"
         assert is_compact is False
-
-
-# ---------------------------------------------------------------------------
-# Edge cases
-# ---------------------------------------------------------------------------
 
 
 class TestBuildTraceOptsEdgeCases:

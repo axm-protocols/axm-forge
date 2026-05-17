@@ -1,4 +1,9 @@
-"""Unit tests for PackageCache — mock-based, no real I/O."""
+"""Unit + integration tests for axm_ast.core.cache.
+
+Covers PackageCache mock-based behavior (cache miss/hit/clear, path
+resolution, edge cases) and the module-level get_package/clear_cache
+functions (integration with real fixture parsing).
+"""
 
 from __future__ import annotations
 
@@ -7,10 +12,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from axm_ast.core.cache import PackageCache
+from axm_ast.core.cache import PackageCache, clear_cache, get_package
 
 FIXTURES = Path(__file__).parent.parent.parent / "fixtures"
 SAMPLE_PKG = FIXTURES / "sample_pkg"
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# PackageCache — mock-based unit tests (no real I/O)
+# ────────────────────────────────────────────────────────────────────────────
 
 
 class TestPackageCacheMiss:
@@ -72,3 +82,25 @@ class TestPackageCacheEdgeCases:
         cache = PackageCache()
         with pytest.raises(ValueError):
             cache.get(Path("/nonexistent/path"))
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# get_package / clear_cache — integration with real fixture parsing
+# ────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.integration
+def test_get_package_returns_package_info() -> None:
+    result = get_package(SAMPLE_PKG)
+    assert result.name == "sample_pkg"
+    assert len(result.modules) >= 1
+
+
+@pytest.mark.integration
+def test_clear_cache_then_get() -> None:
+    """get_package → clear_cache → get_package re-parses correctly."""
+    first = get_package(SAMPLE_PKG)
+    clear_cache()
+    second = get_package(SAMPLE_PKG)
+    assert first is not second
+    assert first.name == second.name
