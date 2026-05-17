@@ -11,9 +11,9 @@ from pytest_mock import MockerFixture
 from axm_smelt import smelt as _smelt_root
 from axm_smelt.core.models import Format, SmeltContext, SmeltReport
 from axm_smelt.core.pipeline import (
-    _resolve_input,
-    _resolve_strategies,
     check,
+    resolve_input,
+    resolve_strategies,
     smelt,
 )
 from axm_smelt.strategies import get_preset
@@ -364,53 +364,53 @@ def test_check_neither_text_nor_parsed_raises() -> None:
 
 
 def test_resolve_input_text_only() -> None:
-    text, parsed = _resolve_input(text="hello", parsed=None)
+    text, parsed = resolve_input(text="hello", parsed=None)
     assert text == "hello"
     assert parsed is None
 
 
 def test_resolve_input_parsed_dict() -> None:
     data = {"a": 1}
-    text, parsed = _resolve_input(text=None, parsed=data)
+    text, parsed = resolve_input(text=None, parsed=data)
     assert text == json.dumps(data, separators=(",", ":"))
     assert parsed is data
 
 
 def test_resolve_input_neither() -> None:
     with pytest.raises(ValueError, match="Either text or parsed must be provided"):
-        _resolve_input(text=None, parsed=None)
+        resolve_input(text=None, parsed=None)
 
 
 def test_resolve_input_parsed_overrides_text() -> None:
     """When both text and parsed are provided, parsed takes precedence."""
     data = {"key": "value"}
-    text, parsed = _resolve_input(text="ignored", parsed=data)
+    text, parsed = resolve_input(text="ignored", parsed=data)
     assert text == json.dumps(data, separators=(",", ":"))
     assert parsed is data
 
 
 def test_resolve_input_parsed_list() -> None:
     data = [1, 2, 3]
-    text, parsed = _resolve_input(text=None, parsed=data)
+    text, parsed = resolve_input(text=None, parsed=data)
     assert text == json.dumps(data, separators=(",", ":"))
     assert parsed is data
 
 
 def test_resolve_strategies_explicit() -> None:
-    strats = _resolve_strategies(["minify"], None)
+    strats = resolve_strategies(["minify"], None)
     assert len(strats) == 1
     assert strats[0].name == "minify"
 
 
 def test_resolve_strategies_preset() -> None:
-    strats = _resolve_strategies(None, "safe")
+    strats = resolve_strategies(None, "safe")
     expected = get_preset("safe")
     assert [s.name for s in strats] == [s.name for s in expected]
 
 
 def test_resolve_strategies_default() -> None:
     """No strategies and no preset falls back to safe preset."""
-    strats = _resolve_strategies(None, None)
+    strats = resolve_strategies(None, None)
     expected = get_preset("safe")
     assert [s.name for s in strats] == [s.name for s in expected]
 

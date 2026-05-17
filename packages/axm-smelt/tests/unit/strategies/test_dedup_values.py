@@ -9,8 +9,8 @@ from axm_smelt.core.models import Format, SmeltContext
 from axm_smelt.strategies import REGISTRY
 from axm_smelt.strategies.dedup_values import (
     DedupValuesStrategy,
-    _collect_strings,
-    _replace_strings,
+    collect_strings,
+    replace_strings,
 )
 
 _LONG = "a]" * 20  # 40 chars, above _MIN_LENGTH=20
@@ -25,20 +25,20 @@ def _ctx(payload: object) -> SmeltContext:
     return SmeltContext(text=json.dumps(payload), format=Format.JSON)
 
 
-# --- _collect_strings ---
+# --- collect_strings ---
 
 
 def test_collect_strings_nested() -> None:
     """Deeply nested JSON with repeated strings returns correct frequency map."""
     data = {"a": {"b": {"c": _LONG}}, "d": [_LONG, {"e": _LONG}]}
     strings: list[str] = []
-    _collect_strings(data, strings)
+    collect_strings(data, strings)
     assert strings.count(_LONG) == 3
 
 
 def test_collect_strings_empty_object() -> None:
     strings: list[str] = []
-    _collect_strings({}, strings)
+    collect_strings({}, strings)
     assert strings == []
 
 
@@ -46,7 +46,7 @@ def test_collect_strings_no_duplicates() -> None:
     """All unique string values — no dedup candidates."""
     data = {"a": "x" * 25, "b": "y" * 25, "c": "z" * 25}
     strings: list[str] = []
-    _collect_strings(data, strings)
+    collect_strings(data, strings)
     # All collected but each appears once
     assert len(strings) == 3
     assert len(set(strings)) == 3
@@ -56,25 +56,25 @@ def test_collect_strings_short_strings_ignored() -> None:
     """Strings shorter than _MIN_LENGTH are not collected."""
     data = {"a": "short", "b": ["tiny", "small"]}
     strings: list[str] = []
-    _collect_strings(data, strings)
+    collect_strings(data, strings)
     assert strings == []
 
 
 def test_collect_strings_list_of_strings() -> None:
     data = [_LONG, _LONG]
     strings: list[str] = []
-    _collect_strings(data, strings)
+    collect_strings(data, strings)
     assert len(strings) == 2
 
 
-# --- _replace_strings ---
+# --- replace_strings ---
 
 
 def test_replace_strings_mixed_types() -> None:
     """Only strings in lookup are replaced; numbers, booleans, nulls untouched."""
     lookup = {_LONG: "$R0"}
     data = {"s": _LONG, "n": 42, "b": True, "null": None, "list": [_LONG, 3.14]}
-    result = _replace_strings(data, lookup)
+    result = replace_strings(data, lookup)
     assert result["s"] == "$R0"
     assert result["n"] == 42
     assert result["b"] is True
@@ -85,14 +85,14 @@ def test_replace_strings_mixed_types() -> None:
 def test_replace_strings_no_match() -> None:
     """Strings not in lookup are returned as-is."""
     data = {"a": "not in lookup"}
-    result = _replace_strings(data, {})
+    result = replace_strings(data, {})
     assert result == {"a": "not in lookup"}
 
 
 def test_replace_strings_nested_dict() -> None:
     lookup = {_LONG: "$R0"}
     data = {"outer": {"inner": _LONG}}
-    result = _replace_strings(data, lookup)
+    result = replace_strings(data, lookup)
     assert result == {"outer": {"inner": "$R0"}}
 
 
