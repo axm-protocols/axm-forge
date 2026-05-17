@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from axm_git.hooks.commit_phase import CommitPhaseHook, _build_commit_cmd
+from axm_git.hooks.commit_phase import CommitPhaseHook, build_commit_cmd
 
 
 def _ok(stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
@@ -24,18 +24,18 @@ def _ok(stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
 
 
 class TestBuildCommitCmd:
-    """Unit-scope tests for _build_commit_cmd (no I/O)."""
+    """Unit-scope tests for build_commit_cmd (no I/O)."""
 
     def test_build_commit_cmd_no_verify_omitted_when_skip_hooks_false(self) -> None:
-        cmd = _build_commit_cmd("msg", None, skip_hooks=False)
+        cmd = build_commit_cmd("msg", None, skip_hooks=False)
         assert "--no-verify" not in cmd
 
     def test_build_commit_cmd_no_verify_present_when_skip_hooks_true(self) -> None:
-        cmd = _build_commit_cmd("msg", None, skip_hooks=True)
+        cmd = build_commit_cmd("msg", None, skip_hooks=True)
         assert "--no-verify" in cmd
 
     def test_commit_phase_default_skip_hooks_is_false(self) -> None:
-        sig = inspect.signature(CommitPhaseHook._commit_from_outputs)
+        sig = inspect.signature(CommitPhaseHook.commit_from_outputs)
         assert sig.parameters["skip_hooks"].default is False
 
 
@@ -78,16 +78,16 @@ class TestCommitToolNoSkip:
 
 
 def test_build_commit_cmd_with_author() -> None:
-    """_build_commit_cmd includes --author flag when author is provided."""
-    cmd = _build_commit_cmd(
+    """build_commit_cmd includes --author flag when author is provided."""
+    cmd = build_commit_cmd(
         "msg", None, skip_hooks=True, author="Axiom <axiom@axm-protocol.io>"
     )
     assert "--author=Axiom <axiom@axm-protocol.io>" in cmd
 
 
 def test_build_commit_cmd_no_author() -> None:
-    """_build_commit_cmd omits --author flag when author is None."""
-    cmd = _build_commit_cmd("msg", None, skip_hooks=True)
+    """build_commit_cmd omits --author flag when author is None."""
+    cmd = build_commit_cmd("msg", None, skip_hooks=True)
     assert all(not arg.startswith("--author") for arg in cmd)
 
 
@@ -142,7 +142,7 @@ def _run_git_success() -> Any:
 
 @pytest.fixture()
 def _commit_from_outputs_deps() -> Any:
-    """Mock dependencies for _commit_from_outputs."""
+    """Mock dependencies for commit_from_outputs."""
 
     def _run_git(cmd: list[str], working_dir: Any) -> SimpleNamespace:
         if cmd[0] == "add":
@@ -209,20 +209,20 @@ class TestCommitLegacyIdentity:
 
 
 class TestCommitFromOutputsIdentity:
-    """Tests for _commit_from_outputs with identity resolution."""
+    """Tests for commit_from_outputs with identity resolution."""
 
     def test_commit_from_outputs_with_identity(
         self,
         _identity_axiom: Any,
         _commit_from_outputs_deps: Any,
     ) -> None:
-        """_commit_from_outputs passes author when identity is resolved."""
+        """commit_from_outputs passes author when identity is resolved."""
         hook = CommitPhaseHook()
         context = {
             "phase_name": "build",
             "commit_spec": {"files": ["file.py"], "message": "test commit"},
         }
-        hook._commit_from_outputs(context, Path("/fake/repo"))
+        hook.commit_from_outputs(context, Path("/fake/repo"))
 
         commit_calls = [
             call
@@ -237,7 +237,7 @@ class TestCommitFromOutputsIdentity:
         self,
         _commit_from_outputs_deps: Any,
     ) -> None:
-        """_commit_from_outputs passes profile_override to resolve_identity."""
+        """commit_from_outputs passes profile_override to resolve_identity."""
         identity = SimpleNamespace(name="Default", email="default@example.com")
         with (
             patch(
@@ -254,7 +254,7 @@ class TestCommitFromOutputsIdentity:
                 "phase_name": "build",
                 "commit_spec": {"files": ["file.py"], "message": "test commit"},
             }
-            hook._commit_from_outputs(context, Path("/fake/repo"), profile="default")
+            hook.commit_from_outputs(context, Path("/fake/repo"), profile="default")
 
             mock_resolve.assert_called_once()
             call_kwargs = mock_resolve.call_args[1]
@@ -326,7 +326,7 @@ class TestIdentityEdgeCases:
                 "phase_name": "build",
                 "commit_spec": {"files": ["file.py"], "message": "test commit"},
             }
-            result = hook._commit_from_outputs(context, Path("/fake/repo"))
+            result = hook.commit_from_outputs(context, Path("/fake/repo"))
 
             assert result.success
             commit_calls = [

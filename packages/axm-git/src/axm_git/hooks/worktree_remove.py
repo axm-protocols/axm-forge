@@ -12,7 +12,7 @@ from typing import cast
 from axm.hooks.base import HookResult
 
 from axm_git.core.runner import find_git_root, run_git
-from axm_git.hooks._resolve import _resolve_working_dir
+from axm_git.hooks._resolve import resolve_working_dir
 
 __all__ = ["WorktreeRemoveHook"]
 
@@ -45,7 +45,7 @@ class WorktreeRemoveHook:
         if find_git_root(repo_path) is None:
             return HookResult.ok(skipped=True, reason="not a git repo")
 
-        worktree_path = _resolve_working_dir({}, context)
+        worktree_path = resolve_working_dir({}, context)
 
         if not worktree_path.exists():
             return HookResult.ok(

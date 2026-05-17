@@ -12,7 +12,7 @@ from typing import cast
 from axm.hooks.base import HookResult
 
 from axm_git.core.runner import run_git
-from axm_git.hooks._resolve import _resolve_working_dir
+from axm_git.hooks._resolve import resolve_working_dir
 
 __all__ = ["PullHook"]
 
@@ -39,7 +39,7 @@ class PullHook:
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
 
-        working_dir = _resolve_working_dir(params, context)
+        working_dir = resolve_working_dir(params, context)
 
         if not (working_dir / ".git").exists():
             return HookResult.ok(skipped=True, reason="not a git repo")

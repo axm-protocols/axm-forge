@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_git.hooks.commit_phase import _stage_spec_files
+from axm_git.hooks.commit_phase import stage_spec_files
 
 
 def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -46,7 +46,7 @@ def test_deleted_tracked_file_stages_successfully(tmp_path: Path) -> None:
     _git(["commit", "-m", "add deleted.py"], repo)
     target.unlink()
 
-    err = _stage_spec_files(["deleted.py"], repo)
+    err = stage_spec_files(["deleted.py"], repo)
     assert err is None
 
     # Verify the deletion is staged
@@ -58,7 +58,7 @@ def test_nonexistent_file_fails(tmp_path: Path) -> None:
     """A file that was never tracked should produce an error."""
     repo = _init_repo(tmp_path)
 
-    err = _stage_spec_files(["never_existed.py"], repo)
+    err = stage_spec_files(["never_existed.py"], repo)
     assert err is not None
     assert "never_existed.py" in err
 
@@ -82,7 +82,7 @@ def test_mixed_modified_and_deleted_files(tmp_path: Path) -> None:
     (repo / "keep.py").write_text("modified")
     (repo / "remove.py").unlink()
 
-    err = _stage_spec_files(["keep.py", "remove.py"], repo)
+    err = stage_spec_files(["keep.py", "remove.py"], repo)
     assert err is None
 
     # Both changes should be staged
@@ -110,7 +110,7 @@ def test_all_files_deleted(tmp_path: Path) -> None:
     for name in ["a.py", "b.py", "c.py"]:
         (repo / name).unlink()
 
-    err = _stage_spec_files(["a.py", "b.py", "c.py"], repo)
+    err = stage_spec_files(["a.py", "b.py", "c.py"], repo)
     assert err is None
 
     status = _git(["diff", "--cached", "--name-only"], repo)
@@ -131,7 +131,7 @@ def test_deleted_then_recreated_file(tmp_path: Path) -> None:
     target.unlink()
     target.write_text("v2")
 
-    err = _stage_spec_files(["revived.py"], repo)
+    err = stage_spec_files(["revived.py"], repo)
     assert err is None
 
     status = _git(["diff", "--cached", "--name-only"], repo)
@@ -221,7 +221,7 @@ def test_staging_accepts_git_root_relative_path(
     git_root, pkg_dir = workspace_repo
     (pkg_dir / "docs" / "foo.md").write_text("updated\n")
 
-    err = _stage_spec_files(
+    err = stage_spec_files(
         ["packages/pkg/docs/foo.md"],
         git_root,
         working_dir=pkg_dir,
@@ -238,7 +238,7 @@ def test_staging_accepts_package_relative_path(
     git_root, pkg_dir = workspace_repo
     (pkg_dir / "docs" / "foo.md").write_text("updated\n")
 
-    err = _stage_spec_files(
+    err = stage_spec_files(
         ["docs/foo.md"],
         git_root,
         working_dir=pkg_dir,
@@ -256,7 +256,7 @@ def test_staging_accepts_absolute_path_inside_repo(
     target = pkg_dir / "docs" / "foo.md"
     target.write_text("updated\n")
 
-    err = _stage_spec_files(
+    err = stage_spec_files(
         [str(target)],
         git_root,
         working_dir=pkg_dir,
@@ -280,7 +280,7 @@ def test_staging_rejects_absolute_path_outside_repo(tmp_path: Path) -> None:
     outside = tmp_path / "elsewhere.md"
     outside.write_text("out\n")
 
-    err = _stage_spec_files(
+    err = stage_spec_files(
         [str(outside)],
         git_root,
         working_dir=git_root,
@@ -296,7 +296,7 @@ def test_staging_missing_file_error_lists_attempts(
 ) -> None:
     git_root, pkg_dir = workspace_repo
 
-    err = _stage_spec_files(
+    err = stage_spec_files(
         ["ghost.md"],
         git_root,
         working_dir=pkg_dir,
@@ -314,7 +314,7 @@ class TestStageSpecFilesPathResolution:
     ) -> None:
         """AC1: path relative to git_root is resolved and staged."""
         git_root, pkg = workspace_repo__from_commit_phase_package_relative
-        err = _stage_spec_files(
+        err = stage_spec_files(
             ["packages/pkg/docs/foo.md"],
             git_root,
             working_dir=pkg,
@@ -327,7 +327,7 @@ class TestStageSpecFilesPathResolution:
     ) -> None:
         """AC1: path relative to working_dir (package) is staged."""
         git_root, pkg = workspace_repo__from_commit_phase_package_relative
-        err = _stage_spec_files(
+        err = stage_spec_files(
             ["docs/foo.md"],
             git_root,
             working_dir=pkg,
@@ -341,7 +341,7 @@ class TestStageSpecFilesPathResolution:
         """AC2: absolute path inside git_root is accepted verbatim."""
         git_root, pkg = workspace_repo__from_commit_phase_package_relative
         abs_path = str(pkg / "docs" / "foo.md")
-        err = _stage_spec_files(
+        err = stage_spec_files(
             [abs_path],
             git_root,
             working_dir=pkg,
@@ -369,7 +369,7 @@ class TestStageSpecFilesPathResolution:
         outside = tmp_path / "outside.md"
         outside.write_text("nope")
 
-        err = _stage_spec_files(
+        err = stage_spec_files(
             [str(outside)],
             git_root,
             working_dir=git_root,
@@ -382,7 +382,7 @@ class TestStageSpecFilesPathResolution:
     ) -> None:
         """AC3: diagnostic lists every absolute path attempted."""
         git_root, pkg = workspace_repo__from_commit_phase_package_relative
-        err = _stage_spec_files(
+        err = stage_spec_files(
             ["ghost.md"],
             git_root,
             working_dir=pkg,

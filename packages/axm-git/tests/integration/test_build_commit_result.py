@@ -22,19 +22,19 @@ def _identity(name: str = "Dev", email: str = "dev@test.com") -> Any:
 
 
 # ---------------------------------------------------------------------------
-# _build_commit_result — new helper (AC2)
+# build_commit_result — new helper (AC2)
 # ---------------------------------------------------------------------------
 
 
 class TestBuildCommitResult:
-    """Tests for the extracted _build_commit_result helper."""
+    """Tests for the extracted build_commit_result helper."""
 
     def test_with_identity_and_warnings(self, git_root: Path) -> None:
-        from axm_git.hooks.commit_phase import _build_commit_result
+        from axm_git.hooks.commit_phase import build_commit_result
 
         identity = _identity("Alice", "alice@co.com")
         with patch(f"{MODULE}.run_git", return_value=_git_result(stdout="abc1234\n")):
-            result = _build_commit_result(git_root, "feat: add X", identity, ["warn1"])
+            result = build_commit_result(git_root, "feat: add X", identity, ["warn1"])
 
         assert result.success is True
         assert result.metadata["commit"] == "abc1234"
@@ -44,11 +44,11 @@ class TestBuildCommitResult:
         assert result.metadata["warnings"] == ["warn1"]
 
     def test_with_identity_no_warnings(self, git_root: Path) -> None:
-        from axm_git.hooks.commit_phase import _build_commit_result
+        from axm_git.hooks.commit_phase import build_commit_result
 
         identity = _identity()
         with patch(f"{MODULE}.run_git", return_value=_git_result(stdout="def5678\n")):
-            result = _build_commit_result(git_root, "fix: Y", identity, [])
+            result = build_commit_result(git_root, "fix: Y", identity, [])
 
         assert result.success is True
         assert result.metadata["commit"] == "def5678"
@@ -58,10 +58,10 @@ class TestBuildCommitResult:
         assert "warnings" not in result.metadata
 
     def test_without_identity(self, git_root: Path) -> None:
-        from axm_git.hooks.commit_phase import _build_commit_result
+        from axm_git.hooks.commit_phase import build_commit_result
 
         with patch(f"{MODULE}.run_git", return_value=_git_result(stdout="aaa1111\n")):
-            result = _build_commit_result(git_root, "chore: Z", None, [])
+            result = build_commit_result(git_root, "chore: Z", None, [])
 
         assert result.success is True
         assert result.metadata["commit"] == "aaa1111"
@@ -70,10 +70,10 @@ class TestBuildCommitResult:
         assert "author_email" not in result.metadata
 
     def test_without_identity_with_warnings(self, git_root: Path) -> None:
-        from axm_git.hooks.commit_phase import _build_commit_result
+        from axm_git.hooks.commit_phase import build_commit_result
 
         with patch(f"{MODULE}.run_git", return_value=_git_result(stdout="bbb2222\n")):
-            result = _build_commit_result(git_root, "docs: W", None, ["w1", "w2"])
+            result = build_commit_result(git_root, "docs: W", None, ["w1", "w2"])
 
         assert result.success is True
         assert result.metadata["commit"] == "bbb2222"
@@ -82,7 +82,7 @@ class TestBuildCommitResult:
 
 
 # ---------------------------------------------------------------------------
-# Edge cases through _commit_from_outputs
+# Edge cases through commit_from_outputs
 # ---------------------------------------------------------------------------
 
 
@@ -99,7 +99,7 @@ def _valid_spec(
 
 
 class TestCommitFromOutputsEdgeCases:
-    """Edge-case coverage for _commit_from_outputs."""
+    """Edge-case coverage for commit_from_outputs."""
 
     def test_no_identity_config(self, git_root: Path) -> None:
         """resolve_identity returns None → no --author, no author in result."""
@@ -110,7 +110,7 @@ class TestCommitFromOutputsEdgeCases:
             patch(f"{MODULE}.find_git_root", return_value=git_root),
             patch(f"{MODULE}.resolve_identity", return_value=None),
             patch(f"{MODULE}._format_spec_files"),
-            patch(f"{MODULE}._stage_spec_files", return_value=None),
+            patch(f"{MODULE}.stage_spec_files", return_value=None),
             patch(
                 f"{MODULE}.run_git",
                 side_effect=[
@@ -120,7 +120,7 @@ class TestCommitFromOutputsEdgeCases:
                 ],
             ),
         ):
-            result = hook._commit_from_outputs(context, git_root)
+            result = hook.commit_from_outputs(context, git_root)
 
         assert result.success is True
         assert result.metadata["commit"] == "ccc3333"
@@ -136,10 +136,10 @@ class TestCommitFromOutputsEdgeCases:
             patch(f"{MODULE}.find_git_root", return_value=git_root),
             patch(f"{MODULE}.resolve_identity", return_value=None),
             patch(f"{MODULE}._format_spec_files"),
-            patch(f"{MODULE}._stage_spec_files", return_value=None),
+            patch(f"{MODULE}.stage_spec_files", return_value=None),
             patch(f"{MODULE}.run_git", return_value=_git_result(stdout="")),
         ):
-            result = hook._commit_from_outputs(context, git_root)
+            result = hook.commit_from_outputs(context, git_root)
 
         assert result.success is True
         assert result.metadata.get("skipped") is True
@@ -154,7 +154,7 @@ class TestCommitFromOutputsEdgeCases:
             patch(f"{MODULE}.find_git_root", return_value=git_root),
             patch(f"{MODULE}.resolve_identity", return_value=_identity()),
             patch(f"{MODULE}._format_spec_files"),
-            patch(f"{MODULE}._stage_spec_files", return_value=None),
+            patch(f"{MODULE}.stage_spec_files", return_value=None),
             patch(
                 f"{MODULE}.run_git",
                 side_effect=[
@@ -167,7 +167,7 @@ class TestCommitFromOutputsEdgeCases:
                 ],
             ),
         ):
-            result = hook._commit_from_outputs(context, git_root)
+            result = hook.commit_from_outputs(context, git_root)
 
         assert result.success is True
         assert result.metadata["commit"] == "ddd4444"

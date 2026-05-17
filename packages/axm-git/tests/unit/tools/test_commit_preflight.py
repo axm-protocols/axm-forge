@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pytest_mock import MockerFixture
 
-from axm_git.tools.commit_preflight import GitPreflightTool, _render_text
+from axm_git.tools.commit_preflight import GitPreflightTool, render_text
 
 
 def _completed(
@@ -173,7 +173,7 @@ def tool() -> GitPreflightTool:
 
 
 def test_render_text_clean() -> None:
-    result = _render_text(
+    result = render_text(
         files=[], diff_stat="", diff="", diff_truncated=False, max_diff_lines=200
     )
     assert result == "git_preflight | clean"
@@ -186,7 +186,7 @@ def test_render_text_dirty() -> None:
     ]
     diff_stat = " 2 files changed, 10 insertions(+), 3 deletions(-)"
     diff = "diff --git a/src/foo.py b/src/foo.py\n--- a/src/foo.py\n+++ b/src/foo.py"
-    result = _render_text(
+    result = render_text(
         files=files,
         diff_stat=diff_stat,
         diff=diff,
@@ -203,7 +203,7 @@ def test_render_text_dirty() -> None:
 def test_render_text_nodiff() -> None:
     files = [{"path": "src/foo.py", "status": "M"}]
     diff_stat = " 1 file changed, 5 insertions(+)"
-    result = _render_text(
+    result = render_text(
         files=files,
         diff_stat=diff_stat,
         diff="",
@@ -219,7 +219,7 @@ def test_render_text_nodiff() -> None:
 def test_render_text_truncated() -> None:
     files = [{"path": "src/foo.py", "status": "M"}]
     diff = "diff --git a/src/foo.py b/src/foo.py"
-    result = _render_text(
+    result = render_text(
         files=files,
         diff_stat=" 1 file changed",
         diff=diff,
@@ -231,7 +231,7 @@ def test_render_text_truncated() -> None:
 
 def test_render_text_file_status_format() -> None:
     files = [{"path": "src/mod.py", "status": "M"}]
-    result = _render_text(
+    result = render_text(
         files=files,
         diff_stat="",
         diff="",
@@ -245,7 +245,7 @@ def test_render_text_file_status_format() -> None:
 
 def test_render_text_untracked_format() -> None:
     files = [{"path": "new_file.py", "status": "??"}]
-    result = _render_text(
+    result = render_text(
         files=files,
         diff_stat="",
         diff="",
@@ -304,7 +304,7 @@ def test_execute_clean_text(
 
 def test_render_text_empty_diff_stat() -> None:
     """Clean repo — no blank stat section in text."""
-    result = _render_text(
+    result = render_text(
         files=[], diff_stat="", diff="", diff_truncated=False, max_diff_lines=200
     )
     assert result == "git_preflight | clean"
@@ -314,7 +314,7 @@ def test_render_text_empty_diff_stat() -> None:
 def test_render_text_single_file() -> None:
     """Single changed file — header shows '1 files · dirty'."""
     files = [{"path": "README.md", "status": "M"}]
-    result = _render_text(
+    result = render_text(
         files=files, diff_stat="", diff="", diff_truncated=False, max_diff_lines=200
     )
     assert "1 files · dirty" in result
@@ -324,7 +324,7 @@ def test_render_text_long_file_paths() -> None:
     """200+ char paths shown in full, no truncation."""
     long_path = "a" * 210 + ".py"
     files = [{"path": long_path, "status": "M"}]
-    result = _render_text(
+    result = render_text(
         files=files, diff_stat="", diff="", diff_truncated=False, max_diff_lines=200
     )
     assert long_path in result
