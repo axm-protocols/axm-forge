@@ -351,3 +351,19 @@ reason = "canonical 'every hook has a disabled test' pattern -- 4 tests across 4
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "e7e9aeba284a"
 reason = "ambiguous_distinct_sut -- 4 disabled-path tests instantiate 4 different hook classes (PreflightHook, WorktreeAddHook, PullHook, PushHook) split across pyramid levels (2 integration with real fixtures: tmp_git_repo + _make_context helper; 2 unit with no fixtures: working_dir='.' literal); the per-hook disabled-contract assertion cannot be parametrized across distinct hook constructors and distinct context shapes (worktree_add needs ticket_id, pull/push need only working_dir)"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "37d744e2512d"
+reason = "ambiguous_template_pair -- 4 `test_name` assertions across 4 distinct MCP tool classes (GitBranchTool, GitPRTool, GitPushTool, GitWorktreeTool) each verifying its own .name string literal ('git_branch', 'git_pr', 'git_push', 'git_worktree'); identical shape but heterogeneous SUTs with hard-coded per-tool string contracts, no parametrizable matrix"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "00c56eb1fb91"
+reason = "ambiguous_template_pair -- 3 `test_name` assertions across 3 distinct MCP tool classes (GitCommitTool, GitPreflightTool, GitTagTool) each verifying its own .name string literal ('git_commit', 'git_preflight', 'git_tag'); cookie-cutter shape but heterogeneous SUTs with hard-coded per-tool string contracts, no parametrizable matrix"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b8af6ffac47d"
+reason = "ambiguous_distinct_literals -- 3 failure-path tests target 3 distinct hook SUTs (CreateBranchHook, PullHook, PushHook): branch_exists_fails uses tmp_git_repo and double-execute to trigger 'branch already exists' git error, pull_hook_failure uses monkeypatched run_git returning rc=1 stderr 'fatal: couldn't find remote ref', push_hook_fail_on_error uses monkeypatched run_git rc=1 stderr 'remote rejected' with branch in context -- distinct fixtures, distinct trigger mechanisms (real git collision vs mocked subprocess), distinct error strings, no parametrizable matrix"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ff1f29f7b19a"
+reason = "ambiguous_distinct_literals -- 3 *_disabled tests instantiate 3 distinct hook SUTs (WorktreeRemoveHook, AwaitMergeHook, CreatePRHook) across 2 pyramid levels (1 integration with tmp_git_repo + repo_path/worktree_path context; 2 unit with no fixtures + working_dir='.' literal); each test documents the per-hook enabled=False short-circuit contract with hook-specific context payloads (worktree_remove needs worktree_path, await_merge needs only working_dir, create_pr needs only working_dir) -- the per-hook disabled-contract cannot be parametrized across distinct hook constructors and distinct minimal context shapes"
