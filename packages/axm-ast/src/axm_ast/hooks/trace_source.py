@@ -12,34 +12,18 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, cast
 
 from axm.hooks.base import HookResult
 
+from axm_ast.hooks._trace_protocol import _TraceFlow
+
 if TYPE_CHECKING:
-    from axm_ast.core.flows import FlowStep
-    from axm_ast.models.calls import CallSite
     from axm_ast.models.nodes import PackageInfo
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["TraceSourceHook", "_parse_entry", "_resolve_scope"]
-
-
-class _TraceFlow(Protocol):
-    """Protocol mirroring ``axm_ast.core.flows.trace_flow``."""
-
-    def __call__(  # noqa: PLR0913 — mirrors upstream trace_flow signature
-        self,
-        pkg: PackageInfo,
-        entry: str,
-        *,
-        max_depth: int = ...,
-        cross_module: bool = ...,
-        detail: str = ...,
-        callee_index: dict[tuple[str, str], list[CallSite]] | None = ...,
-        exclude_stdlib: bool = ...,
-    ) -> tuple[list[FlowStep], bool]: ...
 
 
 # Lazy imports — avoid importing heavy tree-sitter at module level.
