@@ -61,6 +61,18 @@ packages = ["src/axm_smelt"]
 [tool.axm-audit.mirror]
 exempt_paths = ["_types.py", "_version.py", "__main__.py", "**/__init__.py", "cli.py"]
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9ad9bb2c629d"
+reason = "tests assert on distinct value-type encodings (nested dict, pipe-in-string, boolean/null) with mixed `in` vs `==` assertion shapes — parametrization would erase the divergence"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "66f6b4a3fc35"
+reason = "pure-table vs mixed-content scenarios assert on different line indices and shapes — distinct concerns that would lose meaning under a generic expected_lines parameter"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b7fe5dcf4895"
+reason = "cleanup_blank_lines asserts on `\\n\\n\\n` absence while multiple_comments / empty_comment assert on `<!--` absence and content survival — distinct invariants per branch"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",

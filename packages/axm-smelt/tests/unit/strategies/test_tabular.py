@@ -32,13 +32,18 @@ class TestTabularBasic:
         # Nested dict value should be JSON-encoded
         assert '{"nested": true}' in lines[1]
 
-    def test_tabular_empty_array(self, strategy: TabularStrategy) -> None:
-        result = strategy.apply(SmeltContext(text="[]")).text
-        assert result == "[]"
-
-    def test_tabular_single_item(self, strategy: TabularStrategy) -> None:
-        result = strategy.apply(SmeltContext(text='[{"a":1}]')).text
-        assert result == "a\n1"
+    @pytest.mark.parametrize(
+        ("input_text", "expected"),
+        [
+            pytest.param("[]", "[]", id="empty_array"),
+            pytest.param('[{"a":1}]', "a\n1", id="single_item"),
+        ],
+    )
+    def test_tabular_trivial_arrays(
+        self, strategy: TabularStrategy, input_text: str, expected: str
+    ) -> None:
+        result = strategy.apply(SmeltContext(text=input_text)).text
+        assert result == expected
 
     def test_tabular_mixed_keys(self, strategy: TabularStrategy) -> None:
         data = json.dumps([{"a": 1, "b": 2}, {"a": 3, "c": 4}])
@@ -53,13 +58,14 @@ class TestTabularBasic:
         b_idx = headers.index("b")
         assert row2_values[b_idx] == ""
 
-    def test_tabular_non_array(self, strategy: TabularStrategy) -> None:
-        text = '{"a":1}'
-        result = strategy.apply(SmeltContext(text=text)).text
-        assert result == text
-
-    def test_tabular_non_dict_array(self, strategy: TabularStrategy) -> None:
-        text = "[1,2,3]"
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param('{"a":1}', id="non_array"),
+            pytest.param("[1,2,3]", id="non_dict_array"),
+        ],
+    )
+    def test_tabular_passthrough(self, strategy: TabularStrategy, text: str) -> None:
         result = strategy.apply(SmeltContext(text=text)).text
         assert result == text
 
@@ -92,15 +98,19 @@ class TestTabularEdgeCases:
 # --- merged from test_tabular_helpers.py ---
 
 
-def test_collect_ordered_keys_preserves_order() -> None:
-    items = [{"b": 1, "a": 2}, {"a": 3, "c": 4}]
-    result = collect_ordered_keys(items)
-    assert result == ["b", "a", "c"]
-
-
-def test_collect_ordered_keys_empty() -> None:
-    result = collect_ordered_keys([])
-    assert result == []
+@pytest.mark.parametrize(
+    ("items", "expected"),
+    [
+        pytest.param(
+            [{"b": 1, "a": 2}, {"a": 3, "c": 4}],
+            ["b", "a", "c"],
+            id="preserves_order",
+        ),
+        pytest.param([], [], id="empty"),
+    ],
+)
+def test_collect_ordered_keys(items: list[dict[str, int]], expected: list[str]) -> None:
+    assert collect_ordered_keys(items) == expected
 
 
 def test_render_rows_with_missing_keys() -> None:
@@ -112,20 +122,23 @@ def test_render_rows_with_missing_keys() -> None:
     assert rows[1].split("|")[1] == ""
 
 
-def test_single_item_list() -> None:
-    result = to_table([{"a": 1}])
+@pytest.mark.parametrize(
+    ("items", "expected_header", "expected_line_count"),
+    [
+        pytest.param([{"a": 1}], "a", 2, id="single_item_list"),
+        pytest.param([{"a": 1}, {"a": 2}], "a", 3, id="all_keys_identical"),
+    ],
+)
+def test_to_table_single_column(
+    items: list[dict[str, int]],
+    expected_header: str,
+    expected_line_count: int,
+) -> None:
+    result = to_table(items)
     assert result is not None
     lines = result.split("\n")
-    assert len(lines) == 2  # header + 1 row
-    assert lines[0] == "a"
-
-
-def test_all_keys_identical() -> None:
-    result = to_table([{"a": 1}, {"a": 2}])
-    assert result is not None
-    lines = result.split("\n")
-    assert lines[0] == "a"  # single-column header
-    assert len(lines) == 3  # header + 2 rows
+    assert lines[0] == expected_header
+    assert len(lines) == expected_line_count
 
 
 def test_nested_values_in_cells() -> None:
