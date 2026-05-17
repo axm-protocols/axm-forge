@@ -7,6 +7,7 @@ import pytest
 
 from axm_ast.models.nodes import SymbolKind
 from axm_ast.tools.search import SearchTool
+from axm_ast.tools.search_text import format_symbol_line
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -123,25 +124,25 @@ class TestFormatTextHeader:
 class TestFormatSymbolLine:
     def test_format_function_line(self):
         sym = _func_dict("foo", "def foo(a: int, b: str) -> bool", ret="bool")
-        line = SearchTool._format_symbol_line(sym)
+        line = format_symbol_line(sym)
         assert "foo" in line
         assert "bool" in line
 
     def test_format_class_line(self):
         sym = _class_dict("MyClass")
-        line = SearchTool._format_symbol_line(sym)
+        line = format_symbol_line(sym)
         assert "MyClass" in line
 
     def test_format_variable_line_annotated(self):
         sym = _var_dict("x", annotation="int", value_repr="42")
-        line = SearchTool._format_symbol_line(sym)
+        line = format_symbol_line(sym)
         assert "x" in line
         assert "int" in line
         assert "42" in line
 
     def test_format_variable_line_no_annotation(self):
         sym = _var_dict("y", value_repr="[]")
-        line = SearchTool._format_symbol_line(sym)
+        line = format_symbol_line(sym)
         assert "y" in line
         assert "[]" in line
 
@@ -265,7 +266,7 @@ class TestSearchText:
 class TestEdgeCases:
     def test_no_return_type(self):
         sym = _func_dict("do_stuff", "def do_stuff(x: int)")
-        line = SearchTool._format_symbol_line(sym)
+        line = format_symbol_line(sym)
         assert line == "do_stuff(x: int)"
         assert "->" not in line
 
@@ -273,14 +274,14 @@ class TestEdgeCases:
         params = ", ".join(f"p{i}: str" for i in range(12))
         sig = f"def big({params}) -> None"
         sym = _func_dict("big", sig, ret="None")
-        line = SearchTool._format_symbol_line(sym)
+        line = format_symbol_line(sym)
         assert line.startswith("big(")
         assert "-> None" in line
         assert "\n" not in line
 
     def test_variable_no_annotation_no_value(self):
         sym = _var_dict("x")
-        line = SearchTool._format_symbol_line(sym)
+        line = format_symbol_line(sym)
         assert line == "x"
 
     def test_inherits_filter_in_header(self):
