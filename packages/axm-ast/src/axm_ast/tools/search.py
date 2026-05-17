@@ -182,7 +182,7 @@ def _resolve_kind(sym: object) -> str | None:
     return raw_kind if isinstance(raw_kind, str) else str(raw_kind.value)
 
 
-def _format_symbol(
+def format_symbol(
     sym: FunctionInfo | ClassInfo | VariableInfo, module_name: str
 ) -> SearchResultEntry:
     """Format an AST symbol into a serialized dict entry.
@@ -269,7 +269,7 @@ def _search(
         inherits=inherits,
     )
     symbols: list[SearchResultEntry] = [
-        SearchTool._format_symbol(sym, mod_name) for mod_name, sym in results
+        SearchTool.format_symbol(sym, mod_name) for mod_name, sym in results
     ]
 
     suggestions: list[Suggestion] = []
@@ -312,7 +312,7 @@ class SearchTool(AXMTool):
 
     _load_package = staticmethod(_load_package)
     _validate_kind = staticmethod(_validate_kind)
-    _format_symbol = staticmethod(_format_symbol)
+    format_symbol = staticmethod(format_symbol)
     _find_suggestions = staticmethod(_find_suggestions)
     _format_text_header = staticmethod(format_text_header)
     _format_func_line = staticmethod(format_func_line)

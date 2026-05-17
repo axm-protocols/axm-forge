@@ -20,7 +20,7 @@ __all__ = [
 
 
 class SearchResultEntry(TypedDict, total=False):
-    """Serialized symbol dict produced by ``SearchTool._format_symbol``.
+    """Serialized symbol dict produced by ``SearchTool.format_symbol``.
 
     ``name`` and ``module`` are always present; the remaining keys are
     populated based on the symbol kind.
