@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -30,14 +31,23 @@ def test_branch_delete_success(tmp_git_repo: Path) -> None:
     assert "feat/x" not in branches.stdout
 
 
-def test_branch_delete_from_params(tmp_git_repo: Path) -> None:
-    """Branch name resolved from params."""
+@pytest.mark.parametrize(
+    "extra_context",
+    [
+        pytest.param({}, id="from_params"),
+        pytest.param({"branch": "wrong/branch"}, id="params_override_context"),
+    ],
+)
+def test_branch_delete_param_resolution(
+    tmp_git_repo: Path, extra_context: dict[str, Any]
+) -> None:
+    """Branch param wins, whether context is silent or carries a stale name."""
     run_git(["checkout", "-b", "feat/x"], tmp_git_repo)
     run_git(["checkout", "main"], tmp_git_repo)
 
     hook = BranchDeleteHook()
     result = hook.execute(
-        {"working_dir": str(tmp_git_repo), "session_id": "s"},
+        {"working_dir": str(tmp_git_repo), "session_id": "s", **extra_context},
         branch="feat/x",
     )
     assert result.success
@@ -56,24 +66,6 @@ def test_branch_delete_from_context(tmp_git_repo: Path) -> None:
             "session_id": "s",
             "branch": "feat/x",
         },
-    )
-    assert result.success
-    assert result.metadata["branch"] == "feat/x"
-
-
-def test_branch_delete_params_override(tmp_git_repo: Path) -> None:
-    """Params branch takes priority over context branch."""
-    run_git(["checkout", "-b", "feat/x"], tmp_git_repo)
-    run_git(["checkout", "main"], tmp_git_repo)
-
-    hook = BranchDeleteHook()
-    result = hook.execute(
-        {
-            "working_dir": str(tmp_git_repo),
-            "session_id": "s",
-            "branch": "wrong/branch",
-        },
-        branch="feat/x",
     )
     assert result.success
     assert result.metadata["branch"] == "feat/x"
