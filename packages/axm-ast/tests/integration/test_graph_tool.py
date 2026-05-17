@@ -31,20 +31,6 @@ def fake_workspace():
     return ws, graph
 
 
-@pytest.fixture
-def fake_workspace_no_deps():
-    """Workspace where packages have no inter-package dependencies."""
-    ws = SimpleNamespace(
-        packages=[
-            SimpleNamespace(name="axm-solo"),
-            SimpleNamespace(name="axm-lone"),
-        ],
-        package_edges=[],
-    )
-    graph: dict[str, list[str]] = {}
-    return ws, graph
-
-
 def test_graph_tool_workspace_text(
     graph_tool: GraphTool, fake_workspace: tuple[SimpleNamespace, dict[str, list[str]]]
 ) -> None:
@@ -83,30 +69,6 @@ def test_graph_tool_workspace_mermaid_valid(
         edge_ids.add(m.group(2))
     missing = edge_ids - declared
     assert not missing, f"Edge IDs not declared as nodes: {missing}\n{mermaid}"
-
-
-# ---------- Edge cases ----------
-
-
-def test_workspace_graph_text_no_deps(
-    graph_tool: GraphTool,
-    fake_workspace_no_deps: tuple[SimpleNamespace, dict[str, list[str]]],
-) -> None:
-    """Workspace with no inter-package deps shows nodes but empty Edges section."""
-    ws, graph = fake_workspace_no_deps
-    with (
-        patch("axm_ast.core.workspace.analyze_workspace", return_value=ws),
-        patch("axm_ast.core.workspace.build_workspace_dep_graph", return_value=graph),
-    ):
-        result = graph_tool._execute_workspace(Path("/fake"), format="text")
-
-    text = result.data["text"]
-    assert "Nodes:" in text
-    assert "axm-solo" in text
-    assert "axm-lone" in text
-    # Edges header present but no arrows after it
-    edges_section = text.split("Edges:")[1]
-    assert "->" not in edges_section
 
 
 def test_workspace_graph_unknown_format_falls_through(
@@ -193,22 +155,6 @@ def test_graph_tool_schema_parity(
         assert result.success is True
         assert "graph" in result.data, f"Missing 'graph' key in {result.data.keys()}"
         assert "nodes" in result.data, f"Missing 'nodes' key in {result.data.keys()}"
-
-
-def test_workspace_single_package(graph_tool: GraphTool) -> None:
-    """Single-package workspace must return nodes with exactly one element."""
-    ws = SimpleNamespace(
-        packages=[SimpleNamespace(name="solo-pkg")],
-        package_edges=[],
-    )
-    graph: dict[str, list[str]] = {}
-    with (
-        patch("axm_ast.core.workspace.analyze_workspace", return_value=ws),
-        patch("axm_ast.core.workspace.build_workspace_dep_graph", return_value=graph),
-    ):
-        result = graph_tool._execute_workspace(Path("/fake"), format="json")
-
-    assert result.data["nodes"] == ["solo-pkg"]
 
 
 def test_workspace_mermaid_format_has_nodes(
@@ -328,11 +274,6 @@ def _make_pkg(
 
 
 @pytest.fixture()
-def tool__from_graph_execute_refactor() -> GraphTool:
-    return GraphTool()
-
-
-@pytest.fixture()
 def pkg_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Package with edges for text/mermaid/json output tests."""
     root = tmp_path / "demopkg"
@@ -345,6 +286,11 @@ def pkg_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr("axm_ast.core.workspace.detect_workspace", lambda _: None)
     monkeypatch.setattr("axm_ast.core.cache.get_package", lambda _: pkg)
     return root
+
+
+@pytest.fixture()
+def tool__from_graph_execute_refactor() -> GraphTool:
+    return GraphTool()
 
 
 @pytest.fixture
@@ -551,16 +497,8 @@ class TestGraphWorkspacePath:
         assert result.data["graph"] == {"pkg_a": ["pkg_b"]}
 
 
-class TestGraphEdgeCasesRefactor:
-    """Edge cases from test_spec."""
-
-    def test_invalid_path(self, tool__from_graph_execute_refactor: GraphTool) -> None:
-        """Non-existent directory returns ToolResult(success=False)."""
-        result = tool__from_graph_execute_refactor.execute(
-            path="/nonexistent/surely/missing"
-        )
-        assert result.success is False
-        assert result.error
+class TestGraphEdgeCasesRefactorInteg:
+    """Edge cases from test_spec (integration, with I/O or fixtures)."""
 
     def test_unknown_format_falls_through_to_json(
         self, tool__from_graph_execute_refactor: GraphTool, pkg_root: Path
