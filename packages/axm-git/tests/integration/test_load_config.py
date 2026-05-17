@@ -147,3 +147,23 @@ def test_load_config_no_warning_when_workspace_paths_set(
         rec for rec in caplog.records if "inert" in rec.getMessage().lower()
     ]
     assert len(inert_warnings) == 0
+
+
+def test_load_config_missing_file(tmp_path: Path) -> None:
+    result = load_config(tmp_path / "nonexistent.toml")
+    assert result is None
+
+
+def test_load_config_invalid_toml(tmp_path: Path) -> None:
+    cfg_file = tmp_path / "git-profiles.toml"
+    cfg_file.write_text("[[[invalid toml")
+    result = load_config(cfg_file)
+    assert result is None
+
+
+def test_load_config_empty_file(tmp_path: Path) -> None:
+    """Config file exists but is 0 bytes."""
+    cfg_file = tmp_path / "git-profiles.toml"
+    cfg_file.write_text("")
+    result = load_config(cfg_file)
+    assert result is None

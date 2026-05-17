@@ -1,4 +1,10 @@
-"""Split from ``test_identity.py``."""
+"""Tests covering the (GitProfileConfig, load_config) symbol tuple.
+
+Split from a former combined test file: tests whose assertions reach into
+GitProfileConfig's shape (.default, .profiles, .schedule.rules) live here;
+tests that only assert on load_config's return-or-None contract live in
+test_load_config.py.
+"""
 
 from __future__ import annotations
 
@@ -36,7 +42,7 @@ end = "18:00"
 
 
 class TestLoadConfig:
-    """Test load_config function."""
+    """Tests asserting on GitProfileConfig shape after load_config."""
 
     def test_load_config_valid(self, tmp_path: Path) -> None:
         cfg_file = tmp_path / "git-profiles.toml"
@@ -47,20 +53,3 @@ class TestLoadConfig:
         assert config.default.name == "Gabriel"
         assert "axiom" in config.profiles
         assert len(config.schedule.rules) == 1
-
-    def test_load_config_missing_file(self, tmp_path: Path) -> None:
-        result = load_config(tmp_path / "nonexistent.toml")
-        assert result is None
-
-    def test_load_config_invalid_toml(self, tmp_path: Path) -> None:
-        cfg_file = tmp_path / "git-profiles.toml"
-        cfg_file.write_text("[[[invalid toml")
-        result = load_config(cfg_file)
-        assert result is None
-
-    def test_load_config_empty_file(self, tmp_path: Path) -> None:
-        """Config file exists but is 0 bytes."""
-        cfg_file = tmp_path / "git-profiles.toml"
-        cfg_file.write_text("")
-        result = load_config(cfg_file)
-        assert result is None
