@@ -72,3 +72,17 @@ class TestFormatSymbolModuleName:
             entry = SearchTool._format_symbol(sym, mod_name)
             assert entry["module"] != "", f"module empty for {sym.name}"
             assert entry["module"] == mod_name
+
+
+@pytest.fixture()
+def tool() -> SearchTool:
+    """Provide a fresh SearchTool instance."""
+    return SearchTool()
+
+
+class TestSearchEdgeCasesUnit:
+    """Unit-level edge cases for SearchTool (no real I/O)."""
+
+    def test_bad_path(self, tool: SearchTool) -> None:
+        result = tool.execute(path="/nonexistent/path", name="foo")
+        assert result.success is False

@@ -192,10 +192,6 @@ class TestSearchByInheritance:
 class TestSearchEdgeCases:
     """Edge cases for SearchTool."""
 
-    def test_bad_path(self, tool: SearchTool) -> None:
-        result = tool.execute(path="/nonexistent/path", name="foo")
-        assert result.success is False
-
     def test_empty_package(self, tool: SearchTool, tmp_path: Path) -> None:
         pkg = tmp_path / "empty"
         pkg.mkdir()

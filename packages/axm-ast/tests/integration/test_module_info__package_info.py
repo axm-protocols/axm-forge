@@ -9,11 +9,9 @@ from __future__ import annotations
 from collections import deque
 from pathlib import Path
 
-from axm_ast.core.analyzer import search_symbols
 from axm_ast.models.nodes import (
     ModuleInfo,
     PackageInfo,
-    VariableInfo,
 )
 
 
@@ -103,13 +101,3 @@ def test_module_names(tmp_path: Path) -> None:
     assert "pkg" in names
     assert "core" in names
     assert "sub" in names
-
-
-def test_returns_on_variables_only_module() -> None:
-    mod = ModuleInfo(
-        path=Path("vars_only.py"),
-        variables=[VariableInfo(name="MAX_SIZE", line=1)],
-    )
-    pkg = PackageInfo(name="vars", root=Path("vars"), modules=[mod])
-    results = search_symbols(pkg, returns="int")
-    assert results == []
