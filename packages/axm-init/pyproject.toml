@@ -329,6 +329,42 @@ reason = "test_fails_without_workspace writes a standalone pyproject.toml withou
 hash = "556ba8b3ac5f"
 reason = "test_importmode_missing uses ws_root fixture and asserts 'importlib' literal in message (missing import_mode branch); test_no_pyproject_fails uses bare tmp_path with no pyproject.toml and asserts 'No pyproject.toml' literal (file-absent branch) — two disjoint early-return paths with divergent message assertions."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d0659a349149"
+reason = "test_no_pyproject_fails (TestPytestTestpathsEdge) uses bare tmp_path with no pyproject.toml and asserts 'No pyproject.toml' literal; test_testpaths_without_packages_ref writes a pyproject with testpaths pointing outside packages/ and asserts 'does not reference' literal — two distinct early-return branches with divergent setups and message assertions."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "831a9cf7d7f0"
+reason = "test_badges_missing writes a README with no badge strings and asserts '2 badge(s)' literal (file-present-but-bad branch); test_no_readme uses empty_project fixture (no README at all) and asserts 'not found' literal (file-absent branch) — two distinct file-presence branches with divergent message assertions."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "16b52a3539c0"
+reason = "test_compatible uses the ws_root fixture (pre-built valid workspace) and asserts only the happy-path passed flag; test_member_with_unreadable_toml_skipped builds a synthetic workspace with an invalid TOML member to cover the data=None continue branch (line 224) — different fixture topology targeting different code paths."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8c5b47077c05"
+reason = "test_fail_no_publish uses the empty_project fixture (no .github/workflows/publish.yml at all → file-absent branch); test_fail_no_oidc writes a publish.yml without id-token permission to cover the present-but-non-OIDC branch — two distinct workflow-file-shape branches of check_trusted_publishing."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d65fcf789a80"
+reason = "test_copier_exception_caught patches axm_init.adapters.copier.CopierAdapter with a RuntimeError side_effect and asserts 'copier broke' in the error; test_get_template_path_error patches axm_init.core.templates.get_template_path with a FileNotFoundError and asserts 'template not found' — two distinct exception-source branches with divergent patch targets and divergent error-message literals."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4cd222650ac4"
+reason = "test_member_not_in_workspace patches detect_context→STANDALONE (single-patch topology) and asserts 'Not inside a UV workspace' literal; test_member_scaffold_failure patches detect_context→WORKSPACE plus CopierAdapter and get_template_path (three-patch topology) and asserts 'copy failed' — distinct mock surface and divergent failure-message literals targeting different branches."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8b56ed7aeb29"
+reason = "test_axm_init_check_passes_on_correctly_wired_docs scaffolds with the force-include block and asserts only finding.passed is True; test_axm_init_check_fails_on_orphan_docs scaffolds without it and asserts finding.passed is False AND that 'test_quality.md' appears in finding.details — mirror branches (pass vs fail) but the fail case verifies an additional details-enumeration contract absent from the pass case."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c6e04bb78153"
+reason = "test_no_else_block writes a release.yml with a tags section but no else branch and asserts 'my-lib/v*' in content AND 'elif' NOT in content (tag-only insertion path); test_no_tags_section writes one without a tags section but with an else and asserts 'elif' IS in content (elif-only insertion path) — mirror branches with inverted elif/tag assertions."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "83ae2eb6faa0"
+reason = "test_check_auth_status patches subprocess.run with return_value MagicMocks (returncode 0 then 1) inside a single block asserting both True and False outcomes (success/failure branch coverage); test_check_auth_no_gh patches subprocess.run with side_effect=FileNotFoundError asserting only False (exception branch) — different mock topology (return_value sequence vs exception side_effect) targeting distinct code paths in check_auth."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 
