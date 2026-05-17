@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
-__all__ = ["_resolve_working_dir"]
+__all__ = ["resolve_working_dir"]
 
 
-def _resolve_working_dir(
+def resolve_working_dir(
     params: dict[str, object],
     context: dict[str, object],
     *,

@@ -28,7 +28,7 @@ __all__ = ["GitTagTool"]
 logger = logging.getLogger(__name__)
 
 
-def _check_ci(path: Path) -> str:
+def check_ci(path: Path) -> str:
     """Check CI status via ``gh``.  Returns one of green/red/pending/skipped/error."""
     if not gh_available():
         return "skipped"
@@ -61,7 +61,7 @@ def _check_ci(path: Path) -> str:
         return "error"
 
 
-def _get_tag_prefix(path: Path) -> str:
+def get_tag_prefix(path: Path) -> str:
     """Read tag prefix from pyproject.toml ``tag-pattern`` (e.g. ``git/``).
 
     Returns the prefix string (e.g. ``"git/"``) or ``""`` if none.
@@ -105,7 +105,7 @@ def _get_commits_since(path: Path, tag: str | None) -> list[str]:
     return [line for line in log.stdout.strip().splitlines() if line.strip()]
 
 
-def _verify_hatch_vcs(path: Path, pkg_name: str) -> str | None:
+def verify_hatch_vcs(path: Path, pkg_name: str) -> str | None:
     """Rebuild package and read resolved version (best-effort)."""
     try:
         sync = subprocess.run(
@@ -159,7 +159,7 @@ def _preflight(
             data={"dirty_files": status.stdout.strip().splitlines()},
         )
 
-    ci_check = _check_ci(path)
+    ci_check = check_ci(path)
     if ci_check == "red":
         return ToolResult(
             success=False,
@@ -239,7 +239,7 @@ class GitTagTool(AXMTool):
             ToolResult with tag, version, and push status.
         """
         resolved = Path(path).resolve()
-        tag_prefix = _get_tag_prefix(resolved)
+        tag_prefix = get_tag_prefix(resolved)
 
         try:
             # 1. Preflight: repo, clean tree, CI, commits
@@ -272,7 +272,7 @@ class GitTagTool(AXMTool):
             resolved_version = None
             pkg_name = detect_package_name(resolved)
             if pkg_name:
-                resolved_version = _verify_hatch_vcs(resolved, pkg_name)
+                resolved_version = verify_hatch_vcs(resolved, pkg_name)
 
             # 5. Push tag
             push = run_git(["push", "origin", full_tag], resolved)

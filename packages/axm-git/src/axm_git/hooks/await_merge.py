@@ -14,15 +14,15 @@ from typing import cast
 from axm.hooks.base import HookResult
 
 from axm_git.core.runner import gh_available, run_gh
-from axm_git.hooks._resolve import _resolve_working_dir
+from axm_git.hooks._resolve import resolve_working_dir
 
-__all__ = ["AwaitMergeHook", "_resolve_pr_ref"]
+__all__ = ["AwaitMergeHook", "resolve_pr_ref"]
 
 _DEFAULT_TIMEOUT = 600  # 10 minutes
 _DEFAULT_INTERVAL = 30  # seconds
 
 
-def _resolve_pr_ref(
+def resolve_pr_ref(
     params: dict[str, object],
     context: dict[str, object],
 ) -> object | None:
@@ -68,9 +68,9 @@ class AwaitMergeHook:
         if not gh_available():
             return HookResult.ok(skipped=True, reason="gh not available")
 
-        working_dir = _resolve_working_dir(params, context)
+        working_dir = resolve_working_dir(params, context)
 
-        pr_ref = _resolve_pr_ref(params, context)
+        pr_ref = resolve_pr_ref(params, context)
         if not pr_ref:
             return HookResult.fail("no pr_number or pr_url in params or context")
 

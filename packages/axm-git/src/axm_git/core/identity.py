@@ -139,7 +139,7 @@ def _is_axm_workspace(path: Path, workspace_paths: list[Path]) -> bool:
     return False
 
 
-def _resolve_by_override(
+def resolve_by_override(
     config: GitProfileConfig,
     profile_override: str | None,
 ) -> GitIdentity | None:
@@ -155,7 +155,7 @@ def _resolve_by_override(
     return config.profiles.get(profile_override)
 
 
-def _resolve_by_schedule(
+def resolve_by_schedule(
     config: GitProfileConfig,
     workspace_path: Path,
     now: datetime,
@@ -189,7 +189,7 @@ def resolve_identity(
     if config is None:
         return None
 
-    override = _resolve_by_override(config, profile_override)
+    override = resolve_by_override(config, profile_override)
     if profile_override is not None:
         return override
 
@@ -200,7 +200,7 @@ def resolve_identity(
         effective_now = now
     else:
         effective_now = now.astimezone(tz)
-    return _resolve_by_schedule(config, workspace_path, effective_now) or config.default
+    return resolve_by_schedule(config, workspace_path, effective_now) or config.default
 
 
 def author_args(identity: GitIdentity | None) -> list[str]:

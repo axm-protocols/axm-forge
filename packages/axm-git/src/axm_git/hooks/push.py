@@ -11,7 +11,7 @@ from typing import cast
 from axm.hooks.base import HookResult
 
 from axm_git.core.runner import find_git_root, run_git
-from axm_git.hooks._resolve import _resolve_working_dir
+from axm_git.hooks._resolve import resolve_working_dir
 
 __all__ = ["PushHook"]
 
@@ -37,7 +37,7 @@ class PushHook:
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
 
-        working_dir = _resolve_working_dir(params, context)
+        working_dir = resolve_working_dir(params, context)
 
         git_root = find_git_root(working_dir)
         if git_root is None:

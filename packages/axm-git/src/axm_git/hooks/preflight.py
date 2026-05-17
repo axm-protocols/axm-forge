@@ -13,15 +13,15 @@ from typing import cast
 from axm.hooks.base import HookResult
 
 from axm_git.core.runner import find_git_root, run_git
-from axm_git.hooks._resolve import _resolve_working_dir
-from axm_git.tools.commit_preflight import _render_text
+from axm_git.hooks._resolve import resolve_working_dir
+from axm_git.tools.commit_preflight import render_text
 
-__all__ = ["PreflightHook", "_truncate_diff"]
+__all__ = ["PreflightHook", "truncate_diff"]
 
 _MIN_STATUS_LINE_LEN = 4  # git porcelain format: "XY filename"
 
 
-def _truncate_diff(stdout: str, max_lines: int) -> str:
+def truncate_diff(stdout: str, max_lines: int) -> str:
     """Truncate diff output to *max_lines*.
 
     Returns the first *max_lines* lines joined by newlines,
@@ -74,7 +74,7 @@ def _collect_diff(
         return "", False
     result = run_git(["diff", "-U2", *pathspec], git_root)
     raw_lines = result.stdout.splitlines()
-    truncated = _truncate_diff(result.stdout, max_diff_lines)
+    truncated = truncate_diff(result.stdout, max_diff_lines)
     return truncated, len(raw_lines) > max_diff_lines
 
 
@@ -98,14 +98,14 @@ class PreflightHook:
             **params: Optional ``path`` and ``diff_lines``.
 
         Returns:
-            HookResult with a compact ``text`` render (via ``_render_text``)
+            HookResult with a compact ``text`` render (via ``render_text``)
             and metadata containing ``files``, ``diff``, ``file_count``,
             and ``clean``.
         """
         if not params.get("enabled", True):
             return HookResult.ok(skipped=True, reason="git disabled")
 
-        working_dir = _resolve_working_dir(params, context, param_key="path").resolve()
+        working_dir = resolve_working_dir(params, context, param_key="path").resolve()
         max_diff_lines = int(cast("int | str", params.get("diff_lines", 200)))
 
         git_root = find_git_root(working_dir)
@@ -122,7 +122,7 @@ class PreflightHook:
         diff_stat_out = _collect_diff_stat(git_root, pathspec)
         diff_content, diff_truncated = _collect_diff(git_root, pathspec, max_diff_lines)
 
-        rendered = _render_text(
+        rendered = render_text(
             files=files,
             diff_stat=diff_stat_out,
             diff=diff_content,
