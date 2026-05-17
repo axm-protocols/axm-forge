@@ -419,3 +419,16 @@ def test_mermaid_src_layout_has_edges() -> None:
     result = GraphTool().execute(path=AXM_AST_PATH, format="mermaid")
     assert result.success, f"GraphTool failed: {result.error}"
     assert " --> " in result.data["mermaid"], "Mermaid output should contain edges"
+
+
+# ---------------------------------------------------------------------------
+# TestGraphToolUnit (from test_tools.py)
+# ---------------------------------------------------------------------------
+
+
+class TestGraphToolUnit:
+    """Tests for ast_graph tool."""
+
+    def test_has_name(self) -> None:
+        tool_inst = GraphTool()
+        assert tool_inst.name == "ast_graph"

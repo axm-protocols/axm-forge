@@ -9,6 +9,10 @@ from __future__ import annotations
 import subprocess
 import sys
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 
 def test_impact_text_resolves_in_fresh_interpreter() -> None:
     """AC4: importing impact_text works without first importing tools.impact."""

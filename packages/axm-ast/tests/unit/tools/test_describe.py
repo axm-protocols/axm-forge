@@ -155,3 +155,36 @@ def test_describe_compress_full_conflict(tool: DescribeTool) -> None:
     result = tool.execute(compress=True, detail="full")
     assert result.success is False
     assert result.error is not None
+
+
+# ---------------------------------------------------------------------------
+# TestDescribeToolUnit (from test_tools.py)
+# ---------------------------------------------------------------------------
+
+
+SELF_PKG = Path(__file__).resolve().parents[3] / "src" / "axm_ast"
+
+
+class TestDescribeToolUnit:
+    """Tests for ast_describe tool."""
+
+    def test_has_name(self) -> None:
+        tool = DescribeTool()
+        assert tool.name == "ast_describe"
+
+    def test_execute_bad_path(self) -> None:
+        tool = DescribeTool()
+        result = tool.execute(path="/nonexistent/path")
+        assert result.success is False
+
+
+# ---------------------------------------------------------------------------
+# Dogfood: describe tool on self
+# ---------------------------------------------------------------------------
+
+
+def test_describe_on_self() -> None:
+    tool = DescribeTool()
+    result = tool.execute(path=str(SELF_PKG), compress=True)
+    assert result.success is True
+    assert result.data["module_count"] >= 16

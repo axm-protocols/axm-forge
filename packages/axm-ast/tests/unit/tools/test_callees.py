@@ -158,3 +158,19 @@ def test_very_long_module_name() -> None:
     text = CalleesTool._render_text(callees, symbol="Z")
     body = text.splitlines()[1]
     assert body.startswith(f"{long_mod}:999")
+
+
+# ---------------------------------------------------------------------------
+# TestCalleesToolEdgeCasesUnit (from test_tools_coverage.py)
+# ---------------------------------------------------------------------------
+
+
+class TestCalleesToolEdgeCasesUnit:
+    """CalleesTool — name, bad path."""
+
+    def test_name(self) -> None:
+        assert CalleesTool().name == "ast_callees"
+
+    def test_bad_path(self) -> None:
+        result = CalleesTool().execute(path="/nonexistent/path/xyz", symbol="foo")
+        assert result.success is False

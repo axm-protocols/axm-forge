@@ -773,3 +773,14 @@ def test_render_suggestion_line_short_kind() -> None:
     suggestion = _make_suggestion(name="foo", kind="cls", module=None)
     line = SearchTool._render_suggestion_line(suggestion)
     assert line == "? foo .92 cls"
+
+
+# ── TestSearchToolUnit (from test_tools.py) ────────────────────────────────
+
+
+class TestSearchToolUnit:
+    """Tests for ast_search tool."""
+
+    def test_has_name(self) -> None:
+        tool_inst = SearchTool()
+        assert tool_inst.name == "ast_search"

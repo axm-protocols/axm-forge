@@ -1,6 +1,12 @@
-"""Integration tests for AST Hooks."""
+"""Integration tests for AST Hooks discovery via entry points."""
+
+from __future__ import annotations
 
 from importlib.metadata import entry_points
+
+import pytest
+
+pytestmark = pytest.mark.integration
 
 
 def test_hook_discovery_via_entry_points() -> None:
