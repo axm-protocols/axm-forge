@@ -30,7 +30,7 @@ def _make_pkg(path: Path, *, modules: dict[str, str] | None = None) -> Path:
 # ─── ContextTool ────────────────────────────────────────────────────────────
 
 
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture()
@@ -89,7 +89,7 @@ def test_text_token_count_lower() -> None:
 
 def test_workspace() -> None:
     """ContextTool works on workspace root."""
-    ws_path = Path(__file__).resolve().parents[5]
+    ws_path = Path(__file__).resolve().parent.parent.parent.parent
     tool = ContextTool()
     result = tool.execute(path=str(ws_path), depth=1)
     if not result.success:
