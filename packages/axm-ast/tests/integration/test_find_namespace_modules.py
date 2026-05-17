@@ -36,7 +36,7 @@ def _write_source(path: Path, source: str) -> Path:
     return path
 
 
-class TestLazyImportNamespaceDetection:
+class TestLazyImportNamespaceDetectionIntegration:
     """Lazy `from pkg import mod` inside function bodies detects namespace modules."""
 
     def test_lazy_import_namespace_module_detected(self, tmp_path: Path) -> None:
@@ -190,14 +190,6 @@ class TestLazyImportNamespaceDetection:
         result = _find_namespace_modules(pkg)
 
         assert mod_b_path in result
-
-    def test_empty_package_returns_empty_set(self) -> None:
-        from axm_ast.core.dead_code import _find_namespace_modules
-
-        pkg = _make_ns_pkg([])
-        result = _find_namespace_modules(pkg)
-
-        assert result == set()
 
     def test_no_imports_returns_empty_set(self, tmp_path: Path) -> None:
         from axm_ast.core.dead_code import _find_namespace_modules
