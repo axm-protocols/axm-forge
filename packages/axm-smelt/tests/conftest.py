@@ -10,7 +10,7 @@ from axm_smelt.core import counter as _counter
 @pytest.fixture(autouse=True)
 def _reset_counter_state() -> None:
     _counter._ENC.clear()
-    _counter._warned = False
+    _counter.reset_warned()
 
 
 @pytest.fixture

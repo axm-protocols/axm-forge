@@ -13,6 +13,13 @@ _log = logging.getLogger(__name__)
 _ENC: dict[str, tiktoken.Encoding] = {}
 _warned: bool = False
 
+
+def reset_warned() -> None:
+    """Reset the one-shot warning flag (test seam)."""
+    global _warned
+    _warned = False
+
+
 _TIKTOKEN_VALUE = "tiktoken"
 _FALLBACK_VALUE = "fallback"
 
