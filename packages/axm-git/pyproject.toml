@@ -103,7 +103,7 @@ select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "S", "T20", "PLE",
 ignore = ["S101", "S603", "S607"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "PLR2004"]
+"tests/*" = ["S101", "S105", "S106", "S108", "S603", "S607", "PLR2004", "PLR0913"]
 "src/axm_git/hooks/await_merge.py" = ["PLR0911"]
 "src/axm_git/tools/tag.py" = ["PLR0911"]
 
@@ -295,3 +295,15 @@ reason = "outside-paths vs empty-paths exercise opposite branches of the workspa
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "8f4b32ba6350"
 reason = "closed-without-merge and network-error exercise distinct failure paths (PR state=CLOSED with rc=0 vs gh subprocess rc=1 stderr) with different mock setups and different error-message substrings (`closed without merging` vs `failed to query`) -- the failure-mode divergence is the whole point"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "edd3b4d908fd"
+reason = "test_git_failure patches only run_git and asserts the bare 'not a git repository' message, while test_not_git_repo_no_suggestions also patches suggest_git_repos and verifies the no-suggestions branch -- different patch topologies and different error-rendering branches, parametrize would require an awkward optional-second-patch matrix"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "045fc214b278"
+reason = "7 load_config tests span 3 behavior groups -- silent_on_missing/empty assert result is None AND caplog.records == 0 (no warning), missing_file/invalid_toml/empty_file assert result is None ONLY (no caplog observation), warns_on_malformed_toml/invalid_schema assert result is None AND caplog.records >= 1 (warning emitted) -- the warning-emission observation surface differs across groups (zero vs none vs nonzero), and the file-content fixtures encode the silent-vs-noisy contract that parametrize would erase"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "754178fe7dfb"
+reason = "4 suggest_git_repos tests exercise 4 distinct directory topologies and 4 different return shapes -- finds_repos builds two child .git dirs (returns sorted [alpha, beta]), in_git_repo plants .git at the root itself (early-return []), no_children uses bare tmp_path (returns []), permission_error chmod 0o000 on a sibling with try/finally cleanup (returns [ok] despite the unreadable peer) -- shared assertion is `result == list[str]` but the values, setups, and the os-permission-recovery teardown differ substantively"

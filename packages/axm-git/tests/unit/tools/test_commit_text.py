@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from axm_git.tools.commit_text import (
     format_commit_line,
     format_text_header,
@@ -58,65 +60,73 @@ class TestFormatTextHeader:
 class TestFormatCommitLine:
     """format_commit_line: per-commit line."""
 
-    def test_plain_commit(self) -> None:
-        result: dict[str, Any] = {
-            "sha": "aa83f25",
-            "message": "feat: add a",
-            "retried": False,
-        }
-        assert format_commit_line(result) == "aa83f25 feat: add a"
-
-    def test_retried_commit_has_marker(self) -> None:
-        result: dict[str, Any] = {
-            "sha": "1b60588",
-            "message": "feat: a",
-            "retried": True,
-        }
-        assert format_commit_line(result) == "1b60588 ↻ feat: a"
+    @pytest.mark.parametrize(
+        ("sha", "message", "retried", "expected"),
+        [
+            pytest.param(
+                "aa83f25", "feat: add a", False, "aa83f25 feat: add a", id="plain"
+            ),
+            pytest.param("1b60588", "feat: a", True, "1b60588 ↻ feat: a", id="retried"),
+        ],
+    )
+    def test_commit_line(
+        self, sha: str, message: str, retried: bool, expected: str
+    ) -> None:
+        result: dict[str, Any] = {"sha": sha, "message": message, "retried": retried}
+        assert format_commit_line(result) == expected
 
 
 class TestRenderText:
     """render_text: success-path rendering."""
 
-    def test_two_commits(self) -> None:
-        data = {
-            "results": [
+    @pytest.mark.parametrize(
+        ("data", "expected"),
+        [
+            pytest.param(
                 {
-                    "sha": "87841bb",
-                    "message": "feat: add b",
-                    "precommit_passed": True,
-                    "retried": False,
+                    "results": [
+                        {
+                            "sha": "87841bb",
+                            "message": "feat: add b",
+                            "precommit_passed": True,
+                            "retried": False,
+                        },
+                        {
+                            "sha": "0d2d6e0",
+                            "message": "feat: add c",
+                            "precommit_passed": True,
+                            "retried": False,
+                        },
+                    ],
+                    "total": 2,
+                    "succeeded": 2,
                 },
+                (
+                    "git_commit | ok | 2/2 commits\n"
+                    "87841bb feat: add b\n0d2d6e0 feat: add c"
+                ),
+                id="two_commits",
+            ),
+            pytest.param(
                 {
-                    "sha": "0d2d6e0",
-                    "message": "feat: add c",
-                    "precommit_passed": True,
-                    "retried": False,
+                    "results": [
+                        {
+                            "sha": "1b60588",
+                            "message": "feat: a",
+                            "precommit_passed": True,
+                            "retried": True,
+                        }
+                    ],
+                    "total": 1,
+                    "succeeded": 1,
                 },
-            ],
-            "total": 2,
-            "succeeded": 2,
-        }
-        out = render_text(data)
-        assert out == (
-            "git_commit | ok | 2/2 commits\n87841bb feat: add b\n0d2d6e0 feat: add c"
-        )
-
-    def test_retried_marker_in_body(self) -> None:
-        data = {
-            "results": [
-                {
-                    "sha": "1b60588",
-                    "message": "feat: a",
-                    "precommit_passed": True,
-                    "retried": True,
-                }
-            ],
-            "total": 1,
-            "succeeded": 1,
-        }
-        out = render_text(data)
-        assert out == ("git_commit | ok | 1/1 commits · 1 retried\n1b60588 ↻ feat: a")
+                "git_commit | ok | 1/1 commits · 1 retried\n1b60588 ↻ feat: a",
+                id="retried",
+            ),
+        ],
+    )
+    def test_render(self, data: dict[str, Any], expected: str) -> None:
+        assert render_text(data) == expected
 
 
 class TestRenderFailureText:
