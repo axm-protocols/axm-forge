@@ -367,3 +367,15 @@ reason = "ambiguous_distinct_literals -- 3 failure-path tests target 3 distinct 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "ff1f29f7b19a"
 reason = "ambiguous_distinct_literals -- 3 *_disabled tests instantiate 3 distinct hook SUTs (WorktreeRemoveHook, AwaitMergeHook, CreatePRHook) across 2 pyramid levels (1 integration with tmp_git_repo + repo_path/worktree_path context; 2 unit with no fixtures + working_dir='.' literal); each test documents the per-hook enabled=False short-circuit contract with hook-specific context payloads (worktree_remove needs worktree_path, await_merge needs only working_dir, create_pr needs only working_dir) -- the per-hook disabled-contract cannot be parametrized across distinct hook constructors and distinct minimal context shapes"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "bc21505a59bc"
+reason = "ambiguous_distinct_literals -- 3 dict-worktree-path tests target 3 distinct hook SUTs (PullHook, PushHook, CreatePRHook) across 2 pyramid levels (2 integration with tmp_git_repo + run_git mocks; 1 unit with run_gh mock and /tmp/wt literal) -- each patches a different subprocess seam (axm_git.hooks.pull.run_git vs axm_git.hooks.push.run_git with rev-parse branch vs axm_git.hooks.create_pr.run_gh with gh_available + create_pr.commit_spec context) and asserts captured_cwd against a different path source (tmp_git_repo Path vs /tmp/wt literal) -- the dict-unwrap contract is identical but the mock topology and context shape diverge per hook, no parametrizable matrix"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "393d37013529"
+reason = "ambiguous_distinct_literals -- 2 missing-input failure tests target distinct hook SUTs and distinct error contracts: BranchDeleteHook::test_branch_delete_missing_branch runs on tmp_git_repo with no branch in context/params, asserts error contains 'no branch specified' (input-validation branch in branch-delete); AwaitMergeHook::test_await_merge_no_pr_ref runs with monkeypatched gh_available=True and no pr_number/pr_url, asserts error contains 'no pr_number or pr_url' (pre-poll guard in await-merge) -- different SUTs, different setup (real-repo vs gh-mock), different error substrings, no parametrizable matrix"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e714397697ca"
+reason = "signal1_call_assert -- 2 entry-point load tests target distinct hook SUTs and distinct entry-point names: test_commit_phase_hook_loads loads 'git:commit-phase' and asserts ep.load() is CommitPhaseHook; test_preflight_hook_loads loads 'git:preflight' and asserts ep.load() is PreflightHook -- the cookie-cutter shape (entry_points lookup + identity check) hides hard-coded per-hook string-and-class pairs that cannot be parametrized without losing the per-hook entry-point contract documentation"
