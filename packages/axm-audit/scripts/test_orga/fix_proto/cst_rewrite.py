@@ -308,6 +308,12 @@ def _flatten_class_to_top_level(source_text: str, class_name: str) -> str:
     Other bodies inside the class (helpers, fixtures) are also promoted
     to top-level — they may conflict with module-level names; caller is
     expected to verify with _class_is_pathological first.
+
+    Class-level decorators that apply to every method (``@pytest.mark.*``
+    including ``usefixtures``) are propagated onto each promoted test
+    function so behaviour is preserved across the flatten. Decorators
+    that don't make sense at function level (anything that isn't a
+    ``pytest.mark.*`` or bare ``mark.*``) are dropped with the class.
     """
     module = cst.parse_module(source_text)
     new_body: list[cst.BaseStatement] = []
@@ -317,22 +323,50 @@ def _flatten_class_to_top_level(source_text: str, class_name: str) -> str:
         ):
             new_body.append(stmt)
             continue
+        class_decos = tuple(
+            d for d in stmt.decorators if _is_pytest_mark_decorator(d)
+        )
         for child in stmt.body.body:
-            promoted = _flatten_class_child(child)
+            promoted = _flatten_class_child(child, class_decos)
             if promoted is not None:
                 new_body.append(promoted)
     return module.with_changes(body=new_body).code
 
 
+def _is_pytest_mark_decorator(deco: cst.Decorator) -> bool:
+    """True iff *deco* is ``@pytest.mark.X`` or ``@pytest.mark.X(...)``.
+
+    Class-level pytest marks (``integration``, ``e2e``, ``usefixtures``,
+    custom markers) apply to every method, so they must follow the
+    methods when the class is flattened. Other class decorators
+    (``@dataclass``, ``@pytest.fixture``, custom adapters) don't have
+    that semantics — they are dropped with the class wrapper.
+    """
+    node = deco.decorator
+    if isinstance(node, cst.Call):
+        node = node.func
+    if not isinstance(node, cst.Attribute):
+        return False
+    parent = node.value
+    if not (isinstance(parent, cst.Attribute) and parent.attr.value == "mark"):
+        return False
+    grand = parent.value
+    return isinstance(grand, cst.Name) and grand.value == "pytest"
+
+
 def _flatten_class_child(
     child: cst.BaseStatement,
+    class_decorators: tuple[cst.Decorator, ...] = (),
 ) -> cst.BaseStatement | None:
     """Promote one child of a Test* class body to module level.
 
     Returns None to drop (class docstring); returns the (possibly
     rewritten) statement otherwise. For FunctionDef, strips the ``self``
     parameter so the promoted top-level function takes the same args
-    pytest expects.
+    pytest expects, and prepends ``class_decorators`` (class-level
+    pytest marks) so behaviour-affecting markers survive the flatten.
+    Helpers and fixtures inside the class don't receive class-level
+    marks — they aren't tests and pytest marks have no effect on them.
     """
     if isinstance(child, cst.SimpleStatementLine) and len(child.body) == 1:
         inner = child.body[0]
@@ -342,9 +376,11 @@ def _flatten_class_child(
             return None
     if isinstance(child, cst.FunctionDef):
         params = child.params
+        new_params = params
         if params.params and params.params[0].name.value == "self":
             new_params = params.with_changes(params=tuple(params.params[1:]))
-            return child.with_changes(params=new_params)
+        new_decorators = class_decorators + tuple(child.decorators)
+        return child.with_changes(params=new_params, decorators=new_decorators)
     return child
 
 

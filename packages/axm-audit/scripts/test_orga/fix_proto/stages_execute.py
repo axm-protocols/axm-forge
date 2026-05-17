@@ -401,32 +401,56 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
     # the target via _git_mv) thus loses its fixtures silently.
     # Solution: pin anchor-referenced fixtures so non-anchor moves see
     # them as "needed by remaining content" and leave them in source.
-    anchor_unit_names = set(routes[anchor])
-    anchor_nodes = [
-        n for n in tree.body
-        if isinstance(n, ast.FunctionDef | ast.ClassDef)
-        and n.name in anchor_unit_names
-    ]
-    anchor_fixture_refs: set[str] = set()
-    for node in anchor_nodes:
-        anchor_fixture_refs |= _string_literal_fixtures_in_unit(node)
-        anchor_fixture_refs |= _marker_fixtures_in_unit(node)
-        # Also pick up fixtures used as direct params (no markers).
-        if isinstance(node, ast.ClassDef):
-            for m in node.body:
-                if isinstance(m, ast.FunctionDef):
-                    anchor_fixture_refs |= {a.arg for a in m.args.args}
-        else:
-            anchor_fixture_refs |= {a.arg for a in node.args.args}
+    def _fixtures_referenced_by(unit_names: set[str]) -> set[str]:
+        """Collect all fixture names referenced by units of given names.
+
+        Pulls from three sites: marker fixtures (``usefixtures``),
+        string-literal fixtures (``pytest.param`` + ``getfixturevalue``)
+        and direct params on the test signature (or class methods).
+        """
+        refs: set[str] = set()
+        for n in tree.body:
+            if not (
+                isinstance(n, ast.FunctionDef | ast.ClassDef)
+                and n.name in unit_names
+            ):
+                continue
+            refs |= _string_literal_fixtures_in_unit(n)
+            refs |= _marker_fixtures_in_unit(n)
+            if isinstance(n, ast.ClassDef):
+                for m in n.body:
+                    if isinstance(m, ast.FunctionDef):
+                        refs |= {a.arg for a in m.args.args}
+            else:
+                refs |= {a.arg for a in n.args.args}
+        return refs
+
+    anchor_fixture_refs = _fixtures_referenced_by(set(routes[anchor]))
+    # Track fixtures still needed by units not yet moved. Each iteration
+    # drops the current target's needs, so the pin set shrinks as we
+    # progress. Without this, anvil's marker-fixture follow-up copies a
+    # fixture into the FIRST non-anchor target, then deletes it from
+    # source (no source-side reference remains), leaving subsequent
+    # non-anchor targets without the fixture — even though they declare
+    # the same ``usefixtures`` marker.
+    non_anchor_units: dict[str, set[str]] = {
+        canonical: set(unit_names)
+        for canonical, unit_names in routes.items()
+        if canonical != anchor
+    }
     for canonical, unit_names in routes.items():
         if canonical == anchor:
             continue
         target = op.source.parent / canonical
         if not target.exists():
             target.write_text(f'"""Split from ``{op.source.name}``."""\n')
+        non_anchor_units.pop(canonical, None)
+        pending_refs: set[str] = set()
+        for pending_names in non_anchor_units.values():
+            pending_refs |= _fixtures_referenced_by(pending_names)
         sub_warnings, _ = _safe_move_units(
             op.source, target, unit_names, project_path,
-            keep_in_source=anchor_fixture_refs,
+            keep_in_source=anchor_fixture_refs | pending_refs,
         )
         warnings.extend(sub_warnings)
         post_split_paths.append(target)
