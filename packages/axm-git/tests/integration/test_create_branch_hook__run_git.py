@@ -2,32 +2,30 @@
 
 from pathlib import Path
 
+import pytest
+
 from axm_git.core.runner import run_git
 from axm_git.hooks.create_branch import CreateBranchHook
 
 
-def test_creates_branch(tmp_git_repo: Path) -> None:
+@pytest.mark.parametrize(
+    ("subpath", "session_id"),
+    [
+        pytest.param("", "abc123", id="at_repo_root"),
+        pytest.param("packages/pkg", "sub123", id="subdirectory_of_git_repo"),
+    ],
+)
+def test_creates_branch(tmp_git_repo: Path, subpath: str, session_id: str) -> None:
+    """Branch is created and visible from repo root for any starting cwd."""
+    working_dir = tmp_git_repo / subpath if subpath else tmp_git_repo
+    if subpath:
+        working_dir.mkdir(parents=True)
     hook = CreateBranchHook()
     result = hook.execute(
-        {"working_dir": str(tmp_git_repo), "session_id": "abc123"},
+        {"working_dir": str(working_dir), "session_id": session_id},
     )
     assert result.success
-    assert result.metadata["branch"] == "axm/abc123"
-    # Verify git branch exists
+    expected_branch = f"axm/{session_id}"
+    assert result.metadata["branch"] == expected_branch
     branches = run_git(["branch"], tmp_git_repo)
-    assert "axm/abc123" in branches.stdout
-
-
-def test_subdirectory_of_git_repo(tmp_git_repo: Path) -> None:
-    """Branch created when working_dir is a subdirectory of a git repo."""
-    subdir = tmp_git_repo / "packages" / "pkg"
-    subdir.mkdir(parents=True)
-    hook = CreateBranchHook()
-    result = hook.execute(
-        {"working_dir": str(subdir), "session_id": "sub123"},
-    )
-    assert result.success
-    assert result.metadata["branch"] == "axm/sub123"
-    # Branch visible from repo root
-    branches = run_git(["branch"], tmp_git_repo)
-    assert "axm/sub123" in branches.stdout
+    assert expected_branch in branches.stdout
