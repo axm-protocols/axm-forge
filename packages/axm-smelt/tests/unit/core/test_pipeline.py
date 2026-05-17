@@ -167,23 +167,29 @@ class TestSmeltPresets:
 
     # -- Unit tests: preset composition --
 
-    def test_safe_preset_includes_collapse(self) -> None:
-        strats = get_preset("safe")
+    @pytest.mark.parametrize(
+        ("preset", "required_strategies"),
+        [
+            pytest.param("safe", ["collapse_whitespace"], id="safe_includes_collapse"),
+            pytest.param(
+                "moderate",
+                ["compact_tables", "strip_html_comments"],
+                id="moderate_includes_markdown",
+            ),
+            pytest.param(
+                "aggressive",
+                ["collapse_whitespace", "compact_tables", "strip_html_comments"],
+                id="aggressive_includes_all_markdown",
+            ),
+        ],
+    )
+    def test_preset_includes_strategies(
+        self, preset: str, required_strategies: list[str]
+    ) -> None:
+        strats = get_preset(preset)
         names = [s.name for s in strats]
-        assert "collapse_whitespace" in names
-
-    def test_moderate_preset_includes_markdown(self) -> None:
-        strats = get_preset("moderate")
-        names = [s.name for s in strats]
-        assert "compact_tables" in names
-        assert "strip_html_comments" in names
-
-    def test_aggressive_preset_includes_all_markdown(self) -> None:
-        strats = get_preset("aggressive")
-        names = [s.name for s in strats]
-        assert "collapse_whitespace" in names
-        assert "compact_tables" in names
-        assert "strip_html_comments" in names
+        for required in required_strategies:
+            assert required in names
 
     # -- Functional tests: markdown through pipeline --
 
@@ -369,31 +375,24 @@ def test_resolve_input_text_only() -> None:
     assert parsed is None
 
 
-def test_resolve_input_parsed_dict() -> None:
-    data = {"a": 1}
-    text, parsed = resolve_input(text=None, parsed=data)
-    assert text == json.dumps(data, separators=(",", ":"))
-    assert parsed is data
-
-
 def test_resolve_input_neither() -> None:
     with pytest.raises(ValueError, match="Either text or parsed must be provided"):
         resolve_input(text=None, parsed=None)
 
 
-def test_resolve_input_parsed_overrides_text() -> None:
-    """When both text and parsed are provided, parsed takes precedence."""
-    data = {"key": "value"}
-    text, parsed = resolve_input(text="ignored", parsed=data)
-    assert text == json.dumps(data, separators=(",", ":"))
-    assert parsed is data
-
-
-def test_resolve_input_parsed_list() -> None:
-    data = [1, 2, 3]
-    text, parsed = resolve_input(text=None, parsed=data)
-    assert text == json.dumps(data, separators=(",", ":"))
-    assert parsed is data
+@pytest.mark.parametrize(
+    ("input_text", "parsed_data"),
+    [
+        pytest.param(None, {"a": 1}, id="parsed_dict"),
+        pytest.param("ignored", {"key": "value"}, id="parsed_overrides_text"),
+        pytest.param(None, [1, 2, 3], id="parsed_list"),
+    ],
+)
+def test_resolve_input_parsed_wins(input_text: str | None, parsed_data: object) -> None:
+    """When parsed is provided, it wins and text is the canonical JSON dump."""
+    text, parsed = resolve_input(text=input_text, parsed=parsed_data)
+    assert text == json.dumps(parsed_data, separators=(",", ":"))
+    assert parsed is parsed_data
 
 
 def test_resolve_strategies_explicit() -> None:
@@ -402,15 +401,16 @@ def test_resolve_strategies_explicit() -> None:
     assert strats[0].name == "minify"
 
 
-def test_resolve_strategies_preset() -> None:
-    strats = resolve_strategies(None, "safe")
-    expected = get_preset("safe")
-    assert [s.name for s in strats] == [s.name for s in expected]
-
-
-def test_resolve_strategies_default() -> None:
-    """No strategies and no preset falls back to safe preset."""
-    strats = resolve_strategies(None, None)
+@pytest.mark.parametrize(
+    "preset",
+    [
+        pytest.param("safe", id="explicit_safe_preset"),
+        pytest.param(None, id="default_falls_back_to_safe"),
+    ],
+)
+def test_resolve_strategies_resolves_to_safe(preset: str | None) -> None:
+    """Explicit 'safe' preset and the default (None, None) both resolve to safe."""
+    strats = resolve_strategies(None, preset)
     expected = get_preset("safe")
     assert [s.name for s in strats] == [s.name for s in expected]
 
