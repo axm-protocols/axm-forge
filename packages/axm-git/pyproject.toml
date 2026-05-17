@@ -263,3 +263,19 @@ reason = "tests cover two distinct repo layouts (flat git repo via tmp_git_repo 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "5ef18a0e31ec"
 reason = "tests cover opposite branches of retry-on-autofix control flow (retry path with 4 mocked git calls and stage call_count==2 vs clean path with 3 mocked git calls and stage call_count==1) -- collapsing them would obscure the call-sequence verification that is the whole point"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3a0c99a704de"
+reason = "three verify_hatch_vcs failure paths exercise structurally different subprocess mock setups (return_value with rc=1 for sync_fails, side_effect callback with call counter for version_check_fails, side_effect=FileNotFoundError for uv_not_found) -- collapsing into parametrize would erase the mock-setup divergence that documents each failure mode"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e3d125f53c7c"
+reason = "test_dirty_tree and test_ci_red_blocks cover unrelated GitTagTool preconditions (dirty working tree vs red CI) and patch different collaborators (run_git status output vs check_ci return value) -- shared shape is just `execute fails` but the failure cause and the patched seam differ"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8efb16a1f64a"
+reason = "test_deleted_tracked_file_stages_successfully stages a pure deletion (file removed from disk, staged as `D`), while test_deleted_then_recreated_file stages a deletion followed by recreation with different content (staged as content modification on a re-existing file) -- distinct git states despite identical assertions, parametrize would obscure the disk-state divergence"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "31cab244bf8d"
+reason = "11 tests span three classes (TestResolveIdentity, TestScheduleBoundaries, TestIsAxmWorkspace) and three concerns (schedule resolution by time/day, schedule boundary inclusivity, axm-workspace detection) with several inline-TOML setups (default VALID_TOML, minimal `[default]` only, multi-rule first-wins, symlink) -- collapsing into a single parametrize would conflate three independent behaviors and obscure the per-class documentation intent"

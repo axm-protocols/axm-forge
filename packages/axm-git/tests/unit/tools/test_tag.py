@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from axm_git.tools import tag as tag_mod
 from axm_git.tools.tag import GitTagTool, check_ci, verify_hatch_vcs
 
@@ -109,54 +111,45 @@ class TestCheckCi:
     def test_skipped_when_gh_unavailable(self, _gh: MagicMock) -> None:
         assert check_ci(Path("/tmp")) == "skipped"
 
+    @pytest.mark.parametrize(
+        ("returncode", "stdout", "expected_status"),
+        [
+            pytest.param(
+                0,
+                json.dumps([{"conclusion": "success", "status": "completed"}]),
+                "green",
+                id="green",
+            ),
+            pytest.param(
+                0,
+                json.dumps([{"conclusion": None, "status": "in_progress"}]),
+                "pending",
+                id="pending",
+            ),
+            pytest.param(
+                0,
+                json.dumps([{"conclusion": "failure", "status": "completed"}]),
+                "red",
+                id="red",
+            ),
+            pytest.param(0, "[]", "skipped", id="empty_runs"),
+            pytest.param(1, "", "skipped", id="gh_returncode_nonzero"),
+        ],
+    )
     @patch("axm_git.tools.tag.run_gh")
     @patch("axm_git.tools.tag.gh_available", return_value=True)
-    def test_green(self, _gh: MagicMock, mock_gh: MagicMock) -> None:
+    def test_check_ci_from_gh_output(
+        self,
+        _gh: MagicMock,
+        mock_gh: MagicMock,
+        returncode: int,
+        stdout: str,
+        expected_status: str,
+    ) -> None:
         mock_gh.return_value = subprocess.CompletedProcess(
-            args=["gh"],
-            returncode=0,
-            stdout=json.dumps([{"conclusion": "success", "status": "completed"}]),
-            stderr="",
+            args=["gh"], returncode=returncode, stdout=stdout, stderr=""
         )
-        assert check_ci(Path("/tmp")) == "green"
-
-    @patch("axm_git.tools.tag.run_gh")
-    @patch("axm_git.tools.tag.gh_available", return_value=True)
-    def test_pending(self, _gh: MagicMock, mock_gh: MagicMock) -> None:
-        mock_gh.return_value = subprocess.CompletedProcess(
-            args=["gh"],
-            returncode=0,
-            stdout=json.dumps([{"conclusion": None, "status": "in_progress"}]),
-            stderr="",
-        )
-        assert check_ci(Path("/tmp")) == "pending"
-
-    @patch("axm_git.tools.tag.run_gh")
-    @patch("axm_git.tools.tag.gh_available", return_value=True)
-    def test_red(self, _gh: MagicMock, mock_gh: MagicMock) -> None:
-        mock_gh.return_value = subprocess.CompletedProcess(
-            args=["gh"],
-            returncode=0,
-            stdout=json.dumps([{"conclusion": "failure", "status": "completed"}]),
-            stderr="",
-        )
-        assert check_ci(Path("/tmp")) == "red"
-
-    @patch("axm_git.tools.tag.run_gh")
-    @patch("axm_git.tools.tag.gh_available", return_value=True)
-    def test_empty_runs(self, _gh: MagicMock, mock_gh: MagicMock) -> None:
-        mock_gh.return_value = subprocess.CompletedProcess(
-            args=["gh"], returncode=0, stdout="[]", stderr=""
-        )
-        assert check_ci(Path("/tmp")) == "skipped"
-
-    @patch("axm_git.tools.tag.run_gh")
-    @patch("axm_git.tools.tag.gh_available", return_value=True)
-    def test_gh_returncode_nonzero(self, _gh: MagicMock, mock_gh: MagicMock) -> None:
-        mock_gh.return_value = subprocess.CompletedProcess(
-            args=["gh"], returncode=1, stdout="", stderr="error"
-        )
-        assert check_ci(Path("/tmp")) == "skipped"
+        assert check_ci(Path("/tmp")) == expected_status
 
     @patch("axm_git.tools.tag.run_gh", side_effect=FileNotFoundError)
     @patch("axm_git.tools.tag.gh_available", return_value=True)

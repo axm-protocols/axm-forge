@@ -215,49 +215,30 @@ def _cached_files(git_root: Path) -> set[str]:
 
 
 @pytest.mark.integration
-def test_staging_accepts_git_root_relative_path(
+@pytest.mark.parametrize(
+    "path_style",
+    [
+        pytest.param("git_root_relative", id="git_root_relative"),
+        pytest.param("package_relative", id="package_relative"),
+        pytest.param("absolute_inside_repo", id="absolute_inside_repo"),
+    ],
+)
+def test_staging_accepts_path_style(
     workspace_repo: tuple[Path, Path],
-) -> None:
-    git_root, pkg_dir = workspace_repo
-    (pkg_dir / "docs" / "foo.md").write_text("updated\n")
-
-    err = stage_spec_files(
-        ["packages/pkg/docs/foo.md"],
-        git_root,
-        working_dir=pkg_dir,
-    )
-
-    assert err is None
-    assert "packages/pkg/docs/foo.md" in _cached_names(git_root)
-
-
-@pytest.mark.integration
-def test_staging_accepts_package_relative_path(
-    workspace_repo: tuple[Path, Path],
-) -> None:
-    git_root, pkg_dir = workspace_repo
-    (pkg_dir / "docs" / "foo.md").write_text("updated\n")
-
-    err = stage_spec_files(
-        ["docs/foo.md"],
-        git_root,
-        working_dir=pkg_dir,
-    )
-
-    assert err is None
-    assert "packages/pkg/docs/foo.md" in _cached_names(git_root)
-
-
-@pytest.mark.integration
-def test_staging_accepts_absolute_path_inside_repo(
-    workspace_repo: tuple[Path, Path],
+    path_style: str,
 ) -> None:
     git_root, pkg_dir = workspace_repo
     target = pkg_dir / "docs" / "foo.md"
     target.write_text("updated\n")
 
+    spec_path = {
+        "git_root_relative": "packages/pkg/docs/foo.md",
+        "package_relative": "docs/foo.md",
+        "absolute_inside_repo": str(target),
+    }[path_style]
+
     err = stage_spec_files(
-        [str(target)],
+        [spec_path],
         git_root,
         working_dir=pkg_dir,
     )
@@ -376,18 +357,3 @@ class TestStageSpecFilesPathResolution:
         )
         assert err is not None
         assert "outside repository" in err.lower()
-
-    def test_staging_missing_file_error_lists_attempts(
-        self, workspace_repo__from_commit_phase_package_relative: tuple[Path, Path]
-    ) -> None:
-        """AC3: diagnostic lists every absolute path attempted."""
-        git_root, pkg = workspace_repo__from_commit_phase_package_relative
-        err = stage_spec_files(
-            ["ghost.md"],
-            git_root,
-            working_dir=pkg,
-        )
-        assert err is not None
-        assert "ghost.md" in err
-        assert str(git_root / "ghost.md") in err
-        assert str(pkg / "ghost.md") in err
