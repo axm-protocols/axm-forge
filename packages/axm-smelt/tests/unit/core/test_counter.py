@@ -16,7 +16,7 @@ from axm_smelt.core.pipeline import smelt
 
 @pytest.fixture(autouse=True)
 def _reset_warn() -> None:
-    counter._warned = False
+    counter.reset_warned()
 
 
 # --- count() ---
