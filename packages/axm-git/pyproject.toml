@@ -279,3 +279,19 @@ reason = "test_deleted_tracked_file_stages_successfully stages a pure deletion (
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "31cab244bf8d"
 reason = "11 tests span three classes (TestResolveIdentity, TestScheduleBoundaries, TestIsAxmWorkspace) and three concerns (schedule resolution by time/day, schedule boundary inclusivity, axm-workspace detection) with several inline-TOML setups (default VALID_TOML, minimal `[default]` only, multi-rule first-wins, symlink) -- collapsing into a single parametrize would conflate three independent behaviors and obscure the per-class documentation intent"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "53396655fe5b"
+reason = "parse_tag cluster mixes 3 success-path equality assertions (parse_tag(s) == tuple) with 1 pytest.raises ValueError invalid case -- success vs raises observation surfaces are heterogeneous, parametrize would force an awkward optional-expected/optional-raises matrix that erases the failure-mode documentation"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b52a6d37c8d3"
+reason = "three resolve_identity scenarios document distinct workspace-paths topologies (single-path match, multi-path selection where target is in second root, symlink resolution of a real_root via link) -- shared `result.name == Work` assertion masks substantively different setup graphs that the test names are meant to surface"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "a75d19003c8d"
+reason = "outside-paths vs empty-paths exercise opposite branches of the workspace-paths fall-through (non-empty list with target outside, vs empty list short-circuit) -- both reach the default identity but via different code paths and different fixture topologies, parametrize would collapse the branch-coverage intent"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8f4b32ba6350"
+reason = "closed-without-merge and network-error exercise distinct failure paths (PR state=CLOSED with rc=0 vs gh subprocess rc=1 stderr) with different mock setups and different error-message substrings (`closed without merging` vs `failed to query`) -- the failure-mode divergence is the whole point"

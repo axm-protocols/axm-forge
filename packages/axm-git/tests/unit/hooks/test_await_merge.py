@@ -291,18 +291,35 @@ class TestAwaitMergeHook:
 # --- Tests for resolve_pr_ref helper ---
 
 
-def test_resolve_pr_ref_from_params() -> None:
-    """params with pr_number returns pr_number."""
-    params = {"pr_number": 42}
-    context: dict[str, object] = {}
-    assert resolve_pr_ref(params, context) == 42
-
-
-def test_resolve_pr_ref_from_context() -> None:
-    """params empty, context with pr_url returns pr_url."""
-    params: dict[str, object] = {}
-    context = {"pr_url": "https://github.com/org/repo/pull/99"}
-    assert resolve_pr_ref(params, context) == "https://github.com/org/repo/pull/99"
+@pytest.mark.parametrize(
+    ("params", "context", "expected"),
+    [
+        pytest.param(
+            {"pr_number": 42},
+            {},
+            42,
+            id="from_params",
+        ),
+        pytest.param(
+            {},
+            {"pr_url": "https://github.com/org/repo/pull/99"},
+            "https://github.com/org/repo/pull/99",
+            id="from_context",
+        ),
+        pytest.param(
+            {"pr_number": 1},
+            {"pr_url": "https://github.com/org/repo/pull/99"},
+            1,
+            id="params_takes_precedence",
+        ),
+    ],
+)
+def test_resolve_pr_ref_returns_expected(
+    params: dict[str, object],
+    context: dict[str, object],
+    expected: object,
+) -> None:
+    assert resolve_pr_ref(params, context) == expected
 
 
 def test_resolve_pr_ref_missing() -> None:
@@ -310,10 +327,3 @@ def test_resolve_pr_ref_missing() -> None:
     params: dict[str, object] = {}
     context: dict[str, object] = {}
     assert resolve_pr_ref(params, context) is None
-
-
-def test_resolve_pr_ref_params_takes_precedence() -> None:
-    """When both params.pr_number and context.pr_url exist, params wins."""
-    params = {"pr_number": 1}
-    context = {"pr_url": "https://github.com/org/repo/pull/99"}
-    assert resolve_pr_ref(params, context) == 1
