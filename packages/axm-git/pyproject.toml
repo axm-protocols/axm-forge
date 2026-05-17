@@ -335,3 +335,19 @@ reason = "test_branch_delete_success uses the flat `tmp_git_repo: Path` fixture 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "3cb3f5c55fe3"
 reason = "11 tests span 8 hook classes (CommitPhaseHook, CreateBranchHook, BranchDeleteHook, PullHook, PushHook, WorktreeAddHook, WorktreeRemoveHook, AwaitMergeHook) across 2 pyramid levels (10 integration + 1 unit) with 4+ distinct fixtures (tmp_path, tmp_git_repo, _make_context, monkeypatch-only) and 2 metadata observation surfaces (skipped is True vs pulled/pushed is True for pull_already_up_to_date and push_everything_up_to_date) -- worktree_remove::test_skip_missing_path even uses tmp_git_repo for a different skip reason (missing worktree path, not non-repo); the apparent shared shape `success + boolean metadata` hides 8 distinct hook contracts that cannot share a fixture or parametrize cleanly"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "0c17112c5c87"
+reason = "8 tests across 5 files exercise distinct SUTs and fixtures -- CommitPhaseHook::test_workspace_nothing_to_commit uses tmp_workspace_repo tuple-unpacking with run_git side-effects; PreflightHook::test_not_a_repo uses bare tmp_path while test_clean_repo uses tmp_git_repo (different repo setup, both via shared conftest); PullHook/PushHook ::test_*_not_git_repo use tmp_path with no monkeypatching; CreatePRHook trio (test_create_pr_skip_no_gh patches only gh_available=False, test_create_pr_already_exists patches gh_available+run_gh with conditional rc=1 stderr 'already exists' AND a gh view JSON response, test_create_pr_auto_merge_failure_non_fatal patches gh_available+run_gh with rc=0 for create + rc=1 for merge) -- each has a distinct mock topology and asserts on different metadata keys (skipped/reason vs pr_url/already_existed vs pr_url/auto_merge=False), parametrize would erase the per-failure-mode setup divergence"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e7377c7b0e34"
+reason = "5 tests across 4 files target 4 distinct hook SUTs (BranchDeleteHook, CreateBranchHook, MergeSquashHook, PreflightHook) with different fixtures and context shapes -- branch_delete_from_context resolves branch from context dict on tmp_git_repo, create_branch::test_default_working_dir uses monkeypatch.chdir to test the '.' fallback while test_create_branch_session_fallback uses working_dir-in-context path (different setup mechanism for branch naming), merge_squash_branch_from_context requires tmp_git_repo_with_named_branch (pre-created branch fixture), preflight_dict_worktree_path tests dict-typed worktree_path unwrapping with a one-file dirty repo -- different hook contracts, different context-resolution paths, no shared parametrizable matrix"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ba0764a49848"
+reason = "canonical 'every hook has a disabled test' pattern -- 4 tests across 4 files instantiate 4 distinct hook classes (CommitPhaseHook, CreateBranchHook, BranchDeleteHook, MergeSquashHook) with hook-specific context payloads (phase_name for commit_phase, session_id+protocol_name for merge_squash, session_id only for branch hooks); each test documents the per-hook 'enabled=False short-circuits to skipped reason=git disabled' contract for its own SUT and cannot be folded across hook classes without losing the per-hook coverage signal"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e7e9aeba284a"
+reason = "ambiguous_distinct_sut -- 4 disabled-path tests instantiate 4 different hook classes (PreflightHook, WorktreeAddHook, PullHook, PushHook) split across pyramid levels (2 integration with real fixtures: tmp_git_repo + _make_context helper; 2 unit with no fixtures: working_dir='.' literal); the per-hook disabled-contract assertion cannot be parametrized across distinct hook constructors and distinct context shapes (worktree_add needs ticket_id, pull/push need only working_dir)"
