@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -43,7 +45,7 @@ def _var_dict(
 
 @pytest.fixture()
 def patch_search(monkeypatch):
-    """Patch search_symbols and _format_symbol so _search returns controlled dicts."""
+    """Patch search_symbols + _format_symbol so execute() returns controlled dicts."""
 
     def _setup(formatted_dicts: list[dict[str, Any]]) -> None:
         raw = [(d.get("module", "mod"), d) for d in formatted_dicts]
@@ -147,22 +149,23 @@ class TestFormatSymbolLine:
         assert "[]" in line
 
 
-# ── Functional: text through _search ───────────────────────────────────────────
+# ── Functional: text through SearchTool.execute() ─────────────────────────────
 
 
 class TestSearchText:
-    def test_search_text_functions(self, patch_search):
+    def test_search_text_functions(
+        self,
+        patch_search: Callable[[list[dict[str, Any]]], None],
+        tmp_path: Path,
+    ) -> None:
         dicts = [
             _func_dict("search_items", "def search_items(q: str) -> list", ret="list"),
             _func_dict("search_all", "def search_all() -> None", ret="None"),
         ]
         patch_search(dicts)
-        result = SearchTool._search(
-            pkg=None,
+        result = SearchTool().execute(
+            path=str(tmp_path),
             name="search",
-            returns=None,
-            kind=None,
-            inherits=None,
         )
         assert result.text is not None
         lines = result.text.strip().splitlines()
@@ -171,15 +174,16 @@ class TestSearchText:
         assert "search_items(q: str) -> list" in result.text
         assert "search_all() -> None" in result.text
 
-    def test_search_text_classes(self, patch_search):
+    def test_search_text_classes(
+        self,
+        patch_search: Callable[[list[dict[str, Any]]], None],
+        tmp_path: Path,
+    ) -> None:
         dicts = [_class_dict("SearchEngine"), _class_dict("SearchResult")]
         patch_search(dicts)
-        result = SearchTool._search(
-            pkg=None,
-            name=None,
-            returns=None,
+        result = SearchTool().execute(
+            path=str(tmp_path),
             kind="class",
-            inherits=None,
         )
         assert result.text is not None
         assert "SearchEngine" in result.text
@@ -190,32 +194,34 @@ class TestSearchText:
                 assert "SearchResult" in line
                 break
 
-    def test_search_text_variables(self, patch_search):
+    def test_search_text_variables(
+        self,
+        patch_search: Callable[[list[dict[str, Any]]], None],
+        tmp_path: Path,
+    ) -> None:
         dicts = [_var_dict("max_count", annotation="int", value_repr="100")]
         patch_search(dicts)
-        result = SearchTool._search(
-            pkg=None,
-            name=None,
-            returns=None,
+        result = SearchTool().execute(
+            path=str(tmp_path),
             kind="variable",
-            inherits=None,
         )
         assert result.text is not None
         assert "max_count: int" in result.text
 
-    def test_search_text_mixed(self, patch_search):
+    def test_search_text_mixed(
+        self,
+        patch_search: Callable[[list[dict[str, Any]]], None],
+        tmp_path: Path,
+    ) -> None:
         dicts = [
             _func_dict("get_value", "def get_value(k: str) -> int", ret="int"),
             _class_dict("GetHelper"),
             _var_dict("get_default", annotation="str", value_repr='"x"'),
         ]
         patch_search(dicts)
-        result = SearchTool._search(
-            pkg=None,
+        result = SearchTool().execute(
+            path=str(tmp_path),
             name="get",
-            returns=None,
-            kind=None,
-            inherits=None,
         )
         text = result.text
         assert text is not None
@@ -225,31 +231,33 @@ class TestSearchText:
         var_pos = text.index("get_default")
         assert func_pos < class_pos < var_pos
 
-    def test_search_text_empty(self, patch_search):
+    def test_search_text_empty(
+        self,
+        patch_search: Callable[[list[dict[str, Any]]], None],
+        tmp_path: Path,
+    ) -> None:
         patch_search([])
-        result = SearchTool._search(
-            pkg=None,
+        result = SearchTool().execute(
+            path=str(tmp_path),
             name="zzz_nonexistent",
-            returns=None,
-            kind=None,
-            inherits=None,
         )
         assert result.text is not None
         assert "0 hits" in result.text
         lines = result.text.strip().splitlines()
         assert len(lines) == 1
 
-    def test_search_data_unchanged(self, patch_search):
+    def test_search_data_unchanged(
+        self,
+        patch_search: Callable[[list[dict[str, Any]]], None],
+        tmp_path: Path,
+    ) -> None:
         dicts = [
             _func_dict("search_items", "def search_items(q: str) -> list", ret="list"),
         ]
         patch_search(dicts)
-        result = SearchTool._search(
-            pkg=None,
+        result = SearchTool().execute(
+            path=str(tmp_path),
             name="search",
-            returns=None,
-            kind=None,
-            inherits=None,
         )
         assert result.data is not None
         assert "results" in result.data
