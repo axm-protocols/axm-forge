@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from axm_ast.cli import app
+from tests.unit._helpers import _make_pyproject
 
 
 def _make_project(tmp_path: Path) -> Path:
@@ -136,3 +137,41 @@ class TestCallersCLI:
             app(["callers", str(pkg_dir), "--symbol", "lonely"])
         captured = capsys.readouterr()
         assert "no callers" in captured.out.lower() or "0" in captured.out
+
+
+def _make_pkg(path: Path, *, modules: dict[str, str] | None = None) -> Path:
+    """Create a minimal Python package."""
+    pkg = path / "testpkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text('"""Test package."""\n')
+    if modules:
+        for name, content in modules.items():
+            (pkg / name).write_text(content)
+    return pkg
+
+
+def test_context_cli_text(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """CLI context command produces text output with package name."""
+    from axm_ast.cli import app
+
+    pkg = _make_pkg(tmp_path)
+    _make_pyproject(tmp_path, ["cyclopts>=3.0"])
+    with pytest.raises(SystemExit):
+        app(["context", str(pkg)])
+    captured = capsys.readouterr()
+    assert "testpkg" in captured.out
+
+
+def test_context_cli_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """CLI --json produces valid JSON with expected keys."""
+    from axm_ast.cli import app
+
+    pkg = _make_pkg(tmp_path)
+    _make_pyproject(tmp_path, ["pydantic>=2.0"])
+    with pytest.raises(SystemExit):
+        app(["context", str(pkg), "--json"])
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert "name" in data
+    assert "stack" in data
+    assert "modules" in data

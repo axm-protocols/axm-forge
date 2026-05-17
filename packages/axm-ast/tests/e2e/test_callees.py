@@ -41,7 +41,7 @@ class TestCalleesCLI:
             ],
             capture_output=True,
             text=True,
-            cwd=Path(__file__).parent.parent.parent.parent,
+            cwd=Path(__file__).parent.parent.parent,
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -61,7 +61,7 @@ class TestCalleesCLI:
             ["uv", "run", "axm-ast", "callees", str(pkg_path), "--symbol", "noop"],
             capture_output=True,
             text=True,
-            cwd=Path(__file__).parent.parent.parent.parent,
+            cwd=Path(__file__).parent.parent.parent,
         )
         assert result.returncode == 0
         assert "No callees" in result.stdout or "📭" in result.stdout

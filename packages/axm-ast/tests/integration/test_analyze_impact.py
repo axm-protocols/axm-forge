@@ -599,3 +599,33 @@ def test_no_pyproject_section_uses_defaults(tmp_path: Path) -> None:
     pkg_path = _make_pkg(tmp_path, with_override=False, n_callers=2)
     result = analyze_impact(pkg_path, "target")
     assert result["score"] == "MEDIUM"
+
+
+class TestImpactTypeRefs:
+    """AC2-3: analyze_impact includes type_refs and score considers them."""
+
+    def test_impact_includes_type_refs(self, typed_pkg: object) -> None:
+        """AC2: analyze_impact output has type_refs key."""
+        from axm_ast.core.impact import analyze_impact
+
+        result = analyze_impact(
+            Path(typed_pkg.root),
+            "MyModel",
+        )
+        assert "type_refs" in result
+        assert len(result["type_refs"]) > 0
+
+    def test_type_refs_modules_in_affected(
+        self,
+        typed_pkg: object,
+    ) -> None:
+        """Type ref modules are included in affected_modules."""
+        from axm_ast.core.impact import analyze_impact
+
+        result = analyze_impact(
+            Path(typed_pkg.root),
+            "MyModel",
+        )
+        type_ref_mods = {r["module"] for r in result["type_refs"]}
+        for mod in type_ref_mods:
+            assert mod in result["affected_modules"]

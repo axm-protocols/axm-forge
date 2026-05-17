@@ -12,11 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
-from axm_ast.core.cache import PackageCache, clear_cache, get_package
-
-FIXTURES = Path(__file__).parents[1] / "fixtures"
-SAMPLE_PKG = FIXTURES / "sample_pkg"
-
+from axm_ast.core.cache import PackageCache
 
 # ─── Path handling ──────────────────────────────────────────────────────────
 
@@ -45,28 +41,6 @@ class TestPackageCachePaths:
             assert spy.call_count == 2
         assert result_a.name == "pkg_a"
         assert result_b.name == "pkg_b"
-
-
-# ─── Public API functions ───────────────────────────────────────────────────
-
-
-class TestGetPackageIntegration:
-    """Tests for get_package() / clear_cache() with real fixture I/O."""
-
-    @pytest.mark.integration
-    def test_get_package_returns_package_info(self) -> None:
-        result = get_package(SAMPLE_PKG)
-        assert result.name == "sample_pkg"
-        assert len(result.modules) >= 1
-
-    @pytest.mark.integration
-    def test_clear_cache_then_get(self) -> None:
-        """get_package → clear_cache → get_package re-parses correctly."""
-        first = get_package(SAMPLE_PKG)
-        clear_cache()
-        second = get_package(SAMPLE_PKG)
-        assert first is not second
-        assert first.name == second.name
 
 
 # ─── Edge cases ─────────────────────────────────────────────────────────────

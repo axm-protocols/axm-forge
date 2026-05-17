@@ -8,7 +8,14 @@ from unittest.mock import MagicMock
 import pytest
 
 from axm_ast.core.analyzer import analyze_package
-from axm_ast.models.nodes import ClassInfo, FunctionInfo, ModuleInfo, PackageInfo
+from axm_ast.models.nodes import (
+    ClassInfo,
+    FunctionInfo,
+    FunctionKind,
+    ModuleInfo,
+    PackageInfo,
+    VariableInfo,
+)
 from tests.integration._helpers import (
     _write_pyproject,
     _write_src_module,
@@ -247,3 +254,204 @@ def src_tree(tmp_path: Path) -> Path:
     pkg = tmp_path / "src" / "pkg"
     pkg.mkdir(parents=True)
     return tmp_path
+
+
+@pytest.fixture()
+def typed_pkg(typed_project: Path) -> object:
+    """Return analyzed package from typed_project."""
+    return analyze_package(typed_project / "src" / "demo")
+
+
+@pytest.fixture()
+def typed_project(tmp_path: Path) -> Path:
+    """Create a minimal package with type annotations."""
+    pkg = tmp_path / "src" / "demo"
+    pkg.mkdir(parents=True)
+
+    (pkg / "__init__.py").write_text('"""Demo package."""\n\n__all__ = ["MyModel"]\n')
+    (pkg / "models.py").write_text(
+        '"""Models module."""\n\n'
+        '__all__ = ["MyModel", "MyModelExtended"]\n\n\n'
+        "class MyModel:\n"
+        '    """A demo model."""\n\n'
+        "    name: str\n\n\n"
+        "class MyModelExtended:\n"
+        '    """An extended model."""\n\n'
+        "    name: str\n"
+    )
+    (pkg / "service.py").write_text(
+        '"""Service module."""\n\n'
+        '__all__ = ["process", "transform", "get_model",'
+        ' "handle_optional", "handle_dict", "handle_list",'
+        ' "handle_nested", "handle_string_ann"]\n\n\n'
+        "def process(item: MyModel) -> str:\n"
+        '    """Process a model."""\n'
+        "    return item.name\n\n\n"
+        "def transform(items: list[MyModel]) -> list[str]:\n"
+        '    """Transform models."""\n'
+        "    return [i.name for i in items]\n\n\n"
+        "def get_model() -> MyModel:\n"
+        '    """Return a model."""\n'
+        "    return MyModel()\n\n\n"
+        "def handle_optional(x: MyModel | None) -> None:\n"
+        '    """Handle optional."""\n'
+        "    pass\n\n\n"
+        "def handle_dict(d: dict[str, MyModel]) -> None:\n"
+        '    """Handle dict value."""\n'
+        "    pass\n\n\n"
+        "def handle_list(items: list[MyModel]) -> None:\n"
+        '    """Handle list."""\n'
+        "    pass\n\n\n"
+        "def handle_nested(d: dict[str, list[MyModel]]) -> None:\n"
+        '    """Handle nested generics."""\n'
+        "    pass\n\n\n"
+        'def handle_string_ann(x: "MyModel") -> None:\n'
+        '    """Handle string annotation."""\n'
+        "    pass\n\n\n"
+        "def unrelated(x: OtherType) -> None:\n"
+        '    """Unrelated function."""\n'
+        "    pass\n\n\n"
+        "def uses_extended(x: MyModelExtended) -> None:\n"
+        '    """Uses extended model — should NOT match MyModel."""\n'
+        "    pass\n"
+    )
+    (pkg / "aliases.py").write_text(
+        '"""Aliases module."""\n\n'
+        "__all__: list[str] = []\n\n"
+        "ModelAlias: type = MyModel\n"
+    )
+    (pkg / "untyped.py").write_text(
+        '"""Untyped module — no annotations."""\n\n'
+        "__all__: list[str] = []\n\n\n"
+        "def plain(x):\n"
+        '    """No type annotations."""\n'
+        "    return x\n"
+    )
+
+    # Add pyproject.toml
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "demo"\nversion = "0.1.0"\n'
+        'requires-python = ">=3.12"\n\n'
+        "[build-system]\n"
+        'requires = ["hatchling"]\n'
+        'build-backend = "hatchling.build"\n'
+    )
+
+    return tmp_path
+
+
+@pytest.fixture()
+def _patch_scan_classes_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Patch all helpers called by _scan_classes so we test its logic only."""
+    monkeypatch.setattr(
+        "axm_ast.core.dead_code._collect_base_class_names", lambda _pkg: set()
+    )
+    monkeypatch.setattr("axm_ast.core.callers.find_callers", lambda _pkg, _name: [])
+    monkeypatch.setattr(
+        "axm_ast.core.dead_code._is_exempt_class", lambda _cls, _mod: False
+    )
+    monkeypatch.setattr(
+        "axm_ast.core.dead_code._has_intra_module_refs",
+        lambda _name, _line, _mod: False,
+    )
+    monkeypatch.setattr(
+        "axm_ast.core.dead_code._scan_methods",
+        lambda _cls, _mod, _pkg, _ctx: [],
+    )
+
+
+@pytest.fixture()
+def rich_pkg__from_analyzer() -> PackageInfo:
+    """Package with functions, classes (with methods), and variables across modules."""
+    mod_vars = ModuleInfo(
+        path=Path("vars.py"),
+        variables=[
+            VariableInfo(name="MAX_RETRIES", annotation="int", value_repr="3", line=1),
+            VariableInfo(name="TIMEOUT", annotation="float", value_repr="30.0", line=2),
+            VariableInfo(name="_PRIVATE", annotation=None, value_repr="True", line=3),
+        ],
+    )
+    mod_classes = ModuleInfo(
+        path=Path("models.py"),
+        classes=[
+            ClassInfo(
+                name="User",
+                bases=["BaseModel"],
+                line_start=1,
+                line_end=10,
+                methods=[
+                    FunctionInfo(
+                        name="validate",
+                        kind=FunctionKind.METHOD,
+                        return_type="bool",
+                        line_start=5,
+                        line_end=8,
+                    ),
+                ],
+            ),
+            ClassInfo(name="Admin", bases=["User"], line_start=12, line_end=20),
+        ],
+    )
+    mod_mixed = ModuleInfo(
+        path=Path("mixed.py"),
+        functions=[
+            FunctionInfo(
+                name="greet",
+                kind=FunctionKind.FUNCTION,
+                return_type="str",
+                line_start=1,
+                line_end=3,
+            ),
+            FunctionInfo(
+                name="compute",
+                kind=FunctionKind.FUNCTION,
+                return_type="int",
+                line_start=5,
+                line_end=7,
+            ),
+        ],
+        classes=[
+            ClassInfo(
+                name="Parser",
+                bases=[],
+                line_start=10,
+                line_end=30,
+                methods=[
+                    FunctionInfo(
+                        name="parse",
+                        kind=FunctionKind.METHOD,
+                        return_type="str",
+                        line_start=12,
+                        line_end=15,
+                    ),
+                    FunctionInfo(
+                        name="is_valid",
+                        kind=FunctionKind.PROPERTY,
+                        return_type="bool",
+                        line_start=17,
+                        line_end=20,
+                    ),
+                ],
+            ),
+        ],
+        variables=[
+            VariableInfo(name="VERSION", annotation="str", value_repr='"1.0"', line=35),
+        ],
+    )
+    return PackageInfo(
+        name="demo",
+        root=Path("src/demo"),
+        modules=[mod_vars, mod_classes, mod_mixed],
+    )
+
+
+@pytest.fixture()
+def sample_class() -> ClassInfo:
+    return ClassInfo(
+        name="MyClass", line_start=10, line_end=20, bases=[], methods=[], decorators=[]
+    )
+
+
+@pytest.fixture()
+def sample_func() -> FunctionInfo:
+    return FunctionInfo(name="my_func", line_start=1, line_end=5, decorators=[])
