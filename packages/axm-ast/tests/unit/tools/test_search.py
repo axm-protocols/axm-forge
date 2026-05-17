@@ -16,6 +16,7 @@ from axm_ast.models.nodes import (
     VariableInfo,
 )
 from axm_ast.tools.search import SearchTool, _find_suggestions
+from axm_ast.tools.search_text import format_symbol_line
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -376,19 +377,19 @@ def test_abstract_method_kind() -> None:
 
 
 def test_format_symbol_line_function(function_sym: dict[str, Any]) -> None:
-    result = SearchTool._format_symbol_line(function_sym)
+    result = format_symbol_line(function_sym)
     assert result == "do_work(a: int, b: str) -> bool"
 
 
 def test_format_symbol_line_class(class_sym: dict[str, Any]) -> None:
-    result = SearchTool._format_symbol_line(class_sym)
+    result = format_symbol_line(class_sym)
     assert result == "MyClass"
 
 
 def test_format_symbol_line_variable_annotated(
     variable_sym_annotated: dict[str, Any],
 ) -> None:
-    result = SearchTool._format_symbol_line(variable_sym_annotated)
+    result = format_symbol_line(variable_sym_annotated)
     assert result == "timeout: int = 30"
 
 
@@ -420,7 +421,7 @@ def test_format_symbol_line_no_params_in_signature() -> None:
         "signature": "def ping",
         "return_type": None,
     }
-    result = SearchTool._format_symbol_line(sym)
+    result = format_symbol_line(sym)
     assert result == "ping()"
 
 
@@ -432,14 +433,14 @@ def test_format_symbol_line_nested_parens() -> None:
         "signature": "def f(x: dict[str, list[int]])",
         "return_type": None,
     }
-    result = SearchTool._format_symbol_line(sym)
+    result = format_symbol_line(sym)
     assert result == "f(x: dict[str, list[int]])"
 
 
 def test_format_symbol_line_variable_bare() -> None:
     """Variable with no annotation or value returns just the name."""
     sym: dict[str, Any] = {"name": "flag", "kind": "variable"}
-    result = SearchTool._format_symbol_line(sym)
+    result = format_symbol_line(sym)
     assert result == "flag"
 
 
