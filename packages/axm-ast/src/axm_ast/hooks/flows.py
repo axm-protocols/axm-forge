@@ -10,9 +10,11 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, TypedDict, cast
+from typing import TYPE_CHECKING, TypedDict, cast
 
 from axm.hooks.base import HookResult
+
+from axm_ast.hooks._trace_protocol import _TraceFlow
 
 if TYPE_CHECKING:
     from axm_ast.core.flows import EntryPoint, FlowStep
@@ -45,22 +47,6 @@ class _FormatOpts:
 
     compact: bool
     format_fn: Callable[[list[FlowStep]], str]
-
-
-class _TraceFlow(Protocol):
-    """Protocol mirroring ``axm_ast.core.flows.trace_flow``."""
-
-    def __call__(  # noqa: PLR0913 — mirrors core.flows.trace_flow signature
-        self,
-        pkg: PackageInfo,
-        entry: str,
-        *,
-        max_depth: int = ...,
-        cross_module: bool = ...,
-        detail: str = ...,
-        callee_index: dict[tuple[str, str], list[CallSite]] | None = ...,
-        exclude_stdlib: bool = ...,
-    ) -> tuple[list[FlowStep], bool]: ...
 
 
 # Lazy imports — populated on first ``execute`` call to keep import
