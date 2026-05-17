@@ -549,33 +549,24 @@ class TestCommitFromOutputs:
         assert not result.success
         assert "deleted.py" in (result.error or "")
 
-    def test_nothing_to_commit(self, tmp_git_repo: Path) -> None:
-        """Skips when all listed files are already clean."""
+    @pytest.mark.parametrize(
+        ("files", "message"),
+        [
+            pytest.param([".gitkeep"], "feat: clean", id="already_clean_file"),
+            pytest.param([], "feat: empty", id="empty_files_list"),
+        ],
+    )
+    def test_nothing_to_commit_skips(
+        self, tmp_git_repo: Path, files: list[str], message: str
+    ) -> None:
+        """Skips with 'nothing to commit' reason when no real changes to stage."""
         hook = CommitPhaseHook()
         result = hook.execute(
             {
                 "working_dir": str(tmp_git_repo),
                 "commit_spec": {
-                    "message": "feat: clean",
-                    "files": [".gitkeep"],
-                },
-            },
-            from_outputs=True,
-        )
-
-        assert result.success
-        assert result.metadata["skipped"] is True
-        assert result.metadata["reason"] == "nothing to commit"
-
-    def test_empty_files_list_fails(self, tmp_git_repo: Path) -> None:
-        """Fails when files list is empty."""
-        hook = CommitPhaseHook()
-        result = hook.execute(
-            {
-                "working_dir": str(tmp_git_repo),
-                "commit_spec": {
-                    "message": "feat: empty",
-                    "files": [],
+                    "message": message,
+                    "files": files,
                 },
             },
             from_outputs=True,
