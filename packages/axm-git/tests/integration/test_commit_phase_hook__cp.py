@@ -76,7 +76,7 @@ class TestRetryOnAutofixDualResolution:
                 "message": "test: stage foo",
             }
         }
-        result = hook._commit_from_outputs(ctx, pkg, skip_hooks=False)
+        result = hook.commit_from_outputs(ctx, pkg, skip_hooks=False)
 
         assert result.success, getattr(result, "error", None)
         # Two commit attempts means the retry path ran
