@@ -22,8 +22,17 @@ def _reset_warn() -> None:
 # --- count() ---
 
 
-def test_count_basic() -> None:
-    result = count("hello world")
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("hello world", id="ascii_basic"),
+        pytest.param("   \n\t  ", id="whitespace_only"),
+        pytest.param("éèê \U0001f600\U0001f4a1", id="unicode_with_emoji"),
+    ],
+)
+def test_count_returns_positive_int(text: str) -> None:
+    """Non-empty text returns a positive integer token count."""
+    result = count(text)
     assert isinstance(result, int)
     assert result > 0
 
@@ -32,20 +41,6 @@ def test_count_empty() -> None:
     result = count("")
     assert isinstance(result, int)
     assert result >= 0
-
-
-def test_count_whitespace_only() -> None:
-    """Whitespace string returns token count > 0."""
-    result = count("   \n\t  ")
-    assert isinstance(result, int)
-    assert result > 0
-
-
-def test_count_unicode() -> None:
-    """Unicode/emoji text returns valid token count."""
-    result = count("éèê \U0001f600\U0001f4a1")
-    assert isinstance(result, int)
-    assert result > 0
 
 
 def test_count_model_parameter() -> None:

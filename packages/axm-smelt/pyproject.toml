@@ -85,6 +85,26 @@ reason = "no_match exercises an empty lookup so the function returns the input u
 hash = "b3014e97a434"
 reason = "refs_collision additionally asserts a DEBUG log record was emitted via caplog (the contract on the `_refs` reserved key), while data_collision only asserts the passthrough — the caplog assertion is a separate concern that parametrization would either lose or force onto both cases artificially"
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "19f1551479b4"
+reason = "15-test cluster covers structurally similar one-liners across distinct format branches (json/yaml/xml/markdown/text) and edge cases (empty, whitespace, doctype, malformed brace, html-heavy) — each test pins a separate detector branch and parametrization would erase the per-format intent"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "73dc33eaff83"
+reason = "each test exercises a distinct detector probe (try_json, try_xml, try_yaml) on a negative input — the SUT under test differs across cases, so parametrization would obscure which probe is being verified"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "761417a37983"
+reason = "XML minify cases assert on distinct invariants (text preservation via `in`, multi-attribute survival via three `in` checks, CDATA literal block preservation, XML declaration preservation alongside `==` body) — distinct expected shapes per branch resist generic parametrization"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "73304e8fb752"
+reason = "caches_encoding_once asserts a single tiktoken call across 100 invocations of one model (single-model cache invariant), while caches_per_model asserts two calls across two distinct models (per-model cache invariant) — different call multiplicities pin distinct cache semantics"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d33fec7af617"
+reason = "compact_missing_file and check_missing_file exercise distinct CLI subcommands (compact vs check) — each pins the missing-file error path for a separate entrypoint, parametrizing on the callable would obscure which subcommand contract is verified"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
