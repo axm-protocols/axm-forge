@@ -415,7 +415,7 @@ def _make_pkg(tmp_path: Path, files: dict[str, str]) -> Path:
     return pkg
 
 
-class TestImpactHook:
+class TestImpactHookIntegration:
     """ImpactHook execution tests."""
 
     def test_impact_hook_execute(self, tmp_path: Path) -> None:
@@ -438,15 +438,6 @@ class TestImpactHook:
         impact = result.metadata["impact"]
         assert "symbol" in impact
         assert impact["symbol"] == "helper"
-
-    def test_impact_hook_no_symbol(self) -> None:
-        """Missing symbol param → HookResult.fail."""
-        from axm_ast.hooks.impact import ImpactHook
-
-        hook = ImpactHook()
-        result = hook.execute({})
-        assert not result.success
-        assert "symbol" in (result.error or "").lower()
 
     def test_impact_hook_path_param(self, tmp_path: Path) -> None:
         """path param overrides working_dir from context."""
