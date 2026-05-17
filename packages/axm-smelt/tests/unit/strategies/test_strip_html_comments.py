@@ -14,19 +14,27 @@ def strategy() -> StripHtmlCommentsStrategy:
 # --- Unit tests ---
 
 
-def test_strip_single_line_comment(strategy: StripHtmlCommentsStrategy) -> None:
-    ctx = SmeltContext(text="text <!-- comment --> more", format=Format.MARKDOWN)
+@pytest.mark.parametrize(
+    ("input_text", "expected"),
+    [
+        pytest.param(
+            "text <!-- comment --> more",
+            "text  more",
+            id="single_line_comment",
+        ),
+        pytest.param(
+            "before\n<!-- line1\nline2 -->\nafter",
+            "before\nafter",
+            id="multiline_comment",
+        ),
+    ],
+)
+def test_strip_comment(
+    strategy: StripHtmlCommentsStrategy, input_text: str, expected: str
+) -> None:
+    ctx = SmeltContext(text=input_text, format=Format.MARKDOWN)
     result = strategy.apply(ctx)
-    assert result.text == "text  more"
-
-
-def test_strip_multiline_comment(strategy: StripHtmlCommentsStrategy) -> None:
-    ctx = SmeltContext(
-        text="before\n<!-- line1\nline2 -->\nafter",
-        format=Format.MARKDOWN,
-    )
-    result = strategy.apply(ctx)
-    assert result.text == "before\nafter"
+    assert result.text == expected
 
 
 def test_preserve_code_block_comments(strategy: StripHtmlCommentsStrategy) -> None:

@@ -11,22 +11,20 @@ def strategy() -> CompactTablesStrategy:
     return CompactTablesStrategy()
 
 
-def test_compact_padded_cells(strategy: CompactTablesStrategy) -> None:
-    ctx = SmeltContext(text="| foo  |  bar  |", format=Format.MARKDOWN)
+@pytest.mark.parametrize(
+    ("input_text", "expected"),
+    [
+        pytest.param("| foo  |  bar  |", "|foo|bar|", id="padded_cells"),
+        pytest.param("| --- | --- |", "|---|---|", id="separator_row"),
+        pytest.param("| :---: | ---: |", "|:---:|---:|", id="alignment_markers"),
+    ],
+)
+def test_compact_single_line_table(
+    strategy: CompactTablesStrategy, input_text: str, expected: str
+) -> None:
+    ctx = SmeltContext(text=input_text, format=Format.MARKDOWN)
     result = strategy.apply(ctx)
-    assert result.text == "|foo|bar|"
-
-
-def test_compact_separator_row(strategy: CompactTablesStrategy) -> None:
-    ctx = SmeltContext(text="| --- | --- |", format=Format.MARKDOWN)
-    result = strategy.apply(ctx)
-    assert result.text == "|---|---|"
-
-
-def test_preserve_alignment_markers(strategy: CompactTablesStrategy) -> None:
-    ctx = SmeltContext(text="| :---: | ---: |", format=Format.MARKDOWN)
-    result = strategy.apply(ctx)
-    assert result.text == "|:---:|---:|"
+    assert result.text == expected
 
 
 def test_passthrough_non_table(strategy: CompactTablesStrategy) -> None:
@@ -92,16 +90,19 @@ def test_already_compact_table(strategy: CompactTablesStrategy) -> None:
     assert result is ctx  # noop — same object returned
 
 
-def test_single_column_table(strategy: CompactTablesStrategy) -> None:
-    ctx = SmeltContext(text="| value |", format=Format.MARKDOWN)
+@pytest.mark.parametrize(
+    ("input_text", "expected"),
+    [
+        pytest.param("| value |", "|value|", id="single_column"),
+        pytest.param("|  |  |", "||", id="empty_cells"),
+    ],
+)
+def test_compact_minimal_tables(
+    strategy: CompactTablesStrategy, input_text: str, expected: str
+) -> None:
+    ctx = SmeltContext(text=input_text, format=Format.MARKDOWN)
     result = strategy.apply(ctx)
-    assert result.text == "|value|"
-
-
-def test_empty_cells(strategy: CompactTablesStrategy) -> None:
-    ctx = SmeltContext(text="|  |  |", format=Format.MARKDOWN)
-    result = strategy.apply(ctx)
-    assert result.text == "||"
+    assert result.text == expected
 
 
 def test_pipe_in_code_span(strategy: CompactTablesStrategy) -> None:
