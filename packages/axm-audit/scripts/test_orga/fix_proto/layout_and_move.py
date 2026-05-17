@@ -637,8 +637,12 @@ def _safe_move_units(
     extra_fixtures = _collect_marker_fixtures_to_move(
         source_tree, target_tree, final_units, project_path, target
     )
-    if keep_in_source:
-        extra_fixtures = extra_fixtures - keep_in_source
+    # ``keep_in_source`` pins fixtures still needed by units that haven't
+    # been moved yet; with ``shared_helpers="duplicate"`` anvil copies the
+    # fixture into target AND leaves it in source while anything there
+    # still references it. Don't subtract ``keep_in_source`` from
+    # ``extra_fixtures`` — that previously caused subsequent split
+    # targets to miss the fixture they declared via ``usefixtures``.
     if extra_fixtures:
         final_units = list(final_units) + sorted(extra_fixtures)
         for fx in sorted(extra_fixtures):
