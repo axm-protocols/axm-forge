@@ -105,6 +105,26 @@ reason = "caches_encoding_once asserts a single tiktoken call across 100 invocat
 hash = "d33fec7af617"
 reason = "compact_missing_file and check_missing_file exercise distinct CLI subcommands (compact vs check) — each pins the missing-file error path for a separate entrypoint, parametrizing on the callable would obscure which subcommand contract is verified"
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e45c7c20e23d"
+reason = "18 tests cover three distinct strategies (drop_nulls, flatten, round_numbers) across three files — each asserts a different SUT contract with strategy-specific expected outputs (key removal vs key flattening vs numeric rounding); cross-file fold would conflate three unrelated SUTs"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "5c554968d784"
+reason = "5 tests across 5 files exercise unrelated SUTs (counter warning dedup with monkeypatch+caplog, dedup_values.collect_strings helper, TabularStrategy wide-table column count, two distinct entry-point group lookups) — different fixtures, different assertions, no shared parametrization shape"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "01be284c6e6e"
+reason = "5 noop/passthrough tests pin distinct trigger conditions on three different strategies (CollapseWhitespace JSON-format guard + clean-input guard, CompactTables already-compact + non-markdown-format, StripHtmlComments no-comment input) — each protects a separate strategy's `result is ctx` short-circuit branch"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4a40af610285"
+reason = "7 tests across three strategy files (collapse_whitespace, compact_tables, strip_html_comments) cover distinct literal inputs and assertion shapes — pure-table compaction vs whitespace collapsing vs HTML-comment stripping have non-overlapping expected outputs that resist generic parametrization"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "2710a8c31905"
+reason = "4 single-call+assert tests cover four distinct module surfaces (axm_smelt.__version__ import + three tool agent_hint attributes on SmeltCheckTool/SmeltCountTool/SmeltTool) — folding across files would relocate tool-local contract checks away from their SUT"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
