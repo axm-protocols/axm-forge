@@ -31,7 +31,7 @@ def _make_callsite(
 
 
 # ---------------------------------------------------------------------------
-# Unit tests — _render_text
+# Unit tests — render_text
 # ---------------------------------------------------------------------------
 
 
@@ -42,7 +42,7 @@ def test_text_header_format() -> None:
         {"module": "mod_b", "line": 2, "context": "bar", "call_expression": "greet()"},
         {"module": "mod_c", "line": 3, "context": "baz", "call_expression": "greet()"},
     ]
-    text = CallersTool._render_text(callers, symbol="greet")
+    text = CallersTool.render_text(callers, symbol="greet")
     assert text.startswith("ast_callers | greet | 3 callers")
 
 
@@ -62,7 +62,7 @@ def test_text_caller_lines() -> None:
             "call_expression": "greet()",
         },
     ]
-    text = CallersTool._render_text(callers, symbol="greet")
+    text = CallersTool.render_text(callers, symbol="greet")
     lines = text.strip().splitlines()
     assert len(lines) == 3  # header + 2 callers
     assert lines[1] == "axm_ast.cli:42 run"
@@ -79,7 +79,7 @@ def test_text_strips_src_prefix() -> None:
             "call_expression": "greet()",
         },
     ]
-    text = CallersTool._render_text(callers, symbol="greet")
+    text = CallersTool.render_text(callers, symbol="greet")
     lines = text.strip().splitlines()
     assert lines[1].startswith("axm_ast.cli:")
 
@@ -94,14 +94,14 @@ def test_text_none_context_omitted() -> None:
             "call_expression": "greet()",
         },
     ]
-    text = CallersTool._render_text(callers, symbol="greet")
+    text = CallersTool.render_text(callers, symbol="greet")
     lines = text.strip().splitlines()
     assert lines[1] == "axm_ast.cli:5"
 
 
 def test_text_empty_callers() -> None:
     """Empty callers: just the header line."""
-    text = CallersTool._render_text([], symbol="greet")
+    text = CallersTool.render_text([], symbol="greet")
     assert text == "ast_callers | greet | 0 callers"
 
 
@@ -115,7 +115,7 @@ def test_text_workspace_prefix() -> None:
             "call_expression": "greet()",
         },
     ]
-    text = CallersTool._render_text(callers, symbol="greet")
+    text = CallersTool.render_text(callers, symbol="greet")
     lines = text.strip().splitlines()
     assert lines[1].startswith("axm-ast::axm_ast.cli:")
 
@@ -195,7 +195,7 @@ def test_module_without_src_prefix() -> None:
             "call_expression": "greet()",
         },
     ]
-    text = CallersTool._render_text(callers, symbol="greet")
+    text = CallersTool.render_text(callers, symbol="greet")
     lines = text.strip().splitlines()
     assert lines[1].startswith("tests.test_callers:")
 
@@ -211,7 +211,7 @@ def test_very_long_module_name() -> None:
             "call_expression": "greet()",
         },
     ]
-    text = CallersTool._render_text(callers, symbol="greet")
+    text = CallersTool.render_text(callers, symbol="greet")
     lines = text.strip().splitlines()
     assert lines[1] == f"{long_mod}:999 deep_fn"
 

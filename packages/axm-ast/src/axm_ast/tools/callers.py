@@ -90,11 +90,11 @@ class CallersTool(AXMTool):
         return ToolResult(
             success=True,
             data={"callers": caller_data, "count": len(caller_data)},
-            text=CallersTool._render_text(caller_data, symbol=symbol),
+            text=CallersTool.render_text(caller_data, symbol=symbol),
         )
 
     @staticmethod
-    def _render_text(callers: list[CallerEntry], *, symbol: str) -> str:
+    def render_text(callers: list[CallerEntry], *, symbol: str) -> str:
         """Render callers as compact text for token-efficient MCP responses."""
         header = f"ast_callers | {symbol} | {len(callers)} callers"
         if not callers:
