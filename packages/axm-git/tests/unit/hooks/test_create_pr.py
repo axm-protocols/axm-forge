@@ -13,26 +13,31 @@ from axm_git.hooks.create_pr import CreatePRHook, format_pr_title
 class TestFormatPRTitle:
     """Tests for format_pr_title helper."""
 
-    def test_appends_ticket_id(self) -> None:
-        title = format_pr_title(
-            {"message": "feat(git): add PR hooks"},
-            "AXM-42",
-        )
-        assert title == "feat(git): add PR hooks [AXM-42]"
-
-    def test_no_duplicate_ticket_id(self) -> None:
-        title = format_pr_title(
-            {"message": "feat(git): add PR hooks [AXM-42]"},
-            "AXM-42",
-        )
-        assert title == "feat(git): add PR hooks [AXM-42]"
-
-    def test_empty_ticket_id(self) -> None:
-        title = format_pr_title(
-            {"message": "feat(git): add PR hooks"},
-            "",
-        )
-        assert title == "feat(git): add PR hooks"
+    @pytest.mark.parametrize(
+        ("message", "ticket_id", "expected"),
+        [
+            pytest.param(
+                "feat(git): add PR hooks",
+                "AXM-42",
+                "feat(git): add PR hooks [AXM-42]",
+                id="appends_ticket_id",
+            ),
+            pytest.param(
+                "feat(git): add PR hooks [AXM-42]",
+                "AXM-42",
+                "feat(git): add PR hooks [AXM-42]",
+                id="no_duplicate_ticket_id",
+            ),
+            pytest.param(
+                "feat(git): add PR hooks",
+                "",
+                "feat(git): add PR hooks",
+                id="empty_ticket_id",
+            ),
+        ],
+    )
+    def test_format_pr_title(self, message: str, ticket_id: str, expected: str) -> None:
+        assert format_pr_title({"message": message}, ticket_id) == expected
 
 
 class TestCreatePRHook:

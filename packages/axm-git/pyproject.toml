@@ -307,3 +307,11 @@ reason = "7 load_config tests span 3 behavior groups -- silent_on_missing/empty 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "754178fe7dfb"
 reason = "4 suggest_git_repos tests exercise 4 distinct directory topologies and 4 different return shapes -- finds_repos builds two child .git dirs (returns sorted [alpha, beta]), in_git_repo plants .git at the root itself (early-return []), no_children uses bare tmp_path (returns []), permission_error chmod 0o000 on a sibling with try/finally cleanup (returns [ok] despite the unreadable peer) -- shared assertion is `result == list[str]` but the values, setups, and the os-permission-recovery teardown differ substantively"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f1c75d2de6f0"
+reason = "4 gh_available tests exercise structurally distinct mock topologies for the shutil.which + subprocess.run pair -- not_installed (which=None, subprocess never called), auth_ok (which=path + CompletedProcess rc=0), auth_fail (which=path + CompletedProcess rc=1), timeout (which=path + subprocess raises TimeoutExpired) -- each documents an independent failure/success seam, parametrize would force a 3-axis (which_value, return_value, side_effect) matrix that erases the per-failure-mode intent"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8ceb7c3d4980"
+reason = "test_commit_with_identity (single commit) and test_batch_commits_same_identity (two commits) exercise different SUT shapes -- single asserts len(commit_calls)==1 with one _AUTHOR_FLAG check, batch asserts len(commit_calls)==2 with per-call _AUTHOR_FLAG iteration AND resolve_identity.assert_called_once verifying identity is cached across commits not re-resolved per commit -- batch documents a caching invariant single cannot, parametrize would erase the per-commit-iteration assertion"
