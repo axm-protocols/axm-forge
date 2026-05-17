@@ -112,9 +112,17 @@ def test_dedup_threshold_boundary(strategy: DedupValuesStrategy) -> None:
     assert parsed["_refs"][alias] == _LONG
 
 
-def test_dedup_below_threshold(strategy: DedupValuesStrategy) -> None:
-    """String appearing once is not deduped — returns ctx unchanged."""
-    data = {"a": _LONG}
+@pytest.mark.parametrize(
+    "data",
+    [
+        pytest.param({"a": _LONG}, id="below_occurrence_threshold"),
+        pytest.param({"a": "", "b": ""}, id="below_length_threshold"),
+    ],
+)
+def test_dedup_no_qualifying_duplicates_passthrough(
+    strategy: DedupValuesStrategy, data: dict[str, str]
+) -> None:
+    """No qualifying duplicates (occurrence or length below threshold)."""
     ctx = SmeltContext(text=json.dumps(data))
     result = strategy.apply(ctx)
     assert result is ctx
@@ -142,23 +150,19 @@ def test_dedup_unicode_strings(strategy: DedupValuesStrategy) -> None:
     assert parsed["_refs"][alias] == ustr
 
 
-def test_dedup_non_json_passthrough(strategy: DedupValuesStrategy) -> None:
-    """Non-JSON text is returned unchanged."""
-    ctx = SmeltContext(text="just plain text")
-    result = strategy.apply(ctx)
-    assert result is ctx
-
-
-def test_dedup_invalid_json_passthrough(strategy: DedupValuesStrategy) -> None:
-    """Invalid JSON is returned unchanged."""
-    ctx = SmeltContext(text="{invalid json")
-    result = strategy.apply(ctx)
-    assert result is ctx
-
-
-def test_dedup_empty_json_passthrough(strategy: DedupValuesStrategy) -> None:
-    """Empty string input is returned unchanged."""
-    ctx = SmeltContext(text="")
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("just plain text", id="non_json"),
+        pytest.param("{invalid json", id="invalid_json"),
+        pytest.param("", id="empty"),
+    ],
+)
+def test_dedup_unparseable_passthrough(
+    strategy: DedupValuesStrategy, text: str
+) -> None:
+    """Non-JSON / invalid / empty text is returned unchanged."""
+    ctx = SmeltContext(text=text)
     result = strategy.apply(ctx)
     assert result is ctx
 
@@ -193,15 +197,6 @@ def test_dedup_very_long_strings(strategy: DedupValuesStrategy) -> None:
     result = strategy.apply(ctx)
     parsed = json.loads(result.text)
     assert parsed["_refs"]["$R0"] == long_val
-
-
-def test_dedup_empty_string_values(strategy: DedupValuesStrategy) -> None:
-    """Empty strings are below _MIN_LENGTH so not deduped."""
-    data = {"a": "", "b": ""}
-    ctx = SmeltContext(text=json.dumps(data))
-    result = strategy.apply(ctx)
-    # No qualifying duplicates — returned unchanged
-    assert result is ctx
 
 
 def test_dedup_json_array_input(strategy: DedupValuesStrategy) -> None:
