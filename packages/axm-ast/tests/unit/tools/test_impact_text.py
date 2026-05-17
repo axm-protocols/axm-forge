@@ -195,3 +195,59 @@ class TestEdgeCases:
         )
         text = render_impact_text(report)
         assert "other" in text.lower() or "cross" in text.lower()
+
+
+# ── Merged from tests/unit/test_impact_text.py ──────────────────────────────────
+
+
+from axm_ast.tools.impact_text import (  # noqa: E402
+    render_impact_batch_text as _render_batch,
+)
+from axm_ast.tools.impact_text import (  # noqa: E402
+    render_impact_text as _render_single,
+)
+
+
+def test_render_impact_text_renders_high_score() -> None:
+    """AC1: render_impact_text emits the score and the symbol name."""
+    report = {
+        "symbol": "my_func",
+        "score": "HIGH",
+        "definition": {"module": "pkg.mod", "line": 10, "kind": "function"},
+        "callers": [
+            {"symbol": f"caller_{i}", "module": "pkg.other", "line": i}
+            for i in range(6)
+        ],
+        "reexports": [{"module": f"pkg.reexport_{i}", "line": i} for i in range(3)],
+        "tests": [],
+        "git_coupled": [],
+        "cross_package": [],
+    }
+
+    output = _render_single(report)
+
+    assert "HIGH" in output
+    assert "my_func" in output
+
+
+def test_render_impact_batch_text_handles_multi_symbol() -> None:
+    """AC1: batch render produces one section per symbol."""
+    reports = [
+        {
+            "symbol": f"sym_{i}",
+            "score": score,
+            "definition": {"module": "pkg.mod", "line": i, "kind": "function"},
+            "callers": [],
+            "reexports": [],
+            "tests": [],
+            "git_coupled": [],
+            "cross_package": [],
+        }
+        for i, score in enumerate(["LOW", "MEDIUM", "HIGH"])
+    ]
+
+    output = _render_batch(reports)
+
+    for i in range(3):
+        assert f"sym_{i}" in output
+    assert output.count("## ") == 3

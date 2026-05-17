@@ -1,4 +1,7 @@
-"""Unit tests for the shared ``safe_execute`` decorator."""
+"""Unit tests for the shared ``safe_execute`` decorator.
+
+Mirrors src/axm_ast/tools/_base.py.
+"""
 
 from __future__ import annotations
 

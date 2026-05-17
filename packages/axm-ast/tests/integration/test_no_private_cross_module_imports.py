@@ -9,7 +9,7 @@ pytestmark = pytest.mark.integration
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_audit_finds_no_private_cross_module_imports_in_axm_ast():
+def test_audit_finds_no_private_cross_module_imports_in_axm_ast() -> None:
     audit_mod = pytest.importorskip("axm_audit")
 
     runner = getattr(audit_mod, "audit_project", None)

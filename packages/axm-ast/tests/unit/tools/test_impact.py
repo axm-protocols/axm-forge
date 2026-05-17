@@ -851,3 +851,29 @@ class TestFormatCompactUsesScoreNotSeverity:
         }
         output = format_impact_compact(impact)
         assert "MEDIUM" in output
+
+
+# ── TestImpactToolUnit (from test_tools.py) ────────────────────────────────
+
+
+class TestImpactToolUnit:
+    """Tests for ast_impact tool."""
+
+    def test_has_name(self) -> None:
+        tool = ImpactTool()
+        assert tool.name == "ast_impact"
+
+    def test_symbols_invalid_type(self) -> None:
+        """AC5: symbols must be a list, else error."""
+        tool = ImpactTool()
+        result = tool.execute(path=".", symbols="not_a_list")
+        assert result.success is False
+        assert result.error is not None
+        assert "must be a list" in result.error
+
+    def test_symbols_empty_list(self) -> None:
+        """Edge: Empty symbols list falls through to require symbol param."""
+        tool = ImpactTool()
+        result = tool.execute(path=".", symbols=[])
+        assert result.success is False
+        assert "required" in (result.error or "")

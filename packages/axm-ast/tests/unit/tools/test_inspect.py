@@ -274,3 +274,16 @@ class TestResolveModule:
     ) -> None:
         result = tool._resolve_module(mock_pkg, "nonexistent")
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# TestInspectToolUnit (from test_tools.py)
+# ---------------------------------------------------------------------------
+
+
+class TestInspectToolUnit:
+    """Tests for ast_inspect tool."""
+
+    def test_has_name(self) -> None:
+        tool_inst = InspectTool()
+        assert tool_inst.name == "ast_inspect"
