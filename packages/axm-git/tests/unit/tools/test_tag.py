@@ -9,7 +9,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from axm_git.tools import tag as tag_mod
-from axm_git.tools.tag import GitTagTool, _check_ci, _verify_hatch_vcs
+from axm_git.tools.tag import GitTagTool, check_ci, verify_hatch_vcs
 
 
 def _mock_completed(
@@ -27,7 +27,7 @@ def _mock_completed(
 
 
 class TestVerifyHatchVcsTimeouts:
-    """AC4 — _verify_hatch_vcs: 600s timeout for uv sync, None on TimeoutExpired."""
+    """AC4 — verify_hatch_vcs: 600s timeout for uv sync, None on TimeoutExpired."""
 
     @patch("axm_git.tools.tag.subprocess.run")
     def test_uv_sync_uses_600s_timeout(
@@ -36,7 +36,7 @@ class TestVerifyHatchVcsTimeouts:
         mock_run.return_value = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="1.2.3", stderr=""
         )
-        tag_mod._verify_hatch_vcs(tmp_path, "1.2.3")
+        tag_mod.verify_hatch_vcs(tmp_path, "1.2.3")
         uv_sync_calls = [
             c
             for c in mock_run.call_args_list
@@ -55,7 +55,7 @@ class TestVerifyHatchVcsTimeouts:
     def test_returns_none_on_uv_sync_timeout(
         self, _mock_run: MagicMock, tmp_path: Path
     ) -> None:
-        assert tag_mod._verify_hatch_vcs(tmp_path, "1.2.3") is None
+        assert tag_mod.verify_hatch_vcs(tmp_path, "1.2.3") is None
 
 
 class TestGitTagToolUnit:
@@ -93,7 +93,7 @@ class TestGitTagToolUnit:
         assert "No commits" in (result.error or "")
 
     @patch("axm_git.tools.tag.run_git")
-    @patch("axm_git.tools.tag._check_ci", return_value="red")
+    @patch("axm_git.tools.tag.check_ci", return_value="red")
     def test_ci_red_blocks(self, _ci: MagicMock, mock_git: MagicMock) -> None:
         """CI red prevents tagging."""
         mock_git.return_value = _mock_completed("")  # clean status
@@ -103,11 +103,11 @@ class TestGitTagToolUnit:
 
 
 class TestCheckCi:
-    """Test the _check_ci helper."""
+    """Test the check_ci helper."""
 
     @patch("axm_git.tools.tag.gh_available", return_value=False)
     def test_skipped_when_gh_unavailable(self, _gh: MagicMock) -> None:
-        assert _check_ci(Path("/tmp")) == "skipped"
+        assert check_ci(Path("/tmp")) == "skipped"
 
     @patch("axm_git.tools.tag.run_gh")
     @patch("axm_git.tools.tag.gh_available", return_value=True)
@@ -118,7 +118,7 @@ class TestCheckCi:
             stdout=json.dumps([{"conclusion": "success", "status": "completed"}]),
             stderr="",
         )
-        assert _check_ci(Path("/tmp")) == "green"
+        assert check_ci(Path("/tmp")) == "green"
 
     @patch("axm_git.tools.tag.run_gh")
     @patch("axm_git.tools.tag.gh_available", return_value=True)
@@ -129,7 +129,7 @@ class TestCheckCi:
             stdout=json.dumps([{"conclusion": None, "status": "in_progress"}]),
             stderr="",
         )
-        assert _check_ci(Path("/tmp")) == "pending"
+        assert check_ci(Path("/tmp")) == "pending"
 
     @patch("axm_git.tools.tag.run_gh")
     @patch("axm_git.tools.tag.gh_available", return_value=True)
@@ -140,7 +140,7 @@ class TestCheckCi:
             stdout=json.dumps([{"conclusion": "failure", "status": "completed"}]),
             stderr="",
         )
-        assert _check_ci(Path("/tmp")) == "red"
+        assert check_ci(Path("/tmp")) == "red"
 
     @patch("axm_git.tools.tag.run_gh")
     @patch("axm_git.tools.tag.gh_available", return_value=True)
@@ -148,7 +148,7 @@ class TestCheckCi:
         mock_gh.return_value = subprocess.CompletedProcess(
             args=["gh"], returncode=0, stdout="[]", stderr=""
         )
-        assert _check_ci(Path("/tmp")) == "skipped"
+        assert check_ci(Path("/tmp")) == "skipped"
 
     @patch("axm_git.tools.tag.run_gh")
     @patch("axm_git.tools.tag.gh_available", return_value=True)
@@ -156,16 +156,16 @@ class TestCheckCi:
         mock_gh.return_value = subprocess.CompletedProcess(
             args=["gh"], returncode=1, stdout="", stderr="error"
         )
-        assert _check_ci(Path("/tmp")) == "skipped"
+        assert check_ci(Path("/tmp")) == "skipped"
 
     @patch("axm_git.tools.tag.run_gh", side_effect=FileNotFoundError)
     @patch("axm_git.tools.tag.gh_available", return_value=True)
     def test_exception_returns_error(self, _gh: MagicMock, _mock_gh: MagicMock) -> None:
-        assert _check_ci(Path("/tmp")) == "error"
+        assert check_ci(Path("/tmp")) == "error"
 
 
 class TestVerifyHatchVcs:
-    """Test the _verify_hatch_vcs helper."""
+    """Test the verify_hatch_vcs helper."""
 
     @patch("axm_git.tools.tag.subprocess.run")
     def test_success(self, mock_run: MagicMock) -> None:
@@ -181,14 +181,14 @@ class TestVerifyHatchVcs:
             )
 
         mock_run.side_effect = _side_effect
-        assert _verify_hatch_vcs(Path("/tmp"), "my-pkg") == "0.8.0"
+        assert verify_hatch_vcs(Path("/tmp"), "my-pkg") == "0.8.0"
 
     @patch("axm_git.tools.tag.subprocess.run")
     def test_sync_fails(self, mock_run: MagicMock) -> None:
         mock_run.return_value = subprocess.CompletedProcess(
             args=[], returncode=1, stdout="", stderr="error"
         )
-        assert _verify_hatch_vcs(Path("/tmp"), "my-pkg") is None
+        assert verify_hatch_vcs(Path("/tmp"), "my-pkg") is None
 
     @patch("axm_git.tools.tag.subprocess.run")
     def test_version_check_fails(self, mock_run: MagicMock) -> None:
@@ -208,11 +208,11 @@ class TestVerifyHatchVcs:
             )
 
         mock_run.side_effect = _side_effect
-        assert _verify_hatch_vcs(Path("/tmp"), "my-pkg") is None
+        assert verify_hatch_vcs(Path("/tmp"), "my-pkg") is None
 
     @patch(
         "axm_git.tools.tag.subprocess.run",
         side_effect=FileNotFoundError,
     )
     def test_uv_not_found(self, _mock: MagicMock) -> None:
-        assert _verify_hatch_vcs(Path("/tmp"), "my-pkg") is None
+        assert verify_hatch_vcs(Path("/tmp"), "my-pkg") is None

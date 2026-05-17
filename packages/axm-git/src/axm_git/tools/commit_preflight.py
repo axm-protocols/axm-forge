@@ -14,13 +14,13 @@ from axm_git.core.runner import (
     timeout_error_result,
 )
 
-__all__ = ["GitPreflightTool", "_render_text"]
+__all__ = ["GitPreflightTool", "render_text"]
 
 _MIN_STATUS_LINE_LEN = 4  # git porcelain format: "XY filename"
 _STATUS_PAD = 3  # pad status codes to 3 chars (e.g. "M  ", "?? ")
 
 
-def _render_text(
+def render_text(
     *,
     files: list[dict[str, str]],
     diff_stat: str,
@@ -130,7 +130,7 @@ class GitPreflightTool(AXMTool):
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
 
-        text = _render_text(
+        text = render_text(
             files=files,
             diff_stat=diff_stat_out,
             diff=diff_content,

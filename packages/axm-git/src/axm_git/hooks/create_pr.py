@@ -13,12 +13,12 @@ from typing import cast
 from axm.hooks.base import HookResult
 
 from axm_git.core.runner import gh_available, run_gh
-from axm_git.hooks._resolve import _resolve_working_dir
+from axm_git.hooks._resolve import resolve_working_dir
 
 __all__ = ["CreatePRHook"]
 
 
-def _format_pr_title(commit_spec: dict[str, object], ticket_id: str) -> str:
+def format_pr_title(commit_spec: dict[str, object], ticket_id: str) -> str:
     """Format PR title from commit spec message.
 
     If the message already contains ``[AXM-...]``, use it as-is.
@@ -57,7 +57,7 @@ class CreatePRHook:
         if not gh_available():
             return HookResult.ok(skipped=True, reason="gh not available")
 
-        working_dir = _resolve_working_dir(params, context)
+        working_dir = resolve_working_dir(params, context)
 
         commit_spec = cast(
             "dict[str, object]",
@@ -66,7 +66,7 @@ class CreatePRHook:
         ticket_id = cast("str", params.get("ticket_id", context.get("ticket_id", "")))
         base = cast("str", params.get("base", "main"))
 
-        title = _format_pr_title(commit_spec, ticket_id)
+        title = format_pr_title(commit_spec, ticket_id)
         body = cast("str", commit_spec.get("body", ""))
 
         # Create the PR

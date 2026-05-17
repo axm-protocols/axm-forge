@@ -25,7 +25,7 @@ from axm_git.core.runner import find_git_root, run_git
 
 class _GitResultLike(Protocol):
     """Minimal protocol matching ``subprocess.CompletedProcess`` and the
-    ``SimpleNamespace`` fallback returned by :func:`_retry_commit_on_autofix`.
+    ``SimpleNamespace`` fallback returned by :func:`retry_commit_on_autofix`.
     """
 
     returncode: int
@@ -103,7 +103,7 @@ def _resolve_repo_path(
     return None, tried, None
 
 
-def _stage_spec_files(
+def stage_spec_files(
     files: list[str],
     git_root: Path,
     *,
@@ -173,7 +173,7 @@ def _resolve_add_target(
     return "", f"files not found: {filepath!r} (tried: {attempts})"
 
 
-def _build_commit_cmd(
+def build_commit_cmd(
     message: str,
     body: str | None,
     *,
@@ -243,7 +243,7 @@ def _format_spec_files(
             return
 
 
-def _build_commit_result(
+def build_commit_result(
     git_root: Path,
     message: str,
     identity: GitIdentity | None,
@@ -267,7 +267,7 @@ def _build_commit_result(
     return HookResult.ok(**result_kw)
 
 
-def _retry_commit_on_autofix(
+def retry_commit_on_autofix(
     files: list[str],
     cmd: list[str],
     git_root: Path,
@@ -285,7 +285,7 @@ def _retry_commit_on_autofix(
     """
     if "files were modified" not in first_result.stderr:
         return first_result
-    restage_err = _stage_spec_files(files, git_root, working_dir=working_dir)
+    restage_err = stage_spec_files(files, git_root, working_dir=working_dir)
     if restage_err:
         from types import SimpleNamespace
 
@@ -333,7 +333,7 @@ class CommitPhaseHook:
 
         if params.get("from_outputs"):
             skip_hooks = bool(params.get("skip_hooks", False))
-            return self._commit_from_outputs(
+            return self.commit_from_outputs(
                 context, working_dir, skip_hooks=skip_hooks, profile=profile
             )
 
@@ -378,7 +378,7 @@ class CommitPhaseHook:
         # Commit
         message_format = cast("str", params.get("message_format", "[axm] {phase}"))
         msg = message_format.format(phase=phase_name)
-        commit_cmd = _build_commit_cmd(msg, None, author=author)
+        commit_cmd = build_commit_cmd(msg, None, author=author)
         result = run_git(commit_cmd, working_dir)
         if result.returncode != 0:
             return HookResult.fail(f"git commit failed: {result.stderr}")
@@ -394,7 +394,7 @@ class CommitPhaseHook:
             result_kw["author_email"] = identity.email
         return HookResult.ok(**result_kw)
 
-    def _commit_from_outputs(
+    def commit_from_outputs(
         self,
         context: dict[str, object],
         working_dir: Path,
@@ -439,7 +439,7 @@ class CommitPhaseHook:
         _format_spec_files(files, git_root, working_dir=working_dir)
 
         warnings: list[str] = []
-        stage_err = _stage_spec_files(
+        stage_err = stage_spec_files(
             files, git_root, working_dir=working_dir, warnings=warnings
         )
         if stage_err:
@@ -450,16 +450,16 @@ class CommitPhaseHook:
         if not status.stdout.strip():
             return HookResult.ok(skipped=True, reason="nothing to commit")
 
-        commit_cmd = _build_commit_cmd(
+        commit_cmd = build_commit_cmd(
             message, body, skip_hooks=skip_hooks, author=author
         )
 
         result: _GitResultLike = run_git(commit_cmd, git_root)
         if result.returncode != 0:
-            result = _retry_commit_on_autofix(
+            result = retry_commit_on_autofix(
                 files, commit_cmd, git_root, result, working_dir=working_dir
             )
             if result.returncode != 0:
                 return HookResult.fail(f"git commit failed: {result.stderr}")
 
-        return _build_commit_result(git_root, message, identity, warnings)
+        return build_commit_result(git_root, message, identity, warnings)

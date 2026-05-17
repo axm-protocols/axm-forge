@@ -9,7 +9,7 @@ import pytest
 
 from axm_git.core.identity import (
     GitIdentity,
-    _resolve_by_override,
+    resolve_by_override,
 )
 
 # ---------------------------------------------------------------------------
@@ -66,30 +66,30 @@ def config(
 
 
 # ---------------------------------------------------------------------------
-# _resolve_by_override tests (AC2)
+# resolve_by_override tests (AC2)
 # ---------------------------------------------------------------------------
 
 
 class TestResolveByOverride:
-    """Tests for _resolve_by_override helper."""
+    """Tests for resolve_by_override helper."""
 
     def test_override_default_returns_default_identity(self, config, default_identity):
-        result = _resolve_by_override(config, "default")
+        result = resolve_by_override(config, "default")
         assert result == default_identity
 
     def test_override_named_profile_returns_profile(self, config, work_identity):
-        result = _resolve_by_override(config, "work")
+        result = resolve_by_override(config, "work")
         assert result == work_identity
 
     def test_override_another_named_profile(self, config, personal_identity):
-        result = _resolve_by_override(config, "personal")
+        result = resolve_by_override(config, "personal")
         assert result == personal_identity
 
     def test_override_unknown_profile_returns_none(self, config):
-        result = _resolve_by_override(config, "nonexistent")
+        result = resolve_by_override(config, "nonexistent")
         assert result is None
 
     def test_override_none_returns_none(self, config):
         """When profile_override is None, helper should return None (no match)."""
-        result = _resolve_by_override(config, None)
+        result = resolve_by_override(config, None)
         assert result is None

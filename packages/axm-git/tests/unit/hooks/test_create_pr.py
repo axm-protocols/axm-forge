@@ -7,28 +7,28 @@ from pathlib import Path
 
 import pytest
 
-from axm_git.hooks.create_pr import CreatePRHook, _format_pr_title
+from axm_git.hooks.create_pr import CreatePRHook, format_pr_title
 
 
 class TestFormatPRTitle:
-    """Tests for _format_pr_title helper."""
+    """Tests for format_pr_title helper."""
 
     def test_appends_ticket_id(self) -> None:
-        title = _format_pr_title(
+        title = format_pr_title(
             {"message": "feat(git): add PR hooks"},
             "AXM-42",
         )
         assert title == "feat(git): add PR hooks [AXM-42]"
 
     def test_no_duplicate_ticket_id(self) -> None:
-        title = _format_pr_title(
+        title = format_pr_title(
             {"message": "feat(git): add PR hooks [AXM-42]"},
             "AXM-42",
         )
         assert title == "feat(git): add PR hooks [AXM-42]"
 
     def test_empty_ticket_id(self) -> None:
-        title = _format_pr_title(
+        title = format_pr_title(
             {"message": "feat(git): add PR hooks"},
             "",
         )

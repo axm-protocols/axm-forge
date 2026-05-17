@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from axm_git.hooks.commit_phase import _retry_commit_on_autofix
+from axm_git.hooks.commit_phase import retry_commit_on_autofix
 
 
 def _run(cmd: list[str], cwd: Path) -> None:
@@ -44,7 +44,7 @@ def test_retry_on_autofix_uses_dual_resolution(
         stderr="files were modified by this hook",
     )
 
-    result = _retry_commit_on_autofix(
+    result = retry_commit_on_autofix(
         ["docs/foo.md"],
         ["commit", "-m", "retry", "--no-verify"],
         git_root,

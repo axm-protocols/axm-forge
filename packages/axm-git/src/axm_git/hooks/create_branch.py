@@ -13,7 +13,7 @@ from axm.hooks.base import HookResult
 
 from axm_git.core.branch_naming import branch_name_from_ticket
 from axm_git.core.runner import find_git_root, run_git
-from axm_git.hooks._resolve import _resolve_working_dir
+from axm_git.hooks._resolve import resolve_working_dir
 
 __all__ = ["CreateBranchHook"]
 
@@ -42,7 +42,7 @@ class CreateBranchHook:
         Returns:
             HookResult with ``branch`` in metadata on success.
         """
-        working_dir = _resolve_working_dir(params, context)
+        working_dir = resolve_working_dir(params, context)
         session_id = cast("str", context["session_id"])
 
         if not params.get("enabled", True):
