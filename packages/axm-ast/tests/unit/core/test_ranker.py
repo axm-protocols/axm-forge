@@ -11,10 +11,10 @@ from axm_ast.core.ranker import (
     rank_symbols,
 )
 
-FIXTURES = Path(__file__).parents[1] / "fixtures"
+FIXTURES = Path(__file__).parents[2] / "fixtures"
 
 
-# ─── Unit: _build_symbol_graph ───────────────────────────────────────────────
+# ─── Unit: _build_symbol_graph ──────────────────────────────────────────
 
 
 class TestBuildSymbolGraphUnit:
@@ -37,7 +37,7 @@ class TestBuildSymbolGraphUnit:
         assert has_greet_edge, "greet (in __all__) should have incoming edges"
 
 
-# ─── Unit: _pagerank ────────────────────────────────────────────────────────
+# ─── Unit: _pagerank ─────────────────────────────────────────────────────────
 
 
 class TestPageRank:
@@ -108,7 +108,7 @@ class TestPageRank:
         assert abs(total - 1.0) < 0.05
 
 
-# ─── Unit: rank_symbols ─────────────────────────────────────────────────────
+# ─── Unit: rank_symbols ──────────────────────────────────────────────────────
 
 
 class TestRankSymbolsUnit:
@@ -143,7 +143,7 @@ class TestRankSymbolsUnit:
         assert all(v >= 0 for v in result.values())
 
 
-# ─── Functional: formatter integration ───────────────────────────────────────
+# ─── Functional: formatter integration ──────────────────────────────────────
 
 
 class TestRankedFormatting:

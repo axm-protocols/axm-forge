@@ -1,4 +1,8 @@
-"""Unit tests mirroring src/axm_ast/__init__.py top-level surface."""
+"""Regression tests for axm_ast top-level public API (__init__.py surface).
+
+Not a strict mirror of __init__.py (which is exempt); these are scenario-style
+guards for facade resolution and import-side-effect safety.
+"""
 
 from __future__ import annotations
 

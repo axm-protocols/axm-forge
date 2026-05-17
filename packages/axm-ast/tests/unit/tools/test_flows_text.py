@@ -145,7 +145,7 @@ class TestRenderEntryPointsText:
             },
         ]
         text = render_entry_points_text(entries, count=1)
-        assert "\u25b6" in text  # ▶
+        assert "▶" in text  # ▶
         assert "__main__:100" in text
 
     def test_empty_entry_points(self) -> None:

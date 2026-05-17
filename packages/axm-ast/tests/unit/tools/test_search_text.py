@@ -8,7 +8,7 @@ import pytest
 from axm_ast.models.nodes import SymbolKind
 from axm_ast.tools.search import SearchTool
 
-# ── Helpers ────────────────────────────────────────────────────────────────
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
 
 def _func_dict(
@@ -58,7 +58,7 @@ def patch_search(monkeypatch):
     return _setup
 
 
-# ── Unit: _format_text_header ──────────────────────────────────────────────
+# ── Unit: _format_text_header ──────────────────────────────────────────────────
 
 
 class TestFormatTextHeader:
@@ -117,7 +117,7 @@ class TestFormatTextHeader:
         assert "ast_search" in h
 
 
-# ── Unit: _format_symbol_line ──────────────────────────────────────────────
+# ── Unit: _format_symbol_line ──────────────────────────────────────────────────
 
 
 class TestFormatSymbolLine:
@@ -146,7 +146,7 @@ class TestFormatSymbolLine:
         assert "[]" in line
 
 
-# ── Functional: text through _search ───────────────────────────────────────
+# ── Functional: text through _search ───────────────────────────────────────────
 
 
 class TestSearchText:
@@ -259,7 +259,7 @@ class TestSearchText:
         assert entry["kind"] == "function"
 
 
-# ── Edge cases ─────────────────────────────────────────────────────────────
+# ── Edge cases ─────────────────────────────────────────────────────────────────
 
 
 class TestEdgeCases:
