@@ -59,16 +59,18 @@ class TestExtractedValidateInputs:
         assert result.error is not None
         assert "org" in result.error.lower() or "required" in result.error.lower()
 
-    def test_missing_author_returns_error(self) -> None:
+    @pytest.mark.parametrize(
+        ("author", "email"),
+        [
+            pytest.param("", "e@x.com", id="missing_author"),
+            pytest.param("a", "", id="missing_email"),
+        ],
+    )
+    def test_missing_required_field_returns_error(
+        self, author: str, email: str
+    ) -> None:
         tool = InitScaffoldTool()
-        result = tool.execute(path=".", author="", email="e@x.com", org="myorg")
-        assert not result.success
-        assert result.error is not None
-        assert "required" in result.error.lower()
-
-    def test_missing_email_returns_error(self) -> None:
-        tool = InitScaffoldTool()
-        result = tool.execute(path=".", author="a", email="", org="myorg")
+        result = tool.execute(path=".", author=author, email=email, org="myorg")
         assert not result.success
         assert result.error is not None
         assert "required" in result.error.lower()

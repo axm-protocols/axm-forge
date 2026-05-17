@@ -225,6 +225,7 @@ class TestProjectResult:
             pytest.param(100, 0, 100, Grade.A, id="perfect_score"),
             pytest.param(0, 100, 0, Grade.F, id="zero_score"),
             pytest.param(75, 25, 75, Grade.B, id="mixed_score"),
+            pytest.param(0, 0, 0, Grade.F, id="empty_checks_is_f"),
         ],
     )
     def test_score_and_grade(
@@ -242,11 +243,6 @@ class TestProjectResult:
         r = ProjectResult.from_checks(Path("."), self._make_checks(80, 20))
         assert len(r.failures) == 1
         assert r.failures[0].name == "fail"
-
-    def test_empty_checks_is_f(self) -> None:
-        r = ProjectResult.from_checks(Path("."), [])
-        assert r.score == 0
-        assert r.grade == Grade.F
 
     def test_extra_forbidden(self) -> None:
         """ProjectResult rejects unknown fields."""
