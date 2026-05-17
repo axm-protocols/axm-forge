@@ -425,6 +425,26 @@ reason = "test_member_skips_skip_for_member (test_project_context__skip_for_memb
 hash = "c0ea7c1a26b8"
 reason = "test_copy_handles_copier_error (integration test_copier_adapter__copier_config.py) patches axm_init.adapters.copier.run_copy with RuntimeError('Template not found') side_effect and asserts result.success is False AND 'Template not found' in result.message — exception branch with message-literal contract. test_copy_returns_scaffold_result (unit tests/unit/adapters/test_copier.py) patches run_copy with a MagicMock return_value and asserts result.success is True AND 'test-project' in result.path — happy-path branch with path-literal contract. Mirror branches (success vs failure) on the same SUT with divergent assertion fields (path vs message) and divergent mock topology (return_value vs side_effect)."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "82acca34aa9b"
+reason = "test_get_pypi_token_from_pypirc (integration test_credential_manager.py) writes a real .pypirc file to tmp_path and clears os.environ to force the file-read branch of get_pypi_token; test_get_pypi_token_from_env (unit test_credentials.py) only patches os.environ with PYPI_API_TOKEN and never touches the filesystem — two disjoint resolution branches (file vs env) with divergent setups and divergent fixture topologies (tmp_path + .pypirc write vs env-only mock)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "a30226c5ce27"
+reason = "test_pypirc_fallback (integration test_credential_manager.py) writes a real .pypirc, clears os.environ, and asserts resolve_pypi_token reads from the file (fallback branch); test_env_var_takes_priority (unit test_credentials.py) patches PYPI_API_TOKEN in os.environ and asserts resolve_pypi_token returns immediately without consulting .pypirc (priority branch) — two distinct priority branches of resolve_pypi_token with disjoint setups (file fixture vs env-only mock)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "84cbb37932df"
+reason = "test_patch_publish_keeps_yaml_parseable invokes patch_publish on a realistic publish.yml fixture (_make_realistic_publish) and asserts the resulting dict contains on.push trigger + jobs.publish; test_patch_release_keeps_yaml_parseable invokes patch_release on a realistic release.yml fixture (_make_realistic_release) and asserts on.push + jobs.release. Two distinct public SUTs (patch_publish vs patch_release) operating on different YAML files with different fixture builders — folding loses the per-SUT YAML-safety contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "993794ebff86"
+reason = "test_patch_publish_inserts_into_tags_not_steps targets patch_publish on publish.yml asserting tag insertion lands in on.push.tags (not in jobs.publish.steps); test_patch_release_inserts_into_tags_not_steps targets patch_release on release.yml asserting the same contract for jobs.release.steps. Two distinct public SUTs and different YAML files — folding would erase which patcher's tag-insertion safety is covered."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c1dbed0e98c5"
+reason = "test_copier_imports_at_runtime executes a subprocess that imports axm_init.adapters.copier (CopierAdapter, CopierConfig) — guards the copier adapter against import-time regressions; test_checker_imports_at_runtime executes a subprocess that imports axm_init.core.checker (CheckEngine) — guards the checker core against import-time regressions. Same subprocess shape but two disjoint import targets documenting fresh-interpreter importability for two distinct top-level modules."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 
