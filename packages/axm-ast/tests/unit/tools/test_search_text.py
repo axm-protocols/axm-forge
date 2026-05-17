@@ -45,7 +45,7 @@ def _var_dict(
 
 @pytest.fixture()
 def patch_search(monkeypatch):
-    """Patch search_symbols + _format_symbol so execute() returns controlled dicts."""
+    """Patch search_symbols + format_symbol so execute() returns controlled dicts."""
 
     def _setup(formatted_dicts: list[dict[str, Any]]) -> None:
         raw = [(d.get("module", "mod"), d) for d in formatted_dicts]
@@ -54,7 +54,7 @@ def patch_search(monkeypatch):
             lambda pkg, **kw: raw,
         )
         monkeypatch.setattr(
-            "axm_ast.tools.search.SearchTool._format_symbol",
+            "axm_ast.tools.search.SearchTool.format_symbol",
             staticmethod(lambda sym, mod_name: sym),
         )
 

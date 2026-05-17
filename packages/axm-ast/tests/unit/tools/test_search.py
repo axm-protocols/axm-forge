@@ -213,12 +213,12 @@ class TestValidateKind:
 
 
 class TestFormatSymbolModuleName:
-    """_format_symbol must receive and include the module name."""
+    """format_symbol must receive and include the module name."""
 
     def test_format_symbol_includes_module_name(
         self, function_symbol: FunctionInfo
     ) -> None:
-        entry = SearchTool._format_symbol(function_symbol, "pkg.utils")
+        entry = SearchTool.format_symbol(function_symbol, "pkg.utils")
         assert entry["module"] == "pkg.utils"
 
     def test_format_symbol_module_never_empty(
@@ -233,43 +233,43 @@ class TestFormatSymbolModuleName:
             (variable_symbol, "pkg.consts"),
         ]
         for sym, mod_name in symbols:
-            entry = SearchTool._format_symbol(sym, mod_name)
+            entry = SearchTool.format_symbol(sym, mod_name)
             assert entry["module"] != "", f"module empty for {sym.name}"
             assert entry["module"] == mod_name
 
 
 class TestFormatSymbol:
-    """SearchTool._format_symbol — AST symbol → serialized dict."""
+    """SearchTool.format_symbol — AST symbol → serialized dict."""
 
     def test_always_includes_name_and_module(self, tool: SearchTool) -> None:
         sym = SimpleNamespace(name="foo")
-        entry = tool._format_symbol(sym, "pkg.bar")
+        entry = tool.format_symbol(sym, "pkg.bar")
         assert entry["name"] == "foo"
         assert entry["module"] == "pkg.bar"
 
     def test_includes_signature_when_present(self, tool: SearchTool) -> None:
         sym = SimpleNamespace(name="f", signature="(x: int) -> str")
-        entry = tool._format_symbol(sym, "m")
+        entry = tool.format_symbol(sym, "m")
         assert entry["signature"] == "(x: int) -> str"
 
     def test_omits_signature_when_absent(self, tool: SearchTool) -> None:
         sym = SimpleNamespace(name="f")
-        entry = tool._format_symbol(sym, "m")
+        entry = tool.format_symbol(sym, "m")
         assert "signature" not in entry
 
     def test_includes_return_type_when_present(self, tool: SearchTool) -> None:
         sym = SimpleNamespace(name="f", return_type="bool")
-        entry = tool._format_symbol(sym, "m")
+        entry = tool.format_symbol(sym, "m")
         assert entry["return_type"] == "bool"
 
     def test_omits_return_type_when_absent(self, tool: SearchTool) -> None:
         sym = SimpleNamespace(name="f")
-        entry = tool._format_symbol(sym, "m")
+        entry = tool.format_symbol(sym, "m")
         assert "return_type" not in entry
 
     def test_variable_sets_kind_field(self, tool: SearchTool) -> None:
         sym = SimpleNamespace(name="V", value_repr="42")
-        entry = tool._format_symbol(sym, "m")
+        entry = tool.format_symbol(sym, "m")
         assert entry["kind"] == "variable"
 
     def test_variable_info_includes_annotation(self, tool: SearchTool) -> None:
@@ -277,7 +277,7 @@ class TestFormatSymbol:
         sym.name = "V"
         sym.value_repr = "42"
         sym.annotation = "int"
-        entry = tool._format_symbol(sym, "m")
+        entry = tool.format_symbol(sym, "m")
         assert entry["annotation"] == "int"
         assert entry["value_repr"] == "42"
 
@@ -286,7 +286,7 @@ class TestFormatSymbol:
         sym.name = "V"
         sym.value_repr = ""
         sym.annotation = ""
-        entry = tool._format_symbol(sym, "m")
+        entry = tool.format_symbol(sym, "m")
         assert "annotation" not in entry
         assert "value_repr" not in entry
 
@@ -299,7 +299,7 @@ def test_format_symbol_dict() -> None:
     func.return_type = "None"
     func.kind = MagicMock()
     func.kind.value = "method"
-    result_func = SearchTool._format_symbol(func, "my_module")
+    result_func = SearchTool.format_symbol(func, "my_module")
     assert result_func["name"] == "run"
     assert result_func["module"] == "my_module"
     assert result_func["signature"] == "def run(self) -> None"
@@ -309,7 +309,7 @@ def test_format_symbol_dict() -> None:
     # ClassInfo
     cls = MagicMock(spec=ClassInfo)
     cls.name = "Widget"
-    result_cls = SearchTool._format_symbol(cls, "widgets")
+    result_cls = SearchTool.format_symbol(cls, "widgets")
     assert result_cls["name"] == "Widget"
     assert result_cls["kind"] == "class"
 
@@ -318,7 +318,7 @@ def test_format_symbol_dict() -> None:
     var.name = "MAX"
     var.annotation = "int"
     var.value_repr = "100"
-    result_var = SearchTool._format_symbol(var, "constants")
+    result_var = SearchTool.format_symbol(var, "constants")
     assert result_var["name"] == "MAX"
     assert result_var["kind"] == "variable"
     assert result_var["annotation"] == "int"
@@ -330,25 +330,25 @@ def test_format_symbol_dict() -> None:
 
 def test_function_has_kind() -> None:
     sym = SimpleNamespace(name="f", signature="def f()", kind="function")
-    entry = SearchTool._format_symbol(sym, "mod")
+    entry = SearchTool.format_symbol(sym, "mod")
     assert entry["kind"] == "function"
 
 
 def test_method_has_kind() -> None:
     sym = SimpleNamespace(name="m", signature="def m(self)", kind="method")
-    entry = SearchTool._format_symbol(sym, "mod")
+    entry = SearchTool.format_symbol(sym, "mod")
     assert entry["kind"] == "method"
 
 
 def test_class_has_kind() -> None:
     sym = ClassInfo(name="C", line_start=1, line_end=10)
-    entry = SearchTool._format_symbol(sym, "mod")
+    entry = SearchTool.format_symbol(sym, "mod")
     assert entry["kind"] == "class"
 
 
 def test_variable_still_has_kind() -> None:
     sym = SimpleNamespace(name="V", value_repr="42")
-    entry = SearchTool._format_symbol(sym, "mod")
+    entry = SearchTool.format_symbol(sym, "mod")
     assert entry["kind"] == "variable"
 
 
@@ -359,7 +359,7 @@ def test_property_kind() -> None:
         line_start=1,
         line_end=3,
     )
-    entry = SearchTool._format_symbol(sym, "mod")
+    entry = SearchTool.format_symbol(sym, "mod")
     assert entry["kind"] == "property"
 
 
@@ -370,7 +370,7 @@ def test_abstract_method_kind() -> None:
         line_start=5,
         line_end=8,
     )
-    entry = SearchTool._format_symbol(sym, "mod")
+    entry = SearchTool.format_symbol(sym, "mod")
     assert entry["kind"] == "abstract"
 
 
@@ -451,7 +451,7 @@ def test_format_symbol_line_variable_bare() -> None:
 class TestSearchResultNoCountKey:
     """Verify that ``ast_search`` does not include a 'count' key in result.data."""
 
-    @patch.object(SearchTool, "_format_symbol", return_value={"name": "Foo"})
+    @patch.object(SearchTool, "format_symbol", return_value={"name": "Foo"})
     @patch("axm_ast.core.analyzer.search_symbols")
     def test_search_result_no_count_key(
         self,
@@ -469,7 +469,7 @@ class TestSearchResultNoCountKey:
         assert "results" in result.data
         assert len(result.data["results"]) == 1
 
-    @patch.object(SearchTool, "_format_symbol", return_value={"name": "X"})
+    @patch.object(SearchTool, "format_symbol", return_value={"name": "X"})
     @patch("axm_ast.core.analyzer.search_symbols")
     def test_search_empty_results_no_count_key(
         self,
