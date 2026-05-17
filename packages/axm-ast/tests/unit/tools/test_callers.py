@@ -214,3 +214,29 @@ def test_very_long_module_name() -> None:
     text = CallersTool._render_text(callers, symbol="greet")
     lines = text.strip().splitlines()
     assert lines[1] == f"{long_mod}:999 deep_fn"
+
+
+# ---------------------------------------------------------------------------
+# TestCallersToolUnit (from test_tools.py)
+# ---------------------------------------------------------------------------
+
+
+class TestCallersToolUnit:
+    """Tests for ast_callers tool."""
+
+    def test_has_name(self) -> None:
+        tool_inst = CallersTool()
+        assert tool_inst.name == "ast_callers"
+
+
+# ---------------------------------------------------------------------------
+# TestCallersToolEdgeCasesUnit (from test_tools_coverage.py)
+# ---------------------------------------------------------------------------
+
+
+class TestCallersToolEdgeCasesUnit:
+    """CallersTool — bad path."""
+
+    def test_bad_path(self, tool: CallersTool) -> None:
+        result = tool.execute(path="/nonexistent/path/xyz", symbol="foo")
+        assert result.success is False

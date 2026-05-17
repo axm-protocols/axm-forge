@@ -223,6 +223,11 @@ pep621_dev_dependency_groups = ["dev", "docs"]
 exempt_paths = [
     "**/__init__.py",
     "_version.py",
+    "core/search.py",         # pure TypedDict schemas
+    "core/callers.py",        # tree-sitter Node operations, integration-only
+    "core/git_coupling.py",   # requires real git, integration-only
+    "core/structural_diff.py",# requires git worktrees, integration-only
+    "tools/doc_impact.py",    # thin MCP facade, integration-covered
 ]
 
 [tool.deptry.per_rule_ignores]

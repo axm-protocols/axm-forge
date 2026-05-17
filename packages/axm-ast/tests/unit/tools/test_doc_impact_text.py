@@ -145,3 +145,32 @@ def test_symbol_with_refs_in_many_files(_make_result):
     # All file groups separated by ·
     ref_line = next(ln for ln in text.splitlines() if "big_sym" in ln and "(11)" in ln)
     assert ref_line.count("\u00b7") == 10  # 11 files -> 10 separators
+
+
+# ---------------------------------------------------------------------------
+# DocImpactTool edge cases (from test_tools_coverage.py)
+# ---------------------------------------------------------------------------
+
+
+from axm_ast.tools.doc_impact import DocImpactTool  # noqa: E402
+
+
+@pytest.fixture()
+def doc_impact_tool() -> DocImpactTool:
+    return DocImpactTool()
+
+
+class TestDocImpactToolEdgeCasesUnit:
+    """DocImpactTool edge cases \u2014 name, empty symbols, bad path."""
+
+    def test_name(self, doc_impact_tool: DocImpactTool) -> None:
+        assert doc_impact_tool.name == "ast_doc_impact"
+
+    def test_empty_symbols(self, doc_impact_tool: DocImpactTool) -> None:
+        result = doc_impact_tool.execute(path=".")
+        assert result.success is False
+        assert "symbols" in (result.error or "")
+
+    def test_bad_path(self, doc_impact_tool: DocImpactTool) -> None:
+        result = doc_impact_tool.execute(path="/nonexistent/path/xyz", symbols=["foo"])
+        assert result.success is False
