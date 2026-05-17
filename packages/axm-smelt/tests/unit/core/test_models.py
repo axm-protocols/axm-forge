@@ -40,13 +40,15 @@ def test_parsed_serialization_is_deterministic() -> None:
     assert a.text == b.text
 
 
-def test_invalid_json_text_yields_none_parsed() -> None:
-    ctx = SmeltContext(text="not json")
-    assert ctx.parsed is None
-
-
-def test_empty_text_yields_none_parsed() -> None:
-    ctx = SmeltContext(text="")
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("not json", id="non_json_string"),
+        pytest.param("", id="empty_string"),
+    ],
+)
+def test_non_parseable_text_yields_none_parsed(text: str) -> None:
+    ctx = SmeltContext(text=text)
     assert ctx.parsed is None
 
 
@@ -97,12 +99,6 @@ class TestSmeltContextLazyParse:
         result = ctx.parsed
         spy.assert_not_called()
         assert result == {"a": 1}
-
-
-def test_smelt_context_invalid_json() -> None:
-    """test_smelt_context_invalid_json: .parsed returns None for non-JSON."""
-    ctx = SmeltContext(text="not json")
-    assert ctx.parsed is None
 
 
 def test_smelt_context_is_immutable() -> None:

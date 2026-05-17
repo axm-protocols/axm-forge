@@ -55,15 +55,19 @@ def test_concrete_subclass_works() -> None:
 
 
 class TestGetStrategy:
-    def test_get_strategy_tabular(self) -> None:
-        s = get_strategy("tabular")
-        assert s.name == "tabular"
-        assert s.category == "structural"
-
-    def test_get_strategy_strip_quotes(self) -> None:
-        s = get_strategy("strip_quotes")
-        assert s.name == "strip_quotes"
-        assert s.category == "cosmetic"
+    @pytest.mark.parametrize(
+        ("strategy_name", "expected_category"),
+        [
+            pytest.param("tabular", "structural", id="tabular_structural"),
+            pytest.param("strip_quotes", "cosmetic", id="strip_quotes_cosmetic"),
+        ],
+    )
+    def test_get_strategy_known(
+        self, strategy_name: str, expected_category: str
+    ) -> None:
+        s = get_strategy(strategy_name)
+        assert s.name == strategy_name
+        assert s.category == expected_category
 
     def test_unknown_strategy(self) -> None:
         with pytest.raises(ValueError, match="Unknown strategy"):
