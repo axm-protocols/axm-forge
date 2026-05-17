@@ -56,11 +56,14 @@ def test_drop_nulls_all_null_values(strategy: SmeltStrategy) -> None:
     assert result == {}
 
 
-def test_drop_nulls_empty_input(strategy: SmeltStrategy) -> None:
-    result = strategy.apply(SmeltContext(text="")).text
-    assert result == ""
-
-
-def test_drop_nulls_non_json_input(strategy: SmeltStrategy) -> None:
-    result = strategy.apply(SmeltContext(text="plain text")).text
-    assert result == "plain text"
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("", id="empty_input"),
+        pytest.param("plain text", id="non_json_input"),
+    ],
+)
+def test_drop_nulls_unparseable_passthrough(strategy: SmeltStrategy, text: str) -> None:
+    """Empty / non-JSON text is returned unchanged."""
+    result = strategy.apply(SmeltContext(text=text)).text
+    assert result == text

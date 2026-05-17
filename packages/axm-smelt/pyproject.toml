@@ -73,6 +73,18 @@ reason = "pure-table vs mixed-content scenarios assert on different line indices
 hash = "b7fe5dcf4895"
 reason = "cleanup_blank_lines asserts on `\\n\\n\\n` absence while multiple_comments / empty_comment assert on `<!--` absence and content survival — distinct invariants per branch"
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e95bbb62bd6f"
+reason = "guard_rejects_regression monkeypatches only get_strategy and exercises the natural token-count path, while zero_token_change_discarded additionally pins count() to a fixed value to isolate the same-token-different-text branch — different monkeypatch surfaces guarding distinct pipeline invariants"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "aacab3a12a4b"
+reason = "no_match exercises an empty lookup so the function returns the input unchanged, while nested_dict pins recursion correctness with a populated lookup and replacement assertion — distinct branches (passthrough vs substitution) with non-overlapping expected shapes"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b3014e97a434"
+reason = "refs_collision additionally asserts a DEBUG log record was emitted via caplog (the contract on the `_refs` reserved key), while data_collision only asserts the passthrough — the caplog assertion is a separate concern that parametrization would either lose or force onto both cases artificially"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
