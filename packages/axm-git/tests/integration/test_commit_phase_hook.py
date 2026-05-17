@@ -167,7 +167,7 @@ class TestCommitRetryAfterAutofix:
     ) -> None:
         """When commit fails with 'files were modified', re-stage and retry."""
         mock_stage = mocker.patch(
-            "axm_git.hooks.commit_phase._stage_spec_files",
+            "axm_git.hooks.commit_phase.stage_spec_files",
             return_value=None,
         )
         mocker.patch(
@@ -197,7 +197,7 @@ class TestCommitRetryAfterAutofix:
 
         assert result.success
         assert result.metadata["commit"] == "abc1234"
-        # _stage_spec_files called twice: initial + re-stage after autofix
+        # stage_spec_files called twice: initial + re-stage after autofix
         assert mock_stage.call_count == 2
 
     def test_commit_retry_fails(
@@ -209,7 +209,7 @@ class TestCommitRetryAfterAutofix:
     ) -> None:
         """When commit fails twice, return HookResult.fail()."""
         mocker.patch(
-            "axm_git.hooks.commit_phase._stage_spec_files",
+            "axm_git.hooks.commit_phase.stage_spec_files",
             return_value=None,
         )
         mocker.patch(
@@ -243,7 +243,7 @@ class TestCommitRetryAfterAutofix:
     ) -> None:
         """When commit succeeds first time, no retry occurs."""
         mock_stage = mocker.patch(
-            "axm_git.hooks.commit_phase._stage_spec_files",
+            "axm_git.hooks.commit_phase.stage_spec_files",
             return_value=None,
         )
         mocker.patch(
@@ -264,7 +264,7 @@ class TestCommitRetryAfterAutofix:
 
         assert result.success
         assert result.metadata["commit"] == "def5678"
-        # _stage_spec_files called only once (no retry)
+        # stage_spec_files called only once (no retry)
         assert mock_stage.call_count == 1
 
 
