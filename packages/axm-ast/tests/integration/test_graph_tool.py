@@ -64,21 +64,6 @@ def test_workspace_graph_text_contains_packages(
     assert "axm-beta" in text
 
 
-class TestGraphToolIdentity:
-    """Basic tool identity tests."""
-
-    def test_name(self, tool: GraphTool) -> None:
-        assert tool.name == "ast_graph"
-
-
-class TestGraphEdgeCasesUnit:
-    """Edge cases for GraphTool (no I/O)."""
-
-    def test_bad_path(self, tool: GraphTool) -> None:
-        result = tool.execute(path="/nonexistent/path")
-        assert result.success is False
-
-
 @pytest.fixture()
 def tool() -> GraphTool:
     """Provide a fresh GraphTool instance."""

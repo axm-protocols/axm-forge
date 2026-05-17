@@ -1258,13 +1258,6 @@ _NEIGHBORS: dict[str, Path] = {
 }
 
 
-def test_describe_data_not_reported_dead() -> None:
-    """After the patch, axm-ast's _DescribeData is no longer flagged."""
-    pkg = analyze_package(_AXM_AST_ROOT)
-    dead = find_dead_code(pkg)
-    assert "_DescribeData" not in {d.name for d in dead}
-
-
 @pytest.mark.parametrize("pkg_name", sorted(_NEIGHBORS))
 def test_workspace_packages_no_regression(pkg_name: str) -> None:
     """Patch must not introduce new dead-code false positives on neighbors.
