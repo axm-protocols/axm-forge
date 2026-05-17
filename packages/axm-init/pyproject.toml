@@ -385,6 +385,26 @@ reason = "Cross-SUT cluster: test_scaffold_json_success/test_scaffold_json_outpu
 hash = "a4fa72650680"
 reason = "Cross-SUT cluster: test_dep_already_in_sources_section_not_deps targets patch_pyproject (writes a sources marker + asserts deps and sources rewrites), while test_adds_to_existing_testpaths/test_single_line_array/test_section_exists_key_missing target patch_testpaths (writes various existing [tool.pytest.ini_options] shapes + asserts testpaths array merge). Two distinct workspace-patcher SUTs with divergent pre-existing pyproject shapes and divergent assertion targets (sources sections vs testpaths arrays)."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "2cad2750f7f8"
+reason = "test_context_manager_rollbacks_on_error exercises the public FileSystemAdapter.transaction() context manager with pytest.raises(RuntimeError) for an implicit rollback on exception; test_rollback_removes_files calls the lower-level Transaction class directly via tx.rollback() (no exception, explicit rollback); test_rollback_noop_after_commit asserts the inverse contract (file still exists after rollback because commit was called first). Three distinct SUTs/invocation patterns with divergent assertions (exists vs not-exists)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "81a9ea6613a3"
+reason = "Cross-SUT cluster: test_valid in test_check_members_consistent.py invokes check_members_consistent (weight=2), while test_valid in test_check_packages_layout.py invokes check_packages_layout (weight=3). Same ws_root fixture, but two distinct public check_* SUTs with divergent weight assertions — folding loses the per-SUT happy-path documentation."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "a28dc819abb4"
+reason = "Cross-SUT cluster: test_no_members_passes in test_check_members_consistent.py invokes check_members_consistent (workspace just configured → passes), while test_no_members_passes in test_check_packages_layout.py invokes check_packages_layout. Same minimal tmp_path pyproject fixture but two distinct public check_* SUTs — each documents the no-members early-return branch of its own check."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "565e7674dbf6"
+reason = "Cross-SUT cluster: test_idempotent in test_patch_ci.py exercises patch_ci on a workspace_root fixture with .github/workflows/ci.yml (matrix-insertion idempotency), while test_idempotent in test_patch_publish.py exercises patch_publish on the same fixture targeting publish.yml (tag-pattern idempotency). Two distinct public patch_* SUTs operating on different YAML files — same contract shape but disjoint file targets and divergent insertion logic."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7764f5b61077"
+reason = "test_category_filter (TestCheckCommand in test_availability_status.py) and test_category_pyproject (TestCheckCategoryFilter in test_check_command_output_modes.py) both invoke `axm-init check --category pyproject` but rely on two distinct locally-defined gold_project fixtures with divergent tests/ layouts (flat tests/ vs unit/integration/e2e tree) and divergent pyproject literals (single-line vs dedented multi-line). The two files house different CLI scenario suites — keeping each smoke test alongside its file's specific fixture preserves the per-file documentation of which fixture shape exercises the --category path."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 
