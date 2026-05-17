@@ -225,29 +225,39 @@ class TestResolveIdentity:
         assert result is not None
         assert result.name == "Gabriel"
 
-    def test_resolve_profile_override(self, config_path: Path) -> None:
-        """Override=default during schedule match -> default identity."""
-        now = datetime(2026, 4, 6, 10, 0)  # Monday
+    @pytest.mark.parametrize(
+        ("now", "profile_override", "expected_name"),
+        [
+            pytest.param(
+                datetime(2026, 4, 6, 10, 0),
+                "default",
+                "Gabriel",
+                id="override_default_during_schedule_match",
+            ),
+            pytest.param(
+                datetime(2026, 4, 11, 14, 0),
+                "axiom",
+                "Axiom",
+                id="override_axiom_on_weekend",
+            ),
+        ],
+    )
+    def test_resolve_profile_override(
+        self,
+        config_path: Path,
+        now: datetime,
+        profile_override: str,
+        expected_name: str,
+    ) -> None:
+        """profile_override beats schedule resolution in both directions."""
         result = resolve_identity(
             AXM_WORKSPACE,
             now=now,
-            profile_override="default",
+            profile_override=profile_override,
             config_path=config_path,
         )
         assert result is not None
-        assert result.name == "Gabriel"
-
-    def test_resolve_profile_override_axiom(self, config_path: Path) -> None:
-        """Override=axiom on weekend -> axiom despite no schedule match."""
-        now = datetime(2026, 4, 11, 14, 0)  # Saturday
-        result = resolve_identity(
-            AXM_WORKSPACE,
-            now=now,
-            profile_override="axiom",
-            config_path=config_path,
-        )
-        assert result is not None
-        assert result.name == "Axiom"
+        assert result.name == expected_name
 
     def test_resolve_no_config(self, tmp_path: Path) -> None:
         """No config file -> None."""
