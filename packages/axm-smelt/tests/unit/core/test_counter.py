@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -10,6 +11,7 @@ from pytest_mock import MockerFixture
 from axm_smelt import CounterBackend
 from axm_smelt.core import counter
 from axm_smelt.core.counter import count, count_with_backend
+from axm_smelt.core.pipeline import smelt
 
 
 @pytest.fixture(autouse=True)
@@ -166,3 +168,33 @@ def test_warn_emitted_once(
         if r.levelno == logging.WARNING and "tiktoken unavailable" in r.getMessage()
     ]
     assert len(matching) == 1
+
+
+# --- merged from test_smelt_report_backend.py ---
+
+
+def test_smelt_report_backend_tiktoken(caplog: pytest.LogCaptureFixture) -> None:
+    text = json.dumps({"a": 1, "b": [1, 2, 3], "c": "hello world"})
+    with caplog.at_level(logging.WARNING):
+        report = smelt(text)
+    assert report.counter_backend is CounterBackend.TIKTOKEN
+    assert not [r for r in caplog.records if "tiktoken unavailable" in r.message]
+
+
+def test_smelt_report_backend_fallback_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    text = json.dumps({"a": 1, "b": [1, 2, 3], "c": "hello world"})
+
+    calls = {"n": 0}
+
+    def fake(t: str, model: str = "o200k_base") -> tuple[int, CounterBackend]:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            return (len(t) // 4, CounterBackend.FALLBACK)
+        n, _ = count_with_backend(t, model)
+        return (n, CounterBackend.TIKTOKEN)
+
+    monkeypatch.setattr("axm_smelt.core.pipeline.count_with_backend", fake)
+    report = smelt(text)
+    assert report.counter_backend is CounterBackend.FALLBACK
