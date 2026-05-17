@@ -331,3 +331,7 @@ reason = "test_commit_legacy_with_identity drives the legacy `_commit_legacy` co
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "1e9f84905d11"
 reason = "test_branch_delete_success uses the flat `tmp_git_repo: Path` fixture and runs the hook with working_dir == git root, while test_subdirectory_of_git_repo uses the nested `tmp_workspace_repo: tuple[Path, Path]` fixture (git_root, pkg_dir unpacking) and runs the hook with working_dir == pkg_dir to exercise sub-directory resolution -- different fixture shapes, different working-dir topologies, parametrize cannot bridge tuple-vs-Path fixtures cleanly"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3cb3f5c55fe3"
+reason = "11 tests span 8 hook classes (CommitPhaseHook, CreateBranchHook, BranchDeleteHook, PullHook, PushHook, WorktreeAddHook, WorktreeRemoveHook, AwaitMergeHook) across 2 pyramid levels (10 integration + 1 unit) with 4+ distinct fixtures (tmp_path, tmp_git_repo, _make_context, monkeypatch-only) and 2 metadata observation surfaces (skipped is True vs pulled/pushed is True for pull_already_up_to_date and push_everything_up_to_date) -- worktree_remove::test_skip_missing_path even uses tmp_git_repo for a different skip reason (missing worktree path, not non-repo); the apparent shared shape `success + boolean metadata` hides 8 distinct hook contracts that cannot share a fixture or parametrize cleanly"
