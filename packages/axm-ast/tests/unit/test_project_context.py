@@ -11,24 +11,9 @@ import pytest
 
 from axm_ast.hooks.context import ContextHook
 from axm_ast.tools.context import ContextTool
+from tests.unit._helpers import _make_pyproject
 
 pytestmark = pytest.mark.functional
-
-
-# ─── Helpers ────────────────────────────────────────────────────────────────
-
-
-def _make_pyproject(path: Path, deps: list[str], *, build: str = "hatchling") -> None:
-    """Write a minimal pyproject.toml."""
-    dep_lines = ", ".join(f'"{d}"' for d in deps)
-    (path / "pyproject.toml").write_text(
-        f"[project]\n"
-        f'name = "testpkg"\n'
-        f"dependencies = [{dep_lines}]\n"
-        f"[build-system]\n"
-        f'requires = ["{build}"]\n'
-        f'build-backend = "{build}.build"\n'
-    )
 
 
 def _make_pkg(path: Path, *, modules: dict[str, str] | None = None) -> Path:

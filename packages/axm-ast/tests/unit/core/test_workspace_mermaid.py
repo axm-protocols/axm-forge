@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import re
 from types import SimpleNamespace
 from typing import Any
 
 from axm_ast.core.workspace import format_workspace_graph_mermaid
+from tests.unit._helpers import _EDGE_RE, _NODE_DECL_RE
 
 
 def _make_ws(
@@ -14,10 +14,6 @@ def _make_ws(
     """Build a minimal WorkspaceInfo-like object."""
     packages = [SimpleNamespace(name=n) for n in pkg_names]
     return SimpleNamespace(packages=packages, package_edges=edges)
-
-
-_NODE_DECL_RE = re.compile(r'^\s+(\w+)\[".*"\]', re.MULTILINE)
-_EDGE_RE = re.compile(r"^\s+(\S+)\s+-->\s+(\S+)", re.MULTILINE)
 
 
 def _parse_mermaid(mermaid: str) -> tuple[set[str], set[str]]:
