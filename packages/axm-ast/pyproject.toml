@@ -216,6 +216,15 @@ markers = [
 known_first_party = ["axm_ast"]
 pep621_dev_dependency_groups = ["dev", "docs"]
 
+# ─────────────────────────────────────────────────────────────────────────────
+# axm-audit Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.axm-audit.mirror]
+exempt_paths = [
+    "**/__init__.py",
+    "_version.py",
+]
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
