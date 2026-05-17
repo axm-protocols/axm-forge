@@ -18,20 +18,20 @@ _MIN_LENGTH = 20
 _MIN_OCCURRENCES = 2
 
 
-def _collect_strings(data: JsonValue, strings: list[str]) -> None:
+def collect_strings(data: JsonValue, strings: list[str]) -> None:
     """Walk data and collect string values."""
     if isinstance(data, str):
         if len(data) >= _MIN_LENGTH:
             strings.append(data)
     elif isinstance(data, dict):
         for v in data.values():
-            _collect_strings(v, strings)
+            collect_strings(v, strings)
     elif isinstance(data, list):
         for item in data:
-            _collect_strings(item, strings)
+            collect_strings(item, strings)
 
 
-def _replace_strings(
+def replace_strings(
     data: JsonValue,
     lookup: dict[str, str],
 ) -> JsonValue:
@@ -39,9 +39,9 @@ def _replace_strings(
     if isinstance(data, str) and data in lookup:
         return lookup[data]
     if isinstance(data, dict):
-        return {k: _replace_strings(v, lookup) for k, v in data.items()}
+        return {k: replace_strings(v, lookup) for k, v in data.items()}
     if isinstance(data, list):
-        return [_replace_strings(item, lookup) for item in data]
+        return [replace_strings(item, lookup) for item in data]
     return data
 
 
@@ -88,7 +88,7 @@ class DedupValuesStrategy(SmeltStrategy):
             return ctx
 
         strings: list[str] = []
-        _collect_strings(parsed, strings)
+        collect_strings(parsed, strings)
         counts = Counter(strings)
 
         # Build alias map for repeated strings
@@ -108,7 +108,7 @@ class DedupValuesStrategy(SmeltStrategy):
             lookup[s] = alias
             aliases[alias] = s
 
-        replaced = _replace_strings(parsed, lookup)
+        replaced = replace_strings(parsed, lookup)
         result = {"_refs": aliases, "_data": replaced}
         return SmeltContext(
             text=json.dumps(result, separators=(",", ":"), ensure_ascii=False),

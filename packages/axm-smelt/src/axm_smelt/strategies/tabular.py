@@ -26,7 +26,7 @@ def _format_cell(value: object) -> str:
     return s
 
 
-def _collect_ordered_keys(items: list[dict[str, JsonValue]]) -> list[str]:
+def collect_ordered_keys(items: list[dict[str, JsonValue]]) -> list[str]:
     """Collect unique keys from dicts in first-seen insertion order."""
     keys: list[str] = []
     seen: set[str] = set()
@@ -38,7 +38,7 @@ def _collect_ordered_keys(items: list[dict[str, JsonValue]]) -> list[str]:
     return keys
 
 
-def _render_rows(items: list[dict[str, JsonValue]], keys: list[str]) -> list[str]:
+def render_rows(items: list[dict[str, JsonValue]], keys: list[str]) -> list[str]:
     """Render each dict as a pipe-separated row according to *keys*."""
     rows: list[str] = []
     for item in items:
@@ -47,16 +47,16 @@ def _render_rows(items: list[dict[str, JsonValue]], keys: list[str]) -> list[str
     return rows
 
 
-def _to_table(data: object) -> str | None:
+def to_table(data: object) -> str | None:
     """Convert a list of dicts to a pipe-separated table, or return None."""
     if not isinstance(data, list) or not data:
         return None
     if not all(isinstance(item, dict) for item in data):
         return None
 
-    keys = _collect_ordered_keys(data)
+    keys = collect_ordered_keys(data)
     header = "|".join(keys)
-    rows = _render_rows(data, keys)
+    rows = render_rows(data, keys)
     return "\n".join([header, *rows])
 
 
@@ -66,7 +66,7 @@ def _tabularize_dict(data: Mapping[str, object]) -> tuple[dict[str, object], boo
     result: dict[str, object] = {}
     for k, v in data.items():
         if isinstance(v, list):
-            table = _to_table(v)
+            table = to_table(v)
             if table is not None:
                 result[k] = table
                 changed = True
@@ -114,7 +114,7 @@ class TabularStrategy(SmeltStrategy):
                 return ctx
 
         if isinstance(parsed, list):
-            table = _to_table(parsed)
+            table = to_table(parsed)
             if table is not None:
                 return SmeltContext(text=table, format=ctx.format, parsed=None)
             return ctx

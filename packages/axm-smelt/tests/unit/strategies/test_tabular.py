@@ -7,9 +7,9 @@ import pytest
 from axm_smelt.core.models import SmeltContext
 from axm_smelt.strategies.tabular import (
     TabularStrategy,
-    _collect_ordered_keys,
-    _render_rows,
-    _to_table,
+    collect_ordered_keys,
+    render_rows,
+    to_table,
 )
 
 
@@ -94,26 +94,26 @@ class TestTabularEdgeCases:
 
 def test_collect_ordered_keys_preserves_order() -> None:
     items = [{"b": 1, "a": 2}, {"a": 3, "c": 4}]
-    result = _collect_ordered_keys(items)
+    result = collect_ordered_keys(items)
     assert result == ["b", "a", "c"]
 
 
 def test_collect_ordered_keys_empty() -> None:
-    result = _collect_ordered_keys([])
+    result = collect_ordered_keys([])
     assert result == []
 
 
 def test_render_rows_with_missing_keys() -> None:
     items = [{"a": 1, "b": 2}, {"a": 3}]
     keys = ["a", "b"]
-    rows = _render_rows(items, keys)
+    rows = render_rows(items, keys)
     assert len(rows) == 2
     # Second row should have empty string for missing key "b"
     assert rows[1].split("|")[1] == ""
 
 
 def test_single_item_list() -> None:
-    result = _to_table([{"a": 1}])
+    result = to_table([{"a": 1}])
     assert result is not None
     lines = result.split("\n")
     assert len(lines) == 2  # header + 1 row
@@ -121,7 +121,7 @@ def test_single_item_list() -> None:
 
 
 def test_all_keys_identical() -> None:
-    result = _to_table([{"a": 1}, {"a": 2}])
+    result = to_table([{"a": 1}, {"a": 2}])
     assert result is not None
     lines = result.split("\n")
     assert lines[0] == "a"  # single-column header
@@ -129,7 +129,7 @@ def test_all_keys_identical() -> None:
 
 
 def test_nested_values_in_cells() -> None:
-    result = _to_table([{"a": {"b": 1}}])
+    result = to_table([{"a": {"b": 1}}])
     assert result is not None
     lines = result.split("\n")
     # Nested dict should be JSON-serialized via _format_cell

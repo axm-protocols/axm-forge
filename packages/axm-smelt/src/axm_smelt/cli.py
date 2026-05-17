@@ -15,7 +15,7 @@ app = cyclopts.App(
 )
 
 
-def _read_input(file: Path | None = None) -> str:
+def read_input(file: Path | None = None) -> str:
     """Read input from *file* or stdin."""
     if file is not None:
         try:
@@ -41,7 +41,7 @@ def count(
     """Count tokens in input."""
     from axm_smelt.core.counter import count as _count
 
-    text = _read_input(file)
+    text = read_input(file)
     print(_count(text, model=model))
 
 
@@ -56,7 +56,7 @@ def compact(
     """Compact input and print the result."""
     from axm_smelt.core.pipeline import smelt
 
-    text = _read_input(file)
+    text = read_input(file)
     strat_list = strategies.split(",") if strategies else None
     try:
         report = smelt(text, strategies=strat_list, preset=preset)
@@ -85,7 +85,7 @@ def check(
     """Analyze input without transforming it."""
     from axm_smelt.core.pipeline import check as _check
 
-    text = _read_input(file)
+    text = read_input(file)
     try:
         report = _check(text)
     except ValueError as exc:
