@@ -125,6 +125,38 @@ reason = "7 tests across three strategy files (collapse_whitespace, compact_tabl
 hash = "2710a8c31905"
 reason = "4 single-call+assert tests cover four distinct module surfaces (axm_smelt.__version__ import + three tool agent_hint attributes on SmeltCheckTool/SmeltCountTool/SmeltTool) — folding across files would relocate tool-local contract checks away from their SUT"
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "2cf3715bb547"
+reason = "YAML/XML savings_pct functional tests (test_minify) and the get_strategy unknown-name ValueError test (test_pipeline) exercise unrelated branches — `smelt(...).savings_pct > 0` on real format inputs vs `pytest.raises(ValueError)` on a registry lookup — no shared parametrization shape across files"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "6c64caffb020"
+reason = "CompactTables fenced-code passthrough preserves padding inside code blocks, while StripHtmlComments preserve_code_block_comments and strip_real_markdown assert distinct comment-survival/removal invariants on different strategy SUTs — cross-file fold across two strategies is forbidden"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "0bdd8451a99f"
+reason = "name_and_category tests in compact_tables and strip_html_comments pin per-strategy contract literals (compact_tables/whitespace vs strip_html_comments/cosmetic) — folding across files would relocate each strategy's contract check away from its SUT module"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8a54c822aea8"
+reason = "strategy_abc (test_models) instantiates an empty SmeltStrategy subclass while partial_implementation_raises (test_base) instantiates a subclass that supplies the `name` property but misses category and apply — different incomplete-subclass setups guarding the same TypeError contract from distinct angles; cross-file fold across unit/core/ and unit/strategies/ is forbidden"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "28c783a5b834"
+reason = "check_tool_error and count_tool_error exercise the None-input failure path on two distinct tool SUTs (SmeltCheckTool vs SmeltCountTool) — each test pins its tool's error contract; cross-file fold would relocate tool-local checks away from their entry-point module"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "6af3c08c7b6f"
+reason = "16-test detector cluster covers distinct Format branches (JSON/YAML/XML/MARKDOWN/TEXT) through detect_format and the try_* probes plus edge cases (empty, whitespace, doctype, malformed brace, html-heavy, markdown-values-in-json, yaml-with-comments) — each test pins a separate detector branch; parametrization would erase the per-format intent"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "a921573c8fe1"
+reason = "unknown_strategy and unknown_preset pin ValueError on two distinct registry lookups (get_strategy vs get_preset), while get_strategy_known is a parametrized positive-path test asserting name+category — three different SUT branches that resist a single parametrize shape"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "5128c4938ca4"
+reason = "tabular_trivial_arrays (empty array, single-item array) and tabular_passthrough (non-array dict, non-dict array) are already parametrized and assert opposite invariants — trivial arrays yield a header+row table while passthrough returns input unchanged; folding would conflate the table-emission and passthrough contracts"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
