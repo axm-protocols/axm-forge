@@ -365,6 +365,26 @@ reason = "test_no_else_block writes a release.yml with a tags section but no els
 hash = "83ae2eb6faa0"
 reason = "test_check_auth_status patches subprocess.run with return_value MagicMocks (returncode 0 then 1) inside a single block asserting both True and False outcomes (success/failure branch coverage); test_check_auth_no_gh patches subprocess.run with side_effect=FileNotFoundError asserting only False (exception branch) — different mock topology (return_value sequence vs exception side_effect) targeting distinct code paths in check_auth."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "0c32aff37b48"
+reason = "Cross-SUT mega-cluster of 79 thin integration tests across 32 test_check_*.py files. Each test_pass/test_fail*/test_fail_no_ci/test_fail_missing/etc. invokes a DIFFERENT public check_* function (check_ci_lint_job, check_contributing, check_src_layout, check_uv_lock, check_pyproject_mypy, check_pyproject_classifiers, check_dependabot, ... 30+ distinct SUTs) on a DIFFERENT gold_project/empty_project/tmp_path fixture shape. The template (single-line happy/sad path against a one-line check) is intentionally shared across the check suite to document one canonical scenario per SUT. Folding would erase the per-SUT test name that documents what the integration suite covers."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "fec5b9bdbd8a"
+reason = "Cross-SUT cluster: each test_pass calls a different public check_* function (check_dependabot, check_pyproject_classifiers, check_pyproject_exists, check_pyproject_ruff_rules, check_python_version, check_uv_lock) on the shared gold_project fixture. Same shape, distinct SUTs — folding loses the per-SUT documentation of which gold-standard check is covered."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "66c8a8174017"
+reason = "Cross-SUT cluster: each test_idempotent verifies the idempotency contract on a different public patch_* SUT (patch_makefile, patch_mkdocs, patch_pyproject, patch_testpaths) — same contract (re-apply yields identical content) but four distinct workspace-patcher functions with different file targets. Folding would erase which patcher's idempotency is covered."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "12f66f71d4f1"
+reason = "Cross-SUT cluster: test_scaffold_json_success/test_scaffold_json_output exercise the CLI scaffold subcommand (CopierAdapter mocked, asserts data['success'] from JSON), while test_reserve_json_success/test_reserve_json_failure exercise the CLI reserve subcommand with a three-patch topology (_git_config_get + reserve_pypi + CredentialManager). Distinct CLI subcommands, distinct mock surfaces, distinct ReserveResult vs ScaffoldResult payloads — only the json.loads idiom is shared."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "a4fa72650680"
+reason = "Cross-SUT cluster: test_dep_already_in_sources_section_not_deps targets patch_pyproject (writes a sources marker + asserts deps and sources rewrites), while test_adds_to_existing_testpaths/test_single_line_array/test_section_exists_key_missing target patch_testpaths (writes various existing [tool.pytest.ini_options] shapes + asserts testpaths array merge). Two distinct workspace-patcher SUTs with divergent pre-existing pyproject shapes and divergent assertion targets (sources sections vs testpaths arrays)."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 
