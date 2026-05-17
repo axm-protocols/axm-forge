@@ -180,7 +180,7 @@ class TestHookOnRealPackage:
 
     def test_hook_on_real_package(self) -> None:
         """Extract headers from axm-ast source files."""
-        src_path = Path(__file__).resolve().parent.parent / "src" / "axm_ast"
+        src_path = Path(__file__).resolve().parents[3] / "src" / "axm_ast"
         if not src_path.is_dir():
             pytest.skip("axm-ast source not found at expected path")
 

@@ -14,7 +14,7 @@ import pytest
 
 from axm_ast.core.cache import PackageCache, clear_cache, get_package
 
-FIXTURES = Path(__file__).parents[1] / "fixtures"
+FIXTURES = Path(__file__).parents[2] / "fixtures"
 SAMPLE_PKG = FIXTURES / "sample_pkg"
 
 

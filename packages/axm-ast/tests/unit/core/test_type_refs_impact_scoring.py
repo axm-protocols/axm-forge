@@ -17,7 +17,7 @@ from axm_ast.core.impact import find_type_refs
 # Fixtures
 # ---------------------------------------------------------------------------
 
-SELF_PKG = Path(__file__).resolve().parent.parent.parent / "src" / "axm_ast"
+SELF_PKG = Path(__file__).resolve().parents[3] / "src" / "axm_ast"
 
 
 @pytest.fixture()
