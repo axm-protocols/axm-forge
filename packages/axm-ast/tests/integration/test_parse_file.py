@@ -6,7 +6,7 @@ import pytest
 
 from axm_ast.core.parser import parse_file
 
-FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
+FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
 
 
 class TestParseFile:
