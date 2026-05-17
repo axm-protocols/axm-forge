@@ -1,24 +1,38 @@
 from __future__ import annotations
 
+import pytest
 import yaml
 
 from axm_smelt.core.models import SmeltContext
 from axm_smelt.core.pipeline import check, smelt
 from axm_smelt.strategies.minify import MinifyStrategy
 
-# === JSON (existing, unchanged) ===
+# === Exact-output minification (JSON object, JSON array, XML basic) ===
 
 
-def test_minify_json() -> None:
-    text = '{\n  "a": 1,\n  "b": 2\n}'
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        pytest.param(
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '{"a":1,"b":2}',
+            id="json_object",
+        ),
+        pytest.param(
+            '[{"a": 1}, {"b": 2}]',
+            '[{"a":1},{"b":2}]',
+            id="json_array",
+        ),
+        pytest.param(
+            "<root>\n  <item>value</item>\n</root>",
+            "<root><item>value</item></root>",
+            id="xml_basic",
+        ),
+    ],
+)
+def test_minify_exact_output(text: str, expected: str) -> None:
     result = MinifyStrategy().apply(SmeltContext(text=text)).text
-    assert result == '{"a":1,"b":2}'
-
-
-def test_minify_json_array() -> None:
-    text = '[{"a": 1}, {"b": 2}]'
-    result = MinifyStrategy().apply(SmeltContext(text=text)).text
-    assert result == '[{"a":1},{"b":2}]'
+    assert result == expected
 
 
 def test_minify_non_json() -> None:
@@ -48,19 +62,27 @@ def test_minify_yaml_irregular_ws() -> None:
     assert parsed == {"key": "value", "list": ["item1", "item2"]}
 
 
-def test_minify_yaml_preserves_data() -> None:
-    text = "name: test\nitems:\n  - a\n  - b\nnested:\n  x: 1\n  y: 2"
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        pytest.param(
+            "name: test\nitems:\n  - a\n  - b\nnested:\n  x: 1\n  y: 2",
+            {"name": "test", "items": ["a", "b"], "nested": {"x": 1, "y": 2}},
+            id="preserves_nested_data",
+        ),
+        pytest.param(
+            "{a: 1, b: 2}",
+            {"a": 1, "b": 2},
+            id="already_compact_flow_style",
+        ),
+    ],
+)
+def test_minify_yaml_roundtrip(text: str, expected: dict[str, object]) -> None:
     result = MinifyStrategy().apply(SmeltContext(text=text)).text
-    assert yaml.safe_load(result) == yaml.safe_load(text)
+    assert yaml.safe_load(result) == expected
 
 
 # === XML unit tests ===
-
-
-def test_minify_xml_basic() -> None:
-    text = "<root>\n  <item>value</item>\n</root>"
-    result = MinifyStrategy().apply(SmeltContext(text=text)).text
-    assert result == "<root><item>value</item></root>"
 
 
 def test_minify_xml_preserves_text() -> None:
@@ -144,10 +166,3 @@ def test_minify_xml_declaration() -> None:
     result = MinifyStrategy().apply(SmeltContext(text=text)).text
     assert '<?xml version="1.0"?>' in result
     assert "<root><item>val</item></root>" in result
-
-
-def test_minify_yaml_already_compact() -> None:
-    text = "{a: 1, b: 2}"
-    result = MinifyStrategy().apply(SmeltContext(text=text)).text
-    # Should not error; may return unchanged or minimal change
-    assert yaml.safe_load(result) == {"a": 1, "b": 2}

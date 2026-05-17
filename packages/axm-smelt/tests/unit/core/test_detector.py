@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from axm_smelt.core.detector import (
     detect_format,
     detect_format_parsed,
@@ -22,23 +24,20 @@ def test_detect_yaml(sample_yaml: str) -> None:
 # --- Unit tests: try_markdown ---
 
 
-def test_try_markdown_headings() -> None:
-    text = "# Heading 1\n\n## Heading 2\n\nSome content."
-    assert try_markdown(text) == Format.MARKDOWN
-
-
-def test_try_markdown_table() -> None:
-    text = "| Col A | Col B |\n|-------|-------|\n| x     | y     |"
-    assert try_markdown(text) == Format.MARKDOWN
-
-
-def test_try_markdown_fenced_code() -> None:
-    text = "# Title\n\n```python\nprint('hi')\n```"
-    assert try_markdown(text) == Format.MARKDOWN
-
-
-def test_try_markdown_links() -> None:
-    text = "# Title\n\nSee [link](https://example.com) for info."
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param("# Heading 1\n\n## Heading 2\n\nSome content.", id="headings"),
+        pytest.param(
+            "| Col A | Col B |\n|-------|-------|\n| x     | y     |", id="table"
+        ),
+        pytest.param("# Title\n\n```python\nprint('hi')\n```", id="fenced_code"),
+        pytest.param(
+            "# Title\n\nSee [link](https://example.com) for info.", id="links"
+        ),
+    ],
+)
+def test_try_markdown_positive_indicators(text: str) -> None:
     assert try_markdown(text) == Format.MARKDOWN
 
 
