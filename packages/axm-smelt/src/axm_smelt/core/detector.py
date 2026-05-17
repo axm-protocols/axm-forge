@@ -14,7 +14,7 @@ __all__ = ["Format", "detect_format", "detect_format_parsed"]
 _YAML_INDICATORS = re.compile(r"(^---|^\w[\w\s]*:.*$|^\s*-\s+\S)", re.MULTILINE)
 
 
-def _try_json(stripped: str) -> Format | None:
+def try_json(stripped: str) -> Format | None:
     """Return ``Format.JSON`` if *stripped* is valid JSON, else ``None``."""
     if stripped[0] in ("{", "["):
         try:
@@ -99,7 +99,7 @@ _HTML_TAGS = frozenset(
 )
 
 
-def _try_xml(stripped: str) -> Format | None:
+def try_xml(stripped: str) -> Format | None:
     """Return ``Format.XML`` if *stripped* looks like XML, else ``None``."""
     if stripped.startswith("<") and not stripped.startswith("<!"):
         # XML declaration is a strong signal
@@ -113,7 +113,7 @@ def _try_xml(stripped: str) -> Format | None:
     return None
 
 
-def _try_yaml(stripped: str) -> Format | None:
+def try_yaml(stripped: str) -> Format | None:
     """Return ``Format.YAML`` if *stripped* has YAML indicators, else ``None``."""
     if _YAML_INDICATORS.search(stripped):
         try:
@@ -132,7 +132,7 @@ _MD_FENCED = re.compile(r"^```\w*$", re.MULTILINE)
 _MD_LINK = re.compile(r"\[.+\]\(.+\)")
 
 
-def _try_markdown(stripped: str) -> Format | None:
+def try_markdown(stripped: str) -> Format | None:
     """Return ``Format.MARKDOWN`` if *stripped* has >=2 distinct markdown indicators."""
     indicators = 0
     heading_levels = {len(m.group().rstrip()) for m in _MD_HEADING.finditer(stripped)}
@@ -151,7 +151,7 @@ def _try_markdown(stripped: str) -> Format | None:
     return None
 
 
-_PROBES = [_try_json, _try_xml, _try_yaml, _try_markdown]
+_PROBES = [try_json, try_xml, try_yaml, try_markdown]
 
 
 def detect_format(text: str) -> Format:
@@ -180,7 +180,7 @@ def detect_format_parsed(text: str) -> tuple[Format, object | None]:
             pass
 
     # Remaining probes (XML, YAML, Markdown) — no parsed data
-    for probe in (_try_xml, _try_yaml, _try_markdown):
+    for probe in (try_xml, try_yaml, try_markdown):
         result = probe(stripped)
         if result is not None:
             return result, None

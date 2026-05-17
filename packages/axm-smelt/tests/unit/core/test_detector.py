@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from axm_smelt.core.detector import (
-    _try_json,
-    _try_markdown,
-    _try_xml,
-    _try_yaml,
     detect_format,
     detect_format_parsed,
+    try_json,
+    try_markdown,
+    try_xml,
+    try_yaml,
 )
 from axm_smelt.core.models import Format
 
@@ -19,32 +19,32 @@ def test_detect_yaml(sample_yaml: str) -> None:
     assert detect_format(sample_yaml) == Format.YAML
 
 
-# --- Unit tests: _try_markdown ---
+# --- Unit tests: try_markdown ---
 
 
 def test_try_markdown_headings() -> None:
     text = "# Heading 1\n\n## Heading 2\n\nSome content."
-    assert _try_markdown(text) == Format.MARKDOWN
+    assert try_markdown(text) == Format.MARKDOWN
 
 
 def test_try_markdown_table() -> None:
     text = "| Col A | Col B |\n|-------|-------|\n| x     | y     |"
-    assert _try_markdown(text) == Format.MARKDOWN
+    assert try_markdown(text) == Format.MARKDOWN
 
 
 def test_try_markdown_fenced_code() -> None:
     text = "# Title\n\n```python\nprint('hi')\n```"
-    assert _try_markdown(text) == Format.MARKDOWN
+    assert try_markdown(text) == Format.MARKDOWN
 
 
 def test_try_markdown_links() -> None:
     text = "# Title\n\nSee [link](https://example.com) for info."
-    assert _try_markdown(text) == Format.MARKDOWN
+    assert try_markdown(text) == Format.MARKDOWN
 
 
 def test_try_markdown_single_indicator() -> None:
     text = "# Just a heading\n\nPlain text below."
-    assert _try_markdown(text) is None
+    assert try_markdown(text) is None
 
 
 # --- Functional tests ---
@@ -100,37 +100,37 @@ def test_detect_json_array() -> None:
     assert detect_format('[{"a":1},{"a":2}]') == Format.JSON
 
 
-# --- Unit tests: _try_json ---
+# --- Unit tests: try_json ---
 
 
 def test_try_json_valid() -> None:
-    assert _try_json('{"a": 1}') == Format.JSON
+    assert try_json('{"a": 1}') == Format.JSON
 
 
 def test_try_json_invalid() -> None:
-    assert _try_json("not json") is None
+    assert try_json("not json") is None
 
 
-# --- Unit tests: _try_xml ---
+# --- Unit tests: try_xml ---
 
 
 def test_try_xml_valid() -> None:
-    assert _try_xml("<root>x</root>") == Format.XML
+    assert try_xml("<root>x</root>") == Format.XML
 
 
 def test_try_xml_comment() -> None:
-    assert _try_xml("<!-- comment -->") is None
+    assert try_xml("<!-- comment -->") is None
 
 
-# --- Unit tests: _try_yaml ---
+# --- Unit tests: try_yaml ---
 
 
 def test_try_yaml_valid() -> None:
-    assert _try_yaml("key: value") == Format.YAML
+    assert try_yaml("key: value") == Format.YAML
 
 
 def test_try_yaml_plain_string() -> None:
-    assert _try_yaml("hello world") is None
+    assert try_yaml("hello world") is None
 
 
 # --- Edge cases ---

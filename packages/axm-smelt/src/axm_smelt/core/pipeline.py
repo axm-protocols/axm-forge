@@ -25,7 +25,7 @@ def _worst(a: CounterBackend, b: CounterBackend) -> CounterBackend:
     return CounterBackend.TIKTOKEN
 
 
-def _resolve_input(
+def resolve_input(
     text: str | None,
     parsed: dict[str, JsonValue] | list[JsonValue] | None,
 ) -> tuple[str, dict[str, JsonValue] | list[JsonValue] | None]:
@@ -38,7 +38,7 @@ def _resolve_input(
     return text, None
 
 
-def _resolve_strategies(
+def resolve_strategies(
     strategies: list[str] | None,
     preset: str | None,
 ) -> list[SmeltStrategy]:
@@ -80,14 +80,14 @@ def smelt(
     parsed: dict[str, JsonValue] | list[JsonValue] | None = None,
 ) -> SmeltReport:
     """Run the compaction pipeline and return a report."""
-    text, parsed = _resolve_input(text, parsed)
+    text, parsed = resolve_input(text, parsed)
 
     fmt, detected_parsed = detect_format_parsed(text)
     if parsed is not None:
         detected_parsed = parsed
     original_tokens, b1 = count_with_backend(text)
 
-    strats = _resolve_strategies(strategies, preset)
+    strats = resolve_strategies(strategies, preset)
 
     if detected_parsed is not None:
         ctx = SmeltContext(text=text, format=fmt, parsed=detected_parsed)

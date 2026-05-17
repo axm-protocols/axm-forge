@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_smelt.cli import _read_input, check, compact
+from axm_smelt.cli import check, compact, read_input
 
 
 class TestCliUnit:
@@ -74,9 +74,9 @@ class TestCliUnit:
         assert "No such file" in err
 
     def test_read_input_missing_file(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """_read_input with nonexistent path prints to stderr and exits 1."""
+        """read_input with nonexistent path prints to stderr and exits 1."""
         with pytest.raises(SystemExit, match="1"):
-            _read_input(Path("/nonexistent"))
+            read_input(Path("/nonexistent"))
         assert "No such file" in capsys.readouterr().err
 
     def test_no_traceback_on_missing_file(
