@@ -328,7 +328,7 @@ def test_suggestion_module_populated(tmp_path: Path) -> None:
     pkg = _make_pkg__from_search_suggestion(root=root, modules=[mod])
 
     # Query with a typo so fuzzy matching kicks in
-    suggestions = SearchTool._find_suggestions(pkg, "compute_scor")
+    suggestions = SearchTool.find_suggestions(pkg, "compute_scor")
 
     assert len(suggestions) >= 1
     for s in suggestions:
@@ -350,7 +350,7 @@ def test_suggestion_module_uses_mod_name_when_set(tmp_path: Path) -> None:
     )
     pkg = _make_pkg__from_search_suggestion(root=root, modules=[mod])
 
-    suggestions = SearchTool._find_suggestions(pkg, "do_stuf")
+    suggestions = SearchTool.find_suggestions(pkg, "do_stuf")
 
     assert len(suggestions) >= 1
     assert suggestions[0]["module"] == explicit_name
@@ -360,7 +360,7 @@ def test_suggestion_empty_package(tmp_path: Path) -> None:
     """Package with no modules returns empty suggestions without crashing."""
     pkg = _make_pkg__from_search_suggestion(root=tmp_path, modules=[])
 
-    suggestions = SearchTool._find_suggestions(pkg, "anything")
+    suggestions = SearchTool.find_suggestions(pkg, "anything")
 
     assert suggestions == []
 

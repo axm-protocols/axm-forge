@@ -125,7 +125,7 @@ def _collect_module_candidates(
     _collect_variable_candidates(mod, kind, candidates, mod_name)
 
 
-def _find_suggestions(
+def find_suggestions(
     pkg: PackageInfo, name: str, *, kind: str | None = None
 ) -> list[Suggestion]:
     """Find fuzzy suggestions for a symbol name query.
@@ -273,7 +273,7 @@ def _search(
     suggestions: list[Suggestion] = []
     if not symbols and name is not None and pkg is not None:
         kind_str = kind.value if kind is not None else None
-        suggestions = _find_suggestions(pkg, name, kind=kind_str)
+        suggestions = find_suggestions(pkg, name, kind=kind_str)
 
     sf: SearchFilters = {
         "name": name,
@@ -311,7 +311,7 @@ class SearchTool(AXMTool):
     _load_package = staticmethod(_load_package)
     _validate_kind = staticmethod(_validate_kind)
     format_symbol = staticmethod(format_symbol)
-    _find_suggestions = staticmethod(_find_suggestions)
+    find_suggestions = staticmethod(find_suggestions)
 
     _format_func_line = staticmethod(format_func_line)
     _format_variable_line = staticmethod(format_variable_line)
