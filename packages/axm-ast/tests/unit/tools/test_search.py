@@ -17,7 +17,7 @@ from axm_ast.models.nodes import (
     VariableInfo,
 )
 from axm_ast.tools.search import SearchTool, _find_suggestions
-from axm_ast.tools.search_text import format_symbol_line
+from axm_ast.tools.search_text import format_symbol_line, render_suggestion_line
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -712,7 +712,7 @@ class TestRenderSuggestionLineWithModule:
         """Suggestion line uses compact format with no padding."""
         suggestion = _suggestion("get_session", 0.92, "function", "core.analyzer")
 
-        line = SearchTool._render_suggestion_line(suggestion)
+        line = render_suggestion_line(suggestion)
 
         assert line == "? get_session .92 func core.analyzer"
 
@@ -720,21 +720,21 @@ class TestRenderSuggestionLineWithModule:
 def test_render_suggestion_line_compact() -> None:
     """module=None produces no trailing None."""
     suggestion = _make_suggestion(module=None)
-    line = SearchTool._render_suggestion_line(suggestion)
+    line = render_suggestion_line(suggestion)
     assert line == "? get_session .92 func"
 
 
 def test_render_suggestion_line_with_module() -> None:
     """module present is appended after kind."""
     suggestion = _make_suggestion(module="core.analyzer")
-    line = SearchTool._render_suggestion_line(suggestion)
+    line = render_suggestion_line(suggestion)
     assert line == "? get_session .92 func core.analyzer"
 
 
 def test_render_suggestion_line_no_padding() -> None:
     """Short name has no extra whitespace padding."""
     suggestion = _make_suggestion(name="foo", score=0.75)
-    line = SearchTool._render_suggestion_line(suggestion)
+    line = render_suggestion_line(suggestion)
     assert line == "? foo .75 func"
 
 
@@ -743,21 +743,21 @@ def test_render_suggestion_line_long_name() -> None:
     suggestion = _make_suggestion(
         name="SearchTool._collect_module_candidates", module=None
     )
-    line = SearchTool._render_suggestion_line(suggestion)
+    line = render_suggestion_line(suggestion)
     assert line == "? SearchTool._collect_module_candidates .92 func"
 
 
 def test_render_suggestion_line_perfect_score() -> None:
     """Score 1.0 renders as '1.0', not '.100'."""
     suggestion = _make_suggestion(name="exact_match", score=1.0, module=None)
-    line = SearchTool._render_suggestion_line(suggestion)
+    line = render_suggestion_line(suggestion)
     assert line == "? exact_match 1.0 func"
 
 
 def test_render_suggestion_line_short_kind() -> None:
     """Kind shorter than 4 chars rendered as-is, no padding."""
     suggestion = _make_suggestion(name="foo", kind="cls", module=None)
-    line = SearchTool._render_suggestion_line(suggestion)
+    line = render_suggestion_line(suggestion)
     assert line == "? foo .92 cls"
 
 
