@@ -43,7 +43,7 @@ class CalleesTool(AXMTool):
         return "ast_callees"
 
     @staticmethod
-    def _render_text(callees: list[CalleeEntry], *, symbol: str) -> str:
+    def render_text(callees: list[CalleeEntry], *, symbol: str) -> str:
         """Render callees as compact text for token-efficient MCP responses."""
         header = f"ast_callees | {symbol} | {len(callees)} callees"
         if not callees:
@@ -101,5 +101,5 @@ class CalleesTool(AXMTool):
         return ToolResult(
             success=True,
             data={"callees": callee_data, "count": len(callee_data)},
-            text=CalleesTool._render_text(callee_data, symbol=symbol),
+            text=CalleesTool.render_text(callee_data, symbol=symbol),
         )
