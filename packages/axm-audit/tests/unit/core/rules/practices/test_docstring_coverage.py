@@ -23,14 +23,6 @@ class TestDocstringCoverageRuleUnit:
         assert rule.rule_id == "PRACTICE_DOCSTRING"
 
 
-@pytest.fixture
-def registry():
-    import axm_audit.core.rules  # noqa: F401  (fire decorators)
-    from axm_audit.core.rules.base import get_registry
-
-    return get_registry()
-
-
 def test_docstring_coverage_rule_registered(registry: dict[str, list[type]]) -> None:
     """DocstringCoverageRule must be registered in the practices bucket."""
     bucket = registry["practices"]

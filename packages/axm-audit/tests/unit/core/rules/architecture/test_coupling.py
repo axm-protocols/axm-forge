@@ -6,7 +6,6 @@ import ast
 from typing import Any
 
 import pytest
-from _registry_helpers import build_rule_category_map
 
 from axm_audit.core.rules.architecture.coupling import (
     build_coupling_result,
@@ -15,12 +14,7 @@ from axm_audit.core.rules.architecture.coupling import (
     safe_int,
 )
 from axm_audit.models.results import AuditResult, CheckResult
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-_RULE_CATEGORY = build_rule_category_map()
+from tests.unit._helpers import _RULE_CATEGORY
 
 _EXPECTED_PUBLIC_SYMBOLS = (
     "tarjan_scc",

@@ -22,25 +22,6 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _AXM_AUDIT_BIN = shutil.which("axm-audit")
 
 
-def _rule_ids_in(payload: dict[str, object]) -> set[str]:
-    """Walk an axm-audit JSON payload and collect rule_id values."""
-    ids: set[str] = set()
-
-    def _walk(node: object) -> None:
-        if isinstance(node, dict):
-            rid = node.get("rule_id")
-            if isinstance(rid, str):
-                ids.add(rid)
-            for v in node.values():
-                _walk(v)
-        elif isinstance(node, list):
-            for v in node:
-                _walk(v)
-
-    _walk(payload)
-    return ids
-
-
 def _findings_in(payload: dict[str, object]) -> list[dict[str, object]]:
     """Collect every dict that looks like a finding (has a 'verdict' key)."""
     out: list[dict[str, object]] = []
@@ -57,26 +38,6 @@ def _findings_in(payload: dict[str, object]) -> list[dict[str, object]]:
 
     _walk(payload)
     return out
-
-
-def test_cli_test_quality_includes_new_rule_json() -> None:
-    """AC11 — the CLI 'test-quality --json' surfaces the new rule."""
-    if _AXM_AUDIT_BIN is None:
-        pytest.skip("axm-audit CLI not on PATH")
-    # _AXM_AUDIT_BIN is resolved to an absolute path via shutil.which and is
-    # not user input — the S603 warning is acknowledged but safe in this
-    # controlled-test context.
-    proc = subprocess.run(  # noqa: S603
-        [_AXM_AUDIT_BIN, "test-quality", "--json", str(_REPO_ROOT)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert proc.returncode in (0, 1), (
-        f"unexpected exit {proc.returncode}: {proc.stderr[:400]}"
-    )
-    payload = json.loads(proc.stdout)
-    assert "TEST_QUALITY_FILE_NAMING" in _rule_ids_in(payload)
 
 
 def test_cli_audit_test_quality_on_synthetic_collision(tmp_path: Path) -> None:

@@ -380,16 +380,6 @@ import pytest
 pytestmark = pytest.mark.scenario_name_ok  # file-wide
 ```
 
-### Baseline snapshot
-
-Running the rule on `axm-audit` itself produces a non-zero, stable set of
-findings — the documented historical drift. A normalized snapshot lives
-at `tests/unit/core/rules/test_quality/_baselines/axm_audit_file_naming.json`
-and the integration test
-`tests/integration/test_file_naming_baseline_on_axm_audit.py` asserts
-parity with the live rule output. Regenerate the baseline only when an
-intentional drift is part of the work in flight.
-
 ### Shared helpers
 
 `canonical_filename`, `first_party_symbol_counts`, and `cli_invocation_tuple`
