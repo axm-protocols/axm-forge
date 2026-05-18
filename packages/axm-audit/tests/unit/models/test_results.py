@@ -26,6 +26,7 @@ from axm_audit.models.results import (
 from axm_audit.models.results import (
     SCORED_CATEGORIES as RESULTS_SCORED_CATEGORIES,
 )
+from tests.unit._helpers import _RULE_CATEGORY
 
 # ---------------------------------------------------------------------------
 # Original CheckResult / AuditResult basics
@@ -208,13 +209,6 @@ def test_scored_categories_match_weights() -> None:
 
 def test_extra_nonscored_categories_are_disjoint() -> None:
     assert RESULTS_SCORED_CATEGORIES.isdisjoint(EXTRA_NONSCORED_CATEGORIES)
-
-
-# ---------------------------------------------------------------------------
-# Formula tests with registry-derived categories (from test_results_formula.py)
-# ---------------------------------------------------------------------------
-
-_RULE_CATEGORY = build_rule_category_map()
 
 
 def _make_check_formula(rule_id: str, score: float) -> CheckResult:
