@@ -16,7 +16,6 @@ from axm_ast.tools.search_text import (
     format_func_line,
     format_text_header,
     format_variable_line,
-    render_suggestion_line,
     render_text,
 )
 
@@ -317,7 +316,7 @@ class SearchTool(AXMTool):
     _format_text_header = staticmethod(format_text_header)
     _format_func_line = staticmethod(format_func_line)
     _format_variable_line = staticmethod(format_variable_line)
-    _render_suggestion_line = staticmethod(render_suggestion_line)
+
     _render_text = staticmethod(render_text)
 
     @property
