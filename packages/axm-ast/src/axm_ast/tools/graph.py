@@ -71,7 +71,7 @@ class GraphTool(AXMTool):
         if format == "mermaid":
             mermaid_str = format_workspace_graph_mermaid(ws)
 
-        text = self._render_ws_text(
+        text = self.render_ws_text(
             ws_name=ws_name, graph=graph, mermaid_str=mermaid_str
         )
         data: dict[str, object] = {"graph": graph, "nodes": nodes}
@@ -102,7 +102,7 @@ class GraphTool(AXMTool):
             data["text"] = self._format_text(nodes, graph)
 
         pkg_name = getattr(pkg, "name", project_path.name)
-        text = self._render_pkg_text(
+        text = self.render_pkg_text(
             pkg_name=pkg_name,
             nodes=nodes,
             graph=graph,
@@ -126,7 +126,7 @@ class GraphTool(AXMTool):
         return standalone, groups
 
     @staticmethod
-    def _render_pkg_text(
+    def render_pkg_text(
         pkg_name: str,
         nodes: list[str],
         graph: dict[str, list[str]],
@@ -164,7 +164,7 @@ class GraphTool(AXMTool):
         return "\n".join(lines)
 
     @staticmethod
-    def _render_ws_text(
+    def render_ws_text(
         ws_name: str,
         graph: dict[str, list[str]],
         mermaid_str: str | None,

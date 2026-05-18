@@ -54,7 +54,7 @@ def fake_workspace_no_deps() -> tuple[SimpleNamespace, dict[str, list[str]]]:
 @pytest.fixture
 def render() -> Callable[..., str]:
     """Shortcut to the staticmethod under test."""
-    return GraphTool._render_pkg_text
+    return GraphTool.render_pkg_text
 
 
 @pytest.fixture
@@ -251,7 +251,7 @@ class TestRenderPkgText:
         pkg_nodes_with_edges: list[str],
         pkg_graph_with_edges: dict[str, list[str]],
     ) -> None:
-        text = GraphTool._render_pkg_text(
+        text = GraphTool.render_pkg_text(
             pkg_name="mypkg",
             nodes=pkg_nodes_with_edges,
             graph=pkg_graph_with_edges,
@@ -272,7 +272,7 @@ class TestRenderPkgText:
         pkg_nodes_no_edges: list[str],
         pkg_graph_no_edges: dict[str, list[str]],
     ) -> None:
-        text = GraphTool._render_pkg_text(
+        text = GraphTool.render_pkg_text(
             pkg_name="mypkg",
             nodes=pkg_nodes_no_edges,
             graph=pkg_graph_no_edges,
@@ -291,7 +291,7 @@ class TestRenderPkgText:
         pkg_nodes_no_edges: list[str],
         pkg_graph_no_edges: dict[str, list[str]],
     ) -> None:
-        text = GraphTool._render_pkg_text(
+        text = GraphTool.render_pkg_text(
             pkg_name="mypkg",
             nodes=pkg_nodes_no_edges,
             graph=pkg_graph_no_edges,
@@ -306,7 +306,7 @@ class TestRenderPkgText:
         pkg_graph_with_edges: dict[str, list[str]],
     ) -> None:
         mermaid = "graph LR\n  cli --> core.parser\n  core.parser --> utils"
-        text = GraphTool._render_pkg_text(
+        text = GraphTool.render_pkg_text(
             pkg_name="mypkg",
             nodes=pkg_nodes_with_edges,
             graph=pkg_graph_with_edges,
@@ -324,7 +324,7 @@ class TestRenderPkgText:
 class TestRenderWsText:
     def test_render_ws_text(self) -> None:
         graph = {"axm-engine": ["axm", "axm-nexus"]}
-        text = GraphTool._render_ws_text(
+        text = GraphTool.render_ws_text(
             ws_name="myws",
             graph=graph,
             mermaid_str=None,
@@ -338,7 +338,7 @@ class TestRenderWsText:
     def test_render_ws_text_mermaid(self) -> None:
         graph = {"axm-engine": ["axm", "axm-nexus"]}
         mermaid = "graph LR\n  axm-engine --> axm\n  axm-engine --> axm-nexus"
-        text = GraphTool._render_ws_text(
+        text = GraphTool.render_ws_text(
             ws_name="myws",
             graph=graph,
             mermaid_str=mermaid,
@@ -354,7 +354,7 @@ class TestRenderWsText:
 
 class TestEdgeCases:
     def test_single_module_package(self) -> None:
-        text = GraphTool._render_pkg_text(
+        text = GraphTool.render_pkg_text(
             pkg_name="tiny",
             nodes=["main"],
             graph={},
@@ -370,7 +370,7 @@ class TestEdgeCases:
         )
 
     def test_deep_nesting(self) -> None:
-        text = GraphTool._render_pkg_text(
+        text = GraphTool.render_pkg_text(
             pkg_name="deep",
             nodes=["a.b.c.d.e", "a.b.x", "f"],
             graph={},
@@ -383,7 +383,7 @@ class TestEdgeCases:
         assert "f" in text
 
     def test_empty_workspace_graph(self) -> None:
-        text = GraphTool._render_ws_text(
+        text = GraphTool.render_ws_text(
             ws_name="empty",
             graph={},
             mermaid_str=None,
