@@ -14,7 +14,6 @@ from axm_ast.core.search import SearchFilters, SearchResultEntry, Suggestion
 from axm_ast.tools._base import safe_execute
 from axm_ast.tools.search_text import (
     format_func_line,
-    format_text_header,
     format_variable_line,
     render_text,
 )
@@ -313,7 +312,7 @@ class SearchTool(AXMTool):
     _validate_kind = staticmethod(_validate_kind)
     format_symbol = staticmethod(format_symbol)
     _find_suggestions = staticmethod(_find_suggestions)
-    _format_text_header = staticmethod(format_text_header)
+
     _format_func_line = staticmethod(format_func_line)
     _format_variable_line = staticmethod(format_variable_line)
 
