@@ -32,7 +32,7 @@ def test_suggestion_module_is_dotted(tmp_path: Path) -> None:
     )
     pkg = _make_pkg(root=root, modules=[mod])
 
-    suggestions = SearchTool._find_suggestions(pkg, "analyze_dat")
+    suggestions = SearchTool.find_suggestions(pkg, "analyze_dat")
 
     assert len(suggestions) >= 1
     assert suggestions[0]["module"] == expected_dotted

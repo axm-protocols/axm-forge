@@ -16,7 +16,7 @@ from axm_ast.models.nodes import (
     FunctionKind,
     VariableInfo,
 )
-from axm_ast.tools.search import SearchTool, _find_suggestions
+from axm_ast.tools.search import SearchTool, find_suggestions
 from axm_ast.tools.search_text import (
     format_symbol_line,
     format_text_header,
@@ -491,11 +491,11 @@ class TestSearchResultNoCountKey:
         assert "count" not in result.data
 
 
-# ── _find_suggestions ─────────────────────────────────────────────────────
+# ── find_suggestions ──────────────────────────────────────────────────────
 
 
 class TestFindSuggestions:
-    """Unit tests for _find_suggestions."""
+    """Unit tests for find_suggestions."""
 
     def test_find_suggestions_typo(self) -> None:
         """Typo query returns close match with high score."""
@@ -505,7 +505,7 @@ class TestFindSuggestions:
         )
         pkg = _make_pkg(mod)
 
-        suggestions = _find_suggestions(pkg, name="get_sesion")
+        suggestions = find_suggestions(pkg, name="get_sesion")
 
         names = [s["name"] for s in suggestions]
         assert "get_session" in names
@@ -520,7 +520,7 @@ class TestFindSuggestions:
         )
         pkg = _make_pkg(mod)
 
-        suggestions = _find_suggestions(pkg, name="toolresult")
+        suggestions = find_suggestions(pkg, name="toolresult")
 
         names = [s["name"] for s in suggestions]
         assert "ToolResult" in names
@@ -533,7 +533,7 @@ class TestFindSuggestions:
         )
         pkg = _make_pkg(mod)
 
-        suggestions = _find_suggestions(pkg, name="zzzzz")
+        suggestions = find_suggestions(pkg, name="zzzzz")
 
         assert suggestions == []
 
@@ -546,7 +546,7 @@ class TestFindSuggestions:
         )
         pkg = _make_pkg(mod)
 
-        suggestions = _find_suggestions(pkg, name="serch", kind="class")
+        suggestions = find_suggestions(pkg, name="serch", kind="class")
 
         names = [s["name"] for s in suggestions]
         assert "Searcher" in names
@@ -559,20 +559,20 @@ class TestFindSuggestions:
         mod3 = _make_module("mod_c", functions=[_make_func("get_value")])
         pkg = _make_pkg(mod1, mod2, mod3)
 
-        suggestions = _find_suggestions(pkg, name="get_valu")
+        suggestions = find_suggestions(pkg, name="get_valu")
 
         value_suggestions = [s for s in suggestions if s["name"] == "get_value"]
         assert len(value_suggestions) == 1
 
 
 class TestFindSuggestionsEdgeCases:
-    """Edge case tests for _find_suggestions."""
+    """Edge case tests for find_suggestions."""
 
     def test_empty_package(self) -> None:
         """Empty package with no modules returns empty suggestions."""
         pkg = _make_pkg()
 
-        suggestions = _find_suggestions(pkg, name="anything")
+        suggestions = find_suggestions(pkg, name="anything")
 
         assert suggestions == []
 
@@ -584,7 +584,7 @@ class TestFindSuggestionsEdgeCases:
         )
         pkg = _make_pkg(mod)
 
-        suggestions = _find_suggestions(pkg, name="a")
+        suggestions = find_suggestions(pkg, name="a")
 
         # Single-char query: must not crash; may return empty (below cutoff)
         assert suggestions == [] or all("name" in s for s in suggestions)
@@ -598,7 +598,7 @@ class TestFindSuggestionsEdgeCases:
         pkg = _make_pkg(mod)
 
         # kind="function" but Foo is a class → filtered out by AC7
-        suggestions = _find_suggestions(pkg, name="Foo", kind="function")
+        suggestions = find_suggestions(pkg, name="Foo", kind="function")
 
         assert suggestions == []
 
@@ -609,7 +609,7 @@ class TestFindSuggestionsEdgeCases:
         mod = _make_module("core.models", classes=[cls])
         pkg = _make_pkg(mod)
 
-        suggestions = _find_suggestions(pkg, name="validat")
+        suggestions = find_suggestions(pkg, name="validat")
 
         names = [s["name"] for s in suggestions]
         assert any("validate" in n for n in names)
@@ -627,7 +627,7 @@ class TestSearchWithSuggestions:
         with (
             patch("axm_ast.core.analyzer.search_symbols", return_value=[]),
             patch(
-                "axm_ast.tools.search._find_suggestions",
+                "axm_ast.tools.search.find_suggestions",
                 return_value=suggestions,
             ),
         ):
@@ -667,7 +667,7 @@ class TestSearchWithSuggestions:
         with (
             patch("axm_ast.core.analyzer.search_symbols", return_value=[]),
             patch(
-                "axm_ast.tools.search._find_suggestions",
+                "axm_ast.tools.search.find_suggestions",
                 return_value=suggestions,
             ),
         ):
