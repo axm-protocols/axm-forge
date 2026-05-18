@@ -17,7 +17,11 @@ from axm_ast.models.nodes import (
     VariableInfo,
 )
 from axm_ast.tools.search import SearchTool, _find_suggestions
-from axm_ast.tools.search_text import format_symbol_line, render_suggestion_line
+from axm_ast.tools.search_text import (
+    format_symbol_line,
+    format_text_header,
+    render_suggestion_line,
+)
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -687,7 +691,7 @@ class TestRenderSuggestionsHeader:
 
     def test_render_suggestions_header(self) -> None:
         """Header shows 0 hits and suggestion count."""
-        header = SearchTool._format_text_header(
+        header = format_text_header(
             search_filters={
                 "name": "get_sesion",
                 "returns": None,
