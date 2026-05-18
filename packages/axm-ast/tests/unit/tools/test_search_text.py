@@ -9,7 +9,7 @@ import pytest
 
 from axm_ast.models.nodes import SymbolKind
 from axm_ast.tools.search import SearchTool
-from axm_ast.tools.search_text import format_symbol_line
+from axm_ast.tools.search_text import format_symbol_line, format_text_header
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,7 +66,7 @@ def patch_search(monkeypatch):
 
 class TestFormatTextHeader:
     def test_text_header_name_filter(self):
-        h = SearchTool._format_text_header(
+        h = format_text_header(
             search_filters={
                 "name": "foo",
                 "returns": None,
@@ -80,7 +80,7 @@ class TestFormatTextHeader:
         assert "ast_search" in h
 
     def test_text_header_combined_filters(self):
-        h = SearchTool._format_text_header(
+        h = format_text_header(
             search_filters={
                 "name": "x",
                 "returns": None,
@@ -94,7 +94,7 @@ class TestFormatTextHeader:
         assert "3 hits" in h
 
     def test_text_header_no_filters(self):
-        h = SearchTool._format_text_header(
+        h = format_text_header(
             search_filters={
                 "name": None,
                 "returns": None,
@@ -107,7 +107,7 @@ class TestFormatTextHeader:
         assert "10 hits" in h
 
     def test_text_header_zero_results(self):
-        h = SearchTool._format_text_header(
+        h = format_text_header(
             search_filters={
                 "name": "z",
                 "returns": None,
@@ -293,7 +293,7 @@ class TestEdgeCases:
         assert line == "x"
 
     def test_inherits_filter_in_header(self):
-        h = SearchTool._format_text_header(
+        h = format_text_header(
             search_filters={
                 "name": None,
                 "returns": None,
