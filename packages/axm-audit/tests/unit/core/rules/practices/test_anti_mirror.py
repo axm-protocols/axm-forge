@@ -2,16 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
-
-@pytest.fixture
-def registry():
-    import axm_audit.core.rules  # noqa: F401  (fire decorators)
-    from axm_audit.core.rules.base import get_registry
-
-    return get_registry()
-
 
 def test_anti_mirror_rule_registered_or_absent(registry: dict[str, list[type]]) -> None:
     """AntiMirrorRule, if registered, lives in the practices bucket."""
