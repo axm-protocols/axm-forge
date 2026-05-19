@@ -6,6 +6,8 @@ import ast
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from axm_audit.core.rules.test_quality.tautology import detect_tautologies
 from axm_audit.core.rules.test_quality.tautology_triage import Verdict, triage
 
@@ -289,32 +291,33 @@ def test_step0_marker_opt_out_file_level_pytestmark() -> None:
     assert v.action == "KEEP"
 
 
-def test_step0_marker_opt_out_captures_reason_arg() -> None:
-    """AC3: positional string arg on marker becomes verdict.reason."""
+@pytest.mark.parametrize(
+    "marker_line,expected_reason",
+    [
+        pytest.param(
+            '@pytest.mark.tautology_ok("mypy narrow")',
+            "mypy narrow",
+            id="captures_reason_arg",
+        ),
+        pytest.param(
+            "@pytest.mark.tautology_ok",
+            "intentional tautology (no reason given)",
+            id="default_reason_when_bare",
+        ),
+    ],
+)
+def test_step0_marker_opt_out_reason(marker_line: str, expected_reason: str) -> None:
+    """AC3: marker reason — explicit positional arg vs bare default."""
     src = (
         "import pytest\n"
         "\n"
-        '@pytest.mark.tautology_ok("mypy narrow")\n'
+        f"{marker_line}\n"
         "def test_x():\n"
         "    x = object()\n"
         "    assert isinstance(x, object)\n"
     )
     v = _triage_first(src)
-    assert v.reason == "mypy narrow"
-
-
-def test_step0_marker_opt_out_default_reason_when_bare() -> None:
-    """AC3: bare marker yields default reason string."""
-    src = (
-        "import pytest\n"
-        "\n"
-        "@pytest.mark.tautology_ok\n"
-        "def test_x():\n"
-        "    x = object()\n"
-        "    assert isinstance(x, object)\n"
-    )
-    v = _triage_first(src)
-    assert v.reason == "intentional tautology (no reason given)"
+    assert v.reason == expected_reason
 
 
 def test_step0_marker_opt_out_fires_before_import_smoke() -> None:
