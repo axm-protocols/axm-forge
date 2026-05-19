@@ -18,8 +18,8 @@ from axm_audit.core.rules.test_quality.file_naming import (
     _MAX_TEXT_INFOS,
     _MAX_TEXT_WARNINGS,
     FileNamingRule,
-    _Finding,
-    _render_findings_text,
+    Finding,
+    render_findings_text,
 )
 from axm_audit.models.results import Severity
 
@@ -154,8 +154,8 @@ def _make_finding(
     severity: Severity,
     path: str = "tests/integration/test_foo.py",
     proposed_name: str = "test_bar.py",
-) -> _Finding:
-    return _Finding(
+) -> Finding:
+    return Finding(
         verdict="NAME_MISMATCH",
         severity=severity,
         tier="integration",
@@ -167,7 +167,7 @@ def _make_finding(
 
 def test_render_findings_text_returns_none_when_empty() -> None:
     """AC5 — empty findings → text is None (not empty string)."""
-    assert _render_findings_text([]) is None
+    assert render_findings_text([]) is None
 
 
 def test_render_findings_text_warnings_before_infos() -> None:
@@ -177,7 +177,7 @@ def test_render_findings_text_warnings_before_infos() -> None:
         _make_finding(Severity.WARNING, path="tests/integration/test_warn.py"),
     ]
 
-    text = _render_findings_text(findings)
+    text = render_findings_text(findings)
 
     assert text is not None
     warning_idx = text.index("[WARNING]")
@@ -195,7 +195,7 @@ def test_render_findings_text_line_format() -> None:
         ),
     ]
 
-    text = _render_findings_text(findings)
+    text = render_findings_text(findings)
 
     assert text is not None
     expected_line = "• [WARNING] tests/integration/test_foo.py → test_bar.py"
@@ -215,7 +215,7 @@ def test_render_findings_text_caps_at_top_n() -> None:
         for i in range(8)
     ]
 
-    text = _render_findings_text(findings)
+    text = render_findings_text(findings)
 
     assert text is not None
     lines = text.splitlines()
@@ -239,7 +239,7 @@ def test_render_findings_text_no_suffix_when_under_cap() -> None:
         for i in range(2)
     ]
 
-    text = _render_findings_text(findings)
+    text = render_findings_text(findings)
 
     assert text is not None
     lines = text.splitlines()

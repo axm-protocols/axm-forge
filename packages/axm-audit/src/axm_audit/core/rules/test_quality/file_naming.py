@@ -84,7 +84,7 @@ class _FileVerdict:
 
 
 @dataclass(frozen=True)
-class _Finding:
+class Finding:
     verdict: str
     severity: Severity
     tier: str
@@ -237,7 +237,7 @@ def _rel(path: Path, root: Path) -> str:
         return str(path)
 
 
-def _mismatch_finding(verdict_data: _FileVerdict, root: Path) -> _Finding | None:
+def _mismatch_finding(verdict_data: _FileVerdict, root: Path) -> Finding | None:
     if verdict_data.file_marked:
         return None
     if verdict_data.current_name == verdict_data.canonical:
@@ -249,7 +249,7 @@ def _mismatch_finding(verdict_data: _FileVerdict, root: Path) -> _Finding | None
             {t for tup in verdict_data.distinct_non_empty_tuples for t in _flatten(tup)}
         )
     )
-    return _Finding(
+    return Finding(
         verdict="NAME_MISMATCH",
         severity=Severity.INFO,
         tier=verdict_data.tier,
@@ -273,7 +273,7 @@ def _flatten(tup: tuple) -> tuple[str, ...]:  # type: ignore[type-arg]
 
 def _split_finding(
     verdict_data: _FileVerdict, root: Path, ctx: _ScanContext
-) -> _Finding | None:
+) -> Finding | None:
     distinct = verdict_data.distinct_non_empty_tuples
     if len(distinct) <= 1:
         return None
@@ -283,7 +283,7 @@ def _split_finding(
     suggestions = [s for s in suggestions if s != "test_UNKNOWN.py"]
     if len(suggestions) < _MIN_DISTINCT_FOR_SPLIT:
         return None
-    return _Finding(
+    return Finding(
         verdict="SPLIT",
         severity=Severity.WARNING,
         tier=verdict_data.tier,
@@ -295,19 +295,19 @@ def _split_finding(
     )
 
 
-def _collide_findings(verdicts: list[_FileVerdict], root: Path) -> list[_Finding]:
+def _collide_findings(verdicts: list[_FileVerdict], root: Path) -> list[Finding]:
     by_tier: dict[tuple[str, str], list[_FileVerdict]] = {}
     for v in verdicts:
         if not v.has_canonical:
             continue
         by_tier.setdefault((v.tier, v.canonical), []).append(v)
-    findings: list[_Finding] = []
+    findings: list[Finding] = []
     for (tier, canonical), group in by_tier.items():
         if len(group) < _MIN_FILES_FOR_COLLIDE:
             continue
         files = tuple(sorted(_rel(v.test_file, root) for v in group))
         findings.append(
-            _Finding(
+            Finding(
                 verdict="COLLIDE",
                 severity=Severity.WARNING,
                 tier=tier,
@@ -371,8 +371,8 @@ class FileNamingRule(ProjectRule):
     @staticmethod
     def _collect_findings(
         verdicts: list[_FileVerdict], root: Path, ctx: _ScanContext
-    ) -> list[_Finding]:
-        out: list[_Finding] = []
+    ) -> list[Finding]:
+        out: list[Finding] = []
         for v in verdicts:
             mismatch = _mismatch_finding(v, root)
             if mismatch is not None:
@@ -383,7 +383,7 @@ class FileNamingRule(ProjectRule):
         out.extend(_collide_findings(verdicts, root))
         return out
 
-    def _build_check_result(self, findings: list[_Finding]) -> CheckResult:
+    def _build_check_result(self, findings: list[Finding]) -> CheckResult:
         n_info = sum(1 for f in findings if f.severity == Severity.INFO)
         n_warning = sum(1 for f in findings if f.severity == Severity.WARNING)
         score = max(0, 100 - _INFO_PENALTY * n_info - _WARNING_PENALTY * n_warning)
@@ -400,11 +400,11 @@ class FileNamingRule(ProjectRule):
             severity=Severity.WARNING if n_warning else Severity.INFO,
             score=score,
             details={"findings": [f.as_dict() for f in findings]},
-            text=_render_findings_text(findings),
+            text=render_findings_text(findings),
         )
 
 
-def _render_findings_text(findings: list[_Finding]) -> str | None:
+def render_findings_text(findings: list[Finding]) -> str | None:
     """Render top-N findings as a compact bullet list.
 
     Caps at ``_MAX_TEXT_WARNINGS`` warnings + ``_MAX_TEXT_INFOS`` infos.
