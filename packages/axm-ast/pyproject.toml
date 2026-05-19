@@ -271,6 +271,14 @@ reason = "7 structural_diff integration tests on shared _make_diff_project fixtu
 hash = "7fd56798cdb0"
 reason = "6 inspect_text render tests exercising three different render functions (render_class_text, render_variable_text, render_module_text) on distinct fixtures with field-level assertions: class_with_source asserts python fence + 'class ConfigLoader'; class_missing_keys asserts header-only rendering of EmptyClass without crash; variable_with_value asserts '= 30' value rendering; variable_with_annotation asserts ': int' type rendering; variable_missing_keys asserts UNKNOWN fallback; module_text asserts symbol count + per-function/class listing — parametrization would conflate three distinct renderer contracts"
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "be3365445a1c"
+reason = "6 analyze_package skip-directory tests probing distinct skip-resolution code paths with incompatible setups: test_skips_pycache (__pycache__ hard-coded blacklist), test_nested_skip_dir (.mypy_cache inside a nested sub-package), test_skips_gitignored_dirs (.gitignore + git init), test_works_outside_git_repo (no git repo fallback to hard-coded skips only), test_no_git_dir_graceful_fallback (.gitignore present but no .git dir), test_nested_gitignore_respected (sub-package .gitignore composition) — three live in TestAnalyzePackageGitignore and require _init_git_repo, three are top-level; the skip-mechanism axis (hard-coded vs gitignore vs nested) is the documentation surface"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7c950537a3d4"
+reason = "6 format_context_json depth-mode tests asserting on distinct dict subscopes of the JSON output contract: test_depth0_has_expected_keys (top-level depth=0 keys name/python/stack/patterns/top_modules), test_depth0_no_full_modules (negative: depth=0 strips modules/dependency_graph/axm_tools), test_depth0_top_modules_fields (per-entry name/symbol_count/stars inside top_modules list), test_depth0_patterns_compact (inner patterns dict module_count/function_count/class_count/layout), test_depth1_has_packages (depth=1 returns packages dict, drops top_modules), test_depth1_package_has_counts (per-package modules/symbols counts) — each probes a different region of the schema; parametrization would conflate four distinct depth/scope contracts"
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
