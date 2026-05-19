@@ -1161,3 +1161,48 @@ class TestEmptyFlow:
         if traces:
             assert len(traces) == 1
             assert traces[0]["name"] == "_internal"
+
+
+class TestSingleEntryNotFoundFails:
+    """FlowsHook.execute with an unknown single entry returns HookResult.fail."""
+
+    def test_unknown_entry_returns_failure(self, tmp_path: Path) -> None:
+        pkg_dir = tmp_path / "pkg"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text("")
+        (pkg_dir / "main.py").write_text("def existing():\n    pass\n")
+
+        hook = FlowsHook()
+        result = hook.execute(
+            {"working_dir": str(pkg_dir)},
+            entry="nonexistent",
+        )
+
+        assert result.success is False
+        assert result.error is not None
+        assert "not found" in result.error
+
+
+class TestMultiEntryOneMissingPartialSuccess:
+    """FlowsHook.execute with a mix of valid and missing entries.
+
+    Traces only the valid ones.
+    """
+
+    def test_missing_entry_skipped_valid_traced(self, tmp_path: Path) -> None:
+        pkg_dir = tmp_path / "pkg"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text("")
+        (pkg_dir / "main.py").write_text("def valid_func():\n    pass\n")
+
+        hook = FlowsHook()
+        result = hook.execute(
+            {"working_dir": str(pkg_dir)},
+            entry="valid_func\nnonexistent",
+        )
+
+        assert result.success is True
+        traces = result.metadata["traces"]
+        assert isinstance(traces, dict)
+        assert "valid_func" in traces
+        assert "nonexistent" not in traces
