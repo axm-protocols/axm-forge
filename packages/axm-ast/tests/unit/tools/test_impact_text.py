@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -251,3 +253,23 @@ def test_render_impact_batch_text_handles_multi_symbol() -> None:
     for i in range(3):
         assert f"sym_{i}" in output
     assert output.count("## ") == 3
+
+
+class TestImpactTextFreshInterpreter:
+    """Public-API regression: fresh-interpreter import path."""
+
+    def test_impact_text_resolves_in_fresh_interpreter(self) -> None:
+        """AC4: importing impact_text works without first importing tools.impact."""
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from axm_ast.tools.impact_text import render_impact_text; print('ok')",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "ok" in result.stdout
