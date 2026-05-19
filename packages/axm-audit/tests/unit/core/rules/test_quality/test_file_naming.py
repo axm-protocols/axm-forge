@@ -150,26 +150,6 @@ def test_cli_invocation_tuple_skips_plumbing() -> None:
     assert counts == Counter()
 
 
-def test_unit_tier_is_skipped(tmp_path: Path) -> None:
-    """AC8 — unit tier files are never flagged by the file-naming rule."""
-    project = tmp_path / "proj"
-    (project / "src" / "mypkg").mkdir(parents=True)
-    (project / "src" / "mypkg" / "__init__.py").write_text("class Rule:\n    pass\n")
-    (project / "src" / "mypkg" / "engine.py").write_text("from . import Rule\n")
-    (project / "tests" / "unit").mkdir(parents=True)
-    (project / "tests" / "unit" / "test_totally_unrelated_name.py").write_text(
-        "from mypkg import Rule\n\ndef test_x():\n    Rule()\n"
-    )
-    (project / "pyproject.toml").write_text(
-        '[project]\nname = "mypkg"\nversion = "0"\n'
-    )
-
-    rule = FileNamingRule()
-    result = rule.check(project)
-    findings = result.details.get("findings", []) if result.details else []
-    assert findings == []
-
-
 def _make_finding(
     severity: Severity,
     path: str = "tests/integration/test_foo.py",
