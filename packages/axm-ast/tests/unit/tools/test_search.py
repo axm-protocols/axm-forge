@@ -382,21 +382,56 @@ def test_abstract_method_kind() -> None:
 # ── format (_format_symbol_line, _render_text) ────────────────────────────
 
 
-def test_format_symbol_line_function(function_sym: dict[str, Any]) -> None:
-    result = format_symbol_line(function_sym)
-    assert result == "do_work(a: int, b: str) -> bool"
-
-
-def test_format_symbol_line_class(class_sym: dict[str, Any]) -> None:
-    result = format_symbol_line(class_sym)
-    assert result == "MyClass"
-
-
-def test_format_symbol_line_variable_annotated(
-    variable_sym_annotated: dict[str, Any],
-) -> None:
-    result = format_symbol_line(variable_sym_annotated)
-    assert result == "timeout: int = 30"
+@pytest.mark.parametrize(
+    ("sym", "expected"),
+    [
+        pytest.param(
+            {
+                "name": "do_work",
+                "kind": "function",
+                "signature": "def do_work(a: int, b: str) -> bool",
+                "return_type": "bool",
+            },
+            "do_work(a: int, b: str) -> bool",
+            id="function",
+        ),
+        pytest.param({"name": "MyClass", "kind": "class"}, "MyClass", id="class"),
+        pytest.param(
+            {
+                "name": "timeout",
+                "kind": "variable",
+                "annotation": "int",
+                "value_repr": "30",
+            },
+            "timeout: int = 30",
+            id="variable_annotated",
+        ),
+        pytest.param(
+            {
+                "name": "ping",
+                "kind": "function",
+                "signature": "def ping",
+                "return_type": None,
+            },
+            "ping()",
+            id="no_params_in_signature",
+        ),
+        pytest.param(
+            {
+                "name": "f",
+                "kind": "function",
+                "signature": "def f(x: dict[str, list[int]])",
+                "return_type": None,
+            },
+            "f(x: dict[str, list[int]])",
+            id="nested_parens",
+        ),
+        pytest.param({"name": "flag", "kind": "variable"}, "flag", id="variable_bare"),
+    ],
+)
+def test_format_symbol_line(sym: dict[str, Any], expected: str) -> None:
+    """format_symbol_line renders function / class / variable dicts to text."""
+    assert format_symbol_line(sym) == expected
 
 
 def test_render_text_mixed(
@@ -417,37 +452,6 @@ def test_render_text_mixed(
     cls_idx = next(i for i, line in enumerate(lines) if "MyClass" in line)
     var_idx = next(i for i, line in enumerate(lines) if "timeout" in line)
     assert func_idx < cls_idx < var_idx
-
-
-def test_format_symbol_line_no_params_in_signature() -> None:
-    """Signature without parentheses falls back to ()."""
-    sym: dict[str, Any] = {
-        "name": "ping",
-        "kind": "function",
-        "signature": "def ping",
-        "return_type": None,
-    }
-    result = format_symbol_line(sym)
-    assert result == "ping()"
-
-
-def test_format_symbol_line_nested_parens() -> None:
-    """Nested parens in type hints are matched correctly."""
-    sym: dict[str, Any] = {
-        "name": "f",
-        "kind": "function",
-        "signature": "def f(x: dict[str, list[int]])",
-        "return_type": None,
-    }
-    result = format_symbol_line(sym)
-    assert result == "f(x: dict[str, list[int]])"
-
-
-def test_format_symbol_line_variable_bare() -> None:
-    """Variable with no annotation or value returns just the name."""
-    sym: dict[str, Any] = {"name": "flag", "kind": "variable"}
-    result = format_symbol_line(sym)
-    assert result == "flag"
 
 
 # ── count (no 'count' key in result.data) ─────────────────────────────────
