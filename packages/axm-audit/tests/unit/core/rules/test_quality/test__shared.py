@@ -139,35 +139,38 @@ def test_func_attr_io_transitive_depth_limit() -> None:
 # AC9 ------------------------------------------------------------------
 
 
-def test_fixture_does_io_direct_attr() -> None:
-    code = textwrap.dedent("""
+@pytest.mark.parametrize(
+    ("code", "entry", "fixture_names", "expected"),
+    [
+        pytest.param(
+            """
         import pytest
 
         @pytest.fixture
         def foo():
             target.mkdir()
-    """)
-    tree = ast.parse(code)
-    fixtures = {"foo": _find_func(tree, "foo")}
-    assert fixture_does_io("foo", fixtures, set(), 0) is True
-
-
-def test_fixture_does_io_transitive_tmp_path() -> None:
-    code = textwrap.dedent("""
+    """,
+            "foo",
+            ("foo",),
+            True,
+            id="direct_attr",
+        ),
+        pytest.param(
+            """
         import pytest
 
         @pytest.fixture
         def bar(tmp_path):
             p = tmp_path / "x"
             return p
-    """)
-    tree = ast.parse(code)
-    fixtures = {"bar": _find_func(tree, "bar")}
-    assert fixture_does_io("bar", fixtures, set(), 0) is True
-
-
-def test_fixture_does_io_depth_guard() -> None:
-    code = textwrap.dedent("""
+    """,
+            "bar",
+            ("bar",),
+            True,
+            id="transitive_tmp_path",
+        ),
+        pytest.param(
+            """
         import pytest
 
         @pytest.fixture
@@ -185,15 +188,23 @@ def test_fixture_does_io_depth_guard() -> None:
         @pytest.fixture
         def a(b):
             return b
-    """)
-    tree = ast.parse(code)
-    fixtures = {
-        "a": _find_func(tree, "a"),
-        "b": _find_func(tree, "b"),
-        "c": _find_func(tree, "c"),
-        "d": _find_func(tree, "d"),
-    }
-    assert fixture_does_io("a", fixtures, set(), 0) is False
+    """,
+            "a",
+            ("a", "b", "c", "d"),
+            False,
+            id="depth_guard",
+        ),
+    ],
+)
+def test_fixture_does_io(
+    code: str,
+    entry: str,
+    fixture_names: tuple[str, ...],
+    expected: bool,
+) -> None:
+    tree = ast.parse(textwrap.dedent(code))
+    fixtures = {name: _find_func(tree, name) for name in fixture_names}
+    assert fixture_does_io(entry, fixtures, set(), 0) is expected
 
 
 # AC12 -----------------------------------------------------------------
