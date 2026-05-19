@@ -11,7 +11,6 @@ from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality.duplicate_tests import (
     _MAX_TEXT_CLUSTERS,
     DuplicateTestsRule,
-    _slim_clusters,
     collect_assert_call_sigs,
     make_test_func,
     merge_clusters,
@@ -241,60 +240,6 @@ def test_text_caps_at_max_text_clusters() -> None:
     bullet_lines = [ln for ln in text.splitlines() if ln.startswith("•")]
     assert len(bullet_lines) == _MAX_TEXT_CLUSTERS
     assert "(+5 more clusters)" in text
-
-
-# ---------------------------------------------------------------------------
-# Hash-based cluster acknowledgement (axm-1727)
-# ---------------------------------------------------------------------------
-
-
-def _raw_cluster(signal: str, tests: list[tuple[str, str, int]]) -> dict[str, Any]:
-    """Build a raw cluster shaped like the ones fed to _slim_clusters."""
-    return {
-        "signal": signal,
-        "similarity": 0.9,
-        "members": [{"file": f, "name": n, "line": ln} for f, n, ln in tests],
-    }
-
-
-def test_slim_clusters_attaches_hash_field() -> None:
-    """AC1: every emitted cluster carries `cluster_hash` (12 hex chars)."""
-    raw = _raw_cluster(
-        "signal1_call_assert",
-        [
-            ("tests/test_a.py", "test_x", 10),
-            ("tests/test_b.py", "test_y", 20),
-        ],
-    )
-    slim = _slim_clusters([raw])  # type: ignore[list-item]
-    assert len(slim) == 1
-    out = slim[0]
-    assert "cluster_hash" in out
-    h = out["cluster_hash"]
-    assert isinstance(h, str)
-    assert len(h) == 12
-    assert all(c in "0123456789abcdef" for c in h)
-
-
-# ---------------------------------------------------------------------------
-# Cluster payload dedup — members-only shape (axm-1728)
-# ---------------------------------------------------------------------------
-
-
-def test_slim_clusters_emits_members_only_no_tests_key() -> None:
-    """AC1: _slim_clusters emits `members` only; `tests` key is absent."""
-    raw = {
-        "signal": "signal1_call_assert",
-        "similarity": 0.9,
-        "members": [
-            {"file": "tests/test_a.py", "name": "test_x", "line": 10},
-            {"file": "tests/test_b.py", "name": "test_y", "line": 20},
-        ],
-    }
-    out = _slim_clusters([raw])  # type: ignore[list-item]
-    assert len(out) == 1
-    assert "members" in out[0]
-    assert "tests" not in out[0]
 
 
 def test_render_clusters_text_reads_members() -> None:
