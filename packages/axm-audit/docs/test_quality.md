@@ -387,6 +387,25 @@ live in `axm_audit.core.rules.test_quality._shared` (alongside the
 `NoPackageSymbolRule` helpers). They consume the bare test body — no
 helper closure — so the canonical tuple reflects direct usage frequency.
 
+### Public helper: `compute_canonical_name`
+
+`axm_audit.core.rules.test_quality.compute_canonical_name(test_file, project_path)`
+returns the canonical `test_*.py` basename that `FileNamingRule` would emit
+for a single integration / e2e test file, or `None` when the file is not
+in an integration / e2e tier, has no test functions, or has no first-party
+symbol coverage. Both the rule loop and the helper flow through a single
+internal pipeline (`_verdict_for_file` → `_aggregate_file`) — there is no
+parallel implementation of the top-K computation.
+
+`AntiMirrorRule` (`PRACTICE_TEST_SCENARIO_NAMING`) consumes this helper to
+suppress a false positive: when an integration test's stem equals the
+canonical K=1 name FILE_NAMING would emit *and* the file's tests cover
+exactly one distinct symbol tuple, the anti-mirror violation is dropped.
+Renaming would re-fire `NAME_MISMATCH`, so the K=1 collision with a source
+module basename is not actionable. Anti-mirror still fires on K≥2 mirrored
+stems (where FILE_NAMING also emits `SPLIT`) and on genuine mis-names
+(stem matches a source module but tests cover a different symbol).
+
 ## Validation
 
 The v6 / v4 stacks were validated against the internal AXM corpus and an

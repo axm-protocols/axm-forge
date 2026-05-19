@@ -15,5 +15,6 @@ from axm_audit.core.rules.test_quality import (  # noqa: F401  (side-effect: reg
     pyramid_level,
     tautology,
 )
+from axm_audit.core.rules.test_quality.file_naming import compute_canonical_name
 
-__all__: list[str] = []
+__all__: list[str] = ["compute_canonical_name"]

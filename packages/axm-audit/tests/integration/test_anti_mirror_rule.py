@@ -242,3 +242,51 @@ class TestAntiMirrorRuleIntegration:
         result = AntiMirrorRule().check(tmp_path)
 
         assert result.rule_id == "PRACTICE_TEST_SCENARIO_NAMING"
+
+    def test_anti_mirror_suppressed_on_k1_canonical_axm_bib_topology(
+        self, tmp_path: Path
+    ) -> None:
+        """AC1, AC6: reproduces axm-bib test_extract.py topology — suppressed."""
+        from axm_audit.core.rules.practices.anti_mirror import AntiMirrorRule
+
+        pkg_dir = tmp_path / "src" / "axm_bib"
+        pkg_dir.mkdir(parents=True)
+        (pkg_dir / "__init__.py").write_text("")
+        (pkg_dir / "extract.py").write_text("def extract():\n    return 1\n")
+        (pkg_dir / "cli.py").write_text("def extract():\n    return 2\n")
+        test_dir = tmp_path / "tests" / "integration"
+        test_dir.mkdir(parents=True)
+        (test_dir / "test_extract.py").write_text(
+            "from axm_bib.cli import extract\n\n"
+            "def test_extract():\n    assert extract() == 2\n"
+        )
+
+        result = AntiMirrorRule().check(tmp_path)
+
+        assert result.passed is True
+        assert result.details is not None
+        assert result.details["anti_mirror"] == []
+
+    def test_anti_mirror_still_fires_on_split_topology(self, tmp_path: Path) -> None:
+        """AC2: K>=2 distinct tuples on a mirrored stem — violation present."""
+        from axm_audit.core.rules.practices.anti_mirror import AntiMirrorRule
+
+        pkg_dir = tmp_path / "src" / "pkg"
+        pkg_dir.mkdir(parents=True)
+        (pkg_dir / "__init__.py").write_text("")
+        (pkg_dir / "foo.py").write_text(
+            "def foo():\n    return 1\n\n\ndef bar():\n    return 2\n"
+        )
+        test_dir = tmp_path / "tests" / "integration"
+        test_dir.mkdir(parents=True)
+        (test_dir / "test_foo.py").write_text(
+            "from pkg.foo import foo, bar\n\n"
+            "def test_foo():\n    assert foo() == 1\n\n"
+            "def test_bar():\n    assert bar() == 2\n"
+        )
+
+        result = AntiMirrorRule().check(tmp_path)
+
+        assert result.passed is False
+        assert result.details is not None
+        assert "tests/integration/test_foo.py" in result.details["anti_mirror"]
