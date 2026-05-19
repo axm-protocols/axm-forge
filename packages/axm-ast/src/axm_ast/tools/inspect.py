@@ -11,9 +11,6 @@ from axm.tools.base import AXMTool, ToolResult
 from ._base import safe_execute
 from .inspect_detail import (
     build_detail,
-    class_detail,
-    function_detail,
-    variable_detail,
 )
 from .inspect_resolve import (
     find_symbol_abs_path,
@@ -158,10 +155,4 @@ class InspectTool(AXMTool):
 
     # --- Backward-compatible static aliases for extracted helpers ---
 
-    _find_symbol_file = staticmethod(find_symbol_file)
-    _find_symbol_abs_path = staticmethod(find_symbol_abs_path)
-    _build_detail = staticmethod(build_detail)
-    _variable_detail = staticmethod(variable_detail)
-    _function_detail = staticmethod(function_detail)
-    _class_detail = staticmethod(class_detail)
     _resolve_module = staticmethod(resolve_module)
