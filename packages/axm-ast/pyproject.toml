@@ -263,6 +263,14 @@ reason = "8 test_has_name unit tests live in 8 distinct tool-mirror test files (
 hash = "c2551a956f23"
 reason = "7 cache tests split across pyramid levels with incompatible fixtures: tests/integration/test_package_cache.py uses real tmp_path filesystem I/O (mkdir, write_text, unlink, mtime sleeps) to exercise PackageCache filesystem invalidation; tests/unit/core/test_cache.py mocks analyze_package via unittest.mock.patch + MagicMock for pure unit assertions on cache.get() call counts and identity — cross-pyramid parametrization would conflate real-I/O integration with mock-based unit coverage"
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "192424123291"
+reason = "7 structural_diff integration tests on shared _make_diff_project fixture asserting on different result dict keys: 'added' (added_symbol + added_from_new_file probe two distinct add paths — new symbol in existing file vs symbols from a new file), 'removed' (removed_symbol), 'modified' (modified_symbol), 'summary' (counts sub-dict), and per-symbol metadata (file/kind/name) — parametrization would erase these distinct observation surfaces of the diff API contract"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7fd56798cdb0"
+reason = "6 inspect_text render tests exercising three different render functions (render_class_text, render_variable_text, render_module_text) on distinct fixtures with field-level assertions: class_with_source asserts python fence + 'class ConfigLoader'; class_missing_keys asserts header-only rendering of EmptyClass without crash; variable_with_value asserts '= 30' value rendering; variable_with_annotation asserts ': int' type rendering; variable_missing_keys asserts UNKNOWN fallback; module_text asserts symbol count + per-function/class listing — parametrization would conflate three distinct renderer contracts"
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]

@@ -568,21 +568,21 @@ class TestRenderImpactSingleMinimal:
         result = render_impact_text(minimal_report)
         assert "Tests: none" in result
 
-    def test_no_def_line(self, minimal_report: dict[str, Any]) -> None:
+    @pytest.mark.parametrize(
+        "absent_section",
+        [
+            pytest.param("Def:", id="no_def_line"),
+            pytest.param("Affected:", id="no_affected"),
+            pytest.param("Git-coupled:", id="no_git_coupled"),
+            pytest.param("Cross-package:", id="no_cross_package"),
+        ],
+    )
+    def test_section_absent_on_minimal(
+        self, minimal_report: dict[str, Any], absent_section: str
+    ) -> None:
+        """Minimal report omits optional sections from the rendered text."""
         result = render_impact_text(minimal_report)
-        assert "Def:" not in result
-
-    def test_no_affected(self, minimal_report: dict[str, Any]) -> None:
-        result = render_impact_text(minimal_report)
-        assert "Affected:" not in result
-
-    def test_no_git_coupled(self, minimal_report: dict[str, Any]) -> None:
-        result = render_impact_text(minimal_report)
-        assert "Git-coupled:" not in result
-
-    def test_no_cross_package(self, minimal_report: dict[str, Any]) -> None:
-        result = render_impact_text(minimal_report)
-        assert "Cross-package:" not in result
+        assert absent_section not in result
 
 
 class TestRenderImpactSingleError:
