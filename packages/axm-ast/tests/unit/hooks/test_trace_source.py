@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from axm_ast.hooks.trace_source import TraceSourceHook, _parse_entry
+from axm_ast.hooks.trace_source import TraceSourceHook, parse_entry
 
 
 class TestTraceSourceHookValidation:
@@ -30,7 +30,7 @@ class TestTraceSourceHookValidation:
         assert not result.success
 
 
-# ── _parse_entry tests (merged from tests/unit/test_hooks.py) ────────────────
+# ── parse_entry tests (merged from tests/unit/test_hooks.py) ────────────────
 
 
 class TestParseEntry:
@@ -38,7 +38,7 @@ class TestParseEntry:
 
     def test_swe_bench_format(self) -> None:
         """SWE-bench: 'test_name (module.path.ClassName)'."""
-        name, test_dir = _parse_entry(
+        name, test_dir = parse_entry(
             "test_memoryview_content (httpwrappers.tests.HttpResponseTests)",
         )
         assert name == "test_memoryview_content"
@@ -46,7 +46,7 @@ class TestParseEntry:
 
     def test_swe_bench_format_nested_module(self) -> None:
         """SWE-bench with deeper module path."""
-        name, test_dir = _parse_entry(
+        name, test_dir = parse_entry(
             "test_foo (admin.views.tests.AdminViewTests)",
         )
         assert name == "test_foo"
@@ -54,7 +54,7 @@ class TestParseEntry:
 
     def test_swe_bench_format_single_module(self) -> None:
         """SWE-bench with single-level module (no dots in class path)."""
-        name, test_dir = _parse_entry(
+        name, test_dir = parse_entry(
             "test_bar (mymodule.MyTestCase)",
         )
         assert name == "test_bar"
@@ -62,7 +62,7 @@ class TestParseEntry:
 
     def test_pytest_format_with_class(self) -> None:
         """Pytest: 'tests/path/file.py::ClassName::method'."""
-        name, test_dir = _parse_entry(
+        name, test_dir = parse_entry(
             "tests/forms_tests/tests/test_forms.py::FormsTestCase::test_foo",
         )
         assert name == "test_foo"
@@ -70,7 +70,7 @@ class TestParseEntry:
 
     def test_pytest_format_class_only(self) -> None:
         """Pytest with only class: 'tests/path/file.py::ClassName'."""
-        name, test_dir = _parse_entry(
+        name, test_dir = parse_entry(
             "tests/httpwrappers/tests.py::HttpResponseTests",
         )
         assert name == "HttpResponseTests"
@@ -78,13 +78,13 @@ class TestParseEntry:
 
     def test_simple_symbol(self) -> None:
         """Plain symbol name — no parsing needed."""
-        name, test_dir = _parse_entry("HttpResponse")
+        name, test_dir = parse_entry("HttpResponse")
         assert name == "HttpResponse"
         assert test_dir is None
 
     def test_simple_dotted_symbol(self) -> None:
         """Dotted symbol (Class.method) — no directory extraction."""
-        name, test_dir = _parse_entry("HttpResponse.__init__")
+        name, test_dir = parse_entry("HttpResponse.__init__")
         assert name == "HttpResponse.__init__"
         assert test_dir is None
 
