@@ -28,45 +28,72 @@ def test_venv_not_in_graph(tmp_path):
 
 
 @pytest.mark.integration
-class TestAbsoluteImportEdges:
-    """Absolute intra-package imports create dependency edges."""
+class TestImportEdges:
+    """Intra-package imports (absolute and relative) create dependency edges."""
 
-    def test_absolute_import_creates_edge(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        ("files", "src_module", "target_module"),
+        [
+            pytest.param(
+                {
+                    "__init__.py": "",
+                    "sub.py": "x = 1\n",
+                    "main.py": "from mypkg.sub import x\n",
+                },
+                "main",
+                "sub",
+                id="absolute_sibling",
+            ),
+            pytest.param(
+                {
+                    "__init__.py": "",
+                    "core/__init__.py": "",
+                    "core/engine.py": "def run() -> None: ...\n",
+                    "cli.py": "from mypkg.core.engine import run\n",
+                },
+                "cli",
+                "core.engine",
+                id="absolute_nested",
+            ),
+            pytest.param(
+                {
+                    "__init__.py": "VERSION = '1.0'\n",
+                    "info.py": "from mypkg import VERSION\n",
+                },
+                "info",
+                "mypkg",
+                id="absolute_to_package_root",
+            ),
+            pytest.param(
+                {
+                    "__init__.py": "",
+                    "sub.py": "x = 1\n",
+                    "main.py": "from .sub import x\n",
+                },
+                "main",
+                "sub",
+                id="relative_sibling",
+            ),
+        ],
+    )
+    def test_import_creates_edge(
+        self,
+        tmp_path: Path,
+        files: dict[str, str],
+        src_module: str,
+        target_module: str,
+    ) -> None:
         pkg = tmp_path / "mypkg"
         pkg.mkdir()
-        (pkg / "__init__.py").write_text("")
-        (pkg / "sub.py").write_text("x = 1\n")
-        (pkg / "main.py").write_text("from mypkg.sub import x\n")
+        for rel, content in files.items():
+            fp = pkg / rel
+            fp.parent.mkdir(parents=True, exist_ok=True)
+            fp.write_text(content)
 
         result = analyze_package(pkg)
         graph = build_import_graph(result)
-        assert "main" in graph
-        assert "sub" in graph["main"]
-
-    def test_absolute_import_nested(self, tmp_path: Path) -> None:
-        pkg = tmp_path / "mypkg"
-        core = pkg / "core"
-        core.mkdir(parents=True)
-        (pkg / "__init__.py").write_text("")
-        (core / "__init__.py").write_text("")
-        (core / "engine.py").write_text("def run() -> None: ...\n")
-        (pkg / "cli.py").write_text("from mypkg.core.engine import run\n")
-
-        result = analyze_package(pkg)
-        graph = build_import_graph(result)
-        assert "cli" in graph
-        assert "core.engine" in graph["cli"]
-
-    def test_absolute_import_to_package_root(self, tmp_path: Path) -> None:
-        pkg = tmp_path / "mypkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text("VERSION = '1.0'\n")
-        (pkg / "info.py").write_text("from mypkg import VERSION\n")
-
-        result = analyze_package(pkg)
-        graph = build_import_graph(result)
-        assert "info" in graph
-        assert "mypkg" in graph["info"]
+        assert src_module in graph
+        assert target_module in graph[src_module]
 
     def test_external_import_no_edge(self, tmp_path: Path) -> None:
         pkg = tmp_path / "mypkg"
@@ -88,23 +115,6 @@ class TestAbsoluteImportEdges:
         graph = build_import_graph(result)
         if "mod" in graph:
             assert "mod" not in graph["mod"]
-
-
-@pytest.mark.integration
-class TestRelativeImportEdges:
-    """Relative imports still create edges."""
-
-    def test_relative_import_creates_edge(self, tmp_path: Path) -> None:
-        pkg = tmp_path / "mypkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text("")
-        (pkg / "sub.py").write_text("x = 1\n")
-        (pkg / "main.py").write_text("from .sub import x\n")
-
-        result = analyze_package(pkg)
-        graph = build_import_graph(result)
-        assert "main" in graph
-        assert "sub" in graph["main"]
 
 
 @pytest.mark.integration

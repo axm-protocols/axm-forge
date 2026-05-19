@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from axm_ast.core.analyzer import analyze_package
 from axm_ast.formatters import format_compressed
 
@@ -52,24 +54,75 @@ class TestCompressClassNoDocstring:
 class TestFormatCompressedIntegration:
     """Integration-level format tests using tmp_path."""
 
-    def test_relative_imports_kept(self, tmp_path: Path) -> None:
-        """Public relative imports are preserved."""
-        pkg_dir = tmp_path / "relpkg"
+    @pytest.mark.parametrize(
+        ("pkg_name", "files", "expected"),
+        [
+            pytest.param(
+                "relpkg",
+                {
+                    "__init__.py": '"""Rel pkg."""\n',
+                    "core.py": (
+                        '"""Core."""\ndef helper() -> None:\n'
+                        '    """Help."""\n    pass\n'
+                    ),
+                    "cli.py": (
+                        '"""CLI."""\n'
+                        "from . import core\n"
+                        "def main() -> None:\n"
+                        '    """Main."""\n'
+                        "    pass\n"
+                    ),
+                },
+                "from . import core",
+                id="relative_imports_kept",
+            ),
+            pytest.param(
+                "nomethod",
+                {
+                    "__init__.py": (
+                        '"""No method."""\nclass Foo:\n    """A class."""\n    pass\n'
+                    ),
+                },
+                "class Foo",
+                id="class_no_methods",
+            ),
+            pytest.param(
+                "nodoc",
+                {
+                    "__init__.py": (
+                        '"""No doc."""\ndef bare() -> int:\n    return 42\n'
+                    ),
+                },
+                "def bare() -> int",
+                id="no_docstring_function",
+            ),
+            pytest.param(
+                "constonly",
+                {
+                    "__init__.py": (
+                        '"""Constants only."""\nDEBUG = False\nVERSION = \'2.0\'\n'
+                    ),
+                },
+                "Constants only.",
+                id="module_with_only_constants",
+            ),
+        ],
+    )
+    def test_compressed_output_contains(
+        self,
+        tmp_path: Path,
+        pkg_name: str,
+        files: dict[str, str],
+        expected: str,
+    ) -> None:
+        """Compressed formatter preserves the expected signature/literal."""
+        pkg_dir = tmp_path / pkg_name
         pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text('"""Rel pkg."""\n')
-        (pkg_dir / "core.py").write_text(
-            '"""Core."""\ndef helper() -> None:\n    """Help."""\n    pass\n'
-        )
-        (pkg_dir / "cli.py").write_text(
-            '"""CLI."""\n'
-            "from . import core\n"
-            "def main() -> None:\n"
-            '    """Main."""\n'
-            "    pass\n"
-        )
+        for rel, content in files.items():
+            (pkg_dir / rel).write_text(content)
         pkg = analyze_package(pkg_dir)
         output = format_compressed(pkg)
-        assert "from . import core" in output
+        assert expected in output
 
     def test_constants_preserved(self, tmp_path: Path) -> None:
         """Module-level constants are preserved."""
@@ -86,40 +139,3 @@ class TestFormatCompressedIntegration:
         pkg = analyze_package(pkg_dir)
         output = format_compressed(pkg)
         assert "MAX_RETRIES" in output or "VERSION" in output
-
-    def test_class_no_methods(self, tmp_path: Path) -> None:
-        """Class with no methods renders as 'class Foo: ...'."""
-        pkg_dir = tmp_path / "nomethod"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text(
-            '"""No method."""\nclass Foo:\n    """A class."""\n    pass\n'
-        )
-        pkg = analyze_package(pkg_dir)
-        output = format_compressed(pkg)
-        assert "class Foo" in output
-
-
-class TestCompressEdgeCases:
-    """Edge cases for compress mode."""
-
-    def test_no_docstring_function(self, tmp_path: Path) -> None:
-        """Function without docstring still shows signature."""
-        pkg_dir = tmp_path / "nodoc"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text(
-            '"""No doc."""\ndef bare() -> int:\n    return 42\n'
-        )
-        pkg = analyze_package(pkg_dir)
-        output = format_compressed(pkg)
-        assert "def bare() -> int" in output
-
-    def test_module_with_only_constants(self, tmp_path: Path) -> None:
-        """Module with only constants, no functions."""
-        pkg_dir = tmp_path / "constonly"
-        pkg_dir.mkdir()
-        (pkg_dir / "__init__.py").write_text(
-            '"""Constants only."""\nDEBUG = False\nVERSION = \'2.0\'\n'
-        )
-        pkg = analyze_package(pkg_dir)
-        output = format_compressed(pkg)
-        assert "Constants only." in output
