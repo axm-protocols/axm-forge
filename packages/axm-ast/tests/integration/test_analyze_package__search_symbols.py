@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from axm_ast.tools.inspect_detail import build_detail
 from axm_ast.tools.inspect_resolve import find_symbol_file
 
@@ -9,32 +11,27 @@ from axm_ast.tools.inspect_resolve import find_symbol_file
 class TestFindSymbolFile:
     """Tests for find_symbol_file."""
 
-    def test_find_function_file(self, rich_pkg__from_inspect: Path) -> None:
+    @pytest.mark.parametrize(
+        ("symbol_name", "expected_file"),
+        [
+            pytest.param("greet", "core.py", id="function"),
+            pytest.param("MyClass", "core.py", id="class"),
+            pytest.param("helper_func", "helpers.py", id="nested_function"),
+        ],
+    )
+    def test_find_symbol_file(
+        self,
+        rich_pkg__from_inspect: Path,
+        symbol_name: str,
+        expected_file: str,
+    ) -> None:
         from axm_ast.core.analyzer import analyze_package, search_symbols
 
         pkg = analyze_package(rich_pkg__from_inspect)
-        results = search_symbols(pkg, name="greet")
+        results = search_symbols(pkg, name=symbol_name)
         assert results
         file_path = find_symbol_file(pkg, results[0][1])
-        assert "core.py" in file_path
-
-    def test_find_class_file(self, rich_pkg__from_inspect: Path) -> None:
-        from axm_ast.core.analyzer import analyze_package, search_symbols
-
-        pkg = analyze_package(rich_pkg__from_inspect)
-        results = search_symbols(pkg, name="MyClass")
-        assert results
-        file_path = find_symbol_file(pkg, results[0][1])
-        assert "core.py" in file_path
-
-    def test_find_nested_function(self, rich_pkg__from_inspect: Path) -> None:
-        from axm_ast.core.analyzer import analyze_package, search_symbols
-
-        pkg = analyze_package(rich_pkg__from_inspect)
-        results = search_symbols(pkg, name="helper_func")
-        assert results
-        file_path = find_symbol_file(pkg, results[0][1])
-        assert "helpers.py" in file_path
+        assert expected_file in file_path
 
 
 class TestBuildDetail:
