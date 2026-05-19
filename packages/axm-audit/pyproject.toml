@@ -136,7 +136,10 @@ DEP004 = ["mkdocs_gen_files"]
 # MyPy Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.axm-audit.mirror]
-exempt_paths = ["**/__init__.py", "_version.py", "__main__.py"]
+# tools/audit.py is the `axm-audit audit` sub-command wrapper. Per the pyramid
+# spec, the single-binary canonical e2e name strips the binary prefix, so
+# `tests/e2e/test_audit.py` IS the canonical form — not an anti-mirror smell.
+exempt_paths = ["**/__init__.py", "_version.py", "__main__.py", "tools/audit.py"]
 
 [tool.mypy]
 python_version = "3.12"
