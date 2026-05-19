@@ -934,6 +934,88 @@ def test_acknowledged_cluster_excluded_from_score(project: Path) -> None:
     assert ack["acknowledged"] is True
 
 
+def test_cluster_hash_is_deterministic_and_order_independent_via_public_api(
+    project: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """AC1: identical (file, name) sets across two projects → identical hashes.
+
+    The hash is determined by the cluster composition, not by the order in
+    which members are emitted by clustering. Two independent projects with
+    the same duplicate pair must produce the same 12-hex-char hash.
+    """
+    _write_two_duplicates(project)
+    h_a = _first_cluster_hash(project)
+
+    other = tmp_path_factory.mktemp("other")
+    (other / "tests").mkdir()
+    _write_two_duplicates(other)
+    h_b = _first_cluster_hash(other)
+
+    assert h_a == h_b
+    assert len(h_a) == 12
+    assert all(c in "0123456789abcdef" for c in h_a)
+
+
+def test_cluster_hash_changes_when_member_added_via_public_api(
+    project: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """AC1: adding a member must change the hash (composition-stable contract).
+
+    A 2-test cluster and a 3-test cluster with overlapping members must
+    produce different hashes — the hash binds to the full (file, name) set.
+    """
+    _write_two_duplicates(project)
+    h_pair = _first_cluster_hash(project)
+
+    bigger = tmp_path_factory.mktemp("bigger")
+    (bigger / "tests").mkdir()
+    _write__from_duplicate_tests_acknowledgement(
+        bigger / "tests" / "test_mod.py",
+        """
+        def test_parse_one():
+            result = parse(1)
+            assert result == 1
+            assert result > 0
+
+        def test_parse_two():
+            result = parse(2)
+            assert result == 1
+            assert result > 0
+
+        def test_parse_three():
+            result = parse(3)
+            assert result == 1
+            assert result > 0
+        """,
+    )
+    h_triple = _first_cluster_hash(bigger)
+
+    assert h_pair != h_triple
+
+
+def test_cluster_hash_ignores_line_field_via_public_api(
+    project: Path,
+) -> None:
+    """AC1: shifting line numbers (no (file, name) change) → hash unchanged.
+
+    Line numbers drift on every edit; the hash must depend only on the
+    sorted (file, name) set so that acknowledgements survive cosmetic edits.
+    """
+    _write_two_duplicates(project)
+    h_before = _first_cluster_hash(project)
+
+    # Shift line numbers by prepending blank lines / a docstring; the
+    # (file, name) set is preserved, only `line` fields drift.
+    test_file = project / "tests" / "test_mod.py"
+    original = test_file.read_text(encoding="utf-8")
+    test_file.write_text(
+        '"""Module docstring."""\n\n\n\n\n' + original, encoding="utf-8"
+    )
+    h_after = _first_cluster_hash(project)
+
+    assert h_before == h_after
+
+
 def test_unacknowledged_cluster_still_lowers_score(project: Path) -> None:
     """AC3: empty acknowledged list → cluster still flagged."""
     _write_two_duplicates(project)
