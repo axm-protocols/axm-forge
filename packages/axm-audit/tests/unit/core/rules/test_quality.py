@@ -283,13 +283,31 @@ def _patch_unformatted(monkeypatch: pytest.MonkeyPatch, files: list[str]) -> Non
 
 
 @pytest.mark.usefixtures("_bypass_early")
-def test_formatting_text_bare_paths(
-    rule: FormattingRule, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("files", "expected_text"),
+    [
+        pytest.param(
+            ["src/a.py", "src/b.py", "src/c.py"],
+            "src/a.py\nsrc/b.py\nsrc/c.py",
+            id="bare_paths_multi_file",
+        ),
+        pytest.param(
+            ["src/only.py"],
+            "src/only.py",
+            id="single_file_no_trailing_newline",
+        ),
+    ],
+)
+def test_formatting_text_renders_bare_paths(
+    rule: FormattingRule,
+    monkeypatch: pytest.MonkeyPatch,
+    files: list[str],
+    expected_text: str,
 ) -> None:
-    """text= must contain bare file paths, no bullets, no padding."""
-    _patch_unformatted(monkeypatch, ["src/a.py", "src/b.py", "src/c.py"])
+    """text= = bare file paths joined by newlines (no bullets, no trailing nl)."""
+    _patch_unformatted(monkeypatch, files)
     result = rule.check(Path("/fake"))
-    assert result.text == "src/a.py\nsrc/b.py\nsrc/c.py"
+    assert result.text == expected_text
 
 
 @pytest.mark.usefixtures("_bypass_early")
@@ -314,16 +332,6 @@ def test_formatting_text_cap_at_20(
     lines = result.text.split("\n")
     assert len(lines) == 20
     assert not result.text.endswith("\n")
-
-
-@pytest.mark.usefixtures("_bypass_early")
-def test_formatting_text_single_file(
-    rule: FormattingRule, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Single unformatted file — no trailing newline."""
-    _patch_unformatted(monkeypatch, ["src/only.py"])
-    result = rule.check(Path("/fake"))
-    assert result.text == "src/only.py"
 
 
 # ---------------------------------------------------------------------------
