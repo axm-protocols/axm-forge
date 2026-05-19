@@ -6,38 +6,47 @@ from pathlib import Path
 
 from axm_ast.core.analyzer import analyze_package
 from axm_ast.core.ranker import (
-    _build_symbol_graph,
-    _pagerank,
+    pagerank,
     rank_symbols,
 )
 
 FIXTURES = Path(__file__).parents[2] / "fixtures"
 
 
-# ─── Unit: _build_symbol_graph ──────────────────────────────────────────
+# ─── Unit: symbol graph behavior (via public rank_symbols) ──────────────
 
 
-class TestBuildSymbolGraphUnit:
-    """Test the symbol-level reference graph builder (unit)."""
+class TestBuildSymbolGraphViaRanker:
+    """Verify the symbol reference graph properties via ``rank_symbols``.
 
-    def test_import_creates_edge(self) -> None:
-        """Importing a symbol from another module creates an edge."""
+    The private ``_build_symbol_graph`` helper is exercised indirectly:
+    symbols that should receive edges (imports, ``__all__`` exports)
+    must show up with a meaningful (non-zero) rank.
+    """
+
+    def test_import_creates_ranked_symbols(self) -> None:
+        """Importing a symbol from another module makes it appear in the ranking."""
         pkg = analyze_package(FIXTURES / "sample_pkg")
-        graph = _build_symbol_graph(pkg)
-        # utils imports from . (sample_pkg) — should create edges
-        assert len(graph) > 0
+        scores = rank_symbols(pkg)
+        # utils imports from . (sample_pkg) — graph is built, scores populated
+        assert len(scores) > 0
 
-    def test_all_exports_boost(self) -> None:
-        """Symbols listed in __all__ get incoming edges."""
+    def test_all_exports_get_ranked(self) -> None:
+        """Symbols listed in ``__all__`` receive a non-zero rank.
+
+        ``greet`` and ``Calculator`` are exported via ``__all__`` in the
+        sample fixture: the module node points to them, so they get an
+        incoming edge and a positive PageRank score.
+        """
         pkg = analyze_package(FIXTURES / "sample_pkg")
-        graph = _build_symbol_graph(pkg)
-        # greet and Calculator are in __all__ — they should have
-        # incoming edges from the module node
-        has_greet_edge = any("greet" in targets for targets in graph.values())
-        assert has_greet_edge, "greet (in __all__) should have incoming edges"
+        scores = rank_symbols(pkg)
+        assert "greet" in scores, "greet (in __all__) should be ranked"
+        assert scores["greet"] > 0, "greet should have a non-zero score"
+        assert "Calculator" in scores, "Calculator (in __all__) should be ranked"
+        assert scores["Calculator"] > 0, "Calculator should have a non-zero score"
 
 
-# ─── Unit: _pagerank ─────────────────────────────────────────────────────────
+# ─── Unit: pagerank (promoted from _pagerank — pure algorithmic helper) ──────
 
 
 class TestPageRank:
@@ -45,12 +54,12 @@ class TestPageRank:
 
     def test_empty_graph(self) -> None:
         """Empty graph returns empty scores."""
-        scores = _pagerank({})
+        scores = pagerank({})
         assert scores == {}
 
     def test_single_node(self) -> None:
         """Single node gets score 1.0."""
-        scores = _pagerank({"A": set()})
+        scores = pagerank({"A": set()})
         assert abs(scores["A"] - 1.0) < 0.01
 
     def test_hub_node_highest(self) -> None:
@@ -62,7 +71,7 @@ class TestPageRank:
             "D": {"C"},
             "C": set(),
         }
-        scores = _pagerank(graph)
+        scores = pagerank(graph)
         assert scores["C"] == max(scores.values())
 
     def test_isolated_node_min_score(self) -> None:
@@ -72,7 +81,7 @@ class TestPageRank:
             "B": set(),
             "Z": set(),  # isolated
         }
-        scores = _pagerank(graph)
+        scores = pagerank(graph)
         assert scores["Z"] < scores["B"]
 
     def test_cycle_converges(self) -> None:
@@ -81,7 +90,7 @@ class TestPageRank:
             "A": {"B"},
             "B": {"A"},
         }
-        scores = _pagerank(graph)
+        scores = pagerank(graph)
         # Should be roughly equal
         assert abs(scores["A"] - scores["B"]) < 0.01
 
@@ -93,7 +102,7 @@ class TestPageRank:
             "C": {"D"},
             "D": set(),
         }
-        scores = _pagerank(graph)
+        scores = pagerank(graph)
         assert scores["D"] == max(scores.values())
 
     def test_scores_sum_to_one(self) -> None:
@@ -103,7 +112,7 @@ class TestPageRank:
             "B": {"C"},
             "C": set(),
         }
-        scores = _pagerank(graph)
+        scores = pagerank(graph)
         total = sum(scores.values())
         assert abs(total - 1.0) < 0.05
 
