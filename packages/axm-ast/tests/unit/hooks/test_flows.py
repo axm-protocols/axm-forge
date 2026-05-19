@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from importlib.metadata import entry_points
+
 # ── build_trace_opts ──
 
 
@@ -32,3 +34,19 @@ class TestBuildTraceOptsEdgeCases:
         opts, is_compact = build_trace_opts({"detail": "source"})
         assert opts.detail == "source"
         assert is_compact is False
+
+
+class TestHookEntryPointsDeclared:
+    """axm.hooks entry points are declared for ast:context and ast:flows."""
+
+    def test_hook_discovery_via_entry_points(self) -> None:
+        """AC6: ast:context and ast:flows are discoverable via entry points.
+
+        Tests discovery using importlib.metadata, which simulates HookRegistry
+        without adding a dependency on axm-engine.
+        """
+        eps = entry_points(group="axm.hooks")
+        registered_names = [ep.name for ep in eps]
+
+        assert "ast:context" in registered_names
+        assert "ast:flows" in registered_names
