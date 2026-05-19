@@ -23,6 +23,7 @@ from axm_audit.core.rules.practices.mirror import (
     _glob_segments_match,
     _load_mirror_config,
 )
+from axm_audit.core.rules.test_quality.file_naming import _verdict_for_file
 from axm_audit.models.results import CheckResult, Severity
 
 __all__ = ["AntiMirrorRule"]
@@ -73,6 +74,32 @@ def _collect_anti_mirror_violations(
                 rel = test_file.relative_to(tests_path).as_posix()
                 violations.append(f"tests/{rel}")
     return sorted(set(violations))
+
+
+def _drop_k1_canonical_collisions(
+    violations: list[str], project_path: Path
+) -> list[str]:
+    """Suppress violations where the stem equals the canonical K=1 name.
+
+    A ``tests/integration/test_foo.py`` whose tests cover exactly one
+    first-party symbol ``foo`` is the canonical K=1 form FILE_NAMING
+    would emit. The collision with ``src/<pkg>/foo.py`` is a false
+    positive for anti-mirror: renaming would re-fire NAME_MISMATCH.
+    """
+    if not violations:
+        return violations
+    kept: list[str] = []
+    for rel in violations:
+        test_file = project_path / rel
+        verdict = _verdict_for_file(test_file, project_path)
+        if (
+            verdict is not None
+            and verdict.canonical == test_file.name
+            and len(verdict.distinct_non_empty_tuples) <= 1
+        ):
+            continue
+        kept.append(rel)
+    return kept
 
 
 @dataclass
@@ -132,6 +159,7 @@ class AntiMirrorRule(ProjectRule):
         src_path = project_path / "src"
         source_basenames = _collect_source_basenames(src_path, config.exempt_paths)
         violations = _collect_anti_mirror_violations(tests_path, source_basenames)
+        violations = _drop_k1_canonical_collisions(violations, project_path)
 
         if not violations:
             return CheckResult(
