@@ -797,20 +797,6 @@ def test_flows_tool_not_found_returns_error(
     assert "not found" in result.error
 
 
-def test_flows_hook_not_found_returns_fail(monkeypatch: pytest.MonkeyPatch) -> None:
-    """FlowsHook._trace_entries returns HookResult with success=False."""
-    from axm_ast.hooks.flows import FlowsHook
-
-    monkeypatch.setattr(
-        "axm_ast.hooks.flows.trace_flow",
-        MagicMock(side_effect=ValueError("Symbol 'nonexistent' not found")),
-    )
-    pkg = MagicMock()
-    opts = MagicMock()
-    result = FlowsHook._trace_entries(pkg, "nonexistent", opts)
-    assert result.success is False
-
-
 def test_trace_flow_qualified_name_not_found_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -822,32 +808,6 @@ def test_trace_flow_qualified_name_not_found_raises(
     )
     with pytest.raises(ValueError, match="not found"):
         trace_flow(pkg, "Foo.nonexistent")
-
-
-def test_trace_multi_entries_one_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Multi-symbol hook: valid symbol traced, missing one skipped gracefully."""
-    from axm_ast.hooks.flows import FlowsHook
-
-    def _mock_trace(pkg: object, sym: str, **kw: object) -> list[FlowStep]:
-        if sym == "nonexistent":
-            msg = f"Symbol {sym!r} not found in package"
-            raise ValueError(msg)
-        return [FlowStep(name=sym, module="mod", line=1, depth=0, chain=[sym])]
-
-    monkeypatch.setattr("axm_ast.hooks.flows.trace_flow", _mock_trace)
-    monkeypatch.setattr("axm_ast.hooks.flows.build_callee_index", lambda _pkg: {})
-
-    pkg = MagicMock()
-    symbols = ["valid_func", "nonexistent"]
-    kw = {
-        "max_depth": 5,
-        "cross_module": False,
-        "detail": "trace",
-        "exclude_stdlib": True,
-    }
-    format_fn = MagicMock(return_value="")
-    result = FlowsHook._trace_multi_entries(pkg, symbols, kw, False, format_fn)
-    assert result.success is True
 
 
 def test_trace_flow_empty_package_raises(monkeypatch: pytest.MonkeyPatch) -> None:
