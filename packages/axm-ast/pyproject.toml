@@ -255,6 +255,14 @@ reason = "8 find_stale_signatures tests asserting on heterogeneous fields (actua
 hash = "d27d8ebd9890"
 reason = "7 parse_docstring tests spanning three style classes (Google: summary_only, google_style_summary, args_not_in_output, returns_not_in_output; Sphinx: sphinx_summary; EdgeCases: unknown_section_ignored, indented_docstring) asserting on different ParsedDocstring fields (summary, raises, examples, hasattr negative checks) — parametrization would conflate three distinct docstring-style parsers and four distinct field-level contracts"
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ebf90edda9c0"
+reason = "8 test_has_name unit tests live in 8 distinct tool-mirror test files (test_callers/context/describe/docs/graph/impact/inspect/search.py) — each instantiates a different Tool class (CallersTool, ContextTool, DescribeTool, DocsTool, GraphTool, ImpactTool, InspectTool, SearchTool) and asserts on its unique .name attribute; cross-file parametrization would break the 1:1 src/tools/ mirror layout and centralize tool-name contracts away from their owning test module"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c2551a956f23"
+reason = "7 cache tests split across pyramid levels with incompatible fixtures: tests/integration/test_package_cache.py uses real tmp_path filesystem I/O (mkdir, write_text, unlink, mtime sleeps) to exercise PackageCache filesystem invalidation; tests/unit/core/test_cache.py mocks analyze_package via unittest.mock.patch + MagicMock for pure unit assertions on cache.get() call counts and identity — cross-pyramid parametrization would conflate real-I/O integration with mock-based unit coverage"
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
