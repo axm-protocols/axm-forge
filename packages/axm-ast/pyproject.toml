@@ -403,6 +403,10 @@ reason = "3 extract_references AC4-negative tests probe three distinct non-typin
 hash = "86a12871fe22"
 reason = "3 find_stale_signatures empty-input short-circuit tests probe three distinct no-op branches with divergent setup: test_empty_symbols_set_yields_nothing writes a doc file then asserts find_stale_signatures(src_with_foo, []) == [] (explicit empty list overrides None=all fallback), test_missing_doc_directory_no_crash writes NO doc and asserts find_stale_signatures(src_with_foo, ['foo']) == [] (missing docs/ directory branch), and test_empty_doc_file_no_crash writes an empty .md file and asserts the same shape (empty-content branch). Three different SUT branches (empty-symbol-list / no-docs-dir / empty-file-content), three different setup shapes (write-doc-empty-symbols / no-write / write-empty-doc) — folding would force a heterogeneous (setup_fn, symbols_arg) parameter and erase the per-branch short-circuit documentation."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "56a8d7e47415"
+reason = "3 git_coupled_files empty-result tests probe three distinct no-coupling branches with mutually-exclusive setups: test_no_git_repo runs in a bare tmp_path with no .git directory (subprocess git-log fails outright — subprocess-error branch), test_shallow_clone runs in a `git clone --depth 1` worktree with a single commit (insufficient history for any co-change pair branch), and test_new_file_no_history queries a path that never appears in any commit of an otherwise-rich repo (file-not-in-history branch). Three different SUT short-circuits (no-repo / shallow-1-commit / file-absent-from-log), three divergent fixture shapes (no init / clone of full repo / full repo with unknown path) — parametrizing would require a heterogeneous (setup_fn, query_path) parameter that conflates the three failure modes documented by the per-test names."
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
