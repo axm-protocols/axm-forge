@@ -391,6 +391,18 @@ reason = "3 detect_patterns tests assert on three orthogonal dict keys (patterns
 hash = "570b557fe3f2"
 reason = "3 detect_stack tests assert on three orthogonal stack categories (stack['cli'] contains 'cyclopts' / stack['models'] contains 'pydantic' / stack['packaging'] contains 'hatchling') with three divergent inputs (cyclopts>=3.0 dependency / pydantic>=2.0 dependency / hatchling build-system). Each test pins a distinct dependency-categorization contract — CLI framework detection, models framework detection, build-system detection — across mutually exclusive pyproject.toml sources ([project.dependencies] vs [build-system].requires). Parametrizing would force a heterogeneous (setup_input, expected_category, expected_token) parameter that erases the per-category semantic."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "72f9c35e5f92"
+reason = "3 discover_docs absent-key tests (test_discover_no_readme / test_discover_no_mkdocs / test_discover_no_docs_dir) share an identical _make_project(readme=None, mkdocs=None, docs=None) setup but assert on three orthogonal absent-key contracts of the result dict: result['readme'] is None, result['mkdocs'] is None, and result['pages'] == [] AND result['tree'] is None. Folding would force a heterogeneous (key, expected) parameter mixing None-vs-empty-list-vs-double-key assertions and erase the per-key documentation surface."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e62cf02e30b3"
+reason = "3 extract_references AC4-negative tests probe three distinct non-typing-position rules across two fixtures: test_log_string_does_not_pollute_refs (mod_factory, logger.info string arg) pins the string-in-call-arg exclusion, test_docstring_does_not_pollute_refs (mod_factory, triple-quoted docstring) pins the docstring exclusion, and test_star_args_not_ref (mod_factory__from_core_callers, foo(*handlers) list_splat) pins the star-unpacked-name exclusion. Three different AST positions (call argument string / docstring / list_splat), two divergent fixtures, three different excluded identifiers ('MyClass' / 'MyClass' / 'handlers') — parametrize would conflate two fixture surfaces and three independent exclusion rules."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "86a12871fe22"
+reason = "3 find_stale_signatures empty-input short-circuit tests probe three distinct no-op branches with divergent setup: test_empty_symbols_set_yields_nothing writes a doc file then asserts find_stale_signatures(src_with_foo, []) == [] (explicit empty list overrides None=all fallback), test_missing_doc_directory_no_crash writes NO doc and asserts find_stale_signatures(src_with_foo, ['foo']) == [] (missing docs/ directory branch), and test_empty_doc_file_no_crash writes an empty .md file and asserts the same shape (empty-content branch). Three different SUT branches (empty-symbol-list / no-docs-dir / empty-file-content), three different setup shapes (write-doc-empty-symbols / no-write / write-empty-doc) — folding would force a heterogeneous (setup_fn, symbols_arg) parameter and erase the per-branch short-circuit documentation."
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
