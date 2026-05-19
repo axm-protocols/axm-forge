@@ -421,6 +421,26 @@ reason = "Canonical different-rule-classes case: FileNamingRule.rule_id == 'TEST
 hash = "7b53b4c83f4d"
 reason = "Inter-file cluster covers two unrelated fix_hint contracts on different mirror rules: AntiMirrorRule.test_fix_hint_suggests_scenario_rename asserts fix_hint contains 'rename' AND ('scenario' OR 'describe') on an integration test named after a source module (forward anti-mirror direction, PRACTICE_TEST_SCENARIO_NAMING), and MirrorRule.test_orphan_fix_hint_no_close_match asserts fix_hint mentions the specific orphan filename 'test_zzzzqqqq.py' AND ('delete' OR 'rename') on an orphan unit test with no close source match (reverse mirror direction, PRACTICE_TEST_MIRROR). Different rules, opposite directions (forward vs reverse), different fix_hint message shapes (scenario-rename vs orphan-no-match). No shared helper signature. ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4fe87554847a"
+reason = "Inter-file cluster pairs two different CLI sub-commands' --agent text-output contracts: `audit --agent` (test_audit__output_routing.py) mocks audit_project + format_agent + format_agent_text to assert the rendered prefix starts with 'audit |' and contains no JSON brace, while `test --agent` (test_test.py) mocks run_tests + format_audit_test_text to assert the prefix starts with 'audit_test |' with no JSON brace. Different SUTs (cli.audit vs cli.test), different upstream functions mocked, different rendered prefix strings. No shared helper signature. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "90878e753845"
+reason = "Tests guard two disjoint defensive branches of QualityCheckHook.execute that both yield `has_violations is False`: test_audit_crash (integration) mocks audit_project to raise RuntimeError('boom') and asserts the hook swallows the exception, while test_invalid_working_dir (unit) supplies an invalid working_dir path so the hook short-circuits before audit_project is ever called. Same negative postcondition but different code paths (exception-handling vs pre-check), different setup (mocker.patch vs raw bad path), different pyramid levels. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e22bd2c1e679"
+reason = "Canonical 'different-rule-class' inter-file case: CouplingMetricRule.test_single_segment_module_name asserts the bullet-format rendering for a dotless module name (`• utils fo:15/12 ⚠`) via monkeypatched _compute_coupling_metrics + _resolve_coupling_severity, while SecurityPatternRule.test_text_bullet_format asserts the bullet-format rendering for a hardcoded password match (`• bad.py:2 password`) on a real src file. Different SUTs (architecture vs security), different fixtures (monkeypatch vs real I/O), different text payload schema (`{leaf} fo:N/T {symbol}` vs `{file}:{line} {pattern}`). ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d3e92de3fd36"
+reason = "Canonical 'different-rule-class' inter-file case explicitly noted in the dedup-tests playbook: DirectoryExistsRule.test_directory_presence parametrizes (create_dir, passed, substr) on `(tmp_path/'src')` while FileExistsRule.test_file_presence parametrizes (create_file, passed, substr) on `(tmp_path/'README.md')`. Same parametrized shape but two different rule SUTs (structure.DirectoryExistsRule vs structure.FileExistsRule), different constructor kwargs (dir_name vs file_name), different filesystem object asserted (mkdir vs write_text). ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e16257fc86ec"
+reason = "Canonical 'different-rule-class' inter-file case (companion to d3e92de3fd36): DirectoryExistsRule.test_directory_exists_no_fix_hint asserts `fix_hint is None` on the passing-dir branch of DirectoryExistsRule, while FileExistsRule.test_file_exists_no_fix_hint asserts the same on the passing-file branch of FileExistsRule. Two different rule SUTs guarding the same no-fix-hint-when-passing contract on disjoint rule classes; folding would couple structure.DirectoryExistsRule and structure.FileExistsRule into a single parametrize and erase the per-rule contract. ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
