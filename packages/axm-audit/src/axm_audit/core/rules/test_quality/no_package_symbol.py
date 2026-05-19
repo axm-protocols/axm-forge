@@ -26,8 +26,11 @@ from pathlib import Path
 from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.core.rules.test_quality._shared import (
     current_level_from_path,
+    decorator_has_marker,
+    file_has_module_marker,
     get_pkg_prefixes,
     iter_test_files,
+    iter_test_funcs,
     load_project_scripts,
     test_invokes_in_package_script,
     test_references_first_party,
@@ -70,52 +73,8 @@ class _ScanContext:
     project_scripts: set[str]
 
 
-def _decorator_has_marker(dec: ast.expr) -> bool:
-    target = dec.func if isinstance(dec, ast.Call) else dec
-    if isinstance(target, ast.Attribute) and target.attr == _MARKER_NAME:
-        return True
-    return isinstance(target, ast.Name) and target.id == _MARKER_NAME
-
-
 def _has_per_test_marker(func: ast.FunctionDef) -> bool:
-    return any(_decorator_has_marker(d) for d in func.decorator_list)
-
-
-def _value_marks_node(value: ast.AST) -> bool:
-    """True when *value* is ``pytest.mark.no_package_symbol_ok`` (or aliased)."""
-    if isinstance(value, ast.Attribute) and value.attr == _MARKER_NAME:
-        return True
-    if isinstance(value, (ast.List, ast.Tuple)):
-        return any(_value_marks_node(elt) for elt in value.elts)
-    return False
-
-
-def _file_has_module_marker(tree: ast.Module) -> bool:
-    """True when ``pytestmark = pytest.mark.no_package_symbol_ok`` is set."""
-    for stmt in tree.body:
-        if not isinstance(stmt, ast.Assign):
-            continue
-        if not any(
-            isinstance(t, ast.Name) and t.id == "pytestmark" for t in stmt.targets
-        ):
-            continue
-        if _value_marks_node(stmt.value):
-            return True
-    return False
-
-
-def _iter_test_funcs(tree: ast.Module) -> list[ast.FunctionDef]:
-    funcs: list[ast.FunctionDef] = []
-    for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-            funcs.append(node)
-        elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
-            for child in node.body:
-                if isinstance(child, ast.FunctionDef) and child.name.startswith(
-                    "test_"
-                ):
-                    funcs.append(child)
-    return funcs
+    return any(decorator_has_marker(d, _MARKER_NAME) for d in func.decorator_list)
 
 
 def _classify_test(
@@ -163,7 +122,7 @@ def _aggregate_file_verdicts(
     any_a = False
     any_b = False
     had_unmarked_test = False
-    for func in _iter_test_funcs(tree):
+    for func in iter_test_funcs(tree):
         if _has_per_test_marker(func):
             continue
         had_unmarked_test = True
@@ -256,7 +215,7 @@ class NoPackageSymbolRule(ProjectRule):
         first-party symbol or in-package CLI is the offender. Mixing one
         fixture-validation test with one symbol-exercising test is fine.
         """
-        if _file_has_module_marker(tree):
+        if file_has_module_marker(tree, _MARKER_NAME):
             return []
         aggregate = _aggregate_file_verdicts(tree, level, ctx)
         if aggregate is None:
