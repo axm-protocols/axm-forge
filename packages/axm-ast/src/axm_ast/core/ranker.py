@@ -148,7 +148,7 @@ def _ensure_symbol_nodes(
 # ─── PageRank ────────────────────────────────────────────────────────────────
 
 
-def _pagerank(
+def pagerank(
     graph: dict[str, set[str]],
     damping: float = 0.85,
     iterations: int = 30,
@@ -158,6 +158,10 @@ def _pagerank(
     Pure-Python implementation without external dependencies.
     Edges go from ``source → target`` meaning source *references* target,
     so target receives the rank boost.
+
+    Internal-public: callable from sibling modules and tests, but not
+    re-exported in the package root ``__all__`` (kept out of the public
+    SDK surface — ``rank_symbols`` is the documented high-level API).
 
     Args:
         graph: Adjacency dict (node → set of nodes it points to).
@@ -251,7 +255,7 @@ def rank_symbols(pkg: PackageInfo) -> dict[str, float]:
         'Calculator'
     """
     graph = _build_symbol_graph(pkg)
-    all_scores = _pagerank(graph)
+    all_scores = pagerank(graph)
 
     # Filter to only function/class symbols (not module nodes)
     symbol_names = _collect_all_symbols(pkg)
