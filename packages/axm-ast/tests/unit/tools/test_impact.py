@@ -515,33 +515,29 @@ class TestRenderImpactSingleFull:
         lines = result.split("\n")
         assert lines[0] == "ast_impact | my_func | HIGH"
 
-    def test_definition_line(self, full_report: dict[str, Any]) -> None:
+    @pytest.mark.parametrize(
+        "expected_substring",
+        [
+            pytest.param("Def: pkg.mod:42 (function)", id="definition_line"),
+            pytest.param("def my_func(x: int) -> str", id="signature_line"),
+            pytest.param(
+                "Callers: caller_a (pkg.caller:10), caller_b (pkg.other:20)",
+                id="callers_line",
+            ),
+            pytest.param("Affected: pkg.mod, pkg.caller", id="affected_line"),
+            pytest.param("Tests: test_mod.py, test_other.py", id="tests_line"),
+            pytest.param("Git-coupled: helper.py, util.py", id="git_coupled_line"),
+            pytest.param(
+                "Cross-package: other-pkg, plain_string_entry",
+                id="cross_package_line",
+            ),
+        ],
+    )
+    def test_section_line(
+        self, full_report: dict[str, Any], expected_substring: str
+    ) -> None:
         result = render_impact_text(full_report)
-        assert "Def: pkg.mod:42 (function)" in result
-
-    def test_signature_line(self, full_report: dict[str, Any]) -> None:
-        result = render_impact_text(full_report)
-        assert "def my_func(x: int) -> str" in result
-
-    def test_callers_line(self, full_report: dict[str, Any]) -> None:
-        result = render_impact_text(full_report)
-        assert "Callers: caller_a (pkg.caller:10), caller_b (pkg.other:20)" in result
-
-    def test_affected_line(self, full_report: dict[str, Any]) -> None:
-        result = render_impact_text(full_report)
-        assert "Affected: pkg.mod, pkg.caller" in result
-
-    def test_tests_line(self, full_report: dict[str, Any]) -> None:
-        result = render_impact_text(full_report)
-        assert "Tests: test_mod.py, test_other.py" in result
-
-    def test_git_coupled_line(self, full_report: dict[str, Any]) -> None:
-        result = render_impact_text(full_report)
-        assert "Git-coupled: helper.py, util.py" in result
-
-    def test_cross_package_line(self, full_report: dict[str, Any]) -> None:
-        result = render_impact_text(full_report)
-        assert "Cross-package: other-pkg, plain_string_entry" in result
+        assert expected_substring in result
 
     def test_full_output_matches(self, full_report: dict[str, Any]) -> None:
         result = render_impact_text(full_report)
