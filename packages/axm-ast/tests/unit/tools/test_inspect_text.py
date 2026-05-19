@@ -102,43 +102,30 @@ def module_detail() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def test_inspect_function_has_text(tool: InspectTool) -> None:
-    """AC1: function symbol returns text with name and signature."""
-    result = tool.execute(symbol="search_symbols", path=PKG_PATH)
+@pytest.mark.parametrize(
+    ("symbol", "expected_substring", "case_insensitive"),
+    [
+        pytest.param("search_symbols", "search_symbols", False, id="function"),
+        pytest.param("PackageInfo", "PackageInfo", False, id="class"),
+        pytest.param("logger", "variable", True, id="variable"),
+        pytest.param("models.nodes", "module", True, id="module"),
+        pytest.param("PackageInfo.module_names", None, False, id="dotted"),
+    ],
+)
+def test_inspect_symbol_has_text(
+    tool: InspectTool,
+    symbol: str,
+    expected_substring: str | None,
+    case_insensitive: bool,
+) -> None:
+    """AC1/AC3/AC4: inspect returns text for func/class/var/module/dotted symbols."""
+    result = tool.execute(symbol=symbol, path=PKG_PATH)
     assert result.success
     assert result.text is not None
-    assert "search_symbols" in result.text
-
-
-def test_inspect_class_has_text(tool: InspectTool) -> None:
-    """AC1: class symbol returns text with class name and bases."""
-    result = tool.execute(symbol="PackageInfo", path=PKG_PATH)
-    assert result.success
-    assert result.text is not None
-    assert "PackageInfo" in result.text
-
-
-def test_inspect_variable_has_text(tool: InspectTool) -> None:
-    """AC1: variable symbol returns text containing 'variable'."""
-    result = tool.execute(symbol="logger", path=PKG_PATH)
-    assert result.success
-    assert result.text is not None
-    assert "variable" in result.text.lower()
-
-
-def test_inspect_module_has_text(tool: InspectTool) -> None:
-    """AC3: module inspection returns text with 'module' and symbol count."""
-    result = tool.execute(symbol="models.nodes", path=PKG_PATH)
-    assert result.success
-    assert result.text is not None
-    assert "module" in result.text.lower()
-
-
-def test_inspect_dotted_has_text(tool: InspectTool) -> None:
-    """AC4: dotted path returns text."""
-    result = tool.execute(symbol="PackageInfo.module_names", path=PKG_PATH)
-    assert result.success
-    assert result.text is not None
+    if expected_substring is not None:
+        haystack = result.text.lower() if case_insensitive else result.text
+        needle = expected_substring.lower() if case_insensitive else expected_substring
+        assert needle in haystack
 
 
 def test_inspect_batch_has_text(tool: InspectTool) -> None:
