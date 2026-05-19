@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 pytestmark = [
-    pytest.mark.e2e,
+    pytest.mark.integration,
     # The CLI is resolved dynamically via shutil.which, so the
     # NO_PACKAGE_SYMBOL heuristic can't statically reconstruct the argv.
     # The test does exercise the package — declare it explicitly.
