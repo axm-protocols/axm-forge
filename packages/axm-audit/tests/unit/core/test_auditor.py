@@ -102,32 +102,34 @@ class TestGetRulesForCategory:
 class TestMergeMetadata:
     """Test the merge_metadata() helper used by workspace aggregation."""
 
-    def test_merge_metadata_concatenates_lists(self):
-        """Lists at the same key are concatenated, existing first."""
+    @pytest.mark.parametrize(
+        "a,b,expected",
+        [
+            pytest.param(
+                {"verdicts": [1, 2]},
+                {"verdicts": [3]},
+                {"verdicts": [1, 2, 3]},
+                id="concatenates_lists",
+            ),
+            pytest.param(
+                {"x": {"k": [1]}},
+                {"x": {"k": [2]}},
+                {"x": {"k": [1, 2]}},
+                id="recurses_into_dicts",
+            ),
+            pytest.param(
+                {"k": 1},
+                {"k": 2},
+                {"k": 2},
+                id="scalar_b_wins",
+            ),
+        ],
+    )
+    def test_merge_metadata_combines_inputs(self, a, b, expected):
+        """merge_metadata: list-concat, dict-recursion, and scalar-b-wins semantics."""
         from axm_audit.core.auditor import merge_metadata
 
-        a = {"verdicts": [1, 2]}
-        b = {"verdicts": [3]}
-
-        assert merge_metadata(a, b) == {"verdicts": [1, 2, 3]}
-
-    def test_merge_metadata_recurses_into_dicts(self):
-        """Nested dicts merge recursively, lists at leaves concatenate."""
-        from axm_audit.core.auditor import merge_metadata
-
-        a = {"x": {"k": [1]}}
-        b = {"x": {"k": [2]}}
-
-        assert merge_metadata(a, b) == {"x": {"k": [1, 2]}}
-
-    def test_merge_metadata_scalar_b_wins(self):
-        """For scalar values at the same key, incoming (b) overrides existing (a)."""
-        from axm_audit.core.auditor import merge_metadata
-
-        a = {"k": 1}
-        b = {"k": 2}
-
-        assert merge_metadata(a, b) == {"k": 2}
+        assert merge_metadata(a, b) == expected
 
     def test_merge_metadata_handles_none_inputs(self):
         """None inputs are treated as empty dicts; (None, None) returns {}."""
