@@ -336,27 +336,6 @@ def _format_test_group(tests: dict[str, list[int]], cap: int | None) -> str:
     return ", ".join(parts)
 
 
-def _format_callers_compact(
-    callers: list[Mapping[str, object]],
-    symbol_module: str | None = None,
-) -> str:
-    """Format caller list with prod/test separation and grouping."""
-    if not callers:
-        return "\u2014"
-    prod, direct, indirect = _classify_callers(callers, symbol_module)
-    sections: list[str] = []
-    if prod:
-        sections.append(f"Prod: {', '.join(prod)}")
-    if direct and indirect:
-        sections.append(f"Direct tests: {_format_test_group(direct, cap=None)}")
-        sections.append(f"Indirect tests: {_format_test_group(indirect, cap=5)}")
-    elif direct:
-        sections.append(f"Tests: {_format_test_group(direct, cap=None)}")
-    elif indirect:
-        sections.append(f"Tests: {_format_test_group(indirect, cap=5)}")
-    return " | ".join(sections)
-
-
 def _format_test_files_compact(test_files: list[str], limit: int = 5) -> str:
     """Format test file list with overflow indicator."""
     if not test_files:
