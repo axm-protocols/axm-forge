@@ -401,6 +401,26 @@ reason = "Inter-file cluster spans 3 distinct scoring/passing branches: Coupling
 hash = "7e2a43857cbe"
 reason = "Inter-file cluster covers 3 unrelated severity/passed contracts: CouplingMetricRule mixed-severity returns Severity.ERROR + passed=False on a fakepkg with one warning + one error module, MirrorRule returns passed=True + Severity.INFO when src/ is absent (graceful skip), and ToolAvailabilityRule parametrizes severity by `critical` flag (False→WARNING, True→ERROR) on a missing tool. Three different rules, three different severity-derivation branches, disjoint inputs. No shared helper signature. ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8ea79996167a"
+reason = "Inter-file cluster spans 3 unrelated rule SUTs: PyprojectCompletenessRule.test_complete_pyproject_passes (parametrized over static vs dynamic version, asserts passed=True + score=100 on a 9-field pyproject), PyprojectCompletenessRule.test_missing_pyproject_fails (asserts passed=False + score=0 when pyproject.toml is absent), and TypeCheckRule.test_typed_project_high_score (parametrized over greet/double, asserts passed=True + score=100 on a fully-typed src tree). Different rules (STRUCTURE_PYPROJECT vs QUALITY_TYPE), opposite outcomes (pass-100 vs fail-0), disjoint fixture shapes (pyproject content vs src/ layout). No shared helper signature spanning the two files. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d1ac62c64bc6"
+reason = "Inter-file cluster covers 3 distinct `passed-entry stays as string` branches of format_agent across different rule_id types: PRACTICE_DOCSTRING with no details payload (test_passed_clean_is_string asserts a QUALITY_TYPE check with score=100 and no details renders as string), PRACTICE_DOCSTRING with details={'missing': []} empty-missing case (test_passed_empty_missing_is_string asserts empty actionable list still folds to string), and QUALITY_COMPLEXITY with details={'top_offenders': []} empty-offenders case (test_passed_complexity_no_offenders_is_string asserts an unrelated rule's empty-actionable branch). Each guards a different rule_id's actionable-keys check inside the formatter's passed-rendering branch. No shared helper signature. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4d8ab21a59be"
+reason = "Canonical different-rule-classes case: TestCoverageRule.rule_id == 'QUALITY_COVERAGE' (tests/unit/core/rules/test_coverage.py::test_rule_id) and PyprojectCompletenessRule.rule_id == 'STRUCTURE_PYPROJECT' (tests/unit/core/rules/test_structure.py::TestPyprojectCompletenessRuleMeta::test_rule_id). Two different rule SUTs each pinning their own stable identifier; collapsing would erase the per-rule identifier contract. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "df64470270b4"
+reason = "Canonical different-rule-classes case: FileNamingRule.rule_id == 'TEST_QUALITY_FILE_NAMING' (tests/unit/core/rules/test_quality/test_file_naming.py::test_rule_id_constant) and NoPackageSymbolRule.rule_id == 'TEST_QUALITY_NO_PACKAGE_SYMBOL' (tests/unit/core/rules/test_quality/test_no_package_symbol.py::test_rule_id_constant). Two unrelated test_quality rules each pinning their own stable identifier; collapsing would erase the per-rule identifier contract. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7b53b4c83f4d"
+reason = "Inter-file cluster covers two unrelated fix_hint contracts on different mirror rules: AntiMirrorRule.test_fix_hint_suggests_scenario_rename asserts fix_hint contains 'rename' AND ('scenario' OR 'describe') on an integration test named after a source module (forward anti-mirror direction, PRACTICE_TEST_SCENARIO_NAMING), and MirrorRule.test_orphan_fix_hint_no_close_match asserts fix_hint mentions the specific orphan filename 'test_zzzzqqqq.py' AND ('delete' OR 'rename') on an orphan unit test with no close source match (reverse mirror direction, PRACTICE_TEST_MIRROR). Different rules, opposite directions (forward vs reverse), different fix_hint message shapes (scenario-rename vs orphan-no-match). No shared helper signature. ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
