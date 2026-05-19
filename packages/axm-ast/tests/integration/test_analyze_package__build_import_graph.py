@@ -126,109 +126,118 @@ class TestAnalyzePackageIntegration:
 
 
 @pytest.mark.functional
-class TestAnalyzePackageFiltering:
-    """Tests that analyze_package correctly filters skip dirs."""
+def test_skips_venv_dir(tmp_path):
+    pkg = tmp_path / "mypkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text('"""My package."""')
+    venv = pkg / ".venv" / "site-packages" / "dep"
+    venv.mkdir(parents=True)
+    (venv / "dep.py").write_text("class Dep: pass")
 
-    def test_skips_venv_dir(self, tmp_path):
-        pkg = tmp_path / "mypkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text('"""My package."""')
-        venv = pkg / ".venv" / "site-packages" / "dep"
-        venv.mkdir(parents=True)
-        (venv / "dep.py").write_text("class Dep: pass")
+    result = analyze_package(pkg)
+    assert len(result.modules) == 1
+    assert result.modules[0].path.name == "__init__.py"
 
-        result = analyze_package(pkg)
-        assert len(result.modules) == 1
-        assert result.modules[0].path.name == "__init__.py"
 
-    def test_venv_not_in_graph(self, tmp_path):
-        pkg = tmp_path / "mypkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text('"""My package."""')
-        venv = pkg / ".venv" / "lib"
-        venv.mkdir(parents=True)
-        (venv / "dep.py").write_text("x = 1")
+@pytest.mark.functional
+def test_venv_not_in_graph(tmp_path):
+    pkg = tmp_path / "mypkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text('"""My package."""')
+    venv = pkg / ".venv" / "lib"
+    venv.mkdir(parents=True)
+    (venv / "dep.py").write_text("x = 1")
 
-        result = analyze_package(pkg)
-        graph = build_import_graph(result)
-        all_nodes = set(graph.keys())
-        for targets in graph.values():
-            all_nodes.update(targets)
-        assert not any("dep" in n for n in all_nodes)
+    result = analyze_package(pkg)
+    graph = build_import_graph(result)
+    all_nodes = set(graph.keys())
+    for targets in graph.values():
+        all_nodes.update(targets)
+    assert not any("dep" in n for n in all_nodes)
 
-    def test_skips_pycache(self, tmp_path):
-        pkg = tmp_path / "mypkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text('"""pkg."""')
-        (pkg / "mod.py").write_text("x = 1")
-        cache = pkg / "__pycache__"
-        cache.mkdir()
-        (cache / "mod.cpython-312.py").write_text("")
 
-        result = analyze_package(pkg)
-        mod_names = [m.path.name for m in result.modules]
-        assert "mod.py" in mod_names
-        assert "mod.cpython-312.py" not in mod_names
+@pytest.mark.functional
+def test_skips_pycache(tmp_path):
+    pkg = tmp_path / "mypkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text('"""pkg."""')
+    (pkg / "mod.py").write_text("x = 1")
+    cache = pkg / "__pycache__"
+    cache.mkdir()
+    (cache / "mod.cpython-312.py").write_text("")
 
-    def test_skips_multiple_dirs(self, tmp_path):
-        pkg = tmp_path / "mypkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text('"""pkg."""')
-        for skip in (".venv", "node_modules", ".git"):
-            d = pkg / skip
-            d.mkdir()
-            (d / "file.py").write_text("")
+    result = analyze_package(pkg)
+    mod_names = [m.path.name for m in result.modules]
+    assert "mod.py" in mod_names
+    assert "mod.cpython-312.py" not in mod_names
 
-        result = analyze_package(pkg)
-        assert len(result.modules) == 1
 
-    def test_skips_egg_info(self, tmp_path):
-        pkg = tmp_path / "mypkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text('"""pkg."""')
-        egg = pkg / "foo.egg-info"
-        egg.mkdir()
-        (egg / "bar.py").write_text("")
+@pytest.mark.functional
+def test_skips_multiple_dirs(tmp_path):
+    pkg = tmp_path / "mypkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text('"""pkg."""')
+    for skip in (".venv", "node_modules", ".git"):
+        d = pkg / skip
+        d.mkdir()
+        (d / "file.py").write_text("")
 
-        result = analyze_package(pkg)
-        assert len(result.modules) == 1
+    result = analyze_package(pkg)
+    assert len(result.modules) == 1
 
-    def test_nested_skip_dir(self, tmp_path):
-        pkg = tmp_path / "mypkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text('"""pkg."""')
-        (pkg / "mod.py").write_text("x = 1")
-        sub = pkg / "sub"
-        sub.mkdir()
-        (sub / "__init__.py").write_text("")
-        (sub / "ok.py").write_text("y = 2")
-        cache = sub / ".mypy_cache"
-        cache.mkdir()
-        (cache / "cached.py").write_text("z = 3")
 
-        result = analyze_package(pkg)
-        mod_names = [m.path.name for m in result.modules]
-        assert "ok.py" in mod_names
-        assert "cached.py" not in mod_names
+@pytest.mark.functional
+def test_skips_egg_info(tmp_path):
+    pkg = tmp_path / "mypkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text('"""pkg."""')
+    egg = pkg / "foo.egg-info"
+    egg.mkdir()
+    (egg / "bar.py").write_text("")
 
-    def test_top_level_and_nested_venv_both_skipped(self, tmp_path):
-        pkg = tmp_path / "mypkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text('"""pkg."""')
-        (pkg / "mod.py").write_text("x = 1")
-        (pkg / ".venv").mkdir()
-        (pkg / ".venv" / "a.py").write_text("")
-        sub = pkg / "sub"
-        sub.mkdir()
-        (sub / "__init__.py").write_text("")
-        (sub / "ok.py").write_text("y = 2")
-        (sub / ".venv").mkdir()
-        (sub / ".venv" / "b.py").write_text("")
+    result = analyze_package(pkg)
+    assert len(result.modules) == 1
 
-        result = analyze_package(pkg)
-        mod_names = sorted(m.path.name for m in result.modules)
-        assert "a.py" not in mod_names
-        assert "b.py" not in mod_names
+
+@pytest.mark.functional
+def test_nested_skip_dir(tmp_path):
+    pkg = tmp_path / "mypkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text('"""pkg."""')
+    (pkg / "mod.py").write_text("x = 1")
+    sub = pkg / "sub"
+    sub.mkdir()
+    (sub / "__init__.py").write_text("")
+    (sub / "ok.py").write_text("y = 2")
+    cache = sub / ".mypy_cache"
+    cache.mkdir()
+    (cache / "cached.py").write_text("z = 3")
+
+    result = analyze_package(pkg)
+    mod_names = [m.path.name for m in result.modules]
+    assert "ok.py" in mod_names
+    assert "cached.py" not in mod_names
+
+
+@pytest.mark.functional
+def test_top_level_and_nested_venv_both_skipped(tmp_path):
+    pkg = tmp_path / "mypkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text('"""pkg."""')
+    (pkg / "mod.py").write_text("x = 1")
+    (pkg / ".venv").mkdir()
+    (pkg / ".venv" / "a.py").write_text("")
+    sub = pkg / "sub"
+    sub.mkdir()
+    (sub / "__init__.py").write_text("")
+    (sub / "ok.py").write_text("y = 2")
+    (sub / ".venv").mkdir()
+    (sub / ".venv" / "b.py").write_text("")
+
+    result = analyze_package(pkg)
+    mod_names = sorted(m.path.name for m in result.modules)
+    assert "a.py" not in mod_names
+    assert "b.py" not in mod_names
 
 
 @pytest.mark.functional
@@ -310,3 +319,118 @@ class TestAnalyzePackageGitignore:
         mod_names = [m.path.name for m in result.modules]
         assert "stuff.py" in mod_names
         assert "mod.py" in mod_names
+
+
+@pytest.mark.integration
+class TestAbsoluteImportEdges:
+    """Absolute intra-package imports create dependency edges."""
+
+    def test_absolute_import_creates_edge(self, tmp_path: Path) -> None:
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "sub.py").write_text("x = 1\n")
+        (pkg / "main.py").write_text("from mypkg.sub import x\n")
+
+        result = analyze_package(pkg)
+        graph = build_import_graph(result)
+        assert "main" in graph
+        assert "sub" in graph["main"]
+
+    def test_absolute_import_nested(self, tmp_path: Path) -> None:
+        pkg = tmp_path / "mypkg"
+        core = pkg / "core"
+        core.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (core / "__init__.py").write_text("")
+        (core / "engine.py").write_text("def run() -> None: ...\n")
+        (pkg / "cli.py").write_text("from mypkg.core.engine import run\n")
+
+        result = analyze_package(pkg)
+        graph = build_import_graph(result)
+        assert "cli" in graph
+        assert "core.engine" in graph["cli"]
+
+    def test_absolute_import_to_package_root(self, tmp_path: Path) -> None:
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("VERSION = '1.0'\n")
+        (pkg / "info.py").write_text("from mypkg import VERSION\n")
+
+        result = analyze_package(pkg)
+        graph = build_import_graph(result)
+        assert "info" in graph
+        assert "mypkg" in graph["info"]
+
+    def test_external_import_no_edge(self, tmp_path: Path) -> None:
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "mod.py").write_text("from pathlib import Path\nimport os\n")
+
+        result = analyze_package(pkg)
+        graph = build_import_graph(result)
+        assert "mod" not in graph
+
+    def test_self_import_no_edge(self, tmp_path: Path) -> None:
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "mod.py").write_text("from mypkg.mod import something\n")
+
+        result = analyze_package(pkg)
+        graph = build_import_graph(result)
+        if "mod" in graph:
+            assert "mod" not in graph["mod"]
+
+
+@pytest.mark.integration
+class TestRelativeImportEdges:
+    """Relative imports still create edges."""
+
+    def test_relative_import_creates_edge(self, tmp_path: Path) -> None:
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "sub.py").write_text("x = 1\n")
+        (pkg / "main.py").write_text("from .sub import x\n")
+
+        result = analyze_package(pkg)
+        graph = build_import_graph(result)
+        assert "main" in graph
+        assert "sub" in graph["main"]
+
+
+@pytest.mark.integration
+class TestMixedImports:
+    """Packages using both absolute and relative imports."""
+
+    def test_both_create_edges(self, tmp_path: Path) -> None:
+        pkg = tmp_path / "mypkg"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "a.py").write_text("x = 1\n")
+        (pkg / "b.py").write_text("y = 2\n")
+        (pkg / "c.py").write_text("from .a import x\nfrom mypkg.b import y\n")
+
+        result = analyze_package(pkg)
+        graph = build_import_graph(result)
+        assert "c" in graph
+        targets = graph["c"]
+        assert "a" in targets
+        assert "b" in targets
+
+
+@pytest.mark.integration
+class TestRealProjectGraph:
+    """Smoke test on axm-ast source itself."""
+
+    def test_axm_ast_has_edges(self) -> None:
+        src = Path(__file__).resolve().parents[2] / "src" / "axm_ast"
+        if not src.is_dir():
+            pytest.skip("Source not available")
+        result = analyze_package(src)
+        graph = build_import_graph(result)
+        assert len(graph) > 0
+        total_edges = sum(len(v) for v in graph.values())
+        assert total_edges >= 1

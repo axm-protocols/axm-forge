@@ -63,28 +63,6 @@ def _module_by_name(pkg: PackageInfo, name: str) -> ModuleInfo:
     return next(m for m in pkg.modules if m.path.name == name)
 
 
-@pytest.fixture()
-def sample_var() -> VariableInfo:
-    return VariableInfo(name="MY_VAR", line=25)
-
-
-@pytest.fixture()
-def sample_module(
-    sample_func: FunctionInfo, sample_class: ClassInfo, sample_var: VariableInfo
-) -> ModuleInfo:
-    return ModuleInfo(
-        path=Path("mod.py"),
-        functions=[sample_func],
-        classes=[sample_class],
-        variables=[sample_var],
-    )
-
-
-@pytest.fixture()
-def sample_package(sample_module: ModuleInfo) -> PackageInfo:
-    return PackageInfo(name="pkg", root=Path("pkg"), modules=[sample_module])
-
-
 # ── analyze_package — dead-code regression ──
 
 

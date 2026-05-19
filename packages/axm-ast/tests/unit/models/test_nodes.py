@@ -353,28 +353,6 @@ def test_public_api() -> None:
     assert "_priv" not in names
 
 
-@pytest.fixture()
-def sample_var() -> VariableInfo:
-    return VariableInfo(name="MY_VAR", line=25)
-
-
-@pytest.fixture()
-def sample_module(
-    sample_func: FunctionInfo, sample_class: ClassInfo, sample_var: VariableInfo
-) -> ModuleInfo:
-    return ModuleInfo(
-        path=Path("mod.py"),
-        functions=[sample_func],
-        classes=[sample_class],
-        variables=[sample_var],
-    )
-
-
-@pytest.fixture()
-def sample_package(sample_module: ModuleInfo) -> PackageInfo:
-    return PackageInfo(name="pkg", root=Path("pkg"), modules=[sample_module])
-
-
 def test_find_by_object_identity(
     sample_package: PackageInfo, sample_func: FunctionInfo
 ) -> None:

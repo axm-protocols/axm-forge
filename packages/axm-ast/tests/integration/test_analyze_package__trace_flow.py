@@ -1284,3 +1284,51 @@ class TestTraceFlowEdgeCases:
         # Entry point still appears, just no children
         assert len(steps) == 1
         assert steps[0].name == "lonely"
+
+
+class TestTryResolveCallee:
+    """Public-API tests for cross-module resolution skipping local symbols."""
+
+    def test_local_callee_not_cross_resolved(self, tmp_path: Path) -> None:
+        """A function calling another LOCAL function → trace step has no
+        ``resolved_module`` (cross-module resolution skips local symbols)."""
+        pkg_dir = tmp_path / "pkg"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text("")
+        (pkg_dir / "utils.py").write_text(
+            "def local_fn():\n    pass\n\ndef caller():\n    local_fn()\n"
+        )
+
+        pkg = analyze_package(pkg_dir)
+        steps, _ = trace_flow(pkg, "caller", cross_module=True, max_depth=3)
+        names = {s.name for s in steps}
+        assert {"caller", "local_fn"} <= names
+
+        local_step = next(s for s in steps if s.name == "local_fn")
+        # Local lookups never go through cross-module resolution → no
+        # resolved_module is attached (that field is only set by the
+        # cross-module path).
+        assert local_step.resolved_module is None
+
+
+class TestCrossModuleEdgeCases:
+    """Edge cases for cross-module trace resolution."""
+
+    def test_reexport_missing_target_skipped(self, tmp_path: Path) -> None:
+        """An ``__init__`` that re-exports from a missing relative module → the
+        broken re-export is silently skipped (no FlowStep, no crash)."""
+        pkg_dir = tmp_path / "pkg"
+        pkg_dir.mkdir()
+        # __init__ tries to re-export Widget from a non-existent ``.missing``
+        (pkg_dir / "__init__.py").write_text("from .missing import Widget\n")
+        # caller.py imports Widget through the package and uses it
+        (pkg_dir / "caller.py").write_text(
+            "from pkg import Widget\n\ndef entry():\n    Widget()\n"
+        )
+
+        pkg = analyze_package(pkg_dir)
+        steps, _ = trace_flow(pkg, "entry", cross_module=True, max_depth=3)
+        # Widget never resolves anywhere → no FlowStep for it.
+        names = {s.name for s in steps}
+        assert "entry" in names
+        assert "Widget" not in names
