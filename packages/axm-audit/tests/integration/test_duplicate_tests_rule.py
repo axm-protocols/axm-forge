@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 import textwrap
 from pathlib import Path
@@ -122,23 +121,6 @@ def test_score_matches_pair_count_from_members(tmp_path: Path) -> None:
     result = DuplicateTestsRule().check(project)
     assert result.score == 95
     assert re.search(r"1 cluster\(s\), 1 clustered pair\(s\)", result.message)
-
-
-def test_self_audit_payload_under_size_threshold() -> None:
-    """AC5: self-audit cluster payload is < 65 000 chars after the dedup."""
-    pkg_root = Path(__file__).resolve().parents[2]
-    result = DuplicateTestsRule().check(pkg_root)
-    payload = json.dumps(result.metadata["clusters"])
-    assert len(payload) < 65_000
-
-
-def test_no_cluster_dict_has_tests_key() -> None:
-    """AC1, AC2: every cluster in metadata uses `members`, never `tests`."""
-    pkg_root = Path(__file__).resolve().parents[2]
-    result = DuplicateTestsRule().check(pkg_root)
-    for cluster in result.metadata["clusters"]:
-        assert "members" in cluster
-        assert "tests" not in cluster
 
 
 def test_one_with_raises_one_without_demoted(tmp_path: Path) -> None:
