@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 
 class TestGetPythonFiles:
     """Tests for get_python_files()."""
@@ -22,18 +24,21 @@ class TestGetPythonFiles:
         assert "mod.py" in names
         assert "data.txt" not in names
 
-    def test_empty_directory(self, tmp_path: Path) -> None:
-        """Empty directory returns empty list."""
+    @pytest.mark.parametrize(
+        "subpath",
+        [
+            pytest.param("", id="empty_directory"),
+            pytest.param("does_not_exist", id="nonexistent_directory"),
+        ],
+    )
+    def test_returns_empty_list_for_no_python_files(
+        self, tmp_path: Path, subpath: str
+    ) -> None:
+        """No-Python-files paths (empty/nonexistent dir) return []."""
         from axm_audit.core.rules._helpers import get_python_files
 
-        assert get_python_files(tmp_path) == []
-
-    def test_nonexistent_directory(self, tmp_path: Path) -> None:
-        """Non-existent directory returns empty list without error."""
-        from axm_audit.core.rules._helpers import get_python_files
-
-        missing = tmp_path / "does_not_exist"
-        assert get_python_files(missing) == []
+        target = tmp_path / subpath if subpath else tmp_path
+        assert get_python_files(target) == []
 
     def test_nested_init_files(self, tmp_path: Path) -> None:
         """Should include __init__.py at all nesting levels."""

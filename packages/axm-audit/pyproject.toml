@@ -293,6 +293,34 @@ reason = "Tests guard 3 disjoint AntiMirrorRule pass-branches: scenario-named te
 hash = "7fa1b65783dd"
 reason = "Cluster spans two distinct SUTs in test_test_runner: TestParseFailures.test_empty_list and test_passing_tests_skipped exercise parse_failures([]) / parse_failures([passed]), while TestParseCollectorErrors.test_empty_list exercises parse_collector_errors([]); both parsers are public API and each empty-list contract guards a different function — folding would erase the parse_failures vs parse_collector_errors boundary."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ad9eb76affcb"
+reason = "Tests guard two disjoint with_packages branches of run_in_project: inserts_flags asserts the exact uv-run arg sequence when with_packages is a non-empty list (--with flags interleaved between 'uv run' and '--directory'), while none_no_effect asserts with_packages=None produces the baseline command unchanged; collapsing would erase the insertion-path-vs-no-op-path distinction."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b052a0b0f5ad"
+reason = "Tests guard two disjoint radon-detection branches of ComplexityRule.check: radon_in_project exercises the API path with the real complexipy/radon imports available (no patches, asserts passed + score>=90), while radon_fallback patches _try_import_radon to None and shutil.which/subprocess.run to simulate the binary-only fallback path consuming a synthetic radon JSON payload; each pins a different acquisition-of-metrics branch."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "338c5b72e66e"
+reason = "Tests assert opposite verdicts on DependencyAuditRule's env-tool filter: excludes_each_env_tool parametrizes over the known env-tool allowlist (pip/setuptools/wheel/uv/pip-audit, case-insensitive) and asserts vuln_count==0, while passes_through_unknown_package feeds 'numpy' (not in the allowlist) and asserts vuln_count==1; collapsing erases the include-vs-exclude classification boundary."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d675e96daf1d"
+reason = "Tests guard two disjoint DependencyHygieneRule text-rendering branches: single_package_text_format asserts multi-issue concatenation with a known code mapping (DEP002 -> 'unused dep', DEP001 -> 'missing dep' joined by '\\n'), while unknown_deptry_code feeds an unmapped 'DEP999' code and asserts the message passes through verbatim ('• DEP999 mod: some new rule'); collapsing erases the known-code-mapping-vs-unknown-passthrough distinction."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "75d5890ee84a"
+reason = "Tests guard two disjoint ProjectRule.check_src layout branches that both return None: single_package builds tmp_path/src (asserts check_src yields None so the rule descends into a single src tree), while multi_package builds tmp_path/packages/{a,b}/src (asserts None so iter_src_dirs handles the multi-pkg fan-out); the divergent layout IS the pinned contract because each path routes the caller to a different walker and folding erases the single-vs-multi distinction."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d1fd8b811e81"
+reason = "Tests guard two disjoint defensive-parse branches of parse_file_safe: syntax_error writes invalid Python source ('def broken(\\n') triggering ast.parse SyntaxError, while binary_file writes non-UTF-8 bytes (b'\\x80\\x81\\x82\\x83') triggering a decode error before parsing; both return None but each exercises a different except clause (SyntaxError vs UnicodeDecodeError) and folding erases the input-shape-vs-exception-kind distinction."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "191d3b600d73"
+reason = "Tests pin opposite ends of LintingRule's scoring curve: issues_reduce_score feeds two unused-import violations (import os, import sys) and asserts score<100 + issue_count>0, while lint_threshold_unchanged feeds one mild unused import and asserts the score still clears the 90 threshold (>=90) — the first guards the score-reduction monotonicity, the second guards the no-regression-on-mild-issues threshold contract; folding erases the strict<100-vs-loose>=90 boundary."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
