@@ -8,6 +8,11 @@ import pytest
 from axm.tools.base import ToolResult
 
 from axm_ast.tools.inspect import InspectTool
+from axm_ast.tools.inspect_detail import (
+    class_detail,
+    function_detail,
+    variable_detail,
+)
 
 
 @pytest.fixture()
@@ -75,14 +80,14 @@ class TestInspectEdgeCasesUnit:
 
 
 class TestVariableDetail:
-    """Tests for InspectTool._variable_detail (extracted from _build_detail)."""
+    """Tests for variable_detail (extracted from build_detail)."""
 
     def test_variable_detail_keys(self) -> None:
-        """_variable_detail returns dict with expected keys."""
+        """variable_detail returns dict with expected keys."""
         from axm_ast.models.nodes import VariableInfo
 
         var = VariableInfo(name="MY_CONST", line=10, annotation="int", value_repr="42")
-        detail = InspectTool._variable_detail(var, file="mod.py")
+        detail = variable_detail(var, file="mod.py")
         assert detail["name"] == "MY_CONST"
         assert detail["file"] == "mod.py"
         assert detail["kind"] == "variable"
@@ -95,7 +100,7 @@ class TestVariableDetail:
         from axm_ast.models.nodes import VariableInfo
 
         var = VariableInfo(name="x", line=1, annotation=None, value_repr="1")
-        detail = InspectTool._variable_detail(var, file="a.py")
+        detail = variable_detail(var, file="a.py")
         assert "annotation" not in detail
 
     def test_variable_with_annotation(self) -> None:
@@ -103,12 +108,12 @@ class TestVariableDetail:
         from axm_ast.models.nodes import VariableInfo
 
         var = VariableInfo(name="x", line=1, annotation="str", value_repr=None)
-        detail = InspectTool._variable_detail(var, file="a.py")
+        detail = variable_detail(var, file="a.py")
         assert detail["annotation"] == "str"
 
 
 class TestFunctionDetail:
-    """Tests for InspectTool._function_detail (extracted from _build_detail)."""
+    """Tests for function_detail (extracted from build_detail)."""
 
     def test_function_detail_params(self) -> None:
         """_function_detail includes signature and parameters list."""
@@ -122,7 +127,7 @@ class TestFunctionDetail:
             params=[ParameterInfo(name="name", annotation="str", default=None)],
             docstring="Say hello.",
         )
-        detail = InspectTool._function_detail(fn, file="core.py")
+        detail = function_detail(fn, file="core.py")
         assert detail["name"] == "greet"
         assert detail["signature"] == "def greet(name: str) -> str"
         assert len(detail["parameters"]) == 1
@@ -140,12 +145,12 @@ class TestFunctionDetail:
             params=[],
             docstring=None,
         )
-        detail = InspectTool._function_detail(fn, file="a.py")
+        detail = function_detail(fn, file="a.py")
         assert "return_type" not in detail
 
 
 class TestClassDetail:
-    """Tests for InspectTool._class_detail (extracted from _build_detail)."""
+    """Tests for class_detail (extracted from build_detail)."""
 
     def test_class_detail_methods(self) -> None:
         """_class_detail includes bases and methods list."""
@@ -167,7 +172,7 @@ class TestClassDetail:
             methods=[method],
             docstring="A runner.",
         )
-        detail = InspectTool._class_detail(cls, file="run.py")
+        detail = class_detail(cls, file="run.py")
         assert detail["name"] == "Runner"
         assert detail["bases"] == ["BaseRunner"]
         assert "run" in detail["methods"]
@@ -184,7 +189,7 @@ class TestClassDetail:
             methods=[],
             docstring=None,
         )
-        detail = InspectTool._class_detail(cls, file="a.py")
+        detail = class_detail(cls, file="a.py")
         assert "bases" not in detail
         assert "methods" not in detail
 
