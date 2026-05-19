@@ -63,51 +63,49 @@ def test_batch_compact_per_symbol_scores() -> None:
     assert "MEDIUM" in rows[2]
 
 
-def test_batch_compact_all_same_score() -> None:
-    """2 reports both LOW - both rows show LOW."""
-    reports = [
-        _bc_make_report("alpha", "LOW"),
-        _bc_make_report("beta", "LOW"),
-    ]
-    result = format_impact_compact_multi(reports, score="LOW")
+@pytest.mark.parametrize(
+    ("reports", "score", "expected_row_count", "expected_score_in_rows"),
+    [
+        pytest.param(
+            [("alpha", "LOW"), ("beta", "LOW")],
+            "LOW",
+            2,
+            "LOW",
+            id="all_same_score",
+        ),
+        pytest.param(
+            [("no_score_sym", None)],
+            "LOW",
+            1,
+            "LOW",
+            id="missing_score_defaults_to_low",
+        ),
+        pytest.param(
+            [("only_one", "MEDIUM")],
+            "MEDIUM",
+            1,
+            "MEDIUM",
+            id="single_symbol",
+        ),
+    ],
+)
+def test_batch_compact_score_rendering(
+    reports: list[tuple[str, str | None]],
+    score: str,
+    expected_row_count: int,
+    expected_score_in_rows: str,
+) -> None:
+    """format_impact_compact_multi renders per-row score in the table body."""
+    built = [_bc_make_report(name, sc) for name, sc in reports]
+    result = format_impact_compact_multi(built, score=score)
     rows = [
         line
         for line in result.splitlines()
         if line.startswith("|") and "---" not in line and "Symbol" not in line
     ]
-    assert len(rows) == 2
+    assert len(rows) == expected_row_count
     for row in rows:
-        assert "LOW" in row
-
-
-def test_batch_compact_missing_score_defaults_to_low() -> None:
-    """Report with no 'score' key should display LOW as default."""
-    reports = [
-        _bc_make_report("no_score_sym"),
-    ]
-    result = format_impact_compact_multi(reports, score="LOW")
-    rows = [
-        line
-        for line in result.splitlines()
-        if line.startswith("|") and "---" not in line and "Symbol" not in line
-    ]
-    assert len(rows) == 1
-    assert "LOW" in rows[0]
-
-
-def test_batch_compact_single_symbol() -> None:
-    """Single-symbol batch shows its own score in the row."""
-    reports = [
-        _bc_make_report("only_one", "MEDIUM"),
-    ]
-    result = format_impact_compact_multi(reports, score="MEDIUM")
-    rows = [
-        line
-        for line in result.splitlines()
-        if line.startswith("|") and "---" not in line and "Symbol" not in line
-    ]
-    assert len(rows) == 1
-    assert "MEDIUM" in rows[0]
+        assert expected_score_in_rows in row
 
 
 # ── compact format ──
