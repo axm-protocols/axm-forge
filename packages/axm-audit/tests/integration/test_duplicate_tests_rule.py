@@ -934,6 +934,36 @@ def test_acknowledged_cluster_excluded_from_score(project: Path) -> None:
     assert ack["acknowledged"] is True
 
 
+def test_slim_clusters_via_public_api_attaches_hash_field(project: Path) -> None:
+    """AC1: every emitted cluster carries `cluster_hash` (12 hex chars).
+
+    Drives `_slim_clusters` via the public API: the slim cluster shape is
+    what `DuplicateTestsRule().check(project).metadata["clusters"]` exposes.
+    """
+    _write_two_duplicates(project)
+    h = _first_cluster_hash(project)
+    assert isinstance(h, str)
+    assert len(h) == 12
+    assert all(c in "0123456789abcdef" for c in h)
+
+
+def test_slim_clusters_via_public_api_uses_members_key_not_tests(
+    project: Path,
+) -> None:
+    """AC2: slim clusters expose `members`; the legacy `tests` key is absent.
+
+    Drives `_slim_clusters` via the public API: the slim cluster shape is
+    what `DuplicateTestsRule().check(project).metadata["clusters"]` exposes.
+    """
+    _write_two_duplicates(project)
+    result = DuplicateTestsRule().check(project)
+    clusters = result.metadata["clusters"]
+    assert clusters, "setup error: expected at least one cluster"
+    cluster = clusters[0]
+    assert "members" in cluster
+    assert "tests" not in cluster
+
+
 def test_cluster_hash_is_deterministic_and_order_independent_via_public_api(
     project: Path, tmp_path_factory: pytest.TempPathFactory
 ) -> None:
