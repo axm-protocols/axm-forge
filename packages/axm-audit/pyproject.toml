@@ -461,6 +461,22 @@ reason = "Inter-file heterogeneous case: ComplexityRule.test_all_offenders_shown
 hash = "0398f95d65eb"
 reason = "Inter-file heterogeneous case: DocstringCoverageRule.test_missing_no_cap seeds 15 undocumented functions and asserts `details['missing']` has length 15 (no cap on missing-list), while TypeCheckRule.test_typecheck_errors_match_count seeds a bad type annotation and asserts `len(details['errors']) == details['error_count']` (errors-list consistency invariant). Different rule SUTs (practices.docstring_coverage vs quality.TypeCheckRule), different details schemas (`missing` vs `errors`/`error_count`), different invariants. ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "183f6f779af3"
+reason = "Inter-file heterogeneous case: LintingRule.test_lint_details_has_issues_key asserts `details['issues']` is a list on a clean package (lint contract), while TypeCheckRule.test_typecheck_details_has_errors_key asserts `details['errors']` is a list on a typed package (type-check contract). Different rule SUTs (quality.LintingRule vs quality.TypeCheckRule), different details schemas (`issues` vs `errors`), different toolchains (ruff vs mypy). ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d31070d4279f"
+reason = "Inter-file heterogeneous case: find_venv.test_returns_none_when_no_venv asserts `find_venv` returns None when no `.venv` exists anywhere in the project tree (absence contract), while find_venv__max_venv_search_depth.test_find_venv_bounded_depth seeds a real `.venv` then asserts None when called from beyond `_MAX_VENV_SEARCH_DEPTH` levels deep (depth-bound contract). Same return value, opposite reasons — one guards the no-venv path, the other guards the search-depth limit boundary. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "121e82ae611c"
+reason = "Inter-file heterogeneous case: scan_package.test_known_true_e2e_files_stay_e2e calls `scan_package(AXM_AUDIT)` and asserts true-e2e files are not reclassified away from e2e (pyramid-classifier preservation contract), while rules.test_base.test_promoted_symbols_not_in_root_all imports `axm_audit` and asserts promoted helpers do not leak into the package root `__all__` (public-API surface contract). Different SUTs (pyramid scanner vs package `__all__`), different domains, unrelated. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8b6d4e68e443"
+reason = "Inter-file heterogeneous case: architecture.test_coupling.test_coupling_module_exports parametrizes over `_EXPECTED_PUBLIC_SYMBOLS` and asserts each is `hasattr` + `callable` on `axm_audit.core.rules.architecture.coupling` (coupling public-API surface), while core.test_test_runner.test_test_runner_public_parsing_api iterates `_PUBLIC` and asserts each is `hasattr` + `callable` on `axm_audit.core.test_runner` (test_runner parsing public-API surface). Same shape but disjoint modules and disjoint symbol lists; collapsing would couple two unrelated public surfaces. ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
