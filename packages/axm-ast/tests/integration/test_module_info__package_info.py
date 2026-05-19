@@ -1,14 +1,18 @@
-"""Tests for extracted cross-module resolution helpers.
+"""Public-API drivers for cross-module resolution edge cases.
 
-Covers _find_source_module, _try_resolve_callee, and edge cases
-for _resolve_cross_module_callees after complexity refactoring.
+Previously imported ``axm_ast.core.flows._find_source_module``,
+``_CrossModuleContext``, ``_ResolutionScope`` and
+``_resolve_cross_module_callees`` directly. The same scenarios are now
+exercised through ``find_module_for_symbol`` (public analyzer surface)
+and ``trace_flow(cross_module=True)`` on real fixture packages.
 """
 
 from __future__ import annotations
 
-from collections import deque
 from pathlib import Path
 
+from axm_ast.core.analyzer import analyze_package, find_module_for_symbol
+from axm_ast.core.flows import trace_flow
 from axm_ast.models.nodes import (
     ModuleInfo,
     PackageInfo,
@@ -16,67 +20,43 @@ from axm_ast.models.nodes import (
 
 
 def test_find_source_module_by_dotted_name(tmp_path: Path) -> None:
-    """PackageInfo + dotted module name → returns ModuleInfo via fallback."""
-    from axm_ast.core.flows import _find_source_module
-    from axm_ast.models.nodes import ModuleInfo, PackageInfo
+    """Symbol lookup on a real package returns the owning ModuleInfo."""
+    pkg_dir = tmp_path / "pkg"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    core_dir = pkg_dir / "core"
+    core_dir.mkdir()
+    (core_dir / "__init__.py").write_text("")
+    handler_py = core_dir / "handler.py"
+    handler_py.write_text("def handle(): pass\n")
 
-    root = tmp_path / "src"
-    mod_path = root / "core" / "handler.py"
-    mod_path.parent.mkdir(parents=True)
-    mod_path.write_text("")
-
-    mod = ModuleInfo(path=mod_path, functions=[], classes=[], imports=[])
-    pkg = PackageInfo(name="test", root=root, modules=[mod])
-
-    result = _find_source_module(pkg, "", "core.handler")
+    pkg = analyze_package(pkg_dir)
+    result = find_module_for_symbol(pkg, "handle")
     assert result is not None
-    assert result.path == mod_path
+    assert result.path == handler_py.resolve()
 
 
 class TestCrossModuleEdgeCases:
-    """Edge cases for _resolve_cross_module_callees."""
+    """Edge cases for cross-module trace resolution."""
 
     def test_reexport_missing_target_skipped(self, tmp_path: Path) -> None:
-        """_follow_reexport returns None → callee skipped."""
-        from axm_ast.core.flows import (
-            _CrossModuleContext,
-            _ResolutionScope,
-            _resolve_cross_module_callees,
-        )
-        from axm_ast.models.calls import CallSite
-        from axm_ast.models.nodes import ImportInfo, ModuleInfo, PackageInfo
-
-        root = tmp_path / "src"
-        init_py = root / "pkg" / "__init__.py"
-        init_py.parent.mkdir(parents=True)
-        init_py.write_text("from .missing import Widget")
-
-        mod = ModuleInfo(
-            path=init_py,
-            functions=[],
-            classes=[],
-            imports=[ImportInfo(module=".missing", names=["Widget"])],
-        )
-        pkg = PackageInfo(name="test", root=root, modules=[mod])
-        ctx = _CrossModuleContext(visited=set(), queue=deque(), steps=[])
-        scope = _ResolutionScope(
-            current_mod="pkg",
-            current_pkg=pkg,
-            original_pkg=pkg,
-            depth=0,
-            current_chain=["entry"],
+        """An ``__init__`` that re-exports from a missing relative module → the
+        broken re-export is silently skipped (no FlowStep, no crash)."""
+        pkg_dir = tmp_path / "pkg"
+        pkg_dir.mkdir()
+        # __init__ tries to re-export Widget from a non-existent ``.missing``
+        (pkg_dir / "__init__.py").write_text("from .missing import Widget\n")
+        # caller.py imports Widget through the package and uses it
+        (pkg_dir / "caller.py").write_text(
+            "from pkg import Widget\n\ndef entry():\n    Widget()\n"
         )
 
-        callee = CallSite(
-            symbol="Widget",
-            module="pkg",
-            line=1,
-            column=0,
-            context="",
-            call_expression="Widget()",
-        )
-        _resolve_cross_module_callees([callee], scope, ctx)
-        assert ctx.steps == []
+        pkg = analyze_package(pkg_dir)
+        steps, _ = trace_flow(pkg, "entry", cross_module=True, max_depth=3)
+        # Widget never resolves anywhere → no FlowStep for it.
+        names = {s.name for s in steps}
+        assert "entry" in names
+        assert "Widget" not in names
 
 
 def test_module_names(tmp_path: Path) -> None:
