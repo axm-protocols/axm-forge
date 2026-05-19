@@ -441,6 +441,26 @@ reason = "Canonical 'different-rule-class' inter-file case explicitly noted in t
 hash = "e16257fc86ec"
 reason = "Canonical 'different-rule-class' inter-file case (companion to d3e92de3fd36): DirectoryExistsRule.test_directory_exists_no_fix_hint asserts `fix_hint is None` on the passing-dir branch of DirectoryExistsRule, while FileExistsRule.test_file_exists_no_fix_hint asserts the same on the passing-file branch of FileExistsRule. Two different rule SUTs guarding the same no-fix-hint-when-passing contract on disjoint rule classes; folding would couple structure.DirectoryExistsRule and structure.FileExistsRule into a single parametrize and erase the per-rule contract. ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "86efaf49eb69"
+reason = "Inter-file heterogeneous case: DuplicationRule.test_duplicate_text_has_func_name uses `_write_func` to seed two identical 'process' functions in src/ and asserts the function name appears in rendered text, while LintingRule.test_short_path_fallback monkeypatches `run_in_project` to return a synthetic ruff JSON issue with an out-of-project filename and asserts the original path is preserved in text. Different rule SUTs (DuplicationRule vs LintingRule), different fixtures (`rule` + `_write_func` vs `project_path` + `monkeypatch`), different signal probed (clone detector vs lint-issue path renderer). ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c91efcd42753"
+reason = "Inter-file heterogeneous case: TautologyRule.test_severity_warning seeds `test_sample.py` with `assert True` and asserts severity == WARNING (tautology contract), while ToolAvailabilityRule.test_found_tool_has_info_severity instantiates the rule with `tool_name='python3'` and asserts severity == INFO (tool-availability contract). Different rule SUTs (test_quality.tautology vs tooling.ToolAvailabilityRule), different severities (WARNING vs INFO), different setup paths (filesystem seed vs in-memory rule construction). ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c70a2fa2b83a"
+reason = "Inter-file heterogeneous case: TypeCheckRule.test_type_check_path_unchanged parametrizes (path, expected_substring) over tests/scripts paths and asserts `path:` is preserved in rendered text via mocked mypy JSON, while DeadCodeRule.test_dead_code_text_path_fallbacks parametrizes (symbol_dict, expected_substring) over module_path/missing-file fallbacks and asserts the bullet rendering via mocked subprocess axm-ast. Different rule SUTs (TypeCheckRule vs DeadCodeRule), different fixtures (`_patch_infra` + `_mock_mypy` vs `mocker` + `subprocess.run` patch), different rendered schemas. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d291aa9a22d1"
+reason = "Inter-file heterogeneous case: ComplexityRule.test_all_offenders_shown generates 8 high-CC functions on-disk and asserts `top_offenders` includes ALL of them (no top-5 cap), while FormattingRule.test_many_unformatted_capped_at_20 mocks ruff format --check stdout with 30 unformatted-file lines and asserts the surfaced list is capped at 20. Different rule SUTs (complexity.ComplexityRule vs quality.FormattingRule), different contracts (no-cap-for-offenders vs cap-at-20-for-files), opposite cap semantics on disjoint payloads. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "0398f95d65eb"
+reason = "Inter-file heterogeneous case: DocstringCoverageRule.test_missing_no_cap seeds 15 undocumented functions and asserts `details['missing']` has length 15 (no cap on missing-list), while TypeCheckRule.test_typecheck_errors_match_count seeds a bad type annotation and asserts `len(details['errors']) == details['error_count']` (errors-list consistency invariant). Different rule SUTs (practices.docstring_coverage vs quality.TypeCheckRule), different details schemas (`missing` vs `errors`/`error_count`), different invariants. ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
