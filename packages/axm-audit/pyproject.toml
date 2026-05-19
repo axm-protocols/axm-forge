@@ -477,6 +477,14 @@ reason = "Inter-file heterogeneous case: scan_package.test_known_true_e2e_files_
 hash = "8b6d4e68e443"
 reason = "Inter-file heterogeneous case: architecture.test_coupling.test_coupling_module_exports parametrizes over `_EXPECTED_PUBLIC_SYMBOLS` and asserts each is `hasattr` + `callable` on `axm_audit.core.rules.architecture.coupling` (coupling public-API surface), while core.test_test_runner.test_test_runner_public_parsing_api iterates `_PUBLIC` and asserts each is `hasattr` + `callable` on `axm_audit.core.test_runner` (test_runner parsing public-API surface). Same shape but disjoint modules and disjoint symbol lists; collapsing would couple two unrelated public surfaces. ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8d67f5ff4c6b"
+reason = "Heterogeneous intra-file case in TestFormatAgentText: test_format_agent_failed_with_text_includes_both asserts the truthy-text branch (text wins, details excluded), while test_format_agent_failed_falsy_text_uses_details (already parametrized over None/'') asserts the falsy-text-fallback branch (details wins, text excluded). Opposite contract verdicts — folding would erase the truthy-vs-falsy branch distinction. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "baedb510dffb"
+reason = "Heterogeneous intra-file case in test_file_naming.py: test_canonical_integration calls canonical_filename(symbols_or_tuples=tuple[str,...], tier='integration', single_binary=None) covering K=2/K=1/PascalCase→snake variants, while test_canonical_e2e_single_binary calls canonical_filename(symbols_or_tuples=list[tuple[str,str]], tier='e2e', single_binary='axm-audit') covering single-binary strip vs no-sub. Different tier branches, different `single_binary` mode, different input shapes. Folding would force a generic tier/single_binary parameter and erase the e2e-vs-integration distinction. ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
