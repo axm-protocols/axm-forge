@@ -18,7 +18,6 @@ from axm_ast.models.nodes import (
     ParameterInfo,
     VariableInfo,
     WorkspaceInfo,
-    _strip_annotated,
 )
 
 # ── ClassInfo ──
@@ -464,31 +463,16 @@ class TestWorkspaceInfo:
         assert len(ws.package_edges) == 0
 
 
-# ── _strip_annotated ──
-
-
-class TestStripAnnotated:
-    """Unit tests for _strip_annotated helper."""
-
-    def test_strip_simple_annotated(self) -> None:
-        assert _strip_annotated("Annotated[str, Parameter(...)]") == "str"
-
-    def test_strip_nested_type(self) -> None:
-        assert _strip_annotated("Annotated[dict[str, int], Meta()]") == "dict[str, int]"
-
-    def test_strip_multiline_annotated(self) -> None:
-        raw = "Annotated[\n    str,\n    Parameter(help='...'),\n]"
-        assert _strip_annotated(raw) == "str"
-
-    def test_no_strip_plain_type(self) -> None:
-        assert _strip_annotated("str") == "str"
-
-    def test_no_strip_generic(self) -> None:
-        assert _strip_annotated("list[str]") == "list[str]"
+# ── FunctionInfo.signature Annotated-stripping (public surface) ──
 
 
 class TestFunctionInfoSignatureStrips:
-    """Functional tests: FunctionInfo.model_post_init strips Annotated."""
+    """Functional tests: FunctionInfo.model_post_init strips Annotated.
+
+    These tests drive Annotated-stripping through the public
+    ``FunctionInfo.signature`` surface (computed in ``model_post_init``)
+    rather than reaching into the private ``_strip_annotated`` helper.
+    """
 
     def test_function_info_signature_strips_annotated(self) -> None:
         info = FunctionInfo(
@@ -533,9 +517,56 @@ class TestFunctionInfoSignatureStrips:
         assert "port: int" in info.signature
         assert "verbose: bool" in info.signature
 
+    def test_strip_nested_type(self) -> None:
+        """Annotated[dict[str, int], ...] preserves the inner generic."""
+        info = FunctionInfo(
+            name="f",
+            line_start=1,
+            line_end=1,
+            params=[
+                ParameterInfo(name="p", annotation="Annotated[dict[str, int], Meta()]"),
+            ],
+        )
+        assert info.signature is not None
+        assert "Annotated" not in info.signature
+        assert "p: dict[str, int]" in info.signature
 
-class TestStripAnnotatedEdgeCases:
-    """Edge-case coverage for _strip_annotated."""
+    def test_strip_multiline_annotated(self) -> None:
+        """Annotated[...] spread across multiple lines is still stripped."""
+        raw = "Annotated[\n    str,\n    Parameter(help='...'),\n]"
+        info = FunctionInfo(
+            name="f",
+            line_start=1,
+            line_end=1,
+            params=[ParameterInfo(name="p", annotation=raw)],
+        )
+        assert info.signature is not None
+        assert "Annotated" not in info.signature
+        assert "p: str" in info.signature
+
+    def test_no_strip_plain_type(self) -> None:
+        """A bare type passes through unchanged."""
+        info = FunctionInfo(
+            name="f",
+            line_start=1,
+            line_end=1,
+            params=[ParameterInfo(name="p", annotation="str")],
+        )
+        assert info.signature == "def f(p: str)"
+
+    def test_no_strip_generic(self) -> None:
+        """Generics that are not Annotated are preserved verbatim."""
+        info = FunctionInfo(
+            name="f",
+            line_start=1,
+            line_end=1,
+            params=[ParameterInfo(name="p", annotation="list[str]")],
+        )
+        assert info.signature == "def f(p: list[str])"
+
+
+class TestFunctionInfoSignatureStripsEdgeCases:
+    """Edge-case coverage for Annotated-stripping via FunctionInfo.signature."""
 
     def test_multiple_annotated_params(self) -> None:
         """Function with 3+ Annotated parameters — all stripped independently."""
@@ -559,7 +590,16 @@ class TestStripAnnotatedEdgeCases:
         assert "c: float" in info.signature
 
     def test_annotated_with_multiple_metadata(self) -> None:
-        assert _strip_annotated("Annotated[str, A, B, C]") == "str"
+        """Annotated[T, A, B, C] keeps only T."""
+        info = FunctionInfo(
+            name="f",
+            line_start=1,
+            line_end=1,
+            params=[ParameterInfo(name="p", annotation="Annotated[str, A, B, C]")],
+        )
+        assert info.signature is not None
+        assert "Annotated" not in info.signature
+        assert "p: str" in info.signature
 
     def test_annotated_as_return_type(self) -> None:
         """Return type Annotated[bool, ...] should also be stripped."""
@@ -578,7 +618,15 @@ class TestStripAnnotatedEdgeCases:
 
     def test_empty_annotated(self) -> None:
         """Annotated[str] with single arg (unusual but valid)."""
-        assert _strip_annotated("Annotated[str]") == "str"
+        info = FunctionInfo(
+            name="f",
+            line_start=1,
+            line_end=1,
+            params=[ParameterInfo(name="p", annotation="Annotated[str]")],
+        )
+        assert info.signature is not None
+        assert "Annotated" not in info.signature
+        assert "p: str" in info.signature
 
 
 # ---------------------------------------------------------------------------
