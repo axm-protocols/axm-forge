@@ -536,3 +536,24 @@ class TestFlowsToolDetail:
         steps = result.data["steps"]
         assert len(steps) >= 1
         assert "source" not in steps[0]
+
+
+# ─── Split from test_analyze_package__trace_flow.py ─────────────────────────
+
+
+def test_tool_passes_exclude_stdlib(tmp_path: Path) -> None:
+    """FlowsTool.execute(exclude_stdlib=False) → stdlib in results."""
+
+    pkg_path = _make_pkg(
+        tmp_path,
+        {
+            "__init__.py": "",
+            "core.py": ("def process(items):\n    n = len(items)\n    return n\n"),
+        },
+    )
+    tool = FlowsTool()
+    result = tool.execute(path=str(pkg_path), entry="process", exclude_stdlib=False)
+    assert result.success
+    assert result.data is not None
+    step_names = {s["name"] for s in result.data["steps"]}
+    assert "len" in step_names

@@ -1,8 +1,13 @@
-"""Tests for CalleesTool and CLI callees command (AXM-406)."""
+"""Tests for CalleesTool and CLI callees command (AXM-406).
+
+Also includes tests split from ``test_analyze_package__trace_flow.py``.
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
+from unittest.mock import patch
 
 from axm_ast.core.analyzer import analyze_package
 from axm_ast.core.flows import find_callees
@@ -117,3 +122,70 @@ class TestCalleesSymbolNotFound:
         pkg = analyze_package(pkg_path)
         callees = find_callees(pkg, "nonexistent_function")
         assert callees == []
+
+
+# ─── Split from test_analyze_package__trace_flow.py ─────────────────────────
+
+
+class TestFindCallees:
+    """Test find_callees — forward call graph."""
+
+    def test_find_callees_simple(self, tmp_path: Path) -> None:
+        """Function calling 3 other functions → returns 3 callees."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": (
+                    "def alpha():\n"
+                    "    pass\n\n"
+                    "def beta():\n"
+                    "    pass\n\n"
+                    "def gamma():\n"
+                    "    pass\n\n"
+                    "def main():\n"
+                    "    alpha()\n"
+                    "    beta()\n"
+                    "    gamma()\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        callees = find_callees(pkg, "main")
+        callee_names = {c.symbol for c in callees}
+        assert callee_names == {"alpha", "beta", "gamma"}
+
+
+class TestFindCalleesNoReparse:
+    """find_callees does not re-parse the same file twice."""
+
+    def test_no_reparse_with_cache(self, tmp_path: Path) -> None:
+        """Each file read at most once when using _parse_cache."""
+
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": ("def alpha():\n    pass\n\ndef main():\n    alpha()\n"),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+
+        read_count: dict[str, int] = {}
+        original_read_text = Path.read_text
+
+        def counting_read_text(self: Path, *args: Any, **kwargs: Any) -> str:
+            key = str(self)
+            read_count[key] = read_count.get(key, 0) + 1
+            return original_read_text(self, *args, **kwargs)
+
+        cache: dict[str, tuple[Any, str]] = {}
+        with patch.object(Path, "read_text", counting_read_text):
+            # Call twice with the same cache
+            find_callees(pkg, "main", _parse_cache=cache)
+            find_callees(pkg, "alpha", _parse_cache=cache)
+
+        # Each file should be read at most once
+        for path_str, count in read_count.items():
+            if path_str.endswith(".py"):
+                assert count <= 1, f"{path_str} was read {count} times"
