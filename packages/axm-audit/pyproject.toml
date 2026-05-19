@@ -361,6 +361,26 @@ reason = "Inter-file cluster of 5 'private alias / module attribute absent' unit
 hash = "69ea5aa5a8c9"
 reason = "Inter-file cluster spans 4 unrelated SUTs: NoPackageSymbolRule per-test marker integration, shared R4-skip-when-R3-attr-present integration, PrivateImportsRule count-dropped unit assertion, and TestRunner traceback-truncation unit. Different fixtures (tmp_path project layouts vs in-memory rule call vs subprocess parser) and different APIs. No shared helper signature; folding would force unrelated fixtures into a single parametrize. ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "77ab6f2059d2"
+reason = "Inter-file cluster mixes 2 NoPackageSymbolRule verdict tests (MISLOCATED_INTEGRATION on e2e, NO_PACKAGE_SYMBOL on integration) and 2 PrivateImportsRule findings-shape tests (symbol_kind detection from parametrized src/import combinations, access_kind='import' alias). Different rule SUTs, different fixture layouts (_make_pkg vs pkg_root), different finding-payload keys asserted (verdict vs symbol_kind vs access_kind). No shared helper signature; cross-rule folding would couple two unrelated test_quality rules. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "daa0f69e5bac"
+reason = "Inter-file cluster spans 3 unrelated rule SUTs: FormattingRule no-src skip path, DiffSizeRule non-git-repo skip path, DiffSizeRule git-binary-missing skip path, and ToolAvailabilityRule python3-found happy path. Each guards a distinct subprocess/filesystem skip branch on a different rule. No shared helper signature; folding would couple unrelated rule modules and erase per-rule skip contracts. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d72ad481b1ff"
+reason = "Inter-file cluster of 4 'public callable surface' import tests, each probing a DIFFERENT symbol on a DIFFERENT module: read_diff_config (rules.quality), audit_project (axm_audit root), get_rules_for_category (axm_audit root), find_venv (core.runner). They share the `assert callable(sym)` shape but each enforces its own module's external API surface contract — folding cross-file would erase the per-symbol public-surface guarantee. Distinct API contracts — ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e2dcba1445ba"
+reason = "Inter-file cluster mixes a quality-module check.text indent rendering test and 3 formatters check-details renderers (complexity top_offenders, deps_audit top_vulns, passing-but-low-score details branch). Each guards a different rendered prefix/schema (5-space indent vs '• foo.py:bar 15' vs '• requests==2.25.0' vs Improvements section on score=90); the SUTs and assertion targets are distinct. No shared helper signature; folding would erase per-renderer contracts. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f387adcf66a7"
+reason = "Inter-file cluster spans 3 distinct AuditQualityRule failure paths: all-categories-raise (every audit_project call raises RuntimeError → 'All audit categories failed' feedback), type-fails (lint passes + 3 mypy failures aggregated → '3 violation(s)' feedback), and working-dir-invalid (nonexistent path → 'Not a directory' feedback before any audit runs). Each guards a different early-exit/aggregation branch with different mock setups and feedback assertions. No shared helper signature. ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
