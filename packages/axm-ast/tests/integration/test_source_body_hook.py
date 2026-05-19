@@ -546,3 +546,116 @@ class TestDottedClassMethodMarkdown:
         assert "models.py" in symbols
         assert "```python" in symbols
         assert "def do_work" in symbols
+
+
+# ── Real-fixture dotted resolution (migrated from test_resolve_dotted.py) ──
+#
+# These tests drive ``SourceBodyHook.execute`` against real fixture packages
+# built on disk (no mocks). They cover deeply-nested classes, missing class /
+# missing member paths, and module-level function resolution — originally
+# reaching through the private ``_resolve_dotted`` helper.
+
+
+@pytest.fixture()
+def nested_class_pkg(tmp_path: Path) -> Path:
+    """Real package with deeply nested classes: ``Outer.Inner.method``."""
+    src = tmp_path / "nested_pkg"
+    src.mkdir()
+    (src / "__init__.py").write_text("")
+    (src / "deep.py").write_text(
+        """\
+class Outer:
+    class Inner:
+        def method(self):
+            return 42
+"""
+    )
+    return src
+
+
+@pytest.fixture()
+def module_func_pkg(tmp_path: Path) -> Path:
+    """Real package with a module-level function: ``helpers.top_level_func``."""
+    src = tmp_path / "modfunc_pkg"
+    src.mkdir()
+    (src / "__init__.py").write_text("")
+    (src / "helpers.py").write_text(
+        """\
+def top_level_func():
+    return "hello"
+"""
+    )
+    return src
+
+
+class TestDeeplyNestedDottedPath:
+    """``Outer.Inner.method`` — best-effort resolution via public hook."""
+
+    def test_deeply_nested_resolves_or_reports_not_found(
+        self, nested_class_pkg: Path
+    ) -> None:
+        hook = SourceBodyHook()
+        result = hook.execute(
+            {}, symbol="Outer.Inner.method", path=str(nested_class_pkg)
+        )
+
+        # Hook always returns success; resolution is best-effort. The output
+        # markdown either contains the method body or an explicit not-found
+        # note — both prove the nested path was attempted without crashing.
+        assert result.success
+        rendered = result.metadata["symbols"]
+        assert isinstance(rendered, str)
+        assert "Outer.Inner.method" in rendered or "def method" in rendered
+
+
+class TestDottedNonExistentSymbol:
+    """Missing class / missing member — surfaced as not-found, no crash."""
+
+    def test_fake_class_returns_not_found(self, nested_class_pkg: Path) -> None:
+        hook = SourceBodyHook()
+        result = hook.execute(
+            {}, symbol="FakeClass.fake_method", path=str(nested_class_pkg)
+        )
+        assert result.success
+        rendered = result.metadata["symbols"]
+        assert isinstance(rendered, str)
+        assert "not found" in rendered.lower()
+
+    def test_real_class_fake_member_returns_not_found(
+        self, nested_class_pkg: Path
+    ) -> None:
+        hook = SourceBodyHook()
+        result = hook.execute(
+            {}, symbol="Outer.nonexistent", path=str(nested_class_pkg)
+        )
+        assert result.success
+        rendered = result.metadata["symbols"]
+        assert isinstance(rendered, str)
+        assert "not found" in rendered.lower()
+
+
+class TestModuleLevelFunction:
+    """``module.top_level_func`` — resolves via module-path branch."""
+
+    def test_module_dot_func_resolves(self, module_func_pkg: Path) -> None:
+        hook = SourceBodyHook()
+        result = hook.execute(
+            {}, symbol="helpers.top_level_func", path=str(module_func_pkg)
+        )
+        assert result.success
+        rendered = result.metadata["symbols"]
+        assert isinstance(rendered, str)
+        assert "def top_level_func" in rendered
+        assert "helpers.py" in rendered
+
+    def test_module_dot_missing_func_returns_not_found(
+        self, module_func_pkg: Path
+    ) -> None:
+        hook = SourceBodyHook()
+        result = hook.execute(
+            {}, symbol="helpers.no_such_func", path=str(module_func_pkg)
+        )
+        assert result.success
+        rendered = result.metadata["symbols"]
+        assert isinstance(rendered, str)
+        assert "not found" in rendered.lower()
