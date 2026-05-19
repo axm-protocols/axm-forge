@@ -1,7 +1,13 @@
 """Unit tests for axm_ast.core.workspace.
 
-Covers pure-string parsing helpers (_parse_workspace_members) and the
+Covers pure-string parsing helpers (parse_workspace_members) and the
 Mermaid graph formatter (format_workspace_graph_mermaid).
+
+The ``_parse_workspace_members`` helper was promoted to the module-public
+name ``parse_workspace_members`` because its contract is a deterministic
+pure-string parse over a stable on-disk format (``[tool.uv.workspace]``
+in ``pyproject.toml``) and tests assert directly on that contract.
+It remains module-internal (not re-exported via ``axm_ast.__init__``).
 """
 
 from __future__ import annotations
@@ -10,13 +16,13 @@ from types import SimpleNamespace
 from typing import Any
 
 from axm_ast.core.workspace import (
-    _parse_workspace_members,
     format_workspace_graph_mermaid,
+    parse_workspace_members,
 )
 from tests.unit._helpers import _EDGE_RE, _NODE_DECL_RE
 
 # ────────────────────────────────────────────────────────────────────────────
-# _parse_workspace_members — pure-string parsing
+# parse_workspace_members — pure-string parsing
 # ────────────────────────────────────────────────────────────────────────────
 
 
@@ -25,20 +31,20 @@ class TestParsingUnit:
 
     def test_parse_workspace_members(self) -> None:
         text = '[tool.uv.workspace]\nmembers = ["pkg-a", "pkg-b"]'
-        assert _parse_workspace_members(text) == ["pkg-a", "pkg-b"]
+        assert parse_workspace_members(text) == ["pkg-a", "pkg-b"]
 
     def test_parse_workspace_members_multiline(self) -> None:
         text = '[tool.uv.workspace]\nmembers = [\n  "alpha",\n  "beta",\n]'
-        assert _parse_workspace_members(text) == ["alpha", "beta"]
+        assert parse_workspace_members(text) == ["alpha", "beta"]
 
     def test_parse_workspace_members_no_section(self) -> None:
         text = '[project]\nname = "foo"'
-        assert _parse_workspace_members(text) == []
+        assert parse_workspace_members(text) == []
 
     def test_parse_workspace_members_glob(self) -> None:
-        """_parse_workspace_members returns raw glob strings unchanged."""
+        """parse_workspace_members returns raw glob strings unchanged."""
         text = '[tool.uv.workspace]\nmembers = ["packages/*"]\n'
-        result = _parse_workspace_members(text)
+        result = parse_workspace_members(text)
         assert result == ["packages/*"]
 
 
