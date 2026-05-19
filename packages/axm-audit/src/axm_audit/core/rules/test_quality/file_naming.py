@@ -28,6 +28,7 @@ from pathlib import Path
 
 from axm_audit.core.rules.base import ProjectRule, register_rule
 from axm_audit.core.rules.test_quality._shared import (
+    _parse_cached,
     canonical_filename,
     cli_invocation_tuple,
     current_level_from_path,
@@ -40,7 +41,7 @@ from axm_audit.core.rules.test_quality._shared import (
 )
 from axm_audit.models.results import CheckResult, Severity
 
-__all__ = ["FileNamingRule"]
+__all__ = ["FileNamingRule", "compute_canonical_name"]
 
 _TOP_K = 2
 _MARKER_NAME = "scenario_name_ok"
@@ -281,6 +282,55 @@ def _collide_findings(verdicts: list[_FileVerdict], root: Path) -> list[Finding]
     return findings
 
 
+def _build_scan_context(project_path: Path) -> _ScanContext:
+    project_scripts = load_project_scripts(project_path)
+    return _ScanContext(
+        project_path=project_path,
+        pkg_prefixes=get_pkg_prefixes(project_path),
+        project_scripts=project_scripts,
+        single_binary=(
+            next(iter(project_scripts)) if len(project_scripts) == 1 else None
+        ),
+    )
+
+
+def _verdict_for_file(
+    test_file: Path, project_path: Path, ctx: _ScanContext | None = None
+) -> _FileVerdict | None:
+    """Single-file pipeline used by both ``FileNamingRule`` and the
+    public ``compute_canonical_name`` helper.
+
+    Returns ``None`` when the file is not in an integration/e2e tier,
+    cannot be parsed, has no test functions, or has no first-party
+    symbol coverage (canonical resolves to ``test_UNKNOWN.py``).
+    """
+    tests_dir = project_path / "tests"
+    if not tests_dir.exists():
+        return None
+    tier = current_level_from_path(test_file, tests_dir)
+    if tier not in {"integration", "e2e"}:
+        return None
+    tree = _parse_cached(test_file)
+    if tree is None:
+        return None
+    scan_ctx = ctx if ctx is not None else _build_scan_context(project_path)
+    verdict = _aggregate_file(test_file, tree, tier, scan_ctx)
+    if verdict is None or not verdict.has_canonical:
+        return None
+    return verdict
+
+
+def compute_canonical_name(test_file: Path, project_path: Path) -> str | None:
+    """Public canonical-name helper for one integration/e2e test file.
+
+    Returns ``None`` when the file is not in an integration/e2e tier,
+    has no tests, or has no first-party symbol coverage. Otherwise
+    returns the canonical ``test_*.py`` basename FILE_NAMING would emit.
+    """
+    verdict = _verdict_for_file(test_file, project_path)
+    return verdict.canonical if verdict is not None else None
+
+
 @register_rule(category="test_quality")
 class FileNamingRule(ProjectRule):
     """Surface integration / e2e test files whose name diverges from the
@@ -306,15 +356,7 @@ class FileNamingRule(ProjectRule):
                 severity=Severity.INFO,
                 score=100,
             )
-        project_scripts = load_project_scripts(project_path)
-        ctx = _ScanContext(
-            project_path=project_path,
-            pkg_prefixes=get_pkg_prefixes(project_path),
-            project_scripts=project_scripts,
-            single_binary=(
-                next(iter(project_scripts)) if len(project_scripts) == 1 else None
-            ),
-        )
+        ctx = _build_scan_context(project_path)
         verdicts: list[_FileVerdict] = []
         for test_file, tree in iter_test_files(project_path):
             if tree is None:
