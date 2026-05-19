@@ -157,6 +157,34 @@ reason = "format_agent_text branches under test are distinct: passed-actionable 
 hash = "6314b4ebf3f9"
 reason = "Each test guards a distinct check-details renderer (QUALITY_SECURITY top_issues with severity/code/file/line vs DEPS_HYGIENE top_issues with code/module/message); the two schemas are unrelated and asserted on different rendered prefixes."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "231e97b89c9a"
+reason = "Tests guard 4 distinct quality_score properties across different classes: parametrized range over every scored category (TestQualityScoreRange), single-category averaging behaviour (TestSingleCategoryAveraging), filtered-audit renormalisation invariant (TestFilteredAuditRenormalization), and an ignore-unknown-inputs branch; collapsing would erase the property each class documents."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8049e70ad5cd"
+reason = "Tests target different scoring surfaces: registry-derived all-100 invariant (TestRegistryDerivedScoring), registry-resilience to new rules (rule-addition guard), and public-API single-category renormalisation; each guards a distinct contract (registry coverage vs API behaviour) at different abstraction layers."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c2d6c85495c6"
+reason = "Tests assert different bound contracts: the first checks the absolute [0, 100] envelope from a heterogeneous LINT+TYPE pair, the second asserts the tighter [min(cat_avg), max(cat_avg)] = [60, 90] envelope when categories are combined; collapsing would lose the combine-vs-clamp distinction."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d11f876f75c9"
+reason = "Each test guards a distinct I/O-detection branch of PyramidLevelRule: import-then-called (R1 httpx call), stat-family attr (Path.is_file syscall), tmp_path.write_text boundary signal, and constructor-result-flow taint to method call ('fixture-arg:tmp_path'); they assert different io_signals strings and cannot be folded without losing the branch each documents."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "051a12ddc441"
+reason = "Tests guard 3 disjoint classification branches: R2 pure-function unit path (asserts reason 'pure function'), R3 per-function attr:.write_text() signal, and the tmp_path+write/read boundary signal; each asserts a different io_signals string or 'reason' field, so they document independent classifier rules."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9cbc773e0783"
+reason = "Both tests assert level=='unit' negatively but guard orthogonal R1/R5 sub-rules: imported-but-unused module (httpx) must not produce the 'imports httpx' signal, while a string-literal receiver of .replace() must not trigger 'attr:.replace()'; the heuristics live in different code paths and the assertions probe different io_signals."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e4797f11d445"
+reason = "Tests assert opposite classifications (integration vs unit) on unrelated fixture/code-shape patterns: a conftest `fake_*` fixture that performs real I/O must NOT be mock-neutralised, while a tmp_path argument passed to a pydantic constructor inside pytest.raises must NOT be tainted; they exercise different sub-rules."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
