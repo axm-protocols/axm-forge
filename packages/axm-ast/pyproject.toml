@@ -347,6 +347,18 @@ reason = "4 inter-file tests across 4 files probe four distinct tool surfaces wi
 hash = "49c4ed966804"
 reason = "4 inter-file tests across 3 files probe four distinct hook SUTs with different required parameters: test_missing_symbol in TestImpactHookExecuteUnit (test_impact.py) asserts ImpactHook().execute({}) fails with 'symbol' in error, test_missing_symbol in TestDocImpactHookExecuteUnit (same file) asserts the same on DocImpactHook (a separate hook class with its own contract), test_missing_symbol_param (test_source_body.py) asserts SourceBodyHook().execute({}) fails with 'symbol' in error, and test_missing_entry (test_trace_source.py) asserts TraceSourceHook().execute({}) fails with 'entry' in (result.error or '') — TraceSourceHook requires 'entry', not 'symbol', so the assertion contract is materially different. Four independent hook classes (ImpactHook / DocImpactHook / SourceBodyHook / TraceSourceHook) each pin their own required-param contract; no shared parametrizable seam exists."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f029124e2fdf"
+reason = "4 GraphTool.execute text-presence tests across two TestClass groups (TestExecutePkgWithText: package-scope on fixture_pkg; TestExecuteWsWithText: workspace-scope on fixture_ws) probe three distinct output formats (json/mermaid/text) and assert on three distinct result.data keys (nodes/mermaid/text/graph) — fixture_pkg builds a real on-disk Python package while fixture_ws builds a uv workspace with three member packages and dependency edges, so the SUT branch exercised is different (package detect path vs workspace detect path). Parametrization would conflate two scope branches, two divergent fixtures, and four heterogeneous data-key assertions."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "90defd92e211"
+reason = "4 find_stale_signatures AST-extraction tests pin four distinct actual_sig contracts on three divergent fixtures: test_extracts_function_signature asserts 'def greet(name: str) -> str' (typed function signature) on src_layout, test_extracts_class_no_bases asserts 'class Base' (bare class, no parens) on src_layout, test_extracts_async_function asserts 'async def fetch(url: str) -> bytes' (async-prefix preservation) on src_layout, and test_flat_layout_without_src_directory asserts 'def helper() -> None' on flat_layout (project-root scan path without src/, a distinct layout-resolution branch). Each test documents a separate AST signature-rendering rule (function / bare class / async / no-src layout) — parametrizing the four divergent actual_sig literals and two layout fixtures would erase the per-rule documentation surface."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d9530754f33e"
+reason = "4 filter_modules tests probe three mutually exclusive assertion contracts: test_filter_modules_none and test_filter_modules_empty_list both assert len(result.modules) == len(pkg.modules) (None and [] are passthrough branches of the same fallback), test_filter_modules_no_match asserts len(result.modules) == 0 against a literal-0 contract for non-matching needles, and test_filter_modules_case_insensitive calls filter_modules twice (lower=['utils'], upper=['UTILS']) and asserts len(lower.modules) == len(upper.modules) — a comparison-of-two-results shape with no expected literal. Three different assertion shapes (passthrough-equals-pkg / equals-0 / equals-other-filter) cannot be folded into a single expected_count parameter without erasing the per-branch documentation."
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
