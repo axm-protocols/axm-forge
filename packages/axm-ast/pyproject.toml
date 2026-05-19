@@ -383,6 +383,14 @@ reason = "3 find_module_for_symbol integration tests assert on different ModuleI
 hash = "e22dd4ee0f8d"
 reason = "3 search_symbols no-filter tests span two distinct fixture surfaces and three orthogonal name-presence contracts: test_no_returns_still_includes_variables (rich_pkg__from_analyzer) pins the private-variable visibility regression ('_PRIVATE' in names — ensures the no-returns path does not filter out underscore-prefixed variables), test_no_filters_returns_all (rich_pkg__from_analyzer) pins the full-symbol-enumeration contract on the rich fixture (greet/compute/parse/VERSION all present — mixed functions + variables), and test_search_kind_none_includes_variables (analyze_package(SAMPLE_PKG) integration) pins the kind=None branch on the real on-disk fixture (greet + MAX_RETRIES present). Two divergent fixture lifecycles (in-memory rich_pkg fixture vs filesystem SAMPLE_PKG analyze_package), three different asserted name sets, two different SUT branches (no-arg call vs explicit kind=None) — folding would require a heterogeneous (fixture, expected_names) parameter that erases the per-contract documentation."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b07d6c0be4be"
+reason = "3 detect_patterns tests assert on three orthogonal dict keys (patterns['layout'] / patterns['test_count'] / patterns['all_exports_count']) with three divergent setups (flat package only / package + tests/ dir with two test files / package + module with __all__ export). Each test pins a distinct project-pattern detection contract — layout-resolution branch, test-file counting, public-export counting — and the setups themselves are mutually exclusive (a flat layout has no tests dir and no __all__ module). Parametrizing would force a heterogeneous (setup_fn, expected_key, expected_value) parameter that erases the per-pattern semantic."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "570b557fe3f2"
+reason = "3 detect_stack tests assert on three orthogonal stack categories (stack['cli'] contains 'cyclopts' / stack['models'] contains 'pydantic' / stack['packaging'] contains 'hatchling') with three divergent inputs (cyclopts>=3.0 dependency / pydantic>=2.0 dependency / hatchling build-system). Each test pins a distinct dependency-categorization contract — CLI framework detection, models framework detection, build-system detection — across mutually exclusive pyproject.toml sources ([project.dependencies] vs [build-system].requires). Parametrizing would force a heterogeneous (setup_input, expected_category, expected_token) parameter that erases the per-category semantic."
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
