@@ -239,6 +239,22 @@ reason = "13 CLI smoke tests across 5 commands (describe/inspect/graph/search/ve
 hash = "f9a7b46e63e9"
 reason = "12 InspectTool integration tests spanning 2 TestClasses with different fixtures (rich_pkg__from_inspect vs sample_project) and asserting on different symbol kinds (function/class/method/property/classmethod/module); fixture divergence prevents clean parametrization"
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "00d154d029c4"
+reason = "11 dead-code detection tests spanning two distinct concern classes (TestIntraModuleClassRefs: 4 tests about class-name reference detection — attr access, method call, type annotation, alias; TestAttributeRefs: 7 tests about self.attr reference detection in kwargs, dicts, lists, assignments, chained, bare, call) — parametrization would conflate two independent detection surfaces probed by find_dead_code"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f33694681051"
+reason = "8 extract_references tests covering four distinct acceptance criteria of AXM-1723 (AC1: cast() typing, AC2: string annotations on var/return/param, AC3: subscript string args, plus positional-arg/attribute reference tracking from core.callers) with two different fixtures (mod_factory vs mod_factory__from_core_callers); parametrization would erase the AC-boundary documentation and conflate two fixture surfaces"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c39987e10950"
+reason = "8 find_stale_signatures tests asserting on heterogeneous fields (actual_sig shapes for single/multiple/dotted/generic base classes; resilience to syntax_error / empty_file / qualified name collisions across modules and nested subpackages) with three distinct fixtures (src_layout, src_tree, tmp_path); each probes a different AST-extraction edge case that parametrization would erase"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d27d8ebd9890"
+reason = "7 parse_docstring tests spanning three style classes (Google: summary_only, google_style_summary, args_not_in_output, returns_not_in_output; Sphinx: sphinx_summary; EdgeCases: unknown_section_ignored, indented_docstring) asserting on different ParsedDocstring fields (summary, raises, examples, hasattr negative checks) — parametrization would conflate three distinct docstring-style parsers and four distinct field-level contracts"
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
