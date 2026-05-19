@@ -141,6 +141,22 @@ DEP004 = ["mkdocs_gen_files"]
 # `tests/e2e/test_audit.py` IS the canonical form — not an anti-mirror smell.
 exempt_paths = ["**/__init__.py", "_version.py", "__main__.py", "tools/audit.py"]
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "bae3922cf705"
+reason = "Tests cover orthogonal format_report concerns (pass/fail icons, category grouping, per-check score display, Improvements section presence/details/tip) with distinct assertion targets; collapsing would lose signal."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "de885c684c98"
+reason = "Tests cover distinct contracts: 'Score:' header, project_path fallback to 'unknown', category=None grouping under 'other', and format_json required-key surface; each guards a separate format_report/format_json branch."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "0a7c6a5b3a39"
+reason = "format_agent_text branches under test are distinct: passed-actionable rendering (✓ + rule_id), failed-no-text-falls-back-to-details path, and empty-input header counts (0 pass/0 fail); each guards a different rendering branch."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "6314b4ebf3f9"
+reason = "Each test guards a distinct check-details renderer (QUALITY_SECURITY top_issues with severity/code/file/line vs DEPS_HYGIENE top_issues with code/module/message); the two schemas are unrelated and asserted on different rendered prefixes."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

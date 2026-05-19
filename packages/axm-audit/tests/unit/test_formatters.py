@@ -613,21 +613,43 @@ class TestFormatAgentText:
         assert failed[0]["text"] == "• file:1: issue"
         assert "details" not in failed[0]
 
-    def test_format_agent_failed_without_text_includes_details(self) -> None:
-        """When a failed check has text=None, details key must be present."""
+    @pytest.mark.parametrize(
+        ("rule_id", "text", "details"),
+        [
+            pytest.param(
+                "R002",
+                None,
+                {"locations": ["file:2"]},
+                id="none_text_falls_back_to_details",
+            ),
+            pytest.param(
+                "R004",
+                "",
+                {"issues": ["a"]},
+                id="empty_text_falls_back_to_details",
+            ),
+        ],
+    )
+    def test_format_agent_failed_falsy_text_uses_details(
+        self,
+        rule_id: str,
+        text: str | None,
+        details: dict[str, Any],
+    ) -> None:
+        """Failed check with falsy text (None or '') emits details, drops text."""
         check = CheckResultModels(
-            rule_id="R002",
-            message="another issue",
+            rule_id=rule_id,
+            message="falsy text",
             passed=False,
-            text=None,
-            details={"locations": ["file:2"]},
+            text=text,
+            details=details,
             fix_hint=None,
         )
         out = format_agent(_agent_text_make_result([check]))
         failed = out["failed"]
         assert len(failed) == 1
-        assert "details" in failed[0]
-        assert failed[0]["details"] == {"locations": ["file:2"]}
+        assert failed[0]["details"] == details
+        assert "text" not in failed[0]
 
     def test_format_agent_passed_actionable_unchanged(self) -> None:
         """Passed checks with actionable detail still include details."""
@@ -644,23 +666,6 @@ class TestFormatAgentText:
         assert len(passed_dicts) == 1
         assert "details" in passed_dicts[0]
         assert passed_dicts[0]["details"] == {"missing": ["foo", "bar"]}
-
-    def test_format_agent_failed_empty_text_excluded(self) -> None:
-        """Empty string text is falsy — details present, text absent."""
-        check = CheckResultModels(
-            rule_id="R004",
-            message="edge case",
-            passed=False,
-            text="",
-            details={"issues": ["a"]},
-            fix_hint=None,
-        )
-        out = format_agent(_agent_text_make_result([check]))
-        failed = out["failed"]
-        assert len(failed) == 1
-        assert "details" in failed[0]
-        assert failed[0]["details"] == {"issues": ["a"]}
-        assert "text" not in failed[0]
 
     def test_format_agent_failed_both_none_no_crash(self) -> None:
         """Both text and details None — must not crash."""
@@ -1056,36 +1061,44 @@ def _xor_passed_make_result(*checks: CheckResult) -> AuditResult:
     return AuditResult(checks=list(checks))
 
 
-def test_format_agent_passed_actionable_text_excludes_details() -> None:
-    """Passed check with truthy text should emit text only, not details."""
+@pytest.mark.parametrize(
+    ("text", "present_key", "present_value", "absent_key"),
+    [
+        pytest.param(
+            "• item",
+            "text",
+            "• item",
+            "details",
+            id="truthy_text_excludes_details",
+        ),
+        pytest.param(
+            None,
+            "details",
+            {"missing": ["a"]},
+            "text",
+            id="none_text_includes_details",
+        ),
+    ],
+)
+def test_format_agent_passed_actionable_text_xor_details(
+    text: str | None,
+    present_key: str,
+    present_value: Any,
+    absent_key: str,
+) -> None:
+    """Passed actionable emits text XOR details (text wins when truthy)."""
     cr = CheckResult(
         rule_id="R1",
         passed=True,
         message="ok",
-        text="• item",
+        text=text,
         details={"missing": ["a"]},
     )
     out = format_agent(_xor_passed_make_result(cr))
     entry = out["passed"][0]
     assert isinstance(entry, dict)
-    assert entry["text"] == "• item"
-    assert "details" not in entry
-
-
-def test_format_agent_passed_actionable_no_text_includes_details() -> None:
-    """Passed check with text=None should emit details as fallback."""
-    cr = CheckResult(
-        rule_id="R1",
-        passed=True,
-        message="ok",
-        text=None,
-        details={"missing": ["a"]},
-    )
-    out = format_agent(_xor_passed_make_result(cr))
-    entry = out["passed"][0]
-    assert isinstance(entry, dict)
-    assert entry["details"] == {"missing": ["a"]}
-    assert "text" not in entry
+    assert entry[present_key] == present_value
+    assert absent_key not in entry
 
 
 def test_format_agent_passed_actionable_empty_text_uses_details() -> None:
@@ -1288,53 +1301,52 @@ def test_clusters_member_key_tolerance() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_format_agent_text_with_verdicts_no_keyerror() -> None:
-    data = {
-        "score": 80,
-        "grade": "B",
-        "passed": [],
-        "failed": [
+@pytest.mark.parametrize(
+    ("rule_id", "metadata"),
+    [
+        pytest.param(
+            "tautologies",
             {
-                "rule_id": "tautologies",
-                "message": "found",
-                "metadata": {
-                    "verdicts": [
-                        {
-                            "test": "step_n2_import_smoke",
-                            "verdict": "DELETE",
-                            "file": "t.py",
-                            "line": 1,
-                        },
-                    ],
-                },
+                "verdicts": [
+                    {
+                        "test": "step_n2_import_smoke",
+                        "verdict": "DELETE",
+                        "file": "t.py",
+                        "line": 1,
+                    },
+                ],
             },
-        ],
-    }
-    out = format_agent_text(data)
-    assert isinstance(out, str)
-    assert out
-
-
-def test_format_agent_text_with_clusters_no_keyerror() -> None:
+            id="verdicts",
+        ),
+        pytest.param(
+            "duplicates",
+            {
+                "clusters": [
+                    {
+                        "signal": "signal1_call_assert",
+                        "members": [
+                            {"test": "t1", "file": "f.py", "line": 1},
+                        ],
+                    },
+                ],
+                "buckets": {"signal1_call_assert": 1},
+            },
+            id="clusters",
+        ),
+    ],
+)
+def test_format_agent_text_metadata_no_keyerror(
+    rule_id: str, metadata: dict[str, Any]
+) -> None:
     data = {
         "score": 80,
         "grade": "B",
         "passed": [],
         "failed": [
             {
-                "rule_id": "duplicates",
+                "rule_id": rule_id,
                 "message": "found",
-                "metadata": {
-                    "clusters": [
-                        {
-                            "signal": "signal1_call_assert",
-                            "members": [
-                                {"test": "t1", "file": "f.py", "line": 1},
-                            ],
-                        },
-                    ],
-                    "buckets": {"signal1_call_assert": 1},
-                },
+                "metadata": metadata,
             },
         ],
     }
@@ -1432,25 +1444,51 @@ def _metadata_audit(checks: list[CheckResult]) -> AuditResult:
     return AuditResult(checks=checks)
 
 
-def test_format_agent_failed_includes_metadata_when_present() -> None:
-    verdicts = [
-        {
-            "file": "tests/unit/test_x.py",
-            "test": "test_x",
-            "line": 3,
-            "pattern": "assert True",
-            "verdict": "tautology",
-            "reason": "trivially true",
-        }
-    ]
-    check = TautologyCheckResult(
-        rule_id="TEST_QUALITY_TAUTOLOGY",
+@pytest.mark.parametrize(
+    ("check_factory", "rule_id", "message", "meta_key", "meta_value"),
+    [
+        pytest.param(
+            TautologyCheckResult,
+            "TEST_QUALITY_TAUTOLOGY",
+            "1 tautological test",
+            "verdicts",
+            [
+                {
+                    "file": "tests/unit/test_x.py",
+                    "test": "test_x",
+                    "line": 3,
+                    "pattern": "assert True",
+                    "verdict": "tautology",
+                    "reason": "trivially true",
+                }
+            ],
+            id="tautology_verdicts",
+        ),
+        pytest.param(
+            DuplicateTestsCheckResult,
+            "TEST_QUALITY_DUPLICATE_TESTS",
+            "1 duplicate cluster",
+            "clusters",
+            [{"id": 0, "members": ["a", "b"]}],
+            id="duplicate_clusters",
+        ),
+    ],
+)
+def test_format_agent_failed_metadata_propagates(
+    check_factory: type[CheckResult],
+    rule_id: str,
+    message: str,
+    meta_key: str,
+    meta_value: Any,
+) -> None:
+    check = check_factory(
+        rule_id=rule_id,
         passed=False,
-        message="1 tautological test",
-        metadata={"verdicts": verdicts},
+        message=message,
+        metadata={meta_key: meta_value},
     )
     out = format_agent(_metadata_audit([check]))
-    assert out["failed"][0]["metadata"]["verdicts"] == verdicts
+    assert out["failed"][0]["metadata"][meta_key] == meta_value
 
 
 def test_format_agent_passed_includes_metadata_when_present() -> None:
@@ -1481,18 +1519,6 @@ def test_format_agent_omits_metadata_when_empty() -> None:
     out = format_agent(_metadata_audit([empty_meta, no_meta]))
     for entry in out["failed"]:
         assert "metadata" not in entry
-
-
-def test_format_agent_clusters_metadata_propagates() -> None:
-    clusters = [{"id": 0, "members": ["a", "b"]}]
-    check = DuplicateTestsCheckResult(
-        rule_id="TEST_QUALITY_DUPLICATE_TESTS",
-        passed=False,
-        message="1 duplicate cluster",
-        metadata={"clusters": clusters},
-    )
-    out = format_agent(_metadata_audit([check]))
-    assert out["failed"][0]["metadata"]["clusters"] == clusters
 
 
 # ---------------------------------------------------------------------------
