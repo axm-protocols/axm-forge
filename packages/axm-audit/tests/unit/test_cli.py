@@ -220,17 +220,21 @@ def test_text_output_group_order(full_result: AuditResult) -> None:
     assert 0 <= idx_private < idx_pyramid < idx_dup < idx_taut
 
 
-def test_text_output_tautology_verdict_tags(full_result: AuditResult) -> None:
+@pytest.mark.parametrize(
+    "expected",
+    [
+        pytest.param("[DELETE]", id="tautology-delete-tag"),
+        pytest.param("[STRENGTHEN]", id="tautology-strengthen-tag"),
+        pytest.param("[UNKNOWN]", id="tautology-unknown-tag"),
+        pytest.param("signal1_call_assert", id="duplicate-signal-name"),
+        pytest.param("tests/unit/test_d.py:10", id="duplicate-location"),
+    ],
+)
+def test_text_output_contains_expected_tag(
+    full_result: AuditResult, expected: str
+) -> None:
     out = format_test_quality_text(full_result)
-    assert "[DELETE]" in out
-    assert "[STRENGTHEN]" in out
-    assert "[UNKNOWN]" in out
-
-
-def test_text_output_duplicate_signal_tag(full_result: AuditResult) -> None:
-    out = format_test_quality_text(full_result)
-    assert "signal1_call_assert" in out
-    assert "tests/unit/test_d.py:10" in out
+    assert expected in out
 
 
 def test_json_output_superset(full_result: AuditResult) -> None:
