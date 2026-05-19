@@ -31,9 +31,11 @@ from axm_audit.core.rules.test_quality._shared import (
     canonical_filename,
     cli_invocation_tuple,
     current_level_from_path,
+    file_has_module_marker,
     first_party_symbol_counts,
     get_pkg_prefixes,
     iter_test_files,
+    iter_test_funcs,
     load_project_scripts,
 )
 from axm_audit.models.results import CheckResult, Severity
@@ -117,48 +119,6 @@ class Finding:
         return payload
 
 
-def _decorator_has_marker(dec: ast.expr) -> bool:
-    target = dec.func if isinstance(dec, ast.Call) else dec
-    if isinstance(target, ast.Attribute) and target.attr == _MARKER_NAME:
-        return True
-    return isinstance(target, ast.Name) and target.id == _MARKER_NAME
-
-
-def _value_marks_node(value: ast.AST) -> bool:
-    if isinstance(value, ast.Attribute) and value.attr == _MARKER_NAME:
-        return True
-    if isinstance(value, (ast.List, ast.Tuple)):
-        return any(_value_marks_node(elt) for elt in value.elts)
-    return False
-
-
-def _file_has_module_marker(tree: ast.Module) -> bool:
-    for stmt in tree.body:
-        if not isinstance(stmt, ast.Assign):
-            continue
-        if not any(
-            isinstance(t, ast.Name) and t.id == "pytestmark" for t in stmt.targets
-        ):
-            continue
-        if _value_marks_node(stmt.value):
-            return True
-    return False
-
-
-def _iter_test_funcs(tree: ast.Module) -> list[ast.FunctionDef]:
-    funcs: list[ast.FunctionDef] = []
-    for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-            funcs.append(node)
-        elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
-            for child in node.body:
-                if isinstance(child, ast.FunctionDef) and child.name.startswith(
-                    "test_"
-                ):
-                    funcs.append(child)
-    return funcs
-
-
 def _per_test_symbols(
     func: ast.FunctionDef, tree: ast.Module, ctx: _ScanContext
 ) -> tuple[str, ...]:
@@ -193,12 +153,12 @@ def _aggregate_file(
     tier: str,
     ctx: _ScanContext,
 ) -> _FileVerdict | None:
-    file_marked = _file_has_module_marker(tree)
+    file_marked = file_has_module_marker(tree, _MARKER_NAME)
     per_test: list[tuple[str, ...]] = []
     agg_symbols: Counter[str] = Counter()
     agg_cli: Counter[tuple[str, str]] = Counter()
     saw_test = False
-    for func in _iter_test_funcs(tree):
+    for func in iter_test_funcs(tree):
         saw_test = True
         if tier == "e2e":
             cli_tup = _per_test_cli_tuples(func, tree, ctx)

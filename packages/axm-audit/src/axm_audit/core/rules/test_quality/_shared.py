@@ -24,8 +24,10 @@ __all__ = [
     "collect_pkg_contract_classes",
     "collect_pkg_public_symbols",
     "current_level_from_path",
+    "decorator_has_marker",
     "detect_real_io",
     "extract_mock_targets",
+    "file_has_module_marker",
     "first_party_symbol_counts",
     "fixture_does_io",
     "func_attr_io_transitive",
@@ -35,13 +37,64 @@ __all__ = [
     "has_in_package_subprocess_invocation",
     "is_import_smoke_test",
     "iter_test_files",
+    "iter_test_funcs",
     "load_project_scripts",
     "target_matches_io",
     "test_invokes_in_package_script",
     "test_is_in_lazy_import_context",
     "test_references_first_party",
     "to_snake_token",
+    "value_marks_node",
 ]
+
+
+def decorator_has_marker(dec: ast.expr, marker_name: str) -> bool:
+    """True when *dec* is ``@pytest.mark.<marker_name>`` (or aliased)."""
+    target = dec.func if isinstance(dec, ast.Call) else dec
+    if isinstance(target, ast.Attribute) and target.attr == marker_name:
+        return True
+    return isinstance(target, ast.Name) and target.id == marker_name
+
+
+def value_marks_node(value: ast.AST, marker_name: str) -> bool:
+    """True when *value* is ``pytest.mark.<marker_name>``.
+
+    Also matches a list/tuple containing the marker.
+    """
+    if isinstance(value, ast.Attribute) and value.attr == marker_name:
+        return True
+    if isinstance(value, (ast.List, ast.Tuple)):
+        return any(value_marks_node(elt, marker_name) for elt in value.elts)
+    return False
+
+
+def file_has_module_marker(tree: ast.Module, marker_name: str) -> bool:
+    """True when ``pytestmark = pytest.mark.<marker_name>`` is set at module level."""
+    for stmt in tree.body:
+        if not isinstance(stmt, ast.Assign):
+            continue
+        if not any(
+            isinstance(t, ast.Name) and t.id == "pytestmark" for t in stmt.targets
+        ):
+            continue
+        if value_marks_node(stmt.value, marker_name):
+            return True
+    return False
+
+
+def iter_test_funcs(tree: ast.Module) -> list[ast.FunctionDef]:
+    """Yield top-level ``test_*`` functions and ``Test*``-class test methods."""
+    funcs: list[ast.FunctionDef] = []
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+            funcs.append(node)
+        elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
+            for child in node.body:
+                if isinstance(child, ast.FunctionDef) and child.name.startswith(
+                    "test_"
+                ):
+                    funcs.append(child)
+    return funcs
 
 
 _IO_FIXTURES: frozenset[str] = frozenset(
