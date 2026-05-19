@@ -225,15 +225,21 @@ class TestFormatCompressedUnit:
         # The sample_pkg greet() returns f"Hello, {name}!"
         assert "Hello, {name}" not in output
 
-    def test_class_present(self, pkg: PackageInfo) -> None:
-        """Public classes should appear with their base classes."""
+    @pytest.mark.parametrize(
+        "expected_substring",
+        [
+            pytest.param("class Calculator", id="class_present"),
+            pytest.param("def add(self", id="class_methods_as_stubs"),
+            pytest.param("A sample Python module", id="module_docstring_present"),
+            pytest.param("__all__", id="all_exports_shown"),
+        ],
+    )
+    def test_compressed_contains(
+        self, pkg: PackageInfo, expected_substring: str
+    ) -> None:
+        """Compressed output contains expected public-surface substrings."""
         output = format_compressed(pkg)
-        assert "class Calculator" in output
-
-    def test_class_methods_as_stubs(self, pkg: PackageInfo) -> None:
-        """Class methods appear as signatures."""
-        output = format_compressed(pkg)
-        assert "def add(self" in output
+        assert expected_substring in output
 
     def test_private_symbols_excluded(self, pkg: PackageInfo) -> None:
         """Private symbols not in __all__ are excluded."""
@@ -241,21 +247,11 @@ class TestFormatCompressedUnit:
         assert "_internal_helper" not in output
         assert "_InternalClass" not in output
 
-    def test_module_docstring_present(self, pkg: PackageInfo) -> None:
-        """Module-level docstrings appear."""
-        output = format_compressed(pkg)
-        assert "A sample Python module" in output
-
     def test_absolute_imports_dropped(self, pkg: PackageInfo) -> None:
         """Absolute imports are dropped."""
         output = format_compressed(pkg)
         assert "from pathlib import" not in output
         assert "from typing import" not in output
-
-    def test_all_exports_shown(self, pkg: PackageInfo) -> None:
-        """__all__ list is preserved if it exists."""
-        output = format_compressed(pkg)
-        assert "__all__" in output
 
 
 class TestCompressFunctional:
