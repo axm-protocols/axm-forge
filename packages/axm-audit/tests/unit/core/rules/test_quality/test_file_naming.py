@@ -43,34 +43,26 @@ def test_rule_id_constant() -> None:
     assert rule.rule_id == "TEST_QUALITY_FILE_NAMING"
 
 
-def test_canonical_integration_k2_alphabetical() -> None:
-    """AC2 — top-K=2 symbols emit snake-case ``__``-joined alphabetical name."""
+@pytest.mark.parametrize(
+    ("symbols", "expected"),
+    [
+        pytest.param(("Rule", "Engine"), "test_engine__rule.py", id="k2_alphabetical"),
+        pytest.param(("Rule",), "test_rule.py", id="k1_collapses"),
+        pytest.param(
+            ("DependencyHygieneRule",),
+            "test_dependency_hygiene_rule.py",
+            id="pascalcase_to_snake",
+        ),
+    ],
+)
+def test_canonical_integration(symbols: tuple[str, ...], expected: str) -> None:
+    """AC2 — integration canonical filename across K and casing variants."""
     name = canonical_filename(
-        symbols_or_tuples=("Rule", "Engine"),
+        symbols_or_tuples=symbols,
         tier="integration",
         single_binary=None,
     )
-    assert name == "test_engine__rule.py"
-
-
-def test_canonical_integration_k1_collapses() -> None:
-    """AC2 — K=1 collapses to test_{sym}.py."""
-    name = canonical_filename(
-        symbols_or_tuples=("Rule",),
-        tier="integration",
-        single_binary=None,
-    )
-    assert name == "test_rule.py"
-
-
-def test_canonical_integration_pascalcase_to_snake() -> None:
-    """AC2 — PascalCase symbols are converted to snake_case."""
-    name = canonical_filename(
-        symbols_or_tuples=("DependencyHygieneRule",),
-        tier="integration",
-        single_binary=None,
-    )
-    assert name == "test_dependency_hygiene_rule.py"
+    assert name == expected
 
 
 def test_canonical_e2e_multi_binary() -> None:
@@ -83,24 +75,27 @@ def test_canonical_e2e_multi_binary() -> None:
     assert name == "test_pkg_cli__do__pkg_tool__run.py"
 
 
-def test_canonical_e2e_single_binary_strip() -> None:
-    """AC3 — single-binary packages strip the redundant prefix."""
+@pytest.mark.parametrize(
+    ("tuples", "expected"),
+    [
+        pytest.param(
+            [("axm-audit", "audit")], "test_audit.py", id="single_binary_strip"
+        ),
+        pytest.param(
+            [("axm-audit", "")], "test_axm_audit.py", id="single_binary_no_sub"
+        ),
+    ],
+)
+def test_canonical_e2e_single_binary(
+    tuples: list[tuple[str, str]], expected: str
+) -> None:
+    """AC3 — single-binary e2e canonical name with/without sub-command."""
     name = canonical_filename(
-        symbols_or_tuples=[("axm-audit", "audit")],
+        symbols_or_tuples=tuples,
         tier="e2e",
         single_binary="axm-audit",
     )
-    assert name == "test_audit.py"
-
-
-def test_canonical_e2e_single_binary_no_sub() -> None:
-    """AC3 — single-binary with no sub-command surfaces the bare binary."""
-    name = canonical_filename(
-        symbols_or_tuples=[("axm-audit", "")],
-        tier="e2e",
-        single_binary="axm-audit",
-    )
-    assert name == "test_axm_audit.py"
+    assert name == expected
 
 
 def test_first_party_symbol_counts_basic() -> None:

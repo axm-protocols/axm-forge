@@ -333,11 +333,7 @@ def _single_finding(findings: object) -> object:
     return values[0]
 
 
-@pytest.mark.integration
-def test_plumbing_subprocess_public_import_classifies_unit(tmp_path: Path) -> None:
-    package = _write_package__from_scan_package(
-        tmp_path,
-        test_body="""
+_PLUMBING_UNIT_BODY = """
             import subprocess
 
             from sample_pkg import add
@@ -347,20 +343,9 @@ def test_plumbing_subprocess_public_import_classifies_unit(tmp_path: Path) -> No
                 result = subprocess.run(["python", "-c", "print(1)"], check=True)
                 assert result.returncode == 0
                 assert add(1, 2) == 3
-        """,
-    )
+        """
 
-    finding = _single_finding(scan_package(package))
-
-    assert finding.level == "unit"
-    assert finding.has_subprocess is True
-
-
-@pytest.mark.integration
-def test_plumbing_subprocess_real_io_classifies_integration(tmp_path: Path) -> None:
-    package = _write_package__from_scan_package(
-        tmp_path,
-        test_body="""
+_PLUMBING_REAL_IO_BODY = """
             import subprocess
 
             from sample_pkg import add
@@ -372,24 +357,9 @@ def test_plumbing_subprocess_real_io_classifies_integration(tmp_path: Path) -> N
                 marker = tmp_path / "marker.txt"
                 marker.write_text(str(add(1, 2)))
                 assert marker.read_text() == "3"
-        """,
-    )
+        """
 
-    finding = _single_finding(scan_package(package))
-
-    assert finding.level == "integration"
-    assert finding.has_subprocess is True
-
-
-@pytest.mark.integration
-def test_uv_run_declared_script_classifies_e2e(tmp_path: Path) -> None:
-    package = _write_package__from_scan_package(
-        tmp_path,
-        pyproject_extra="""
-            [project.scripts]
-            axm-audit = "axm_audit.cli:main"
-        """,
-        test_body="""
+_UV_RUN_DECLARED_BODY = """
             import subprocess
 
 
@@ -397,10 +367,46 @@ def test_uv_run_declared_script_classifies_e2e(tmp_path: Path) -> None:
                 cmd = ["uv", "run", "axm-audit", "audit"]
                 result = subprocess.run(cmd, check=False)
                 assert result.returncode in {0, 1}
-        """,
+        """
+
+_UV_RUN_PYPROJECT_EXTRA = """
+            [project.scripts]
+            axm-audit = "axm_audit.cli:main"
+        """
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("test_body", "pyproject_extra", "expected_level"),
+    [
+        pytest.param(
+            _PLUMBING_UNIT_BODY,
+            "",
+            "unit",
+            id="plumbing_subprocess_public_import_classifies_unit",
+        ),
+        pytest.param(
+            _PLUMBING_REAL_IO_BODY,
+            "",
+            "integration",
+            id="plumbing_subprocess_real_io_classifies_integration",
+        ),
+        pytest.param(
+            _UV_RUN_DECLARED_BODY,
+            _UV_RUN_PYPROJECT_EXTRA,
+            "e2e",
+            id="uv_run_declared_script_classifies_e2e",
+        ),
+    ],
+)
+def test_scan_package_classifies_by_subprocess_shape(
+    tmp_path: Path, test_body: str, pyproject_extra: str, expected_level: str
+) -> None:
+    package = _write_package__from_scan_package(
+        tmp_path, test_body=test_body, pyproject_extra=pyproject_extra
     )
 
     finding = _single_finding(scan_package(package))
 
-    assert finding.level == "e2e"
+    assert finding.level == expected_level
     assert finding.has_subprocess is True
