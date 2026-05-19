@@ -24,7 +24,7 @@ from axm_ast.core.flows import (
     format_flows,
     trace_flow,
 )
-from axm_ast.hooks.flows import _build_trace_opts
+from axm_ast.hooks.flows import build_trace_opts
 from axm_ast.tools.flows import FlowsTool
 
 # ── pydantic models (extra=forbid) ────────────────────────────────────
@@ -1093,4 +1093,4 @@ class TestDetailEdgeCases:
 
     def test_build_trace_opts_invalid_detail(self) -> None:
         with pytest.raises(ValueError, match="detail"):
-            _build_trace_opts({"detail": "full"})
+            build_trace_opts({"detail": "full"})

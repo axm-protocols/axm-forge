@@ -132,7 +132,7 @@ def _ensure_flow_imports() -> None:
     build_callee_index = _bci
 
 
-def _build_trace_opts(params: dict[str, object]) -> tuple[_TraceOpts, bool]:
+def build_trace_opts(params: dict[str, object]) -> tuple[_TraceOpts, bool]:
     """Build trace options and compact flag from hook parameters."""
     from axm_ast.core.flows import VALID_DETAILS
 
@@ -211,7 +211,7 @@ class FlowsHook:
             return HookResult.fail(f"working_dir not a directory: {working_dir}")
 
         try:
-            opts, is_compact = _build_trace_opts(params)
+            opts, is_compact = build_trace_opts(params)
             _ensure_flow_imports()
             assert get_package is not None
             pkg = get_package(working_dir)

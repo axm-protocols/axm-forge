@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["TraceSourceHook", "_parse_entry", "_resolve_scope"]
+__all__ = ["TraceSourceHook", "parse_entry", "resolve_scope"]
 
 
 # Lazy imports — avoid importing heavy tree-sitter at module level.
@@ -36,7 +36,7 @@ trace_flow: _TraceFlow | None = None
 _SWE_RE = re.compile(r"^([\w.]+)\s*\(([^)]+)\)")
 
 
-def _parse_entry(entry: str) -> tuple[str, str | None]:
+def parse_entry(entry: str) -> tuple[str, str | None]:
     """Parse a test entry string into (symbol_name, test_dir).
 
     Supports three formats:
@@ -82,12 +82,12 @@ def _parse_entry(entry: str) -> tuple[str, str | None]:
     return entry, None
 
 
-def _resolve_scope(base_path: Path, test_dir: str | None) -> Path:
+def resolve_scope(base_path: Path, test_dir: str | None) -> Path:
     """Resolve the analysis scope directory.
 
     Args:
         base_path: Repository root or explicit path param.
-        test_dir: Relative test directory from ``_parse_entry``,
+        test_dir: Relative test directory from ``parse_entry``,
             or ``None`` for simple symbols.
 
     Returns:
@@ -173,8 +173,8 @@ class TraceSourceHook:
             assert analyze_package is not None
             assert trace_flow is not None
 
-            symbol_name, test_dir = _parse_entry(raw_entry)
-            scoped_path = _resolve_scope(working_dir, test_dir)
+            symbol_name, test_dir = parse_entry(raw_entry)
+            scoped_path = resolve_scope(working_dir, test_dir)
 
             pkg = analyze_package(scoped_path)
             raw_max_depth = params.get("max_depth", 5)
