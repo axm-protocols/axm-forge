@@ -7,7 +7,6 @@ not-found handling, and detail validation.
 
 from __future__ import annotations
 
-from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -109,71 +108,15 @@ class TestFlowStepSourceField:
         assert step.source == "def f(): pass"
 
 
-class TestParseImportFromNodeBasic:
-    """_parse_import_from_node extracts module and imported names."""
-
-    def test_basic_import(self) -> None:
-        """``from .response import HttpResponse`` → ('.response', ['HttpResponse'])."""
-        from axm_ast.core.flows import _parse_import_from_node
-        from axm_ast.core.parser import parse_source
-
-        code = "from .response import HttpResponse\n"
-        tree = parse_source(code)
-        nodes = [
-            n
-            for n in getattr(tree.root_node, "children", [])
-            if getattr(n, "type", "") == "import_from_statement"
-        ]
-        assert len(nodes) == 1
-        module, names = _parse_import_from_node(nodes[0])
-        assert module == ".response"
-        assert names == ["HttpResponse"]
-
-
-class TestParseImportFromNodeMulti:
-    """_parse_import_from_node handles multi-name imports."""
-
-    def test_multi_import(self) -> None:
-        """``from .models import A, B`` → ('.models', ['A', 'B'])."""
-        from axm_ast.core.flows import _parse_import_from_node
-        from axm_ast.core.parser import parse_source
-
-        code = "from .models import A, B\n"
-        tree = parse_source(code)
-        nodes = [
-            n
-            for n in getattr(tree.root_node, "children", [])
-            if getattr(n, "type", "") == "import_from_statement"
-        ]
-        assert len(nodes) == 1
-        module, names = _parse_import_from_node(nodes[0])
-        assert module == ".models"
-        assert set(names) == {"A", "B"}
-
-
-class TestResolveRelativeModule:
-    """_resolve_relative_module resolves dotted paths."""
-
-    def test_single_dot(self) -> None:
-        """.response from django.http → django.http.response."""
-        from axm_ast.core.flows import _resolve_relative_module
-
-        result = _resolve_relative_module(".response", "django.http")
-        assert result == "django.http.response"
-
-    def test_double_dot(self) -> None:
-        """..utils from django.http.response → django.utils."""
-        from axm_ast.core.flows import _resolve_relative_module
-
-        result = _resolve_relative_module("..utils", "django.http.response")
-        assert result == "django.http.utils"
-
-    def test_dot_only(self) -> None:
-        """. from django.http → django.http (no rel_name)."""
-        from axm_ast.core.flows import _resolve_relative_module
-
-        result = _resolve_relative_module(".", "django.http")
-        assert result == "django.http"
+# Note: scenarios formerly covered here by reaching into
+# ``axm_ast.core.flows._parse_import_from_node`` and
+# ``_resolve_relative_module`` are now exercised through the public
+# surface in ``tests/integration``:
+#   - import-from extraction → ``extract_module_info`` assertions on
+#     ``ModuleInfo.imports`` in ``test_extract_imports_relative.py``
+#   - relative dotted resolution → ``trace_flow(cross_module=True)``
+#     on re-export fixtures in ``test_analyze_package__trace_flow.py``
+#     (e.g. ``test_reexport_resolution``)
 
 
 class TestEmptyFlowFormat:
@@ -302,111 +245,16 @@ def test_trace_flow_circular_calls() -> None:
 # ── cross-module resolution ───────────────────────────────────────────
 
 
-class TestFindSourceModuleUnit:
-    """Unit tests for _find_source_module (no real I/O)."""
-
-    def test_find_source_module_missing(self, tmp_path: Path) -> None:
-        """Unknown context → returns None."""
-        from axm_ast.core.flows import _find_source_module
-        from axm_ast.models.nodes import PackageInfo
-
-        pkg = PackageInfo(name="test", root=tmp_path, modules=[])
-
-        result = _find_source_module(pkg, "nonexistent", "no.such.module")
-        assert result is None
-
-
-class TestTryResolveCalleeUnit:
-    """Unit tests for _try_resolve_callee (no real I/O)."""
-
-    def test_try_resolve_callee_stdlib(self, tmp_path: Path) -> None:
-        """CallSite with stdlib symbol → returns None."""
-        from axm_ast.core.flows import _try_resolve_callee
-        from axm_ast.models.calls import CallSite
-        from axm_ast.models.nodes import PackageInfo
-
-        callee = CallSite(
-            symbol="len",
-            module="builtins",
-            line=1,
-            column=0,
-            context="",
-            call_expression="len(x)",
-        )
-        pkg = PackageInfo(name="test", root=tmp_path, modules=[])
-
-        result = _try_resolve_callee(callee, pkg)
-        assert result is None
-
-
-class TestCrossModuleEdgeCasesUnit:
-    """Unit edge cases for _resolve_cross_module_callees (no real I/O)."""
-
-    def test_missing_source_module_skipped(self, tmp_path: Path) -> None:
-        """Both lookups fail → callee silently skipped."""
-        from axm_ast.core.flows import (
-            _CrossModuleContext,
-            _ResolutionScope,
-            _resolve_cross_module_callees,
-        )
-        from axm_ast.models.calls import CallSite
-        from axm_ast.models.nodes import PackageInfo
-
-        pkg = PackageInfo(name="test", root=tmp_path, modules=[])
-        ctx = _CrossModuleContext(visited=set(), queue=deque(), steps=[])
-        scope = _ResolutionScope(
-            current_mod="nonexistent.mod",
-            current_pkg=pkg,
-            original_pkg=pkg,
-            depth=0,
-            current_chain=["entry"],
-        )
-
-        callee = CallSite(
-            symbol="unknown_fn",
-            module="no.module",
-            line=1,
-            column=0,
-            context="missing",
-            call_expression="unknown_fn()",
-        )
-        _resolve_cross_module_callees([callee], scope, ctx)
-        assert ctx.steps == []
-
-    def test_already_visited_skipped(self, tmp_path: Path) -> None:
-        """Same (dotted, symbol) pair seen → skip without duplicate FlowStep."""
-        from axm_ast.core.flows import (
-            _CrossModuleContext,
-            _ResolutionScope,
-            _resolve_cross_module_callees,
-        )
-        from axm_ast.models.calls import CallSite
-        from axm_ast.models.nodes import PackageInfo
-
-        pkg = PackageInfo(name="test", root=tmp_path, modules=[])
-        ctx = _CrossModuleContext(
-            visited={("target.module", "some_func")},
-            queue=deque(),
-            steps=[],
-        )
-        scope = _ResolutionScope(
-            current_mod="caller",
-            current_pkg=pkg,
-            original_pkg=pkg,
-            depth=0,
-            current_chain=["entry"],
-        )
-
-        callee = CallSite(
-            symbol="some_func",
-            module="caller",
-            line=1,
-            column=0,
-            context="",
-            call_expression="some_func()",
-        )
-        _resolve_cross_module_callees([callee], scope, ctx)
-        assert len(ctx.steps) == 0
+# Note: edge-case unit tests that formerly imported
+# ``_find_source_module``, ``_try_resolve_callee``,
+# ``_CrossModuleContext``, ``_ResolutionScope`` and
+# ``_resolve_cross_module_callees`` directly are now exercised through
+# the public seam (``analyze_package`` + ``trace_flow(cross_module=True)``
+# + ``find_module_for_symbol``) in:
+#   - tests/integration/test_function_info__module_info.py
+#   - tests/integration/test_module_info__package_info.py
+#   - tests/integration/test_analyze_package__trace_flow.py
+#     (stdlib-skip and edge-cross-module-missing scenarios already exist)
 
 
 # ── workspace-level (find_callees_workspace) ──────────────────────────

@@ -1000,32 +1000,47 @@ class TestExceptionLogging:
     """except Exception blocks log at DEBUG level."""
 
     def test_locate_symbol_logs_on_error(self, tmp_path: Path) -> None:
-        """Unreadable file → logger.debug called with exc_info."""
+        """Unreadable file during source-detail enrichment → logger.debug fires.
+
+        Drives the failure through the public seam: ``trace_flow(detail="source")``
+        invokes ``_enrich_steps_with_source`` which reads each step's file via
+        ``Path.read_bytes``. Patching ``read_bytes`` to raise ``OSError`` after
+        analysis exercises the same ``except Exception`` block the prior private
+        test asserted on.
+        """
         from unittest.mock import patch
 
-        from axm_ast.core.flows import _locate_symbol
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "mod.py": "def foo():\n    pass\n",
+            },
+        )
+        pkg = analyze_package(pkg_path)
 
-        bad_file = tmp_path / "bad.py"
-        bad_file.write_text("def foo(): pass\n")
+        logger = logging.getLogger("axm_ast.core.flows")
+        messages: list[str] = []
+        handler = logging.Handler()
+        handler.emit = lambda record: messages.append(record.getMessage())  # type: ignore[method-assign]
+        handler.setLevel(logging.DEBUG)
+        old_level = logger.level
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(handler)
+        try:
+            # Patch *after* analysis so analyze_package succeeds; the failure
+            # is triggered by the post-trace source-enrichment read.
+            with patch.object(
+                Path, "read_bytes", side_effect=OSError("permission denied")
+            ):
+                steps, _ = trace_flow(pkg, "foo", detail="source")
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(old_level)
 
-        # Force an OSError to trigger the except Exception block
-        with patch.object(Path, "read_bytes", side_effect=OSError("permission denied")):
-            logger = logging.getLogger("axm_ast.core.flows")
-            messages: list[str] = []
-            handler = logging.Handler()
-            handler.emit = lambda record: messages.append(record.getMessage())  # type: ignore[method-assign]
-            handler.setLevel(logging.DEBUG)
-            old_level = logger.level
-            logger.setLevel(logging.DEBUG)
-            logger.addHandler(handler)
-            try:
-                result = _locate_symbol(bad_file, "foo")
-            finally:
-                logger.removeHandler(handler)
-                logger.setLevel(old_level)
-
-        assert result is None
-        assert len(messages) >= 1
+        # Source enrichment failed silently → step.source stays None.
+        foo_step = next(s for s in steps if s.name == "foo")
+        assert foo_step.source is None
         assert any("Failed to locate symbol" in m for m in messages)
 
 
