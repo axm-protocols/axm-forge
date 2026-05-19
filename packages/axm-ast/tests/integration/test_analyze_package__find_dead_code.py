@@ -355,6 +355,118 @@ class TestMixinBaseClass:
 
 
 @pytest.mark.integration
+class TestExternalBaseOverrides:
+    """Methods overriding bases NOT defined in the analyzed package.
+
+    Covers the ``_check_override`` / ``_scan_methods`` external-base
+    short-circuit: when every base of a class is external (i.e. unknown
+    to ``analyze_package``), public/dunder methods are presumed live.
+    """
+
+    def test_http_handler_methods_not_dead(self, tmp_path: Path) -> None:
+        """BaseHTTPRequestHandler subclass: do_GET / log_message stay live."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "handlers.py": (
+                    "from http.server import BaseHTTPRequestHandler\n\n"
+                    "class MyHandler(BaseHTTPRequestHandler):\n"
+                    "    def do_GET(self):\n"
+                    "        return 'ok'\n\n"
+                    "    def log_message(self, format, *args):\n"
+                    "        pass\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "MyHandler.do_GET" not in dead_names
+        assert "MyHandler.log_message" not in dead_names
+
+    def test_thread_run_not_dead(self, tmp_path: Path) -> None:
+        """Thread subclass with run() override — not flagged."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "workers.py": (
+                    "from threading import Thread\n\n"
+                    "class Worker(Thread):\n"
+                    "    def run(self):\n"
+                    "        return 'work'\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "Worker.run" not in dead_names
+
+    def test_dunder_override_external_base_presumed_live(self, tmp_path: Path) -> None:
+        """Dunder method overriding external base — presumed live."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "models.py": (
+                    "from pydantic import BaseModel\n\n"
+                    "class MyModel(BaseModel):\n"
+                    "    def __init__(self, **data):\n"
+                    "        super().__init__(**data)\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "MyModel.__init__" not in dead_names
+
+    def test_private_method_on_external_base_still_flagged(
+        self, tmp_path: Path
+    ) -> None:
+        """Private method on external base — still flagged as dead."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "workers.py": (
+                    "from threading import Thread\n\n"
+                    "class Worker(Thread):\n"
+                    "    def _internal_helper(self):\n"
+                    "        return 'private'\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "Worker._internal_helper" in dead_names
+
+    def test_mixed_bases_external_method_exempted(self, tmp_path: Path) -> None:
+        """In-pkg + external bases — method only on external base is exempted."""
+        pkg_path = _make_pkg(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "bases.py": ("class InPkgBase:\n    pass\n"),
+                "mixed.py": (
+                    "from threading import Thread\n"
+                    "from .bases import InPkgBase\n\n"
+                    "class Foo(InPkgBase, Thread):\n"
+                    "    def run(self):\n"
+                    "        return 'mixed'\n"
+                ),
+            },
+        )
+        pkg = analyze_package(pkg_path)
+        dead = find_dead_code(pkg)
+        dead_names = {d.name for d in dead}
+        assert "Foo.run" not in dead_names
+
+
+@pytest.mark.integration
 class TestOverrides:
     """Method override detection through analyze_package."""
 

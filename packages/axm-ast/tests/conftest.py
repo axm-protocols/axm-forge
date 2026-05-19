@@ -341,26 +341,6 @@ def typed_project(tmp_path: Path) -> Path:
 
 
 @pytest.fixture()
-def _patch_scan_classes_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Patch all helpers called by _scan_classes so we test its logic only."""
-    monkeypatch.setattr(
-        "axm_ast.core.dead_code._collect_base_class_names", lambda _pkg: set()
-    )
-    monkeypatch.setattr("axm_ast.core.callers.find_callers", lambda _pkg, _name: [])
-    monkeypatch.setattr(
-        "axm_ast.core.dead_code._is_exempt_class", lambda _cls, _mod: False
-    )
-    monkeypatch.setattr(
-        "axm_ast.core.dead_code._has_intra_module_refs",
-        lambda _name, _line, _mod: False,
-    )
-    monkeypatch.setattr(
-        "axm_ast.core.dead_code._scan_methods",
-        lambda _cls, _mod, _pkg, _ctx: [],
-    )
-
-
-@pytest.fixture()
 def rich_pkg__from_analyzer() -> PackageInfo:
     """Package with functions, classes (with methods), and variables across modules."""
     mod_vars = ModuleInfo(
