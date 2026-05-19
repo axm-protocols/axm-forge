@@ -28,82 +28,84 @@ SELF_PKG = Path(__file__).resolve().parents[3] / "src" / "axm_ast"
 # ────────────────────────────────────────────────────────────────────────────
 
 
-class TestScoreImpactFromDict:
-    """Test impact scoring with raw dict inputs."""
-
-    def test_high_impact(self) -> None:
-        """Many callers + re-exported = HIGH."""
-        result = {
-            "callers": [1, 2, 3, 4, 5],
-            "reexports": ["__init__"],
-            "affected_modules": ["a", "b", "c"],
-        }
-        assert score_impact(result) == "HIGH"
-
-    def test_low_impact(self) -> None:
-        """No callers, no re-exports = LOW."""
-        result: dict[str, list[str | int]] = {
-            "callers": [],
-            "reexports": [],
-            "affected_modules": [],
-        }
-        assert score_impact(result) == "LOW"
-
-    def test_medium_impact(self) -> None:
-        """Some callers = MEDIUM."""
-        result = {
-            "callers": [1, 2],
-            "reexports": [],
-            "affected_modules": ["a"],
-        }
-        assert score_impact(result) == "MEDIUM"
+@pytest.mark.parametrize(
+    ("result", "expected_score"),
+    [
+        pytest.param(
+            {
+                "callers": [1, 2, 3, 4, 5],
+                "reexports": ["__init__"],
+                "affected_modules": ["a", "b", "c"],
+            },
+            "HIGH",
+            id="high_many_callers_and_reexport",
+        ),
+        pytest.param(
+            {
+                "callers": [1, 2],
+                "reexports": [],
+                "affected_modules": ["a"],
+            },
+            "MEDIUM",
+            id="medium_some_callers",
+        ),
+        pytest.param(
+            {
+                "callers": [],
+                "reexports": [],
+                "affected_modules": [],
+            },
+            "LOW",
+            id="low_no_signal",
+        ),
+        pytest.param(
+            {
+                "callers": [],
+                "reexports": [],
+                "affected_modules": [],
+                "git_coupled": [],
+                "type_refs": [
+                    {"function": f"fn{i}", "module": "mod", "line": i} for i in range(5)
+                ],
+            },
+            "HIGH",
+            id="high_via_5_type_refs",
+        ),
+        pytest.param(
+            {
+                "callers": [],
+                "reexports": [],
+                "affected_modules": [],
+                "git_coupled": [],
+                "type_refs": [
+                    {"function": "fn1", "module": "mod", "line": 1},
+                    {"function": "fn2", "module": "mod", "line": 2},
+                ],
+            },
+            "MEDIUM",
+            id="medium_via_2_type_refs",
+        ),
+        pytest.param(
+            {
+                "callers": [],
+                "reexports": [],
+                "affected_modules": [],
+                "git_coupled": [],
+                "type_refs": [],
+            },
+            "LOW",
+            id="low_no_type_refs",
+        ),
+    ],
+)
+def test_score_impact_from_dict(result: dict[str, Any], expected_score: str) -> None:
+    """score_impact returns expected severity from raw dict input."""
+    assert score_impact(result) == expected_score
 
 
 # ────────────────────────────────────────────────────────────────────────────
 # score_impact — type_refs contribution
 # ────────────────────────────────────────────────────────────────────────────
-
-
-class TestScoreImpactWithTypeRefs:
-    """Pure dict-driven score_impact tests with type_refs (no I/O)."""
-
-    def test_impact_score_with_types(self) -> None:
-        """AC3: Score is HIGH when type is used by 5+ functions."""
-        result = {
-            "callers": [],
-            "reexports": [],
-            "affected_modules": [],
-            "git_coupled": [],
-            "type_refs": [
-                {"function": f"fn{i}", "module": "mod", "line": i} for i in range(5)
-            ],
-        }
-        assert score_impact(result) == "HIGH"
-
-    def test_score_medium_with_type_refs(self) -> None:
-        """Score MEDIUM with 2 type refs and no callers."""
-        result = {
-            "callers": [],
-            "reexports": [],
-            "affected_modules": [],
-            "git_coupled": [],
-            "type_refs": [
-                {"function": "fn1", "module": "mod", "line": 1},
-                {"function": "fn2", "module": "mod", "line": 2},
-            ],
-        }
-        assert score_impact(result) == "MEDIUM"
-
-    def test_score_low_without_type_refs(self) -> None:
-        """Score LOW with no type refs and no callers."""
-        result: dict[str, Any] = {
-            "callers": [],
-            "reexports": [],
-            "affected_modules": [],
-            "git_coupled": [],
-            "type_refs": [],
-        }
-        assert score_impact(result) == "LOW"
 
 
 # ────────────────────────────────────────────────────────────────────────────
