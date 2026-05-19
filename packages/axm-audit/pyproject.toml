@@ -209,6 +209,46 @@ reason = "Tests guard distinct contracts: get_rules_by_category parametrizes per
 hash = "52b6ec3e7024"
 reason = "Tests assert different rule_id membership surfaces: category_filter_includes_new_rules guards practices category contents (PRACTICE_BLOCKING_IO in, PRACTICE_LOGGING out, PRACTICE_DOCSTRING in), while all_rules_includes_tooling guards the all-rules path surfaces TOOL_RUFF/TOOL_MYPY/TOOL_UV; one probes filtering, the other probes auto-discovery."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "586c324779d9"
+reason = "Cluster covers 3 distinct setup-divergence sub-cases of DuplicateTestsRule: signal1/signal3 module-level pair (no setUp), raises-symmetric pair (both-with vs neither-with pytest.raises), and same self.parser SUT after setUp; each asserts a different signal prefix or signal name and probes an independent clustering branch."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7a4f2c51e702"
+reason = "Tests assert different signal names on different inputs: cross_class_pair asserts signal=='ambiguous_distinct_class' for two TestFoo/TestBar bodies, while one_with_raises_one_without asserts signal=='ambiguous_raises_divergence' for an asymmetric pytest.raises pair; collapsing erases the distinct-class-vs-raises-divergence distinction."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "608caa63b77c"
+reason = "Tests probe two distinct config-fallback branches of DuplicateTestsRule: no pyproject.toml at all vs pyproject without the [tool.axm-audit.duplicate_tests] section; both must not raise config_error but each exercises a separate filesystem/parsing path (file missing vs section missing)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "57d28ca015b8"
+reason = "Tests guard 3 disjoint glob semantics in MirrorRule.exempt_paths: 'commands/*.py' single-directory match (data.py in exempt), '**/_facade.py' nested-path match (recursive descent), and '*.py' single-star non-crossing slash (sub/foo.py stays in missing); each pins a different glob feature."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ff7b20c24c43"
+reason = "Tests probe 3 orthogonal MirrorRule branches: backwards-compatible no-section legacy behavior (foo.py in missing, exempt=[]), '?' single-char glob match (v1.py in exempt), and exempt module that has a test still allowed (missing=[] AND data.py in exempt); each asserts a different missing/exempt outcome."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "42c00bc8cde3"
+reason = "Tests guard distinct text-rendering branches: single-missing module asserts the literal '• untested: utils.py' line and absence of '(+', while private-module checks that '_facade.py' (leading underscore) survives the text formatter; collapsing erases the truncation-vs-private-name distinction."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "6d5d053e7ffd"
+reason = "Cluster covers 7 disjoint criterion-(a) detection paths of test_references_first_party: direct first-party import+call, fixture return-annotation (Rule), fixture body returning Rule(), module-helper closure with first-party symbol, stdlib-only (negative), first-party-only-in-fixture-body closure extension, and unconsumed-fixture param-gating (negative); each probes a different resolver branch with True/False verdicts."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "037cd1d18781"
+reason = "Cluster covers 6 disjoint criterion-(b) detection paths of test_invokes_in_package_script: subprocess.run with declared 'pkg-cli' script, 'python -m pkg_cli' module-path form (underscore alias), plumbing-only subprocess (git/uv, negative), CliRunner().invoke for single-binary packages, unresolved-argv permissiveness, and subprocess-only-in-fixture-body closure; each probes a different invocation detector branch."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3741fa066258"
+reason = "Tests probe 3 disjoint cross-file abstract-override branches: undocumented @abstractmethod parent (impl.py:process in missing), non-abstract cross-file override (impl.py:compute in missing), and ambiguous name-collision conservative path (two Base classes → impl.py:do_work counted); each asserts a different missing-entry contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "69215f8917a6"
+reason = "Tests guard two same-file override branches with different parent kinds: undocumented @abstractmethod parent (process_entries≥1) vs non-abstract parent with docstring override-without-docstring (process_entries≥1); both assert >=1 count but exercise different abstract-vs-concrete inheritance paths in _analyze_docstrings."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
