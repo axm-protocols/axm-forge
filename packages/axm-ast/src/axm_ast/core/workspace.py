@@ -71,7 +71,7 @@ def detect_workspace(path: Path) -> WorkspaceInfo | None:
         return None
 
     text = pyproject.read_text()
-    members = _parse_workspace_members(text)
+    members = parse_workspace_members(text)
     if not members:
         return None
 
@@ -85,10 +85,13 @@ def detect_workspace(path: Path) -> WorkspaceInfo | None:
     )
 
 
-def _parse_workspace_members(text: str) -> list[str]:
+def parse_workspace_members(text: str) -> list[str]:
     """Extract workspace member names from pyproject.toml text.
 
-    Parses the ``[tool.uv.workspace]`` members list.
+    Parses the ``[tool.uv.workspace]`` members list. Pure-string helper
+    promoted to a stable module-public surface so callers (and tests) can
+    inspect the raw ``[tool.uv.workspace].members`` array without forcing
+    a full :func:`analyze_workspace` round-trip.
 
     Args:
         text: Raw pyproject.toml content.
@@ -264,7 +267,7 @@ def analyze_workspace(path: Path) -> WorkspaceInfo:
         raise ValueError(msg)
 
     pyproject_text = (path / "pyproject.toml").read_text()
-    raw_members = _parse_workspace_members(pyproject_text)
+    raw_members = parse_workspace_members(pyproject_text)
     members = _expand_workspace_members(path, raw_members)
 
     # Build member_names from project names in each member's pyproject.toml
