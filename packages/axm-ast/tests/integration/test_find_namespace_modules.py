@@ -3,6 +3,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 
 def _make_ns_module(path: Path, *, imports: list[object] | None = None) -> MagicMock:
     """Create a minimal ModuleInfo-like mock."""
@@ -39,45 +41,46 @@ def _write_source(path: Path, source: str) -> Path:
 class TestLazyImportNamespaceDetectionIntegration:
     """Lazy `from pkg import mod` inside function bodies detects namespace modules."""
 
-    def test_lazy_import_namespace_module_detected(self, tmp_path: Path) -> None:
-        from axm_ast.core.dead_code import find_namespace_modules
-
-        pkg_dir = tmp_path / "mypkg"
-        pkg_dir.mkdir()
-
-        mod_a_path = _write_source(
-            pkg_dir / "caller.py",
-            "def do_work():\n    from mypkg import utils\n    utils.func()\n",
-        )
-        mod_b_path = _write_source(
-            pkg_dir / "utils.py",
-            "def func():\n    return 42\n",
-        )
-
-        mod_a = _make_ns_module(mod_a_path, imports=[])
-        mod_b = _make_ns_module(mod_b_path, imports=[])
-        pkg = _make_ns_pkg([mod_a, mod_b])
-
-        result = find_namespace_modules(pkg)
-
-        assert mod_b_path in result
-
-    def test_lazy_import_private_fn_module_still_namespace(
-        self, tmp_path: Path
+    @pytest.mark.parametrize(
+        ("caller_source", "utils_source"),
+        [
+            pytest.param(
+                "def do_work():\n    from mypkg import utils\n    utils.func()\n",
+                "def func():\n    return 42\n",
+                id="basic_lazy_import",
+            ),
+            pytest.param(
+                "def do_work():\n    from mypkg import utils\n    utils.func()\n",
+                "def _helper():\n    return 1\n\ndef func():\n    return _helper()\n",
+                id="utils_has_private_helper",
+            ),
+            pytest.param(
+                "def work():\n    from mypkg import utils as u\n    u.func()\n",
+                "def func():\n    return 1\n",
+                id="lazy_import_with_alias",
+            ),
+            pytest.param(
+                (
+                    "def outer():\n"
+                    "    def inner():\n"
+                    "        from mypkg import utils\n"
+                    "        utils.func()\n"
+                ),
+                "def func():\n    return 1\n",
+                id="lazy_import_in_nested_function",
+            ),
+        ],
+    )
+    def test_lazy_import_variants_detect_namespace(
+        self, tmp_path: Path, caller_source: str, utils_source: str
     ) -> None:
         from axm_ast.core.dead_code import find_namespace_modules
 
         pkg_dir = tmp_path / "mypkg"
         pkg_dir.mkdir()
 
-        mod_a_path = _write_source(
-            pkg_dir / "caller.py",
-            "def do_work():\n    from mypkg import utils\n    utils.func()\n",
-        )
-        mod_b_path = _write_source(
-            pkg_dir / "utils.py",
-            "def _helper():\n    return 1\n\ndef func():\n    return _helper()\n",
-        )
+        mod_a_path = _write_source(pkg_dir / "caller.py", caller_source)
+        mod_b_path = _write_source(pkg_dir / "utils.py", utils_source)
 
         mod_a = _make_ns_module(mod_a_path, imports=[])
         mod_b = _make_ns_module(mod_b_path, imports=[])
@@ -135,57 +138,6 @@ class TestLazyImportNamespaceDetectionIntegration:
         mod_c = _make_ns_module(mod_c_path, imports=[])
         mod_b = _make_ns_module(mod_b_path, imports=[])
         pkg = _make_ns_pkg([mod_a, mod_c, mod_b])
-
-        result = find_namespace_modules(pkg)
-
-        assert mod_b_path in result
-
-    def test_lazy_import_with_alias(self, tmp_path: Path) -> None:
-        from axm_ast.core.dead_code import find_namespace_modules
-
-        pkg_dir = tmp_path / "mypkg"
-        pkg_dir.mkdir()
-
-        mod_a_path = _write_source(
-            pkg_dir / "caller.py",
-            "def work():\n    from mypkg import utils as u\n    u.func()\n",
-        )
-        mod_b_path = _write_source(
-            pkg_dir / "utils.py",
-            "def func():\n    return 1\n",
-        )
-
-        mod_a = _make_ns_module(mod_a_path, imports=[])
-        mod_b = _make_ns_module(mod_b_path, imports=[])
-        pkg = _make_ns_pkg([mod_a, mod_b])
-
-        result = find_namespace_modules(pkg)
-
-        assert mod_b_path in result
-
-    def test_lazy_import_in_nested_function(self, tmp_path: Path) -> None:
-        from axm_ast.core.dead_code import find_namespace_modules
-
-        pkg_dir = tmp_path / "mypkg"
-        pkg_dir.mkdir()
-
-        mod_a_path = _write_source(
-            pkg_dir / "caller.py",
-            (
-                "def outer():\n"
-                "    def inner():\n"
-                "        from mypkg import utils\n"
-                "        utils.func()\n"
-            ),
-        )
-        mod_b_path = _write_source(
-            pkg_dir / "utils.py",
-            "def func():\n    return 1\n",
-        )
-
-        mod_a = _make_ns_module(mod_a_path, imports=[])
-        mod_b = _make_ns_module(mod_b_path, imports=[])
-        pkg = _make_ns_pkg([mod_a, mod_b])
 
         result = find_namespace_modules(pkg)
 
