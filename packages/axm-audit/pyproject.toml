@@ -249,6 +249,30 @@ reason = "Tests probe 3 disjoint cross-file abstract-override branches: undocume
 hash = "69215f8917a6"
 reason = "Tests guard two same-file override branches with different parent kinds: undocumented @abstractmethod parent (process_entries≥1) vs non-abstract parent with docstring override-without-docstring (process_entries≥1); both assert >=1 count but exercise different abstract-vs-concrete inheritance paths in _analyze_docstrings."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "cadd568de417"
+reason = "Tests guard 3 disjoint NoPackageSymbolRule branches: parametrized 'either-criterion passes' verdict (a-only/b-only/both bodies in tests/integration/), file-level pytest.mark.no_package_symbol_ok marker exclusion, and the tests/unit/ tier always being skipped; each probes a different rule path with no shared input/assertion shape."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "efdd6ffcf529"
+reason = "Tests assert no-finding on two structurally different legitimate inputs: an e2e test invoking the declared CLI via subprocess (criterion b) and an integration test importing a first-party symbol (criterion a); each pins a different criterion path in NoPackageSymbolRule."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "eee3071fb748"
+reason = "Tests guard two disjoint extract_imports branches: parametrized single-statement cases (plain import vs relative-import-no-module) asserting the resulting module list, and the __future__-only edge case asserting an empty list; the assertion shapes (parametrized expected list vs literal == []) are not foldable without erasing the __future__-directive-excluded contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4a41a7e4f458"
+reason = "Tests guard two disjoint strip_prefix branches: parametrized inputs (shared-prefix strips, no-dot returns unchanged, mixed-prefix returns unchanged) asserting full output equality, and the empty-list edge case asserting == [] directly; the shapes (parametrized expected list vs literal empty) are not foldable without losing the empty-input contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "711a9dd09b86"
+reason = "Cluster covers 3 disjoint detect_first_party_packages branches with different setups: short-circuit when [tool.deptry] known_first_party is set (returns []), parametrized non-short-circuit cases (no-pyproject, no-deptry-section, malformed-toml — all return ['mypkg']), and the empty src/ directory edge case (returns []); each probes a different config-vs-filesystem detection path."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "62d416d20d18"
+reason = "Tests guard 3 disjoint _report_to_result text-rendering branches of TestCoverageRule: failure-test-id with '::' separator (asserts FAIL last-segment 'test_bar'), failure-test-id without '::' (asserts FAIL unchanged 'test_simple'), and 100% coverage + 1 failure (asserts no 'cov' line, only FAIL line); each probes a different rendering path on different inputs."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
