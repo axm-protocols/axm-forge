@@ -231,6 +231,14 @@ exempt_paths = [
     "hooks/_trace_protocol.py", # Protocol typing stub (TYPE_CHECKING-only)
 ]
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "290b176f5103"
+reason = "13 CLI smoke tests across 5 commands (describe/inspect/graph/search/version) and 5 TestClass groups — each asserts a different command output; parametrization would conflate distinct CLI contracts"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f9a7b46e63e9"
+reason = "12 InspectTool integration tests spanning 2 TestClasses with different fixtures (rich_pkg__from_inspect vs sample_project) and asserting on different symbol kinds (function/class/method/property/classmethod/module); fixture divergence prevents clean parametrization"
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
