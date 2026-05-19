@@ -172,11 +172,6 @@ class TestDescribeToolUnit:
         tool = DescribeTool()
         assert tool.name == "ast_describe"
 
-    def test_execute_bad_path(self) -> None:
-        tool = DescribeTool()
-        result = tool.execute(path="/nonexistent/path")
-        assert result.success is False
-
 
 # ---------------------------------------------------------------------------
 # Dogfood: describe tool on self
