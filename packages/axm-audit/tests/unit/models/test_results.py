@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from unittest.mock import Mock
 
 import pytest
@@ -36,28 +37,18 @@ from tests.unit._helpers import _RULE_CATEGORY
 class TestCheckResult:
     """Tests for CheckResult model."""
 
-    def test_passed_check(self) -> None:
-        """Passed check should have passed=True."""
-        from axm_audit.models.results import CheckResult
-
-        result = CheckResult(
-            rule_id="FILE_EXISTS",
-            passed=True,
-            message="pyproject.toml exists",
-        )
-        assert result.passed is True
+    @pytest.mark.parametrize(
+        ("passed", "message"),
+        [
+            pytest.param(True, "pyproject.toml exists", id="passed"),
+            pytest.param(False, "README.md not found", id="failed"),
+        ],
+    )
+    def test_check_result_passed_flag(self, passed: bool, message: str) -> None:
+        """CheckResult.passed mirrors the constructor argument."""
+        result = CheckResult(rule_id="FILE_EXISTS", passed=passed, message=message)
+        assert result.passed is passed
         assert result.rule_id == "FILE_EXISTS"
-
-    def test_failed_check(self) -> None:
-        """Failed check should have passed=False."""
-        from axm_audit.models.results import CheckResult
-
-        result = CheckResult(
-            rule_id="FILE_EXISTS",
-            passed=False,
-            message="README.md not found",
-        )
-        assert result.passed is False
 
     def test_audit_result_creation(self):
         """Test creating an AuditResult instance."""
@@ -402,11 +393,15 @@ class TestWeightsTableInvariants:
     def test_weights_sum_to_one(self) -> None:
         assert sum(_CATEGORY_WEIGHTS.values()) == pytest.approx(1.0, abs=1e-9)
 
-    def test_all_weights_strictly_positive(self) -> None:
-        assert all(w > 0 for w in _CATEGORY_WEIGHTS.values())
-
-    def test_no_weight_exceeds_one(self) -> None:
-        assert all(w <= 1.0 for w in _CATEGORY_WEIGHTS.values())
+    @pytest.mark.parametrize(
+        "predicate",
+        [
+            pytest.param(lambda w: w > 0, id="strictly_positive"),
+            pytest.param(lambda w: w <= 1.0, id="at_most_one"),
+        ],
+    )
+    def test_weight_bounds(self, predicate: Callable[[float], bool]) -> None:
+        assert all(predicate(w) for w in _CATEGORY_WEIGHTS.values())
 
 
 # ── Edge case: no scored checks → None ──────────────────────────────

@@ -493,47 +493,42 @@ def test_severity_warning(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_tmp_path_in_pytest_raises_with_str_wrapper_is_unit(tmp_path: Path) -> None:
-    """`scaffold(str(tmp_path), ...)` inside pytest.raises classifies as unit."""
-    _write(
-        tmp_path,
-        "tests/unit/test_foo.py",
-        """
-        import pytest
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(
+            """
+            import pytest
 
-        def scaffold(path, *, workspace=False, member=None):
-            raise SystemExit(1)
+            def scaffold(path, *, workspace=False, member=None):
+                raise SystemExit(1)
 
-        def test_x(tmp_path):
-            with pytest.raises(SystemExit, match="1"):
-                scaffold(str(tmp_path), workspace=True, member="foo")
-        """,
-    )
-    finding = _first_finding(_check(tmp_path))
-    assert finding.level == "unit"
-    assert finding.has_real_io is False
-    assert "tmp_path-as-arg" not in finding.io_signals
-    assert "fixture-arg:tmp_path" not in finding.io_signals
+            def test_x(tmp_path):
+                with pytest.raises(SystemExit, match="1"):
+                    scaffold(str(tmp_path), workspace=True, member="foo")
+            """,
+            id="str_wrapper_in_pytest_raises",
+        ),
+        pytest.param(
+            """
+            from dataclasses import dataclass
+            from pathlib import Path
 
+            @dataclass
+            class Cfg:
+                destination: Path
 
-def test_tmp_path_to_pydantic_constructor_is_unit(tmp_path: Path) -> None:
-    """`Cfg(destination=tmp_path / 'x')` with attribute-only access is unit."""
-    _write(
-        tmp_path,
-        "tests/unit/test_foo.py",
-        """
-        from dataclasses import dataclass
-        from pathlib import Path
-
-        @dataclass
-        class Cfg:
-            destination: Path
-
-        def test_x(tmp_path):
-            cfg = Cfg(destination=tmp_path / "project")
-            assert cfg.destination.name == "project"
-        """,
-    )
+            def test_x(tmp_path):
+                cfg = Cfg(destination=tmp_path / "project")
+                assert cfg.destination.name == "project"
+            """,
+            id="pydantic_constructor",
+        ),
+    ],
+)
+def test_tmp_path_attribute_only_access_is_unit(tmp_path: Path, body: str) -> None:
+    """`tmp_path` only used for attribute access / non-IO ctor stays unit."""
+    _write(tmp_path, "tests/unit/test_foo.py", body)
     finding = _first_finding(_check(tmp_path))
     assert finding.level == "unit"
     assert finding.has_real_io is False
