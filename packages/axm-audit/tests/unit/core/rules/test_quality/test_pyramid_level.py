@@ -28,31 +28,46 @@ def _run_call(source: str) -> ast.Call:
     return calls[-1]
 
 
-def test_in_package_subprocess_detects_uv_run_declared_script() -> None:
-    source = """
+@pytest.mark.parametrize(
+    ("source", "project_scripts"),
+    [
+        pytest.param(
+            """
 UV_BIN = "uv"
 
 def test_runs_declared_script():
     subprocess.run([UV_BIN, "run", "axm-audit", "audit"])
-"""
-
-    assert has_in_package_subprocess_invocation(
-        call=_run_call(source),
-        module_ast=ast.parse(source),
-        project_scripts={"axm-audit"},
-    )
-
-
-def test_in_package_subprocess_detects_python_module_submodule() -> None:
-    source = """
+""",
+            {"axm-audit"},
+            id="uv_run_declared_script",
+        ),
+        pytest.param(
+            """
 def test_runs_declared_module_submodule():
     subprocess.run([sys.executable, "-m", "axm_init.cli", "--help"])
-"""
+""",
+            {"axm-init"},
+            id="python_module_submodule",
+        ),
+        pytest.param(
+            """
+BIN = "axm-audit"
 
+def test_runs_bound_command():
+    sub = "audit"
+    cmd = [BIN, sub]
+    subprocess.run(cmd)
+""",
+            {"axm-audit"},
+            id="resolves_constants_and_local_cmd_binding",
+        ),
+    ],
+)
+def test_in_package_subprocess_detects(source: str, project_scripts: set[str]) -> None:
     assert has_in_package_subprocess_invocation(
         call=_run_call(source),
         module_ast=ast.parse(source),
-        project_scripts={"axm-init"},
+        project_scripts=project_scripts,
     )
 
 
@@ -95,23 +110,6 @@ def test_runs_with_dynamic_path(tmp_path):
     assert has_in_package_subprocess_invocation(
         call=run_call,
         module_ast=module_ast,
-        project_scripts={"axm-audit"},
-    )
-
-
-def test_in_package_subprocess_resolves_constants_and_local_cmd_binding() -> None:
-    source = """
-BIN = "axm-audit"
-
-def test_runs_bound_command():
-    sub = "audit"
-    cmd = [BIN, sub]
-    subprocess.run(cmd)
-"""
-
-    assert has_in_package_subprocess_invocation(
-        call=_run_call(source),
-        module_ast=ast.parse(source),
         project_scripts={"axm-audit"},
     )
 

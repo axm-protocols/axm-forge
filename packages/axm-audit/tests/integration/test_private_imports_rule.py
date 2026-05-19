@@ -304,25 +304,15 @@ def test_class_method_no_call_flagged(pkg_root: Path) -> None:
     assert len(attr) == 1
 
 
-def test_import_module_attribute_flagged(pkg_root: Path) -> None:
-    _write__from_private_import_detection(
-        pkg_root / "src" / "pkg" / "mod.py",
-        "_var = 1\n",
-    )
-    _write__from_private_import_detection(
-        pkg_root / "tests" / "test_x.py",
-        "import pkg.mod as m\n\ndef test():\n    return m._var\n",
-    )
-    result = PrivateImportsRule().check(pkg_root)
-    attr = [f for f in result.details["findings"] if f["access_kind"] == "attribute"]
-    assert len(attr) == 1
-    assert attr[0]["import_module"] == "pkg.mod"
-    assert attr[0]["private_symbol"] == "_var"
-
-
 @pytest.mark.parametrize(
     ("src_content", "test_content", "expected_symbol"),
     [
+        pytest.param(
+            "_var = 1\n",
+            "import pkg.mod as m\n\ndef test():\n    return m._var\n",
+            "_var",
+            id="import_module_as_alias",
+        ),
         pytest.param(
             "_var = 1\n",
             "import pkg.mod\n\ndef test():\n    return pkg.mod._var\n",

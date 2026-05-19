@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality.duplicate_tests import (
     _MAX_TEXT_CLUSTERS,
@@ -48,52 +50,43 @@ def test_rule_registered() -> None:
     assert DuplicateTestsRule in bucket
 
 
-def test_merge_ambiguous_dominates() -> None:
-    sub_clusters = [
-        _make_cluster(
+@pytest.mark.parametrize(
+    ("signal_a", "signal_b", "expected_signal"),
+    [
+        pytest.param(
             "signal1_call_assert",
-            [("tests/test_mod.py", "test_a"), ("tests/test_mod.py", "test_b")],
-        ),
-        _make_cluster(
             "ambiguous_distinct_literals",
-            [("tests/test_mod.py", "test_a"), ("tests/test_mod.py", "test_c")],
+            "ambiguous_distinct_literals",
+            id="ambiguous_dominates",
         ),
-    ]
-    merged = merge_clusters(sub_clusters)
-    assert len(merged) == 1
-    assert merged[0]["signal"] == "ambiguous_distinct_literals"
-
-
-def test_merge_multi_signal() -> None:
-    sub_clusters = [
-        _make_cluster(
+        pytest.param(
             "signal1_call_assert",
-            [("tests/test_mod.py", "test_a"), ("tests/test_mod.py", "test_b")],
-        ),
-        _make_cluster(
             "signal3_intra_file_similarity",
-            [("tests/test_mod.py", "test_a"), ("tests/test_mod.py", "test_c")],
+            "multi_signal",
+            id="multi_signal",
         ),
-    ]
-    merged = merge_clusters(sub_clusters)
-    assert len(merged) == 1
-    assert merged[0]["signal"] == "multi_signal"
-
-
-def test_merge_ambiguous_multi() -> None:
+        pytest.param(
+            "ambiguous_distinct_literals",
+            "ambiguous_patch_context",
+            "ambiguous_multi",
+            id="ambiguous_multi",
+        ),
+    ],
+)
+def test_merge_clusters(signal_a: str, signal_b: str, expected_signal: str) -> None:
     sub_clusters = [
         _make_cluster(
-            "ambiguous_distinct_literals",
+            signal_a,
             [("tests/test_mod.py", "test_a"), ("tests/test_mod.py", "test_b")],
         ),
         _make_cluster(
-            "ambiguous_patch_context",
+            signal_b,
             [("tests/test_mod.py", "test_a"), ("tests/test_mod.py", "test_c")],
         ),
     ]
     merged = merge_clusters(sub_clusters)
     assert len(merged) == 1
-    assert merged[0]["signal"] == "ambiguous_multi"
+    assert merged[0]["signal"] == expected_signal
 
 
 def testcollect_assert_call_sigs_extracts_direct_call() -> None:

@@ -273,6 +273,26 @@ reason = "Cluster covers 3 disjoint detect_first_party_packages branches with di
 hash = "62d416d20d18"
 reason = "Tests guard 3 disjoint _report_to_result text-rendering branches of TestCoverageRule: failure-test-id with '::' separator (asserts FAIL last-segment 'test_bar'), failure-test-id without '::' (asserts FAIL unchanged 'test_simple'), and 100% coverage + 1 failure (asserts no 'cov' line, only FAIL line); each probes a different rendering path on different inputs."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3e82563cc26a"
+reason = "Tests guard two disjoint AuditQualityRule aggregation branches in distinct classes: TestAuditQualityLintFails fakes lint=2 fails + type=pass (asserts '2 violation(s)', verifies type still ran despite lint failure — no short-circuit on lint), TestAuditQualityBothFail fakes lint=1 + type=2 fails (asserts '3 violation(s)', cross-category aggregation); each pins a different no-short-circuit semantics with different mock side_effect shapes and cannot be folded."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "cc3f9a49d858"
+reason = "Tests guard two disjoint ASTCache lifecycle branches inside TestUnitScope: test_default_is_none asserts get_ast_cache() is None at module init (no prior set, default ContextVar value), while test_clear asserts the same None after a set_ast_cache(ASTCache()) + set_ast_cache(None) round-trip (clearing semantics); the setup divergence is the contract being pinned and cannot be folded."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "225268402bde"
+reason = "Cluster spans 3 disjoint read_coupling_config branches: overrides for an existing first-party module (rules.quality=20), overrides silently kept for a nonexistent module (no.such.module=25), and the unrelated severity_error_multiplier=3 field (different tuple slot); each pins a distinct assertion target (overrides dict membership vs multiplier int) and cannot be folded."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d64d53ad6b2c"
+reason = "Tests guard 3 disjoint AntiMirrorRule pass-branches: scenario-named tests (assert passed AND score==100 across integration+e2e dirs), unit-dir is never walked (AC13, unit/test_foo.py source-name collision must NOT flag), and exempt_paths config (commands/*.py glob via pyproject [tool.axm-audit.mirror].exempt_paths skips anti-mirror); each probes a different rule path with distinct setup (no config / unit dir only / pyproject config) and cannot be folded."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7fa1b65783dd"
+reason = "Cluster spans two distinct SUTs in test_test_runner: TestParseFailures.test_empty_list and test_passing_tests_skipped exercise parse_failures([]) / parse_failures([passed]), while TestParseCollectorErrors.test_empty_list exercises parse_collector_errors([]); both parsers are public API and each empty-list contract guards a different function — folding would erase the parse_failures vs parse_collector_errors boundary."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
