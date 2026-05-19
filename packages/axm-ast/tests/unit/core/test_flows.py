@@ -824,15 +824,6 @@ def test_trace_flow_empty_package_raises(monkeypatch: pytest.MonkeyPatch) -> Non
 # ── detail validation ─────────────────────────────────────────────────
 
 
-class TestTraceFlowInvalidDetailRaises:
-    """trace_flow() must reject detail values outside the valid set."""
-
-    def test_trace_flow_invalid_detail_raises(self) -> None:
-        pkg = MagicMock()
-        with pytest.raises(ValueError, match="detail"):
-            trace_flow(pkg, "main", detail="full")
-
-
 class TestTraceFlowValidDetailsAccepted:
     """trace_flow() accepts each of the three valid detail values."""
 
@@ -884,20 +875,19 @@ class TestFlowsToolValidDetails:
 class TestDetailEdgeCases:
     """Boundary conditions for detail validation."""
 
-    def test_empty_string_detail_rejected(self) -> None:
+    @pytest.mark.parametrize(
+        "detail",
+        [
+            pytest.param("full", id="unknown_value"),
+            pytest.param("", id="empty_string"),
+            pytest.param("Trace", id="wrong_case"),
+            pytest.param(None, id="none"),
+        ],
+    )
+    def test_invalid_detail_rejected(self, detail: str | None) -> None:
         pkg = MagicMock()
         with pytest.raises(ValueError, match="detail"):
-            trace_flow(pkg, "main", detail="")
-
-    def test_case_sensitivity_rejected(self) -> None:
-        pkg = MagicMock()
-        with pytest.raises(ValueError, match="detail"):
-            trace_flow(pkg, "main", detail="Trace")
-
-    def test_none_detail_rejected(self) -> None:
-        pkg = MagicMock()
-        with pytest.raises(ValueError, match="detail"):
-            trace_flow(pkg, "main", detail=None)
+            trace_flow(pkg, "main", detail=detail)
 
     def test_build_trace_opts_invalid_detail(self) -> None:
         with pytest.raises(ValueError, match="detail"):
