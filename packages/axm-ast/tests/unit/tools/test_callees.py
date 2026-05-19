@@ -68,23 +68,51 @@ def test_text_callee_lines() -> None:
     assert lines[2] == "axm_ast.tools.search:100 grep(pattern)"
 
 
-def test_text_strips_src_prefix() -> None:
-    callees = [_callee("src.axm_ast.cli", 10, "run()")]
-    text = CalleesTool.render_text(callees, symbol="Main.run")
+@pytest.mark.parametrize(
+    ("module", "line", "call", "symbol", "expected_prefix"),
+    [
+        pytest.param(
+            "src.axm_ast.cli", 10, "run()", "Main.run", "axm_ast.cli:", id="strips-src"
+        ),
+        pytest.param(
+            "axm-ast::axm_ast.cli",
+            5,
+            "hello()",
+            "W.x",
+            "axm-ast::axm_ast.cli:",
+            id="workspace-prefix",
+        ),
+        pytest.param(
+            "tests.test_callees",
+            5,
+            "check()",
+            "T.run",
+            "tests.test_callees:",
+            id="no-src-prefix",
+        ),
+        pytest.param(
+            "axm_ast.tools.very.deeply.nested.module.path",
+            999,
+            "deep_call()",
+            "Z",
+            "axm_ast.tools.very.deeply.nested.module.path:999",
+            id="very-long-module",
+        ),
+    ],
+)
+def test_text_module_prefix_rendering(
+    module: str, line: int, call: str, symbol: str, expected_prefix: str
+) -> None:
+    """render_text emits module-prefix lines matching expected prefix."""
+    callees = [_callee(module, line, call)]
+    text = CalleesTool.render_text(callees, symbol=symbol)
     body = text.splitlines()[1]
-    assert body.startswith("axm_ast.cli:")
+    assert body.startswith(expected_prefix)
 
 
 def test_text_empty_callees() -> None:
     text = CalleesTool.render_text([], symbol="greet")
     assert text == "ast_callees | greet | 0 callees"
-
-
-def test_text_workspace_prefix() -> None:
-    callees = [_callee("axm-ast::axm_ast.cli", 5, "hello()")]
-    text = CalleesTool.render_text(callees, symbol="W.x")
-    body = text.splitlines()[1]
-    assert body.startswith("axm-ast::axm_ast.cli:")
 
 
 # ---------------------------------------------------------------------------
@@ -143,21 +171,6 @@ def test_error_result_no_symbol() -> None:
     result = tool.execute(symbol=None)
     assert result.success is False
     assert result.text is None
-
-
-def test_module_without_src_prefix() -> None:
-    callees = [_callee("tests.test_callees", 5, "check()")]
-    text = CalleesTool.render_text(callees, symbol="T.run")
-    body = text.splitlines()[1]
-    assert body.startswith("tests.test_callees:")
-
-
-def test_very_long_module_name() -> None:
-    long_mod = "axm_ast.tools.very.deeply.nested.module.path"
-    callees = [_callee(long_mod, 999, "deep_call()")]
-    text = CalleesTool.render_text(callees, symbol="Z")
-    body = text.splitlines()[1]
-    assert body.startswith(f"{long_mod}:999")
 
 
 # ---------------------------------------------------------------------------

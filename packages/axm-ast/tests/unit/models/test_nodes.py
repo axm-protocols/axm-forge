@@ -495,32 +495,34 @@ class TestFunctionInfoSignatureStrips:
         assert "port: int" in info.signature
         assert "verbose: bool" in info.signature
 
-    def test_strip_nested_type(self) -> None:
-        """Annotated[dict[str, int], ...] preserves the inner generic."""
+    @pytest.mark.parametrize(
+        ("annotation", "expected_substr"),
+        [
+            pytest.param(
+                "Annotated[dict[str, int], Meta()]",
+                "p: dict[str, int]",
+                id="nested-generic",
+            ),
+            pytest.param(
+                "Annotated[\n    str,\n    Parameter(help='...'),\n]",
+                "p: str",
+                id="multiline",
+            ),
+        ],
+    )
+    def test_strip_annotated_variants(
+        self, annotation: str, expected_substr: str
+    ) -> None:
+        """Annotated[...] variants stripped to inner type in signature."""
         info = FunctionInfo(
             name="f",
             line_start=1,
             line_end=1,
-            params=[
-                ParameterInfo(name="p", annotation="Annotated[dict[str, int], Meta()]"),
-            ],
+            params=[ParameterInfo(name="p", annotation=annotation)],
         )
         assert info.signature is not None
         assert "Annotated" not in info.signature
-        assert "p: dict[str, int]" in info.signature
-
-    def test_strip_multiline_annotated(self) -> None:
-        """Annotated[...] spread across multiple lines is still stripped."""
-        raw = "Annotated[\n    str,\n    Parameter(help='...'),\n]"
-        info = FunctionInfo(
-            name="f",
-            line_start=1,
-            line_end=1,
-            params=[ParameterInfo(name="p", annotation=raw)],
-        )
-        assert info.signature is not None
-        assert "Annotated" not in info.signature
-        assert "p: str" in info.signature
+        assert expected_substr in info.signature
 
     def test_no_strip_plain_type(self) -> None:
         """A bare type passes through unchanged."""
@@ -567,17 +569,34 @@ class TestFunctionInfoSignatureStripsEdgeCases:
         assert "b: int" in info.signature
         assert "c: float" in info.signature
 
-    def test_annotated_with_multiple_metadata(self) -> None:
-        """Annotated[T, A, B, C] keeps only T."""
+    @pytest.mark.parametrize(
+        ("annotation", "expected_substr"),
+        [
+            pytest.param(
+                "Annotated[str, A, B, C]",
+                "p: str",
+                id="multiple-metadata",
+            ),
+            pytest.param(
+                "Annotated[str]",
+                "p: str",
+                id="single-arg",
+            ),
+        ],
+    )
+    def test_strip_annotated_edge_arity(
+        self, annotation: str, expected_substr: str
+    ) -> None:
+        """Annotated[T, ...] with varying metadata arity keeps only T."""
         info = FunctionInfo(
             name="f",
             line_start=1,
             line_end=1,
-            params=[ParameterInfo(name="p", annotation="Annotated[str, A, B, C]")],
+            params=[ParameterInfo(name="p", annotation=annotation)],
         )
         assert info.signature is not None
         assert "Annotated" not in info.signature
-        assert "p: str" in info.signature
+        assert expected_substr in info.signature
 
     def test_annotated_as_return_type(self) -> None:
         """Return type Annotated[bool, ...] should also be stripped."""
@@ -593,18 +612,6 @@ class TestFunctionInfoSignatureStripsEdgeCases:
         assert info.signature is not None
         assert "Annotated" not in info.signature
         assert "-> bool" in info.signature
-
-    def test_empty_annotated(self) -> None:
-        """Annotated[str] with single arg (unusual but valid)."""
-        info = FunctionInfo(
-            name="f",
-            line_start=1,
-            line_end=1,
-            params=[ParameterInfo(name="p", annotation="Annotated[str]")],
-        )
-        assert info.signature is not None
-        assert "Annotated" not in info.signature
-        assert "p: str" in info.signature
 
 
 # ---------------------------------------------------------------------------

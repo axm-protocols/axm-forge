@@ -359,6 +359,14 @@ reason = "4 find_stale_signatures AST-extraction tests pin four distinct actual_
 hash = "d9530754f33e"
 reason = "4 filter_modules tests probe three mutually exclusive assertion contracts: test_filter_modules_none and test_filter_modules_empty_list both assert len(result.modules) == len(pkg.modules) (None and [] are passthrough branches of the same fallback), test_filter_modules_no_match asserts len(result.modules) == 0 against a literal-0 contract for non-matching needles, and test_filter_modules_case_insensitive calls filter_modules twice (lower=['utils'], upper=['UTILS']) and asserts len(lower.modules) == len(upper.modules) — a comparison-of-two-results shape with no expected literal. Three different assertion shapes (passthrough-equals-pkg / equals-0 / equals-other-filter) cannot be folded into a single expected_count parameter without erasing the per-branch documentation."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3de029350208"
+reason = "4 InspectTool not-found tests span three TestClass groups documenting three distinct resolution branches: TestDottedPathResolution.test_dotted_not_found (symbol='core.nonexistent') and test_double_dotted_not_found (symbol='fake.module.xyz') exercise the dotted-path resolver with asymmetric error contracts ('nonexistent' substring vs 'not found' substring on a non-existent module prefix), TestInspectEdgeCasesIntegration.test_symbol_not_found pins the bare-symbol lookup error path on rich_pkg__from_inspect, and TestInspectModuleFallback.test_no_match_still_errors documents the AXM-430 module-fallback edge ('no symbol and no module' combined error). Parametrizing would conflate three SUT branches (dotted resolver / bare-symbol lookup / module fallback) and two divergent error-substring contracts."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "76a6388080d6"
+reason = "4 TestInspectToolIntegration not-found tests pin four distinct error-contract shapes on the sample_project fixture: test_inspect_dotted_not_found (symbol='Helper.nonexistent') asserts both 'nonexistent' AND 'Helper' in error (class-found-method-missing branch), test_inspect_class_not_found_dotted (symbol='Missing.method') asserts only 'Missing' (class-not-found branch, method name is irrelevant), test_inspect_module_symbol_not_found (symbol='core.nonexistent') asserts both 'core' AND 'nonexistent' (module-found-symbol-missing branch, AXM-54), and test_inspect_no_match_at_all (symbol='nonexistent.xyz') asserts only the generic 'not found' (combined fallback branch). Folding would require a per-test list[str] of expected substrings — erasing the per-branch error-contract documentation (which token must appear, and why)."
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
