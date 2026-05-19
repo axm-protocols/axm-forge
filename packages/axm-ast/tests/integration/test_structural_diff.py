@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from axm_ast.core.structural_diff import structural_diff
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -164,10 +166,20 @@ class TestDiffModifiedSymbol:
 class TestDiffUnchanged:
     """Test when nothing changes."""
 
-    def test_diff_unchanged(self, tmp_path: Path) -> None:
-        """Identical branches → empty diff."""
+    @pytest.mark.parametrize(
+        "head",
+        [
+            pytest.param("main", id="unchanged"),
+            pytest.param("main", id="same_branch"),
+            pytest.param("HEAD", id="head_defaults_to_current"),
+        ],
+    )
+    def test_diff_empty_when_head_resolves_to_base(
+        self, tmp_path: Path, head: str
+    ) -> None:
+        """main..main and main..HEAD (on main) both yield an empty diff."""
         root = _make_diff_project(tmp_path)
-        result = structural_diff(root / "pkg", "main", "main")
+        result = structural_diff(root / "pkg", "main", head)
         assert result["added"] == []
         assert result["removed"] == []
         assert result["modified"] == []
@@ -235,14 +247,6 @@ class TestDiffFunctional:
 class TestDiffEdgeCases:
     """Edge cases for structural diff."""
 
-    def test_same_branch(self, tmp_path: Path) -> None:
-        """main..main → empty diff."""
-        root = _make_diff_project(tmp_path)
-        result = structural_diff(root / "pkg", "main", "main")
-        assert result["added"] == []
-        assert result["removed"] == []
-        assert result["modified"] == []
-
     def test_nonexistent_ref(self, tmp_path: Path) -> None:
         """Invalid branch name → error dict."""
         root = _make_diff_project(tmp_path)
@@ -290,12 +294,3 @@ class TestDiffEdgeCases:
         result = structural_diff(pkg, "main", "feat")
         added_names = [s["name"] for s in result["added"]]
         assert "User" in added_names
-
-    def test_head_defaults_to_current(self, tmp_path: Path) -> None:
-        """If head is HEAD, uses current branch."""
-        root = _make_diff_project(tmp_path)
-        # We're on main, so HEAD == main → same as main..main
-        result = structural_diff(root / "pkg", "main", "HEAD")
-        assert result["added"] == []
-        assert result["removed"] == []
-        assert result["modified"] == []

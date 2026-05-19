@@ -15,6 +15,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from axm_ast.core.workspace import (
     format_workspace_graph_mermaid,
     parse_workspace_members,
@@ -29,17 +31,28 @@ from tests.unit._helpers import _EDGE_RE, _NODE_DECL_RE
 class TestParsingUnit:
     """Pure-string parsing helpers (no I/O)."""
 
-    def test_parse_workspace_members(self) -> None:
-        text = '[tool.uv.workspace]\nmembers = ["pkg-a", "pkg-b"]'
-        assert parse_workspace_members(text) == ["pkg-a", "pkg-b"]
-
-    def test_parse_workspace_members_multiline(self) -> None:
-        text = '[tool.uv.workspace]\nmembers = [\n  "alpha",\n  "beta",\n]'
-        assert parse_workspace_members(text) == ["alpha", "beta"]
-
-    def test_parse_workspace_members_no_section(self) -> None:
-        text = '[project]\nname = "foo"'
-        assert parse_workspace_members(text) == []
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            pytest.param(
+                '[tool.uv.workspace]\nmembers = ["pkg-a", "pkg-b"]',
+                ["pkg-a", "pkg-b"],
+                id="single_line",
+            ),
+            pytest.param(
+                '[tool.uv.workspace]\nmembers = [\n  "alpha",\n  "beta",\n]',
+                ["alpha", "beta"],
+                id="multiline",
+            ),
+            pytest.param(
+                '[project]\nname = "foo"',
+                [],
+                id="no_section",
+            ),
+        ],
+    )
+    def test_parse_workspace_members(self, text: str, expected: list[str]) -> None:
+        assert parse_workspace_members(text) == expected
 
     def test_parse_workspace_members_glob(self) -> None:
         """parse_workspace_members returns raw glob strings unchanged."""
