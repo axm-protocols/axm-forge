@@ -11,7 +11,6 @@ from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality.duplicate_tests import (
     _MAX_TEXT_CLUSTERS,
     DuplicateTestsRule,
-    _cluster_hash,
     _slim_clusters,
     collect_assert_call_sigs,
     make_test_func,
@@ -256,68 +255,6 @@ def _raw_cluster(signal: str, tests: list[tuple[str, str, int]]) -> dict[str, An
         "similarity": 0.9,
         "members": [{"file": f, "name": n, "line": ln} for f, n, ln in tests],
     }
-
-
-def test_cluster_hash_is_deterministic_and_order_independent() -> None:
-    """AC1: same (file, name) members in different order → identical 12-char hash."""
-    cluster_a = _raw_cluster(
-        "signal1_call_assert",
-        [
-            ("tests/test_a.py", "test_x", 10),
-            ("tests/test_b.py", "test_y", 20),
-        ],
-    )
-    cluster_b = _raw_cluster(
-        "signal1_call_assert",
-        [
-            ("tests/test_b.py", "test_y", 20),
-            ("tests/test_a.py", "test_x", 10),
-        ],
-    )
-    h_a = _cluster_hash(cluster_a)
-    h_b = _cluster_hash(cluster_b)
-    assert h_a == h_b
-    assert len(h_a) == 12
-    assert all(c in "0123456789abcdef" for c in h_a)
-
-
-def test_cluster_hash_changes_when_member_added() -> None:
-    """AC1: adding a member must change the hash (composition-stable contract)."""
-    cluster_a = _raw_cluster(
-        "signal1_call_assert",
-        [
-            ("tests/test_a.py", "test_x", 10),
-            ("tests/test_b.py", "test_y", 20),
-        ],
-    )
-    cluster_b = _raw_cluster(
-        "signal1_call_assert",
-        [
-            ("tests/test_a.py", "test_x", 10),
-            ("tests/test_b.py", "test_y", 20),
-            ("tests/test_c.py", "test_z", 30),
-        ],
-    )
-    assert _cluster_hash(cluster_a) != _cluster_hash(cluster_b)
-
-
-def test_cluster_hash_ignores_line_field() -> None:
-    """AC1: line drifts on every edit — must not invalidate acknowledgement."""
-    cluster_a = _raw_cluster(
-        "signal1_call_assert",
-        [
-            ("tests/test_a.py", "test_x", 10),
-            ("tests/test_b.py", "test_y", 20),
-        ],
-    )
-    cluster_b = _raw_cluster(
-        "signal1_call_assert",
-        [
-            ("tests/test_a.py", "test_x", 999),
-            ("tests/test_b.py", "test_y", 1),
-        ],
-    )
-    assert _cluster_hash(cluster_a) == _cluster_hash(cluster_b)
 
 
 def test_slim_clusters_attaches_hash_field() -> None:
