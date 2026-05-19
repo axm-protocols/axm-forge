@@ -279,6 +279,14 @@ reason = "6 analyze_package skip-directory tests probing distinct skip-resolutio
 hash = "7c950537a3d4"
 reason = "6 format_context_json depth-mode tests asserting on distinct dict subscopes of the JSON output contract: test_depth0_has_expected_keys (top-level depth=0 keys name/python/stack/patterns/top_modules), test_depth0_no_full_modules (negative: depth=0 strips modules/dependency_graph/axm_tools), test_depth0_top_modules_fields (per-entry name/symbol_count/stars inside top_modules list), test_depth0_patterns_compact (inner patterns dict module_count/function_count/class_count/layout), test_depth1_has_packages (depth=1 returns packages dict, drops top_modules), test_depth1_package_has_counts (per-package modules/symbols counts) — each probes a different region of the schema; parametrization would conflate four distinct depth/scope contracts"
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "247b907c95e6"
+reason = "5 test_bad_path unit tests live in 5 distinct tool-mirror test files (test_dead_code/describe/docs/flows/graph.py) — each instantiates a different Tool class (DeadCodeTool, DescribeTool, DocsTool, FlowsTool, GraphTool) and exercises its own .execute(path=\"/nonexistent/...\") error path; cross-file parametrization would break the 1:1 src/tools/ mirror contract; the same-file duplicate inside test_describe.py (test_execute_bad_path in TestDescribeToolUnit) has been removed in this commit"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b57adba0c9ad"
+reason = "6 test_name unit tests live in 6 distinct tool-mirror test files (test_describe/diff/doc_impact_text/flows/graph/search.py) — each instantiates a different Tool class (DescribeTool, DiffTool, DocImpactTool, FlowsTool, GraphTool, SearchTool) and asserts on its unique .name attribute (ast_describe, ast_diff, ast_doc_impact, ast_flows, ast_graph, ast_search); cross-file parametrization would break the 1:1 src/tools/ mirror contract and centralize tool-name assertions away from their owning test module (same rationale as acked cluster ebf90edda9c0)"
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
