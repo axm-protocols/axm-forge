@@ -1,4 +1,9 @@
-"""Integration tests for graph ranking — split from tests/unit/test_ranker.py."""
+"""Integration tests for graph ranking via ``rank_symbols``.
+
+Merges the former ``test_analyze_package__build_symbol_graph.py`` —
+that file drove the private ``_build_symbol_graph`` helper, replaced
+here with score-based assertions on the public ``rank_symbols`` API.
+"""
 
 from __future__ import annotations
 
@@ -19,6 +24,31 @@ class TestRankSymbolsIntegration:
         pkg = analyze_package(pkg_dir)
         result = rank_symbols(pkg)
         assert result == {}
+
+    def test_inheritance_ranks_base_class(self, tmp_path: Path) -> None:
+        """Inheriting a class creates an edge to the base, lifting its rank.
+
+        Merged from ``test_analyze_package__build_symbol_graph.
+        test_base_class_edge``: the private graph builder added a
+        ``Child → Base`` edge; equivalently, ``Base`` must show up in
+        the public ranking with a positive score because ``Child``
+        references it.
+        """
+        pkg_dir = tmp_path / "inherit_pkg"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text(
+            '"""Inherit test."""\n'
+            "class Base:\n"
+            '    """Base class."""\n'
+            "    pass\n"
+            "class Child(Base):\n"
+            '    """Child class."""\n'
+            "    pass\n"
+        )
+        pkg = analyze_package(pkg_dir)
+        result = rank_symbols(pkg)
+        assert "Base" in result, "Base should appear in the ranking"
+        assert result["Base"] > 0, "Base should receive a non-zero rank"
 
 
 class TestRankerEdgeCases:
