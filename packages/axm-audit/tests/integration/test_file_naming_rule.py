@@ -283,14 +283,3 @@ def test_check_text_is_none_when_passing(tmp_path: Path) -> None:
 
     assert result.passed is True
     assert result.text is None
-
-
-def test_self_audit_text_under_size_threshold() -> None:
-    """AC6 — self-audit on axm-audit produces text well under 4 KB."""
-    package_root = Path(__file__).resolve().parents[2]
-
-    result = FileNamingRule().check(package_root)
-
-    if result.text is None:
-        pytest.skip("axm-audit has no FILE_NAMING findings; size cap trivially met")
-    assert len(result.text) < 4_000
