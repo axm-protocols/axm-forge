@@ -341,6 +341,26 @@ reason = "Inter-file cluster mixes pass-paths and detection-paths across 5 diffe
 hash = "5ea06a57941b"
 reason = "Canonical 'same test shape, different SUT' case: 6 `test_rule_id_format` tests across 6 different rule test files, each asserting its own rule class's `rule_id` constant matches an expected literal. The SUTs (rule classes) are different per file; folding cross-file would require importing all 6 rule classes into a single parametrized location, coupling unrelated rule modules and erasing the per-file rule-id contract. Distinct-SUT — ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "faf50aeea4ef"
+reason = "Inter-file cluster mixes 4 docstring-coverage integration scenarios (cross-file abstract override skip, same-file regression, __init__ re-export, circular-import safety) — each writing different file-system layouts via DocstringCoverageRule._analyze_docstrings — plus an unrelated unit test on collect_category_scores warning behavior on unscored category. No shared fixture/helper signature; folding would force the rule fixture and tmp_path layout onto an unrelated CheckResult/caplog assertion. Distinct fixtures across files — ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ca8fe9aad724"
+reason = "Inter-file cluster spans 4 unrelated SUTs: audit_project pyramid-verdict integration, two PrivateImportsRule attribute-access scenarios (class method no-call, upper constant when enabled), a conftest cache re-parse R4 integration check, and a unit-level finding-count assertion for attribute detection. Different fixtures (tmp_path projects vs pkg_root vs mocker spy) and different rule APIs; no shared helper signature to fold across. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "6a6792d55844"
+reason = "Inter-file cluster mixes 5 unrelated rule integrations: CouplingMetricRule above-threshold case, CouplingMetricRule __init__.py exclusion, DependencyHygieneRule workspace-aggregate behavior, DependencyHygieneRule single-package preserved behavior, and a SecurityRule bandit RC1 reporting check. Each test owns its own pyproject/source layout and rule SUT; cross-rule folding would couple unrelated rule modules. Distinct-SUT — ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "288c5e5c0c58"
+reason = "Inter-file cluster of 5 'private alias / module attribute absent' unit tests, each probing a DIFFERENT module (coupling, base.COMPLEXITY_THRESHOLD, quality, runner._find_venv, test_runner._aliases). They share the `assert not hasattr(mod, name)` shape but each enforces its own module-level public-surface contract — each unit-test file mirrors a different source module (PRACTICE_TEST_MIRROR). Cross-file folding would break the 1:1 mirror layout. Distinct module contracts — ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "69ea5aa5a8c9"
+reason = "Inter-file cluster spans 4 unrelated SUTs: NoPackageSymbolRule per-test marker integration, shared R4-skip-when-R3-attr-present integration, PrivateImportsRule count-dropped unit assertion, and TestRunner traceback-truncation unit. Different fixtures (tmp_path project layouts vs in-memory rule call vs subprocess parser) and different APIs. No shared helper signature; folding would force unrelated fixtures into a single parametrize. ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
