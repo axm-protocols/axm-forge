@@ -381,6 +381,26 @@ reason = "Inter-file cluster mixes a quality-module check.text indent rendering 
 hash = "f387adcf66a7"
 reason = "Inter-file cluster spans 3 distinct AuditQualityRule failure paths: all-categories-raise (every audit_project call raises RuntimeError → 'All audit categories failed' feedback), type-fails (lint passes + 3 mypy failures aggregated → '3 violation(s)' feedback), and working-dir-invalid (nonexistent path → 'Not a directory' feedback before any audit runs). Each guards a different early-exit/aggregation branch with different mock setups and feedback assertions. No shared helper signature. ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "40d3baeaaf2f"
+reason = "Inter-file cluster covers 3 unrelated failure-mode rules: BareExceptRule (bare `except:` → bare_except_count>0), SecurityPatternRule (hardcoded password → secret_count>0), and TypeCheckRule (return type mismatch → error_count>0). Each asserts a different details key on a different rule with disjoint fixture content. No shared helper signature; folding would erase per-rule failure contracts. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e059631c34e9"
+reason = "Inter-file cluster covers 3 distinct prefix-stripping branches across 3 rules: CircularImportRule strips the common package prefix from module FQNs (text contains '→', no 'mypkg.'), TypeCheckRule strips 'src/' from mypy file paths ('pkg/mod.py:' in text, 'src/' not), and DeadCodeRule strips 'src/' from axm-ast dead-symbol file paths ('axm_audit/foo.py' in text, 'src/' not). Different SUTs, different rendering pipelines, different prefix semantics (package-dotted vs filesystem). No shared helper signature. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b1afc520af37"
+reason = "Inter-file cluster covers 3 unrelated text-rendering checks: CircularImportRule preserves bare module names without dot-stripping (test_text_no_prefix_strip_for_bare_modules), and DuplicationRule emits bullet+arrow markers (test_duplicate_text_has_bullets) and includes file paths (test_duplicate_text_has_file_paths) for clone pairs. The two DuplicationRule tests assert disjoint text contents (•/→ glyph presence vs both a.py and b.py path presence) on the same fixture and the circular-import test guards an unrelated rule. No shared helper signature spanning the two files. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "fbc4ea5f345b"
+reason = "Inter-file cluster spans 3 distinct scoring/passing branches: CouplingMetricRule mixed-severity scoring (2 warnings + 1 error → score=89 via 100 - (2*3 + 1*5)), CouplingMetricRule error-floor (25 modules × fan-out=25 → score=0 floored), and LintingRule clean-project (zero ruff issues → score=100). Different SUTs (coupling vs lint), different scoring formulas, different fixture shapes. No shared helper signature spanning the two files. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7e2a43857cbe"
+reason = "Inter-file cluster covers 3 unrelated severity/passed contracts: CouplingMetricRule mixed-severity returns Severity.ERROR + passed=False on a fakepkg with one warning + one error module, MirrorRule returns passed=True + Severity.INFO when src/ is absent (graceful skip), and ToolAvailabilityRule parametrizes severity by `critical` flag (False→WARNING, True→ERROR) on a missing tool. Three different rules, three different severity-derivation branches, disjoint inputs. No shared helper signature. ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
