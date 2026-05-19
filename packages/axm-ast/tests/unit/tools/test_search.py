@@ -21,6 +21,7 @@ from axm_ast.tools.search_text import (
     format_symbol_line,
     format_text_header,
     render_suggestion_line,
+    render_text,
 )
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
@@ -404,7 +405,7 @@ def test_render_text_mixed(
     variable_sym_annotated: dict[str, Any],
 ) -> None:
     symbols = [function_sym, class_sym, variable_sym_annotated]
-    result = SearchTool._render_text(
+    result = render_text(
         symbols,
         search_filters={"name": None, "returns": None, "kind": None, "inherits": None},
     )

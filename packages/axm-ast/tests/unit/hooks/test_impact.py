@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, cast
+from pathlib import Path
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 
-from axm_ast.core.impact import ImpactResult
-from axm_ast.hooks.impact import DocImpactHook, ImpactHook, _merge_impact_reports
+from axm_ast.hooks.impact import DocImpactHook, ImpactHook
 
 
 def test_impact_module_all_exports() -> None:
@@ -38,15 +39,26 @@ class TestImpactHookUnit:
         assert "symbol" in (result.error or "").lower()
 
 
-# ── _merge_impact_reports tests (merged from test_hooks.py) ─────────────────
+# ── Multi-symbol merge tests via the public ImpactHook.execute seam ─────────
 
 
-class TestMergeImpactReports:
-    """Tests for _merge_impact_reports helper."""
+class TestImpactHookMultiSymbolMerge:
+    """Drive the multi-symbol merge path through ImpactHook.execute.
 
-    def test_single_report(self) -> None:
-        """Single report returned unchanged."""
-        report: dict[str, Any] = {
+    The hook splits ``symbol`` on newlines and merges per-symbol
+    ``analyze_impact`` results (max score, concat callers, dedup
+    modules/tests). These tests assert on the merged metadata shape
+    exposed via ``HookResult.metadata['impact']``.
+    """
+
+    @patch("axm_ast.core.impact.analyze_impact")
+    def test_single_symbol_passthrough(
+        self,
+        mock_impact: Any,
+        tmp_path: Path,
+    ) -> None:
+        """Single symbol bypasses merge — fields propagate unchanged."""
+        mock_impact.return_value = {
             "symbol": "Foo",
             "definition": {"file": "foo.py", "line": 10},
             "callers": [{"name": "bar"}],
@@ -57,63 +69,96 @@ class TestMergeImpactReports:
             "git_coupled": [],
             "score": "MEDIUM",
         }
-        result = _merge_impact_reports("Foo", cast("list[ImpactResult]", [report]))
-        assert result["callers"] == [{"name": "bar"}]
-        assert result["score"] == "MEDIUM"
-        assert result["affected_modules"] == ["mod_a"]
 
-    def test_multi_reports_max_score(self) -> None:
-        """Max score wins across multiple reports."""
-        r1: dict[str, Any] = {
-            "definition": {"file": "a.py", "line": 1},
-            "callers": [{"name": "x"}],
-            "type_refs": [],
-            "reexports": [],
-            "affected_modules": ["mod_a"],
-            "test_files": ["test_a.py"],
-            "git_coupled": [],
-            "score": "LOW",
-        }
-        r2: dict[str, Any] = {
-            "definition": {"file": "b.py", "line": 5},
-            "callers": [{"name": "y"}],
-            "type_refs": [],
-            "reexports": [],
-            "affected_modules": ["mod_b"],
-            "test_files": ["test_b.py"],
-            "git_coupled": [],
-            "score": "HIGH",
-        }
-        result = _merge_impact_reports("A\nB", cast("list[ImpactResult]", [r1, r2]))
-        assert result["score"] == "HIGH"
-        assert len(result["callers"]) == 2
-        assert len(result["definitions"]) == 2
+        result = ImpactHook().execute({}, symbol="Foo", path=str(tmp_path))
 
-    def test_dedup_modules_and_tests(self) -> None:
-        """affected_modules and test_files are deduplicated."""
-        r1: dict[str, Any] = {
-            "definition": None,
-            "callers": [],
-            "type_refs": [],
-            "reexports": [],
-            "affected_modules": ["mod_a", "mod_b"],
-            "test_files": ["test_x.py"],
-            "git_coupled": [],
-            "score": "LOW",
-        }
-        r2: dict[str, Any] = {
-            "definition": None,
-            "callers": [],
-            "type_refs": [],
-            "reexports": [],
-            "affected_modules": ["mod_a", "mod_c"],
-            "test_files": ["test_x.py", "test_y.py"],
-            "git_coupled": [],
-            "score": "LOW",
-        }
-        result = _merge_impact_reports("A\nB", cast("list[ImpactResult]", [r1, r2]))
-        assert result["affected_modules"] == ["mod_a", "mod_b", "mod_c"]
-        assert result["test_files"] == ["test_x.py", "test_y.py"]
+        assert result.success
+        impact = result.metadata["impact"]
+        assert impact["callers"] == [{"name": "bar"}]
+        assert impact["score"] == "MEDIUM"
+        assert impact["affected_modules"] == ["mod_a"]
+
+    @patch("axm_ast.core.impact.analyze_impact")
+    def test_multi_reports_max_score(
+        self,
+        mock_impact: Any,
+        tmp_path: Path,
+    ) -> None:
+        """Max score wins across multiple symbols; definitions accumulate."""
+
+        def side_effect(_path: Path, sym: str, **_kw: object) -> dict[str, Any]:
+            base: dict[str, Any] = {
+                "type_refs": [],
+                "reexports": [],
+                "test_files": [f"test_{sym.lower()}.py"],
+                "git_coupled": [],
+            }
+            if sym == "A":
+                return {
+                    **base,
+                    "symbol": "A",
+                    "definition": {"file": "a.py", "line": 1},
+                    "callers": [{"name": "x"}],
+                    "affected_modules": ["mod_a"],
+                    "score": "LOW",
+                }
+            return {
+                **base,
+                "symbol": "B",
+                "definition": {"file": "b.py", "line": 5},
+                "callers": [{"name": "y"}],
+                "affected_modules": ["mod_b"],
+                "score": "HIGH",
+            }
+
+        mock_impact.side_effect = side_effect
+
+        result = ImpactHook().execute({}, symbol="A\nB", path=str(tmp_path))
+
+        assert result.success
+        impact = result.metadata["impact"]
+        assert impact["score"] == "HIGH"
+        assert len(impact["callers"]) == 2
+        assert len(impact["definitions"]) == 2
+
+    @patch("axm_ast.core.impact.analyze_impact")
+    def test_dedup_modules_and_tests(
+        self,
+        mock_impact: Any,
+        tmp_path: Path,
+    ) -> None:
+        """affected_modules and test_files are deduplicated across reports."""
+
+        def side_effect(_path: Path, sym: str, **_kw: object) -> dict[str, Any]:
+            base: dict[str, Any] = {
+                "symbol": sym,
+                "definition": None,
+                "callers": [],
+                "type_refs": [],
+                "reexports": [],
+                "git_coupled": [],
+                "score": "LOW",
+            }
+            if sym == "A":
+                return {
+                    **base,
+                    "affected_modules": ["mod_a", "mod_b"],
+                    "test_files": ["test_x.py"],
+                }
+            return {
+                **base,
+                "affected_modules": ["mod_a", "mod_c"],
+                "test_files": ["test_x.py", "test_y.py"],
+            }
+
+        mock_impact.side_effect = side_effect
+
+        result = ImpactHook().execute({}, symbol="A\nB", path=str(tmp_path))
+
+        assert result.success
+        impact = result.metadata["impact"]
+        assert impact["affected_modules"] == ["mod_a", "mod_b", "mod_c"]
+        assert impact["test_files"] == ["test_x.py", "test_y.py"]
 
 
 # ── ImpactHook execute tests (merged from test_hooks.py) ────────────────────

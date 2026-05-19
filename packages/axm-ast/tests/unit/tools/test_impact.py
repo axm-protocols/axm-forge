@@ -1,15 +1,14 @@
 """Tests for axm_ast.tools.impact.
 
-Merged canonical mirror covering the public/internal surface of
+Merged canonical mirror covering the public surface of
 ``axm_ast.tools.impact``: batch compact formatting, single/multi compact
-output, the ``_format_callers_compact`` helper, edge cases on ``ImpactTool``,
-failure logging, the text render path, and severity/score handling.
+output, edge cases on ``ImpactTool``, failure logging, the text render
+path, and severity/score handling.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any, cast
 
 import pytest
@@ -17,13 +16,11 @@ import pytest
 from axm_ast.core.impact import ImpactResult
 from axm_ast.tools.impact import (
     ImpactTool,
-    _format_callers_compact,
     format_impact_compact,
     format_impact_compact_multi,
     render_impact_batch_text,
     render_impact_text,
 )
-from axm_ast.tools.impact_text import _render_impact_single
 
 # ── batch compact ──
 
@@ -246,154 +243,6 @@ class TestImpactCompactEdgeCases:
         result = format_impact_compact(impact)
         assert isinstance(result, str)
         assert "no test coverage" in result
-
-
-# ── _format_callers_compact ──
-
-
-def _fc_caller(module: str, line: int) -> dict[str, str | int]:
-    """Build a minimal caller dict."""
-    return {"module": module, "line": line, "context": "", "call_expression": ""}
-
-
-class TestProdCallersShownWithLines:
-    def test_prod_callers_shown_with_lines(self) -> None:
-        callers = [
-            _fc_caller("src.axm_ast.tools.impact", 116),
-            _fc_caller("src.axm_ast.hooks.impact", 163),
-            _fc_caller("tests.test_tools", 42),
-            _fc_caller("tests.test_impact_compact", 62),
-            _fc_caller("tests.test_impact_compact", 103),
-        ]
-        result = _format_callers_compact(callers, symbol_module="source_body")
-        assert "Prod:" in result
-        assert "src.axm_ast.tools.impact:116" in result
-        assert "src.axm_ast.hooks.impact:163" in result
-
-
-class TestTestCallersGroupedByFile:
-    def test_test_callers_grouped_by_file(self) -> None:
-        callers = [
-            _fc_caller("tests.test_foo", 10),
-            _fc_caller("tests.test_foo", 20),
-            _fc_caller("tests.test_foo", 30),
-            _fc_caller("tests.test_foo", 40),
-            _fc_caller("tests.test_foo", 50),
-        ]
-        result = _format_callers_compact(callers, symbol_module="bar")
-        assert "test_foo" in result
-        assert "×5" in result  # x5  # noqa: RUF001
-        assert re.search(r"\d+,\d+", result)
-
-
-class TestLinesCappedAt5ForIndirect:
-    def test_lines_capped_at_5_for_indirect(self) -> None:
-        callers = [_fc_caller("tests.test_foo", i) for i in range(1, 9)]
-        result = _format_callers_compact(callers, symbol_module="bar")
-        assert "×8" in result  # x8  # noqa: RUF001
-        assert re.search(r"\d+,\d+", result)
-        assert "…" in result  # …
-
-
-class TestLinesNotCappedForDirect:
-    def test_lines_not_capped_for_direct(self) -> None:
-        callers = [_fc_caller("tests.test_source_body", i) for i in range(1, 9)]
-        result = _format_callers_compact(callers, symbol_module="source_body")
-        for i in range(1, 9):
-            assert str(i) in result
-        assert "…" not in result
-
-
-class TestDirectVsIndirectClassification:
-    def test_direct_vs_indirect_classification(self) -> None:
-        callers = [
-            _fc_caller("tests.test_source_body", 10),
-            _fc_caller("tests.test_tools", 20),
-        ]
-        result = _format_callers_compact(callers, symbol_module="source_body")
-        assert "Direct" in result or "direct" in result.lower()
-        assert "test_source_body" in result
-        assert "test_tools" in result
-
-
-class TestNoCallersReturnsDash:
-    def test_no_callers_returns_dash(self) -> None:
-        result = _format_callers_compact([], symbol_module="foo")
-        assert result == "—"
-
-
-class TestProdOnlyNoTestSection:
-    def test_prod_only_no_test_section(self) -> None:
-        callers = [
-            _fc_caller("src.axm_ast.tools.impact", 116),
-            _fc_caller("src.axm_ast.hooks.impact", 163),
-        ]
-        result = _format_callers_compact(callers, symbol_module="impact")
-        assert "Prod:" in result
-        assert "Tests:" not in result
-        assert "Direct" not in result
-        assert "Indirect" not in result
-
-
-class TestTestOnlyNoProdSection:
-    def test_test_only_no_prod_section(self) -> None:
-        callers = [
-            _fc_caller("tests.test_foo", 10),
-            _fc_caller("tests.test_foo", 20),
-        ]
-        result = _format_callers_compact(callers, symbol_module="bar")
-        assert "Prod:" not in result
-        assert "Tests:" in result or "Indirect" in result
-
-
-class TestSmallTestFileShowsAllLines:
-    def test_small_test_file_shows_all_lines(self) -> None:
-        callers = [
-            _fc_caller("tests.test_foo", 3),
-            _fc_caller("tests.test_foo", 5),
-            _fc_caller("tests.test_foo", 7),
-        ]
-        result = _format_callers_compact(callers, symbol_module="bar")
-        assert "3,5,7" in result
-        assert "…" not in result
-        assert "×" not in result  # noqa: RUF001
-
-
-class TestNoSymbolModule:
-    def test_no_symbol_module_treats_all_as_indirect(self) -> None:
-        callers = [
-            _fc_caller("tests.test_source_body", 1),
-            _fc_caller("tests.test_source_body", 2),
-            _fc_caller("tests.test_source_body", 3),
-            _fc_caller("tests.test_source_body", 4),
-            _fc_caller("tests.test_source_body", 5),
-            _fc_caller("tests.test_source_body", 6),
-            _fc_caller("tests.test_source_body", 7),
-            _fc_caller("tests.test_source_body", 8),
-        ]
-        result = _format_callers_compact(callers, symbol_module=None)
-        assert "1,2,3,4,5" in result
-        assert "…" in result
-
-
-class TestSingleCaller:
-    def test_single_caller(self) -> None:
-        callers = [_fc_caller("src.axm_ast.cli", 42)]
-        result = _format_callers_compact(callers, symbol_module="impact")
-        assert "Prod: src.axm_ast.cli:42" in result
-        assert "Tests:" not in result
-        assert "Direct" not in result
-
-
-class TestModuleNameAmbiguity:
-    def test_module_name_ambiguity(self) -> None:
-        callers = [
-            _fc_caller("tests.test_impact", 10),
-            _fc_caller("tests.test_impact_compact", 20),
-        ]
-        result = _format_callers_compact(callers, symbol_module="impact")
-        assert "test_impact" in result
-        assert "test_impact_compact" in result
 
 
 # ── multi-symbol compact ──
@@ -662,40 +511,40 @@ class TestRenderImpactSingleFull:
     """test_render_impact_single_full: all fields populated."""
 
     def test_header_line(self, full_report: dict[str, Any]) -> None:
-        result = _render_impact_single(full_report)
+        result = render_impact_text(full_report)
         lines = result.split("\n")
         assert lines[0] == "ast_impact | my_func | HIGH"
 
     def test_definition_line(self, full_report: dict[str, Any]) -> None:
-        result = _render_impact_single(full_report)
+        result = render_impact_text(full_report)
         assert "Def: pkg.mod:42 (function)" in result
 
     def test_signature_line(self, full_report: dict[str, Any]) -> None:
-        result = _render_impact_single(full_report)
+        result = render_impact_text(full_report)
         assert "def my_func(x: int) -> str" in result
 
     def test_callers_line(self, full_report: dict[str, Any]) -> None:
-        result = _render_impact_single(full_report)
+        result = render_impact_text(full_report)
         assert "Callers: caller_a (pkg.caller:10), caller_b (pkg.other:20)" in result
 
     def test_affected_line(self, full_report: dict[str, Any]) -> None:
-        result = _render_impact_single(full_report)
+        result = render_impact_text(full_report)
         assert "Affected: pkg.mod, pkg.caller" in result
 
     def test_tests_line(self, full_report: dict[str, Any]) -> None:
-        result = _render_impact_single(full_report)
+        result = render_impact_text(full_report)
         assert "Tests: test_mod.py, test_other.py" in result
 
     def test_git_coupled_line(self, full_report: dict[str, Any]) -> None:
-        result = _render_impact_single(full_report)
+        result = render_impact_text(full_report)
         assert "Git-coupled: helper.py, util.py" in result
 
     def test_cross_package_line(self, full_report: dict[str, Any]) -> None:
-        result = _render_impact_single(full_report)
+        result = render_impact_text(full_report)
         assert "Cross-package: other-pkg, plain_string_entry" in result
 
     def test_full_output_matches(self, full_report: dict[str, Any]) -> None:
-        result = _render_impact_single(full_report)
+        result = render_impact_text(full_report)
         expected = (
             "ast_impact | my_func | HIGH\n"
             "Def: pkg.mod:42 (function)\n"
@@ -713,32 +562,32 @@ class TestRenderImpactSingleMinimal:
     """test_render_impact_single_minimal: only symbol + score."""
 
     def test_header_line(self, minimal_report: dict[str, Any]) -> None:
-        result = _render_impact_single(minimal_report)
+        result = render_impact_text(minimal_report)
         lines = result.split("\n")
         assert lines[0] == "ast_impact | bare_sym | LOW"
 
     def test_callers_none(self, minimal_report: dict[str, Any]) -> None:
-        result = _render_impact_single(minimal_report)
+        result = render_impact_text(minimal_report)
         assert "Callers: none" in result
 
     def test_tests_none(self, minimal_report: dict[str, Any]) -> None:
-        result = _render_impact_single(minimal_report)
+        result = render_impact_text(minimal_report)
         assert "Tests: none" in result
 
     def test_no_def_line(self, minimal_report: dict[str, Any]) -> None:
-        result = _render_impact_single(minimal_report)
+        result = render_impact_text(minimal_report)
         assert "Def:" not in result
 
     def test_no_affected(self, minimal_report: dict[str, Any]) -> None:
-        result = _render_impact_single(minimal_report)
+        result = render_impact_text(minimal_report)
         assert "Affected:" not in result
 
     def test_no_git_coupled(self, minimal_report: dict[str, Any]) -> None:
-        result = _render_impact_single(minimal_report)
+        result = render_impact_text(minimal_report)
         assert "Git-coupled:" not in result
 
     def test_no_cross_package(self, minimal_report: dict[str, Any]) -> None:
-        result = _render_impact_single(minimal_report)
+        result = render_impact_text(minimal_report)
         assert "Cross-package:" not in result
 
 
@@ -746,11 +595,11 @@ class TestRenderImpactSingleError:
     """test_render_impact_single_error: report with error key."""
 
     def test_error_output(self, error_report: dict[str, Any]) -> None:
-        result = _render_impact_single(error_report)
+        result = render_impact_text(error_report)
         assert result == "ast_impact | broken | error\ncould not resolve symbol"
 
     def test_error_no_extra_sections(self, error_report: dict[str, Any]) -> None:
-        result = _render_impact_single(error_report)
+        result = render_impact_text(error_report)
         assert "Callers:" not in result
         assert "Tests:" not in result
 
@@ -759,7 +608,7 @@ class TestRenderImpactEdgeCases:
     def test_empty_callers_list(self) -> None:
         """Empty callers list -> 'Callers: none'."""
         report: dict[str, Any] = {"symbol": "s", "score": "LOW", "callers": []}
-        result = _render_impact_single(report)
+        result = render_impact_text(report)
         assert "Callers: none" in result
 
     def test_cross_package_mixed_types(self) -> None:
@@ -773,13 +622,13 @@ class TestRenderImpactEdgeCases:
                 {"module": "fallback.mod"},
             ],
         }
-        result = _render_impact_single(report)
+        result = render_impact_text(report)
         assert "Cross-package: pkg-a, raw-string, fallback.mod" in result
 
     def test_missing_definition(self) -> None:
         """No 'defn' key -> no 'Def:' line."""
         report: dict[str, Any] = {"symbol": "s", "score": "LOW"}
-        result = _render_impact_single(report)
+        result = render_impact_text(report)
         assert "Def:" not in result
 
     def test_caller_without_line(self) -> None:
@@ -789,16 +638,23 @@ class TestRenderImpactEdgeCases:
             "score": "LOW",
             "callers": [{"name": "c", "module": "m"}],
         }
-        result = _render_impact_single(report)
+        result = render_impact_text(report)
         assert "Callers: c (m)" in result
 
 
 class TestRenderImpactText:
-    def test_delegates_to_single(self, full_report: dict[str, Any]) -> None:
-        assert render_impact_text(full_report) == _render_impact_single(full_report)
+    def test_full_report_stable_output(self, full_report: dict[str, Any]) -> None:
+        """render_impact_text on a full report contains the header and definition."""
+        result = render_impact_text(full_report)
+        assert result.startswith("ast_impact | my_func | HIGH")
+        assert "Def: pkg.mod:42 (function)" in result
 
-    def test_error_report(self, error_report: dict[str, Any]) -> None:
-        assert render_impact_text(error_report) == _render_impact_single(error_report)
+    def test_error_report_renders_error_line(
+        self, error_report: dict[str, Any]
+    ) -> None:
+        """render_impact_text on an error report yields the 'error' header."""
+        result = render_impact_text(error_report)
+        assert result == "ast_impact | broken | error\ncould not resolve symbol"
 
 
 class TestRenderImpactBatchText:
