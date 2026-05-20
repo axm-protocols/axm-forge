@@ -439,6 +439,34 @@ reason = "2 cross-package impact tests probe two distinct workspace topologies: 
 hash = "0d5edbfe2ead"
 reason = "2 analyze_impact git_coupled tests probe two mutually exclusive scenarios: test_impact_has_git_coupled_field builds a synthetic on-disk git repo via _init_git_repo + _commit and asserts the git_coupled field exists and is a list on a freshly committed package (field-presence contract on synthetic fixture), while test_impact_on_real_symbol_has_coupling is guarded by @pytest.mark.skipif(not _find_git_root(...)) and dogfoods analyze_impact on the real axm-ast `get_package` symbol using project root traversal — different SUT input (synthetic temp pkg vs real source tree), different gating (always-runs vs skipif), different documentation surface (basic contract vs dogfood smoke-check)."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9b0869be8283"
+reason = "3 inspect_detail tests probe three different builder functions (build_detail on VariableInfo full-schema; function_detail on FunctionInfo kind-only; class_detail on ClassInfo kind-only) — test_variable_detail_keys asserts full keyset (name/kind/annotation/value_repr) while the two kind tests assert only the 'kind' literal value; folding would conflate three distinct builder contracts with mutually-exclusive assertion shapes (full-shape vs single-key) — already covered by test_all_detail_builders_emit_kind which sweeps all four builders."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3d9e6c48c0a5"
+reason = "3 format_text_header tests probe three orthogonal header contracts across two TestClass groups: test_text_header_no_filters (TestFormatTextHeader, all-None filters) asserts the no-filter baseline ('ast_search' + '10 hits' — header still renders without any filter token), test_text_header_zero_results (TestFormatTextHeader, name='z' count=0) asserts the zero-result baseline ('0 hits' + 'ast_search' — header still renders on empty match), and test_inherits_filter_in_header (TestEdgeCases, inherits='AXMTool') asserts the inherits-filter rendering ('inherits=AXMTool' + '2 hits' — the inherits dimension is documented separately as an edge case). Folding would require a heterogeneous (filters_dict, expected_substring) parameter and conflate the baseline/zero/inherits dimensions across two TestClass documentation surfaces."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ff66dcc75d9c"
+reason = "2 build_import_graph no-edge tests probe two mutually-exclusive non-edge branches with materially different assertion shapes: test_external_import_no_edge writes 'from pathlib import Path' / 'import os' and asserts 'mod' NOT IN graph at all (external imports never create a source node — stdlib filter branch), while test_self_import_no_edge writes 'from mypkg.mod import something' and asserts 'mod' not in graph['mod'] only IF 'mod' in graph (self-import may have node but never a self-loop edge — cycle-guard branch). Different SUT branches (external-stdlib filter vs self-loop guard) and incompatible assertion shapes (not-in-keys vs conditional not-in-values) cannot be folded without erasing the per-branch documentation."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "47eb67caa7b6"
+reason = "2 trace_flow only-entry tests in TestTraceFlowEdgeCases probe two materially different short-circuit branches with divergent inputs and divergent SUT toggles: test_all_callees_are_stdlib writes a function whose entire body is len/type/isinstance and passes exclude_stdlib=True — asserts len(steps)==1 because every callee is a builtin and gets filtered out by the stdlib name-check (stdlib-filter short-circuit branch), while test_callee_index_miss writes a leaf function 'def lonely(): pass' and passes an empty callee_index dict — asserts len(steps)==1 because every (module, symbol) lookup misses (empty-index short-circuit branch). Different SUT toggles (exclude_stdlib vs callee_index), different package contents, different code paths to the same len==1 result — folding would erase the per-branch documentation of two independent no-children mechanisms."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1cf89cacd179"
+reason = "2 find_entry_points tests probe two materially different detection branches across two TestClass groups: test_detect_fastapi_route (TestDetectFastapiRoute) writes a @app.get('/items') decorator and asserts framework == 'fastapi' (route-decorator detection branch — inspect call-expression decorator on the import edge), while test_detect_pytest_function (TestDetectPytestFunction) writes a 'def test_foo()' in test_core.py and asserts framework == 'pytest' (name-prefix + file-prefix detection branch — no decorator, pure naming convention). Different SUT branches (decorator-based vs naming-based detection) and four other framework tests (cyclopts/click/flask/main_guard) live in their own TestClass groups for the same reason — cross-class parametrization would conflate two orthogonal detection mechanisms."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8bb161db167f"
+reason = "2 find_callers single-caller tests pin two distinct documentation surfaces: test_finds_direct_call (TestFindCallers class method, canonical direct-call contract on a 2-file pkg with inline tmp_path setup) is the baseline 'cross-module caller search' contract for TestFindCallers, while test_find_callers_still_works_after_helper_extraction (top-level, uses the shared tiny_pkg fixture) is an explicit post-refactor non-regression smoke check documenting that the helper-extraction refactor did not break the single-caller path. Same assertion shape (len==1 + results[0].symbol == name) but two different documentation surfaces (canonical contract in TestFindCallers vs top-level regression marker) and divergent fixture lifecycles (inline write vs shared fixture) — folding would erase the post-refactor regression-guard documentation."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3466b7c9b27f"
+reason = "2 find_callees empty-list tests probe two mutually-exclusive SUT branches with materially different setups: test_callees_tool_empty (TestCalleesToolEmpty) writes a function with no calls ('def noop():\n    x = 42') and asserts find_callees returns [] — the existing-symbol-no-callees branch, while test_symbol_not_found (TestCalleesSymbolNotFound) writes a function then queries a NON-EXISTENT name ('nonexistent_function') and asserts the same [] result — the missing-symbol-lookup branch. Same assertion shape but two divergent code paths (symbol resolved → walk AST → empty vs symbol not resolved → short-circuit) documented in separate TestClass groups; folding would erase the per-branch documentation that both error modes converge on the same [] contract."
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
