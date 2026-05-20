@@ -1,5 +1,5 @@
 {
-  "score": 95.5,
+  "score": 92.2,
   "grade": "A",
   "total": 23,
   "failed": 3,
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 10,
         "max_fan_in": 23,
-        "avg_coupling": 2.92,
+        "avg_coupling": 2.94,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -70,9 +70,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 97% (96/100)",
+      "message": "Test coverage: 96% (96/100)",
       "details": {
-        "coverage": 96.77023712183156,
+        "coverage": 96.22566547477156,
         "score": 96,
         "failures": []
       }
@@ -121,11 +121,29 @@
     {
       "rule_id": "DEPS_AUDIT",
       "passed": false,
-      "message": "1 vulnerable package(s) found",
+      "message": "4 vulnerable package(s) found",
       "details": {
-        "vuln_count": 1,
-        "score": 85,
+        "vuln_count": 4,
+        "score": 40,
         "top_vulns": [
+          {
+            "name": "idna",
+            "version": "3.11",
+            "vuln_ids": [
+              "CVE-2026-45409"
+            ],
+            "fix_versions": [
+              "3.15"
+            ]
+          },
+          {
+            "name": "markdown",
+            "version": "3.10.2",
+            "vuln_ids": [
+              "PYSEC-2026-89"
+            ],
+            "fix_versions": []
+          },
           {
             "name": "pip",
             "version": "26.0.1",
@@ -135,6 +153,16 @@
             ],
             "fix_versions": [
               "26.1"
+            ]
+          },
+          {
+            "name": "pymdown-extensions",
+            "version": "10.21",
+            "vuln_ids": [
+              "CVE-2026-46338"
+            ],
+            "fix_versions": [
+              "10.21.3"
             ]
           }
         ]
@@ -153,11 +181,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (113/113)",
+      "message": "Docstring coverage: 100% (115/115)",
       "details": {
         "coverage": 1.0,
-        "total": 113,
-        "documented": 113,
+        "total": 115,
+        "documented": 115,
         "missing": [],
         "score": 100
       }
@@ -184,12 +212,22 @@
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
-      "message": "1 source module(s) without tests",
+      "message": "11 source module(s) without tests",
       "details": {
         "missing": [
-          "scaffold.py"
+          "changelog.py",
+          "ci.py",
+          "deps.py",
+          "docs.py",
+          "filesystem.py",
+          "gen_ref_pages.py",
+          "makefile.py",
+          "pyproject.py",
+          "structure.py",
+          "tooling.py",
+          "workspace_patcher.py"
         ],
-        "score": 85
+        "score": 0
       }
     },
     {

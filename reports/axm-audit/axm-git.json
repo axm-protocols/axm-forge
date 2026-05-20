@@ -1,8 +1,8 @@
 {
-  "score": 96.5,
+  "score": 93.1,
   "grade": "A",
   "total": 23,
-  "failed": 1,
+  "failed": 2,
   "success": false,
   "checks": [
     {
@@ -116,11 +116,29 @@
     {
       "rule_id": "DEPS_AUDIT",
       "passed": false,
-      "message": "1 vulnerable package(s) found",
+      "message": "4 vulnerable package(s) found",
       "details": {
-        "vuln_count": 1,
-        "score": 85,
+        "vuln_count": 4,
+        "score": 40,
         "top_vulns": [
+          {
+            "name": "idna",
+            "version": "3.11",
+            "vuln_ids": [
+              "CVE-2026-45409"
+            ],
+            "fix_versions": [
+              "3.15"
+            ]
+          },
+          {
+            "name": "markdown",
+            "version": "3.10.2",
+            "vuln_ids": [
+              "PYSEC-2026-89"
+            ],
+            "fix_versions": []
+          },
           {
             "name": "pip",
             "version": "26.0.1",
@@ -130,6 +148,16 @@
             ],
             "fix_versions": [
               "26.1"
+            ]
+          },
+          {
+            "name": "pymdown-extensions",
+            "version": "10.21",
+            "vuln_ids": [
+              "CVE-2026-46338"
+            ],
+            "fix_versions": [
+              "10.21.3"
             ]
           }
         ]
@@ -148,11 +176,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (45/45)",
+      "message": "Docstring coverage: 100% (60/60)",
       "details": {
         "coverage": 1.0,
-        "total": 45,
-        "documented": 45,
+        "total": 60,
+        "documented": 60,
         "missing": [],
         "score": 100
       }
@@ -178,9 +206,19 @@
     },
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
-      "passed": true,
-      "message": "All source modules have test files",
-      "details": null
+      "passed": false,
+      "message": "6 source module(s) without tests",
+      "details": {
+        "missing": [
+          "branch_delete.py",
+          "create_branch.py",
+          "merge_squash.py",
+          "phase_commit.py",
+          "worktree_add.py",
+          "worktree_remove.py"
+        ],
+        "score": 10
+      }
     },
     {
       "rule_id": "PRACTICE_SECURITY",

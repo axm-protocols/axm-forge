@@ -1,8 +1,8 @@
 {
-  "score": 91.1,
-  "grade": "A",
+  "score": 88.8,
+  "grade": "B",
   "total": 23,
-  "failed": 5,
+  "failed": 3,
   "success": false,
   "checks": [
     {
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 15,
         "max_fan_in": 38,
-        "avg_coupling": 5.22,
+        "avg_coupling": 5.2,
         "score": 97,
         "n_over_threshold": 1,
         "over_threshold": [
@@ -46,17 +46,12 @@
     },
     {
       "rule_id": "ARCH_DUPLICATION",
-      "passed": false,
-      "message": "1 duplicate block(s) found",
+      "passed": true,
+      "message": "0 duplicate block(s) found",
       "details": {
-        "dup_count": 1,
-        "clones": [
-          {
-            "source": "axm_ast/hooks/trace_source.py:__call__:32",
-            "target": "axm_ast/hooks/flows.py:__call__:53"
-          }
-        ],
-        "score": 90
+        "dup_count": 0,
+        "clones": [],
+        "score": 100
       }
     },
     {
@@ -72,11 +67,6 @@
             "cc": 10
           },
           {
-            "file": "flows.py",
-            "function": "FlowsHook._trace_multi_entries",
-            "cc": 10
-          },
-          {
             "file": "impact.py",
             "function": "_parse_impact_params",
             "cc": 10
@@ -84,6 +74,11 @@
           {
             "file": "impact.py",
             "function": "DocImpactHook",
+            "cc": 10
+          },
+          {
+            "file": "flows.py",
+            "function": "FlowsHook._trace_multi_entries",
             "cc": 10
           }
         ],
@@ -95,34 +90,19 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.34604661536746,
+        "coverage": 91.48160424262512,
         "score": 91,
         "failures": []
       }
     },
     {
       "rule_id": "QUALITY_DEAD_CODE",
-      "passed": false,
-      "message": "Found 1 dead (unreferenced) symbol(s).",
+      "passed": true,
+      "message": "No dead code detected.",
       "details": {
-        "score": 95.0,
-        "dead_count": 1,
-        "symbols": [
-          {
-            "name": "_DescribeData",
-            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/tools/describe_text.py",
-            "line": 45,
-            "kind": "class"
-          }
-        ],
-        "top_offenders": [
-          {
-            "name": "_DescribeData",
-            "module_path": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast/src/axm_ast/tools/describe_text.py",
-            "line": 45,
-            "kind": "class"
-          }
-        ]
+        "score": 100.0,
+        "dead_count": 0,
+        "symbols": []
       }
     },
     {
@@ -159,11 +139,29 @@
     {
       "rule_id": "DEPS_AUDIT",
       "passed": false,
-      "message": "1 vulnerable package(s) found",
+      "message": "4 vulnerable package(s) found",
       "details": {
-        "vuln_count": 1,
-        "score": 85,
+        "vuln_count": 4,
+        "score": 40,
         "top_vulns": [
+          {
+            "name": "idna",
+            "version": "3.11",
+            "vuln_ids": [
+              "CVE-2026-45409"
+            ],
+            "fix_versions": [
+              "3.15"
+            ]
+          },
+          {
+            "name": "markdown",
+            "version": "3.10.2",
+            "vuln_ids": [
+              "PYSEC-2026-89"
+            ],
+            "fix_versions": []
+          },
           {
             "name": "pip",
             "version": "26.0.1",
@@ -173,6 +171,16 @@
             ],
             "fix_versions": [
               "26.1"
+            ]
+          },
+          {
+            "name": "pymdown-extensions",
+            "version": "10.21",
+            "vuln_ids": [
+              "CVE-2026-46338"
+            ],
+            "fix_versions": [
+              "10.21.3"
             ]
           }
         ]
@@ -191,11 +199,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 99% (166/167)",
+      "message": "Docstring coverage: 99% (178/179)",
       "details": {
         "coverage": 0.99,
-        "total": 167,
-        "documented": 166,
+        "total": 179,
+        "documented": 178,
         "missing": [
           "axm_ast/tools/_base.py:wrapper"
         ],
@@ -224,12 +232,15 @@
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
-      "message": "1 source module(s) without tests",
+      "message": "4 source module(s) without tests",
       "details": {
         "missing": [
-          "_base.py"
+          "_trace_protocol.py",
+          "doc_impact.py",
+          "git_coupling.py",
+          "inspect_resolve.py"
         ],
-        "score": 85
+        "score": 40
       }
     },
     {

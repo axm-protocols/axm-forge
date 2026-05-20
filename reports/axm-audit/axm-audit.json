@@ -1,6 +1,6 @@
 {
-  "score": 90.4,
-  "grade": "A",
+  "score": 84.7,
+  "grade": "B",
   "total": 23,
   "failed": 3,
   "success": false,
@@ -28,21 +28,21 @@
       "passed": true,
       "message": "Coupling: 3 module(s) above threshold (-9 pts)",
       "details": {
-        "max_fan_out": 11,
-        "max_fan_in": 33,
-        "avg_coupling": 6.51,
+        "max_fan_out": 14,
+        "max_fan_in": 35,
+        "avg_coupling": 6.67,
         "score": 91,
         "n_over_threshold": 3,
         "over_threshold": [
           {
-            "module": "axm_audit.core.rules.quality",
-            "fan_out": 11,
+            "module": "axm_audit.core.rules.test_quality.duplicate_tests",
+            "fan_out": 14,
             "role": "leaf",
             "effective_threshold": 10,
             "severity": "warning"
           },
           {
-            "module": "axm_audit.core.rules.test_quality.duplicate_tests",
+            "module": "axm_audit.core.rules.quality",
             "fan_out": 11,
             "role": "leaf",
             "effective_threshold": 10,
@@ -71,10 +71,15 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 60/100 (4 high-complexity functions)",
+      "message": "Complexity score: 30/100 (7 high-complexity functions)",
       "details": {
-        "high_complexity_count": 4,
+        "high_complexity_count": 7,
         "top_offenders": [
+          {
+            "file": "duplicate_tests.py",
+            "function": "_load_duplicate_tests_config",
+            "cc": 14
+          },
           {
             "file": "dependencies.py",
             "function": "run_deptry",
@@ -83,6 +88,16 @@
           {
             "file": "_shared.py",
             "function": "_cli_runner_signal",
+            "cc": 10
+          },
+          {
+            "file": "_shared.py",
+            "function": "_argv_from_list",
+            "cc": 10
+          },
+          {
+            "file": "_shared.py",
+            "function": "_e2e_tokens",
             "cc": 10
           },
           {
@@ -96,7 +111,7 @@
             "cc": 10
           }
         ],
-        "score": 60
+        "score": 30
       }
     },
     {
@@ -104,7 +119,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.23643734350782,
+        "coverage": 91.13422486379396,
         "score": 91,
         "failures": []
       }
@@ -153,11 +168,29 @@
     {
       "rule_id": "DEPS_AUDIT",
       "passed": false,
-      "message": "1 vulnerable package(s) found",
+      "message": "4 vulnerable package(s) found",
       "details": {
-        "vuln_count": 1,
-        "score": 85,
+        "vuln_count": 4,
+        "score": 40,
         "top_vulns": [
+          {
+            "name": "idna",
+            "version": "3.11",
+            "vuln_ids": [
+              "CVE-2026-45409"
+            ],
+            "fix_versions": [
+              "3.15"
+            ]
+          },
+          {
+            "name": "markdown",
+            "version": "3.10.2",
+            "vuln_ids": [
+              "PYSEC-2026-89"
+            ],
+            "fix_versions": []
+          },
           {
             "name": "pip",
             "version": "26.0.1",
@@ -167,6 +200,16 @@
             ],
             "fix_versions": [
               "26.1"
+            ]
+          },
+          {
+            "name": "pymdown-extensions",
+            "version": "10.21",
+            "vuln_ids": [
+              "CVE-2026-46338"
+            ],
+            "fix_versions": [
+              "10.21.3"
             ]
           }
         ]
@@ -185,15 +228,22 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 99% (108/109)",
+      "message": "Docstring coverage: 94% (124/132)",
       "details": {
-        "coverage": 0.99,
-        "total": 109,
-        "documented": 108,
+        "coverage": 0.94,
+        "total": 132,
+        "documented": 124,
         "missing": [
-          "axm_audit/core/rules/test_quality/_shared.py:load_conftest_fixtures"
+          "axm_audit/core/rules/test_quality/duplicate_tests.py:make_test_func",
+          "axm_audit/core/rules/test_quality/_shared.py:load_conftest_fixtures",
+          "axm_audit/core/rules/test_quality/no_package_symbol.py:as_dict",
+          "axm_audit/core/rules/test_quality/file_naming.py:current_name",
+          "axm_audit/core/rules/test_quality/file_naming.py:distinct_non_empty_tuples",
+          "axm_audit/core/rules/test_quality/file_naming.py:is_split",
+          "axm_audit/core/rules/test_quality/file_naming.py:has_canonical",
+          "axm_audit/core/rules/test_quality/file_naming.py:as_dict"
         ],
-        "score": 99
+        "score": 93
       }
     },
     {
@@ -218,22 +268,12 @@
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
-      "message": "11 source module(s) without tests",
+      "message": "1 source module(s) without tests",
       "details": {
         "missing": [
-          "__main__.py",
-          "anti_mirror.py",
-          "bare_except.py",
-          "blocking_io.py",
-          "complexity.py",
-          "dependencies.py",
-          "mirror.py",
-          "private_imports.py",
-          "pyramid_level.py",
-          "tautology.py",
-          "tautology_triage.py"
+          "__main__.py"
         ],
-        "score": 0
+        "score": 85
       }
     },
     {
