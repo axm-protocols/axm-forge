@@ -158,27 +158,21 @@ def test_skips_pycache(tmp_path):
 
 
 @pytest.mark.functional
-def test_skips_multiple_dirs(tmp_path):
+@pytest.mark.parametrize(
+    "skip_dirs",
+    [
+        pytest.param((".venv", "node_modules", ".git"), id="multiple_skip_dirs"),
+        pytest.param(("foo.egg-info",), id="egg_info"),
+    ],
+)
+def test_skips_dirs(tmp_path, skip_dirs):
     pkg = tmp_path / "mypkg"
     pkg.mkdir()
     (pkg / "__init__.py").write_text('"""pkg."""')
-    for skip in (".venv", "node_modules", ".git"):
+    for skip in skip_dirs:
         d = pkg / skip
         d.mkdir()
         (d / "file.py").write_text("")
-
-    result = analyze_package(pkg)
-    assert len(result.modules) == 1
-
-
-@pytest.mark.functional
-def test_skips_egg_info(tmp_path):
-    pkg = tmp_path / "mypkg"
-    pkg.mkdir()
-    (pkg / "__init__.py").write_text('"""pkg."""')
-    egg = pkg / "foo.egg-info"
-    egg.mkdir()
-    (egg / "bar.py").write_text("")
 
     result = analyze_package(pkg)
     assert len(result.modules) == 1
