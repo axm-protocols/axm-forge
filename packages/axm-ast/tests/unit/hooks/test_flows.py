@@ -4,36 +4,28 @@ from __future__ import annotations
 
 from importlib.metadata import entry_points
 
+import pytest
+
 # ── build_trace_opts ──
 
 
-class TestBuildTraceOptsCompactPassthrough:
-    """build_trace_opts must pass 'compact' through to opts.detail."""
+class TestBuildTraceOpts:
+    """build_trace_opts maps the 'detail' input to opts.detail / is_compact."""
 
-    def test_compact_passthrough(self) -> None:
+    @pytest.mark.parametrize(
+        ("detail", "expected_is_compact"),
+        [
+            pytest.param("compact", True, id="compact_passthrough"),
+            pytest.param("trace", False, id="trace_unchanged"),
+            pytest.param("source", False, id="source_detail"),
+        ],
+    )
+    def test_detail_passthrough(self, detail: str, expected_is_compact: bool) -> None:
         from axm_ast.hooks.flows import build_trace_opts
 
-        opts, is_compact = build_trace_opts({"detail": "compact"})
-        assert opts.detail == "compact"
-        assert is_compact is True
-
-    def test_trace_unchanged(self) -> None:
-        from axm_ast.hooks.flows import build_trace_opts
-
-        opts, is_compact = build_trace_opts({"detail": "trace"})
-        assert opts.detail == "trace"
-        assert is_compact is False
-
-
-class TestBuildTraceOptsEdgeCases:
-    """Non-compact details must pass through unchanged."""
-
-    def test_source_detail(self) -> None:
-        from axm_ast.hooks.flows import build_trace_opts
-
-        opts, is_compact = build_trace_opts({"detail": "source"})
-        assert opts.detail == "source"
-        assert is_compact is False
+        opts, is_compact = build_trace_opts({"detail": detail})
+        assert opts.detail == detail
+        assert is_compact is expected_is_compact
 
 
 class TestHookEntryPointsDeclared:
