@@ -609,25 +609,26 @@ class TestDeeplyNestedDottedPath:
 
 
 class TestDottedNonExistentSymbol:
-    """Missing class / missing member — surfaced as not-found, no crash."""
+    """Missing class/member/func — surfaced as not-found, no crash."""
 
-    def test_fake_class_returns_not_found(self, nested_class_pkg: Path) -> None:
-        hook = SourceBodyHook()
-        result = hook.execute(
-            {}, symbol="FakeClass.fake_method", path=str(nested_class_pkg)
-        )
-        assert result.success
-        rendered = result.metadata["symbols"]
-        assert isinstance(rendered, str)
-        assert "not found" in rendered.lower()
-
-    def test_real_class_fake_member_returns_not_found(
-        self, nested_class_pkg: Path
+    @pytest.mark.parametrize(
+        ("pkg_fixture", "symbol"),
+        [
+            pytest.param("nested_class_pkg", "FakeClass.fake_method", id="fake_class"),
+            pytest.param(
+                "nested_class_pkg", "Outer.nonexistent", id="real_class_fake_member"
+            ),
+            pytest.param(
+                "module_func_pkg", "helpers.no_such_func", id="module_dot_missing_func"
+            ),
+        ],
+    )
+    def test_missing_dotted_symbol_returns_not_found(
+        self, request: pytest.FixtureRequest, pkg_fixture: str, symbol: str
     ) -> None:
+        pkg_path: Path = request.getfixturevalue(pkg_fixture)
         hook = SourceBodyHook()
-        result = hook.execute(
-            {}, symbol="Outer.nonexistent", path=str(nested_class_pkg)
-        )
+        result = hook.execute({}, symbol=symbol, path=str(pkg_path))
         assert result.success
         rendered = result.metadata["symbols"]
         assert isinstance(rendered, str)
@@ -647,15 +648,3 @@ class TestModuleLevelFunction:
         assert isinstance(rendered, str)
         assert "def top_level_func" in rendered
         assert "helpers.py" in rendered
-
-    def test_module_dot_missing_func_returns_not_found(
-        self, module_func_pkg: Path
-    ) -> None:
-        hook = SourceBodyHook()
-        result = hook.execute(
-            {}, symbol="helpers.no_such_func", path=str(module_func_pkg)
-        )
-        assert result.success
-        rendered = result.metadata["symbols"]
-        assert isinstance(rendered, str)
-        assert "not found" in rendered.lower()
