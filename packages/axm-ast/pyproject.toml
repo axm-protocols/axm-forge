@@ -525,3 +525,23 @@ commit_parsers = [
 ]
 tag_pattern = "ast/v[0-9].*"
 include_path = "packages/axm-ast/**"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "37bef5a58a5c"
+reason = "3 distinct integration tests across 3 unrelated SUTs (ContextTool, DeadCodeTool, SearchTool) — each exercises a different tool's execute() with totally divergent fixture pipelines (sample_project conftest fixture vs tmp_path-built dead_pkg vs tmp_path-built search_pkg) and asserts on completely different data keys ('packages'+'patterns' vs 'dead_symbols'+'total' vs name-list containing 'greet'+'_TOLERANCE'). Shared AST shape (assert + 'in' check on data list) is purely incidental — no foldable contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b1bd0cc211fd"
+reason = "3 'empty/clean package' tests across 3 different SUTs (DeadCodeTool clean-package contract asserting total==0, DescribeTool empty-directory contract asserting module_count==0, ContextTool dogfood-on-self contract asserting data['name']=='axm_ast'). Each test uses a different fixture pipeline (inline-built clean pkg with __all__ vs bare tmp_path empty dir vs the live SELF_PKG path) and pins a different documentation surface (clean-detection vs empty-handling vs self-introspection smoke). Folding would erase three independent zero-input/self-input contracts."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e9727b9ba65c"
+reason = "3 format_compressed tests probe two divergent fixture pipelines and assertion contracts. The two integration tests build dynamic PackageInfos via analyze_package + _write_pyproject helpers (one with tests dir 'pkg_with_tests', one without 'pkg_without_tests') and assert that source symbols 'compute'/'Engine' appear in the compressed output — each pins a different inclusion contract (source-modules-present vs no-tests-dir-still-works). The unit test loads the static SAMPLE_PKG fixture (analyze_package(SAMPLE_PKG)) and asserts on hardcoded signature substrings ('def greet(name: str) -> str' / 'def resolve_path(p: str) -> Path') — a different documentation surface (signature-rendering contract). Different fixture pipelines (dynamic-built vs static-fixture) and different assertion targets cannot be parametrized."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c53d597e9d4a"
+reason = "3 parse_file error/edge tests pin three mutually-exclusive failure modes against different inputs: test_not_python_file writes a .txt extension file in tmp_path and asserts ValueError 'Not a Python file' (extension-validation branch), test_file_not_found passes a non-existent absolute path and asserts FileNotFoundError (filesystem-existence branch), test_broken_file loads a pre-committed static fixture FIXTURES/broken.py with intentionally invalid syntax and asserts tree.root_node.has_error is True (graceful-degradation contract — still returns a tree). Three distinct exception types / return paths with three distinct fixture pipelines (tmp_path-built vs nonexistent-path vs static-fixture) cannot be parametrized without erasing the per-branch documentation."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "0751783362fd"
+reason = "2 'format_empty' tests live in two unrelated modules (core/dead_code.py vs core/flows.py) and call two distinct pure-function SUTs (format_dead_code([]) vs format_flows([])) that each assert on a different module-specific empty-output string ('✅ No dead code detected.' vs '✅ No entry points detected.'). Each test is the canonical empty-input contract for its own formatter — the AST shape (assert SUT([]) == STRING_LITERAL) is incidental; folding would require importing both formatters and parametrizing (callable, expected_string) pairs from two different SUT modules just to save 2 lines, while erasing the per-module documentation that each formatter has its own empty contract."
