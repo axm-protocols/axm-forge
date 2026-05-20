@@ -18,22 +18,20 @@ def tool() -> DescribeTool:
 # ── Unit tests ───────────────────────────────────────────────────────
 
 
-def test_toc_has_text(tool: DescribeTool) -> None:
-    result = tool.execute(path=AST_PKG, detail="toc")
+@pytest.mark.parametrize(
+    "detail",
+    [
+        pytest.param("toc", id="toc_has_text"),
+        pytest.param("summary", id="summary_has_text"),
+        pytest.param("detailed", id="detailed_has_text"),
+    ],
+)
+def test_detail_has_text(tool: DescribeTool, detail: str) -> None:
+    """Every detail mode emits a text header prefixed with 'ast_describe'."""
+    # Expected prefix: 'ast_describe | <detail> |'
+    result = tool.execute(path=AST_PKG, detail=detail)
     assert result.text is not None
-    assert result.text.startswith("ast_describe | toc |")
-
-
-def test_summary_has_text(tool: DescribeTool) -> None:
-    result = tool.execute(path=AST_PKG, detail="summary")
-    assert result.text is not None
-    assert result.text.startswith("ast_describe | summary |")
-
-
-def test_detailed_has_text(tool: DescribeTool) -> None:
-    result = tool.execute(path=AST_PKG, detail="detailed")
-    assert result.text is not None
-    assert result.text.startswith("ast_describe | detailed |")
+    assert result.text.startswith(f"ast_describe | {detail} |")
 
 
 def test_compress_has_text(tool: DescribeTool) -> None:

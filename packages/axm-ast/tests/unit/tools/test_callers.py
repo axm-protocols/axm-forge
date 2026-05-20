@@ -69,11 +69,27 @@ def test_text_caller_lines() -> None:
     assert lines[2] == "axm_ast.tools.search:100 execute"
 
 
-def test_text_strips_src_prefix() -> None:
-    """src. prefix stripped from module names."""
+@pytest.mark.parametrize(
+    ("module", "expected_prefix"),
+    [
+        pytest.param("src.axm_ast.cli", "axm_ast.cli:", id="strips_src_prefix"),
+        pytest.param(
+            "axm-ast::axm_ast.cli",
+            "axm-ast::axm_ast.cli:",
+            id="workspace_prefix",
+        ),
+        pytest.param(
+            "tests.test_callers",
+            "tests.test_callers:",
+            id="module_without_src_prefix",
+        ),
+    ],
+)
+def test_text_module_name_rendering(module: str, expected_prefix: str) -> None:
+    """render_text handles src-stripping, workspace prefixes, and bare modules."""
     callers = [
         {
-            "module": "src.axm_ast.cli",
+            "module": module,
             "line": 10,
             "context": "main",
             "call_expression": "greet()",
@@ -81,7 +97,7 @@ def test_text_strips_src_prefix() -> None:
     ]
     text = CallersTool.render_text(callers, symbol="greet")
     lines = text.strip().splitlines()
-    assert lines[1].startswith("axm_ast.cli:")
+    assert lines[1].startswith(expected_prefix)
 
 
 def test_text_none_context_omitted() -> None:
@@ -103,21 +119,6 @@ def test_text_empty_callers() -> None:
     """Empty callers: just the header line."""
     text = CallersTool.render_text([], symbol="greet")
     assert text == "ast_callers | greet | 0 callers"
-
-
-def test_text_workspace_prefix() -> None:
-    """Workspace cross-package format preserves pkg:: prefix."""
-    callers = [
-        {
-            "module": "axm-ast::axm_ast.cli",
-            "line": 70,
-            "context": "execute",
-            "call_expression": "greet()",
-        },
-    ]
-    text = CallersTool.render_text(callers, symbol="greet")
-    lines = text.strip().splitlines()
-    assert lines[1].startswith("axm-ast::axm_ast.cli:")
 
 
 def test_data_unchanged_with_text(tool: CallersTool) -> None:
@@ -183,21 +184,6 @@ def test_error_result_no_text(tool: CallersTool) -> None:
     result = tool.execute(path=".", symbol=None)
     assert result.success is False
     assert result.text is None
-
-
-def test_module_without_src_prefix() -> None:
-    """Module without src. prefix stays unchanged — no double-strip."""
-    callers = [
-        {
-            "module": "tests.test_callers",
-            "line": 20,
-            "context": "test_it",
-            "call_expression": "greet()",
-        },
-    ]
-    text = CallersTool.render_text(callers, symbol="greet")
-    lines = text.strip().splitlines()
-    assert lines[1].startswith("tests.test_callers:")
 
 
 def test_very_long_module_name() -> None:

@@ -360,25 +360,30 @@ class TestDottedSymbol:
         result = analyze_impact(pkg_dir, "Foo.bar", project_root=tmp_path)
         assert len(result["callers"]) >= 1
 
-    def test_impact_class_still_works(self, tmp_path: Path) -> None:
-        """Bare class name still works after dotted support."""
+    @pytest.mark.parametrize(
+        ("symbol", "expected_kind"),
+        [
+            pytest.param("Foo", "class", id="bare_class"),
+            pytest.param("Foo.my_prop", "property", id="dotted_property"),
+        ],
+    )
+    def test_impact_resolves_symbol_kind(
+        self, tmp_path: Path, symbol: str, expected_kind: str
+    ) -> None:
+        """Bare class / dotted property resolve to a non-null definition.
+
+        Verifies the expected kind is returned.
+        """
         pkg_dir = _make_dotted_project(tmp_path)
-        result = analyze_impact(pkg_dir, "Foo", project_root=tmp_path)
+        result = analyze_impact(pkg_dir, symbol, project_root=tmp_path)
         assert result["definition"] is not None
-        assert result["definition"]["kind"] == "class"
+        assert result["definition"]["kind"] == expected_kind
 
     def test_impact_dotted_nonexistent(self, tmp_path: Path) -> None:
         """Non-existent method returns definition=None without crashing."""
         pkg_dir = _make_dotted_project(tmp_path)
         result = analyze_impact(pkg_dir, "Foo.nonexistent", project_root=tmp_path)
         assert result["definition"] is None
-
-    def test_impact_dotted_property(self, tmp_path: Path) -> None:
-        """Property is resolved like a method."""
-        pkg_dir = _make_dotted_project(tmp_path)
-        result = analyze_impact(pkg_dir, "Foo.my_prop", project_root=tmp_path)
-        assert result["definition"] is not None
-        assert result["definition"]["kind"] == "property"
 
     def test_impact_dotted_nested(self, tmp_path: Path) -> None:
         """Nested class method (Outer.Inner.method) — best-effort resolution."""
