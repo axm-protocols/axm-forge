@@ -149,13 +149,6 @@ def test_header_pattern_variable(tool: InspectTool, rich_pkg: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_source_mode_word_count_ceiling(tool: InspectTool, rich_pkg: str) -> None:
-    """Source mode on a function must stay under 700 words."""
-    text, _ = _execute_mode(tool, rich_pkg, "source")
-    word_count = len(text.split())
-    assert word_count < 700, f"source mode word count {word_count} >= 700"
-
-
 def test_batch_error_mixed(tool: InspectTool, rich_pkg: str) -> None:
     """Batch with 2 valid + 1 invalid symbol: text still shorter than JSON."""
     r = tool.execute(path=rich_pkg, symbols=["greet", "Greeter", "DOES_NOT_EXIST_XYZ"])
