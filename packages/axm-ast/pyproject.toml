@@ -545,3 +545,27 @@ reason = "3 parse_file error/edge tests pin three mutually-exclusive failure mod
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "0751783362fd"
 reason = "2 'format_empty' tests live in two unrelated modules (core/dead_code.py vs core/flows.py) and call two distinct pure-function SUTs (format_dead_code([]) vs format_flows([])) that each assert on a different module-specific empty-output string ('✅ No dead code detected.' vs '✅ No entry points detected.'). Each test is the canonical empty-input contract for its own formatter — the AST shape (assert SUT([]) == STRING_LITERAL) is incidental; folding would require importing both formatters and parametrizing (callable, expected_string) pairs from two different SUT modules just to save 2 lines, while erasing the per-module documentation that each formatter has its own empty contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "6083a01d1114"
+reason = "2 inter-pyramid tests of the same trace_flow leaf contract span integration + unit with incompatible fixture pipelines: test_empty_callees (tests/integration/test_analyze_package__trace_flow.py, TestTraceFlowEdgeCases) builds a real tmp_path package 'def leaf(): return 42' via _make_pkg + analyze_package and exercises the full leaf-resolution path through real PackageInfo to assert len(steps) == 1 + steps[0].name == 'leaf' + depth == 0 (integration coverage of _find_symbol_location + _build_package_symbols + find_callees on real source), while test_trace_flow_found_no_callees (tests/unit/core/test_flows.py) uses MagicMock pkg + monkeypatched _find_symbol_location returning ('some.module', 10), monkeypatched _build_package_symbols returning frozenset(), and monkeypatched find_callees returning [] — a pure unit-level isolation of the no-callees branch. Cross-pyramid parametrization would conflate real-I/O integration with mock-based unit coverage and force the unit test off its monkeypatch seam."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "350523c9ac7c"
+reason = "2 inter-file integration tests across 2 files probe two completely unrelated SUTs with no shared fixture: test_circular_calls (tests/integration/test_analyze_package__trace_flow.py, TestEdgeCircularCalls) builds a tmp_path on-disk package with a 'def func_a(): func_b()' / 'def func_b(): func_a()' cycle and asserts trace_flow terminates with len(steps) == 2 (cycle-termination contract on the trace_flow + analyze_package pipeline), while test_docs_full_returns_content (tests/integration/test_discover_docs.py, TestDetailLevels) builds a docs/ tree via _make_project and asserts discover_docs(detail='full') returns a 'content' key (docs progressive-disclosure contract). Different first-party symbols (trace_flow vs discover_docs), different fixture builders (_make_pkg vs _make_project), different assertion targets (cycle len + names vs docs detail key) — no foldable contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1c060816b80d"
+reason = "2 test_has_agent_hint unit tests live in tests/unit/tools/test_describe.py (TestDescribeToolIdentity) and tests/unit/tools/test_search.py (TestSearchToolIdentity) — each instantiates a different Tool class (DescribeTool, SearchTool) and asserts its own .agent_hint attribute is truthy; cross-file parametrization would break the 1:1 src/tools/ mirror contract and centralize per-tool agent-hint contracts away from their owning mirror test module."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "fbfc1feaf753"
+reason = "2 test_bad_path unit tests live in tests/unit/tools/test_callers.py (TestCallersToolEdgeCasesUnit) and tests/unit/tools/test_inspect.py (TestInspectEdgeCasesUnit) — each instantiates a different Tool class (CallersTool, InspectTool) and exercises its own .execute(path='/nonexistent/path', symbol='foo') error path; cross-file parametrization would break the 1:1 src/tools/ mirror contract (same rationale as acked cluster dab824cfb1a2)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8da645903892"
+reason = "2 test_bad_path unit tests live in tests/unit/tools/test_callees.py (TestCalleesToolEdgeCasesUnit) and tests/unit/tools/test_impact.py (TestImpactToolEdgeCasesUnit) — each instantiates a different Tool class (CalleesTool, ImpactTool) and exercises its own .execute(path='/nonexistent/...', symbol='foo') error path; cross-file parametrization would break the 1:1 src/tools/ mirror contract (same rationale as acked cluster dab824cfb1a2)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "cfca326a0ac8"
+reason = "2 test_entry_point_discoverable tests live in tests/unit/hooks/test_file_header.py and tests/unit/hooks/test_source_body.py — each asserts a different hook entry-point name ('ast:file-header' vs 'ast:source-body') is registered in the axm.hooks group; cross-file parametrization would break the 1:1 src/hooks/ mirror contract and centralize per-hook entry-point assertions away from their owning mirror test module."
