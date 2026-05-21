@@ -96,6 +96,27 @@ the index lazily via `_build_project_symbol_index` and caching it in
 `_PROJECT_IMPORT_INDEX_CACHE`. Call `_invalidate_import_index(project_path)`
 after mutating the file tree so the next lookup rebuilds.
 
+Layout & move (`core/fix/layout_and_move.py`) wraps axm-anvil's
+`move_symbols` with collision detection so the pipeline can reshape
+the test tree without losing fixtures or shadowing conftests:
+
+| Symbol | Stage | Purpose |
+|---|---|---|
+| `relocate_non_canonical_tiers` | 0.5 | Move legacy `tests/<non-canonical>/test_*.py` into `tests/integration/` so RELOCATE only sees canonical tiers |
+| `flatten_tier_layout` | 1.5 | Collapse nested `tests/integration/<sub>/` and `tests/e2e/<sub>/` to flat layout, renaming on collision |
+| `_safe_move_units` | per-op | Wrap `move_symbols` with collision dedup/rename, helper-body conflict resolution, conftest-shadow guards, marker-fixture follow-up |
+| `_resolve_helper_conflicts` | per-op | Rename source helpers whose body diverges from a same-named helper in target (or shadows conftest) before anvil runs |
+| `_resolve_conftest_shadowing` | per-op | Rename target-local helpers that would shadow conftest fixtures the moved tests depend on |
+
+Stage executors (`core/fix/stages_execute.py`) apply the plan: one
+function per `FileOp.kind` (`_execute_flatten`, `_execute_relocate`,
+`_execute_rename`, `_execute_split`, `_execute_merge`) dispatched by
+`execute(ops, project_path)`. The plan itself is a list of `FileOp`
+records (`core/fix/models.py`) — each carries `kind`, `source`,
+`target` (a single `Path` for non-split ops, `list[Path]` for SPLIT),
+`rationale`, `source_rule`, and an optional `split_map` for SPLIT
+routing.
+
 ### 6. Scoring
 
 10-category weighted composite (see [Scoring & Grades](scoring.md)):
