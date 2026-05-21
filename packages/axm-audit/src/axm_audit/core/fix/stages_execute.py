@@ -6,6 +6,7 @@ executor returns a list of human-readable warnings; mutation happens
 through ``cst_rewrite`` (in-file edits) and ``layout_and_move``
 (file moves + cross-file rewrites).
 """
+
 from __future__ import annotations
 
 import ast
@@ -50,13 +51,13 @@ from .tests_ast import (
 )
 
 __all__ = [
-    "execute",
     "_execute_flatten",
+    "_execute_merge",
     "_execute_relocate",
     "_execute_rename",
     "_execute_split",
-    "_execute_merge",
     "_reroute_through_safe_move",
+    "execute",
 ]
 
 
@@ -66,9 +67,7 @@ def _execute_flatten(op: FileOp, project_path: Path) -> list[str]:
     Skips pathological cases (op.split_map is None — signaled by planner).
     """
     if op.split_map is None:
-        return [
-            f"flatten skipped: {op.rationale} ({op.source.name})"
-        ]
+        return [f"flatten skipped: {op.rationale} ({op.source.name})"]
     if not op.source.exists():
         return [f"flatten skipped: {op.source} missing"]
     text = op.source.read_text()
@@ -76,13 +75,14 @@ def _execute_flatten(op: FileOp, project_path: Path) -> list[str]:
         text = _flatten_class_to_top_level(text, class_name)
     op.source.write_text(text)
     _reorder_module_statements(op.source)
-    return [
-        f"flatten: rewrote {op.source.name} ({list(op.split_map.keys())})"
-    ]
+    return [f"flatten: rewrote {op.source.name} ({list(op.split_map.keys())})"]
 
 
 def _reroute_through_safe_move(
-    kind: str, source: Path, target: Path, project_path: Path,
+    kind: str,
+    source: Path,
+    target: Path,
+    project_path: Path,
 ) -> list[str]:
     """Common path for RELOCATE/RENAME when target already exists.
 
@@ -101,16 +101,18 @@ def _reroute_through_safe_move(
     tree = ast.parse(source.read_text())
     units = _movable_units_at_top_level(tree)
     if units:
-        sub_warnings, _ = _safe_move_units(
-            source, target, units, project_path
-        )
+        sub_warnings, _ = _safe_move_units(source, target, units, project_path)
         warnings.extend(sub_warnings)
     _delete_source_if_empty_tests(source)
     if old_mod and new_mod and old_mod != new_mod and not source.exists():
-        warnings.extend(_rewrite_cross_test_imports(
-            project_path, old_mod, [new_mod],
-            skip_paths={source, target},
-        ))
+        warnings.extend(
+            _rewrite_cross_test_imports(
+                project_path,
+                old_mod,
+                [new_mod],
+                skip_paths={source, target},
+            )
+        )
     return warnings
 
 
@@ -127,7 +129,10 @@ def _execute_relocate(op: FileOp, project_path: Path) -> list[str]:
     assert isinstance(op.target, Path)
     if op.target.exists() and op.target != op.source:
         return _reroute_through_safe_move(
-            "relocate", op.source, op.target, project_path,
+            "relocate",
+            op.source,
+            op.target,
+            project_path,
         )
     old_mod = _module_path_for_test_file(op.source, project_path)
     new_mod = _module_path_for_test_file(op.target, project_path)
@@ -137,17 +142,24 @@ def _execute_relocate(op: FileOp, project_path: Path) -> list[str]:
         _git_mv(op.source, op.target)
     except FileExistsError:
         return _reroute_through_safe_move(
-            "relocate", op.source, op.target, project_path,
+            "relocate",
+            op.source,
+            op.target,
+            project_path,
         )
     warnings = []
     depth_delta = tgt_depth - src_depth
     if depth_delta != 0:
         warnings.extend(_patch_file_dunder_depth(op.target, depth_delta))
     if old_mod and new_mod and old_mod != new_mod:
-        warnings.extend(_rewrite_cross_test_imports(
-            project_path, old_mod, [new_mod],
-            skip_paths={op.source, op.target},
-        ))
+        warnings.extend(
+            _rewrite_cross_test_imports(
+                project_path,
+                old_mod,
+                [new_mod],
+                skip_paths={op.source, op.target},
+            )
+        )
     return warnings
 
 
@@ -164,7 +176,10 @@ def _execute_rename(op: FileOp, project_path: Path) -> list[str]:
     assert isinstance(op.target, Path)
     if op.target.exists() and op.target != op.source:
         return _reroute_through_safe_move(
-            "rename", op.source, op.target, project_path,
+            "rename",
+            op.source,
+            op.target,
+            project_path,
         )
     old_mod = _module_path_for_test_file(op.source, project_path)
     new_mod = _module_path_for_test_file(op.target, project_path)
@@ -174,17 +189,24 @@ def _execute_rename(op: FileOp, project_path: Path) -> list[str]:
         _git_mv(op.source, op.target)
     except FileExistsError:
         return _reroute_through_safe_move(
-            "rename", op.source, op.target, project_path,
+            "rename",
+            op.source,
+            op.target,
+            project_path,
         )
     warnings = []
     depth_delta = tgt_depth - src_depth
     if depth_delta != 0:
         warnings.extend(_patch_file_dunder_depth(op.target, depth_delta))
     if old_mod and new_mod and old_mod != new_mod:
-        warnings.extend(_rewrite_cross_test_imports(
-            project_path, old_mod, [new_mod],
-            skip_paths={op.source, op.target},
-        ))
+        warnings.extend(
+            _rewrite_cross_test_imports(
+                project_path,
+                old_mod,
+                [new_mod],
+                skip_paths={op.source, op.target},
+            )
+        )
     return warnings
 
 
@@ -217,7 +239,8 @@ def _recover_anchor_fixtures(
     except (OSError, SyntaxError):
         return msgs
     anchor_top = {
-        n.name for n in anchor_tree.body
+        n.name
+        for n in anchor_tree.body
         if isinstance(n, ast.FunctionDef | ast.ClassDef)
     }
     missing = sorted(anchor_fixture_refs - anchor_top)
@@ -252,9 +275,11 @@ def _recover_anchor_fixtures(
 
     def _names_in_node(node: cst.CSTNode) -> set[str]:
         out: set[str] = set()
+
         class _C(cst.CSTVisitor):
             def visit_Name(self, n: cst.Name) -> None:
                 out.add(n.value)
+
         node.visit(_C())
         return out
 
@@ -302,12 +327,9 @@ def _recover_anchor_fixtures(
                         # Only copy module-level constants (UPPER_SNAKE_CASE
                         # or similar) and helper functions — never copy
                         # other tests/classes (would duplicate test runs).
-                        if (
-                            isinstance(ref_stmt, cst.SimpleStatementLine)
-                            or (
-                                isinstance(ref_stmt, cst.FunctionDef)
-                                and not ref_stmt.name.value.startswith("test_")
-                            )
+                        if isinstance(ref_stmt, cst.SimpleStatementLine) or (
+                            isinstance(ref_stmt, cst.FunctionDef)
+                            and not ref_stmt.name.value.startswith("test_")
                         ):
                             to_copy.append((ref, ref_stmt))
                             queue.append(ref)
@@ -336,7 +358,9 @@ def _recover_anchor_fixtures(
             break
     if recovered:
         _cst_save(anchor_path, anchor_module.with_changes(body=new_body))
-        _backfill_missing_imports(anchor_path, anchor_path, anchor_path.parent.parent.parent)
+        _backfill_missing_imports(
+            anchor_path, anchor_path, anchor_path.parent.parent.parent
+        )
     return msgs
 
 
@@ -354,10 +378,7 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
     assert isinstance(op.target, list)
     tier_str = _tier_for_path(op.source)
     if tier_str not in ("integration", "e2e"):
-        return [
-            f"split skipped: source not under tests/integration|e2e "
-            f"({op.source})"
-        ]
+        return [f"split skipped: source not under tests/integration|e2e ({op.source})"]
     if not op.source.exists():
         return [f"split skipped: source missing ({op.source})"]
     tree = ast.parse(op.source.read_text())
@@ -368,8 +389,12 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
         cls.name
         for cls in _top_level_test_classes(tree)
         if _class_needs_flatten(
-            cls, tree, tier=tier_str, pkg_prefixes=pkg_prefixes,
-            scripts=scripts, single_binary=single_binary,
+            cls,
+            tree,
+            tier=tier_str,
+            pkg_prefixes=pkg_prefixes,
+            scripts=scripts,
+            single_binary=single_binary,
         )
     ]
     if leftover:
@@ -393,6 +418,7 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
     original_source = op.source
     original_module = _module_path_for_test_file(original_source, project_path)
     post_split_paths: list[Path] = []
+
     # Compute fixtures the anchor will still need after non-anchor moves.
     # When a non-anchor unit also references a fixture, marker-fixture
     # follow-up duplicates that fixture into target — but anvil deletes
@@ -411,8 +437,7 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
         refs: set[str] = set()
         for n in tree.body:
             if not (
-                isinstance(n, ast.FunctionDef | ast.ClassDef)
-                and n.name in unit_names
+                isinstance(n, ast.FunctionDef | ast.ClassDef) and n.name in unit_names
             ):
                 continue
             refs |= _string_literal_fixtures_in_unit(n)
@@ -449,7 +474,10 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
         for pending_names in non_anchor_units.values():
             pending_refs |= _fixtures_referenced_by(pending_names)
         sub_warnings, _ = _safe_move_units(
-            op.source, target, unit_names, project_path,
+            op.source,
+            target,
+            unit_names,
+            project_path,
             keep_in_source=anchor_fixture_refs | pending_refs,
         )
         warnings.extend(sub_warnings)
@@ -480,9 +508,13 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
     # names. Find each missing fixture in the sibling post-split paths
     # and copy its definition back into the anchor.
     if anchor_path is not None and anchor_fixture_refs:
-        warnings.extend(_recover_anchor_fixtures(
-            anchor_path, anchor_fixture_refs, post_split_paths,
-        ))
+        warnings.extend(
+            _recover_anchor_fixtures(
+                anchor_path,
+                anchor_fixture_refs,
+                post_split_paths,
+            )
+        )
     if original_module:
         new_modules = []
         seen: set[str] = set()
@@ -492,10 +524,14 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
                 new_modules.append(mod)
                 seen.add(mod)
         if new_modules:
-            warnings.extend(_rewrite_cross_test_imports(
-                project_path, original_module, new_modules,
-                skip_paths={original_source, *post_split_paths},
-            ))
+            warnings.extend(
+                _rewrite_cross_test_imports(
+                    project_path,
+                    original_module,
+                    new_modules,
+                    skip_paths={original_source, *post_split_paths},
+                )
+            )
     return warnings
 
 
@@ -507,20 +543,20 @@ def _execute_merge(op: FileOp, project_path: Path) -> list[str]:
     source_tree = ast.parse(op.source.read_text())
     source_units = _movable_units_at_top_level(source_tree)
     if not source_units:
-        return [
-            f"merge skipped: {op.source} has no top-level movable units"
-        ]
+        return [f"merge skipped: {op.source} has no top-level movable units"]
     old_mod = _module_path_for_test_file(op.source, project_path)
     new_mod = _module_path_for_test_file(op.target, project_path)
-    warnings, _ = _safe_move_units(
-        op.source, op.target, source_units, project_path
-    )
+    warnings, _ = _safe_move_units(op.source, op.target, source_units, project_path)
     _delete_source_if_empty_tests(op.source)
     if old_mod and new_mod and old_mod != new_mod and not op.source.exists():
-        warnings.extend(_rewrite_cross_test_imports(
-            project_path, old_mod, [new_mod],
-            skip_paths={op.source, op.target},
-        ))
+        warnings.extend(
+            _rewrite_cross_test_imports(
+                project_path,
+                old_mod,
+                [new_mod],
+                skip_paths={op.source, op.target},
+            )
+        )
     return warnings
 
 

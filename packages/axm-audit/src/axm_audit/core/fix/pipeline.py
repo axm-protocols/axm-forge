@@ -9,6 +9,7 @@ caveats discovered during pass 12.
 
 Post-loop polish: extract duplicated helpers + run ruff format/fix.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -25,7 +26,11 @@ from .models import MAX_ITERATIONS, PipelineReport
 from .stages_execute import execute
 from .stages_plan import plan_flatten, plan_naming, plan_relocate
 
-__all__ = ["run", "MAX_ITERATIONS"]
+__all__ = ["DEFAULT_RULES", "MAX_ITERATIONS", "run"]
+
+DEFAULT_RULES: frozenset[str] = frozenset(
+    {"TEST_QUALITY_PYRAMID_LEVEL", "TEST_QUALITY_FILE_NAMING"}
+)
 
 
 def _run_one_iteration(
@@ -63,8 +68,7 @@ def _run_one_iteration(
         # only emit a warning and re-fire every iteration, breaking
         # convergence. They are surfaced via collect_unfixable instead.
         actionable_flatten = [
-            op for op in flatten_ops
-            if not op.rationale.startswith("PATHOLOGICAL")
+            op for op in flatten_ops if not op.rationale.startswith("PATHOLOGICAL")
         ]
         report.ops.extend(actionable_flatten)
         if apply and actionable_flatten:
@@ -119,8 +123,12 @@ def _run_one_iteration(
 
 
 def run(
-    project_path: Path, *, apply: bool, rules: set[str]
+    project_path: Path,
+    *,
+    apply: bool = False,
+    rules: set[str] | frozenset[str] | None = None,
 ) -> PipelineReport:
+    active_rules: set[str] = set(rules) if rules is not None else set(DEFAULT_RULES)
     report = PipelineReport(applied=apply)
 
     warnings: list[str] = []
@@ -137,14 +145,20 @@ def run(
             report.iterations = i + 1
             iter_ops = _run_one_iteration(
                 project_path,
-                apply=True, rules=rules, report=report, warnings=warnings,
+                apply=True,
+                rules=active_rules,
+                report=report,
+                warnings=warnings,
             )
             if iter_ops == 0:
                 break
     else:
         _run_one_iteration(
             project_path,
-            apply=False, rules=rules, report=report, warnings=warnings,
+            apply=False,
+            rules=active_rules,
+            report=report,
+            warnings=warnings,
         )
         report.iterations = 1
 
@@ -153,7 +167,8 @@ def run(
         extraction_msgs = _extract_shared_helpers(project_path)
         warnings.extend(extraction_msgs)
         extracted_names = {
-            m.split("`")[1] for m in extraction_msgs
+            m.split("`")[1]
+            for m in extraction_msgs
             if (
                 m.startswith("extracted helper `")
                 or m.startswith("extracted fixture `")
@@ -162,7 +177,8 @@ def run(
         }
         if extracted_names:
             warnings = [
-                w for w in warnings
+                w
+                for w in warnings
                 if not (
                     "duplicated in target" in w
                     and any(f"Helper '{n}'" in w for n in extracted_names)
@@ -192,8 +208,11 @@ def _ruff_format_tests(project_path: Path) -> list[str]:
     for cmd_args, label in (
         (
             [
-                "ruff", "check", "--fix-only",
-                "--select", "F401,I001,UP034",
+                "ruff",
+                "check",
+                "--fix-only",
+                "--select",
+                "F401,I001,UP034",
                 str(tests),
             ],
             "ruff --fix F401/I001/UP034",
@@ -208,7 +227,5 @@ def _ruff_format_tests(project_path: Path) -> list[str]:
             msgs.append(f"{label} skipped: ruff not on PATH")
             return msgs
         if rc.returncode not in (0, 1):
-            msgs.append(
-                f"{label} returned exit {rc.returncode}: {rc.stderr[:200]}"
-            )
+            msgs.append(f"{label} returned exit {rc.returncode}: {rc.stderr[:200]}")
     return msgs

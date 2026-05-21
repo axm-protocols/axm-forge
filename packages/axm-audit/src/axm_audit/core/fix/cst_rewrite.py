@@ -17,6 +17,7 @@ write with libcst (source-fidelity: comments, triple-quoted strings,
 blank lines, quote style all preserved — what ast.unparse silently
 loses).
 """
+
 from __future__ import annotations
 
 import ast
@@ -167,10 +168,7 @@ def _patch_file_dunder_depth(
                 return updated_node
             count = 1
             inner: cst.BaseExpression = updated_node.value
-            while (
-                isinstance(inner, cst.Attribute)
-                and inner.attr.value == "parent"
-            ):
+            while isinstance(inner, cst.Attribute) and inner.attr.value == "parent":
                 count += 1
                 inner = inner.value
             if not _is_file_dunder_chain(inner):
@@ -212,10 +210,7 @@ def _patch_file_dunder_depth(
                 return updated_node
             count = 1
             inner: cst.BaseExpression = updated_node.value
-            while (
-                isinstance(inner, cst.Attribute)
-                and inner.attr.value == "parent"
-            ):
+            while isinstance(inner, cst.Attribute) and inner.attr.value == "parent":
                 count += 1
                 inner = inner.value
             if not _is_file_dunder_chain(inner):
@@ -318,14 +313,10 @@ def _flatten_class_to_top_level(source_text: str, class_name: str) -> str:
     module = cst.parse_module(source_text)
     new_body: list[cst.BaseStatement] = []
     for stmt in module.body:
-        if not (
-            isinstance(stmt, cst.ClassDef) and stmt.name.value == class_name
-        ):
+        if not (isinstance(stmt, cst.ClassDef) and stmt.name.value == class_name):
             new_body.append(stmt)
             continue
-        class_decos = tuple(
-            d for d in stmt.decorators if _is_pytest_mark_decorator(d)
-        )
+        class_decos = tuple(d for d in stmt.decorators if _is_pytest_mark_decorator(d))
         for child in stmt.body.body:
             promoted = _flatten_class_child(child, class_decos)
             if promoted is not None:
@@ -419,9 +410,7 @@ def _rename_name_in_module(path: Path, old_to_new: dict[str, str]) -> None:
             self, original_node: cst.Name, updated_node: cst.Name
         ) -> cst.BaseExpression:
             if updated_node.value in self.mapping:
-                return updated_node.with_changes(
-                    value=self.mapping[updated_node.value]
-                )
+                return updated_node.with_changes(value=self.mapping[updated_node.value])
             return updated_node
 
         def leave_FunctionDef(
@@ -431,9 +420,7 @@ def _rename_name_in_module(path: Path, old_to_new: dict[str, str]) -> None:
         ) -> cst.BaseStatement:
             if updated_node.name.value in self.mapping:
                 return updated_node.with_changes(
-                    name=cst.Name(
-                        value=self.mapping[updated_node.name.value]
-                    )
+                    name=cst.Name(value=self.mapping[updated_node.name.value])
                 )
             return updated_node
 
@@ -444,9 +431,7 @@ def _rename_name_in_module(path: Path, old_to_new: dict[str, str]) -> None:
         ) -> cst.BaseStatement:
             if updated_node.name.value in self.mapping:
                 return updated_node.with_changes(
-                    name=cst.Name(
-                        value=self.mapping[updated_node.name.value]
-                    )
+                    name=cst.Name(value=self.mapping[updated_node.name.value])
                 )
             return updated_node
 
@@ -492,9 +477,7 @@ def _rename_top_level_in_source(source: Path, old_to_new: dict[str, str]) -> Non
             isinstance(stmt, cst.FunctionDef | cst.ClassDef)
             and stmt.name.value in old_to_new
         ):
-            stmt = stmt.with_changes(
-                name=cst.Name(value=old_to_new[stmt.name.value])
-            )
+            stmt = stmt.with_changes(name=cst.Name(value=old_to_new[stmt.name.value]))
         new_body.append(stmt)
     _cst_save(source, module.with_changes(body=new_body))
 
@@ -507,9 +490,7 @@ def _delete_function_from_source(source: Path, func_name: str) -> None:
     new_body = [
         stmt
         for stmt in module.body
-        if not (
-            isinstance(stmt, cst.FunctionDef) and stmt.name.value == func_name
-        )
+        if not (isinstance(stmt, cst.FunctionDef) and stmt.name.value == func_name)
     ]
     _cst_save(source, module.with_changes(body=new_body))
 
@@ -698,9 +679,7 @@ def _reorder_module_statements(path: Path) -> None:
         if min_pos > pos:
             needs_change = True
 
-    docstring_misplaced = (
-        docstring_idx is not None and docstring_idx != 0
-    )
+    docstring_misplaced = docstring_idx is not None and docstring_idx != 0
     if not needs_change and not docstring_misplaced:
         return
 
@@ -748,9 +727,7 @@ def _ast_import_to_cst(stmt: ast.stmt) -> cst.SimpleStatementLine:
             )
             for a in stmt.names
         ]
-        module = (
-            _dotted_name_to_cst(stmt.module) if stmt.module else None
-        )
+        module = _dotted_name_to_cst(stmt.module) if stmt.module else None
         return cst.SimpleStatementLine(
             body=[
                 cst.ImportFrom(
@@ -778,9 +755,7 @@ def _is_cst_import(stmt: cst.BaseStatement) -> bool:
     """True iff stmt is a SimpleStatementLine wrapping Import/ImportFrom."""
     if not isinstance(stmt, cst.SimpleStatementLine):
         return False
-    return any(
-        isinstance(small, cst.Import | cst.ImportFrom) for small in stmt.body
-    )
+    return any(isinstance(small, cst.Import | cst.ImportFrom) for small in stmt.body)
 
 
 def _is_cst_type_checking_block(stmt: cst.BaseStatement) -> bool:
@@ -820,9 +795,7 @@ def _insert_imports_cst(
         if _is_cst_type_checking_block(stmt):
             assert isinstance(stmt, cst.If)
             new_inner = list(stmt.body.body) + list(type_checking)
-            body[i] = stmt.with_changes(
-                body=stmt.body.with_changes(body=new_inner)
-            )
+            body[i] = stmt.with_changes(body=stmt.body.with_changes(body=new_inner))
             return body
 
     has_tc_import = False
@@ -836,8 +809,7 @@ def _insert_imports_cst(
                     isinstance(mod, cst.Name)
                     and mod.value == "typing"
                     and any(
-                        isinstance(a.name, cst.Name)
-                        and a.name.value == "TYPE_CHECKING"
+                        isinstance(a.name, cst.Name) and a.name.value == "TYPE_CHECKING"
                         for a in small.names
                     )
                 ):
@@ -884,9 +856,7 @@ def _dedupe_imports_cst(module: cst.Module) -> cst.Module:
     def key_of(prefix: str, alias: cst.ImportAlias) -> tuple[str, str, str | None]:
         name = _cst_name_to_str(alias.name)
         asname = (
-            _cst_name_to_str(alias.asname.name)
-            if alias.asname is not None
-            else None
+            _cst_name_to_str(alias.asname.name) if alias.asname is not None else None
         )
         return (prefix, name, asname)
 
@@ -955,9 +925,7 @@ def _dedupe_imports_cst(module: cst.Module) -> cst.Module:
                     new_inner.append(inner)
             if new_inner:
                 new_body.append(
-                    stmt.with_changes(
-                        body=stmt.body.with_changes(body=new_inner)
-                    )
+                    stmt.with_changes(body=stmt.body.with_changes(body=new_inner))
                 )
             continue
         new_body.append(stmt)
@@ -1051,14 +1019,12 @@ def _synth_import_from_helpers(
             continue
         for node in tree.body:
             defined = (
-                (isinstance(node, ast.FunctionDef | ast.ClassDef)
-                 and node.name == name)
-                or (
-                    isinstance(node, ast.Assign)
-                    and len(node.targets) == 1
-                    and isinstance(node.targets[0], ast.Name)
-                    and node.targets[0].id == name
-                )
+                isinstance(node, ast.FunctionDef | ast.ClassDef) and node.name == name
+            ) or (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == name
             )
             if not defined:
                 continue
@@ -1120,9 +1086,7 @@ def _backfill_missing_imports(
         still_missing2 = missing - set(recoverable.keys())
         if still_missing2 and project_path is not None:
             for name in still_missing2:
-                synth = _synth_import_from_helpers(
-                    name, project_path, target
-                )
+                synth = _synth_import_from_helpers(name, project_path, target)
                 if synth is not None:
                     recoverable[name] = synth
 
@@ -1155,9 +1119,7 @@ def _backfill_missing_imports(
     cst_module = _cst_load(target)
     if cst_module is None:
         return msgs
-    new_body = _insert_imports_cst(
-        cst_module, top_level_cst, type_checking_cst
-    )
+    new_body = _insert_imports_cst(cst_module, top_level_cst, type_checking_cst)
     new_module = cst_module.with_changes(body=new_body)
     new_module = _dedupe_imports_cst(new_module)
     _cst_save(target, new_module)
