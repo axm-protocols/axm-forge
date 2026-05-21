@@ -40,14 +40,18 @@ __all__ = [
     # depth patch
     "_patch_file_dunder_depth",
     "_is_file_dunder_chain",
+    "patch_file_depth",
     # rename / delete
     "_rename_name_in_module",
     "_rename_top_level_in_source",
     "_delete_function_from_source",
     "_delete_source_if_empty_tests",
+    "rename_function",
+    "delete_function",
     # class flatten
     "_flatten_class_to_top_level",
     "_flatten_class_child",
+    "flatten_class",
     # statement reorder
     "_reorder_module_statements",
     "_stmt_defines",
@@ -60,9 +64,12 @@ __all__ = [
     "_insert_imports_cst",
     "_dedupe_imports_cst",
     "_cst_name_to_str",
+    "dedupe_imports",
+    "backfill_import",
     # imports — index + backfill
     "_project_import_index",
     "_invalidate_import_index",
+    "_resolve_import_for_symbol",
     "_scan_tests_for_import",
     "_synth_import_from_helpers",
     "_backfill_missing_imports",
@@ -986,6 +993,290 @@ def _project_import_index(
 def _invalidate_import_index(project_path: Path) -> None:
     """Drop the cached import index for *project_path*."""
     _PROJECT_IMPORT_INDEX_CACHE.pop(project_path, None)
+
+
+def _build_project_symbol_index(
+    project_path: Path,
+) -> dict[str, tuple[ast.stmt, ast.stmt | None]]:
+    """Scan every ``.py`` file under *project_path* for top-level names.
+
+    Returns ``{name: (ast.ImportFrom, None)}`` where the ImportFrom is a
+    freshly parsed statement ready to be transplanted. Skips common
+    vendor / build / cache directories so we do not crawl ``.venv`` or
+    ``node_modules`` on every cache rebuild.
+    """
+    index: dict[str, tuple[ast.stmt, ast.stmt | None]] = {}
+    skip_parts = {
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".git",
+        "build",
+        "dist",
+        "node_modules",
+        ".tox",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".pytest_cache",
+    }
+    for p in project_path.rglob("*.py"):
+        if any(part in skip_parts for part in p.parts):
+            continue
+        try:
+            rel = p.relative_to(project_path)
+        except ValueError:
+            continue
+        parts = list(rel.with_suffix("").parts)
+        if parts and parts[-1] == "__init__":
+            parts = parts[:-1]
+        if not parts:
+            continue
+        module_path = ".".join(parts)
+        try:
+            tree = ast.parse(p.read_text())
+        except (SyntaxError, OSError, UnicodeDecodeError):
+            continue
+        for node in tree.body:
+            if not isinstance(
+                node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+            ):
+                continue
+            name = node.name
+            if name in index:
+                continue
+            try:
+                stmt = ast.parse(f"from {module_path} import {name}").body[0]
+            except SyntaxError:
+                continue
+            index[name] = (stmt, None)
+    return index
+
+
+def _resolve_import_for_symbol(
+    project_path: Path, symbol: str
+) -> tuple[ast.stmt, ast.stmt | None] | None:
+    """Return the import statement that brings *symbol* into scope, or ``None``.
+
+    Builds (and caches in ``_PROJECT_IMPORT_INDEX_CACHE``) a project-wide
+    index of top-level FunctionDef / AsyncFunctionDef / ClassDef
+    definitions across every ``.py`` file under *project_path*. Drop the
+    cache via :func:`_invalidate_import_index` after mutating the file
+    tree so the next call rebuilds.
+    """
+    if project_path not in _PROJECT_IMPORT_INDEX_CACHE:
+        _PROJECT_IMPORT_INDEX_CACHE[project_path] = _build_project_symbol_index(
+            project_path
+        )
+    return _PROJECT_IMPORT_INDEX_CACHE[project_path].get(symbol)
+
+
+# ---------------------------------------------------------------------------
+# Public in-memory rewriters (cst.Module → cst.Module)
+# ---------------------------------------------------------------------------
+
+
+def flatten_class(module: cst.Module, class_name: str) -> cst.Module:
+    """Flatten the *class_name* class into top-level functions.
+
+    In-memory variant of :func:`_flatten_class_to_top_level`. Class-level
+    pytest marks are propagated onto each promoted method; method-level
+    decorators are preserved verbatim; the class docstring is dropped.
+    """
+    new_body: list[cst.BaseStatement] = []
+    for stmt in module.body:
+        if not (isinstance(stmt, cst.ClassDef) and stmt.name.value == class_name):
+            new_body.append(stmt)
+            continue
+        class_decos = tuple(d for d in stmt.decorators if _is_pytest_mark_decorator(d))
+        for child in stmt.body.body:
+            promoted = _flatten_class_child(child, class_decos)
+            if promoted is not None:
+                new_body.append(promoted)
+    return module.with_changes(body=new_body)
+
+
+def rename_function(module: cst.Module, old_name: str, new_name: str) -> cst.Module:
+    """Rename top-level function *old_name* to *new_name* across *module*.
+
+    Updates the ``FunctionDef`` itself, any ``Name`` reference, and any
+    string-literal argument (e.g. ``pytest.mark.parametrize("old", …)``)
+    that matches *old_name*. In-memory counterpart of
+    :func:`_rename_name_in_module`.
+    """
+    mapping = {old_name: new_name}
+
+    class _Renamer(cst.CSTTransformer):
+        def leave_Name(
+            self, original_node: cst.Name, updated_node: cst.Name
+        ) -> cst.BaseExpression:
+            if updated_node.value in mapping:
+                return updated_node.with_changes(value=mapping[updated_node.value])
+            return updated_node
+
+        def leave_FunctionDef(
+            self,
+            original_node: cst.FunctionDef,
+            updated_node: cst.FunctionDef,
+        ) -> cst.BaseStatement:
+            if updated_node.name.value in mapping:
+                return updated_node.with_changes(
+                    name=cst.Name(value=mapping[updated_node.name.value])
+                )
+            return updated_node
+
+        def leave_SimpleString(
+            self,
+            original_node: cst.SimpleString,
+            updated_node: cst.SimpleString,
+        ) -> cst.BaseExpression:
+            raw = updated_node.value
+            if len(raw) < 2 or raw[0] not in {'"', "'"}:
+                return updated_node
+            inner = raw[1:-1]
+            if inner in mapping:
+                return updated_node.with_changes(
+                    value=f"{raw[0]}{mapping[inner]}{raw[0]}"
+                )
+            return updated_node
+
+    result = module.visit(_Renamer())
+    assert isinstance(result, cst.Module)
+    return result
+
+
+def delete_function(module: cst.Module, func_name: str) -> cst.Module:
+    """Drop top-level function *func_name* from *module*.
+
+    Neighbouring statements (and their attached blank-line spacing) are
+    preserved by libcst's leading-lines semantics. In-memory counterpart
+    of :func:`_delete_function_from_source`.
+    """
+    new_body = [
+        stmt
+        for stmt in module.body
+        if not (isinstance(stmt, cst.FunctionDef) and stmt.name.value == func_name)
+    ]
+    return module.with_changes(body=new_body)
+
+
+def patch_file_depth(module: cst.Module, depth_delta: int = 0) -> cst.Module:
+    """Rewrite ``Path(__file__).parents[N]`` literals by *depth_delta*.
+
+    In-memory variant of :func:`_patch_file_dunder_depth` that targets the
+    subscript form only — the chained ``.parent.parent`` form is left for
+    the file-level helper. Identity transform when *depth_delta* is 0 or
+    the pattern is absent.
+    """
+    if depth_delta == 0:
+        return module
+
+    class _DunderPatcher(cst.CSTTransformer):
+        def leave_Subscript(
+            self,
+            original_node: cst.Subscript,
+            updated_node: cst.Subscript,
+        ) -> cst.BaseExpression:
+            value = updated_node.value
+            if not isinstance(value, cst.Attribute):
+                return updated_node
+            if value.attr.value != "parents":
+                return updated_node
+            if not _is_file_dunder_chain(value.value):
+                return updated_node
+            slices = updated_node.slice
+            if len(slices) != 1:
+                return updated_node
+            elt = slices[0].slice
+            if not isinstance(elt, cst.Index):
+                return updated_node
+            n_node = elt.value
+            if not isinstance(n_node, cst.Integer):
+                return updated_node
+            new_n = int(n_node.value) + depth_delta
+            if new_n <= 0:
+                return updated_node
+            return updated_node.with_changes(
+                slice=[
+                    cst.SubscriptElement(
+                        slice=cst.Index(value=cst.Integer(value=str(new_n)))
+                    )
+                ]
+            )
+
+    result = module.visit(_DunderPatcher())
+    assert isinstance(result, cst.Module)
+    return result
+
+
+def dedupe_imports(module: cst.Module) -> cst.Module:
+    """Public wrapper around :func:`_dedupe_imports_cst`."""
+    return _dedupe_imports_cst(module)
+
+
+def backfill_import(module: cst.Module, mapping: dict[str, str]) -> cst.Module:
+    """Insert ``from {mod} import {name}`` for each (name → mod) in *mapping*.
+
+    The new imports go at the canonical position — after every
+    ``from __future__ import …`` (or at the module top when none exists)
+    and before the first non-import statement. Names already imported in
+    *module* are skipped, so this is idempotent on already-correct sources.
+    """
+    if not mapping:
+        return module
+
+    existing: set[str] = set()
+    for stmt in module.body:
+        if not isinstance(stmt, cst.SimpleStatementLine):
+            continue
+        for small in stmt.body:
+            if isinstance(small, cst.Import):
+                for a in small.names:
+                    if a.asname is not None:
+                        existing.add(_cst_name_to_str(a.asname.name))
+                    else:
+                        existing.add(_cst_name_to_str(a.name).split(".")[0])
+            elif isinstance(small, cst.ImportFrom):
+                if isinstance(small.names, cst.ImportStar):
+                    continue
+                for a in small.names:
+                    if a.asname is not None:
+                        existing.add(_cst_name_to_str(a.asname.name))
+                    else:
+                        existing.add(_cst_name_to_str(a.name))
+
+    new_imports: list[cst.SimpleStatementLine] = []
+    for name, mod_path in mapping.items():
+        if name in existing:
+            continue
+        new_imports.append(
+            cst.SimpleStatementLine(
+                body=[
+                    cst.ImportFrom(
+                        module=_dotted_name_to_cst(mod_path),
+                        names=[cst.ImportAlias(name=cst.Name(name))],
+                        relative=[],
+                    )
+                ]
+            )
+        )
+
+    if not new_imports:
+        return module
+
+    body = list(module.body)
+    insert_at = 0
+    for i, stmt in enumerate(body):
+        if not isinstance(stmt, cst.SimpleStatementLine):
+            continue
+        for small in stmt.body:
+            if isinstance(small, cst.ImportFrom):
+                mod = small.module
+                if isinstance(mod, cst.Name) and mod.value == "__future__":
+                    insert_at = i + 1
+                    break
+
+    new_body = body[:insert_at] + new_imports + body[insert_at:]
+    return module.with_changes(body=new_body)
 
 
 def _scan_tests_for_import(
