@@ -66,6 +66,7 @@ packages = ["src/axm_audit"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "docs/test_quality.md" = "axm_audit/docs/test_quality.md"
+"docs/fix_pipeline.md" = "axm_audit/docs/fix_pipeline.md"
 "docs/index.md" = "axm_audit/docs/index.md"
 
 [dependency-groups]
@@ -179,8 +180,6 @@ exempt_paths = [
     "_version.py",
     "__main__.py",
     "tools/audit.py",
-    "core/fix/findings.py",
-    "core/fix/stages_plan.py",
 ]
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
@@ -644,11 +643,7 @@ markers = [
 source = ["src"]
 branch = true
 relative_files = true
-omit = [
-    "*/tests/*",
-    "src/axm_audit/core/fix/findings.py",
-    "src/axm_audit/core/fix/stages_plan.py",
-]
+omit = ["*/tests/*"]
 
 [tool.coverage.xml]
 output = "coverage.xml"

@@ -1,7 +1,8 @@
-"""Deterministic test-suite auto-fixer (split layout, 12 modules).
+"""Deterministic test-suite auto-fixer.
 
-Re-exports the public API of the legacy ``tuple_fix_proto.py`` so that
-imports remain stable across the split.
+See ``docs/fix_pipeline.md`` for pipeline architecture and bug-class
+history. Public API: :func:`run`, :func:`format_report`,
+:class:`PipelineReport`, :class:`FileOp`, :class:`OpKind`.
 """
 
 from __future__ import annotations

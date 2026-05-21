@@ -1324,9 +1324,9 @@ def _argv_from_list(node: ast.List, constants: dict[str, str]) -> list[str]:
 
 # ── First-party symbol detection ──────────────────────────────
 #
-# Helpers ported from `scripts/test_orga/tuple_naming_proto.py` (functions
-# `_collect_package_imports`, `_used_names_in_node`, `_closure_nodes_for_test`,
-# `_resolve_fixture_symbol`). They power criterion (a) of the
+# First-party symbol detection: `_collect_package_imports`,
+# `_used_names_in_node`, `_closure_nodes_for_test`,
+# `_resolve_fixture_symbol`. These power criterion (a) of the
 # TEST_QUALITY_NO_PACKAGE_SYMBOL rule.
 
 
@@ -1434,8 +1434,7 @@ def _closure_nodes_for_test(
 ) -> list[ast.AST]:
     """Return the test body + bodies of transitively-called module helpers.
 
-    Mirrors `scripts/test_orga/tuple_naming_proto.py:_closure_nodes_for_test`:
-    walks the intra-module call graph, includes top-level classes referenced
+    Walks the intra-module call graph, includes top-level classes referenced
     by name (synthetic subclasses, etc.), and seeds the closure with helpers
     a method-style test directly calls. Top-level pytest fixtures consumed
     by the test as parameters are also seeded, so a fixture body that
@@ -1551,7 +1550,7 @@ def _resolve_first_party_fixture_symbol(
 ) -> str | None:
     """Return the first-party alias this fixture yields/returns, if any.
 
-    Resolution order (per ``tuple_naming_proto.py``):
+    Resolution order:
         1. return-type annotation (``-> Rule``)
         2. last ``return X(...) | return X`` in the body
         3. last ``yield X(...) | yield X`` in the body
@@ -1627,8 +1626,7 @@ test_references_first_party.__test__ = False  # type: ignore[attr-defined]
 #
 # Criterion (b): the closure invokes a declared script via ``subprocess.run``
 # or `CliRunner().invoke(app, [...])`. CliRunner support is single-binary
-# only — multi-binary apps would require per-import tracking (see
-# `scripts/test_orga/tuple_naming_e2e_proto.py:282-292`).
+# only — multi-binary apps would require per-import tracking.
 
 
 def _is_subprocess_call(call: ast.Call) -> bool:
@@ -1695,8 +1693,7 @@ test_invokes_in_package_script.__test__ = False  # type: ignore[attr-defined]
 
 # ── Canonical filename emission (FILE_NAMING) ─────────────────
 #
-# Helpers ported from ``scripts/test_orga/tuple_naming_proto.py`` and
-# ``tuple_naming_e2e_proto.py``. They power TEST_QUALITY_FILE_NAMING: count
+# Canonical filename emission for TEST_QUALITY_FILE_NAMING: count
 # first-party symbol usage and CLI invocations in a test body (no closure
 # walk), then emit the canonical ``test_{tuple}.py`` filename.
 

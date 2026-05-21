@@ -54,9 +54,7 @@ The script copies `input/` to a temp dir, `git init`s it, runs
 **Commit the corpus before running** so you can diff and review the
 new expected tree.
 
-> Until T8 ships the production CLI, the `expected/` trees in this
-> directory are hand-crafted from the legacy `tuple_fix_proto.py
-> --apply` output. T11 will validate them against the new CLI.
+
 
 ## Why these aren't real tests
 
