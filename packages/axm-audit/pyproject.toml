@@ -94,7 +94,12 @@ docs = [
 [tool.ruff]
 target-version = "py312"
 line-length = 88
-exclude = ["*/_version.py", "scripts/*"]
+exclude = [
+    "*/_version.py",
+    "scripts/*",
+    "tests/fixtures/fix_corpus/*/input",
+    "tests/fixtures/fix_corpus/*/expected",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20", "RUF"]
@@ -102,6 +107,10 @@ ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S105", "S106", "S108", "PLR2004"]
+# Fix-corpus loaders intentionally invoke `git` and `axm-audit` by PATH name
+# (subprocess controls all args; no untrusted input).
+"tests/fixtures/fix_corpus/conftest.py" = ["S603", "S607"]
+"tests/fixtures/fix_corpus/regenerate.py" = ["S603", "S607"]
 "src/axm_audit/core/rules/quality.py" = ["S603", "S607"]
 "src/axm_audit/core/rules/dependencies.py" = ["S603", "S607"]
 "src/axm_audit/cli.py" = ["T201", "PLR0913"]
@@ -532,6 +541,9 @@ pretty = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
 plugins = ["pydantic.mypy"]
+# fix-corpus input/expected trees are fixture mini-packages that reference
+# modules only resolvable inside a per-test temp dir — skip type analysis.
+exclude = ["tests/fixtures/fix_corpus/[^/]+/(input|expected)/"]
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]
