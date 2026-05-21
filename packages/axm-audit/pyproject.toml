@@ -176,7 +176,6 @@ exempt_paths = [
     "core/fix/pipeline.py",
     "core/fix/stages_execute.py",
     "core/fix/stages_plan.py",
-    "core/fix/tests_ast.py",
 ]
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
@@ -645,7 +644,6 @@ omit = [
     "src/axm_audit/core/fix/pipeline.py",
     "src/axm_audit/core/fix/stages_execute.py",
     "src/axm_audit/core/fix/stages_plan.py",
-    "src/axm_audit/core/fix/tests_ast.py",
 ]
 
 [tool.coverage.xml]
