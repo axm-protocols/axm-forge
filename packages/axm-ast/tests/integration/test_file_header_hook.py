@@ -12,22 +12,21 @@ from axm_ast.hooks.file_header import FileHeaderHook
 class TestFileHeaderNoSourceBody:
     """No source_body or missing files key — skip gracefully."""
 
-    def test_missing_files_key_skips(self, tmp_path: Path) -> None:
-        """source_body with symbols but no files key returns skip."""
-        context: dict[str, object] = {
-            "source_body": {"symbols": "class Foo:\n    pass\n"},
-        }
-        hook = FileHeaderHook()
-        result = hook.execute(context, path=str(tmp_path))
-
-        assert result.success
-        assert result.metadata["headers"] == []
-
-    def test_empty_files_list_skips(self, tmp_path: Path) -> None:
-        """source_body with empty files list returns skip."""
-        context: dict[str, object] = {
-            "source_body": {"files": []},
-        }
+    @pytest.mark.parametrize(
+        "source_body",
+        [
+            pytest.param(
+                {"symbols": "class Foo:\n    pass\n"},
+                id="missing_files_key",
+            ),
+            pytest.param({"files": []}, id="empty_files_list"),
+        ],
+    )
+    def test_source_body_without_usable_files_skips(
+        self, tmp_path: Path, source_body: dict[str, object]
+    ) -> None:
+        """source_body lacking a non-empty files key returns skip."""
+        context: dict[str, object] = {"source_body": source_body}
         hook = FileHeaderHook()
         result = hook.execute(context, path=str(tmp_path))
 
