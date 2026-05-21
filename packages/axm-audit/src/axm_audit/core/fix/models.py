@@ -31,6 +31,14 @@ NON_DETERMINISTIC_RULES = frozenset(
 CANONICAL_TIERS: frozenset[str] = frozenset({"unit", "integration", "e2e"})
 
 MAX_ITERATIONS = 6
+"""Hard cap on the fix pipeline's fixed-point loop.
+
+The RELOCATE → SPLIT → MERGE → RENAME cascade mutates classification
+(a moved test may change tier; a SPLIT may free a NAME_MISMATCH that
+was hidden pre-split), so :func:`axm_audit.core.fix.run` re-runs the
+stages until no new ops are planned. The cap fails loud on a buggy
+fixed-point instead of looping forever.
+"""
 
 TOP_K = 2
 
