@@ -71,7 +71,32 @@ Pre-gate hooks run before quality evaluation to auto-fix common issues:
 |---|---|---|
 | `AutofixHook` | `ruff check --fix .`, `ruff format .` | Registered as `audit:autofix` in the `axm.hooks` entry-point group. Runs via `run_in_project()`. Returns `HookResult.ok(fixed=N)` with fix count parsed from ruff stdout. Skips gracefully when ruff is missing (`skipped=True`). Tolerates config errors (returncode 2) without failing. |
 
-### 5. Scoring
+### 5. Fix System — CST rewriters
+
+The fix subsystem (`core/fix/cst_rewrite.py`) carries two parallel
+surfaces over the same libcst primitives. File-level helpers (the
+`_prefixed` ones) load with `_cst_load`, transform, then save with
+`_cst_save`. In-memory rewriters take a `cst.Module` and return a
+`cst.Module`, leaving I/O to the caller — useful for composing several
+edits without redundant parse/serialize round-trips.
+
+| In-memory rewriter | File-level counterpart | Operation |
+|---|---|---|
+| `flatten_class(module, class_name)` | `_flatten_class_to_top_level` | Promote test methods of `class_name` to module top level, lifting pytest marks |
+| `rename_function(module, old, new)` | `_rename_name_in_module` | Rename a top-level function, its references, and matching parametrize string literals |
+| `delete_function(module, name)` | `_delete_function_from_source` | Drop a top-level function while preserving adjacent blank-line spacing |
+| `patch_file_depth(module, delta)` | `_patch_file_dunder_depth` | Adjust `Path(__file__).parents[N]` subscripts after a directory move |
+| `dedupe_imports(module)` | `_dedupe_imports_cst` | Collapse duplicate `import` / `from … import` statements |
+| `backfill_import(module, mapping)` | `_insert_imports_cst` | Insert `from {mod} import {name}` entries (idempotent, post-`__future__`) |
+
+Import resolution is backed by a project-wide cache:
+`_resolve_import_for_symbol(project_path, symbol)` returns a fresh
+`ast.ImportFrom` statement that brings `symbol` into scope, building
+the index lazily via `_build_project_symbol_index` and caching it in
+`_PROJECT_IMPORT_INDEX_CACHE`. Call `_invalidate_import_index(project_path)`
+after mutating the file tree so the next lookup rebuilds.
+
+### 6. Scoring
 
 10-category weighted composite (see [Scoring & Grades](scoring.md)):
 
@@ -86,11 +111,11 @@ Pre-gate hooks run before quality evaluation to auto-fix common issues:
 | Architecture | 10% |
 | Practices | 5% |
 
-### 6. Models
+### 7. Models
 
 `AuditResult`, `CheckResult`, `Severity` — Pydantic models with `extra = "forbid"` for strict validation.
 
-### 7. Output
+### 8. Output
 
 - **Formatters**: `format_report()` (human-readable), `format_json()` (machine-readable), `format_agent()` (agent-optimized), `format_agent_text()` (compact text for LLM consumption). `format_agent` uses `_has_actionable_detail()` to promote passing checks with non-empty list-valued detail keys (e.g. `missing`, `top_offenders`) from summary strings to full dicts. `format_agent_text` consumes the dict from `format_agent` and renders a minimal text representation with `✓`/`✗` lines, achieving ~55-60% token savings.
 

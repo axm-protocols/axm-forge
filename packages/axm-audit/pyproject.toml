@@ -169,7 +169,6 @@ exempt_paths = [
     "_version.py",
     "__main__.py",
     "tools/audit.py",
-    "core/fix/cst_rewrite.py",
     "core/fix/extract_helpers.py",
     "core/fix/findings.py",
     "core/fix/layout_and_move.py",
@@ -637,7 +636,6 @@ branch = true
 relative_files = true
 omit = [
     "*/tests/*",
-    "src/axm_audit/core/fix/cst_rewrite.py",
     "src/axm_audit/core/fix/extract_helpers.py",
     "src/axm_audit/core/fix/findings.py",
     "src/axm_audit/core/fix/layout_and_move.py",
