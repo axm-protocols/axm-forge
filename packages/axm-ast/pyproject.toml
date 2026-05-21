@@ -91,7 +91,7 @@ dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
-    "ruff==0.15.12",
+    "ruff==0.15.13",
     "mypy>=1.20.0",
     "types-PyYAML>=6.0",
     "pre-commit>=4.0",
@@ -569,3 +569,23 @@ reason = "2 test_bad_path unit tests live in tests/unit/tools/test_callees.py (T
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "cfca326a0ac8"
 reason = "2 test_entry_point_discoverable tests live in tests/unit/hooks/test_file_header.py and tests/unit/hooks/test_source_body.py — each asserts a different hook entry-point name ('ast:file-header' vs 'ast:source-body') is registered in the axm.hooks group; cross-file parametrization would break the 1:1 src/hooks/ mirror contract and centralize per-hook entry-point assertions away from their owning mirror test module."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8e56f86f0725"
+reason = "2 DescribeTool module-filter tests live in two distinct TestClass groups with two incompatible fixture pipelines: TestDescribeToolFiltering.test_filter_single_module exercises tool.execute(modules=['alpha']) on the synthetic demo_pkg fixture (tmp_path-built two-module 'alpha'/'beta' micro-package) and asserts lowercase 'alpha' appears in each result module name, while TestDescribeToolIntegration.test_describe_tool_modules_filter exercises tool.execute(modules=['core']) on the conftest sample_project fixture (full demo project with real src/demo layout) and asserts 'core' appears in each result module name. Two different fixture builders (tmp_path micro-pkg vs sample_project demo) and two different needle/expected pairs ('alpha' vs 'core') — folding would conflate a synthetic-fixture filter contract with a real-fixture regression smoke and erase per-fixture documentation."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "501e3baf4d8e"
+reason = "2 DescribeTool filter-no-match tests live in two distinct TestClass groups with two incompatible fixture pipelines: TestDescribeToolFiltering.test_filter_no_match_returns_empty exercises tool.execute(modules=['nonexistent_xyz']) on the synthetic demo_pkg fixture (tmp_path two-module alpha/beta micro-package) and asserts module_count == 0, while TestDescribeToolIntegration.test_describe_tool_filter_no_match exercises the same modules=['nonexistent_xyz'] needle on the conftest sample_project fixture (full demo project src/demo layout) and asserts the same module_count == 0. Two different fixture builders pin the same empty-list contract on two divergent project shapes — each documents that the no-match branch correctly returns empty regardless of project size; cross-class parametrization would erase the cross-fixture regression coverage that catches scope-leak bugs only visible on real-sized projects."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d8fbf5c06237"
+reason = "2 DescribeTool toc+filter combined tests live in two distinct TestClass groups with two incompatible fixture pipelines: TestDescribeToolFiltering.test_filter_combined_with_toc exercises tool.execute(detail='toc', modules=['beta']) on the synthetic demo_pkg fixture and asserts both 'beta' in entry['name'] AND 'functions' not in entry (toc-strips-functions invariant under filter), while TestDescribeToolIntegration.test_describe_tool_toc_plus_filter exercises tool.execute(detail='toc', modules=['core']) on the conftest sample_project fixture and asserts the same 'core' in entry['name'] + 'functions' not in entry pair on a real-sized layout. Two different fixture builders pin the same AC4-combined contract (toc + modules filter compose correctly) on two divergent project shapes — cross-class parametrization would erase the cross-fixture regression coverage of the toc/filter composition."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "41867d139bb9"
+reason = "2 CLI --json tests probe two distinct subcommands (impact vs context) with two divergent fixtures and two unrelated JSON-shape contracts: TestImpactCLI.test_impact_json_output runs `app(['impact', pkg, '--symbol', 'helper', '--json'])` on the _make_project pkg/cli/tests tree and asserts the impact JSON keys 'symbol' + 'callers' + 'score', while test_context_cli_json runs `app(['context', pkg, '--json'])` on a _make_pkg + _make_pyproject(['pydantic>=2.0']) setup and asserts the context JSON keys 'name' + 'stack' + 'modules'. Different CLI binaries (impact vs context), different fixture builders (_make_project vs _make_pkg+_make_pyproject), different JSON schemas — folding would conflate two unrelated CLI subcommand contracts into a heterogeneous (cmd, args, expected_keys) parameter and erase the per-subcommand documentation."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1280ef3bb33a"
+reason = "2 DescribeTool summary-excludes-docstrings tests live in two distinct TestClass groups with two incompatible fixture pipelines: TestDescribeToolDetailLevels.test_summary_excludes_docstrings exercises tool.execute(detail='summary') on the synthetic demo_pkg fixture and asserts 'summary' not in fn across all module functions, while TestDescribeToolIntegration.test_execute_summary_excludes_docstrings exercises the same detail='summary' on the conftest sample_project fixture and asserts the same 'summary' not in fn with a richer error message (msg = f'summary unexpectedly present in {fn[name]}'). Two different fixture builders (tmp_path micro-pkg with alpha_one/alpha_two/BetaClass.run vs sample_project full demo with core/greet) pin the same summary-strips-docstrings invariant on two divergent project shapes — cross-class parametrization would erase the cross-fixture regression coverage of the docstring-suppression contract."
