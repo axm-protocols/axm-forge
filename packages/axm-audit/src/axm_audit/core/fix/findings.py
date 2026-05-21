@@ -64,6 +64,12 @@ def _findings(check: Any) -> list[dict[str, Any]]:
 
 
 def _check_by_rule(project_path: Path, rule_id: str) -> list[dict[str, Any]]:
+    """Run the test_quality audit and return findings for ``rule_id``.
+
+    The returned dicts have their ``path`` / ``test_file`` / ``files``
+    entries rewritten as absolute paths anchored at ``project_path`` so
+    downstream planners can compare them with their own ``Path`` objects.
+    """
     result = audit_project(project_path, category="test_quality")
     for check in result.checks:
         if getattr(check, "rule_id", "") == rule_id:
@@ -82,6 +88,12 @@ def _check_by_rule(project_path: Path, rule_id: str) -> list[dict[str, Any]]:
 
 
 def _load_project_scripts(pkg_root: Path) -> set[str]:
+    """Return the set of entry-point names declared in ``[project.scripts]``.
+
+    Empty set when ``pyproject.toml`` is missing or has no ``scripts``
+    table. Used by canonical-filename derivation to recognise CLI
+    invocations in e2e tests.
+    """
     pyproject = pkg_root / "pyproject.toml"
     if not pyproject.exists():
         return set()
