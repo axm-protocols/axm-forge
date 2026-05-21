@@ -17,6 +17,7 @@ Splits into four concerns:
   with collision detection, helper-body conflict resolution, and
   conftest shadowing guards. The bulk of the proto's "magic" lives here.
 """
+
 from __future__ import annotations
 
 import ast
@@ -50,14 +51,14 @@ from .tests_ast import (
 )
 
 __all__ = [
-    "relocate_non_canonical_tiers",
-    "flatten_tier_layout",
     "_flatten_single_tier",
     "_prune_empty_test_subdirs",
+    "_resolve_conftest_shadowing",
+    "_resolve_helper_conflicts",
     "_rewrite_cross_test_imports",
     "_safe_move_units",
-    "_resolve_helper_conflicts",
-    "_resolve_conftest_shadowing",
+    "flatten_tier_layout",
+    "relocate_non_canonical_tiers",
 ]
 
 
@@ -114,10 +115,14 @@ def relocate_non_canonical_tiers(project_path: Path) -> list[str]:
                 msgs.extend(_patch_file_dunder_depth(target, depth_delta))
             new_mod = _module_path_for_test_file(target, project_path)
             if old_mod and new_mod and old_mod != new_mod:
-                msgs.extend(_rewrite_cross_test_imports(
-                    project_path, old_mod, [new_mod],
-                    skip_paths={src, target},
-                ))
+                msgs.extend(
+                    _rewrite_cross_test_imports(
+                        project_path,
+                        old_mod,
+                        [new_mod],
+                        skip_paths={src, target},
+                    )
+                )
             msgs.append(
                 f"non-canonical-tier moved {src.relative_to(project_path)} -> "
                 f"{target.relative_to(project_path)}"
@@ -169,8 +174,7 @@ def _flatten_single_tier(project_path: Path, tier_dir: Path) -> list[str]:
     """Move every nested ``test_*.py`` under *tier_dir* up to *tier_dir* root."""
     msgs: list[str] = []
     nested = sorted(
-        p for p in tier_dir.rglob("test_*.py")
-        if p.is_file() and p.parent != tier_dir
+        p for p in tier_dir.rglob("test_*.py") if p.is_file() and p.parent != tier_dir
     )
     if not nested:
         return msgs
@@ -194,10 +198,14 @@ def _flatten_single_tier(project_path: Path, tier_dir: Path) -> list[str]:
             msgs.extend(_patch_file_dunder_depth(target, depth_delta))
         new_mod = _module_path_for_test_file(target, project_path)
         if old_mod and new_mod and old_mod != new_mod:
-            msgs.extend(_rewrite_cross_test_imports(
-                project_path, old_mod, [new_mod],
-                skip_paths={src, target},
-            ))
+            msgs.extend(
+                _rewrite_cross_test_imports(
+                    project_path,
+                    old_mod,
+                    [new_mod],
+                    skip_paths={src, target},
+                )
+            )
         msgs.append(
             f"flattened {src.relative_to(project_path)} -> "
             f"{target.relative_to(project_path)}"
@@ -232,7 +240,8 @@ def _prune_empty_test_subdirs(tier_dir: Path) -> None:
             if f.is_file():
                 rc = subprocess.run(
                     ["git", "rm", "-q", str(f)],
-                    capture_output=True, text=True,
+                    capture_output=True,
+                    text=True,
                 )
                 if rc.returncode != 0:
                     f.unlink()
@@ -372,7 +381,8 @@ def _resolve_helper_conflicts(
     source_helpers = _top_level_helpers(source_tree)
     target_helpers = _top_level_helpers(target_tree)
     moving_nodes = [
-        n for n in source_tree.body
+        n
+        for n in source_tree.body
         if isinstance(n, ast.FunctionDef | ast.ClassDef)
         and n.name in set(moving_unit_names)
     ]
@@ -460,9 +470,9 @@ def _resolve_conftest_shadowing(
     """
     moving = set(moving_unit_names)
     moving_nodes = [
-        n for n in source_tree.body
-        if isinstance(n, ast.FunctionDef | ast.ClassDef)
-        and n.name in moving
+        n
+        for n in source_tree.body
+        if isinstance(n, ast.FunctionDef | ast.ClassDef) and n.name in moving
     ]
     if not moving_nodes:
         return {}
@@ -565,7 +575,8 @@ def _safe_move_units(
             return full
         # Build a shorter suffix. Anchor on a 6-char hash of the stem so
         # different source files produce distinct suffixes.
-        import hashlib  # noqa: PLC0415 — kept local; rarely hit
+        import hashlib
+
         digest = hashlib.sha1(stem.encode()).hexdigest()[:6]
         short_suffix = f"__from_{digest}"
         candidate = name + short_suffix
@@ -608,8 +619,12 @@ def _safe_move_units(
 
     source_tree = ast.parse(source.read_text())
     helper_renames = _resolve_helper_conflicts(
-        source_tree, target_tree, final_units, stem,
-        target=target, project_path=project_path,
+        source_tree,
+        target_tree,
+        final_units,
+        stem,
+        target=target,
+        project_path=project_path,
     )
     if helper_renames:
         _rename_name_in_module(source, helper_renames)
@@ -621,8 +636,12 @@ def _safe_move_units(
 
     target_stem = target.stem.removeprefix("test_")
     target_local_renames = _resolve_conftest_shadowing(
-        source_tree, target_tree, final_units,
-        target, project_path, target_stem,
+        source_tree,
+        target_tree,
+        final_units,
+        target,
+        project_path,
+        target_stem,
     )
     if target_local_renames:
         _rename_name_in_module(target, target_local_renames)

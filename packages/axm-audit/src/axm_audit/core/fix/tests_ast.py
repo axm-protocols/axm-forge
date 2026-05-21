@@ -12,6 +12,7 @@ Future: the higher-level pieces (``_top_level_test_classes``,
 fine-grained walkers (``_class_is_pathological``, ``_marker_fixtures_in_unit``)
 are too specific to pytest semantics to belong in a general lib.
 """
+
 from __future__ import annotations
 
 import ast
@@ -20,27 +21,27 @@ from pathlib import Path
 
 __all__ = [
     "_BUILTINS",
-    "_walk_test_funcs",
-    "_top_level_test_names",
-    "_top_level_test_classes",
-    "_movable_units_at_top_level",
     "_class_is_pathological",
-    "_file_has_pathological_class",
-    "_collect_imported_names",
+    "_collect_conftest_fixtures",
     "_collect_defined_names",
+    "_collect_imported_names",
+    "_collect_marker_fixtures_to_move",
     "_collect_referenced_names",
-    "_top_level_helpers",
-    "_names_referenced_in_unit",
-    "_is_pytest_fixture",
+    "_const_value_hash",
+    "_file_has_pathological_class",
     "_func_body_hash",
     "_helper_body_hash",
-    "_const_value_hash",
+    "_is_pytest_fixture",
+    "_marker_fixtures_in_unit",
+    "_movable_units_at_top_level",
+    "_names_referenced_in_unit",
     "_references_file_dunder",
     "_source_segment_with_decorators",
-    "_marker_fixtures_in_unit",
     "_string_literal_fixtures_in_unit",
-    "_collect_marker_fixtures_to_move",
-    "_collect_conftest_fixtures",
+    "_top_level_helpers",
+    "_top_level_test_classes",
+    "_top_level_test_names",
+    "_walk_test_funcs",
 ]
 
 
@@ -123,9 +124,7 @@ def _class_is_pathological(cls: ast.ClassDef) -> str | None:
             return "has __init__"
     # Detect `self.<attr>` reads/writes — these would break a flatten
     for child in cls.body:
-        if not (
-            isinstance(child, ast.FunctionDef) and child.name.startswith("test_")
-        ):
+        if not (isinstance(child, ast.FunctionDef) and child.name.startswith("test_")):
             continue
         for sub in ast.walk(child):
             if (
@@ -161,7 +160,8 @@ def _file_has_pathological_class(source: Path) -> bool:
         # if all method names share a common prefix the class is likely
         # homogeneous; otherwise divergent.
         test_methods = [
-            c for c in cls.body
+            c
+            for c in cls.body
             if isinstance(c, ast.FunctionDef) and c.name.startswith("test_")
         ]
         if len(test_methods) <= 1:
@@ -433,10 +433,7 @@ def _names_referenced_in_unit(node: ast.stmt) -> set[str]:
     inside the decorator, NOT an ast.Name, so it's handled separately
     by ``_marker_fixtures_in_unit``.
     """
-    return {
-        n.id for n in ast.walk(node)
-        if isinstance(n, ast.Name)
-    }
+    return {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
 
 
 # ---------------------------------------------------------------------------
@@ -456,8 +453,7 @@ def _marker_fixtures_in_unit(node: ast.stmt) -> set[str]:
     nodes_to_scan: list[ast.AST] = [node]
     if isinstance(node, ast.ClassDef):
         nodes_to_scan.extend(
-            sub for sub in node.body
-            if isinstance(sub, ast.FunctionDef)
+            sub for sub in node.body if isinstance(sub, ast.FunctionDef)
         )
     for n in nodes_to_scan:
         decorators = getattr(n, "decorator_list", []) or []
@@ -469,10 +465,7 @@ def _marker_fixtures_in_unit(node: ast.stmt) -> set[str]:
             if not (isinstance(fn, ast.Attribute) and fn.attr == "usefixtures"):
                 continue
             for arg in deco.args:
-                if (
-                    isinstance(arg, ast.Constant)
-                    and isinstance(arg.value, str)
-                ):
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
                     out.add(arg.value)
     return out
 
@@ -557,10 +550,7 @@ def _collect_conftest_fixtures(target: Path, project_path: Path) -> set[str]:
                 pass
             else:
                 for node in tree.body:
-                    if (
-                        isinstance(node, ast.FunctionDef)
-                        and _is_pytest_fixture(node)
-                    ):
+                    if isinstance(node, ast.FunctionDef) and _is_pytest_fixture(node):
                         out.add(node.name)
         try:
             if cur.resolve() == root:
@@ -610,7 +600,8 @@ def _collect_marker_fixtures_to_move(
     }
     conftest_fixtures = _collect_conftest_fixtures(target, project_path)
     return {
-        name for name in needed
+        name
+        for name in needed
         if name in source_fixtures
         and name not in target_top_names
         and name not in conftest_fixtures

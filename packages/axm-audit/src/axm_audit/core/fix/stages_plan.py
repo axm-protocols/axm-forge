@@ -5,6 +5,7 @@ Three planners — ``plan_flatten`` (Stage 0), ``plan_relocate`` (Stage 1),
 list of ``FileOp`` describing what the corresponding executor in
 ``stages_execute`` will do. Pure functions over the current disk state.
 """
+
 from __future__ import annotations
 
 import ast
@@ -26,7 +27,7 @@ from .tests_ast import (
     _top_level_test_classes,
 )
 
-__all__ = ["plan_flatten", "plan_relocate", "plan_naming"]
+__all__ = ["plan_flatten", "plan_naming", "plan_relocate"]
 
 
 def plan_flatten(project_path: Path) -> list[FileOp]:
@@ -63,8 +64,12 @@ def plan_flatten(project_path: Path) -> list[FileOp]:
         pathological: list[tuple[str, str]] = []
         for cls in _top_level_test_classes(tree):
             if not _class_needs_flatten(
-                cls, tree, tier=tier_str, pkg_prefixes=pkg_prefixes,
-                scripts=scripts, single_binary=single_binary,
+                cls,
+                tree,
+                tier=tier_str,
+                pkg_prefixes=pkg_prefixes,
+                scripts=scripts,
+                single_binary=single_binary,
             ):
                 continue
             reason = _class_is_pathological(cls)
