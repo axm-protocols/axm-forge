@@ -1,6 +1,7 @@
 """Shared pytest fixtures."""
 
 import textwrap
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -235,3 +236,42 @@ def registry():
     from axm_audit.core.rules.base import get_registry
 
     return get_registry()
+
+
+@pytest.fixture
+def make_pkg(tmp_path: Path) -> Callable[..., Path]:
+    """Factory: minimal valid project for ``test_quality`` audits.
+
+    Builds ``<tmp>/pkg_N/`` with ``pyproject.toml`` + ``src/<pkg_name>/__init__.py``
+    + empty ``tests/``, then writes any extra ``files`` (relative paths).
+    Callable multiple times per test; each call returns a fresh project.
+    """
+    counter = [0]
+
+    def _make(
+        files: dict[str, str] | None = None,
+        pyproject_extras: str = "",
+        pkg_name: str = "mypkg",
+    ) -> Path:
+        counter[0] += 1
+        root = tmp_path / f"pkg_{counter[0]}"
+        src = root / "src" / pkg_name
+        src.mkdir(parents=True)
+        (src / "__init__.py").write_text("")
+        pyproject = (
+            "[project]\n"
+            f'name = "{pkg_name}"\n'
+            'version = "0.0.0"\n'
+            'requires-python = ">=3.12"\n'
+        )
+        if pyproject_extras:
+            pyproject += "\n" + pyproject_extras
+        (root / "pyproject.toml").write_text(pyproject)
+        (root / "tests").mkdir()
+        for relpath, content in (files or {}).items():
+            target = root / relpath
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content)
+        return root
+
+    return _make
