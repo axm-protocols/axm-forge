@@ -109,27 +109,37 @@ def test_workspace_mermaid_no_path_prefix() -> None:
     assert not slash_ids, f"Edge IDs contain '/': {slash_ids}\n{mermaid}"
 
 
-def test_workspace_mermaid_dots_in_name() -> None:
-    """Package names with dots produce consistent underscored IDs."""
-    ws = _make_ws(
-        pkg_names=["axm.core", "axm.util"],
-        edges=[("axm.core", "axm.util")],
-    )
+@pytest.mark.parametrize(
+    ("pkg_names", "edges", "forbidden_char", "label"),
+    [
+        pytest.param(
+            ["axm.core", "axm.util"],
+            [("axm.core", "axm.util")],
+            ".",
+            "Dot-name",
+            id="dots_in_name",
+        ),
+        pytest.param(
+            ["axm-engine", "axm-ast"],
+            [("axm-engine", "axm-ast")],
+            "-",
+            "Hyphen-name",
+            id="hyphens_in_name",
+        ),
+    ],
+)
+def test_workspace_mermaid_special_chars_in_name(
+    pkg_names: list[str],
+    edges: list[tuple[str, str]],
+    forbidden_char: str,
+    label: str,
+) -> None:
+    """Package names with `.` or `-` produce consistent underscored IDs."""
+    ws = _make_ws(pkg_names=pkg_names, edges=edges)
     mermaid = format_workspace_graph_mermaid(ws)
     declared, edge_ids = _parse_mermaid(mermaid)
     missing = edge_ids - declared
-    assert not missing, f"Dot-name IDs mismatch: {missing}\n{mermaid}"
-    assert all("." not in eid for eid in edge_ids), "Dots survived in IDs"
-
-
-def test_workspace_mermaid_hyphens_in_name() -> None:
-    """Package names with hyphens produce consistent underscored IDs."""
-    ws = _make_ws(
-        pkg_names=["axm-engine", "axm-ast"],
-        edges=[("axm-engine", "axm-ast")],
+    assert not missing, f"{label} IDs mismatch: {missing}\n{mermaid}"
+    assert all(forbidden_char not in eid for eid in edge_ids), (
+        f"{forbidden_char!r} survived in IDs"
     )
-    mermaid = format_workspace_graph_mermaid(ws)
-    declared, edge_ids = _parse_mermaid(mermaid)
-    missing = edge_ids - declared
-    assert not missing, f"Hyphen-name IDs mismatch: {missing}\n{mermaid}"
-    assert all("-" not in eid for eid in edge_ids), "Hyphens survived in IDs"
