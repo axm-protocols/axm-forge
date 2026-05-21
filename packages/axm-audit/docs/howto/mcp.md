@@ -71,6 +71,22 @@ audit_test | ❌ 10 passed · 2 failed | 3.4s | cov 88.0%
 cov< utils.py 80%
 ```
 
+### Deterministic auto-fix
+
+Use `audit_fix` to run the deterministic test-suite fix pipeline:
+
+```json
+{"tool": "audit_fix", "kwargs": {"path": "/path/to/project", "apply": false}}
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `path` | `str` | `"."` | Path to project root |
+| `apply` | `bool` | `False` | If `True`, mutate the tree; otherwise dry-run |
+| `rules` | `list[str]` | `None` | Optional list of rule ids to filter the pipeline |
+
+The result includes a structured `data` dict (planned/applied `FileOp` entries, unfixable findings, warnings, per-kind counts) and a human-readable `text` summary via `format_report`. Use `apply=False` to preview the plan before mutating files.
+
 ## Output Format
 
 The MCP tool returns a structured result:
