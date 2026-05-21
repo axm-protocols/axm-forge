@@ -70,7 +70,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "pytest-asyncio>=0.24",
     "pytest-mock>=3.15.1",
-    "ruff==0.15.12",
+    "ruff==0.15.13",
     "mypy>=1.19",
     "pre-commit>=4.0",
     "types-pyyaml>=6.0.12.20250915",
