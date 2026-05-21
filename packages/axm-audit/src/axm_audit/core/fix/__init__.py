@@ -3,6 +3,7 @@
 Re-exports the public API of the legacy ``tuple_fix_proto.py`` so that
 imports remain stable across the split.
 """
+
 from __future__ import annotations
 
 from .models import FileOp, OpKind, PipelineReport

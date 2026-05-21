@@ -1,4 +1,5 @@
 """Data models + module-wide constants for the fix pipeline."""
+
 from __future__ import annotations
 
 from collections import Counter
@@ -7,13 +8,13 @@ from pathlib import Path
 from typing import Any, Literal
 
 __all__ = [
+    "CANONICAL_TIERS",
+    "MAX_ITERATIONS",
+    "NON_DETERMINISTIC_RULES",
+    "TOP_K",
     "FileOp",
     "OpKind",
     "PipelineReport",
-    "NON_DETERMINISTIC_RULES",
-    "CANONICAL_TIERS",
-    "MAX_ITERATIONS",
-    "TOP_K",
 ]
 
 
@@ -35,22 +36,45 @@ TOP_K = 2
 
 
 OpKind = Literal["flatten", "relocate", "split", "merge", "rename"]
+"""Stage tag for a planned :class:`FileOp`.
+
+Mirrors the five mutating stages of the fix pipeline (FLATTEN, RELOCATE,
+SPLIT, MERGE, RENAME). Stage 0.5 (non-canonical relocate) and stage 1.5
+(layout flatten) emit warnings, not :class:`FileOp` entries.
+"""
 
 
 @dataclass
 class FileOp:
+    """A single planned filesystem mutation produced by the pipeline.
+
+    ``target`` is a list only for SPLIT (one source → many targets); all
+    other kinds use a single ``Path``. ``split_map`` is populated only
+    when ``kind == "split"`` and maps each canonical target filename to
+    the list of ``test_*`` symbols routed into it.
+    """
+
     kind: OpKind
     source: Path
     target: Path | list[Path]
     rationale: str
     source_rule: str
-    # SPLIT: tuple keyed by the canonical filename a test belongs to →
-    # list of test_* names that should land in that file.
     split_map: dict[str, list[str]] | None = None
 
 
 @dataclass
 class PipelineReport:
+    """Aggregated output of :func:`axm_audit.core.fix.run`.
+
+    ``ops`` lists every planned mutation across all fixed-point
+    iterations. ``unfixable`` carries findings the pipeline declined to
+    auto-resolve (e.g. ``TEST_QUALITY_NO_PACKAGE_SYMBOL``). ``applied``
+    distinguishes dry-run from applied mode. ``warnings`` collects
+    non-fatal messages from each stage and the post-pipeline polish.
+    ``iterations`` records how many passes the fixed-point loop ran
+    before convergence (1 in dry-run).
+    """
+
     ops: list[FileOp] = field(default_factory=list)
     unfixable: list[dict[str, Any]] = field(default_factory=list)
     applied: bool = False
@@ -58,6 +82,7 @@ class PipelineReport:
     iterations: int = 0
 
     def by_kind(self) -> dict[str, int]:
+        """Return a count of planned ops grouped by :data:`OpKind`."""
         c: Counter[str] = Counter()
         for op in self.ops:
             c[op.kind] += 1

@@ -10,6 +10,7 @@ audit's own ``_shared`` helpers.
 report NO_PACKAGE_SYMBOL leftovers + pathological FILE_NAMING SPLIT
 victims the proto can't auto-fix.
 """
+
 from __future__ import annotations
 
 import ast
@@ -31,12 +32,12 @@ from .paths import _abspath, _safe_filename
 from .tests_ast import _top_level_test_classes
 
 __all__ = [
-    "_findings",
     "_check_by_rule",
-    "_load_project_scripts",
-    "_func_canonical",
-    "_per_unit_canonical",
     "_class_needs_flatten",
+    "_findings",
+    "_func_canonical",
+    "_load_project_scripts",
+    "_per_unit_canonical",
     "collect_unfixable",
     "get_pkg_prefixes",  # re-export for callers
 ]
@@ -138,19 +139,31 @@ def _per_unit_canonical(
     routes: dict[str, list[str]] = defaultdict(list)
     for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-            name = _safe_filename(_func_canonical(
-                node, tree, tier=tier, pkg_prefixes=pkg_prefixes,
-                scripts=scripts, single_binary=single_binary,
-            ))
+            name = _safe_filename(
+                _func_canonical(
+                    node,
+                    tree,
+                    tier=tier,
+                    pkg_prefixes=pkg_prefixes,
+                    scripts=scripts,
+                    single_binary=single_binary,
+                )
+            )
             if name == "test_UNKNOWN.py":
                 continue
             routes[name].append(node.name)
     for cls in _top_level_test_classes(tree):
         method_canonicals = {
-            _safe_filename(_func_canonical(
-                c, tree, tier=tier, pkg_prefixes=pkg_prefixes,
-                scripts=scripts, single_binary=single_binary,
-            ))
+            _safe_filename(
+                _func_canonical(
+                    c,
+                    tree,
+                    tier=tier,
+                    pkg_prefixes=pkg_prefixes,
+                    scripts=scripts,
+                    single_binary=single_binary,
+                )
+            )
             for c in cls.body
             if isinstance(c, ast.FunctionDef) and c.name.startswith("test_")
         }
@@ -174,10 +187,16 @@ def _class_needs_flatten(
 ) -> bool:
     """True iff this class's methods have ≥2 distinct canonical filenames."""
     canonicals = {
-        _safe_filename(_func_canonical(
-            c, tree, tier=tier, pkg_prefixes=pkg_prefixes,
-            scripts=scripts, single_binary=single_binary,
-        ))
+        _safe_filename(
+            _func_canonical(
+                c,
+                tree,
+                tier=tier,
+                pkg_prefixes=pkg_prefixes,
+                scripts=scripts,
+                single_binary=single_binary,
+            )
+        )
         for c in cls.body
         if isinstance(c, ast.FunctionDef) and c.name.startswith("test_")
     }
@@ -218,11 +237,13 @@ def collect_unfixable(project_path: Path) -> list[dict[str, Any]]:
                 tf = str(op.source.relative_to(project_path))
             except ValueError:
                 tf = str(op.source)
-            out.append({
-                "rule_id": "TEST_QUALITY_FILE_NAMING",
-                "verdict": "PATHOLOGICAL",
-                "test_file": tf,
-                "path": tf,
-                "reason": op.rationale,
-            })
+            out.append(
+                {
+                    "rule_id": "TEST_QUALITY_FILE_NAMING",
+                    "verdict": "PATHOLOGICAL",
+                    "test_file": tf,
+                    "path": tf,
+                    "reason": op.rationale,
+                }
+            )
     return out

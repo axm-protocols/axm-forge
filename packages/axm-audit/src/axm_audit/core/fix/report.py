@@ -1,4 +1,5 @@
 """Human-readable report formatting (CLI output)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -41,17 +42,13 @@ def format_report(r: PipelineReport, project_path: Path) -> str:
             except ValueError:
                 src = op.source
             lines.append(f"  [{op.kind:8s}] {src}")
-            lines.append(
-                f"               -> {_fmt_target(op.target, project_path)}"
-            )
+            lines.append(f"               -> {_fmt_target(op.target, project_path)}")
             lines.append(f"               rationale: {op.rationale}")
         if len(r.ops) > 30:
             lines.append(f"  ... +{len(r.ops) - 30} more")
     lines.append("")
     if r.unfixable:
-        lines.append(
-            f"Out of pipeline (agent-driven, {len(r.unfixable)} finding(s)):"
-        )
+        lines.append(f"Out of pipeline (agent-driven, {len(r.unfixable)} finding(s)):")
         for u in r.unfixable[:20]:
             tf = u.get("test_file") or u.get("path") or "?"
             lines.append(f"  {u['rule_id']}: {tf}")

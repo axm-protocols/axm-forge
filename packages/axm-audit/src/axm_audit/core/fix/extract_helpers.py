@@ -15,6 +15,7 @@ Three layers:
 * ``_load_or_create_*`` / ``_strip_def_*`` — file-level mutation
   helpers, libcst-based.
 """
+
 from __future__ import annotations
 
 import ast
@@ -40,12 +41,12 @@ from .tests_ast import (
 
 __all__ = [
     "_extract_shared_helpers",
-    "_extract_shared_helpers_once",
     "_extract_shared_helpers_in_tier",
-    "_load_or_create_helpers_module",
+    "_extract_shared_helpers_once",
     "_load_or_create_conftest_module",
-    "_strip_def_only",
+    "_load_or_create_helpers_module",
     "_strip_def_and_inject_import",
+    "_strip_def_only",
 ]
 
 
@@ -95,9 +96,7 @@ def _extract_shared_helpers_once(project_path: Path) -> list[str]:
     return msgs
 
 
-def _extract_shared_helpers_in_tier(
-    project_path: Path, tier_dir: Path
-) -> list[str]:
+def _extract_shared_helpers_in_tier(project_path: Path, tier_dir: Path) -> list[str]:
     """Process a single tier. Splitting per-tier keeps imports local."""
     per_file: dict[Path, dict[str, tuple[str, str, str]]] = {}
     location_skipped_names: set[str] = set()
@@ -160,7 +159,8 @@ def _extract_shared_helpers_in_tier(
             except SyntaxError:
                 continue
             referenced = {
-                n.id for n in ast.walk(sub_tree)
+                n.id
+                for n in ast.walk(sub_tree)
                 if isinstance(n, ast.Name) and n.id != h_name
             }
             deps_by_name[h_name] |= referenced & known_names
@@ -171,15 +171,15 @@ def _extract_shared_helpers_in_tier(
         if len(groups) > 1:
             groups.sort(key=lambda g: (-len(g[2]), g[0]))
             kind_label = (
-                "fixture" if "fixture" in kinds
-                else "helper" if "pure" in kinds
+                "fixture"
+                if "fixture" in kinds
+                else "helper"
+                if "pure" in kinds
                 else "constant"
             )
             body_lines = []
             for idx, (body_hash, _kind, files) in enumerate(groups, 1):
-                files_rel = sorted(
-                    str(f.relative_to(project_path)) for f in files
-                )
+                files_rel = sorted(str(f.relative_to(project_path)) for f in files)
                 body_lines.append(
                     f"    body#{idx} ({body_hash[:8]}, {len(files)} file(s)): "
                     + ", ".join(files_rel)
@@ -286,27 +286,17 @@ def _extract_shared_helpers_in_tier(
                     f"(was duplicated in {len(files)} files)"
                 )
             for f in files:
-                _strip_def_and_inject_import(
-                    f, name, helpers_module_path, project_path
-                )
+                _strip_def_and_inject_import(f, name, helpers_module_path, project_path)
     if helpers_touched:
-        _cst_save(
-            helpers_path, helpers_module.with_changes(body=helpers_body)
-        )
+        _cst_save(helpers_path, helpers_module.with_changes(body=helpers_body))
     if conftest_touched:
-        _cst_save(
-            conftest_path, conftest_module.with_changes(body=conftest_body)
-        )
+        _cst_save(conftest_path, conftest_module.with_changes(body=conftest_body))
     donor = next(iter(per_file.keys()), None)
     if donor is not None:
         if helpers_touched:
-            msgs.extend(
-                _backfill_missing_imports(donor, helpers_path, project_path)
-            )
+            msgs.extend(_backfill_missing_imports(donor, helpers_path, project_path))
         if conftest_touched:
-            msgs.extend(
-                _backfill_missing_imports(donor, conftest_path, project_path)
-            )
+            msgs.extend(_backfill_missing_imports(donor, conftest_path, project_path))
     msgs.extend(skip_msgs)
     return msgs
 
@@ -350,10 +340,7 @@ def _strip_def_only(file: Path, name: str) -> None:
     new_body: list[cst.BaseStatement] = []
     stripped = False
     for stmt in module.body:
-        if (
-            isinstance(stmt, cst.FunctionDef | cst.ClassDef)
-            and stmt.name.value == name
-        ):
+        if isinstance(stmt, cst.FunctionDef | cst.ClassDef) and stmt.name.value == name:
             stripped = True
             continue
         new_body.append(stmt)
@@ -371,10 +358,7 @@ def _strip_def_and_inject_import(
     new_body: list[cst.BaseStatement] = []
     stripped = False
     for stmt in module.body:
-        if (
-            isinstance(stmt, cst.FunctionDef | cst.ClassDef)
-            and stmt.name.value == name
-        ):
+        if isinstance(stmt, cst.FunctionDef | cst.ClassDef) and stmt.name.value == name:
             stripped = True
             continue
         if (
@@ -390,9 +374,7 @@ def _strip_def_and_inject_import(
         new_body.append(stmt)
     if not stripped:
         return
-    import_stmt = cst.parse_statement(
-        f"from {helpers_module} import {name}"
-    )
+    import_stmt = cst.parse_statement(f"from {helpers_module} import {name}")
     assert isinstance(import_stmt, cst.SimpleStatementLine)
     insert_at = 0
     for idx, stmt in enumerate(new_body):

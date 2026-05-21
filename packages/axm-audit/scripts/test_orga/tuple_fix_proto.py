@@ -1,41 +1,22 @@
-"""Deterministic test-suite auto-fixer — CLI entry point.
+"""Deterministic test-suite auto-fixer — legacy CLI shim.
 
-This file is a thin shim around the ``fix_proto`` package (12 modules
-arranged by hexagonal layer; see ``fix_proto/__init__.py``). All
-implementation lives there; this module only handles argparse and
-invocation, preserving the legacy ``python tuple_fix_proto.py <path>``
-interface.
+The implementation has moved to :mod:`axm_audit.core.fix`. This file is
+preserved so existing `/fix-proto` skill invocations continue to work::
 
-Pipeline (5 stages + 1 polish, all deterministic; NO_PACKAGE_SYMBOL is
-reported but left to a human/agent — its verdict is context-dependent):
-
-    0.5 NON-CANONICAL-RELOCATE  tests/functional/*  → tests/integration/
-    0.  FLATTEN                 heterogeneous Test* classes → top-level funcs
-    1.  RELOCATE                PYRAMID_LEVEL mismatch → git mv across tiers
-    1.5 FLATTEN_LAYOUT          tests/<tier>/<subdir>/ → flat layout
-    2.  SPLIT                   FILE_NAMING verdict=SPLIT     anvil moves
-    3.  COLLIDE / MERGE         FILE_NAMING verdict=COLLIDE   anvil moves
-    4.  RENAME                  FILE_NAMING verdict=NAME_MISMATCH  git mv
-
-The chain re-audits between stages so SPLIT/MERGE/RENAME act on
-post-RELOCATE paths, and the whole pipeline runs in a fixed-point loop
-(``MAX_ITERATIONS=6``) since each mutation can expose new findings.
-
-Usage::
-
-    uv run --python 3.12 python tuple_fix_proto.py /tmp/proto-fix/axm-audit-copy
+    uv run --python 3.12 python tuple_fix_proto.py <path>
     uv run --python 3.12 python tuple_fix_proto.py <path> --apply
     uv run --python 3.12 python tuple_fix_proto.py <path> --rules=TEST_QUALITY_FILE_NAMING
 
-The script defaults to ``--dry-run``. Pass ``--apply`` to actually mutate.
+Defaults to ``--dry-run``. Pass ``--apply`` to actually mutate.
 """
+
 from __future__ import annotations
 
 import argparse
 import sys
 from pathlib import Path
 
-from fix_proto import format_report, run
+from axm_audit.core.fix import format_report, run
 
 __all__ = ["main"]
 
