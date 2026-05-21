@@ -187,7 +187,8 @@ def full_result() -> AuditResult:
     return AuditResult(project_path="/tmp/proj", checks=checks)
 
 
-def test_command_registered() -> None:
+def test_app_registers_expected_commands() -> None:
+    """AC8: `fix` is registered alongside other top-level commands."""
     registered = list(app)
     names: list[str] = []
     for entry in registered:
@@ -197,6 +198,7 @@ def test_command_registered() -> None:
         elif isinstance(n, (list, tuple)):
             names.extend(n)
     assert "test-quality" in names
+    assert "fix" in names
 
 
 def test_mismatches_only_filters_pyramid(pyramid_mismatch_result: AuditResult) -> None:

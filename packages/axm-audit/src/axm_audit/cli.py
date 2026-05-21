@@ -5,6 +5,8 @@ Usage::
     axm-audit audit .
     axm-audit audit --json
     axm-audit audit --category lint
+    axm-audit fix .
+    axm-audit fix . --apply
     axm-audit test .
     axm-audit version
 """
@@ -107,6 +109,52 @@ def audit(
 
     if result.quality_score is not None and result.quality_score < PASS_THRESHOLD:
         raise SystemExit(1)
+
+
+@app.command()
+def fix(
+    path: Annotated[
+        str,
+        cyclopts.Parameter(help="Path to project to fix"),
+    ] = ".",
+    *,
+    apply: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--apply"],
+            help="Mutate the project (default: dry-run)",
+        ),
+    ] = False,
+    rules: Annotated[
+        str,
+        cyclopts.Parameter(
+            name=["--rules"],
+            help="Comma-separated rule_ids to fix",
+        ),
+    ] = "TEST_QUALITY_PYRAMID_LEVEL,TEST_QUALITY_FILE_NAMING",
+) -> None:
+    """Deterministically reorganise a project's test suite."""
+    from axm_audit.core.fix import format_report, run
+    from axm_audit.core.test_runner import run_tests
+
+    project_path = Path(path).resolve()
+    if not project_path.is_dir():
+        print(f"❌ Not a directory: {project_path}", file=sys.stderr)
+        raise SystemExit(1)
+
+    baseline = run_tests(project_path)
+    if baseline.failed > 0 or baseline.errors > 0:
+        print(
+            "⚠  baseline test suite is red "
+            f"({baseline.failed} failed, {baseline.errors} error(s)) — "
+            "fix the failing tests first; proceeding anyway, parity is "
+            "the user's responsibility.",
+            file=sys.stderr,
+        )
+
+    rule_set = {r.strip() for r in rules.split(",") if r.strip()}
+    report = run(project_path, apply=apply, rules=rule_set)
+    print(format_report(report, project_path))
 
 
 @app.command()
