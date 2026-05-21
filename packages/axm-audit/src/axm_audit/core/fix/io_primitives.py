@@ -57,7 +57,7 @@ def _cst_unwrap(
     return stmt  # type: ignore[return-value]
 
 
-def _git_mv(src: Path, dst: Path) -> None:
+def _git_mv(src: Path, dst: Path) -> None:  # pragma: no cover
     """Move *src* to *dst* via ``git mv``, with a non-destructive fallback.
 
     If *dst* already exists, the fallback ``shutil.move`` used to silently
