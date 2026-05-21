@@ -1,7 +1,6 @@
 """E2E tests for `axm-audit fix` CLI subcommand (AXM-1749).
 
-Covers the legacy script shim parity plus the new `fix` subcommand contract
-from AC1-AC8.
+Covers the `fix` subcommand contract from AC1-AC8.
 """
 
 from __future__ import annotations
@@ -11,8 +10,6 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
-
-PACKAGE_ROOT = Path(__file__).resolve().parent.parent.parent
 
 pytestmark = pytest.mark.e2e
 
@@ -65,27 +62,6 @@ def _make_pkg_with_failing_test(root: Path) -> Path:
         "def test_will_fail() -> None:\n    assert False\n"
     )
     return pkg
-
-
-@pytest.mark.no_package_symbol_ok
-def test_legacy_script_shim_still_works(tmp_path: Path) -> None:
-    """Parity: the legacy `tuple_fix_proto.py` shim remains a working entry point."""
-    tmp_pkg = tmp_path / "pkg"
-    tmp_pkg.mkdir()
-    (tmp_pkg / "tests").mkdir()
-
-    script = PACKAGE_ROOT / "scripts" / "test_orga" / "tuple_fix_proto.py"
-
-    result = subprocess.run(  # noqa: S603
-        ["uv", "run", "python", str(script), str(tmp_pkg)],  # noqa: S607
-        cwd=PACKAGE_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert "Pipeline (dry-run" in result.stdout
 
 
 def test_fix_dry_run_on_clean_package_reports_no_ops(tmp_path: Path) -> None:
