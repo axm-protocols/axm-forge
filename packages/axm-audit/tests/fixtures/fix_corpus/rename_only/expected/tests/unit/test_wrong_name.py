@@ -1,4 +1,4 @@
-"""Canonical-named test file for src/rename_only/widget.py."""
+"""NAME_MISMATCH: test file targets src/rename_only/widget.py but is named test_wrong_name.py."""
 
 from __future__ import annotations
 
