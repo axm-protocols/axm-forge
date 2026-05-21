@@ -59,6 +59,10 @@ axm-audit audit . --agent
 # Filter by category
 axm-audit audit . --category lint
 
+# Deterministically reorganise the test suite (dry-run by default)
+axm-audit fix .
+axm-audit fix . --apply
+
 # Run tests with structured output
 axm-audit test .
 

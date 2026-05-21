@@ -22,6 +22,29 @@ axm-audit audit . --category lint
     If you have the `axm` CLI installed, you can also use `axm audit .` instead
     of `axm-audit audit .`. The unified CLI auto-discovers all AXM commands.
 
+## Fix (test-tree reorganisation)
+
+Apply the deterministic pyramid/file-naming fixes (RELOCATE → SPLIT →
+MERGE → RENAME, then shared-helper extraction and a `ruff format`
+polish). Dry-run by default; pass `--apply` to mutate the tree.
+
+```bash
+# Plan only (no mutation)
+axm-audit fix .
+
+# Mutate the tree
+axm-audit fix . --apply
+
+# Restrict to a subset of fixable rules
+axm-audit fix . --apply --rules=TEST_QUALITY_FILE_NAMING
+```
+
+Only the `TEST_QUALITY_PYRAMID_LEVEL` and `TEST_QUALITY_FILE_NAMING`
+findings are deterministically fixable today; other rules are reported
+as `unfixable` in the pipeline report. Parity of the test suite after
+`--apply` is the caller's responsibility — the command warns when the
+baseline is red but does not refuse to run.
+
 ## Python API
 
 ### Full Audit
