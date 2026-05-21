@@ -16,7 +16,7 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
-      - run: uv sync --all-groups
+      - run: uv sync --all-packages --all-groups
       - name: Ruff check
         run: uv run ruff check .
       - name: Ruff format
@@ -41,7 +41,7 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
-      - run: uv sync --all-groups
+      - run: uv sync --all-packages --all-groups
       - run: uv run pip-audit
         continue-on-error: true  # warn-only until all transitive CVEs have upstream fixes
 
@@ -59,7 +59,7 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v7
       - run: uv python install ${{ matrix.python-version }}
-      - run: uv sync --all-groups
+      - run: uv sync --all-packages --all-groups
       - name: Configure git identity (required by axm-init scaffold tests)
         run: |
           git config --global user.email "ci@axm.local"
