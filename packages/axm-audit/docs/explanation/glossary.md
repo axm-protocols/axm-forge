@@ -37,3 +37,4 @@ Technical terms used throughout the `axm-audit` documentation.
 | **CheckResult** | A Pydantic model representing the outcome of a single rule check, including pass/fail, message, severity, and details |
 | **AuditResult** | A Pydantic model containing all check results, the composite score, and the letter grade |
 | **Diátaxis** | A documentation framework that organizes content into four quadrants: Tutorials, How-to guides, Reference, and Explanation |
+| **Fix corpus** | A synthetic fixture corpus under `tests/fixtures/fix_corpus/` — each case ships a paired `input/` and `expected/` mini-package so the `axm-audit fix` pipeline can be exercised end-to-end (RELOCATE, SPLIT, MERGE, RENAME, FLATTEN). Consumed via the `fix_corpus_case(name)` factory (defined in the corpus `conftest.py`) which copies `input/` to a temp dir, runs `git init`, and returns `(tmp_pkg, expected_path)` for diff-based assertions |

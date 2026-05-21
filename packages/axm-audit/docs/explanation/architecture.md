@@ -134,6 +134,16 @@ across iterations), `unfixable` (findings the pipeline declined),
 `applied` (dry-run vs. applied), `warnings` (per-stage + polish
 messages), and `iterations` (passes until convergence; 1 in dry-run).
 
+Pipeline invariants (idempotence, parity, convergence, monotonicity,
+tree-diff against an expected layout) are validated by
+`tests/integration/test_pipeline_invariants.py` over the [fix
+corpus](glossary.md#concepts) — synthetic mini-packages under
+`tests/fixtures/fix_corpus/` consumed via the `fix_corpus_case(name)`
+factory. A slow self-copy variant (`@pytest.mark.slow`,
+`test_pipeline_invariants_slow.py`) re-runs the same invariants
+against a `git clone --depth 1` of `axm-audit` itself; opt-in via
+`uv run pytest -m slow`.
+
 ### 6. Scoring
 
 10-category weighted composite (see [Scoring & Grades](scoring.md)):
