@@ -117,6 +117,23 @@ records (`core/fix/models.py`) — each carries `kind`, `source`,
 `rationale`, `source_rule`, and an optional `split_map` for SPLIT
 routing.
 
+The orchestrator (`core/fix/pipeline.py`) exposes `run(project_path,
+*, apply, rules) -> PipelineReport`. In `apply=True` mode it iterates
+RELOCATE → SPLIT → MERGE → RENAME inside a fixed-point loop capped at
+`MAX_ITERATIONS = 6` (re-classification cascade — see the
+`MAX_ITERATIONS` docstring); dry-run takes a single pass. After
+convergence, two post-pipeline polish steps run (apply-mode only):
+
+| Step | Module | Purpose |
+|---|---|---|
+| `_extract_shared_helpers` | `core/fix/extract_helpers.py` | Promote helpers/fixtures duplicated across a tier into `tests/<tier>/_helpers.py`. Iterates per-tier until fixed-point (capped at `_EXTRACT_MAX_ITERS = 10`) so promoting helper A can expose helper B. |
+| `_ruff_format_tests` | `core/fix/pipeline.py` | Idempotent `ruff format` + `ruff check --fix-only --select F401,I001,UP034` over `tests/`. Failures degrade to warnings — polish never aborts a successful apply. |
+
+`PipelineReport` aggregates the result: `ops` (every planned mutation
+across iterations), `unfixable` (findings the pipeline declined),
+`applied` (dry-run vs. applied), `warnings` (per-stage + polish
+messages), and `iterations` (passes until convergence; 1 in dry-run).
+
 ### 6. Scoring
 
 10-category weighted composite (see [Scoring & Grades](scoring.md)):

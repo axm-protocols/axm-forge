@@ -169,9 +169,7 @@ exempt_paths = [
     "_version.py",
     "__main__.py",
     "tools/audit.py",
-    "core/fix/extract_helpers.py",
     "core/fix/findings.py",
-    "core/fix/pipeline.py",
     "core/fix/stages_plan.py",
 ]
 
@@ -634,9 +632,7 @@ branch = true
 relative_files = true
 omit = [
     "*/tests/*",
-    "src/axm_audit/core/fix/extract_helpers.py",
     "src/axm_audit/core/fix/findings.py",
-    "src/axm_audit/core/fix/pipeline.py",
     "src/axm_audit/core/fix/stages_plan.py",
 ]
 
