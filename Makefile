@@ -3,7 +3,7 @@
 # 🚀 Workspace Management
 
 install:  ## Install all dependencies
-	uv sync --all-groups
+	uv sync --all-packages --all-groups
 
 # 🧪 Testing
 
