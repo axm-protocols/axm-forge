@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import ast
 from collections import defaultdict
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import libcst as cst
@@ -51,6 +53,48 @@ __all__ = [
 
 
 _EXTRACT_MAX_ITERS = 10
+
+# (src_text, body_hash, kind)
+_HelperEntry = tuple[str, str, str]
+# (body_hash, kind, files) per duplicate group
+_HelperGroup = tuple[str, str, list[Path]]
+_HelperSig = tuple[str, str, str]
+
+
+@dataclass
+class _TierScan:
+    """Result of scanning a tier directory for candidate top-level defs."""
+
+    per_file: dict[Path, dict[str, _HelperEntry]] = field(default_factory=dict)
+    location_skipped: set[str] = field(default_factory=set)
+
+
+@dataclass
+class _TierIndex:
+    """Indexed view of a tier scan, grouped by name with dependency edges."""
+
+    by_name: dict[str, list[_HelperGroup]] = field(default_factory=dict)
+    deps_by_name: dict[str, set[str]] = field(default_factory=dict)
+
+
+@dataclass
+class _DupPartition:
+    """Duplicates eligible for extraction plus skip diagnostics."""
+
+    duplicates: dict[_HelperSig, list[Path]] = field(default_factory=dict)
+    skip_msgs: list[str] = field(default_factory=list)
+    skipped_names: set[str] = field(default_factory=set)
+
+
+@dataclass
+class _EmitTargets:
+    """File paths and CST modules into which helpers/fixtures get extracted."""
+
+    helpers_path: Path
+    conftest_path: Path
+    helpers_module_path: str
+    helpers_module: cst.Module
+    conftest_module: cst.Module
 
 
 def _extract_shared_helpers(project_path: Path) -> list[str]:
@@ -96,63 +140,83 @@ def _extract_shared_helpers_once(project_path: Path) -> list[str]:
     return msgs
 
 
-def _extract_shared_helpers_in_tier(project_path: Path, tier_dir: Path) -> list[str]:
-    """Process a single tier. Splitting per-tier keeps imports local."""
-    per_file: dict[Path, dict[str, tuple[str, str, str]]] = {}
-    location_skipped_names: set[str] = set()
+def _classify_assign(
+    node: ast.Assign, location_skipped: set[str]
+) -> _HelperEntry | None:
+    if len(node.targets) != 1:
+        return None
+    tgt = node.targets[0]
+    if not (isinstance(tgt, ast.Name) and tgt.id.isupper()):
+        return None
+    if _references_file_dunder(node.value):
+        location_skipped.add(tgt.id)
+        return None
+    return tgt.id, _const_value_hash(node), "pure"
+
+
+def _classify_top_level_node(
+    node: ast.stmt, location_skipped: set[str]
+) -> tuple[str, str, str] | None:
+    """Return ``(name, body_hash, kind)`` for a candidate top-level def, else None.
+
+    Mutates *location_skipped* with names rejected because they reference
+    ``__file__`` — those names still participate in cascade analysis.
+    """
+    if isinstance(node, ast.FunctionDef):
+        if node.name.startswith("test_"):
+            return None
+        kind = "fixture" if _is_pytest_fixture(node) else "pure"
+        return node.name, _helper_body_hash(node), kind
+    if isinstance(node, ast.ClassDef):
+        if node.name.startswith("Test"):
+            return None
+        return node.name, _helper_body_hash(node), "pure"
+    if isinstance(node, ast.Assign):
+        return _classify_assign(node, location_skipped)
+    return None
+
+
+def _scan_tier(tier_dir: Path) -> _TierScan:
+    """Walk *tier_dir* and collect candidate top-level defs per file."""
+    scan = _TierScan()
+    skip_names = {"__init__.py", "conftest.py", "_helpers.py"}
     for py in tier_dir.rglob("*.py"):
-        if py.name in {"__init__.py", "conftest.py", "_helpers.py"}:
+        if py.name in skip_names:
             continue
         try:
             text = py.read_text()
             tree = ast.parse(text)
         except (SyntaxError, OSError):
             continue
-        helpers: dict[str, tuple[str, str, str]] = {}
+        helpers: dict[str, _HelperEntry] = {}
         for node in tree.body:
-            name: str | None = None
-            body_hash: str | None = None
-            kind: str = "pure"
-            if isinstance(node, ast.FunctionDef):
-                if node.name.startswith("test_"):
-                    continue
-                name, body_hash = node.name, _helper_body_hash(node)
-                if _is_pytest_fixture(node):
-                    kind = "fixture"
-            elif isinstance(node, ast.ClassDef):
-                if node.name.startswith("Test"):
-                    continue
-                name, body_hash = node.name, _helper_body_hash(node)
-            elif isinstance(node, ast.Assign) and len(node.targets) == 1:
-                tgt = node.targets[0]
-                if isinstance(tgt, ast.Name) and tgt.id.isupper():
-                    if _references_file_dunder(node.value):
-                        location_skipped_names.add(tgt.id)
-                        continue
-                    name, body_hash = tgt.id, _const_value_hash(node)
-            if name is None or body_hash is None:
+            classified = _classify_top_level_node(node, scan.location_skipped)
+            if classified is None:
                 continue
+            name, body_hash, kind = classified
             src_seg = _source_segment_with_decorators(text, node)
             if src_seg is None:
                 continue
             helpers[name] = (src_seg, body_hash, kind)
         if helpers:
-            per_file[py] = helpers
+            scan.per_file[py] = helpers
+    return scan
 
-    by_signature: dict[tuple[str, str, str], list[Path]] = defaultdict(list)
-    for py, helpers in per_file.items():
+
+def _index_tier_scan(scan: _TierScan) -> _TierIndex:
+    """Group helpers by name and compute first-party dependency edges."""
+    by_signature: dict[_HelperSig, list[Path]] = defaultdict(list)
+    for py, helpers in scan.per_file.items():
         for h_name, (_, body_hash, kind) in helpers.items():
             by_signature[(h_name, body_hash, kind)].append(py)
 
-    skip_msgs: list[str] = []
-    skipped_names: set[str] = set(location_skipped_names)
-    by_name: dict[str, list[tuple[str, str, list[Path]]]] = defaultdict(list)
+    by_name: dict[str, list[_HelperGroup]] = defaultdict(list)
     for (h_name, body_hash, kind), files in by_signature.items():
         by_name[h_name].append((body_hash, kind, files))
 
+    known_names = set(by_name) | scan.location_skipped
     deps_by_name: dict[str, set[str]] = defaultdict(set)
-    known_names = set(by_name) | location_skipped_names
-    for py, helpers_dict in per_file.items():
+    for helpers_dict in scan.per_file.values():
         for h_name, (src_text, _hash, _kind) in helpers_dict.items():
             try:
                 sub_tree = ast.parse(src_text)
@@ -164,140 +228,238 @@ def _extract_shared_helpers_in_tier(project_path: Path, tier_dir: Path) -> list[
                 if isinstance(n, ast.Name) and n.id != h_name
             }
             deps_by_name[h_name] |= referenced & known_names
+    return _TierIndex(by_name=dict(by_name), deps_by_name=dict(deps_by_name))
 
-    duplicates: dict[tuple[str, str, str], list[Path]] = {}
-    for h_name, groups in by_name.items():
-        kinds = {k for _, k, _ in groups}
+
+def _format_ambiguous_skip(
+    h_name: str, groups: list[_HelperGroup], project_path: Path
+) -> str:
+    kinds = {k for _, k, _ in groups}
+    kind_label = (
+        "fixture" if "fixture" in kinds else "helper" if "pure" in kinds else "constant"
+    )
+    body_lines = []
+    for idx, (body_hash, _kind, files) in enumerate(groups, 1):
+        files_rel = sorted(str(f.relative_to(project_path)) for f in files)
+        body_lines.append(
+            f"    body#{idx} ({body_hash[:8]}, {len(files)} file(s)): "
+            + ", ".join(files_rel)
+        )
+    file_count = sum(len(files) for _, _, files in groups)
+    return (
+        f"ambiguous {kind_label} `{h_name}` not extracted: "
+        f"{len(groups)} divergent bodies across {file_count} files "
+        "(likely intentional override or signature drift — review manually):\n"
+        + "\n".join(body_lines)
+        + "\n    Resolution: keep each body where its callers "
+        "depend on it, or unify the bodies and remove the "
+        "others; consumers of the wrong body fail silently "
+        "with state-mismatch / TypeError, not ImportError."
+    )
+
+
+def _partition_duplicates(index: _TierIndex, project_path: Path) -> _DupPartition:
+    """Split indexed helpers into extractable duplicates vs ambiguous skips."""
+    part = _DupPartition()
+    for h_name, groups in index.by_name.items():
         if len(groups) > 1:
             groups.sort(key=lambda g: (-len(g[2]), g[0]))
-            kind_label = (
-                "fixture"
-                if "fixture" in kinds
-                else "helper"
-                if "pure" in kinds
-                else "constant"
-            )
-            body_lines = []
-            for idx, (body_hash, _kind, files) in enumerate(groups, 1):
-                files_rel = sorted(str(f.relative_to(project_path)) for f in files)
-                body_lines.append(
-                    f"    body#{idx} ({body_hash[:8]}, {len(files)} file(s)): "
-                    + ", ".join(files_rel)
-                )
-            file_count = sum(len(files) for _, _, files in groups)
-            skip_msgs.append(
-                f"ambiguous {kind_label} `{h_name}` not extracted: "
-                f"{len(groups)} divergent bodies across {file_count} files "
-                "(likely intentional override or signature drift — "
-                "review manually):\n"
-                + "\n".join(body_lines)
-                + "\n    Resolution: keep each body where its callers "
-                "depend on it, or unify the bodies and remove the "
-                "others; consumers of the wrong body fail silently "
-                "with state-mismatch / TypeError, not ImportError."
-            )
-            skipped_names.add(h_name)
+            part.skip_msgs.append(_format_ambiguous_skip(h_name, groups, project_path))
+            part.skipped_names.add(h_name)
             continue
         groups.sort(key=lambda g: (-len(g[2]), g[0]))
         winning_hash, winning_kind, winning_files = groups[0]
         if len(winning_files) < 2:
             continue
-        duplicates[(h_name, winning_hash, winning_kind)] = winning_files
+        part.duplicates[(h_name, winning_hash, winning_kind)] = winning_files
+    return part
 
+
+def _drop_cascaded_dup(part: _DupPartition, h_name: str, blockers: set[str]) -> bool:
+    """Remove first duplicate sig matching *h_name*; return True if dropped."""
+    for sig in list(part.duplicates):
+        if sig[0] != h_name:
+            continue
+        del part.duplicates[sig]
+        part.skip_msgs.append(
+            f"cascading skip `{h_name}` not extracted: "
+            f"references skipped name(s) {sorted(blockers)} — "
+            "extracting it alone would NameError at import time."
+        )
+        part.skipped_names.add(h_name)
+        return True
+    return False
+
+
+def _resolve_cascading_skips(part: _DupPartition, index: _TierIndex) -> None:
+    """Drop duplicates whose dependencies are skipped, until fixed-point."""
     changed = True
     while changed:
         changed = False
-        for h_name, refs in deps_by_name.items():
-            if h_name in skipped_names:
+        for h_name, refs in index.deps_by_name.items():
+            if h_name in part.skipped_names:
                 continue
-            cascade_blockers = refs & skipped_names
-            if cascade_blockers:
-                for sig in list(duplicates):
-                    if sig[0] == h_name:
-                        del duplicates[sig]
-                        skip_msgs.append(
-                            f"cascading skip `{h_name}` not extracted: "
-                            f"references skipped name(s) "
-                            f"{sorted(cascade_blockers)} — extracting it "
-                            "alone would NameError at import time."
-                        )
-                        skipped_names.add(h_name)
-                        changed = True
-                        break
+            blockers = refs & part.skipped_names
+            if blockers and _drop_cascaded_dup(part, h_name, blockers):
+                changed = True
 
-    if not duplicates and not skip_msgs:
-        return []
-    if not duplicates:
-        return skip_msgs
-    msgs: list[str] = []
+
+def _build_emit_targets(project_path: Path, tier_dir: Path) -> _EmitTargets | None:
     helpers_path = tier_dir / "_helpers.py"
     conftest_path = tier_dir.parent / "conftest.py"
     helpers_module_path = _module_path_for_test_file(helpers_path, project_path)
     if helpers_module_path is None:
-        return []
+        return None
     helpers_module = _load_or_create_helpers_module(
         helpers_path, tier_dir.name, helpers_module_path
     )
     conftest_module = _load_or_create_conftest_module(conftest_path)
     if helpers_module is None or conftest_module is None:
-        return []
-    helpers_existing = {
+        return None
+    return _EmitTargets(
+        helpers_path=helpers_path,
+        conftest_path=conftest_path,
+        helpers_module_path=helpers_module_path,
+        helpers_module=helpers_module,
+        conftest_module=conftest_module,
+    )
+
+
+@dataclass
+class _EmitState:
+    """Mutable accumulator threaded through per-duplicate emission."""
+
+    helpers_body: list[cst.BaseStatement]
+    conftest_body: list[cst.BaseStatement]
+    helpers_existing: set[str]
+    conftest_existing: set[str]
+    helpers_touched: bool = False
+    conftest_touched: bool = False
+    msgs: list[str] = field(default_factory=list)
+
+
+def _existing_def_names(module: cst.Module) -> set[str]:
+    return {
         s.name.value
-        for s in helpers_module.body
+        for s in module.body
         if isinstance(s, cst.FunctionDef | cst.ClassDef)
     }
-    conftest_existing = {
-        s.name.value
-        for s in conftest_module.body
-        if isinstance(s, cst.FunctionDef | cst.ClassDef)
-    }
-    helpers_body = list(helpers_module.body)
-    conftest_body = list(conftest_module.body)
-    helpers_touched = False
-    conftest_touched = False
-    sorted_dups = sorted(duplicates.items(), key=lambda kv: kv[0][0])
-    for (name, _, kind), files in sorted_dups:
-        canonical_file = sorted(files)[0]
-        canonical_src = per_file[canonical_file][name][0]
+
+
+def _emit_one_fixture(
+    state: _EmitState,
+    targets: _EmitTargets,
+    name: str,
+    files: list[Path],
+    parsed: Sequence[cst.BaseStatement | cst.SimpleStatementLine],
+    project_path: Path,
+) -> None:
+    if name not in state.conftest_existing:
+        state.conftest_body.extend(parsed)
+        state.conftest_existing.add(name)
+        state.conftest_touched = True
+        state.msgs.append(
+            f"extracted fixture `{name}` -> "
+            f"{targets.conftest_path.relative_to(project_path)} "
+            f"(was duplicated in {len(files)} files)"
+        )
+    for f in files:
+        _strip_def_only(f, name)
+
+
+def _emit_one_helper(
+    state: _EmitState,
+    targets: _EmitTargets,
+    name: str,
+    files: list[Path],
+    parsed: Sequence[cst.BaseStatement | cst.SimpleStatementLine],
+    project_path: Path,
+) -> None:
+    if name not in state.helpers_existing:
+        state.helpers_body.extend(parsed)
+        state.helpers_existing.add(name)
+        state.helpers_touched = True
+        state.msgs.append(
+            f"extracted helper `{name}` -> "
+            f"{targets.helpers_path.relative_to(project_path)} "
+            f"(was duplicated in {len(files)} files)"
+        )
+    for f in files:
+        _strip_def_and_inject_import(f, name, targets.helpers_module_path, project_path)
+
+
+def _flush_emit_state(
+    state: _EmitState,
+    targets: _EmitTargets,
+    per_file: dict[Path, dict[str, _HelperEntry]],
+    project_path: Path,
+) -> None:
+    if state.helpers_touched:
+        _cst_save(
+            targets.helpers_path,
+            targets.helpers_module.with_changes(body=state.helpers_body),
+        )
+    if state.conftest_touched:
+        _cst_save(
+            targets.conftest_path,
+            targets.conftest_module.with_changes(body=state.conftest_body),
+        )
+    donor = next(iter(per_file.keys()), None)
+    if donor is None:
+        return
+    if state.helpers_touched:
+        state.msgs.extend(
+            _backfill_missing_imports(donor, targets.helpers_path, project_path)
+        )
+    if state.conftest_touched:
+        state.msgs.extend(
+            _backfill_missing_imports(donor, targets.conftest_path, project_path)
+        )
+
+
+def _emit_duplicates(
+    targets: _EmitTargets,
+    duplicates: dict[_HelperSig, list[Path]],
+    per_file: dict[Path, dict[str, _HelperEntry]],
+    project_path: Path,
+) -> list[str]:
+    """Append each extracted helper/fixture to its module and strip callers."""
+    state = _EmitState(
+        helpers_body=list(targets.helpers_module.body),
+        conftest_body=list(targets.conftest_module.body),
+        helpers_existing=_existing_def_names(targets.helpers_module),
+        conftest_existing=_existing_def_names(targets.conftest_module),
+    )
+    for (name, _, kind), files in sorted(duplicates.items(), key=lambda kv: kv[0][0]):
+        canonical_src = per_file[sorted(files)[0]][name][0]
         try:
             parsed = cst.parse_module(canonical_src).body
         except cst.ParserSyntaxError:
             continue
         if kind == "fixture":
-            if name not in conftest_existing:
-                conftest_body.extend(parsed)
-                conftest_existing.add(name)
-                conftest_touched = True
-                msgs.append(
-                    f"extracted fixture `{name}` -> "
-                    f"{conftest_path.relative_to(project_path)} "
-                    f"(was duplicated in {len(files)} files)"
-                )
-            for f in files:
-                _strip_def_only(f, name)
+            _emit_one_fixture(state, targets, name, files, parsed, project_path)
         else:
-            if name not in helpers_existing:
-                helpers_body.extend(parsed)
-                helpers_existing.add(name)
-                helpers_touched = True
-                msgs.append(
-                    f"extracted helper `{name}` -> "
-                    f"{helpers_path.relative_to(project_path)} "
-                    f"(was duplicated in {len(files)} files)"
-                )
-            for f in files:
-                _strip_def_and_inject_import(f, name, helpers_module_path, project_path)
-    if helpers_touched:
-        _cst_save(helpers_path, helpers_module.with_changes(body=helpers_body))
-    if conftest_touched:
-        _cst_save(conftest_path, conftest_module.with_changes(body=conftest_body))
-    donor = next(iter(per_file.keys()), None)
-    if donor is not None:
-        if helpers_touched:
-            msgs.extend(_backfill_missing_imports(donor, helpers_path, project_path))
-        if conftest_touched:
-            msgs.extend(_backfill_missing_imports(donor, conftest_path, project_path))
-    msgs.extend(skip_msgs)
+            _emit_one_helper(state, targets, name, files, parsed, project_path)
+    _flush_emit_state(state, targets, per_file, project_path)
+    return state.msgs
+
+
+def _extract_shared_helpers_in_tier(project_path: Path, tier_dir: Path) -> list[str]:
+    """Process a single tier. Splitting per-tier keeps imports local."""
+    scan = _scan_tier(tier_dir)
+    index = _index_tier_scan(scan)
+    part = _partition_duplicates(index, project_path)
+    part.skipped_names |= scan.location_skipped
+    _resolve_cascading_skips(part, index)
+    if not part.duplicates and not part.skip_msgs:
+        return []
+    if not part.duplicates:
+        return part.skip_msgs
+    targets = _build_emit_targets(project_path, tier_dir)
+    if targets is None:
+        return []
+    msgs = _emit_duplicates(targets, part.duplicates, scan.per_file, project_path)
+    msgs.extend(part.skip_msgs)
     return msgs
 
 
