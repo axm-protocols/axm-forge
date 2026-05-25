@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import ast
 import subprocess
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import libcst as cst
@@ -843,6 +845,101 @@ def _insert_imports_cst(
     return body
 
 
+@dataclass(slots=True)
+class _DedupeState:
+    triples: set[tuple[str, str, str | None]] = field(default_factory=set)
+    locals_: set[str] = field(default_factory=set)
+
+    def key_of(
+        self, prefix: str, alias: cst.ImportAlias
+    ) -> tuple[str, str, str | None]:
+        name = _cst_name_to_str(alias.name)
+        asname = (
+            _cst_name_to_str(alias.asname.name) if alias.asname is not None else None
+        )
+        return (prefix, name, asname)
+
+    def local_name(self, prefix: str, alias: cst.ImportAlias) -> str:
+        if alias.asname is not None:
+            return _cst_name_to_str(alias.asname.name)
+        full = _cst_name_to_str(alias.name)
+        if prefix == "":
+            return full.split(".")[0]
+        return full
+
+    def is_duplicate(self, prefix: str, alias: cst.ImportAlias) -> bool:
+        return (
+            self.key_of(prefix, alias) in self.triples
+            or self.local_name(prefix, alias) in self.locals_
+        )
+
+    def record(self, prefix: str, alias: cst.ImportAlias) -> None:
+        self.triples.add(self.key_of(prefix, alias))
+        self.locals_.add(self.local_name(prefix, alias))
+
+    def keep_aliases(
+        self, prefix: str, aliases: Sequence[cst.ImportAlias]
+    ) -> list[cst.ImportAlias]:
+        kept = [a for a in aliases if not self.is_duplicate(prefix, a)]
+        for a in kept:
+            self.record(prefix, a)
+        return kept
+
+
+def _import_from_prefix(small: cst.ImportFrom) -> str:
+    level = len(small.relative)
+    module_str = _cst_name_to_str(small.module) if small.module else ""
+    return "." * level + module_str
+
+
+def _dedupe_small(
+    small: cst.BaseSmallStatement, state: _DedupeState
+) -> cst.BaseSmallStatement | None:
+    if isinstance(small, cst.Import):
+        kept = state.keep_aliases("", small.names)
+        return small.with_changes(names=kept) if kept else None
+    if isinstance(small, cst.ImportFrom):
+        if isinstance(small.names, cst.ImportStar):
+            return small
+        kept = state.keep_aliases(_import_from_prefix(small), small.names)
+        return small.with_changes(names=kept) if kept else None
+    return small
+
+
+def _dedupe_simple_line(
+    stmt: cst.SimpleStatementLine, state: _DedupeState
+) -> cst.SimpleStatementLine | None:
+    new_small: list[cst.BaseSmallStatement] = []
+    for small in stmt.body:
+        replaced = _dedupe_small(small, state)
+        if replaced is not None:
+            new_small.append(replaced)
+    if not new_small:
+        return None
+    return stmt.with_changes(body=new_small)
+
+
+def _dedupe_block(
+    stmts: Sequence[cst.BaseStatement], state: _DedupeState
+) -> list[cst.BaseStatement]:
+    out: list[cst.BaseStatement] = []
+    for stmt in stmts:
+        if isinstance(stmt, cst.SimpleStatementLine):
+            replaced = _dedupe_simple_line(stmt, state)
+            if replaced is not None:
+                out.append(replaced)
+            continue
+        out.append(stmt)
+    return out
+
+
+def _dedupe_tc_block(stmt: cst.If, state: _DedupeState) -> cst.If | None:
+    new_inner = _dedupe_block(stmt.body.body, state)
+    if not new_inner:
+        return None
+    return stmt.with_changes(body=stmt.body.with_changes(body=new_inner))
+
+
 def _dedupe_imports_cst(module: cst.Module) -> cst.Module:
     """Collapse duplicate import bindings at module top-level and in TC blocks.
 
@@ -857,83 +954,19 @@ def _dedupe_imports_cst(module: cst.Module) -> cst.Module:
          re-bound" execution semantics — which is what authors usually
          expected when both happened to land in the same file via merges).
     """
-    seen_triples: set[tuple[str, str, str | None]] = set()
-    seen_locals: set[str] = set()
-
-    def key_of(prefix: str, alias: cst.ImportAlias) -> tuple[str, str, str | None]:
-        name = _cst_name_to_str(alias.name)
-        asname = (
-            _cst_name_to_str(alias.asname.name) if alias.asname is not None else None
-        )
-        return (prefix, name, asname)
-
-    def local_name(prefix: str, alias: cst.ImportAlias) -> str:
-        if alias.asname is not None:
-            return _cst_name_to_str(alias.asname.name)
-        full = _cst_name_to_str(alias.name)
-        if prefix == "":
-            return full.split(".")[0]
-        return full
-
-    def is_duplicate(prefix: str, alias: cst.ImportAlias) -> bool:
-        if key_of(prefix, alias) in seen_triples:
-            return True
-        if local_name(prefix, alias) in seen_locals:
-            return True
-        return False
-
-    def record(prefix: str, alias: cst.ImportAlias) -> None:
-        seen_triples.add(key_of(prefix, alias))
-        seen_locals.add(local_name(prefix, alias))
-
-    def dedupe_simple(stmt: cst.SimpleStatementLine) -> cst.SimpleStatementLine | None:
-        new_small: list[cst.BaseSmallStatement] = []
-        for small in stmt.body:
-            if isinstance(small, cst.Import):
-                kept = [a for a in small.names if not is_duplicate("", a)]
-                for a in kept:
-                    record("", a)
-                if kept:
-                    new_small.append(small.with_changes(names=kept))
-            elif isinstance(small, cst.ImportFrom):
-                level = len(small.relative)
-                module_str = _cst_name_to_str(small.module) if small.module else ""
-                prefix = "." * level + module_str
-                if isinstance(small.names, cst.ImportStar):
-                    new_small.append(small)
-                    continue
-                kept = [a for a in small.names if not is_duplicate(prefix, a)]
-                for a in kept:
-                    record(prefix, a)
-                if kept:
-                    new_small.append(small.with_changes(names=kept))
-            else:
-                new_small.append(small)
-        if not new_small:
-            return None
-        return stmt.with_changes(body=new_small)
-
+    state = _DedupeState()
     new_body: list[cst.BaseStatement] = []
     for stmt in module.body:
         if isinstance(stmt, cst.SimpleStatementLine):
-            replaced = dedupe_simple(stmt)
+            replaced = _dedupe_simple_line(stmt, state)
             if replaced is not None:
                 new_body.append(replaced)
             continue
         if _is_cst_type_checking_block(stmt):
             assert isinstance(stmt, cst.If)
-            new_inner: list[cst.BaseStatement] = []
-            for inner in stmt.body.body:
-                if isinstance(inner, cst.SimpleStatementLine):
-                    replaced = dedupe_simple(inner)
-                    if replaced is not None:
-                        new_inner.append(replaced)
-                else:
-                    new_inner.append(inner)
-            if new_inner:
-                new_body.append(
-                    stmt.with_changes(body=stmt.body.with_changes(body=new_inner))
-                )
+            replaced_tc = _dedupe_tc_block(stmt, state)
+            if replaced_tc is not None:
+                new_body.append(replaced_tc)
             continue
         new_body.append(stmt)
     return module.with_changes(body=new_body)
