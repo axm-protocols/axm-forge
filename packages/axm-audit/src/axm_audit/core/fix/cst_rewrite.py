@@ -545,6 +545,26 @@ def _stmt_defines(stmt: ast.stmt) -> set[str]:
     return out
 
 
+def _names_in(node: ast.AST) -> set[str]:
+    return {sub.id for sub in ast.walk(node) if isinstance(sub, ast.Name)}
+
+
+def _stmt_reference_roots(stmt: ast.stmt) -> list[ast.AST]:
+    if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef):
+        return list(stmt.decorator_list)
+    if isinstance(stmt, ast.ClassDef):
+        return [
+            *stmt.decorator_list,
+            *stmt.bases,
+            *(kw.value for kw in stmt.keywords),
+        ]
+    if isinstance(stmt, ast.Assign | ast.Expr):
+        return [stmt.value]
+    if isinstance(stmt, ast.AnnAssign) and stmt.value is not None:
+        return [stmt.value]
+    return []
+
+
 def _stmt_references(stmt: ast.stmt) -> set[str]:
     """Names a statement references at MODULE-EXECUTION time.
 
@@ -553,37 +573,8 @@ def _stmt_references(stmt: ast.stmt) -> set[str]:
     module import). For an Assign, this is the right-hand side.
     """
     out: set[str] = set()
-    if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef):
-        for dec in stmt.decorator_list:
-            for sub in ast.walk(dec):
-                if isinstance(sub, ast.Name):
-                    out.add(sub.id)
-    elif isinstance(stmt, ast.ClassDef):
-        for dec in stmt.decorator_list:
-            for sub in ast.walk(dec):
-                if isinstance(sub, ast.Name):
-                    out.add(sub.id)
-        for base in stmt.bases:
-            for sub in ast.walk(base):
-                if isinstance(sub, ast.Name):
-                    out.add(sub.id)
-        for kw in stmt.keywords:
-            for sub in ast.walk(kw.value):
-                if isinstance(sub, ast.Name):
-                    out.add(sub.id)
-    elif isinstance(stmt, ast.Assign):
-        for sub in ast.walk(stmt.value):
-            if isinstance(sub, ast.Name):
-                out.add(sub.id)
-    elif isinstance(stmt, ast.AnnAssign):
-        if stmt.value is not None:
-            for sub in ast.walk(stmt.value):
-                if isinstance(sub, ast.Name):
-                    out.add(sub.id)
-    elif isinstance(stmt, ast.Expr):
-        for sub in ast.walk(stmt.value):
-            if isinstance(sub, ast.Name):
-                out.add(sub.id)
+    for root in _stmt_reference_roots(stmt):
+        out |= _names_in(root)
     return out
 
 
