@@ -67,6 +67,59 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
+def _iter_non_canonical_tier_dirs(tests_root: Path) -> list[Path]:
+    out: list[Path] = []
+    for child in sorted(tests_root.iterdir()):
+        if not child.is_dir() or child.name in CANONICAL_TIERS:
+            continue
+        if child.name.startswith(("_", ".")):
+            continue
+        out.append(child)
+    return out
+
+
+def _unique_integration_target(src: Path, integration: Path) -> Path:
+    target = integration / src.name
+    counter = 2
+    while target.exists() and target != src:
+        target = integration / f"{src.stem}_{counter}.py"
+        counter += 1
+    return target
+
+
+def _relocate_single_file(src: Path, target: Path, project_path: Path) -> list[str]:
+    msgs: list[str] = []
+    old_mod = _module_path_for_test_file(src, project_path)
+    depth_delta = _file_depth_from_project(
+        target, project_path
+    ) - _file_depth_from_project(src, project_path)
+    _git_mv(src, target)
+    if depth_delta != 0:
+        msgs.extend(_patch_file_dunder_depth(target, depth_delta))
+    new_mod = _module_path_for_test_file(target, project_path)
+    if old_mod and new_mod and old_mod != new_mod:
+        msgs.extend(
+            _rewrite_cross_test_imports(
+                project_path,
+                old_mod,
+                [new_mod],
+                skip_paths={src, target},
+            )
+        )
+    msgs.append(
+        f"non-canonical-tier moved {src.relative_to(project_path)} -> "
+        f"{target.relative_to(project_path)}"
+    )
+    return msgs
+
+
+def _ensure_integration_pkg(integration: Path, source_child: Path) -> None:
+    integration.mkdir(exist_ok=True)
+    init_pkg = integration / "__init__.py"
+    if not init_pkg.exists() and (source_child / "__init__.py").exists():
+        init_pkg.write_text("")
+
+
 def relocate_non_canonical_tiers(project_path: Path) -> list[str]:
     """Move ``tests/<non_canonical>/test_*.py`` into ``tests/integration/``.
 
@@ -88,45 +141,14 @@ def relocate_non_canonical_tiers(project_path: Path) -> list[str]:
     if not tests_root.is_dir():
         return msgs
     integration = tests_root / "integration"
-    for child in sorted(tests_root.iterdir()):
-        if not child.is_dir() or child.name in CANONICAL_TIERS:
-            continue
-        if child.name.startswith("_") or child.name.startswith("."):
-            continue  # _helpers, __pycache__
+    for child in _iter_non_canonical_tier_dirs(tests_root):
         nested_tests = sorted(p for p in child.rglob("test_*.py") if p.is_file())
         if not nested_tests:
             continue
-        integration.mkdir(exist_ok=True)
-        init_pkg = integration / "__init__.py"
-        if not init_pkg.exists() and (child / "__init__.py").exists():
-            init_pkg.write_text("")
+        _ensure_integration_pkg(integration, child)
         for src in nested_tests:
-            target = integration / src.name
-            counter = 2
-            while target.exists() and target != src:
-                target = integration / f"{src.stem}_{counter}.py"
-                counter += 1
-            old_mod = _module_path_for_test_file(src, project_path)
-            src_depth = _file_depth_from_project(src, project_path)
-            tgt_depth = _file_depth_from_project(target, project_path)
-            _git_mv(src, target)
-            depth_delta = tgt_depth - src_depth
-            if depth_delta != 0:
-                msgs.extend(_patch_file_dunder_depth(target, depth_delta))
-            new_mod = _module_path_for_test_file(target, project_path)
-            if old_mod and new_mod and old_mod != new_mod:
-                msgs.extend(
-                    _rewrite_cross_test_imports(
-                        project_path,
-                        old_mod,
-                        [new_mod],
-                        skip_paths={src, target},
-                    )
-                )
-            msgs.append(
-                f"non-canonical-tier moved {src.relative_to(project_path)} -> "
-                f"{target.relative_to(project_path)}"
-            )
+            target = _unique_integration_target(src, integration)
+            msgs.extend(_relocate_single_file(src, target, project_path))
         _prune_empty_test_subdirs(child)
         if child.exists() and not any(child.iterdir()):
             child.rmdir()
