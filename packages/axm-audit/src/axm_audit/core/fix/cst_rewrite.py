@@ -1392,6 +1392,107 @@ def _synth_import_from_helpers(
     return None
 
 
+_BACKFILL_BUILTIN_NAMES: frozenset[str] = frozenset(
+    {"self", "cls", "True", "False", "None"}
+)
+
+
+def _parse_py(path: Path) -> ast.Module | None:
+    if not path.exists():
+        return None
+    try:
+        return ast.parse(path.read_text())
+    except SyntaxError:
+        return None
+
+
+def _is_type_checking_block(enclosing: ast.stmt | None) -> bool:
+    return (
+        enclosing is not None
+        and isinstance(enclosing, ast.If)
+        and isinstance(enclosing.test, ast.Name)
+        and enclosing.test.id == "TYPE_CHECKING"
+    )
+
+
+def _extend_recoverable(
+    recoverable: dict[str, tuple[ast.stmt, ast.stmt | None]],
+    missing: set[str],
+    project_path: Path,
+    target: Path,
+) -> None:
+    still = missing - set(recoverable.keys())
+    for name in still:
+        found = _scan_tests_for_import(project_path, name)
+        if found is not None:
+            recoverable[name] = found
+    still = missing - set(recoverable.keys())
+    for name in still:
+        synth = _synth_import_from_helpers(name, project_path, target)
+        if synth is not None:
+            recoverable[name] = synth
+
+
+def _partition_imports(
+    recoverable: dict[str, tuple[ast.stmt, ast.stmt | None]],
+    source_name: str,
+) -> tuple[list[ast.stmt], list[ast.stmt], list[str]]:
+    top_level: list[ast.stmt] = []
+    type_checking: list[ast.stmt] = []
+    seen_top: set[int] = set()
+    seen_tc: set[int] = set()
+    msgs: list[str] = []
+    for name, (stmt, enclosing) in recoverable.items():
+        msgs.append(f"backfilled import for `{name}` from {source_name}")
+        is_tc = _is_type_checking_block(enclosing)
+        bucket, seen = (type_checking, seen_tc) if is_tc else (top_level, seen_top)
+        if id(stmt) not in seen:
+            bucket.append(stmt)
+            seen.add(id(stmt))
+    return top_level, type_checking, msgs
+
+
+def _resolve_recoverable_imports(
+    source: Path, target: Path, project_path: Path | None
+) -> dict[str, tuple[ast.stmt, ast.stmt | None]] | None:
+    tgt_tree = _parse_py(target)
+    if tgt_tree is None:
+        return None
+    src_tree = _parse_py(source)
+    src_imports = _collect_imported_names(src_tree) if src_tree else {}
+    tgt_imports = _collect_imported_names(tgt_tree)
+    missing = (
+        _collect_referenced_names(tgt_tree)
+        - set(tgt_imports.keys())
+        - _collect_defined_names(tgt_tree)
+        - _BUILTINS
+        - _BACKFILL_BUILTIN_NAMES
+    )
+    recoverable: dict[str, tuple[ast.stmt, ast.stmt | None]] = {
+        name: src_imports[name] for name in missing if name in src_imports
+    }
+    if project_path is not None and missing - set(recoverable.keys()):
+        _extend_recoverable(recoverable, missing, project_path, target)
+    return recoverable
+
+
+def _write_backfilled_imports(
+    target: Path,
+    top_level_ast: list[ast.stmt],
+    type_checking_ast: list[ast.stmt],
+) -> bool:
+    cst_module = _cst_load(target)
+    if cst_module is None:
+        return False
+    top_level_cst = [_ast_import_to_cst(s) for s in top_level_ast]
+    type_checking_cst = [_ast_import_to_cst(s) for s in type_checking_ast]
+    new_body = _insert_imports_cst(cst_module, top_level_cst, type_checking_cst)
+    new_module = cst_module.with_changes(body=new_body)
+    new_module = _dedupe_imports_cst(new_module)
+    _cst_save(target, new_module)
+    return True
+
+
 def _backfill_missing_imports(
     source: Path, target: Path, project_path: Path | None = None
 ) -> list[str]:
@@ -1405,78 +1506,11 @@ def _backfill_missing_imports(
     triple-quoted strings, blank lines, and comments in the target file
     are preserved byte-for-byte.
     """
-    if not target.exists():
-        return []
-    try:
-        tgt_tree = ast.parse(target.read_text())
-    except SyntaxError:
-        return []
-    src_tree: ast.Module | None = None
-    if source.exists():
-        try:
-            src_tree = ast.parse(source.read_text())
-        except SyntaxError:
-            src_tree = None
-
-    src_imports = _collect_imported_names(src_tree) if src_tree else {}
-    tgt_imports = _collect_imported_names(tgt_tree)
-    tgt_defined = _collect_defined_names(tgt_tree)
-    tgt_refs = _collect_referenced_names(tgt_tree)
-
-    missing = (
-        tgt_refs
-        - set(tgt_imports.keys())
-        - tgt_defined
-        - _BUILTINS
-        - {"self", "cls", "True", "False", "None"}
-    )
-    recoverable: dict[str, tuple[ast.stmt, ast.stmt | None]] = {
-        name: src_imports[name] for name in missing if name in src_imports
-    }
-    still_missing = missing - set(recoverable.keys())
-    if still_missing and project_path is not None:
-        for name in still_missing:
-            found = _scan_tests_for_import(project_path, name)
-            if found is not None:
-                recoverable[name] = found
-        still_missing2 = missing - set(recoverable.keys())
-        if still_missing2 and project_path is not None:
-            for name in still_missing2:
-                synth = _synth_import_from_helpers(name, project_path, target)
-                if synth is not None:
-                    recoverable[name] = synth
-
+    recoverable = _resolve_recoverable_imports(source, target, project_path)
     if not recoverable:
         return []
-
-    top_level_ast: list[ast.stmt] = []
-    type_checking_ast: list[ast.stmt] = []
-    seen_top: set[int] = set()
-    seen_tc: set[int] = set()
-    msgs: list[str] = []
-    for name, (stmt, enclosing) in recoverable.items():
-        msgs.append(f"backfilled import for `{name}` from {source.name}")
-        is_tc = (
-            enclosing is not None
-            and isinstance(enclosing, ast.If)
-            and isinstance(enclosing.test, ast.Name)
-            and enclosing.test.id == "TYPE_CHECKING"
-        )
-        bucket, seen = (
-            (type_checking_ast, seen_tc) if is_tc else (top_level_ast, seen_top)
-        )
-        if id(stmt) not in seen:
-            bucket.append(stmt)
-            seen.add(id(stmt))
-
-    top_level_cst = [_ast_import_to_cst(s) for s in top_level_ast]
-    type_checking_cst = [_ast_import_to_cst(s) for s in type_checking_ast]
-
-    cst_module = _cst_load(target)
-    if cst_module is None:
-        return msgs
-    new_body = _insert_imports_cst(cst_module, top_level_cst, type_checking_cst)
-    new_module = cst_module.with_changes(body=new_body)
-    new_module = _dedupe_imports_cst(new_module)
-    _cst_save(target, new_module)
+    top_level_ast, type_checking_ast, msgs = _partition_imports(
+        recoverable, source.name
+    )
+    _write_backfilled_imports(target, top_level_ast, type_checking_ast)
     return msgs
