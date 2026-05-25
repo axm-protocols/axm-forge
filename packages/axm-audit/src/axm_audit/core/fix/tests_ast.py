@@ -111,31 +111,49 @@ def _movable_units_at_top_level(tree: ast.Module) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def _bad_base_reason(cls: ast.ClassDef) -> str | None:
+    for b in cls.bases:
+        if not (isinstance(b, ast.Name) and b.id == "object"):
+            return f"inherits from non-object base ({ast.unparse(b)})"
+    return None
+
+
+def _has_init(cls: ast.ClassDef) -> bool:
+    return any(
+        isinstance(child, ast.FunctionDef) and child.name == "__init__"
+        for child in cls.body
+    )
+
+
+def _is_self_attr(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "self"
+    )
+
+
+def _self_attr_reason(cls: ast.ClassDef) -> str | None:
+    for child in cls.body:
+        if not (isinstance(child, ast.FunctionDef) and child.name.startswith("test_")):
+            continue
+        for sub in ast.walk(child):
+            if _is_self_attr(sub):
+                return f"method {child.name} accesses self.{sub.attr}"  # type: ignore[attr-defined]
+    return None
+
+
 def _class_is_pathological(cls: ast.ClassDef) -> str | None:
     """Return a reason if the class cannot be safely flattened, else None.
 
     Pathological = uses `self.<attr>` inside methods, has `__init__`,
     inherits from anything other than `object` (or empty bases).
     """
-    if cls.bases:
-        for b in cls.bases:
-            if not (isinstance(b, ast.Name) and b.id == "object"):
-                return f"inherits from non-object base ({ast.unparse(b)})"
-    for child in cls.body:
-        if isinstance(child, ast.FunctionDef) and child.name == "__init__":
-            return "has __init__"
-    # Detect `self.<attr>` reads/writes — these would break a flatten
-    for child in cls.body:
-        if not (isinstance(child, ast.FunctionDef) and child.name.startswith("test_")):
-            continue
-        for sub in ast.walk(child):
-            if (
-                isinstance(sub, ast.Attribute)
-                and isinstance(sub.value, ast.Name)
-                and sub.value.id == "self"
-            ):
-                return f"method {child.name} accesses self.{sub.attr}"
-    return None
+    if reason := _bad_base_reason(cls):
+        return reason
+    if _has_init(cls):
+        return "has __init__"
+    return _self_attr_reason(cls)
 
 
 def _file_has_pathological_class(source: Path) -> bool:
