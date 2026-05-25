@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+from collections.abc import Iterator
 from pathlib import Path
 
 __all__ = [
@@ -239,6 +240,50 @@ def _collect_defined_names(tree: ast.Module) -> set[str]:
     return out
 
 
+def _iter_func_ref_nodes(
+    stmt: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> Iterator[ast.AST]:
+    yield from stmt.decorator_list
+    args = stmt.args
+    for arg in (*args.posonlyargs, *args.args, *args.kwonlyargs):
+        if arg.annotation is not None:
+            yield arg.annotation
+    for special in (args.vararg, args.kwarg):
+        if special is not None and special.annotation is not None:
+            yield special.annotation
+    for default in (*args.defaults, *args.kw_defaults):
+        if default is not None:
+            yield default
+    if stmt.returns is not None:
+        yield stmt.returns
+    yield from stmt.body
+
+
+def _iter_class_ref_nodes(stmt: ast.ClassDef) -> Iterator[ast.AST]:
+    yield from stmt.decorator_list
+    yield from stmt.bases
+    for kw in stmt.keywords:
+        yield kw.value
+    yield from stmt.body
+
+
+def _iter_stmt_ref_nodes(stmt: ast.stmt) -> Iterator[ast.AST]:
+    if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef):
+        yield from _iter_func_ref_nodes(stmt)
+    elif isinstance(stmt, ast.ClassDef):
+        yield from _iter_class_ref_nodes(stmt)
+    elif isinstance(stmt, ast.Assign):
+        yield stmt.value
+    elif isinstance(stmt, ast.AnnAssign):
+        if stmt.annotation is not None:
+            yield stmt.annotation
+        if stmt.value is not None:
+            yield stmt.value
+    elif isinstance(stmt, ast.If):
+        yield from stmt.body
+        yield from stmt.orelse
+
+
 def _collect_referenced_names(tree: ast.Module) -> set[str]:
     """Names actually referenced from live top-level symbols.
 
@@ -257,57 +302,11 @@ def _collect_referenced_names(tree: ast.Module) -> set[str]:
     backfills for names that aren't really used.
     """
     out: set[str] = set()
-
-    def add_names(node: ast.AST) -> None:
-        for sub in ast.walk(node):
-            if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
-                out.add(sub.id)
-
     for stmt in tree.body:
-        if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef):
-            for dec in stmt.decorator_list:
-                add_names(dec)
-            for arg in (
-                *stmt.args.posonlyargs,
-                *stmt.args.args,
-                *stmt.args.kwonlyargs,
-            ):
-                if arg.annotation is not None:
-                    add_names(arg.annotation)
-            if stmt.args.vararg and stmt.args.vararg.annotation:
-                add_names(stmt.args.vararg.annotation)
-            if stmt.args.kwarg and stmt.args.kwarg.annotation:
-                add_names(stmt.args.kwarg.annotation)
-            for default in (*stmt.args.defaults, *stmt.args.kw_defaults):
-                if default is not None:
-                    add_names(default)
-            if stmt.returns is not None:
-                add_names(stmt.returns)
-            for child in stmt.body:
-                add_names(child)
-        elif isinstance(stmt, ast.ClassDef):
-            for dec in stmt.decorator_list:
-                add_names(dec)
-            for base in stmt.bases:
-                add_names(base)
-            for kw in stmt.keywords:
-                add_names(kw.value)
-            for child in stmt.body:
-                add_names(child)
-        elif isinstance(stmt, ast.Assign):
-            add_names(stmt.value)
-        elif isinstance(stmt, ast.AnnAssign):
-            if stmt.annotation is not None:
-                add_names(stmt.annotation)
-            if stmt.value is not None:
-                add_names(stmt.value)
-        elif isinstance(stmt, ast.If):
-            # if TYPE_CHECKING: imports live here, not interesting; but
-            # other guarded code (e.g. version checks) may reference real
-            # symbols. Walk the bodies but not the test (which uses names
-            # like TYPE_CHECKING that we don't want to flag).
-            for child in (*stmt.body, *stmt.orelse):
-                add_names(child)
+        for node in _iter_stmt_ref_nodes(stmt):
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
+                    out.add(sub.id)
     return out
 
 
