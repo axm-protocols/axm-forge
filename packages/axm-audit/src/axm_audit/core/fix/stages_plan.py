@@ -194,90 +194,77 @@ def plan_relocate(project_path: Path) -> list[FileOp]:
     return ops
 
 
-def plan_naming(
-    project_path: Path,
-) -> tuple[list[FileOp], list[FileOp], list[FileOp]]:
-    """Read FILE_NAMING findings → (splits, merges, renames).
+def _is_canonical_tier(p: Path) -> bool:
+    return _tier_for_path(p) in ("integration", "e2e")
 
-    Returns the three stages in *execution* order.  Each stage is mutually
-    exclusive on a given file: a SPLIT victim doesn't get a RENAME (its
-    children inherit canonical names from the split), and a COLLIDE victim
-    doesn't get a RENAME (the merge target already has the canonical name).
-    """
-    findings = _check_by_rule(project_path, "TEST_QUALITY_FILE_NAMING")
+
+def _split_op_from_finding(d: dict[str, Any], src: Path) -> FileOp:
+    suggested = d.get("suggested_splits") or [d.get("proposed_name", "")]
+    suggested = [_safe_filename(s) for s in suggested if s]
+    suggested = [s for s in suggested if s != "test_UNKNOWN.py"]
+    targets = [src.parent / s for s in suggested]
+    return FileOp(
+        kind="split",
+        source=src,
+        target=targets,
+        rationale=f"{len(targets)} distinct tuples",
+        source_rule="TEST_QUALITY_FILE_NAMING",
+        split_map=d.get("split_map"),
+    )
+
+
+def _plan_splits(findings: list[dict[str, Any]], consumed: set[Path]) -> list[FileOp]:
     splits: list[FileOp] = []
-    merges: list[FileOp] = []
-    renames: list[FileOp] = []
-
-    by_verdict: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for d in findings:
-        by_verdict[d.get("verdict", "")].append(d)
-
-    consumed: set[Path] = set()
-
-    # 2. SPLIT
-    for d in by_verdict.get("SPLIT", []):
         src = Path(d["path"])
-        # B2 defensive: SPLIT executor refuses anything outside
-        # tests/integration|e2e. Filter at plan time so the report
-        # doesn't surface ops that will silently skip.
-        if _tier_for_path(src) not in ("integration", "e2e"):
+        if not _is_canonical_tier(src):
             continue
-        # B1 defensive: SPLIT cannot proceed when the file still has a
-        # pathological Test* class (Stage 0 was unable to flatten it).
-        # Skip — collect_unfixable surfaces these as unfixable.
         if src.exists() and _file_has_pathological_class(src):
             continue
         consumed.add(src)
-        suggested = d.get("suggested_splits") or [d.get("proposed_name", "")]
-        suggested = [_safe_filename(s) for s in suggested if s]
-        suggested = [s for s in suggested if s != "test_UNKNOWN.py"]
-        targets = [src.parent / s for s in suggested]
-        splits.append(
+        splits.append(_split_op_from_finding(d, src))
+    return splits
+
+
+def _merge_ops_from_finding(
+    d: dict[str, Any], files: list[Path], consumed: set[Path]
+) -> list[FileOp]:
+    anchor = files[0]
+    rationale = (
+        f"COLLIDE on {d.get('canonical_name', '?')} in tests/{d.get('tier', '?')}/"
+    )
+    ops: list[FileOp] = []
+    for other in files[1:]:
+        consumed.add(other)
+        ops.append(
             FileOp(
-                kind="split",
-                source=src,
-                target=targets,
-                rationale=f"{len(targets)} distinct tuples",
+                kind="merge",
+                source=other,
+                target=anchor,
+                rationale=rationale,
                 source_rule="TEST_QUALITY_FILE_NAMING",
-                split_map=d.get("split_map"),
             )
         )
+    return ops
 
-    # 3. COLLIDE — one finding per collision group; pick lexically-first as anchor
-    for d in by_verdict.get("COLLIDE", []):
+
+def _plan_merges(findings: list[dict[str, Any]], consumed: set[Path]) -> list[FileOp]:
+    merges: list[FileOp] = []
+    for d in findings:
         files = sorted(Path(p) for p in d.get("files", []))
         if len(files) < 2:
             continue
-        # B2 defensive: MERGE relies on anvil moves which operate within
-        # a canonical tier. Drop collisions that include non-canonical paths.
-        if any(_tier_for_path(f) not in ("integration", "e2e") for f in files):
+        if not all(_is_canonical_tier(f) for f in files):
             continue
-        anchor = files[0]
-        for other in files[1:]:
-            consumed.add(other)
-            merges.append(
-                FileOp(
-                    kind="merge",
-                    source=other,
-                    target=anchor,
-                    rationale=(
-                        f"COLLIDE on {d.get('canonical_name', '?')} "
-                        f"in tests/{d.get('tier', '?')}/"
-                    ),
-                    source_rule="TEST_QUALITY_FILE_NAMING",
-                )
-            )
+        merges.extend(_merge_ops_from_finding(d, files, consumed))
+    return merges
 
-    # 4. RENAME — skip files consumed by stages 2/3
-    for d in by_verdict.get("NAME_MISMATCH", []):
+
+def _plan_renames(findings: list[dict[str, Any]], consumed: set[Path]) -> list[FileOp]:
+    renames: list[FileOp] = []
+    for d in findings:
         src = Path(d["path"])
-        if src in consumed:
-            continue
-        # B2 defensive: a non-canonical-tier file should be relocated by
-        # Stage 0.5, not renamed in place. Skip — next iteration will see
-        # it under its canonical tier.
-        if _tier_for_path(src) not in ("integration", "e2e"):
+        if src in consumed or not _is_canonical_tier(src):
             continue
         proposed = _safe_filename(d.get("proposed_name", ""))
         if not proposed or src.name == proposed or proposed == "test_UNKNOWN.py":
@@ -291,5 +278,26 @@ def plan_naming(
                 source_rule="TEST_QUALITY_FILE_NAMING",
             )
         )
+    return renames
 
+
+def plan_naming(
+    project_path: Path,
+) -> tuple[list[FileOp], list[FileOp], list[FileOp]]:
+    """Read FILE_NAMING findings → (splits, merges, renames).
+
+    Returns the three stages in *execution* order.  Each stage is mutually
+    exclusive on a given file: a SPLIT victim doesn't get a RENAME (its
+    children inherit canonical names from the split), and a COLLIDE victim
+    doesn't get a RENAME (the merge target already has the canonical name).
+    """
+    findings = _check_by_rule(project_path, "TEST_QUALITY_FILE_NAMING")
+    by_verdict: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for d in findings:
+        by_verdict[d.get("verdict", "")].append(d)
+
+    consumed: set[Path] = set()
+    splits = _plan_splits(by_verdict.get("SPLIT", []), consumed)
+    merges = _plan_merges(by_verdict.get("COLLIDE", []), consumed)
+    renames = _plan_renames(by_verdict.get("NAME_MISMATCH", []), consumed)
     return splits, merges, renames
