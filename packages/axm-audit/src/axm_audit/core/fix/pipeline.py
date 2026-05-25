@@ -165,6 +165,86 @@ def _run_dryrun_ops(ops: list, report: PipelineReport) -> int:
     return len(ops)
 
 
+_EXTRACTED_PREFIXES: tuple[str, ...] = (
+    "extracted helper `",
+    "extracted fixture `",
+)
+
+
+def _run_iterations(
+    project_path: Path,
+    *,
+    apply: bool,
+    rules: set[str],
+    report: PipelineReport,
+    warnings: list[str],
+) -> None:
+    # B3 fixed-point loop. The cascade of RELOCATE → SPLIT → MERGE →
+    # RENAME mutates classification: a test moved across tiers may
+    # change its `current_level` (integration tests with no I/O become
+    # unit after RELOCATE), a SPLIT may free a NAME_MISMATCH that only
+    # appeared because the audit saw the pre-split tuple. Re-iterate
+    # until either nothing new is planned or we hit the iteration cap.
+    # In dry-run mode we only need one pass (no mutation).
+    if not apply:
+        _run_one_iteration(
+            project_path,
+            apply=False,
+            rules=rules,
+            report=report,
+            warnings=warnings,
+        )
+        report.iterations = 1
+        return
+    for i in range(MAX_ITERATIONS):
+        report.iterations = i + 1
+        iter_ops = _run_one_iteration(
+            project_path,
+            apply=True,
+            rules=rules,
+            report=report,
+            warnings=warnings,
+        )
+        if iter_ops == 0:
+            break
+
+
+def _parse_extracted_names(extraction_msgs: list[str]) -> set[str]:
+    names: set[str] = set()
+    for msg in extraction_msgs:
+        if "`" not in msg:
+            continue
+        if not msg.startswith(_EXTRACTED_PREFIXES):
+            continue
+        names.add(msg.split("`")[1])
+    return names
+
+
+def _is_duplicated_helper_warning(warning: str, extracted_names: set[str]) -> bool:
+    if "duplicated in target" not in warning:
+        return False
+    return any(f"Helper '{n}'" in warning for n in extracted_names)
+
+
+def _filter_helper_dup_warnings(
+    warnings: list[str], extracted_names: set[str]
+) -> list[str]:
+    if not extracted_names:
+        return warnings
+    return [
+        w for w in warnings if not _is_duplicated_helper_warning(w, extracted_names)
+    ]
+
+
+def _apply_post_polish(project_path: Path, warnings: list[str]) -> list[str]:
+    extraction_msgs = _extract_shared_helpers(project_path)
+    warnings.extend(extraction_msgs)
+    extracted_names = _parse_extracted_names(extraction_msgs)
+    warnings = _filter_helper_dup_warnings(warnings, extracted_names)
+    warnings.extend(_ruff_format_tests(project_path))
+    return warnings
+
+
 def run(
     project_path: Path,
     *,
@@ -173,61 +253,18 @@ def run(
 ) -> PipelineReport:
     active_rules: set[str] = set(rules) if rules is not None else set(DEFAULT_RULES)
     report = PipelineReport(applied=apply)
-
     warnings: list[str] = []
 
-    # B3 fixed-point loop. The cascade of RELOCATE → SPLIT → MERGE →
-    # RENAME mutates classification: a test moved across tiers may
-    # change its `current_level` (integration tests with no I/O become
-    # unit after RELOCATE), a SPLIT may free a NAME_MISMATCH that only
-    # appeared because the audit saw the pre-split tuple. Re-iterate
-    # until either nothing new is planned or we hit the iteration cap.
-    # In dry-run mode we only need one pass (no mutation).
-    if apply:
-        for i in range(MAX_ITERATIONS):
-            report.iterations = i + 1
-            iter_ops = _run_one_iteration(
-                project_path,
-                apply=True,
-                rules=active_rules,
-                report=report,
-                warnings=warnings,
-            )
-            if iter_ops == 0:
-                break
-    else:
-        _run_one_iteration(
-            project_path,
-            apply=False,
-            rules=active_rules,
-            report=report,
-            warnings=warnings,
-        )
-        report.iterations = 1
+    _run_iterations(
+        project_path,
+        apply=apply,
+        rules=active_rules,
+        report=report,
+        warnings=warnings,
+    )
 
-    # Post-pipeline polish: extract shared helpers, then ruff fix + format.
     if apply:
-        extraction_msgs = _extract_shared_helpers(project_path)
-        warnings.extend(extraction_msgs)
-        extracted_names = {
-            m.split("`")[1]
-            for m in extraction_msgs
-            if (
-                m.startswith("extracted helper `")
-                or m.startswith("extracted fixture `")
-            )
-            and "`" in m
-        }
-        if extracted_names:
-            warnings = [
-                w
-                for w in warnings
-                if not (
-                    "duplicated in target" in w
-                    and any(f"Helper '{n}'" in w for n in extracted_names)
-                )
-            ]
-        warnings.extend(_ruff_format_tests(project_path))
+        warnings = _apply_post_polish(project_path, warnings)
 
     report.warnings = warnings
     report.unfixable = collect_unfixable(project_path)
