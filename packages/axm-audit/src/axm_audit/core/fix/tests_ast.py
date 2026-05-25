@@ -552,6 +552,30 @@ def _string_literal_fixtures_in_unit(node: ast.stmt) -> set[str]:
     return out
 
 
+def _parse_conftest_fixtures(conftest: Path) -> set[str]:
+    if not conftest.exists():
+        return set()
+    try:
+        tree = ast.parse(conftest.read_text())
+    except (SyntaxError, OSError):
+        return set()
+    return {
+        node.name
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and _is_pytest_fixture(node)
+    }
+
+
+def _next_ancestor(cur: Path, root: Path) -> Path | None:
+    try:
+        if cur.resolve() == root:
+            return None
+    except OSError:
+        return None
+    parent = cur.parent
+    return None if parent == cur else parent
+
+
 def _collect_conftest_fixtures(target: Path, project_path: Path) -> set[str]:
     """Return fixtures defined in any conftest on target's ancestor chain.
 
@@ -561,31 +585,14 @@ def _collect_conftest_fixtures(target: Path, project_path: Path) -> set[str]:
     follow-up moves when the marker fixture is already provided.
     """
     out: set[str] = set()
-    cur = target.parent
     try:
         root = project_path.resolve()
     except OSError:
         return out
-    while True:
-        conftest = cur / "conftest.py"
-        if conftest.exists():
-            try:
-                tree = ast.parse(conftest.read_text())
-            except (SyntaxError, OSError):
-                pass
-            else:
-                for node in tree.body:
-                    if isinstance(node, ast.FunctionDef) and _is_pytest_fixture(node):
-                        out.add(node.name)
-        try:
-            if cur.resolve() == root:
-                break
-        except OSError:
-            break
-        parent = cur.parent
-        if parent == cur:
-            break
-        cur = parent
+    cur: Path | None = target.parent
+    while cur is not None:
+        out |= _parse_conftest_fixtures(cur / "conftest.py")
+        cur = _next_ancestor(cur, root)
     return out
 
 
