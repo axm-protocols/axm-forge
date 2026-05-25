@@ -83,6 +83,161 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
+@dataclass
+class _DepthPatchCtx:
+    file: Path
+    depth_delta: int
+    msgs: list[str] = field(default_factory=list)
+
+
+def _extract_parents_index(node: cst.Subscript) -> int | None:
+    """Return ``N`` for ``Path(__file__).parents[N]`` or None."""
+    value = node.value
+    if not isinstance(value, cst.Attribute) or value.attr.value != "parents":
+        return None
+    if not _is_file_dunder_chain(value.value):
+        return None
+    slices = node.slice
+    if len(slices) != 1:
+        return None
+    elt = slices[0].slice
+    if not isinstance(elt, cst.Index):
+        return None
+    n_node = elt.value
+    if not isinstance(n_node, cst.Integer):
+        return None
+    return int(n_node.value)
+
+
+def _count_parent_chain(node: cst.Attribute) -> int | None:
+    """Return chain length for ``Path(__file__).parent.parent...`` or None."""
+    if node.attr.value != "parent":
+        return None
+    count = 1
+    inner: cst.BaseExpression = node.value
+    while isinstance(inner, cst.Attribute) and inner.attr.value == "parent":
+        count += 1
+        inner = inner.value
+    if not _is_file_dunder_chain(inner):
+        return None
+    return count
+
+
+def _chain_inner_base(node: cst.Attribute) -> cst.BaseExpression:
+    """Return the ``Path(__file__)`` base of a ``.parent`` chain."""
+    inner: cst.BaseExpression = node.value
+    while isinstance(inner, cst.Attribute) and inner.attr.value == "parent":
+        inner = inner.value
+    return inner
+
+
+def _build_parent_chain(base: cst.BaseExpression, count: int) -> cst.BaseExpression:
+    rebuilt = base
+    for _ in range(count):
+        rebuilt = cst.Attribute(value=rebuilt, attr=cst.Name(value="parent"))
+    return rebuilt
+
+
+class _DunderSubscriptPatcher(cst.CSTTransformer):
+    def __init__(self, ctx: _DepthPatchCtx) -> None:
+        self._ctx = ctx
+
+    def leave_Subscript(
+        self,
+        original_node: cst.Subscript,
+        updated_node: cst.Subscript,
+    ) -> cst.BaseExpression:
+        old_n = _extract_parents_index(updated_node)
+        if old_n is None:
+            return updated_node
+        ctx = self._ctx
+        new_n = old_n + ctx.depth_delta
+        if new_n <= 0:
+            ctx.msgs.append(
+                f"file-depth-drift: refusing to patch {ctx.file.name} "
+                f"parents[{old_n}] (delta={ctx.depth_delta} would make "
+                f"N<=0; relocate suspicious)"
+            )
+            return updated_node
+        ctx.msgs.append(
+            f"file-depth-drift: {ctx.file.name} parents[{old_n}] -> "
+            f"parents[{new_n}] (file moved by {ctx.depth_delta} level(s))"
+        )
+        return updated_node.with_changes(
+            slice=[
+                cst.SubscriptElement(
+                    slice=cst.Index(value=cst.Integer(value=str(new_n)))
+                )
+            ]
+        )
+
+
+class _PatchChainOnce(cst.CSTTransformer):
+    """Rewrite the outermost ``.parent.parent...`` chain on
+    ``Path(__file__)`` exactly once.
+
+    libcst visits ``leave_Attribute`` bottom-up. For a chain
+    ``a.parent.parent.parent`` the leaves fire on the innermost
+    ``a.parent`` first, then the middle, then the top. Without
+    guarding, each level fires its own patch — turning ``.parent x3``
+    into ``.parent x2`` (innermost emits a refuse warning), then
+    ``.parent x2 -> x1`` at middle, then again at top — a chain that
+    should have been patched once gets eaten twice.
+
+    Strategy: a pre-pass walks the original CST and records the ids
+    of every non-top ``.parent`` link in a Path(__file__) chain.
+    ``leave_Attribute`` then patches only the top nodes (those that
+    are not the ``.value`` of an outer ``.parent``).
+    """
+
+    def __init__(self, ctx: _DepthPatchCtx, suppressed_ids: set[int]) -> None:
+        self._ctx = ctx
+        self._suppressed = suppressed_ids
+
+    def leave_Attribute(
+        self,
+        original_node: cst.Attribute,
+        updated_node: cst.Attribute,
+    ) -> cst.BaseExpression:
+        if id(original_node) in self._suppressed:
+            return updated_node
+        count = _count_parent_chain(updated_node)
+        if count is None:
+            return updated_node
+        ctx = self._ctx
+        new_count = count + ctx.depth_delta
+        if new_count <= 0:
+            ctx.msgs.append(
+                f"file-depth-drift: refusing to patch {ctx.file.name} "
+                f"chain of {count} .parent (delta={ctx.depth_delta} "
+                f"would leave <=0 .parent; relocate suspicious)"
+            )
+            return updated_node
+        ctx.msgs.append(
+            f"file-depth-drift: {ctx.file.name} "
+            f".parent x{count} -> .parent x{new_count} "
+            f"(file moved by {ctx.depth_delta} level(s))"
+        )
+        return _build_parent_chain(_chain_inner_base(updated_node), new_count)
+
+
+class _CollectChainChildren(cst.CSTVisitor):
+    """Pre-pass: ids of every ``.parent`` Attribute that is the
+    ``.value`` of another ``.parent`` Attribute (= not the top of
+    its chain). The transformer skips those — only top nodes get
+    patched.
+    """
+
+    def __init__(self) -> None:
+        self.child_ids: set[int] = set()
+
+    def visit_Attribute(self, node: cst.Attribute) -> None:
+        if node.attr.value != "parent":
+            return
+        if isinstance(node.value, cst.Attribute) and node.value.attr.value == "parent":
+            self.child_ids.add(id(node.value))
+
+
 def _patch_file_dunder_depth(
     file: Path,
     depth_delta: int,
@@ -123,159 +278,19 @@ def _patch_file_dunder_depth(
     module = _cst_load(file)
     if module is None:
         return []
-    msgs: list[str] = []
-
-    class _DunderPatcher(cst.CSTTransformer):
-        def leave_Subscript(
-            self,
-            original_node: cst.Subscript,
-            updated_node: cst.Subscript,
-        ) -> cst.BaseExpression:
-            value = updated_node.value
-            if not isinstance(value, cst.Attribute):
-                return updated_node
-            if value.attr.value != "parents":
-                return updated_node
-            if not _is_file_dunder_chain(value.value):
-                return updated_node
-            slices = updated_node.slice
-            if len(slices) != 1:
-                return updated_node
-            elt = slices[0].slice
-            if not isinstance(elt, cst.Index):
-                return updated_node
-            n_node = elt.value
-            if not isinstance(n_node, cst.Integer):
-                return updated_node
-            old_n = int(n_node.value)
-            new_n = old_n + depth_delta
-            if new_n <= 0:
-                msgs.append(
-                    f"file-depth-drift: refusing to patch {file.name} "
-                    f"parents[{old_n}] (delta={depth_delta} would make "
-                    f"N<=0; relocate suspicious)"
-                )
-                return updated_node
-            msgs.append(
-                f"file-depth-drift: {file.name} parents[{old_n}] -> "
-                f"parents[{new_n}] (file moved by {depth_delta} level(s))"
-            )
-            return updated_node.with_changes(
-                slice=[
-                    cst.SubscriptElement(
-                        slice=cst.Index(value=cst.Integer(value=str(new_n)))
-                    )
-                ]
-            )
-
-        def leave_Attribute(
-            self,
-            original_node: cst.Attribute,
-            updated_node: cst.Attribute,
-        ) -> cst.BaseExpression:
-            if updated_node.attr.value != "parent":
-                return updated_node
-            count = 1
-            inner: cst.BaseExpression = updated_node.value
-            while isinstance(inner, cst.Attribute) and inner.attr.value == "parent":
-                count += 1
-                inner = inner.value
-            if not _is_file_dunder_chain(inner):
-                return updated_node
-            return updated_node
-
-    class _PatchChainOnce(cst.CSTTransformer):
-        """Rewrite the outermost ``.parent.parent...`` chain on
-        ``Path(__file__)`` exactly once.
-
-        libcst visits ``leave_Attribute`` bottom-up. For a chain
-        ``a.parent.parent.parent`` the leaves fire on the innermost
-        ``a.parent`` first, then the middle, then the top. Without
-        guarding, each level fires its own patch — turning
-        ``.parent x3`` into ``.parent x2`` (innermost emits a refuse
-        warning), then ``.parent x2 -> x1`` at middle, then again at
-        top — a chain that should have been patched once gets eaten
-        twice.
-
-        Strategy: a pre-pass walks the original CST and records the
-        ids of every non-top ``.parent`` link in a Path(__file__)
-        chain. ``leave_Attribute`` then patches only the top nodes
-        (those that are not the ``.value`` of an outer ``.parent``).
-        Marker-children are returned untouched so the eventual top
-        patch replaces them.
-        """
-
-        def __init__(self, suppressed_ids: set[int]) -> None:
-            self._suppressed = suppressed_ids
-
-        def leave_Attribute(
-            self,
-            original_node: cst.Attribute,
-            updated_node: cst.Attribute,
-        ) -> cst.BaseExpression:
-            if id(original_node) in self._suppressed:
-                return updated_node
-            if updated_node.attr.value != "parent":
-                return updated_node
-            count = 1
-            inner: cst.BaseExpression = updated_node.value
-            while isinstance(inner, cst.Attribute) and inner.attr.value == "parent":
-                count += 1
-                inner = inner.value
-            if not _is_file_dunder_chain(inner):
-                return updated_node
-            new_count = count + depth_delta
-            if new_count <= 0:
-                msgs.append(
-                    f"file-depth-drift: refusing to patch {file.name} "
-                    f"chain of {count} .parent (delta={depth_delta} "
-                    f"would leave <=0 .parent; relocate suspicious)"
-                )
-                return updated_node
-            rebuilt: cst.BaseExpression = inner
-            for _ in range(new_count):
-                rebuilt = cst.Attribute(
-                    value=rebuilt,
-                    attr=cst.Name(value="parent"),
-                )
-            msgs.append(
-                f"file-depth-drift: {file.name} "
-                f".parent x{count} -> .parent x{new_count} "
-                f"(file moved by {depth_delta} level(s))"
-            )
-            return rebuilt
-
-    class _CollectChainChildren(cst.CSTVisitor):
-        """Pre-pass: ids of every ``.parent`` Attribute that is the
-        ``.value`` of another ``.parent`` Attribute (= not the top of
-        its chain). The transformer skips those — only top nodes get
-        patched.
-        """
-
-        def __init__(self) -> None:
-            self.child_ids: set[int] = set()
-
-        def visit_Attribute(self, node: cst.Attribute) -> None:
-            if node.attr.value != "parent":
-                return
-            if (
-                isinstance(node.value, cst.Attribute)
-                and node.value.attr.value == "parent"
-            ):
-                self.child_ids.add(id(node.value))
-
-    new_module = module.visit(_DunderPatcher())
+    ctx = _DepthPatchCtx(file=file, depth_delta=depth_delta)
+    new_module = module.visit(_DunderSubscriptPatcher(ctx))
     assert isinstance(new_module, cst.Module)
-    # Collect ids AFTER _DunderPatcher: libcst rebuilds nodes during
-    # a visit even when no transformation is returned, so ids captured
-    # on `module` would not match the nodes inside `new_module`.
+    # Collect ids AFTER _DunderSubscriptPatcher: libcst rebuilds nodes
+    # during a visit even when no transformation is returned, so ids
+    # captured on `module` would not match the nodes inside `new_module`.
     collector = _CollectChainChildren()
     new_module.visit(collector)
-    new_module = new_module.visit(_PatchChainOnce(collector.child_ids))
+    new_module = new_module.visit(_PatchChainOnce(ctx, collector.child_ids))
     assert isinstance(new_module, cst.Module)
     if new_module.code != module.code:
         _cst_save(file, new_module)
-    return msgs
+    return ctx.msgs
 
 
 def _is_file_dunder_chain(expr: cst.BaseExpression) -> bool:
