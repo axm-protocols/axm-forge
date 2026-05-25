@@ -380,29 +380,50 @@ def _resolve_helper_conflicts(
     """
     source_helpers = _top_level_helpers(source_tree)
     target_helpers = _top_level_helpers(target_tree)
-    moving_nodes = [
-        n
-        for n in source_tree.body
-        if isinstance(n, ast.FunctionDef | ast.ClassDef)
-        and n.name in set(moving_unit_names)
-    ]
-    # Build a name -> top-level node index for transitive closure.
-    source_top_nodes: dict[str, ast.FunctionDef | ast.ClassDef] = {
-        n.name: n  # type: ignore[misc]
-        for n in source_tree.body
-        if isinstance(n, ast.FunctionDef | ast.ClassDef)
-    }
+    source_top_nodes = _index_top_level_defs(source_tree)
+    moving_names = set(moving_unit_names)
+    moving_nodes = [n for n in source_top_nodes.values() if n.name in moving_names]
     referenced: set[str] = set()
     for node in moving_nodes:
-        referenced |= _names_referenced_in_unit(node)
-        referenced |= _marker_fixtures_in_unit(node)
-        referenced |= _string_literal_fixtures_in_unit(node)
-    # Transitive closure: a moving test may reference a fixture defined
-    # in source; that fixture's body in turn references _write or
-    # another helper that target also defines with a different body —
-    # which collision the direct (one-hop) reference walk would miss
-    # and anvil would silently shadow at move time. Iterate until the
-    # closure stabilises.
+        referenced |= _all_references_in_unit(node)
+    _extend_transitive_references(referenced, source_top_nodes)
+    conftest_fixtures: set[str] = set()
+    if target is not None and project_path is not None:
+        conftest_fixtures = _collect_conftest_fixtures(target, project_path)
+    suffix = f"__from_{source_stem}"
+    rename: dict[str, str] = {}
+    for name in sorted(referenced):
+        new_name = name + suffix
+        if _should_rename_helper(
+            name, new_name, source_helpers, target_helpers, conftest_fixtures
+        ):
+            rename[name] = new_name
+    return rename
+
+
+def _index_top_level_defs(
+    tree: ast.Module,
+) -> dict[str, ast.FunctionDef | ast.ClassDef]:
+    return {
+        n.name: n  # type: ignore[misc]
+        for n in tree.body
+        if isinstance(n, ast.FunctionDef | ast.ClassDef)
+    }
+
+
+def _all_references_in_unit(node: ast.stmt) -> set[str]:
+    return (
+        _names_referenced_in_unit(node)
+        | _marker_fixtures_in_unit(node)
+        | _string_literal_fixtures_in_unit(node)
+    )
+
+
+def _extend_transitive_references(
+    referenced: set[str],
+    source_top_nodes: dict[str, ast.FunctionDef | ast.ClassDef],
+) -> None:
+    """Iterate until the reference closure over source helpers stabilises."""
     frontier = set(referenced)
     while frontier:
         next_frontier: set[str] = set()
@@ -410,37 +431,27 @@ def _resolve_helper_conflicts(
             helper = source_top_nodes.get(name)
             if helper is None:
                 continue
-            for n in _names_referenced_in_unit(helper):
-                if n not in referenced:
-                    referenced.add(n)
-                    next_frontier.add(n)
-            for fx in _marker_fixtures_in_unit(helper):
-                if fx not in referenced:
-                    referenced.add(fx)
-                    next_frontier.add(fx)
-            for fx in _string_literal_fixtures_in_unit(helper):
-                if fx not in referenced:
-                    referenced.add(fx)
-                    next_frontier.add(fx)
+            new_refs = _all_references_in_unit(helper) - referenced
+            referenced |= new_refs
+            next_frontier |= new_refs
         frontier = next_frontier
-    conftest_fixtures: set[str] = set()
-    if target is not None and project_path is not None:
-        conftest_fixtures = _collect_conftest_fixtures(target, project_path)
-    rename: dict[str, str] = {}
-    suffix = f"__from_{source_stem}"
-    for name in sorted(referenced):
-        if name not in source_helpers:
-            continue
-        if name in target_helpers:
-            if source_helpers[name][0] == target_helpers[name][0]:
-                continue
-        elif name not in conftest_fixtures:
-            continue
-        new_name = name + suffix
-        if new_name in source_helpers or new_name in target_helpers:
-            continue
-        rename[name] = new_name
-    return rename
+
+
+def _should_rename_helper(
+    name: str,
+    new_name: str,
+    source_helpers: dict[str, tuple[str, ast.stmt]],
+    target_helpers: dict[str, tuple[str, ast.stmt]],
+    conftest_fixtures: set[str],
+) -> bool:
+    if name not in source_helpers:
+        return False
+    if name in target_helpers:
+        if source_helpers[name][0] == target_helpers[name][0]:
+            return False
+    elif name not in conftest_fixtures:
+        return False
+    return new_name not in source_helpers and new_name not in target_helpers
 
 
 def _resolve_conftest_shadowing(
