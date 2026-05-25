@@ -495,6 +495,31 @@ def _marker_fixtures_in_unit(node: ast.stmt) -> set[str]:
     return out
 
 
+def _first_string_arg(call: ast.Call) -> str | None:
+    if not call.args:
+        return None
+    first = call.args[0]
+    if isinstance(first, ast.Constant) and isinstance(first.value, str):
+        return first.value
+    return None
+
+
+def _getfixturevalue_literal(call: ast.Call) -> str | None:
+    fn = call.func
+    if not (isinstance(fn, ast.Attribute) and fn.attr == "getfixturevalue"):
+        return None
+    return _first_string_arg(call)
+
+
+def _pytest_param_literal(call: ast.Call) -> str | None:
+    fn = call.func
+    if not (isinstance(fn, ast.Attribute) and fn.attr == "param"):
+        return None
+    if not (isinstance(fn.value, ast.Name) and fn.value.id == "pytest"):
+        return None
+    return _first_string_arg(call)
+
+
 def _string_literal_fixtures_in_unit(node: ast.stmt) -> set[str]:
     """Return fixture names referenced via runtime string lookup.
 
@@ -527,28 +552,9 @@ def _string_literal_fixtures_in_unit(node: ast.stmt) -> set[str]:
         for child in ast.walk(n):
             if not isinstance(child, ast.Call):
                 continue
-            fn = child.func
-            # request.getfixturevalue("X")
-            if (
-                isinstance(fn, ast.Attribute)
-                and fn.attr == "getfixturevalue"
-                and child.args
-                and isinstance(child.args[0], ast.Constant)
-                and isinstance(child.args[0].value, str)
-            ):
-                out.add(child.args[0].value)
-                continue
-            # pytest.param("X", ...)
-            if (
-                isinstance(fn, ast.Attribute)
-                and fn.attr == "param"
-                and isinstance(fn.value, ast.Name)
-                and fn.value.id == "pytest"
-                and child.args
-                and isinstance(child.args[0], ast.Constant)
-                and isinstance(child.args[0].value, str)
-            ):
-                out.add(child.args[0].value)
+            literal = _getfixturevalue_literal(child) or _pytest_param_literal(child)
+            if literal is not None:
+                out.add(literal)
     return out
 
 
