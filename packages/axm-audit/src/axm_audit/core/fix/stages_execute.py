@@ -210,6 +210,196 @@ def _execute_rename(op: FileOp, project_path: Path) -> list[str]:
     return warnings
 
 
+def _cst_assign_target_names(assign: cst.Assign) -> list[str]:
+    return [
+        tgt.target.value for tgt in assign.targets if isinstance(tgt.target, cst.Name)
+    ]
+
+
+def _cst_annassign_target_name(ann: cst.AnnAssign) -> str | None:
+    return ann.target.value if isinstance(ann.target, cst.Name) else None
+
+
+def _cst_simple_stmt_names(stmt: cst.SimpleStatementLine) -> list[str]:
+    """Names assigned by a top-level ``Assign`` / ``AnnAssign`` line."""
+    out: list[str] = []
+    for small in stmt.body:
+        if isinstance(small, cst.Assign):
+            out.extend(_cst_assign_target_names(small))
+        elif isinstance(small, cst.AnnAssign):
+            name = _cst_annassign_target_name(small)
+            if name is not None:
+                out.append(name)
+    return out
+
+
+def _cst_stmt_defines_name(stmt: cst.BaseStatement, name: str) -> bool:
+    if isinstance(stmt, cst.FunctionDef | cst.ClassDef):
+        return stmt.name.value == name
+    if not isinstance(stmt, cst.SimpleStatementLine):
+        return False
+    return name in _cst_simple_stmt_names(stmt)
+
+
+def _cst_names_in_node(node: cst.CSTNode) -> set[str]:
+    out: set[str] = set()
+
+    class _C(cst.CSTVisitor):
+        def visit_Name(self, n: cst.Name) -> None:
+            out.add(n.value)
+
+    node.visit(_C())
+    return out
+
+
+def _index_top_level_stmts(
+    module: cst.Module,
+) -> dict[str, cst.BaseStatement]:
+    """Map top-level name -> defining statement for a CST module."""
+    out: dict[str, cst.BaseStatement] = {}
+    for stmt in module.body:
+        if isinstance(stmt, cst.FunctionDef | cst.ClassDef):
+            out[stmt.name.value] = stmt
+        elif isinstance(stmt, cst.SimpleStatementLine):
+            for name in _cst_simple_stmt_names(stmt):
+                out[name] = stmt
+    return out
+
+
+def _is_copyable_dep_stmt(stmt: cst.BaseStatement) -> bool:
+    if isinstance(stmt, cst.SimpleStatementLine):
+        return True
+    return isinstance(stmt, cst.FunctionDef) and not stmt.name.value.startswith("test_")
+
+
+def _collect_fixture_closure(
+    fx_name: str,
+    sib_stmts_by_name: dict[str, cst.BaseStatement],
+    anchor_defined: set[str],
+) -> set[str]:
+    """BFS the names transitively referenced by ``fx_name`` to copy."""
+    to_copy: set[str] = {fx_name}
+    queue: list[str] = [fx_name]
+    visited: set[str] = {fx_name}
+    while queue:
+        cur_stmt = sib_stmts_by_name.get(queue.pop())
+        if cur_stmt is None:
+            continue
+        for ref in _cst_names_in_node(cur_stmt) - visited:
+            visited.add(ref)
+            ref_stmt = sib_stmts_by_name.get(ref)
+            if ref in anchor_defined or ref_stmt is None:
+                continue
+            if not _is_copyable_dep_stmt(ref_stmt):
+                continue
+            to_copy.add(ref)
+            queue.append(ref)
+    return to_copy
+
+
+def _ordered_copy_stmts(
+    sib_module: cst.Module,
+    copy_names: set[str],
+) -> list[tuple[str, cst.BaseStatement]]:
+    """Walk sibling body in source order and emit (name, stmt) pairs."""
+    ordered: list[tuple[str, cst.BaseStatement]] = []
+    for stmt in sib_module.body:
+        for n in copy_names:
+            if _cst_stmt_defines_name(stmt, n):
+                ordered.append((n, stmt))
+                break
+    return ordered
+
+
+def _format_recovery_msgs(
+    fx_name: str,
+    anchor_path: Path,
+    sibling: Path,
+    copied: list[tuple[str, cst.BaseStatement]],
+) -> list[str]:
+    msgs = [
+        f"anchor-fixture-dep-recovered: "
+        f"{anchor_path.name}::{n} copied from "
+        f"{sibling.name} (used by {fx_name})"
+        for n, _ in copied
+        if n != fx_name
+    ]
+    msgs.append(
+        f"anchor-fixture-recovered: {anchor_path.name}::"
+        f"{fx_name} copied from {sibling.name}"
+    )
+    return msgs
+
+
+def _try_recover_from_sibling(
+    fx_name: str,
+    anchor_path: Path,
+    sibling: Path,
+    anchor_defined: set[str],
+    new_body: list[cst.BaseStatement],
+) -> list[str] | None:
+    """Attempt to copy ``fx_name`` (+ deps) from ``sibling`` into anchor.
+
+    Returns ``None`` if the sibling doesn't define ``fx_name`` as a
+    fixture-eligible function. Otherwise mutates ``anchor_defined`` /
+    ``new_body`` in place and returns the list of human-readable msgs.
+    """
+    if sibling == anchor_path or not sibling.exists():
+        return None
+    sib_module = _cst_load(sibling)
+    if sib_module is None:
+        return None
+    sib_stmts_by_name = _index_top_level_stmts(sib_module)
+    fx_stmt = sib_stmts_by_name.get(fx_name)
+    if not isinstance(fx_stmt, cst.FunctionDef):
+        return None
+    copy_names = _collect_fixture_closure(fx_name, sib_stmts_by_name, anchor_defined)
+    copied = _ordered_copy_stmts(sib_module, copy_names)
+    for n, stmt in copied:
+        new_body.append(stmt)
+        anchor_defined.add(n)
+    return _format_recovery_msgs(fx_name, anchor_path, sibling, copied)
+
+
+def _anchor_missing_fixtures(
+    anchor_path: Path,
+    anchor_fixture_refs: set[str],
+) -> tuple[set[str], list[str]] | None:
+    """Return (anchor_top_names, sorted_missing) or ``None`` to bail."""
+    if not anchor_path.exists() or not anchor_fixture_refs:
+        return None
+    try:
+        anchor_tree = ast.parse(anchor_path.read_text())
+    except (OSError, SyntaxError):
+        return None
+    anchor_top = {
+        n.name
+        for n in anchor_tree.body
+        if isinstance(n, ast.FunctionDef | ast.ClassDef)
+    }
+    missing = sorted(anchor_fixture_refs - anchor_top)
+    if not missing:
+        return None
+    return anchor_top, missing
+
+
+def _recover_one_missing_fixture(
+    fx_name: str,
+    anchor_path: Path,
+    post_split_paths: list[Path],
+    anchor_defined: set[str],
+    new_body: list[cst.BaseStatement],
+) -> list[str] | None:
+    """Try each sibling until one yields the fixture; ``None`` if none did."""
+    for sibling in post_split_paths:
+        sib_msgs = _try_recover_from_sibling(
+            fx_name, anchor_path, sibling, anchor_defined, new_body
+        )
+        if sib_msgs is not None:
+            return sib_msgs
+    return None
+
+
 def _recover_anchor_fixtures(
     anchor_path: Path,
     anchor_fixture_refs: set[str],
@@ -232,130 +422,24 @@ def _recover_anchor_fixtures(
     libcst).
     """
     msgs: list[str] = []
-    if not anchor_path.exists() or not anchor_fixture_refs:
+    prep = _anchor_missing_fixtures(anchor_path, anchor_fixture_refs)
+    if prep is None:
         return msgs
-    try:
-        anchor_tree = ast.parse(anchor_path.read_text())
-    except (OSError, SyntaxError):
-        return msgs
-    anchor_top = {
-        n.name
-        for n in anchor_tree.body
-        if isinstance(n, ast.FunctionDef | ast.ClassDef)
-    }
-    missing = sorted(anchor_fixture_refs - anchor_top)
-    if not missing:
-        return msgs
+    anchor_top, missing = prep
     anchor_module = _cst_load(anchor_path)
     if anchor_module is None:
         return msgs
     new_body = list(anchor_module.body)
     anchor_defined = set(anchor_top)
     recovered: set[str] = set()
-
-    def _stmt_defines_name(stmt: cst.BaseStatement, name: str) -> bool:
-        if isinstance(stmt, cst.FunctionDef | cst.ClassDef):
-            return stmt.name.value == name
-        if isinstance(stmt, cst.SimpleStatementLine):
-            for small in stmt.body:
-                if isinstance(small, cst.Assign):
-                    for tgt in small.targets:
-                        if (
-                            isinstance(tgt.target, cst.Name)
-                            and tgt.target.value == name
-                        ):
-                            return True
-                elif isinstance(small, cst.AnnAssign):
-                    if (
-                        isinstance(small.target, cst.Name)
-                        and small.target.value == name
-                    ):
-                        return True
-        return False
-
-    def _names_in_node(node: cst.CSTNode) -> set[str]:
-        out: set[str] = set()
-
-        class _C(cst.CSTVisitor):
-            def visit_Name(self, n: cst.Name) -> None:
-                out.add(n.value)
-
-        node.visit(_C())
-        return out
-
     for fx_name in missing:
-        for sibling in post_split_paths:
-            if sibling == anchor_path or not sibling.exists():
-                continue
-            sib_module = _cst_load(sibling)
-            if sib_module is None:
-                continue
-            sib_stmts_by_name: dict[str, cst.BaseStatement] = {}
-            for stmt in sib_module.body:
-                if isinstance(stmt, cst.FunctionDef | cst.ClassDef):
-                    sib_stmts_by_name[stmt.name.value] = stmt
-                elif isinstance(stmt, cst.SimpleStatementLine):
-                    for small in stmt.body:
-                        if isinstance(small, cst.Assign):
-                            for tgt in small.targets:
-                                if isinstance(tgt.target, cst.Name):
-                                    sib_stmts_by_name[tgt.target.value] = stmt
-                        elif isinstance(small, cst.AnnAssign):
-                            if isinstance(small.target, cst.Name):
-                                sib_stmts_by_name[small.target.value] = stmt
-            fx_stmt = sib_stmts_by_name.get(fx_name)
-            if fx_stmt is None or not isinstance(fx_stmt, cst.FunctionDef):
-                continue
-            # Closure: recover the fixture + any top-level name it
-            # references that isn't already defined in the anchor.
-            to_copy: list[tuple[str, cst.BaseStatement]] = [(fx_name, fx_stmt)]
-            queue: list[str] = [fx_name]
-            visited: set[str] = {fx_name}
-            while queue:
-                cur = queue.pop()
-                cur_stmt = sib_stmts_by_name.get(cur)
-                if cur_stmt is None:
-                    continue
-                for ref in _names_in_node(cur_stmt):
-                    if ref in visited:
-                        continue
-                    visited.add(ref)
-                    if ref in anchor_defined:
-                        continue
-                    if ref in sib_stmts_by_name:
-                        ref_stmt = sib_stmts_by_name[ref]
-                        # Only copy module-level constants (UPPER_SNAKE_CASE
-                        # or similar) and helper functions — never copy
-                        # other tests/classes (would duplicate test runs).
-                        if isinstance(ref_stmt, cst.SimpleStatementLine) or (
-                            isinstance(ref_stmt, cst.FunctionDef)
-                            and not ref_stmt.name.value.startswith("test_")
-                        ):
-                            to_copy.append((ref, ref_stmt))
-                            queue.append(ref)
-            # Append in source order: walk sib_module.body and pick the
-            # to-copy stmts so dependencies precede dependents.
-            copy_names = {n for n, _ in to_copy}
-            ordered_copy: list[cst.BaseStatement] = []
-            for stmt in sib_module.body:
-                for n in copy_names:
-                    if _stmt_defines_name(stmt, n):
-                        ordered_copy.append(stmt)
-                        anchor_defined.add(n)
-                        if n != fx_name:
-                            msgs.append(
-                                f"anchor-fixture-dep-recovered: "
-                                f"{anchor_path.name}::{n} copied from "
-                                f"{sibling.name} (used by {fx_name})"
-                            )
-                        break
-            new_body.extend(ordered_copy)
-            recovered.add(fx_name)
-            msgs.append(
-                f"anchor-fixture-recovered: {anchor_path.name}::"
-                f"{fx_name} copied from {sibling.name}"
-            )
-            break
+        sib_msgs = _recover_one_missing_fixture(
+            fx_name, anchor_path, post_split_paths, anchor_defined, new_body
+        )
+        if sib_msgs is None:
+            continue
+        msgs.extend(sib_msgs)
+        recovered.add(fx_name)
     if recovered:
         _cst_save(anchor_path, anchor_module.with_changes(body=new_body))
         _backfill_missing_imports(
