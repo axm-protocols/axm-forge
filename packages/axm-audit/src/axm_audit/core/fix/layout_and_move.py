@@ -256,6 +256,71 @@ def _prune_empty_test_subdirs(tier_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _names_segment(node: ast.ImportFrom) -> str:
+    return ", ".join(
+        a.name if a.asname is None else f"{a.name} as {a.asname}" for a in node.names
+    )
+
+
+def _trailing_comment(text_lines: list[str], lineno: int) -> str:
+    idx = lineno - 1
+    if not (0 <= idx < len(text_lines)):
+        return ""
+    hash_idx = text_lines[idx].find("#")
+    if hash_idx == -1:
+        return ""
+    return "  " + text_lines[idx][hash_idx:].rstrip()
+
+
+def _collect_import_edits(
+    tree: ast.AST,
+    text_lines: list[str],
+    old_module: str,
+    new_modules: list[str],
+) -> list[tuple[ast.ImportFrom, str]]:
+    edits: list[tuple[ast.ImportFrom, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        if node.level != 0 or node.module != old_module:
+            continue
+        names_segment = _names_segment(node)
+        trailing = _trailing_comment(text_lines, node.lineno)
+        replacement = "\n".join(
+            f"from {mod} import {names_segment}{trailing}" for mod in new_modules
+        )
+        edits.append((node, replacement))
+    return edits
+
+
+def _apply_import_edits(text: str, edits: list[tuple[ast.ImportFrom, str]]) -> str:
+    lines = text.splitlines(keepends=True)
+    for node, replacement in sorted(edits, key=lambda e: e[0].lineno, reverse=True):
+        start = node.lineno - 1
+        end = node.end_lineno or node.lineno
+        tail = "\n" if lines[end - 1].endswith("\n") else ""
+        lines[start:end] = [replacement + tail]
+    return "".join(lines)
+
+
+def _rewrite_file_imports(py: Path, old_module: str, new_modules: list[str]) -> bool:
+    try:
+        text = py.read_text()
+    except OSError:
+        return False
+    if old_module not in text:
+        return False
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return False
+    edits = _collect_import_edits(tree, text.splitlines(), old_module, new_modules)
+    if not edits:
+        return False
+    py.write_text(_apply_import_edits(text, edits))
+    return True
+
+
 def _rewrite_cross_test_imports(
     project_path: Path,
     old_module: str,
@@ -287,53 +352,8 @@ def _rewrite_cross_test_imports(
     for py in project_path.rglob("*.py"):
         if py.resolve() in skip_resolved:
             continue
-        try:
-            text = py.read_text()
-        except OSError:
+        if not _rewrite_file_imports(py, old_module, new_modules):
             continue
-        if old_module not in text:
-            continue
-        try:
-            tree = ast.parse(text)
-        except SyntaxError:
-            continue
-        edits: list[tuple[ast.ImportFrom, str]] = []
-        text_lines = text.splitlines()
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.ImportFrom)
-                and node.level == 0
-                and node.module == old_module
-            ):
-                names_segment = ", ".join(
-                    a.name if a.asname is None else f"{a.name} as {a.asname}"
-                    for a in node.names
-                )
-                trailing = ""
-                orig_line = (
-                    text_lines[node.lineno - 1]
-                    if 0 <= node.lineno - 1 < len(text_lines)
-                    else ""
-                )
-                hash_idx = orig_line.find("#")
-                if hash_idx != -1:
-                    trailing = "  " + orig_line[hash_idx:].rstrip()
-                replacement_lines = [
-                    f"from {mod} import {names_segment}{trailing}"
-                    for mod in new_modules
-                ]
-                edits.append((node, "\n".join(replacement_lines)))
-        if not edits:
-            continue
-        lines = text.splitlines(keepends=True)
-        edits.sort(key=lambda e: e[0].lineno, reverse=True)
-        for node, replacement in edits:
-            start = node.lineno - 1
-            end = node.end_lineno or node.lineno
-            had_trailing_nl = lines[end - 1].endswith("\n")
-            tail = "\n" if had_trailing_nl else ""
-            lines[start:end] = [replacement + tail]
-        py.write_text("".join(lines))
         msgs.append(
             f"rewrote import in {py.relative_to(project_path)}: "
             f"{old_module} -> {new_modules}"
