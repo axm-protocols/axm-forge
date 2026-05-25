@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,92 @@ from .tests_ast import (
 
 __all__ = ["plan_flatten", "plan_naming", "plan_relocate"]
 
+_FLATTEN_VERDICTS = {"SPLIT", "COLLIDE", "NAME_MISMATCH"}
+
+
+@dataclass(frozen=True)
+class _FlattenCtx:
+    tier: str
+    pkg_prefixes: tuple[str, ...]
+    scripts: dict[str, str]
+    single_binary: str | None
+
+
+def _add_existing_abs(target: set[Path], raw: str) -> None:
+    p = Path(raw)
+    if p.is_absolute() and p.exists():
+        target.add(p)
+
+
+def _collect_flatten_candidates(findings: list[dict[str, Any]]) -> set[Path]:
+    candidates: set[Path] = set()
+    for d in findings:
+        if d.get("verdict") not in _FLATTEN_VERDICTS:
+            continue
+        path_raw = d.get("path", "")
+        p = Path(path_raw)
+        if p.is_absolute() and p.exists():
+            candidates.add(p)
+            continue
+        for fp in d.get("files") or ():
+            _add_existing_abs(candidates, fp)
+    return candidates
+
+
+def _classify_classes(
+    tree: ast.AST, ctx: _FlattenCtx
+) -> tuple[list[str], list[tuple[str, str]]]:
+    to_flatten: list[str] = []
+    pathological: list[tuple[str, str]] = []
+    for cls in _top_level_test_classes(tree):
+        if not _class_needs_flatten(
+            cls,
+            tree,
+            tier=ctx.tier,
+            pkg_prefixes=ctx.pkg_prefixes,
+            scripts=ctx.scripts,
+            single_binary=ctx.single_binary,
+        ):
+            continue
+        reason = _class_is_pathological(cls)
+        if reason is not None:
+            pathological.append((cls.name, reason))
+        else:
+            to_flatten.append(cls.name)
+    return to_flatten, pathological
+
+
+def _emit_flatten_ops(
+    src: Path,
+    to_flatten: list[str],
+    pathological: list[tuple[str, str]],
+) -> list[FileOp]:
+    ops: list[FileOp] = []
+    if to_flatten:
+        ops.append(
+            FileOp(
+                kind="flatten",
+                source=src,
+                target=src,
+                rationale=(
+                    f"flatten {len(to_flatten)} heterogeneous class(es): {to_flatten}"
+                ),
+                source_rule="TEST_QUALITY_FILE_NAMING",
+                split_map={c: [] for c in to_flatten},
+            )
+        )
+    for cname, why in pathological:
+        ops.append(
+            FileOp(
+                kind="flatten",
+                source=src,
+                target=src,
+                rationale=f"PATHOLOGICAL {cname}: {why} — cannot flatten",
+                source_rule="TEST_QUALITY_FILE_NAMING",
+            )
+        )
+    return ops
+
 
 def plan_flatten(project_path: Path) -> list[FileOp]:
     """Stage 0: detect Test* classes with divergent method tuples → flatten.
@@ -40,67 +127,23 @@ def plan_flatten(project_path: Path) -> list[FileOp]:
     flattened deterministically and emit an out-of-pipeline warning.
     """
     findings = _check_by_rule(project_path, "TEST_QUALITY_FILE_NAMING")
-    ops: list[FileOp] = []
     pkg_prefixes = get_pkg_prefixes(project_path)
     scripts = _load_project_scripts(project_path)
     single_binary = next(iter(scripts)) if len(scripts) == 1 else None
-    candidate_paths: set[Path] = set()
-    for d in findings:
-        if d.get("verdict") in {"SPLIT", "COLLIDE", "NAME_MISMATCH"}:
-            p = Path(d.get("path", ""))
-            if p.is_absolute() and p.exists():
-                candidate_paths.add(p)
-            elif d.get("files"):
-                for fp in d["files"]:
-                    pp = Path(fp)
-                    if pp.is_absolute() and pp.exists():
-                        candidate_paths.add(pp)
-    for src in sorted(candidate_paths):
+    ops: list[FileOp] = []
+    for src in sorted(_collect_flatten_candidates(findings)):
         tier_str = _tier_for_path(src)
         if tier_str not in ("integration", "e2e"):
             continue
+        ctx = _FlattenCtx(
+            tier=tier_str,
+            pkg_prefixes=pkg_prefixes,
+            scripts=scripts,
+            single_binary=single_binary,
+        )
         tree = ast.parse(src.read_text())
-        classes_to_flatten: list[str] = []
-        pathological: list[tuple[str, str]] = []
-        for cls in _top_level_test_classes(tree):
-            if not _class_needs_flatten(
-                cls,
-                tree,
-                tier=tier_str,
-                pkg_prefixes=pkg_prefixes,
-                scripts=scripts,
-                single_binary=single_binary,
-            ):
-                continue
-            reason = _class_is_pathological(cls)
-            if reason is not None:
-                pathological.append((cls.name, reason))
-            else:
-                classes_to_flatten.append(cls.name)
-        if classes_to_flatten:
-            ops.append(
-                FileOp(
-                    kind="flatten",
-                    source=src,
-                    target=src,
-                    rationale=(
-                        f"flatten {len(classes_to_flatten)} heterogeneous "
-                        f"class(es): {classes_to_flatten}"
-                    ),
-                    source_rule="TEST_QUALITY_FILE_NAMING",
-                    split_map={c: [] for c in classes_to_flatten},
-                )
-            )
-        for cname, why in pathological:
-            ops.append(
-                FileOp(
-                    kind="flatten",
-                    source=src,
-                    target=src,
-                    rationale=f"PATHOLOGICAL {cname}: {why} — cannot flatten",
-                    source_rule="TEST_QUALITY_FILE_NAMING",
-                )
-            )
+        to_flatten, pathological = _classify_classes(tree, ctx)
+        ops.extend(_emit_flatten_ops(src, to_flatten, pathological))
     return ops
 
 
