@@ -21,7 +21,9 @@ Splits into four concerns:
 from __future__ import annotations
 
 import ast
+import hashlib
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 try:
@@ -558,6 +560,215 @@ def _resolve_conftest_shadowing(
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class _MoveIndex:
+    source_tree: ast.Module
+    target_tree: ast.Module
+    target_top_names: set[str]
+    source_funcs: dict[str, ast.FunctionDef]
+    target_funcs: dict[str, ast.FunctionDef]
+    source_class_names: set[str]
+    stem: str
+    fn_suffix: str
+    cls_suffix: str
+
+
+def _top_def_names(tree: ast.Module) -> set[str]:
+    return {n.name for n in tree.body if isinstance(n, ast.FunctionDef | ast.ClassDef)}
+
+
+def _top_test_funcs(tree: ast.Module) -> dict[str, ast.FunctionDef]:
+    return {
+        n.name: n
+        for n in tree.body
+        if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")
+    }
+
+
+def _top_class_names(tree: ast.Module) -> set[str]:
+    return {n.name for n in tree.body if isinstance(n, ast.ClassDef)}
+
+
+def _camel_from_snake(stem: str) -> str:
+    return "From" + "".join(p.capitalize() for p in stem.split("_") if p)
+
+
+def _build_move_index(source: Path, target: Path) -> _MoveIndex:
+    source_tree = ast.parse(source.read_text())
+    target_tree = ast.parse(target.read_text())
+    stem = source.stem.removeprefix("test_")
+    return _MoveIndex(
+        source_tree=source_tree,
+        target_tree=target_tree,
+        target_top_names=_top_def_names(target_tree),
+        source_funcs=_top_test_funcs(source_tree),
+        target_funcs=_top_test_funcs(target_tree),
+        source_class_names=_top_class_names(source_tree),
+        stem=stem,
+        fn_suffix=f"__from_{stem}",
+        cls_suffix=_camel_from_snake(stem),
+    )
+
+
+def _bounded_rename(name: str, suffix: str, stem: str) -> str:
+    full = name + suffix
+    max_id_len = 73
+    if len(full) <= max_id_len:
+        return full
+    digest = hashlib.sha1(stem.encode()).hexdigest()[:6]
+    short_suffix = f"__from_{digest}"
+    candidate = name + short_suffix
+    if len(candidate) <= max_id_len:
+        return candidate
+    head = name[: max_id_len - len(short_suffix)]
+    return head + short_suffix
+
+
+def _is_identical_test_dup(name: str, idx: _MoveIndex) -> bool:
+    if name not in idx.source_funcs or name not in idx.target_funcs:
+        return False
+    return _func_body_hash(idx.source_funcs[name]) == _func_body_hash(
+        idx.target_funcs[name]
+    )
+
+
+def _classify_units(
+    unit_names: list[str],
+    source: Path,
+    target: Path,
+    idx: _MoveIndex,
+) -> tuple[list[str], list[str], dict[str, str]]:
+    warnings: list[str] = []
+    rename_map: dict[str, str] = {}
+    final_units: list[str] = []
+    for name in unit_names:
+        if name not in idx.target_top_names:
+            final_units.append(name)
+            continue
+        if _is_identical_test_dup(name, idx):
+            warnings.append(
+                f"dedup: dropped {source.name}::{name} "
+                f"(identical body to {target.name}::{name})"
+            )
+            _delete_function_from_source(source, name)
+            continue
+        suffix = idx.cls_suffix if name in idx.source_class_names else idx.fn_suffix
+        new_name = _bounded_rename(name, suffix, idx.stem)
+        rename_map[name] = new_name
+        final_units.append(new_name)
+        warnings.append(
+            f"rename: {source.name}::{name} -> {new_name} "
+            f"(collision with {target.name})"
+        )
+    return warnings, final_units, rename_map
+
+
+def _apply_helper_conflict_renames(
+    source: Path,
+    target: Path,
+    project_path: Path,
+    source_tree: ast.Module,
+    target_tree: ast.Module,
+    final_units: list[str],
+    stem: str,
+) -> list[str]:
+    helper_renames = _resolve_helper_conflicts(
+        source_tree,
+        target_tree,
+        final_units,
+        stem,
+        target=target,
+        project_path=project_path,
+    )
+    if not helper_renames:
+        return []
+    _rename_name_in_module(source, helper_renames)
+    return [
+        f"helper-rename: {source.name}::{old} -> {new} "
+        f"(body-mismatch with {target.name}::{old})"
+        for old, new in sorted(helper_renames.items())
+    ]
+
+
+def _apply_conftest_shadow_renames(
+    source: Path,
+    target: Path,
+    project_path: Path,
+    source_tree: ast.Module,
+    target_tree: ast.Module,
+    final_units: list[str],
+) -> tuple[list[str], ast.Module]:
+    target_stem = target.stem.removeprefix("test_")
+    target_local_renames = _resolve_conftest_shadowing(
+        source_tree,
+        target_tree,
+        final_units,
+        target,
+        project_path,
+        target_stem,
+    )
+    if not target_local_renames:
+        return [], target_tree
+    _rename_name_in_module(target, target_local_renames)
+    new_target_tree = ast.parse(target.read_text())
+    warnings = [
+        f"target-helper-rename: {target.name}::{old} -> {new} "
+        f"(shadowed conftest fixture needed by moved tests)"
+        for old, new in sorted(target_local_renames.items())
+    ]
+    return warnings, new_target_tree
+
+
+def _append_marker_fixtures(
+    source: Path,
+    target: Path,
+    project_path: Path,
+    target_tree: ast.Module,
+    final_units: list[str],
+) -> tuple[list[str], list[str]]:
+    source_tree = ast.parse(source.read_text())
+    extra_fixtures = _collect_marker_fixtures_to_move(
+        source_tree, target_tree, final_units, project_path, target
+    )
+    # ``keep_in_source`` pins fixtures still needed by units that haven't
+    # been moved yet; with ``shared_helpers="duplicate"`` anvil copies the
+    # fixture into target AND leaves it in source while anything there
+    # still references it. Don't subtract ``keep_in_source`` from
+    # ``extra_fixtures`` — that previously caused subsequent split
+    # targets to miss the fixture they declared via ``usefixtures``.
+    if not extra_fixtures:
+        return list(final_units), []
+    merged = list(final_units) + sorted(extra_fixtures)
+    warnings = [
+        f"usefixtures-followup: moving fixture `{fx}` "
+        f"from {source.name} alongside its dependents"
+        for fx in sorted(extra_fixtures)
+    ]
+    return merged, warnings
+
+
+def _finalize_move(
+    source: Path,
+    target: Path,
+    project_path: Path,
+    final_units: list[str],
+) -> list[str]:
+    assert move_symbols is not None, "axm-anvil not importable"
+    plan = move_symbols(
+        source_path=source,
+        target_path=target,
+        symbol_names=final_units,
+        workspace_root=project_path,
+        shared_helpers="duplicate",
+    )
+    warnings = list(plan.warnings)
+    warnings.extend(_backfill_missing_imports(source, target, project_path))
+    _reorder_module_statements(target)
+    if source.exists():
+        _reorder_module_statements(source)
+    return warnings
+
+
 def _safe_move_units(
     source: Path,
     target: Path,
@@ -586,154 +797,40 @@ def _safe_move_units(
     if not unit_names:
         return [], []
     assert move_symbols is not None, "axm-anvil not importable"
-    source_tree = ast.parse(source.read_text())
-    target_tree = ast.parse(target.read_text())
-    target_top_names = {
-        n.name
-        for n in target_tree.body
-        if isinstance(n, ast.FunctionDef | ast.ClassDef)
-    }
-    source_funcs = {
-        n.name: n
-        for n in source_tree.body
-        if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")
-    }
-    target_funcs = {
-        n.name: n
-        for n in target_tree.body
-        if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")
-    }
-
-    warnings: list[str] = []
-    rename_map: dict[str, str] = {}
-    final_units: list[str] = []
-    stem = source.stem.removeprefix("test_")
-    fn_suffix = f"__from_{stem}"
-    cls_suffix = "From" + "".join(p.capitalize() for p in stem.split("_") if p)
-    source_class_names = {
-        n.name for n in source_tree.body if isinstance(n, ast.ClassDef)
-    }
-
-    def _bounded_rename(name: str, suffix: str) -> str:
-        """Compose ``name + suffix``, shrinking the suffix's stem if the
-        full identifier would push the eventual ``def <name>(...) -> ...``
-        line past ruff's 88-char limit. Falls back to a 6-char hash of
-        the original stem so name uniqueness survives the truncation.
-        """
-        full = name + suffix
-        # 88 - len("def ") - len("(") - safety margin (=10 for ``( ... )``)
-        # gives us room of ~73 for the identifier itself.
-        max_id_len = 73
-        if len(full) <= max_id_len:
-            return full
-        # Build a shorter suffix. Anchor on a 6-char hash of the stem so
-        # different source files produce distinct suffixes.
-        import hashlib
-
-        digest = hashlib.sha1(stem.encode()).hexdigest()[:6]
-        short_suffix = f"__from_{digest}"
-        candidate = name + short_suffix
-        if len(candidate) <= max_id_len:
-            return candidate
-        # If even the digest suffix overflows, truncate the name itself
-        # (very rare — test names already at 65+ chars). Keep last 4
-        # chars of name + digest for stability.
-        head = name[: max_id_len - len(short_suffix)]
-        return head + short_suffix
-
-    for name in unit_names:
-        if name not in target_top_names:
-            final_units.append(name)
-            continue
-        if name in source_funcs and name in target_funcs:
-            if _func_body_hash(source_funcs[name]) == _func_body_hash(
-                target_funcs[name]
-            ):
-                warnings.append(
-                    f"dedup: dropped {source.name}::{name} "
-                    f"(identical body to {target.name}::{name})"
-                )
-                _delete_function_from_source(source, name)
-                continue
-        suffix = cls_suffix if name in source_class_names else fn_suffix
-        new_name = _bounded_rename(name, suffix)
-        rename_map[name] = new_name
-        final_units.append(new_name)
-        warnings.append(
-            f"rename: {source.name}::{name} -> {new_name} "
-            f"(collision with {target.name})"
-        )
-
+    idx = _build_move_index(source, target)
+    warnings, final_units, rename_map = _classify_units(unit_names, source, target, idx)
     if rename_map:
         _rename_top_level_in_source(source, rename_map)
-
     if not final_units:
         return warnings, []
 
     source_tree = ast.parse(source.read_text())
-    helper_renames = _resolve_helper_conflicts(
-        source_tree,
-        target_tree,
-        final_units,
-        stem,
-        target=target,
-        project_path=project_path,
+    warnings.extend(
+        _apply_helper_conflict_renames(
+            source,
+            target,
+            project_path,
+            source_tree,
+            idx.target_tree,
+            final_units,
+            idx.stem,
+        )
     )
-    if helper_renames:
-        _rename_name_in_module(source, helper_renames)
-        for old, new in sorted(helper_renames.items()):
-            warnings.append(
-                f"helper-rename: {source.name}::{old} -> {new} "
-                f"(body-mismatch with {target.name}::{old})"
-            )
 
-    target_stem = target.stem.removeprefix("test_")
-    target_local_renames = _resolve_conftest_shadowing(
-        source_tree,
-        target_tree,
-        final_units,
+    shadow_warnings, target_tree = _apply_conftest_shadow_renames(
+        source,
         target,
         project_path,
-        target_stem,
+        source_tree,
+        idx.target_tree,
+        final_units,
     )
-    if target_local_renames:
-        _rename_name_in_module(target, target_local_renames)
-        target_tree = ast.parse(target.read_text())
-        for old, new in sorted(target_local_renames.items()):
-            warnings.append(
-                f"target-helper-rename: {target.name}::{old} -> {new} "
-                f"(shadowed conftest fixture needed by moved tests)"
-            )
+    warnings.extend(shadow_warnings)
 
-    source_tree = ast.parse(source.read_text())
-    extra_fixtures = _collect_marker_fixtures_to_move(
-        source_tree, target_tree, final_units, project_path, target
+    final_units, fixture_warnings = _append_marker_fixtures(
+        source, target, project_path, target_tree, final_units
     )
-    # ``keep_in_source`` pins fixtures still needed by units that haven't
-    # been moved yet; with ``shared_helpers="duplicate"`` anvil copies the
-    # fixture into target AND leaves it in source while anything there
-    # still references it. Don't subtract ``keep_in_source`` from
-    # ``extra_fixtures`` — that previously caused subsequent split
-    # targets to miss the fixture they declared via ``usefixtures``.
-    if extra_fixtures:
-        final_units = list(final_units) + sorted(extra_fixtures)
-        for fx in sorted(extra_fixtures):
-            warnings.append(
-                f"usefixtures-followup: moving fixture `{fx}` "
-                f"from {source.name} alongside its dependents"
-            )
+    warnings.extend(fixture_warnings)
 
-    plan = move_symbols(
-        source_path=source,
-        target_path=target,
-        symbol_names=final_units,
-        workspace_root=project_path,
-        shared_helpers="duplicate",
-    )
-    warnings.extend(plan.warnings)
-    backfilled = _backfill_missing_imports(source, target, project_path)
-    warnings.extend(backfilled)
-    _reorder_module_statements(target)
-    if source.exists():
-        _reorder_module_statements(source)
+    warnings.extend(_finalize_move(source, target, project_path, final_units))
     return warnings, final_units
