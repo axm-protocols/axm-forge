@@ -63,6 +63,18 @@ def _findings(check: Any) -> list[dict[str, Any]]:
     return out
 
 
+def _absolutize_paths(finding: dict[str, Any], project_path: Path) -> None:
+    for key in ("path", "test_file"):
+        value = finding.get(key)
+        if isinstance(value, str) and value:
+            finding[key] = str(_abspath(value, project_path))
+    files = finding.get("files")
+    if isinstance(files, list):
+        finding["files"] = [
+            str(_abspath(f, project_path)) if isinstance(f, str) else f for f in files
+        ]
+
+
 def _check_by_rule(project_path: Path, rule_id: str) -> list[dict[str, Any]]:
     """Run the test_quality audit and return findings for ``rule_id``.
 
@@ -72,18 +84,12 @@ def _check_by_rule(project_path: Path, rule_id: str) -> list[dict[str, Any]]:
     """
     result = audit_project(project_path, category="test_quality")
     for check in result.checks:
-        if getattr(check, "rule_id", "") == rule_id:
-            out = _findings(check)
-            for d in out:
-                for key in ("path", "test_file"):
-                    if key in d and isinstance(d[key], str) and d[key]:
-                        d[key] = str(_abspath(d[key], project_path))
-                if "files" in d and isinstance(d["files"], list):
-                    d["files"] = [
-                        str(_abspath(f, project_path)) if isinstance(f, str) else f
-                        for f in d["files"]
-                    ]
-            return out
+        if getattr(check, "rule_id", "") != rule_id:
+            continue
+        out = _findings(check)
+        for d in out:
+            _absolutize_paths(d, project_path)
+        return out
     return []
 
 
