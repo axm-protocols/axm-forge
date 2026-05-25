@@ -804,6 +804,61 @@ def _is_cst_type_checking_block(stmt: cst.BaseStatement) -> bool:
     return isinstance(test, cst.Name) and test.value == "TYPE_CHECKING"
 
 
+def _last_top_level_import_idx(body: list[cst.BaseStatement]) -> int:
+    last = -1
+    for i, stmt in enumerate(body):
+        if _is_cst_import(stmt):
+            last = i
+    return last
+
+
+def _merge_into_existing_tc_block(
+    body: list[cst.BaseStatement],
+    type_checking: list[cst.SimpleStatementLine],
+) -> list[cst.BaseStatement] | None:
+    for i, stmt in enumerate(body):
+        if not _is_cst_type_checking_block(stmt):
+            continue
+        assert isinstance(stmt, cst.If)
+        new_inner = list(stmt.body.body) + list(type_checking)
+        body[i] = stmt.with_changes(body=stmt.body.with_changes(body=new_inner))
+        return body
+    return None
+
+
+def _is_typing_tc_import(small: cst.BaseSmallStatement) -> bool:
+    if not isinstance(small, cst.ImportFrom):
+        return False
+    mod = small.module
+    if not (isinstance(mod, cst.Name) and mod.value == "typing"):
+        return False
+    return any(
+        isinstance(a.name, cst.Name) and a.name.value == "TYPE_CHECKING"
+        for a in small.names
+    )
+
+
+def _has_tc_import(body: list[cst.BaseStatement]) -> bool:
+    for stmt in body:
+        if not isinstance(stmt, cst.SimpleStatementLine):
+            continue
+        if any(_is_typing_tc_import(small) for small in stmt.body):
+            return True
+    return False
+
+
+def _make_tc_import_line() -> cst.SimpleStatementLine:
+    return cst.SimpleStatementLine(
+        body=[
+            cst.ImportFrom(
+                module=cst.Name("typing"),
+                names=[cst.ImportAlias(name=cst.Name("TYPE_CHECKING"))],
+                relative=[],
+            )
+        ]
+    )
+
+
 def _insert_imports_cst(
     module: cst.Module,
     top_level: list[cst.SimpleStatementLine],
@@ -817,11 +872,7 @@ def _insert_imports_cst(
     (preceded by ``from typing import TYPE_CHECKING`` if needed).
     """
     body = list(module.body)
-
-    last_import_idx = -1
-    for i, stmt in enumerate(body):
-        if _is_cst_import(stmt):
-            last_import_idx = i
+    last_import_idx = _last_top_level_import_idx(body)
     insert_at = last_import_idx + 1
     if top_level:
         body = body[:insert_at] + list(top_level) + body[insert_at:]
@@ -829,49 +880,19 @@ def _insert_imports_cst(
     if not type_checking:
         return body
 
-    for i, stmt in enumerate(body):
-        if _is_cst_type_checking_block(stmt):
-            assert isinstance(stmt, cst.If)
-            new_inner = list(stmt.body.body) + list(type_checking)
-            body[i] = stmt.with_changes(body=stmt.body.with_changes(body=new_inner))
-            return body
-
-    has_tc_import = False
-    for stmt in body:
-        if not isinstance(stmt, cst.SimpleStatementLine):
-            continue
-        for small in stmt.body:
-            if isinstance(small, cst.ImportFrom):
-                mod = small.module
-                if (
-                    isinstance(mod, cst.Name)
-                    and mod.value == "typing"
-                    and any(
-                        isinstance(a.name, cst.Name) and a.name.value == "TYPE_CHECKING"
-                        for a in small.names
-                    )
-                ):
-                    has_tc_import = True
+    merged = _merge_into_existing_tc_block(body, type_checking)
+    if merged is not None:
+        return merged
 
     new_block = cst.If(
         test=cst.Name("TYPE_CHECKING"),
         body=cst.IndentedBlock(body=list(type_checking)),
     )
     insert_pos = last_import_idx + 1 + len(top_level)
-    if has_tc_import:
-        body = body[:insert_pos] + [new_block] + body[insert_pos:]
-    else:
-        tc_import = cst.SimpleStatementLine(
-            body=[
-                cst.ImportFrom(
-                    module=cst.Name("typing"),
-                    names=[cst.ImportAlias(name=cst.Name("TYPE_CHECKING"))],
-                    relative=[],
-                )
-            ]
-        )
-        body = body[:insert_pos] + [tc_import, new_block] + body[insert_pos:]
-    return body
+    prefix: list[cst.BaseStatement] = (
+        [new_block] if _has_tc_import(body) else [_make_tc_import_line(), new_block]
+    )
+    return body[:insert_pos] + prefix + body[insert_pos:]
 
 
 @dataclass(slots=True)
