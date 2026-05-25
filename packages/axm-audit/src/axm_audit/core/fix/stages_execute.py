@@ -448,6 +448,179 @@ def _recover_anchor_fixtures(
     return msgs
 
 
+def _fixtures_referenced_by(tree: ast.Module, unit_names: set[str]) -> set[str]:
+    refs: set[str] = set()
+    for n in tree.body:
+        if not (isinstance(n, ast.FunctionDef | ast.ClassDef) and n.name in unit_names):
+            continue
+        refs |= _string_literal_fixtures_in_unit(n)
+        refs |= _marker_fixtures_in_unit(n)
+        if isinstance(n, ast.ClassDef):
+            for m in n.body:
+                if isinstance(m, ast.FunctionDef):
+                    refs |= {a.arg for a in m.args.args}
+        else:
+            refs |= {a.arg for a in n.args.args}
+    return refs
+
+
+def _split_pathological_leftover(
+    tree: ast.Module, tier_str: str, project_path: Path
+) -> list[str]:
+    pkg_prefixes = get_pkg_prefixes(project_path)
+    scripts = _load_project_scripts(project_path)
+    single_binary = next(iter(scripts)) if len(scripts) == 1 else None
+    return [
+        cls.name
+        for cls in _top_level_test_classes(tree)
+        if _class_needs_flatten(
+            cls,
+            tree,
+            tier=tier_str,
+            pkg_prefixes=pkg_prefixes,
+            scripts=scripts,
+            single_binary=single_binary,
+        )
+    ]
+
+
+def _split_preflight(
+    op: FileOp, project_path: Path
+) -> tuple[list[str] | None, ast.Module | None, str]:
+    """Return (skip_msgs_or_none, tree, tier_str) for split execution."""
+    tier_str = _tier_for_path(op.source)
+    if tier_str not in ("integration", "e2e"):
+        return (
+            [f"split skipped: source not under tests/integration|e2e ({op.source})"],
+            None,
+            tier_str,
+        )
+    if not op.source.exists():
+        return [f"split skipped: source missing ({op.source})"], None, tier_str
+    tree = ast.parse(op.source.read_text())
+    leftover = _split_pathological_leftover(tree, tier_str, project_path)
+    if leftover:
+        return (
+            [
+                f"split skipped (pathological): {op.source.name} has "
+                f"heterogeneous Test* classes that cannot be flattened: "
+                f"{leftover}"
+            ],
+            None,
+            tier_str,
+        )
+    return None, tree, tier_str
+
+
+def _move_non_anchor_units(
+    op: FileOp,
+    routes: dict[str, list[str]],
+    anchor: str,
+    tree: ast.Module,
+    project_path: Path,
+) -> tuple[list[str], list[Path], set[str]]:
+    """Move every non-anchor route into its canonical sibling file.
+
+    Returns warnings, post-split target paths, and the anchor's pinned
+    fixture refs (needed by post-split fixture recovery downstream).
+    """
+    anchor_fixture_refs = _fixtures_referenced_by(tree, set(routes[anchor]))
+    non_anchor_units: dict[str, set[str]] = {
+        canonical: set(unit_names)
+        for canonical, unit_names in routes.items()
+        if canonical != anchor
+    }
+    warnings: list[str] = []
+    post_split_paths: list[Path] = []
+    for canonical, unit_names in routes.items():
+        if canonical == anchor:
+            continue
+        target = op.source.parent / canonical
+        if not target.exists():
+            target.write_text(f'"""Split from ``{op.source.name}``."""\n')
+        non_anchor_units.pop(canonical, None)
+        pending_refs: set[str] = set()
+        for pending_names in non_anchor_units.values():
+            pending_refs |= _fixtures_referenced_by(tree, pending_names)
+        sub_warnings, _ = _safe_move_units(
+            op.source,
+            target,
+            unit_names,
+            project_path,
+            keep_in_source=anchor_fixture_refs | pending_refs,
+        )
+        warnings.extend(sub_warnings)
+        post_split_paths.append(target)
+    return warnings, post_split_paths, anchor_fixture_refs
+
+
+def _finalize_split_anchor(
+    op: FileOp, anchor: str, project_path: Path
+) -> tuple[list[str], Path | None]:
+    """Move/rename the anchor file to its canonical name. Returns (warnings, anchor_path)."""
+    warnings: list[str] = []
+    if not op.source.exists():
+        return warnings, None
+    if op.source.name == anchor:
+        return warnings, op.source
+    target = op.source.parent / anchor
+    if target.exists() and target != op.source:
+        tree = ast.parse(op.source.read_text())
+        residual_units = _movable_units_at_top_level(tree)
+        if residual_units:
+            sub_warnings, _ = _safe_move_units(
+                op.source, target, residual_units, project_path
+            )
+            warnings.extend(sub_warnings)
+        _delete_source_if_empty_tests(op.source)
+    else:
+        _git_mv(op.source, target)
+    return warnings, target
+
+
+def _collect_new_modules(
+    post_split_paths: list[Path], original_module: str, project_path: Path
+) -> list[str]:
+    new_modules: list[str] = []
+    seen: set[str] = set()
+    for p in post_split_paths:
+        mod = _module_path_for_test_file(p, project_path)
+        if mod and mod != original_module and mod not in seen:
+            new_modules.append(mod)
+            seen.add(mod)
+    return new_modules
+
+
+def _check_split_routes(op: FileOp, routes: dict[str, list[str]]) -> list[str] | None:
+    if not routes:
+        return [f"split skipped: no movable units in {op.source}"]
+    if len(routes) < 2:
+        return [
+            f"split skipped: {op.source.name} has <2 unit-groups "
+            "(file is cohesive at canonical-name level)"
+        ]
+    return None
+
+
+def _rewrite_split_cross_imports(
+    project_path: Path,
+    original_source: Path,
+    original_module: str | None,
+    post_split_paths: list[Path],
+) -> list[str]:
+    if not original_module:
+        return []
+    new_modules = _collect_new_modules(post_split_paths, original_module, project_path)
+    if not new_modules:
+        return []
+    return _rewrite_cross_test_imports(
+        project_path,
+        original_module,
+        new_modules,
+        skip_paths={original_source, *post_split_paths},
+    )
+
+
 def _execute_split(op: FileOp, project_path: Path) -> list[str]:
     """SPLIT a file by routing each *movable unit* to its canonical target.
 
@@ -460,162 +633,35 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
     """
     assert move_symbols is not None, "axm-anvil not importable"
     assert isinstance(op.target, list)
-    tier_str = _tier_for_path(op.source)
-    if tier_str not in ("integration", "e2e"):
-        return [f"split skipped: source not under tests/integration|e2e ({op.source})"]
-    if not op.source.exists():
-        return [f"split skipped: source missing ({op.source})"]
-    tree = ast.parse(op.source.read_text())
-    pkg_prefixes = get_pkg_prefixes(project_path)
-    scripts = _load_project_scripts(project_path)
-    single_binary = next(iter(scripts)) if len(scripts) == 1 else None
-    leftover = [
-        cls.name
-        for cls in _top_level_test_classes(tree)
-        if _class_needs_flatten(
-            cls,
-            tree,
-            tier=tier_str,
-            pkg_prefixes=pkg_prefixes,
-            scripts=scripts,
-            single_binary=single_binary,
-        )
-    ]
-    if leftover:
-        # B1: pathological-AND-heterogeneous classes survive Stage 0.
-        # Bail explicitly; collect_unfixable surfaces these.
-        return [
-            f"split skipped (pathological): {op.source.name} has "
-            f"heterogeneous Test* classes that cannot be flattened: "
-            f"{leftover}"
-        ]
+    skip_msgs, tree, tier_str = _split_preflight(op, project_path)
+    if skip_msgs is not None:
+        return skip_msgs
+    assert tree is not None
     routes = _per_unit_canonical(op.source, tier_str, project_path)
-    if not routes:
-        return [f"split skipped: no movable units in {op.source}"]
-    if len(routes) < 2:
-        return [
-            f"split skipped: {op.source.name} has <2 unit-groups "
-            "(file is cohesive at canonical-name level)"
-        ]
+    skip = _check_split_routes(op, routes)
+    if skip is not None:
+        return skip
     anchor = max(routes.items(), key=lambda kv: (len(kv[1]), kv[0]))[0]
-    warnings: list[str] = []
     original_source = op.source
     original_module = _module_path_for_test_file(original_source, project_path)
-    post_split_paths: list[Path] = []
-
-    # Compute fixtures the anchor will still need after non-anchor moves.
-    # When a non-anchor unit also references a fixture, marker-fixture
-    # follow-up duplicates that fixture into target — but anvil deletes
-    # the source-side definition if it's no longer used by remaining
-    # source content. The anchor (which stays in source then becomes
-    # the target via _git_mv) thus loses its fixtures silently.
-    # Solution: pin anchor-referenced fixtures so non-anchor moves see
-    # them as "needed by remaining content" and leave them in source.
-    def _fixtures_referenced_by(unit_names: set[str]) -> set[str]:
-        """Collect all fixture names referenced by units of given names.
-
-        Pulls from three sites: marker fixtures (``usefixtures``),
-        string-literal fixtures (``pytest.param`` + ``getfixturevalue``)
-        and direct params on the test signature (or class methods).
-        """
-        refs: set[str] = set()
-        for n in tree.body:
-            if not (
-                isinstance(n, ast.FunctionDef | ast.ClassDef) and n.name in unit_names
-            ):
-                continue
-            refs |= _string_literal_fixtures_in_unit(n)
-            refs |= _marker_fixtures_in_unit(n)
-            if isinstance(n, ast.ClassDef):
-                for m in n.body:
-                    if isinstance(m, ast.FunctionDef):
-                        refs |= {a.arg for a in m.args.args}
-            else:
-                refs |= {a.arg for a in n.args.args}
-        return refs
-
-    anchor_fixture_refs = _fixtures_referenced_by(set(routes[anchor]))
-    # Track fixtures still needed by units not yet moved. Each iteration
-    # drops the current target's needs, so the pin set shrinks as we
-    # progress. Without this, anvil's marker-fixture follow-up copies a
-    # fixture into the FIRST non-anchor target, then deletes it from
-    # source (no source-side reference remains), leaving subsequent
-    # non-anchor targets without the fixture — even though they declare
-    # the same ``usefixtures`` marker.
-    non_anchor_units: dict[str, set[str]] = {
-        canonical: set(unit_names)
-        for canonical, unit_names in routes.items()
-        if canonical != anchor
-    }
-    for canonical, unit_names in routes.items():
-        if canonical == anchor:
-            continue
-        target = op.source.parent / canonical
-        if not target.exists():
-            target.write_text(f'"""Split from ``{op.source.name}``."""\n')
-        non_anchor_units.pop(canonical, None)
-        pending_refs: set[str] = set()
-        for pending_names in non_anchor_units.values():
-            pending_refs |= _fixtures_referenced_by(pending_names)
-        sub_warnings, _ = _safe_move_units(
-            op.source,
-            target,
-            unit_names,
-            project_path,
-            keep_in_source=anchor_fixture_refs | pending_refs,
-        )
-        warnings.extend(sub_warnings)
-        post_split_paths.append(target)
-    anchor_path: Path | None = None
-    if op.source.exists() and op.source.name != anchor:
-        target = op.source.parent / anchor
-        if target.exists() and target != op.source:
-            tree = ast.parse(op.source.read_text())
-            residual_units = _movable_units_at_top_level(tree)
-            if residual_units:
-                sub_warnings, _ = _safe_move_units(
-                    op.source, target, residual_units, project_path
-                )
-                warnings.extend(sub_warnings)
-            _delete_source_if_empty_tests(op.source)
-        else:
-            _git_mv(op.source, target)
-        post_split_paths.append(target)
-        anchor_path = target
-    elif op.source.exists():
-        post_split_paths.append(op.source)
-        anchor_path = op.source
-    # Post-split fixture recovery: when the anchor references a fixture
-    # by string-literal (pytest.param("X", ...) + request.getfixturevalue),
-    # anvil's earlier moves saw no direct usage and removed the def from
-    # source. The anchor (now its own file) is left referencing missing
-    # names. Find each missing fixture in the sibling post-split paths
-    # and copy its definition back into the anchor.
-    if anchor_path is not None and anchor_fixture_refs:
-        warnings.extend(
-            _recover_anchor_fixtures(
-                anchor_path,
-                anchor_fixture_refs,
-                post_split_paths,
-            )
-        )
-    if original_module:
-        new_modules = []
-        seen: set[str] = set()
-        for p in post_split_paths:
-            mod = _module_path_for_test_file(p, project_path)
-            if mod and mod != original_module and mod not in seen:
-                new_modules.append(mod)
-                seen.add(mod)
-        if new_modules:
+    warnings, post_split_paths, anchor_fixture_refs = _move_non_anchor_units(
+        op, routes, anchor, tree, project_path
+    )
+    anchor_warnings, anchor_path = _finalize_split_anchor(op, anchor, project_path)
+    warnings.extend(anchor_warnings)
+    if anchor_path is not None:
+        post_split_paths.append(anchor_path)
+        if anchor_fixture_refs:
             warnings.extend(
-                _rewrite_cross_test_imports(
-                    project_path,
-                    original_module,
-                    new_modules,
-                    skip_paths={original_source, *post_split_paths},
+                _recover_anchor_fixtures(
+                    anchor_path, anchor_fixture_refs, post_split_paths
                 )
             )
+    warnings.extend(
+        _rewrite_split_cross_imports(
+            project_path, original_source, original_module, post_split_paths
+        )
+    )
     return warnings
 
 
