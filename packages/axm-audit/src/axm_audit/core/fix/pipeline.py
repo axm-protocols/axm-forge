@@ -13,6 +13,7 @@ Post-loop polish: extract duplicated helpers + run ruff format/fix.
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from .cst_rewrite import _invalidate_import_index
@@ -33,6 +34,80 @@ DEFAULT_RULES: frozenset[str] = frozenset(
 )
 
 
+def _apply_warning_stage(
+    project_path: Path,
+    producer: Callable[[Path], list[str]],
+    warnings: list[str],
+) -> int:
+    msgs = producer(project_path)
+    if not msgs:
+        return 0
+    warnings.extend(msgs)
+    _invalidate_import_index(project_path)
+    return len(msgs)
+
+
+def _apply_ops_stage(
+    project_path: Path,
+    ops: list,
+    report: PipelineReport,
+    warnings: list[str],
+    *,
+    invalidate: bool = True,
+) -> int:
+    report.ops.extend(ops)
+    if not ops:
+        return 0
+    warnings.extend(execute(ops, project_path))
+    if invalidate:
+        _invalidate_import_index(project_path)
+    return len(ops)
+
+
+def _run_naming_apply(
+    project_path: Path,
+    report: PipelineReport,
+    warnings: list[str],
+) -> int:
+    splits, _, _ = plan_naming(project_path)
+    count = _apply_ops_stage(project_path, splits, report, warnings)
+    _, merges, _ = plan_naming(project_path)  # re-plan post-SPLIT
+    count += _apply_ops_stage(project_path, merges, report, warnings)
+    _, _, renames = plan_naming(project_path)  # re-plan post-MERGE
+    count += _apply_ops_stage(project_path, renames, report, warnings, invalidate=False)
+    return count
+
+
+def _run_naming_dryrun(project_path: Path, report: PipelineReport) -> int:
+    splits, merges, renames = plan_naming(project_path)
+    report.ops.extend(splits)
+    report.ops.extend(merges)
+    report.ops.extend(renames)
+    return len(splits) + len(merges) + len(renames)
+
+
+def _run_flatten_stage(
+    project_path: Path,
+    report: PipelineReport,
+    warnings: list[str],
+    *,
+    apply: bool,
+) -> int:
+    # Drop PATHOLOGICAL ops: they only emit a warning and re-fire every
+    # iteration, breaking convergence. Surfaced via collect_unfixable.
+    actionable = [
+        op
+        for op in plan_flatten(project_path)
+        if not op.rationale.startswith("PATHOLOGICAL")
+    ]
+    report.ops.extend(actionable)
+    if not (apply and actionable):
+        return 0
+    warnings.extend(execute(actionable, project_path))
+    _invalidate_import_index(project_path)
+    return len(actionable)
+
+
 def _run_one_iteration(
     project_path: Path,
     *,
@@ -48,78 +123,46 @@ def _run_one_iteration(
     caller-owned report/warnings list across iterations.
     """
     iter_ops = 0
+    pyramid = "TEST_QUALITY_PYRAMID_LEVEL" in rules
+    naming = "TEST_QUALITY_FILE_NAMING" in rules
 
-    # Stage 0.5: relocate non-canonical tier dirs (tests/functional/, ...)
-    # into tests/integration/ so the rest of the pipeline sees only
-    # canonical tier paths. Stage 1 RELOCATE will then re-tier each file
-    # to its correct pyramid level based on PYRAMID_LEVEL findings.
-    if apply and "TEST_QUALITY_PYRAMID_LEVEL" in rules:
-        non_canon_msgs = relocate_non_canonical_tiers(project_path)
-        if non_canon_msgs:
-            warnings.extend(non_canon_msgs)
-            iter_ops += len(non_canon_msgs)
-            _invalidate_import_index(project_path)
+    # Stage 0.5: relocate non-canonical tier dirs into tests/integration/.
+    if apply and pyramid:
+        iter_ops += _apply_warning_stage(
+            project_path, relocate_non_canonical_tiers, warnings
+        )
 
     # Stage 0: FLATTEN heterogeneous Test* classes (FILE_NAMING preflight).
-    # Done first so RELOCATE / SPLIT / MERGE / RENAME see top-level units only.
-    if "TEST_QUALITY_FILE_NAMING" in rules:
-        flatten_ops = plan_flatten(project_path)
-        # Don't count pathological flatten ops as "work emitted" — they
-        # only emit a warning and re-fire every iteration, breaking
-        # convergence. They are surfaced via collect_unfixable instead.
-        actionable_flatten = [
-            op for op in flatten_ops if not op.rationale.startswith("PATHOLOGICAL")
-        ]
-        report.ops.extend(actionable_flatten)
-        if apply and actionable_flatten:
-            warnings.extend(execute(actionable_flatten, project_path))
-            _invalidate_import_index(project_path)
-            iter_ops += len(actionable_flatten)
+    if naming:
+        iter_ops += _run_flatten_stage(project_path, report, warnings, apply=apply)
 
     # Stage 1: RELOCATE
-    if "TEST_QUALITY_PYRAMID_LEVEL" in rules:
-        relocate_ops = plan_relocate(project_path)
-        report.ops.extend(relocate_ops)
-        if apply and relocate_ops:
-            warnings.extend(execute(relocate_ops, project_path))
-            _invalidate_import_index(project_path)
-            iter_ops += len(relocate_ops)
+    if pyramid:
+        iter_ops += (
+            _apply_ops_stage(
+                project_path, plan_relocate(project_path), report, warnings
+            )
+            if apply
+            else _run_dryrun_ops(plan_relocate(project_path), report)
+        )
 
     # Stage 1.5: FLATTEN_LAYOUT.
-    if apply and "TEST_QUALITY_PYRAMID_LEVEL" in rules:
-        flatten_msgs = flatten_tier_layout(project_path)
-        if flatten_msgs:
-            warnings.extend(flatten_msgs)
-            iter_ops += len(flatten_msgs)
-            _invalidate_import_index(project_path)
+    if apply and pyramid:
+        iter_ops += _apply_warning_stage(project_path, flatten_tier_layout, warnings)
 
     # Stages 2-4: FILE_NAMING (planned AFTER flatten + relocate).
-    if "TEST_QUALITY_FILE_NAMING" in rules:
-        if apply:
-            splits, _, _ = plan_naming(project_path)
-            report.ops.extend(splits)
-            if splits:
-                warnings.extend(execute(splits, project_path))
-                _invalidate_import_index(project_path)
-                iter_ops += len(splits)
-            _, merges, _ = plan_naming(project_path)  # re-plan post-SPLIT
-            report.ops.extend(merges)
-            if merges:
-                warnings.extend(execute(merges, project_path))
-                _invalidate_import_index(project_path)
-                iter_ops += len(merges)
-            _, _, renames = plan_naming(project_path)  # re-plan post-MERGE
-            report.ops.extend(renames)
-            if renames:
-                warnings.extend(execute(renames, project_path))
-                iter_ops += len(renames)
-        else:
-            splits, merges, renames = plan_naming(project_path)
-            report.ops.extend(splits)
-            report.ops.extend(merges)
-            report.ops.extend(renames)
-            iter_ops += len(splits) + len(merges) + len(renames)
+    if naming:
+        iter_ops += (
+            _run_naming_apply(project_path, report, warnings)
+            if apply
+            else _run_naming_dryrun(project_path, report)
+        )
     return iter_ops
+
+
+def _run_dryrun_ops(ops: list, report: PipelineReport) -> int:
+    report.ops.extend(ops)
+    return len(ops)
 
 
 def run(
