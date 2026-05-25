@@ -1078,18 +1078,8 @@ def _invalidate_import_index(project_path: Path) -> None:
     _PROJECT_IMPORT_INDEX_CACHE.pop(project_path, None)
 
 
-def _build_project_symbol_index(
-    project_path: Path,
-) -> dict[str, tuple[ast.stmt, ast.stmt | None]]:
-    """Scan every ``.py`` file under *project_path* for top-level names.
-
-    Returns ``{name: (ast.ImportFrom, None)}`` where the ImportFrom is a
-    freshly parsed statement ready to be transplanted. Skips common
-    vendor / build / cache directories so we do not crawl ``.venv`` or
-    ``node_modules`` on every cache rebuild.
-    """
-    index: dict[str, tuple[ast.stmt, ast.stmt | None]] = {}
-    skip_parts = {
+_SYMBOL_INDEX_SKIP_PARTS: frozenset[str] = frozenset(
+    {
         ".venv",
         "venv",
         "__pycache__",
@@ -1102,36 +1092,62 @@ def _build_project_symbol_index(
         ".ruff_cache",
         ".pytest_cache",
     }
-    for p in project_path.rglob("*.py"):
-        if any(part in skip_parts for part in p.parts):
+)
+
+
+def _module_path_for(project_path: Path, py_file: Path) -> str | None:
+    try:
+        rel = py_file.relative_to(project_path)
+    except ValueError:
+        return None
+    parts = list(rel.with_suffix("").parts)
+    if parts and parts[-1] == "__init__":
+        parts = parts[:-1]
+    if not parts:
+        return None
+    return ".".join(parts)
+
+
+def _index_module_top_level_defs(
+    module_path: str,
+    tree: ast.Module,
+    index: dict[str, tuple[ast.stmt, ast.stmt | None]],
+) -> None:
+    for node in tree.body:
+        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            continue
+        name = node.name
+        if name in index:
             continue
         try:
-            rel = p.relative_to(project_path)
-        except ValueError:
+            stmt = ast.parse(f"from {module_path} import {name}").body[0]
+        except SyntaxError:
             continue
-        parts = list(rel.with_suffix("").parts)
-        if parts and parts[-1] == "__init__":
-            parts = parts[:-1]
-        if not parts:
+        index[name] = (stmt, None)
+
+
+def _build_project_symbol_index(
+    project_path: Path,
+) -> dict[str, tuple[ast.stmt, ast.stmt | None]]:
+    """Scan every ``.py`` file under *project_path* for top-level names.
+
+    Returns ``{name: (ast.ImportFrom, None)}`` where the ImportFrom is a
+    freshly parsed statement ready to be transplanted. Skips common
+    vendor / build / cache directories so we do not crawl ``.venv`` or
+    ``node_modules`` on every cache rebuild.
+    """
+    index: dict[str, tuple[ast.stmt, ast.stmt | None]] = {}
+    for p in project_path.rglob("*.py"):
+        if any(part in _SYMBOL_INDEX_SKIP_PARTS for part in p.parts):
             continue
-        module_path = ".".join(parts)
+        module_path = _module_path_for(project_path, p)
+        if module_path is None:
+            continue
         try:
             tree = ast.parse(p.read_text())
         except (SyntaxError, OSError, UnicodeDecodeError):
             continue
-        for node in tree.body:
-            if not isinstance(
-                node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
-            ):
-                continue
-            name = node.name
-            if name in index:
-                continue
-            try:
-                stmt = ast.parse(f"from {module_path} import {name}").body[0]
-            except SyntaxError:
-                continue
-            index[name] = (stmt, None)
+        _index_module_top_level_defs(module_path, tree, index)
     return index
 
 
