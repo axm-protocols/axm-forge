@@ -578,6 +578,101 @@ def _stmt_references(stmt: ast.stmt) -> set[str]:
     return out
 
 
+def _load_cst_ast_pair(
+    path: Path,
+) -> tuple[cst.Module, list[ast.stmt]] | None:
+    # Parse with both libcst (write side) and ast (analysis side); bail if
+    # they disagree on top-level count.
+    cst_module = _cst_load(path)
+    if cst_module is None:
+        return None
+    try:
+        ast_tree = ast.parse(cst_module.code)
+    except SyntaxError:
+        return None
+    if len(cst_module.body) != len(ast_tree.body):
+        return None
+    return cst_module, ast_tree.body
+
+
+def _build_reordered_body(
+    body_cst: list,
+    head_idx: list[int],
+    rest_idx: list[int],
+    earliest: list[int],
+    docstring_idx: int | None,
+) -> list:
+    order = sorted(range(len(rest_idx)), key=lambda p: (earliest[p], p))
+    new_rest_idx = [rest_idx[p] for p in order]
+    new_body: list = []
+    if docstring_idx is not None:
+        new_body.append(body_cst[docstring_idx])
+    new_body.extend(body_cst[i] for i in head_idx)
+    new_body.extend(body_cst[i] for i in new_rest_idx)
+    return new_body
+
+
+def _find_docstring_idx(body_ast: list[ast.stmt]) -> int | None:
+    # PEP 257: docstring must be the very first non-import statement.
+    for i, stmt in enumerate(body_ast):
+        if (
+            isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Constant)
+            and isinstance(stmt.value.value, str)
+        ):
+            return i
+        if isinstance(stmt, ast.Import | ast.ImportFrom):
+            continue
+        return None
+    return None
+
+
+def _partition_head_rest(
+    body_ast: list[ast.stmt], docstring_idx: int | None
+) -> tuple[list[int], list[int]]:
+    # Imports up to first non-import become head; stray imports after are folded in.
+    head_idx: list[int] = []
+    rest_idx: list[int] = []
+    stray_imports: list[int] = []
+    seen_non_head = False
+    for i, stmt in enumerate(body_ast):
+        if i == docstring_idx:
+            continue
+        is_import = isinstance(stmt, ast.Import | ast.ImportFrom)
+        if not seen_non_head and is_import:
+            head_idx.append(i)
+        elif is_import:
+            stray_imports.append(i)
+        else:
+            seen_non_head = True
+            rest_idx.append(i)
+    return head_idx + stray_imports, rest_idx
+
+
+def _compute_earliest(
+    body_ast: list[ast.stmt], head_idx: list[int], rest_idx: list[int]
+) -> tuple[list[int], bool]:
+    head_names: set[str] = set()
+    for i in head_idx:
+        head_names |= _stmt_defines(body_ast[i])
+    name_to_pos: dict[str, int] = {}
+    for pos, i in enumerate(rest_idx):
+        for n in _stmt_defines(body_ast[i]):
+            name_to_pos[n] = pos
+    earliest: list[int] = [0] * len(rest_idx)
+    needs_change = False
+    for pos, i in enumerate(rest_idx):
+        refs = _stmt_references(body_ast[i]) - head_names
+        min_pos = max(
+            (name_to_pos[ref] + 1 for ref in refs if ref in name_to_pos),
+            default=0,
+        )
+        earliest[pos] = min_pos
+        if min_pos > pos:
+            needs_change = True
+    return earliest, needs_change
+
+
 def _reorder_module_statements(path: Path) -> None:
     """Reorder a module's top-level statements so definitions precede uses.
 
@@ -602,97 +697,25 @@ def _reorder_module_statements(path: Path) -> None:
 
     Idempotent.
     """
-    cst_module = _cst_load(path)
-    if cst_module is None:
+    loaded = _load_cst_ast_pair(path)
+    if loaded is None:
         return
-    text = cst_module.code
-    try:
-        ast_tree = ast.parse(text)
-    except SyntaxError:
-        return
-    if len(cst_module.body) != len(ast_tree.body):
-        return
-
-    body_ast = ast_tree.body
+    cst_module, body_ast = loaded
     body_cst = list(cst_module.body)
 
-    # Identify the module docstring (if any). Per PEP 257 it must be the
-    # very first statement — anything else is not a docstring. Tracking
-    # it separately lets us put it back at position 0 even when SPLIT
-    # wrote the docstring AFTER the imports (target.write_text creates
-    # an empty file, then anvil prepends imports, then nothing
-    # repositions the docstring).
-    docstring_idx: int | None = None
-    for i, stmt in enumerate(body_ast):
-        if (
-            isinstance(stmt, ast.Expr)
-            and isinstance(stmt.value, ast.Constant)
-            and isinstance(stmt.value.value, str)
-        ):
-            docstring_idx = i
-            break
-        if isinstance(stmt, ast.Import | ast.ImportFrom):
-            continue
-        break
-
-    head_idx: list[int] = []
-    rest_idx: list[int] = []
-    seen_non_head = False
-    for i, stmt in enumerate(body_ast):
-        if i == docstring_idx:
-            continue  # handled separately
-        if not seen_non_head and isinstance(stmt, ast.Import | ast.ImportFrom):
-            head_idx.append(i)
-        else:
-            seen_non_head = True
-            rest_idx.append(i)
-
-    stray_imports: list[int] = []
-    rest_clean: list[int] = []
-    for i in rest_idx:
-        if isinstance(body_ast[i], ast.Import | ast.ImportFrom):
-            stray_imports.append(i)
-        else:
-            rest_clean.append(i)
-    head_idx = head_idx + stray_imports
-    rest_idx = rest_clean
-
-    head_names: set[str] = set()
-    for i in head_idx:
-        head_names |= _stmt_defines(body_ast[i])
-
-    name_to_pos: dict[str, int] = {}
-    for pos, i in enumerate(rest_idx):
-        for n in _stmt_defines(body_ast[i]):
-            name_to_pos[n] = pos
-
-    n = len(rest_idx)
-    earliest: list[int] = [0] * n
-    needs_change = False
-    for pos, i in enumerate(rest_idx):
-        refs = _stmt_references(body_ast[i]) - head_names
-        min_pos = 0
-        for ref in refs:
-            if ref in name_to_pos:
-                min_pos = max(min_pos, name_to_pos[ref] + 1)
-        earliest[pos] = min_pos
-        if min_pos > pos:
-            needs_change = True
+    docstring_idx = _find_docstring_idx(body_ast)
+    head_idx, rest_idx = _partition_head_rest(body_ast, docstring_idx)
+    earliest, needs_change = _compute_earliest(body_ast, head_idx, rest_idx)
 
     docstring_misplaced = docstring_idx is not None and docstring_idx != 0
     if not needs_change and not docstring_misplaced:
         return
 
-    order = sorted(range(n), key=lambda p: (earliest[p], p))
-    new_rest_idx = [rest_idx[p] for p in order]
-    new_body_cst: list = []
-    if docstring_idx is not None:
-        new_body_cst.append(body_cst[docstring_idx])
-    new_body_cst.extend(body_cst[i] for i in head_idx)
-    new_body_cst.extend(body_cst[i] for i in new_rest_idx)
-    new_module = cst_module.with_changes(body=new_body_cst)
-    new_text = new_module.code
-    if new_text != text:
+    new_body_cst = _build_reordered_body(
+        body_cst, head_idx, rest_idx, earliest, docstring_idx
+    )
+    new_text = cst_module.with_changes(body=new_body_cst).code
+    if new_text != cst_module.code:
         path.write_text(new_text)
 
 
