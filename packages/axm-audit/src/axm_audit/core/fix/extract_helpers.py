@@ -510,6 +510,34 @@ def _strip_def_only(file: Path, name: str) -> None:
         _cst_save(file, module.with_changes(body=new_body))
 
 
+def _is_top_level_assign_to(stmt: cst.BaseStatement, name: str) -> bool:
+    if not isinstance(stmt, cst.SimpleStatementLine) or len(stmt.body) != 1:
+        return False
+    assign = stmt.body[0]
+    if not isinstance(assign, cst.Assign) or len(assign.targets) != 1:
+        return False
+    target = assign.targets[0].target
+    return isinstance(target, cst.Name) and target.value == name
+
+
+def _is_module_docstring(stmt: cst.BaseStatement) -> bool:
+    if not isinstance(stmt, cst.SimpleStatementLine) or len(stmt.body) != 1:
+        return False
+    expr = stmt.body[0]
+    return isinstance(expr, cst.Expr) and isinstance(
+        expr.value, cst.SimpleString | cst.ConcatenatedString
+    )
+
+
+def _compute_import_insert_index(body: list[cst.BaseStatement]) -> int:
+    insert_at = 0
+    for idx, stmt in enumerate(body):
+        if not (_is_cst_import(stmt) or _is_module_docstring(stmt)):
+            break
+        insert_at = idx + 1
+    return insert_at
+
+
 def _strip_def_and_inject_import(
     file: Path, name: str, helpers_module: str, project_path: Path
 ) -> None:
@@ -523,14 +551,7 @@ def _strip_def_and_inject_import(
         if isinstance(stmt, cst.FunctionDef | cst.ClassDef) and stmt.name.value == name:
             stripped = True
             continue
-        if (
-            isinstance(stmt, cst.SimpleStatementLine)
-            and len(stmt.body) == 1
-            and isinstance(stmt.body[0], cst.Assign)
-            and len(stmt.body[0].targets) == 1
-            and isinstance(stmt.body[0].targets[0].target, cst.Name)
-            and stmt.body[0].targets[0].target.value == name
-        ):
+        if _is_top_level_assign_to(stmt, name):
             stripped = True
             continue
         new_body.append(stmt)
@@ -538,21 +559,7 @@ def _strip_def_and_inject_import(
         return
     import_stmt = cst.parse_statement(f"from {helpers_module} import {name}")
     assert isinstance(import_stmt, cst.SimpleStatementLine)
-    insert_at = 0
-    for idx, stmt in enumerate(new_body):
-        if _is_cst_import(stmt) or (
-            isinstance(stmt, cst.SimpleStatementLine)
-            and len(stmt.body) == 1
-            and isinstance(stmt.body[0], cst.Expr)
-            and isinstance(
-                stmt.body[0].value,
-                cst.SimpleString | cst.ConcatenatedString,
-            )
-        ):
-            insert_at = idx + 1
-        else:
-            break
-    new_body.insert(insert_at, import_stmt)
+    new_body.insert(_compute_import_insert_index(new_body), import_stmt)
     new_module = module.with_changes(body=new_body)
     new_module = _dedupe_imports_cst(new_module)
     _cst_save(file, new_module)
