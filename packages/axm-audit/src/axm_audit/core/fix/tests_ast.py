@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+from collections import deque
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -185,6 +186,27 @@ def _file_has_pathological_class(source: Path) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _import_local_names(stmt: ast.Import | ast.ImportFrom) -> Iterator[str]:
+    for alias in stmt.names:
+        if isinstance(stmt, ast.Import):
+            yield alias.asname or alias.name.split(".")[0]
+        else:
+            yield alias.asname or alias.name
+
+
+def _child_stmt_blocks(stmt: ast.stmt) -> list[list[ast.stmt]]:
+    if isinstance(stmt, ast.If):
+        return [stmt.body, stmt.orelse]
+    if isinstance(stmt, ast.Try):
+        return [
+            stmt.body,
+            *(h.body for h in stmt.handlers),
+            stmt.orelse,
+            stmt.finalbody,
+        ]
+    return []
+
+
 def _collect_imported_names(
     tree: ast.Module,
 ) -> dict[str, tuple[ast.stmt, ast.stmt | None]]:
@@ -198,30 +220,16 @@ def _collect_imported_names(
     the local binding name (``y`` or ``z``).
     """
     out: dict[str, tuple[ast.stmt, ast.stmt | None]] = {}
-
-    def visit(stmts: list[ast.stmt], enclosing: ast.stmt | None) -> None:
+    work: deque[tuple[list[ast.stmt], ast.stmt | None]] = deque([(tree.body, None)])
+    while work:
+        stmts, enclosing = work.popleft()
         for stmt in stmts:
-            if isinstance(stmt, ast.Import):
-                for alias in stmt.names:
-                    local = alias.asname or alias.name.split(".")[0]
+            if isinstance(stmt, ast.Import | ast.ImportFrom):
+                for local in _import_local_names(stmt):
                     out[local] = (stmt, enclosing)
-            elif isinstance(stmt, ast.ImportFrom):
-                for alias in stmt.names:
-                    local = alias.asname or alias.name
-                    out[local] = (stmt, enclosing)
-            elif isinstance(stmt, ast.If):
-                # if TYPE_CHECKING: ... — walk into both branches with self
-                # as the enclosing wrapper
-                visit(stmt.body, stmt)
-                visit(stmt.orelse, stmt)
-            elif isinstance(stmt, ast.Try):
-                visit(stmt.body, stmt)
-                for handler in stmt.handlers:
-                    visit(handler.body, stmt)
-                visit(stmt.orelse, stmt)
-                visit(stmt.finalbody, stmt)
-
-    visit(tree.body, None)
+                continue
+            for block in _child_stmt_blocks(stmt):
+                work.append((block, stmt))
     return out
 
 
