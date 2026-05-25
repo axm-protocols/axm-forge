@@ -466,32 +466,32 @@ def _names_referenced_in_unit(node: ast.stmt) -> set[str]:
 # ---------------------------------------------------------------------------
 
 
-def _marker_fixtures_in_unit(node: ast.stmt) -> set[str]:
-    """Return fixture names declared via ``@pytest.mark.usefixtures("X", ...)``.
+def _usefixtures_args(deco: ast.expr) -> list[str]:
+    if not isinstance(deco, ast.Call):
+        return []
+    fn = deco.func
+    if not (isinstance(fn, ast.Attribute) and fn.attr == "usefixtures"):
+        return []
+    return [
+        arg.value
+        for arg in deco.args
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+    ]
 
-    Scans the unit's decorator list (and its methods' decorator lists if
-    it's a class) for ``pytest.mark.usefixtures`` calls and collects
-    every string-literal argument. Other markers (``pytest.mark.parametrize``,
-    ``pytest.mark.skipif``, ...) are ignored.
-    """
-    out: set[str] = set()
-    nodes_to_scan: list[ast.AST] = [node]
+
+def _scannable_units(node: ast.stmt) -> list[ast.AST]:
+    nodes: list[ast.AST] = [node]
     if isinstance(node, ast.ClassDef):
-        nodes_to_scan.extend(
-            sub for sub in node.body if isinstance(sub, ast.FunctionDef)
-        )
-    for n in nodes_to_scan:
-        decorators = getattr(n, "decorator_list", []) or []
-        for deco in decorators:
-            if not isinstance(deco, ast.Call):
-                continue
-            # Match ``<...>.usefixtures(...)``
-            fn = deco.func
-            if not (isinstance(fn, ast.Attribute) and fn.attr == "usefixtures"):
-                continue
-            for arg in deco.args:
-                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                    out.add(arg.value)
+        nodes.extend(sub for sub in node.body if isinstance(sub, ast.FunctionDef))
+    return nodes
+
+
+def _marker_fixtures_in_unit(node: ast.stmt) -> set[str]:
+    """Return fixture names declared via ``@pytest.mark.usefixtures("X", ...)``."""
+    out: set[str] = set()
+    for n in _scannable_units(node):
+        for deco in getattr(n, "decorator_list", []) or []:
+            out.update(_usefixtures_args(deco))
     return out
 
 
