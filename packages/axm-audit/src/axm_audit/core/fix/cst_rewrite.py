@@ -1237,6 +1237,70 @@ def dedupe_imports(module: cst.Module) -> cst.Module:
     return _dedupe_imports_cst(module)
 
 
+def _collect_alias_names(
+    aliases: Sequence[cst.ImportAlias], *, strip_dot: bool
+) -> set[str]:
+    out: set[str] = set()
+    for a in aliases:
+        if a.asname is not None:
+            out.add(_cst_name_to_str(a.asname.name))
+            continue
+        raw = _cst_name_to_str(a.name)
+        out.add(raw.split(".")[0] if strip_dot else raw)
+    return out
+
+
+def _existing_import_names(module: cst.Module) -> set[str]:
+    existing: set[str] = set()
+    for stmt in module.body:
+        if not isinstance(stmt, cst.SimpleStatementLine):
+            continue
+        for small in stmt.body:
+            if isinstance(small, cst.Import):
+                existing |= _collect_alias_names(small.names, strip_dot=True)
+            elif isinstance(small, cst.ImportFrom) and not isinstance(
+                small.names, cst.ImportStar
+            ):
+                existing |= _collect_alias_names(small.names, strip_dot=False)
+    return existing
+
+
+def _build_import_lines(
+    mapping: dict[str, str], existing: set[str]
+) -> list[cst.SimpleStatementLine]:
+    lines: list[cst.SimpleStatementLine] = []
+    for name, mod_path in mapping.items():
+        if name in existing:
+            continue
+        lines.append(
+            cst.SimpleStatementLine(
+                body=[
+                    cst.ImportFrom(
+                        module=_dotted_name_to_cst(mod_path),
+                        names=[cst.ImportAlias(name=cst.Name(name))],
+                        relative=[],
+                    )
+                ]
+            )
+        )
+    return lines
+
+
+def _future_import_insert_index(body: Sequence[cst.BaseStatement]) -> int:
+    insert_at = 0
+    for i, stmt in enumerate(body):
+        if not isinstance(stmt, cst.SimpleStatementLine):
+            continue
+        for small in stmt.body:
+            if not isinstance(small, cst.ImportFrom):
+                continue
+            mod = small.module
+            if isinstance(mod, cst.Name) and mod.value == "__future__":
+                insert_at = i + 1
+                break
+    return insert_at
+
+
 def backfill_import(module: cst.Module, mapping: dict[str, str]) -> cst.Module:
     """Insert ``from {mod} import {name}`` for each (name → mod) in *mapping*.
 
@@ -1248,59 +1312,13 @@ def backfill_import(module: cst.Module, mapping: dict[str, str]) -> cst.Module:
     if not mapping:
         return module
 
-    existing: set[str] = set()
-    for stmt in module.body:
-        if not isinstance(stmt, cst.SimpleStatementLine):
-            continue
-        for small in stmt.body:
-            if isinstance(small, cst.Import):
-                for a in small.names:
-                    if a.asname is not None:
-                        existing.add(_cst_name_to_str(a.asname.name))
-                    else:
-                        existing.add(_cst_name_to_str(a.name).split(".")[0])
-            elif isinstance(small, cst.ImportFrom):
-                if isinstance(small.names, cst.ImportStar):
-                    continue
-                for a in small.names:
-                    if a.asname is not None:
-                        existing.add(_cst_name_to_str(a.asname.name))
-                    else:
-                        existing.add(_cst_name_to_str(a.name))
-
-    new_imports: list[cst.SimpleStatementLine] = []
-    for name, mod_path in mapping.items():
-        if name in existing:
-            continue
-        new_imports.append(
-            cst.SimpleStatementLine(
-                body=[
-                    cst.ImportFrom(
-                        module=_dotted_name_to_cst(mod_path),
-                        names=[cst.ImportAlias(name=cst.Name(name))],
-                        relative=[],
-                    )
-                ]
-            )
-        )
-
+    new_imports = _build_import_lines(mapping, _existing_import_names(module))
     if not new_imports:
         return module
 
     body = list(module.body)
-    insert_at = 0
-    for i, stmt in enumerate(body):
-        if not isinstance(stmt, cst.SimpleStatementLine):
-            continue
-        for small in stmt.body:
-            if isinstance(small, cst.ImportFrom):
-                mod = small.module
-                if isinstance(mod, cst.Name) and mod.value == "__future__":
-                    insert_at = i + 1
-                    break
-
-    new_body = body[:insert_at] + new_imports + body[insert_at:]
-    return module.with_changes(body=new_body)
+    insert_at = _future_import_insert_index(body)
+    return module.with_changes(body=body[:insert_at] + new_imports + body[insert_at:])
 
 
 def _scan_tests_for_import(
