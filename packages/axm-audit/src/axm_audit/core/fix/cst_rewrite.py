@@ -540,24 +540,27 @@ def _delete_source_if_empty_tests(source: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _assign_names(stmt: ast.Assign | ast.AnnAssign) -> set[str]:
+    if isinstance(stmt, ast.AnnAssign):
+        return {stmt.target.id} if isinstance(stmt.target, ast.Name) else set()
+    return {tgt.id for tgt in stmt.targets if isinstance(tgt, ast.Name)}
+
+
+def _import_names(stmt: ast.Import | ast.ImportFrom) -> set[str]:
+    if isinstance(stmt, ast.Import):
+        return {alias.asname or alias.name.split(".")[0] for alias in stmt.names}
+    return {alias.asname or alias.name for alias in stmt.names}
+
+
 def _stmt_defines(stmt: ast.stmt) -> set[str]:
     """Names a top-level statement defines (for the module-level scope)."""
-    out: set[str] = set()
     if isinstance(stmt, ast.FunctionDef | ast.ClassDef | ast.AsyncFunctionDef):
-        out.add(stmt.name)
-    elif isinstance(stmt, ast.Assign):
-        for tgt in stmt.targets:
-            if isinstance(tgt, ast.Name):
-                out.add(tgt.id)
-    elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
-        out.add(stmt.target.id)
-    elif isinstance(stmt, ast.Import):
-        for alias in stmt.names:
-            out.add(alias.asname or alias.name.split(".")[0])
-    elif isinstance(stmt, ast.ImportFrom):
-        for alias in stmt.names:
-            out.add(alias.asname or alias.name)
-    return out
+        return {stmt.name}
+    if isinstance(stmt, ast.Assign | ast.AnnAssign):
+        return _assign_names(stmt)
+    if isinstance(stmt, ast.Import | ast.ImportFrom):
+        return _import_names(stmt)
+    return set()
 
 
 def _names_in(node: ast.AST) -> set[str]:
