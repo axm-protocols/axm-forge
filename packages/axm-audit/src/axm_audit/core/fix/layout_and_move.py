@@ -540,28 +540,45 @@ def _resolve_conftest_shadowing(
     own tests keep working with the renamed local; the soon-to-be-moved
     tests reference ``H`` and pytest resolves to conftest's version.
     """
+    referenced = _referenced_names_in_moving_units(source_tree, moving_unit_names)
+    if not referenced:
+        return {}
+    source_helpers = _top_level_helpers(source_tree)
+    target_helpers = _top_level_helpers(target_tree)
+    conftest_fixtures = _collect_conftest_fixtures(target, project_path)
+    suffix = f"__local_{target_stem}"
+    return _build_shadow_rename_map(
+        referenced, source_helpers, target_helpers, conftest_fixtures, suffix
+    )
+
+
+def _referenced_names_in_moving_units(
+    source_tree: ast.Module, moving_unit_names: list[str]
+) -> set[str]:
     moving = set(moving_unit_names)
     moving_nodes = [
         n
         for n in source_tree.body
         if isinstance(n, ast.FunctionDef | ast.ClassDef) and n.name in moving
     ]
-    if not moving_nodes:
-        return {}
     referenced: set[str] = set()
     for node in moving_nodes:
         referenced |= _names_referenced_in_unit(node)
         referenced |= _marker_fixtures_in_unit(node)
         referenced |= _string_literal_fixtures_in_unit(node)
-    source_helpers = _top_level_helpers(source_tree)
-    target_helpers = _top_level_helpers(target_tree)
-    conftest_fixtures = _collect_conftest_fixtures(target, project_path)
+    return referenced
+
+
+def _build_shadow_rename_map(
+    referenced: set[str],
+    source_helpers: dict[str, tuple[str, ast.stmt]],
+    target_helpers: dict[str, tuple[str, ast.stmt]],
+    conftest_fixtures: set[str],
+    suffix: str,
+) -> dict[str, str]:
     rename: dict[str, str] = {}
-    suffix = f"__local_{target_stem}"
     for name in sorted(referenced):
-        if name in source_helpers:
-            continue
-        if name not in target_helpers:
+        if name in source_helpers or name not in target_helpers:
             continue
         if name not in conftest_fixtures:
             continue
