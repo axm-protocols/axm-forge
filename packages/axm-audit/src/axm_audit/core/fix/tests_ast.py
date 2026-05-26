@@ -611,6 +611,37 @@ def _collect_conftest_fixtures(target: Path, project_path: Path) -> set[str]:
     return out
 
 
+def _needed_fixtures_for_moving_units(
+    source_tree: ast.Module, moving_unit_names: list[str]
+) -> set[str]:
+    moving = set(moving_unit_names)
+    needed: set[str] = set()
+    for node in source_tree.body:
+        if not isinstance(node, ast.FunctionDef | ast.ClassDef):
+            continue
+        if node.name not in moving:
+            continue
+        needed |= _marker_fixtures_in_unit(node)
+        needed |= _string_literal_fixtures_in_unit(node)
+    return needed
+
+
+def _source_top_level_fixtures(source_tree: ast.Module) -> set[str]:
+    return {
+        node.name
+        for node in source_tree.body
+        if isinstance(node, ast.FunctionDef) and _is_pytest_fixture(node)
+    }
+
+
+def _target_top_level_names(target_tree: ast.Module) -> set[str]:
+    return {
+        n.name
+        for n in target_tree.body
+        if isinstance(n, ast.FunctionDef | ast.ClassDef)
+    }
+
+
 def _collect_marker_fixtures_to_move(
     source_tree: ast.Module,
     target_tree: ast.Module,
@@ -628,23 +659,11 @@ def _collect_marker_fixtures_to_move(
       * It is NOT already defined at the top level of *target* and NOT
         defined in a conftest visible to *target* (ancestor-chain).
     """
-    moving = set(moving_unit_names)
-    needed: set[str] = set()
-    for node in source_tree.body:
-        if isinstance(node, ast.FunctionDef | ast.ClassDef) and node.name in moving:
-            needed |= _marker_fixtures_in_unit(node)
-            needed |= _string_literal_fixtures_in_unit(node)
+    needed = _needed_fixtures_for_moving_units(source_tree, moving_unit_names)
     if not needed:
         return set()
-    source_fixtures: dict[str, ast.FunctionDef] = {}
-    for node in source_tree.body:
-        if isinstance(node, ast.FunctionDef) and _is_pytest_fixture(node):
-            source_fixtures[node.name] = node
-    target_top_names = {
-        n.name
-        for n in target_tree.body
-        if isinstance(n, ast.FunctionDef | ast.ClassDef)
-    }
+    source_fixtures = _source_top_level_fixtures(source_tree)
+    target_top_names = _target_top_level_names(target_tree)
     conftest_fixtures = _collect_conftest_fixtures(target, project_path)
     return {
         name
