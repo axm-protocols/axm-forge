@@ -422,6 +422,23 @@ def _source_segment_with_decorators(text: str, node: ast.AST) -> str | None:
     return prefix + base
 
 
+def _helper_entry(node: ast.stmt) -> tuple[str, str] | None:
+    """Return ``(name, body_hash)`` if *node* is a top-level helper."""
+    if isinstance(node, ast.FunctionDef):
+        if node.name.startswith("test_"):
+            return None
+        return node.name, _helper_body_hash(node)
+    if isinstance(node, ast.ClassDef):
+        if node.name.startswith("Test"):
+            return None
+        return node.name, _helper_body_hash(node)
+    if isinstance(node, ast.Assign) and len(node.targets) == 1:
+        tgt = node.targets[0]
+        if isinstance(tgt, ast.Name) and tgt.id.isupper():
+            return tgt.id, _const_value_hash(node)
+    return None
+
+
 def _top_level_helpers(
     tree: ast.Module,
 ) -> dict[str, tuple[str, ast.stmt]]:
@@ -434,18 +451,10 @@ def _top_level_helpers(
     """
     out: dict[str, tuple[str, ast.stmt]] = {}
     for node in tree.body:
-        if isinstance(node, ast.FunctionDef):
-            if node.name.startswith("test_"):
-                continue
-            out[node.name] = (_helper_body_hash(node), node)
-        elif isinstance(node, ast.ClassDef):
-            if node.name.startswith("Test"):
-                continue
-            out[node.name] = (_helper_body_hash(node), node)
-        elif isinstance(node, ast.Assign) and len(node.targets) == 1:
-            tgt = node.targets[0]
-            if isinstance(tgt, ast.Name) and tgt.id.isupper():
-                out[tgt.id] = (_const_value_hash(node), node)
+        entry = _helper_entry(node)
+        if entry is not None:
+            name, body_hash = entry
+            out[name] = (body_hash, node)
     return out
 
 
