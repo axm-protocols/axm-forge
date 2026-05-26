@@ -3,8 +3,10 @@ name: Release
 on:
   push:
     tags:
+      - "anvil/v*"
       - "ast/v*"
       - "audit/v*"
+      - "edit/v*"
       - "init/v*"
       - "git/v*"
       - "smelt/v*"
@@ -26,12 +28,18 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           PREFIX="${TAG%%/*}"
-          if [[ "$TAG" == ast/* ]]; then
+          if [[ "$TAG" == anvil/* ]]; then
+            echo "package=axm-anvil" >> "$GITHUB_OUTPUT"
+            echo "package-dir=packages/axm-anvil" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == ast/* ]]; then
             echo "package=axm-ast" >> "$GITHUB_OUTPUT"
             echo "package-dir=packages/axm-ast" >> "$GITHUB_OUTPUT"
           elif [[ "$TAG" == audit/* ]]; then
             echo "package=axm-audit" >> "$GITHUB_OUTPUT"
             echo "package-dir=packages/axm-audit" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == edit/* ]]; then
+            echo "package=axm-edit" >> "$GITHUB_OUTPUT"
+            echo "package-dir=packages/axm-edit" >> "$GITHUB_OUTPUT"
           elif [[ "$TAG" == init/* ]]; then
             echo "package=axm-init" >> "$GITHUB_OUTPUT"
             echo "package-dir=packages/axm-init" >> "$GITHUB_OUTPUT"

@@ -30,8 +30,10 @@ AXM Forge provides the **developer toolchain** for the AXM ecosystem. Every tool
 
 | Package | Description | Version | Quality |
 |---|---|---|---|
+| [axm-anvil](packages/axm-anvil/) | Deterministic CST-based refactoring toolkit — move, rename, split, merge symbols atomically | [![PyPI](https://img.shields.io/pypi/v/axm-anvil)](https://pypi.org/project/axm-anvil/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-anvil/axm-audit.json)](https://forge.axm-protocols.io/audit/) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-anvil/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | [axm-ast](packages/axm-ast/) | AST introspection CLI for AI agents, powered by tree-sitter | [![PyPI](https://img.shields.io/pypi/v/axm-ast)](https://pypi.org/project/axm-ast/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ast/axm-audit.json)](https://forge.axm-protocols.io/audit/) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ast/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | [axm-audit](packages/axm-audit/) | Code auditing and quality rules for Python projects | [![PyPI](https://img.shields.io/pypi/v/axm-audit)](https://pypi.org/project/axm-audit/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-audit/axm-audit.json)](https://forge.axm-protocols.io/audit/) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-audit/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
+| [axm-edit](packages/axm-edit/) | Atomic batch file editing for AI agents | [![PyPI](https://img.shields.io/pypi/v/axm-edit)](https://pypi.org/project/axm-edit/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/axm-audit.json)](https://forge.axm-protocols.io/audit/) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | [axm-init](packages/axm-init/) | Python project scaffolding CLI with Copier templates | [![PyPI](https://img.shields.io/pypi/v/axm-init)](https://pypi.org/project/axm-init/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-init/axm-audit.json)](https://forge.axm-protocols.io/audit/) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-init/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | [axm-git](packages/axm-git/) | Git workflow automation for AXM agents | [![PyPI](https://img.shields.io/pypi/v/axm-git)](https://pypi.org/project/axm-git/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-git/axm-audit.json)](https://forge.axm-protocols.io/audit/) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-git/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | [axm-smelt](packages/axm-smelt/) | Deterministic token compaction for LLM inputs | [![PyPI](https://img.shields.io/pypi/v/axm-smelt)](https://pypi.org/project/axm-smelt/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-smelt/axm-audit.json)](https://forge.axm-protocols.io/audit/) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-smelt/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
@@ -63,17 +65,22 @@ graph TD
     classDef init fill:#26C6DA,stroke:#00ACC1
     classDef git fill:#78909C,stroke:#546E7A
     classDef smelt fill:#FFA726,stroke:#FB8C00
+    classDef anvil fill:#EF5350,stroke:#E53935
+    classDef edit fill:#AB47BC,stroke:#8E24AA
 
     AST["axm-ast<br/>AST introspection"]:::ast
     AUDIT["axm-audit<br/>Code auditing"]:::audit --> AST
+    AUDIT --> ANVIL
     INIT["axm-init<br/>Scaffolding"]:::init
     GIT["axm-git<br/>Git automation"]:::git
     SMELT["axm-smelt<br/>Token compaction"]:::smelt
+    ANVIL["axm-anvil<br/>CST refactoring"]:::anvil --> EDIT
+    EDIT["axm-edit<br/>Batch file editing"]:::edit
 ```
 
 ## Development
 
-Each package is independently versioned with prefixed tags (`ast/v*`, `audit/v*`, `init/v*`, `git/v*`, `smelt/v*`).
+Each package is independently versioned with prefixed tags (`anvil/v*`, `ast/v*`, `audit/v*`, `edit/v*`, `init/v*`, `git/v*`, `smelt/v*`).
 
 | Command | Description |
 |---|---|

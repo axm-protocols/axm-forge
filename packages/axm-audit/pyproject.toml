@@ -15,6 +15,7 @@ classifiers = [
 ]
 dependencies = [
     "axm",
+    "axm-anvil",
     "axm-ast",
     "complexipy>=5.4.0",
     "cyclopts>=3.0",

@@ -21,10 +21,14 @@ jobs:
         run: uv run ruff check .
       - name: Ruff format
         run: uv run ruff format --check .
+      - name: MyPy (axm-anvil)
+        run: uv run --package axm-anvil mypy --config-file packages/axm-anvil/pyproject.toml packages/axm-anvil/src/ packages/axm-anvil/tests/
       - name: MyPy (axm-ast)
         run: uv run --package axm-ast mypy --config-file packages/axm-ast/pyproject.toml packages/axm-ast/src/ packages/axm-ast/tests/
       - name: MyPy (axm-audit)
         run: uv run --package axm-audit mypy --config-file packages/axm-audit/pyproject.toml packages/axm-audit/src/ packages/axm-audit/tests/
+      - name: MyPy (axm-edit)
+        run: uv run --package axm-edit mypy --config-file packages/axm-edit/pyproject.toml packages/axm-edit/src/ packages/axm-edit/tests/
       - name: MyPy (axm-init)
         run: uv run --package axm-init mypy --config-file packages/axm-init/pyproject.toml packages/axm-init/src/ packages/axm-init/tests/
       - name: MyPy (axm-git)
@@ -51,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [axm-ast, axm-audit, axm-init, axm-git, axm-smelt]
+        package: [axm-anvil, axm-ast, axm-audit, axm-edit, axm-init, axm-git, axm-smelt]
         python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v6
