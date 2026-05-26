@@ -1403,6 +1403,23 @@ def _scan_tests_for_import(
     return _project_import_index(project_path).get(name)
 
 
+def _node_defines_name(node: ast.stmt, name: str) -> bool:
+    if isinstance(node, ast.FunctionDef | ast.ClassDef):
+        return node.name == name
+    if isinstance(node, ast.Assign) and len(node.targets) == 1:
+        target = node.targets[0]
+        return isinstance(target, ast.Name) and target.id == name
+    return False
+
+
+def _helpers_defines_name(helpers: Path, name: str) -> bool:
+    try:
+        tree = ast.parse(helpers.read_text())
+    except (SyntaxError, OSError):
+        return False
+    return any(_node_defines_name(node, name) for node in tree.body)
+
+
 def _synth_import_from_helpers(
     name: str, project_path: Path, target: Path
 ) -> tuple[ast.stmt, ast.stmt | None] | None:
@@ -1419,28 +1436,13 @@ def _synth_import_from_helpers(
         return None
     for tier in ("integration", "e2e", "unit"):
         helpers = tests_root / tier / "_helpers.py"
-        if not helpers.is_file():
+        if not helpers.is_file() or not _helpers_defines_name(helpers, name):
             continue
-        try:
-            tree = ast.parse(helpers.read_text())
-        except (SyntaxError, OSError):
-            continue
-        for node in tree.body:
-            defined = (
-                isinstance(node, ast.FunctionDef | ast.ClassDef) and node.name == name
-            ) or (
-                isinstance(node, ast.Assign)
-                and len(node.targets) == 1
-                and isinstance(node.targets[0], ast.Name)
-                and node.targets[0].id == name
-            )
-            if not defined:
-                continue
-            module = _module_path_for_test_file(helpers, project_path)
-            if module is None:
-                return None
-            stmt = ast.parse(f"from {module} import {name}").body[0]
-            return (stmt, None)
+        module = _module_path_for_test_file(helpers, project_path)
+        if module is None:
+            return None
+        stmt = ast.parse(f"from {module} import {name}").body[0]
+        return (stmt, None)
     return None
 
 
