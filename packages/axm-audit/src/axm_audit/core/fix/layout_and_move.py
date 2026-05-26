@@ -238,6 +238,26 @@ def _flatten_single_tier(project_path: Path, tier_dir: Path) -> list[str]:
     return msgs
 
 
+def _subdir_has_test_file(sub: Path) -> bool:
+    return any(
+        f.is_file() and f.name.startswith("test_") and f.suffix == ".py"
+        for f in sub.iterdir()
+    )
+
+
+def _remove_subdir_files(sub: Path) -> None:
+    for f in sub.iterdir():
+        if not f.is_file():
+            continue
+        rc = subprocess.run(
+            ["git", "rm", "-q", str(f)],
+            capture_output=True,
+            text=True,
+        )
+        if rc.returncode != 0:
+            f.unlink()
+
+
 def _prune_empty_test_subdirs(tier_dir: Path) -> None:
     """Remove subdirectories under *tier_dir* that contain no ``test_*.py``.
 
@@ -252,23 +272,9 @@ def _prune_empty_test_subdirs(tier_dir: Path) -> None:
         reverse=True,
     )
     for sub in subdirs:
-        if sub == tier_dir:
+        if sub == tier_dir or _subdir_has_test_file(sub):
             continue
-        has_test = any(
-            f.is_file() and f.name.startswith("test_") and f.suffix == ".py"
-            for f in sub.iterdir()
-        )
-        if has_test:
-            continue
-        for f in sub.iterdir():
-            if f.is_file():
-                rc = subprocess.run(
-                    ["git", "rm", "-q", str(f)],
-                    capture_output=True,
-                    text=True,
-                )
-                if rc.returncode != 0:
-                    f.unlink()
+        _remove_subdir_files(sub)
         try:
             sub.rmdir()
         except OSError:
