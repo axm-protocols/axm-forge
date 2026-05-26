@@ -1,4 +1,4 @@
-.PHONY: install check test test-all test-ast test-audit test-init test-git test-smelt lint format security axm-audit axm-init quality ci docs-serve docs-build clean help
+.PHONY: install check test test-all test-anvil test-ast test-audit test-edit test-init test-git test-smelt lint format security axm-audit axm-init quality ci docs-serve docs-build clean help
 
 # 🚀 Workspace Management
 
@@ -9,10 +9,14 @@ install:  ## Install all dependencies
 
 test-all:  ## Run ALL workspace tests (per package)
 	@echo "🧪 Running ALL workspace tests (per package)..."
-	@for pkg in axm-ast axm-audit axm-init axm-git axm-smelt; do \
+	@for pkg in axm-anvil axm-ast axm-audit axm-edit axm-init axm-git axm-smelt; do \
 		echo "\n📦 Testing $$pkg..."; \
 		uv run --package $$pkg --directory packages/$$pkg pytest || exit 1; \
 	done
+
+test-anvil:  ## Run axm-anvil tests
+	@echo "🧪 Running axm-anvil tests..."
+	uv run --package axm-anvil --directory packages/axm-anvil pytest
 
 test-ast:  ## Run axm-ast tests
 	@echo "🧪 Running axm-ast tests..."
@@ -21,6 +25,10 @@ test-ast:  ## Run axm-ast tests
 test-audit:  ## Run axm-audit tests
 	@echo "🧪 Running axm-audit tests..."
 	uv run --package axm-audit --directory packages/axm-audit pytest
+
+test-edit:  ## Run axm-edit tests
+	@echo "🧪 Running axm-edit tests..."
+	uv run --package axm-edit --directory packages/axm-edit pytest
 
 test-init:  ## Run axm-init tests
 	@echo "🧪 Running axm-init tests..."
@@ -40,8 +48,10 @@ lint:  ## Linter + type checker
 	uv run ruff check .
 	uv run ruff format --check .
 	@echo "🔍 Running mypy per package..."
+	uv run --package axm-anvil mypy --config-file packages/axm-anvil/pyproject.toml packages/axm-anvil/src packages/axm-anvil/tests
 	uv run --package axm-ast mypy --config-file packages/axm-ast/pyproject.toml packages/axm-ast/src packages/axm-ast/tests
 	uv run --package axm-audit mypy --config-file packages/axm-audit/pyproject.toml packages/axm-audit/src packages/axm-audit/tests
+	uv run --package axm-edit mypy --config-file packages/axm-edit/pyproject.toml packages/axm-edit/src packages/axm-edit/tests
 	uv run --package axm-init mypy --config-file packages/axm-init/pyproject.toml packages/axm-init/src packages/axm-init/tests
 	uv run --package axm-git mypy --config-file packages/axm-git/pyproject.toml packages/axm-git/src packages/axm-git/tests
 	uv run --package axm-smelt mypy --config-file packages/axm-smelt/pyproject.toml packages/axm-smelt/src packages/axm-smelt/tests
@@ -60,13 +70,13 @@ test: test-all  ## Run all workspace tests (alias)
 # 🏅 AXM Quality Gates (mirrors CI axm-quality.yml)
 
 axm-audit:  ## Run axm-audit on each package
-	@for pkg in axm-ast axm-audit axm-init axm-git axm-smelt; do \
+	@for pkg in axm-anvil axm-ast axm-audit axm-edit axm-init axm-git axm-smelt; do \
 		echo "\n🔍 Auditing $$pkg..."; \
 		uv run --package axm-audit axm-audit audit packages/$$pkg --json || exit 1; \
 	done
 
 axm-init:  ## Run axm-init check on each package
-	@for pkg in axm-ast axm-audit axm-init axm-git axm-smelt; do \
+	@for pkg in axm-anvil axm-ast axm-audit axm-edit axm-init axm-git axm-smelt; do \
 		echo "\n🏗️ Checking $$pkg..."; \
 		uv run --package axm-init axm-init check packages/$$pkg --json || exit 1; \
 	done

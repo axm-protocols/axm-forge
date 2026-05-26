@@ -9,8 +9,10 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "axm-anvil",
     "axm-ast",
     "axm-audit",
+    "axm-edit",
     "axm-forge-workspace",
     "axm-git",
     "axm-init",
@@ -71,6 +73,58 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a0/5a/17ee55e2f3f07e610ba4ca584709477762460873655146aafdd39666aa5b/axm-0.5.0.tar.gz", hash = "sha256:bc5ede3c94bea7ea157e6237536f9fc973666643826498fcfd7af91983a31e58", size = 22358, upload-time = "2026-04-11T18:49:20.349Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2b/eb/8e6326c5996b6221d0af37b0be58a784d396aa91dfa61d2db53130d3a405/axm-0.5.0-py3-none-any.whl", hash = "sha256:3568e5bdaf8d4f666536cab7fcf6c6df52b348f1bc7d63ea1e4ae3b7bb99cc90", size = 13085, upload-time = "2026-04-11T18:49:19.016Z" },
+]
+
+[[package]]
+name = "axm-anvil"
+source = { editable = "packages/axm-anvil" }
+dependencies = [
+    { name = "axm" },
+    { name = "axm-edit" },
+    { name = "cyclopts" },
+    { name = "libcst" },
+    { name = "pydantic" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "ruff" },
+]
+docs = [
+    { name = "mkdocs-gen-files" },
+    { name = "mkdocs-literate-nav" },
+    { name = "mkdocs-material" },
+    { name = "mkdocstrings", extra = ["python"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "axm" },
+    { name = "axm-edit", editable = "packages/axm-edit" },
+    { name = "cyclopts", specifier = ">=4.5" },
+    { name = "libcst", specifier = ">=1.5.0" },
+    { name = "pydantic", specifier = ">=2.0.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.20.0" },
+    { name = "pre-commit", specifier = ">=4.0" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "pytest-mock", specifier = ">=3.15.1" },
+    { name = "ruff", specifier = "==0.15.13" },
+]
+docs = [
+    { name = "mkdocs-gen-files", specifier = ">=0.6.0" },
+    { name = "mkdocs-literate-nav", specifier = ">=0.6.3" },
+    { name = "mkdocs-material", specifier = ">=9.0" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },
 ]
 
 [[package]]
@@ -140,6 +194,7 @@ name = "axm-audit"
 source = { editable = "packages/axm-audit" }
 dependencies = [
     { name = "axm" },
+    { name = "axm-anvil" },
     { name = "axm-ast" },
     { name = "complexipy" },
     { name = "cyclopts" },
@@ -171,6 +226,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "axm" },
+    { name = "axm-anvil", editable = "packages/axm-anvil" },
     { name = "axm-ast", editable = "packages/axm-ast" },
     { name = "complexipy", specifier = ">=5.4.0" },
     { name = "cyclopts", specifier = ">=3.0" },
@@ -197,6 +253,20 @@ docs = [
     { name = "mkdocs-literate-nav", specifier = ">=0.6.3" },
     { name = "mkdocs-material", specifier = ">=9.0" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },
+]
+
+[[package]]
+name = "axm-edit"
+source = { editable = "packages/axm-edit" }
+dependencies = [
+    { name = "axm" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "axm" },
+    { name = "pydantic", specifier = ">=2.0.0" },
 ]
 
 [[package]]
