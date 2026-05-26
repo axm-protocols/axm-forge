@@ -194,46 +194,57 @@ def flatten_tier_layout(project_path: Path) -> list[str]:
     return msgs
 
 
+def _resolve_flatten_target(src: Path, tier_dir: Path) -> Path:
+    target = tier_dir / src.name
+    if not target.exists() or target == src:
+        return target
+    prefix = "_".join(src.relative_to(tier_dir).parts[:-1])
+    stem = src.stem.removeprefix("test_")
+    target = tier_dir / f"test_{prefix}_{stem}.py"
+    counter = 2
+    while target.exists():
+        target = tier_dir / f"test_{prefix}_{stem}_{counter}.py"
+        counter += 1
+    return target
+
+
+def _flatten_one_file(project_path: Path, tier_dir: Path, src: Path) -> list[str]:
+    msgs: list[str] = []
+    target = _resolve_flatten_target(src, tier_dir)
+    old_mod = _module_path_for_test_file(src, project_path)
+    depth_delta = _file_depth_from_project(
+        target, project_path
+    ) - _file_depth_from_project(src, project_path)
+    _git_mv(src, target)
+    if depth_delta != 0:
+        msgs.extend(_patch_file_dunder_depth(target, depth_delta))
+    new_mod = _module_path_for_test_file(target, project_path)
+    if old_mod and new_mod and old_mod != new_mod:
+        msgs.extend(
+            _rewrite_cross_test_imports(
+                project_path,
+                old_mod,
+                [new_mod],
+                skip_paths={src, target},
+            )
+        )
+    msgs.append(
+        f"flattened {src.relative_to(project_path)} -> "
+        f"{target.relative_to(project_path)}"
+    )
+    return msgs
+
+
 def _flatten_single_tier(project_path: Path, tier_dir: Path) -> list[str]:
     """Move every nested ``test_*.py`` under *tier_dir* up to *tier_dir* root."""
-    msgs: list[str] = []
     nested = sorted(
         p for p in tier_dir.rglob("test_*.py") if p.is_file() and p.parent != tier_dir
     )
     if not nested:
-        return msgs
+        return []
+    msgs: list[str] = []
     for src in nested:
-        rel_parents = src.relative_to(tier_dir).parts[:-1]
-        target = tier_dir / src.name
-        old_mod = _module_path_for_test_file(src, project_path)
-        if target.exists() and target != src:
-            prefix = "_".join(rel_parents)
-            stem = src.stem.removeprefix("test_")
-            target = tier_dir / f"test_{prefix}_{stem}.py"
-            counter = 2
-            while target.exists():
-                target = tier_dir / f"test_{prefix}_{stem}_{counter}.py"
-                counter += 1
-        src_depth = _file_depth_from_project(src, project_path)
-        tgt_depth = _file_depth_from_project(target, project_path)
-        _git_mv(src, target)
-        depth_delta = tgt_depth - src_depth
-        if depth_delta != 0:
-            msgs.extend(_patch_file_dunder_depth(target, depth_delta))
-        new_mod = _module_path_for_test_file(target, project_path)
-        if old_mod and new_mod and old_mod != new_mod:
-            msgs.extend(
-                _rewrite_cross_test_imports(
-                    project_path,
-                    old_mod,
-                    [new_mod],
-                    skip_paths={src, target},
-                )
-            )
-        msgs.append(
-            f"flattened {src.relative_to(project_path)} -> "
-            f"{target.relative_to(project_path)}"
-        )
+        msgs.extend(_flatten_one_file(project_path, tier_dir, src))
     _prune_empty_test_subdirs(tier_dir)
     return msgs
 
