@@ -92,6 +92,24 @@ def _cluster_hash(cluster: _Cluster) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:_HASH_LEN]
 
 
+def _validate_acknowledged_entry(entry: object) -> str | None:
+    if not isinstance(entry, dict):
+        return "acknowledged entry must be a table (schema error)"
+    hash_val = entry.get("hash")
+    if not isinstance(hash_val, str) or not _HASH_HEX_PATTERN.match(hash_val):
+        return "acknowledged.hash must be a 12-char hex string (schema error)"
+    reason_val = entry.get("reason")
+    if not isinstance(reason_val, str) or not reason_val.strip():
+        return "acknowledged.reason must be a non-empty string (schema error)"
+    return None
+
+
+def _extract_acknowledged_section(data: object) -> object:
+    if not isinstance(data, dict):
+        return {}
+    return data.get("tool", {}).get("axm-audit", {}).get("duplicate_tests", {})
+
+
 def _load_duplicate_tests_config(project_path: Path) -> _DuplicateTestsConfig:
     """Read ``[tool.axm-audit.duplicate_tests].acknowledged`` from pyproject.
 
@@ -114,11 +132,7 @@ def _load_duplicate_tests_config(project_path: Path) -> _DuplicateTestsConfig:
             acknowledged=[],
             error=f"malformed pyproject.toml: {exc}",
         )
-    section: object = (
-        data.get("tool", {}).get("axm-audit", {}).get("duplicate_tests", {})
-        if isinstance(data, dict)
-        else {}
-    )
+    section = _extract_acknowledged_section(data)
     if not isinstance(section, dict) or "acknowledged" not in section:
         return _DuplicateTestsConfig(acknowledged=[])
     raw = section["acknowledged"]
@@ -132,19 +146,7 @@ def _load_duplicate_tests_config(project_path: Path) -> _DuplicateTestsConfig:
         )
     parsed: list[dict[str, str]] = []
     for entry in raw:
-        if not isinstance(entry, dict):
-            error = "acknowledged entry must be a table (schema error)"
-        elif not isinstance(entry.get("hash"), str) or not _HASH_HEX_PATTERN.match(
-            entry.get("hash", "")
-        ):
-            error = "acknowledged.hash must be a 12-char hex string (schema error)"
-        elif (
-            not isinstance(entry.get("reason"), str)
-            or not str(entry.get("reason", "")).strip()
-        ):
-            error = "acknowledged.reason must be a non-empty string (schema error)"
-        else:
-            error = None
+        error = _validate_acknowledged_entry(entry)
         if error is not None:
             return _DuplicateTestsConfig(acknowledged=[], error=error)
         parsed.append({"hash": entry["hash"], "reason": entry["reason"]})
