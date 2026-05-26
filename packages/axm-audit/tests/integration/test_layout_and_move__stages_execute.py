@@ -275,15 +275,26 @@ def test_execute_rename_updates_cross_imports(make_test_pkg):
 
 
 def test_execute_split_produces_target_files(make_test_pkg):
-    """AC8: split produces N target files from one source."""
+    """AC8: split produces N target files from one source.
+
+    Routing is derived from each unit's first-party symbol usage via
+    ``_per_unit_canonical`` — not from ``split_map`` alone. The two
+    units must therefore exercise distinct first-party symbols so the
+    executor canonicalises them to sibling files.
+    """
     if not _anvil_available():
         pytest.skip("axm-anvil not installed")
     pkg = make_test_pkg(
         {
+            "src/pkg/a.py": "def a():\n    return 'a'\n",
+            "src/pkg/b.py": "def b():\n    return 'b'\n",
             "tests/__init__.py": "",
             "tests/integration/__init__.py": "",
             "tests/integration/test_x.py": (
-                "def test_one():\n    assert True\n\ndef test_two():\n    assert True\n"
+                "from pkg.a import a\n"
+                "from pkg.b import b\n\n"
+                "def test_one():\n    assert a() == 'a'\n\n"
+                "def test_two():\n    assert b() == 'b'\n"
             ),
         }
     )
