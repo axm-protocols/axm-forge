@@ -1,0 +1,20 @@
+site_name: "axm-anvil"
+docs_dir: docs
+
+plugins:
+  - search
+  - gen-files
+  - literate-nav
+  - mkdocstrings
+
+nav:
+  - Home: index.md
+  - Tutorials:
+    - Getting Started: tutorials/getting-started.md
+  - How-To Guides:
+    - howto/index.md
+  - Reference:
+    - CLI: reference/cli.md
+    - Python API: reference/api/
+  - Explanation:
+    - Architecture: explanation/architecture.md
