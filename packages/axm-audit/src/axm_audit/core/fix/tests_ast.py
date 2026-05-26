@@ -156,6 +156,20 @@ def _class_is_pathological(cls: ast.ClassDef) -> str | None:
     return _self_attr_reason(cls)
 
 
+def _class_has_divergent_methods(cls: ast.ClassDef) -> bool:
+    test_methods = [
+        c
+        for c in cls.body
+        if isinstance(c, ast.FunctionDef) and c.name.startswith("test_")
+    ]
+    if len(test_methods) <= 1:
+        return False
+    second_tokens = {
+        m.name.split("_")[1] if len(m.name.split("_")) > 1 else "" for m in test_methods
+    }
+    return len(second_tokens) >= 2
+
+
 def _file_has_pathological_class(source: Path) -> bool:
     """True iff *source* contains a Test* class that ``_class_is_pathological``
     flags AND that has divergent method canonicals.
@@ -172,31 +186,10 @@ def _file_has_pathological_class(source: Path) -> bool:
         tree = ast.parse(source.read_text())
     except (OSError, SyntaxError):
         return False
-    for cls in _top_level_test_classes(tree):
-        if _class_is_pathological(cls) is None:
-            continue
-        # Count distinct test method names that would land in different
-        # canonical buckets — cheap proxy without full canonicalisation:
-        # if all method names share a common prefix the class is likely
-        # homogeneous; otherwise divergent.
-        test_methods = [
-            c
-            for c in cls.body
-            if isinstance(c, ast.FunctionDef) and c.name.startswith("test_")
-        ]
-        if len(test_methods) <= 1:
-            continue
-        # Cheap heuristic: distinct second-token across methods is a
-        # strong proxy for divergent canonical filenames (e.g.
-        # test_patch_ci_* vs test_patch_publish_* land in different
-        # buckets). Avoids invoking the full canonical machinery here.
-        second_tokens = {
-            m.name.split("_")[1] if len(m.name.split("_")) > 1 else ""
-            for m in test_methods
-        }
-        if len(second_tokens) >= 2:
-            return True
-    return False
+    return any(
+        _class_is_pathological(cls) is not None and _class_has_divergent_methods(cls)
+        for cls in _top_level_test_classes(tree)
+    )
 
 
 # ---------------------------------------------------------------------------
