@@ -17,7 +17,7 @@ import ast
 import tomllib
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 from axm_audit.core.auditor import audit_project
 from axm_audit.core.rules.test_quality._shared import (
@@ -133,6 +133,41 @@ def _func_canonical(
     )
 
 
+class _CanonicalCtx(NamedTuple):
+    tree: ast.Module
+    tier: Literal["integration", "e2e"]
+    pkg_prefixes: set[str]
+    scripts: set[str]
+    single_binary: str | None
+
+
+def _canonical_unit_name(func: ast.FunctionDef, ctx: _CanonicalCtx) -> str:
+    """Safe canonical filename for a single test function."""
+    return _safe_filename(
+        _func_canonical(
+            func,
+            ctx.tree,
+            tier=ctx.tier,
+            pkg_prefixes=ctx.pkg_prefixes,
+            scripts=ctx.scripts,
+            single_binary=ctx.single_binary,
+        )
+    )
+
+
+def _class_canonical_unit(cls: ast.ClassDef, ctx: _CanonicalCtx) -> str | None:
+    """Canonical filename for a Test* class, or None if not a single unit."""
+    method_canonicals = {
+        _canonical_unit_name(c, ctx)
+        for c in cls.body
+        if isinstance(c, ast.FunctionDef) and c.name.startswith("test_")
+    }
+    if len(method_canonicals) != 1:
+        return None
+    only = next(iter(method_canonicals))
+    return None if only == "test_UNKNOWN.py" else only
+
+
 def _per_unit_canonical(
     source: Path,
     tier: Literal["integration", "e2e"],
@@ -151,46 +186,24 @@ def _per_unit_canonical(
     Returns {canonical_name: [unit_names]}.
     """
     tree = ast.parse(source.read_text())
-    pkg_prefixes = get_pkg_prefixes(project_path)
     scripts = _load_project_scripts(project_path)
-    single_binary = next(iter(scripts)) if len(scripts) == 1 else None
+    ctx = _CanonicalCtx(
+        tree=tree,
+        tier=tier,
+        pkg_prefixes=get_pkg_prefixes(project_path),
+        scripts=scripts,
+        single_binary=next(iter(scripts)) if len(scripts) == 1 else None,
+    )
     routes: dict[str, list[str]] = defaultdict(list)
     for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
-            name = _safe_filename(
-                _func_canonical(
-                    node,
-                    tree,
-                    tier=tier,
-                    pkg_prefixes=pkg_prefixes,
-                    scripts=scripts,
-                    single_binary=single_binary,
-                )
-            )
-            if name == "test_UNKNOWN.py":
-                continue
-            routes[name].append(node.name)
+            name = _canonical_unit_name(node, ctx)
+            if name != "test_UNKNOWN.py":
+                routes[name].append(node.name)
     for cls in _top_level_test_classes(tree):
-        method_canonicals = {
-            _safe_filename(
-                _func_canonical(
-                    c,
-                    tree,
-                    tier=tier,
-                    pkg_prefixes=pkg_prefixes,
-                    scripts=scripts,
-                    single_binary=single_binary,
-                )
-            )
-            for c in cls.body
-            if isinstance(c, ast.FunctionDef) and c.name.startswith("test_")
-        }
-        if len(method_canonicals) == 1:
-            only = next(iter(method_canonicals))
-            if only == "test_UNKNOWN.py":
-                continue
+        only = _class_canonical_unit(cls, ctx)
+        if only is not None:
             routes[only].append(cls.name)
-        # else: divergent — handled by Stage 0 flatten
     return dict(routes)
 
 
