@@ -69,12 +69,30 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
+_NON_TEST_DIR_NAMES: frozenset[str] = frozenset({"fixtures"})
+"""Non-canonical ``tests/`` children that hold non-test data.
+
+By AXM convention ``tests/fixtures/`` holds static test data (corpora,
+snapshots, baselines) consumed by real tests; pytest excludes it from
+collection via ``collect_ignore_glob``, and the layout pipeline must do
+the same so corpus files don't get relocated to ``tests/integration/``.
+"""
+
+
 def _iter_non_canonical_tier_dirs(tests_root: Path) -> list[Path]:
+    """Yield direct children of ``tests_root`` that are non-canonical tiers.
+
+    Skips canonical tiers (``unit/``, ``integration/``, ``e2e/``), hidden
+    or ``_``-prefixed dirs, and ``tests/fixtures/`` (see
+    ``_NON_TEST_DIR_NAMES``).
+    """
     out: list[Path] = []
     for child in sorted(tests_root.iterdir()):
         if not child.is_dir() or child.name in CANONICAL_TIERS:
             continue
         if child.name.startswith(("_", ".")):
+            continue
+        if child.name in _NON_TEST_DIR_NAMES:
             continue
         out.append(child)
     return out

@@ -157,6 +157,12 @@ and moves every non-canonical tier file into `tests/integration/`.
 Subsequent stages then see only canonical paths. `CANONICAL_TIERS` in
 `models.py` documents the allow-list (`unit`, `integration`, `e2e`).
 
+`tests/fixtures/` is surgically excluded via the private
+`_NON_TEST_DIR_NAMES` set in `layout_and_move.py` — by AXM convention
+that directory holds static test data (corpora, snapshots, baselines)
+consumed by real tests, not test files. Other non-canonical tiers
+(`tests/functional/`, `tests/hooks/`, ...) are still relocated.
+
 ## Hardened edge cases (collateral fixes)
 
 Bug classes uncovered during cross-corpus validation. Each entry
