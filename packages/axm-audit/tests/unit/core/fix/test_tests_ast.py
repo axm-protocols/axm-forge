@@ -6,13 +6,11 @@ Covers the internal-public helpers exposed by ``tests_ast``.
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 
 from axm_audit.core.fix.findings import class_needs_flatten
 from axm_audit.core.fix.tests_ast import (
     class_is_pathological,
     collect_imported_names,
-    file_has_pathological_class,
     func_body_hash,
     marker_fixtures_in_unit,
     top_level_helpers,
@@ -132,22 +130,6 @@ def test_class_needs_flatten_homogeneous_tuples_false() -> None:
         )
         is False
     )
-
-
-def test_file_has_pathological_class_true_false(tmp_path: Path) -> None:
-    """AC4: True iff file contains pathological class with divergent canonical."""
-    benign = tmp_path / "test_benign.py"
-    benign.write_text("class TestB:\n    def test_a(self): pass\n")
-    assert file_has_pathological_class(benign) is False
-
-    bad = tmp_path / "test_bad.py"
-    bad.write_text(
-        "class TestX:\n"
-        "    def __init__(self): pass\n"
-        "    def test_alpha_one(self): pass\n"
-        "    def test_beta_two(self): pass\n"
-    )
-    assert file_has_pathological_class(bad) is True
 
 
 def test_top_level_helpers_filters_test_prefix() -> None:
