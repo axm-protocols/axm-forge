@@ -154,3 +154,19 @@ def test_axm_tools_entry_point_resolves_audit_fix() -> None:
     audit_fix_ep = next(ep for ep in eps if ep.name == "audit_fix")
     loaded = audit_fix_ep.load()
     assert loaded is AuditFixTool
+
+
+def test_audit_fix_dry_run_on_self_is_clean(tmp_path: Path) -> None:
+    """AC9: audit_fix dry-run plans zero ops on an empty project.
+
+    Sanity check that the dispatcher (AuditFixTool.execute →
+    core.fix.pipeline.run → format_report) wires up correctly and returns
+    a ``data["ops"] == []`` empty plan when the input tree has no test
+    files to relocate / rename / split.
+    """
+    tool = AuditFixTool()
+    result = tool.execute(path=str(tmp_path), apply=False)
+
+    assert result.success, result.error
+    assert result.data is not None
+    assert result.data["ops"] == []
