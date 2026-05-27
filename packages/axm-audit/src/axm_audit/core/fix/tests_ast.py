@@ -26,7 +26,12 @@ __all__ = [
     "_collect_conftest_fixtures",
     "_collect_defined_names",
     "_collect_marker_fixtures_to_move",
+    "_collect_module_level_deps_to_copy",
     "_collect_referenced_names",
+    "_decorator_free_names",
+    "_seed_module_deps_from_units",
+    "_source_top_level_definitions",
+    "_stmt_assignment_targets",
     "_const_value_hash",
     "_helper_body_hash",
     "_is_pytest_fixture",
@@ -635,6 +640,62 @@ def _target_top_level_names(target_tree: ast.Module) -> set[str]:
     }
 
 
+def _source_top_level_definitions(
+    source_tree: ast.Module,
+) -> dict[str, ast.stmt]:
+    """Map every top-level definition by bound name.
+
+    Covers FunctionDef / AsyncFunctionDef / ClassDef (one name each) and
+    Assign / AnnAssign with a Name target. Imports are intentionally
+    excluded: anvil propagates imports separately, and we never want to
+    "carry" an imported name as a source-defined statement.
+    """
+    defs: dict[str, ast.stmt] = {}
+    for stmt in source_tree.body:
+        if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            defs[stmt.name] = stmt
+        elif isinstance(stmt, ast.Assign):
+            for tgt in stmt.targets:
+                if isinstance(tgt, ast.Name):
+                    defs[tgt.id] = stmt
+        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            defs[stmt.target.id] = stmt
+    return defs
+
+
+def _decorator_free_names(node: ast.FunctionDef | ast.ClassDef) -> set[str]:
+    """Free ``Name(Load)`` ids referenced inside *node*'s decorators."""
+    refs: set[str] = set()
+    for deco in node.decorator_list:
+        for sub in ast.walk(deco):
+            if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
+                refs.add(sub.id)
+    return refs
+
+
+def _seed_module_deps_from_units(
+    source_tree: ast.Module, moving_unit_names: list[str]
+) -> set[str]:
+    """Initial closure seed: names directly referenced by moving units.
+
+    Includes usefixtures markers, ``request.getfixturevalue`` / pytest.param
+    string literals, AND free ``Name(Load)`` ids in decorators (which is
+    how module-level constants like ``_alias = pytest.mark.skipif(...)``
+    get pulled into the move).
+    """
+    moving = set(moving_unit_names)
+    seed: set[str] = set()
+    for node in source_tree.body:
+        if not isinstance(node, ast.FunctionDef | ast.ClassDef):
+            continue
+        if node.name not in moving:
+            continue
+        seed |= marker_fixtures_in_unit(node)
+        seed |= _string_literal_fixtures_in_unit(node)
+        seed |= _decorator_free_names(node)
+    return seed
+
+
 def _collect_marker_fixtures_to_move(
     source_tree: ast.Module,
     target_tree: ast.Module,
@@ -646,11 +707,20 @@ def _collect_marker_fixtures_to_move(
 
     A fixture qualifies for follow-up move when:
       * It is referenced via ``@pytest.mark.usefixtures("X")`` on one
-        of the moving units.
+        of the moving units (or ``request.getfixturevalue`` /
+        ``pytest.param`` string literal).
       * It is defined as a ``@pytest.fixture``-decorated function at
         the top level of *source*.
       * It is NOT already defined at the top level of *target* and NOT
         defined in a conftest visible to *target* (ancestor-chain).
+
+    Decorator-referenced module-level constants (e.g. ``@_alias`` where
+    ``_alias = pytest.mark.skipif(...)`` is an ``Assign`` at top of
+    source) follow a separate path — see
+    ``_collect_module_level_deps_to_copy``. Those are copied as text
+    into the target after anvil runs, instead of being moved via
+    ``move_symbols`` (which would strip them from source and break the
+    anchor when the split rename happens).
     """
     needed = _needed_fixtures_for_moving_units(source_tree, moving_unit_names)
     if not needed:
@@ -665,3 +735,78 @@ def _collect_marker_fixtures_to_move(
         and name not in target_top_names
         and name not in conftest_fixtures
     }
+
+
+def _stmt_assignment_targets(stmt: ast.stmt) -> list[str]:
+    """Names bound by *stmt* if it is an Assign / AnnAssign top-level stmt."""
+    if isinstance(stmt, ast.Assign):
+        return [t.id for t in stmt.targets if isinstance(t, ast.Name)]
+    if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+        return [stmt.target.id]
+    return []
+
+
+def _collect_module_level_deps_to_copy(
+    source_tree: ast.Module,
+    target_tree: ast.Module,
+    moving_unit_names: list[str],
+    project_path: Path,
+    target: Path,
+) -> list[str]:
+    """Module-level ``Assign`` / ``AnnAssign`` deps the moving units need.
+
+    Transitive closure (to fixed point) of names referenced inside the
+    decorators of moving units, restricted to top-level ``Assign`` /
+    ``AnnAssign`` definitions in *source*. The closure follows free
+    ``Name(Load)`` references in the value of each carried statement,
+    so ``_no_corpus = pytest.mark.skipif(not CASES, ...)`` drags
+    ``_no_corpus``, then ``CASES``, recursively.
+
+    Returns the carried names in **source order** — these constants
+    will be inserted as text into the target file, and later statements
+    may reference earlier ones (``B = A + 1`` after ``A = 1``).
+
+    Excludes names already defined at the top level of *target* or in
+    a visible conftest, and the moving unit names themselves (those are
+    handled by anvil). Self-reference cycles are broken by a ``seen``
+    guard during fixed-point iteration.
+    """
+    seed = _seed_module_deps_from_units(source_tree, moving_unit_names)
+    if not seed:
+        return []
+    source_defs = _source_top_level_definitions(source_tree)
+    target_top_names = _target_top_level_names(target_tree)
+    conftest_fixtures = _collect_conftest_fixtures(target, project_path)
+    excluded = target_top_names | conftest_fixtures | set(moving_unit_names)
+
+    carried: set[str] = set()
+    seen: set[str] = set()
+    queue: list[str] = list(seed)
+    while queue:
+        name = queue.pop()
+        if name in seen:
+            continue
+        seen.add(name)
+        if name in excluded:
+            continue
+        node = source_defs.get(name)
+        if not isinstance(node, ast.Assign | ast.AnnAssign):
+            # Function/class defs (incl. fixtures) are NOT carried by
+            # this path — anvil handles them via final_units or via
+            # the usefixtures path.
+            continue
+        carried.add(name)
+        for child in _iter_stmt_ref_nodes(node):
+            for sub in ast.walk(child):
+                if (
+                    isinstance(sub, ast.Name)
+                    and isinstance(sub.ctx, ast.Load)
+                    and sub.id not in seen
+                ):
+                    queue.append(sub.id)
+    return [
+        name
+        for stmt in source_tree.body
+        for name in _stmt_assignment_targets(stmt)
+        if name in carried
+    ]
