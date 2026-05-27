@@ -14,7 +14,6 @@ victims the proto can't auto-fix.
 from __future__ import annotations
 
 import ast
-import tomllib
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
@@ -25,6 +24,7 @@ from axm_audit.core.rules.test_quality._shared import (
     cli_invocation_tuple,
     first_party_symbol_counts,
     get_pkg_prefixes,
+    load_project_scripts,
 )
 
 from .models import NON_DETERMINISTIC_RULES, TOP_K
@@ -35,7 +35,6 @@ __all__ = [
     "_check_by_rule",
     "_findings",
     "_func_canonical",
-    "_load_project_scripts",
     "_per_unit_canonical",
     "class_needs_flatten",
     "collect_unfixable",
@@ -91,21 +90,6 @@ def _check_by_rule(project_path: Path, rule_id: str) -> list[dict[str, Any]]:
             _absolutize_paths(d, project_path)
         return out
     return []
-
-
-def _load_project_scripts(pkg_root: Path) -> set[str]:
-    """Return the set of entry-point names declared in ``[project.scripts]``.
-
-    Empty set when ``pyproject.toml`` is missing or has no ``scripts``
-    table. Used by canonical-filename derivation to recognise CLI
-    invocations in e2e tests.
-    """
-    pyproject = pkg_root / "pyproject.toml"
-    if not pyproject.exists():
-        return set()
-    data = tomllib.loads(pyproject.read_text())
-    scripts = data.get("project", {}).get("scripts", {})
-    return set(scripts.keys()) if isinstance(scripts, dict) else set()
 
 
 def _func_canonical(
@@ -186,7 +170,7 @@ def _per_unit_canonical(
     Returns {canonical_name: [unit_names]}.
     """
     tree = ast.parse(source.read_text())
-    scripts = _load_project_scripts(project_path)
+    scripts = load_project_scripts(project_path)
     ctx = _CanonicalCtx(
         tree=tree,
         tier=tier,
