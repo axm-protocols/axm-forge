@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from axm_audit.core.fix.models import FileOp, PipelineReport
-from axm_audit.core.fix.report import _fmt_target, format_report
+from axm_audit.core.fix.report import format_report
 
 
 def _make_op(kind: str = "relocate") -> FileOp:
@@ -62,8 +62,23 @@ def test_unfixable_and_warnings_sections() -> None:
 
 
 def test_fmt_target_list_and_path() -> None:
-    """AC4: _fmt_target formats single Path and list[Path] inputs relative to root."""
+    """AC4: rendered ops show single-Path and list[Path] targets relative to root."""
     root = Path("/p")
-    assert _fmt_target(Path("/p/tests/unit/test_a.py"), root) == "tests/unit/test_a.py"
-    paths = [Path("/p/tests/unit/a.py"), Path("/p/tests/unit/b.py")]
-    assert _fmt_target(paths, root) == "tests/unit/a.py, tests/unit/b.py"
+    single_target_op = FileOp(
+        kind="relocate",
+        source=Path("/p/src/a.py"),
+        target=Path("/p/tests/unit/test_a.py"),
+        rationale="r",
+        source_rule="X",
+    )
+    split_target_op = FileOp(
+        kind="split",
+        source=Path("/p/src/b.py"),
+        target=[Path("/p/tests/unit/a.py"), Path("/p/tests/unit/b.py")],
+        rationale="r",
+        source_rule="X",
+    )
+    report = PipelineReport(ops=[single_target_op, split_target_op])
+    out = format_report(report, root)
+    assert "-> tests/unit/test_a.py" in out
+    assert "-> tests/unit/a.py, tests/unit/b.py" in out
