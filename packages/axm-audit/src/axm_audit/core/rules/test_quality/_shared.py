@@ -308,11 +308,21 @@ def _parse_cached(path: Path) -> ast.Module | None:
 
 
 def iter_test_files(pkg_root: Path) -> Iterator[tuple[Path, ast.Module | None]]:
-    """Yield ``(path, ast)`` for every ``tests/**/test_*.py``."""
+    """Yield ``(path, ast)`` for every ``tests/**/test_*.py``.
+
+    Skips ``tests/fixtures/`` — by AXM convention that directory holds
+    static test data (corpora, snapshots, baselines) consumed by real
+    tests; pytest excludes it from collection via ``collect_ignore_glob``,
+    and the test_quality rules must do the same so corpus files don't
+    get flagged as pyramid / naming / tautology offenders.
+    """
     tests_dir = pkg_root / "tests"
     if not tests_dir.exists():
         return
+    fixtures_dir = tests_dir / "fixtures"
     for test_file in sorted(tests_dir.rglob("test_*.py")):
+        if fixtures_dir in test_file.parents:
+            continue
         yield test_file, _parse_cached(test_file)
 
 
