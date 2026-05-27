@@ -17,8 +17,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from axm_audit.core.fix.findings import collect_unfixable, get_pkg_prefixes
 from axm_audit.core.fix.stages_plan import plan_relocate
+
+pytestmark = pytest.mark.integration
 
 
 def test_plan_relocate_emits_op_for_mis_tiered_test(

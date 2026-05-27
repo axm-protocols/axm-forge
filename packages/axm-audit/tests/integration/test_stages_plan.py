@@ -5,9 +5,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
 from pytest_mock import MockerFixture
 
 from axm_audit.core.fix.stages_plan import plan_flatten, plan_naming, plan_relocate
+
+pytestmark = pytest.mark.integration
 
 _PLAN_CHECK = "axm_audit.core.fix.stages_plan._check_by_rule"
 
