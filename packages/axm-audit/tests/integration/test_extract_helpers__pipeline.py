@@ -15,9 +15,7 @@ from pathlib import Path
 import pytest
 
 from axm_audit.core.fix import run
-from axm_audit.core.fix.extract_helpers import _extract_shared_helpers
 from axm_audit.core.fix.models import MAX_ITERATIONS, PipelineReport
-from axm_audit.core.fix.pipeline import _ruff_format_tests
 
 pytestmark = pytest.mark.integration
 
@@ -65,7 +63,12 @@ _MISTIERED_IO_TEST = (
 
 
 def test_extract_shared_helpers_consolidates_identical_helpers(make_test_pkg):
-    """AC1: identical _helper across two files collapses into _helpers.py."""
+    """AC1: identical _helper across two files collapses into _helpers.py.
+
+    Drives the post-pipeline extract-helpers polish through the public
+    ``run()`` seam with an empty rule set (skips relocate/naming stages
+    so only the post-polish path executes).
+    """
     helper_def = "def _helper(x):\n    return x * 2\n\n\n"
     pkg = make_test_pkg(
         {
@@ -78,7 +81,7 @@ def test_extract_shared_helpers_consolidates_identical_helpers(make_test_pkg):
         }
     )
 
-    msgs = _extract_shared_helpers(pkg)
+    report = run(pkg, apply=True, rules=set())
 
     helpers_file = pkg / "tests" / "integration" / "_helpers.py"
     assert helpers_file.exists()
@@ -91,11 +94,15 @@ def test_extract_shared_helpers_consolidates_identical_helpers(make_test_pkg):
     assert "def _helper" not in src_b
     assert "_helper" in src_a and "import" in src_a
     assert "_helper" in src_b and "import" in src_b
-    assert any("extracted helper" in m and "_helper" in m for m in msgs)
+    assert any("extracted helper" in m and "_helper" in m for m in report.warnings)
 
 
 def test_extract_shared_helpers_keeps_divergent_per_file(make_test_pkg):
-    """AC2: divergent _helper bodies stay per-file; warning names both."""
+    """AC2: divergent _helper bodies stay per-file; warning names both.
+
+    Same public ``run()`` seam as AC1 — divergent bodies produce an
+    ``ambiguous helper`` warning instead of an extraction.
+    """
     pkg = make_test_pkg(
         {
             "tests/integration/test_a.py": (
@@ -109,31 +116,36 @@ def test_extract_shared_helpers_keeps_divergent_per_file(make_test_pkg):
         }
     )
 
-    msgs = _extract_shared_helpers(pkg)
+    report = run(pkg, apply=True, rules=set())
 
     helpers_file = pkg / "tests" / "integration" / "_helpers.py"
     assert not helpers_file.exists()
     assert "x * 2" in (pkg / "tests" / "integration" / "test_a.py").read_text()
     assert "x + 100" in (pkg / "tests" / "integration" / "test_b.py").read_text()
 
-    blob = "\n".join(msgs)
+    blob = "\n".join(report.warnings)
     assert "ambiguous" in blob
     assert "test_a.py" in blob and "test_b.py" in blob
 
 
 def test_ruff_format_tests_formats_and_swallows_warnings(make_test_pkg):
-    """AC3: _ruff_format_tests formats tests/ and surfaces only soft warnings."""
+    """AC3: post-polish formats tests/ and surfaces only soft warnings.
+
+    Drives the ruff-format polish stage through ``run(apply=True)`` with
+    an empty rule set so relocate/naming don't touch the file before
+    polish has a chance to reformat it.
+    """
     misformatted = "def test_x( ):\n    x =1\n    y= 2\n    assert  x+y==3\n"
     pkg = make_test_pkg({"tests/unit/test_x.py": misformatted})
 
-    msgs = _ruff_format_tests(pkg)
+    report = run(pkg, apply=True, rules=set())
 
     body = (pkg / "tests" / "unit" / "test_x.py").read_text()
-    if "skipped: ruff not on PATH" not in "\n".join(msgs):
+    if "skipped: ruff not on PATH" not in "\n".join(report.warnings):
         assert "x = 1" in body
         assert "y = 2" in body
         assert "x + y == 3" in body
-    for m in msgs:
+    for m in report.warnings:
         assert "Traceback" not in m
         assert "raise " not in m
 
