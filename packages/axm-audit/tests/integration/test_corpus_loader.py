@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 
 def test_load_relocate_only_fixture() -> None:
     """AC4, AC8: factory returns paths to existing tmp_pkg and expected tree."""
@@ -19,7 +23,7 @@ def test_load_relocate_only_fixture() -> None:
 
 def test_corpus_root_has_six_cases() -> None:
     """AC1: corpus root has exactly 6 named sub-dirs with input/ and expected/."""
-    corpus_root = Path(__file__).parents[3] / "fixtures" / "fix_corpus"
+    corpus_root = Path(__file__).parents[1] / "fixtures" / "fix_corpus"
 
     expected_names = {
         "relocate_only",
