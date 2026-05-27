@@ -28,14 +28,14 @@ from pathlib import Path
 
 import libcst as cst
 
-from .io_primitives import _cst_load, _cst_save
-from .paths import _module_path_for_test_file
+from .io_primitives import cst_load, cst_save
+from .paths import module_path_for_test_file
 from .tests_ast import (
     _BUILTINS,
     _collect_defined_names,
-    _collect_imported_names,
     _collect_referenced_names,
     _walk_test_funcs,
+    collect_imported_names,
 )
 
 __all__ = [
@@ -70,8 +70,8 @@ __all__ = [
     "backfill_import",
     # imports — index + backfill
     "_project_import_index",
-    "_invalidate_import_index",
-    "_resolve_import_for_symbol",
+    "invalidate_import_index",
+    "resolve_import_for_symbol",
     "_scan_tests_for_import",
     "_synth_import_from_helpers",
     "_backfill_missing_imports",
@@ -275,7 +275,7 @@ def _patch_file_dunder_depth(
     """
     if depth_delta == 0 or not file.exists():
         return []
-    module = _cst_load(file)
+    module = cst_load(file)
     if module is None:
         return []
     ctx = _DepthPatchCtx(file=file, depth_delta=depth_delta)
@@ -289,7 +289,7 @@ def _patch_file_dunder_depth(
     new_module = new_module.visit(_PatchChainOnce(ctx, collector.child_ids))
     assert isinstance(new_module, cst.Module)
     if new_module.code != module.code:
-        _cst_save(file, new_module)
+        cst_save(file, new_module)
     return ctx.msgs
 
 
@@ -422,7 +422,7 @@ def _rename_name_in_module(path: Path, old_to_new: dict[str, str]) -> None:
     """
     if not old_to_new:
         return
-    module = _cst_load(path)
+    module = cst_load(path)
     if module is None:
         return
 
@@ -479,7 +479,7 @@ def _rename_name_in_module(path: Path, old_to_new: dict[str, str]) -> None:
 
     new_module = module.visit(_Renamer(old_to_new))
     assert isinstance(new_module, cst.Module)
-    _cst_save(path, new_module)
+    cst_save(path, new_module)
 
 
 def _rename_top_level_in_source(source: Path, old_to_new: dict[str, str]) -> None:
@@ -492,7 +492,7 @@ def _rename_top_level_in_source(source: Path, old_to_new: dict[str, str]) -> Non
     """
     if not old_to_new:
         return
-    module = _cst_load(source)
+    module = cst_load(source)
     if module is None:
         return
     new_body = []
@@ -503,12 +503,12 @@ def _rename_top_level_in_source(source: Path, old_to_new: dict[str, str]) -> Non
         ):
             stmt = stmt.with_changes(name=cst.Name(value=old_to_new[stmt.name.value]))
         new_body.append(stmt)
-    _cst_save(source, module.with_changes(body=new_body))
+    cst_save(source, module.with_changes(body=new_body))
 
 
 def _delete_function_from_source(source: Path, func_name: str) -> None:
     """Remove a top-level FunctionDef from source, preserving formatting."""
-    module = _cst_load(source)
+    module = cst_load(source)
     if module is None:
         return
     new_body = [
@@ -516,7 +516,7 @@ def _delete_function_from_source(source: Path, func_name: str) -> None:
         for stmt in module.body
         if not (isinstance(stmt, cst.FunctionDef) and stmt.name.value == func_name)
     ]
-    _cst_save(source, module.with_changes(body=new_body))
+    cst_save(source, module.with_changes(body=new_body))
 
 
 def _delete_source_if_empty_tests(source: Path) -> None:
@@ -601,7 +601,7 @@ def _load_cst_ast_pair(
 ) -> tuple[cst.Module, list[ast.stmt]] | None:
     # Parse with both libcst (write side) and ast (analysis side); bail if
     # they disagree on top-level count.
-    cst_module = _cst_load(path)
+    cst_module = cst_load(path)
     if cst_module is None:
         return None
     try:
@@ -749,7 +749,7 @@ def _ast_import_to_cst(stmt: ast.stmt) -> cst.SimpleStatementLine:
     import a, b as c``, and relative ``from .m import x`` forms. Any
     other ast node is wrapped as a trailing comment line — should not
     happen in practice since the buckets only contain ast.Import /
-    ast.ImportFrom from ``_collect_imported_names``.
+    ast.ImportFrom from ``collect_imported_names``.
     """
     if isinstance(stmt, ast.Import):
         names = [
@@ -1070,13 +1070,13 @@ def _project_import_index(
                 tree = ast.parse(p.read_text())
             except (SyntaxError, OSError):
                 continue
-            for name, pair in _collect_imported_names(tree).items():
+            for name, pair in collect_imported_names(tree).items():
                 index.setdefault(name, pair)
     _PROJECT_IMPORT_INDEX_CACHE[project_path] = index
     return index
 
 
-def _invalidate_import_index(project_path: Path) -> None:
+def invalidate_import_index(project_path: Path) -> None:
     """Drop the cached import index for *project_path*."""
     _PROJECT_IMPORT_INDEX_CACHE.pop(project_path, None)
 
@@ -1154,7 +1154,7 @@ def _build_project_symbol_index(
     return index
 
 
-def _resolve_import_for_symbol(
+def resolve_import_for_symbol(
     project_path: Path, symbol: str
 ) -> tuple[ast.stmt, ast.stmt | None] | None:
     """Return the import statement that brings *symbol* into scope, or ``None``.
@@ -1162,7 +1162,7 @@ def _resolve_import_for_symbol(
     Builds (and caches in ``_PROJECT_IMPORT_INDEX_CACHE``) a project-wide
     index of top-level FunctionDef / AsyncFunctionDef / ClassDef
     definitions across every ``.py`` file under *project_path*. Drop the
-    cache via :func:`_invalidate_import_index` after mutating the file
+    cache via :func:`invalidate_import_index` after mutating the file
     tree so the next call rebuilds.
     """
     if project_path not in _PROJECT_IMPORT_INDEX_CACHE:
@@ -1441,7 +1441,7 @@ def _synth_import_from_helpers(
         helpers = tests_root / tier / "_helpers.py"
         if not helpers.is_file() or not _helpers_defines_name(helpers, name):
             continue
-        module = _module_path_for_test_file(helpers, project_path)
+        module = module_path_for_test_file(helpers, project_path)
         if module is None:
             return None
         stmt = ast.parse(f"from {module} import {name}").body[0]
@@ -1516,8 +1516,8 @@ def _resolve_recoverable_imports(
     if tgt_tree is None:
         return None
     src_tree = _parse_py(source)
-    src_imports = _collect_imported_names(src_tree) if src_tree else {}
-    tgt_imports = _collect_imported_names(tgt_tree)
+    src_imports = collect_imported_names(src_tree) if src_tree else {}
+    tgt_imports = collect_imported_names(tgt_tree)
     missing = (
         _collect_referenced_names(tgt_tree)
         - set(tgt_imports.keys())
@@ -1538,7 +1538,7 @@ def _write_backfilled_imports(
     top_level_ast: list[ast.stmt],
     type_checking_ast: list[ast.stmt],
 ) -> bool:
-    cst_module = _cst_load(target)
+    cst_module = cst_load(target)
     if cst_module is None:
         return False
     top_level_cst = [_ast_import_to_cst(s) for s in top_level_ast]
@@ -1546,7 +1546,7 @@ def _write_backfilled_imports(
     new_body = _insert_imports_cst(cst_module, top_level_cst, type_checking_cst)
     new_module = cst_module.with_changes(body=new_body)
     new_module = _dedupe_imports_cst(new_module)
-    _cst_save(target, new_module)
+    cst_save(target, new_module)
     return True
 
 

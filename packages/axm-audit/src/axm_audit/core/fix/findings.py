@@ -28,16 +28,16 @@ from axm_audit.core.rules.test_quality._shared import (
 )
 
 from .models import NON_DETERMINISTIC_RULES, TOP_K
-from .paths import _abspath, _safe_filename
-from .tests_ast import _top_level_test_classes
+from .paths import abspath, safe_filename
+from .tests_ast import top_level_test_classes
 
 __all__ = [
     "_check_by_rule",
-    "_class_needs_flatten",
     "_findings",
     "_func_canonical",
     "_load_project_scripts",
     "_per_unit_canonical",
+    "class_needs_flatten",
     "collect_unfixable",
     "get_pkg_prefixes",  # re-export for callers
 ]
@@ -67,11 +67,11 @@ def _absolutize_paths(finding: dict[str, Any], project_path: Path) -> None:
     for key in ("path", "test_file"):
         value = finding.get(key)
         if isinstance(value, str) and value:
-            finding[key] = str(_abspath(value, project_path))
+            finding[key] = str(abspath(value, project_path))
     files = finding.get("files")
     if isinstance(files, list):
         finding["files"] = [
-            str(_abspath(f, project_path)) if isinstance(f, str) else f for f in files
+            str(abspath(f, project_path)) if isinstance(f, str) else f for f in files
         ]
 
 
@@ -143,7 +143,7 @@ class _CanonicalCtx(NamedTuple):
 
 def _canonical_unit_name(func: ast.FunctionDef, ctx: _CanonicalCtx) -> str:
     """Safe canonical filename for a single test function."""
-    return _safe_filename(
+    return safe_filename(
         _func_canonical(
             func,
             ctx.tree,
@@ -200,14 +200,14 @@ def _per_unit_canonical(
             name = _canonical_unit_name(node, ctx)
             if name != "test_UNKNOWN.py":
                 routes[name].append(node.name)
-    for cls in _top_level_test_classes(tree):
+    for cls in top_level_test_classes(tree):
         only = _class_canonical_unit(cls, ctx)
         if only is not None:
             routes[only].append(cls.name)
     return dict(routes)
 
 
-def _class_needs_flatten(
+def class_needs_flatten(
     cls: ast.ClassDef,
     tree: ast.Module,
     *,
@@ -218,7 +218,7 @@ def _class_needs_flatten(
 ) -> bool:
     """True iff this class's methods have ≥2 distinct canonical filenames."""
     canonicals = {
-        _safe_filename(
+        safe_filename(
             _func_canonical(
                 c,
                 tree,

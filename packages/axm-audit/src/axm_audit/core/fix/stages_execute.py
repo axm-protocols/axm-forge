@@ -27,27 +27,27 @@ from .cst_rewrite import (
     _reorder_module_statements,
 )
 from .findings import (
-    _class_needs_flatten,
     _load_project_scripts,
     _per_unit_canonical,
+    class_needs_flatten,
     get_pkg_prefixes,
 )
-from .io_primitives import _cst_load, _cst_save, _git_mv
+from .io_primitives import _git_mv, cst_load, cst_save
 from .layout_and_move import (
     _rewrite_cross_test_imports,
     _safe_move_units,
 )
 from .models import FileOp
 from .paths import (
-    _file_depth_from_project,
-    _module_path_for_test_file,
-    _tier_for_path,
+    file_depth_from_project,
+    module_path_for_test_file,
+    tier_for_path,
 )
 from .tests_ast import (
-    _marker_fixtures_in_unit,
     _movable_units_at_top_level,
     _string_literal_fixtures_in_unit,
-    _top_level_test_classes,
+    marker_fixtures_in_unit,
+    top_level_test_classes,
 )
 
 __all__ = [
@@ -96,8 +96,8 @@ def _reroute_through_safe_move(
         f"{kind}: target {target.name} already exists; "
         f"re-routing {source.name} through _safe_move_units"
     ]
-    old_mod = _module_path_for_test_file(source, project_path)
-    new_mod = _module_path_for_test_file(target, project_path)
+    old_mod = module_path_for_test_file(source, project_path)
+    new_mod = module_path_for_test_file(target, project_path)
     tree = ast.parse(source.read_text())
     units = _movable_units_at_top_level(tree)
     if units:
@@ -134,10 +134,10 @@ def _execute_relocate(op: FileOp, project_path: Path) -> list[str]:
             op.target,
             project_path,
         )
-    old_mod = _module_path_for_test_file(op.source, project_path)
-    new_mod = _module_path_for_test_file(op.target, project_path)
-    src_depth = _file_depth_from_project(op.source, project_path)
-    tgt_depth = _file_depth_from_project(op.target, project_path)
+    old_mod = module_path_for_test_file(op.source, project_path)
+    new_mod = module_path_for_test_file(op.target, project_path)
+    src_depth = file_depth_from_project(op.source, project_path)
+    tgt_depth = file_depth_from_project(op.target, project_path)
     try:
         _git_mv(op.source, op.target)
     except FileExistsError:
@@ -181,10 +181,10 @@ def _execute_rename(op: FileOp, project_path: Path) -> list[str]:
             op.target,
             project_path,
         )
-    old_mod = _module_path_for_test_file(op.source, project_path)
-    new_mod = _module_path_for_test_file(op.target, project_path)
-    src_depth = _file_depth_from_project(op.source, project_path)
-    tgt_depth = _file_depth_from_project(op.target, project_path)
+    old_mod = module_path_for_test_file(op.source, project_path)
+    new_mod = module_path_for_test_file(op.target, project_path)
+    src_depth = file_depth_from_project(op.source, project_path)
+    tgt_depth = file_depth_from_project(op.target, project_path)
     try:
         _git_mv(op.source, op.target)
     except FileExistsError:
@@ -346,7 +346,7 @@ def _try_recover_from_sibling(
     """
     if sibling == anchor_path or not sibling.exists():
         return None
-    sib_module = _cst_load(sibling)
+    sib_module = cst_load(sibling)
     if sib_module is None:
         return None
     sib_stmts_by_name = _index_top_level_stmts(sib_module)
@@ -426,7 +426,7 @@ def _recover_anchor_fixtures(
     if prep is None:
         return msgs
     anchor_top, missing = prep
-    anchor_module = _cst_load(anchor_path)
+    anchor_module = cst_load(anchor_path)
     if anchor_module is None:
         return msgs
     new_body = list(anchor_module.body)
@@ -441,7 +441,7 @@ def _recover_anchor_fixtures(
         msgs.extend(sib_msgs)
         recovered.add(fx_name)
     if recovered:
-        _cst_save(anchor_path, anchor_module.with_changes(body=new_body))
+        cst_save(anchor_path, anchor_module.with_changes(body=new_body))
         _backfill_missing_imports(
             anchor_path, anchor_path, anchor_path.parent.parent.parent
         )
@@ -454,7 +454,7 @@ def _fixtures_referenced_by(tree: ast.Module, unit_names: set[str]) -> set[str]:
         if not (isinstance(n, ast.FunctionDef | ast.ClassDef) and n.name in unit_names):
             continue
         refs |= _string_literal_fixtures_in_unit(n)
-        refs |= _marker_fixtures_in_unit(n)
+        refs |= marker_fixtures_in_unit(n)
         if isinstance(n, ast.ClassDef):
             for m in n.body:
                 if isinstance(m, ast.FunctionDef):
@@ -472,8 +472,8 @@ def _split_pathological_leftover(
     single_binary = next(iter(scripts)) if len(scripts) == 1 else None
     return [
         cls.name
-        for cls in _top_level_test_classes(tree)
-        if _class_needs_flatten(
+        for cls in top_level_test_classes(tree)
+        if class_needs_flatten(
             cls,
             tree,
             tier=tier_str,
@@ -488,7 +488,7 @@ def _split_preflight(
     op: FileOp, project_path: Path
 ) -> tuple[list[str] | None, ast.Module | None, str]:
     """Return (skip_msgs_or_none, tree, tier_str) for split execution."""
-    tier_str = _tier_for_path(op.source)
+    tier_str = tier_for_path(op.source)
     if tier_str not in ("integration", "e2e"):
         return (
             [f"split skipped: source not under tests/integration|e2e ({op.source})"],
@@ -584,7 +584,7 @@ def _collect_new_modules(
     new_modules: list[str] = []
     seen: set[str] = set()
     for p in post_split_paths:
-        mod = _module_path_for_test_file(p, project_path)
+        mod = module_path_for_test_file(p, project_path)
         if mod and mod != original_module and mod not in seen:
             new_modules.append(mod)
             seen.add(mod)
@@ -643,7 +643,7 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
         return skip
     anchor = max(routes.items(), key=lambda kv: (len(kv[1]), kv[0]))[0]
     original_source = op.source
-    original_module = _module_path_for_test_file(original_source, project_path)
+    original_module = module_path_for_test_file(original_source, project_path)
     warnings, post_split_paths, anchor_fixture_refs = _move_non_anchor_units(
         op, routes, anchor, tree, project_path
     )
@@ -674,8 +674,8 @@ def _execute_merge(op: FileOp, project_path: Path) -> list[str]:
     source_units = _movable_units_at_top_level(source_tree)
     if not source_units:
         return [f"merge skipped: {op.source} has no top-level movable units"]
-    old_mod = _module_path_for_test_file(op.source, project_path)
-    new_mod = _module_path_for_test_file(op.target, project_path)
+    old_mod = module_path_for_test_file(op.source, project_path)
+    new_mod = module_path_for_test_file(op.target, project_path)
     warnings, _ = _safe_move_units(op.source, op.target, source_units, project_path)
     _delete_source_if_empty_tests(op.source)
     if old_mod and new_mod and old_mod != new_mod and not op.source.exists():

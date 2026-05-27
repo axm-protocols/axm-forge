@@ -16,7 +16,7 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
-from .cst_rewrite import _invalidate_import_index
+from .cst_rewrite import invalidate_import_index
 from .extract_helpers import _extract_shared_helpers
 from .findings import collect_unfixable
 from .layout_and_move import (
@@ -43,7 +43,7 @@ def _apply_warning_stage(
     if not msgs:
         return 0
     warnings.extend(msgs)
-    _invalidate_import_index(project_path)
+    invalidate_import_index(project_path)
     return len(msgs)
 
 
@@ -60,7 +60,7 @@ def _apply_ops_stage(
         return 0
     warnings.extend(execute(ops, project_path))
     if invalidate:
-        _invalidate_import_index(project_path)
+        invalidate_import_index(project_path)
     return len(ops)
 
 
@@ -104,7 +104,7 @@ def _run_flatten_stage(
     if not (apply and actionable):
         return 0
     warnings.extend(execute(actionable, project_path))
-    _invalidate_import_index(project_path)
+    invalidate_import_index(project_path)
     return len(actionable)
 
 
