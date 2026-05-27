@@ -6,7 +6,6 @@ tmp_path package via the ``make_test_pkg`` fixture.
 
 from __future__ import annotations
 
-import ast
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -14,9 +13,6 @@ from pathlib import Path
 import pytest
 
 from axm_audit.core.fix.layout_and_move import (
-    _resolve_conftest_shadowing,
-    _resolve_helper_conflicts,
-    _safe_move_units,
     flatten_tier_layout,
     relocate_non_canonical_tiers,
 )
@@ -122,28 +118,17 @@ def test_flatten_tier_layout_refuses_on_collision(make_test_pkg):
     assert msgs
 
 
-def test_safe_move_units_extracts_function_with_import_rewrite(make_test_pkg):
-    """AC3: _safe_move_units relocates a unit from source to target."""
+def test_execute_merge_renames_helpers_with_divergent_bodies(make_test_pkg):
+    """AC4: merging into target with a same-name but divergent helper renames
+    source's helper with the ``__from_<source_stem>`` suffix so anvil can
+    duplicate it into target without colliding with target's own body.
+
+    Exercised through the public ``execute(merge)`` seam — the rename is
+    a transparent step of ``_safe_move_units``, and the observable
+    outcome is the suffixed name landing in the merged target file.
+    """
     if not _anvil_available():
         pytest.skip("axm-anvil not installed")
-    pkg = make_test_pkg(
-        {
-            "tests/__init__.py": "",
-            "tests/integration/__init__.py": "",
-            "tests/integration/test_a.py": ("def test_alpha():\n    assert True\n"),
-            "tests/integration/test_b.py": ("def test_beta():\n    assert True\n"),
-        }
-    )
-    source = pkg / "tests" / "integration" / "test_a.py"
-    target = pkg / "tests" / "integration" / "test_b.py"
-
-    _safe_move_units(source, target, ["test_alpha"], pkg)
-
-    assert "test_alpha" in target.read_text()
-
-
-def test_resolve_helper_conflicts_warns_on_divergent_bodies(make_test_pkg):
-    """AC4: _resolve_helper_conflicts renames helpers with divergent bodies."""
     source_code = (
         "def _helper(x):\n"
         "    return x + 1\n\n"
@@ -158,30 +143,49 @@ def test_resolve_helper_conflicts_warns_on_divergent_bodies(make_test_pkg):
     )
     pkg = make_test_pkg(
         {
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
             "tests/integration/test_a.py": source_code,
             "tests/integration/test_b.py": target_code,
         }
     )
-    source_tree = ast.parse(source_code)
-    target_tree = ast.parse(target_code)
-
-    rename = _resolve_helper_conflicts(
-        source_tree,
-        target_tree,
-        ["test_one"],
-        source_stem="a",
-        target=pkg / "tests/integration/test_b.py",
-        project_path=pkg,
+    source = pkg / "tests/integration/test_a.py"
+    target = pkg / "tests/integration/test_b.py"
+    op = FileOp(
+        kind="merge",
+        source=source,
+        target=target,
+        rationale="too-small",
+        source_rule="TEST_QUALITY_FILE_SIZE",
     )
 
-    assert "_helper" in rename
-    # _resolve_helper_conflicts is pure — disk content untouched.
-    assert (pkg / "tests/integration/test_a.py").read_text() == source_code
-    assert (pkg / "tests/integration/test_b.py").read_text() == target_code
+    execute([op], pkg)
+
+    body = target.read_text()
+    # Source's _helper was renamed with the __from_<source_stem> suffix
+    # so both helper bodies can co-exist in the merged target.
+    assert "_helper__from_a" in body
+    # Target's original helper body is preserved.
+    assert "return x + 2" in body
+    # The moved test now references the renamed helper.
+    assert "_helper__from_a(1) == 2" in body
 
 
-def test_resolve_conftest_shadowing_warns(make_test_pkg):
-    """AC5: _resolve_conftest_shadowing detects target-local conftest shadow."""
+def test_execute_merge_renames_target_local_fixture_shadowing_conftest(
+    make_test_pkg,
+):
+    """AC5: merging tests that rely on a conftest fixture into a target
+    that defines a same-named local fixture renames the target's local
+    with the ``__local_<target_stem>`` suffix, so moved tests bind to
+    the conftest fixture while target's existing tests keep their
+    original (renamed) local body.
+
+    Exercised through the public ``execute(merge)`` seam — the rename
+    is a transparent step of ``_safe_move_units``, and the observable
+    outcome is the suffixed name landing in the merged target file.
+    """
+    if not _anvil_available():
+        pytest.skip("axm-anvil not installed")
     conftest = "import pytest\n\n@pytest.fixture\ndef shared_fix():\n    return 1\n"
     source_code = "def test_one(shared_fix):\n    assert shared_fix == 1\n"
     target_code = (
@@ -194,24 +198,31 @@ def test_resolve_conftest_shadowing_warns(make_test_pkg):
     )
     pkg = make_test_pkg(
         {
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
             "tests/conftest.py": conftest,
             "tests/integration/test_a.py": source_code,
             "tests/integration/test_b.py": target_code,
         }
     )
-    source_tree = ast.parse(source_code)
-    target_tree = ast.parse(target_code)
-
-    rename = _resolve_conftest_shadowing(
-        source_tree,
-        target_tree,
-        ["test_one"],
-        target=pkg / "tests/integration/test_b.py",
-        project_path=pkg,
-        target_stem="b",
+    source = pkg / "tests/integration/test_a.py"
+    target = pkg / "tests/integration/test_b.py"
+    op = FileOp(
+        kind="merge",
+        source=source,
+        target=target,
+        rationale="too-small",
+        source_rule="TEST_QUALITY_FILE_SIZE",
     )
 
-    assert "shared_fix" in rename
+    execute([op], pkg)
+
+    body = target.read_text()
+    # Target's local shared_fix was renamed to avoid shadowing conftest
+    # for the moved test.
+    assert "shared_fix__local_b" in body
+    # Target's own test now references the renamed local fixture.
+    assert "shared_fix__local_b" in body.split("def test_two")[1]
 
 
 def test_execute_relocate_cross_tier_with_depth_patch(make_test_pkg):
