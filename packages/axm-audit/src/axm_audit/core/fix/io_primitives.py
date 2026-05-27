@@ -17,15 +17,15 @@ from pathlib import Path
 import libcst as cst
 
 __all__ = [
-    "_cst_load",
-    "_cst_save",
-    "_cst_top_level",
-    "_cst_unwrap",
     "_git_mv",
+    "cst_load",
+    "cst_save",
+    "cst_top_level",
+    "cst_unwrap",
 ]
 
 
-def _cst_load(path: Path) -> cst.Module | None:
+def cst_load(path: Path) -> cst.Module | None:
     """Read *path* and parse it as a libcst Module. None on parse error."""
     try:
         return cst.parse_module(path.read_text())
@@ -33,17 +33,17 @@ def _cst_load(path: Path) -> cst.Module | None:
         return None
 
 
-def _cst_save(path: Path, module: cst.Module) -> None:
+def cst_save(path: Path, module: cst.Module) -> None:
     """Write *module* back to *path* using its serialised form."""
     path.write_text(module.code)
 
 
-def _cst_top_level(module: cst.Module) -> list[cst.BaseStatement]:
+def cst_top_level(module: cst.Module) -> list[cst.BaseStatement]:
     """Return the module's top-level body as a mutable list."""
     return list(module.body)
 
 
-def _cst_unwrap(
+def cst_unwrap(
     stmt: cst.BaseStatement,
 ) -> cst.BaseSmallStatement | cst.BaseCompoundStatement:
     """Unwrap a SimpleStatementLine to its first small statement, if any.

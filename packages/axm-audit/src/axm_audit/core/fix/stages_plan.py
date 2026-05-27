@@ -16,16 +16,16 @@ from typing import Any
 
 from .findings import (
     _check_by_rule,
-    _class_needs_flatten,
     _load_project_scripts,
+    class_needs_flatten,
     get_pkg_prefixes,
 )
 from .models import FileOp
-from .paths import _retier, _safe_filename, _tier_for_path
+from .paths import retier, safe_filename, tier_for_path
 from .tests_ast import (
-    _class_is_pathological,
-    _file_has_pathological_class,
-    _top_level_test_classes,
+    class_is_pathological,
+    file_has_pathological_class,
+    top_level_test_classes,
 )
 
 __all__ = ["plan_flatten", "plan_naming", "plan_relocate"]
@@ -67,8 +67,8 @@ def _classify_classes(
 ) -> tuple[list[str], list[tuple[str, str]]]:
     to_flatten: list[str] = []
     pathological: list[tuple[str, str]] = []
-    for cls in _top_level_test_classes(tree):
-        if not _class_needs_flatten(
+    for cls in top_level_test_classes(tree):
+        if not class_needs_flatten(
             cls,
             tree,
             tier=ctx.tier,
@@ -77,7 +77,7 @@ def _classify_classes(
             single_binary=ctx.single_binary,
         ):
             continue
-        reason = _class_is_pathological(cls)
+        reason = class_is_pathological(cls)
         if reason is not None:
             pathological.append((cls.name, reason))
         else:
@@ -132,7 +132,7 @@ def plan_flatten(project_path: Path) -> list[FileOp]:
     single_binary = next(iter(scripts)) if len(scripts) == 1 else None
     ops: list[FileOp] = []
     for src in sorted(_collect_flatten_candidates(findings)):
-        tier_str = _tier_for_path(src)
+        tier_str = tier_for_path(src)
         if tier_str not in ("integration", "e2e"):
             continue
         ctx = _FlattenCtx(
@@ -178,7 +178,7 @@ def plan_relocate(project_path: Path) -> list[FileOp]:
         if len(target_levels) != 1:
             continue  # mixed; needs manual split
         target_lvl = next(iter(target_levels))
-        cur_tier = _tier_for_path(p)
+        cur_tier = tier_for_path(p)
         if cur_tier == target_lvl:
             continue  # already correct
         n = target_levels[target_lvl]
@@ -186,7 +186,7 @@ def plan_relocate(project_path: Path) -> list[FileOp]:
             FileOp(
                 kind="relocate",
                 source=p,
-                target=_retier(p, project_path, target_lvl),
+                target=retier(p, project_path, target_lvl),
                 rationale=f"{n} test(s) unanimously classify as {target_lvl}",
                 source_rule="TEST_QUALITY_PYRAMID_LEVEL",
             )
@@ -195,12 +195,12 @@ def plan_relocate(project_path: Path) -> list[FileOp]:
 
 
 def _is_canonical_tier(p: Path) -> bool:
-    return _tier_for_path(p) in ("integration", "e2e")
+    return tier_for_path(p) in ("integration", "e2e")
 
 
 def _split_op_from_finding(d: dict[str, Any], src: Path) -> FileOp:
     suggested = d.get("suggested_splits") or [d.get("proposed_name", "")]
-    suggested = [_safe_filename(s) for s in suggested if s]
+    suggested = [safe_filename(s) for s in suggested if s]
     suggested = [s for s in suggested if s != "test_UNKNOWN.py"]
     targets = [src.parent / s for s in suggested]
     return FileOp(
@@ -219,7 +219,7 @@ def _plan_splits(findings: list[dict[str, Any]], consumed: set[Path]) -> list[Fi
         src = Path(d["path"])
         if not _is_canonical_tier(src):
             continue
-        if src.exists() and _file_has_pathological_class(src):
+        if src.exists() and file_has_pathological_class(src):
             continue
         consumed.add(src)
         splits.append(_split_op_from_finding(d, src))
@@ -266,7 +266,7 @@ def _plan_renames(findings: list[dict[str, Any]], consumed: set[Path]) -> list[F
         src = Path(d["path"])
         if src in consumed or not _is_canonical_tier(src):
             continue
-        proposed = _safe_filename(d.get("proposed_name", ""))
+        proposed = safe_filename(d.get("proposed_name", ""))
         if not proposed or src.name == proposed or proposed == "test_UNKNOWN.py":
             continue
         renames.append(

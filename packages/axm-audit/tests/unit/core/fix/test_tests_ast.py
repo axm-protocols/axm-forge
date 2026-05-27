@@ -1,8 +1,6 @@
 """Unit tests for axm_audit.core.fix.tests_ast read-only AST helpers.
 
-Exception to the no-private-symbol-tests rule: the entire public surface
-of ``tests_ast`` is ``_prefixed`` (intra-package internal-public). See
-ticket AXM-1744 test_spec for rationale.
+Covers the internal-public helpers exposed by ``tests_ast``.
 """
 
 from __future__ import annotations
@@ -10,15 +8,15 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from axm_audit.core.fix.findings import _class_needs_flatten
+from axm_audit.core.fix.findings import class_needs_flatten
 from axm_audit.core.fix.tests_ast import (
-    _class_is_pathological,
-    _collect_imported_names,
-    _file_has_pathological_class,
-    _func_body_hash,
-    _marker_fixtures_in_unit,
-    _top_level_helpers,
-    _top_level_test_classes,
+    class_is_pathological,
+    collect_imported_names,
+    file_has_pathological_class,
+    func_body_hash,
+    marker_fixtures_in_unit,
+    top_level_helpers,
+    top_level_test_classes,
 )
 
 
@@ -40,7 +38,7 @@ def test_top_level_test_classes_filters_underscored_and_nested() -> None:
         "        def test_inner(self): pass\n"
     )
     tree = _parse_source(src)
-    names = {c.name for c in _top_level_test_classes(tree)}
+    names = {c.name for c in top_level_test_classes(tree)}
     assert names == {"TestA", "TestC"}
 
 
@@ -49,7 +47,7 @@ def test_class_is_pathological_uses_self_x() -> None:
     src = "class TestF:\n    def test_x(self):\n        self.foo = 1\n"
     cls = _parse_source(src).body[0]
     assert isinstance(cls, ast.ClassDef)
-    reason = _class_is_pathological(cls)
+    reason = class_is_pathological(cls)
     assert reason is not None
     assert "self" in reason
 
@@ -59,7 +57,7 @@ def test_class_is_pathological_non_object_inheritance() -> None:
     src = "class TestF(SomeBase):\n    def test_x(self): pass\n"
     cls = _parse_source(src).body[0]
     assert isinstance(cls, ast.ClassDef)
-    reason = _class_is_pathological(cls)
+    reason = class_is_pathological(cls)
     assert reason is not None
     assert "inherits" in reason
 
@@ -69,7 +67,7 @@ def test_class_is_pathological_has_init() -> None:
     src = "class TestF:\n    def __init__(self): pass\n"
     cls = _parse_source(src).body[0]
     assert isinstance(cls, ast.ClassDef)
-    reason = _class_is_pathological(cls)
+    reason = class_is_pathological(cls)
     assert reason is not None
     assert "__init__" in reason
 
@@ -79,7 +77,7 @@ def test_class_is_pathological_benign_returns_none() -> None:
     src = "class TestF:\n    def test_x(self):\n        assert True\n"
     cls = _parse_source(src).body[0]
     assert isinstance(cls, ast.ClassDef)
-    assert _class_is_pathological(cls) is None
+    assert class_is_pathological(cls) is None
 
 
 def test_class_needs_flatten_divergent_tuples() -> None:
@@ -96,7 +94,7 @@ def test_class_needs_flatten_divergent_tuples() -> None:
     cls = tree.body[1]
     assert isinstance(cls, ast.ClassDef)
     assert (
-        _class_needs_flatten(
+        class_needs_flatten(
             cls,
             tree,
             tier="integration",
@@ -124,7 +122,7 @@ def test_class_needs_flatten_homogeneous_tuples_false() -> None:
     cls = tree.body[1]
     assert isinstance(cls, ast.ClassDef)
     assert (
-        _class_needs_flatten(
+        class_needs_flatten(
             cls,
             tree,
             tier="integration",
@@ -140,7 +138,7 @@ def test_file_has_pathological_class_true_false(tmp_path: Path) -> None:
     """AC4: True iff file contains pathological class with divergent canonical."""
     benign = tmp_path / "test_benign.py"
     benign.write_text("class TestB:\n    def test_a(self): pass\n")
-    assert _file_has_pathological_class(benign) is False
+    assert file_has_pathological_class(benign) is False
 
     bad = tmp_path / "test_bad.py"
     bad.write_text(
@@ -149,7 +147,7 @@ def test_file_has_pathological_class_true_false(tmp_path: Path) -> None:
         "    def test_alpha_one(self): pass\n"
         "    def test_beta_two(self): pass\n"
     )
-    assert _file_has_pathological_class(bad) is True
+    assert file_has_pathological_class(bad) is True
 
 
 def test_top_level_helpers_filters_test_prefix() -> None:
@@ -161,7 +159,7 @@ def test_top_level_helpers_filters_test_prefix() -> None:
         "    def helper(self): pass\n"
     )
     tree = _parse_source(src)
-    helpers = _top_level_helpers(tree)
+    helpers = top_level_helpers(tree)
     assert set(helpers.keys()) == {"helper"}
 
 
@@ -169,7 +167,7 @@ def test_collect_imported_names_aliased_and_future_ignored() -> None:
     """AC6: aliased imports yield local name; basic imports yield module name."""
     src = "from __future__ import annotations\nimport os\nfrom typing import Any as A\n"
     tree = _parse_source(src)
-    result = _collect_imported_names(tree)
+    result = collect_imported_names(tree)
     assert "os" in result
     assert "A" in result
 
@@ -180,7 +178,7 @@ def test_marker_fixtures_in_unit_usefixtures_marker() -> None:
     tree = _parse_source(src)
     func = tree.body[1]
     assert isinstance(func, ast.FunctionDef)
-    assert _marker_fixtures_in_unit(func) == {"a", "b"}
+    assert marker_fixtures_in_unit(func) == {"a", "b"}
 
 
 def test_func_body_hash_ignores_docstring() -> None:
@@ -191,7 +189,7 @@ def test_func_body_hash_ignores_docstring() -> None:
     f2 = _parse_source(src2).body[0]
     assert isinstance(f1, ast.FunctionDef)
     assert isinstance(f2, ast.FunctionDef)
-    assert _func_body_hash(f1) == _func_body_hash(f2)
+    assert func_body_hash(f1) == func_body_hash(f2)
 
 
 def test_func_body_hash_diverges_on_assert_change() -> None:
@@ -202,4 +200,4 @@ def test_func_body_hash_diverges_on_assert_change() -> None:
     f2 = _parse_source(src2).body[0]
     assert isinstance(f1, ast.FunctionDef)
     assert isinstance(f2, ast.FunctionDef)
-    assert _func_body_hash(f1) != _func_body_hash(f2)
+    assert func_body_hash(f1) != func_body_hash(f2)
