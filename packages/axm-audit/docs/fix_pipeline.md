@@ -180,6 +180,22 @@ explains a non-obvious code path you'd otherwise wonder about:
   (`tests_ast.py`) now scans moving units for `usefixtures` markers and
   adds the referenced fixtures to the move list when they're
   source-defined and not target-visible.
+- **Decorator-referenced module-level constants dropped on SPLIT** — a
+  test decorated with `@_alias` where `_alias = pytest.mark.skipif(...)`
+  is a top-level Assign used to produce un-collectable target files:
+  anvil moved the test but left `_alias` (and any constants it
+  referenced like `CASES`) behind, then `_finalize_split_anchor`
+  git-mv-renamed source to the anchor target with the moved constants
+  already stripped from source — so even the anchor lost them.
+  `_collect_module_level_deps_to_copy()` (`tests_ast.py`) computes the
+  transitive closure of free-name references inside decorators of the
+  moving units, restricted to top-level `Assign` / `AnnAssign` defs in
+  source. `_copy_module_level_deps_to_target()` (`layout_and_move.py`)
+  splices those statements into the target as text *after* anvil runs,
+  without touching source — so the anchor's source-rename keeps the
+  constants too. Closure follows chains (`B = A + 1` → also carry
+  `A = 1`), preserves source order, and is surgical: unrelated
+  top-level names are not carried.
 - **`Path(__file__).parents[N]` drift after relocate** — a file moved
   from `tests/unit/core/test_X.py` (4-deep) to `tests/integration/test_X.py`
   (3-deep) keeps its `FIXTURES = Path(__file__).parents[2] / "fixtures"`

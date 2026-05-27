@@ -45,7 +45,10 @@ from .paths import file_depth_from_project, module_path_for_test_file
 from .tests_ast import (
     _collect_conftest_fixtures,
     _collect_marker_fixtures_to_move,
+    _collect_module_level_deps_to_copy,
     _names_referenced_in_unit,
+    _source_top_level_definitions,
+    _stmt_assignment_targets,
     _string_literal_fixtures_in_unit,
     func_body_hash,
     marker_fixtures_in_unit,
@@ -771,6 +774,82 @@ def _apply_conftest_shadow_renames(
     return warnings, new_target_tree
 
 
+def _copy_module_level_deps_to_target(
+    source: Path,
+    target: Path,
+    pre_anvil_source_text: str,
+    pre_anvil_source_tree: ast.Module,
+    dep_names: list[str],
+) -> list[str]:
+    """Insert decorator-referenced module-level deps into target as text.
+
+    Runs **after** anvil so the constants are absent from the new target
+    (anvil only moved the test units). Source is left untouched, so when
+    ``_finalize_split_anchor`` later renames source to the anchor target,
+    those same constants are still present there too.
+    """
+    if not dep_names or not target.exists():
+        return []
+    target_text = target.read_text()
+    target_tree = ast.parse(target_text)
+    existing: set[str] = {
+        n for stmt in target_tree.body for n in _stmt_assignment_targets(stmt)
+    } | {
+        n.name
+        for n in target_tree.body
+        if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+    }
+    defs = _source_top_level_definitions(pre_anvil_source_tree)
+    snippets: list[str] = []
+    carried: list[str] = []
+    for name in dep_names:
+        if name in existing:
+            continue
+        node = defs.get(name)
+        if not isinstance(node, ast.Assign | ast.AnnAssign):
+            continue
+        segment = ast.get_source_segment(pre_anvil_source_text, node) or ast.unparse(
+            node
+        )
+        snippets.append(segment)
+        carried.append(name)
+    if not snippets:
+        return []
+    new_text = _insert_before_first_def(target_text, target_tree, snippets)
+    target.write_text(new_text)
+    return [
+        f"decorator-followup: copying dep `{name}` to {target.name} "
+        f"from {source.name} alongside its dependents"
+        for name in carried
+    ]
+
+
+def _insert_before_first_def(
+    target_text: str, target_tree: ast.Module, snippets: list[str]
+) -> str:
+    """Splice *snippets* into *target_text* right before the first def/class.
+
+    Falls back to appending at end-of-file when the target contains no
+    function/class definition (rare: a freshly-created split target may
+    contain only a module docstring at this point).
+    """
+    block = "\n\n".join(snippets) + "\n\n"
+    insert_line: int | None = None
+    for stmt in target_tree.body:
+        if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            insert_line = stmt.lineno
+            if stmt.decorator_list:
+                insert_line = min(d.lineno for d in stmt.decorator_list)
+            break
+    if insert_line is None:
+        rstripped = target_text.rstrip()
+        return f"{rstripped}\n\n{block.rstrip()}\n"
+    lines = target_text.splitlines(keepends=True)
+    head = "".join(lines[: insert_line - 1])
+    tail = "".join(lines[insert_line - 1 :])
+    return f"{head}{block}{tail}"
+
+
 def _append_marker_fixtures(
     source: Path,
     target: Path,
@@ -879,10 +958,26 @@ def _safe_move_units(
     )
     warnings.extend(shadow_warnings)
 
+    pre_anvil_source_text = source.read_text()
+    pre_anvil_source_tree = ast.parse(pre_anvil_source_text)
+    module_deps_to_copy = _collect_module_level_deps_to_copy(
+        pre_anvil_source_tree, target_tree, final_units, project_path, target
+    )
+
     final_units, fixture_warnings = _append_marker_fixtures(
         source, target, project_path, target_tree, final_units
     )
     warnings.extend(fixture_warnings)
 
     warnings.extend(_finalize_move(source, target, project_path, final_units))
+
+    warnings.extend(
+        _copy_module_level_deps_to_target(
+            source,
+            target,
+            pre_anvil_source_text,
+            pre_anvil_source_tree,
+            module_deps_to_copy,
+        )
+    )
     return warnings, final_units
