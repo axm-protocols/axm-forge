@@ -19,3 +19,19 @@ def test_iter_test_files_yields_tests_recursively(tmp_path: Path) -> None:
     assert "test_a.py" in names
     assert "test_b.py" in names
     assert paths == sorted(paths)
+
+
+def test_iter_test_files_skips_fixtures(tmp_path: Path) -> None:
+    """`tests/fixtures/**/test_*.py` is corpus data, not real tests."""
+    unit = tmp_path / "tests" / "unit"
+    corpus = tmp_path / "tests" / "fixtures" / "corpus" / "input" / "tests" / "unit"
+    unit.mkdir(parents=True)
+    corpus.mkdir(parents=True)
+    (unit / "test_real.py").write_text("")
+    (corpus / "test_corpus.py").write_text("")
+
+    paths = [p for p, _ in iter_test_files(tmp_path)]
+    names = [p.name for p in paths]
+
+    assert "test_real.py" in names
+    assert "test_corpus.py" not in names
