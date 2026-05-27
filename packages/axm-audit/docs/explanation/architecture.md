@@ -102,7 +102,7 @@ the test tree without losing fixtures or shadowing conftests:
 
 | Symbol | Stage | Purpose |
 |---|---|---|
-| `relocate_non_canonical_tiers` | 0.5 | Move legacy `tests/<non-canonical>/test_*.py` into `tests/integration/` so RELOCATE only sees canonical tiers |
+| `relocate_non_canonical_tiers` | 0.5 | Move legacy `tests/<non-canonical>/test_*.py` into `tests/integration/` so RELOCATE only sees canonical tiers. `tests/fixtures/` is excluded (static corpora, not tests) |
 | `flatten_tier_layout` | 1.5 | Collapse nested `tests/integration/<sub>/` and `tests/e2e/<sub>/` to flat layout, renaming on collision |
 | `_safe_move_units` | per-op | Wrap `move_symbols` with collision dedup/rename, helper-body conflict resolution, conftest-shadow guards, marker-fixture follow-up |
 | `_resolve_helper_conflicts` | per-op | Rename source helpers whose body diverges from a same-named helper in target (or shadows conftest) before anvil runs |
