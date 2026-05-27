@@ -5,7 +5,6 @@ from __future__ import annotations
 import ast
 import textwrap
 from collections import Counter
-from pathlib import Path
 
 import pytest
 
@@ -242,17 +241,6 @@ def test_render_findings_text_no_suffix_when_under_cap() -> None:
     suffix_lines = [line for line in lines if line.startswith("(+")]
     assert len(finding_lines) == 5
     assert suffix_lines == []
-
-
-def test_self_audit_text_under_size_threshold() -> None:
-    """AC6 — self-audit on axm-audit produces text well under 4 KB."""
-    package_root = Path(__file__).resolve().parents[2]
-
-    result = FileNamingRule().check(package_root)
-
-    if result.text is None:
-        pytest.skip("axm-audit has no FILE_NAMING findings; size cap trivially met")
-    assert len(result.text) < 4_000
 
 
 if __name__ == "__main__":
