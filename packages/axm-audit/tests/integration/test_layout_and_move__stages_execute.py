@@ -6,7 +6,9 @@ tmp_path package via the ``make_test_pkg`` fixture.
 
 from __future__ import annotations
 
+import os
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -328,6 +330,211 @@ def test_execute_split_produces_target_files(make_test_pkg):
 
     assert target_a.exists()
     assert target_b.exists()
+
+
+def _make_split_pkg_with_decorator(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+    source_body: str,
+) -> Path:
+    """Build a 2-source pkg with the given test_x.py body (routes to a/b)."""
+    return make_test_pkg(
+        {
+            "src/pkg/a.py": "def a():\n    return 'a'\n",
+            "src/pkg/b.py": "def b():\n    return 'b'\n",
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/integration/test_x.py": source_body,
+        }
+    )
+
+
+def _split_op_x_to_ab(pkg: Path) -> tuple[FileOp, Path, Path]:
+    source = pkg / "tests/integration/test_x.py"
+    target_a = pkg / "tests/integration/test_a.py"
+    target_b = pkg / "tests/integration/test_b.py"
+    op = FileOp(
+        kind="split",
+        source=source,
+        target=[target_a, target_b],
+        rationale="file-too-large",
+        source_rule="TEST_QUALITY_FILE_SIZE",
+        split_map={
+            "test_a.py": ["test_one"],
+            "test_b.py": ["test_two"],
+        },
+    )
+    return op, target_a, target_b
+
+
+def test_execute_split_carries_decorator_referenced_constant(make_test_pkg):
+    """AC1: SPLIT carries module-level decorator-referenced constants to targets.
+
+    When a moved unit has ``@_alias`` and ``_alias = ...`` is defined at the
+    top level of source, both the decorator alias and the constants it
+    references must be copied to the target file alongside the unit.
+    """
+    if not _anvil_available():
+        pytest.skip("axm-anvil not installed")
+    pkg = _make_split_pkg_with_decorator(
+        make_test_pkg,
+        "import pytest\n"
+        "from pkg.a import a\n"
+        "from pkg.b import b\n\n"
+        "CONST = 42\n"
+        "_alias = pytest.mark.skipif(not CONST, reason='x')\n\n"
+        "@_alias\n"
+        "def test_one():\n    assert a() == 'a'\n\n"
+        "@_alias\n"
+        "def test_two():\n    assert b() == 'b'\n",
+    )
+    op, target_a, target_b = _split_op_x_to_ab(pkg)
+
+    execute([op], pkg)
+
+    for target in (target_a, target_b):
+        assert target.exists(), f"{target.name} not produced"
+        body = target.read_text()
+        assert "CONST = 42" in body, f"{target.name} missing CONST"
+        assert "_alias" in body, f"{target.name} missing _alias"
+        compile(body, str(target), "exec")
+
+
+def test_execute_split_carries_transitive_constant_chain(make_test_pkg):
+    """AC2: closure follows transitive references between module-level names.
+
+    ``_skip`` references ``B``; ``B`` references ``A`` — moving ``_skip``
+    must drag both ``B`` and ``A`` along, recursively to fixed point.
+    """
+    if not _anvil_available():
+        pytest.skip("axm-anvil not installed")
+    pkg = _make_split_pkg_with_decorator(
+        make_test_pkg,
+        "import pytest\n"
+        "from pkg.a import a\n"
+        "from pkg.b import b\n\n"
+        "A = 1\n"
+        "B = A + 1\n"
+        "_skip = pytest.mark.skipif(not B, reason='x')\n\n"
+        "@_skip\n"
+        "def test_one():\n    assert a() == 'a'\n\n"
+        "@_skip\n"
+        "def test_two():\n    assert b() == 'b'\n",
+    )
+    op, target_a, target_b = _split_op_x_to_ab(pkg)
+
+    execute([op], pkg)
+
+    for target in (target_a, target_b):
+        assert target.exists(), f"{target.name} not produced"
+        body = target.read_text()
+        assert "A = 1" in body, f"{target.name} missing A"
+        assert "B = A + 1" in body, f"{target.name} missing B"
+        assert "_skip" in body, f"{target.name} missing _skip"
+        compile(body, str(target), "exec")
+
+
+def test_execute_split_does_not_carry_unused_module_state(make_test_pkg):
+    """AC3: surgical closure — unused module-level names are NOT carried.
+
+    ``USED`` is referenced by ``_alias`` (transitively used by the moved
+    unit). ``UNUSED`` is defined in source but referenced by nothing the
+    moved unit reaches — it must stay out of the non-anchor target.
+    """
+    if not _anvil_available():
+        pytest.skip("axm-anvil not installed")
+    pkg = _make_split_pkg_with_decorator(
+        make_test_pkg,
+        "import pytest\n"
+        "from pkg.a import a\n"
+        "from pkg.b import b\n\n"
+        "USED = 1\n"
+        "_alias = pytest.mark.skipif(not USED, reason='x')\n"
+        "UNUSED = 999\n\n"
+        "@_alias\n"
+        "def test_one():\n    assert a() == 'a'\n\n"
+        "def test_two():\n    assert b() == 'b'\n",
+    )
+    op, target_a, _target_b = _split_op_x_to_ab(pkg)
+
+    execute([op], pkg)
+
+    assert target_a.exists()
+    body_a = target_a.read_text()
+    assert "USED = 1" in body_a, "target_a missing USED (referenced by _alias)"
+    assert "_alias" in body_a, "target_a missing _alias"
+    assert "UNUSED" not in body_a, (
+        "target_a wrongly carries UNUSED (not referenced by moved unit)"
+    )
+
+
+def test_execute_split_preserves_pytest_collectability_e2e(make_test_pkg):
+    """AC4: end-to-end — split outputs parse and exec without NameError.
+
+    Mirrors the failing axm-audit pattern: ``CASES = [...]`` and
+    ``_no_corpus = pytest.mark.skipif(not CASES, reason='no corpus')``,
+    with two ``@_no_corpus`` tests routed to distinct sibling files.
+    Asserts each output is syntactically valid AND executes top-to-bottom
+    without ``NameError`` (which is exactly what pytest collection does).
+    """
+    if not _anvil_available():
+        pytest.skip("axm-anvil not installed")
+    pkg = _make_split_pkg_with_decorator(
+        make_test_pkg,
+        "import pytest\n"
+        "from pkg.a import a\n"
+        "from pkg.b import b\n\n"
+        "CASES = [1, 2, 3]\n"
+        "_no_corpus = pytest.mark.skipif(not CASES, reason='no corpus')\n\n"
+        "@_no_corpus\n"
+        "def test_one():\n    assert a() == 'a'\n\n"
+        "@_no_corpus\n"
+        "def test_two():\n    assert b() == 'b'\n",
+    )
+    op, target_a, target_b = _split_op_x_to_ab(pkg)
+
+    execute([op], pkg)
+
+    env = {**os.environ, "PYTHONPATH": str(pkg / "src")}
+    for target in (target_a, target_b):
+        assert target.exists(), f"{target.name} not produced"
+        body = target.read_text()
+        # Syntactic validity.
+        parse_proc = subprocess.run(  # noqa: S603
+            [
+                sys.executable,
+                "-c",
+                "import ast, sys; ast.parse(open(sys.argv[1]).read())",
+                str(target),
+            ],
+            cwd=pkg,
+            capture_output=True,
+            text=True,
+        )
+        assert parse_proc.returncode == 0, (
+            f"ast.parse failed for {target.name}: {parse_proc.stderr}"
+        )
+        # Top-level execution — catches NameError on undefined decorator alias.
+        exec_proc = subprocess.run(  # noqa: S603
+            [
+                sys.executable,
+                "-c",
+                "import sys; exec(compile("
+                "open(sys.argv[1]).read(), sys.argv[1], 'exec'))",
+                str(target),
+            ],
+            cwd=pkg,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert exec_proc.returncode == 0, (
+            f"exec failed for {target.name}: {exec_proc.stderr}"
+        )
+        assert "NameError" not in exec_proc.stderr, (
+            f"NameError surfaced in {target.name}: {exec_proc.stderr}"
+        )
+        # Sanity: target file actually exercises the decorator pattern.
+        assert "_no_corpus" in body
 
 
 def test_execute_merge_concatenates_units_into_anchor(make_test_pkg):
