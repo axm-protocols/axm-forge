@@ -31,8 +31,8 @@ from .cst_rewrite import (
     _dedupe_imports_cst,
     _is_cst_import,
 )
-from .io_primitives import _cst_load, _cst_save
-from .paths import _module_path_for_test_file
+from .io_primitives import cst_load, cst_save
+from .paths import module_path_for_test_file
 from .tests_ast import (
     _const_value_hash,
     _helper_body_hash,
@@ -307,7 +307,7 @@ def _resolve_cascading_skips(part: _DupPartition, index: _TierIndex) -> None:
 def _build_emit_targets(project_path: Path, tier_dir: Path) -> _EmitTargets | None:
     helpers_path = tier_dir / "_helpers.py"
     conftest_path = tier_dir.parent / "conftest.py"
-    helpers_module_path = _module_path_for_test_file(helpers_path, project_path)
+    helpers_module_path = module_path_for_test_file(helpers_path, project_path)
     if helpers_module_path is None:
         return None
     helpers_module = _load_or_create_helpers_module(
@@ -395,12 +395,12 @@ def _flush_emit_state(
     project_path: Path,
 ) -> None:
     if state.helpers_touched:
-        _cst_save(
+        cst_save(
             targets.helpers_path,
             targets.helpers_module.with_changes(body=state.helpers_body),
         )
     if state.conftest_touched:
-        _cst_save(
+        cst_save(
             targets.conftest_path,
             targets.conftest_module.with_changes(body=state.conftest_body),
         )
@@ -467,7 +467,7 @@ def _load_or_create_helpers_module(
     helpers_path: Path, tier_name: str, helpers_module_path: str
 ) -> cst.Module | None:
     if helpers_path.exists():
-        return _cst_load(helpers_path)
+        return cst_load(helpers_path)
     return cst.parse_module(
         f'"""Shared helpers for ``tests/{tier_name}``.\n\n'
         "Promoted from duplicate top-level defs found across files.\n"
@@ -479,7 +479,7 @@ def _load_or_create_helpers_module(
 
 def _load_or_create_conftest_module(conftest_path: Path) -> cst.Module | None:
     if conftest_path.exists():
-        return _cst_load(conftest_path)
+        return cst_load(conftest_path)
     return cst.parse_module(
         '"""Pytest fixtures auto-discovered by tests in this directory.\n\n'
         "Promoted from duplicate ``@pytest.fixture`` definitions originally\n"
@@ -496,7 +496,7 @@ def _strip_def_only(file: Path, name: str) -> None:
     by pytest — no import would be valid syntactically (it would shadow
     the injected fixture parameter) and none is needed.
     """
-    module = _cst_load(file)
+    module = cst_load(file)
     if module is None:
         return
     new_body: list[cst.BaseStatement] = []
@@ -507,7 +507,7 @@ def _strip_def_only(file: Path, name: str) -> None:
             continue
         new_body.append(stmt)
     if stripped:
-        _cst_save(file, module.with_changes(body=new_body))
+        cst_save(file, module.with_changes(body=new_body))
 
 
 def _is_top_level_assign_to(stmt: cst.BaseStatement, name: str) -> bool:
@@ -542,7 +542,7 @@ def _strip_def_and_inject_import(
     file: Path, name: str, helpers_module: str, project_path: Path
 ) -> None:
     """Remove the top-level def of ``name`` from *file* and import it instead."""
-    module = _cst_load(file)
+    module = cst_load(file)
     if module is None:
         return
     new_body: list[cst.BaseStatement] = []
@@ -562,4 +562,4 @@ def _strip_def_and_inject_import(
     new_body.insert(_compute_import_insert_index(new_body), import_stmt)
     new_module = module.with_changes(body=new_body)
     new_module = _dedupe_imports_cst(new_module)
-    _cst_save(file, new_module)
+    cst_save(file, new_module)

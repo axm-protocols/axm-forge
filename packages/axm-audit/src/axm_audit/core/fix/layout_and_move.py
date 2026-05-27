@@ -41,15 +41,15 @@ from .cst_rewrite import (
 )
 from .io_primitives import _git_mv
 from .models import CANONICAL_TIERS
-from .paths import _file_depth_from_project, _module_path_for_test_file
+from .paths import file_depth_from_project, module_path_for_test_file
 from .tests_ast import (
     _collect_conftest_fixtures,
     _collect_marker_fixtures_to_move,
-    _func_body_hash,
-    _marker_fixtures_in_unit,
     _names_referenced_in_unit,
     _string_literal_fixtures_in_unit,
-    _top_level_helpers,
+    func_body_hash,
+    marker_fixtures_in_unit,
+    top_level_helpers,
 )
 
 __all__ = [
@@ -91,14 +91,14 @@ def _unique_integration_target(src: Path, integration: Path) -> Path:
 
 def _relocate_single_file(src: Path, target: Path, project_path: Path) -> list[str]:
     msgs: list[str] = []
-    old_mod = _module_path_for_test_file(src, project_path)
-    depth_delta = _file_depth_from_project(
+    old_mod = module_path_for_test_file(src, project_path)
+    depth_delta = file_depth_from_project(
         target, project_path
-    ) - _file_depth_from_project(src, project_path)
+    ) - file_depth_from_project(src, project_path)
     _git_mv(src, target)
     if depth_delta != 0:
         msgs.extend(_patch_file_dunder_depth(target, depth_delta))
-    new_mod = _module_path_for_test_file(target, project_path)
+    new_mod = module_path_for_test_file(target, project_path)
     if old_mod and new_mod and old_mod != new_mod:
         msgs.extend(
             _rewrite_cross_test_imports(
@@ -129,7 +129,7 @@ def relocate_non_canonical_tiers(project_path: Path) -> list[str]:
     pyramid directories (per CLAUDE.md). Files living under any other
     direct child of ``tests/`` — e.g. ``tests/functional/``,
     ``tests/hooks/``, ``tests/tools/`` — cannot be processed by SPLIT /
-    MERGE / RENAME because ``_tier_for_path`` returns ``None`` for them.
+    MERGE / RENAME because ``tier_for_path`` returns ``None`` for them.
 
     Default destination is ``tests/integration/`` (the tier for real I/O
     + first-party import), which is the most common landing for legacy
@@ -211,14 +211,14 @@ def _resolve_flatten_target(src: Path, tier_dir: Path) -> Path:
 def _flatten_one_file(project_path: Path, tier_dir: Path, src: Path) -> list[str]:
     msgs: list[str] = []
     target = _resolve_flatten_target(src, tier_dir)
-    old_mod = _module_path_for_test_file(src, project_path)
-    depth_delta = _file_depth_from_project(
+    old_mod = module_path_for_test_file(src, project_path)
+    depth_delta = file_depth_from_project(
         target, project_path
-    ) - _file_depth_from_project(src, project_path)
+    ) - file_depth_from_project(src, project_path)
     _git_mv(src, target)
     if depth_delta != 0:
         msgs.extend(_patch_file_dunder_depth(target, depth_delta))
-    new_mod = _module_path_for_test_file(target, project_path)
+    new_mod = module_path_for_test_file(target, project_path)
     if old_mod and new_mod and old_mod != new_mod:
         msgs.extend(
             _rewrite_cross_test_imports(
@@ -439,8 +439,8 @@ def _resolve_helper_conflicts(
     copy. Helpers only in source with no conftest shadow get
     duplicated as-is.
     """
-    source_helpers = _top_level_helpers(source_tree)
-    target_helpers = _top_level_helpers(target_tree)
+    source_helpers = top_level_helpers(source_tree)
+    target_helpers = top_level_helpers(target_tree)
     source_top_nodes = _index_top_level_defs(source_tree)
     moving_names = set(moving_unit_names)
     moving_nodes = [n for n in source_top_nodes.values() if n.name in moving_names]
@@ -475,7 +475,7 @@ def _index_top_level_defs(
 def _all_references_in_unit(node: ast.stmt) -> set[str]:
     return (
         _names_referenced_in_unit(node)
-        | _marker_fixtures_in_unit(node)
+        | marker_fixtures_in_unit(node)
         | _string_literal_fixtures_in_unit(node)
     )
 
@@ -543,8 +543,8 @@ def _resolve_conftest_shadowing(
     referenced = _referenced_names_in_moving_units(source_tree, moving_unit_names)
     if not referenced:
         return {}
-    source_helpers = _top_level_helpers(source_tree)
-    target_helpers = _top_level_helpers(target_tree)
+    source_helpers = top_level_helpers(source_tree)
+    target_helpers = top_level_helpers(target_tree)
     conftest_fixtures = _collect_conftest_fixtures(target, project_path)
     suffix = f"__local_{target_stem}"
     return _build_shadow_rename_map(
@@ -564,7 +564,7 @@ def _referenced_names_in_moving_units(
     referenced: set[str] = set()
     for node in moving_nodes:
         referenced |= _names_referenced_in_unit(node)
-        referenced |= _marker_fixtures_in_unit(node)
+        referenced |= marker_fixtures_in_unit(node)
         referenced |= _string_literal_fixtures_in_unit(node)
     return referenced
 
@@ -661,7 +661,7 @@ def _bounded_rename(name: str, suffix: str, stem: str) -> str:
 def _is_identical_test_dup(name: str, idx: _MoveIndex) -> bool:
     if name not in idx.source_funcs or name not in idx.target_funcs:
         return False
-    return _func_body_hash(idx.source_funcs[name]) == _func_body_hash(
+    return func_body_hash(idx.source_funcs[name]) == func_body_hash(
         idx.target_funcs[name]
     )
 

@@ -11,8 +11,8 @@ import pytest
 
 from axm_audit.core.fix.cst_rewrite import (
     _PROJECT_IMPORT_INDEX_CACHE,
-    _invalidate_import_index,
-    _resolve_import_for_symbol,
+    invalidate_import_index,
+    resolve_import_for_symbol,
 )
 
 
@@ -214,9 +214,9 @@ def test_imports_backfill_no_future_inserts_at_top() -> None:
 @pytest.fixture
 def _clean_import_index_cache(tmp_path: Path) -> Iterator[None]:
     """Ensure the cache starts empty for *tmp_path*."""
-    _invalidate_import_index(tmp_path)
+    invalidate_import_index(tmp_path)
     yield
-    _invalidate_import_index(tmp_path)
+    invalidate_import_index(tmp_path)
 
 
 def test_import_index_cache_returns_same_object_on_hit(
@@ -228,28 +228,28 @@ def test_import_index_cache_returns_same_object_on_hit(
     (pkg / "__init__.py").write_text("")
     (pkg / "mod.py").write_text("def foo():\n    pass\n")
 
-    first = _resolve_import_for_symbol(tmp_path, "foo")
+    first = resolve_import_for_symbol(tmp_path, "foo")
     assert tmp_path in _PROJECT_IMPORT_INDEX_CACHE
-    second = _resolve_import_for_symbol(tmp_path, "foo")
+    second = resolve_import_for_symbol(tmp_path, "foo")
     assert first == second
 
 
 def test_import_index_cache_rebuilt_after_invalidate(
     tmp_path: Path, _clean_import_index_cache: None
 ) -> None:
-    """AC7: _invalidate_import_index drops the cache so next call refreshes."""
+    """AC7: invalidate_import_index drops the cache so next call refreshes."""
     pkg = tmp_path / "pkg"
     pkg.mkdir()
     (pkg / "__init__.py").write_text("")
     (pkg / "mod.py").write_text("def foo():\n    pass\n")
 
-    _resolve_import_for_symbol(tmp_path, "foo")
+    resolve_import_for_symbol(tmp_path, "foo")
     assert tmp_path in _PROJECT_IMPORT_INDEX_CACHE
 
-    _invalidate_import_index(tmp_path)
+    invalidate_import_index(tmp_path)
     assert tmp_path not in _PROJECT_IMPORT_INDEX_CACHE
 
     # Extend the package; resolver should pick up the new symbol after rebuild.
     (pkg / "mod2.py").write_text("def bar():\n    pass\n")
-    resolved = _resolve_import_for_symbol(tmp_path, "bar")
+    resolved = resolve_import_for_symbol(tmp_path, "bar")
     assert resolved is not None

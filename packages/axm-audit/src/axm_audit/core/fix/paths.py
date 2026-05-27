@@ -5,22 +5,22 @@ from __future__ import annotations
 from pathlib import Path
 
 __all__ = [
-    "_abspath",
-    "_file_depth_from_project",
-    "_module_path_for_test_file",
-    "_retier",
-    "_safe_filename",
-    "_tier_for_path",
+    "abspath",
+    "file_depth_from_project",
+    "module_path_for_test_file",
+    "retier",
+    "safe_filename",
+    "tier_for_path",
 ]
 
 
-def _abspath(p: str, project_path: Path) -> Path:
+def abspath(p: str, project_path: Path) -> Path:
     """Normalise a finding path (which may be relative or absolute)."""
     pp = Path(p)
     return pp if pp.is_absolute() else (project_path / pp)
 
 
-def _safe_filename(name: str) -> str:
+def safe_filename(name: str) -> str:
     """Make a canonical filename PEP8-importable.
 
     Current ``FILE_NAMING`` emits ``test_<a>__<b>.py`` (``__`` separator,
@@ -35,7 +35,7 @@ def _safe_filename(name: str) -> str:
     return stem.replace("-", "__") + ".py"
 
 
-def _retier(p: Path, root: Path, target_lvl: str) -> Path:
+def retier(p: Path, root: Path, target_lvl: str) -> Path:
     """Compute the destination path under tests/{target_lvl}/.
 
     Three cases on the relative parts:
@@ -60,7 +60,7 @@ def _retier(p: Path, root: Path, target_lvl: str) -> Path:
     return root / Path(*parts)
 
 
-def _tier_for_path(path: Path) -> str | None:
+def tier_for_path(path: Path) -> str | None:
     """Return ``unit``/``integration``/``e2e`` for a test path, or None.
 
     Walks up the parents until a tier component is found. Tolerates
@@ -73,7 +73,7 @@ def _tier_for_path(path: Path) -> str | None:
     return None
 
 
-def _module_path_for_test_file(path: Path, project_path: Path) -> str | None:
+def module_path_for_test_file(path: Path, project_path: Path) -> str | None:
     """Return the dotted module path used by ``from`` imports for *path*.
 
     For ``project/tests/integration/test_foo.py`` this returns
@@ -90,7 +90,7 @@ def _module_path_for_test_file(path: Path, project_path: Path) -> str | None:
     return ".".join(parts)
 
 
-def _file_depth_from_project(path: Path, project_path: Path) -> int:
+def file_depth_from_project(path: Path, project_path: Path) -> int:
     """Number of path parts between *path*'s file and *project_path*.
 
     For ``/p/tests/unit/core/test_X.py`` under ``/p``, returns 4

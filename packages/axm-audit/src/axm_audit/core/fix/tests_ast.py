@@ -6,10 +6,10 @@ when an entry point takes a path. This file gathers every read-side AST
 primitive used by the fix pipeline so that ``cst_rewrite`` / ``stages_*``
 can stay focused on side-effects.
 
-Future: the higher-level pieces (``_top_level_test_classes``,
-``_top_level_helpers``, ``_collect_imported_names``) may move to
+Future: the higher-level pieces (``top_level_test_classes``,
+``top_level_helpers``, ``collect_imported_names``) may move to
 ``axm-ast`` once that package exposes raw ``ast.Module`` access. The
-fine-grained walkers (``_class_is_pathological``, ``_marker_fixtures_in_unit``)
+fine-grained walkers (``class_is_pathological``, ``marker_fixtures_in_unit``)
 are too specific to pytest semantics to belong in a general lib.
 """
 
@@ -23,27 +23,27 @@ from pathlib import Path
 
 __all__ = [
     "_BUILTINS",
-    "_class_is_pathological",
     "_collect_conftest_fixtures",
     "_collect_defined_names",
-    "_collect_imported_names",
     "_collect_marker_fixtures_to_move",
     "_collect_referenced_names",
     "_const_value_hash",
-    "_file_has_pathological_class",
-    "_func_body_hash",
     "_helper_body_hash",
     "_is_pytest_fixture",
-    "_marker_fixtures_in_unit",
     "_movable_units_at_top_level",
     "_names_referenced_in_unit",
     "_references_file_dunder",
     "_source_segment_with_decorators",
     "_string_literal_fixtures_in_unit",
-    "_top_level_helpers",
-    "_top_level_test_classes",
     "_top_level_test_names",
     "_walk_test_funcs",
+    "class_is_pathological",
+    "collect_imported_names",
+    "file_has_pathological_class",
+    "func_body_hash",
+    "marker_fixtures_in_unit",
+    "top_level_helpers",
+    "top_level_test_classes",
 ]
 
 
@@ -81,7 +81,7 @@ def _top_level_test_names(tree: ast.Module) -> set[str]:
     }
 
 
-def _top_level_test_classes(tree: ast.Module) -> list[ast.ClassDef]:
+def top_level_test_classes(tree: ast.Module) -> list[ast.ClassDef]:
     """Test* classes at module level that contain test_* methods."""
     out: list[ast.ClassDef] = []
     for node in tree.body:
@@ -143,7 +143,7 @@ def _self_attr_reason(cls: ast.ClassDef) -> str | None:
     return None
 
 
-def _class_is_pathological(cls: ast.ClassDef) -> str | None:
+def class_is_pathological(cls: ast.ClassDef) -> str | None:
     """Return a reason if the class cannot be safely flattened, else None.
 
     Pathological = uses `self.<attr>` inside methods, has `__init__`,
@@ -170,8 +170,8 @@ def _class_has_divergent_methods(cls: ast.ClassDef) -> bool:
     return len(second_tokens) >= 2
 
 
-def _file_has_pathological_class(source: Path) -> bool:
-    """True iff *source* contains a Test* class that ``_class_is_pathological``
+def file_has_pathological_class(source: Path) -> bool:
+    """True iff *source* contains a Test* class that ``class_is_pathological``
     flags AND that has divergent method canonicals.
 
     Used by ``plan_naming`` SPLIT and ``_execute_split`` to short-circuit
@@ -187,8 +187,8 @@ def _file_has_pathological_class(source: Path) -> bool:
     except (OSError, SyntaxError):
         return False
     return any(
-        _class_is_pathological(cls) is not None and _class_has_divergent_methods(cls)
-        for cls in _top_level_test_classes(tree)
+        class_is_pathological(cls) is not None and _class_has_divergent_methods(cls)
+        for cls in top_level_test_classes(tree)
     )
 
 
@@ -218,7 +218,7 @@ def _child_stmt_blocks(stmt: ast.stmt) -> list[list[ast.stmt]]:
     return []
 
 
-def _collect_imported_names(
+def collect_imported_names(
     tree: ast.Module,
 ) -> dict[str, tuple[ast.stmt, ast.stmt | None]]:
     """Return {imported_name: (import_stmt, enclosing_block_or_None)}.
@@ -352,7 +352,7 @@ def _is_pytest_fixture(node: ast.FunctionDef) -> bool:
     return False
 
 
-def _func_body_hash(func: ast.FunctionDef) -> str:
+def func_body_hash(func: ast.FunctionDef) -> str:
     """Stable string hash of a function body (for collision dedup).
 
     Comparison is structural via ast.unparse on the body — ignores
@@ -432,7 +432,7 @@ def _helper_entry(node: ast.stmt) -> tuple[str, str] | None:
     return None
 
 
-def _top_level_helpers(
+def top_level_helpers(
     tree: ast.Module,
 ) -> dict[str, tuple[str, ast.stmt]]:
     """Return ``{name: (body_hash, node)}`` for every top-level helper.
@@ -458,7 +458,7 @@ def _names_referenced_in_unit(node: ast.stmt) -> set[str]:
     function or Test* class) depends on. We also pick up marker
     arguments — ``@pytest.mark.usefixtures("X")`` is a string literal
     inside the decorator, NOT an ast.Name, so it's handled separately
-    by ``_marker_fixtures_in_unit``.
+    by ``marker_fixtures_in_unit``.
     """
     return {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
 
@@ -488,7 +488,7 @@ def _scannable_units(node: ast.stmt) -> list[ast.AST]:
     return nodes
 
 
-def _marker_fixtures_in_unit(node: ast.stmt) -> set[str]:
+def marker_fixtures_in_unit(node: ast.stmt) -> set[str]:
     """Return fixture names declared via ``@pytest.mark.usefixtures("X", ...)``."""
     out: set[str] = set()
     for n in _scannable_units(node):
@@ -614,7 +614,7 @@ def _needed_fixtures_for_moving_units(
             continue
         if node.name not in moving:
             continue
-        needed |= _marker_fixtures_in_unit(node)
+        needed |= marker_fixtures_in_unit(node)
         needed |= _string_literal_fixtures_in_unit(node)
     return needed
 
