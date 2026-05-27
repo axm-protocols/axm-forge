@@ -1,22 +1,35 @@
-"""Unit tests for axm_audit.core.fix.findings adapter — AC1, AC2, AC3, AC4."""
+"""Unit tests for axm_audit.core.fix.findings adapter — AC1, AC2, AC4.
+
+The AC1 tests (formerly hitting the private ``_check_by_rule`` adapter)
+are lifted to ``plan_relocate``, the natural public consumer in
+``core.fix.stages_plan``: it derives a ``FileOp`` with ``kind='relocate'``
+directly from the ``path`` + ``level`` keys of each PYRAMID_LEVEL
+finding, so a green ``FileOp`` proves the underlying adapter wired the
+finding shape correctly. The AC3 test on ``_load_project_scripts`` is
+retired: the duplicate has been replaced by the canonical
+``axm_audit.core.rules.test_quality._shared.load_project_scripts``,
+whose contract is already exercised by
+``tests/integration/test_has_in_package_subprocess_invocation__load_project_scripts.py``.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
 
-from axm_audit.core.fix.findings import (
-    _check_by_rule,
-    _load_project_scripts,
-    collect_unfixable,
-    get_pkg_prefixes,
-)
+from axm_audit.core.fix.findings import collect_unfixable, get_pkg_prefixes
+from axm_audit.core.fix.stages_plan import plan_relocate
 
 
-def test_check_by_rule_returns_findings_list(
+def test_plan_relocate_emits_op_for_mis_tiered_test(
     make_pkg: Callable[..., Path],
 ) -> None:
-    """AC1: returns list[dict] for a mis-tiered test; each dict has path + level."""
+    """AC1: a mis-tiered integration test surfaces as a relocate ``FileOp``.
+
+    ``plan_relocate`` is the canonical consumer of PYRAMID_LEVEL findings:
+    a green ``FileOp(kind='relocate')`` proves the underlying adapter
+    returned ``list[dict]`` carrying both ``path`` and ``level`` keys.
+    """
     pkg = make_pkg(
         files={
             "tests/integration/test_x.py": (
@@ -24,20 +37,23 @@ def test_check_by_rule_returns_findings_list(
             ),
         }
     )
-    result = _check_by_rule(pkg, "TEST_QUALITY_PYRAMID_LEVEL")
-    assert isinstance(result, list)
-    for f in result:
-        assert isinstance(f, dict)
-        assert "path" in f
-        assert "level" in f
+    ops = plan_relocate(pkg)
+    assert ops, "expected at least one relocate op for mis-tiered integration test"
+    op = ops[0]
+    assert op.kind == "relocate"
+    assert isinstance(op.source, Path)
+    assert "integration" in op.source.parts
+    assert isinstance(op.target, Path)
+    assert "unit" in op.target.parts
+    assert op.source_rule == "TEST_QUALITY_PYRAMID_LEVEL"
 
 
-def test_check_by_rule_empty_when_clean(
+def test_plan_relocate_empty_when_clean(
     make_pkg: Callable[..., Path],
 ) -> None:
-    """AC1: returns empty list when no PYRAMID_LEVEL finding."""
+    """AC1: no PYRAMID_LEVEL finding ⇒ no relocate op."""
     pkg = make_pkg()
-    assert _check_by_rule(pkg, "TEST_QUALITY_PYRAMID_LEVEL") == []
+    assert plan_relocate(pkg) == []
 
 
 def test_get_pkg_prefixes_reads_deptry_config(
@@ -57,16 +73,6 @@ def test_get_pkg_prefixes_falls_back_to_src_scan(
     """AC2: derives package name by scanning src/ when no deptry config present."""
     pkg = make_pkg(pkg_name="mypkg")
     assert get_pkg_prefixes(pkg) == {"mypkg"}
-
-
-def test_load_project_scripts_reads_pyproject(
-    make_pkg: Callable[..., Path],
-) -> None:
-    """AC3: reads [project.scripts] and returns the entry-point name set."""
-    pkg = make_pkg(
-        pyproject_extras='[project.scripts]\nmy-cli = "my.module:main"\n',
-    )
-    assert _load_project_scripts(pkg) == {"my-cli"}
 
 
 def test_collect_unfixable_surfaces_no_package_symbol(

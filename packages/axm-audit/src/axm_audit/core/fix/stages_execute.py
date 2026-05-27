@@ -19,6 +19,8 @@ try:
 except ImportError:  # pragma: no cover
     move_symbols = None  # type: ignore[assignment]
 
+from axm_audit.core.rules.test_quality._shared import load_project_scripts
+
 from .cst_rewrite import (
     _backfill_missing_imports,
     _delete_source_if_empty_tests,
@@ -27,7 +29,6 @@ from .cst_rewrite import (
     _reorder_module_statements,
 )
 from .findings import (
-    _load_project_scripts,
     _per_unit_canonical,
     class_needs_flatten,
     get_pkg_prefixes,
@@ -468,7 +469,7 @@ def _split_pathological_leftover(
     tree: ast.Module, tier_str: str, project_path: Path
 ) -> list[str]:
     pkg_prefixes = get_pkg_prefixes(project_path)
-    scripts = _load_project_scripts(project_path)
+    scripts = load_project_scripts(project_path)
     single_binary = next(iter(scripts)) if len(scripts) == 1 else None
     return [
         cls.name

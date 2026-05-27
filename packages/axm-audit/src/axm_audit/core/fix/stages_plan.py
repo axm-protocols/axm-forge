@@ -14,9 +14,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from axm_audit.core.rules.test_quality._shared import load_project_scripts
+
 from .findings import (
     _check_by_rule,
-    _load_project_scripts,
     class_needs_flatten,
     get_pkg_prefixes,
 )
@@ -128,7 +129,7 @@ def plan_flatten(project_path: Path) -> list[FileOp]:
     """
     findings = _check_by_rule(project_path, "TEST_QUALITY_FILE_NAMING")
     pkg_prefixes = get_pkg_prefixes(project_path)
-    scripts = _load_project_scripts(project_path)
+    scripts = load_project_scripts(project_path)
     single_binary = next(iter(scripts)) if len(scripts) == 1 else None
     ops: list[FileOp] = []
     for src in sorted(_collect_flatten_candidates(findings)):
