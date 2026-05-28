@@ -14,6 +14,7 @@ Helper namespacing: the two divergent ``_make_ep`` helpers were renamed
 from __future__ import annotations
 
 import inspect
+from dataclasses import dataclass, field
 from typing import Any, Literal
 from unittest.mock import MagicMock, patch
 
@@ -24,6 +25,7 @@ from tests.unit._helpers import _DISCOVER
 
 from axm_mcp.discovery import (
     _is_disabled,
+    _register_list_tools,
     _register_one,
     discover_tools,
     register_tools,
@@ -688,3 +690,93 @@ class TestBatchEditSchemaViaMCP:
         assert ops_ann is not inspect.Parameter.empty, (
             "batch_edit 'operations' annotation was stripped"
         )
+
+
+# ───────────────────────── wrapper registration ──────────────────────────────
+
+
+@dataclass
+class FakeToolResult:
+    """Minimal ToolResult stand-in."""
+
+    success: bool = True
+    data: dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+
+
+class FakeTool:
+    """Minimal ToolLike stand-in for testing registration."""
+
+    def __init__(
+        self,
+        name: str = "fake_tool",
+        *,
+        result: FakeToolResult | None = None,
+        raise_exc: Exception | None = None,
+    ) -> None:
+        self._name = name
+        self._result = result or FakeToolResult(data={"key": "val"})
+        self._raise_exc = raise_exc
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def execute(self, **kwargs: Any) -> FakeToolResult:
+        """Execute the fake tool."""
+        if self._raise_exc:
+            raise self._raise_exc
+        return self._result
+
+
+class TestRegisterOne:
+    """Cover _register_one wrapper (discovery.py:91-97)."""
+
+    def test_wrapper_returns_success(self) -> None:
+        """Registered wrapper returns tool result as dict."""
+        fake_mcp = FakeMCP()
+        tool = FakeTool(result=FakeToolResult(success=True, data={"answer": 42}))
+        _register_one(fake_mcp, "my_tool", tool)
+
+        result = fake_mcp.tools["my_tool"]()
+        assert result == {"success": True, "answer": 42}
+
+    def test_wrapper_includes_error(self) -> None:
+        """Wrapper includes error field when tool reports one."""
+        fake_mcp = FakeMCP()
+        tool = FakeTool(
+            result=FakeToolResult(success=False, data={}, error="something broke"),
+        )
+        _register_one(fake_mcp, "err_tool", tool)
+
+        result = fake_mcp.tools["err_tool"]()
+        assert result["success"] is False
+        assert result["error"] == "something broke"
+
+    def test_wrapper_unwraps_nested_kwargs(self) -> None:
+        """Wrapper unwraps kwargs={...} pattern from MCP."""
+        fake_mcp = FakeMCP()
+        tool = FakeTool(result=FakeToolResult(success=True, data={"ok": True}))
+        _register_one(fake_mcp, "unwrap_tool", tool)
+
+        result = fake_mcp.tools["unwrap_tool"](kwargs={"path": "/tmp"})
+        assert result["success"] is True
+
+
+class TestRegisterListTools:
+    """Cover _register_list_tools inner fn (discovery.py:113-120)."""
+
+    def test_lists_all_tools(self) -> None:
+        """list_tools returns discovered + extra tools, sorted."""
+        fake_mcp = FakeMCP()
+        tools = {
+            "beta_tool": FakeTool(name="beta_tool"),
+            "alpha_tool": FakeTool(name="alpha_tool"),
+        }
+        extra = {"verify": "One-shot verify"}
+        _register_list_tools(fake_mcp, tools, extra)
+
+        result = fake_mcp.tools["list_tools"]()
+        assert result["count"] == 3
+        names = [t["name"] for t in result["tools"]]
+        assert names == ["alpha_tool", "beta_tool", "verify"]
