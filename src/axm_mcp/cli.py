@@ -92,7 +92,7 @@ def status(
     url = f"http://{host}:{port}/health"
     try:
         resp = httpx.get(url, timeout=3)
-        if resp.status_code == 200:
+        if resp.status_code == httpx.codes.OK:
             data = resp.json()
             tools = data.get("tools_count", "?")
             print(f"Server running on {host}:{port} ({tools} tools)")  # noqa: T201

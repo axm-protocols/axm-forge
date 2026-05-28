@@ -100,7 +100,7 @@ async def fetch_page(
             "status_code": status,
             "mode": mode,
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning("web_fetch failed for %s: %s", url, exc)
         return {
             "success": False,

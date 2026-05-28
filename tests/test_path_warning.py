@@ -22,7 +22,7 @@ class TestPathWarningHTTPMode:
 
     def test_path_warning_http_mode(self, caplog: pytest.LogCaptureFixture) -> None:
         """Warning logged when path='.' and HTTP mode is on."""
-        import axm_mcp.discovery as discovery
+        from axm_mcp import discovery
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -47,7 +47,7 @@ class TestPathWarningHTTPMode:
 
     def test_no_warning_stdio_mode(self, caplog: pytest.LogCaptureFixture) -> None:
         """No warning when _HTTP_MODE is False (stdio transport)."""
-        import axm_mcp.discovery as discovery
+        from axm_mcp import discovery
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -69,7 +69,7 @@ class TestPathWarningHTTPMode:
 
     def test_no_warning_explicit_path(self, caplog: pytest.LogCaptureFixture) -> None:
         """No warning when an explicit absolute path is provided."""
-        import axm_mcp.discovery as discovery
+        from axm_mcp import discovery
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -95,7 +95,7 @@ class TestPathWarningPlainFunction:
 
     def test_plain_fn_warns_http_mode(self, caplog: pytest.LogCaptureFixture) -> None:
         """Plain function wrapper also warns on path='.'."""
-        import axm_mcp.discovery as discovery
+        from axm_mcp import discovery
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -127,7 +127,7 @@ class TestPathWarningEdgeCases:
 
     def test_path_none_no_warning(self, caplog: pytest.LogCaptureFixture) -> None:
         """No warning when path is not passed at all."""
-        import axm_mcp.discovery as discovery
+        from axm_mcp import discovery
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -150,7 +150,7 @@ class TestPathWarningEdgeCases:
     @pytest.mark.asyncio
     async def test_empty_string_warns(self, caplog: pytest.LogCaptureFixture) -> None:
         """Empty string path is treated like '.' — warns in HTTP mode."""
-        import axm_mcp.discovery as discovery
+        from axm_mcp import discovery
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -181,7 +181,7 @@ class TestExistingToolsStillWork:
 
     def test_tool_executes_normally_with_explicit_path(self) -> None:
         """Tool with explicit path runs and returns normally."""
-        import axm_mcp.discovery as discovery
+        from axm_mcp import discovery
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()

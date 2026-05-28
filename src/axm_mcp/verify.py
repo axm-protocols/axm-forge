@@ -21,6 +21,9 @@ __all__ = ["VerifyTool", "verify_project"]
 
 logger = logging.getLogger(__name__)
 
+# Cap callers listed in enrichment output to keep payloads compact.
+_MAX_CALLERS = 10
+
 
 def verify_project(
     path: str,
@@ -73,7 +76,7 @@ def _run_tool(
             return data
         logger.warning("Tool '%s' failed: %s", tool_name, result.error)
         return {"error": result.error}
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Tool '%s' raised: %s", tool_name, exc, exc_info=True)
         return {"error": str(exc)}
 
@@ -119,17 +122,20 @@ def _enrich_failure(
                 score = cast(str, data.get("score") or "LOW")
                 if _score_order.get(score, 0) > _score_order.get(max_score, 0):
                     max_score = score
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("AST enrichment failed for %s: %s", symbol, exc)
 
     if success_count == 0:
         return None
 
     total_callers = len(all_callers)
-    if total_callers > 10:
-        all_callers = all_callers[:10]
+    if total_callers > _MAX_CALLERS:
+        all_callers = all_callers[:_MAX_CALLERS]
         all_callers.append(
-            {"note": f"... and {total_callers - 10} more callers omitted for brevity"}
+            {
+                "note": f"... and {total_callers - _MAX_CALLERS} "
+                "more callers omitted for brevity"
+            }
         )
 
     return {
