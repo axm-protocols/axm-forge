@@ -141,6 +141,14 @@ reason = "Heterogeneous: distinct details-dict branches - known-key extraction (
 hash = "4a85ea6a1073"
 reason = "Heterogeneous: two different priority rules - cross-field precedence (text field wins over details) vs intra-dict known-key lookup order (findings wins over violations). Different precedence mechanisms, not one rule with different data."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "343f7ae8b789"
+reason = "Heterogeneous: opposite outcomes on opposite branches - AXMTool with execute(**kwargs) triggers the docstring-fallback path (params synthesized from the Args block), whereas a tool with a typed execute(*, path, limit) keeps normal signature introspection (docstring ignored). Different SUT shapes, different code paths, opposite assertions."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3da3a2d46057"
+reason = "Heterogeneous setup: both return None but via distinct rejection branches - a regular function (no action+**kwargs) fails the dispatcher signature-shape check, while an orphan dispatcher (correct action+**kwargs shape) falls through the missing _ACTIONS-dict lookup. Different SUT construction, different early-return branch."
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MyPy Configuration
 # ─────────────────────────────────────────────────────────────────────────────
