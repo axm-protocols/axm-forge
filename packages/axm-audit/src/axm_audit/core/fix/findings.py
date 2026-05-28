@@ -2,8 +2,8 @@
 
 Wraps ``audit_project`` to surface FILE_NAMING / PYRAMID_LEVEL findings
 normalised as ``list[dict]`` with absolute paths, and exposes the
-per-test canonical-filename machinery (``_func_canonical``,
-``_per_unit_canonical``, ``_class_needs_flatten``) that consumes the
+per-test canonical-filename machinery (``func_canonical``,
+``per_unit_canonical``, ``_class_needs_flatten``) that consumes the
 audit's own ``_shared`` helpers.
 
 ``collect_unfixable`` lives here too: it re-audits post-pipeline to
@@ -32,17 +32,17 @@ from .paths import abspath, safe_filename
 from .tests_ast import top_level_test_classes
 
 __all__ = [
-    "_check_by_rule",
-    "_findings",
-    "_func_canonical",
-    "_per_unit_canonical",
+    "check_by_rule",
     "class_needs_flatten",
     "collect_unfixable",
+    "func_canonical",
     "get_pkg_prefixes",  # re-export for callers
+    "normalize_findings",
+    "per_unit_canonical",
 ]
 
 
-def _findings(check: Any) -> list[dict[str, Any]]:
+def normalize_findings(check: Any) -> list[dict[str, Any]]:
     """Normalise a CheckResult's findings into a list[dict]."""
     raw = None
     if hasattr(check, "details") and isinstance(check.details, dict):
@@ -74,7 +74,7 @@ def _absolutize_paths(finding: dict[str, Any], project_path: Path) -> None:
         ]
 
 
-def _check_by_rule(project_path: Path, rule_id: str) -> list[dict[str, Any]]:
+def check_by_rule(project_path: Path, rule_id: str) -> list[dict[str, Any]]:
     """Run the test_quality audit and return findings for ``rule_id``.
 
     The returned dicts have their ``path`` / ``test_file`` / ``files``
@@ -85,14 +85,14 @@ def _check_by_rule(project_path: Path, rule_id: str) -> list[dict[str, Any]]:
     for check in result.checks:
         if getattr(check, "rule_id", "") != rule_id:
             continue
-        out = _findings(check)
+        out = normalize_findings(check)
         for d in out:
             _absolutize_paths(d, project_path)
         return out
     return []
 
 
-def _func_canonical(
+def func_canonical(
     func: ast.FunctionDef,
     tree: ast.Module,
     *,
@@ -128,7 +128,7 @@ class _CanonicalCtx(NamedTuple):
 def _canonical_unit_name(func: ast.FunctionDef, ctx: _CanonicalCtx) -> str:
     """Safe canonical filename for a single test function."""
     return safe_filename(
-        _func_canonical(
+        func_canonical(
             func,
             ctx.tree,
             tier=ctx.tier,
@@ -152,7 +152,7 @@ def _class_canonical_unit(cls: ast.ClassDef, ctx: _CanonicalCtx) -> str | None:
     return None if only == "test_UNKNOWN.py" else only
 
 
-def _per_unit_canonical(
+def per_unit_canonical(
     source: Path,
     tier: Literal["integration", "e2e"],
     project_path: Path,
@@ -203,7 +203,7 @@ def class_needs_flatten(
     """True iff this class's methods have ≥2 distinct canonical filenames."""
     canonicals = {
         safe_filename(
-            _func_canonical(
+            func_canonical(
                 c,
                 tree,
                 tier=tier,
@@ -241,7 +241,7 @@ def collect_unfixable(project_path: Path) -> list[dict[str, Any]]:
             rid = getattr(check, "rule_id", "")
             if rid not in NON_DETERMINISTIC_RULES:
                 continue
-            for d in _findings(check):
+            for d in normalize_findings(check):
                 out.append({"rule_id": rid, **d})
     # B1: lazy import to break the findings <-> stages_plan cycle.
     from .stages_plan import plan_flatten

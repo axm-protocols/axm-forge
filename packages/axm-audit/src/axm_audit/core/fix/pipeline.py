@@ -17,7 +17,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .cst_rewrite import invalidate_import_index
-from .extract_helpers import _extract_shared_helpers
+from .extract_helpers import extract_shared_helpers
 from .findings import collect_unfixable
 from .layout_and_move import (
     flatten_tier_layout,
@@ -237,7 +237,7 @@ def _filter_helper_dup_warnings(
 
 
 def _apply_post_polish(project_path: Path, warnings: list[str]) -> list[str]:
-    extraction_msgs = _extract_shared_helpers(project_path)
+    extraction_msgs = extract_shared_helpers(project_path)
     warnings.extend(extraction_msgs)
     extracted_names = _parse_extracted_names(extraction_msgs)
     warnings = _filter_helper_dup_warnings(warnings, extracted_names)

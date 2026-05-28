@@ -7,12 +7,12 @@ pure helpers) or the tier's ``conftest.py`` (for ``@pytest.fixture``).
 
 Three layers:
 
-* ``_extract_shared_helpers`` — top-level entry; iterates ``_once``
+* ``extract_shared_helpers`` — top-level entry; iterates ``_once``
   until fixed-point, deduplicating ambiguous-fixture warnings across
   iterations.
-* ``_extract_shared_helpers_once`` / ``_in_tier`` — single-pass
+* ``extract_shared_helpers_once`` / ``_in_tier`` — single-pass
   extraction across all canonical tiers.
-* ``_load_or_create_*`` / ``_strip_def_*`` — file-level mutation
+* ``load_or_create_*`` / ``strip_def_*`` — file-level mutation
   helpers, libcst-based.
 """
 
@@ -42,13 +42,13 @@ from .tests_ast import (
 )
 
 __all__ = [
-    "_extract_shared_helpers",
-    "_extract_shared_helpers_in_tier",
-    "_extract_shared_helpers_once",
-    "_load_or_create_conftest_module",
-    "_load_or_create_helpers_module",
-    "_strip_def_and_inject_import",
-    "_strip_def_only",
+    "extract_shared_helpers",
+    "extract_shared_helpers_in_tier",
+    "extract_shared_helpers_once",
+    "load_or_create_conftest_module",
+    "load_or_create_helpers_module",
+    "strip_def_and_inject_import",
+    "strip_def_only",
 ]
 
 
@@ -97,8 +97,8 @@ class _EmitTargets:
     conftest_module: cst.Module
 
 
-def _extract_shared_helpers(project_path: Path) -> list[str]:
-    """Iterate ``_extract_shared_helpers_once`` until fixed-point.
+def extract_shared_helpers(project_path: Path) -> list[str]:
+    """Iterate ``extract_shared_helpers_once`` until fixed-point.
 
     A single pass cannot catch every duplicate: promoting helper A can
     expose helper B as duplicate (e.g. A's body referenced B locally,
@@ -113,7 +113,7 @@ def _extract_shared_helpers(project_path: Path) -> list[str]:
     all_msgs: list[str] = []
     seen_ambiguous: set[str] = set()
     for _ in range(_EXTRACT_MAX_ITERS):
-        msgs = _extract_shared_helpers_once(project_path)
+        msgs = extract_shared_helpers_once(project_path)
         progress = [m for m in msgs if "ambiguous fixture" not in m]
         deduped: list[str] = list(progress)
         for m in msgs:
@@ -126,7 +126,7 @@ def _extract_shared_helpers(project_path: Path) -> list[str]:
     return all_msgs
 
 
-def _extract_shared_helpers_once(project_path: Path) -> list[str]:
+def extract_shared_helpers_once(project_path: Path) -> list[str]:
     """Promote helpers duplicated across a tier into ``tests/<tier>/_helpers.py``."""
     msgs: list[str] = []
     tests_root = project_path / "tests"
@@ -136,7 +136,7 @@ def _extract_shared_helpers_once(project_path: Path) -> list[str]:
         tier_dir = tests_root / tier
         if not tier_dir.is_dir():
             continue
-        msgs.extend(_extract_shared_helpers_in_tier(project_path, tier_dir))
+        msgs.extend(extract_shared_helpers_in_tier(project_path, tier_dir))
     return msgs
 
 
@@ -310,10 +310,10 @@ def _build_emit_targets(project_path: Path, tier_dir: Path) -> _EmitTargets | No
     helpers_module_path = module_path_for_test_file(helpers_path, project_path)
     if helpers_module_path is None:
         return None
-    helpers_module = _load_or_create_helpers_module(
+    helpers_module = load_or_create_helpers_module(
         helpers_path, tier_dir.name, helpers_module_path
     )
-    conftest_module = _load_or_create_conftest_module(conftest_path)
+    conftest_module = load_or_create_conftest_module(conftest_path)
     if helpers_module is None or conftest_module is None:
         return None
     return _EmitTargets(
@@ -364,7 +364,7 @@ def _emit_one_fixture(
             f"(was duplicated in {len(files)} files)"
         )
     for f in files:
-        _strip_def_only(f, name)
+        strip_def_only(f, name)
 
 
 def _emit_one_helper(
@@ -385,7 +385,7 @@ def _emit_one_helper(
             f"(was duplicated in {len(files)} files)"
         )
     for f in files:
-        _strip_def_and_inject_import(f, name, targets.helpers_module_path, project_path)
+        strip_def_and_inject_import(f, name, targets.helpers_module_path, project_path)
 
 
 def _flush_emit_state(
@@ -444,7 +444,7 @@ def _emit_duplicates(
     return state.msgs
 
 
-def _extract_shared_helpers_in_tier(project_path: Path, tier_dir: Path) -> list[str]:
+def extract_shared_helpers_in_tier(project_path: Path, tier_dir: Path) -> list[str]:
     """Process a single tier. Splitting per-tier keeps imports local."""
     scan = _scan_tier(tier_dir)
     index = _index_tier_scan(scan)
@@ -463,7 +463,7 @@ def _extract_shared_helpers_in_tier(project_path: Path, tier_dir: Path) -> list[
     return msgs
 
 
-def _load_or_create_helpers_module(
+def load_or_create_helpers_module(
     helpers_path: Path, tier_name: str, helpers_module_path: str
 ) -> cst.Module | None:
     if helpers_path.exists():
@@ -477,7 +477,7 @@ def _load_or_create_helpers_module(
     )
 
 
-def _load_or_create_conftest_module(conftest_path: Path) -> cst.Module | None:
+def load_or_create_conftest_module(conftest_path: Path) -> cst.Module | None:
     if conftest_path.exists():
         return cst_load(conftest_path)
     return cst.parse_module(
@@ -489,7 +489,7 @@ def _load_or_create_conftest_module(conftest_path: Path) -> cst.Module | None:
     )
 
 
-def _strip_def_only(file: Path, name: str) -> None:
+def strip_def_only(file: Path, name: str) -> None:
     """Remove the top-level def of *name* from *file* without injecting an import.
 
     Used for fixtures whose new home (``conftest.py``) is auto-discovered
@@ -538,7 +538,7 @@ def _compute_import_insert_index(body: list[cst.BaseStatement]) -> int:
     return insert_at
 
 
-def _strip_def_and_inject_import(
+def strip_def_and_inject_import(
     file: Path, name: str, helpers_module: str, project_path: Path
 ) -> None:
     """Remove the top-level def of ``name`` from *file* and import it instead."""

@@ -50,7 +50,7 @@ def neutralized(monkeypatch: pytest.MonkeyPatch) -> CallLog:
     monkeypatch.setattr(pipeline, "flatten_tier_layout", _rec("flatten_layout", []))
     monkeypatch.setattr(pipeline, "execute", _rec("execute", []))
     monkeypatch.setattr(pipeline, "invalidate_import_index", _rec("invalidate", None))
-    monkeypatch.setattr(pipeline, "_extract_shared_helpers", _rec("extract", []))
+    monkeypatch.setattr(pipeline, "extract_shared_helpers", _rec("extract", []))
     monkeypatch.setattr(pipeline, "_ruff_format_tests", _rec("ruff_format", []))
     monkeypatch.setattr(pipeline, "collect_unfixable", _rec("unfixable", []))
     return calls
@@ -128,7 +128,7 @@ def test_run_apply_loop_caps_at_max_iterations(
     monkeypatch.setattr(pipeline, "flatten_tier_layout", lambda _p: [])
     monkeypatch.setattr(pipeline, "execute", lambda _o, _p: [])
     monkeypatch.setattr(pipeline, "invalidate_import_index", lambda _p: None)
-    monkeypatch.setattr(pipeline, "_extract_shared_helpers", lambda _p: [])
+    monkeypatch.setattr(pipeline, "extract_shared_helpers", lambda _p: [])
     monkeypatch.setattr(pipeline, "_ruff_format_tests", lambda _p: [])
     monkeypatch.setattr(pipeline, "collect_unfixable", lambda _p: [])
     report = pipeline.run(_ROOT, apply=True)
