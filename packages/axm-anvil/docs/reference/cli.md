@@ -71,4 +71,18 @@ raised when `check=True` or during a normal (non-dry-run) write. Pure
 `dry_run=True` calls skip the raise to preserve the existing preview
 contract.
 
+### `SymbolNotFoundError`
+
+::: axm_anvil.core.plan.SymbolNotFoundError
+
+A requested name that is absent from the source module's **top-level**
+symbols (for example a `test_basic` method declared inside a `Test*`
+class, or a name that simply does not exist) is **skipped** by default:
+[`move_symbols`](#move_symbols) drops it from the move and records a
+`skipped '<name>': not a top-level symbol in source` entry on
+`MovePlan.warnings`. The CLI and the `ast_move` MCP tool surface that
+warning and still exit successfully. Pass `strict=True` to restore the
+legacy behaviour of raising `SymbolNotFoundError` on the first absent
+name. Names that *are* present continue to move exactly as before.
+
 Auto-generated API reference is available under [Python API](api/).
