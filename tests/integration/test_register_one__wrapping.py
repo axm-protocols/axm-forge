@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -41,10 +41,15 @@ class TestLockSkippedStdioMode:
             register_one(mock_mcp, "protocol_check", tool)
 
             wrapper = mock_mcp.tool.return_value.call_args[0][0]
-            # In stdio mode the wrapper is async but skips the lock.
-            result = await wrapper(session_id="s1", outputs="{}")
+            # In stdio mode the wrapper runs the tool inline and skips the
+            # lock path entirely. The locked path is the only branch that
+            # offloads to a worker thread, so asyncio.to_thread is never
+            # touched: asserting it is uncalled proves no lock was acquired,
+            # without probing the lock manager's internal state.
+            with patch("axm_mcp.wrapping.asyncio.to_thread") as to_thread:
+                result = await wrapper(session_id="s1", outputs="{}")
             assert result["success"] is True
-            assert _wrapping._session_lock._locks.get("s1") is None
+            to_thread.assert_not_called()
         finally:
             _wrapping._HTTP_MODE = original
 
