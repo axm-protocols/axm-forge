@@ -34,13 +34,13 @@ PID_DIR = Path.home() / ".axm"
 PID_FILE = PID_DIR / "mcp-server.pid"
 
 
-def _write_pid(pid: int) -> None:
+def write_pid(pid: int) -> None:
     """Write PID file, creating parent directory if needed."""
     PID_DIR.mkdir(parents=True, exist_ok=True)
     PID_FILE.write_text(str(pid))
 
 
-def _read_pid() -> int | None:
+def read_pid() -> int | None:
     """Read PID from file, returning None if absent or invalid."""
     if not PID_FILE.exists():
         return None
@@ -50,7 +50,7 @@ def _read_pid() -> int | None:
         return None
 
 
-def _is_process_alive(pid: int) -> bool:
+def is_process_alive(pid: int) -> bool:
     """Check whether a process with *pid* is running."""
     try:
         os.kill(pid, 0)
@@ -61,7 +61,7 @@ def _is_process_alive(pid: int) -> bool:
     return True
 
 
-def _remove_pid_file() -> None:
+def remove_pid_file() -> None:
     """Remove PID file if it exists."""
     PID_FILE.unlink(missing_ok=True)
 
@@ -75,11 +75,11 @@ def serve(
     """Start the MCP server with Streamable HTTP transport."""
     from axm_mcp import server as _server
 
-    _write_pid(os.getpid())
+    write_pid(os.getpid())
     try:
         _server.serve(host=host, port=port)
     finally:
-        _remove_pid_file()
+        remove_pid_file()
 
 
 @app.command
@@ -111,19 +111,19 @@ def stop(
     port: Annotated[int, cyclopts.Parameter(help="Server port.")] = DEFAULT_PORT,
 ) -> None:
     """Stop the running MCP server."""
-    pid = _read_pid()
+    pid = read_pid()
 
     if pid is None:
         print("Server not running (no PID file)", file=sys.stderr)  # noqa: T201
         raise SystemExit(1)
 
-    if not _is_process_alive(pid):
-        _remove_pid_file()
+    if not is_process_alive(pid):
+        remove_pid_file()
         print("Server not running (stale PID file cleaned up)", file=sys.stderr)  # noqa: T201
         raise SystemExit(1)
 
     os.kill(pid, signal.SIGTERM)
-    _remove_pid_file()
+    remove_pid_file()
     print(f"Sent SIGTERM to server (PID {pid})")  # noqa: T201
 
 

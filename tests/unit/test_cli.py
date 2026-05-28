@@ -9,8 +9,8 @@ import httpx
 import pytest
 
 from axm_mcp.cli import (
-    _is_process_alive,
     app,
+    is_process_alive,
 )
 
 # ──────────────────────── Helpers ──────────────────────────
@@ -85,8 +85,8 @@ class TestPidHelpers:
 
     def test_is_process_alive_self(self) -> None:
         """Current process is alive."""
-        assert _is_process_alive(os.getpid()) is True
+        assert is_process_alive(os.getpid()) is True
 
     def test_is_process_alive_dead(self) -> None:
         """Non-existent PID is not alive."""
-        assert _is_process_alive(999999999) is False
+        assert is_process_alive(999999999) is False
