@@ -196,6 +196,22 @@ explains a non-obvious code path you'd otherwise wonder about:
   constants too. Closure follows chains (`B = A + 1` → also carry
   `A = 1`), preserves source order, and is surgical: unrelated
   top-level names are not carried.
+- **SPLIT module-level Assign load-time order** — when a moving unit
+  references a constant from BOTH its decorator AND its body (e.g.
+  `CASES = [...]` + `_no_corpus = pytest.mark.skipif(not CASES, ...)`
+  + `@_no_corpus @pytest.mark.parametrize("case", CASES)`), anvil's
+  `shared_helpers="duplicate"` mode copies the body-referenced name on
+  its own and `_copy_module_level_deps_to_target` short-circuits on
+  `name in existing` — leaving the target with module-level assigns in
+  an order anvil happened to pick, which may break load-time ordering
+  (`_no_corpus = ... not CASES ...` evaluating before `CASES = ...`).
+  `_topological_reorder_decorator_deps()` (`layout_and_move.py`) runs
+  as the last step of `_safe_move_units` and restores source-order for
+  the subset of module-level Assigns that survive in target — splicing
+  them out and reinserting them in pre-anvil source order just before
+  the first def. Source order is load-time correct by construction, so
+  this fixes both insertion paths uniformly and preserves the relative
+  position of unrelated assigns (no gratuitous hoisting).
 - **`Path(__file__).parents[N]` drift after relocate** — a file moved
   from `tests/unit/core/test_X.py` (4-deep) to `tests/integration/test_X.py`
   (3-deep) keeps its `FIXTURES = Path(__file__).parents[2] / "fixtures"`
