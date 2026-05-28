@@ -183,9 +183,12 @@ def _union_subfn_params(
     seen: dict[str, inspect.Parameter] = {}
     for sub_fn in actions_dict.values():
         try:
-            sub_sig = inspect.signature(sub_fn)
-        except (ValueError, TypeError):
-            continue
+            sub_sig = inspect.signature(sub_fn, eval_str=True)
+        except (ValueError, TypeError, NameError):
+            try:
+                sub_sig = inspect.signature(sub_fn)
+            except (ValueError, TypeError):
+                continue
         for p in sub_sig.parameters.values():
             if p.name == "self" or p.kind == inspect.Parameter.VAR_KEYWORD:
                 continue
@@ -307,9 +310,12 @@ def _collect_dispatcher_params(
         List of ``inspect.Parameter`` if *fn* is a dispatcher, else *None*.
     """
     try:
-        sig = inspect.signature(fn)
-    except (ValueError, TypeError):
-        return None
+        sig = inspect.signature(fn, eval_str=True)
+    except (ValueError, TypeError, NameError):
+        try:
+            sig = inspect.signature(fn)
+        except (ValueError, TypeError):
+            return None
 
     params = list(sig.parameters.values())
 
