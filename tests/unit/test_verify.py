@@ -2,12 +2,12 @@
 
 Merged from aspect-split mirror sources:
 - test_verify.py            (verify_project orchestration)
-- test_verify_enrichment.py (_enrich_failure scoring)
+- test_verify_enrichment.py (enrich_failure scoring)
 - test_verify_tool.py       (VerifyTool ToolResult contract)
-- test_coverage_gaps.py     (VerifyTool.execute path delegation, _run_tool error paths)
+- test_coverage_gaps.py     (VerifyTool.execute path delegation, run_tool error paths)
 
 Helper namespacing: ``FakeTool`` / ``FakeToolResult`` are the coverage-gap
-stand-ins (used by the _run_tool error-path tests); the enrichment fixture
+stand-ins (used by the run_tool error-path tests); the enrichment fixture
 keeps its own ``_FakeResult`` dataclass and ``_make_tools`` factory.
 """
 
@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_mcp.verify import VerifyTool, _enrich_failure, _run_tool
+from axm_mcp.verify import VerifyTool, enrich_failure, run_tool
 
 # ─────────────────────────────── helpers ─────────────────────────────────────
 
@@ -173,7 +173,7 @@ class TestVerifyProject:
         assert result["audit"] is None
         assert result["governance"] is None
 
-    @patch("axm_mcp.verify._enrich_failure")
+    @patch("axm_mcp.verify.enrich_failure")
     def test_enrichment_called_for_failures(
         self, mock_enrich: MagicMock, mock_tools: dict[str, MagicMock]
     ) -> None:
@@ -185,7 +185,7 @@ class TestVerifyProject:
         verify_project("/tmp/fake", mock_tools)
         mock_enrich.assert_called()
 
-    @patch("axm_mcp.verify._enrich_failure")
+    @patch("axm_mcp.verify.enrich_failure")
     def test_enrichment_skipped_no_failures(self, mock_enrich: MagicMock) -> None:
         """AST enrichment should NOT be called when no failures."""
         from axm_mcp.verify import verify_project
@@ -201,7 +201,7 @@ class TestVerifyProject:
         mock_enrich.assert_not_called()
 
 
-# --- _enrich_failure scoring ---
+# --- enrich_failure scoring ---
 
 
 @dataclass
@@ -250,7 +250,7 @@ def _enrich_result(score: str | None) -> _FakeResult:
 def test_enrich_failure_impact_score(
     _make_tools, monkeypatch, symbols, scores, expected_score
 ):
-    """_enrich_failure aggregates per-symbol scores into impact_score.
+    """enrich_failure aggregates per-symbol scores into impact_score.
 
     Unknown scores (outside the LOW<MEDIUM<HIGH ordinal map) and missing
     scores fall back to LOW rather than crashing; multiple symbols take the max.
@@ -258,7 +258,7 @@ def test_enrich_failure_impact_score(
     monkeypatch.setattr("axm_mcp.verify._extract_symbols", lambda _f: symbols)
     tools = _make_tools([_enrich_result(s) for s in scores])
 
-    ctx = _enrich_failure(tools, "/project", {"rule": "E001"})
+    ctx = enrich_failure(tools, "/project", {"rule": "E001"})
 
     assert ctx is not None
     assert ctx["impact_score"] == expected_score
@@ -354,18 +354,18 @@ class TestVerifyToolExecute:
             assert mock_vp.call_args[0][0] == "."
 
 
-# --- _run_tool error paths ---
+# --- run_tool error paths ---
 
 
 class TestRunToolErrorPaths:
-    """Cover _run_tool failure/exception (verify.py:68-72)."""
+    """Cover run_tool failure/exception (verify.py:68-72)."""
 
     def test_tool_failure_returns_error(self) -> None:
         """When tool.execute returns success=False, return error dict."""
         tool = FakeTool(
             result=FakeToolResult(success=False, error="audit failed"),
         )
-        result = _run_tool(
+        result = run_tool(
             cast(Mapping[str, AXMTool], {"audit": tool}), "audit", path="."
         )
         assert result == {"error": "audit failed"}
@@ -373,7 +373,7 @@ class TestRunToolErrorPaths:
     def test_tool_exception_returns_error(self) -> None:
         """When tool.execute raises, catch and return error dict."""
         tool = FakeTool(raise_exc=RuntimeError("boom"))
-        result = _run_tool(
+        result = run_tool(
             cast(Mapping[str, AXMTool], {"audit": tool}), "audit", path="."
         )
         assert result is not None

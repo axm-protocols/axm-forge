@@ -15,8 +15,8 @@ from mcp.server.fastmcp import FastMCP
 import axm_mcp.wrapping as _wrapping
 from axm_mcp.discovery import (
     ToolEntry,
-    _register_one,
     discover_tools,
+    register_one,
     register_tools,
 )
 from axm_mcp.verify import VerifyTool
@@ -37,7 +37,7 @@ register_tools(
 # Register the verify meta-tool as an AXMTool instance so the dispatcher
 # emits a dual-format ToolResult (compact text for the LLM, structured
 # data for any future programmatic consumer).
-_register_one(
+register_one(
     mcp,
     "verify",
     cast(ToolEntry, VerifyTool(_discovered_tools)),
