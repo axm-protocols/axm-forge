@@ -163,6 +163,45 @@ that directory holds static test data (corpora, snapshots, baselines)
 consumed by real tests, not test files. Other non-canonical tiers
 (`tests/functional/`, `tests/hooks/`, ...) are still relocated.
 
+### B5 — non-atomic apply could corrupt a real suite
+
+`run(apply=True)` mutated `tests/` in place with no transaction: any
+exception mid-cascade (e.g. an unguarded `KeyError` on a runtime
+suite-derived key in the import backfill, surfacing as an opaque
+`"test_basic"`) left the tree half-written, and a botched move/split
+could emit a module that no longer parses. The skill's parity/idempotence
+invariants were only checked on the corpus, never enforced on the live
+tree.
+
+`run(apply=True)` is now wrapped by `_run_apply_atomic()`:
+
+1. **snapshot** — `_snapshot_tests()` copies the whole `tests/` tree into
+   a temp dir outside the project (so a botched in-place mutation can
+   never touch the backup);
+2. **mutate** — the fixed-point loop + post-polish run as before;
+3. **collect gate** — `_collect_only_gate()` does an in-process
+   `compile()` sweep of every `test_*.py` (the cheap, deterministic
+   equivalent of `pytest --collect-only` for the dominant failure class:
+   a file that no longer parses — a real subprocess per apply made the
+   suite time out);
+4. **promote / rollback** — on success the snapshot is discarded; on
+   **any** exception or a failed gate, `_restore_tests()` restores the
+   tree byte-identical and a `FixApplyError` with an actionable message
+   is raised (never the bare `"test_basic"` token; the original cause is
+   chained via `__cause__`).
+
+Import-backfill hardening (`cst_rewrite.py`): `_extend_recoverable()`
+guards both donor lookups against `KeyError` (a miss degrades to
+"unresolved", never crashes), and a name that genuinely resolves to no
+donor is reported as a structured `unresolved import for <name>` warning
+(stashed under the `_UNRESOLVED_KEY` sentinel by
+`_resolve_recoverable_imports` and re-emitted by
+`_backfill_missing_imports`) instead of being dropped silently.
+`TYPE_CHECKING`-only donor imports (e.g. `MockerFixture` used solely in a
+method-parameter annotation under `if TYPE_CHECKING:`) are carried into
+every split/relocate target that references them, so collection no longer
+fails with a post-fix `NameError`.
+
 ## Hardened edge cases (collateral fixes)
 
 Bug classes uncovered during cross-corpus validation. Each entry

@@ -12,17 +12,17 @@ from axm_audit.core.fix.models import FileOp
 
 _ROOT = Path("/nonexistent-axm-audit-stages-plan-root")
 
-# rule_id -> synthetic findings the patched _check_by_rule returns for it.
+# rule_id -> synthetic findings the patched check_by_rule returns for it.
 type FindingMap = dict[str, list[dict[str, Any]]]
 
 
 def _patch_findings(monkeypatch: pytest.MonkeyPatch, by_rule: FindingMap) -> None:
-    """Patch _check_by_rule to serve synthetic findings keyed by rule id."""
+    """Patch check_by_rule to serve synthetic findings keyed by rule id."""
 
     def _fake(_project: Path, rule_id: str) -> list[dict[str, Any]]:
         return by_rule.get(rule_id, [])
 
-    monkeypatch.setattr(stages_plan, "_check_by_rule", _fake)
+    monkeypatch.setattr(stages_plan, "check_by_rule", _fake)
 
 
 # --------------------------------------------------------------------------- #

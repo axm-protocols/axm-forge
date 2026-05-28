@@ -9,6 +9,7 @@ import ast
 
 from axm_audit.core.fix.findings import class_needs_flatten
 from axm_audit.core.fix.tests_ast import (
+    _collect_referenced_names,
     class_is_pathological,
     collect_imported_names,
     func_body_hash,
@@ -307,3 +308,22 @@ def test_class_needs_flatten_single_method_returns_false() -> None:
         single_binary=None,
     )
     assert needs is False
+
+
+# ---------------------------------------------------------------------------
+# _collect_referenced_names — method-parameter annotations (AXM-1768)
+# ---------------------------------------------------------------------------
+
+
+def test_collects_mockerfixture_method_param_annotation() -> None:
+    """AC3: a name used only in a method-parameter annotation under a ClassDef
+    is reached by referenced-name collection so import backfill can carry it.
+    """
+    src = (
+        "class TestThing:\n"
+        "    def test_it(self, mocker: MockerFixture) -> None:\n"
+        "        assert mocker is not None\n"
+    )
+    tree = _parse_source(src)
+    result = _collect_referenced_names(tree)
+    assert "MockerFixture" in result
