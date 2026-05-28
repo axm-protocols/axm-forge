@@ -10,6 +10,7 @@ from __future__ import annotations
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -154,3 +155,16 @@ def test_audit_fix_dry_run_on_self_is_clean(tmp_path: Path) -> None:
     assert result.success, result.error
     assert result.data is not None
     assert result.data["ops"] == []
+
+
+def test_execute_catches_internal_exception(tmp_path: Path, mocker: Any) -> None:
+    """AC6: a RuntimeError from the pipeline becomes ToolResult.error."""
+    mocker.patch(
+        "axm_audit.core.fix.run",
+        side_effect=RuntimeError("boom"),
+    )
+
+    result = AuditFixTool().execute(path=str(tmp_path))
+
+    assert result.success is False
+    assert result.error == "boom"
