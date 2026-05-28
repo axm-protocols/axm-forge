@@ -153,6 +153,18 @@ reason = "Heterogeneous setup: both return None but via distinct rejection branc
 hash = "62c675c5d7e5"
 reason = "Heterogeneous: different commands and observables - serve_cleans_pid_on_exit runs the serve subcommand with a no-op server and asserts the PID file is removed on exit, while stop_sends_sigterm runs the stop subcommand, mocks _is_process_alive and os.kill, and asserts os.kill(pid, SIGTERM) was sent. Different SUT, different mocks, different assertion."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "13ae18801eab"
+reason = "Inter-file, divergent tiers/fixtures: test_cli_stop_no_pid_file (integration, real tmp_pid_file filesystem fixture, runs the stop command with no PID file and asserts SystemExit 1 + 'not running' on stderr) vs test_cli_status_not_running (unit, mocks httpx.get to raise ConnectError, runs the status command and asserts SystemExit 1 + 'not running' on stderr). Different CLI commands (stop vs status) and observation surfaces (absent PID file vs mocked HTTP failure) across integration/unit tiers."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e19671524dde"
+reason = "Inter-file existence guards on distinct SUTs: test_main_function_exists asserts callable(mcp_app.main) in test_mcp_app.py, test_verify_function_importable asserts callable(verify_project) in test_verify.py. Each guards a different module's public symbol and lives in its module's mirror test file; folding would violate the 1:1 source-mirror by moving a test out of its module's file."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "83b7015319e3"
+reason = "Inter-file, return-path vs error-path across tiers: test_prefers_global_bin (integration, real filesystem, creates ~/.local/bin/axm-mcp and asserts find_binary() returns that path) vs test_not_found (unit, mocks shutil.which to None and asserts find_binary() raises SystemExit). Happy-path return value vs error/raises branch on different tiers and fixtures."
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MyPy Configuration
 # ─────────────────────────────────────────────────────────────────────────────
