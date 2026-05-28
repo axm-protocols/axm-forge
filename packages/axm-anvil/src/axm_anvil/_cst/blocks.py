@@ -7,9 +7,9 @@ from dataclasses import dataclass, field
 
 import libcst as cst
 
-from axm_anvil._cst.visitors import _ReferenceCollector
+from axm_anvil._cst.visitors import ReferenceCollector
 
-__all__ = ["Block", "_extract_blocks"]
+__all__ = ["Block", "extract_blocks"]
 
 
 @dataclass
@@ -29,7 +29,7 @@ class Block:
 
 
 def _collect_refs(node: cst.CSTNode, exclude: str) -> set[str]:
-    collector = _ReferenceCollector()
+    collector = ReferenceCollector()
     node.visit(collector)
     return collector.names - {exclude}
 
@@ -53,7 +53,7 @@ def _assigned_name_in(stmt: cst.SimpleStatementLine, wanted: set[str]) -> str | 
     return None
 
 
-def _extract_blocks(tree: cst.Module, symbol_names: Sequence[str]) -> list[Block]:
+def extract_blocks(tree: cst.Module, symbol_names: Sequence[str]) -> list[Block]:
     """Extract ``Block`` records for each requested top-level symbol.
 
     Supports ``ClassDef``, ``FunctionDef``, ``Assign``, and ``AnnAssign``

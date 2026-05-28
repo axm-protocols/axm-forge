@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import libcst as cst
 
-__all__ = ["_ReferenceCollector", "_dotted_name"]
+__all__ = ["ReferenceCollector", "dotted_name"]
 
 
-class _ReferenceCollector(cst.CSTVisitor):
+class ReferenceCollector(cst.CSTVisitor):
     """Collect referenced names within a CST node.
 
     Visits all ``Name`` occurrences and records only the root of any
@@ -34,7 +34,7 @@ class _ReferenceCollector(cst.CSTVisitor):
         return False
 
 
-def _dotted_name(node: cst.CSTNode) -> str:
+def dotted_name(node: cst.CSTNode) -> str:
     """Convert a ``Name`` / ``Attribute`` chain to its dotted string form.
 
     Returns an empty string for any other node type.
@@ -42,7 +42,7 @@ def _dotted_name(node: cst.CSTNode) -> str:
     if isinstance(node, cst.Name):
         return node.value
     if isinstance(node, cst.Attribute):
-        prefix = _dotted_name(node.value)
+        prefix = dotted_name(node.value)
         if not prefix:
             return ""
         return f"{prefix}.{node.attr.value}"

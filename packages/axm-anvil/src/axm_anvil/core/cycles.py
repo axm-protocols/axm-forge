@@ -79,7 +79,7 @@ def _tarjan_sccs(graph: dict[str, set[str]]) -> list[list[str]]:
     return state.sccs
 
 
-def _cycles(graph: dict[str, set[str]]) -> list[list[str]]:
+def cycles(graph: dict[str, set[str]]) -> list[list[str]]:
     """Return SCCs of size > 1 plus self-loops."""
     out: list[list[str]] = []
     for scc in _tarjan_sccs(graph):
@@ -119,7 +119,7 @@ def detect_new_cycle(graph: dict[str, set[str]], edits: GraphEdits) -> list[str]
 
     Pre-existing cycles (already present in ``graph``) are ignored.
     """
-    pre = {frozenset(c) for c in _cycles(graph)}
+    pre = {frozenset(c) for c in cycles(graph)}
     new_graph: dict[str, set[str]] = {k: set(v) for k, v in graph.items()}
     for src, dst in edits.removes:
         if src in new_graph:
@@ -127,7 +127,7 @@ def detect_new_cycle(graph: dict[str, set[str]], edits: GraphEdits) -> list[str]
     for src, dst in edits.adds:
         new_graph.setdefault(src, set()).add(dst)
         new_graph.setdefault(dst, set())
-    for scc in _cycles(new_graph):
+    for scc in cycles(new_graph):
         if frozenset(scc) not in pre:
             return _order_cycle(scc, new_graph)
     return None

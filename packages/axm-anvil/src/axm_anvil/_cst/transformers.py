@@ -5,7 +5,7 @@ from __future__ import annotations
 import libcst as cst
 from libcst.metadata import ImportAssignment, ScopeProvider
 
-__all__ = ["_AttributeRewriter", "_RemoveSymbols"]
+__all__ = ["AttributeRewriter", "RemoveSymbols"]
 
 
 def _dotted_to_expr(dotted: str) -> cst.BaseExpression:
@@ -37,7 +37,7 @@ def _leftmost_name(node: cst.BaseExpression) -> cst.Name | None:
     return current if isinstance(current, cst.Name) else None
 
 
-class _AttributeRewriter(cst.CSTTransformer):
+class AttributeRewriter(cst.CSTTransformer):
     """Rewrite attribute chains rooted at ``old_module_alias`` for given symbols.
 
     Given ``old_module_alias`` (either the dotted module, e.g. ``pkg.old``, or a
@@ -100,7 +100,7 @@ class _AttributeRewriter(cst.CSTTransformer):
         return updated_node
 
 
-class _RemoveSymbols(cst.CSTTransformer):
+class RemoveSymbols(cst.CSTTransformer):
     """Remove targeted top-level ``ClassDef``, ``FunctionDef``, or constant
     assignments (``Assign`` / ``AnnAssign``) from a module.
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from axm_anvil.core.cycles import GraphEdits, _cycles, detect_new_cycle
+from axm_anvil.core.cycles import GraphEdits, cycles, detect_new_cycle
 
 
 def test_detect_new_cycle_none_on_clean_graph() -> None:
@@ -48,7 +48,7 @@ def test_cycles_deep_chain_does_not_recurse() -> None:
     graph: dict[str, set[str]] = {str(i): {str(i + 1)} for i in range(n)}
     graph[str(n)] = set()
 
-    result = _cycles(graph)
+    result = cycles(graph)
 
     assert result == []
 
@@ -56,7 +56,7 @@ def test_cycles_deep_chain_does_not_recurse() -> None:
 def test_cycles_simple_two_node_cycle() -> None:
     graph: dict[str, set[str]] = {"a": {"b"}, "b": {"a"}}
 
-    result = _cycles(graph)
+    result = cycles(graph)
 
     assert len(result) == 1
     assert set(result[0]) == {"a", "b"}
@@ -65,6 +65,6 @@ def test_cycles_simple_two_node_cycle() -> None:
 def test_cycles_no_cycle_returns_empty() -> None:
     graph: dict[str, set[str]] = {"a": {"b"}, "b": {"c"}, "c": set()}
 
-    result = _cycles(graph)
+    result = cycles(graph)
 
     assert result == []

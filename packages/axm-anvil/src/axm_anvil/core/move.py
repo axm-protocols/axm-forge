@@ -11,26 +11,26 @@ import libcst as cst
 from libcst.codemod import CodemodContext
 from libcst.codemod.visitors import AddImportsVisitor
 
-from axm_anvil._cst.blocks import Block, _collect_refs, _extract_blocks
-from axm_anvil._cst.overloads import _detect_overload_group
-from axm_anvil._cst.transformers import _RemoveSymbols
+from axm_anvil._cst.blocks import Block, _collect_refs, extract_blocks
+from axm_anvil._cst.overloads import detect_overload_group
+from axm_anvil._cst.transformers import RemoveSymbols
 from axm_anvil.core.callers import (
     CallerRewrite,
     _discover_callers,
     _discover_module_import_callers,
     _module_path_from_file,
-    _rewrite_caller_text,
     _rewrite_module_import_caller,
+    rewrite_caller_text,
 )
 from axm_anvil.core.cycles import GraphEdits, detect_new_cycle
 from axm_anvil.core.deps import (
     ImportInfo,
-    _gather_source_constants,
-    _gather_source_helpers,
-    _gather_source_imports,
     _gather_target_existing,
     _gather_target_imports,
-    _topo_sort_constants,
+    gather_source_constants,
+    gather_source_helpers,
+    gather_source_imports,
+    topo_sort_constants,
 )
 from axm_anvil.core.plan import (
     ImportCycleError,
@@ -43,7 +43,7 @@ from axm_anvil.core.plan import (
     SymbolNotFoundError,
 )
 from axm_anvil.core.postprocess import _ruff_fix
-from axm_anvil.core.shared import SharedInfo, _classify_shared_helpers
+from axm_anvil.core.shared import SharedInfo, classify_shared_helpers
 
 __all__ = [
     "ImportCycleError",
@@ -149,7 +149,7 @@ def _expand_overloads(
     user_reported: list[str] = []
     for raw in raw_names:
         name, idx = _parse_symbol_spec(raw)
-        group = _detect_overload_group(source_tree, name)
+        group = detect_overload_group(source_tree, name)
         _reject_partial_overload(name, idx, group)
         if name in seen:
             continue
@@ -420,7 +420,7 @@ def _build_constants_body(
 ) -> tuple[list[cst.BaseStatement], list[str]]:
     body: list[cst.BaseStatement] = []
     constants_added: list[str] = []
-    for stmt in _topo_sort_constants(collected_constants):
+    for stmt in topo_sort_constants(collected_constants):
         const_name = _constant_name(stmt)
         if not const_name or const_name in target_existing:
             continue
@@ -536,7 +536,7 @@ def _extract_moved_blocks(
     remove_targets: set[str] = set()
     blocks: list[Block] = []
     for name in expanded_names:
-        group = _detect_overload_group(source_tree, name)
+        group = detect_overload_group(source_tree, name)
         if group:
             for func in group:
                 remove_targets.add(func.name.value)
@@ -551,7 +551,7 @@ def _extract_moved_blocks(
                 )
         else:
             remove_targets.add(name)
-            extracted = _extract_blocks(source_tree, [name])
+            extracted = extract_blocks(source_tree, [name])
             blocks.extend(extracted)
     return remove_targets, blocks
 
@@ -566,9 +566,9 @@ def _build_trees(
     cst.Module, cst.Module, list[str], list[str], dict[str, SharedInfo], list[str]
 ]:
     """Build new source/target trees and return added imports/constants + shared map."""
-    source_imports = _gather_source_imports(source_tree)
-    source_constants = _gather_source_constants(source_tree)
-    source_helpers = _gather_source_helpers(source_tree)
+    source_imports = gather_source_imports(source_tree)
+    source_constants = gather_source_constants(source_tree)
+    source_helpers = gather_source_helpers(source_tree)
 
     collected_helpers, collected_constants = _collect_transitive_deps(
         blocks, source_helpers, source_constants
@@ -591,9 +591,9 @@ def _build_trees(
         list(source_helpers.keys()),
     )
 
-    new_source_tree = source_tree.visit(_RemoveSymbols(remove_targets))
+    new_source_tree = source_tree.visit(RemoveSymbols(remove_targets))
 
-    shared_map = _classify_shared_helpers(
+    shared_map = classify_shared_helpers(
         blocks, set(collected_helpers.keys()), new_source_tree
     )
     if shared_map and shared_helpers == "error":
@@ -606,7 +606,7 @@ def _build_trees(
     )
     orphans -= set(shared_map.keys())
     if orphans:
-        new_source_tree = new_source_tree.visit(_RemoveSymbols(orphans))
+        new_source_tree = new_source_tree.visit(RemoveSymbols(orphans))
 
     return (
         new_source_tree,
@@ -748,7 +748,7 @@ def _rewrite_one_caller(
 ) -> tuple[str, list[CallerRewrite]] | None:
     """Apply both rewrites and validate the result. Returns ``None`` if unchanged."""
     try:
-        current_text, from_rewrites = _rewrite_caller_text(
+        current_text, from_rewrites = rewrite_caller_text(
             original, from_module, new_module, moved_names
         )
         current_text, attr_rewrites = _rewrite_module_import_caller(
@@ -957,7 +957,7 @@ def _block_implied_target_imports(  # noqa: PLR0913
     will own it after the move: a source-side import (carried over to the
     target) or a top-level symbol that stays in source.
     """
-    source_imports = _gather_source_imports(source_tree)
+    source_imports = gather_source_imports(source_tree)
     block_local_names = {b.name for b in blocks}
     remaining_source_names = _source_symbol_names(source_tree) - block_local_names
     _ = new_source_tree
