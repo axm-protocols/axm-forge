@@ -93,68 +93,65 @@ class ToolWithHint:
         return ToolResult(success=True, data={"format": format})
 
 
-class TestAXMTool:
-    """Tests for the AXMTool structural protocol."""
-
-    def test_concrete_tool_name(self) -> None:
-        """Concrete tool returns its name."""
-        tool = ConcreteTool()
-        assert tool.name == "test-tool"
-
-    def test_concrete_tool_execute(self) -> None:
-        """Concrete tool executes and returns a ToolResult."""
-        tool = ConcreteTool()
-        result = tool.execute(path="/tmp")
-        assert result.success is True
-        assert result.data == {"path": "/tmp"}
-
-    def test_explicit_param_tool(self) -> None:
-        """Tool with explicit params satisfies the protocol."""
-        tool = ExplicitParamTool()
-        assert isinstance(tool, AXMTool)
-        result = tool.execute(value=42, label="test")
-        assert result.success is True
-        assert result.data == {"value": 42, "label": "test"}
-
-    def test_tool_with_agent_hint(self) -> None:
-        """Tool with explicit agent_hint satisfies the protocol."""
-        tool = ToolWithHint()
-        assert isinstance(tool, AXMTool)
-        assert tool.agent_hint == "Summarize data — use format param."
-
-    def test_tool_without_agent_hint_isinstance(self) -> None:
-        """Tool without agent_hint still satisfies the protocol."""
-        # ConcreteTool has no agent_hint — isinstance must not require it
-        tool = ConcreteTool()
-        assert isinstance(tool, AXMTool)
-        assert not hasattr(tool, "agent_hint")
-
-    def test_non_tool_fails_isinstance(self) -> None:
-        """Object without name/execute is not an AXMTool."""
-
-        class NotATool:
-            pass
-
-        assert not isinstance(NotATool(), AXMTool)
+def test_concrete_tool_name() -> None:
+    """Concrete tool returns its name."""
+    tool = ConcreteTool()
+    assert tool.name == "test-tool"
 
 
-# ── Exports ───────────────────────────────────────────────────────────────────
+def test_concrete_tool_execute() -> None:
+    """Concrete tool executes and returns a ToolResult."""
+    tool = ConcreteTool()
+    result = tool.execute(path="/tmp")
+    assert result.success is True
+    assert result.data == {"path": "/tmp"}
 
 
-class TestExports:
-    """Test that the public API is correctly exported."""
+def test_explicit_param_tool() -> None:
+    """Tool with explicit params satisfies the protocol."""
+    tool = ExplicitParamTool()
+    assert isinstance(tool, AXMTool)
+    result = tool.execute(value=42, label="test")
+    assert result.success is True
+    assert result.data == {"value": 42, "label": "test"}
 
-    def test_all_exports(self) -> None:
-        """__all__ contains AXMTool and ToolResult."""
-        from axm.tools import base
 
-        assert "AXMTool" in base.__all__
-        assert "ToolResult" in base.__all__
+def test_tool_with_agent_hint() -> None:
+    """Tool with explicit agent_hint satisfies the protocol."""
+    tool = ToolWithHint()
+    assert isinstance(tool, AXMTool)
+    assert tool.agent_hint == "Summarize data — use format param."
 
-    def test_package_reexport(self) -> None:
-        """axm.tools re-exports AXMTool and ToolResult."""
-        from axm.tools import AXMTool as A
-        from axm.tools import ToolResult as T
 
-        assert A is AXMTool
-        assert T is ToolResult
+def test_tool_without_agent_hint_isinstance() -> None:
+    """Tool without agent_hint still satisfies the protocol."""
+    # ConcreteTool has no agent_hint — isinstance must not require it
+    tool = ConcreteTool()
+    assert isinstance(tool, AXMTool)
+    assert not hasattr(tool, "agent_hint")
+
+
+def test_non_tool_fails_isinstance() -> None:
+    """Object without name/execute is not an AXMTool."""
+
+    class NotATool:
+        pass
+
+    assert not isinstance(NotATool(), AXMTool)
+
+
+def test_all_exports() -> None:
+    """__all__ contains AXMTool and ToolResult."""
+    from axm.tools import base
+
+    assert "AXMTool" in base.__all__
+    assert "ToolResult" in base.__all__
+
+
+def test_package_reexport() -> None:
+    """axm.tools re-exports AXMTool and ToolResult."""
+    from axm.tools import AXMTool as A
+    from axm.tools import ToolResult as T
+
+    assert A is AXMTool
+    assert T is ToolResult
