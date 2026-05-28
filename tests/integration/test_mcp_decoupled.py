@@ -9,6 +9,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 
 class TestNoAxmImports:
     """axm-mcp source must not import from axm core."""
@@ -18,107 +20,59 @@ class TestNoAxmImports:
         src_dir = Path(__file__).parent.parent.parent / "src" / "axm_mcp"
         return list(src_dir.rglob("*.py"))
 
-    def test_mcp_app_no_axm_import(self) -> None:
-        """mcp_app.py must not import from axm."""
-        mcp_app_path = (
-            Path(__file__).parent.parent.parent / "src" / "axm_mcp" / "mcp_app.py"
+    @pytest.mark.parametrize(
+        "module_file",
+        ["mcp_app.py", "discovery.py", "__init__.py"],
+        ids=["mcp_app", "discovery", "init"],
+    )
+    def test_no_axm_import(self, module_file: str) -> None:
+        """The given module must not import from axm core."""
+        module_path = (
+            Path(__file__).parent.parent.parent / "src" / "axm_mcp" / module_file
         )
-        source = mcp_app_path.read_text()
+        source = module_path.read_text()
         tree = ast.parse(source)
 
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module:
                 assert not node.module.startswith("axm."), (
-                    f"mcp_app.py imports from axm core: {node.module}"
+                    f"{module_file} imports from axm core: {node.module}"
                 )
                 assert node.module != "axm", (
-                    f"mcp_app.py imports from axm core: {node.module}"
-                )
-
-    def test_discovery_no_axm_import(self) -> None:
-        """discovery.py must not import from axm."""
-        discovery_path = (
-            Path(__file__).parent.parent.parent / "src" / "axm_mcp" / "discovery.py"
-        )
-        source = discovery_path.read_text()
-        tree = ast.parse(source)
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                assert not node.module.startswith("axm."), (
-                    f"discovery.py imports from axm core: {node.module}"
-                )
-                assert node.module != "axm", (
-                    f"discovery.py imports from axm core: {node.module}"
-                )
-
-    def test_init_no_axm_import(self) -> None:
-        """__init__.py must not import from axm."""
-        init_path = (
-            Path(__file__).parent.parent.parent / "src" / "axm_mcp" / "__init__.py"
-        )
-        source = init_path.read_text()
-        tree = ast.parse(source)
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                assert not node.module.startswith("axm."), (
-                    f"__init__.py imports from axm core: {node.module}"
-                )
-                assert node.module != "axm", (
-                    f"__init__.py imports from axm core: {node.module}"
+                    f"{module_file} imports from axm core: {node.module}"
                 )
 
 
 class TestNoHardcodedTools:
-    """mcp_app.py must NOT have hardcoded @mcp.tool init/check/resume/read."""
+    """mcp_app.py must NOT hardcode protocol tools or orchestrator helpers."""
 
-    def test_no_hardcoded_init(self) -> None:
+    @pytest.mark.parametrize(
+        "func_name",
+        [
+            "init",
+            "check",
+            "resume",
+            "read",
+            "configure",
+            "get_orchestrator",
+        ],
+        ids=[
+            "init",
+            "check",
+            "resume",
+            "read",
+            "configure",
+            "get_orchestrator",
+        ],
+    )
+    def test_no_hardcoded_function(self, func_name: str) -> None:
+        """mcp_app.py must not define the given function."""
         mcp_app_path = (
             Path(__file__).parent.parent.parent / "src" / "axm_mcp" / "mcp_app.py"
         )
         source = mcp_app_path.read_text()
-        assert "def init(" not in source, "init() is still hardcoded in mcp_app.py"
-
-    def test_no_hardcoded_check(self) -> None:
-        mcp_app_path = (
-            Path(__file__).parent.parent.parent / "src" / "axm_mcp" / "mcp_app.py"
-        )
-        source = mcp_app_path.read_text()
-        assert "def check(" not in source, "check() is still hardcoded in mcp_app.py"
-
-    def test_no_hardcoded_resume(self) -> None:
-        mcp_app_path = (
-            Path(__file__).parent.parent.parent / "src" / "axm_mcp" / "mcp_app.py"
-        )
-        source = mcp_app_path.read_text()
-        assert "def resume(" not in source, "resume() is still hardcoded in mcp_app.py"
-
-    def test_no_hardcoded_read(self) -> None:
-        mcp_app_path = (
-            Path(__file__).parent.parent.parent / "src" / "axm_mcp" / "mcp_app.py"
-        )
-        source = mcp_app_path.read_text()
-        assert "def read(" not in source, "read() is still hardcoded in mcp_app.py"
-
-
-class TestNoConfigure:
-    """mcp_app.py must NOT have configure() or get_orchestrator()."""
-
-    def test_no_configure(self) -> None:
-        mcp_app_path = (
-            Path(__file__).parent.parent.parent / "src" / "axm_mcp" / "mcp_app.py"
-        )
-        source = mcp_app_path.read_text()
-        assert "def configure(" not in source, "configure() is still in mcp_app.py"
-
-    def test_no_get_orchestrator(self) -> None:
-        mcp_app_path = (
-            Path(__file__).parent.parent.parent / "src" / "axm_mcp" / "mcp_app.py"
-        )
-        source = mcp_app_path.read_text()
-        assert "def get_orchestrator(" not in source, (
-            "get_orchestrator() is still in mcp_app.py"
+        assert f"def {func_name}(" not in source, (
+            f"{func_name}() is still hardcoded in mcp_app.py"
         )
 
 

@@ -150,13 +150,17 @@ class TestPidHelpers:
         _write_pid(42)
         assert _read_pid() == 42
 
-    def test_read_pid_missing(self, tmp_pid_file: Path) -> None:
-        """read_pid returns None when file is absent."""
-        assert _read_pid() is None
-
-    def test_read_pid_corrupt(self, tmp_pid_file: Path) -> None:
-        """read_pid returns None when file has non-integer content."""
-        tmp_pid_file.write_text("not-a-pid")
+    @pytest.mark.parametrize(
+        "content",
+        [None, "not-a-pid"],
+        ids=["missing", "corrupt"],
+    )
+    def test_read_pid_returns_none(
+        self, tmp_pid_file: Path, content: str | None
+    ) -> None:
+        """read_pid returns None when file is absent or non-integer."""
+        if content is not None:
+            tmp_pid_file.write_text(content)
         assert _read_pid() is None
 
     def test_remove_pid_idempotent(self, tmp_pid_file: Path) -> None:

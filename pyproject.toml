@@ -149,6 +149,10 @@ reason = "Heterogeneous: opposite outcomes on opposite branches - AXMTool with e
 hash = "3da3a2d46057"
 reason = "Heterogeneous setup: both return None but via distinct rejection branches - a regular function (no action+**kwargs) fails the dispatcher signature-shape check, while an orphan dispatcher (correct action+**kwargs shape) falls through the missing _ACTIONS-dict lookup. Different SUT construction, different early-return branch."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "62c675c5d7e5"
+reason = "Heterogeneous: different commands and observables - serve_cleans_pid_on_exit runs the serve subcommand with a no-op server and asserts the PID file is removed on exit, while stop_sends_sigterm runs the stop subcommand, mocks _is_process_alive and os.kill, and asserts os.kill(pid, SIGTERM) was sent. Different SUT, different mocks, different assertion."
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MyPy Configuration
 # ─────────────────────────────────────────────────────────────────────────────

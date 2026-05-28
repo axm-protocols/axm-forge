@@ -16,16 +16,26 @@ from axm_mcp.plist_template import PLIST_TEMPLATE
 class TestPlistTemplate:
     """Validate the plist XML template."""
 
-    def test_template_has_placeholders(self) -> None:
-        """Template contains the required format placeholders."""
-        assert "{bin_path}" in PLIST_TEMPLATE
-        assert "{port}" in PLIST_TEMPLATE
-        assert "{log_dir}" in PLIST_TEMPLATE
-
-    def test_template_has_keep_alive(self) -> None:
-        """Template includes KeepAlive for auto-restart."""
-        assert "<key>KeepAlive</key>" in PLIST_TEMPLATE
-        assert "<true/>" in PLIST_TEMPLATE
+    @pytest.mark.parametrize(
+        "substring",
+        [
+            "{bin_path}",
+            "{port}",
+            "{log_dir}",
+            "<key>KeepAlive</key>",
+            "<true/>",
+        ],
+        ids=[
+            "bin_path",
+            "port",
+            "log_dir",
+            "keep_alive_key",
+            "keep_alive_true",
+        ],
+    )
+    def test_template_contains_substring(self, substring: str) -> None:
+        """Template contains required placeholders and KeepAlive markup."""
+        assert substring in PLIST_TEMPLATE
 
     def test_template_renders_cleanly(self) -> None:
         """Template renders without errors given valid values."""
@@ -231,29 +241,30 @@ class TestFindBinary:
 class TestCLIInstall:
     """Cover install CLI command delegation."""
 
-    def test_cli_install_delegates(self) -> None:
-        """axm-mcp install delegates to lifecycle.install."""
+    @pytest.mark.parametrize(
+        ("argv", "expected_binary"),
+        [
+            (["axm-mcp", "install", "--port", "9427"], None),
+            (
+                ["axm-mcp", "install", "--binary", "/opt/bin/axm-mcp"],
+                Path("/opt/bin/axm-mcp"),
+            ),
+        ],
+        ids=["default_port", "binary_flag"],
+    )
+    def test_cli_install_delegates(
+        self, argv: list[str], expected_binary: Path | None
+    ) -> None:
+        """axm-mcp install delegates to lifecycle.install with parsed args."""
         with (
             patch("axm_mcp.lifecycle.install") as mock_install,
-            patch("sys.argv", ["axm-mcp", "install", "--port", "9427"]),
+            patch("sys.argv", argv),
         ):
             from axm_mcp.cli import app
 
             with pytest.raises(SystemExit, match="0"):
                 app()
-            mock_install.assert_called_once_with(9427, binary=None)
-
-    def test_cli_install_with_binary_flag(self) -> None:
-        """axm-mcp install --binary passes path to lifecycle.install."""
-        with (
-            patch("axm_mcp.lifecycle.install") as mock_install,
-            patch("sys.argv", ["axm-mcp", "install", "--binary", "/opt/bin/axm-mcp"]),
-        ):
-            from axm_mcp.cli import app
-
-            with pytest.raises(SystemExit, match="0"):
-                app()
-            mock_install.assert_called_once_with(9427, binary=Path("/opt/bin/axm-mcp"))
+            mock_install.assert_called_once_with(9427, binary=expected_binary)
 
 
 class TestCLIUninstall:
