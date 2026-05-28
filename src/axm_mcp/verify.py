@@ -10,9 +10,10 @@ and calls them via Python. No subprocess nesting.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from collections.abc import Mapping
+from typing import cast
 
-from axm.tools.base import ToolResult
+from axm.tools.base import AXMTool, ToolResult
 
 from axm_mcp.verify_format import format_verify_text
 
@@ -23,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 def verify_project(
     path: str,
-    tools: dict[str, Any],
-) -> dict[str, Any]:
+    tools: Mapping[str, AXMTool],
+) -> dict[str, object]:
     """One-shot project verification: audit + init check + AST enrichment.
 
     Args:
@@ -40,7 +41,8 @@ def verify_project(
 
     # Enrich audit failures with AST context
     if audit_data is not None:
-        failed = audit_data.get("failed", [])
+        failed_raw = audit_data.get("failed", [])
+        failed = cast(list[dict[str, object]], failed_raw) if failed_raw else []
         if failed and "ast_impact" in tools:
             for failure in failed:
                 context = _enrich_failure(tools, path, failure)
@@ -54,10 +56,10 @@ def verify_project(
 
 
 def _run_tool(
-    tools: dict[str, Any],
+    tools: Mapping[str, AXMTool],
     tool_name: str,
-    **kwargs: Any,
-) -> dict[str, Any] | None:
+    **kwargs: object,
+) -> dict[str, object] | None:
     """Run a discovered tool, returning its data or None if unavailable."""
     tool = tools.get(tool_name)
     if tool is None:
@@ -67,7 +69,7 @@ def _run_tool(
     try:
         result = tool.execute(**kwargs)
         if result.success:
-            data: dict[str, Any] = result.data
+            data = cast(dict[str, object], result.data)
             return data
         logger.warning("Tool '%s' failed: %s", tool_name, result.error)
         return {"error": result.error}
@@ -77,10 +79,10 @@ def _run_tool(
 
 
 def _enrich_failure(
-    tools: dict[str, Any],
+    tools: Mapping[str, AXMTool],
     path: str,
-    failure: dict[str, Any],
-) -> dict[str, Any] | None:
+    failure: dict[str, object],
+) -> dict[str, object] | None:
     """Enrich a failure with aggregated AST context.
 
     Calls _extract_symbols, then ast_impact on each symbol.
@@ -99,7 +101,7 @@ def _enrich_failure(
 
     # Aggregate results from all symbols
     _score_order: dict[str, int] = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
-    all_callers: list[dict[str, Any]] = []
+    all_callers: list[dict[str, object]] = []
     all_test_files: list[str] = []
     max_score: str = "LOW"
     success_count = 0
@@ -109,9 +111,12 @@ def _enrich_failure(
             result = ast_tool.execute(path=path, symbol=symbol)
             if result.success and result.data:
                 success_count += 1
-                all_callers.extend(result.data.get("callers", []))
-                all_test_files.extend(result.data.get("test_files", []))
-                score = result.data.get("score") or "LOW"
+                data = cast(dict[str, object], result.data)
+                callers = cast(list[dict[str, object]], data.get("callers", []))
+                test_files = cast(list[str], data.get("test_files", []))
+                all_callers.extend(callers)
+                all_test_files.extend(test_files)
+                score = cast(str, data.get("score") or "LOW")
                 if _score_order.get(score, 0) > _score_order.get(max_score, 0):
                     max_score = score
         except Exception as exc:
@@ -136,7 +141,7 @@ def _enrich_failure(
     }
 
 
-def _extract_symbols(failure: dict[str, Any]) -> list[str]:
+def _extract_symbols(failure: dict[str, object]) -> list[str]:
     """Extract unique AST-queryable symbols from a failure dict.
 
     Strategy per rule_id:
@@ -163,12 +168,13 @@ def _extract_symbols(failure: dict[str, Any]) -> list[str]:
 
     # Fallback: message prefix parsing
     message = failure.get("message", "")
-    for prefix in ("Function ", "Class ", "Method "):
-        if message.startswith(prefix):
-            rest = message[len(prefix) :]
-            parts = rest.split()
-            if parts:
-                return [parts[0].strip("()'\":")]
+    if isinstance(message, str):
+        for prefix in ("Function ", "Class ", "Method "):
+            if message.startswith(prefix):
+                rest = message[len(prefix) :]
+                parts = rest.split()
+                if parts:
+                    return [parts[0].strip("()'\":")]
 
     return []
 
@@ -186,15 +192,22 @@ class VerifyTool:
         "Returns compact text plus structured data."
     )
 
-    def __init__(self, tools: dict[str, Any] | None = None) -> None:
-        self._tools: dict[str, Any] = tools if tools is not None else {}
+    def __init__(self, tools: Mapping[str, object] | None = None) -> None:
+        # The discovery layer hands us a ``Mapping[str, ToolEntry]`` (structural
+        # protocols), but every entry-point-registered tool is in fact an
+        # ``AXMTool`` instance. We accept ``object`` at the boundary so
+        # ``mcp_app.py`` stays decoupled from ``axm.*`` core, then trust the
+        # runtime invariant via a cast.
+        self._tools: Mapping[str, AXMTool] = cast(
+            "Mapping[str, AXMTool]", tools if tools is not None else {}
+        )
 
     @property
     def name(self) -> str:
         """Tool name used for MCP registration."""
         return "verify"
 
-    def execute(self, *, path: str = ".", **_: Any) -> ToolResult:
+    def execute(self, *, path: str = ".", **_: object) -> ToolResult:
         """One-shot project verification: audit + init check + AST enrichment.
 
         Args:
@@ -205,7 +218,7 @@ class VerifyTool:
         return ToolResult(success=True, data=data, text=text)
 
 
-def _unique_modules_from_errors(errors: list[dict[str, Any]]) -> list[str]:
+def _unique_modules_from_errors(errors: list[dict[str, object]]) -> list[str]:
     """Convert file paths to unique module paths.
 
     'src/foo/bar.py' → 'foo.bar'
@@ -216,7 +229,7 @@ def _unique_modules_from_errors(errors: list[dict[str, Any]]) -> list[str]:
 
     for entry in errors:
         file_path = entry.get("file")
-        if not file_path:
+        if not isinstance(file_path, str) or not file_path:
             continue
 
         # Strip src/ prefix if present

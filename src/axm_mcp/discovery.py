@@ -7,9 +7,13 @@ import inspect
 import logging
 import os
 import re
-from typing import Any, Protocol, runtime_checkable
+from types import ModuleType
+from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
 from axm_mcp.concurrency import KeyedLock
+
+if TYPE_CHECKING:
+    from mcp.server.fastmcp import FastMCP
 
 __all__ = [
     "_HTTP_MODE",
@@ -47,6 +51,21 @@ def _is_disabled(name: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(name, pat) for pat in patterns)
 
 
+class ToolResultLike(Protocol):
+    """Structural protocol matching ``axm.tools.base.ToolResult``.
+
+    Declared locally to keep ``axm_mcp.discovery`` free of ``axm.*``
+    imports — ``axm-mcp`` is a pure discovery shell (enforced by
+    ``test_mcp_decoupled.py``).
+    """
+
+    success: bool
+    data: dict[str, object]
+    error: str | None
+    hint: str | None
+    text: str | None
+
+
 @runtime_checkable
 class ToolLike(Protocol):
     """Minimal protocol for AXMTool-compatible objects."""
@@ -56,12 +75,30 @@ class ToolLike(Protocol):
         """Tool name used for MCP registration."""
         ...
 
-    def execute(self, **kwargs: Any) -> Any:
+    def execute(self, **kwargs: object) -> ToolResultLike:
         """Execute the tool with the given keyword arguments."""
         ...
 
 
-def discover_tools() -> dict[str, Any]:
+class PlainTool(Protocol):
+    """Structural protocol for plain dispatcher tools (callable, no ``execute``)."""
+
+    def __call__(self, **kwargs: object) -> dict[str, object]: ...
+
+
+class IntrospectableFn(Protocol):
+    """Structural protocol for any callable that supports ``inspect.signature``."""
+
+    __doc__: str | None
+
+    def __call__(self, **kwargs: object) -> object: ...
+
+
+# A discovered tool entry is either a ToolLike instance or a plain callable.
+ToolEntry = ToolLike | PlainTool
+
+
+def discover_tools() -> dict[str, ToolEntry]:
     """Discover and instantiate all AXMTool entry points.
 
     Supports both ``AXMTool`` subclasses (instantiated) and plain
@@ -79,7 +116,7 @@ def discover_tools() -> dict[str, Any]:
     if disable_patterns:
         logger.info("AXM_DISABLE_TOOLS: %s", disable_patterns)
 
-    tools: dict[str, Any] = {}
+    tools: dict[str, ToolEntry] = {}
 
     for ep in importlib.metadata.entry_points(group=_EP_GROUP):
         if disable_patterns and _is_disabled(ep.name, disable_patterns):
@@ -103,9 +140,9 @@ def discover_tools() -> dict[str, Any]:
     return tools
 
 
-def register_tools(
-    mcp: Any,
-    tools: dict[str, Any],
+def register_tools(  # type: ignore[explicit-any]
+    mcp: FastMCP,
+    tools: dict[str, ToolEntry],
     extra_tools: dict[str, str] | None = None,
 ) -> None:
     """Register discovered tools as MCP tool callables.
@@ -125,8 +162,8 @@ def register_tools(
 
 
 def _find_actions_dict(
-    module: Any | None,
-) -> dict[str, Any] | None:
+    module: ModuleType | None,
+) -> dict[str, IntrospectableFn] | None:
     """Find a ``_*_ACTIONS`` dict on *module*."""
     if module is None:
         return None
@@ -134,12 +171,13 @@ def _find_actions_dict(
         if attr_name.endswith("_ACTIONS"):
             candidate = getattr(module, attr_name, None)
             if isinstance(candidate, dict):
-                return candidate
+                # Runtime guarantee: ``_*_ACTIONS`` always maps str → callable.
+                return cast("dict[str, IntrospectableFn]", candidate)
     return None
 
 
 def _union_subfn_params(
-    actions_dict: dict[str, Any],
+    actions_dict: dict[str, IntrospectableFn],
 ) -> dict[str, inspect.Parameter]:
     """Collect all typed params from sub-functions, made optional."""
     seen: dict[str, inspect.Parameter] = {}
@@ -169,7 +207,7 @@ _ARG_LINE_RE = re.compile(
 )
 
 # Map common docstring type hints to Python annotations.
-_TYPE_MAP: dict[str, type | None] = {
+_TYPE_MAP: dict[str, type[object]] = {
     "str": str,
     "int": int,
     "float": float,
@@ -230,7 +268,7 @@ def _extract_docstring_params(
             name = match.group(1)
             type_hint = match.group(2)
 
-            annotation: type | Any = inspect.Parameter.empty
+            annotation: type[object] = inspect.Parameter.empty
             if type_hint:
                 # Clean up "str, optional" → "str"
                 clean_type = type_hint.split(",")[0].strip()
@@ -249,9 +287,9 @@ def _extract_docstring_params(
 
 
 def _collect_dispatcher_params(
-    fn: Any,
+    fn: IntrospectableFn,
     *,
-    override_module: Any | None = None,
+    override_module: ModuleType | None = None,
 ) -> list[inspect.Parameter] | None:
     """Collect union of typed params from dispatcher sub-functions.
 
@@ -295,7 +333,7 @@ def _collect_dispatcher_params(
 
 def _log_external_step(
     tool_name: str,
-    tool_args: dict[str, Any],
+    tool_args: dict[str, object],
     success: bool,
     result_str: str,
     duration_ms: int,
@@ -324,12 +362,12 @@ def _log_external_step(
         pass  # tracing must never break tool execution
 
 
-def _register_one(
-    mcp: Any,
+def _register_one(  # type: ignore[explicit-any]
+    mcp: FastMCP,
     name: str,
-    tool: Any,
+    tool: ToolEntry,
     *,
-    override_module: Any | None = None,
+    override_module: ModuleType | None = None,
 ) -> None:
     """Register a single tool, capturing in closure.
 
@@ -356,12 +394,16 @@ def _register_one(
     import time
 
     is_plain = callable(tool) and not hasattr(tool, "execute")
-    exec_fn: Any = tool if is_plain else tool.execute
+    exec_fn: IntrospectableFn = (
+        cast(IntrospectableFn, tool)
+        if is_plain
+        else cast(IntrospectableFn, cast(ToolLike, tool).execute)
+    )
 
     # Protocol tools already trace via orchestrator.run_tool()
     _should_trace = not name.startswith("protocol_")
 
-    def _warn_implicit_path(tool_name: str, kwargs: dict[str, Any]) -> None:
+    def _warn_implicit_path(tool_name: str, kwargs: dict[str, object]) -> None:
         """Warn when path is '.' or '' in HTTP mode."""
         if _HTTP_MODE and kwargs.get("path") in (".", ""):
             logger.warning(
@@ -372,15 +414,17 @@ def _register_one(
             )
 
     if is_plain:
+        _plain_tool = cast(PlainTool, tool)
 
-        def _wrapper(**kwargs: Any) -> dict[str, Any] | str:
+        def _wrapper(**kwargs: object) -> dict[str, object] | str:
             # MCP may nest action args inside a "kwargs" key — unwrap.
-            if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
-                nested = kwargs.pop("kwargs")
-                kwargs.update(nested)
+            nested_raw = kwargs.get("kwargs")
+            if isinstance(nested_raw, dict):
+                kwargs.pop("kwargs")
+                kwargs.update(cast("dict[str, object]", nested_raw))
             _warn_implicit_path(name, kwargs)
             start_ns = time.perf_counter_ns()
-            result: dict[str, Any] = tool(**kwargs)
+            result: dict[str, object] = _plain_tool(**kwargs)
             duration_ms = (time.perf_counter_ns() - start_ns) // 1_000_000
             if _should_trace:
                 try:
@@ -390,15 +434,17 @@ def _register_one(
             return result
 
     else:
+        _tool_like = cast(ToolLike, tool)
 
-        def _wrapper(**kwargs: Any) -> dict[str, Any] | str:
+        def _wrapper(**kwargs: object) -> dict[str, object] | str:
             # MCP may nest action args inside a "kwargs" key — unwrap.
-            if "kwargs" in kwargs and isinstance(kwargs["kwargs"], dict):
-                nested = kwargs.pop("kwargs")
-                kwargs.update(nested)
+            nested_raw = kwargs.get("kwargs")
+            if isinstance(nested_raw, dict):
+                kwargs.pop("kwargs")
+                kwargs.update(cast("dict[str, object]", nested_raw))
             _warn_implicit_path(name, kwargs)
             start_ns = time.perf_counter_ns()
-            result = tool.execute(**kwargs)
+            result = _tool_like.execute(**kwargs)
             duration_ms = (time.perf_counter_ns() - start_ns) // 1_000_000
             _text = getattr(result, "text", None)
             if _text is not None and isinstance(_text, str):
@@ -410,7 +456,7 @@ def _register_one(
                     except Exception:  # noqa: S110
                         pass
                 return str(_text)
-            output: dict[str, Any] = {"success": result.success, **result.data}
+            output: dict[str, object] = {"success": result.success, **result.data}
             if result.error:
                 output["error"] = result.error
             hint = getattr(result, "hint", None)
@@ -443,16 +489,18 @@ def _register_one(
         _lk = _lock
         _kp = _key_param
 
-        async def _wrapper(**kwargs: Any) -> dict[str, Any] | str:  # type: ignore[misc]
+        async def _async_wrapper(**kwargs: object) -> dict[str, object] | str:
             if not _HTTP_MODE:
                 return _sync(**kwargs)
-            key = kwargs.get(_kp)  # type: ignore[arg-type]
+            key = kwargs.get(_kp) if _kp is not None else None
             if key is None:
                 return _sync(**kwargs)
+            assert isinstance(key, str)
             async with _lk(key):
                 return await asyncio.to_thread(_sync, **kwargs)
 
-        _wrapper.__doc__ = _sync.__doc__
+        _async_wrapper.__doc__ = _sync.__doc__
+        _wrapper = _async_wrapper  # type: ignore[assignment]
 
     # For dispatchers (action + **kwargs), build union of sub-fn params.
     # For regular tools, strip 'self' and **kwargs.
@@ -478,7 +526,7 @@ def _register_one(
                 params = _extract_docstring_params(exec_fn.__doc__)
         _wrapper.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
             parameters=params,
-            return_annotation=dict[str, Any] | str,
+            return_annotation=dict[str, object] | str,
         )
     except (ValueError, TypeError):
         pass  # Fall back to generic **kwargs if introspection fails
@@ -487,24 +535,24 @@ def _register_one(
     mcp.tool(name=name)(_wrapper)
 
 
-def _get_tool_doc(tool: Any) -> str:
+def _get_tool_doc(tool: ToolEntry) -> str:
     """Extract the first-line docstring from a tool or plain callable."""
     if callable(tool) and not hasattr(tool, "execute"):
         doc = tool.__doc__ or ""
     else:
-        doc = getattr(tool.execute, "__doc__", None) or ""
+        doc = getattr(cast(ToolLike, tool).execute, "__doc__", None) or ""
     return doc.strip().split("\n")[0]
 
 
-def _register_list_tools(
-    mcp: Any,
-    tools: dict[str, Any],
+def _register_list_tools(  # type: ignore[explicit-any]
+    mcp: FastMCP,
+    tools: dict[str, ToolEntry],
     extra_tools: dict[str, str],
 ) -> None:
     """Register the list_tools meta-tool."""
 
-    @mcp.tool(name="list_tools")  # type: ignore[untyped-decorator]
-    def _list_tools(**kwargs: Any) -> dict[str, Any]:
+    @mcp.tool(name="list_tools")
+    def _list_tools(**kwargs: object) -> dict[str, object]:
         """List all available AXM tools with their names and descriptions."""
         tool_list = []
         for name, tool in sorted(tools.items()):

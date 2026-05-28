@@ -6,10 +6,19 @@ Discovers all AXMTool entry points from installed packages
 Zero imports from axm core — fully decoupled.
 """
 
+from __future__ import annotations
+
+from typing import cast
+
 from mcp.server.fastmcp import FastMCP
 
 import axm_mcp.discovery as _discovery
-from axm_mcp.discovery import _register_one, discover_tools, register_tools
+from axm_mcp.discovery import (
+    ToolEntry,
+    _register_one,
+    discover_tools,
+    register_tools,
+)
 from axm_mcp.verify import VerifyTool
 
 # FastMCP server instance
@@ -28,7 +37,11 @@ register_tools(
 # Register the verify meta-tool as an AXMTool instance so the dispatcher
 # emits a dual-format ToolResult (compact text for the LLM, structured
 # data for any future programmatic consumer).
-_register_one(mcp, "verify", VerifyTool(_discovered_tools))
+_register_one(
+    mcp,
+    "verify",
+    cast(ToolEntry, VerifyTool(_discovered_tools)),
+)
 
 
 # Entry point for MCP CLI
