@@ -158,31 +158,17 @@ def _extract_symbols(failure: dict[str, object]) -> list[str]:
     rule_id = failure.get("rule_id", "")
     details = failure.get("details")
 
-    # Strategy: mypy errors → module paths from file
     if rule_id == "QUALITY_TYPE" and isinstance(details, dict):
         errors = details.get("errors", [])
         if errors:
             return _unique_modules_from_errors(errors)
 
-    # Strategy: complexity → function names
     if rule_id == "QUALITY_COMPLEXITY" and isinstance(details, dict):
-        offenders = details.get("top_offenders", [])
-        if offenders:
-            return list(
-                dict.fromkeys(o["function"] for o in offenders if "function" in o)
-            )
+        symbols = _symbols_from_offenders(details.get("top_offenders", []))
+        if symbols:
+            return symbols
 
-    # Fallback: message prefix parsing
-    message = failure.get("message", "")
-    if isinstance(message, str):
-        for prefix in ("Function ", "Class ", "Method "):
-            if message.startswith(prefix):
-                rest = message[len(prefix) :]
-                parts = rest.split()
-                if parts:
-                    return [parts[0].strip("()'\":")]
-
-    return []
+    return _symbol_from_message_prefix(failure.get("message", ""))
 
 
 class VerifyTool:
@@ -222,6 +208,30 @@ class VerifyTool:
         data = verify_project(str(path), self._tools)
         text = format_verify_text(data)
         return ToolResult(success=True, data=data, text=text)
+
+
+def _symbols_from_offenders(offenders: object) -> list[str]:
+    """Extract unique function names from complexity offenders."""
+    if not isinstance(offenders, list):
+        return []
+    return list(
+        dict.fromkeys(
+            o["function"] for o in offenders if isinstance(o, dict) and "function" in o
+        )
+    )
+
+
+def _symbol_from_message_prefix(message: object) -> list[str]:
+    """Parse a leading 'Function/Class/Method <name>' prefix from a message."""
+    if not isinstance(message, str):
+        return []
+    for prefix in ("Function ", "Class ", "Method "):
+        if not message.startswith(prefix):
+            continue
+        parts = message[len(prefix) :].split()
+        if parts:
+            return [parts[0].strip("()'\":")]
+    return []
 
 
 def _unique_modules_from_errors(errors: list[dict[str, object]]) -> list[str]:
