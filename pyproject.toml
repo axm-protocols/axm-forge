@@ -169,6 +169,10 @@ addopts = [
     "--cov-report=xml",
 ]
 asyncio_mode = "auto"
+markers = [
+    "integration: real I/O (filesystem, network, DB) or public API scenarios",
+    "e2e: subprocess/CLI black-box tests",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
