@@ -110,15 +110,15 @@ class TestStdioStillWorks:
 class TestEdgeCases:
     """Edge cases for port validation."""
 
-    def test_invalid_port_zero(self) -> None:
-        """Port 0 raises ValueError."""
+    @pytest.mark.parametrize(
+        "port",
+        [0, 70000],
+        ids=["zero", "too_high"],
+    )
+    def test_invalid_port(self, port: int) -> None:
+        """Out-of-range port raises ValueError."""
         with pytest.raises(ValueError, match="port"):
-            serve(port=0)
-
-    def test_invalid_port_too_high(self) -> None:
-        """Port > 65535 raises ValueError."""
-        with pytest.raises(ValueError, match="port"):
-            serve(port=70000)
+            serve(port=port)
 
     def test_invalid_port_negative(self) -> None:
         """Negative port raises ValueError."""
