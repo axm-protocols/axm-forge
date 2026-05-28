@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from typing import cast
 
 from axm.tools.base import AXMTool, ToolResult
@@ -23,6 +24,42 @@ logger = logging.getLogger(__name__)
 
 # Cap callers listed in enrichment output to keep payloads compact.
 _MAX_CALLERS = 10
+
+# Impact scores are ordinal strings (LOW < MEDIUM < HIGH).
+_SCORE_ORDER: dict[str, int] = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
+
+
+@dataclass
+class _ImpactAggregate:
+    """Mutable accumulator for per-symbol AST impact results."""
+
+    callers: list[dict[str, object]] = field(default_factory=list)
+    test_files: list[str] = field(default_factory=list)
+    max_score: str = "LOW"
+    success_count: int = 0
+
+
+def _aggregate_symbol_impact(
+    ast_tool: AXMTool,
+    path: str,
+    symbol: str,
+    agg: _ImpactAggregate,
+) -> None:
+    """Run ast_impact on *symbol* and fold the result into *agg*."""
+    try:
+        result = ast_tool.execute(path=path, symbol=symbol)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("AST enrichment failed for %s: %s", symbol, exc)
+        return
+    if not (result.success and result.data):
+        return
+    agg.success_count += 1
+    data = cast(dict[str, object], result.data)
+    agg.callers.extend(cast(list[dict[str, object]], data.get("callers", [])))
+    agg.test_files.extend(cast(list[str], data.get("test_files", [])))
+    score = cast(str, data.get("score") or "LOW")
+    if _SCORE_ORDER.get(score, 0) > _SCORE_ORDER.get(agg.max_score, 0):
+        agg.max_score = score
 
 
 def verify_project(
@@ -102,36 +139,18 @@ def _enrich_failure(
     if not symbols:
         return None
 
-    # Aggregate results from all symbols
-    _score_order: dict[str, int] = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
-    all_callers: list[dict[str, object]] = []
-    all_test_files: list[str] = []
-    max_score: str = "LOW"
-    success_count = 0
-
+    agg = _ImpactAggregate()
     for symbol in symbols:
-        try:
-            result = ast_tool.execute(path=path, symbol=symbol)
-            if result.success and result.data:
-                success_count += 1
-                data = cast(dict[str, object], result.data)
-                callers = cast(list[dict[str, object]], data.get("callers", []))
-                test_files = cast(list[str], data.get("test_files", []))
-                all_callers.extend(callers)
-                all_test_files.extend(test_files)
-                score = cast(str, data.get("score") or "LOW")
-                if _score_order.get(score, 0) > _score_order.get(max_score, 0):
-                    max_score = score
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("AST enrichment failed for %s: %s", symbol, exc)
+        _aggregate_symbol_impact(ast_tool, path, symbol, agg)
 
-    if success_count == 0:
+    if agg.success_count == 0:
         return None
 
-    total_callers = len(all_callers)
+    callers = agg.callers
+    total_callers = len(callers)
     if total_callers > _MAX_CALLERS:
-        all_callers = all_callers[:_MAX_CALLERS]
-        all_callers.append(
+        callers = callers[:_MAX_CALLERS]
+        callers.append(
             {
                 "note": f"... and {total_callers - _MAX_CALLERS} "
                 "more callers omitted for brevity"
@@ -140,10 +159,10 @@ def _enrich_failure(
 
     return {
         "affected_modules": list(dict.fromkeys(symbols)),
-        "callers": all_callers,
-        "test_files": list(dict.fromkeys(all_test_files)),
-        "impact_score": max_score,
-        "symbols_analyzed": success_count,
+        "callers": callers,
+        "test_files": list(dict.fromkeys(agg.test_files)),
+        "impact_score": agg.max_score,
+        "symbols_analyzed": agg.success_count,
     }
 
 
