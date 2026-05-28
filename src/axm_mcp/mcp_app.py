@@ -12,7 +12,7 @@ from typing import cast
 
 from mcp.server.fastmcp import FastMCP
 
-import axm_mcp.discovery as _discovery
+import axm_mcp.wrapping as _wrapping
 from axm_mcp.discovery import (
     ToolEntry,
     _register_one,
@@ -51,7 +51,7 @@ def main(*, http: bool = False) -> None:
     Args:
         http: When True, enable HTTP-mode warnings for implicit paths.
     """
-    _discovery._HTTP_MODE = http
+    _wrapping._HTTP_MODE = http
     mcp.run()
 
 
