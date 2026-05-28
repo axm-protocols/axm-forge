@@ -22,7 +22,7 @@ class TestPathWarningHTTPMode:
 
     def test_path_warning_http_mode(self, caplog: pytest.LogCaptureFixture) -> None:
         """Warning logged when path='.' and HTTP mode is on."""
-        from axm_mcp import discovery
+        from axm_mcp import wrapping
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -32,13 +32,13 @@ class TestPathWarningHTTPMode:
         _register_one(mock_mcp, "audit", mock_tool)
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
-        original = discovery._HTTP_MODE
+        original = wrapping._HTTP_MODE
         try:
-            discovery._HTTP_MODE = True
-            with caplog.at_level(logging.WARNING, logger="axm_mcp.discovery"):
+            wrapping._HTTP_MODE = True
+            with caplog.at_level(logging.WARNING, logger="axm_mcp.wrapping"):
                 wrapper(path=".")
         finally:
-            discovery._HTTP_MODE = original
+            wrapping._HTTP_MODE = original
 
         assert any(
             "audit" in r.message and "implicit path" in r.message.lower()
@@ -47,7 +47,7 @@ class TestPathWarningHTTPMode:
 
     def test_no_warning_stdio_mode(self, caplog: pytest.LogCaptureFixture) -> None:
         """No warning when _HTTP_MODE is False (stdio transport)."""
-        from axm_mcp import discovery
+        from axm_mcp import wrapping
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -57,19 +57,19 @@ class TestPathWarningHTTPMode:
         _register_one(mock_mcp, "audit", mock_tool)
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
-        original = discovery._HTTP_MODE
+        original = wrapping._HTTP_MODE
         try:
-            discovery._HTTP_MODE = False
-            with caplog.at_level(logging.WARNING, logger="axm_mcp.discovery"):
+            wrapping._HTTP_MODE = False
+            with caplog.at_level(logging.WARNING, logger="axm_mcp.wrapping"):
                 wrapper(path=".")
         finally:
-            discovery._HTTP_MODE = original
+            wrapping._HTTP_MODE = original
 
         assert not any("implicit path" in r.message.lower() for r in caplog.records)
 
     def test_no_warning_explicit_path(self, caplog: pytest.LogCaptureFixture) -> None:
         """No warning when an explicit absolute path is provided."""
-        from axm_mcp import discovery
+        from axm_mcp import wrapping
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -79,13 +79,13 @@ class TestPathWarningHTTPMode:
         _register_one(mock_mcp, "audit", mock_tool)
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
-        original = discovery._HTTP_MODE
+        original = wrapping._HTTP_MODE
         try:
-            discovery._HTTP_MODE = True
-            with caplog.at_level(logging.WARNING, logger="axm_mcp.discovery"):
+            wrapping._HTTP_MODE = True
+            with caplog.at_level(logging.WARNING, logger="axm_mcp.wrapping"):
                 wrapper(path="/some/dir")
         finally:
-            discovery._HTTP_MODE = original
+            wrapping._HTTP_MODE = original
 
         assert not any("implicit path" in r.message.lower() for r in caplog.records)
 
@@ -95,7 +95,7 @@ class TestPathWarningPlainFunction:
 
     def test_plain_fn_warns_http_mode(self, caplog: pytest.LogCaptureFixture) -> None:
         """Plain function wrapper also warns on path='.'."""
-        from axm_mcp import discovery
+        from axm_mcp import wrapping
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -106,13 +106,13 @@ class TestPathWarningPlainFunction:
         _register_one(mock_mcp, "ast_context", _my_tool)
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
-        original = discovery._HTTP_MODE
+        original = wrapping._HTTP_MODE
         try:
-            discovery._HTTP_MODE = True
-            with caplog.at_level(logging.WARNING, logger="axm_mcp.discovery"):
+            wrapping._HTTP_MODE = True
+            with caplog.at_level(logging.WARNING, logger="axm_mcp.wrapping"):
                 wrapper(path=".")
         finally:
-            discovery._HTTP_MODE = original
+            wrapping._HTTP_MODE = original
 
         assert any("ast_context" in r.message for r in caplog.records)
 
@@ -127,7 +127,7 @@ class TestPathWarningEdgeCases:
 
     def test_path_none_no_warning(self, caplog: pytest.LogCaptureFixture) -> None:
         """No warning when path is not passed at all."""
-        from axm_mcp import discovery
+        from axm_mcp import wrapping
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -137,20 +137,20 @@ class TestPathWarningEdgeCases:
         _register_one(mock_mcp, "audit", mock_tool)
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
-        original = discovery._HTTP_MODE
+        original = wrapping._HTTP_MODE
         try:
-            discovery._HTTP_MODE = True
-            with caplog.at_level(logging.WARNING, logger="axm_mcp.discovery"):
+            wrapping._HTTP_MODE = True
+            with caplog.at_level(logging.WARNING, logger="axm_mcp.wrapping"):
                 wrapper(query="test")
         finally:
-            discovery._HTTP_MODE = original
+            wrapping._HTTP_MODE = original
 
         assert not any("implicit path" in r.message.lower() for r in caplog.records)
 
     @pytest.mark.asyncio
     async def test_empty_string_warns(self, caplog: pytest.LogCaptureFixture) -> None:
         """Empty string path is treated like '.' — warns in HTTP mode."""
-        from axm_mcp import discovery
+        from axm_mcp import wrapping
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -160,13 +160,13 @@ class TestPathWarningEdgeCases:
         _register_one(mock_mcp, "git_commit", mock_tool)
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
-        original = discovery._HTTP_MODE
+        original = wrapping._HTTP_MODE
         try:
-            discovery._HTTP_MODE = True
-            with caplog.at_level(logging.WARNING, logger="axm_mcp.discovery"):
+            wrapping._HTTP_MODE = True
+            with caplog.at_level(logging.WARNING, logger="axm_mcp.wrapping"):
                 await wrapper(path="")
         finally:
-            discovery._HTTP_MODE = original
+            wrapping._HTTP_MODE = original
 
         assert any("git_commit" in r.message for r in caplog.records)
 
@@ -181,7 +181,7 @@ class TestExistingToolsStillWork:
 
     def test_tool_executes_normally_with_explicit_path(self) -> None:
         """Tool with explicit path runs and returns normally."""
-        from axm_mcp import discovery
+        from axm_mcp import wrapping
         from axm_mcp.discovery import _register_one
 
         mock_mcp = MagicMock()
@@ -191,13 +191,13 @@ class TestExistingToolsStillWork:
         _register_one(mock_mcp, "audit", mock_tool)
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
-        original = discovery._HTTP_MODE
+        original = wrapping._HTTP_MODE
         try:
-            discovery._HTTP_MODE = True
-            with patch("axm_mcp.discovery._log_external_step"):
+            wrapping._HTTP_MODE = True
+            with patch("axm_mcp.wrapping.log_external_step"):
                 result = wrapper(path="/real/project")
         finally:
-            discovery._HTTP_MODE = original
+            wrapping._HTTP_MODE = original
 
         assert result["success"] is True
         assert result["result"] == "ok"

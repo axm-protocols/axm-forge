@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from axm_mcp import discovery as _discovery
+from axm_mcp import wrapping as _wrapping
 from axm_mcp.discovery import _register_one
 
 
@@ -31,9 +31,9 @@ class TestLockSkippedStdioMode:
     @pytest.mark.asyncio
     async def test_no_lock_in_stdio(self) -> None:
         """protocol tool runs without lock when _HTTP_MODE is False."""
-        original = _discovery._HTTP_MODE
+        original = _wrapping._HTTP_MODE
         try:
-            _discovery._HTTP_MODE = False
+            _wrapping._HTTP_MODE = False
             mock_mcp = MagicMock()
             tool = _FakeSessionTool()
             _register_one(mock_mcp, "protocol_check", tool)
@@ -42,9 +42,9 @@ class TestLockSkippedStdioMode:
             # In stdio mode the wrapper is async but skips the lock.
             result = await wrapper(session_id="s1", outputs="{}")
             assert result["success"] is True
-            assert _discovery._session_lock._locks.get("s1") is None
+            assert _wrapping._session_lock._locks.get("s1") is None
         finally:
-            _discovery._HTTP_MODE = original
+            _wrapping._HTTP_MODE = original
 
 
 class TestLockKeyNone:
@@ -53,9 +53,9 @@ class TestLockKeyNone:
     @pytest.mark.asyncio
     async def test_no_key_skips_lock(self) -> None:
         """When session_id is missing, no lock is acquired."""
-        original = _discovery._HTTP_MODE
+        original = _wrapping._HTTP_MODE
         try:
-            _discovery._HTTP_MODE = True
+            _wrapping._HTTP_MODE = True
             mock_mcp = MagicMock()
             tool = _FakeSessionTool()
             _register_one(mock_mcp, "protocol_check", tool)
@@ -64,7 +64,7 @@ class TestLockKeyNone:
             result = await wrapper(outputs="{}")
             assert result["success"] is True
         finally:
-            _discovery._HTTP_MODE = original
+            _wrapping._HTTP_MODE = original
 
 
 class TestConcurrentProtocolCheck:
@@ -73,9 +73,9 @@ class TestConcurrentProtocolCheck:
     @pytest.mark.asyncio
     async def test_concurrent_same_session(self) -> None:
         """Both complete without corruption, serialized by lock."""
-        original = _discovery._HTTP_MODE
+        original = _wrapping._HTTP_MODE
         try:
-            _discovery._HTTP_MODE = True
+            _wrapping._HTTP_MODE = True
             order: list[str] = []
 
             class SlowTool:
@@ -108,4 +108,4 @@ class TestConcurrentProtocolCheck:
             assert order[1] == "X-end"
             assert order[2] == "X-start"
         finally:
-            _discovery._HTTP_MODE = original
+            _wrapping._HTTP_MODE = original
