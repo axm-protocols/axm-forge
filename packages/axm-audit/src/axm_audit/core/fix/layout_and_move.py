@@ -775,6 +775,40 @@ def _apply_conftest_shadow_renames(
     return warnings, new_target_tree
 
 
+def _existing_top_level_names(tree: ast.Module) -> set[str]:
+    """Names already bound at module top level (assignments + def/class)."""
+    assigned = {n for stmt in tree.body for n in _stmt_assignment_targets(stmt)}
+    defined = {
+        n.name
+        for n in tree.body
+        if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+    }
+    return assigned | defined
+
+
+def _collect_dep_snippets(
+    dep_names: list[str],
+    existing: set[str],
+    defs: dict[str, ast.stmt],
+    pre_anvil_source_text: str,
+) -> tuple[list[str], list[str]]:
+    """Return ``(snippets, carried_names)`` for deps to inject into target."""
+    snippets: list[str] = []
+    carried: list[str] = []
+    for name in dep_names:
+        if name in existing:
+            continue
+        node = defs.get(name)
+        if not isinstance(node, ast.Assign | ast.AnnAssign):
+            continue
+        segment = ast.get_source_segment(pre_anvil_source_text, node) or ast.unparse(
+            node
+        )
+        snippets.append(segment)
+        carried.append(name)
+    return snippets, carried
+
+
 def _copy_module_level_deps_to_target(
     source: Path,
     target: Path,
@@ -793,27 +827,11 @@ def _copy_module_level_deps_to_target(
         return []
     target_text = target.read_text()
     target_tree = ast.parse(target_text)
-    existing: set[str] = {
-        n for stmt in target_tree.body for n in _stmt_assignment_targets(stmt)
-    } | {
-        n.name
-        for n in target_tree.body
-        if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
-    }
+    existing = _existing_top_level_names(target_tree)
     defs = _source_top_level_definitions(pre_anvil_source_tree)
-    snippets: list[str] = []
-    carried: list[str] = []
-    for name in dep_names:
-        if name in existing:
-            continue
-        node = defs.get(name)
-        if not isinstance(node, ast.Assign | ast.AnnAssign):
-            continue
-        segment = ast.get_source_segment(pre_anvil_source_text, node) or ast.unparse(
-            node
-        )
-        snippets.append(segment)
-        carried.append(name)
+    snippets, carried = _collect_dep_snippets(
+        dep_names, existing, defs, pre_anvil_source_text
+    )
     if not snippets:
         return []
     new_text = _insert_before_first_def(target_text, target_tree, snippets)
@@ -862,6 +880,26 @@ def _stmt_bound_names(stmt: ast.stmt) -> list[str]:
     return []
 
 
+def _stmt_load_eval_subnodes(stmt: ast.stmt) -> list[ast.AST]:
+    """AST sub-nodes of *stmt* evaluated at module load."""
+    if isinstance(stmt, ast.Assign):
+        return [stmt.value]
+    if isinstance(stmt, ast.AnnAssign):
+        nodes: list[ast.AST] = [stmt.annotation]
+        if stmt.value is not None:
+            nodes.insert(0, stmt.value)
+        return nodes
+    if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef):
+        return list(stmt.decorator_list)
+    if isinstance(stmt, ast.ClassDef):
+        return [
+            *stmt.decorator_list,
+            *stmt.bases,
+            *(kw.value for kw in stmt.keywords),
+        ]
+    return []
+
+
 def _stmt_load_time_refs(stmt: ast.stmt) -> set[str]:
     """Free ``Name(Load)`` references evaluated when *stmt* runs at module load.
 
@@ -870,20 +908,7 @@ def _stmt_load_time_refs(stmt: ast.stmt) -> set[str]:
     ``keywords`` for ClassDef) contributes load-time deps.
     """
     refs: set[str] = set()
-    sub_nodes: list[ast.AST] = []
-    if isinstance(stmt, ast.Assign):
-        sub_nodes.append(stmt.value)
-    elif isinstance(stmt, ast.AnnAssign):
-        if stmt.value is not None:
-            sub_nodes.append(stmt.value)
-        sub_nodes.append(stmt.annotation)
-    elif isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef):
-        sub_nodes.extend(stmt.decorator_list)
-    elif isinstance(stmt, ast.ClassDef):
-        sub_nodes.extend(stmt.decorator_list)
-        sub_nodes.extend(stmt.bases)
-        sub_nodes.extend(kw.value for kw in stmt.keywords)
-    for node in sub_nodes:
+    for node in _stmt_load_eval_subnodes(stmt):
         for sub in ast.walk(node):
             if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
                 refs.add(sub.id)
