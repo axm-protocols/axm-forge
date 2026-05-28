@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 import libcst as cst
 
-from axm_anvil._cst.blocks import _collect_refs
+from axm_anvil._cst.blocks import Block, _collect_refs
 
 __all__ = ["SharedInfo", "_classify_shared_helpers"]
 
@@ -88,7 +87,7 @@ def _classify_single_helper(
 
 
 def _classify_shared_helpers(
-    blocks: list[Any],
+    blocks: list[Block],
     needed_helpers: set[str],
     source_tree_after_remove: cst.Module,
 ) -> dict[str, SharedInfo]:
