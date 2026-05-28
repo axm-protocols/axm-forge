@@ -6,24 +6,6 @@ from axm_anvil.core.move import move_symbols
 from axm_anvil.core.plan import SharedHelpersError
 
 
-@pytest.fixture
-def shared_helper_fixture(tmp_path):
-    source = tmp_path / "src.py"
-    target = tmp_path / "tgt.py"
-    source.write_text(
-        "def _shared():\n"
-        "    return 42\n"
-        "\n"
-        "def moved_A():\n"
-        "    return _shared()\n"
-        "\n"
-        "def remaining_B():\n"
-        "    return _shared()\n"
-    )
-    target.write_text("")
-    return tmp_path, source, target
-
-
 @pytest.mark.integration
 def test_shared_helper_error_mode_raises(shared_helper_fixture):
     root, source, target = shared_helper_fixture
