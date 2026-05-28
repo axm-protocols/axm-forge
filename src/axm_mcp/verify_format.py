@@ -243,29 +243,40 @@ def _compact_item(item: object) -> str:
 # ── Metadata / clusters ───────────────────────────────────────────────
 
 
+def _format_cluster_signals(clusters: list[object]) -> str | None:
+    """Render the top-3 signal counts across *clusters*."""
+    signals: dict[str, int] = {}
+    for c in clusters:
+        if isinstance(c, dict):
+            sig = c.get("signal", "?")
+            signals[sig] = signals.get(sig, 0) + 1
+    top = sorted(signals.items(), key=lambda kv: -kv[1])[:3]
+    if not top:
+        return None
+    return "signals: " + ", ".join(f"{s}={n}" for s, n in top)
+
+
+def _format_top_cluster(first: object) -> str | None:
+    """Render a one-line summary of the first cluster."""
+    if not isinstance(first, dict):
+        return None
+    members = first.get("members") or []
+    sim = first.get("similarity", "?")
+    sig = first.get("signal", "?")
+    return f"top cluster: [{sig}] {len(members)} tests sim={sim}"
+
+
 def _summarize_metadata(metadata: dict[str, object]) -> str:
-    clusters = metadata.get("clusters")
     parts: list[str] = []
 
+    clusters = metadata.get("clusters")
     if isinstance(clusters, list) and clusters:
-        signals: dict[str, int] = {}
-        for c in clusters:
-            if isinstance(c, dict):
-                sig = c.get("signal", "?")
-                signals[sig] = signals.get(sig, 0) + 1
-        top = sorted(signals.items(), key=lambda kv: -kv[1])[:3]
-        if top:
-            parts.append("signals: " + ", ".join(f"{s}={n}" for s, n in top))
-        first = clusters[0]
-        if isinstance(first, dict):
-            members = first.get("members") or []
-            sim = first.get("similarity", "?")
-            sig = first.get("signal", "?")
-            parts.append(f"top cluster: [{sig}] {len(members)} tests sim={sim}")
+        parts.append(_format_cluster_signals(clusters) or "")
+        parts.append(_format_top_cluster(clusters[0]) or "")
 
     bucket_counts = metadata.get("bucket_counts")
     if isinstance(bucket_counts, dict) and bucket_counts:
         bc = ", ".join(f"{k}={v}" for k, v in bucket_counts.items())
         parts.append(f"buckets: {bc}")
 
-    return " · ".join(parts)
+    return " · ".join(p for p in parts if p)
