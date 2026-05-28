@@ -527,6 +527,22 @@ reason = "Heterogeneous intra-file case in TestFormatAgentText: test_format_agen
 hash = "baedb510dffb"
 reason = "Heterogeneous intra-file case in test_file_naming.py: test_canonical_integration calls canonical_filename(symbols_or_tuples=tuple[str,...], tier='integration', single_binary=None) covering K=2/K=1/PascalCase→snake variants, while test_canonical_e2e_single_binary calls canonical_filename(symbols_or_tuples=list[tuple[str,str]], tier='e2e', single_binary='axm-audit') covering single-binary strip vs no-sub. Different tier branches, different `single_binary` mode, different input shapes. Folding would force a generic tier/single_binary parameter and erase the e2e-vs-integration distinction. ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "26c967d93af4"
+reason = "Cluster covers 7 disjoint cst_rewrite SUTs sharing only the _rewrite_and_dump helper: rename_function (in-place name swap), patch_file_depth +1/0/-1 (parents[N] integer literal increment/identity/decrement), dedupe_imports shadow rule (first binding wins), flatten_class no-decorators path, and rename_function absent-name no-op. Each test asserts on a different source-string contract (def rename, parents[N] index, import line presence, class flatten) with literals that are SUT-specific data, not interchangeable parametrize values; folding would erase the per-rewriter contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "630bb3f2fec1"
+reason = "Cluster covers 3 disjoint cst_rewrite no-op / extension SUTs: backfill_import with dotted module path 'a.b.c' (asserts 'from a.b.c import helper' is inserted), flatten_class with unknown class name (asserts class is preserved untouched), and delete_function with absent target (asserts module is unchanged). Each test exercises a different rewriter and a different no-op-vs-extension contract; the literals (module path 'a.b.c', class 'TestY', function 'absent') are SUT-specific and not interchangeable parametrize values."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "6acb44ecc5f5"
+reason = "Both tests exercise flatten_class but guard orthogonal concerns: test_flatten_class_to_top_level_funcs asserts the body-flattening contract (methods test_a/test_b become top-level functions, 'class TestX' is gone) on a no-decorator input, while test_flatten_preserves_method_decorators asserts the decorator-preservation invariant ('@pytest.mark.skip' survives flattening) on a decorated input. Different inputs (decorated vs not), different assertion targets (function bodies vs decorator survival); collapsing would erase the decorator-preservation branch."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f64e47eadb17"
+reason = "Both tests exercise dedupe_imports but cover disjoint import-statement shapes: test_imports_dedupe_collapses_duplicates asserts that repeated `import os` (plain-import shape) collapses to a single line AND that `import sys` is preserved at count 1, while test_dedupe_imports_from_module_collapses_repeat asserts that repeated `from pkg import foo` (from-import shape) collapses AND that the unrelated `from pkg import bar` survives at count 1. Same `lines.count(1)` literal but applied to different source-string contracts (`import X` vs `from X import Y`); each pins a separate dedupe branch (Import vs ImportFrom CST node)."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
