@@ -6,7 +6,10 @@ Import explicitly: ``from tests.integration._helpers import <name>``.
 
 from __future__ import annotations
 
+import os
 import shutil
+import subprocess
+import sys
 import textwrap
 from pathlib import Path
 from typing import Any
@@ -96,3 +99,41 @@ def _make_src_module__from_coupling_severity(
 def _tools_available() -> bool:
     """Check that ruff and mypy are on PATH."""
     return shutil.which("ruff") is not None and shutil.which("mypy") is not None
+
+
+_PLAN_CHECK = "axm_audit.core.fix.stages_plan._check_by_rule"
+
+
+def _anvil_available() -> bool:
+    try:
+        from axm_audit.core.fix.layout_and_move import move_symbols
+    except ImportError:
+        return False
+    return move_symbols is not None
+
+
+def _mk_pkg(tmp_path: Path, name: str = "pkg") -> Path:
+    pkg_dir = tmp_path / "src" / name
+    pkg_dir.mkdir(parents=True, exist_ok=True)
+    (pkg_dir / "__init__.py").write_text("")
+    return pkg_dir
+
+
+def _subprocess_import(target: Path, pkg: Path) -> subprocess.CompletedProcess[str]:
+    """Import *target* via a fresh subprocess; PYTHONPATH set to pkg/src."""
+    env = {**os.environ, "PYTHONPATH": str(pkg / "src")}
+    return subprocess.run(  # noqa: S603
+        [
+            sys.executable,
+            "-c",
+            "import importlib.util, sys; "
+            "spec = importlib.util.spec_from_file_location('m', sys.argv[1]); "
+            "m = importlib.util.module_from_spec(spec); "
+            "spec.loader.exec_module(m)",
+            str(target),
+        ],
+        cwd=pkg,
+        env=env,
+        capture_output=True,
+        text=True,
+    )

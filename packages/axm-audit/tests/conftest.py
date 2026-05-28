@@ -1,5 +1,6 @@
 """Shared pytest fixtures."""
 
+import subprocess
 import textwrap
 from collections.abc import Callable
 from pathlib import Path
@@ -273,5 +274,38 @@ def make_pkg(tmp_path: Path) -> Callable[..., Path]:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content)
         return root
+
+    return _make
+
+
+@pytest.fixture
+def make_test_pkg(tmp_path: Path) -> Callable[[dict[str, str]], Path]:
+    """Build a minimal git-initialised package with the given source files."""
+
+    def _make(sources: dict[str, str]) -> Path:
+        pkg = tmp_path / "pkg"
+        pkg.mkdir()
+        (pkg / "pyproject.toml").write_text(
+            '[project]\nname = "pkg"\nversion = "0.0.0"\nrequires-python = ">=3.12"\n'
+        )
+        (pkg / "src").mkdir()
+        (pkg / "src" / "pkg").mkdir()
+        (pkg / "src" / "pkg" / "__init__.py").write_text("")
+        (pkg / "tests").mkdir()
+        for rel, content in sources.items():
+            f = pkg / rel
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(content)
+        subprocess.run(["git", "init", "-q"], cwd=pkg, check=True, capture_output=True)  # noqa: S607
+        subprocess.run(["git", "config", "user.email", "t@t"], cwd=pkg, check=True)  # noqa: S607
+        subprocess.run(["git", "config", "user.name", "t"], cwd=pkg, check=True)  # noqa: S607
+        subprocess.run(["git", "add", "-A"], cwd=pkg, check=True, capture_output=True)  # noqa: S607
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "init"],  # noqa: S607
+            cwd=pkg,
+            check=True,
+            capture_output=True,
+        )
+        return pkg
 
     return _make
