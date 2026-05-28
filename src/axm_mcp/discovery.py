@@ -245,6 +245,37 @@ _TYPE_MAP: dict[str, type[object]] = {
 }
 
 
+_SECTION_END_RE = re.compile(r"^[A-Z]\w*:\s*$")
+
+
+def _is_section_end(stripped: str) -> bool:
+    return (
+        bool(stripped)
+        and not stripped.startswith("**")
+        and ":" in stripped
+        and bool(_SECTION_END_RE.match(stripped))
+    )
+
+
+def _resolve_annotation(type_hint: str | None) -> type[object]:
+    if not type_hint:
+        return inspect.Parameter.empty
+    clean_type = type_hint.split(",")[0].strip()
+    return _TYPE_MAP.get(clean_type, inspect.Parameter.empty)
+
+
+def _parse_arg_line(line: str) -> inspect.Parameter | None:
+    match = _ARG_LINE_RE.match(line)
+    if not match:
+        return None
+    return inspect.Parameter(
+        match.group(1),
+        kind=inspect.Parameter.KEYWORD_ONLY,
+        default=None,
+        annotation=_resolve_annotation(match.group(2)),
+    )
+
+
 def _extract_docstring_params(
     docstring: str | None,
 ) -> list[inspect.Parameter]:
@@ -264,51 +295,28 @@ def _extract_docstring_params(
     if not docstring:
         return []
 
-    lines = docstring.splitlines()
     in_args = False
     params: list[inspect.Parameter] = []
 
-    for line in lines:
+    for line in docstring.splitlines():
         stripped = line.strip()
 
-        # Detect start of Args: block
         if stripped in ("Args:", "Keyword Args:"):
             in_args = True
             continue
 
-        # End of Args: block (next section or blank line after content)
-        if in_args and stripped and not stripped.startswith("**") and ":" in stripped:
-            # Check if this is a new top-level section (e.g. "Returns:")
-            if re.match(r"^[A-Z]\w*:\s*$", stripped):
-                break
-
         if not in_args:
             continue
 
-        # Skip **kwargs line
+        if _is_section_end(stripped):
+            break
+
         if stripped.startswith("**"):
             continue
 
-        # Match param lines
-        match = _ARG_LINE_RE.match(line)
-        if match:
-            name = match.group(1)
-            type_hint = match.group(2)
-
-            annotation: type[object] = inspect.Parameter.empty
-            if type_hint:
-                # Clean up "str, optional" → "str"
-                clean_type = type_hint.split(",")[0].strip()
-                annotation = _TYPE_MAP.get(clean_type, inspect.Parameter.empty)
-
-            params.append(
-                inspect.Parameter(
-                    name,
-                    kind=inspect.Parameter.KEYWORD_ONLY,
-                    default=None,
-                    annotation=annotation,
-                )
-            )
+        param = _parse_arg_line(line)
+        if param is not None:
+            params.append(param)
 
     return params
 
