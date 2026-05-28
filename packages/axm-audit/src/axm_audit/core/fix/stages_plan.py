@@ -17,7 +17,7 @@ from typing import Any
 from axm_audit.core.rules.test_quality._shared import load_project_scripts
 
 from .findings import (
-    _check_by_rule,
+    check_by_rule,
     class_needs_flatten,
     get_pkg_prefixes,
 )
@@ -127,7 +127,7 @@ def plan_flatten(project_path: Path) -> list[FileOp]:
     (using ``self.x``, inheriting non-object, having __init__) cannot be
     flattened deterministically and emit an out-of-pipeline warning.
     """
-    findings = _check_by_rule(project_path, "TEST_QUALITY_FILE_NAMING")
+    findings = check_by_rule(project_path, "TEST_QUALITY_FILE_NAMING")
     pkg_prefixes = get_pkg_prefixes(project_path)
     scripts = load_project_scripts(project_path)
     single_binary = next(iter(scripts)) if len(scripts) == 1 else None
@@ -167,7 +167,7 @@ def plan_relocate(project_path: Path) -> list[FileOp]:
     back to ``integration``, oscillating forever. Requiring unanimity
     breaks the cycle: such files are out of pipeline until split.
     """
-    findings = _check_by_rule(project_path, "TEST_QUALITY_PYRAMID_LEVEL")
+    findings = check_by_rule(project_path, "TEST_QUALITY_PYRAMID_LEVEL")
     per_file: dict[Path, Counter[str]] = defaultdict(Counter)
     for d in findings:
         lvl = d.get("level")
@@ -292,7 +292,7 @@ def plan_naming(
     children inherit canonical names from the split), and a COLLIDE victim
     doesn't get a RENAME (the merge target already has the canonical name).
     """
-    findings = _check_by_rule(project_path, "TEST_QUALITY_FILE_NAMING")
+    findings = check_by_rule(project_path, "TEST_QUALITY_FILE_NAMING")
     by_verdict: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for d in findings:
         by_verdict[d.get("verdict", "")].append(d)

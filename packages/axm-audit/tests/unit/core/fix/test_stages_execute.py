@@ -6,11 +6,11 @@ from pathlib import Path
 
 from axm_audit.core.fix.models import FileOp
 from axm_audit.core.fix.stages_execute import (
-    _execute_flatten,
-    _execute_merge,
-    _execute_split,
-    _reroute_through_safe_move,
     execute,
+    execute_flatten,
+    execute_merge,
+    execute_split,
+    reroute_through_safe_move,
 )
 
 # Paths that are guaranteed not to exist on disk; the guard branches under
@@ -41,7 +41,7 @@ def test_flatten_skipped_when_split_map_none() -> None:
     op = _make_op(
         "flatten", _ABSENT_ROOT / "tests/integration/test_x.py", _ABSENT_ROOT / "x"
     )
-    msgs = _execute_flatten(op, _ABSENT_ROOT)
+    msgs = execute_flatten(op, _ABSENT_ROOT)
     assert msgs == ["flatten skipped: r (test_x.py)"]
 
 
@@ -49,7 +49,7 @@ def test_flatten_skipped_when_source_missing() -> None:
     """_execute_flatten skips when split_map is set but the source file is absent."""
     missing = _ABSENT_ROOT / "test_gone.py"
     op = _make_op("flatten", missing, _ABSENT_ROOT / "x", split_map={"TestA": ["t"]})
-    msgs = _execute_flatten(op, _ABSENT_ROOT)
+    msgs = execute_flatten(op, _ABSENT_ROOT)
     assert msgs == [f"flatten skipped: {missing} missing"]
 
 
@@ -58,7 +58,7 @@ def test_merge_skipped_when_source_or_target_missing() -> None:
     src = _ABSENT_ROOT / "test_src.py"
     tgt = _ABSENT_ROOT / "test_tgt.py"
     op = _make_op("merge", src, tgt)
-    msgs = _execute_merge(op, _ABSENT_ROOT)
+    msgs = execute_merge(op, _ABSENT_ROOT)
     assert msgs == [f"merge skipped: missing ({src} -> {tgt})"]
 
 
@@ -66,7 +66,7 @@ def test_reroute_skipped_when_source_missing() -> None:
     """_reroute_through_safe_move skips when the source file is absent."""
     src = _ABSENT_ROOT / "test_src.py"
     tgt = _ABSENT_ROOT / "test_tgt.py"
-    msgs = _reroute_through_safe_move("relocate", src, tgt, _ABSENT_ROOT)
+    msgs = reroute_through_safe_move("relocate", src, tgt, _ABSENT_ROOT)
     assert msgs == [f"relocate skipped: source missing ({src})"]
 
 
@@ -74,7 +74,7 @@ def test_split_skipped_when_source_not_integration_or_e2e() -> None:
     """_execute_split skips when the source is not under integration|e2e."""
     src = _ABSENT_ROOT / "tests/unit/test_x.py"
     op = _make_op("split", src, [src])
-    msgs = _execute_split(op, _ABSENT_ROOT)
+    msgs = execute_split(op, _ABSENT_ROOT)
     assert msgs == [f"split skipped: source not under tests/integration|e2e ({src})"]
 
 
@@ -82,7 +82,7 @@ def test_split_skipped_when_source_missing() -> None:
     """_execute_split skips when an integration source path is absent."""
     src = _ABSENT_ROOT / "tests/integration/test_x.py"
     op = _make_op("split", src, [src])
-    msgs = _execute_split(op, _ABSENT_ROOT)
+    msgs = execute_split(op, _ABSENT_ROOT)
     assert msgs == [f"split skipped: source missing ({src})"]
 
 

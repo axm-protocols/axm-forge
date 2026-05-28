@@ -29,9 +29,9 @@ from .cst_rewrite import (
     _reorder_module_statements,
 )
 from .findings import (
-    _per_unit_canonical,
     class_needs_flatten,
     get_pkg_prefixes,
+    per_unit_canonical,
 )
 from .io_primitives import _git_mv, cst_load, cst_save
 from .layout_and_move import (
@@ -52,17 +52,17 @@ from .tests_ast import (
 )
 
 __all__ = [
-    "_execute_flatten",
-    "_execute_merge",
-    "_execute_relocate",
-    "_execute_rename",
-    "_execute_split",
-    "_reroute_through_safe_move",
     "execute",
+    "execute_flatten",
+    "execute_merge",
+    "execute_relocate",
+    "execute_rename",
+    "execute_split",
+    "reroute_through_safe_move",
 ]
 
 
-def _execute_flatten(op: FileOp, project_path: Path) -> list[str]:
+def execute_flatten(op: FileOp, project_path: Path) -> list[str]:
     """Flatten the listed Test* classes in op.source.
 
     Skips pathological cases (op.split_map is None — signaled by planner).
@@ -79,7 +79,7 @@ def _execute_flatten(op: FileOp, project_path: Path) -> list[str]:
     return [f"flatten: rewrote {op.source.name} ({list(op.split_map.keys())})"]
 
 
-def _reroute_through_safe_move(
+def reroute_through_safe_move(
     kind: str,
     source: Path,
     target: Path,
@@ -117,10 +117,10 @@ def _reroute_through_safe_move(
     return warnings
 
 
-def _execute_relocate(op: FileOp, project_path: Path) -> list[str]:
+def execute_relocate(op: FileOp, project_path: Path) -> list[str]:
     """RELOCATE op: ``git mv`` between pyramid tiers.
 
-    Same collision risk as ``_execute_rename``: a target file may
+    Same collision risk as ``execute_rename``: a target file may
     already exist (different package mapping happens to land on the
     same path). Route through ``_safe_move_units`` rather than letting
     ``_git_mv`` overwrite. The fallback ``FileExistsError`` catch
@@ -129,7 +129,7 @@ def _execute_relocate(op: FileOp, project_path: Path) -> list[str]:
     """
     assert isinstance(op.target, Path)
     if op.target.exists() and op.target != op.source:
-        return _reroute_through_safe_move(
+        return reroute_through_safe_move(
             "relocate",
             op.source,
             op.target,
@@ -142,7 +142,7 @@ def _execute_relocate(op: FileOp, project_path: Path) -> list[str]:
     try:
         _git_mv(op.source, op.target)
     except FileExistsError:
-        return _reroute_through_safe_move(
+        return reroute_through_safe_move(
             "relocate",
             op.source,
             op.target,
@@ -164,7 +164,7 @@ def _execute_relocate(op: FileOp, project_path: Path) -> list[str]:
     return warnings
 
 
-def _execute_rename(op: FileOp, project_path: Path) -> list[str]:
+def execute_rename(op: FileOp, project_path: Path) -> list[str]:
     """RENAME op: ``git mv`` the source file to its canonical name.
 
     When ``op.target`` already exists (typical when a prior SPLIT/MERGE
@@ -176,7 +176,7 @@ def _execute_rename(op: FileOp, project_path: Path) -> list[str]:
     """
     assert isinstance(op.target, Path)
     if op.target.exists() and op.target != op.source:
-        return _reroute_through_safe_move(
+        return reroute_through_safe_move(
             "rename",
             op.source,
             op.target,
@@ -189,7 +189,7 @@ def _execute_rename(op: FileOp, project_path: Path) -> list[str]:
     try:
         _git_mv(op.source, op.target)
     except FileExistsError:
-        return _reroute_through_safe_move(
+        return reroute_through_safe_move(
             "rename",
             op.source,
             op.target,
@@ -622,7 +622,7 @@ def _rewrite_split_cross_imports(
     )
 
 
-def _execute_split(op: FileOp, project_path: Path) -> list[str]:
+def execute_split(op: FileOp, project_path: Path) -> list[str]:
     """SPLIT a file by routing each *movable unit* to its canonical target.
 
     A movable unit = a top-level test_* function or a homogeneous Test*
@@ -638,7 +638,7 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
     if skip_msgs is not None:
         return skip_msgs
     assert tree is not None
-    routes = _per_unit_canonical(op.source, tier_str, project_path)
+    routes = per_unit_canonical(op.source, tier_str, project_path)
     skip = _check_split_routes(op, routes)
     if skip is not None:
         return skip
@@ -666,7 +666,7 @@ def _execute_split(op: FileOp, project_path: Path) -> list[str]:
     return warnings
 
 
-def _execute_merge(op: FileOp, project_path: Path) -> list[str]:
+def execute_merge(op: FileOp, project_path: Path) -> list[str]:
     """MERGE source's units into target via _safe_move_units."""
     assert isinstance(op.target, Path)
     if not op.source.exists() or not op.target.exists():
@@ -696,13 +696,13 @@ def execute(ops: list[FileOp], project_path: Path) -> list[str]:
     warnings: list[str] = []
     for op in ops:
         if op.kind == "flatten":
-            warnings.extend(_execute_flatten(op, project_path))
+            warnings.extend(execute_flatten(op, project_path))
         elif op.kind == "relocate":
-            warnings.extend(_execute_relocate(op, project_path))
+            warnings.extend(execute_relocate(op, project_path))
         elif op.kind == "rename":
-            warnings.extend(_execute_rename(op, project_path))
+            warnings.extend(execute_rename(op, project_path))
         elif op.kind == "split":
-            warnings.extend(_execute_split(op, project_path))
+            warnings.extend(execute_split(op, project_path))
         elif op.kind == "merge":
-            warnings.extend(_execute_merge(op, project_path))
+            warnings.extend(execute_merge(op, project_path))
     return warnings
