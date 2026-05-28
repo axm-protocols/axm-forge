@@ -200,27 +200,39 @@ def _find_actions_dict(
     return None
 
 
+def _safe_signature(fn: IntrospectableFn) -> inspect.Signature | None:
+    """Resolve a signature, falling back to non-evaluated annotations."""
+    try:
+        return inspect.signature(fn, eval_str=True)
+    except (ValueError, TypeError, NameError):
+        try:
+            return inspect.signature(fn)
+        except (ValueError, TypeError):
+            return None
+
+
+def _accumulate_optional_params(
+    sig: inspect.Signature,
+    seen: dict[str, inspect.Parameter],
+) -> None:
+    """Add new typed params from *sig* into *seen*, made optional."""
+    for p in sig.parameters.values():
+        skip = p.name == "self" or p.kind == inspect.Parameter.VAR_KEYWORD
+        if skip or p.name in seen:
+            continue
+        default = p.default if p.default is not inspect.Parameter.empty else None
+        seen[p.name] = p.replace(default=default)
+
+
 def _union_subfn_params(
     actions_dict: dict[str, IntrospectableFn],
 ) -> dict[str, inspect.Parameter]:
     """Collect all typed params from sub-functions, made optional."""
     seen: dict[str, inspect.Parameter] = {}
     for sub_fn in actions_dict.values():
-        try:
-            sub_sig = inspect.signature(sub_fn, eval_str=True)
-        except (ValueError, TypeError, NameError):
-            try:
-                sub_sig = inspect.signature(sub_fn)
-            except (ValueError, TypeError):
-                continue
-        for p in sub_sig.parameters.values():
-            if p.name == "self" or p.kind == inspect.Parameter.VAR_KEYWORD:
-                continue
-            if p.name not in seen:
-                default = (
-                    p.default if p.default is not inspect.Parameter.empty else None
-                )
-                seen[p.name] = p.replace(default=default)
+        sub_sig = _safe_signature(sub_fn)
+        if sub_sig is not None:
+            _accumulate_optional_params(sub_sig, seen)
     return seen
 
 
@@ -341,13 +353,9 @@ def _collect_dispatcher_params(
     Returns:
         List of ``inspect.Parameter`` if *fn* is a dispatcher, else *None*.
     """
-    try:
-        sig = inspect.signature(fn, eval_str=True)
-    except (ValueError, TypeError, NameError):
-        try:
-            sig = inspect.signature(fn)
-        except (ValueError, TypeError):
-            return None
+    sig = _safe_signature(fn)
+    if sig is None:
+        return None
 
     params = list(sig.parameters.values())
 
