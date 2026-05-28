@@ -23,6 +23,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -972,6 +973,220 @@ def _insert_before_first_use(
     return f"{head}{block}{tail}"
 
 
+_BIG_ORDER = 10**6
+
+
+def _collect_decorator_refs(tree: ast.Module) -> set[str]:
+    refs: set[str] = set()
+    for stmt in tree.body:
+        if not isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            continue
+        for dec in stmt.decorator_list:
+            for sub in ast.walk(dec):
+                if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
+                    refs.add(sub.id)
+    return refs
+
+
+def _compute_hoist_closure(
+    seed: set[str],
+    target_names: set[str],
+    stmt_to_deps: dict[str, set[str]],
+) -> set[str]:
+    hoist: set[str] = set()
+    queue: list[str] = list(seed)
+    while queue:
+        name = queue.pop()
+        if name in hoist:
+            continue
+        hoist.add(name)
+        for dep in stmt_to_deps.get(name, set()):
+            if dep in target_names and dep not in hoist:
+                queue.append(dep)
+    return hoist
+
+
+def _build_source_order(pre_anvil_source_tree: ast.Module | None) -> dict[str, int]:
+    source_order: dict[str, int] = {}
+    if pre_anvil_source_tree is None:
+        return source_order
+    for i, stmt in enumerate(pre_anvil_source_tree.body):
+        for n in _stmt_bound_names(stmt):
+            source_order.setdefault(n, i)
+    return source_order
+
+
+def _stmt_hoist_dep_stmts(
+    stmt: ast.stmt,
+    hoist: set[str],
+    name_to_hoist_stmt: dict[str, ast.stmt],
+    stmt_to_deps: dict[str, set[str]],
+) -> list[ast.stmt]:
+    out: list[ast.stmt] = []
+    for n in _stmt_bound_names(stmt):
+        if n not in hoist:
+            continue
+        for dep in stmt_to_deps.get(n, set()):
+            if dep in hoist:
+                out.append(name_to_hoist_stmt[dep])
+    return out
+
+
+def _build_hoist_dag(
+    hoist: set[str],
+    hoist_stmts_by_id: dict[int, ast.stmt],
+    name_to_hoist_stmt: dict[str, ast.stmt],
+    stmt_to_deps: dict[str, set[str]],
+) -> tuple[dict[int, set[int]], dict[int, int]]:
+    successors: dict[int, set[int]] = {sid: set() for sid in hoist_stmts_by_id}
+    in_degree: dict[int, int] = dict.fromkeys(hoist_stmts_by_id, 0)
+    for stmt in hoist_stmts_by_id.values():
+        sid = id(stmt)
+        for dep_stmt in _stmt_hoist_dep_stmts(
+            stmt, hoist, name_to_hoist_stmt, stmt_to_deps
+        ):
+            dsid = id(dep_stmt)
+            if dsid == sid or sid in successors[dsid]:
+                continue
+            successors[dsid].add(sid)
+            in_degree[sid] += 1
+    return successors, in_degree
+
+
+def _topo_linearise(
+    hoist_stmts_by_id: dict[int, ast.stmt],
+    successors: dict[int, set[int]],
+    in_degree: dict[int, int],
+    key: Callable[[ast.stmt], tuple[int, int]],
+) -> list[ast.stmt]:
+    ordered: list[ast.stmt] = []
+    ready = sorted(
+        [s for sid, s in hoist_stmts_by_id.items() if in_degree[sid] == 0],
+        key=key,
+    )
+    while ready:
+        s = ready.pop(0)
+        ordered.append(s)
+        for succ_sid in successors[id(s)]:
+            in_degree[succ_sid] -= 1
+            if in_degree[succ_sid] != 0:
+                continue
+            succ = hoist_stmts_by_id[succ_sid]
+            succ_key = key(succ)
+            i = 0
+            while i < len(ready) and key(ready[i]) <= succ_key:
+                i += 1
+            ready.insert(i, succ)
+    return ordered
+
+
+def _first_use_line(
+    tree: ast.Module, hoist_stmts_by_id: dict[int, ast.stmt], hoist: set[str]
+) -> int | None:
+    for stmt in tree.body:
+        if id(stmt) in hoist_stmts_by_id:
+            continue
+        if not (_stmt_load_time_refs(stmt) & hoist):
+            continue
+        if (
+            isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+            and stmt.decorator_list
+        ):
+            return min(d.lineno for d in stmt.decorator_list)
+        return stmt.lineno
+    return None
+
+
+def _rewrite_with_hoist(
+    target: Path,
+    text: str,
+    hoist_stmts_by_id: dict[int, ast.stmt],
+    ordered: list[ast.stmt],
+    hoist: set[str],
+) -> list[str]:
+    snippets = [_stmt_source_segment(text, s) for s in ordered]
+    lines = text.splitlines(keepends=True)
+    ranges = sorted(
+        (_stmt_source_range(s) for s in hoist_stmts_by_id.values()),
+        reverse=True,
+    )
+    new_lines = list(lines)
+    for start, end in ranges:
+        del new_lines[start:end]
+    new_text = "".join(new_lines)
+    try:
+        new_tree = ast.parse(new_text)
+    except SyntaxError:
+        return []
+    new_text = _insert_before_first_use(new_text, new_tree, snippets, hoist)
+    target.write_text(new_text)
+    return [f"decorator-order: restored module-level load order in {target.name}"]
+
+
+@dataclass(frozen=True)
+class _HoistPlan:
+    text: str
+    tree: ast.Module
+    hoist: set[str]
+    hoist_stmts_by_id: dict[int, ast.stmt]
+    ordered: list[ast.stmt]
+
+
+def _read_module(target: Path) -> tuple[str, ast.Module] | None:
+    if not target.exists():
+        return None
+    text = target.read_text()
+    try:
+        return text, ast.parse(text)
+    except SyntaxError:
+        return None
+
+
+def _plan_hoist(
+    text: str, tree: ast.Module, pre_anvil_source_tree: ast.Module | None
+) -> _HoistPlan | None:
+    name_to_stmt, stmt_to_deps = _module_level_dep_graph(tree)
+    if not name_to_stmt:
+        return None
+    target_names = set(name_to_stmt.keys())
+    seed = _collect_decorator_refs(tree) & target_names
+    if not seed:
+        return None
+    hoist = _compute_hoist_closure(seed, target_names, stmt_to_deps)
+    hoist_stmts_by_id: dict[int, ast.stmt] = {
+        id(name_to_stmt[n]): name_to_stmt[n] for n in hoist
+    }
+    if not hoist_stmts_by_id:
+        return None
+
+    source_order = _build_source_order(pre_anvil_source_tree)
+    target_order: dict[int, int] = {id(s): i for i, s in enumerate(tree.body)}
+
+    def _key(s: ast.stmt) -> tuple[int, int]:
+        names = _stmt_bound_names(s)
+        src = min((source_order.get(n, _BIG_ORDER) for n in names), default=_BIG_ORDER)
+        return (src, target_order[id(s)])
+
+    name_to_hoist_stmt: dict[str, ast.stmt] = {n: name_to_stmt[n] for n in hoist}
+    successors, in_degree = _build_hoist_dag(
+        hoist, hoist_stmts_by_id, name_to_hoist_stmt, stmt_to_deps
+    )
+    ordered = _topo_linearise(hoist_stmts_by_id, successors, in_degree, _key)
+    if len(ordered) != len(hoist_stmts_by_id):
+        return None
+    return _HoistPlan(text, tree, hoist, hoist_stmts_by_id, ordered)
+
+
+def _is_hoist_noop(plan: _HoistPlan) -> bool:
+    current = [id(s) for s in plan.tree.body if id(s) in plan.hoist_stmts_by_id]
+    desired = [id(s) for s in plan.ordered]
+    first_use = _first_use_line(plan.tree, plan.hoist_stmts_by_id, plan.hoist)
+    all_before_use = first_use is None or all(
+        s.lineno < first_use for s in plan.hoist_stmts_by_id.values()
+    )
+    return current == desired and all_before_use
+
+
 def _topological_reorder_decorator_deps(
     target: Path, pre_anvil_source_tree: ast.Module | None = None
 ) -> list[str]:
@@ -992,141 +1207,16 @@ def _topological_reorder_decorator_deps(
     that uses any hoisted name at load time. Statements outside the
     hoist set keep their relative position — the AC3 surgical guarantee.
     """
-    if not target.exists():
+    parsed = _read_module(target)
+    if parsed is None:
         return []
-    text = target.read_text()
-    try:
-        tree = ast.parse(text)
-    except SyntaxError:
+    text, tree = parsed
+    plan = _plan_hoist(text, tree, pre_anvil_source_tree)
+    if plan is None or _is_hoist_noop(plan):
         return []
-
-    name_to_stmt, stmt_to_deps = _module_level_dep_graph(tree)
-    if not name_to_stmt:
-        return []
-
-    decorator_refs: set[str] = set()
-    for stmt in tree.body:
-        if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
-            for dec in stmt.decorator_list:
-                for sub in ast.walk(dec):
-                    if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
-                        decorator_refs.add(sub.id)
-
-    target_names = set(name_to_stmt.keys())
-    seed = decorator_refs & target_names
-    if not seed:
-        return []
-
-    hoist: set[str] = set()
-    queue: list[str] = list(seed)
-    while queue:
-        name = queue.pop()
-        if name in hoist:
-            continue
-        hoist.add(name)
-        for dep in stmt_to_deps.get(name, set()):
-            if dep in target_names and dep not in hoist:
-                queue.append(dep)
-
-    hoist_stmts_by_id: dict[int, ast.stmt] = {
-        id(name_to_stmt[n]): name_to_stmt[n] for n in hoist
-    }
-    if not hoist_stmts_by_id:
-        return []
-
-    source_order: dict[str, int] = {}
-    if pre_anvil_source_tree is not None:
-        for i, stmt in enumerate(pre_anvil_source_tree.body):
-            for n in _stmt_bound_names(stmt):
-                source_order.setdefault(n, i)
-    target_order: dict[int, int] = {id(s): i for i, s in enumerate(tree.body)}
-
-    big = 10**6
-
-    def _key(s: ast.stmt) -> tuple[int, int]:
-        names = _stmt_bound_names(s)
-        src = min((source_order.get(n, big) for n in names), default=big)
-        return (src, target_order[id(s)])
-
-    name_to_hoist_stmt: dict[str, ast.stmt] = {n: name_to_stmt[n] for n in hoist}
-    successors: dict[int, set[int]] = {sid: set() for sid in hoist_stmts_by_id}
-    in_degree: dict[int, int] = dict.fromkeys(hoist_stmts_by_id, 0)
-    for stmt in hoist_stmts_by_id.values():
-        for n in _stmt_bound_names(stmt):
-            if n not in hoist:
-                continue
-            for dep in stmt_to_deps.get(n, set()):
-                if dep not in hoist:
-                    continue
-                dep_stmt = name_to_hoist_stmt[dep]
-                if id(dep_stmt) == id(stmt):
-                    continue
-                if id(stmt) not in successors[id(dep_stmt)]:
-                    successors[id(dep_stmt)].add(id(stmt))
-                    in_degree[id(stmt)] += 1
-
-    ordered: list[ast.stmt] = []
-    ready = sorted(
-        [s for sid, s in hoist_stmts_by_id.items() if in_degree[sid] == 0],
-        key=_key,
+    return _rewrite_with_hoist(
+        target, plan.text, plan.hoist_stmts_by_id, plan.ordered, plan.hoist
     )
-    while ready:
-        s = ready.pop(0)
-        ordered.append(s)
-        for succ_sid in successors[id(s)]:
-            in_degree[succ_sid] -= 1
-            if in_degree[succ_sid] == 0:
-                succ = hoist_stmts_by_id[succ_sid]
-                succ_key = _key(succ)
-                i = 0
-                while i < len(ready) and _key(ready[i]) <= succ_key:
-                    i += 1
-                ready.insert(i, succ)
-
-    if len(ordered) != len(hoist_stmts_by_id):
-        return []
-
-    current_hoist_order = [id(s) for s in tree.body if id(s) in hoist_stmts_by_id]
-    desired_order = [id(s) for s in ordered]
-
-    first_use_line: int | None = None
-    for stmt in tree.body:
-        if id(stmt) in hoist_stmts_by_id:
-            continue
-        refs = _stmt_load_time_refs(stmt)
-        if refs & hoist:
-            first_use_line = stmt.lineno
-            if (
-                isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
-                and stmt.decorator_list
-            ):
-                first_use_line = min(d.lineno for d in stmt.decorator_list)
-            break
-
-    hoist_linenos = [s.lineno for s in hoist_stmts_by_id.values()]
-    all_before_use = first_use_line is None or all(
-        ln < first_use_line for ln in hoist_linenos
-    )
-    if current_hoist_order == desired_order and all_before_use:
-        return []
-
-    snippets = [_stmt_source_segment(text, s) for s in ordered]
-    lines = text.splitlines(keepends=True)
-    ranges = sorted(
-        (_stmt_source_range(s) for s in hoist_stmts_by_id.values()),
-        reverse=True,
-    )
-    new_lines = list(lines)
-    for start, end in ranges:
-        del new_lines[start:end]
-    new_text = "".join(new_lines)
-    try:
-        new_tree = ast.parse(new_text)
-    except SyntaxError:
-        return []
-    new_text = _insert_before_first_use(new_text, new_tree, snippets, hoist)
-    target.write_text(new_text)
-    return [f"decorator-order: restored module-level load order in {target.name}"]
 
 
 def _append_marker_fixtures(
