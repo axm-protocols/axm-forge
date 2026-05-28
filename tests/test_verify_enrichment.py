@@ -96,7 +96,10 @@ def test_enrich_failure_unknown_score_graceful(_make_tools, monkeypatch):
     ctx = _enrich_failure(tools, "/project", {"rule": "E001"})
 
     assert ctx is not None
-    # Should complete without raising — score value is preserved or handled
+    # CRITICAL is outside the ordinal map (LOW<MEDIUM<HIGH); it must be ignored
+    # and the aggregate score fall back to LOW rather than crash.
+    assert ctx["impact_score"] == "LOW"
+    assert ctx["symbols_analyzed"] == 1
 
 
 # ---------------------------------------------------------------------------

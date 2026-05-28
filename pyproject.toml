@@ -16,8 +16,9 @@ classifiers = [
 dependencies = [
     "axm",
     "cyclopts>=4.5.1",
-    "jinja2>=3.0.0",
+    "httpx>=0.28",
     "mcp[cli]>=1.25.0",
+    "starlette>=1.2",
 ]
 
 [project.urls]
@@ -58,6 +59,9 @@ version-file = "src/axm_mcp/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/axm_mcp"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"docs/index.md" = "axm_mcp/docs/index.md"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # UV Configuration
 # ─────────────────────────────────────────────────────────────────────────────
@@ -93,12 +97,12 @@ src = ["src", "tests"]
 exclude = ["*/_version.py"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "C4", "C901", "S", "T20", "RUF"]
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20", "RUF"]
 ignore = ["S101", "RUF012"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "S108"]
-"src/axm_mcp/discovery.py" = ["C901", "PLR0915"]
+"tests/*" = ["S101", "S108", "PLR2004"]
+"src/axm_mcp/discovery.py" = ["C901", "PLR0915", "BLE001"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
