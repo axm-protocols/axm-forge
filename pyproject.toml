@@ -151,6 +151,9 @@ disallow_any_explicit = false
 # ─────────────────────────────────────────────────────────────────────────────
 # Pytest Configuration
 # ─────────────────────────────────────────────────────────────────────────────
+[tool.axm-audit.mirror]
+exempt_paths = ["**/__init__.py"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

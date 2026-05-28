@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 import pytest
 
 from axm.tools.base import AXMTool, ToolResult
 
-# ── ToolResult ────────────────────────────────────────────────────────────────
+# ── ToolResult ─────────────────────────────────────────────────────────────────
 
 
 class TestToolResult:
@@ -53,6 +54,42 @@ class TestToolResult:
         result = ToolResult(success=True, data={}, error=None)
         assert "ToolResult" in repr(result)
         assert "success=True" in repr(result)
+
+
+class TestToolResultText:
+    """Tests for the ToolResult.text field (pre-rendered output)."""
+
+    def test_text_field_default(self) -> None:
+        r = ToolResult(success=True)
+        assert r.text is None
+
+    def test_text_field_set(self) -> None:
+        r = ToolResult(success=True, text="# Hi")
+        assert r.text == "# Hi"
+
+    def test_text_with_data(self) -> None:
+        r = ToolResult(success=True, data={"k": 1}, text="k: 1")
+        assert r.data == {"k": 1}
+        assert r.text == "k: 1"
+
+    def test_frozen_text(self) -> None:
+        r = ToolResult(success=True, text="x")
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            r.text = "y"  # type: ignore[misc]
+
+    def test_backward_compat(self) -> None:
+        r = ToolResult(success=True, data={}, error=None, hint=None)
+        assert r.text is None
+
+    def test_text_empty_string(self) -> None:
+        r = ToolResult(success=True, text="")
+        assert r.text == ""
+        assert r.text is not None
+
+    def test_text_multiline_markdown(self) -> None:
+        md = "| a | b |\n|---|---|\n| 1 | 2 |"
+        r = ToolResult(success=True, text=md)
+        assert r.text == md
 
 
 # ── AXMTool ───────────────────────────────────────────────────────────────────
