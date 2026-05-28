@@ -34,6 +34,25 @@ def _collect_refs(node: cst.CSTNode, exclude: str) -> set[str]:
     return collector.names - {exclude}
 
 
+def _make_block(
+    name: str, stmt: cst.BaseStatement, leading: list[cst.EmptyLine]
+) -> Block:
+    return Block(
+        name=name,
+        node=stmt,
+        leading_lines=leading,
+        referenced_names=_collect_refs(stmt, name),
+    )
+
+
+def _assigned_name_in(stmt: cst.SimpleStatementLine, wanted: set[str]) -> str | None:
+    for inner in stmt.body:
+        assign_name = _assignment_target(inner)
+        if assign_name and assign_name in wanted:
+            return assign_name
+    return None
+
+
 def _extract_blocks(tree: cst.Module, symbol_names: Sequence[str]) -> list[Block]:
     """Extract ``Block`` records for each requested top-level symbol.
 
@@ -45,30 +64,13 @@ def _extract_blocks(tree: cst.Module, symbol_names: Sequence[str]) -> list[Block
     for index, stmt in enumerate(tree.body):
         leading = _leading_lines_for(tree, stmt, index)
         if isinstance(stmt, cst.ClassDef | cst.FunctionDef):
-            name = stmt.name.value
-            if name in wanted:
-                blocks.append(
-                    Block(
-                        name=name,
-                        node=stmt,
-                        leading_lines=leading,
-                        referenced_names=_collect_refs(stmt, name),
-                    )
-                )
+            if stmt.name.value in wanted:
+                blocks.append(_make_block(stmt.name.value, stmt, leading))
             continue
         if isinstance(stmt, cst.SimpleStatementLine):
-            for inner in stmt.body:
-                assign_name = _assignment_target(inner)
-                if assign_name and assign_name in wanted:
-                    blocks.append(
-                        Block(
-                            name=assign_name,
-                            node=stmt,
-                            leading_lines=leading,
-                            referenced_names=_collect_refs(stmt, assign_name),
-                        )
-                    )
-                    break
+            assign_name = _assigned_name_in(stmt, wanted)
+            if assign_name is not None:
+                blocks.append(_make_block(assign_name, stmt, leading))
     return blocks
 
 
