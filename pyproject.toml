@@ -118,6 +118,9 @@ max-locals = 15
 [tool.ruff.lint.isort]
 known-first-party = ["axm_mcp"]
 
+[tool.axm-audit.mirror]
+exempt_paths = ["**/__init__.py", "_version.py"]
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MyPy Configuration
 # ─────────────────────────────────────────────────────────────────────────────
