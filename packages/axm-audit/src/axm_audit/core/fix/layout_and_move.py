@@ -850,104 +850,270 @@ def _insert_before_first_def(
     return f"{head}{block}{tail}"
 
 
+def _stmt_bound_names(stmt: ast.stmt) -> list[str]:
+    """Names bound at the module top level by *stmt* (Name targets only)."""
+    if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+        return [stmt.name]
+    if isinstance(stmt, ast.Assign):
+        return [t.id for t in stmt.targets if isinstance(t, ast.Name)]
+    if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+        return [stmt.target.id]
+    return []
+
+
+def _stmt_load_time_refs(stmt: ast.stmt) -> set[str]:
+    """Free ``Name(Load)`` references evaluated when *stmt* runs at module load.
+
+    Body of ``FunctionDef``/``ClassDef`` is NOT load-evaluated, so it is
+    intentionally skipped — only the decorator list (and ``bases`` /
+    ``keywords`` for ClassDef) contributes load-time deps.
+    """
+    refs: set[str] = set()
+    sub_nodes: list[ast.AST] = []
+    if isinstance(stmt, ast.Assign):
+        sub_nodes.append(stmt.value)
+    elif isinstance(stmt, ast.AnnAssign):
+        if stmt.value is not None:
+            sub_nodes.append(stmt.value)
+        sub_nodes.append(stmt.annotation)
+    elif isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef):
+        sub_nodes.extend(stmt.decorator_list)
+    elif isinstance(stmt, ast.ClassDef):
+        sub_nodes.extend(stmt.decorator_list)
+        sub_nodes.extend(stmt.bases)
+        sub_nodes.extend(kw.value for kw in stmt.keywords)
+    for node in sub_nodes:
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
+                refs.add(sub.id)
+    return refs
+
+
+def _module_level_dep_graph(
+    tree: ast.Module,
+) -> tuple[dict[str, ast.stmt], dict[str, set[str]]]:
+    """Return ``(name -> stmt, name -> load-time deps)`` for top-level names.
+
+    Spans Assign / AnnAssign / FunctionDef / AsyncFunctionDef / ClassDef.
+    First binding wins on duplicate names (matches Python's left-to-right
+    module exec).
+    """
+    name_to_stmt: dict[str, ast.stmt] = {}
+    name_to_deps: dict[str, set[str]] = {}
+    for stmt in tree.body:
+        names = _stmt_bound_names(stmt)
+        if not names:
+            continue
+        refs = _stmt_load_time_refs(stmt)
+        for n in names:
+            name_to_stmt.setdefault(n, stmt)
+            name_to_deps.setdefault(n, set()).update(refs - {n})
+    return name_to_stmt, name_to_deps
+
+
+def _stmt_source_range(stmt: ast.stmt) -> tuple[int, int]:
+    """Return 0-based (start, end) line range covering *stmt* incl. decorators."""
+    start = stmt.lineno - 1
+    if (
+        isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+        and stmt.decorator_list
+    ):
+        start = min(d.lineno for d in stmt.decorator_list) - 1
+    end = stmt.end_lineno if stmt.end_lineno is not None else stmt.lineno
+    return start, end
+
+
+def _stmt_source_segment(text: str, stmt: ast.stmt) -> str:
+    """Like ``ast.get_source_segment`` but includes preceding decorators."""
+    if (
+        isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+        and stmt.decorator_list
+    ):
+        start, end = _stmt_source_range(stmt)
+        lines = text.splitlines(keepends=True)
+        return "".join(lines[start:end]).rstrip("\n")
+    return ast.get_source_segment(text, stmt) or ast.unparse(stmt)
+
+
+def _insert_before_first_use(
+    target_text: str,
+    target_tree: ast.Module,
+    snippets: list[str],
+    hoist_names: set[str],
+) -> str:
+    """Splice *snippets* before the first stmt that load-time references
+    a name in *hoist_names*. Falls back to before-first-def, then EOF.
+    """
+    block = "\n\n".join(snippets) + "\n\n"
+    insert_line: int | None = None
+    for stmt in target_tree.body:
+        refs = _stmt_load_time_refs(stmt)
+        if refs & hoist_names:
+            insert_line = stmt.lineno
+            if (
+                isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+                and stmt.decorator_list
+            ):
+                insert_line = min(d.lineno for d in stmt.decorator_list)
+            break
+    if insert_line is None:
+        for stmt in target_tree.body:
+            if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+                insert_line = stmt.lineno
+                if stmt.decorator_list:
+                    insert_line = min(d.lineno for d in stmt.decorator_list)
+                break
+    if insert_line is None:
+        rstripped = target_text.rstrip()
+        return f"{rstripped}\n\n{block.rstrip()}\n"
+    lines = target_text.splitlines(keepends=True)
+    head = "".join(lines[: insert_line - 1])
+    tail = "".join(lines[insert_line - 1 :])
+    return f"{head}{block}{tail}"
+
+
 def _topological_reorder_decorator_deps(
-    target: Path, pre_anvil_source_tree: ast.Module
+    target: Path, pre_anvil_source_tree: ast.Module | None = None
 ) -> list[str]:
-    """Restore source-order between module-level Assigns in target.
+    """Reorder module-level statements in *target* so load-time deps land
+    before their first use.
 
-    Runs after anvil's body-reference duplication AND after
-    ``_copy_module_level_deps_to_target``'s decorator-reference copy.
-    Either path can leave the target with module-level
-    ``Assign``/``AnnAssign`` statements in an order that diverges from
-    source — yielding a ``NameError`` at module import (decorator fires
-    before its alias evaluates, or alias evaluates before its own free
-    names bind), and also breaking AC3's surgical guarantee when anvil
-    happens to place an unrelated assign above a decorator dep.
+    **Target-centric**: the dependency graph is built from the target tree
+    alone, spanning Assign / AnnAssign / FunctionDef / ClassDef. The
+    pre-anvil source tree is used **only** as a stable tiebreaker between
+    multiple valid topological linearisations — it is not load-bearing
+    for correctness, which matters when a target receives content from
+    multiple sources (no single ``pre_anvil_source_tree`` can describe
+    all contributors).
 
-    The source order itself is load-time correct by construction (the
-    pre-anvil source was importable). Restoring source-order for the
-    subset of names that survive in target therefore both:
-
-      * places every (transitively) decorator-referenced name before its
-        first decorator use;
-      * preserves the relative source position of unrelated assigns,
-        because the whole group is reinserted in source order in one
-        shot, not just the decorator deps.
-
-    Names defined in target but absent from source (rare; from a stub
-    docstring or anvil scaffolding) are left in place.
+    A statement is **hoisted** if its bound name is transitively
+    referenced by any module-level decorator. Hoisted statements are
+    placed (in topological order) before the first remaining statement
+    that uses any hoisted name at load time. Statements outside the
+    hoist set keep their relative position — the AC3 surgical guarantee.
     """
     if not target.exists():
         return []
-    source_order: list[str] = []
-    seen_in_source: set[str] = set()
-    for stmt in pre_anvil_source_tree.body:
-        if isinstance(stmt, ast.Assign):
-            for tgt in stmt.targets:
-                if isinstance(tgt, ast.Name) and tgt.id not in seen_in_source:
-                    source_order.append(tgt.id)
-                    seen_in_source.add(tgt.id)
-        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
-            if stmt.target.id not in seen_in_source:
-                source_order.append(stmt.target.id)
-                seen_in_source.add(stmt.target.id)
-    if not source_order:
-        return []
-
     text = target.read_text()
     try:
         tree = ast.parse(text)
     except SyntaxError:
         return []
 
-    name_to_stmt: dict[str, ast.stmt] = {}
-    for stmt in tree.body:
-        if isinstance(stmt, ast.Assign):
-            for tgt in stmt.targets:
-                if isinstance(tgt, ast.Name):
-                    name_to_stmt[tgt.id] = stmt
-        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
-            name_to_stmt[stmt.target.id] = stmt
-
-    relocate_names = [n for n in source_order if n in name_to_stmt]
-    if not relocate_names:
+    name_to_stmt, stmt_to_deps = _module_level_dep_graph(tree)
+    if not name_to_stmt:
         return []
 
-    first_def_line: int | None = None
+    decorator_refs: set[str] = set()
     for stmt in tree.body:
         if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
-            if stmt.decorator_list:
-                first_def_line = min(d.lineno for d in stmt.decorator_list)
-            else:
-                first_def_line = stmt.lineno
-            break
+            for dec in stmt.decorator_list:
+                for sub in ast.walk(dec):
+                    if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
+                        decorator_refs.add(sub.id)
 
-    current_linenos = [name_to_stmt[n].lineno for n in relocate_names]
-    in_source_order = all(
-        current_linenos[i] < current_linenos[i + 1]
-        for i in range(len(current_linenos) - 1)
-    )
-    all_before_defs = first_def_line is None or all(
-        ln < first_def_line for ln in current_linenos
-    )
-    if in_source_order and all_before_defs:
+    target_names = set(name_to_stmt.keys())
+    seed = decorator_refs & target_names
+    if not seed:
         return []
 
-    snippets = [
-        ast.get_source_segment(text, name_to_stmt[n]) or ast.unparse(name_to_stmt[n])
-        for n in relocate_names
-    ]
+    hoist: set[str] = set()
+    queue: list[str] = list(seed)
+    while queue:
+        name = queue.pop()
+        if name in hoist:
+            continue
+        hoist.add(name)
+        for dep in stmt_to_deps.get(name, set()):
+            if dep in target_names and dep not in hoist:
+                queue.append(dep)
+
+    hoist_stmts_by_id: dict[int, ast.stmt] = {
+        id(name_to_stmt[n]): name_to_stmt[n] for n in hoist
+    }
+    if not hoist_stmts_by_id:
+        return []
+
+    source_order: dict[str, int] = {}
+    if pre_anvil_source_tree is not None:
+        for i, stmt in enumerate(pre_anvil_source_tree.body):
+            for n in _stmt_bound_names(stmt):
+                source_order.setdefault(n, i)
+    target_order: dict[int, int] = {id(s): i for i, s in enumerate(tree.body)}
+
+    big = 10**6
+
+    def _key(s: ast.stmt) -> tuple[int, int]:
+        names = _stmt_bound_names(s)
+        src = min((source_order.get(n, big) for n in names), default=big)
+        return (src, target_order[id(s)])
+
+    name_to_hoist_stmt: dict[str, ast.stmt] = {n: name_to_stmt[n] for n in hoist}
+    successors: dict[int, set[int]] = {sid: set() for sid in hoist_stmts_by_id}
+    in_degree: dict[int, int] = dict.fromkeys(hoist_stmts_by_id, 0)
+    for stmt in hoist_stmts_by_id.values():
+        for n in _stmt_bound_names(stmt):
+            if n not in hoist:
+                continue
+            for dep in stmt_to_deps.get(n, set()):
+                if dep not in hoist:
+                    continue
+                dep_stmt = name_to_hoist_stmt[dep]
+                if id(dep_stmt) == id(stmt):
+                    continue
+                if id(stmt) not in successors[id(dep_stmt)]:
+                    successors[id(dep_stmt)].add(id(stmt))
+                    in_degree[id(stmt)] += 1
+
+    ordered: list[ast.stmt] = []
+    ready = sorted(
+        [s for sid, s in hoist_stmts_by_id.items() if in_degree[sid] == 0],
+        key=_key,
+    )
+    while ready:
+        s = ready.pop(0)
+        ordered.append(s)
+        for succ_sid in successors[id(s)]:
+            in_degree[succ_sid] -= 1
+            if in_degree[succ_sid] == 0:
+                succ = hoist_stmts_by_id[succ_sid]
+                succ_key = _key(succ)
+                i = 0
+                while i < len(ready) and _key(ready[i]) <= succ_key:
+                    i += 1
+                ready.insert(i, succ)
+
+    if len(ordered) != len(hoist_stmts_by_id):
+        return []
+
+    current_hoist_order = [id(s) for s in tree.body if id(s) in hoist_stmts_by_id]
+    desired_order = [id(s) for s in ordered]
+
+    first_use_line: int | None = None
+    for stmt in tree.body:
+        if id(stmt) in hoist_stmts_by_id:
+            continue
+        refs = _stmt_load_time_refs(stmt)
+        if refs & hoist:
+            first_use_line = stmt.lineno
+            if (
+                isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+                and stmt.decorator_list
+            ):
+                first_use_line = min(d.lineno for d in stmt.decorator_list)
+            break
+
+    hoist_linenos = [s.lineno for s in hoist_stmts_by_id.values()]
+    all_before_use = first_use_line is None or all(
+        ln < first_use_line for ln in hoist_linenos
+    )
+    if current_hoist_order == desired_order and all_before_use:
+        return []
+
+    snippets = [_stmt_source_segment(text, s) for s in ordered]
     lines = text.splitlines(keepends=True)
     ranges = sorted(
-        (
-            (
-                name_to_stmt[n].lineno - 1,
-                name_to_stmt[n].end_lineno
-                if name_to_stmt[n].end_lineno is not None
-                else name_to_stmt[n].lineno,
-            )
-            for n in relocate_names
-        ),
+        (_stmt_source_range(s) for s in hoist_stmts_by_id.values()),
         reverse=True,
     )
     new_lines = list(lines)
@@ -958,12 +1124,9 @@ def _topological_reorder_decorator_deps(
         new_tree = ast.parse(new_text)
     except SyntaxError:
         return []
-    new_text = _insert_before_first_def(new_text, new_tree, snippets)
+    new_text = _insert_before_first_use(new_text, new_tree, snippets, hoist)
     target.write_text(new_text)
-    return [
-        f"decorator-order: restored module-level Assign order in "
-        f"{target.name} to match pre-anvil source"
-    ]
+    return [f"decorator-order: restored module-level load order in {target.name}"]
 
 
 def _append_marker_fixtures(

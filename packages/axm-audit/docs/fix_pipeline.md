@@ -196,22 +196,37 @@ explains a non-obvious code path you'd otherwise wonder about:
   constants too. Closure follows chains (`B = A + 1` → also carry
   `A = 1`), preserves source order, and is surgical: unrelated
   top-level names are not carried.
-- **SPLIT module-level Assign load-time order** — when a moving unit
-  references a constant from BOTH its decorator AND its body (e.g.
-  `CASES = [...]` + `_no_corpus = pytest.mark.skipif(not CASES, ...)`
-  + `@_no_corpus @pytest.mark.parametrize("case", CASES)`), anvil's
-  `shared_helpers="duplicate"` mode copies the body-referenced name on
-  its own and `_copy_module_level_deps_to_target` short-circuits on
-  `name in existing` — leaving the target with module-level assigns in
-  an order anvil happened to pick, which may break load-time ordering
-  (`_no_corpus = ... not CASES ...` evaluating before `CASES = ...`).
+- **SPLIT / MERGE module-level load-time order** — when a moving unit
+  references names from its decorator chain (e.g.
+  `def helper(): ...` + `CONST = helper()` +
+  `_alias = pytest.mark.skipif(not CONST, ...)` +
+  `@_alias @pytest.mark.parametrize("c", CONST)`), the combination of
+  anvil's `shared_helpers="duplicate"` mode and
+  `_copy_module_level_deps_to_target` can leave the target with
+  top-level statements in an order that breaks module load
+  (`_alias = ... not CONST ...` evaluating before `CONST = helper()`,
+  or `CONST = helper()` evaluating before `def helper`).
   `_topological_reorder_decorator_deps()` (`layout_and_move.py`) runs
-  as the last step of `_safe_move_units` and restores source-order for
-  the subset of module-level Assigns that survive in target — splicing
-  them out and reinserting them in pre-anvil source order just before
-  the first def. Source order is load-time correct by construction, so
-  this fixes both insertion paths uniformly and preserves the relative
-  position of unrelated assigns (no gratuitous hoisting).
+  as the last step of `_safe_move_units` and is **target-centric**:
+  it builds a top-level dependency graph from the target tree alone,
+  spanning `Assign` / `AnnAssign` / `FunctionDef` / `AsyncFunctionDef`
+  / `ClassDef`. Free `Name(Load)` references are walked in
+  `Assign.value` / `AnnAssign.value+annotation` and
+  `FunctionDef.decorator_list` /
+  `ClassDef.decorator_list+bases+keywords` — bodies of defs are NOT
+  load-evaluated and are intentionally skipped. The **hoist set** is
+  the transitive closure of names referenced by any module-level
+  decorator; hoisted statements are topologically sorted (deps before
+  dependents) and reinserted before the first remaining statement
+  that load-time-references any hoisted name. The pre-anvil source
+  tree is used **only** as a stable tiebreaker between valid
+  linearisations — not as the source of truth for ordering, which
+  matters when a target receives content from multiple `FileOp`s
+  (split-with-multiple-targets, merge, or both): no single source
+  tree describes all contributors. Statements outside the hoist set
+  keep their existing relative position — the pass is surgical and
+  idempotent (running it twice on a correctly-ordered target is a
+  no-op).
 - **`Path(__file__).parents[N]` drift after relocate** — a file moved
   from `tests/unit/core/test_X.py` (4-deep) to `tests/integration/test_X.py`
   (3-deep) keeps its `FIXTURES = Path(__file__).parents[2] / "fixtures"`
