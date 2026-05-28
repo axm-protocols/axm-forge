@@ -296,28 +296,42 @@ def _capture_wrapper(
     return captured["wrapper"]
 
 
+@pytest.mark.parametrize(
+    ("result", "expected"),
+    [
+        pytest.param(
+            FakeToolResult(success=True, data={"k": 1}, text="k: 1"),
+            "k: 1",
+            id="text_when_set",
+        ),
+        pytest.param(
+            FakeToolResult(success=True, data={"k": 1}),
+            {"success": True, "k": 1},
+            id="dict_when_text_none",
+        ),
+        pytest.param(
+            FakeToolResult(success=True, data={"k": 1}, text=""),
+            "",
+            id="empty_string_text",
+        ),
+        pytest.param(
+            FakeToolResult(success=False, data={}, error="bad", text="Error: bad"),
+            "Error: bad",
+            id="text_with_error",
+        ),
+    ],
+)
 @patch("axm_mcp.wrapping.log_external_step")
-def test_wrapper_returns_text_when_set(mock_log: MagicMock) -> None:
-    """When ToolResult.text is not None, _wrapper returns the text string."""
-    result = FakeToolResult(success=True, data={"k": 1}, text="k: 1")
+def test_wrapper_return_shape(
+    mock_log: MagicMock, result: FakeToolResult, expected: object
+) -> None:
+    """_wrapper returns text when ToolResult.text is set, else flattened dict."""
     tool = FakeTool(result)
     wrapper = _capture_wrapper("my_tool", tool)
 
     out = wrapper()
-    assert out == "k: 1"
-    assert isinstance(out, str)
-
-
-@patch("axm_mcp.wrapping.log_external_step")
-def test_wrapper_returns_dict_when_text_none(mock_log: MagicMock) -> None:
-    """When ToolResult.text is None, _wrapper returns the flattened dict."""
-    result = FakeToolResult(success=True, data={"k": 1})
-    tool = FakeTool(result)
-    wrapper = _capture_wrapper("my_tool", tool)
-
-    out = wrapper()
-    assert isinstance(out, dict)
-    assert out == {"success": True, "k": 1}
+    assert out == expected
+    assert type(out) is type(expected)
 
 
 @patch("axm_mcp.wrapping.log_external_step")
@@ -383,30 +397,6 @@ def test_text_roundtrip_mcp(mock_log: MagicMock) -> None:
 
 
 @patch("axm_mcp.wrapping.log_external_step")
-def test_empty_string_text(mock_log: MagicMock) -> None:
-    """Empty string text is not None — text path should fire."""
-    result = FakeToolResult(success=True, data={"k": 1}, text="")
-    tool = FakeTool(result)
-    wrapper = _capture_wrapper("my_tool", tool)
-
-    out = wrapper()
-    assert out == ""
-    assert isinstance(out, str)
-
-
-@patch("axm_mcp.wrapping.log_external_step")
-def test_text_with_error(mock_log: MagicMock) -> None:
-    """When text is set even on error, return the text string."""
-    result = FakeToolResult(success=False, data={}, error="bad", text="Error: bad")
-    tool = FakeTool(result)
-    wrapper = _capture_wrapper("my_tool", tool)
-
-    out = wrapper()
-    assert out == "Error: bad"
-    assert isinstance(out, str)
-
-
-@patch("axm_mcp.wrapping.log_external_step")
 @patch("axm_mcp.wrapping._HTTP_MODE", True)
 def test_async_lock_path_with_text(mock_log: MagicMock) -> None:
     """Async lock wrapper propagates str return type in HTTP mode."""
@@ -428,77 +418,44 @@ def test_async_lock_path_with_text(mock_log: MagicMock) -> None:
 # ---------------------------------------------------------------------------
 
 
-class TestPathWarningHTTPMode:
-    """Wrapper warns on implicit path when _HTTP_MODE is True."""
+@pytest.mark.parametrize(
+    ("http_mode", "call_kwargs", "expected_warns"),
+    [
+        pytest.param(True, {"path": "."}, True, id="path_warning_http_mode"),
+        pytest.param(False, {"path": "."}, False, id="no_warning_stdio_mode"),
+        pytest.param(True, {"path": "/some/dir"}, False, id="no_warning_explicit_path"),
+        pytest.param(True, {"query": "test"}, False, id="path_none_no_warning"),
+    ],
+)
+def test_implicit_path_warning(
+    caplog: pytest.LogCaptureFixture,
+    http_mode: bool,
+    call_kwargs: dict[str, Any],
+    expected_warns: bool,
+) -> None:
+    """Implicit-path warning fires iff HTTP mode is on and path is '.' (or empty)."""
+    from axm_mcp import wrapping
+    from axm_mcp.discovery import _register_one
 
-    def test_path_warning_http_mode(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Warning logged when path='.' and HTTP mode is on."""
-        from axm_mcp import wrapping
-        from axm_mcp.discovery import _register_one
+    mock_mcp = MagicMock()
+    mock_tool = MagicMock()
+    mock_tool.execute.return_value = ToolResult(success=True, data={})
 
-        mock_mcp = MagicMock()
-        mock_tool = MagicMock()
-        mock_tool.execute.return_value = ToolResult(success=True, data={})
+    _register_one(mock_mcp, "audit", mock_tool)
+    wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
-        _register_one(mock_mcp, "audit", mock_tool)
-        wrapper = mock_mcp.tool.return_value.call_args[0][0]
+    original = wrapping._HTTP_MODE
+    try:
+        wrapping._HTTP_MODE = http_mode
+        with caplog.at_level(logging.WARNING, logger="axm_mcp.wrapping"):
+            wrapper(**call_kwargs)
+    finally:
+        wrapping._HTTP_MODE = original
 
-        original = wrapping._HTTP_MODE
-        try:
-            wrapping._HTTP_MODE = True
-            with caplog.at_level(logging.WARNING, logger="axm_mcp.wrapping"):
-                wrapper(path=".")
-        finally:
-            wrapping._HTTP_MODE = original
-
-        assert any(
-            "audit" in r.message and "implicit path" in r.message.lower()
-            for r in caplog.records
-        )
-
-    def test_no_warning_stdio_mode(self, caplog: pytest.LogCaptureFixture) -> None:
-        """No warning when _HTTP_MODE is False (stdio transport)."""
-        from axm_mcp import wrapping
-        from axm_mcp.discovery import _register_one
-
-        mock_mcp = MagicMock()
-        mock_tool = MagicMock()
-        mock_tool.execute.return_value = ToolResult(success=True, data={})
-
-        _register_one(mock_mcp, "audit", mock_tool)
-        wrapper = mock_mcp.tool.return_value.call_args[0][0]
-
-        original = wrapping._HTTP_MODE
-        try:
-            wrapping._HTTP_MODE = False
-            with caplog.at_level(logging.WARNING, logger="axm_mcp.wrapping"):
-                wrapper(path=".")
-        finally:
-            wrapping._HTTP_MODE = original
-
-        assert not any("implicit path" in r.message.lower() for r in caplog.records)
-
-    def test_no_warning_explicit_path(self, caplog: pytest.LogCaptureFixture) -> None:
-        """No warning when an explicit absolute path is provided."""
-        from axm_mcp import wrapping
-        from axm_mcp.discovery import _register_one
-
-        mock_mcp = MagicMock()
-        mock_tool = MagicMock()
-        mock_tool.execute.return_value = ToolResult(success=True, data={})
-
-        _register_one(mock_mcp, "audit", mock_tool)
-        wrapper = mock_mcp.tool.return_value.call_args[0][0]
-
-        original = wrapping._HTTP_MODE
-        try:
-            wrapping._HTTP_MODE = True
-            with caplog.at_level(logging.WARNING, logger="axm_mcp.wrapping"):
-                wrapper(path="/some/dir")
-        finally:
-            wrapping._HTTP_MODE = original
-
-        assert not any("implicit path" in r.message.lower() for r in caplog.records)
+    warned = any("implicit path" in r.message.lower() for r in caplog.records)
+    assert warned == expected_warns
+    if expected_warns:
+        assert any("audit" in r.message for r in caplog.records)
 
 
 class TestPathWarningPlainFunction:
@@ -530,28 +487,6 @@ class TestPathWarningPlainFunction:
 
 class TestPathWarningEdgeCases:
     """Edge cases from test specification."""
-
-    def test_path_none_no_warning(self, caplog: pytest.LogCaptureFixture) -> None:
-        """No warning when path is not passed at all."""
-        from axm_mcp import wrapping
-        from axm_mcp.discovery import _register_one
-
-        mock_mcp = MagicMock()
-        mock_tool = MagicMock()
-        mock_tool.execute.return_value = ToolResult(success=True, data={})
-
-        _register_one(mock_mcp, "audit", mock_tool)
-        wrapper = mock_mcp.tool.return_value.call_args[0][0]
-
-        original = wrapping._HTTP_MODE
-        try:
-            wrapping._HTTP_MODE = True
-            with caplog.at_level(logging.WARNING, logger="axm_mcp.wrapping"):
-                wrapper(query="test")
-        finally:
-            wrapping._HTTP_MODE = original
-
-        assert not any("implicit path" in r.message.lower() for r in caplog.records)
 
     @pytest.mark.asyncio
     async def test_empty_string_warns(self, caplog: pytest.LogCaptureFixture) -> None:
