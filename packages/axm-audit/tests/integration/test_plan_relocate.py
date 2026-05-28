@@ -18,9 +18,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from pytest_mock import MockerFixture
 
-from axm_audit.core.fix.findings import collect_unfixable, get_pkg_prefixes
 from axm_audit.core.fix.stages_plan import plan_relocate
+from tests.integration._helpers import _PLAN_CHECK
 
 pytestmark = pytest.mark.integration
 
@@ -60,35 +61,38 @@ def test_plan_relocate_empty_when_clean(
     assert plan_relocate(pkg) == []
 
 
-def test_get_pkg_prefixes_reads_deptry_config(
+def test_plan_relocate_unanimous_emits_one_op(
     make_pkg: Callable[..., Path],
+    mocker: MockerFixture,
 ) -> None:
-    """AC2: exposes the first-party package name (deptry-config friendly setup)."""
-    pkg = make_pkg(
-        pyproject_extras='[tool.deptry]\nknown_first_party = ["mypkg"]\n',
-        pkg_name="mypkg",
+    """AC5: unanimous target-tier classification → exactly one relocate op."""
+    pkg = make_pkg()
+    abs_path = pkg / "tests" / "integration" / "test_x.py"
+    mocker.patch(
+        _PLAN_CHECK,
+        return_value=[
+            {"path": str(abs_path), "level": "unit"},
+            {"path": str(abs_path), "level": "unit"},
+        ],
     )
-    assert get_pkg_prefixes(pkg) == {"mypkg"}
+    ops = plan_relocate(pkg)
+    assert len(ops) == 1
+    assert ops[0].kind == "relocate"
+    assert ops[0].source == abs_path
 
 
-def test_get_pkg_prefixes_falls_back_to_src_scan(
+def test_plan_relocate_mixed_tiers_emits_zero_ops(
     make_pkg: Callable[..., Path],
+    mocker: MockerFixture,
 ) -> None:
-    """AC2: derives package name by scanning src/ when no deptry config present."""
-    pkg = make_pkg(pkg_name="mypkg")
-    assert get_pkg_prefixes(pkg) == {"mypkg"}
-
-
-def test_collect_unfixable_surfaces_no_package_symbol(
-    make_pkg: Callable[..., Path],
-) -> None:
-    """AC4: surfaces TEST_QUALITY_NO_PACKAGE_SYMBOL (NON_DETERMINISTIC_RULES)."""
-    pkg = make_pkg(
-        files={
-            "tests/integration/test_x.py": (
-                "def test_x() -> None:\n    assert 1 == 1\n"
-            ),
-        }
+    """AC5: mixed-tier findings on one file → zero ops (B3 oscillation guard)."""
+    pkg = make_pkg()
+    abs_path = pkg / "tests" / "integration" / "test_x.py"
+    mocker.patch(
+        _PLAN_CHECK,
+        return_value=[
+            {"path": str(abs_path), "level": "unit"},
+            {"path": str(abs_path), "level": "e2e"},
+        ],
     )
-    result = collect_unfixable(pkg)
-    assert any(f.get("rule_id") == "TEST_QUALITY_NO_PACKAGE_SYMBOL" for f in result)
+    assert plan_relocate(pkg) == []

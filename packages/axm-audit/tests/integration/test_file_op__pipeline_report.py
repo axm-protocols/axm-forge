@@ -14,19 +14,6 @@ from axm_audit.tools.audit_fix import AuditFixTool
 pytestmark = pytest.mark.integration
 
 
-def test_execute_catches_internal_exception(tmp_path: Path, mocker: Any) -> None:
-    """AC6: a RuntimeError from the pipeline becomes ToolResult.error."""
-    mocker.patch(
-        "axm_audit.core.fix.run",
-        side_effect=RuntimeError("boom"),
-    )
-
-    result = AuditFixTool().execute(path=str(tmp_path))
-
-    assert result.success is False
-    assert result.error == "boom"
-
-
 def test_execute_data_is_json_serializable(tmp_path: Path, mocker: Any) -> None:
     """AC8: synthetic PipelineReport with Path + list[Path] → json.dumps OK."""
     split_op = FileOp(

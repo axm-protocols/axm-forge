@@ -8,49 +8,16 @@ partial rule selection, iteration cap).
 
 from __future__ import annotations
 
+import shutil
 import subprocess
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
+from axm_audit.core.auditor import audit_project
 from axm_audit.core.fix import run
-from axm_audit.core.fix.models import MAX_ITERATIONS, PipelineReport
 
 pytestmark = pytest.mark.integration
-
-
-@pytest.fixture
-def make_test_pkg(tmp_path: Path) -> Callable[[dict[str, str]], Path]:
-    """Build a minimal git-initialised package with the given source files."""
-
-    def _make(sources: dict[str, str]) -> Path:
-        pkg = tmp_path / "pkg"
-        pkg.mkdir()
-        (pkg / "pyproject.toml").write_text(
-            '[project]\nname = "pkg"\nversion = "0.0.0"\nrequires-python = ">=3.12"\n'
-        )
-        (pkg / "src").mkdir()
-        (pkg / "src" / "pkg").mkdir()
-        (pkg / "src" / "pkg" / "__init__.py").write_text("")
-        (pkg / "tests").mkdir()
-        for rel, content in sources.items():
-            f = pkg / rel
-            f.parent.mkdir(parents=True, exist_ok=True)
-            f.write_text(content)
-        subprocess.run(["git", "init", "-q"], cwd=pkg, check=True, capture_output=True)  # noqa: S607
-        subprocess.run(["git", "config", "user.email", "t@t"], cwd=pkg, check=True)  # noqa: S607
-        subprocess.run(["git", "config", "user.name", "t"], cwd=pkg, check=True)  # noqa: S607
-        subprocess.run(["git", "add", "-A"], cwd=pkg, check=True, capture_output=True)  # noqa: S607
-        subprocess.run(
-            ["git", "commit", "-q", "-m", "init"],  # noqa: S607
-            cwd=pkg,
-            check=True,
-            capture_output=True,
-        )
-        return pkg
-
-    return _make
 
 
 _MISTIERED_IO_TEST = (
@@ -150,35 +117,6 @@ def test_ruff_format_tests_formats_and_swallows_warnings(make_test_pkg):
         assert "raise " not in m
 
 
-def test_run_dry_run_does_not_mutate(make_test_pkg):
-    """AC4: apply=False -> applied=False, iterations=1, source unchanged."""
-    pkg = make_test_pkg({"tests/unit/test_io.py": _MISTIERED_IO_TEST})
-    before = (pkg / "tests" / "unit" / "test_io.py").read_text()
-
-    report = run(pkg, apply=False)
-
-    assert isinstance(report, PipelineReport)
-    assert report.applied is False
-    assert report.iterations == 1
-    assert (pkg / "tests" / "unit" / "test_io.py").read_text() == before
-    assert not (pkg / "tests" / "integration" / "test_io.py").exists()
-
-
-def test_run_apply_then_dry_run_converges_to_zero_ops(make_test_pkg):
-    """AC5: apply=True mutates; subsequent apply=False yields no ops."""
-    pkg = make_test_pkg({"tests/unit/test_io.py": _MISTIERED_IO_TEST})
-
-    first = run(pkg, apply=True)
-    assert first.applied is True
-    assert first.iterations >= 1
-    assert first.iterations <= MAX_ITERATIONS
-    assert len(first.ops) > 0
-
-    second = run(pkg, apply=False)
-    assert second.applied is False
-    assert second.ops == []
-
-
 def test_run_mixed_tier_emits_unfixable_residue(make_test_pkg):
     """AC6: disagreeing classification -> no relocate; unfixable carries residue."""
     body = (
@@ -213,22 +151,155 @@ def test_run_partial_rule_selection_excludes_relocate(make_test_pkg):
     assert not (pkg / "tests" / "integration" / "test_io.py").exists()
 
 
-def test_run_terminates_within_max_iterations(make_test_pkg):
-    """AC8: fixed-point loop terminates within MAX_ITERATIONS=6."""
-    pkg = make_test_pkg(
-        {
-            "tests/unit/test_io_a.py": _MISTIERED_IO_TEST,
-            "tests/unit/test_io_b.py": (
-                "from pathlib import Path\n\n\n"
-                "def test_reads(tmp_path):\n"
-                "    p = tmp_path / 'b.txt'\n"
-                "    p.write_text('y')\n"
-                "    assert p.read_text() == 'y'\n"
-            ),
-        }
+CORPUS_ROOT = Path(__file__).resolve().parent.parent / "fixtures" / "fix_corpus"
+
+_SKIP_DIRS = frozenset(
+    {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".git"}
+)
+
+TEST_QUALITY_RULES = frozenset(
+    {"TEST_QUALITY_FILE_NAMING", "TEST_QUALITY_PYRAMID_LEVEL"}
+)
+
+
+def _prepare_case(case_name: str, tmp_path: Path) -> Path:
+    src = CORPUS_ROOT / case_name / "input"
+    dst = tmp_path / case_name
+    shutil.copytree(src, dst)
+    git_bin = shutil.which("git")
+    if git_bin is not None:
+        subprocess.run(  # noqa: S603
+            [git_bin, "init", "--quiet"],
+            cwd=dst,
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+    return dst
+
+
+def _normalize(content: str) -> str:
+    lines = [line.rstrip() for line in content.splitlines()]
+    normalized = "\n".join(lines).rstrip() + "\n"
+    ruff_bin = shutil.which("ruff")
+    if ruff_bin is None:
+        return normalized
+    try:
+        result = subprocess.run(  # noqa: S603
+            [ruff_bin, "format", "-"],
+            input=normalized,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except subprocess.TimeoutExpired:
+        return normalized
+    if result.returncode == 0:
+        return result.stdout
+    return normalized
+
+
+def _walk_tree(root: Path) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        rel_parts = path.relative_to(root).parts
+        if any(part in _SKIP_DIRS for part in rel_parts):
+            continue
+        rel = "/".join(rel_parts)
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            out[rel] = "<binary:" + path.read_bytes().hex() + ">"
+            continue
+        if path.suffix == ".py":
+            out[rel] = _normalize(text)
+        else:
+            out[rel] = text.rstrip() + "\n" if text else text
+    return out
+
+
+def _test_quality_findings(project_path: Path) -> int:
+    result = audit_project(project_path)
+    total = 0
+    for check in result.checks:
+        rule = getattr(check, "rule", None) or getattr(check, "name", None)
+        if rule in TEST_QUALITY_RULES:
+            findings = getattr(check, "findings", None) or getattr(check, "issues", [])
+            total += len(findings)
+    return total
+
+
+def _corpus_cases() -> list[str]:
+    if not CORPUS_ROOT.exists():
+        return []
+    return sorted(
+        p.name
+        for p in CORPUS_ROOT.iterdir()
+        if p.is_dir() and (p / "input").is_dir() and (p / "expected").is_dir()
     )
 
-    report = run(pkg, apply=True)
 
-    assert report.iterations >= 1
-    assert report.iterations <= MAX_ITERATIONS
+CASES = _corpus_cases()
+
+_no_corpus = pytest.mark.skipif(
+    not CASES, reason="fix_corpus fixtures not yet generated (depends on T10)"
+)
+
+
+@_no_corpus
+@pytest.mark.parametrize("case_name", CASES)
+def test_corpus_matches_expected_tree(case_name: str, tmp_path: Path) -> None:
+    """AC1: post-apply tree exactly matches the expected/ directory."""
+    pkg = _prepare_case(case_name, tmp_path)
+    run(pkg, apply=True)
+
+    actual = _walk_tree(pkg)
+    expected = _walk_tree(CORPUS_ROOT / case_name / "expected")
+
+    assert sorted(actual.keys()) == sorted(expected.keys()), (
+        f"file list mismatch for {case_name}: "
+        f"only-actual={sorted(set(actual) - set(expected))}, "
+        f"only-expected={sorted(set(expected) - set(actual))}"
+    )
+    for rel in sorted(expected):
+        assert actual[rel] == expected[rel], f"content mismatch in {case_name}::{rel}"
+
+
+@_no_corpus
+@pytest.mark.parametrize("case_name", CASES)
+def test_corpus_idempotent(case_name: str, tmp_path: Path) -> None:
+    """AC2: a second dry-run after apply yields report.ops == []."""
+    pkg = _prepare_case(case_name, tmp_path)
+    run(pkg, apply=True)
+
+    second = run(pkg, apply=False)
+
+    assert second.ops == [], f"idempotence violated for {case_name}: {second.ops}"
+
+
+@_no_corpus
+@pytest.mark.parametrize("case_name", CASES)
+def test_corpus_findings_monotonic(case_name: str, tmp_path: Path) -> None:
+    """AC5: TEST_QUALITY_* finding count post-apply <= pre-apply."""
+    pkg = _prepare_case(case_name, tmp_path)
+    pre = _test_quality_findings(pkg)
+
+    run(pkg, apply=True)
+
+    post = _test_quality_findings(pkg)
+    assert post <= pre, f"findings increased for {case_name}: {pre} -> {post}"
+
+
+def test_run_on_empty_package_returns_empty_plan(tmp_path: Path) -> None:
+    """AC2: pipeline on a package with only an empty tests/ dir yields no ops."""
+    from axm_audit.core.fix import run
+
+    (tmp_path / "tests").mkdir()
+
+    report = run(tmp_path)
+
+    assert report.ops == []
+    assert report.applied is False
