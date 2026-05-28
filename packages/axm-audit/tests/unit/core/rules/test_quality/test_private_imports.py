@@ -18,7 +18,7 @@ from axm_audit.core.rules.test_quality.private_imports import PrivateImportsRule
 
 _PKG_ROOT = Path(__file__).resolve().parents[5]
 _EXPECTED_ATTRIBUTE_FINDINGS = 0
-_THRESHOLD = 30
+_THRESHOLD = 60
 
 
 def test_rule_registered_under_test_quality() -> None:

@@ -183,3 +183,127 @@ def test_func_body_hash_diverges_on_assert_change() -> None:
     assert isinstance(f1, ast.FunctionDef)
     assert isinstance(f2, ast.FunctionDef)
     assert func_body_hash(f1) != func_body_hash(f2)
+
+
+# ---------------------------------------------------------------------------
+# top_level_helpers — module-level helper inventory
+# ---------------------------------------------------------------------------
+
+
+def test_top_level_helpers_includes_functions_and_classes() -> None:
+    """top_level_helpers returns top-level FunctionDef + non-Test ClassDef."""
+    src = (
+        "def helper(): return 1\n"
+        "class Util: pass\n"
+        "class TestX:\n    def test_a(self): pass\n"
+    )
+    tree = _parse_source(src)
+    out = top_level_helpers(tree)
+    names = set(out.keys())
+    assert "helper" in names
+    assert "Util" in names
+    assert "TestX" not in names
+
+
+def test_top_level_helpers_includes_uppercase_constants() -> None:
+    """Single-target UPPERCASE assignments are helpers (constants)."""
+    src = "CONST = 42\nlower = 1\n"
+    tree = _parse_source(src)
+    out = top_level_helpers(tree)
+    assert "CONST" in out
+    assert "lower" not in out
+
+
+def test_top_level_helpers_skips_test_functions() -> None:
+    """Functions starting with ``test_`` are NOT helpers.
+
+    They are tests in their own right and are excluded so that the
+    helper inventory only contains scaffolding.
+    """
+    src = "def test_x(): pass\ndef helper(): pass\n"
+    tree = _parse_source(src)
+    out = top_level_helpers(tree)
+    assert set(out.keys()) == {"helper"}
+
+
+# ---------------------------------------------------------------------------
+# collect_imported_names — boundary cases
+# ---------------------------------------------------------------------------
+
+
+def test_collect_imported_names_module_import() -> None:
+    """Plain ``import X`` yields X as a top-level binding."""
+    tree = _parse_source("import os.path\nimport json\n")
+    names = collect_imported_names(tree)
+    assert "os" in names
+    assert "json" in names
+
+
+def test_collect_imported_names_from_with_multiple_aliases() -> None:
+    """Aliased + non-aliased ``from`` imports both surface their bound names."""
+    src = "from typing import Any, List as L\n"
+    tree = _parse_source(src)
+    names = collect_imported_names(tree)
+    assert "Any" in names
+    assert "L" in names
+    assert "List" not in names  # aliased — the alias replaces the original
+
+
+# ---------------------------------------------------------------------------
+# marker_fixtures_in_unit — extra idiom
+# ---------------------------------------------------------------------------
+
+
+def test_marker_fixtures_in_unit_returns_empty_when_no_decorator() -> None:
+    """A bare function with no markers contributes no fixture names."""
+    src = "def test_x():\n    pass\n"
+    tree = _parse_source(src)
+    func = tree.body[0]
+    assert isinstance(func, ast.FunctionDef)
+    assert marker_fixtures_in_unit(func) == set()
+
+
+# ---------------------------------------------------------------------------
+# class_needs_flatten — e2e tier
+# ---------------------------------------------------------------------------
+
+
+def test_class_needs_flatten_e2e_divergent_clis() -> None:
+    """For e2e tier, divergent CLI invocations also force a flatten."""
+    src = (
+        "import subprocess\n"
+        "class TestE2E:\n"
+        "    def test_a(self):\n"
+        "        subprocess.run(['cli_a', '--arg'])\n"
+        "    def test_b(self):\n"
+        "        subprocess.run(['cli_b', '--arg'])\n"
+    )
+    tree = _parse_source(src)
+    cls = tree.body[1]
+    assert isinstance(cls, ast.ClassDef)
+    needs = class_needs_flatten(
+        cls,
+        tree,
+        tier="e2e",
+        pkg_prefixes=set(),
+        scripts={"cli_a", "cli_b"},
+        single_binary=None,
+    )
+    assert needs is True
+
+
+def test_class_needs_flatten_single_method_returns_false() -> None:
+    """A class with only one test method has a single canonical -> no flatten."""
+    src = "from pkg import symA\nclass TestC:\n    def test_a(self):\n        symA()\n"
+    tree = _parse_source(src)
+    cls = tree.body[1]
+    assert isinstance(cls, ast.ClassDef)
+    needs = class_needs_flatten(
+        cls,
+        tree,
+        tier="integration",
+        pkg_prefixes={"pkg"},
+        scripts=set(),
+        single_binary=None,
+    )
+    assert needs is False
