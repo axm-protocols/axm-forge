@@ -196,3 +196,130 @@ def test_imports_backfill_no_future_inserts_at_top() -> None:
     assert new_idx >= 0
     assert def_idx >= 0
     assert new_idx < def_idx
+
+
+def test_imports_backfill_empty_mapping_is_identity() -> None:
+    """AC6: empty mapping returns the input module untouched."""
+    from axm_audit.core.fix.cst_rewrite import backfill_import
+
+    src = "x = 1\n"
+    result = _rewrite_and_dump(src, lambda m: backfill_import(m, {}))
+    assert result == "x = 1\n"
+
+
+def test_imports_backfill_already_imported_skipped() -> None:
+    """AC6: names already imported in the module are not re-inserted."""
+    from axm_audit.core.fix.cst_rewrite import backfill_import
+
+    src = "from pkg import foo\n\nfoo()\n"
+    result = _rewrite_and_dump(src, lambda m: backfill_import(m, {"foo": "pkg"}))
+    assert result.count("from pkg import foo") == 1
+
+
+def test_imports_backfill_dotted_module_path() -> None:
+    """AC6: backfill supports dotted module paths via _dotted_name_to_cst."""
+    from axm_audit.core.fix.cst_rewrite import backfill_import
+
+    src = "def f():\n    helper()\n"
+    result = _rewrite_and_dump(src, lambda m: backfill_import(m, {"helper": "a.b.c"}))
+    assert "from a.b.c import helper" in result
+
+
+# ---------------------------------------------------------------------------
+# dedupe_imports — additional scenarios
+# ---------------------------------------------------------------------------
+
+
+def test_dedupe_imports_from_module_collapses_repeat() -> None:
+    """Same ``from X import Y`` repeated twice is collapsed."""
+    from axm_audit.core.fix.cst_rewrite import dedupe_imports
+
+    src = "from pkg import foo\nfrom pkg import foo\nfrom pkg import bar\n"
+    result = _rewrite_and_dump(src, lambda m: dedupe_imports(m))
+    lines = [line for line in result.splitlines() if line.strip()]
+    assert lines.count("from pkg import foo") == 1
+    assert lines.count("from pkg import bar") == 1
+
+
+def test_dedupe_imports_shadow_drops_later_binding() -> None:
+    """When two imports both bind ``X`` locally, the first import wins."""
+    from axm_audit.core.fix.cst_rewrite import dedupe_imports
+
+    src = "from a import X\nfrom a.b import X\n"
+    result = _rewrite_and_dump(src, lambda m: dedupe_imports(m))
+    # The shadow rule keeps the first binding only.
+    assert "from a import X" in result
+    assert "from a.b import X" not in result
+
+
+def test_dedupe_imports_leaves_non_import_statements() -> None:
+    """Non-import top-level statements are preserved unchanged."""
+    from axm_audit.core.fix.cst_rewrite import dedupe_imports
+
+    src = "import os\nimport os\nx = 1\n\ndef f(): pass\n"
+    result = _rewrite_and_dump(src, lambda m: dedupe_imports(m))
+    assert "x = 1" in result
+    assert "def f(" in result
+
+
+# ---------------------------------------------------------------------------
+# patch_file_depth — negative delta
+# ---------------------------------------------------------------------------
+
+
+def test_depth_patch_negative_delta_decrements_parents_index() -> None:
+    """AC4: depth_delta=-1 decrements the parents[N] integer literal."""
+    from axm_audit.core.fix.cst_rewrite import patch_file_depth
+
+    src = "from pathlib import Path\nROOT = Path(__file__).parents[3]\n"
+    result = _rewrite_and_dump(src, lambda m: patch_file_depth(m, depth_delta=-1))
+    assert "parents[2]" in result
+    assert "parents[3]" not in result
+
+
+# ---------------------------------------------------------------------------
+# flatten_class — additional scenarios
+# ---------------------------------------------------------------------------
+
+
+def test_flatten_class_with_no_decorators_keeps_methods() -> None:
+    """Class without decorators still flattens to top-level functions."""
+    from axm_audit.core.fix.cst_rewrite import flatten_class
+
+    src = "class TestX:\n    def test_one(self):\n        return 1\n"
+    result = _rewrite_and_dump(src, lambda m: flatten_class(m, "TestX"))
+    assert "def test_one(" in result
+    assert "class TestX" not in result
+
+
+def test_flatten_class_unknown_name_is_noop() -> None:
+    """Asking to flatten a class not present in source is a no-op."""
+    from axm_audit.core.fix.cst_rewrite import flatten_class
+
+    src = "class TestX:\n    def test_a(self): pass\n"
+    result = _rewrite_and_dump(src, lambda m: flatten_class(m, "TestY"))
+    assert "class TestX" in result
+
+
+# ---------------------------------------------------------------------------
+# rename_function / delete_function — extra branches
+# ---------------------------------------------------------------------------
+
+
+def test_rename_function_absent_name_is_noop() -> None:
+    """Renaming a function that doesn't exist returns the module unchanged."""
+    from axm_audit.core.fix.cst_rewrite import rename_function
+
+    src = "def f(): pass\n"
+    result = _rewrite_and_dump(src, lambda m: rename_function(m, "g_absent", "h_new"))
+    assert "def f(" in result
+    assert "h_new" not in result
+
+
+def test_delete_function_absent_is_noop() -> None:
+    """Deleting a function that doesn't exist leaves the module unchanged."""
+    from axm_audit.core.fix.cst_rewrite import delete_function
+
+    src = "def keep(): pass\n"
+    result = _rewrite_and_dump(src, lambda m: delete_function(m, "absent"))
+    assert "def keep(" in result
