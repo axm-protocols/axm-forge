@@ -48,3 +48,18 @@ class TestFailWithText:
         assert result.error == "err"
         assert result.text is None
         assert result.metadata == {"foo": "bar"}
+
+
+class TestSkip:
+    def test_skip_default_reason(self) -> None:
+        result = HookResult.skip()
+        # Skipped hooks model "ran successfully, deliberately no-op" — gates
+        # treat them as pass while keeping the skip flag observable.
+        assert result.success is True
+        assert result.error is None
+        assert result.metadata == {"skipped": True, "reason": "condition not met"}
+
+    def test_skip_custom_reason(self) -> None:
+        result = HookResult.skip("session_id missing")
+        assert result.success is True
+        assert result.metadata == {"skipped": True, "reason": "session_id missing"}
