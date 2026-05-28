@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import AXMTool, ToolResult
 
@@ -88,7 +87,7 @@ class MoveTool(AXMTool):
         shared_helpers_module: str | None = None,
         reexport: bool = False,
         check: bool = False,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Move ``symbols`` (CSV) from ``from_file`` to ``to_file``.
 
@@ -138,7 +137,7 @@ class MoveTool(AXMTool):
         except Exception as exc:  # noqa: BLE001
             return self._exception_to_result(exc)
 
-        data: dict[str, Any] = {
+        data: dict[str, object] = {
             "moved": [
                 {"symbol": name, "from_lines": [], "to_lines": []}
                 for name in plan.moved_names

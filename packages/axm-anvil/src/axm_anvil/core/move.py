@@ -11,7 +11,7 @@ import libcst as cst
 from libcst.codemod import CodemodContext
 from libcst.codemod.visitors import AddImportsVisitor
 
-from axm_anvil._cst.blocks import _collect_refs, _extract_blocks
+from axm_anvil._cst.blocks import Block, _collect_refs, _extract_blocks
 from axm_anvil._cst.overloads import _detect_overload_group
 from axm_anvil._cst.transformers import _RemoveSymbols
 from axm_anvil.core.callers import (
@@ -43,7 +43,7 @@ from axm_anvil.core.plan import (
     SymbolNotFoundError,
 )
 from axm_anvil.core.postprocess import _ruff_fix
-from axm_anvil.core.shared import _classify_shared_helpers
+from axm_anvil.core.shared import SharedInfo, _classify_shared_helpers
 
 __all__ = [
     "ImportCycleError",
@@ -56,7 +56,9 @@ __all__ = [
 ]
 
 
-def batch_edit(path: str | Path, operations: list[dict[str, Any]]) -> None:
+def batch_edit(  # type: ignore[explicit-any]  # JSON-shape payload at axm-edit frontier
+    path: str | Path, operations: list[dict[str, Any]]
+) -> None:
     """Apply a batch of file operations atomically via ``axm-edit``.
 
     Accepts dict-shaped operations (``{op, file, edits|content}``) and
@@ -66,7 +68,7 @@ def batch_edit(path: str | Path, operations: list[dict[str, Any]]) -> None:
     from axm_edit.core.engine import batch_apply
     from axm_edit.models.operations import CreateOp, DeleteOp, Edit, ReplaceOp
 
-    ops: list[Any] = []
+    ops: list[CreateOp | DeleteOp | ReplaceOp] = []
     for op in operations:
         kind = op.get("op")
         if kind == "replace":
@@ -243,7 +245,7 @@ def _visit_dep_name(
 
 
 def _collect_transitive_deps(
-    blocks: list[Any],
+    blocks: list[Block],
     source_helpers: dict[str, cst.FunctionDef | cst.ClassDef],
     source_constants: dict[str, cst.SimpleStatementLine],
 ) -> tuple[
@@ -335,7 +337,7 @@ def _compute_source_orphans(
 
 
 def _collect_external_refs(
-    blocks: list[Any],
+    blocks: list[Block],
     collected_helpers: dict[str, cst.FunctionDef | cst.ClassDef],
     collected_constants: dict[str, cst.SimpleStatementLine],
 ) -> set[str]:
@@ -354,7 +356,7 @@ def _collect_external_refs(
 
 def _register_import(
     context: CodemodContext,
-    info: Any,
+    info: ImportInfo,
     imports_added: list[str],
 ) -> None:
     if info.obj is not None:
@@ -374,7 +376,7 @@ def _register_import(
         imports_added.append(label)
 
 
-def _import_modules_match(source_info: Any, target_info: Any) -> bool:
+def _import_modules_match(source_info: ImportInfo, target_info: ImportInfo) -> bool:
     """Return True iff source/target imports refer to the same module.
 
     Conservatively treats relative imports on either side as non-matching
@@ -391,8 +393,8 @@ def _import_modules_match(source_info: Any, target_info: Any) -> bool:
 def _apply_imports(
     target_tree: cst.Module,
     external_refs: set[str],
-    source_imports: dict[str, Any],
-    target_imports: dict[str, Any],
+    source_imports: dict[str, ImportInfo],
+    target_imports: dict[str, ImportInfo],
 ) -> tuple[cst.Module, list[str], list[str]]:
     context = CodemodContext()
     imports_added: list[str] = []
@@ -448,7 +450,7 @@ def _build_helpers_body(
     return body
 
 
-def _build_blocks_body(blocks: list[Any]) -> list[cst.BaseStatement]:
+def _build_blocks_body(blocks: list[Block]) -> list[cst.BaseStatement]:
     body: list[cst.BaseStatement] = []
     for block in blocks:
         new_node = block.node
@@ -462,8 +464,8 @@ def _build_blocks_body(blocks: list[Any]) -> list[cst.BaseStatement]:
 
 def _build_target_tree(  # noqa: PLR0913
     target_tree: cst.Module,
-    blocks: list[Any],
-    source_imports: dict[str, Any],
+    blocks: list[Block],
+    source_imports: dict[str, ImportInfo],
     collected_constants: dict[str, cst.SimpleStatementLine],
     collected_helpers: dict[str, cst.FunctionDef | cst.ClassDef],
     source_helpers_order: list[str],
@@ -534,10 +536,10 @@ def _validate_and_expand(
 
 def _extract_moved_blocks(
     source_tree: cst.Module, expanded_names: Sequence[str]
-) -> tuple[set[str], list[Any]]:
+) -> tuple[set[str], list[Block]]:
     """Extract blocks (with overload groups expanded) and symbols to remove."""
     remove_targets: set[str] = set()
-    blocks: list[Any] = []
+    blocks: list[Block] = []
     for name in expanded_names:
         group = _detect_overload_group(source_tree, name)
         if group:
@@ -545,16 +547,12 @@ def _extract_moved_blocks(
                 remove_targets.add(func.name.value)
             for func in group:
                 blocks.append(
-                    type(
-                        "Block",
-                        (),
-                        {
-                            "name": func.name.value,
-                            "node": func,
-                            "leading_lines": [],
-                            "referenced_names": _collect_refs(func, func.name.value),
-                        },
-                    )()
+                    Block(
+                        name=func.name.value,
+                        node=func,
+                        leading_lines=[],
+                        referenced_names=_collect_refs(func, func.name.value),
+                    )
                 )
         else:
             remove_targets.add(name)
@@ -566,10 +564,12 @@ def _extract_moved_blocks(
 def _build_trees(
     source_tree: cst.Module,
     target_tree: cst.Module,
-    blocks: list[Any],
+    blocks: list[Block],
     remove_targets: set[str],
     shared_helpers: str,
-) -> tuple[cst.Module, cst.Module, list[str], list[str], dict[str, Any], list[str]]:
+) -> tuple[
+    cst.Module, cst.Module, list[str], list[str], dict[str, SharedInfo], list[str]
+]:
     """Build new source/target trees and return added imports/constants + shared map."""
     source_imports = _gather_source_imports(source_tree)
     source_constants = _gather_source_constants(source_tree)
@@ -645,7 +645,7 @@ def _build_plan(  # noqa: PLR0913
     moved_names: list[str],
     imports_added: list[str],
     constants_added: list[str],
-    shared_map: dict[str, Any],
+    shared_map: dict[str, SharedInfo],
     callers_updated: list[CallerRewrite] | None = None,
     redundant_import_warnings: list[str] | None = None,
 ) -> MovePlan:
@@ -802,7 +802,7 @@ def _apply_write(  # noqa: PLR0913
         source_rel = source_path.resolve().relative_to(root)
         target_rel = target_path.resolve().relative_to(root)
 
-    operations: list[dict[str, Any]] = [
+    operations: list[dict[str, Any]] = [  # type: ignore[explicit-any]  # JSON-shape payload at axm-edit frontier
         {
             "op": "replace",
             "file": str(source_rel),
@@ -949,7 +949,7 @@ def _resolve_internal_module(module: str, internal_modules: set[str]) -> str | N
 
 
 def _block_implied_target_imports(  # noqa: PLR0913
-    blocks: list[Any],
+    blocks: list[Block],
     source_tree: cst.Module,
     new_source_tree: cst.Module,
     source_module: str,
@@ -1022,7 +1022,7 @@ def _compute_graph_edits(  # noqa: PLR0913
     caller_texts: dict[Path, tuple[str, str]],
     internal_modules: set[str],
     graph: dict[str, set[str]],
-    blocks: list[Any],
+    blocks: list[Block],
     source_tree: cst.Module,
 ) -> GraphEdits:
     """Diff the updated module imports against ``graph`` to produce ``GraphEdits``."""
@@ -1080,7 +1080,7 @@ def _cycle_check(  # noqa: PLR0913
     new_target_tree: cst.Module,
     caller_texts: dict[Path, tuple[str, str]],
     plan: MovePlan,
-    blocks: list[Any],
+    blocks: list[Block],
     source_tree: cst.Module,
 ) -> list[str] | None:
     """Run intra-package cycle detection and return the new cycle chain if any.
@@ -1160,7 +1160,7 @@ def _resolve_caller_phase(
     return _process_callers(root, moved_names, source_path, target_path)
 
 
-def _enforce_cycle(cycle: object, check: bool, dry_run: bool) -> None:
+def _enforce_cycle(cycle: list[str] | None, check: bool, dry_run: bool) -> None:
     if cycle is not None and (check or not dry_run):
         raise ImportCycleError(cycle)
 
