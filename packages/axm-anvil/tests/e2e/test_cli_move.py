@@ -96,9 +96,11 @@ def test_cli_symbol_not_found(fixture_dir: Path) -> None:
         "Nope",
     )
 
-    assert result.returncode == 1
-    assert "not found" in result.stderr.lower()
-    assert result.stdout.strip() == ""
+    # AXM-1769: an absent name is now skipped+warned, not a hard CLI failure.
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+    assert "Traceback" not in combined
+    assert "Nope" in combined
 
 
 def test_cli_help_lists_move(fixture_dir: Path) -> None:
