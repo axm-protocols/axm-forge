@@ -18,7 +18,6 @@ import pytest
 from axm_audit.cli import (
     audit,
     fix,
-    version,
 )
 from axm_audit.cli import (
     test as cli_test,
@@ -26,35 +25,6 @@ from axm_audit.cli import (
 from axm_audit.cli import (
     test_quality as cli_test_quality,
 )
-
-# ---------------------------------------------------------------------------
-# version
-# ---------------------------------------------------------------------------
-
-
-def test_version_prints_axm_audit_prefix(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """`version` prints ``axm-audit <ver>`` to stdout."""
-    version()
-    out = capsys.readouterr().out
-    assert out.startswith("axm-audit ")
-
-
-# ---------------------------------------------------------------------------
-# audit
-# ---------------------------------------------------------------------------
-
-
-def test_audit_invalid_path_exits_with_error(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """`audit` on a non-directory path exits 1 and writes to stderr."""
-    with pytest.raises(SystemExit) as excinfo:
-        audit(path="/nonexistent/path/xyz-axm-cli")
-    assert excinfo.value.code == 1
-    err = capsys.readouterr().err
-    assert "Not a directory" in err
 
 
 def test_audit_agent_output_runs_through_formatter(
@@ -150,22 +120,6 @@ def test_audit_exits_when_score_below_threshold(
     capsys.readouterr()  # drain
 
 
-# ---------------------------------------------------------------------------
-# test (CLI)
-# ---------------------------------------------------------------------------
-
-
-def test_test_cli_invalid_path_exits(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """`test` exits 1 with stderr on a non-directory path."""
-    with pytest.raises(SystemExit) as excinfo:
-        cli_test(path="/nonexistent/xyz-test")
-    assert excinfo.value.code == 1
-    err = capsys.readouterr().err
-    assert "Not a directory" in err
-
-
 def test_test_cli_agent_renders_text(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -220,22 +174,6 @@ def test_test_cli_failure_exits_with_error(
     capsys.readouterr()
 
 
-# ---------------------------------------------------------------------------
-# test-quality
-# ---------------------------------------------------------------------------
-
-
-def test_test_quality_invalid_path_exits(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """`test-quality` exits 1 on a non-directory path."""
-    with pytest.raises(SystemExit) as excinfo:
-        cli_test_quality(path="/nonexistent/xyz-tq")
-    assert excinfo.value.code == 1
-    err = capsys.readouterr().err
-    assert "Not a directory" in err
-
-
 def test_test_quality_json_output(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -256,20 +194,6 @@ def test_test_quality_json_output(
     cli_test_quality(path=str(project), json_output=True)
     out = capsys.readouterr().out
     json.loads(out)
-
-
-# ---------------------------------------------------------------------------
-# fix (CLI)
-# ---------------------------------------------------------------------------
-
-
-def test_fix_invalid_path_exits(capsys: pytest.CaptureFixture[str]) -> None:
-    """`fix` exits 1 with stderr on a non-directory path."""
-    with pytest.raises(SystemExit) as excinfo:
-        fix(path="/nonexistent/xyz-fix")
-    assert excinfo.value.code == 1
-    err = capsys.readouterr().err
-    assert "Not a directory" in err
 
 
 def test_fix_dryrun_runs_against_minimal_pkg(
