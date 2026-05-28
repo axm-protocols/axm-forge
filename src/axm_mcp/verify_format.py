@@ -18,7 +18,6 @@ Rendering policy:
 from __future__ import annotations
 
 import json
-from typing import Any
 
 __all__ = ["format_verify_text"]
 
@@ -50,7 +49,7 @@ _KNOWN_LIST_KEYS: tuple[str, ...] = (
 )
 
 
-def format_verify_text(result: dict[str, Any]) -> str:
+def format_verify_text(result: dict[str, object]) -> str:
     """Render a verify_project result as a compact text report.
 
     Args:
@@ -81,13 +80,13 @@ def format_verify_text(result: dict[str, Any]) -> str:
 # ── Header ────────────────────────────────────────────────────────────
 
 
-def _format_header(audit: Any, governance: Any) -> str:
+def _format_header(audit: object, governance: object) -> str:
     audit_h = _section_header("audit", audit)
     gov_h = _section_header("governance", governance)
     return f"verify | {audit_h} · {gov_h}"
 
 
-def _section_header(label: str, section: Any) -> str:
+def _section_header(label: str, section: object) -> str:
     if not isinstance(section, dict):
         return f"{label}: skipped"
     if "error" in section and len(section) == 1:
@@ -101,7 +100,7 @@ def _section_header(label: str, section: Any) -> str:
     return f"{label} {grade} {score} ({passed_count}/{total})"
 
 
-def _counts(section: dict[str, Any]) -> tuple[int, int]:
+def _counts(section: dict[str, object]) -> tuple[int, int]:
     passed = section.get("passed")
     failed = section.get("failed") or []
     if isinstance(passed, list):
@@ -109,7 +108,8 @@ def _counts(section: dict[str, Any]) -> tuple[int, int]:
     elif isinstance(passed, int):
         passed_n = passed
     else:
-        passed_n = section.get("passed_count", 0) or 0
+        raw = section.get("passed_count", 0)
+        passed_n = raw if isinstance(raw, int) else 0
     failed_n = len(failed) if isinstance(failed, list) else 0
     return passed_n, passed_n + failed_n
 
@@ -117,7 +117,7 @@ def _counts(section: dict[str, Any]) -> tuple[int, int]:
 # ── Finding / governance dispatch ─────────────────────────────────────
 
 
-def _format_finding(failure: dict[str, Any]) -> str:
+def _format_finding(failure: dict[str, object]) -> str:
     rule_id = failure.get("rule_id", "?")
     message = failure.get("message", "")
     lines = [f"✗ {rule_id} · {message}".rstrip(" ·")]
@@ -132,7 +132,7 @@ def _format_finding(failure: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _format_governance(check: dict[str, Any]) -> str:
+def _format_governance(check: dict[str, object]) -> str:
     name = check.get("name", "?")
     message = check.get("message", "")
     lines = [f"✗ {name} · {message}".rstrip(" ·")]
@@ -149,7 +149,7 @@ def _format_governance(check: dict[str, Any]) -> str:
 # ── Detail rendering ──────────────────────────────────────────────────
 
 
-def _render_finding_detail(failure: dict[str, Any]) -> list[str]:
+def _render_finding_detail(failure: dict[str, object]) -> list[str]:
     """Return indented detail lines for a finding-like dict.
 
     Resolution order: ``text`` → ``details`` → ``metadata.clusters``.
@@ -180,7 +180,7 @@ def _indent_block(text: str) -> list[str]:
     return [f"{_INDENT}{line}" for line in text.rstrip("\n").splitlines()]
 
 
-def _render_details(details: Any) -> list[str]:
+def _render_details(details: object) -> list[str]:
     """Render a ``details`` payload (str / list / dict) as indented lines."""
     if isinstance(details, str):
         if not details.strip():
@@ -193,7 +193,7 @@ def _render_details(details: Any) -> list[str]:
     return []
 
 
-def _render_list_details(items: list[Any]) -> list[str]:
+def _render_list_details(items: list[object]) -> list[str]:
     if not items:
         return []
     lines = [f"{_INDENT}- {_compact_item(item)}" for item in items[:_LIST_PREVIEW]]
@@ -203,7 +203,7 @@ def _render_list_details(items: list[Any]) -> list[str]:
     return lines
 
 
-def _render_dict_details(details: dict[str, Any]) -> list[str]:
+def _render_dict_details(details: dict[str, object]) -> list[str]:
     """Find a thematic list under a known key, else JSON fallback."""
     for key in _KNOWN_LIST_KEYS:
         value = details.get(key)
@@ -219,7 +219,7 @@ def _render_dict_details(details: dict[str, Any]) -> list[str]:
     return [f"{_INDENT}{dumped}"]
 
 
-def _compact_item(item: Any) -> str:
+def _compact_item(item: object) -> str:
     """Render one list item compactly.
 
     - ``{"file": "...", "line": N, "msg"/"message": "..."}`` → ``file:line msg``.
@@ -243,7 +243,7 @@ def _compact_item(item: Any) -> str:
 # ── Metadata / clusters ───────────────────────────────────────────────
 
 
-def _summarize_metadata(metadata: dict[str, Any]) -> str:
+def _summarize_metadata(metadata: dict[str, object]) -> str:
     clusters = metadata.get("clusters")
     parts: list[str] = []
 

@@ -9,11 +9,13 @@ Covers:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
+from axm.tools.base import AXMTool
 
 from axm_mcp.discovery import _register_list_tools, _register_one
 from axm_mcp.verify import _run_tool
@@ -194,12 +196,16 @@ class TestRunToolErrorPaths:
         tool = FakeTool(
             result=FakeToolResult(success=False, error="audit failed"),
         )
-        result = _run_tool({"audit": tool}, "audit", path=".")
+        result = _run_tool(
+            cast(Mapping[str, AXMTool], {"audit": tool}), "audit", path="."
+        )
         assert result == {"error": "audit failed"}
 
     def test_tool_exception_returns_error(self) -> None:
         """When tool.execute raises, catch and return error dict."""
         tool = FakeTool(raise_exc=RuntimeError("boom"))
-        result = _run_tool({"audit": tool}, "audit", path=".")
+        result = _run_tool(
+            cast(Mapping[str, AXMTool], {"audit": tool}), "audit", path="."
+        )
         assert result is not None
         assert "boom" in result["error"]
