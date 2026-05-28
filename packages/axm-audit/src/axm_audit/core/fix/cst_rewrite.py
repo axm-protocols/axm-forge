@@ -1045,6 +1045,12 @@ _PROJECT_IMPORT_INDEX_CACHE: dict[
     Path, dict[str, tuple[ast.stmt, ast.stmt | None]]
 ] = {}
 
+# Sentinel key under which `_resolve_recoverable_imports` stashes the set of
+# names it could not resolve to any donor import. It is *not* a real importable
+# name (the leading/trailing `\x00` cannot appear in a Python identifier), so it
+# never collides with a backfill target and is popped before partitioning.
+_UNRESOLVED_KEY = "\x00unresolved\x00"
+
 
 def _project_import_index(
     project_path: Path,
@@ -1480,12 +1486,20 @@ def _extend_recoverable(
 ) -> None:
     still = missing - set(recoverable.keys())
     for name in still:
-        found = _scan_tests_for_import(project_path, name)
+        # A miss must degrade to "leave it unresolved", never crash the
+        # apply with an opaque KeyError on a runtime suite-derived key.
+        try:
+            found = _scan_tests_for_import(project_path, name)
+        except KeyError:
+            found = None
         if found is not None:
             recoverable[name] = found
     still = missing - set(recoverable.keys())
     for name in still:
-        synth = _synth_import_from_helpers(name, project_path, target)
+        try:
+            synth = _synth_import_from_helpers(name, project_path, target)
+        except KeyError:
+            synth = None
         if synth is not None:
             recoverable[name] = synth
 
@@ -1530,6 +1544,9 @@ def _resolve_recoverable_imports(
     }
     if project_path is not None and missing - set(recoverable.keys()):
         _extend_recoverable(recoverable, missing, project_path, target)
+    unresolved = missing - set(recoverable.keys())
+    if unresolved:
+        recoverable[_UNRESOLVED_KEY] = unresolved  # type: ignore[assignment]
     return recoverable
 
 
@@ -1564,10 +1581,19 @@ def _backfill_missing_imports(
     are preserved byte-for-byte.
     """
     recoverable = _resolve_recoverable_imports(source, target, project_path)
-    if not recoverable:
+    if recoverable is None:
         return []
-    top_level_ast, type_checking_ast, msgs = _partition_imports(
-        recoverable, source.name
-    )
-    _write_backfilled_imports(target, top_level_ast, type_checking_ast)
+    unresolved = recoverable.pop(_UNRESOLVED_KEY, None)
+    msgs: list[str] = []
+    if recoverable:
+        top_level_ast, type_checking_ast, msgs = _partition_imports(
+            recoverable, source.name
+        )
+        _write_backfilled_imports(target, top_level_ast, type_checking_ast)
+    if isinstance(unresolved, set):
+        msgs.extend(
+            f"unresolved import for `{name}` in {target.name} "
+            "(no donor found; left for manual fix)"
+            for name in sorted(unresolved)
+        )
     return msgs
