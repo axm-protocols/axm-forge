@@ -125,6 +125,22 @@ exempt_paths = ["**/__init__.py", "_version.py"]
 hash = "4e0ecb6422d3"
 reason = "Heterogeneous: env-driven filtering tests assert different field sets (len-only vs membership+len) and test_skips_broken_entry_point exercises a distinct SUT path (ImportError EP skip, no AXM_DISABLE_TOOLS env)."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "97b791bad37f"
+reason = "Heterogeneous: each guards a distinct formatter branch with a distinct input key - text-field passthrough indent (text), details-str indent (details str), dict-item compaction 'file:line msg' (details list-of-dict), and fix_hint 'fix:' prefix (fix_hint). Same indent shape, different rendering rules."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8af93204ef91"
+reason = "Heterogeneous: distinct header-line rules - governance None -> 'governance: skipped' branch, audit count derived from len(passed)+len(failed) ('3/4'), and governance count derived from the passed_count field + len(failed) ('7/8'). Skip branch vs two different count-derivation sources."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "401e606d96ff"
+reason = "Heterogeneous: distinct details-dict branches - known-key extraction (details.findings -> list items), unknown-key JSON fallback (no known key -> json.dumps), and metadata.clusters signal summary ('alpha=2'). Different code paths, not the same rule with different data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4a85ea6a1073"
+reason = "Heterogeneous: two different priority rules - cross-field precedence (text field wins over details) vs intra-dict known-key lookup order (findings wins over violations). Different precedence mechanisms, not one rule with different data."
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MyPy Configuration
 # ─────────────────────────────────────────────────────────────────────────────
