@@ -11,15 +11,15 @@ import libcst as cst
 from libcst.codemod import CodemodContext
 from libcst.codemod.visitors import AddImportsVisitor
 
-from axm_anvil._cst.transformers import _AttributeRewriter
+from axm_anvil._cst.transformers import AttributeRewriter
 
 __all__ = [
     "CallerRewrite",
     "_discover_callers",
     "_discover_module_import_callers",
     "_module_path_from_file",
-    "_rewrite_caller_text",
     "_rewrite_module_import_caller",
+    "rewrite_caller_text",
 ]
 
 
@@ -147,7 +147,7 @@ def _format_new_import_stmt(
     return f"from {new_module} import {names_piece}"
 
 
-def _rewrite_caller_text(
+def rewrite_caller_text(
     text: str,
     old_module: str,
     new_module: str,
@@ -263,7 +263,7 @@ def _rewrite_module_import_caller(
     current_tree: cst.Module = tree
     for alias in collector.aliases:
         wrapper = cst.metadata.MetadataWrapper(current_tree)
-        rewriter = _AttributeRewriter(
+        rewriter = AttributeRewriter(
             old_module_alias=alias,
             new_module=new_module,
             symbols=moved,

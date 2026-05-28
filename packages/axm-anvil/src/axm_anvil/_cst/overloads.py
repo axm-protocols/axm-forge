@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import libcst as cst
 
-from axm_anvil._cst.visitors import _dotted_name
+from axm_anvil._cst.visitors import dotted_name
 
-__all__ = ["_detect_overload_group"]
+__all__ = ["detect_overload_group"]
 
 
 def _typing_aliases_from_import(node: cst.ImportFrom) -> list[cst.ImportAlias]:
-    module = _dotted_name(node.module) if node.module else ""
+    module = dotted_name(node.module) if node.module else ""
     if module != "typing" or isinstance(node.names, cst.ImportStar):
         return []
     return list(node.names)
@@ -60,11 +60,11 @@ def _is_overload_decorator(decorator: cst.Decorator, aliases: set[str]) -> bool:
     if isinstance(node, cst.Name):
         return node.value in aliases
     if isinstance(node, cst.Attribute):
-        return _dotted_name(node) == "typing.overload"
+        return dotted_name(node) == "typing.overload"
     return False
 
 
-def _detect_overload_group(tree: cst.Module, symbol_name: str) -> list[cst.FunctionDef]:
+def detect_overload_group(tree: cst.Module, symbol_name: str) -> list[cst.FunctionDef]:
     """Return the ordered overload group for ``symbol_name``.
 
     Includes every top-level ``FunctionDef`` with that name when at

@@ -4,7 +4,7 @@ from typing import Any
 
 import libcst as cst
 
-from axm_anvil.core.shared import SharedInfo, _classify_shared_helpers
+from axm_anvil.core.shared import SharedInfo, classify_shared_helpers
 
 
 def _make_block(name: str, refs: set[str]) -> Any:
@@ -26,7 +26,7 @@ def test_classify_shared_helper_direct():
     source_after = cst.parse_module(
         "def remaining_B():\n    return _h()\n\ndef _h():\n    return 1\n"
     )
-    result = _classify_shared_helpers(blocks, needed_helpers, source_after)
+    result = classify_shared_helpers(blocks, needed_helpers, source_after)
     assert "_h" in result
     info = result["_h"]
     assert isinstance(info, SharedInfo)
@@ -38,7 +38,7 @@ def test_classify_shared_helper_moved_only():
     blocks = [_make_block("moved_A", {"_h"})]
     needed_helpers = {"_h"}
     source_after = cst.parse_module("def remaining_B():\n    return 1\n")
-    result = _classify_shared_helpers(blocks, needed_helpers, source_after)
+    result = classify_shared_helpers(blocks, needed_helpers, source_after)
     assert result == {}
 
 
@@ -48,7 +48,7 @@ def test_classify_shared_helper_remaining_only():
     source_after = cst.parse_module(
         "def remaining_B():\n    return _h()\n\ndef _h():\n    return 1\n"
     )
-    result = _classify_shared_helpers(blocks, needed_helpers, source_after)
+    result = classify_shared_helpers(blocks, needed_helpers, source_after)
     assert result == {}
 
 
@@ -60,7 +60,7 @@ def test_classify_shared_transitive_chain():
         "def _b():\n    return _a()\n\n"
         "def _a():\n    return 1\n"
     )
-    result = _classify_shared_helpers(blocks, needed_helpers, source_after)
+    result = classify_shared_helpers(blocks, needed_helpers, source_after)
     assert "_a" in result
     info = result["_a"]
     assert "moved_A" in info.used_by_moved

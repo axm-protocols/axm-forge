@@ -8,7 +8,7 @@ import libcst as cst
 
 from axm_anvil._cst.blocks import Block, _collect_refs
 
-__all__ = ["SharedInfo", "_classify_shared_helpers"]
+__all__ = ["SharedInfo", "classify_shared_helpers"]
 
 
 @dataclass
@@ -86,7 +86,7 @@ def _classify_single_helper(
     return None
 
 
-def _classify_shared_helpers(
+def classify_shared_helpers(
     blocks: list[Block],
     needed_helpers: set[str],
     source_tree_after_remove: cst.Module,
