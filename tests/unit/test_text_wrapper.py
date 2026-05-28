@@ -61,7 +61,7 @@ def _capture_wrapper(
 # ---------------------------------------------------------------------------
 
 
-@patch("axm_mcp.discovery._log_external_step")
+@patch("axm_mcp.wrapping.log_external_step")
 def test_wrapper_returns_text_when_set(mock_log: MagicMock) -> None:
     """When ToolResult.text is not None, _wrapper returns the text string."""
     result = FakeToolResult(success=True, data={"k": 1}, text="k: 1")
@@ -73,7 +73,7 @@ def test_wrapper_returns_text_when_set(mock_log: MagicMock) -> None:
     assert isinstance(out, str)
 
 
-@patch("axm_mcp.discovery._log_external_step")
+@patch("axm_mcp.wrapping.log_external_step")
 def test_wrapper_returns_dict_when_text_none(mock_log: MagicMock) -> None:
     """When ToolResult.text is None, _wrapper returns the flattened dict."""
     result = FakeToolResult(success=True, data={"k": 1})
@@ -85,7 +85,7 @@ def test_wrapper_returns_dict_when_text_none(mock_log: MagicMock) -> None:
     assert out == {"success": True, "k": 1}
 
 
-@patch("axm_mcp.discovery._log_external_step")
+@patch("axm_mcp.wrapping.log_external_step")
 def test_wrapper_plain_branch_unchanged(mock_log: MagicMock) -> None:
     """Plain dispatcher functions still return dict as before."""
 
@@ -100,9 +100,9 @@ def test_wrapper_plain_branch_unchanged(mock_log: MagicMock) -> None:
     assert out == {"status": "ok", "val": 42}
 
 
-@patch("axm_mcp.discovery._log_external_step")
+@patch("axm_mcp.wrapping.log_external_step")
 def test_wrapper_text_tracing(mock_log: MagicMock) -> None:
-    """When text is set and tracing is active, _log_external_step receives the text."""
+    """When text is set and tracing is active, log_external_step receives the text."""
     result = FakeToolResult(success=True, data={"k": 1}, text="k: 1")
     tool = FakeTool(result)
     # Use a non-protocol name so _should_trace=True
@@ -123,7 +123,7 @@ def test_wrapper_text_tracing(mock_log: MagicMock) -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("axm_mcp.discovery._log_external_step")
+@patch("axm_mcp.wrapping.log_external_step")
 def test_text_roundtrip_mcp(mock_log: MagicMock) -> None:
     """Register tool with text output, call via FastMCP ToolManager.
 
@@ -157,7 +157,7 @@ def test_text_roundtrip_mcp(mock_log: MagicMock) -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("axm_mcp.discovery._log_external_step")
+@patch("axm_mcp.wrapping.log_external_step")
 def test_empty_string_text(mock_log: MagicMock) -> None:
     """Empty string text is not None — text path should fire."""
     result = FakeToolResult(success=True, data={"k": 1}, text="")
@@ -169,7 +169,7 @@ def test_empty_string_text(mock_log: MagicMock) -> None:
     assert isinstance(out, str)
 
 
-@patch("axm_mcp.discovery._log_external_step")
+@patch("axm_mcp.wrapping.log_external_step")
 def test_text_with_error(mock_log: MagicMock) -> None:
     """When text is set even on error, return the text string."""
     result = FakeToolResult(success=False, data={}, error="bad", text="Error: bad")
@@ -181,8 +181,8 @@ def test_text_with_error(mock_log: MagicMock) -> None:
     assert isinstance(out, str)
 
 
-@patch("axm_mcp.discovery._log_external_step")
-@patch("axm_mcp.discovery._HTTP_MODE", True)
+@patch("axm_mcp.wrapping.log_external_step")
+@patch("axm_mcp.wrapping._HTTP_MODE", True)
 def test_async_lock_path_with_text(mock_log: MagicMock) -> None:
     """Async lock wrapper propagates str return type in HTTP mode."""
     result = FakeToolResult(success=True, data={"k": 1}, text="k: 1")

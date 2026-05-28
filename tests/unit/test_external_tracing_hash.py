@@ -17,14 +17,14 @@ def _call_log_external_step(
     result_str: str,
     tool_name: str = "test_tool",
 ) -> dict[str, object]:
-    """Call _log_external_step and return the kwargs passed to log_external_step."""
+    """Call log_external_step and return the kwargs passed to log_external_step."""
     with patch(
         "axm_engine.runtime.orchestrator.get_orchestrator",
         return_value=mock_orch,
     ):
-        from axm_mcp.discovery import _log_external_step
+        from axm_mcp.wrapping import log_external_step
 
-        _log_external_step(
+        log_external_step(
             tool_name=tool_name,
             tool_args={},
             success=True,
