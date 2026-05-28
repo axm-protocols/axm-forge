@@ -12,9 +12,10 @@ returns a clear error message.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 __all__ = ["fetch_page"]
+
+FetchResult = dict[str, bool | int | str]
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ async def fetch_page(
     *,
     url: str,
     mode: str = "auto",
-) -> dict[str, Any]:
+) -> FetchResult:
     """Fetch a web page with optional anti-bot bypass.
 
     Uses Scrapling as backend with automatic escalation.
