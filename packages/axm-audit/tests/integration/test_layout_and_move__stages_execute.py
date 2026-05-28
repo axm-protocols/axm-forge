@@ -537,6 +537,216 @@ def test_execute_split_preserves_pytest_collectability_e2e(make_test_pkg):
         assert "_no_corpus" in body
 
 
+def _line_of(body: str, needle: str) -> int:
+    """Return 1-based line index of the first line containing *needle*."""
+    for i, line in enumerate(body.splitlines(), start=1):
+        if needle in line:
+            return i
+    raise AssertionError(f"needle {needle!r} not found in body")
+
+
+def test_execute_split_orders_decorator_dep_before_first_use(make_test_pkg):
+    """AC1: module-level deps referenced by a decorator land before that decorator.
+
+    The pre-fix code copies ``_alias`` and ``CONST`` to the target, but anvil
+    may interleave the copied statements with the moved ``@_alias def`` units
+    so that the assign appears at a line *after* the first ``@_alias``
+    decorator. The fix must enforce load-time order: every module-level
+    ``Assign`` whose name appears in a ``decorator_list`` is placed strictly
+    before the first such reference in the same target.
+    """
+    if not _anvil_available():
+        pytest.skip("axm-anvil not installed")
+    pkg = _make_split_pkg_with_decorator(
+        make_test_pkg,
+        "import pytest\n"
+        "from pkg.a import a\n"
+        "from pkg.b import b\n\n"
+        "CONST = 42\n"
+        "_alias = pytest.mark.skipif(not CONST, reason='x')\n\n"
+        "@_alias\n"
+        "def test_one():\n    assert a() == 'a'\n\n"
+        "@_alias\n"
+        "def test_two():\n    assert b() == 'b'\n",
+    )
+    op, target_a, target_b = _split_op_x_to_ab(pkg)
+
+    execute([op], pkg)
+
+    for target in (target_a, target_b):
+        assert target.exists(), f"{target.name} not produced"
+        body = target.read_text()
+        const_line = _line_of(body, "CONST = 42")
+        alias_line = _line_of(body, "_alias = pytest.mark.skipif")
+        first_decorator_line = _line_of(body, "@_alias")
+        assert alias_line < first_decorator_line, (
+            f"{target.name}: _alias (line {alias_line}) not before "
+            f"@_alias decorator (line {first_decorator_line})\n--- body ---\n{body}"
+        )
+        assert const_line < alias_line, (
+            f"{target.name}: CONST (line {const_line}) not before "
+            f"_alias which reads it (line {alias_line})\n--- body ---\n{body}"
+        )
+
+
+def test_execute_split_reorders_anvil_duplicated_dep(make_test_pkg):
+    """AC2: dep referenced from BOTH decorator and body is reordered, not duplicated.
+
+    When a module-level name is referenced from the body of a moved unit,
+    anvil's ``shared_helpers="duplicate"`` mode copies it to the target on
+    its own — bypassing the ``_copy_module_level_deps_to_target`` path
+    (which would short-circuit on the ``if name in existing: continue``).
+    The fix must detect the duplicated-but-misordered case: keep a single
+    copy of the name in the target, and relocate it before any decorator
+    reference. AC2 is the load-bearing scenario — exercises the anvil
+    duplication path that AXM-1759 left uncovered.
+    """
+    if not _anvil_available():
+        pytest.skip("axm-anvil not installed")
+    pkg = _make_split_pkg_with_decorator(
+        make_test_pkg,
+        "import pytest\n"
+        "from pkg.a import a\n"
+        "from pkg.b import b\n\n"
+        "USED = 42\n"
+        "_alias = pytest.mark.skipif(not USED, reason='x')\n\n"
+        "@_alias\n"
+        "def test_one():\n    assert USED == 42 and a() == 'a'\n\n"
+        "@_alias\n"
+        "def test_two():\n    assert USED == 42 and b() == 'b'\n",
+    )
+    op, target_a, target_b = _split_op_x_to_ab(pkg)
+
+    execute([op], pkg)
+
+    for target in (target_a, target_b):
+        assert target.exists(), f"{target.name} not produced"
+        body = target.read_text()
+        # Single occurrence — no duplication from anvil + copy paths.
+        assert body.count("USED = 42") == 1, (
+            f"{target.name}: USED appears {body.count('USED = 42')} times "
+            f"(expected 1)\n--- body ---\n{body}"
+        )
+        used_line = _line_of(body, "USED = 42")
+        alias_line = _line_of(body, "_alias = pytest.mark.skipif")
+        first_decorator_line = _line_of(body, "@_alias")
+        assert used_line < first_decorator_line, (
+            f"{target.name}: USED (line {used_line}) not before "
+            f"@_alias decorator (line {first_decorator_line})\n--- body ---\n{body}"
+        )
+        assert alias_line < first_decorator_line, (
+            f"{target.name}: _alias (line {alias_line}) not before "
+            f"@_alias decorator (line {first_decorator_line})\n--- body ---\n{body}"
+        )
+
+
+def test_execute_split_preserves_order_of_unrelated_assigns(make_test_pkg):
+    """AC3: unrelated module-level assigns keep source-order position.
+
+    ``OTHER`` is referenced only from the body of the moved unit (not from
+    any decorator). It must NOT be hoisted above ``_alias`` by the reorder
+    pass — the fix is surgical, only relocating assigns whose name appears
+    in a ``decorator_list``. Source order for everything else is preserved.
+    """
+    if not _anvil_available():
+        pytest.skip("axm-anvil not installed")
+    pkg = _make_split_pkg_with_decorator(
+        make_test_pkg,
+        "import pytest\n"
+        "from pkg.a import a\n"
+        "from pkg.b import b\n\n"
+        "USED = 1\n"
+        "_alias = pytest.mark.skipif(not USED, reason='x')\n"
+        "OTHER = 99\n\n"
+        "@_alias\n"
+        "def test_one():\n    assert OTHER == 99 and a() == 'a'\n\n"
+        "def test_two():\n    assert b() == 'b'\n",
+    )
+    op, target_a, _target_b = _split_op_x_to_ab(pkg)
+
+    execute([op], pkg)
+
+    assert target_a.exists()
+    body = target_a.read_text()
+    used_line = _line_of(body, "USED = 1")
+    alias_line = _line_of(body, "_alias = pytest.mark.skipif")
+    other_line = _line_of(body, "OTHER = 99")
+    first_decorator_line = _line_of(body, "@_alias")
+    # Decorator deps (USED, _alias) come before the decorator.
+    assert used_line < first_decorator_line
+    assert alias_line < first_decorator_line
+    # OTHER is not referenced by any decorator — it must NOT be hoisted
+    # above _alias by the reorder pass.
+    assert other_line > alias_line, (
+        f"OTHER (line {other_line}) was gratuitously hoisted above "
+        f"_alias (line {alias_line}) — reorder pass is not surgical."
+        f"\n--- body ---\n{body}"
+    )
+
+
+def test_execute_split_axm_audit_reproducer_imports_cleanly(make_test_pkg):
+    """AC4: end-to-end reproducer of the axm-audit failing pattern.
+
+    Mirrors the production failure: ``CASES = [...]`` followed by
+    ``_no_corpus = pytest.mark.skipif(not CASES, ...)`` followed by
+    ``@_no_corpus + @pytest.mark.parametrize('case', CASES)`` units.
+    Both ``CASES`` and ``_no_corpus`` are referenced by decorators (the
+    parametrize one drags ``CASES`` directly into a ``decorator_list``),
+    which is exactly the pattern that triggered the anvil-duplication
+    misordering on axm-audit. The target must (a) compile and
+    (b) import in a fresh subprocess with no ``NameError``.
+    """
+    if not _anvil_available():
+        pytest.skip("axm-anvil not installed")
+    pkg = _make_split_pkg_with_decorator(
+        make_test_pkg,
+        "import pytest\n"
+        "from pkg.a import a\n"
+        "from pkg.b import b\n\n"
+        "CASES = [1, 2, 3]\n"
+        "_no_corpus = pytest.mark.skipif(not CASES, reason='no corpus')\n\n"
+        "@_no_corpus\n"
+        "@pytest.mark.parametrize('case', CASES)\n"
+        "def test_one(case):\n    assert a() == 'a'\n\n"
+        "@_no_corpus\n"
+        "@pytest.mark.parametrize('case', CASES)\n"
+        "def test_two(case):\n    assert b() == 'b'\n",
+    )
+    op, target_a, target_b = _split_op_x_to_ab(pkg)
+
+    execute([op], pkg)
+
+    env = {**os.environ, "PYTHONPATH": str(pkg / "src")}
+    for target in (target_a, target_b):
+        assert target.exists(), f"{target.name} not produced"
+        body = target.read_text()
+        # Syntactic validity in-process (fast smoke).
+        compile(body, str(target), "exec")
+        # Fresh-subprocess import — catches NameError at module load,
+        # which is what pytest collection does.
+        proc = subprocess.run(  # noqa: S603
+            [
+                sys.executable,
+                "-c",
+                "import importlib.util, sys; "
+                "spec = importlib.util.spec_from_file_location('m', sys.argv[1]); "
+                "m = importlib.util.module_from_spec(spec); "
+                "spec.loader.exec_module(m)",
+                str(target),
+            ],
+            cwd=pkg,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert proc.returncode == 0, (
+            f"{target.name} failed to import: {proc.stderr}\n--- body ---\n{body}"
+        )
+        assert "NameError" not in proc.stderr, (
+            f"NameError surfaced in {target.name}: {proc.stderr}\n--- body ---\n{body}"
+        )
+
+
 def test_execute_merge_concatenates_units_into_anchor(make_test_pkg):
     """AC9: merge moves all units into target and removes source."""
     if not _anvil_available():

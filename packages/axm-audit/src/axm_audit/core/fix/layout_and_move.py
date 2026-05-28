@@ -850,6 +850,122 @@ def _insert_before_first_def(
     return f"{head}{block}{tail}"
 
 
+def _topological_reorder_decorator_deps(
+    target: Path, pre_anvil_source_tree: ast.Module
+) -> list[str]:
+    """Restore source-order between module-level Assigns in target.
+
+    Runs after anvil's body-reference duplication AND after
+    ``_copy_module_level_deps_to_target``'s decorator-reference copy.
+    Either path can leave the target with module-level
+    ``Assign``/``AnnAssign`` statements in an order that diverges from
+    source — yielding a ``NameError`` at module import (decorator fires
+    before its alias evaluates, or alias evaluates before its own free
+    names bind), and also breaking AC3's surgical guarantee when anvil
+    happens to place an unrelated assign above a decorator dep.
+
+    The source order itself is load-time correct by construction (the
+    pre-anvil source was importable). Restoring source-order for the
+    subset of names that survive in target therefore both:
+
+      * places every (transitively) decorator-referenced name before its
+        first decorator use;
+      * preserves the relative source position of unrelated assigns,
+        because the whole group is reinserted in source order in one
+        shot, not just the decorator deps.
+
+    Names defined in target but absent from source (rare; from a stub
+    docstring or anvil scaffolding) are left in place.
+    """
+    if not target.exists():
+        return []
+    source_order: list[str] = []
+    seen_in_source: set[str] = set()
+    for stmt in pre_anvil_source_tree.body:
+        if isinstance(stmt, ast.Assign):
+            for tgt in stmt.targets:
+                if isinstance(tgt, ast.Name) and tgt.id not in seen_in_source:
+                    source_order.append(tgt.id)
+                    seen_in_source.add(tgt.id)
+        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            if stmt.target.id not in seen_in_source:
+                source_order.append(stmt.target.id)
+                seen_in_source.add(stmt.target.id)
+    if not source_order:
+        return []
+
+    text = target.read_text()
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return []
+
+    name_to_stmt: dict[str, ast.stmt] = {}
+    for stmt in tree.body:
+        if isinstance(stmt, ast.Assign):
+            for tgt in stmt.targets:
+                if isinstance(tgt, ast.Name):
+                    name_to_stmt[tgt.id] = stmt
+        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            name_to_stmt[stmt.target.id] = stmt
+
+    relocate_names = [n for n in source_order if n in name_to_stmt]
+    if not relocate_names:
+        return []
+
+    first_def_line: int | None = None
+    for stmt in tree.body:
+        if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            if stmt.decorator_list:
+                first_def_line = min(d.lineno for d in stmt.decorator_list)
+            else:
+                first_def_line = stmt.lineno
+            break
+
+    current_linenos = [name_to_stmt[n].lineno for n in relocate_names]
+    in_source_order = all(
+        current_linenos[i] < current_linenos[i + 1]
+        for i in range(len(current_linenos) - 1)
+    )
+    all_before_defs = first_def_line is None or all(
+        ln < first_def_line for ln in current_linenos
+    )
+    if in_source_order and all_before_defs:
+        return []
+
+    snippets = [
+        ast.get_source_segment(text, name_to_stmt[n]) or ast.unparse(name_to_stmt[n])
+        for n in relocate_names
+    ]
+    lines = text.splitlines(keepends=True)
+    ranges = sorted(
+        (
+            (
+                name_to_stmt[n].lineno - 1,
+                name_to_stmt[n].end_lineno
+                if name_to_stmt[n].end_lineno is not None
+                else name_to_stmt[n].lineno,
+            )
+            for n in relocate_names
+        ),
+        reverse=True,
+    )
+    new_lines = list(lines)
+    for start, end in ranges:
+        del new_lines[start:end]
+    new_text = "".join(new_lines)
+    try:
+        new_tree = ast.parse(new_text)
+    except SyntaxError:
+        return []
+    new_text = _insert_before_first_def(new_text, new_tree, snippets)
+    target.write_text(new_text)
+    return [
+        f"decorator-order: restored module-level Assign order in "
+        f"{target.name} to match pre-anvil source"
+    ]
+
+
 def _append_marker_fixtures(
     source: Path,
     target: Path,
@@ -980,4 +1096,5 @@ def _safe_move_units(
             module_deps_to_copy,
         )
     )
+    warnings.extend(_topological_reorder_decorator_deps(target, pre_anvil_source_tree))
     return warnings, final_units
