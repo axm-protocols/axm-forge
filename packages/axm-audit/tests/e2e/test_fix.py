@@ -5,6 +5,7 @@ Covers the `fix` subcommand contract from AC1-AC8.
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 from pathlib import Path
 from textwrap import dedent
@@ -12,6 +13,18 @@ from textwrap import dedent
 import pytest
 
 pytestmark = pytest.mark.e2e
+
+
+def _tree_hash(root: Path) -> str:
+    """Stable hash of every file's relative path + bytes under *root*."""
+    h = hashlib.sha256()
+    for p in sorted(root.rglob("*")):
+        if p.is_file():
+            h.update(str(p.relative_to(root)).encode())
+            h.update(b"\0")
+            h.update(p.read_bytes())
+            h.update(b"\0")
+    return h.hexdigest()
 
 
 def _make_canonical_pkg(root: Path) -> Path:
@@ -182,3 +195,27 @@ def test_fix_no_arg_defaults_to_dot(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert "(no deterministic ops planned)" in result.stdout
+
+
+def test_fix_apply_atomic_on_failure(tmp_path: Path) -> None:
+    """AC1: `axm-audit fix --apply` on a corpus whose apply yields an
+    un-collectable tree exits non-zero and leaves tests/ unchanged on disk.
+    """
+    pkg = _make_pkg_with_mis_tiered_test(tmp_path)
+    # A syntactically broken test forces the post-apply collection gate to
+    # fail, which must trigger the atomic rollback (AC1/AC5).
+    (pkg / "tests" / "unit" / "test_broken.py").write_text(
+        "def test_add( :\n    pass\n"
+    )
+    tests = pkg / "tests"
+    before = _tree_hash(tests)
+
+    result = subprocess.run(  # noqa: S603
+        ["uv", "run", "axm-audit", "fix", str(pkg), "--apply"],  # noqa: S607
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0, result.stdout
+    assert _tree_hash(tests) == before

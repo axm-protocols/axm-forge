@@ -7,6 +7,7 @@ exercises ``AuditFixTool().execute(...)`` end-to-end.
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -168,3 +169,43 @@ def test_execute_catches_internal_exception(tmp_path: Path, mocker: Any) -> None
 
     assert result.success is False
     assert result.error == "boom"
+
+
+# ---------------------------------------------------------------------------
+# Atomic apply — structured error + clean tree on failure (AXM-1768)
+# ---------------------------------------------------------------------------
+
+
+def _tree_hash(root: Path) -> str:
+    h = hashlib.sha256()
+    for p in sorted(root.rglob("*")):
+        if p.is_file():
+            h.update(str(p.relative_to(root)).encode())
+            h.update(b"\0")
+            h.update(p.read_bytes())
+            h.update(b"\0")
+    return h.hexdigest()
+
+
+def test_apply_failure_returns_structured_error_and_clean_tree(
+    make_pkg_git: Callable[[dict[str, str]], Path], mocker: Any
+) -> None:
+    """AC2, AC4: a forced apply failure makes the tool return success=False
+    with an actionable message (not a bare 'test_basic'), tree restored.
+    """
+    pkg = make_pkg_git({"tests/unit/test_writes.py": _MISTIERED_IO_TEST})
+    before = _tree_hash(pkg / "tests")
+
+    # Simulate the historical unguarded dict access crashing mid-apply.
+    mocker.patch(
+        "axm_audit.core.fix.pipeline._run_iterations",
+        side_effect=KeyError("test_basic"),
+    )
+
+    result = AuditFixTool().execute(path=str(pkg), apply=True)
+
+    assert result.success is False
+    assert result.error is not None
+    # The opaque bare-token error must not surface verbatim.
+    assert result.error.strip() not in {"test_basic", "'test_basic'"}
+    assert _tree_hash(pkg / "tests") == before

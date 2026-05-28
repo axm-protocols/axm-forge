@@ -12,7 +12,9 @@ Post-loop polish: extract duplicated helpers + run ruff format/fix.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -27,7 +29,76 @@ from .models import MAX_ITERATIONS, PipelineReport
 from .stages_execute import execute
 from .stages_plan import plan_flatten, plan_naming, plan_relocate
 
-__all__ = ["DEFAULT_RULES", "MAX_ITERATIONS", "run"]
+__all__ = ["DEFAULT_RULES", "MAX_ITERATIONS", "FixApplyError", "run"]
+
+
+class FixApplyError(RuntimeError):
+    """Raised when an ``apply=True`` run fails and the tree was rolled back.
+
+    Carries an actionable message (never a bare runtime dict key such as
+    ``'test_basic'``) so the ``audit_fix`` tool surfaces something a human
+    can act on. The original cause is chained via ``__cause__``.
+    """
+
+
+def _snapshot_tests(project_path: Path) -> Path | None:
+    """Copy the whole ``tests/`` tree into a temp dir; return the backup path.
+
+    Returns None when there is no ``tests/`` directory to protect (nothing
+    to roll back). The backup lives outside ``project_path`` so a botched
+    in-place mutation can never touch it.
+    """
+    tests_dir = project_path / "tests"
+    if not tests_dir.is_dir():
+        return None
+    backup_root = Path(tempfile.mkdtemp(prefix="axm_fix_backup_"))
+    shutil.copytree(tests_dir, backup_root / "tests")
+    return backup_root
+
+
+def _restore_tests(project_path: Path, backup_root: Path | None) -> None:
+    """Restore ``tests/`` from *backup_root*, leaving the tree byte-identical."""
+    if backup_root is None:
+        return
+    tests_dir = project_path / "tests"
+    if tests_dir.exists():
+        shutil.rmtree(tests_dir)
+    shutil.copytree(backup_root / "tests", tests_dir)
+    invalidate_import_index(project_path)
+
+
+def _discard_snapshot(backup_root: Path | None) -> None:
+    if backup_root is not None:
+        shutil.rmtree(backup_root, ignore_errors=True)
+
+
+def _collect_only_gate(project_path: Path) -> str | None:
+    """Verify every ``test_*.py`` under ``tests/`` still parses; else error text.
+
+    A botched move/split/rename corrupts a tree by emitting a file that no
+    longer parses (the dominant real-world failure mode, and what an
+    un-collectable pytest tree reduces to here). This in-process
+    ``compile()`` sweep is the cheap, deterministic equivalent of
+    ``pytest --collect-only`` for that failure class — running a real
+    pytest subprocess per apply made the suite time out (every fixed-point
+    iteration would pay interpreter-startup latency).
+
+    Returns the first parse error encountered (path + message), or None
+    when the whole tree compiles cleanly.
+    """
+    tests_dir = project_path / "tests"
+    if not tests_dir.is_dir():
+        return None
+    for path in sorted(tests_dir.rglob("test_*.py")):
+        try:
+            compile(path.read_text(), str(path), "exec")
+        except SyntaxError as exc:
+            rel = path.relative_to(project_path)
+            return f"{rel}: {exc.msg} (line {exc.lineno})"
+        except OSError as exc:
+            return f"{path}: {exc}"
+    return None
+
 
 DEFAULT_RULES: frozenset[str] = frozenset(
     {"TEST_QUALITY_PYRAMID_LEVEL", "TEST_QUALITY_FILE_NAMING"}
@@ -255,20 +326,69 @@ def run(
     report = PipelineReport(applied=apply)
     warnings: list[str] = []
 
-    _run_iterations(
-        project_path,
-        apply=apply,
-        rules=active_rules,
-        report=report,
-        warnings=warnings,
+    if not apply:
+        _run_iterations(
+            project_path,
+            apply=False,
+            rules=active_rules,
+            report=report,
+            warnings=warnings,
+        )
+        report.warnings = warnings
+        report.unfixable = collect_unfixable(project_path)
+        return report
+
+    _run_apply_atomic(
+        project_path, rules=active_rules, report=report, warnings=warnings
     )
-
-    if apply:
-        warnings = _apply_post_polish(project_path, warnings)
-
     report.warnings = warnings
     report.unfixable = collect_unfixable(project_path)
     return report
+
+
+def _run_apply_atomic(
+    project_path: Path,
+    *,
+    rules: set[str],
+    report: PipelineReport,
+    warnings: list[str],
+) -> None:
+    """Apply the pipeline atomically: snapshot → mutate → collect-gate → promote.
+
+    On ANY exception during the mutation/polish or on a failed post-apply
+    collection check, the ``tests/`` tree is restored byte-identical to its
+    pre-call state and a :class:`FixApplyError` is raised. The tree is never
+    left in the half-written state the bare pipeline could produce.
+    """
+    backup_root = _snapshot_tests(project_path)
+    try:
+        _run_iterations(
+            project_path,
+            apply=True,
+            rules=rules,
+            report=report,
+            warnings=warnings,
+        )
+        polished = _apply_post_polish(project_path, warnings)
+        warnings[:] = polished
+        gate_error = _collect_only_gate(project_path)
+        if gate_error is not None:
+            raise FixApplyError(
+                "apply rolled back: the resulting tests/ tree is not "
+                "collectable by pytest. Collection output:\n" + gate_error
+            )
+    except FixApplyError:
+        _restore_tests(project_path, backup_root)
+        raise
+    except Exception as exc:
+        _restore_tests(project_path, backup_root)
+        raise FixApplyError(
+            "apply rolled back after an internal failure during "
+            f"{type(exc).__name__}: {exc!r}. The tests/ tree was restored "
+            "to its pre-call state."
+        ) from exc
+    else:
+        _discard_snapshot(backup_root)
 
 
 def _ruff_format_tests(project_path: Path) -> list[str]:

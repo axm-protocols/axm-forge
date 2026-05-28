@@ -101,7 +101,7 @@ def _tools_available() -> bool:
     return shutil.which("ruff") is not None and shutil.which("mypy") is not None
 
 
-_PLAN_CHECK = "axm_audit.core.fix.stages_plan._check_by_rule"
+_PLAN_CHECK = "axm_audit.core.fix.stages_plan.check_by_rule"
 
 
 def _anvil_available() -> bool:
