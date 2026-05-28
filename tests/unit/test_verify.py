@@ -377,4 +377,192 @@ class TestRunToolErrorPaths:
             cast(Mapping[str, AXMTool], {"audit": tool}), "audit", path="."
         )
         assert result is not None
-        assert "boom" in result["error"]
+        assert "boom" in str(result["error"])
+
+
+# --- enrich_failure guard branches ---
+
+
+class TestEnrichFailureGuards:
+    """Cover the early-return guards in enrich_failure."""
+
+    def test_returns_none_without_ast_tool(self) -> None:
+        """No ast_impact tool registered → no enrichment."""
+        assert enrich_failure({}, "/project", {"rule_id": "X"}) is None
+
+    @pytest.mark.parametrize(
+        ("symbols", "ast_setup"),
+        [
+            pytest.param([], None, id="no_extractable_symbols"),
+            pytest.param(
+                ["sym"],
+                ("side_effect", RuntimeError("ast boom")),
+                id="every_ast_call_raises",
+            ),
+            pytest.param(
+                ["sym"],
+                ("return_value", _FakeResult(success=False, data={})),
+                id="ast_result_unsuccessful",
+            ),
+        ],
+    )
+    def test_returns_none_when_aggregate_empty(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        symbols: list[str],
+        ast_setup: tuple[str, object] | None,
+    ) -> None:
+        """enrich_failure yields no context when the impact aggregate is empty.
+
+        Covers the three suppression branches: no extractable symbols,
+        every ast_impact call raising, and ast_impact returning success=False.
+        """
+        monkeypatch.setattr("axm_mcp.verify._extract_symbols", lambda _f: symbols)
+        ast_tool = MagicMock()
+        if ast_setup is not None:
+            setattr(ast_tool.execute, ast_setup[0], ast_setup[1])
+        assert enrich_failure({"ast_impact": ast_tool}, "/project", {}) is None
+
+    def test_callers_capped_with_omission_note(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """More than _MAX_CALLERS callers are truncated with an omission note."""
+        monkeypatch.setattr("axm_mcp.verify._extract_symbols", lambda _f: ["sym"])
+        callers = [{"caller": f"c{i}"} for i in range(15)]
+        ast_tool = MagicMock()
+        ast_tool.execute.return_value = _FakeResult(
+            success=True,
+            data={"callers": callers, "test_files": ["t.py", "t.py"], "score": "LOW"},
+        )
+
+        ctx = enrich_failure({"ast_impact": ast_tool}, "/project", {})
+
+        assert ctx is not None
+        # 10 kept + 1 omission note
+        assert len(ctx["callers"]) == 11
+        assert "omitted for brevity" in ctx["callers"][-1]["note"]
+        # test_files deduplicated
+        assert ctx["test_files"] == ["t.py"]
+
+
+# --- symbol extraction (via the public enrich_failure surface) ---
+
+
+def _affected_modules_for(failure: dict[str, Any]) -> list[str]:
+    """Drive enrich_failure and return the extracted ``affected_modules``.
+
+    enrich_failure feeds the failure dict through the internal symbol
+    extraction and calls ast_impact once per extracted symbol. Mocking
+    ast_impact to succeed lets the aggregated context expose the exact
+    list of symbols extraction produced — exercising every extraction
+    branch through the public API, without importing private helpers.
+    """
+    ast_tool = MagicMock()
+    ast_tool.execute.return_value = _FakeResult(
+        success=True, data={"callers": [], "test_files": [], "score": "LOW"}
+    )
+    ctx = enrich_failure({"ast_impact": ast_tool}, "/project", failure)
+    return [] if ctx is None else cast(list[str], ctx["affected_modules"])
+
+
+class TestSymbolExtraction:
+    """Cover the rule_id-driven symbol-extraction branches end to end."""
+
+    @pytest.mark.parametrize(
+        ("failure", "expected"),
+        [
+            pytest.param(
+                {
+                    "rule_id": "QUALITY_COMPLEXITY",
+                    "details": {
+                        "top_offenders": [{"function": "foo"}, {"function": "bar"}]
+                    },
+                },
+                ["foo", "bar"],
+                id="complexity_uses_offenders",
+            ),
+            pytest.param(
+                {
+                    "rule_id": "QUALITY_COMPLEXITY",
+                    "details": {
+                        "top_offenders": [
+                            {"function": "a"},
+                            {"nope": 1},
+                            {"function": "a"},
+                        ]
+                    },
+                    "message": "Function fallback ignored",
+                },
+                ["a"],
+                id="complexity_skips_malformed_and_dedups",
+            ),
+            pytest.param(
+                {
+                    "rule_id": "QUALITY_TYPE",
+                    "details": {"errors": [{"file": "src/foo/bar.py"}]},
+                },
+                ["foo.bar"],
+                id="type_converts_error_file_to_module",
+            ),
+            pytest.param(
+                {
+                    "rule_id": "QUALITY_TYPE",
+                    "details": {
+                        "errors": [
+                            {"file": "src/foo.py"},
+                            {"file": ""},
+                            {"line": 1},
+                            {"file": "src/foo.py"},
+                            {"file": "tests/test_main.py"},
+                        ]
+                    },
+                },
+                ["foo", "tests.test_main"],
+                id="type_skips_blank_and_dedups",
+            ),
+            pytest.param(
+                {"rule_id": "OTHER", "message": "Function widget is too long"},
+                ["widget"],
+                id="fallback_function_prefix",
+            ),
+            pytest.param(
+                {"rule_id": "OTHER", "message": "Class Foo has too many methods"},
+                ["Foo"],
+                id="fallback_class_prefix",
+            ),
+            pytest.param(
+                {"rule_id": "OTHER", "message": "Method bar() is complex"},
+                ["bar"],
+                id="fallback_method_prefix",
+            ),
+            pytest.param(
+                {"rule_id": "OTHER", "message": "no prefix here"},
+                [],
+                id="no_prefix_no_enrichment",
+            ),
+            pytest.param(
+                {"rule_id": "OTHER", "message": "Function "},
+                [],
+                id="empty_after_prefix_no_enrichment",
+            ),
+            pytest.param(
+                {"rule_id": "OTHER", "message": 123},
+                [],
+                id="non_string_message_no_enrichment",
+            ),
+            pytest.param(
+                {"rule_id": "QUALITY_COMPLEXITY", "details": {"top_offenders": "nope"}},
+                [],
+                id="offenders_not_a_list_no_enrichment",
+            ),
+        ],
+    )
+    def test_extracted_symbols(
+        self, failure: dict[str, Any], expected: list[str]
+    ) -> None:
+        """Each rule_id path extracts the expected symbols/modules.
+
+        An empty ``expected`` means extraction yielded no symbols, so
+        enrich_failure returns no context (``affected_modules`` empty).
+        """
+        assert _affected_modules_for(failure) == expected

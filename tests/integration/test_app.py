@@ -1,8 +1,12 @@
-"""Integration tests for axm_mcp.cli — real PID-file / filesystem I/O."""
+"""Integration tests for the axm_mcp.cli ``app`` — serve/stop commands.
+
+Black-box CLI behavior driven through the cyclopts ``app`` entry point with
+real PID-file / filesystem I/O. PID-helper round-trips live in
+``test_read_pid__write_pid.py``.
+"""
 
 from __future__ import annotations
 
-import os
 import signal
 from collections.abc import Generator
 from pathlib import Path
@@ -10,23 +14,13 @@ from unittest.mock import patch
 
 import pytest
 
-from axm_mcp.cli import (
-    app,
-    read_pid,
-    remove_pid_file,
-    write_pid,
-)
-from axm_mcp.server import DEFAULT_PORT
+from axm_mcp.cli import app
 
 pytestmark = pytest.mark.integration
 
-# ──────────────────────── Helpers ──────────────────────────
-
-
-def _run_cli(args: list[str]) -> None:
-    """Run the CLI app, swallowing the SystemExit(0) that cyclopts raises."""
-    with pytest.raises(SystemExit, match="0"):
-        app(args, exit_on_error=False)
+# The CLI's default bind port (axm_mcp.cli.DEFAULT_PORT). Asserted as a literal
+# so these command tests reference only the ``app`` entry point.
+_DEFAULT_PORT = 9427
 
 
 @pytest.fixture
@@ -40,6 +34,12 @@ def tmp_pid_file(tmp_path: Path) -> Generator[Path, None, None]:
         yield pid_file
 
 
+def _serve_ok(args: list[str]) -> None:
+    """Invoke ``app`` for a serve run, swallowing the SystemExit(0) cyclopts raises."""
+    with pytest.raises(SystemExit, match="0"):
+        app(args, exit_on_error=False)
+
+
 # ──────────────────────── serve command ──────────────────────────
 
 
@@ -49,37 +49,39 @@ class TestServeCommand:
     def test_cli_serve_delegates(self, tmp_pid_file: Path) -> None:
         """serve command calls server.serve with default args."""
         with patch("axm_mcp.server.serve") as mock_serve:
-            _run_cli(["serve"])
-            mock_serve.assert_called_once_with(host="127.0.0.1", port=DEFAULT_PORT)
+            _serve_ok(["serve"])
+            mock_serve.assert_called_once_with(host="127.0.0.1", port=_DEFAULT_PORT)
 
     def test_cli_serve_custom_port(self, tmp_pid_file: Path) -> None:
         """serve --port 8080 passes port to server.serve."""
         with patch("axm_mcp.server.serve") as mock_serve:
-            _run_cli(["serve", "--port", "8080"])
+            _serve_ok(["serve", "--port", "8080"])
             mock_serve.assert_called_once_with(host="127.0.0.1", port=8080)
 
     def test_cli_serve_custom_host_port(self, tmp_pid_file: Path) -> None:
         """serve --host 0.0.0.0 --port 3000 passes both args."""
         with patch("axm_mcp.server.serve") as mock_serve:
-            _run_cli(["serve", "--host", "0.0.0.0", "--port", "3000"])  # noqa: S104
+            _serve_ok(["serve", "--host", "0.0.0.0", "--port", "3000"])  # noqa: S104
             mock_serve.assert_called_once_with(host="0.0.0.0", port=3000)  # noqa: S104
 
     def test_cli_serve_writes_pid(self, tmp_pid_file: Path) -> None:
-        """serve writes PID file before starting."""
-        pids_seen: list[int | None] = []
+        """serve writes the running PID to the PID file before starting."""
+        pids_seen: list[str] = []
 
         def capture_pid(**_kwargs: object) -> None:
-            pids_seen.append(read_pid())
+            pids_seen.append(tmp_pid_file.read_text())
 
         with patch("axm_mcp.server.serve", side_effect=capture_pid):
-            _run_cli(["serve"])
+            _serve_ok(["serve"])
 
-        assert pids_seen == [os.getpid()]
+        import os
+
+        assert pids_seen == [str(os.getpid())]
 
     def test_cli_serve_cleans_pid_on_exit(self, tmp_pid_file: Path) -> None:
         """serve removes PID file after server stops."""
         with patch("axm_mcp.server.serve"):
-            _run_cli(["serve"])
+            _serve_ok(["serve"])
 
         assert not tmp_pid_file.exists()
 
@@ -94,20 +96,22 @@ class TestServeCommand:
         assert not tmp_pid_file.exists()
 
 
+# ──────────────────────── stop command ──────────────────────────
+
+
 class TestStopCommand:
     """AC4: stop sends SIGTERM to the running server."""
 
-    def test_cli_stop_sends_sigterm(
-        self, tmp_pid_file: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_cli_stop_sends_sigterm(self, tmp_pid_file: Path) -> None:
         """stop reads PID file and sends SIGTERM."""
         tmp_pid_file.write_text("12345")
 
         with (
             patch("axm_mcp.cli.is_process_alive", return_value=True),
             patch("axm_mcp.cli.os.kill") as mock_kill,
+            pytest.raises(SystemExit, match="0"),
         ):
-            _run_cli(["stop"])
+            app(["stop"], exit_on_error=False)
 
         mock_kill.assert_called_once_with(12345, signal.SIGTERM)
         assert not tmp_pid_file.exists()
@@ -137,32 +141,3 @@ class TestStopCommand:
         assert not tmp_pid_file.exists()
         err = capsys.readouterr().err
         assert "stale" in err.lower()
-
-
-# ──────────────────────── PID helpers (I/O) ──────────────────────────
-
-
-class TestPidHelpers:
-    """Internal PID file management utilities."""
-
-    def test_write_and_read_pid(self, tmp_pid_file: Path) -> None:
-        """Round-trip write/read of PID file."""
-        write_pid(42)
-        assert read_pid() == 42
-
-    @pytest.mark.parametrize(
-        "content",
-        [None, "not-a-pid"],
-        ids=["missing", "corrupt"],
-    )
-    def test_read_pid_returns_none(
-        self, tmp_pid_file: Path, content: str | None
-    ) -> None:
-        """read_pid returns None when file is absent or non-integer."""
-        if content is not None:
-            tmp_pid_file.write_text(content)
-        assert read_pid() is None
-
-    def test_remove_pid_idempotent(self, tmp_pid_file: Path) -> None:
-        """remove_pid_file is safe to call when file doesn't exist."""
-        remove_pid_file()  # should not raise

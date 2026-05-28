@@ -7,6 +7,7 @@ Merged from aspect-split mirror sources:
 
 from __future__ import annotations
 
+from importlib import import_module
 from unittest.mock import patch
 
 import pytest
@@ -56,3 +57,24 @@ class TestInitMain:
             with pytest.raises(SystemExit, match="0"):
                 axm_mcp.main()
             mock_mcp.run.assert_called_once()
+
+
+class TestDecouplingShape:
+    """Pure-import decoupling invariants on the discovery shell (no I/O)."""
+
+    @pytest.mark.parametrize(
+        "func_name",
+        ["init", "check", "resume", "read", "configure", "get_orchestrator"],
+        ids=["init", "check", "resume", "read", "configure", "get_orchestrator"],
+    )
+    def test_no_hardcoded_protocol_function(self, func_name: str) -> None:
+        """mcp_app discovers tools dynamically; it hardcodes no protocol func."""
+        attr = getattr(mcp_app, func_name, None)
+        assert attr is None or not callable(attr), (
+            f"{func_name}() is hardcoded in mcp_app"
+        )
+
+    def test_legacy_server_package_removed(self) -> None:
+        """The legacy ``server/`` sub-package is no longer importable."""
+        with pytest.raises(ModuleNotFoundError):
+            import_module("axm_mcp.server.app")
