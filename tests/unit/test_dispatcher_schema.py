@@ -1,7 +1,7 @@
 """Tests for dispatcher schema union.
 
 Covers:
-- _collect_dispatcher_params: builds union of sub-function signatures
+- collect_dispatcher_params: builds union of sub-function signatures
 - _register_one: dispatcher wrapper has correct __signature__
 - End-to-end: wrapper forwards kwargs to sub-functions
 """
@@ -12,7 +12,8 @@ import inspect
 import types
 from typing import Any
 
-from axm_mcp.discovery import _collect_dispatcher_params, _register_one
+from axm_mcp.discovery import _register_one
+from axm_mcp.schema import collect_dispatcher_params, extract_docstring_params
 
 # ────────────────────────────── Fixtures ─────────────────────────────────
 
@@ -60,7 +61,7 @@ def _make_dispatcher_module() -> tuple[Any, dict[str, Any], types.ModuleType]:
         result: dict[str, Any] = fn(**kwargs)
         return result
 
-    # Bind to a fake module so _collect_dispatcher_params can find _ACTIONS
+    # Bind to a fake module so collect_dispatcher_params can find _ACTIONS
     mod = types.ModuleType("fake_dispatcher_mod")
     mod._FAKE_ACTIONS = actions
     dispatcher.__module__ = mod.__name__
@@ -84,17 +85,17 @@ class FakeMCP:
         return decorator
 
 
-# ──────────────── _collect_dispatcher_params tests ───────────────────
+# ──────────────── collect_dispatcher_params tests ───────────────────
 
 
 class TestCollectDispatcherParams:
-    """_collect_dispatcher_params introspects sub-functions."""
+    """collect_dispatcher_params introspects sub-functions."""
 
     def test_returns_union_of_params(self) -> None:
         """Collects all params from sub-functions, deduped and optional."""
         dispatcher, _actions, mod = _make_dispatcher_module()
 
-        params = _collect_dispatcher_params(dispatcher, override_module=mod)
+        params = collect_dispatcher_params(dispatcher, override_module=mod)
 
         assert params is not None
         names = [p.name for p in params]
@@ -107,7 +108,7 @@ class TestCollectDispatcherParams:
         """All collected params (except action) have defaults."""
         dispatcher, _actions, mod = _make_dispatcher_module()
 
-        params = _collect_dispatcher_params(dispatcher, override_module=mod)
+        params = collect_dispatcher_params(dispatcher, override_module=mod)
         assert params is not None
 
         for p in params:
@@ -121,7 +122,7 @@ class TestCollectDispatcherParams:
         """session_id appears in save AND save_as — only once in union."""
         dispatcher, _actions, mod = _make_dispatcher_module()
 
-        params = _collect_dispatcher_params(dispatcher, override_module=mod)
+        params = collect_dispatcher_params(dispatcher, override_module=mod)
         assert params is not None
 
         name_counts: dict[str, int] = {}
@@ -135,7 +136,7 @@ class TestCollectDispatcherParams:
         def regular(*, path: str, limit: int = 5) -> dict[str, Any]:
             return {}
 
-        result = _collect_dispatcher_params(regular)
+        result = collect_dispatcher_params(regular)
         assert result is None
 
     def test_returns_none_without_actions_dict(self) -> None:
@@ -145,14 +146,14 @@ class TestCollectDispatcherParams:
             return {}
 
         # No module or no _ACTIONS dict → should return None
-        result = _collect_dispatcher_params(orphan_dispatcher)
+        result = collect_dispatcher_params(orphan_dispatcher)
         assert result is None
 
     def test_sub_function_with_no_params(self) -> None:
         """sub_list() has no params — handled cleanly."""
         dispatcher, _actions, mod = _make_dispatcher_module()
 
-        params = _collect_dispatcher_params(dispatcher, override_module=mod)
+        params = collect_dispatcher_params(dispatcher, override_module=mod)
         # Should not crash and should still collect other params
         assert params is not None
         assert len(params) >= 2  # at least action + path
@@ -200,11 +201,11 @@ class TestDispatcherRegistration:
         assert result == {"items": []}
 
 
-# ─────────── _extract_docstring_params tests ─────────────────────────
+# ─────────── extract_docstring_params tests ─────────────────────────
 
 
 class TestExtractDocstringParams:
-    """_extract_docstring_params parses Google-style Args sections."""
+    """extract_docstring_params parses Google-style Args sections."""
 
     def test_parses_typed_params(self) -> None:
         """Extracts params with type annotations."""
@@ -216,9 +217,7 @@ class TestExtractDocstringParams:
             name (str): Project name.
             limit (int): Max results.
         """
-        from axm_mcp.discovery import _extract_docstring_params
-
-        params = _extract_docstring_params(doc)
+        params = extract_docstring_params(doc)
         names = [p.name for p in params]
         assert names == ["path", "name", "limit"]
         assert params[0].annotation is str
@@ -233,9 +232,7 @@ class TestExtractDocstringParams:
             path: Path to directory.
             verbose: Enable verbose mode.
         """
-        from axm_mcp.discovery import _extract_docstring_params
-
-        params = _extract_docstring_params(doc)
+        params = extract_docstring_params(doc)
         assert len(params) == 2
         assert params[0].name == "path"
         assert params[0].annotation is inspect.Parameter.empty
@@ -243,16 +240,12 @@ class TestExtractDocstringParams:
     def test_returns_empty_for_no_args(self) -> None:
         """No Args section → empty list."""
         doc = """Do something simple."""
-        from axm_mcp.discovery import _extract_docstring_params
-
-        params = _extract_docstring_params(doc)
+        params = extract_docstring_params(doc)
         assert params == []
 
     def test_returns_empty_for_none(self) -> None:
         """None docstring → empty list."""
-        from axm_mcp.discovery import _extract_docstring_params
-
-        params = _extract_docstring_params(None)
+        params = extract_docstring_params(None)
         assert params == []
 
     def test_skips_kwargs(self) -> None:
@@ -264,9 +257,7 @@ class TestExtractDocstringParams:
             path (str): Path to dir.
             **kwargs: Extra arguments.
         """
-        from axm_mcp.discovery import _extract_docstring_params
-
-        params = _extract_docstring_params(doc)
+        params = extract_docstring_params(doc)
         assert len(params) == 1
         assert params[0].name == "path"
 
@@ -281,9 +272,7 @@ class TestExtractDocstringParams:
         Returns:
             ToolResult with data.
         """
-        from axm_mcp.discovery import _extract_docstring_params
-
-        params = _extract_docstring_params(doc)
+        params = extract_docstring_params(doc)
         assert len(params) == 1
         assert params[0].name == "path"
 
@@ -296,9 +285,7 @@ class TestExtractDocstringParams:
             path (str): Path.
             limit (int): Max.
         """
-        from axm_mcp.discovery import _extract_docstring_params
-
-        params = _extract_docstring_params(doc)
+        params = extract_docstring_params(doc)
         for p in params:
             assert p.kind == inspect.Parameter.KEYWORD_ONLY
             assert p.default is None
@@ -311,9 +298,7 @@ class TestExtractDocstringParams:
         Args:
             path (str, optional): Optional path.
         """
-        from axm_mcp.discovery import _extract_docstring_params
-
-        params = _extract_docstring_params(doc)
+        params = extract_docstring_params(doc)
         assert params[0].annotation is str
 
 
