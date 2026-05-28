@@ -3,7 +3,7 @@
 Merged from four aspect-split source files, all dominantly covering
 ``axm_mcp.wrapping`` (tracing, result-hash, text flattening, implicit-path
 warning). Several aspects drive registration through
-``axm_mcp.discovery._register_one`` as a test harness; the subject under test
+``axm_mcp.discovery.register_one`` as a test harness; the subject under test
 remains the wrapping behavior.
 """
 
@@ -69,17 +69,17 @@ class TestLogExternalStepHelper:
 
 
 class TestRegisterOneTracing:
-    """_register_one integrates tracing for non-protocol tools."""
+    """register_one integrates tracing for non-protocol tools."""
 
     def test_non_protocol_tool_calls_trace(self) -> None:
         """AXMTool wrapper calls log_external_step for non-protocol tools."""
-        from axm_mcp.discovery import _register_one
+        from axm_mcp.discovery import register_one
 
         mock_mcp = MagicMock()
         mock_tool = MagicMock()
         mock_tool.execute.return_value = ToolResult(success=True, data={"result": "ok"})
 
-        _register_one(mock_mcp, "bib_search", mock_tool)
+        register_one(mock_mcp, "bib_search", mock_tool)
 
         # Get the registered wrapper
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
@@ -92,14 +92,14 @@ class TestRegisterOneTracing:
 
     def test_protocol_tool_skips_trace(self) -> None:
         """Protocol tools (protocol_*) do NOT call log_external_step."""
-        from axm_mcp.discovery import _register_one
+        from axm_mcp.discovery import register_one
 
         mock_mcp = MagicMock()
 
         def _protocol_fn(**kwargs):
             return {"status": "ok"}
 
-        _register_one(mock_mcp, "protocol_init", _protocol_fn)
+        register_one(mock_mcp, "protocol_init", _protocol_fn)
 
         # Get the registered wrapper
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
@@ -110,14 +110,14 @@ class TestRegisterOneTracing:
 
     def test_plain_fn_calls_trace(self) -> None:
         """Plain function wrapper calls log_external_step."""
-        from axm_mcp.discovery import _register_one
+        from axm_mcp.discovery import register_one
 
         mock_mcp = MagicMock()
 
         def _my_tool(**kwargs):
             return {"data": "value"}
 
-        _register_one(mock_mcp, "ast_context", _my_tool)
+        register_one(mock_mcp, "ast_context", _my_tool)
 
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
@@ -127,7 +127,7 @@ class TestRegisterOneTracing:
 
     def test_tool_error_still_traces(self) -> None:
         """Tool execution error: tracing still called, tool error propagated."""
-        from axm_mcp.discovery import _register_one
+        from axm_mcp.discovery import register_one
 
         mock_mcp = MagicMock()
         mock_tool = MagicMock()
@@ -135,7 +135,7 @@ class TestRegisterOneTracing:
             success=False, error="something broke", data={}
         )
 
-        _register_one(mock_mcp, "bib_resolve", mock_tool)
+        register_one(mock_mcp, "bib_resolve", mock_tool)
 
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
@@ -148,13 +148,13 @@ class TestRegisterOneTracing:
 
     def test_tracing_failure_doesnt_break_tool(self) -> None:
         """If log_external_step raises, tool still returns normally."""
-        from axm_mcp.discovery import _register_one
+        from axm_mcp.discovery import register_one
 
         mock_mcp = MagicMock()
         mock_tool = MagicMock()
         mock_tool.execute.return_value = ToolResult(success=True, data={"result": "ok"})
 
-        _register_one(mock_mcp, "bib_search", mock_tool)
+        register_one(mock_mcp, "bib_search", mock_tool)
 
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
@@ -278,8 +278,8 @@ def _capture_wrapper(
     tool: Any,
     **register_kwargs: Any,
 ) -> Any:
-    """Register *tool* via ``_register_one`` and return the captured wrapper."""
-    from axm_mcp.discovery import _register_one
+    """Register *tool* via ``register_one`` and return the captured wrapper."""
+    from axm_mcp.discovery import register_one
 
     captured: dict[str, Any] = {}
 
@@ -292,7 +292,7 @@ def _capture_wrapper(
             return _decorator
 
     mcp = _FakeMCP()
-    _register_one(mcp, name, tool, **register_kwargs)
+    register_one(mcp, name, tool, **register_kwargs)
     return captured["wrapper"]
 
 
@@ -375,12 +375,12 @@ def test_text_roundtrip_mcp(mock_log: MagicMock) -> None:
     """
     from mcp.server.fastmcp import FastMCP
 
-    from axm_mcp.discovery import _register_one
+    from axm_mcp.discovery import register_one
 
     mcp = FastMCP("test-text")
     result = FakeToolResult(success=True, data={"k": 1}, text="k: 1")
     tool = FakeTool(result)
-    _register_one(mcp, "text_tool", tool)
+    register_one(mcp, "text_tool", tool)
 
     async def _run() -> Any:
         content_list, _raw = await mcp._tool_manager.call_tool(
@@ -435,13 +435,13 @@ def test_implicit_path_warning(
 ) -> None:
     """Implicit-path warning fires iff HTTP mode is on and path is '.' (or empty)."""
     from axm_mcp import wrapping
-    from axm_mcp.discovery import _register_one
+    from axm_mcp.discovery import register_one
 
     mock_mcp = MagicMock()
     mock_tool = MagicMock()
     mock_tool.execute.return_value = ToolResult(success=True, data={})
 
-    _register_one(mock_mcp, "audit", mock_tool)
+    register_one(mock_mcp, "audit", mock_tool)
     wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
     original = wrapping._HTTP_MODE
@@ -464,14 +464,14 @@ class TestPathWarningPlainFunction:
     def test_plain_fn_warns_http_mode(self, caplog: pytest.LogCaptureFixture) -> None:
         """Plain function wrapper also warns on path='.'."""
         from axm_mcp import wrapping
-        from axm_mcp.discovery import _register_one
+        from axm_mcp.discovery import register_one
 
         mock_mcp = MagicMock()
 
         def _my_tool(**kwargs):
             return {"ok": True}
 
-        _register_one(mock_mcp, "ast_context", _my_tool)
+        register_one(mock_mcp, "ast_context", _my_tool)
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
         original = wrapping._HTTP_MODE
@@ -492,13 +492,13 @@ class TestPathWarningEdgeCases:
     async def test_empty_string_warns(self, caplog: pytest.LogCaptureFixture) -> None:
         """Empty string path is treated like '.' — warns in HTTP mode."""
         from axm_mcp import wrapping
-        from axm_mcp.discovery import _register_one
+        from axm_mcp.discovery import register_one
 
         mock_mcp = MagicMock()
         mock_tool = MagicMock()
         mock_tool.execute.return_value = ToolResult(success=True, data={})
 
-        _register_one(mock_mcp, "git_commit", mock_tool)
+        register_one(mock_mcp, "git_commit", mock_tool)
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
         original = wrapping._HTTP_MODE
@@ -518,13 +518,13 @@ class TestExistingToolsStillWork:
     def test_tool_executes_normally_with_explicit_path(self) -> None:
         """Tool with explicit path runs and returns normally."""
         from axm_mcp import wrapping
-        from axm_mcp.discovery import _register_one
+        from axm_mcp.discovery import register_one
 
         mock_mcp = MagicMock()
         mock_tool = MagicMock()
         mock_tool.execute.return_value = ToolResult(success=True, data={"result": "ok"})
 
-        _register_one(mock_mcp, "audit", mock_tool)
+        register_one(mock_mcp, "audit", mock_tool)
         wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
         original = wrapping._HTTP_MODE

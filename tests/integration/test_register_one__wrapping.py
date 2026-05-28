@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from axm_mcp import wrapping as _wrapping
-from axm_mcp.discovery import _register_one
+from axm_mcp.discovery import register_one
 
 pytestmark = pytest.mark.integration
 
@@ -38,7 +38,7 @@ class TestLockSkippedStdioMode:
             _wrapping._HTTP_MODE = False
             mock_mcp = MagicMock()
             tool = _FakeSessionTool()
-            _register_one(mock_mcp, "protocol_check", tool)
+            register_one(mock_mcp, "protocol_check", tool)
 
             wrapper = mock_mcp.tool.return_value.call_args[0][0]
             # In stdio mode the wrapper is async but skips the lock.
@@ -60,7 +60,7 @@ class TestLockKeyNone:
             _wrapping._HTTP_MODE = True
             mock_mcp = MagicMock()
             tool = _FakeSessionTool()
-            _register_one(mock_mcp, "protocol_check", tool)
+            register_one(mock_mcp, "protocol_check", tool)
 
             wrapper = mock_mcp.tool.return_value.call_args[0][0]
             result = await wrapper(outputs="{}")
@@ -99,7 +99,7 @@ class TestConcurrentProtocolCheck:
                     return result
 
             mock_mcp = MagicMock()
-            _register_one(mock_mcp, "protocol_check", SlowTool())
+            register_one(mock_mcp, "protocol_check", SlowTool())
             wrapper = mock_mcp.tool.return_value.call_args[0][0]
 
             await asyncio.gather(

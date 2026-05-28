@@ -1,10 +1,10 @@
 """Unit tests for ``axm_mcp.discovery``.
 
 Merged from four aspect-split mirror sources:
-- test_disable_tools.py    (AXM_DISABLE_TOOLS filtering: _is_disabled, discover_tools)
+- test_disable_tools.py    (AXM_DISABLE_TOOLS filtering: is_disabled, discover_tools)
 - test_mcp_bib.py          (bib tool discovery + registration)
 - test_mcp_tools.py        (formal tool discovery)
-- test_typed_schema.py     (_register_one typed-schema preservation)
+- test_typed_schema.py     (register_one typed-schema preservation)
 
 Helper namespacing: the two divergent ``_make_ep`` helpers were renamed
 ``_make_bib_ep`` (test_mcp_bib origin) and ``_make_formal_ep``
@@ -24,10 +24,10 @@ from axm.tools.base import ToolResult
 from tests.unit._helpers import _DISCOVER
 
 from axm_mcp.discovery import (
-    _is_disabled,
-    _register_list_tools,
-    _register_one,
     discover_tools,
+    is_disabled,
+    register_list_tools,
+    register_one,
     register_tools,
 )
 
@@ -35,7 +35,7 @@ from axm_mcp.discovery import (
 
 
 class TestIsDisabled:
-    """Unit tests for the _is_disabled helper."""
+    """Unit tests for the is_disabled helper."""
 
     @pytest.mark.parametrize(
         ("name", "patterns", "expected"),
@@ -60,7 +60,7 @@ class TestIsDisabled:
         ],
     )
     def test_is_disabled(self, name: str, patterns: list[str], expected: bool) -> None:
-        assert _is_disabled(name, patterns) is expected
+        assert is_disabled(name, patterns) is expected
 
 
 class _FakeEntryPoint:
@@ -534,7 +534,7 @@ class TestComplexParamSchemaPreserved:
                 return _R()
 
         fake_mcp = FakeMCP()
-        _register_one(fake_mcp, "complex_tool", ComplexTool())
+        register_one(fake_mcp, "complex_tool", ComplexTool())
 
         wrapper = fake_mcp.tools["complex_tool"]
         sig = inspect.signature(wrapper)
@@ -589,7 +589,7 @@ class TestSimpleParamUnchanged:
                 return _R()
 
         fake_mcp = FakeMCP()
-        _register_one(fake_mcp, "simple_tool", SimpleTool())
+        register_one(fake_mcp, "simple_tool", SimpleTool())
 
         wrapper = fake_mcp.tools["simple_tool"]
         sig = inspect.signature(wrapper)
@@ -622,7 +622,7 @@ class TestAllExistingToolsRegister:
 
 
 class TestBatchEditSchemaViaMCP:
-    """batch_edit schema must expose typed operation fields via _register_one."""
+    """batch_edit schema must expose typed operation fields via register_one."""
 
     def test_batch_edit_schema_via_mcp(self) -> None:
         """Register a batch_edit-like tool and verify typed schema fields.
@@ -657,7 +657,7 @@ class TestBatchEditSchemaViaMCP:
                 return _R()
 
         fake_mcp = FakeMCP()
-        _register_one(fake_mcp, "batch_edit", FakeBatchEditTool())
+        register_one(fake_mcp, "batch_edit", FakeBatchEditTool())
 
         wrapper = fake_mcp.tools["batch_edit"]
         sig = inspect.signature(wrapper)
@@ -716,13 +716,13 @@ class FakeTool:
 
 
 class TestRegisterOne:
-    """Cover _register_one wrapper (discovery.py:91-97)."""
+    """Cover register_one wrapper (discovery.py:91-97)."""
 
     def test_wrapper_returns_success(self) -> None:
         """Registered wrapper returns tool result as dict."""
         fake_mcp = FakeMCP()
         tool = FakeTool(result=FakeToolResult(success=True, data={"answer": 42}))
-        _register_one(fake_mcp, "my_tool", tool)
+        register_one(fake_mcp, "my_tool", tool)
 
         result = fake_mcp.tools["my_tool"]()
         assert result == {"success": True, "answer": 42}
@@ -733,7 +733,7 @@ class TestRegisterOne:
         tool = FakeTool(
             result=FakeToolResult(success=False, data={}, error="something broke"),
         )
-        _register_one(fake_mcp, "err_tool", tool)
+        register_one(fake_mcp, "err_tool", tool)
 
         result = fake_mcp.tools["err_tool"]()
         assert result["success"] is False
@@ -743,14 +743,14 @@ class TestRegisterOne:
         """Wrapper unwraps kwargs={...} pattern from MCP."""
         fake_mcp = FakeMCP()
         tool = FakeTool(result=FakeToolResult(success=True, data={"ok": True}))
-        _register_one(fake_mcp, "unwrap_tool", tool)
+        register_one(fake_mcp, "unwrap_tool", tool)
 
         result = fake_mcp.tools["unwrap_tool"](kwargs={"path": "/tmp"})
         assert result["success"] is True
 
 
 class TestRegisterListTools:
-    """Cover _register_list_tools inner fn (discovery.py:113-120)."""
+    """Cover register_list_tools inner fn (discovery.py:113-120)."""
 
     def test_lists_all_tools(self) -> None:
         """list_tools returns discovered + extra tools, sorted."""
@@ -760,7 +760,7 @@ class TestRegisterListTools:
             "alpha_tool": FakeTool(name="alpha_tool"),
         }
         extra = {"verify": "One-shot verify"}
-        _register_list_tools(fake_mcp, tools, extra)
+        register_list_tools(fake_mcp, tools, extra)
 
         result = fake_mcp.tools["list_tools"]()
         assert result["count"] == 3

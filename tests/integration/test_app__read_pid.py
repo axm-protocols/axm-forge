@@ -11,10 +11,10 @@ from unittest.mock import patch
 import pytest
 
 from axm_mcp.cli import (
-    _read_pid,
-    _remove_pid_file,
-    _write_pid,
     app,
+    read_pid,
+    remove_pid_file,
+    write_pid,
 )
 from axm_mcp.server import DEFAULT_PORT
 
@@ -69,7 +69,7 @@ class TestServeCommand:
         pids_seen: list[int | None] = []
 
         def capture_pid(**_kwargs: object) -> None:
-            pids_seen.append(_read_pid())
+            pids_seen.append(read_pid())
 
         with patch("axm_mcp.server.serve", side_effect=capture_pid):
             _run_cli(["serve"])
@@ -104,7 +104,7 @@ class TestStopCommand:
         tmp_pid_file.write_text("12345")
 
         with (
-            patch("axm_mcp.cli._is_process_alive", return_value=True),
+            patch("axm_mcp.cli.is_process_alive", return_value=True),
             patch("axm_mcp.cli.os.kill") as mock_kill,
         ):
             _run_cli(["stop"])
@@ -129,7 +129,7 @@ class TestStopCommand:
         tmp_pid_file.write_text("99999")
 
         with (
-            patch("axm_mcp.cli._is_process_alive", return_value=False),
+            patch("axm_mcp.cli.is_process_alive", return_value=False),
             pytest.raises(SystemExit, match="1"),
         ):
             app(["stop"], exit_on_error=False)
@@ -147,8 +147,8 @@ class TestPidHelpers:
 
     def test_write_and_read_pid(self, tmp_pid_file: Path) -> None:
         """Round-trip write/read of PID file."""
-        _write_pid(42)
-        assert _read_pid() == 42
+        write_pid(42)
+        assert read_pid() == 42
 
     @pytest.mark.parametrize(
         "content",
@@ -161,8 +161,8 @@ class TestPidHelpers:
         """read_pid returns None when file is absent or non-integer."""
         if content is not None:
             tmp_pid_file.write_text(content)
-        assert _read_pid() is None
+        assert read_pid() is None
 
     def test_remove_pid_idempotent(self, tmp_pid_file: Path) -> None:
         """remove_pid_file is safe to call when file doesn't exist."""
-        _remove_pid_file()  # should not raise
+        remove_pid_file()  # should not raise

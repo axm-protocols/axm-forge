@@ -22,9 +22,9 @@ if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
 
 __all__ = [
-    "_is_disabled",
-    "_register_one",
     "discover_tools",
+    "is_disabled",
+    "register_one",
     "register_tools",
 ]
 
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 _EP_GROUP = "axm.tools"
 
 
-def _is_disabled(name: str, patterns: list[str]) -> bool:
+def is_disabled(name: str, patterns: list[str]) -> bool:
     """Check if a tool name matches any disable pattern.
 
     Supports exact names (``ast_dead_code``) and glob patterns
@@ -102,7 +102,7 @@ def discover_tools() -> dict[str, ToolEntry]:
     tools: dict[str, ToolEntry] = {}
 
     for ep in importlib.metadata.entry_points(group=_EP_GROUP):
-        if disable_patterns and _is_disabled(ep.name, disable_patterns):
+        if disable_patterns and is_disabled(ep.name, disable_patterns):
             logger.info("Skipping disabled tool: %s", ep.name)
             continue
         try:
@@ -140,11 +140,11 @@ def register_tools(  # type: ignore[explicit-any]
             to their descriptions (for list_tools inclusion).
     """
     for name, tool in tools.items():
-        _register_one(mcp, name, tool)
+        register_one(mcp, name, tool)
         logger.info("Registered MCP tool: %s", name)
 
 
-def _register_one(  # type: ignore[explicit-any]
+def register_one(  # type: ignore[explicit-any]
     mcp: FastMCP,
     name: str,
     tool: ToolEntry,
@@ -203,7 +203,7 @@ def _get_tool_doc(tool: ToolEntry) -> str:
     return doc.strip().split("\n")[0]
 
 
-def _register_list_tools(  # type: ignore[explicit-any]
+def register_list_tools(  # type: ignore[explicit-any]
     mcp: FastMCP,
     tools: dict[str, ToolEntry],
     extra_tools: dict[str, str],

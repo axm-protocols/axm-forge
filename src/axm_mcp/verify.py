@@ -76,8 +76,8 @@ def verify_project(
         Consolidated result with 'audit' and 'governance' sections.
         Each section is None if the corresponding tool is not installed.
     """
-    audit_data = _run_tool(tools, "audit", path=path)
-    governance_data = _run_tool(tools, "init_check", path=path)
+    audit_data = run_tool(tools, "audit", path=path)
+    governance_data = run_tool(tools, "init_check", path=path)
 
     # Enrich audit failures with AST context
     if audit_data is not None:
@@ -85,7 +85,7 @@ def verify_project(
         failed = cast(list[dict[str, object]], failed_raw) if failed_raw else []
         if failed and "ast_impact" in tools:
             for failure in failed:
-                context = _enrich_failure(tools, path, failure)
+                context = enrich_failure(tools, path, failure)
                 if context:
                     failure["context"] = context
 
@@ -95,7 +95,7 @@ def verify_project(
     }
 
 
-def _run_tool(
+def run_tool(
     tools: Mapping[str, AXMTool],
     tool_name: str,
     **kwargs: object,
@@ -118,7 +118,7 @@ def _run_tool(
         return {"error": str(exc)}
 
 
-def _enrich_failure(
+def enrich_failure(
     tools: Mapping[str, AXMTool],
     path: str,
     failure: dict[str, object],

@@ -2,7 +2,7 @@
 
 Covers:
 - collect_dispatcher_params: builds union of sub-function signatures
-- _register_one: dispatcher wrapper has correct __signature__
+- register_one: dispatcher wrapper has correct __signature__
 - End-to-end: wrapper forwards kwargs to sub-functions
 """
 
@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from axm_mcp.discovery import _register_one
+from axm_mcp.discovery import register_one
 from axm_mcp.schema import collect_dispatcher_params, extract_docstring_params
 
 # ────────────────────────────── Fixtures ─────────────────────────────────
@@ -165,14 +165,14 @@ class TestCollectDispatcherParams:
 
 
 class TestDispatcherRegistration:
-    """_register_one creates correct schema for dispatchers."""
+    """register_one creates correct schema for dispatchers."""
 
     def test_registered_wrapper_has_union_signature(self) -> None:
         """Wrapper __signature__ includes action + all sub-fn params."""
         dispatcher, _actions, mod = _make_dispatcher_module()
         fake_mcp = FakeMCP()
 
-        _register_one(fake_mcp, "test_dispatch", dispatcher, override_module=mod)
+        register_one(fake_mcp, "test_dispatch", dispatcher, override_module=mod)
 
         wrapper = fake_mcp.tools["test_dispatch"]
         sig = inspect.signature(wrapper)
@@ -187,7 +187,7 @@ class TestDispatcherRegistration:
         dispatcher, _actions, mod = _make_dispatcher_module()
         fake_mcp = FakeMCP()
 
-        _register_one(fake_mcp, "test_dispatch", dispatcher, override_module=mod)
+        register_one(fake_mcp, "test_dispatch", dispatcher, override_module=mod)
 
         result = fake_mcp.tools["test_dispatch"](action="open", path="/tmp/test")
         assert result == {"path": "/tmp/test"}
@@ -197,7 +197,7 @@ class TestDispatcherRegistration:
         dispatcher, _actions, mod = _make_dispatcher_module()
         fake_mcp = FakeMCP()
 
-        _register_one(fake_mcp, "test_dispatch", dispatcher, override_module=mod)
+        register_one(fake_mcp, "test_dispatch", dispatcher, override_module=mod)
 
         result = fake_mcp.tools["test_dispatch"](action="list")
         assert result == {"items": []}
@@ -314,7 +314,7 @@ class TestExtractDocstringParams:
 
 
 class TestNonDispatcherRegistration:
-    """_register_one uses docstring fallback for AXMTool.execute(**kwargs)."""
+    """register_one uses docstring fallback for AXMTool.execute(**kwargs)."""
 
     def test_axm_tool_with_kwargs_gets_docstring_params(self) -> None:
         """AXMTool.execute(**kwargs) exposes params from docstring."""
@@ -344,7 +344,7 @@ class TestNonDispatcherRegistration:
 
         fake_mcp = FakeMCP()
         tool = FakeTool()
-        _register_one(fake_mcp, "test_tool", tool)
+        register_one(fake_mcp, "test_tool", tool)
 
         wrapper = fake_mcp.tools["test_tool"]
         sig = inspect.signature(wrapper)
@@ -370,7 +370,7 @@ class TestNonDispatcherRegistration:
                 return _R()
 
         fake_mcp = FakeMCP()
-        _register_one(fake_mcp, "bare", BareTool())
+        register_one(fake_mcp, "bare", BareTool())
 
         wrapper = fake_mcp.tools["bare"]
         sig = inspect.signature(wrapper)
@@ -400,7 +400,7 @@ class TestNonDispatcherRegistration:
                 return _R()
 
         fake_mcp = FakeMCP()
-        _register_one(fake_mcp, "typed", TypedTool())
+        register_one(fake_mcp, "typed", TypedTool())
 
         wrapper = fake_mcp.tools["typed"]
         sig = inspect.signature(wrapper)
