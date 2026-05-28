@@ -746,39 +746,20 @@ def _stmt_assignment_targets(stmt: ast.stmt) -> list[str]:
     return []
 
 
-def _collect_module_level_deps_to_copy(
-    source_tree: ast.Module,
-    target_tree: ast.Module,
-    moving_unit_names: list[str],
-    project_path: Path,
-    target: Path,
-) -> list[str]:
-    """Module-level ``Assign`` / ``AnnAssign`` deps the moving units need.
+def _iter_stmt_free_load_names(stmt: ast.stmt) -> Iterator[str]:
+    """Yield free ``Name(Load)`` ids referenced in *stmt*'s value/refs."""
+    for child in _iter_stmt_ref_nodes(stmt):
+        for sub in ast.walk(child):
+            if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
+                yield sub.id
 
-    Transitive closure (to fixed point) of names referenced inside the
-    decorators of moving units, restricted to top-level ``Assign`` /
-    ``AnnAssign`` definitions in *source*. The closure follows free
-    ``Name(Load)`` references in the value of each carried statement,
-    so ``_no_corpus = pytest.mark.skipif(not CASES, ...)`` drags
-    ``_no_corpus``, then ``CASES``, recursively.
 
-    Returns the carried names in **source order** — these constants
-    will be inserted as text into the target file, and later statements
-    may reference earlier ones (``B = A + 1`` after ``A = 1``).
-
-    Excludes names already defined at the top level of *target* or in
-    a visible conftest, and the moving unit names themselves (those are
-    handled by anvil). Self-reference cycles are broken by a ``seen``
-    guard during fixed-point iteration.
-    """
-    seed = _seed_module_deps_from_units(source_tree, moving_unit_names)
-    if not seed:
-        return []
-    source_defs = _source_top_level_definitions(source_tree)
-    target_top_names = _target_top_level_names(target_tree)
-    conftest_fixtures = _collect_conftest_fixtures(target, project_path)
-    excluded = target_top_names | conftest_fixtures | set(moving_unit_names)
-
+def _carried_module_dep_names(
+    seed: set[str],
+    source_defs: dict[str, ast.stmt],
+    excluded: set[str],
+) -> set[str]:
+    """Fixed-point closure of ``Assign``/``AnnAssign`` deps reachable from *seed*."""
     carried: set[str] = set()
     seen: set[str] = set()
     queue: list[str] = list(seed)
@@ -791,19 +772,38 @@ def _collect_module_level_deps_to_copy(
             continue
         node = source_defs.get(name)
         if not isinstance(node, ast.Assign | ast.AnnAssign):
-            # Function/class defs (incl. fixtures) are NOT carried by
-            # this path — anvil handles them via final_units or via
-            # the usefixtures path.
             continue
         carried.add(name)
-        for child in _iter_stmt_ref_nodes(node):
-            for sub in ast.walk(child):
-                if (
-                    isinstance(sub, ast.Name)
-                    and isinstance(sub.ctx, ast.Load)
-                    and sub.id not in seen
-                ):
-                    queue.append(sub.id)
+        queue.extend(ref for ref in _iter_stmt_free_load_names(node) if ref not in seen)
+    return carried
+
+
+def _collect_module_level_deps_to_copy(
+    source_tree: ast.Module,
+    target_tree: ast.Module,
+    moving_unit_names: list[str],
+    project_path: Path,
+    target: Path,
+) -> list[str]:
+    """Module-level ``Assign`` / ``AnnAssign`` deps the moving units need.
+
+    Transitive closure (to fixed point) of names referenced inside the
+    decorators of moving units, restricted to top-level ``Assign`` /
+    ``AnnAssign`` definitions in *source*. Returns carried names in
+    **source order**. Excludes names already defined at the top level of
+    *target* or in a visible conftest, and the moving unit names
+    themselves (handled by anvil).
+    """
+    seed = _seed_module_deps_from_units(source_tree, moving_unit_names)
+    if not seed:
+        return []
+    source_defs = _source_top_level_definitions(source_tree)
+    excluded = (
+        _target_top_level_names(target_tree)
+        | _collect_conftest_fixtures(target, project_path)
+        | set(moving_unit_names)
+    )
+    carried = _carried_module_dep_names(seed, source_defs, excluded)
     return [
         name
         for stmt in source_tree.body
