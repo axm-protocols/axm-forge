@@ -10,8 +10,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from axm.tools.base import ToolResult
-
-_DISCOVER = "axm_mcp.discovery.importlib.metadata.entry_points"
+from tests.unit._helpers import _DISCOVER
 
 
 def _make_ep(name: str, tool_instance: Any | None = None) -> MagicMock:
