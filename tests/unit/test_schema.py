@@ -12,6 +12,8 @@ import inspect
 import types
 from typing import Any
 
+import pytest
+
 from axm_mcp.discovery import _register_one
 from axm_mcp.schema import collect_dispatcher_params, extract_docstring_params
 
@@ -237,33 +239,33 @@ class TestExtractDocstringParams:
         assert params[0].name == "path"
         assert params[0].annotation is inspect.Parameter.empty
 
-    def test_returns_empty_for_no_args(self) -> None:
-        """No Args section → empty list."""
-        doc = """Do something simple."""
+    @pytest.mark.parametrize(
+        "doc",
+        [
+            pytest.param("Do something simple.", id="no_args_section"),
+            pytest.param(None, id="none_docstring"),
+        ],
+    )
+    def test_returns_empty_without_args(self, doc: str | None) -> None:
+        """Docstring lacking an Args section (or None) → empty list."""
         params = extract_docstring_params(doc)
         assert params == []
 
-    def test_returns_empty_for_none(self) -> None:
-        """None docstring → empty list."""
-        params = extract_docstring_params(None)
-        assert params == []
-
-    def test_skips_kwargs(self) -> None:
-        """**kwargs line is ignored."""
-        doc = """\
+    @pytest.mark.parametrize(
+        "doc",
+        [
+            pytest.param(
+                """\
         Do something.
 
         Args:
             path (str): Path to dir.
             **kwargs: Extra arguments.
-        """
-        params = extract_docstring_params(doc)
-        assert len(params) == 1
-        assert params[0].name == "path"
-
-    def test_stops_at_returns_section(self) -> None:
-        """Args: block ends at Returns: section."""
-        doc = """\
+        """,
+                id="skips_kwargs",
+            ),
+            pytest.param(
+                """\
         Do something.
 
         Args:
@@ -271,7 +273,13 @@ class TestExtractDocstringParams:
 
         Returns:
             ToolResult with data.
-        """
+        """,
+                id="stops_at_returns",
+            ),
+        ],
+    )
+    def test_extracts_single_param_path(self, doc: str) -> None:
+        """Only the real 'path' arg is extracted (kwargs/Returns excluded)."""
         params = extract_docstring_params(doc)
         assert len(params) == 1
         assert params[0].name == "path"
