@@ -23,7 +23,7 @@ class TestMCPServer:
 
     def test_discovery_ran(self) -> None:
         """Tool discovery ran (may be empty if no axm-* packages installed)."""
-        assert isinstance(mcp_app._discovered_tools, dict)
+        assert isinstance(mcp_app.discovered_tools, dict)
 
     def test_main_function_exists(self) -> None:
         """main() entry point exists."""
