@@ -9,6 +9,13 @@ from axm_anvil._cst.visitors import _dotted_name
 __all__ = ["_detect_overload_group"]
 
 
+def _typing_aliases_from_import(node: cst.ImportFrom) -> list[cst.ImportAlias]:
+    module = _dotted_name(node.module) if node.module else ""
+    if module != "typing" or isinstance(node.names, cst.ImportStar):
+        return []
+    return list(node.names)
+
+
 def _iter_typing_import_names(
     tree: cst.Module,
 ) -> list[cst.ImportAlias]:
@@ -18,14 +25,8 @@ def _iter_typing_import_names(
         if not isinstance(stmt, cst.SimpleStatementLine):
             continue
         for inner in stmt.body:
-            if not isinstance(inner, cst.ImportFrom):
-                continue
-            module = _dotted_name(inner.module) if inner.module else ""
-            if module != "typing":
-                continue
-            if isinstance(inner.names, cst.ImportStar):
-                continue
-            result.extend(inner.names)
+            if isinstance(inner, cst.ImportFrom):
+                result.extend(_typing_aliases_from_import(inner))
     return result
 
 

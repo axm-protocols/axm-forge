@@ -125,6 +125,16 @@ def _parse_symbol_spec(spec: str) -> tuple[str, int | None]:
     return spec, None
 
 
+def _reject_partial_overload(
+    name: str, idx: int | None, group: list[cst.FunctionDef]
+) -> None:
+    if idx is not None and group:
+        raise OverloadPartialMoveError(
+            f"{name!r} is part of an overload group of {len(group)} "
+            "signatures; move the full group by name without ':idx'"
+        )
+
+
 def _expand_overloads(
     source_tree: cst.Module, raw_names: Sequence[str]
 ) -> tuple[list[str], list[str]]:
@@ -140,27 +150,12 @@ def _expand_overloads(
     for raw in raw_names:
         name, idx = _parse_symbol_spec(raw)
         group = _detect_overload_group(source_tree, name)
-        if idx is not None:
-            if group:
-                raise OverloadPartialMoveError(
-                    f"{name!r} is part of an overload group of {len(group)} "
-                    "signatures; move the full group by name without ':idx'"
-                )
-            if name not in seen:
-                expanded.append(name)
-                seen.add(name)
-                user_reported.append(name)
+        _reject_partial_overload(name, idx, group)
+        if name in seen:
             continue
-        if group:
-            if name not in seen:
-                expanded.append(name)
-                seen.add(name)
-                user_reported.append(name)
-            continue
-        if name not in seen:
-            expanded.append(name)
-            seen.add(name)
-            user_reported.append(name)
+        expanded.append(name)
+        seen.add(name)
+        user_reported.append(name)
     return expanded, user_reported
 
 
