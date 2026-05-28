@@ -463,6 +463,7 @@ def reserve(
 ) -> None:
     """Reserve a package name on PyPI."""
     from axm_init.adapters.credentials import CredentialManager
+    from axm_init.adapters.pypi import PyPIAdapter
     from axm_init.core.reserver import reserve_pypi
 
     author = author or _git_config_get("user.name")
@@ -479,6 +480,7 @@ def reserve(
         email=email,
         token=token or "",
         dry_run=dry_run,
+        checker=PyPIAdapter(),
     )
 
     _print_reserve_result(result, name=name, json_output=json_output)

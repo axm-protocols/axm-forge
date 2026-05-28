@@ -11,8 +11,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from axm_init.adapters.pypi import AvailabilityStatus, PyPIAdapter
-from axm_init.models.results import ReserveResult
+from axm_init.core.ports import AvailabilityChecker
+from axm_init.models.results import AvailabilityStatus, ReserveResult
 
 logger = logging.getLogger(__name__)
 
@@ -123,12 +123,14 @@ def publish_package(path: Path, token: str) -> tuple[bool, str]:
     return True, ""
 
 
-def reserve_pypi(
+def reserve_pypi(  # noqa: PLR0913
     name: str,
     author: str,
     email: str,
     token: str,
     dry_run: bool = False,
+    *,
+    checker: AvailabilityChecker,
 ) -> ReserveResult:
     """Reserve a package name on PyPI.
 
@@ -138,13 +140,15 @@ def reserve_pypi(
         email: Author email.
         token: PyPI API token.
         dry_run: If True, skip actual publish.
+        checker: Availability checker port. Injected by the composition
+            root (CLI / MCP tool layer); ``core`` never references a
+            concrete adapter.
 
     Returns:
         ReserveResult with success status.
     """
     # Check availability first
-    adapter = PyPIAdapter()
-    status = adapter.check_availability(name)
+    status = checker.check_availability(name)
 
     if status == AvailabilityStatus.TAKEN:
         return ReserveResult(
@@ -195,7 +199,7 @@ def reserve_pypi(
                 # If we reach here, initial check was AVAILABLE. Re-check now:
                 # - TAKEN  → someone else published between check and publish
                 # - AVAILABLE/ERROR → our own prior reservation (idempotent)
-                recheck = adapter.check_availability(name)
+                recheck = checker.check_availability(name)
                 if recheck == AvailabilityStatus.TAKEN:
                     logger.warning(
                         "Race condition: '%s' was taken between availability "
