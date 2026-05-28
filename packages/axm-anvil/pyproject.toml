@@ -54,6 +54,9 @@ version-file = "src/axm_anvil/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/axm_anvil"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"docs/index.md" = "axm_anvil/docs/index.md"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
