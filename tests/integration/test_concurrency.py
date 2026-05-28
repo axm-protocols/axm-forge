@@ -9,6 +9,8 @@ import pytest
 from axm_mcp import wrapping as _wrapping
 from axm_mcp.discovery import _register_one
 
+pytestmark = pytest.mark.integration
+
 
 class _FakeSessionTool:
     """Minimal AXMTool stub with execute()."""
