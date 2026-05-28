@@ -167,6 +167,10 @@ addopts = [
     "--cov-fail-under=0",
 ]
 filterwarnings = ["error"]
+markers = [
+    "integration: tests touching real I/O (filesystem, network, DB)",
+    "e2e: end-to-end tests invoking the CLI as a subprocess",
+]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Coverage Configuration
