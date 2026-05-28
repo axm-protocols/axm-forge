@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import libcst as cst
 
-from axm_anvil._cst.transformers import _AttributeRewriter
+from axm_anvil._cst.transformers import AttributeRewriter
 
 
 def _rewrite(
@@ -11,10 +11,10 @@ def _rewrite(
     old_module_alias: str,
     new_module: str,
     symbols: set[str],
-) -> tuple[str, _AttributeRewriter]:
+) -> tuple[str, AttributeRewriter]:
     tree = cst.parse_module(source)
     wrapper = cst.metadata.MetadataWrapper(tree)
-    transformer = _AttributeRewriter(
+    transformer = AttributeRewriter(
         old_module_alias=old_module_alias,
         new_module=new_module,
         symbols=symbols,

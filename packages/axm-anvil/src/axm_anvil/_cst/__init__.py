@@ -7,16 +7,16 @@ change without notice. External consumers should use the public
 
 from __future__ import annotations
 
-from axm_anvil._cst.blocks import Block, _extract_blocks
-from axm_anvil._cst.overloads import _detect_overload_group
-from axm_anvil._cst.transformers import _RemoveSymbols
-from axm_anvil._cst.visitors import _dotted_name, _ReferenceCollector
+from axm_anvil._cst.blocks import Block, extract_blocks
+from axm_anvil._cst.overloads import detect_overload_group
+from axm_anvil._cst.transformers import RemoveSymbols
+from axm_anvil._cst.visitors import ReferenceCollector, dotted_name
 
 __all__ = [
     "Block",
-    "_ReferenceCollector",
-    "_RemoveSymbols",
-    "_detect_overload_group",
-    "_dotted_name",
-    "_extract_blocks",
+    "ReferenceCollector",
+    "RemoveSymbols",
+    "detect_overload_group",
+    "dotted_name",
+    "extract_blocks",
 ]

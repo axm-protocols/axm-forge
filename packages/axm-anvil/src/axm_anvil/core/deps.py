@@ -6,17 +6,17 @@ from dataclasses import dataclass
 
 import libcst as cst
 
-from axm_anvil._cst import _dotted_name
-from axm_anvil._cst.visitors import _ReferenceCollector
+from axm_anvil._cst import dotted_name
+from axm_anvil._cst.visitors import ReferenceCollector
 
 __all__ = [
     "ImportInfo",
-    "_gather_source_constants",
-    "_gather_source_helpers",
-    "_gather_source_imports",
     "_gather_target_existing",
     "_gather_target_imports",
-    "_topo_sort_constants",
+    "gather_source_constants",
+    "gather_source_helpers",
+    "gather_source_imports",
+    "topo_sort_constants",
 ]
 
 
@@ -38,7 +38,7 @@ def _import_info_from_import_stmt(
     node: cst.Import, mapping: dict[str, ImportInfo]
 ) -> None:
     for alias_node in node.names:
-        full = _dotted_name(alias_node.name)
+        full = dotted_name(alias_node.name)
         if not full:
             continue
         asname = _alias_asname(alias_node)
@@ -51,7 +51,7 @@ def _import_info_from_importfrom_stmt(
 ) -> None:
     if isinstance(node.names, cst.ImportStar):
         return
-    module = _dotted_name(node.module) if node.module else ""
+    module = dotted_name(node.module) if node.module else ""
     relative = len(node.relative)
     for alias_node in node.names:
         if not isinstance(alias_node.name, cst.Name):
@@ -67,7 +67,7 @@ def _import_info_from_importfrom_stmt(
         )
 
 
-def _gather_source_imports(tree: cst.Module) -> dict[str, ImportInfo]:
+def gather_source_imports(tree: cst.Module) -> dict[str, ImportInfo]:
     """Map local names to the ``ImportInfo`` describing their origin."""
     mapping: dict[str, ImportInfo] = {}
     for stmt in tree.body:
@@ -84,7 +84,7 @@ def _gather_source_imports(tree: cst.Module) -> dict[str, ImportInfo]:
 def _gather_target_imports(tree: cst.Module) -> dict[str, ImportInfo]:
     """Map local names already imported in the target tree to their ``ImportInfo``.
 
-    Mirrors :func:`_gather_source_imports` but is used to detect names that
+    Mirrors :func:`gather_source_imports` but is used to detect names that
     are already in scope in the target file before adding new imports.
     """
     mapping: dict[str, ImportInfo] = {}
@@ -99,7 +99,7 @@ def _gather_target_imports(tree: cst.Module) -> dict[str, ImportInfo]:
     return mapping
 
 
-def _gather_source_constants(
+def gather_source_constants(
     tree: cst.Module,
 ) -> dict[str, cst.SimpleStatementLine]:
     """Map module-level constant names to their ``SimpleStatementLine``."""
@@ -120,7 +120,7 @@ def _gather_source_constants(
     return mapping
 
 
-def _gather_source_helpers(
+def gather_source_helpers(
     tree: cst.Module,
 ) -> dict[str, cst.FunctionDef | cst.ClassDef]:
     """Map top-level ``FunctionDef`` / ``ClassDef`` names to their node."""
@@ -131,7 +131,7 @@ def _gather_source_helpers(
     return mapping
 
 
-def _topo_sort_constants(
+def topo_sort_constants(
     constants: dict[str, cst.SimpleStatementLine],
 ) -> list[cst.SimpleStatementLine]:
     """Topologically sort constants so deps appear before dependents.
@@ -143,7 +143,7 @@ def _topo_sort_constants(
     keys = set(constants)
     deps: dict[str, set[str]] = {}
     for name, stmt in constants.items():
-        collector = _ReferenceCollector()
+        collector = ReferenceCollector()
         stmt.visit(collector)
         deps[name] = (collector.names & keys) - {name}
 
