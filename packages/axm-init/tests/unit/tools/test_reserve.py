@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -164,6 +164,7 @@ class TestReserveDryRun:
             email="real@email.com",
             token=expected_token_arg,
             dry_run=True,
+            checker=ANY,
         )
 
 

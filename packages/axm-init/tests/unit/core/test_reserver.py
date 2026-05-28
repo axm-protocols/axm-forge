@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from axm_init.adapters.pypi import AvailabilityStatus
 from axm_init.core.reserver import build_package, publish_package, reserve_pypi
+from axm_init.models.results import AvailabilityStatus
 
 
 class TestReserveResult:
@@ -66,17 +66,15 @@ class TestReserverUnit:
 
     @patch("axm_init.core.reserver.publish_package")
     @patch("axm_init.core.reserver.build_package")
-    @patch("axm_init.core.reserver.PyPIAdapter")
     def test_reserve_race_condition(
         self,
-        mock_adapter_cls: MagicMock,
         mock_build: MagicMock,
         mock_publish: MagicMock,
     ) -> None:
         """Race condition: recheck returns TAKEN → success=False."""
-        adapter = mock_adapter_cls.return_value
+        checker = MagicMock()
         # First check: AVAILABLE, recheck after "already exists": TAKEN
-        adapter.check_availability.side_effect = [
+        checker.check_availability.side_effect = [
             AvailabilityStatus.AVAILABLE,
             AvailabilityStatus.TAKEN,
         ]
@@ -88,6 +86,7 @@ class TestReserverUnit:
             author="Test",
             email="test@example.com",
             token="pypi-test",
+            checker=checker,
         )
 
         assert result.success is False
@@ -95,17 +94,15 @@ class TestReserverUnit:
 
     @patch("axm_init.core.reserver.publish_package")
     @patch("axm_init.core.reserver.build_package")
-    @patch("axm_init.core.reserver.PyPIAdapter")
     def test_reserve_idempotent_rerun(
         self,
-        mock_adapter_cls: MagicMock,
         mock_build: MagicMock,
         mock_publish: MagicMock,
     ) -> None:
         """Idempotent re-run: recheck returns AVAILABLE → success=True."""
-        adapter = mock_adapter_cls.return_value
+        checker = MagicMock()
         # First check: AVAILABLE, recheck after "already exists": AVAILABLE
-        adapter.check_availability.side_effect = [
+        checker.check_availability.side_effect = [
             AvailabilityStatus.AVAILABLE,
             AvailabilityStatus.AVAILABLE,
         ]
@@ -117,6 +114,7 @@ class TestReserverUnit:
             author="Test",
             email="test@example.com",
             token="pypi-test",
+            checker=checker,
         )
 
         assert result.success is True
@@ -124,17 +122,15 @@ class TestReserverUnit:
 
     @patch("axm_init.core.reserver.publish_package")
     @patch("axm_init.core.reserver.build_package")
-    @patch("axm_init.core.reserver.PyPIAdapter")
     def test_reserve_recheck_error_fails_safe(
         self,
-        mock_adapter_cls: MagicMock,
         mock_build: MagicMock,
         mock_publish: MagicMock,
     ) -> None:
         """Network error on recheck → fail-safe (success=True, idempotent)."""
-        adapter = mock_adapter_cls.return_value
+        checker = MagicMock()
         # First check: AVAILABLE, recheck after "already exists": ERROR
-        adapter.check_availability.side_effect = [
+        checker.check_availability.side_effect = [
             AvailabilityStatus.AVAILABLE,
             AvailabilityStatus.ERROR,
         ]
@@ -146,6 +142,7 @@ class TestReserverUnit:
             author="Test",
             email="test@example.com",
             token="pypi-test",
+            checker=checker,
         )
 
         # ERROR on recheck = can't confirm race, assume idempotent
@@ -251,120 +248,107 @@ class TestReservePyPIFlow:
     @patch("axm_init.core.reserver.publish_package")
     @patch("axm_init.core.reserver.build_package")
     @patch("axm_init.core.reserver.create_minimal_package")
-    @patch("axm_init.core.reserver.PyPIAdapter")
     def test_full_reserve_success(
         self,
-        mock_pypi: MagicMock,
         mock_create: MagicMock,
         mock_build: MagicMock,
         mock_publish: MagicMock,
     ) -> None:
         """Full reserve flow: available → build → publish → success."""
-        mock_pypi.return_value.check_availability.return_value = (
-            AvailabilityStatus.AVAILABLE
-        )
+        checker = MagicMock()
+        checker.check_availability.return_value = AvailabilityStatus.AVAILABLE
         mock_build.return_value = (True, "")
         mock_publish.return_value = (True, "")
 
-        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token")
+        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token", checker=checker)
         assert result.success is True
         assert "Reserved" in result.message
 
     @patch("axm_init.core.reserver.build_package")
     @patch("axm_init.core.reserver.create_minimal_package")
-    @patch("axm_init.core.reserver.PyPIAdapter")
     def test_reserve_build_fails(
         self,
-        mock_pypi: MagicMock,
         mock_create: MagicMock,
         mock_build: MagicMock,
     ) -> None:
         """Build failure returns error result."""
-        mock_pypi.return_value.check_availability.return_value = (
-            AvailabilityStatus.AVAILABLE
-        )
+        checker = MagicMock()
+        checker.check_availability.return_value = AvailabilityStatus.AVAILABLE
         mock_build.return_value = (False, "compile error")
 
-        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token")
+        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token", checker=checker)
         assert result.success is False
         assert "Build failed" in result.message
 
     @patch("axm_init.core.reserver.publish_package")
     @patch("axm_init.core.reserver.build_package")
     @patch("axm_init.core.reserver.create_minimal_package")
-    @patch("axm_init.core.reserver.PyPIAdapter")
     def test_reserve_race_condition(
         self,
-        mock_pypi: MagicMock,
         mock_create: MagicMock,
         mock_build: MagicMock,
         mock_publish: MagicMock,
     ) -> None:
         """Race condition: name taken between check and publish → failure."""
+        checker = MagicMock()
         # First call: AVAILABLE (initial check), second call: TAKEN (re-check)
-        mock_pypi.return_value.check_availability.side_effect = [
+        checker.check_availability.side_effect = [
             AvailabilityStatus.AVAILABLE,
             AvailabilityStatus.TAKEN,
         ]
         mock_build.return_value = (True, "")
         mock_publish.return_value = (False, "File already exists")
 
-        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token")
+        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token", checker=checker)
         assert result.success is False
         assert "taken by another user" in result.message.lower()
 
     @patch("axm_init.core.reserver.publish_package")
     @patch("axm_init.core.reserver.build_package")
     @patch("axm_init.core.reserver.create_minimal_package")
-    @patch("axm_init.core.reserver.PyPIAdapter")
     def test_reserve_idempotent_rerun(
         self,
-        mock_pypi: MagicMock,
         mock_create: MagicMock,
         mock_build: MagicMock,
         mock_publish: MagicMock,
     ) -> None:
         """Idempotent re-run: our own prior reservation → success."""
-        mock_pypi.return_value.check_availability.side_effect = [
+        checker = MagicMock()
+        checker.check_availability.side_effect = [
             AvailabilityStatus.AVAILABLE,
             AvailabilityStatus.AVAILABLE,
         ]
         mock_build.return_value = (True, "")
         mock_publish.return_value = (False, "File already exists")
 
-        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token")
+        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token", checker=checker)
         assert result.success is True
         assert "already reserved" in result.message.lower()
 
     @patch("axm_init.core.reserver.publish_package")
     @patch("axm_init.core.reserver.build_package")
     @patch("axm_init.core.reserver.create_minimal_package")
-    @patch("axm_init.core.reserver.PyPIAdapter")
     def test_reserve_publish_fails(
         self,
-        mock_pypi: MagicMock,
         mock_create: MagicMock,
         mock_build: MagicMock,
         mock_publish: MagicMock,
     ) -> None:
         """Generic publish failure returns error result."""
-        mock_pypi.return_value.check_availability.return_value = (
-            AvailabilityStatus.AVAILABLE
-        )
+        checker = MagicMock()
+        checker.check_availability.return_value = AvailabilityStatus.AVAILABLE
         mock_build.return_value = (True, "")
         mock_publish.return_value = (False, "network timeout")
 
-        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token")
+        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token", checker=checker)
         assert result.success is False
         assert "Publish failed" in result.message
 
-    @patch("axm_init.core.reserver.PyPIAdapter")
-    def test_reserve_availability_error(self, mock_pypi: MagicMock) -> None:
+    def test_reserve_availability_error(self) -> None:
         """Availability check error returns error result."""
-        mock_pypi.return_value.check_availability.return_value = (
-            AvailabilityStatus.ERROR
-        )
+        checker = MagicMock()
+        checker.check_availability.return_value = AvailabilityStatus.ERROR
 
-        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token")
+        result = reserve_pypi("new-pkg", "Author", "a@b.com", "token", checker=checker)
         assert result.success is False
         assert "availability" in result.message.lower()

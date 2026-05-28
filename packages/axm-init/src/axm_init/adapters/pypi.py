@@ -7,17 +7,11 @@ from __future__ import annotations
 
 __all__ = ["AvailabilityStatus", "PyPIAdapter"]
 
-from enum import StrEnum
-
 import httpx
 
-
-class AvailabilityStatus(StrEnum):
-    """Package name availability status."""
-
-    AVAILABLE = "available"
-    TAKEN = "taken"
-    ERROR = "error"
+# Re-exported for backward compatibility. The enum is owned by the
+# application layer (``models.results``); adapters may depend on it.
+from axm_init.models.results import AvailabilityStatus
 
 
 class PyPIAdapter:
