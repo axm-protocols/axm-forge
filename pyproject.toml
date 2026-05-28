@@ -121,6 +121,10 @@ known-first-party = ["axm_mcp"]
 [tool.axm-audit.mirror]
 exempt_paths = ["**/__init__.py", "_version.py"]
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4e0ecb6422d3"
+reason = "Heterogeneous: env-driven filtering tests assert different field sets (len-only vs membership+len) and test_skips_broken_entry_point exercises a distinct SUT path (ImportError EP skip, no AXM_DISABLE_TOOLS env)."
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MyPy Configuration
 # ─────────────────────────────────────────────────────────────────────────────

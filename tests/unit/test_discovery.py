@@ -37,29 +37,30 @@ from axm_mcp.discovery import (
 class TestIsDisabled:
     """Unit tests for the _is_disabled helper."""
 
-    def test_exact_match(self) -> None:
-        assert _is_disabled("ast_dead_code", ["ast_dead_code"]) is True
-
-    def test_glob_match(self) -> None:
-        assert _is_disabled("bib_search", ["bib_*"]) is True
-
-    def test_no_match(self) -> None:
-        assert _is_disabled("git_commit", ["bib_*"]) is False
-
-    def test_empty_patterns(self) -> None:
-        assert _is_disabled("anything", []) is False
-
-    def test_multiple_patterns_first_matches(self) -> None:
-        assert _is_disabled("bib_search", ["bib_*", "ast_*"]) is True
-
-    def test_multiple_patterns_second_matches(self) -> None:
-        assert _is_disabled("ast_inspect", ["bib_*", "ast_*"]) is True
-
-    def test_multiple_patterns_none_matches(self) -> None:
-        assert _is_disabled("git_commit", ["bib_*", "ast_dead_code"]) is False
-
-    def test_wildcard_matches_all(self) -> None:
-        assert _is_disabled("anything", ["*"]) is True
+    @pytest.mark.parametrize(
+        ("name", "patterns", "expected"),
+        [
+            pytest.param("ast_dead_code", ["ast_dead_code"], True, id="exact_match"),
+            pytest.param("bib_search", ["bib_*"], True, id="glob_match"),
+            pytest.param("git_commit", ["bib_*"], False, id="no_match"),
+            pytest.param("anything", [], False, id="empty_patterns"),
+            pytest.param(
+                "bib_search", ["bib_*", "ast_*"], True, id="multiple_first_matches"
+            ),
+            pytest.param(
+                "ast_inspect", ["bib_*", "ast_*"], True, id="multiple_second_matches"
+            ),
+            pytest.param(
+                "git_commit",
+                ["bib_*", "ast_dead_code"],
+                False,
+                id="multiple_none_matches",
+            ),
+            pytest.param("anything", ["*"], True, id="wildcard_matches_all"),
+        ],
+    )
+    def test_is_disabled(self, name: str, patterns: list[str], expected: bool) -> None:
+        assert _is_disabled(name, patterns) is expected
 
 
 class _FakeEntryPoint:
@@ -187,6 +188,27 @@ def _make_bib_ep(name: str, tool_instance: Any | None = None) -> MagicMock:
     return ep
 
 
+class TestToolDiscoveryByName:
+    """A single mocked entry point is discoverable under its own name."""
+
+    @pytest.mark.parametrize(
+        "tool_name",
+        [
+            pytest.param("bib_search", id="bib_search_exists"),
+            pytest.param("bib_pdf", id="bib_pdf_exists"),
+            pytest.param("formal_esbmc", id="formal_esbmc_discovered"),
+            pytest.param("formal_dafny", id="formal_dafny_discovered"),
+            pytest.param("formal_kind2", id="formal_kind2_discovered"),
+        ],
+    )
+    @patch(_DISCOVER)
+    def test_tool_discovered_by_name(self, mock_eps: MagicMock, tool_name: str) -> None:
+        """A mocked entry point named *tool_name* appears in discover_tools()."""
+        mock_eps.return_value = [_make_bib_ep(tool_name)]
+        tools = discover_tools()
+        assert tool_name in tools
+
+
 class TestToolDiscovery:
     """Auto-discovery of AXMTool entry points."""
 
@@ -276,13 +298,6 @@ class TestBibSearchMCP:
     """MCP bib_search tool tests — all discovered via mocked entry points."""
 
     @patch(_DISCOVER)
-    def test_bib_search_tool_exists(self, mock_eps: MagicMock) -> None:
-        """bib_search is discoverable from axm.tools."""
-        mock_eps.return_value = [_make_bib_ep("bib_search")]
-        tools = discover_tools()
-        assert "bib_search" in tools
-
-    @patch(_DISCOVER)
     def test_bib_search_happy_path(self, mock_eps: MagicMock) -> None:
         """Returns papers list."""
         tool = MagicMock()
@@ -298,32 +313,31 @@ class TestBibSearchMCP:
         assert result.success
         assert result.data["count"] == 1
 
+    @pytest.mark.parametrize(
+        ("query", "error", "expected_substr"),
+        [
+            pytest.param("", "Query is required", "Query", id="empty_query"),
+            pytest.param("test", "Connection refused", "Connection", id="api_failure"),
+        ],
+    )
     @patch(_DISCOVER)
-    def test_bib_search_empty_query(self, mock_eps: MagicMock) -> None:
-        """Empty query returns error."""
+    def test_bib_search_error_paths(
+        self,
+        mock_eps: MagicMock,
+        query: str,
+        error: str,
+        expected_substr: str,
+    ) -> None:
+        """Failing bib_search executions report success=False with the error."""
         tool = MagicMock()
         tool.name = "bib_search"
-        tool.execute.return_value = ToolResult(success=False, error="Query is required")
+        tool.execute.return_value = ToolResult(success=False, error=error)
         mock_eps.return_value = [_make_bib_ep("bib_search", tool)]
 
         tools = discover_tools()
-        result = tools["bib_search"].execute(query="")
+        result = tools["bib_search"].execute(query=query)
         assert not result.success
-
-    @patch(_DISCOVER)
-    def test_bib_search_api_failure(self, mock_eps: MagicMock) -> None:
-        """Network error → success=False."""
-        tool = MagicMock()
-        tool.name = "bib_search"
-        tool.execute.return_value = ToolResult(
-            success=False, error="Connection refused"
-        )
-        mock_eps.return_value = [_make_bib_ep("bib_search", tool)]
-
-        tools = discover_tools()
-        result = tools["bib_search"].execute(query="test")
-        assert not result.success
-        assert "Connection" in (result.error or "")
+        assert expected_substr in (result.error or "")
 
     @patch(_DISCOVER)
     def test_bib_search_limit_param(self, mock_eps: MagicMock) -> None:
@@ -343,52 +357,49 @@ class TestBibSearchMCP:
 class TestBibPdfMCP:
     """MCP bib_pdf tool tests."""
 
+    @pytest.mark.parametrize(
+        ("doi", "data", "expected_oa"),
+        [
+            pytest.param(
+                "10.1/x",
+                {
+                    "path": "/tmp/paper.pdf",
+                    "size_bytes": 42000,
+                    "is_open_access": True,
+                },
+                True,
+                id="happy_path",
+            ),
+            pytest.param(
+                "10.1/closed",
+                {
+                    "path": None,
+                    "is_open_access": False,
+                    "message": "Not open access",
+                },
+                False,
+                id="not_open_access",
+            ),
+        ],
+    )
     @patch(_DISCOVER)
-    def test_bib_pdf_tool_exists(self, mock_eps: MagicMock) -> None:
-        """bib_pdf is discoverable."""
-        mock_eps.return_value = [_make_bib_ep("bib_pdf")]
-        tools = discover_tools()
-        assert "bib_pdf" in tools
-
-    @patch(_DISCOVER)
-    def test_bib_pdf_happy_path(self, mock_eps: MagicMock) -> None:
-        """Returns path + size."""
+    def test_bib_pdf_open_access_flag(
+        self,
+        mock_eps: MagicMock,
+        doi: str,
+        data: dict[str, Any],
+        expected_oa: bool,
+    ) -> None:
+        """bib_pdf reports is_open_access according to the resolved payload."""
         tool = MagicMock()
         tool.name = "bib_pdf"
-        tool.execute.return_value = ToolResult(
-            success=True,
-            data={
-                "path": "/tmp/paper.pdf",
-                "size_bytes": 42000,
-                "is_open_access": True,
-            },
-        )
+        tool.execute.return_value = ToolResult(success=True, data=data)
         mock_eps.return_value = [_make_bib_ep("bib_pdf", tool)]
 
         tools = discover_tools()
-        result = tools["bib_pdf"].execute(doi="10.1/x")
+        result = tools["bib_pdf"].execute(doi=doi)
         assert result.success
-        assert result.data["is_open_access"] is True
-
-    @patch(_DISCOVER)
-    def test_bib_pdf_not_open_access(self, mock_eps: MagicMock) -> None:
-        """Non-OA returns is_open_access=False."""
-        tool = MagicMock()
-        tool.name = "bib_pdf"
-        tool.execute.return_value = ToolResult(
-            success=True,
-            data={
-                "path": None,
-                "is_open_access": False,
-                "message": "Not open access",
-            },
-        )
-        mock_eps.return_value = [_make_bib_ep("bib_pdf", tool)]
-
-        tools = discover_tools()
-        result = tools["bib_pdf"].execute(doi="10.1/closed")
-        assert result.success
-        assert result.data["is_open_access"] is False
+        assert result.data["is_open_access"] is expected_oa
 
     @patch(_DISCOVER)
     def test_bib_pdf_empty_doi(self, mock_eps: MagicMock) -> None:
@@ -415,31 +426,6 @@ def _make_formal_ep(name: str, tool_instance: Any | None = None) -> MagicMock:
     ep.name = name
     ep.load.return_value = MagicMock(spec=type, return_value=tool_instance)
     return ep
-
-
-class TestFormalToolsDiscovered:
-    """Formal tools are discovered from axm-formal entry points."""
-
-    @patch(_DISCOVER)
-    def test_formal_esbmc_discovered(self, mock_eps: MagicMock) -> None:
-        """formal_esbmc is discoverable from axm.tools."""
-        mock_eps.return_value = [_make_formal_ep("formal_esbmc")]
-        tools = discover_tools()
-        assert "formal_esbmc" in tools
-
-    @patch(_DISCOVER)
-    def test_formal_dafny_discovered(self, mock_eps: MagicMock) -> None:
-        """formal_dafny is discoverable from axm.tools."""
-        mock_eps.return_value = [_make_formal_ep("formal_dafny")]
-        tools = discover_tools()
-        assert "formal_dafny" in tools
-
-    @patch(_DISCOVER)
-    def test_formal_kind2_discovered(self, mock_eps: MagicMock) -> None:
-        """formal_kind2 is discoverable from axm.tools."""
-        mock_eps.return_value = [_make_formal_ep("formal_kind2")]
-        tools = discover_tools()
-        assert "formal_kind2" in tools
 
 
 class TestVerifyViaMCP:
