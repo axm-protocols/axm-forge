@@ -512,21 +512,36 @@ def _validate_and_expand(
     source_tree: cst.Module,
     target_tree: cst.Module,
     symbol_names: Sequence[str],
-) -> tuple[list[str], list[str]]:
-    """Expand overload aliases and validate presence in source / absence in target."""
+    strict: bool = False,
+) -> tuple[list[str], list[str], list[str]]:
+    """Expand overload aliases and validate presence in source / absence in target.
+
+    Returns ``(present_expanded_names, present_moved_names, skipped_warnings)``.
+    A name absent from the source module's top-level symbols is dropped from
+    both name lists and reported via ``skipped_warnings`` — unless ``strict``
+    is set, in which case the first absent name raises
+    :class:`SymbolNotFoundError` (legacy behaviour).
+    """
     expanded_names, moved_names = _expand_overloads(source_tree, symbol_names)
 
     source_names = _source_symbol_names(source_tree)
-    for name in expanded_names:
-        if name not in source_names:
-            raise SymbolNotFoundError(name)
+    absent = [name for name in expanded_names if name not in source_names]
+    if absent and strict:
+        raise SymbolNotFoundError(absent[0])
+
+    skipped = set(absent)
+    skipped_warnings = [
+        f"skipped '{name}': not a top-level symbol in source" for name in absent
+    ]
+    expanded_names = [name for name in expanded_names if name not in skipped]
+    moved_names = [name for name in moved_names if name not in skipped]
 
     target_existing = _gather_target_existing(target_tree)
     for name in expanded_names:
         if name in target_existing:
             raise SymbolAlreadyExistsError(name)
 
-    return expanded_names, moved_names
+    return expanded_names, moved_names, skipped_warnings
 
 
 def _extract_moved_blocks(
@@ -1171,6 +1186,7 @@ def move_symbols(  # noqa: PLR0913
     reexport: bool = False,
     rename: dict[str, str] | None = None,
     check: bool = False,
+    strict: bool = False,
 ) -> MovePlan:
     """Move top-level symbols from ``source_path`` to ``target_path``.
 
@@ -1192,6 +1208,12 @@ def move_symbols(  # noqa: PLR0913
     *newly introduced* import cycle raises :class:`ImportCycleError`. A
     normal (non-``dry_run``) write also performs this check; ``dry_run=True``
     alone preserves its historical "preview without enforcement" contract.
+
+    A requested name that is absent from the source module's top-level
+    symbols is **skipped** with a warning on :attr:`MovePlan.warnings`
+    rather than aborting the whole plan. Pass ``strict=True`` to restore
+    the legacy behaviour of raising :class:`SymbolNotFoundError` on the
+    first absent name.
     """
     _validate_options(shared_helpers, shared_helpers_module, reexport, rename)
 
@@ -1203,8 +1225,8 @@ def move_symbols(  # noqa: PLR0913
     source_tree = cst.parse_module(source_text)
     target_tree = cst.parse_module(target_text)
 
-    expanded_names, moved_names = _validate_and_expand(
-        source_tree, target_tree, symbol_names
+    expanded_names, moved_names, skipped_warnings = _validate_and_expand(
+        source_tree, target_tree, symbol_names, strict=strict
     )
     remove_targets, blocks = _extract_moved_blocks(source_tree, expanded_names)
     (
@@ -1249,6 +1271,7 @@ def move_symbols(  # noqa: PLR0913
         callers_updated=caller_rewrites,
         redundant_import_warnings=redundant_import_warnings,
     )
+    plan.warnings.extend(skipped_warnings)
 
     cycle = _cycle_check(
         root,
