@@ -936,6 +936,25 @@ def _stmt_source_segment(text: str, stmt: ast.stmt) -> str:
     return ast.get_source_segment(text, stmt) or ast.unparse(stmt)
 
 
+def _decorated_start_line(stmt: ast.stmt) -> int:
+    if (
+        isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+        and stmt.decorator_list
+    ):
+        return min(d.lineno for d in stmt.decorator_list)
+    return stmt.lineno
+
+
+def _find_insert_line(body: list[ast.stmt], hoist_names: set[str]) -> int | None:
+    for stmt in body:
+        if _stmt_load_time_refs(stmt) & hoist_names:
+            return _decorated_start_line(stmt)
+    for stmt in body:
+        if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            return _decorated_start_line(stmt)
+    return None
+
+
 def _insert_before_first_use(
     target_text: str,
     target_tree: ast.Module,
@@ -946,24 +965,7 @@ def _insert_before_first_use(
     a name in *hoist_names*. Falls back to before-first-def, then EOF.
     """
     block = "\n\n".join(snippets) + "\n\n"
-    insert_line: int | None = None
-    for stmt in target_tree.body:
-        refs = _stmt_load_time_refs(stmt)
-        if refs & hoist_names:
-            insert_line = stmt.lineno
-            if (
-                isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
-                and stmt.decorator_list
-            ):
-                insert_line = min(d.lineno for d in stmt.decorator_list)
-            break
-    if insert_line is None:
-        for stmt in target_tree.body:
-            if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
-                insert_line = stmt.lineno
-                if stmt.decorator_list:
-                    insert_line = min(d.lineno for d in stmt.decorator_list)
-                break
+    insert_line = _find_insert_line(target_tree.body, hoist_names)
     if insert_line is None:
         rstripped = target_text.rstrip()
         return f"{rstripped}\n\n{block.rstrip()}\n"
