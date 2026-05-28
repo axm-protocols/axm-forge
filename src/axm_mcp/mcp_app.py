@@ -24,11 +24,13 @@ from axm_mcp.verify import VerifyTool
 # FastMCP server instance
 mcp = FastMCP("axm-mcp")
 
-# Auto-discover and register tools from installed packages
-_discovered_tools = discover_tools()
+# Auto-discover and register tools from installed packages.
+# Internal-public registry (no leading underscore): a legitimate seam that
+# tests assert against without reaching into module-private state.
+discovered_tools = discover_tools()
 register_tools(
     mcp,
-    _discovered_tools,
+    discovered_tools,
     extra_tools={
         "verify": "One-shot project verification: audit + init check + AST enrichment.",
     },
@@ -40,7 +42,7 @@ register_tools(
 register_one(
     mcp,
     "verify",
-    cast(ToolEntry, VerifyTool(_discovered_tools)),
+    cast(ToolEntry, VerifyTool(discovered_tools)),
 )
 
 
