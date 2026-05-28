@@ -9,9 +9,9 @@ from types import SimpleNamespace
 import pytest
 
 from axm_audit.core.fix.findings import (
-    _findings,
-    _func_canonical,
     class_needs_flatten,
+    func_canonical,
+    normalize_findings,
 )
 
 
@@ -41,19 +41,19 @@ def _class(src: str) -> ast.ClassDef:
 def test_findings_reads_details_dict_findings() -> None:
     """_findings prefers a list of dicts under check.details['findings']."""
     check = SimpleNamespace(details={"findings": [{"path": "a.py"}]})
-    assert _findings(check) == [{"path": "a.py"}]
+    assert normalize_findings(check) == [{"path": "a.py"}]
 
 
 def test_findings_falls_back_to_findings_attr() -> None:
     """_findings uses the .findings attribute when details has no findings key."""
     check = SimpleNamespace(details={"other": 1}, findings=[{"path": "b.py"}])
-    assert _findings(check) == [{"path": "b.py"}]
+    assert normalize_findings(check) == [{"path": "b.py"}]
 
 
 def test_findings_falls_back_when_details_not_dict() -> None:
     """_findings ignores a non-dict details and reads the .findings attribute."""
     check = SimpleNamespace(details=None, findings=[{"path": "c.py"}])
-    assert _findings(check) == [{"path": "c.py"}]
+    assert normalize_findings(check) == [{"path": "c.py"}]
 
 
 @pytest.mark.parametrize(
@@ -66,14 +66,14 @@ def test_findings_falls_back_when_details_not_dict() -> None:
 )
 def test_findings_returns_empty_for_no_findings(check: SimpleNamespace) -> None:
     """_findings returns [] when no usable findings are present."""
-    assert _findings(check) == []
+    assert normalize_findings(check) == []
 
 
 def test_findings_normalizes_model_dump_objects() -> None:
     """_findings calls model_dump() on finding objects that expose it."""
     item = SimpleNamespace(model_dump=lambda: {"path": "m.py", "rule": "R"})
     check = SimpleNamespace(details={"findings": [item]})
-    assert _findings(check) == [{"path": "m.py", "rule": "R"}]
+    assert normalize_findings(check) == [{"path": "m.py", "rule": "R"}]
 
 
 def test_findings_normalizes_plain_objects_via_vars() -> None:
@@ -84,14 +84,14 @@ def test_findings_normalizes_plain_objects_via_vars() -> None:
             self.path = "v.py"
 
     check = SimpleNamespace(details={"findings": [_Raw()]})
-    assert _findings(check) == [{"path": "v.py"}]
+    assert normalize_findings(check) == [{"path": "v.py"}]
 
 
 def test_findings_mixes_dict_and_object_entries() -> None:
     """_findings normalizes a heterogeneous list preserving order."""
     obj = SimpleNamespace(model_dump=lambda: {"path": "o.py"})
     check = SimpleNamespace(details={"findings": [{"path": "d.py"}, obj]})
-    assert _findings(check) == [{"path": "d.py"}, {"path": "o.py"}]
+    assert normalize_findings(check) == [{"path": "d.py"}, {"path": "o.py"}]
 
 
 # ── _func_canonical: integration tier ─────────────────────────────────
@@ -115,7 +115,7 @@ def test_func_canonical_integration_single_symbol() -> None:
             Resolver()
         """
     )
-    name = _func_canonical(
+    name = func_canonical(
         func,
         mod,
         tier="integration",
@@ -135,7 +135,7 @@ def test_func_canonical_integration_two_symbols_sorted_joined() -> None:
             Resolver()
             Cache()
     """
-    name = _func_canonical(
+    name = func_canonical(
         _func(src),
         _module(src),
         tier="integration",
@@ -153,7 +153,7 @@ def test_func_canonical_integration_unknown_without_first_party() -> None:
             x = 1
             assert x == 1
     """
-    name = _func_canonical(
+    name = func_canonical(
         _func(src),
         _module(src),
         tier="integration",
@@ -175,7 +175,7 @@ def test_func_canonical_e2e_single_binary_strips_prefix() -> None:
         def test_it():
             subprocess.run(["axm-audit", "audit"])
     """
-    name = _func_canonical(
+    name = func_canonical(
         _func(src),
         _module(src),
         tier="e2e",
@@ -194,7 +194,7 @@ def test_func_canonical_e2e_bare_binary_keeps_binary_token() -> None:
         def test_it():
             subprocess.run(["axm-audit"])
     """
-    name = _func_canonical(
+    name = func_canonical(
         _func(src),
         _module(src),
         tier="e2e",
@@ -213,7 +213,7 @@ def test_func_canonical_e2e_multi_binary_keeps_bin_and_sub() -> None:
         def test_it():
             subprocess.run(["axm-audit", "audit"])
     """
-    name = _func_canonical(
+    name = func_canonical(
         _func(src),
         _module(src),
         tier="e2e",
