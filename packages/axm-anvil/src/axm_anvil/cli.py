@@ -55,6 +55,13 @@ def move(  # noqa: PLR0913
             help="Leave callers untouched; inject a re-export in the source module.",
         ),
     ] = False,
+    rename: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--rename"],
+            help='JSON object mapping old to new names, e.g. \'{"Old": "New"}\'.',
+        ),
+    ] = None,
     check: Annotated[
         bool,
         cyclopts.Parameter(
@@ -72,6 +79,7 @@ def move(  # noqa: PLR0913
         dry_run=dry_run,
         shared_helpers=shared_helpers,
         reexport=reexport,
+        rename=rename,
         check=check,
     )
     if not result.success:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from axm.tools.base import AXMTool, ToolResult
@@ -86,6 +87,7 @@ class MoveTool(AXMTool):
         shared_helpers: str = "duplicate",
         shared_helpers_module: str | None = None,
         reexport: bool = False,
+        rename: str | None = None,
         check: bool = False,
         **kwargs: object,
     ) -> ToolResult:
@@ -110,6 +112,14 @@ class MoveTool(AXMTool):
             ``"duplicate"``, ``"extract"``, or ``"error"``.
         shared_helpers_module:
             Target module path used when ``shared_helpers="extract"``.
+        reexport:
+            When ``True``, leave callers untouched and inject a re-export in
+            the source module. Incompatible with ``rename``.
+        rename:
+            Optional JSON object string mapping old symbol names to new ones
+            (e.g. ``'{"OldName": "NewName"}'``). Parsed to ``dict[str, str]``
+            and forwarded to :func:`move_symbols`. Invalid JSON yields a
+            ``success=False`` result.
 
         Returns
         -------
@@ -122,6 +132,13 @@ class MoveTool(AXMTool):
             path, symbols, from_file, to_file
         )
 
+        rename_map: dict[str, str] | None = None
+        if rename is not None:
+            try:
+                rename_map = json.loads(rename)
+            except json.JSONDecodeError as exc:
+                return ToolResult(success=False, error=f"invalid JSON in rename: {exc}")
+
         try:
             plan = move_symbols(
                 src_path,
@@ -132,6 +149,7 @@ class MoveTool(AXMTool):
                 shared_helpers=shared_helpers,
                 shared_helpers_module=shared_helpers_module,
                 reexport=reexport,
+                rename=rename_map,
                 check=check,
             )
         except Exception as exc:  # noqa: BLE001

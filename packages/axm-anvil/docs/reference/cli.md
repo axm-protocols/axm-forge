@@ -8,7 +8,7 @@ Move top-level symbols (classes, functions, constants) between Python
 files atomically. Wraps the [`MoveTool`](#movetool) MCP tool.
 
 ```bash
-axm-anvil move <from_file> <to_file> <symbols> [--dry-run] [--check] [--path <root>] [--shared-helpers <strategy>] [--reexport]
+axm-anvil move <from_file> <to_file> <symbols> [--dry-run] [--check] [--path <root>] [--shared-helpers <strategy>] [--reexport] [--rename '<json>']
 ```
 
 | Argument | Description |
@@ -21,6 +21,7 @@ axm-anvil move <from_file> <to_file> <symbols> [--dry-run] [--check] [--path <ro
 | `--path` | Workspace root (default: `.`) |
 | `--shared-helpers` | Strategy when a helper is used by both moved and remaining symbols: `duplicate` (default, copies the helper and emits a warning) or `error` (abort with `SharedHelpersError`) |
 | `--reexport` | Leave callers untouched; inject `from new_module import <Symbol>  # re-export for backwards compat` into the source module for gradual migration |
+| `--rename` | JSON object string mapping old symbol names to new ones (e.g. `'{"OldName": "NewName"}'`). Renames moved definitions and rewrites all caller references to the new name. Incompatible with `--reexport` |
 
 ## MCP Tools
 
