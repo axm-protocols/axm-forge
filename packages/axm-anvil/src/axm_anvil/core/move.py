@@ -243,14 +243,22 @@ def _collect_transitive_deps(
     blocks: list[Block],
     source_helpers: dict[str, cst.FunctionDef | cst.ClassDef],
     source_constants: dict[str, cst.SimpleStatementLine],
+    include_helpers: bool = True,
 ) -> tuple[
     dict[str, cst.FunctionDef | cst.ClassDef],
     dict[str, cst.SimpleStatementLine],
+    list[str],
 ]:
     """BFS transitive closure over helpers and constants from block refs.
 
     Returns collected helpers and constants in BFS-discovery order
-    (dict insertion order). Stable on reference cycles.
+    (dict insertion order) plus the list of local helper/constant names
+    that were intentionally skipped. Stable on reference cycles.
+
+    When ``include_helpers`` is ``False`` the BFS still discovers which
+    local helpers/constants the moved blocks reference (so they can be
+    surfaced as un-copied), but they are not collected into the target.
+    Imports are gathered separately and are never suppressed.
     """
     block_names = {b.name for b in blocks}
     state = _BfsState(
@@ -261,7 +269,10 @@ def _collect_transitive_deps(
         _expand_refs_one_level(block.referenced_names, state.seen, state.queue)
     while state.queue:
         _visit_dep_name(state.queue.pop(0), block_names, state)
-    return state.collected_helpers, state.collected_constants
+    if not include_helpers:
+        skipped = list(state.collected_helpers) + list(state.collected_constants)
+        return {}, {}, skipped
+    return state.collected_helpers, state.collected_constants, []
 
 
 def _extract_assign_target_name(stmt: cst.SimpleStatementLine) -> str | None:
@@ -625,16 +636,23 @@ def _build_trees(  # noqa: PLR0913
     remove_targets: set[str],
     shared_helpers: str,
     insert_after: str | None = None,
+    include_helpers: bool = True,
 ) -> tuple[
     cst.Module, cst.Module, list[str], list[str], dict[str, SharedInfo], list[str]
 ]:
-    """Build new source/target trees and return added imports/constants + shared map."""
+    """Build new source/target trees and return added imports/constants + shared map.
+
+    When ``include_helpers`` is ``False`` transitively-referenced local
+    helpers/constants are not copied into the target, shared-helper
+    classification is short-circuited, and a warning enumerating the
+    skipped local helper names is appended to the returned warnings list.
+    """
     source_imports = gather_source_imports(source_tree)
     source_constants = gather_source_constants(source_tree)
     source_helpers = gather_source_helpers(source_tree)
 
-    collected_helpers, collected_constants = _collect_transitive_deps(
-        blocks, source_helpers, source_constants
+    collected_helpers, collected_constants, skipped_helpers = _collect_transitive_deps(
+        blocks, source_helpers, source_constants, include_helpers
     )
     for moved in remove_targets:
         collected_helpers.pop(moved, None)
@@ -657,11 +675,20 @@ def _build_trees(  # noqa: PLR0913
 
     new_source_tree = source_tree.visit(RemoveSymbols(remove_targets))
 
-    shared_map = classify_shared_helpers(
-        blocks, set(collected_helpers.keys()), new_source_tree
-    )
-    if shared_map and shared_helpers == "error":
-        raise SharedHelpersError(sorted(shared_map.keys()))
+    if include_helpers:
+        shared_map = classify_shared_helpers(
+            blocks, set(collected_helpers.keys()), new_source_tree
+        )
+        if shared_map and shared_helpers == "error":
+            raise SharedHelpersError(sorted(shared_map.keys()))
+    else:
+        shared_map = {}
+    if skipped_helpers:
+        redundant_import_warnings = [
+            *redundant_import_warnings,
+            "include_helpers=False: not copied into target: "
+            + ", ".join(skipped_helpers),
+        ]
 
     orphans = _compute_source_orphans(
         new_source_tree,
@@ -1281,6 +1308,7 @@ def move_symbols(  # noqa: PLR0913
     check: bool = False,
     strict: bool = False,
     insert_after: str | None = None,
+    include_helpers: bool = True,
 ) -> MovePlan:
     """Move top-level symbols from ``source_path`` to ``target_path``.
 
@@ -1316,6 +1344,15 @@ def move_symbols(  # noqa: PLR0913
     blocks append at the end and a warning is added to
     :attr:`MovePlan.warnings`. Imports and constants keep their historical
     placement regardless of ``insert_after``.
+
+    ``include_helpers`` (default ``True``) preserves the historical
+    behaviour of copying transitively-referenced local helpers and
+    constants into the target. When ``False`` those helpers/constants are
+    **not** copied (the moved code is left referencing them), a warning
+    enumerating the un-copied local helper names is added to
+    :attr:`MovePlan.warnings`, and the ``shared_helpers`` classification is
+    short-circuited (nothing is duplicated or extracted). Imports required
+    by the moved code are always copied regardless of this flag.
     """
     _validate_options(shared_helpers, shared_helpers_module, reexport, rename)
 
@@ -1348,6 +1385,7 @@ def move_symbols(  # noqa: PLR0913
         remove_targets,
         shared_helpers,
         insert_after=insert_after,
+        include_helpers=include_helpers,
     )
 
     root = (

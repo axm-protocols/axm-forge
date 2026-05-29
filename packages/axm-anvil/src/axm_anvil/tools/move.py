@@ -90,6 +90,7 @@ class MoveTool(AXMTool):
         rename: str | None = None,
         check: bool = False,
         insert_after: str | None = None,
+        include_helpers: bool = True,
         **kwargs: object,
     ) -> ToolResult:
         """Move ``symbols`` (CSV) from ``from_file`` to ``to_file``.
@@ -126,6 +127,11 @@ class MoveTool(AXMTool):
             blocks are spliced immediately after it. When ``None`` blocks
             append at the end; an absent name appends at the end with a
             warning.
+        include_helpers:
+            When ``True`` (default) transitively-referenced local helpers and
+            constants are copied into the target. When ``False`` they are not
+            copied (a warning enumerates the un-copied names); imports are
+            still copied regardless.
 
         Returns
         -------
@@ -158,6 +164,7 @@ class MoveTool(AXMTool):
                 rename=rename_map,
                 check=check,
                 insert_after=insert_after,
+                include_helpers=include_helpers,
             )
         except Exception as exc:  # noqa: BLE001
             return self._exception_to_result(exc)
