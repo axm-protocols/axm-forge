@@ -3,9 +3,9 @@
 **Deterministic CST-based refactoring toolkit for Python.**
 
 <p align="center">
-  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-draft-workspace/gh-pages/badges/axm-anvil/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://forge.axm-protocols.io/init/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-draft-workspace/gh-pages/badges/axm-anvil/axm-init.json" alt="axm-init"></a>
-  <a href="https://github.com/axm-protocols/axm-draft-workspace/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-draft-workspace/gh-pages/badges/axm-anvil/coverage.json" alt="Coverage"></a>
+  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-anvil/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://forge.axm-protocols.io/init/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-anvil/axm-init.json" alt="axm-init"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-anvil/coverage.json" alt="Coverage"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
 </p>
 
@@ -33,6 +33,10 @@ it exposes a set of MCP tools for agent-driven refactoring.
 - 🎯 **Overload-aware** — Detects `@overload` companions and moves them together as an indivisible group
 - 📦 **Lossless formatting** — Comments, whitespace, and trailing commas preserved exactly via libcst round-trip
 - 🤝 **Complementary to `axm-ast`** — Uses `ast_callers` and `ast_graph` for blast radius detection
+- ✏️ **`--rename` on move** — Rename moved definitions in flight (JSON `{"Old": "New"}`); references, `__all__` entries, and string forward-references are all rewritten to the new name
+- 📍 **`--insert-after`** — Splice moved blocks after a named target symbol instead of appending at end-of-file
+- 🚫 **`--no-include-helpers`** — Skip auto-copying local helpers/constants into the target (imports are still copied); emits a warning listing the un-copied names
+- 🧭 **Edge-case awareness** — Syncs `__all__` (never created spontaneously), preserves `try/except` conditional imports verbatim, converts relative imports to absolute on cross-package moves, and warns on side-effect decorators (`@app.route`, `@pytest.fixture`…), string forward-references, and pytest fixture-scope breaks
 
 ### Planned tools (see `spec.md`)
 
@@ -65,11 +69,28 @@ axm-anvil = { workspace = true }
 
 ## Quick Start
 
-CLI:
+CLI — preview a move (positional or flag form, both accepted):
 
 ```bash
 axm-anvil move src/mylib/core/models.py src/mylib/core/services.py \
     UserService,_validate_input --dry-run
+```
+
+Rename while moving, and place the result after an existing symbol:
+
+```bash
+axm-anvil move \
+    --from-file src/mylib/core/models.py \
+    --to-file   src/mylib/core/services.py \
+    --symbols   UserService \
+    --rename    '{"UserService": "AccountService"}' \
+    --insert-after existing_service
+```
+
+Move without dragging local helpers along (imports are still copied):
+
+```bash
+axm-anvil move src/mylib/a.py src/mylib/b.py Widget --no-include-helpers
 ```
 
 Python / MCP:
@@ -85,11 +106,14 @@ result = MoveTool().execute(
     dry_run=True,
 )
 print(result.data["moved"])
+print(result.data["warnings"])  # __all__ sync, conditional imports, decorators, …
 ```
+
+See the [CLI Reference](docs/reference/cli.md) for every flag and the warnings each one can emit.
 
 ## Development
 
-This package is part of the **axm-draft-workspace** uv workspace.
+This package is part of the **axm-forge** uv workspace.
 
 ```bash
 # Run tests for this package
