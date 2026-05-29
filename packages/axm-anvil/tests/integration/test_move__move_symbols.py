@@ -53,3 +53,26 @@ def test_insert_after_places_block_after_anchor(tmp_path: Path) -> None:
 
     text = tgt.read_text()
     assert text.index("def Anchor") < text.index("def Moved") < text.index("def After")
+
+
+def test_all_sync_real_files(tmp_path: Path) -> None:
+    """AC1,AC2: written files reflect the synced `__all__` after a real move."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "src_pkg.py"
+    tgt = tmp_path / "tgt_pkg.py"
+    src.write_text(
+        '__all__ = ["Foo", "Bar"]\n\n'
+        "def Foo():\n    return 1\n\n"
+        "def Bar():\n    return 2\n",
+    )
+    tgt.write_text('__all__ = ["Existing"]\n\ndef Existing():\n    return 0\n')
+
+    move_symbols(src, tgt, ["Foo"], workspace_root=tmp_path)
+
+    source_after = src.read_text()
+    target_after = tgt.read_text()
+    assert '"Foo"' not in source_after
+    assert '"Bar"' in source_after
+    assert '"Foo"' in target_after
+    assert '"Existing"' in target_after

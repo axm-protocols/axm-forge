@@ -76,6 +76,24 @@ helpers to keep each piece small:
 | `_collect_top_level_refs` | Walks the module body to build `(all_top_names, refs_of)` |
 | `_filter_still_referenced` | Iterates to stability, promoting candidates reachable from staying names |
 
+## `__all__` synchronization in `core.move`
+
+When `move_symbols` relocates a symbol that is listed in the source
+module's `__all__`, the public-API surface of both modules must follow the
+move. `_build_trees` runs a post-step (after symbol removal and orphan
+pruning) driven by two helpers:
+
+| Helper | Responsibility |
+|---|---|
+| `_dunder_all_names` | Return the names declared in a module-level `__all__` `List`/`Tuple` literal, in declaration order (`[]` when absent) |
+| `SyncDunderAll` (`_cst.transformers`) | Depth-tracked transformer that mutates an **existing** `__all__` literal's `elements` via `.with_changes()` — drops removed names, appends added names (idempotent), preserving quotes/commas/comments of surviving entries |
+
+Only moved names that were actually present in the source `__all__` are
+synced: such names are dropped from the source `__all__` and appended to
+the target `__all__` **only when the target already declares one**. A
+module without `__all__` is never given one (no synthesis), and moving a
+symbol absent from the source `__all__` leaves both literals untouched.
+
 ## Caller rewriting in `core.callers`
 
 When `move_symbols` relocates a symbol, every other file in the workspace
