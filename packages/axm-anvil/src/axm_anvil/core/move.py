@@ -14,6 +14,7 @@ from libcst.codemod.visitors import AddImportsVisitor
 from axm_anvil._cst.blocks import Block, _collect_refs, extract_blocks
 from axm_anvil._cst.overloads import detect_overload_group
 from axm_anvil._cst.transformers import (
+    ProtectConditionalImports,
     RemoveSymbols,
     RenameSymbols,
     SyncDunderAll,
@@ -1064,6 +1065,12 @@ def _build_trees(  # noqa: PLR0913
         exported = set(ordered)
         new_source_tree = new_source_tree.visit(SyncDunderAll(exported, []))
         new_target_tree = new_target_tree.visit(SyncDunderAll(set(), ordered))
+
+    # AXM-1775 AC3: conditional imports (top-level try/except, if guards) must
+    # never be removed from the source — the post-move ruff F401 pass would
+    # otherwise strip a fallback branch and silently change runtime behavior.
+    if any(info.conditional for info in source_imports.values()):
+        new_source_tree = new_source_tree.visit(ProtectConditionalImports())
 
     return (
         new_source_tree,

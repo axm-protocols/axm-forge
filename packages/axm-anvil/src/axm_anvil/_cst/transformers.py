@@ -7,7 +7,121 @@ from collections.abc import Sequence
 import libcst as cst
 from libcst.metadata import ImportAssignment, ScopeProvider
 
-__all__ = ["AttributeRewriter", "RemoveSymbols", "RenameSymbols", "SyncDunderAll"]
+__all__ = [
+    "AttributeRewriter",
+    "ProtectConditionalImports",
+    "RemoveSymbols",
+    "RenameSymbols",
+    "SyncDunderAll",
+]
+
+
+def _is_import_line(line: cst.SimpleStatementLine) -> bool:
+    """Return True when the statement line is a (possibly aliased) import."""
+    return any(isinstance(inner, cst.Import | cst.ImportFrom) for inner in line.body)
+
+
+def _line_has_f401_noqa(line: cst.SimpleStatementLine) -> bool:
+    """Return True when the line already carries an ``F401`` noqa comment."""
+    comment = line.trailing_whitespace.comment
+    if comment is None:
+        return False
+    return "noqa" in comment.value and "F401" in comment.value
+
+
+def _with_f401_noqa(line: cst.SimpleStatementLine) -> cst.SimpleStatementLine:
+    """Append a ``# noqa: F401`` comment to an import statement line."""
+    return line.with_changes(
+        trailing_whitespace=cst.TrailingWhitespace(
+            whitespace=cst.SimpleWhitespace("  "),
+            comment=cst.Comment("# noqa: F401"),
+            newline=cst.Newline(),
+        )
+    )
+
+
+def _protect_block_imports(block: cst.IndentedBlock) -> cst.IndentedBlock:
+    """Tag every import line in a guard suite with ``# noqa: F401``."""
+    new_body: list[cst.BaseStatement] = []
+    for stmt in block.body:
+        if (
+            isinstance(stmt, cst.SimpleStatementLine)
+            and _is_import_line(stmt)
+            and not _line_has_f401_noqa(stmt)
+        ):
+            new_body.append(_with_f401_noqa(stmt))
+        else:
+            new_body.append(stmt)
+    return block.with_changes(body=tuple(new_body))
+
+
+class ProtectConditionalImports(cst.CSTTransformer):
+    """Append ``# noqa: F401`` to imports nested in top-level guard blocks.
+
+    Conditional imports (``try``/``except`` or ``if`` guards at module
+    scope) must survive the post-move ``ruff --fix`` F401 pass even when no
+    remaining symbol references them — removing the fallback branch of a
+    ``try: import a / except: import b as a`` block silently changes runtime
+    behavior (AXM-1775 AC3). Marking the import lines with a per-line noqa
+    keeps the guard intact without disabling F401 for the whole file.
+
+    Only module-level guards are tagged; guards nested inside functions or
+    classes are left untouched.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._depth = 0
+
+    def visit_IndentedBlock(self, node: cst.IndentedBlock) -> None:  # noqa: N802
+        """Track entry into a nested block to scope guards to top level."""
+        self._depth += 1
+
+    def leave_IndentedBlock(  # noqa: N802
+        self, original_node: cst.IndentedBlock, updated_node: cst.IndentedBlock
+    ) -> cst.IndentedBlock:
+        """Track exit from a nested block; pass through the updated node."""
+        self._depth -= 1
+        return updated_node
+
+    @staticmethod
+    def _protected_else(orelse: cst.Else | cst.If | None) -> cst.Else | None:
+        if isinstance(orelse, cst.Else) and isinstance(orelse.body, cst.IndentedBlock):
+            return orelse.with_changes(body=_protect_block_imports(orelse.body))
+        return None
+
+    def leave_Try(  # noqa: N802
+        self, original_node: cst.Try, updated_node: cst.Try
+    ) -> cst.Try:
+        """Protect imports in a top-level ``try``/``except``/``else`` guard."""
+        if self._depth != 0:
+            return updated_node
+        changes: dict[str, object] = {}
+        if isinstance(updated_node.body, cst.IndentedBlock):
+            changes["body"] = _protect_block_imports(updated_node.body)
+        if updated_node.handlers:
+            changes["handlers"] = tuple(
+                handler.with_changes(body=_protect_block_imports(handler.body))
+                if isinstance(handler.body, cst.IndentedBlock)
+                else handler
+                for handler in updated_node.handlers
+            )
+        protected_else = self._protected_else(updated_node.orelse)
+        if protected_else is not None:
+            changes["orelse"] = protected_else
+        return updated_node.with_changes(**changes) if changes else updated_node
+
+    def leave_If(  # noqa: N802
+        self, original_node: cst.If, updated_node: cst.If
+    ) -> cst.If:
+        """Protect imports in a top-level ``if``/``else`` guard."""
+        if self._depth != 0:
+            return updated_node
+        if isinstance(updated_node.body, cst.IndentedBlock):
+            return updated_node.with_changes(
+                body=_protect_block_imports(updated_node.body)
+            )
+        return updated_node
 
 
 class RenameSymbols(cst.CSTTransformer):
