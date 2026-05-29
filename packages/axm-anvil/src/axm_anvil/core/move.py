@@ -13,7 +13,7 @@ from libcst.codemod.visitors import AddImportsVisitor
 
 from axm_anvil._cst.blocks import Block, _collect_refs, extract_blocks
 from axm_anvil._cst.overloads import detect_overload_group
-from axm_anvil._cst.transformers import RemoveSymbols, RenameSymbols
+from axm_anvil._cst.transformers import RemoveSymbols, RenameSymbols, SyncDunderAll
 from axm_anvil.core.callers import (
     CallerRewrite,
     _discover_callers,
@@ -566,6 +566,34 @@ def _constant_name(stmt: cst.SimpleStatementLine) -> str | None:
     return None
 
 
+def _dunder_all_names(tree: cst.Module) -> list[str]:
+    """Return the string names declared in a module-level ``__all__`` literal.
+
+    Scans top-level ``SimpleStatementLine`` statements for an ``__all__``
+    assignment whose value is a ``List``/``Tuple`` of string literals.
+    Returns the names in declaration order, or an empty list when no such
+    ``__all__`` literal exists.
+    """
+    for stmt in tree.body:
+        if not isinstance(stmt, cst.SimpleStatementLine):
+            continue
+        for inner in stmt.body:
+            if not isinstance(inner, cst.Assign):
+                continue
+            target = inner.targets[0].target if len(inner.targets) == 1 else None
+            if not (isinstance(target, cst.Name) and target.value == "__all__"):
+                continue
+            if not isinstance(inner.value, cst.List | cst.Tuple):
+                continue
+            return [
+                element.value.raw_value
+                for element in inner.value.elements
+                if isinstance(element, cst.Element)
+                and isinstance(element.value, cst.SimpleString)
+            ]
+    return []
+
+
 def _validate_and_expand(
     source_tree: cst.Module,
     target_tree: cst.Module,
@@ -698,6 +726,12 @@ def _build_trees(  # noqa: PLR0913
     orphans -= set(shared_map.keys())
     if orphans:
         new_source_tree = new_source_tree.visit(RemoveSymbols(orphans))
+
+    ordered = [n for n in _dunder_all_names(source_tree) if n in remove_targets]
+    if ordered:
+        exported = set(ordered)
+        new_source_tree = new_source_tree.visit(SyncDunderAll(exported, []))
+        new_target_tree = new_target_tree.visit(SyncDunderAll(set(), ordered))
 
     return (
         new_source_tree,
