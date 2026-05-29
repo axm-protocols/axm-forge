@@ -274,6 +274,40 @@ def test_cli_move_rewrites_caller(tmp_path: Path) -> None:
     assert "callers updated" in result.stdout.lower()
 
 
+def test_cli_rename_option(tmp_path: Path) -> None:
+    """AC4: the CLI move command exposes --rename forwarded to the core move."""
+    root = tmp_path
+    pkg = root / "src" / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+    (root / "pyproject.toml").write_text('[project]\nname = "pkg"\nversion = "0.0.0"\n')
+    old = pkg / "old.py"
+    old.write_text("def OldName():\n    return 1\n")
+    new = pkg / "new.py"
+    new.write_text("")
+
+    result = subprocess.run(
+        [
+            "uv",
+            "run",
+            "axm-anvil",
+            "move",
+            str(old),
+            str(new),
+            "OldName",
+            "--rename",
+            '{"OldName":"NewName"}',
+            "--path",
+            str(root),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "NewName" in new.read_text()
+
+
 SOURCE_WITH_METHOD = (
     "def real_toplevel() -> int:\n"
     "    return 42\n\n\n"

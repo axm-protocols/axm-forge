@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import libcst as cst
 from libcst.codemod import CodemodContext
@@ -13,7 +13,7 @@ from libcst.codemod.visitors import AddImportsVisitor
 
 from axm_anvil._cst.blocks import Block, _collect_refs, extract_blocks
 from axm_anvil._cst.overloads import detect_overload_group
-from axm_anvil._cst.transformers import RemoveSymbols
+from axm_anvil._cst.transformers import RemoveSymbols, RenameSymbols
 from axm_anvil.core.callers import (
     CallerRewrite,
     _discover_callers,
@@ -694,6 +694,7 @@ def _process_callers(
     moved_names: Sequence[str],
     source_path: Path,
     target_path: Path,
+    rename_map: dict[str, str] | None = None,
 ) -> tuple[dict[Path, tuple[str, str]], list[CallerRewrite]]:
     """Discover callers, rewrite their imports, and validate the results.
 
@@ -728,7 +729,9 @@ def _process_callers(
             original = caller_path.read_text()
         except (OSError, UnicodeDecodeError):
             continue
-        result = _rewrite_one_caller(original, from_module, new_module, moved_names)
+        result = _rewrite_one_caller(
+            original, from_module, new_module, moved_names, rename_map
+        )
         if result is None:
             continue
         current_text, caller_rewrites = result
@@ -760,6 +763,7 @@ def _rewrite_one_caller(
     from_module: str,
     new_module: str,
     moved_names: Sequence[str],
+    rename_map: dict[str, str] | None = None,
 ) -> tuple[str, list[CallerRewrite]] | None:
     """Apply both rewrites and validate the result. Returns ``None`` if unchanged."""
     try:
@@ -769,6 +773,8 @@ def _rewrite_one_caller(
         current_text, attr_rewrites = _rewrite_module_import_caller(
             current_text, from_module, new_module, moved_names
         )
+        if rename_map:
+            current_text = _apply_rename_to_text(current_text, rename_map)
     except Exception as exc:
         raise MoveValidationError(original, exc) from exc
     caller_rewrites = list(from_rewrites) + list(attr_rewrites)
@@ -1146,6 +1152,43 @@ def _inject_reexport(
     return source_tree.with_changes(body=[*source_tree.body, stmt])
 
 
+def _active_rename(
+    rename: dict[str, str] | None, moved_names: Sequence[str]
+) -> dict[str, str]:
+    """Restrict ``rename`` to names actually moved (skip absent/no-op entries)."""
+    if not rename:
+        return {}
+    moved = set(moved_names)
+    return {
+        old: new for old, new in rename.items() if old in moved and new and new != old
+    }
+
+
+def _apply_rename_to_blocks(
+    blocks: list[Block], rename_map: dict[str, str]
+) -> list[Block]:
+    """Rename moved block definitions (and their internal refs) to new names."""
+    renamed: list[Block] = []
+    transformer = RenameSymbols(rename_map)
+    for block in blocks:
+        new_name = rename_map.get(block.name, block.name)
+        new_node = cast("cst.BaseStatement", block.node.visit(transformer))
+        renamed.append(
+            Block(
+                name=new_name,
+                node=new_node,
+                leading_lines=block.leading_lines,
+                referenced_names=block.referenced_names,
+            )
+        )
+    return renamed
+
+
+def _apply_rename_to_text(text: str, rename_map: dict[str, str]) -> str:
+    """Apply an ``old -> new`` identifier rename across a rendered module."""
+    return cst.parse_module(text).visit(RenameSymbols(rename_map)).code
+
+
 def _validate_options(
     shared_helpers: str,
     shared_helpers_module: str | None,
@@ -1158,16 +1201,17 @@ def _validate_options(
         raise ValueError("reexport=True is incompatible with rename=")
 
 
-def _resolve_caller_phase(
+def _resolve_caller_phase(  # noqa: PLR0913
     reexport: bool,
     root: Path,
     moved_names: Sequence[str],
     source_path: Path,
     target_path: Path,
+    rename_map: dict[str, str] | None = None,
 ) -> tuple[dict[Path, tuple[str, str]], list[CallerRewrite]]:
     if reexport:
         return {}, []
-    return _process_callers(root, moved_names, source_path, target_path)
+    return _process_callers(root, moved_names, source_path, target_path, rename_map)
 
 
 def _enforce_cycle(cycle: list[str] | None, check: bool, dry_run: bool) -> None:
@@ -1229,6 +1273,9 @@ def move_symbols(  # noqa: PLR0913
         source_tree, target_tree, symbol_names, strict=strict
     )
     remove_targets, blocks = _extract_moved_blocks(source_tree, expanded_names)
+    rename_map = _active_rename(rename, moved_names)
+    if rename_map:
+        blocks = _apply_rename_to_blocks(blocks, rename_map)
     (
         new_source_tree,
         new_target_tree,
@@ -1258,7 +1305,7 @@ def move_symbols(  # noqa: PLR0913
     )
 
     caller_texts, caller_rewrites = _resolve_caller_phase(
-        reexport, root, moved_names, source_path, target_path
+        reexport, root, moved_names, source_path, target_path, rename_map
     )
 
     plan = _build_plan(

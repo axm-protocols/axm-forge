@@ -5,7 +5,44 @@ from __future__ import annotations
 import libcst as cst
 from libcst.metadata import ImportAssignment, ScopeProvider
 
-__all__ = ["AttributeRewriter", "RemoveSymbols"]
+__all__ = ["AttributeRewriter", "RemoveSymbols", "RenameSymbols"]
+
+
+class RenameSymbols(cst.CSTTransformer):
+    """Rename ``Name`` nodes according to an ``old -> new`` mapping.
+
+    Every identifier whose value matches a key in ``mapping`` is rewritten
+    to the corresponding value. This covers definition names
+    (``def OldName`` / ``class OldName``), internal references (recursion,
+    self-references) and usage sites in caller modules. Attribute *names*
+    (the ``attr`` of an ``Attribute`` node, e.g. ``obj.OldName``) are left
+    untouched so unrelated members are not renamed.
+    """
+
+    def __init__(self, mapping: dict[str, str]) -> None:
+        super().__init__()
+        self._mapping = mapping
+
+    def leave_Name(  # noqa: N802
+        self, original_node: cst.Name, updated_node: cst.Name
+    ) -> cst.Name:
+        """Rewrite a bare name when it matches a rename key."""
+        new = self._mapping.get(updated_node.value)
+        if new is None:
+            return updated_node
+        return updated_node.with_changes(value=new)
+
+    def leave_Attribute(  # noqa: N802
+        self, original_node: cst.Attribute, updated_node: cst.Attribute
+    ) -> cst.Attribute:
+        """Preserve the attribute member name, restoring it if renamed.
+
+        ``leave_Name`` fires for the ``attr`` child too; undo that rewrite so
+        only the head of the expression (a real binding) is renamed.
+        """
+        if isinstance(original_node.attr, cst.Name):
+            return updated_node.with_changes(attr=original_node.attr)
+        return updated_node
 
 
 def _dotted_to_expr(dotted: str) -> cst.BaseExpression:
