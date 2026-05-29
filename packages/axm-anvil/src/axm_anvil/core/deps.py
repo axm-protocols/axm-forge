@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import libcst as cst
 
@@ -26,6 +26,10 @@ class ImportInfo:
     obj: str | None = None
     alias: str | None = None
     relative: int = 0
+    conditional: bool = False
+    guard: cst.BaseCompoundStatement | None = field(
+        default=None, repr=False, compare=False
+    )
 
 
 def _alias_asname(alias_node: cst.ImportAlias) -> str | None:
@@ -67,36 +71,84 @@ def _import_info_from_importfrom_stmt(
         )
 
 
-def gather_source_imports(tree: cst.Module) -> dict[str, ImportInfo]:
-    """Map local names to the ``ImportInfo`` describing their origin."""
+def _imports_from_simple_stmt(
+    stmt: cst.SimpleStatementLine, mapping: dict[str, ImportInfo]
+) -> None:
+    for inner in stmt.body:
+        if isinstance(inner, cst.Import):
+            _import_info_from_import_stmt(inner, mapping)
+        elif isinstance(inner, cst.ImportFrom):
+            _import_info_from_importfrom_stmt(inner, mapping)
+
+
+def _conditional_bodies(
+    block: cst.Try | cst.If,
+) -> list[cst.BaseSuite]:
+    """Return every suite (body + handlers/orelse) of a guard block."""
+    suites: list[cst.BaseSuite] = [block.body]
+    if isinstance(block, cst.Try):
+        suites.extend(handler.body for handler in block.handlers)
+        if block.orelse is not None:
+            suites.append(block.orelse.body)
+        if block.finalbody is not None:
+            suites.append(block.finalbody.body)
+    else:
+        orelse = block.orelse
+        if isinstance(orelse, cst.Else):
+            suites.append(orelse.body)
+        elif isinstance(orelse, cst.If):
+            suites.append(cst.IndentedBlock(body=[orelse]))
+    return suites
+
+
+def _imports_from_guard(
+    block: cst.Try | cst.If, mapping: dict[str, ImportInfo]
+) -> None:
+    """Record imports nested in a guard block, flagged ``conditional=True``.
+
+    Each recorded :class:`ImportInfo` keeps a handle on ``block`` so the
+    move pipeline can copy the entire guard verbatim into a target module.
+    """
+    local: dict[str, ImportInfo] = {}
+    for suite in _conditional_bodies(block):
+        if isinstance(suite, cst.IndentedBlock):
+            for inner_stmt in suite.body:
+                if isinstance(inner_stmt, cst.SimpleStatementLine):
+                    _imports_from_simple_stmt(inner_stmt, local)
+    for name, info in local.items():
+        info.conditional = True
+        info.guard = block
+        mapping[name] = info
+
+
+def _gather_imports(tree: cst.Module) -> dict[str, ImportInfo]:
+    """Collect top-level imports, including those guarded by ``Try``/``If``."""
     mapping: dict[str, ImportInfo] = {}
     for stmt in tree.body:
-        if not isinstance(stmt, cst.SimpleStatementLine):
-            continue
-        for inner in stmt.body:
-            if isinstance(inner, cst.Import):
-                _import_info_from_import_stmt(inner, mapping)
-            elif isinstance(inner, cst.ImportFrom):
-                _import_info_from_importfrom_stmt(inner, mapping)
+        if isinstance(stmt, cst.SimpleStatementLine):
+            _imports_from_simple_stmt(stmt, mapping)
+        elif isinstance(stmt, cst.Try | cst.If):
+            _imports_from_guard(stmt, mapping)
     return mapping
+
+
+def gather_source_imports(tree: cst.Module) -> dict[str, ImportInfo]:
+    """Map local names to the ``ImportInfo`` describing their origin.
+
+    Imports nested in a top-level ``try``/``except`` or ``if`` guard are
+    flagged ``conditional=True`` with a handle on the guarding block.
+    """
+    return _gather_imports(tree)
 
 
 def _gather_target_imports(tree: cst.Module) -> dict[str, ImportInfo]:
     """Map local names already imported in the target tree to their ``ImportInfo``.
 
-    Mirrors :func:`gather_source_imports` but is used to detect names that
-    are already in scope in the target file before adding new imports.
+    Mirrors :func:`gather_source_imports` (including conditional-guard
+    detection) and is used to detect names already in scope in the target
+    file before adding new imports.
     """
-    mapping: dict[str, ImportInfo] = {}
-    for stmt in tree.body:
-        if not isinstance(stmt, cst.SimpleStatementLine):
-            continue
-        for inner in stmt.body:
-            if isinstance(inner, cst.Import):
-                _import_info_from_import_stmt(inner, mapping)
-            elif isinstance(inner, cst.ImportFrom):
-                _import_info_from_importfrom_stmt(inner, mapping)
-    return mapping
+    return _gather_imports(tree)
 
 
 def gather_source_constants(
