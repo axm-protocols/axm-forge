@@ -76,6 +76,24 @@ helpers to keep each piece small:
 | `_collect_top_level_refs` | Walks the module body to build `(all_top_names, refs_of)` |
 | `_filter_still_referenced` | Iterates to stability, promoting candidates reachable from staying names |
 
+## `__all__` synchronization in `core.move`
+
+When `move_symbols` relocates a symbol that is listed in the source
+module's `__all__`, the public-API surface of both modules must follow the
+move. `_build_trees` runs a post-step (after symbol removal and orphan
+pruning) driven by two helpers:
+
+| Helper | Responsibility |
+|---|---|
+| `_dunder_all_names` | Return the names declared in a module-level `__all__` `List`/`Tuple` literal, in declaration order (`[]` when absent) |
+| `SyncDunderAll` (`_cst.transformers`) | Depth-tracked transformer that mutates an **existing** `__all__` literal's `elements` via `.with_changes()` — drops removed names, appends added names (idempotent), preserving quotes/commas/comments of surviving entries |
+
+Only moved names that were actually present in the source `__all__` are
+synced: such names are dropped from the source `__all__` and appended to
+the target `__all__` **only when the target already declares one**. A
+module without `__all__` is never given one (no synthesis), and moving a
+symbol absent from the source `__all__` leaves both literals untouched.
+
 ## Caller rewriting in `core.callers`
 
 When `move_symbols` relocates a symbol, every other file in the workspace
@@ -133,6 +151,105 @@ name the moved block also references. When the existing target import
 points at a different module than the source's import, the name is
 still skipped but a `redundant import: …` warning is emitted into
 `MovePlan.warnings` so the operator can reconcile the divergence.
+
+### Conditional imports (guarded by `try`/`except` or `if`)
+
+Imports nested in a top-level `try`/`except` (e.g. an optional fast
+backend with a stdlib fallback) or an `if` guard (e.g. a
+platform-specific import) cannot be reduced to a single flat
+`import x` line without losing their fallback semantics.
+`gather_source_imports` walks the body, handlers, `orelse` and
+`finalbody` suites of every top-level `cst.Try`/`cst.If` and flags each
+nested import's `ImportInfo` with `conditional=True`, keeping a handle
+on the guarding block node in `ImportInfo.guard`.
+
+When a moved symbol references a name provided by a conditional import,
+`_apply_imports` copies the **entire guard block verbatim** into the
+target (via `_splice_guard_blocks`) instead of synthesising a flat
+import. The splice is idempotent: a guard whose normalised source
+already exists among the target's top-level `try`/`if` blocks is not
+duplicated. Conditional imports are never auto-removed from the source
+module — they are excluded from `_compute_source_orphans` removal
+candidates by construction (only copied helpers and constants are
+removal candidates), so the fallback machinery survives in both files.
+
+### Relative imports (intra- vs cross-package moves)
+
+A relative import required by moved code (`from . import helper`,
+`from .utils import f as g`) cannot be copied verbatim into a target that
+lives in a different package — the dot level would resolve against the
+wrong package. `move_symbols` builds an `_ImportResolution` context up
+front (`_build_import_resolution`): it locates the source and target
+package roots via `_find_pkg_root`, derives each module's *containing
+package* dotted parts via `_pkg_module_name`, and records whether the two
+modules share the same package root.
+
+`_apply_imports` then routes every relative `ImportInfo` through
+`_resolve_copied_import`:
+
+- **Intra-package** (same package root) — the import is kept relative,
+  re-leveled by `_relevel_intra_package` so its dot count still points at
+  the same absolute `from`-module from the target's location. When source
+  and target sit in the same directory this reproduces the original import
+  verbatim.
+- **Cross-package** (different package root) — the import is rewritten to
+  the equivalent **absolute** import. `_absolute_from_parts` walks up
+  `len(dots) - 1` packages from the source module's package and appends the
+  import's module, yielding e.g. `from src_pkg.utils import f as g`.
+  Imported names and aliases are always preserved.
+- **Unresolvable** (the dot level walks above the package root, e.g.
+  `from ... import x` near the top of the tree) — no import is written and
+  a structured `unresolvable relative import: … (walks above package root)`
+  warning is added to `MovePlan.warnings`.
+
+Absolute imports are untouched. When either endpoint is not inside a
+package (no `__init__.py` ancestor), the resolution context is `None` and
+relative imports fall back to the historical drop behaviour.
+
+## String forward-reference warnings in `core.move`
+
+Type annotations written as string literals (PEP 484 forward references,
+e.g. `def g(x: "Foo")`) are opaque to the caller-rewrite machinery — they
+live inside a `SimpleString`/`ConcatenatedString`, not as a `Name` the
+import rewriter can see. To keep these from silently breaking after a
+move, `_string_forward_ref_warnings` runs the `StringForwardRefScanner`
+visitor (in `_cst/visitors.py`) over the source tree once `moved_names`
+is known. For each string annotation it parses the content with
+`cst.parse_expression`, collects `Name` nodes via `ReferenceCollector`,
+and intersects them with the moved names using a **whole-identifier**
+match — so `"FooBar"` never matches a moved `Foo`, while `"list[Foo]"`
+and `"Foo | None"` do. Every hit appends a structured, actionable
+`forward-reference '<name>' in string annotation at <ctx> not rewritten;
+update manually` line to `MovePlan.warnings`, identifying the symbol and
+its function/parameter context. This is **detection-only**: string
+annotations are never rewritten by the move.
+
+## Pytest fixture-scope warnings in `core.move`
+
+Moving a test function (or a `@pytest.fixture`-decorated function) can
+silently break it when the fixture it depends on lives in a `conftest.py`
+that no longer covers the destination directory. `move_symbols` detects
+this without ever blocking the move.
+
+`detect_fixture_dependencies(blocks, local_names)` is the pure,
+in-memory layer: for every moved `def test_*` function or
+`@pytest.fixture`-decorated function (including methods of a moved class),
+it collects parameter names, then drops `self`/`cls`, defaulted
+parameters, the pytest builtins in `PYTEST_BUILTIN_FIXTURES` (`tmp_path`,
+`monkeypatch`, `capsys`, `request`, …), and any name already resolvable as
+a local definition or import (`local_names`, built from the source module
+by `_module_local_names`). What remains is the set of fixture names the
+moved code needs from a `conftest.py`.
+
+`_fixture_scope_warnings` is the filesystem layer. For each used fixture
+it walks up the parent directories from `from_file` reading every
+`conftest.py` (parsed with libcst, `@pytest.fixture` names collected) to
+find the nearest one that provides it. The destination is in scope iff
+that conftest's directory is a parent of — or equal to — `to_file`'s
+directory (`Path.is_relative_to`). When it is not, a structured
+`moved test depends on fixture '<name>' provided by '<conftest>'; the
+target is outside that conftest's scope …` line is appended to
+`MovePlan.warnings`. This is **detection-only**: the move always proceeds.
 
 ## Re-export mode in `core.move`
 

@@ -65,6 +65,7 @@ class InitReserveTool:
 
         try:
             from axm_init.adapters.credentials import CredentialManager
+            from axm_init.adapters.pypi import PyPIAdapter
             from axm_init.core.reserver import reserve_pypi
 
             creds = CredentialManager()
@@ -87,6 +88,7 @@ class InitReserveTool:
                 email=email,
                 token=token or "",
                 dry_run=dry_run,
+                checker=PyPIAdapter(),
             )
 
             return ToolResult(
