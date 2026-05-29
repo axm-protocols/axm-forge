@@ -134,3 +134,94 @@ def test_all_sync_real_files(tmp_path: Path) -> None:
     assert '"Bar"' in source_after
     assert '"Foo"' in target_after
     assert '"Existing"' in target_after
+
+
+def test_side_effect_decorator_dotted_warns(tmp_path: Path) -> None:
+    """AC2, AC4: moving an ``@app.route("/x")`` fn warns, naming deco + symbol."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text('import app\n\n\n@app.route("/x")\ndef handler():\n    return 1\n')
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["handler"], dry_run=True)
+
+    matching = [w for w in plan.warnings if "side-effect decorator" in w]
+    assert matching, plan.warnings
+    assert any("app.route" in w and "handler" in w for w in matching)
+
+
+def test_side_effect_decorator_bare_warns(tmp_path: Path) -> None:
+    """AC4: a bare whitelisted decorator (``@fixture``) emits a warning."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text(
+        "from pytest import fixture\n\n\n@fixture\ndef thing():\n    return 1\n"
+    )
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["thing"], dry_run=True)
+
+    assert any(
+        "side-effect decorator" in w and "fixture" in w and "thing" in w
+        for w in plan.warnings
+    ), plan.warnings
+
+
+def test_non_whitelisted_decorator_no_warn(tmp_path: Path) -> None:
+    """AC5: a non-whitelisted decorator produces no side-effect warning."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text(
+        "def deco(f):\n    return f\n\n\n@deco\ndef thing():\n    return 1\n"
+    )
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["thing"], dry_run=True)
+
+    assert not any("side-effect decorator" in w for w in plan.warnings), plan.warnings
+
+
+def test_custom_side_effect_decorator_extension(tmp_path: Path) -> None:
+    """AC3: a caller-supplied custom decorator extends the whitelist."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text("import mylib\n\n\n@mylib.register\ndef thing():\n    return 1\n")
+    tgt.write_text("")
+
+    plan = move_symbols(
+        src,
+        tgt,
+        ["thing"],
+        dry_run=True,
+        side_effect_decorators=frozenset({"mylib.register"}),
+    )
+
+    assert any(
+        "side-effect decorator" in w and "mylib.register" in w and "thing" in w
+        for w in plan.warnings
+    ), plan.warnings
+
+
+def test_side_effect_decorator_warning_real_files(tmp_path: Path) -> None:
+    """AC2: real-file move surfaces the decorator warning on plan.warnings."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "app_routes.py"
+    tgt = tmp_path / "tasks.py"
+    src.write_text("import celery\n\n\n@celery.task\ndef do_work():\n    return 42\n")
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["do_work"], workspace_root=tmp_path)
+
+    assert any(
+        "side-effect decorator" in w and "celery.task" in w and "do_work" in w
+        for w in plan.warnings
+    ), plan.warnings

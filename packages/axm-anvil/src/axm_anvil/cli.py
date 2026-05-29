@@ -84,6 +84,14 @@ def move(  # noqa: PLR0913
             "the target (default). Use --no-include-helpers to skip them.",
         ),
     ] = True,
+    side_effect_decorators: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--side-effect-decorators"],
+            help="Comma-separated extra side-effect decorator dotted-names "
+            "that extend the built-in whitelist (e.g. 'mylib.register').",
+        ),
+    ] = None,
 ) -> None:
     """Move top-level symbols between Python files atomically."""
     result = MoveTool().execute(
@@ -98,6 +106,7 @@ def move(  # noqa: PLR0913
         check=check,
         insert_after=insert_after,
         include_helpers=include_helpers,
+        side_effect_decorators=side_effect_decorators,
     )
     if not result.success:
         print(result.error or "move failed", file=sys.stderr)  # noqa: T201
