@@ -333,9 +333,29 @@ def graph(
         bool,
         cyclopts.Parameter(name=["--json"], help="Output as JSON"),
     ] = False,
+    scope: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--scope"],
+            help=(
+                "Graph scope: 'package', 'workspace' (merged module-level),"
+                " or 'workspace-deps'. Omit for auto-detection."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Display the internal import/dependency graph."""
     project_path = _resolve_dir(path)
+
+    if scope == "workspace":
+        _print_workspace_module_graph(project_path, fmt=fmt, json_output=json_output)
+        return
+    if scope == "workspace-deps":
+        _print_workspace_graph(project_path, fmt=fmt, json_output=json_output)
+        return
+    if scope == "package":
+        _print_package_graph(project_path, fmt=fmt, json_output=json_output)
+        return
 
     from axm_ast.core.workspace import detect_workspace
 
@@ -345,6 +365,29 @@ def graph(
         return
 
     _print_package_graph(project_path, fmt=fmt, json_output=json_output)
+
+
+def _print_workspace_module_graph(
+    project_path: Path, *, fmt: str, json_output: bool
+) -> None:
+    """Print the merged module-level workspace graph (namespaced nodes)."""
+    from axm_ast.tools.graph import GraphTool
+
+    result = GraphTool().execute(
+        path=str(project_path),
+        scope="workspace",
+        format="json" if (json_output or fmt == "json") else fmt,
+    )
+    data = result.data or {}
+    graph_data = data.get("graph", {})
+
+    if json_output or fmt == "json":
+        payload = {"graph": graph_data, "nodes": data.get("nodes", [])}
+        print(json.dumps(payload, indent=2))
+    elif fmt == "mermaid":
+        print(data.get("mermaid", ""))
+    else:
+        _print_graph_data(graph_data, "Workspace Module Graph")
 
 
 def _print_workspace_graph(project_path: Path, *, fmt: str, json_output: bool) -> None:

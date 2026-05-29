@@ -29,23 +29,103 @@ class GraphTool(AXMTool):
 
     @safe_execute
     def execute(
-        self, *, path: str = ".", format: str = "json", **kwargs: object
+        self,
+        *,
+        path: str = ".",
+        format: str = "json",
+        scope: str | None = None,
+        **kwargs: object,
     ) -> ToolResult:
         """Generate import dependency graph.
 
         Args:
             path: Path to package or workspace directory.
             format: Output format — 'json', 'mermaid', or 'text'.
+            scope: Graph scope. ``None`` (default) keeps today's
+                auto-detection (workspace root → package-level dep
+                graph; package dir → intra-package module graph).
+                ``"package"`` forces the intra-package module graph,
+                ``"workspace"`` builds the merged module-level workspace
+                graph (namespaced ``{pkg}.{module}`` nodes), and
+                ``"workspace-deps"`` forces the package-level dependency
+                graph.
 
         Returns:
             ToolResult with graph data.
         """
         project_path = Path(path).resolve()
+        if scope is not None:
+            return self._execute_scoped(project_path, scope=scope, format=format)
+        # scope is None — preserve legacy auto-detection.
         if self._detect_workspace(project_path):
             return self._execute_workspace(project_path, format=format)
+        return self._execute_package_checked(project_path, format=format)
+
+    def _execute_scoped(
+        self, project_path: Path, *, scope: str, format: str
+    ) -> ToolResult:
+        """Dispatch an explicit ``scope`` to its executor."""
+        if scope == "workspace":
+            return self._execute_workspace_modules(project_path, format=format)
+        if scope == "workspace-deps":
+            return self._execute_workspace(project_path, format=format)
+        return self._execute_package_checked(project_path, format=format)
+
+    def _execute_package_checked(
+        self, project_path: Path, *, format: str
+    ) -> ToolResult:
+        """Run the package executor, guarding against non-directory paths."""
         if not project_path.is_dir():
             return ToolResult(success=False, error=f"Not a directory: {project_path}")
         return self._execute_package(project_path, format=format)
+
+    def _execute_workspace_modules(
+        self, project_path: Path, *, format: str
+    ) -> ToolResult:
+        """Build the merged module-level workspace graph (namespaced nodes)."""
+        from axm_ast.core.workspace import (
+            analyze_workspace,
+            build_workspace_module_graph,
+        )
+
+        ws = analyze_workspace(project_path)
+        graph = build_workspace_module_graph(ws)
+        nodes = sorted(set(graph) | {t for targets in graph.values() for t in targets})
+        ws_name = project_path.name
+
+        data: dict[str, object] = {"graph": graph, "nodes": nodes}
+        text = self.render_pkg_text(
+            pkg_name=f"{ws_name} workspace",
+            nodes=nodes,
+            graph=graph,
+            mermaid_str=None,
+        )
+        if format == "mermaid":
+            mermaid_str = self._modules_mermaid(graph)
+            data["mermaid"] = mermaid_str
+            text = self.render_pkg_text(
+                pkg_name=f"{ws_name} workspace",
+                nodes=nodes,
+                graph=graph,
+                mermaid_str=mermaid_str,
+            )
+        elif format == "text":
+            data["text"] = self._format_text(nodes, graph)
+
+        return ToolResult(success=True, data=data, text=text)
+
+    @staticmethod
+    def _modules_mermaid(graph: dict[str, list[str]]) -> str:
+        """Render a module-level graph as a mermaid flowchart."""
+        nodes = sorted(set(graph) | {t for targets in graph.values() for t in targets})
+        ids = {name: f"n{i}" for i, name in enumerate(nodes)}
+        lines = ["graph TD"]
+        for name in nodes:
+            lines.append(f'    {ids[name]}["{name}"]')
+        for src, targets in graph.items():
+            for target in targets:
+                lines.append(f"    {ids[src]} --> {ids[target]}")
+        return "\n".join(lines)
 
     def _detect_workspace(self, project_path: Path) -> bool:
         """Return True if *project_path* is a uv workspace root."""
