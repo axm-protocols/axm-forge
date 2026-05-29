@@ -8,6 +8,7 @@ from here; no ``@register_rule`` lives here.
 from __future__ import annotations
 
 import ast
+import re
 import tomllib
 from collections import Counter
 from collections.abc import Iterator
@@ -41,6 +42,7 @@ __all__ = [
     "load_project_scripts",
     "target_matches_io",
     "test_invokes_in_package_script",
+    "test_invokes_inline_python_script",
     "test_is_in_lazy_import_context",
     "test_references_first_party",
     "to_snake_token",
@@ -1699,6 +1701,162 @@ def test_invokes_in_package_script(
 
 
 test_invokes_in_package_script.__test__ = False  # type: ignore[attr-defined]
+
+
+def test_invokes_inline_python_script(
+    *,
+    test_func: ast.FunctionDef,
+    module_ast: ast.Module,
+    pkg_prefixes: set[str],
+) -> bool:
+    """True when the test drives the package via ``python -c "<script>"``.
+
+    A black-box e2e idiom: the test spawns a subprocess running an inline
+    driver script (``subprocess.run([sys.executable, "-c", script, ...])``)
+    whose string body imports a first-party package. Criterion (a) misses it
+    because the first-party imports live inside a string literal (not the
+    test's AST closure); the declared-script branch of criterion (b) misses
+    it because the entrypoint is inline code, not a ``[project.scripts]``
+    entry or ``python -m pkg``. This helper closes that gap, so such a test
+    counts as exercising the package (criterion (b), subprocess tier).
+    """
+    if not pkg_prefixes:
+        return False
+    mod_funcs = _module_level_funcs_by_name(module_ast)
+    mod_classes = _module_level_classes_by_name(module_ast)
+    closure = _closure_nodes_for_test(test_func, mod_funcs, mod_classes)
+    for call in _calls_in_nodes(closure):
+        if not _is_subprocess_call(call):
+            continue
+        for script in _inline_scripts_in_call(call, module_ast):
+            if _string_imports_first_party(script, pkg_prefixes):
+                return True
+    return False
+
+
+test_invokes_inline_python_script.__test__ = False  # type: ignore[attr-defined]
+
+
+def _inline_scripts_in_call(call: ast.Call, module_ast: ast.Module) -> list[str]:
+    """Return resolved ``-c`` inline-script strings from *call*'s argv.
+
+    Resolves each script-position node against the enclosing function's
+    string constants (plain ``x = "..."`` and ``x = textwrap.dedent("...")``
+    bindings) plus inline literals / ``dedent(...)`` wrappers. When the
+    ``-c`` value cannot be resolved, falls back to every string constant in
+    the enclosing function so the import scan still has content to match.
+    """
+    if not call.args or not isinstance(call.args[0], ast.List):
+        return []
+    func = _enclosing_function(module_ast, call)
+    scope = _inline_script_constants(func, call) if func is not None else {}
+    elts = call.args[0].elts
+    indices = _dash_c_indices(elts)
+    scripts = [
+        s
+        for s in (_resolve_script_node(elts[i + 1], scope) for i in indices)
+        if s is not None
+    ]
+    if indices and not scripts:
+        # ``-c`` present but its value is unresolved: scan all local strings.
+        scripts.extend(scope.values())
+    return scripts
+
+
+def _dash_c_indices(elts: list[ast.expr]) -> list[int]:
+    """Indices of ``-c`` string-literal tokens that have a following element."""
+    return [
+        i
+        for i, item in enumerate(elts)
+        if isinstance(item, ast.Constant) and item.value == "-c" and i + 1 < len(elts)
+    ]
+
+
+def _resolve_script_node(node: ast.expr, scope: dict[str, str]) -> str | None:
+    """Resolve a single argv element to its string content, or ``None``.
+
+    Handles a string literal, a ``textwrap.dedent(<literal>)`` wrapper, and a
+    ``Name`` previously bound to either of those in *scope*.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name):
+        return scope.get(node.id)
+    return _dedent_literal(node)
+
+
+def _dedent_literal(node: ast.expr) -> str | None:
+    """Return the literal inside ``textwrap.dedent("...")`` / ``dedent("...")``."""
+    if not (isinstance(node, ast.Call) and node.args):
+        return None
+    func = node.func
+    is_dedent = (isinstance(func, ast.Attribute) and func.attr == "dedent") or (
+        isinstance(func, ast.Name) and func.id == "dedent"
+    )
+    if not is_dedent:
+        return None
+    first = node.args[0]
+    if isinstance(first, ast.Constant) and isinstance(first.value, str):
+        return first.value
+    return None
+
+
+def _inline_script_constants(func: ast.FunctionDef, call: ast.Call) -> dict[str, str]:
+    """String bindings visible before *call*: plain literals + dedent wrappers.
+
+    Extends :func:`_local_string_constants` (plain ``x = "..."``) with
+    ``x = textwrap.dedent("...")`` so an inline driver script bound to a
+    dedented heredoc resolves to its content.
+    """
+    constants = _local_string_constants(func, call)
+    for stmt in func.body:
+        if getattr(stmt, "lineno", 0) >= call.lineno:
+            break
+        if not isinstance(stmt, ast.Assign):
+            continue
+        literal = _dedent_literal(stmt.value)
+        if literal is None:
+            continue
+        for target in stmt.targets:
+            if isinstance(target, ast.Name):
+                constants[target.id] = literal
+    return constants
+
+
+def _string_imports_first_party(script: str, pkg_prefixes: set[str]) -> bool:
+    """True when *script* imports a first-party package.
+
+    Prefers a real AST parse (catches ``import pkg`` / ``from pkg.x import y``
+    precisely); when the inline string is not standalone-parseable, falls
+    back to a line-anchored regex over ``import``/``from`` statements.
+    """
+    try:
+        tree = ast.parse(script)
+    except SyntaxError:
+        return _regex_imports_first_party(script, pkg_prefixes)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            if any(_alias_matches(a.name, pkg_prefixes) for a in node.names):
+                return True
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            if _alias_matches(node.module, pkg_prefixes):
+                return True
+    return False
+
+
+def _alias_matches(dotted: str, pkg_prefixes: set[str]) -> bool:
+    return any(
+        dotted == prefix or dotted.startswith(f"{prefix}.") for prefix in pkg_prefixes
+    )
+
+
+def _regex_imports_first_party(script: str, pkg_prefixes: set[str]) -> bool:
+    for prefix in pkg_prefixes:
+        escaped = re.escape(prefix)
+        pattern = rf"(?m)^\s*(?:import|from)\s+{escaped}(?:\.|\s|$)"
+        if re.search(pattern, script):
+            return True
+    return False
 
 
 # ── Canonical filename emission (FILE_NAMING) ─────────────────
