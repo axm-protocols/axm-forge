@@ -2,7 +2,24 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 from pydantic import BaseModel, ConfigDict, Field
+
+__all__ = ["AvailabilityStatus", "ReserveResult", "ScaffoldResult"]
+
+
+class AvailabilityStatus(StrEnum):
+    """Package name availability status.
+
+    Domain value object describing the outcome of an availability
+    check. Lives in the application layer so the ``core`` package can
+    depend on it without importing any concrete adapter.
+    """
+
+    AVAILABLE = "available"
+    TAKEN = "taken"
+    ERROR = "error"
 
 
 class ScaffoldResult(BaseModel):  # type: ignore[explicit-any]

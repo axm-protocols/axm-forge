@@ -55,6 +55,13 @@ def move(  # noqa: PLR0913
             help="Leave callers untouched; inject a re-export in the source module.",
         ),
     ] = False,
+    rename: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--rename"],
+            help='JSON object mapping old to new names, e.g. \'{"Old": "New"}\'.',
+        ),
+    ] = None,
     check: Annotated[
         bool,
         cyclopts.Parameter(
@@ -62,6 +69,29 @@ def move(  # noqa: PLR0913
             help="Simulate the move (incl. cycle detection) without writing.",
         ),
     ] = False,
+    insert_after: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--insert-after"],
+            help="Place moved blocks after this target top-level symbol.",
+        ),
+    ] = None,
+    include_helpers: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--include-helpers"],
+            help="Copy transitively-referenced local helpers/constants into "
+            "the target (default). Use --no-include-helpers to skip them.",
+        ),
+    ] = True,
+    side_effect_decorators: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--side-effect-decorators"],
+            help="Comma-separated extra side-effect decorator dotted-names "
+            "that extend the built-in whitelist (e.g. 'mylib.register').",
+        ),
+    ] = None,
 ) -> None:
     """Move top-level symbols between Python files atomically."""
     result = MoveTool().execute(
@@ -72,7 +102,11 @@ def move(  # noqa: PLR0913
         dry_run=dry_run,
         shared_helpers=shared_helpers,
         reexport=reexport,
+        rename=rename,
         check=check,
+        insert_after=insert_after,
+        include_helpers=include_helpers,
+        side_effect_decorators=side_effect_decorators,
     )
     if not result.success:
         print(result.error or "move failed", file=sys.stderr)  # noqa: T201

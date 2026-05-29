@@ -1274,6 +1274,26 @@ def _append_marker_fixtures(
     return merged, warnings
 
 
+def _filter_movable_units(
+    source: Path, final_units: list[str]
+) -> tuple[list[str], list[str]]:
+    """Keep only names defined at the source module top level.
+
+    A method name (e.g. ``test_basic`` declared inside a ``Test*`` class) is
+    not a movable top-level symbol; passing it to ``move_symbols`` would
+    crash the whole pipeline. Drop such names here and surface the cause as
+    a pipeline warning rather than relying on anvil to tolerate bad input.
+    """
+    top_level = _existing_top_level_names(ast.parse(source.read_text()))
+    movable = [name for name in final_units if name in top_level]
+    warnings = [
+        f"dropped non-movable unit `{name}`: not a top-level symbol in {source.name}"
+        for name in final_units
+        if name not in top_level
+    ]
+    return movable, warnings
+
+
 def _finalize_move(
     source: Path,
     target: Path,
@@ -1281,14 +1301,16 @@ def _finalize_move(
     final_units: list[str],
 ) -> list[str]:
     assert move_symbols is not None, "axm-anvil not importable"
+    movable_units, drop_warnings = _filter_movable_units(source, final_units)
     plan = move_symbols(
         source_path=source,
         target_path=target,
-        symbol_names=final_units,
+        symbol_names=movable_units,
         workspace_root=project_path,
         shared_helpers="duplicate",
     )
-    warnings = list(plan.warnings)
+    warnings = list(drop_warnings)
+    warnings.extend(plan.warnings)
     warnings.extend(_backfill_missing_imports(source, target, project_path))
     _reorder_module_statements(target)
     if source.exists():

@@ -10,6 +10,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from axm_anvil.core.move import move_symbols
+from axm_anvil.core.plan import SymbolNotFoundError
 from tests.integration._helpers import (
     _write,
     _write_empty_new,
@@ -1166,3 +1167,83 @@ def test_transitive_shared_helper_detected(tmp_path):
     assert "_a" in target.read_text()
     assert "_a" in source.read_text()
     assert any("Helper '_a' is also used by" in w for w in plan.warnings)
+
+
+# --- AXM-1769: non-top-level / absent names are skipped+warned, not raised ---
+
+SOURCE_WITH_METHOD = (
+    '"""Source module."""\n\n\n'
+    "def real_toplevel() -> int:\n"
+    "    return 42\n\n\n"
+    "class TestBasicThing:\n"
+    "    def test_basic(self) -> None:\n"
+    "        assert True\n"
+)
+
+
+def test_move_skips_method_name_with_warning(tmp_path: Path) -> None:
+    """AC1, AC2: a class-method name is skipped+warned; the real symbol still moves."""
+    source = tmp_path / "source_mod.py"
+    target = tmp_path / "target_mod.py"
+    source.write_text(SOURCE_WITH_METHOD)
+    target.write_text('"""Target module."""\n')
+
+    plan = move_symbols(
+        source,
+        target,
+        ["test_basic", "real_toplevel"],
+        workspace_root=tmp_path,
+    )
+
+    # The genuine top-level symbol moved.
+    assert "real_toplevel" in plan.moved_names
+    assert "def real_toplevel" in target.read_text()
+    # The method name was not moved, and surfaced as a warning, not an exception.
+    assert "test_basic" not in plan.moved_names
+    assert any("test_basic" in w for w in plan.warnings)
+
+
+def test_move_absent_toplevel_warns_not_raises(tmp_path: Path) -> None:
+    """AC5: a genuinely-absent top-level name warns clearly, no SymbolNotFoundError."""
+    source = tmp_path / "source_mod.py"
+    target = tmp_path / "target_mod.py"
+    source.write_text(SOURCE_WITH_METHOD)
+    target.write_text('"""Target module."""\n')
+
+    try:
+        plan = move_symbols(
+            source,
+            target,
+            ["real_toplevel", "does_not_exist_anywhere"],
+            workspace_root=tmp_path,
+        )
+    except SymbolNotFoundError as exc:  # pragma: no cover - failure path
+        pytest.fail(f"move_symbols raised SymbolNotFoundError for absent name: {exc}")
+
+    assert "real_toplevel" in plan.moved_names
+    assert "does_not_exist_anywhere" not in plan.moved_names
+    assert any("does_not_exist_anywhere" in w for w in plan.warnings)
+
+
+def test_move_skip_in_check_mode_does_not_mutate(tmp_path: Path) -> None:
+    """AC2: a dry_run surfaces the skip as a warning without writing files."""
+    source = tmp_path / "source_mod.py"
+    target = tmp_path / "target_mod.py"
+    source.write_text(SOURCE_WITH_METHOD)
+    target.write_text('"""Target module."""\n')
+    source_before = source.read_text()
+    target_before = target.read_text()
+
+    plan = move_symbols(
+        source,
+        target,
+        ["test_basic", "real_toplevel"],
+        dry_run=True,
+        workspace_root=tmp_path,
+    )
+
+    # Files untouched...
+    assert source.read_text() == source_before
+    assert target.read_text() == target_before
+    # ...and the skip is still reported.
+    assert any("test_basic" in w for w in plan.warnings)
