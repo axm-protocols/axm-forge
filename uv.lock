@@ -80,6 +80,7 @@ name = "axm-anvil"
 source = { editable = "packages/axm-anvil" }
 dependencies = [
     { name = "axm" },
+    { name = "axm-ast" },
     { name = "axm-edit" },
     { name = "cyclopts" },
     { name = "libcst" },
@@ -105,6 +106,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "axm" },
+    { name = "axm-ast", editable = "packages/axm-ast" },
     { name = "axm-edit", editable = "packages/axm-edit" },
     { name = "cyclopts", specifier = ">=4.5" },
     { name = "libcst", specifier = ">=1.5.0" },
