@@ -1360,6 +1360,32 @@ class TestAttributeRefs:
         assert "_make" not in dead
 
 
+@pytest.mark.integration
+class TestReturnValueRefs:
+    """Functions returned as a value (not called) must not be flagged dead."""
+
+    def test_function_returned_as_value_not_dead(self, tmp_path: Path) -> None:
+        """AC3: a function only referenced via `return that_func` is alive."""
+        dead = _dead_names(
+            tmp_path,
+            {
+                "__init__.py": "",
+                "core.py": (
+                    "def that_func():\n"
+                    "    return 1\n\n"
+                    "def get_handler():\n"
+                    "    return that_func\n"
+                ),
+                "main.py": (
+                    "from .core import get_handler\n\n"
+                    "def run():\n"
+                    "    return get_handler()\n"
+                ),
+            },
+        )
+        assert "that_func" not in dead
+
+
 _AXM_AST_ROOT = Path(__file__).resolve().parents[2]
 _BASELINES_DIR = _AXM_AST_ROOT / "tests" / "fixtures" / "dead_code_baselines"
 _WORKSPACES_ROOT = _AXM_AST_ROOT.parents[2]
