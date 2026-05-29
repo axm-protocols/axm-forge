@@ -54,6 +54,8 @@ def extract_references(mod: ModuleInfo) -> set[str]:
     - Keyword arguments: ``DataLoader(collate_fn=my_func)``
     - Default parameters: ``def foo(callback=my_func)``
     - Positional arguments: ``register(MyClass)`` (bare identifiers only)
+    - Return values: ``return some_func`` / ``return self.method``
+      (function returned as a value, not called)
 
     This catches dynamic dispatch patterns where functions are stored
     in data structures, passed as positional arguments, used as keyword
@@ -88,6 +90,11 @@ def _visit_references(node: Node, refs: set[str]) -> None:
         _collect_kwarg_ref(children, refs)
     elif node_type == "argument_list":
         _collect_argument_refs(children, refs)
+    elif node_type == "return_statement":
+        # Handle `return some_func` / `return self.method` — a function
+        # returned as a value. `_extract_ref_name` skips the `return`
+        # keyword, `call` nodes (tracked by find_callers) and literals.
+        _collect_collection_refs(children, refs)
     elif node_type == "string" and _is_forward_ref_string(node):
         _extract_forward_refs(node, refs)
 

@@ -251,3 +251,70 @@ Server(host, port, Handler, logger)
     assert "logger" in refs
     assert "host" in refs
     assert "port" in refs
+
+
+# ---------------------------------------------------------------------------
+# AXM-1779 — return-statement value references
+# ---------------------------------------------------------------------------
+
+
+def test_return_bare_identifier_collects_name(
+    mod_factory: Callable[[str], SimpleNamespace],
+) -> None:
+    """AC1: `return some_func` collects the identifier name (returned as value)."""
+    source = """
+def helper():
+    return 1
+
+def f():
+    return helper
+"""
+    refs = extract_references(mod_factory(source))
+    assert "helper" in refs
+
+
+def test_return_attribute_collects_attr_name(
+    mod_factory: Callable[[str], SimpleNamespace],
+) -> None:
+    """AC2: `return self.method` collects the attribute name."""
+    source = """
+class Foo:
+    def method(self):
+        return 1
+
+    def run(self):
+        return self.method
+"""
+    refs = extract_references(mod_factory(source))
+    assert "method" in refs
+
+
+def test_return_call_does_not_pollute_refs(
+    mod_factory: Callable[[str], SimpleNamespace],
+) -> None:
+    """AC4: `return foo()` is a call (tracked by find_callers), not a ref."""
+    source = """
+def foo():
+    return 1
+
+def f():
+    return foo()
+"""
+    refs = extract_references(mod_factory(source))
+    assert "foo" not in refs
+
+
+def test_return_literal_collects_nothing(
+    mod_factory: Callable[[str], SimpleNamespace],
+) -> None:
+    """AC4: `return 42` / `return "x"` add no spurious references."""
+    source = """
+def g():
+    return 42
+
+def h():
+    return "x"
+"""
+    refs = extract_references(mod_factory(source))
+    assert "42" not in refs
+    assert "x" not in refs
