@@ -997,6 +997,7 @@ def _build_trees(  # noqa: PLR0913
     insert_after: str | None = None,
     include_helpers: bool = True,
     import_resolution: _ImportResolution | None = None,
+    rename_map: dict[str, str] | None = None,
 ) -> tuple[
     cst.Module, cst.Module, list[str], list[str], dict[str, SharedInfo], list[str]
 ]:
@@ -1063,8 +1064,12 @@ def _build_trees(  # noqa: PLR0913
     ordered = [n for n in _dunder_all_names(source_tree) if n in remove_targets]
     if ordered:
         exported = set(ordered)
+        # Source removal keys on the *original* exported names; the target
+        # append must use the *post-rename* names (AXM-1773 x AXM-1770).
+        renames = rename_map or {}
+        added = [renames.get(name, name) for name in ordered]
         new_source_tree = new_source_tree.visit(SyncDunderAll(exported, []))
-        new_target_tree = new_target_tree.visit(SyncDunderAll(set(), ordered))
+        new_target_tree = new_target_tree.visit(SyncDunderAll(set(), added))
 
     # AXM-1775 AC3: conditional imports (top-level try/except, if guards) must
     # never be removed from the source — the post-move ruff F401 pass would
@@ -1974,6 +1979,7 @@ def move_symbols(  # noqa: PLR0913
         insert_after=insert_after,
         include_helpers=include_helpers,
         import_resolution=import_resolution,
+        rename_map=rename_map,
     )
 
     if reexport:
@@ -2004,7 +2010,11 @@ def move_symbols(  # noqa: PLR0913
         redundant_import_warnings=redundant_import_warnings,
     )
     plan.warnings.extend(skipped_warnings)
-    plan.warnings.extend(_string_forward_ref_warnings(source_tree, moved_names))
+    # Forward-refs to *renamed* symbols are rewritten in the moved code
+    # (RenameSymbols.leave_Annotation); only moved-but-not-renamed names still
+    # warrant the manual-update warning.
+    unrenamed_moved = [n for n in moved_names if n not in rename_map]
+    plan.warnings.extend(_string_forward_ref_warnings(source_tree, unrenamed_moved))
     deco_whitelist = SIDE_EFFECT_DECORATORS | (side_effect_decorators or frozenset())
     plan.warnings.extend(_side_effect_decorator_warnings(blocks, deco_whitelist))
     plan.warnings.extend(
