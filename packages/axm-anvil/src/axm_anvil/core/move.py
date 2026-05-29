@@ -366,6 +366,13 @@ def _register_import(
     info: ImportInfo,
     imports_added: list[str],
 ) -> None:
+    """Queue a flat (unconditional) import on ``context`` for the target tree.
+
+    Relative ``from`` imports with no resolvable absolute module are
+    skipped. The human-readable import label is appended to
+    ``imports_added`` (de-duplicated). Conditional imports are handled
+    separately via guard-block splicing, not here.
+    """
     if info.obj is not None:
         module = info.module if not info.relative else None
         if module is None:
@@ -397,6 +404,40 @@ def _import_modules_match(source_info: ImportInfo, target_info: ImportInfo) -> b
     return source_info.module == target_info.module
 
 
+def _guard_code(guard: cst.BaseCompoundStatement) -> str:
+    """Return the normalized source of a guard block for equivalence checks."""
+    return cst.Module(body=[guard]).code.strip()
+
+
+def _existing_guard_codes(target_tree: cst.Module) -> set[str]:
+    """Return normalized source of every top-level ``Try``/``If`` guard."""
+    return {
+        _guard_code(stmt)
+        for stmt in target_tree.body
+        if isinstance(stmt, cst.Try | cst.If)
+    }
+
+
+def _splice_guard_blocks(
+    target_tree: cst.Module, guards: list[cst.BaseCompoundStatement]
+) -> cst.Module:
+    """Prepend conditional guard blocks not already present in the target."""
+    if not guards:
+        return target_tree
+    seen = _existing_guard_codes(target_tree)
+    to_add: list[cst.BaseStatement] = []
+    for guard in guards:
+        code = _guard_code(guard)
+        if code in seen:
+            continue
+        seen.add(code)
+        block = guard.with_changes(leading_lines=[cst.EmptyLine()])
+        to_add.append(block)
+    if not to_add:
+        return target_tree
+    return target_tree.with_changes(body=[*to_add, *target_tree.body])
+
+
 def _apply_imports(
     target_tree: cst.Module,
     external_refs: set[str],
@@ -406,6 +447,7 @@ def _apply_imports(
     context = CodemodContext()
     imports_added: list[str] = []
     redundant_warnings: list[str] = []
+    conditional_guards: list[cst.BaseCompoundStatement] = []
     for name in sorted(external_refs):
         info = source_imports.get(name)
         if info is None:
@@ -418,9 +460,17 @@ def _apply_imports(
                     f"{existing.module}; source had {info.module}"
                 )
             continue
+        if info.conditional and info.guard is not None:
+            conditional_guards.append(info.guard)
+            label = f"conditional import block for {name}"
+            if label not in imports_added:
+                imports_added.append(label)
+            continue
         _register_import(context, info, imports_added)
+    new_tree = AddImportsVisitor(context).transform_module(target_tree)
+    new_tree = _splice_guard_blocks(new_tree, conditional_guards)
     return (
-        AddImportsVisitor(context).transform_module(target_tree),
+        new_tree,
         imports_added,
         redundant_warnings,
     )
