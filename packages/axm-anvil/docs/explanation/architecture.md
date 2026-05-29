@@ -280,14 +280,26 @@ only has to assemble the edit set:
 | `_cycles` | Filter SCCs to size > 1 plus genuine self-loops |
 | `_order_cycle` | Order nodes along a directed walk for readable `A → B → C → A` output |
 
-The `_cycle_check` helper in `core/move.py` builds the current
-package-level module graph by parsing every `.py` file under the
-detected package root, computes `GraphEdits` for the move (imports
-dropped from the source, imports gained by the target, caller
-redirections), and calls `detect_new_cycle`. A non-`None` result raises
-`ImportCycleError` with the ordered cycle when `check=True` or during a
-normal (non-dry-run) write; pure `dry_run=True` calls skip the raise to
-preserve the existing preview contract.
+The `_cycle_check` helper in `core/move.py` routes on whether the move
+stays inside one package. For an **intra-package** move
+(`src_pkg_root == tgt_pkg_root`) it builds the current package-level
+module graph by parsing every `.py` file under the detected package
+root, computes `GraphEdits` for the move (imports dropped from the
+source, imports gained by the target, caller redirections), and calls
+`detect_new_cycle`. For a **cross-package** move it delegates to
+`_cross_package_cycle_check`, which builds the *workspace-wide* module
+graph via `build_workspace_module_graph(analyze_workspace(...))` from
+`axm-ast`. That graph namespaces every node as `{import_pkg}.{module}`
+(the import package name = source-directory name, e.g. `pkg_a`), so
+`_cross_package_cycle_check` mirrors the same namespacing when computing
+the move's `GraphEdits` (via `_compute_workspace_graph_edits` +
+`_namespaced_caller_module`) — otherwise `detect_new_cycle` would see
+disjoint node sets and never find the cycle. Both branches feed the same
+`detect_new_cycle`, so pre-existing cycles are ignored and only newly
+introduced ones surface. A non-`None` result raises `ImportCycleError`
+with the ordered cycle when `check=True` or during a normal (non-dry-run)
+write; pure `dry_run=True` calls skip the raise to preserve the existing
+preview contract.
 
 ## Design Decisions
 

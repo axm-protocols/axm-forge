@@ -68,3 +68,30 @@ def test_cycles_no_cycle_returns_empty() -> None:
     result = cycles(graph)
 
     assert result == []
+
+
+def test_detect_new_cycle_cross_package_namespaced() -> None:
+    """AC2, AC4: detect_new_cycle works on namespaced {import_pkg}.{module} nodes.
+
+    A workspace graph already has ``pkg_a.x -> pkg_b.y``. Adding the reverse
+    edge ``pkg_b.y -> pkg_a.x`` (what a cross-package move would introduce)
+    must surface the new cycle ``[pkg_a.x, pkg_b.y]``. A pre-existing cycle
+    in the same namespaced coordinates must be ignored.
+    """
+    graph: dict[str, set[str]] = {"pkg_a.x": {"pkg_b.y"}, "pkg_b.y": set()}
+    edits = GraphEdits(adds=[("pkg_b.y", "pkg_a.x")], removes=[])
+
+    cycle = detect_new_cycle(graph, edits)
+
+    assert cycle is not None
+    assert set(cycle) == {"pkg_a.x", "pkg_b.y"}
+    assert len(cycle) == 2
+
+    # AC4: a pre-existing cross-package cycle is not re-flagged.
+    preexisting: dict[str, set[str]] = {
+        "pkg_a.x": {"pkg_b.y"},
+        "pkg_b.y": {"pkg_a.x"},
+        "pkg_c.z": set(),
+    }
+    no_new = GraphEdits(adds=[("pkg_c.z", "pkg_a.x")], removes=[])
+    assert detect_new_cycle(preexisting, no_new) is None
