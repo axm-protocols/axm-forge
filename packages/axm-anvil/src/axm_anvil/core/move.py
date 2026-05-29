@@ -450,26 +450,154 @@ def _register_import(
 ) -> None:
     """Queue a flat (unconditional) import on ``context`` for the target tree.
 
-    Relative ``from`` imports with no resolvable absolute module are
-    skipped. The human-readable import label is appended to
-    ``imports_added`` (de-duplicated). Conditional imports are handled
-    separately via guard-block splicing, not here.
+    Relative ``from`` imports are emitted with their dot level preserved
+    (``info.relative``); cross-package relatives are expected to have been
+    rewritten to absolute (``relative == 0``) upstream by
+    :func:`_resolve_copied_import`. The human-readable import label is
+    appended to ``imports_added`` (de-duplicated). Conditional imports are
+    handled separately via guard-block splicing, not here.
     """
+    dots = "." * info.relative
     if info.obj is not None:
-        module = info.module if not info.relative else None
-        if module is None:
-            return
         AddImportsVisitor.add_needed_import(
-            context, module, info.obj, asname=info.alias
+            context, info.module, info.obj, asname=info.alias, relative=info.relative
         )
-        label = f"from {module} import {info.obj}"
+        label = f"from {dots}{info.module} import {info.obj}"
+        if info.alias:
+            label += f" as {info.alias}"
     else:
-        AddImportsVisitor.add_needed_import(context, info.module, asname=info.alias)
+        AddImportsVisitor.add_needed_import(
+            context, info.module, asname=info.alias, relative=info.relative
+        )
         label = f"import {info.module}"
         if info.alias:
             label += f" as {info.alias}"
     if label not in imports_added:
         imports_added.append(label)
+
+
+def _containing_pkg_parts(py: Path, pkg_root: Path) -> tuple[str, ...]:
+    """Return the dotted parts of the *package* containing module ``py``.
+
+    Drops the module's own final component from its absolute dotted path so
+    that, e.g., ``src_pkg.source`` yields ``("src_pkg",)``.
+    """
+    parts = _pkg_module_name(py.resolve(), pkg_root.resolve()).split(".")
+    return tuple(parts[:-1])
+
+
+def _build_import_resolution(
+    source_path: Path, target_path: Path, root: Path
+) -> _ImportResolution | None:
+    """Build the relative-import resolution context for a move.
+
+    Returns ``None`` when either endpoint is not inside a package (no
+    ``__init__.py`` ancestor), in which case relative imports cannot be
+    resolved and are left to the historical drop behaviour.
+    """
+    source_pkg_root = _find_pkg_root(source_path, root)
+    target_pkg_root = _find_pkg_root(target_path, root)
+    if source_pkg_root is None or target_pkg_root is None:
+        return None
+    return _ImportResolution(
+        source_pkg_parts=_containing_pkg_parts(source_path, source_pkg_root),
+        target_pkg_parts=_containing_pkg_parts(target_path, target_pkg_root),
+        same_package=source_pkg_root.resolve() == target_pkg_root.resolve(),
+    )
+
+
+@dataclass(frozen=True)
+class _ImportResolution:
+    """Package context for rewriting relative imports copied during a move.
+
+    ``source_pkg_parts`` / ``target_pkg_parts`` are the dotted parts of the
+    *containing package* of the source/target module (i.e. the module's
+    absolute dotted path minus its final component). ``same_package`` is
+    ``True`` when source and target share the same package root, in which
+    case relative imports are preserved (re-leveled if the directory depth
+    changed); otherwise they are converted to absolute imports.
+    """
+
+    source_pkg_parts: tuple[str, ...]
+    target_pkg_parts: tuple[str, ...]
+    same_package: bool
+
+
+def _absolute_from_parts(
+    info: ImportInfo, source_pkg_parts: tuple[str, ...]
+) -> tuple[str, ...] | None:
+    """Resolve a relative import to its absolute ``from``-module parts.
+
+    A single leading dot resolves against the source module's own package;
+    each extra dot walks up one more package. Returns ``None`` when the
+    walk would go above the package root (unresolvable).
+    """
+    drop = info.relative - 1
+    if drop > len(source_pkg_parts):
+        return None
+    kept = (
+        source_pkg_parts[: len(source_pkg_parts) - drop] if drop else source_pkg_parts
+    )
+    module_parts = tuple(info.module.split(".")) if info.module else ()
+    return kept + module_parts
+
+
+def _resolve_copied_import(
+    info: ImportInfo, resolution: _ImportResolution
+) -> tuple[ImportInfo | None, str | None]:
+    """Resolve a relative ``ImportInfo`` for copying into the target module.
+
+    Returns ``(rewritten_info, warning)``. For an intra-package move the
+    import is preserved/re-leveled and kept relative; for a cross-package
+    move it is converted to an equivalent absolute import. Imported names
+    and aliases are always preserved. When the relative import cannot be
+    resolved (walks above the package root) ``(None, warning)`` is returned
+    so no malformed import is written.
+    """
+    if not info.relative:
+        return info, None
+    abs_parts = _absolute_from_parts(info, resolution.source_pkg_parts)
+    if abs_parts is None:
+        return None, (
+            f"unresolvable relative import: "
+            f"{'.' * info.relative}{info.module} "
+            f"(walks above package root) — not copied"
+        )
+    if not resolution.same_package:
+        return (
+            ImportInfo(
+                module=".".join(abs_parts),
+                obj=info.obj,
+                alias=info.alias,
+                relative=0,
+            ),
+            None,
+        )
+    return _relevel_intra_package(info, abs_parts, resolution.target_pkg_parts), None
+
+
+def _relevel_intra_package(
+    info: ImportInfo, abs_parts: tuple[str, ...], target_pkg_parts: tuple[str, ...]
+) -> ImportInfo:
+    """Recompute a relative import's dot level relative to the target package.
+
+    When source and target live in the same directory this reproduces the
+    original import verbatim; otherwise the dot level is adjusted so the
+    import still points at the same absolute ``from``-module.
+    """
+    common = 0
+    for a, b in zip(target_pkg_parts, abs_parts, strict=False):
+        if a != b:
+            break
+        common += 1
+    new_level = (len(target_pkg_parts) - common) + 1
+    new_module = ".".join(abs_parts[common:])
+    return ImportInfo(
+        module=new_module,
+        obj=info.obj,
+        alias=info.alias,
+        relative=new_level,
+    )
 
 
 def _import_modules_match(source_info: ImportInfo, target_info: ImportInfo) -> bool:
@@ -525,6 +653,7 @@ def _apply_imports(
     external_refs: set[str],
     source_imports: dict[str, ImportInfo],
     target_imports: dict[str, ImportInfo],
+    import_resolution: _ImportResolution | None = None,
 ) -> tuple[cst.Module, list[str], list[str]]:
     context = CodemodContext()
     imports_added: list[str] = []
@@ -534,21 +663,16 @@ def _apply_imports(
         info = source_imports.get(name)
         if info is None:
             continue
-        existing = target_imports.get(name)
-        if existing is not None:
-            if not _import_modules_match(info, existing):
-                redundant_warnings.append(
-                    f"redundant import: {name} already imported from "
-                    f"{existing.module}; source had {info.module}"
-                )
-            continue
-        if info.conditional and info.guard is not None:
-            conditional_guards.append(info.guard)
-            label = f"conditional import block for {name}"
-            if label not in imports_added:
-                imports_added.append(label)
-            continue
-        _register_import(context, info, imports_added)
+        _classify_import(
+            name,
+            info,
+            target_imports,
+            import_resolution,
+            context,
+            imports_added,
+            redundant_warnings,
+            conditional_guards,
+        )
     new_tree = AddImportsVisitor(context).transform_module(target_tree)
     new_tree = _splice_guard_blocks(new_tree, conditional_guards)
     return (
@@ -556,6 +680,49 @@ def _apply_imports(
         imports_added,
         redundant_warnings,
     )
+
+
+def _classify_import(  # noqa: PLR0913
+    name: str,
+    info: ImportInfo,
+    target_imports: dict[str, ImportInfo],
+    import_resolution: _ImportResolution | None,
+    context: CodemodContext,
+    imports_added: list[str],
+    redundant_warnings: list[str],
+    conditional_guards: list[cst.BaseCompoundStatement],
+) -> None:
+    """Route a single source import into the target tree being assembled.
+
+    Existing target imports short-circuit (emitting a redundancy warning on
+    module mismatch); conditional imports defer to guard-block splicing;
+    relative imports are resolved/converted via ``import_resolution``;
+    everything else is queued as a flat import.
+    """
+    existing = target_imports.get(name)
+    if existing is not None:
+        if not _import_modules_match(info, existing):
+            redundant_warnings.append(
+                f"redundant import: {name} already imported from "
+                f"{existing.module}; source had {info.module}"
+            )
+        return
+    if info.conditional and info.guard is not None:
+        conditional_guards.append(info.guard)
+        label = f"conditional import block for {name}"
+        if label not in imports_added:
+            imports_added.append(label)
+        return
+    if info.relative:
+        if import_resolution is None:
+            return
+        resolved, warning = _resolve_copied_import(info, import_resolution)
+        if warning is not None:
+            redundant_warnings.append(warning)
+        if resolved is None:
+            return
+        info = resolved
+    _register_import(context, info, imports_added)
 
 
 def _build_constants_body(
@@ -644,6 +811,7 @@ def _build_target_tree(  # noqa: PLR0913
     collected_helpers: dict[str, cst.FunctionDef | cst.ClassDef],
     source_helpers_order: list[str],
     insert_after: str | None = None,
+    import_resolution: _ImportResolution | None = None,
 ) -> tuple[cst.Module, list[str], list[str], list[str]]:
     """Assemble the target module: imports + constants + helpers + blocks.
 
@@ -662,7 +830,7 @@ def _build_target_tree(  # noqa: PLR0913
         blocks, collected_helpers, collected_constants
     )
     tree_with_imports, imports_added, redundant_warnings = _apply_imports(
-        target_tree, external_refs, source_imports, target_imports
+        target_tree, external_refs, source_imports, target_imports, import_resolution
     )
     constants_body, constants_added = _build_constants_body(
         collected_constants, target_existing
@@ -798,6 +966,7 @@ def _build_trees(  # noqa: PLR0913
     shared_helpers: str,
     insert_after: str | None = None,
     include_helpers: bool = True,
+    import_resolution: _ImportResolution | None = None,
 ) -> tuple[
     cst.Module, cst.Module, list[str], list[str], dict[str, SharedInfo], list[str]
 ]:
@@ -832,6 +1001,7 @@ def _build_trees(  # noqa: PLR0913
         collected_helpers,
         list(source_helpers.keys()),
         insert_after=insert_after,
+        import_resolution=import_resolution,
     )
 
     new_source_tree = source_tree.visit(RemoveSymbols(remove_targets))
@@ -1555,6 +1725,14 @@ def move_symbols(  # noqa: PLR0913
     rename_map = _active_rename(rename, moved_names)
     if rename_map:
         blocks = _apply_rename_to_blocks(blocks, rename_map)
+
+    root = (
+        Path(workspace_root)
+        if workspace_root is not None
+        else _find_workspace_root(source_path)
+    )
+    import_resolution = _build_import_resolution(source_path, target_path, root)
+
     (
         new_source_tree,
         new_target_tree,
@@ -1570,12 +1748,7 @@ def move_symbols(  # noqa: PLR0913
         shared_helpers,
         insert_after=insert_after,
         include_helpers=include_helpers,
-    )
-
-    root = (
-        Path(workspace_root)
-        if workspace_root is not None
-        else _find_workspace_root(source_path)
+        import_resolution=import_resolution,
     )
 
     if reexport:
