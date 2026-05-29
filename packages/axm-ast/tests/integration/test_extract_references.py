@@ -318,3 +318,39 @@ def h():
     refs = extract_references(mod_factory(source))
     assert "42" not in refs
     assert "x" not in refs
+
+
+# ---------------------------------------------------------------------------
+# Boolean / conditional expression value references
+# ---------------------------------------------------------------------------
+
+
+def test_boolean_operator_collects_fallback_ref(
+    mod_factory: Callable[[str], SimpleNamespace],
+) -> None:
+    """`x = a or my_func` collects `my_func` (used as fallback value)."""
+    source = """
+def my_func():
+    return 1
+
+a = None
+x = a or my_func
+"""
+    refs = extract_references(mod_factory(source))
+    assert "my_func" in refs
+
+
+def test_conditional_expression_collects_branch_ref(
+    mod_factory: Callable[[str], SimpleNamespace],
+) -> None:
+    """`x = a if cond else my_func` collects `my_func` (else-branch value)."""
+    source = """
+def my_func():
+    return 1
+
+a = 1
+cond = False
+x = a if cond else my_func
+"""
+    refs = extract_references(mod_factory(source))
+    assert "my_func" in refs
