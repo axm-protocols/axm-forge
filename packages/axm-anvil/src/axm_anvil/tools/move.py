@@ -89,6 +89,7 @@ class MoveTool(AXMTool):
         reexport: bool = False,
         rename: str | None = None,
         check: bool = False,
+        insert_after: str | None = None,
         **kwargs: object,
     ) -> ToolResult:
         """Move ``symbols`` (CSV) from ``from_file`` to ``to_file``.
@@ -120,6 +121,11 @@ class MoveTool(AXMTool):
             (e.g. ``'{"OldName": "NewName"}'``). Parsed to ``dict[str, str]``
             and forwarded to :func:`move_symbols`. Invalid JSON yields a
             ``success=False`` result.
+        insert_after:
+            Optional name of a top-level symbol in the target module; moved
+            blocks are spliced immediately after it. When ``None`` blocks
+            append at the end; an absent name appends at the end with a
+            warning.
 
         Returns
         -------
@@ -151,6 +157,7 @@ class MoveTool(AXMTool):
                 reexport=reexport,
                 rename=rename_map,
                 check=check,
+                insert_after=insert_after,
             )
         except Exception as exc:  # noqa: BLE001
             return self._exception_to_result(exc)

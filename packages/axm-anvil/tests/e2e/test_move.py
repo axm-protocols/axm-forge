@@ -348,3 +348,39 @@ def test_move_method_name_exits_zero_with_warning(tmp_path: Path) -> None:
     assert "SymbolNotFoundError" not in combined
     # The skipped name is surfaced to the user.
     assert "test_basic" in combined
+
+
+def test_cli_insert_after_option(tmp_path: Path) -> None:
+    """AC5: the CLI --insert-after option places the moved symbol after the
+    named anchor in the target module."""
+    _write_pyproject(tmp_path)
+    pkg = tmp_path / "src" / "mypkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+    source = pkg / "source_mod.py"
+    target = pkg / "target_mod.py"
+    source.write_text("def Moved():\n    return 1\n")
+    target.write_text("def Anchor():\n    return 0\n\n\ndef After():\n    return 2\n")
+
+    result = subprocess.run(
+        [
+            "uv",
+            "run",
+            "axm-anvil",
+            "move",
+            str(source),
+            str(target),
+            "Moved",
+            "--path",
+            str(tmp_path),
+            "--insert-after",
+            "Anchor",
+        ],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    text = target.read_text()
+    assert text.index("def Anchor") < text.index("def Moved") < text.index("def After")

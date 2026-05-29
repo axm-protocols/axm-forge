@@ -457,6 +457,41 @@ def _build_blocks_body(blocks: list[Block]) -> list[cst.BaseStatement]:
     return body
 
 
+def _stmt_top_name(stmt: cst.BaseStatement) -> str | None:
+    """Return the top-level symbol name defined by ``stmt`` (or ``None``).
+
+    Handles ``FunctionDef`` / ``ClassDef`` (``.name.value``) and simple
+    assignment statements (mirrors :func:`_constant_name`).
+    """
+    if isinstance(stmt, cst.ClassDef | cst.FunctionDef):
+        return stmt.name.value
+    if isinstance(stmt, cst.SimpleStatementLine):
+        return _constant_name(stmt)
+    return None
+
+
+def _splice_blocks_after_anchor(
+    base_body: list[cst.BaseStatement],
+    blocks_body: list[cst.BaseStatement],
+    insert_after: str,
+) -> tuple[list[cst.BaseStatement], list[str]]:
+    """Insert ``blocks_body`` right after the ``insert_after`` anchor.
+
+    When the anchor is not found, the blocks are appended at the end and a
+    warning is returned. Returns ``(new_body, warnings)``.
+    """
+    for idx, stmt in enumerate(base_body):
+        if _stmt_top_name(stmt) == insert_after:
+            return (
+                base_body[: idx + 1] + blocks_body + base_body[idx + 1 :],
+                [],
+            )
+    warning = (
+        f"insert_after target '{insert_after}' not found in target; appended at end"
+    )
+    return base_body + blocks_body, [warning]
+
+
 def _build_target_tree(  # noqa: PLR0913
     target_tree: cst.Module,
     blocks: list[Block],
@@ -464,8 +499,15 @@ def _build_target_tree(  # noqa: PLR0913
     collected_constants: dict[str, cst.SimpleStatementLine],
     collected_helpers: dict[str, cst.FunctionDef | cst.ClassDef],
     source_helpers_order: list[str],
+    insert_after: str | None = None,
 ) -> tuple[cst.Module, list[str], list[str], list[str]]:
     """Assemble the target module: imports + constants + helpers + blocks.
+
+    Imports, constants and helpers keep their historical end-append
+    placement; only the moved *blocks* honor ``insert_after``. When
+    ``insert_after`` is ``None`` the blocks append at the end (unchanged
+    contract). When it names a symbol absent from the assembled body the
+    blocks append at the end and a warning is added to the returned list.
 
     Returns ``(new_tree, imports_added_labels, constants_added_names,
     redundant_import_warnings)``.
@@ -485,9 +527,14 @@ def _build_target_tree(  # noqa: PLR0913
         source_helpers_order, collected_helpers, target_existing
     )
     blocks_body = _build_blocks_body(blocks)
-    new_body = (
-        list(tree_with_imports.body) + constants_body + helpers_body + blocks_body
-    )
+    base_body = list(tree_with_imports.body) + constants_body + helpers_body
+    if insert_after is None:
+        new_body = base_body + blocks_body
+    else:
+        new_body, anchor_warnings = _splice_blocks_after_anchor(
+            base_body, blocks_body, insert_after
+        )
+        redundant_warnings = redundant_warnings + anchor_warnings
     return (
         tree_with_imports.with_changes(body=new_body),
         imports_added,
@@ -571,12 +618,13 @@ def _extract_moved_blocks(
     return remove_targets, blocks
 
 
-def _build_trees(
+def _build_trees(  # noqa: PLR0913
     source_tree: cst.Module,
     target_tree: cst.Module,
     blocks: list[Block],
     remove_targets: set[str],
     shared_helpers: str,
+    insert_after: str | None = None,
 ) -> tuple[
     cst.Module, cst.Module, list[str], list[str], dict[str, SharedInfo], list[str]
 ]:
@@ -604,6 +652,7 @@ def _build_trees(
         collected_constants,
         collected_helpers,
         list(source_helpers.keys()),
+        insert_after=insert_after,
     )
 
     new_source_tree = source_tree.visit(RemoveSymbols(remove_targets))
@@ -1231,6 +1280,7 @@ def move_symbols(  # noqa: PLR0913
     rename: dict[str, str] | None = None,
     check: bool = False,
     strict: bool = False,
+    insert_after: str | None = None,
 ) -> MovePlan:
     """Move top-level symbols from ``source_path`` to ``target_path``.
 
@@ -1258,6 +1308,14 @@ def move_symbols(  # noqa: PLR0913
     rather than aborting the whole plan. Pass ``strict=True`` to restore
     the legacy behaviour of raising :class:`SymbolNotFoundError` on the
     first absent name.
+
+    ``insert_after`` controls where the moved *blocks* land in the target
+    module body: when it names an existing top-level symbol the blocks are
+    spliced immediately after it; when ``None`` (default) the blocks append
+    at the end (unchanged contract); when it names an absent symbol the
+    blocks append at the end and a warning is added to
+    :attr:`MovePlan.warnings`. Imports and constants keep their historical
+    placement regardless of ``insert_after``.
     """
     _validate_options(shared_helpers, shared_helpers_module, reexport, rename)
 
@@ -1283,7 +1341,14 @@ def move_symbols(  # noqa: PLR0913
         constants_added,
         shared_map,
         redundant_import_warnings,
-    ) = _build_trees(source_tree, target_tree, blocks, remove_targets, shared_helpers)
+    ) = _build_trees(
+        source_tree,
+        target_tree,
+        blocks,
+        remove_targets,
+        shared_helpers,
+        insert_after=insert_after,
+    )
 
     root = (
         Path(workspace_root)
