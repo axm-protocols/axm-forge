@@ -152,6 +152,27 @@ points at a different module than the source's import, the name is
 still skipped but a `redundant import: …` warning is emitted into
 `MovePlan.warnings` so the operator can reconcile the divergence.
 
+### Conditional imports (guarded by `try`/`except` or `if`)
+
+Imports nested in a top-level `try`/`except` (e.g. an optional fast
+backend with a stdlib fallback) or an `if` guard (e.g. a
+platform-specific import) cannot be reduced to a single flat
+`import x` line without losing their fallback semantics.
+`gather_source_imports` walks the body, handlers, `orelse` and
+`finalbody` suites of every top-level `cst.Try`/`cst.If` and flags each
+nested import's `ImportInfo` with `conditional=True`, keeping a handle
+on the guarding block node in `ImportInfo.guard`.
+
+When a moved symbol references a name provided by a conditional import,
+`_apply_imports` copies the **entire guard block verbatim** into the
+target (via `_splice_guard_blocks`) instead of synthesising a flat
+import. The splice is idempotent: a guard whose normalised source
+already exists among the target's top-level `try`/`if` blocks is not
+duplicated. Conditional imports are never auto-removed from the source
+module — they are excluded from `_compute_source_orphans` removal
+candidates by construction (only copied helpers and constants are
+removal candidates), so the fallback machinery survives in both files.
+
 ## String forward-reference warnings in `core.move`
 
 Type annotations written as string literals (PEP 484 forward references,
