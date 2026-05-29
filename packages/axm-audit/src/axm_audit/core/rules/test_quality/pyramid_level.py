@@ -42,6 +42,7 @@ from axm_audit.core.rules.test_quality._shared import (
     iter_test_files,
     load_project_scripts,
     target_matches_io,
+    test_invokes_inline_python_script,
 )
 from axm_audit.models.results import CheckResult, Severity
 
@@ -863,6 +864,14 @@ def _has_in_package_subprocess_for_test(
     if not ctx.file_has_subprocess:
         return False
     if any(sig.startswith("cli:") for sig in ctx.file_signals):
+        return True
+    # Inline ``python -c "<first-party script>"`` is an in-package subprocess
+    # too. It carries no ``[project.scripts]`` entry, so this check must run
+    # before the project-scripts guard below (otherwise such a test is wrongly
+    # rejected when the package declares no scripts).
+    if test_invokes_inline_python_script(
+        test_func=node, module_ast=ctx.tree, pkg_prefixes=ctx.pkg_prefixes
+    ):
         return True
     if not ctx.project_scripts:
         return False
