@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import libcst as cst
+from axm_ast.core.workspace import analyze_workspace, build_workspace_module_graph
 from libcst.codemod import CodemodContext
 from libcst.codemod.visitors import AddImportsVisitor
 
@@ -1549,25 +1550,33 @@ def _cycle_check(  # noqa: PLR0913
     new_source_tree: cst.Module,
     new_target_tree: cst.Module,
     caller_texts: dict[Path, tuple[str, str]],
-    plan: MovePlan,
     blocks: list[Block],
     source_tree: cst.Module,
 ) -> list[str] | None:
-    """Run intra-package cycle detection and return the new cycle chain if any.
+    """Detect a newly-introduced import cycle and return its chain if any.
 
-    Returns ``None`` when no new cycle is introduced, when the move is
-    cross-package (adds a skip-warning to ``plan``), or when the package
-    layout is not discoverable (no-op).
+    Intra-package moves diff against the single-package graph; cross-package
+    moves diff against the workspace-wide namespaced graph. Returns ``None``
+    when no new cycle is introduced or when the package layout is not
+    discoverable (no-op).
     """
     src_pkg_root = _find_pkg_root(source_path, workspace_root)
     tgt_pkg_root = _find_pkg_root(target_path, workspace_root)
     if src_pkg_root is None or tgt_pkg_root is None:
         return None
     if src_pkg_root != tgt_pkg_root:
-        plan.warnings.append(
-            "Cross-package move \u2014 cycle detection skipped, verify manually"
+        return _cross_package_cycle_check(
+            workspace_root,
+            source_path,
+            target_path,
+            src_pkg_root,
+            tgt_pkg_root,
+            new_source_tree,
+            new_target_tree,
+            caller_texts,
+            blocks,
+            source_tree,
         )
-        return None
 
     try:
         source_module = _module_path_from_file(source_path, workspace_root)
@@ -1591,6 +1600,120 @@ def _cycle_check(  # noqa: PLR0913
         source_tree,
     )
     return detect_new_cycle(graph, edits)
+
+
+def _cross_package_cycle_check(  # noqa: PLR0913
+    workspace_root: Path,
+    source_path: Path,
+    target_path: Path,
+    src_pkg_root: Path,
+    tgt_pkg_root: Path,
+    new_source_tree: cst.Module,
+    new_target_tree: cst.Module,
+    caller_texts: dict[Path, tuple[str, str]],
+    blocks: list[Block],
+    source_tree: cst.Module,
+) -> list[str] | None:
+    """Detect a newly-introduced *cross-package* import cycle on a move.
+
+    Builds the workspace-wide module graph (nodes namespaced as
+    ``{import_pkg}.{module}`` by :func:`build_workspace_module_graph`) and
+    computes ``GraphEdits`` in the *same* namespaced coordinates so
+    :func:`detect_new_cycle` sees a connected node set. Returns the new
+    cycle chain, or ``None`` when the move introduces no new cycle.
+    """
+    try:
+        ws = analyze_workspace(workspace_root)
+    except (OSError, ValueError):
+        return None
+    graph: dict[str, set[str]] = {
+        k: set(v) for k, v in build_workspace_module_graph(ws).items()
+    }
+    internal_modules = set(graph)
+
+    source_module = _pkg_module_name(source_path.resolve(), src_pkg_root)
+    target_module = _pkg_module_name(target_path.resolve(), tgt_pkg_root)
+
+    edits = _compute_workspace_graph_edits(
+        workspace_root,
+        source_module,
+        target_module,
+        new_source_tree,
+        new_target_tree,
+        caller_texts,
+        internal_modules,
+        graph,
+        blocks,
+        source_tree,
+    )
+    return detect_new_cycle(graph, edits)
+
+
+def _namespaced_caller_module(caller_path: Path, workspace_root: Path) -> str | None:
+    """Namespace a caller file as ``{import_pkg}.{module}`` for the WS graph."""
+    pkg_root = _find_pkg_root(caller_path, workspace_root)
+    if pkg_root is None:
+        return None
+    return _pkg_module_name(caller_path.resolve(), pkg_root)
+
+
+def _compute_workspace_graph_edits(  # noqa: PLR0913
+    workspace_root: Path,
+    source_module: str,
+    target_module: str,
+    new_source_tree: cst.Module,
+    new_target_tree: cst.Module,
+    caller_texts: dict[Path, tuple[str, str]],
+    internal_modules: set[str],
+    graph: dict[str, set[str]],
+    blocks: list[Block],
+    source_tree: cst.Module,
+) -> GraphEdits:
+    """Cross-package variant of :func:`_compute_graph_edits`.
+
+    Identical edge-diff logic, but every module node is namespaced
+    ``{import_pkg}.{module}`` and ``internal_modules`` is the full set of
+    workspace graph nodes, so cross-package edges resolve correctly.
+    """
+    adds: list[tuple[str, str]] = []
+    removes: list[tuple[str, str]] = []
+
+    def _apply(mod_name: str, new_imps: set[str]) -> None:
+        old_imps = graph.get(mod_name, set())
+        for m in sorted(new_imps - old_imps):
+            adds.append((mod_name, m))
+        for m in sorted(old_imps - new_imps):
+            removes.append((mod_name, m))
+
+    _apply(
+        source_module,
+        _extract_absolute_imports(new_source_tree, internal_modules),
+    )
+    target_imports = _extract_absolute_imports(new_target_tree, internal_modules)
+    target_imports |= _block_implied_target_imports(
+        blocks,
+        source_tree,
+        new_source_tree,
+        source_module,
+        target_module,
+        internal_modules,
+    )
+    _apply(target_module, target_imports)
+
+    for caller_path, (_old_text, new_text) in caller_texts.items():
+        caller_module = _namespaced_caller_module(caller_path, workspace_root)
+        if caller_module is None:
+            continue
+        try:
+            new_tree = cst.parse_module(new_text)
+        except Exception:  # noqa: BLE001, S112
+            continue
+        _apply(
+            caller_module,
+            _extract_absolute_imports(new_tree, internal_modules),
+        )
+
+    return GraphEdits(adds=adds, removes=removes)
 
 
 def _inject_reexport(
@@ -2028,7 +2151,6 @@ def move_symbols(  # noqa: PLR0913
         new_source_tree,
         new_target_tree,
         caller_texts,
-        plan,
         blocks,
         source_tree,
     )
