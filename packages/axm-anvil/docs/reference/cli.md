@@ -8,7 +8,7 @@ Move top-level symbols (classes, functions, constants) between Python
 files atomically. Wraps the [`MoveTool`](#movetool) MCP tool.
 
 ```bash
-axm-anvil move <from_file> <to_file> <symbols> [--dry-run] [--check] [--path <root>] [--shared-helpers <strategy>] [--reexport] [--rename '<json>'] [--insert-after <symbol>]
+axm-anvil move <from_file> <to_file> <symbols> [--dry-run] [--check] [--path <root>] [--shared-helpers <strategy>] [--reexport] [--rename '<json>'] [--insert-after <symbol>] [--no-include-helpers]
 ```
 
 | Argument | Description |
@@ -23,6 +23,7 @@ axm-anvil move <from_file> <to_file> <symbols> [--dry-run] [--check] [--path <ro
 | `--reexport` | Leave callers untouched; inject `from new_module import <Symbol>  # re-export for backwards compat` into the source module for gradual migration |
 | `--rename` | JSON object string mapping old symbol names to new ones (e.g. `'{"OldName": "NewName"}'`). Renames moved definitions and rewrites all caller references to the new name. Incompatible with `--reexport` |
 | `--insert-after` | Name of an existing top-level symbol in the target module; moved blocks are spliced immediately after it. Omitted (default) appends the blocks at the end of the target; naming an absent symbol appends at the end and records a warning on `MovePlan.warnings`. Imports and constants keep their historical placement regardless |
+| `--include-helpers` / `--no-include-helpers` | Whether to copy transitively-referenced local helpers and constants into the target. `--include-helpers` (default) preserves the historical copy behaviour. `--no-include-helpers` leaves the moved code referencing those helpers without copying them, short-circuits the `--shared-helpers` classification, and records a `include_helpers=False: not copied into target: <names>` warning on `MovePlan.warnings`. Imports required by the moved code are always copied regardless |
 
 ## MCP Tools
 
