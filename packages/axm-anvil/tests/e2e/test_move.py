@@ -272,3 +272,115 @@ def test_cli_move_rewrites_caller(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert "from pkg.new import Foo" in caller.read_text()
     assert "callers updated" in result.stdout.lower()
+
+
+def test_cli_rename_option(tmp_path: Path) -> None:
+    """AC4: the CLI move command exposes --rename forwarded to the core move."""
+    root = tmp_path
+    pkg = root / "src" / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+    (root / "pyproject.toml").write_text('[project]\nname = "pkg"\nversion = "0.0.0"\n')
+    old = pkg / "old.py"
+    old.write_text("def OldName():\n    return 1\n")
+    new = pkg / "new.py"
+    new.write_text("")
+
+    result = subprocess.run(
+        [
+            "uv",
+            "run",
+            "axm-anvil",
+            "move",
+            str(old),
+            str(new),
+            "OldName",
+            "--rename",
+            '{"OldName":"NewName"}',
+            "--path",
+            str(root),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "NewName" in new.read_text()
+
+
+SOURCE_WITH_METHOD = (
+    "def real_toplevel() -> int:\n"
+    "    return 42\n\n\n"
+    "class TestBasicThing:\n"
+    "    def test_basic(self) -> None:\n"
+    "        assert True\n"
+)
+
+
+def test_move_method_name_exits_zero_with_warning(tmp_path: Path) -> None:
+    """AC1: moving a method name via the CLI exits 0 with no traceback."""
+    source = tmp_path / "source_mod.py"
+    target = tmp_path / "target_mod.py"
+    source.write_text(SOURCE_WITH_METHOD)
+    target.write_text('"""Target."""\n')
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='t'\nversion='0.0.0'\n")
+
+    result = subprocess.run(
+        [
+            "uv",
+            "run",
+            "axm-anvil",
+            "move",
+            str(source),
+            str(target),
+            "test_basic",
+            "--path",
+            str(tmp_path),
+        ],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+    )
+
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+    assert "Traceback" not in combined
+    assert "SymbolNotFoundError" not in combined
+    # The skipped name is surfaced to the user.
+    assert "test_basic" in combined
+
+
+def test_cli_insert_after_option(tmp_path: Path) -> None:
+    """AC5: the CLI --insert-after option places the moved symbol after the
+    named anchor in the target module."""
+    _write_pyproject(tmp_path)
+    pkg = tmp_path / "src" / "mypkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+    source = pkg / "source_mod.py"
+    target = pkg / "target_mod.py"
+    source.write_text("def Moved():\n    return 1\n")
+    target.write_text("def Anchor():\n    return 0\n\n\ndef After():\n    return 2\n")
+
+    result = subprocess.run(
+        [
+            "uv",
+            "run",
+            "axm-anvil",
+            "move",
+            str(source),
+            str(target),
+            "Moved",
+            "--path",
+            str(tmp_path),
+            "--insert-after",
+            "Anchor",
+        ],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    text = target.read_text()
+    assert text.index("def Anchor") < text.index("def Moved") < text.index("def After")

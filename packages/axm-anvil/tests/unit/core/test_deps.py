@@ -55,6 +55,33 @@ def test_gather_source_imports_relative() -> None:
     assert info.relative == 2
 
 
+def test_gather_flags_try_except_import_conditional() -> None:
+    """AC1: an import inside a top-level try/except is flagged conditional."""
+    source = (
+        "try:\n    import fast_json as json\nexcept ImportError:\n    json = None\n"
+    )
+    tree = cst.parse_module(source)
+    mapping = gather_source_imports(tree)
+    assert "json" in mapping
+    assert mapping["json"].conditional is True
+
+
+def test_gather_flags_if_guard_conditional() -> None:
+    """AC1: an import inside a top-level if guard is flagged conditional."""
+    source = 'import sys\nif sys.platform == "win32":\n    import winreg\n'
+    tree = cst.parse_module(source)
+    mapping = gather_source_imports(tree)
+    assert "winreg" in mapping
+    assert mapping["winreg"].conditional is True
+
+
+def test_gather_top_level_import_not_conditional() -> None:
+    """AC4: a plain top-level import retains conditional=False."""
+    tree = cst.parse_module("from pathlib import Path\n")
+    mapping = gather_source_imports(tree)
+    assert mapping["Path"].conditional is False
+
+
 def test_gather_source_constants_assign() -> None:
     tree = cst.parse_module("X = 42\n")
     mapping = gather_source_constants(tree)
