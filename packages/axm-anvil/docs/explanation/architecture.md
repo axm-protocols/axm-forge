@@ -152,6 +152,24 @@ points at a different module than the source's import, the name is
 still skipped but a `redundant import: …` warning is emitted into
 `MovePlan.warnings` so the operator can reconcile the divergence.
 
+## String forward-reference warnings in `core.move`
+
+Type annotations written as string literals (PEP 484 forward references,
+e.g. `def g(x: "Foo")`) are opaque to the caller-rewrite machinery — they
+live inside a `SimpleString`/`ConcatenatedString`, not as a `Name` the
+import rewriter can see. To keep these from silently breaking after a
+move, `_string_forward_ref_warnings` runs the `StringForwardRefScanner`
+visitor (in `_cst/visitors.py`) over the source tree once `moved_names`
+is known. For each string annotation it parses the content with
+`cst.parse_expression`, collects `Name` nodes via `ReferenceCollector`,
+and intersects them with the moved names using a **whole-identifier**
+match — so `"FooBar"` never matches a moved `Foo`, while `"list[Foo]"`
+and `"Foo | None"` do. Every hit appends a structured, actionable
+`forward-reference '<name>' in string annotation at <ctx> not rewritten;
+update manually` line to `MovePlan.warnings`, identifying the symbol and
+its function/parameter context. This is **detection-only**: string
+annotations are never rewritten by the move.
+
 ## Re-export mode in `core.move`
 
 When `move_symbols` is called with `reexport=True`, the pipeline skips

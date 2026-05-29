@@ -55,6 +55,64 @@ def test_insert_after_places_block_after_anchor(tmp_path: Path) -> None:
     assert text.index("def Anchor") < text.index("def Moved") < text.index("def After")
 
 
+def test_string_forward_ref_warns(tmp_path: Path) -> None:
+    """AC1,AC2: moving `Foo` warns about a string annotation that references it."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text('def Foo():\n    return 1\n\n\ndef g(x: "Foo"):\n    return x\n')
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["Foo"], dry_run=True)
+
+    assert any("Foo" in w for w in plan.warnings)
+
+
+def test_string_forward_ref_no_false_positive(tmp_path: Path) -> None:
+    """AC4: a string annotation `\"FooBar\"` does not trigger a forward-ref warning
+    when only `Foo` is moved."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text('def Foo():\n    return 1\n\n\ndef g(x: "FooBar"):\n    return x\n')
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["Foo"], dry_run=True)
+
+    assert not any("forward-reference" in w for w in plan.warnings)
+
+
+def test_string_forward_ref_not_rewritten(tmp_path: Path) -> None:
+    """AC3: detection-only — the literal string annotation is left untouched."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text('def Foo():\n    return 1\n\n\ndef g(x: "Foo"):\n    return x\n')
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["Foo"], dry_run=True)
+
+    assert '"Foo"' in plan.source_text_new
+
+
+def test_forward_ref_warning_real_files(tmp_path: Path) -> None:
+    """AC1: a real on-disk move surfaces a non-empty warning naming the symbol."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text('def Foo():\n    return 1\n\n\ndef g(x: "Foo"):\n    return x\n')
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["Foo"], workspace_root=tmp_path)
+
+    assert plan.warnings
+    assert any("Foo" in w for w in plan.warnings)
+
+
 def test_all_sync_real_files(tmp_path: Path) -> None:
     """AC1,AC2: written files reflect the synced `__all__` after a real move."""
     from axm_anvil.core.move import move_symbols

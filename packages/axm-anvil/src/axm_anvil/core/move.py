@@ -14,6 +14,7 @@ from libcst.codemod.visitors import AddImportsVisitor
 from axm_anvil._cst.blocks import Block, _collect_refs, extract_blocks
 from axm_anvil._cst.overloads import detect_overload_group
 from axm_anvil._cst.transformers import RemoveSymbols, RenameSymbols, SyncDunderAll
+from axm_anvil._cst.visitors import StringForwardRefScanner
 from axm_anvil.core.callers import (
     CallerRewrite,
     _discover_callers,
@@ -1311,6 +1312,22 @@ def _validate_options(
         raise ValueError("reexport=True is incompatible with rename=")
 
 
+def _string_forward_ref_warnings(
+    source_tree: cst.Module, moved_names: Sequence[str]
+) -> list[str]:
+    """Detect string annotations that forward-reference a moved symbol.
+
+    Detection-only: scans ``source_tree`` for string annotations whose
+    parsed content names a moved symbol (whole-identifier match) and
+    returns structured, actionable warnings. The tree is never mutated.
+    """
+    if not moved_names:
+        return []
+    scanner = StringForwardRefScanner(set(moved_names))
+    source_tree.visit(scanner)
+    return scanner.warnings
+
+
 def _resolve_caller_phase(  # noqa: PLR0913
     reexport: bool,
     root: Path,
@@ -1456,6 +1473,7 @@ def move_symbols(  # noqa: PLR0913
         redundant_import_warnings=redundant_import_warnings,
     )
     plan.warnings.extend(skipped_warnings)
+    plan.warnings.extend(_string_forward_ref_warnings(source_tree, moved_names))
 
     cycle = _cycle_check(
         root,
