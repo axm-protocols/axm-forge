@@ -13,7 +13,12 @@ from libcst.codemod.visitors import AddImportsVisitor
 
 from axm_anvil._cst.blocks import Block, _collect_refs, extract_blocks
 from axm_anvil._cst.overloads import detect_overload_group
-from axm_anvil._cst.transformers import RemoveSymbols, RenameSymbols, SyncDunderAll
+from axm_anvil._cst.transformers import (
+    RemoveSymbols,
+    RenameSymbols,
+    SyncDunderAll,
+    _dump_attr,
+)
 from axm_anvil._cst.visitors import StringForwardRefScanner
 from axm_anvil.core.callers import (
     CallerRewrite,
@@ -47,6 +52,7 @@ from axm_anvil.core.postprocess import _ruff_fix
 from axm_anvil.core.shared import SharedInfo, classify_shared_helpers
 
 __all__ = [
+    "SIDE_EFFECT_DECORATORS",
     "ImportCycleError",
     "MoveValidationError",
     "OverloadPartialMoveError",
@@ -55,6 +61,82 @@ __all__ = [
     "batch_edit",
     "move_symbols",
 ]
+
+# Decorators whose primary purpose is to register the decorated symbol with an
+# external registry as an import-time side effect. Moving such a symbol to a new
+# module silently changes *where* (and whether) that registration runs, because
+# the decorator only fires when the new module is imported. Each entry is the
+# dotted form the decorator is conventionally written as; both the dotted form
+# (``@pytest.fixture``) and its bare alias (``@fixture``) are listed so matching
+# catches ``from pytest import fixture`` style imports too.
+SIDE_EFFECT_DECORATORS: frozenset[str] = frozenset(
+    {
+        # Flask / FastAPI / Starlette route registration
+        "app.route",
+        "app.get",
+        "app.post",
+        "app.put",
+        "app.delete",
+        "app.patch",
+        "router.get",
+        "router.post",
+        "router.put",
+        "router.delete",
+        "router.patch",
+        # pytest fixture registration
+        "pytest.fixture",
+        "fixture",
+        # Celery task registration
+        "celery.task",
+        "app.task",
+        "shared_task",
+        # Click command registration
+        "click.command",
+        "click.group",
+        # functools single-dispatch registration
+        "singledispatch",
+        "functools.singledispatch",
+    }
+)
+
+
+def _decorator_dotted_name(node: cst.BaseExpression) -> str | None:
+    """Render a decorator expression to its dotted-name string.
+
+    Handles bare names (``@fixture`` -> ``"fixture"``), dotted attribute
+    chains (``@pytest.fixture`` -> ``"pytest.fixture"``) and call forms
+    (``@app.route("/x")`` -> ``"app.route"``) by unwrapping the
+    :class:`libcst.Call` and rendering its ``func``. Returns ``None`` for
+    shapes that cannot be reduced to a dotted name.
+    """
+    if isinstance(node, cst.Call):
+        node = node.func
+    return _dump_attr(node)
+
+
+def _side_effect_decorator_warnings(
+    blocks: list[Block], whitelist: frozenset[str]
+) -> list[str]:
+    """Warn when a moved block carries a whitelisted side-effect decorator.
+
+    Detection-only: reads ``.decorators`` from each block's
+    ``FunctionDef``/``ClassDef`` node, renders each decorator to a dotted
+    name and emits a structured warning when it matches ``whitelist``. The
+    move itself is never blocked.
+    """
+    warnings: list[str] = []
+    for block in blocks:
+        node = block.node
+        if not isinstance(node, cst.FunctionDef | cst.ClassDef):
+            continue
+        for decorator in node.decorators:
+            dotted = _decorator_dotted_name(decorator.decorator)
+            if dotted is not None and dotted in whitelist:
+                warnings.append(
+                    f"moved symbol '{block.name}' carries side-effect decorator "
+                    f"'{dotted}'; registration may not run in the new module"
+                )
+    return warnings
 
 
 def batch_edit(  # type: ignore[explicit-any]  # JSON-shape payload at axm-edit frontier
@@ -1410,6 +1492,7 @@ def move_symbols(  # noqa: PLR0913
     strict: bool = False,
     insert_after: str | None = None,
     include_helpers: bool = True,
+    side_effect_decorators: frozenset[str] | None = None,
 ) -> MovePlan:
     """Move top-level symbols from ``source_path`` to ``target_path``.
 
@@ -1524,6 +1607,8 @@ def move_symbols(  # noqa: PLR0913
     )
     plan.warnings.extend(skipped_warnings)
     plan.warnings.extend(_string_forward_ref_warnings(source_tree, moved_names))
+    deco_whitelist = SIDE_EFFECT_DECORATORS | (side_effect_decorators or frozenset())
+    plan.warnings.extend(_side_effect_decorator_warnings(blocks, deco_whitelist))
 
     cycle = _cycle_check(
         root,
