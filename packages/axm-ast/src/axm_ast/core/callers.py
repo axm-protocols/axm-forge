@@ -95,6 +95,12 @@ def _visit_references(node: Node, refs: set[str]) -> None:
         # returned as a value. `_extract_ref_name` skips the `return`
         # keyword, `call` nodes (tracked by find_callers) and literals.
         _collect_collection_refs(children, refs)
+    elif node_type in ("boolean_operator", "conditional_expression"):
+        # Handle `a or b` / `a and b` / `not a` and `a if c else b` —
+        # operands used as values (e.g. `cb = score or _default_score`).
+        # `_extract_ref_name` skips operator keywords, `call` nodes
+        # (tracked by find_callers) and literals.
+        _collect_collection_refs(children, refs)
     elif node_type == "string" and _is_forward_ref_string(node):
         _extract_forward_refs(node, refs)
 
