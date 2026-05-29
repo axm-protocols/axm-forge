@@ -52,6 +52,7 @@ from axm_anvil.core.postprocess import _ruff_fix
 from axm_anvil.core.shared import SharedInfo, classify_shared_helpers
 
 __all__ = [
+    "PYTEST_BUILTIN_FIXTURES",
     "SIDE_EFFECT_DECORATORS",
     "ImportCycleError",
     "MoveValidationError",
@@ -59,8 +60,36 @@ __all__ = [
     "SymbolAlreadyExistsError",
     "SymbolNotFoundError",
     "batch_edit",
+    "detect_fixture_dependencies",
     "move_symbols",
 ]
+
+# Fixtures pytest provides out of the box. A moved test referencing one of
+# these never needs a ``conftest.py`` in scope, so they are excluded from the
+# fixture-scope analysis. List per the pytest documentation (builtin fixtures).
+PYTEST_BUILTIN_FIXTURES: frozenset[str] = frozenset(
+    {
+        "request",
+        "tmp_path",
+        "tmp_path_factory",
+        "tmpdir",
+        "tmpdir_factory",
+        "monkeypatch",
+        "capsys",
+        "capfd",
+        "capsysbinary",
+        "capfdbinary",
+        "caplog",
+        "recwarn",
+        "pytestconfig",
+        "cache",
+        "record_property",
+        "doctest_namespace",
+    }
+)
+
+# Decorator dotted-names that mark a function as a pytest fixture definition.
+_PYTEST_FIXTURE_DECORATORS: frozenset[str] = frozenset({"pytest.fixture", "fixture"})
 
 # Decorators whose primary purpose is to register the decorated symbol with an
 # external registry as an import-time side effect. Moving such a symbol to a new
@@ -1614,6 +1643,195 @@ def _validate_options(
         raise ValueError("reexport=True is incompatible with rename=")
 
 
+def _function_defs_in_block(block: Block) -> list[cst.FunctionDef]:
+    """Collect the function definitions carried by a moved ``block``.
+
+    A function block contributes its own ``FunctionDef``; a class block
+    contributes the ``FunctionDef`` methods nested directly in its body.
+    """
+    node = block.node
+    if isinstance(node, cst.FunctionDef):
+        return [node]
+    if isinstance(node, cst.ClassDef):
+        return [stmt for stmt in node.body.body if isinstance(stmt, cst.FunctionDef)]
+    return []
+
+
+def _is_fixture_consuming_function(func: cst.FunctionDef) -> bool:
+    """Return ``True`` when ``func`` is a ``test_*`` or fixture-decorated def.
+
+    These are the only functions whose parameters resolve against the pytest
+    fixture namespace; plain helpers take ordinary arguments.
+    """
+    if func.name.value.startswith("test_"):
+        return True
+    for decorator in func.decorators:
+        dotted = _decorator_dotted_name(decorator.decorator)
+        if dotted in _PYTEST_FIXTURE_DECORATORS:
+            return True
+    return False
+
+
+def _candidate_fixture_params(func: cst.FunctionDef) -> set[str]:
+    """Return parameter names of ``func`` eligible to be fixtures.
+
+    Excludes ``self``/``cls`` and any parameter carrying a default value
+    (defaulted params are ordinary arguments, never fixtures).
+    """
+    names: set[str] = set()
+    for param in func.params.params:
+        name = param.name.value
+        if name in {"self", "cls"}:
+            continue
+        if param.default is not None:
+            continue
+        names.add(name)
+    return names
+
+
+def detect_fixture_dependencies(blocks: list[Block], local_names: set[str]) -> set[str]:
+    """Return the pytest fixture names a set of moved ``blocks`` depend on.
+
+    A fixture dependency is a parameter name on a ``def test_*`` function or a
+    ``@pytest.fixture``-decorated function (including methods of a moved
+    class), excluding ``self``/``cls``, defaulted parameters, the pytest
+    builtin fixtures in :data:`PYTEST_BUILTIN_FIXTURES`, and any name already
+    resolvable as a local definition or import (``local_names``). Pure,
+    in-memory CST analysis; no filesystem access.
+    """
+    used: set[str] = set()
+    for block in blocks:
+        for func in _function_defs_in_block(block):
+            if not _is_fixture_consuming_function(func):
+                continue
+            for name in _candidate_fixture_params(func):
+                if name in PYTEST_BUILTIN_FIXTURES or name in local_names:
+                    continue
+                used.add(name)
+    return used
+
+
+def _module_local_names(tree: cst.Module) -> set[str]:
+    """Collect top-level definition and import names declared in ``tree``.
+
+    Used to exclude parameter names that are satisfied by a local symbol or
+    an import rather than a fixture.
+    """
+    names: set[str] = set()
+    for stmt in tree.body:
+        if isinstance(stmt, cst.FunctionDef | cst.ClassDef):
+            names.add(stmt.name.value)
+            continue
+        if isinstance(stmt, cst.SimpleStatementLine):
+            for small in stmt.body:
+                names |= _names_from_small_stmt(small)
+    return names
+
+
+def _names_from_small_stmt(small: cst.BaseSmallStatement) -> set[str]:
+    """Extract bound names from an assignment or import statement."""
+    if isinstance(small, cst.Assign):
+        return {t.target.value for t in small.targets if isinstance(t.target, cst.Name)}
+    if isinstance(small, cst.AnnAssign) and isinstance(small.target, cst.Name):
+        return {small.target.value}
+    if isinstance(small, cst.Import | cst.ImportFrom):
+        return _imported_aliases(small)
+    return set()
+
+
+def _imported_aliases(node: cst.Import | cst.ImportFrom) -> set[str]:
+    """Return the local binding names introduced by an import statement."""
+    if isinstance(node.names, cst.ImportStar):
+        return set()
+    names: set[str] = set()
+    for alias in node.names:
+        if alias.asname is not None and isinstance(alias.asname.name, cst.Name):
+            names.add(alias.asname.name.value)
+        elif isinstance(alias.name, cst.Name):
+            names.add(alias.name.value)
+        elif isinstance(alias.name, cst.Attribute):
+            names.add(_leftmost_attr_name(alias.name))
+    return names
+
+
+def _leftmost_attr_name(attr: cst.Attribute) -> str:
+    """Return the leftmost identifier of a dotted ``import a.b.c`` name."""
+    node: cst.BaseExpression = attr
+    while isinstance(node, cst.Attribute):
+        node = node.value
+    return node.value if isinstance(node, cst.Name) else ""
+
+
+def _conftest_fixture_names(conftest: Path) -> set[str]:
+    """Parse ``conftest`` and return the names of its ``@pytest.fixture`` defs."""
+    try:
+        tree = cst.parse_module(conftest.read_text())
+    except (OSError, cst.ParserSyntaxError):
+        return set()
+    names: set[str] = set()
+    for stmt in tree.body:
+        if isinstance(stmt, cst.FunctionDef) and any(
+            _decorator_dotted_name(d.decorator) in _PYTEST_FIXTURE_DECORATORS
+            for d in stmt.decorators
+        ):
+            names.add(stmt.name.value)
+    return names
+
+
+def _resolve_fixture_conftest(fixture: str, from_file: Path, root: Path) -> Path | None:
+    """Walk up from ``from_file`` to the nearest ``conftest.py`` defining
+    ``fixture``; return its directory or ``None`` if unresolved within ``root``.
+    """
+    current = from_file.resolve().parent
+    root_resolved = root.resolve()
+    while True:
+        conftest = current / "conftest.py"
+        if conftest.is_file() and fixture in _conftest_fixture_names(conftest):
+            return current
+        if current == root_resolved:
+            break
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return None
+
+
+def _fixture_scope_warnings(
+    blocks: list[Block],
+    source_tree: cst.Module,
+    source_path: Path,
+    target_path: Path,
+    root: Path,
+) -> list[str]:
+    """Warn when a moved test's fixture falls out of conftest scope.
+
+    Detection-only (real filesystem I/O): detects the fixture dependencies of
+    the moved test blocks, resolves each to the nearest providing
+    ``conftest.py`` by walking up from ``source_path``, and emits a structured
+    warning when ``target_path`` is not within that conftest's directory
+    subtree (``Path.is_relative_to``). The move itself is never blocked.
+    """
+    local_names = _module_local_names(source_tree)
+    used = detect_fixture_dependencies(blocks, local_names)
+    if not used:
+        return []
+    target_dir = target_path.resolve().parent
+    warnings: list[str] = []
+    for fixture in sorted(used):
+        conftest_dir = _resolve_fixture_conftest(fixture, source_path, root)
+        if conftest_dir is None:
+            continue
+        if not target_dir.is_relative_to(conftest_dir):
+            warnings.append(
+                f"moved test depends on fixture '{fixture}' provided by "
+                f"'{conftest_dir / 'conftest.py'}'; the target is outside that "
+                f"conftest's scope, so the fixture will be unresolved after the "
+                f"move"
+            )
+    return warnings
+
+
 def _string_forward_ref_warnings(
     source_tree: cst.Module, moved_names: Sequence[str]
 ) -> list[str]:
@@ -1782,6 +2000,9 @@ def move_symbols(  # noqa: PLR0913
     plan.warnings.extend(_string_forward_ref_warnings(source_tree, moved_names))
     deco_whitelist = SIDE_EFFECT_DECORATORS | (side_effect_decorators or frozenset())
     plan.warnings.extend(_side_effect_decorator_warnings(blocks, deco_whitelist))
+    plan.warnings.extend(
+        _fixture_scope_warnings(blocks, source_tree, source_path, target_path, root)
+    )
 
     cycle = _cycle_check(
         root,
