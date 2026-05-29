@@ -91,6 +91,7 @@ class MoveTool(AXMTool):
         check: bool = False,
         insert_after: str | None = None,
         include_helpers: bool = True,
+        side_effect_decorators: str | None = None,
         **kwargs: object,
     ) -> ToolResult:
         """Move ``symbols`` (CSV) from ``from_file`` to ``to_file``.
@@ -132,6 +133,11 @@ class MoveTool(AXMTool):
             constants are copied into the target. When ``False`` they are not
             copied (a warning enumerates the un-copied names); imports are
             still copied regardless.
+        side_effect_decorators:
+            Optional comma-separated list of extra side-effect decorator
+            dotted-names that extend the built-in ``SIDE_EFFECT_DECORATORS``
+            whitelist. A moved symbol decorated with a matching decorator
+            yields a non-blocking warning on the plan.
 
         Returns
         -------
@@ -143,6 +149,14 @@ class MoveTool(AXMTool):
         root, src_path, tgt_path, symbol_list = self._normalize_execute_args(
             path, symbols, from_file, to_file
         )
+
+        extra_decorators: frozenset[str] | None = None
+        if side_effect_decorators is not None:
+            extra_decorators = frozenset(
+                entry.strip()
+                for entry in side_effect_decorators.split(",")
+                if entry.strip()
+            )
 
         rename_map: dict[str, str] | None = None
         if rename is not None:
@@ -165,6 +179,7 @@ class MoveTool(AXMTool):
                 check=check,
                 insert_after=insert_after,
                 include_helpers=include_helpers,
+                side_effect_decorators=extra_decorators,
             )
         except Exception as exc:  # noqa: BLE001
             return self._exception_to_result(exc)
