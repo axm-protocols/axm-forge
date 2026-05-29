@@ -173,6 +173,39 @@ module — they are excluded from `_compute_source_orphans` removal
 candidates by construction (only copied helpers and constants are
 removal candidates), so the fallback machinery survives in both files.
 
+### Relative imports (intra- vs cross-package moves)
+
+A relative import required by moved code (`from . import helper`,
+`from .utils import f as g`) cannot be copied verbatim into a target that
+lives in a different package — the dot level would resolve against the
+wrong package. `move_symbols` builds an `_ImportResolution` context up
+front (`_build_import_resolution`): it locates the source and target
+package roots via `_find_pkg_root`, derives each module's *containing
+package* dotted parts via `_pkg_module_name`, and records whether the two
+modules share the same package root.
+
+`_apply_imports` then routes every relative `ImportInfo` through
+`_resolve_copied_import`:
+
+- **Intra-package** (same package root) — the import is kept relative,
+  re-leveled by `_relevel_intra_package` so its dot count still points at
+  the same absolute `from`-module from the target's location. When source
+  and target sit in the same directory this reproduces the original import
+  verbatim.
+- **Cross-package** (different package root) — the import is rewritten to
+  the equivalent **absolute** import. `_absolute_from_parts` walks up
+  `len(dots) - 1` packages from the source module's package and appends the
+  import's module, yielding e.g. `from src_pkg.utils import f as g`.
+  Imported names and aliases are always preserved.
+- **Unresolvable** (the dot level walks above the package root, e.g.
+  `from ... import x` near the top of the tree) — no import is written and
+  a structured `unresolvable relative import: … (walks above package root)`
+  warning is added to `MovePlan.warnings`.
+
+Absolute imports are untouched. When either endpoint is not inside a
+package (no `__init__.py` ancestor), the resolution context is `None` and
+relative imports fall back to the historical drop behaviour.
+
 ## String forward-reference warnings in `core.move`
 
 Type annotations written as string literals (PEP 484 forward references,

@@ -225,3 +225,105 @@ def test_side_effect_decorator_warning_real_files(tmp_path: Path) -> None:
         "side-effect decorator" in w and "celery.task" in w and "do_work" in w
         for w in plan.warnings
     ), plan.warnings
+
+
+def _make_pkg(root: Path, name: str) -> Path:
+    """Create ``root/name`` as an importable package dir with ``__init__.py``."""
+    pkg = root / name
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "__init__.py").write_text("")
+    return pkg
+
+
+def test_relative_import_intra_package_preserved(tmp_path: Path) -> None:
+    """AC1: a relative import copied during an intra-package move is preserved
+    as a relative import (source & target live in the same package)."""
+    from axm_anvil.core.move import move_symbols
+
+    pkg = _make_pkg(tmp_path, "pkg")
+    (pkg / "helper.py").write_text("VALUE = 1\n")
+    src = pkg / "source.py"
+    tgt = pkg / "target.py"
+    src.write_text("from . import helper\n\n\ndef Moved():\n    return helper.VALUE\n")
+    tgt.write_text("")
+
+    move_symbols(src, tgt, ["Moved"], workspace_root=tmp_path)
+
+    target_after = tgt.read_text()
+    assert "from . import helper" in target_after
+    assert "pkg.helper" not in target_after
+
+
+def test_relative_import_cross_package_converted(tmp_path: Path) -> None:
+    """AC2,AC5: a relative import copied during a cross-package move is rewritten
+    to the equivalent absolute import, preserving the imported name and alias."""
+    from axm_anvil.core.move import move_symbols
+
+    src_pkg = _make_pkg(tmp_path, "src_pkg")
+    (src_pkg / "utils.py").write_text("def f():\n    return 1\n")
+    dst_pkg = _make_pkg(tmp_path, "dst_pkg")
+    src = src_pkg / "source.py"
+    tgt = dst_pkg / "target.py"
+    src.write_text("from .utils import f as g\n\n\ndef Moved():\n    return g()\n")
+    tgt.write_text("")
+
+    move_symbols(src, tgt, ["Moved"], workspace_root=tmp_path)
+
+    target_after = tgt.read_text()
+    assert "from src_pkg.utils import f as g" in target_after
+    assert "from .utils" not in target_after
+
+
+def test_absolute_import_untouched(tmp_path: Path) -> None:
+    """AC3: an absolute import used by the moved code is copied unchanged."""
+    from axm_anvil.core.move import move_symbols
+
+    src_pkg = _make_pkg(tmp_path, "src_pkg")
+    dst_pkg = _make_pkg(tmp_path, "dst_pkg")
+    src = src_pkg / "source.py"
+    tgt = dst_pkg / "target.py"
+    src.write_text("import os\n\n\ndef Moved():\n    return os.getcwd()\n")
+    tgt.write_text("")
+
+    move_symbols(src, tgt, ["Moved"], workspace_root=tmp_path)
+
+    target_after = tgt.read_text()
+    assert "import os" in target_after
+
+
+def test_unresolvable_relative_import_warns(tmp_path: Path) -> None:
+    """AC4: a relative import that walks beyond the package root yields a
+    structured warning and no malformed import is written to the target."""
+    from axm_anvil.core.move import move_symbols
+
+    src_pkg = _make_pkg(tmp_path, "src_pkg")
+    dst_pkg = _make_pkg(tmp_path, "dst_pkg")
+    src = src_pkg / "source.py"
+    tgt = dst_pkg / "target.py"
+    src.write_text("from ... import x\n\n\ndef Moved():\n    return x\n")
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["Moved"], workspace_root=tmp_path)
+
+    assert any("relative import" in w.lower() for w in plan.warnings), plan.warnings
+    target_after = tgt.read_text()
+    assert "from ... import x" not in target_after
+
+
+def test_relative_import_cross_package_real_files(tmp_path: Path) -> None:
+    """AC2: a real on-disk cross-package move writes an absolute import into the
+    target file (two-package tmp workspace)."""
+    from axm_anvil.core.move import move_symbols
+
+    src_pkg = _make_pkg(tmp_path, "alpha")
+    (src_pkg / "utils.py").write_text("def helper():\n    return 7\n")
+    dst_pkg = _make_pkg(tmp_path, "beta")
+    src = src_pkg / "source.py"
+    tgt = dst_pkg / "target.py"
+    src.write_text("from .utils import helper\n\n\ndef Moved():\n    return helper()\n")
+    tgt.write_text("")
+
+    move_symbols(src, tgt, ["Moved"], workspace_root=tmp_path)
+
+    target_after = tgt.read_text()
+    assert "from alpha.utils import helper" in target_after
