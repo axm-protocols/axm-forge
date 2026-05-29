@@ -20,6 +20,7 @@ classifiers = [
 
 dependencies = [
     "axm",
+    "axm-ast",
     "axm-edit",
     "cyclopts>=4.5",
     "libcst>=1.5.0",
