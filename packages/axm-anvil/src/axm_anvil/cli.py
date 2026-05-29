@@ -69,6 +69,13 @@ def move(  # noqa: PLR0913
             help="Simulate the move (incl. cycle detection) without writing.",
         ),
     ] = False,
+    insert_after: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            name=["--insert-after"],
+            help="Place moved blocks after this target top-level symbol.",
+        ),
+    ] = None,
 ) -> None:
     """Move top-level symbols between Python files atomically."""
     result = MoveTool().execute(
@@ -81,6 +88,7 @@ def move(  # noqa: PLR0913
         reexport=reexport,
         rename=rename,
         check=check,
+        insert_after=insert_after,
     )
     if not result.success:
         print(result.error or "move failed", file=sys.stderr)  # noqa: T201

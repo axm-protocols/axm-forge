@@ -37,3 +37,19 @@ def test_execute_rename_moves_and_renames(tmp_path: Path) -> None:
     assert "def NewName" in new.read_text()
     assert "OldName" not in old.read_text()
     assert "NewName" in caller.read_text()
+
+
+def test_insert_after_places_block_after_anchor(tmp_path: Path) -> None:
+    """AC1: the moved block is inserted right after the named anchor and before
+    the symbol that originally followed the anchor in the target module."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text("def Moved():\n    return 1\n")
+    tgt.write_text("def Anchor():\n    return 0\n\n\ndef After():\n    return 2\n")
+
+    move_symbols(src, tgt, ["Moved"], insert_after="Anchor")
+
+    text = tgt.read_text()
+    assert text.index("def Anchor") < text.index("def Moved") < text.index("def After")
