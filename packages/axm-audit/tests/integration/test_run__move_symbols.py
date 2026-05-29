@@ -14,9 +14,7 @@ from pathlib import Path
 
 import pytest
 
-# axm-audit is an optional cross-package dependency; skip cleanly when absent
-# instead of failing collection (this test exercises the axm-audit fix pipeline).
-run = pytest.importorskip("axm_audit.core.fix.pipeline").run
+from axm_audit.core.fix.pipeline import run
 
 pytestmark = pytest.mark.integration
 
