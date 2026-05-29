@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import cast
 
 import libcst as cst
 from libcst.metadata import ImportAssignment, ScopeProvider
@@ -159,6 +160,38 @@ class RenameSymbols(cst.CSTTransformer):
         if isinstance(original_node.attr, cst.Name):
             return updated_node.with_changes(attr=original_node.attr)
         return updated_node
+
+    def leave_Annotation(  # noqa: N802
+        self, original_node: cst.Annotation, updated_node: cst.Annotation
+    ) -> cst.Annotation:
+        """Rewrite renamed identifiers inside a string forward-reference.
+
+        A string annotation (``"OldName"``) is opaque to ``leave_Name`` — its
+        content is a literal, not a ``Name`` node. Parse the string body,
+        apply the same ``old -> new`` rename (whole-identifier match), and
+        re-emit the string when its parsed content actually referenced a
+        renamed symbol. Non-string annotations and strings that do not parse
+        are left untouched.
+        """
+        value = original_node.annotation
+        if not isinstance(value, cst.SimpleString):
+            return updated_node
+        raw = value.evaluated_value
+        if not isinstance(raw, str):
+            return updated_node
+        try:
+            expr = cst.parse_expression(raw)
+        except cst.ParserSyntaxError:
+            return updated_node
+        rewritten = cast("cst.BaseExpression", expr.visit(RenameSymbols(self._mapping)))
+        new_raw = cst.Module(body=[]).code_for_node(rewritten)
+        if new_raw == raw:
+            return updated_node
+        prefix = value.prefix
+        quote = value.quote
+        return updated_node.with_changes(
+            annotation=value.with_changes(value=f"{prefix}{quote}{new_raw}{quote}")
+        )
 
 
 def _dotted_to_expr(dotted: str) -> cst.BaseExpression:

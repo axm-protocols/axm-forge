@@ -98,6 +98,57 @@ def test_string_forward_ref_not_rewritten(tmp_path: Path) -> None:
     assert '"Foo"' in plan.source_text_new
 
 
+def test_rename_propagates_to_target_dunder_all(tmp_path: Path) -> None:
+    """Rename + __all__ sync: the target __all__ append uses the NEW name."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "src_pkg.py"
+    tgt = tmp_path / "tgt_pkg.py"
+    src.write_text(
+        '__all__ = ["Widget", "keep_me"]\n\n'
+        "class Widget:\n    pass\n\n"
+        "def keep_me():\n    return 1\n",
+    )
+    tgt.write_text('__all__ = ["existing"]\n\ndef existing():\n    return 0\n')
+
+    move_symbols(
+        src, tgt, ["Widget"], rename={"Widget": "Gadget"}, workspace_root=tmp_path
+    )
+
+    target_after = tgt.read_text()
+    assert '"Gadget"' in target_after
+    assert '"Widget"' not in target_after
+    assert '"existing"' in target_after
+    # source removal still keys on the original exported name
+    assert '"Widget"' not in src.read_text()
+
+
+def test_rename_rewrites_string_forward_ref_in_moved_code(tmp_path: Path) -> None:
+    """Rename + string annotation: a moved "OldName" forward-ref becomes "NewName"."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text(
+        "class Widget:\n    pass\n\n\n"
+        'def make_widget(spec: "Widget") -> "Widget":\n    return Widget()\n'
+    )
+    tgt.write_text("")
+
+    plan = move_symbols(
+        src,
+        tgt,
+        ["Widget", "make_widget"],
+        rename={"Widget": "Gadget"},
+        dry_run=True,
+    )
+
+    assert '"Gadget"' in plan.target_text_new
+    assert '"Widget"' not in plan.target_text_new
+    # the renamed forward-ref no longer warrants a manual-update warning
+    assert not any("forward-reference 'Widget'" in w for w in plan.warnings)
+
+
 def test_forward_ref_warning_real_files(tmp_path: Path) -> None:
     """AC1: a real on-disk move surfaces a non-empty warning naming the symbol."""
     from axm_anvil.core.move import move_symbols
