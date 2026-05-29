@@ -33,6 +33,7 @@ from axm_audit.core.rules.test_quality._shared import (
     iter_test_funcs,
     load_project_scripts,
     test_invokes_in_package_script,
+    test_invokes_inline_python_script,
     test_references_first_party,
 )
 from axm_audit.models.results import CheckResult, Severity
@@ -100,6 +101,10 @@ def _classify_test(
         test_func=func,
         module_ast=tree,
         project_scripts=ctx.project_scripts,
+    ) or test_invokes_inline_python_script(
+        test_func=func,
+        module_ast=tree,
+        pkg_prefixes=ctx.pkg_prefixes,
     )
     if b_passed:
         return None

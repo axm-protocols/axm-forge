@@ -17,6 +17,7 @@ import textwrap
 
 from axm_audit.core.rules.test_quality._shared import (
     test_invokes_in_package_script,
+    test_invokes_inline_python_script,
     test_references_first_party,
 )
 from axm_audit.core.rules.test_quality.no_package_symbol import (
@@ -369,6 +370,103 @@ def test_criterion_b_subprocess_only_in_fixture_body() -> None:
             project_scripts={"pkg-cli"},
         )
         is True
+    )
+
+
+# ----------------------------------------------------------------------
+# AC3 — criterion (b): inline ``python -c "<script>"`` driver
+# ----------------------------------------------------------------------
+
+
+def test_criterion_b_inline_python_c_dedented_script() -> None:
+    """AC3: ``python -c <dedent(script)>`` importing first-party counts.
+
+    The first-party imports live in a string literal bound via
+    ``textwrap.dedent`` — invisible to criterion (a) and to the
+    declared-script branch of (b); the inline-script helper recognises it.
+    """
+    mod = _parse(
+        '''
+        import subprocess
+        import sys
+        import textwrap
+
+        def test_x(tmp_path):
+            script = textwrap.dedent("""
+                from pkg.core.lora import train_lora
+                train_lora()
+            """)
+            subprocess.run([sys.executable, "-c", script, str(tmp_path)], check=False)
+        '''
+    )
+    test_func = next(
+        n for n in mod.body if isinstance(n, ast.FunctionDef) and n.name == "test_x"
+    )
+    assert (
+        test_invokes_inline_python_script(
+            test_func=test_func,
+            module_ast=mod,
+            pkg_prefixes={"pkg"},
+        )
+        is True
+    )
+
+
+def test_criterion_b_inline_python_c_literal_script() -> None:
+    """AC3: an inline ``-c`` literal (no dedent binding) is also recognised."""
+    mod = _parse(
+        """
+        import subprocess
+        import sys
+
+        def test_x():
+            subprocess.run(
+                [sys.executable, "-c", "import pkg; pkg.go()"], check=False
+            )
+        """
+    )
+    test_func = next(
+        n for n in mod.body if isinstance(n, ast.FunctionDef) and n.name == "test_x"
+    )
+    assert (
+        test_invokes_inline_python_script(
+            test_func=test_func,
+            module_ast=mod,
+            pkg_prefixes={"pkg"},
+        )
+        is True
+    )
+
+
+def test_criterion_b_inline_python_c_no_first_party_import() -> None:
+    """AC3 (negative): a ``-c`` script importing nothing first-party fails.
+
+    Guards against the inline-script branch waving through any subprocess.
+    """
+    mod = _parse(
+        '''
+        import subprocess
+        import sys
+        import textwrap
+
+        def test_x():
+            script = textwrap.dedent("""
+                import json
+                print(json.dumps({"a": 1}))
+            """)
+            subprocess.run([sys.executable, "-c", script], check=False)
+        '''
+    )
+    test_func = next(
+        n for n in mod.body if isinstance(n, ast.FunctionDef) and n.name == "test_x"
+    )
+    assert (
+        test_invokes_inline_python_script(
+            test_func=test_func,
+            module_ast=mod,
+            pkg_prefixes={"pkg"},
+        )
+        is False
     )
 
 
