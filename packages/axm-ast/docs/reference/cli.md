@@ -94,9 +94,21 @@ axm-ast graph [OPTIONS] [PATH]
 | `PATH` | | string | `.` | Path to package or workspace directory |
 | `--format` | `-f` | string | `text` | Output format: `text`, `mermaid`, `json` |
 | `--json` | | bool | `False` | Output as JSON |
+| `--scope` | | string | *none* | Graph scope: `package`, `workspace`, or `workspace-deps`. Omit for auto-detection. |
 
 !!! note "Workspace mode"
-    When `PATH` is a `uv` workspace root, generates an inter-package dependency graph instead of an intra-package import graph.
+    When `PATH` is a `uv` workspace root and `--scope` is omitted, generates an inter-package dependency graph instead of an intra-package import graph (auto-detection, unchanged).
+
+!!! note "`--scope` values"
+    - `package` — intra-package module import graph (forces single-package mode even on a workspace root).
+    - `workspace` — **merged module-level graph across all workspace packages**, with every node namespaced `{package}.{module}` and cross-package edges resolved to their owning package (e.g. `axm-mcp.cli → axm.tools`). Renders in `text`, `json`, and `mermaid`.
+    - `workspace-deps` — inter-package dependency graph (the legacy workspace-root behavior, explicitly selected).
+
+**Example (workspace module-level graph):**
+
+```bash
+axm-ast graph /path/to/workspace --scope workspace --format json
+```
 
 **Example (Mermaid):**
 

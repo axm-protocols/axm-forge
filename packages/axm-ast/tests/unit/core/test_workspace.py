@@ -12,15 +12,18 @@ It remains module-internal (not re-exported via ``axm_ast.__init__``).
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from axm_ast.core.workspace import (
+    build_workspace_module_graph,
     format_workspace_graph_mermaid,
     parse_workspace_members,
 )
+from axm_ast.models.nodes import ModuleInfo, PackageInfo, WorkspaceInfo
 from tests.unit._helpers import _EDGE_RE, _NODE_DECL_RE
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -143,3 +146,50 @@ def test_workspace_mermaid_special_chars_in_name(
     assert all(forbidden_char not in eid for eid in edge_ids), (
         f"{forbidden_char!r} survived in IDs"
     )
+
+
+# ─────────────────────────────────────────────────────────
+# build_workspace_module_graph — merged module-level graph (in-memory)
+# ─────────────────────────────────────────────────────────
+
+
+def _pkg(name: str, modules: list[str], edges: list[tuple[str, str]]) -> PackageInfo:
+    """Build an in-memory PackageInfo with dotted module names and edges.
+
+    Each module dotted name maps to ``<root>/<dotted/path>.py`` so that
+    ``module_dotted_name`` round-trips back to the dotted name.
+    """
+    root = Path(f"/ws/{name}/src/{name.replace('-', '_')}")
+    mods = [
+        ModuleInfo(path=root / (dotted.replace(".", "/") + ".py"), name=dotted)
+        for dotted in modules
+    ]
+    return PackageInfo(name=name, root=root, modules=mods, dependency_edges=edges)
+
+
+def test_build_workspace_module_graph_namespaces_nodes() -> None:
+    """AC1: every node is namespaced ``{pkg}.{module}``; intra edges survive."""
+    pkg_a = _pkg("pkg-a", modules=["cli", "core"], edges=[("cli", "core")])
+    pkg_b = _pkg("pkg-b", modules=["server", "util"], edges=[("server", "util")])
+    ws = WorkspaceInfo(name="ws", root=Path("/ws"), packages=[pkg_a, pkg_b])
+
+    graph = build_workspace_module_graph(ws)
+
+    all_nodes = set(graph) | {t for ts in graph.values() for t in ts}
+    assert all_nodes
+    for node in all_nodes:
+        assert node.split(".", 1)[0] in {"pkg-a", "pkg-b"}
+    assert "pkg-a.core" in graph["pkg-a.cli"]
+    assert "pkg-b.util" in graph["pkg-b.server"]
+
+
+def test_build_workspace_module_graph_cross_package_edge() -> None:
+    """AC5: a pkgA module importing a pkgB module yields a namespaced edge."""
+    # pkg-a.cli imports a module owned by pkg-b (its dotted name "server").
+    pkg_a = _pkg("pkg-a", modules=["cli"], edges=[("cli", "server")])
+    pkg_b = _pkg("pkg-b", modules=["server"], edges=[])
+    ws = WorkspaceInfo(name="ws", root=Path("/ws"), packages=[pkg_a, pkg_b])
+
+    graph = build_workspace_module_graph(ws)
+
+    assert "pkg-b.server" in graph["pkg-a.cli"]
