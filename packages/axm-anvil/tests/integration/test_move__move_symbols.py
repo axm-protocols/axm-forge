@@ -327,3 +327,62 @@ def test_relative_import_cross_package_real_files(tmp_path: Path) -> None:
 
     target_after = tgt.read_text()
     assert "from alpha.utils import helper" in target_after
+
+
+def test_fixture_out_of_scope_warns(tmp_path: Path) -> None:
+    """AC3, AC5: moving a test out of the directory subtree covered by the
+    conftest providing its fixture emits a structured out-of-scope warning;
+    the move itself still succeeds (detection-only)."""
+    from axm_anvil.core.move import move_symbols
+
+    dir_a = tmp_path / "dir_a"
+    dir_b = tmp_path / "dir_b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    (dir_a / "conftest.py").write_text(
+        "import pytest\n\n\n@pytest.fixture\ndef my_fixture():\n    return 1\n"
+    )
+    from_file = dir_a / "test_thing.py"
+    to_file = dir_b / "test_thing.py"
+    from_file.write_text(
+        "def test_uses_fixture(my_fixture):\n    assert my_fixture == 1\n"
+    )
+    to_file.write_text("")
+
+    plan = move_symbols(
+        from_file, to_file, ["test_uses_fixture"], workspace_root=tmp_path
+    )
+
+    assert any("my_fixture" in w and "scope" in w.lower() for w in plan.warnings), (
+        plan.warnings
+    )
+
+
+def test_fixture_same_scope_no_warn(tmp_path: Path) -> None:
+    """AC4, AC5: when the conftest sits at a common ancestor of both source and
+    target, the moved test's fixture stays in scope and no scope warning is
+    emitted."""
+    from axm_anvil.core.move import move_symbols
+
+    root = tmp_path / "root"
+    sub_a = root / "a"
+    sub_b = root / "b"
+    sub_a.mkdir(parents=True)
+    sub_b.mkdir(parents=True)
+    (root / "conftest.py").write_text(
+        "import pytest\n\n\n@pytest.fixture\ndef my_fixture():\n    return 1\n"
+    )
+    from_file = sub_a / "test_thing.py"
+    to_file = sub_b / "test_thing.py"
+    from_file.write_text(
+        "def test_uses_fixture(my_fixture):\n    assert my_fixture == 1\n"
+    )
+    to_file.write_text("")
+
+    plan = move_symbols(
+        from_file, to_file, ["test_uses_fixture"], workspace_root=tmp_path
+    )
+
+    assert not any("my_fixture" in w and "scope" in w.lower() for w in plan.warnings), (
+        plan.warnings
+    )

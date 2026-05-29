@@ -224,6 +224,33 @@ update manually` line to `MovePlan.warnings`, identifying the symbol and
 its function/parameter context. This is **detection-only**: string
 annotations are never rewritten by the move.
 
+## Pytest fixture-scope warnings in `core.move`
+
+Moving a test function (or a `@pytest.fixture`-decorated function) can
+silently break it when the fixture it depends on lives in a `conftest.py`
+that no longer covers the destination directory. `move_symbols` detects
+this without ever blocking the move.
+
+`detect_fixture_dependencies(blocks, local_names)` is the pure,
+in-memory layer: for every moved `def test_*` function or
+`@pytest.fixture`-decorated function (including methods of a moved class),
+it collects parameter names, then drops `self`/`cls`, defaulted
+parameters, the pytest builtins in `PYTEST_BUILTIN_FIXTURES` (`tmp_path`,
+`monkeypatch`, `capsys`, `request`, …), and any name already resolvable as
+a local definition or import (`local_names`, built from the source module
+by `_module_local_names`). What remains is the set of fixture names the
+moved code needs from a `conftest.py`.
+
+`_fixture_scope_warnings` is the filesystem layer. For each used fixture
+it walks up the parent directories from `from_file` reading every
+`conftest.py` (parsed with libcst, `@pytest.fixture` names collected) to
+find the nearest one that provides it. The destination is in scope iff
+that conftest's directory is a parent of — or equal to — `to_file`'s
+directory (`Path.is_relative_to`). When it is not, a structured
+`moved test depends on fixture '<name>' provided by '<conftest>'; the
+target is outside that conftest's scope …` line is appended to
+`MovePlan.warnings`. This is **detection-only**: the move always proceeds.
+
 ## Re-export mode in `core.move`
 
 When `move_symbols` is called with `reexport=True`, the pipeline skips
