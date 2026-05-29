@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import libcst as cst
 from libcst.metadata import ImportAssignment, ScopeProvider
 
-__all__ = ["AttributeRewriter", "RemoveSymbols", "RenameSymbols"]
+__all__ = ["AttributeRewriter", "RemoveSymbols", "RenameSymbols", "SyncDunderAll"]
 
 
 class RenameSymbols(cst.CSTTransformer):
@@ -207,3 +209,85 @@ class RemoveSymbols(cst.CSTTransformer):
         if any(self._should_remove_stmt(inner) for inner in updated_node.body):
             return cst.RemoveFromParent()
         return updated_node
+
+
+def _string_element_value(element: cst.BaseElement) -> str | None:
+    """Return the literal text of a string ``Element`` (without quotes), else None."""
+    if not isinstance(element, cst.Element):
+        return None
+    value = element.value
+    if isinstance(value, cst.SimpleString):
+        return value.raw_value
+    if isinstance(value, cst.ConcatenatedString):
+        evaluated = value.evaluated_value
+        return evaluated if isinstance(evaluated, str) else None
+    return None
+
+
+class SyncDunderAll(cst.CSTTransformer):
+    """Synchronize a module's existing ``__all__`` literal on a symbol move.
+
+    Removes the names in ``remove`` from the ``__all__`` ``List``/``Tuple``
+    and appends the names in ``add`` that are not already present
+    (idempotent). Existing ``Element`` nodes are reused untouched via
+    ``.with_changes()`` so quotes, trailing commas and comments of the
+    surviving entries are preserved. A module without a top-level
+    ``__all__`` literal is left untouched — this transformer **never**
+    synthesizes a new assignment.
+    """
+
+    def __init__(self, remove: set[str], add: list[str]) -> None:
+        super().__init__()
+        self._remove = remove
+        self._add = add
+        self._depth = 0
+
+    def visit_IndentedBlock(self, node: cst.IndentedBlock) -> None:  # noqa: N802
+        """Track entry into a nested block to ignore non-module-level names."""
+        self._depth += 1
+
+    def leave_IndentedBlock(  # noqa: N802
+        self, original_node: cst.IndentedBlock, updated_node: cst.IndentedBlock
+    ) -> cst.IndentedBlock:
+        """Track exit from a nested block; pass through the updated node."""
+        self._depth -= 1
+        return updated_node
+
+    def _is_dunder_all(self, node: cst.Assign) -> bool:
+        return (
+            len(node.targets) == 1
+            and isinstance(node.targets[0].target, cst.Name)
+            and node.targets[0].target.value == "__all__"
+        )
+
+    def _sync_elements(
+        self, elements: Sequence[cst.BaseElement]
+    ) -> list[cst.BaseElement]:
+        kept: list[cst.BaseElement] = []
+        present: set[str] = set()
+        for element in elements:
+            name = _string_element_value(element)
+            if name is not None and name in self._remove:
+                continue
+            if name is not None:
+                present.add(name)
+            kept.append(element)
+        for name in self._add:
+            if name not in present:
+                kept.append(cst.Element(value=cst.SimpleString(f'"{name}"')))
+                present.add(name)
+        return kept
+
+    def leave_Assign(  # noqa: N802
+        self, original_node: cst.Assign, updated_node: cst.Assign
+    ) -> cst.Assign:
+        """Rewrite the ``__all__`` list/tuple elements in place when at module level."""
+        if self._depth != 0 or not self._is_dunder_all(updated_node):
+            return updated_node
+        value = updated_node.value
+        if not isinstance(value, cst.List | cst.Tuple):
+            return updated_node
+        new_elements = self._sync_elements(value.elements)
+        return updated_node.with_changes(
+            value=value.with_changes(elements=new_elements)
+        )
