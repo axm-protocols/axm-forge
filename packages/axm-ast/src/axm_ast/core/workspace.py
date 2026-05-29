@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 from typing import TypedDict
 
+from axm_ast.core.analyzer import build_import_graph, module_dotted_name
 from axm_ast.core.cache import get_package
 from axm_ast.models.nodes import PackageInfo, WorkspaceInfo
 
@@ -238,6 +239,118 @@ def _parse_member_deps(member_path: Path) -> list[str]:
 
 
 # ─── Workspace Analysis ─────────────────────────────────────────────────────
+
+
+def _package_module_names(pkg: PackageInfo) -> set[str]:
+    """Return the set of dotted module names owned by *pkg*."""
+    return {module_dotted_name(mod.path, pkg.root) for mod in pkg.modules}
+
+
+def _resolve_target_node(
+    target: str,
+    pkg_name: str,
+    own_modules: set[str],
+    owners: dict[str, str],
+) -> str:
+    """Namespace an import *target* to its owning package.
+
+    Intra-package targets keep ``pkg_name``. A target owned by another
+    package gets that owner's prefix (cross-package edge, AC5). Targets
+    resolvable to no package are kept under ``pkg_name`` (best-effort).
+    """
+    if target in own_modules:
+        return f"{pkg_name}.{target}"
+    owner = owners.get(target)
+    if owner is not None:
+        return f"{owner}.{target}"
+    return f"{pkg_name}.{target}"
+
+
+def _cross_package_target(
+    imp_module: str | None,
+    names: list[str],
+    module_sets: dict[str, set[str]],
+    self_name: str,
+) -> str | None:
+    """Resolve an absolute import to a ``{pkg}.{module}`` node in another package.
+
+    Returns ``None`` for relative imports, self-package imports, and
+    imports of packages outside the workspace (external dependencies).
+    """
+    if not imp_module:
+        return None
+    head, _, rest = imp_module.partition(".")
+    if head == self_name or head not in module_sets:
+        return None
+    owned = module_sets[head]
+    # ``import pkg.sub`` — the dotted remainder is the module.
+    if rest and rest in owned:
+        return f"{head}.{rest}"
+    # ``from pkg import sub`` — a single imported name that is a module.
+    for name in names:
+        if name in owned:
+            return f"{head}.{name}"
+    # Fall back to the package root module.
+    return f"{head}.{head}" if head in owned else head
+
+
+def _collect_cross_package_edges(
+    pkg: PackageInfo,
+    module_sets: dict[str, set[str]],
+    graph: dict[str, list[str]],
+) -> None:
+    """Add cross-package edges for *pkg* derived from raw module imports."""
+    for mod in pkg.modules:
+        src_node = f"{pkg.name}.{module_dotted_name(mod.path, pkg.root)}"
+        targets = graph.setdefault(src_node, [])
+        for imp in mod.imports:
+            if imp.is_relative:
+                continue
+            target = _cross_package_target(imp.module, imp.names, module_sets, pkg.name)
+            if target is not None and target not in targets:
+                targets.append(target)
+
+
+def build_workspace_module_graph(ws: WorkspaceInfo) -> dict[str, list[str]]:
+    """Build a merged module-level import graph across all packages.
+
+    Reuses :func:`build_import_graph` per package and namespaces every
+    node as ``{package_name}.{module}``. Cross-package import targets are
+    resolved to their owning package so edges stay namespaced rather than
+    bare module names (lets anvil tell which package each node belongs to).
+
+    Args:
+        ws: Analyzed workspace info with ``.packages``.
+
+    Returns:
+        Adjacency-list dict mapping ``{pkg}.{module}`` to the list of
+        ``{pkg}.{module}`` nodes it imports.
+
+    Example:
+        >>> graph = build_workspace_module_graph(ws)
+        >>> graph["axm-mcp.cli"]
+        `['axm.tools']`
+    """
+    module_sets = {pkg.name: _package_module_names(pkg) for pkg in ws.packages}
+    owners: dict[str, str] = {}
+    for pkg in ws.packages:
+        for name in module_sets[pkg.name]:
+            owners.setdefault(name, pkg.name)
+
+    graph: dict[str, list[str]] = {}
+    for pkg in ws.packages:
+        own_modules = module_sets[pkg.name]
+        for src, targets in build_import_graph(pkg).items():
+            src_node = f"{pkg.name}.{src}"
+            graph.setdefault(src_node, []).extend(
+                _resolve_target_node(target, pkg.name, own_modules, owners)
+                for target in targets
+            )
+    # Cross-package edges are absent from per-package dependency_edges, so
+    # derive them from raw module imports (AC5).
+    for pkg in ws.packages:
+        _collect_cross_package_edges(pkg, module_sets, graph)
+    return graph
 
 
 def analyze_workspace(path: Path) -> WorkspaceInfo:
