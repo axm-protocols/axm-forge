@@ -15,6 +15,7 @@ Example:
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 import time
 from collections.abc import Callable
@@ -38,6 +39,7 @@ __all__ = [
     "analyze_package",
     "build_import_graph",
     "find_module_for_symbol",
+    "fingerprint_source_tree",
     "module_dotted_name",
     "search_symbols",
 ]
@@ -183,6 +185,46 @@ def _discover_py_files_inner(root: Path, git_root: Path | None) -> list[Path]:
         elif child.suffix == ".py":
             results.append(child)
     return results
+
+
+def fingerprint_source_tree(root: Path) -> frozenset[tuple[str, int]]:
+    """Return ``(path, mtime_ns)`` pairs for every source ``.py`` under *root*.
+
+    Used by the package cache to detect additions, deletions, and content
+    modifications cheaply. Unlike a bare ``rglob("*.py")`` it prunes the same
+    non-source directories as :func:`_discover_py_files` (``_SKIP_DIRS`` and
+    ``*.egg-info``), so it neither stats nor descends into ``.venv``/``.git``/
+    ``__pycache__`` trees — an ``os.scandir`` walk that is several times faster
+    and consistent with discovery. Gitignore rules are intentionally *not*
+    applied here (they require a subprocess per directory); an ignored ``.py``
+    that escapes ``_SKIP_DIRS`` is simply tracked, erring toward extra
+    invalidation rather than staleness.
+
+    Args:
+        root: Directory to fingerprint (typically a package root).
+
+    Returns:
+        Frozenset of ``(absolute_path_str, st_mtime_ns)`` pairs.
+    """
+    out: list[tuple[str, int]] = []
+    stack = [str(root)]
+    while stack:
+        current = stack.pop()
+        try:
+            entries = list(os.scandir(current))
+        except OSError:
+            continue
+        for entry in entries:
+            if entry.is_dir(follow_symlinks=False):
+                if entry.name in _SKIP_DIRS or entry.name.endswith(".egg-info"):
+                    continue
+                stack.append(entry.path)
+            elif entry.name.endswith(".py"):
+                try:
+                    out.append((entry.path, entry.stat().st_mtime_ns))
+                except OSError:
+                    continue
+    return frozenset(out)
 
 
 def module_dotted_name(mod_path: Path, root: Path) -> str:

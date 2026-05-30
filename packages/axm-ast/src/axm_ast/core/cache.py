@@ -24,7 +24,11 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from axm_ast.core.analyzer import analyze_package, module_dotted_name
+from axm_ast.core.analyzer import (
+    analyze_package,
+    fingerprint_source_tree,
+    module_dotted_name,
+)
 from axm_ast.models.nodes import PackageInfo
 
 if TYPE_CHECKING:
@@ -41,16 +45,18 @@ __all__ = [
 ]
 
 # Type alias for the fingerprint: (path, mtime_ns) pairs.
-type _Fingerprint = frozenset[tuple[Path, int]]
+type _Fingerprint = frozenset[tuple[str, int]]
 
 
 def _file_fingerprint(path: Path) -> _Fingerprint:
     """Return ``.py`` file paths with mtime for content-change detection.
 
     Tracks both additions/deletions **and** content modifications by
-    including ``st_mtime_ns`` (nanosecond precision) for each file.
+    including ``st_mtime_ns`` (nanosecond precision) for each file. Delegates
+    to :func:`fingerprint_source_tree`, which prunes non-source directories
+    (``.venv``/``.git``/``__pycache__``/…) instead of walking the whole tree.
     """
-    return frozenset((p, p.stat().st_mtime_ns) for p in path.rglob("*.py"))
+    return fingerprint_source_tree(path)
 
 
 class PackageCache:

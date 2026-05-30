@@ -94,12 +94,43 @@ returns a fresh list. The index shares the call-site invalidation lifecycle
 
 ---
 
+## Optimization 3 — Cheaper cache fingerprint (pruned scandir walk)
+
+**Commit:** `perf(axm-ast): prune non-source dirs in cache fingerprint walk`
+
+**Problem.** Every cache access (`get` / `get_calls` / `get_call_index`)
+re-validates the package by fingerprinting the tree. The old
+`_file_fingerprint` used `path.rglob("*.py")` + `Path.stat()`, building `Path`
+objects and descending into `.venv`/`.git`/`__pycache__` trees that analysis
+itself skips. At ~850 µs/call this dominated the repeated-query path (every
+`find_callers` triggers one fingerprint).
+
+**Change.** Added `analyzer.fingerprint_source_tree`: an `os.scandir` walk that
+prunes the same `_SKIP_DIRS` / `*.egg-info` directories as `_discover_py_files`
+and stores `(path_str, mtime_ns)` pairs. `_file_fingerprint` now delegates to
+it. Gitignore is intentionally not replicated (subprocess per dir); an ignored
+`.py` outside `_SKIP_DIRS` is simply tracked (errs toward extra invalidation,
+never staleness).
+
+**Equivalence.** Fingerprint unchanged; 1566 tests pass; ruff + mypy clean.
+Same file set as before (verified), so cache invalidation semantics are
+preserved for real source trees.
+
+**Benchmark** (best-of-15, `axm-ast` source):
+
+| Scenario | Baseline | Optimized | Gain |
+|---|---:|---:|---:|
+| `_file_fingerprint` (micro, 57 files) | 847 µs | 214 µs | **−75%** |
+| `find_callers` × ~625 symbols (warm) | 602.5 ms | 214.5 ms | **−64%** |
+
+> Cumulative on the repeated-query path (Opt 2 + Opt 3): **771 ms → 214 ms
+> (−72%)**.
+
+---
+
 ## Roadmap (next candidates)
 
-- **Opt 3 — Cheaper cache fingerprint.** `_file_fingerprint` walks with
-  `rglob("*.py")` and stats every file on *every* cache check, descending into
-  `.venv`/`.git`/`__pycache__` that analysis itself skips. Make the walk
-  consistent with `_discover_py_files`.
 - **Opt 4 — Cursor-based AST traversal.** Replace per-node Python recursion +
   `node.children` list allocation in `_visit_calls` with a `TreeCursor` walk
-  (same visit order → iso results, less overhead).
+  (same visit order → iso results, less overhead). Targets the ~140 ms
+  re-extract / cold-pipeline cost.
