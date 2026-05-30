@@ -9,6 +9,7 @@ import fnmatch
 import logging
 import os
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
 from axm.tools.base import ToolResult
@@ -86,6 +87,29 @@ def _search_file(
     return len(results) >= _MAX_RESULTS
 
 
+def _prune_dirs(dirnames: list[str]) -> None:
+    """Prune hidden and excluded directories in-place, deterministically."""
+    dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS and not d.startswith(".")]
+    dirnames.sort()
+
+
+def _iter_matching_files(
+    dirpath: str, filenames: list[str], root: Path, include: list[str] | None
+) -> Iterator[Path]:
+    """Yield searchable files in *dirpath* in deterministic order."""
+    for filename in sorted(filenames):
+        if filename.startswith("."):
+            continue
+        if include and not _matches_include(filename, include):
+            continue
+        file_path = Path(dirpath) / filename
+        if _resolve_safe(root, str(file_path.relative_to(root))) is None:
+            continue
+        if is_binary(file_path):
+            continue
+        yield file_path
+
+
 def _walk_and_search(
     root: Path,
     matcher: re.Pattern[str] | str,
@@ -97,41 +121,14 @@ def _walk_and_search(
     Returns ``(results, truncated)``.
     """
     results: list[dict[str, object]] = []
-    truncated = False
 
     for dirpath, dirnames, filenames in os.walk(root):
-        # Prune hidden and excluded directories (in-place)
-        dirnames[:] = [
-            d for d in dirnames if d not in _SKIP_DIRS and not d.startswith(".")
-        ]
-        dirnames.sort()  # deterministic order
-
-        for filename in sorted(filenames):
-            if filename.startswith("."):
-                continue
-
-            if include and not _matches_include(filename, include):
-                continue
-
-            file_path = Path(dirpath) / filename
-
-            # Sandboxing check
-            resolved = _resolve_safe(root, str(file_path.relative_to(root)))
-            if resolved is None:
-                continue
-
-            # Skip binary files
-            if is_binary(file_path):
-                continue
-
+        _prune_dirs(dirnames)
+        for file_path in _iter_matching_files(dirpath, filenames, root, include):
             if _search_file(file_path, root, matcher, is_regex, results):
-                truncated = True
-                break
+                return results, True
 
-        if truncated:
-            break
-
-    return results, truncated
+    return results, False
 
 
 class SearchFilesTool:
