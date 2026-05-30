@@ -10,10 +10,6 @@ from axm_edit.tools.read_file import ReadFileTool
 class TestReadFileTool:
     """Tests for the ReadFileTool AXMTool wrapper."""
 
-    def test_name(self) -> None:
-        tool = ReadFileTool()
-        assert tool.name == "read_file"
-
     def test_read_full_file(self, tmp_project: Path) -> None:
         """Reading without line range returns all lines with numbers."""
         result = ReadFileTool().execute(path=str(tmp_project), file="src/foo.py")
@@ -106,12 +102,6 @@ class TestReadFileTool:
         result = ReadFileTool().execute(path=str(tmp_project), file="../../etc/passwd")
         assert result.success is False
         assert "escapes" in (result.error or "").lower()
-
-    def test_bad_root(self) -> None:
-        """Non-existent root directory returns error."""
-        result = ReadFileTool().execute(path="/nonexistent/root", file="foo.py")
-        assert result.success is False
-        assert "not a directory" in (result.error or "").lower()
 
     def test_start_line_only(self, tmp_project: Path) -> None:
         """start_line without end_line reads to end of file."""

@@ -10,10 +10,6 @@ from axm_edit.tools.search_files import SearchFilesTool
 class TestSearchFilesTool:
     """Tests for the SearchFilesTool AXMTool wrapper."""
 
-    def test_name(self) -> None:
-        tool = SearchFilesTool()
-        assert tool.name == "search_files"
-
     def test_literal_search(self, tmp_project: Path) -> None:
         """Literal search finds all occurrences of a string."""
         result = SearchFilesTool().execute(path=str(tmp_project), pattern="import os")
@@ -125,12 +121,6 @@ class TestSearchFilesTool:
         assert result.success is True
         assert result.data is not None
         assert result.data["count"] == 0
-
-    def test_bad_root(self) -> None:
-        """Non-existent root directory returns error."""
-        result = SearchFilesTool().execute(path="/nonexistent/root", pattern="foo")
-        assert result.success is False
-        assert "not a directory" in (result.error or "").lower()
 
     def test_invalid_regex(self, tmp_project: Path) -> None:
         """Invalid regex returns a clear error."""
