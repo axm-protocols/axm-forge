@@ -251,3 +251,11 @@ reason = "Path-traversal rejection is tested for ReplaceOp and DeleteOp separate
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "fac43fd49caa"
 reason = "Reindent path (unindented old gets file indent) versus exact-match no-reindent path assert opposite indentation outcomes."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d4b947565f33"
+reason = "lint-skip-on-failure exercises two distinct guard branches — a validation failure on a missing-old edit versus the empty-operations guard — so the no-ruff invariant is reached through different code paths."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "2a91ff34a51e"
+reason = "no-lint_errors is reached by two unrelated mechanisms: project-config E722 suppression via pyproject.toml versus claude_fix returning [] — different SUT aspects, not different literals."
