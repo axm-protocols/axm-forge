@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from axm_edit.services.lint import (
-    _build_prompt,
-    _build_snippets,
-    _find_header_end,
+    build_prompt,
+    build_snippets,
+    find_header_end,
 )
 
 # ---------------------------------------------------------------------------
@@ -26,12 +26,12 @@ def _write_lines(path: Path, lines: list[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests — _find_header_end
+# Unit tests — find_header_end
 # ---------------------------------------------------------------------------
 
 
 class TestHeaderDetectionClass:
-    """File with `class Foo:` on line 15 -> _find_header_end returns 14."""
+    """File with `class Foo:` on line 15 -> find_header_end returns 14."""
 
     def test_finds_class_boundary(self, tmp_path: Path) -> None:
         lines = [f"import mod_{i}" for i in range(14)]  # lines 1-14
@@ -40,19 +40,19 @@ class TestHeaderDetectionClass:
         _write_lines(tmp_path / "mod.py", lines)
 
         all_lines = (tmp_path / "mod.py").read_text().splitlines()
-        result = _find_header_end(all_lines)
+        result = find_header_end(all_lines)
         assert result == 14, f"Expected 14, got {result}"
 
 
 class TestHeaderDetectionNoClass:
-    """File with no class/def (script) -> _find_header_end returns total lines."""
+    """File with no class/def (script) -> find_header_end returns total lines."""
 
     def test_script_file_returns_total(self, tmp_path: Path) -> None:
         lines = [f"x_{i} = {i}" for i in range(20)]  # pure script, no class/def
         _write_lines(tmp_path / "script.py", lines)
 
         all_lines = (tmp_path / "script.py").read_text().splitlines()
-        result = _find_header_end(all_lines)
+        result = find_header_end(all_lines)
         assert result == len(all_lines), (
             f"Expected {len(all_lines)} (whole file), got {result}"
         )
@@ -72,7 +72,7 @@ class TestSmallFileGetsFullContent:
         _write_lines(file_path, lines)
 
         errors = _make_errors("small.py", ["E722"], line=15)
-        prompt = _build_prompt(file_path, errors)
+        prompt = build_prompt(file_path, errors)
 
         # Prompt should contain first and last lines
         assert "1: line_0" in prompt, "Prompt should contain first line"
@@ -95,7 +95,7 @@ class TestLargeFileGetsHeaderPlusSnippets:
         _write_lines(file_path, lines)
 
         errors = _make_errors("large.py", ["E722"], line=350)
-        prompt = _build_prompt(file_path, errors)
+        prompt = build_prompt(file_path, errors)
 
         # Header lines (imports) should be present
         assert "1: import mod_0" in prompt, "Prompt should contain header (line 1)"
@@ -121,7 +121,7 @@ class TestExistingSnippetTestPasses:
         _write_lines(file_path, lines)
 
         errors = _make_errors("app.py", ["E722"], line=3)
-        prompt = _build_prompt(file_path, errors)
+        prompt = build_prompt(file_path, errors)
 
         # 50 lines < 300: full file should be sent
         # Nearby lines still present
@@ -146,7 +146,7 @@ class TestFileExactly300Lines:
         _write_lines(file_path, lines)
 
         errors = _make_errors("boundary.py", ["E722"], line=150)
-        prompt = _build_prompt(file_path, errors)
+        prompt = build_prompt(file_path, errors)
 
         # Should contain first and last lines (full file)
         assert "1: x_0" in prompt, "Boundary file should use full-file prompt"
@@ -162,7 +162,7 @@ class TestFileNoImportsErrorLine1:
         _write_lines(file_path, lines)
 
         errors = _make_errors("script.py", ["E722"], line=1)
-        prompt = _build_prompt(file_path, errors)
+        prompt = build_prompt(file_path, errors)
 
         assert "1: print(0)" in prompt
         assert "20: print(19)" in prompt
@@ -185,7 +185,7 @@ class TestAllErrorsInHeader:
             *_make_errors("large.py", ["E401"], line=3),
             *_make_errors("large.py", ["E401"], line=5),
         ]
-        snippets = _build_snippets(file_path, errors)
+        snippets = build_snippets(file_path, errors)
 
         # Header lines should appear exactly once (no duplicates)
         assert snippets.count("1: import mod_0") == 1, "Line 1 should appear once"
@@ -206,7 +206,7 @@ class TestOverlappingHeaderAndSnippet:
         _write_lines(file_path, lines)
 
         errors = _make_errors("overlap.py", ["E722"], line=12)
-        snippets = _build_snippets(file_path, errors)
+        snippets = build_snippets(file_path, errors)
 
         # Header (lines 1-10) and snippet around line 12 should merge seamlessly
         assert "1: import mod_0" in snippets, "Header start should be present"

@@ -42,7 +42,7 @@ def _group_errors_by_file(errors: list[str]) -> dict[str, list[str]]:
     return dict(grouped)
 
 
-def _find_header_end(all_lines: list[str]) -> int:
+def find_header_end(all_lines: list[str]) -> int:
     """Return 0-indexed line number of first class/def at indent 0.
 
     If no class/def found, returns len(all_lines) (whole file is header).
@@ -79,7 +79,7 @@ def _extract_error_lines(file_errors: list[str]) -> list[int]:
     return lines
 
 
-def _build_snippets(file_path: Path, file_errors: list[str]) -> str:
+def build_snippets(file_path: Path, file_errors: list[str]) -> str:
     """Build targeted code snippets around each error (±N lines context).
 
     For large files (> _MAX_FULL_FILE), prepends the file header (imports
@@ -101,7 +101,7 @@ def _build_snippets(file_path: Path, file_errors: list[str]) -> str:
             ranges.append((start, end))
 
     # Prepend header range for large files
-    header_end = _find_header_end(all_lines)
+    header_end = find_header_end(all_lines)
     if header_end > 0:
         header_range = (0, header_end)
         if ranges and header_range[1] >= ranges[0][0]:
@@ -119,7 +119,7 @@ def _build_snippets(file_path: Path, file_errors: list[str]) -> str:
     return "\n...\n".join(parts)
 
 
-def _build_prompt(file_path: Path, file_errors: list[str]) -> str:
+def build_prompt(file_path: Path, file_errors: list[str]) -> str:
     """Build a Claude prompt with error details and targeted snippets.
 
     Files ≤ _MAX_FULL_FILE lines get the full file content.
@@ -129,7 +129,7 @@ def _build_prompt(file_path: Path, file_errors: list[str]) -> str:
     if total_lines <= _MAX_FULL_FILE:
         return _build_full_file_prompt(file_path, file_errors)
     error_block = "\n".join(file_errors)
-    snippets = _build_snippets(file_path, file_errors)
+    snippets = build_snippets(file_path, file_errors)
     return (
         f"File: {file_path.name}\n\n"
         f"Ruff errors:\n{error_block}\n\n"
@@ -141,7 +141,7 @@ def _build_prompt(file_path: Path, file_errors: list[str]) -> str:
     )
 
 
-def _parse_edits(output: str) -> list[dict[str, str]]:
+def parse_edits(output: str) -> list[dict[str, str]]:
     """Parse Claude's JSON output into a list of old/new edit pairs.
 
     Strips markdown code fences before parsing. Returns an empty list
@@ -169,7 +169,7 @@ def _parse_edits(output: str) -> list[dict[str, str]]:
 _DEF_PATTERN = re.compile(r"^\s*(?:async\s+)?(?:def|class)\s+\w+", re.MULTILINE)
 
 
-def _fabricates_definition(edit: dict[str, str]) -> bool:
+def fabricates_definition(edit: dict[str, str]) -> bool:
     """Return True if *edit* introduces a new ``def`` or ``class``.
 
     Catches the pathological case where Claude invents a stub function
@@ -181,7 +181,7 @@ def _fabricates_definition(edit: dict[str, str]) -> bool:
     return new_defs > old_defs
 
 
-def _apply_edits(file_path: Path, edits: list[dict[str, str]]) -> bool:
+def apply_edits(file_path: Path, edits: list[dict[str, str]]) -> bool:
     """Apply old→new string replacements on file content.
 
     Returns True if at least one edit matched, False otherwise.
@@ -296,7 +296,7 @@ def _call_claude(prompt: str, filename: str) -> tuple[str | None, str | None]:
 
 def _fabrication_warning(edits: list[dict[str, str]], filename: str) -> str | None:
     """Return a warning if *edits* fabricate a definition, else ``None``."""
-    fabricated = [e for e in edits if _fabricates_definition(e)] if edits else []
+    fabricated = [e for e in edits if fabricates_definition(e)] if edits else []
     if not fabricated:
         return None
     return (
@@ -318,18 +318,18 @@ def _fix_single_file(
     if not file_path.is_file():
         return file_errors, []
 
-    stdout, warning = _call_claude(_build_prompt(file_path, file_errors), filename)
+    stdout, warning = _call_claude(build_prompt(file_path, file_errors), filename)
     if warning is not None:
         return file_errors, [warning]
 
     if not stdout or not stdout.strip():
         return file_errors, []
 
-    edits = _parse_edits(stdout)
+    edits = parse_edits(stdout)
     fabrication_warning = _fabrication_warning(edits, filename)
     if fabrication_warning is not None:
         return file_errors, [fabrication_warning]
-    if not edits or not _apply_edits(file_path, edits):
+    if not edits or not apply_edits(file_path, edits):
         return file_errors, []
 
     # Re-check with ruff to confirm fix is clean
