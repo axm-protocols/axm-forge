@@ -143,3 +143,24 @@ class TestCrossPackageCallers:
         callers = find_callers_workspace(ws, "helper")
         for c in callers:
             assert "::" in c.module
+
+    def test_find_callers_workspace_repeated_no_double_prefix(
+        self, workspace_root: Path
+    ) -> None:
+        """Calling twice must not double-prefix cached call-sites.
+
+        Regression: find_callers returns CallSite objects shared with the
+        package cache, so prefixing ``call.module`` in place corrupted the
+        cache and a second query produced ``pkg::pkg::module``.
+        """
+        from axm_ast.core.callers import find_callers_workspace
+
+        ws = analyze_workspace(workspace_root)
+        first = find_callers_workspace(ws, "helper")
+        second = find_callers_workspace(ws, "helper")
+
+        assert [c.module for c in first] == [c.module for c in second]
+        for c in second:
+            # Exactly one prefix separator, never doubled.
+            assert c.module.count("::") == 1
+

@@ -439,10 +439,12 @@ def find_callers_workspace(
     all_calls: list[CallSite] = []
 
     for pkg in ws.packages:
-        callers = find_callers(pkg, symbol)
-        for call in callers:
-            # Prefix with package name for cross-package disambiguation
-            call.module = f"{pkg.name}::{call.module}"
-            all_calls.append(call)
+        for call in find_callers(pkg, symbol):
+            # find_callers returns CallSite objects shared with the package
+            # cache, so copy before prefixing — mutating in place would corrupt
+            # the cache and double-prefix on a later query.
+            all_calls.append(
+                call.model_copy(update={"module": f"{pkg.name}::{call.module}"})
+            )
 
     return all_calls
