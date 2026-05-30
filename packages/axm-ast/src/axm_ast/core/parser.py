@@ -15,6 +15,8 @@ Example:
 from __future__ import annotations
 
 import logging
+import threading
+from collections import OrderedDict
 from pathlib import Path
 
 import tree_sitter_python as tspython
@@ -33,6 +35,7 @@ from axm_ast.models.nodes import (
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "clear_parse_cache",
     "extract_module_info",
     "parse_file",
     "parse_source",
@@ -56,6 +59,27 @@ def _get_parser() -> Parser:
     if _parser is None:
         _parser = Parser(PY_LANGUAGE)
     return _parser
+
+
+# ─── Parsed-tree cache ───────────────────────────────────────────────────────
+#
+# A single ``.py`` file is parsed by several passes within one session
+# (``extract_module_info`` during package analysis, ``extract_calls`` and
+# ``extract_references`` during caller/dead-code analysis). Each pass used to
+# re-read the file from disk and re-parse it with tree-sitter. This cache keys
+# parsed trees by (resolved path, mtime_ns) so repeat parses of an unchanged
+# file are served from memory; a content change bumps the mtime and forces a
+# re-parse, preserving correctness.
+
+_PARSE_CACHE_MAX = 1024
+_parse_cache: OrderedDict[Path, tuple[int, Tree]] = OrderedDict()
+_parse_cache_lock = threading.Lock()
+
+
+def clear_parse_cache() -> None:
+    """Drop all cached parsed trees (used on explicit cache resets)."""
+    with _parse_cache_lock:
+        _parse_cache.clear()
 
 
 # ─── Low-level parsing ──────────────────────────────────────────────────────
@@ -105,8 +129,25 @@ def parse_file(path: Path) -> Tree:
     if path.suffix != ".py":
         msg = f"Not a Python file: {path}"
         raise ValueError(msg)
+
+    mtime = path.stat().st_mtime_ns
+    with _parse_cache_lock:
+        cached = _parse_cache.get(path)
+        if cached is not None and cached[0] == mtime:
+            _parse_cache.move_to_end(path)
+            return cached[1]
+
+    # Parse outside the lock — concurrent parses of the same file are harmless
+    # (idempotent); the last write wins.
     source = path.read_text(encoding="utf-8")
-    return parse_source(source)
+    tree = parse_source(source)
+
+    with _parse_cache_lock:
+        _parse_cache[path] = (mtime, tree)
+        _parse_cache.move_to_end(path)
+        while len(_parse_cache) > _PARSE_CACHE_MAX:
+            _parse_cache.popitem(last=False)
+    return tree
 
 
 # ─── Node text helper ────────────────────────────────────────────────────────

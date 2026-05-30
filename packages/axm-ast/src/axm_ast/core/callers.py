@@ -27,7 +27,7 @@ from axm_ast.core._call_helpers import (
     update_context,
 )
 from axm_ast.core.analyzer import module_dotted_name
-from axm_ast.core.parser import parse_source
+from axm_ast.core.parser import parse_file
 from axm_ast.models.calls import CallSite
 from axm_ast.models.nodes import ModuleInfo, PackageInfo, WorkspaceInfo
 
@@ -65,8 +65,7 @@ def extract_references(mod: ModuleInfo) -> set[str]:
     Returns:
         Set of symbol names referenced in non-call positions.
     """
-    source = mod.path.read_text(encoding="utf-8")
-    tree = parse_source(source)
+    tree = parse_file(mod.path)
     refs: set[str] = set()
     _visit_references(tree.root_node, refs)
     return refs
@@ -309,13 +308,13 @@ def extract_calls(
     Returns:
         List of CallSite objects for each call in the module.
     """
-    source = mod.path.read_text(encoding="utf-8")
-    tree = parse_source(source)
+    tree = parse_file(mod.path)
     mod_name = module_name or mod.path.stem
 
     calls: list[CallSite] = []
-    source_bytes = source.encode("utf-8")
-    _visit_calls(tree.root_node, mod_name, source_bytes, calls)
+    # source_bytes is unused by the visitor (node.text carries the bytes); the
+    # parameter is kept for signature symmetry with the call-site helpers.
+    _visit_calls(tree.root_node, mod_name, b"", calls)
     return calls
 
 

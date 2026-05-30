@@ -134,9 +134,12 @@ class PackageCache:
 
     def clear(self) -> None:
         """Invalidate all cached entries."""
+        from axm_ast.core.parser import clear_parse_cache
+
         with self._lock:
             self._store.clear()
             self._calls_store.clear()
+        clear_parse_cache()
 
 
 # ─── Module-level singleton ──────────────────────────────────────────────────
