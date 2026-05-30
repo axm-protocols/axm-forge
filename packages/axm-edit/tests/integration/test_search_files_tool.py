@@ -144,3 +144,22 @@ class TestSearchFilesTool:
         assert result.success is True
         assert result.data is not None
         assert result.data["count"] == 0
+
+
+class TestSearchFilesSkipsBinary:
+    """Functional test: SearchFilesTool skips binary files."""
+
+    def test_search_files_skips_binary_nonprintable(self, tmp_project: Path) -> None:
+        from axm_edit.tools.search_files import SearchFilesTool
+
+        # Create a binary file containing the search pattern
+        binary_file = tmp_project / "src" / "data.bin"
+        binary_file.write_bytes(b"import os" + bytes(range(0x01, 0x20)) * 100)
+
+        # Also ensure a text file has the pattern (already in foo.py)
+        result = SearchFilesTool().execute(path=str(tmp_project), pattern="import os")
+        assert result.success is True
+        assert result.data is not None
+        files = [m["file"] for m in result.data["matches"]]
+        assert "src/data.bin" not in files
+        assert any("foo.py" in f for f in files)
