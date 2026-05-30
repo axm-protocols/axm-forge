@@ -283,3 +283,61 @@ class TestEmptyRemainingErrors:
 
         assert remaining == []
         mock_run.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Graceful degradation (split from ``test_graceful_degradation.py``)
+# ---------------------------------------------------------------------------
+
+
+class TestNoClaudeSkipsAutofix:
+    """AC2: If claude is not in PATH, claude auto-fix step silently skipped."""
+
+    def test_no_claude_skips_autofix(
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("axm_edit.services.lint._has_claude", False)
+
+        errors = _make_errors("app.py", ["E722"])
+        warnings: list[str] = []
+        remaining = claude_fix(project, errors, warnings=warnings)
+
+        # Errors returned as-is, no claude call
+        assert remaining == errors
+        assert any("claude not found" in w for w in warnings)
+
+
+class TestClaudeTimeoutGraceful:
+    """AC6: If claude subprocess times out, skip gracefully with warning."""
+
+    def test_claude_timeout_graceful(
+        self,
+        project: Path,
+        mocker: Any,
+    ) -> None:
+        def side_effect(
+            cmd: list[str], **kwargs: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if isinstance(cmd, list) and cmd and cmd[0] == "claude":
+                raise subprocess.TimeoutExpired(cmd="claude", timeout=60)
+            # ruff re-check after claude — won't be reached
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=0,
+                stdout="",
+                stderr="",
+            )
+
+        mocker.patch(
+            "axm_edit.services.lint.subprocess.run",
+            side_effect=side_effect,
+        )
+
+        errors = _make_errors("app.py", ["E722"])
+        warnings: list[str] = []
+        remaining = claude_fix(project, errors, warnings=warnings)
+
+        assert remaining == errors
+        assert any("timed out" in w for w in warnings)
