@@ -1,4 +1,4 @@
-"""Tests for axm_edit.tools.edit_file — EditFileTool."""
+"""Integration tests for axm_edit.tools.edit_file — EditFileTool (real I/O)."""
 
 from __future__ import annotations
 
@@ -15,12 +15,6 @@ class TestEditFileTool:
     @pytest.fixture()
     def tool(self) -> EditFileTool:
         return EditFileTool()
-
-    def test_name(self, tool: EditFileTool) -> None:
-        assert tool.name == "edit_file"
-
-    def test_agent_hint_exists(self, tool: EditFileTool) -> None:
-        assert tool.agent_hint
 
     def test_simple_replace(self, tool: EditFileTool, tmp_path: Path) -> None:
         target = tmp_path / "code.py"
@@ -65,11 +59,6 @@ class TestEditFileTool:
         result = tool.execute(path=str(tmp_path / "nope.py"), old="a", new="b")
         assert result.success is False
         assert result.error is not None and "not found" in result.error
-
-    def test_missing_path(self, tool: EditFileTool) -> None:
-        result = tool.execute(old="a", new="b")
-        assert result.success is False
-        assert result.error is not None and "path" in result.error
 
     def test_missing_old(self, tool: EditFileTool, tmp_path: Path) -> None:
         result = tool.execute(path=str(tmp_path / "f.py"), new="b")
