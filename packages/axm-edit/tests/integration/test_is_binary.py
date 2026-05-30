@@ -1,4 +1,4 @@
-"""Tests for axm_edit.utils — is_binary detection."""
+"""Split from ``test_utils.py``."""
 
 from __future__ import annotations
 
@@ -44,37 +44,3 @@ class TestIsBinaryUnit:
         if content is not None:
             f.write_bytes(content)
         assert is_binary(f) is expected
-
-
-class TestReadFileSkipsBinary:
-    """Functional test: ReadFileTool rejects binary files."""
-
-    def test_read_file_skips_binary_nonprintable(self, tmp_project: Path) -> None:
-        from axm_edit.tools.read_file import ReadFileTool
-
-        # Create a binary file with high non-printable ratio
-        binary_file = tmp_project / "src" / "data.bin"
-        binary_file.write_bytes(bytes(range(0x01, 0x20)) * 100)
-
-        result = ReadFileTool().execute(path=str(tmp_project), file="src/data.bin")
-        assert result.success is False
-        assert "Binary file" in (result.error or "")
-
-
-class TestSearchFilesSkipsBinary:
-    """Functional test: SearchFilesTool skips binary files."""
-
-    def test_search_files_skips_binary_nonprintable(self, tmp_project: Path) -> None:
-        from axm_edit.tools.search_files import SearchFilesTool
-
-        # Create a binary file containing the search pattern
-        binary_file = tmp_project / "src" / "data.bin"
-        binary_file.write_bytes(b"import os" + bytes(range(0x01, 0x20)) * 100)
-
-        # Also ensure a text file has the pattern (already in foo.py)
-        result = SearchFilesTool().execute(path=str(tmp_project), pattern="import os")
-        assert result.success is True
-        assert result.data is not None
-        files = [m["file"] for m in result.data["matches"]]
-        assert "src/data.bin" not in files
-        assert any("foo.py" in f for f in files)

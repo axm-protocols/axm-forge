@@ -128,3 +128,18 @@ class TestReadFileTool:
         assert result.data["showing"]["start"] == 1
         assert result.data["showing"]["end"] == 3
         assert result.data["showing"]["count"] == 3
+
+
+class TestReadFileSkipsBinary:
+    """Functional test: ReadFileTool rejects binary files."""
+
+    def test_read_file_skips_binary_nonprintable(self, tmp_project: Path) -> None:
+        from axm_edit.tools.read_file import ReadFileTool
+
+        # Create a binary file with high non-printable ratio
+        binary_file = tmp_project / "src" / "data.bin"
+        binary_file.write_bytes(bytes(range(0x01, 0x20)) * 100)
+
+        result = ReadFileTool().execute(path=str(tmp_project), file="src/data.bin")
+        assert result.success is False
+        assert "Binary file" in (result.error or "")
