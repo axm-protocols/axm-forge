@@ -9,7 +9,6 @@ import logging
 import shlex
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import ToolResult
 
@@ -78,7 +77,7 @@ class RunCommandTool:
         path: str = ".",
         cwd: str | None = None,
         timeout: int = _DEFAULT_TIMEOUT,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Execute a shell command.
 
