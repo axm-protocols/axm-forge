@@ -37,39 +37,108 @@ class TestApplyEditsReplace:
 
 
 class TestApplyEditsInsert:
-    """old is anchor text, new is anchor + extra lines -> insertion."""
+    """old anchor, new = anchor + extra lines -> insertion applied to file."""
 
-    def test_apply_edits_insert(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        ("initial", "edits", "expected"),
+        [
+            pytest.param(
+                "import os\n\ndef f(): pass",
+                [{"old": "import os", "new": "import os\nimport logging"}],
+                "import logging",
+                id="anchor-import",
+            ),
+            pytest.param(
+                "x = 1\r\ny = 2\r\n",
+                [{"old": "x = 1", "new": "_ = 1"}],
+                "_ = 1",
+                id="crlf-normalization",
+            ),
+            pytest.param(
+                "def main():\n    print('hello')\n",
+                [
+                    {
+                        "old": "def main():\n    print('hello')",
+                        "new": "def main():\n    logging.info('start')\n"
+                        "    print('hello')",
+                    }
+                ],
+                "logging.info('start')",
+                id="multiline-anchor",
+            ),
+        ],
+    )
+    def test_apply_edits_insert(
+        self,
+        tmp_path: Path,
+        initial: str,
+        edits: list[dict[str, str]],
+        expected: str,
+    ) -> None:
         f = tmp_path / "ins.py"
-        f.write_text("import os\n\ndef f(): pass")
-        edits = [{"old": "import os", "new": "import os\nimport logging"}]
+        f.write_text(initial)
         result = apply_edits(f, edits)
         assert result is True
-        content = f.read_text()
-        assert "import logging" in content
+        assert expected in f.read_text()
 
 
 class TestApplyEditsDelete:
-    """old is block to remove, new is empty -> deletion."""
+    """old block, new empty -> matched block removed, siblings preserved."""
 
-    def test_apply_edits_delete(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        ("initial", "absent", "present"),
+        [
+            pytest.param(
+                "import os\nimport sys\nx = 1",
+                "import sys",
+                ["import os", "x = 1"],
+                id="three-lines",
+            ),
+            pytest.param(
+                "import os\nimport sys\nimport json\n\nx = 1\n",
+                "import sys",
+                ["import os", "import json"],
+                id="with-json-sibling",
+            ),
+        ],
+    )
+    def test_apply_edits_delete(
+        self,
+        tmp_path: Path,
+        initial: str,
+        absent: str,
+        present: list[str],
+    ) -> None:
         f = tmp_path / "del.py"
-        f.write_text("import os\nimport sys\nx = 1")
+        f.write_text(initial)
         edits = [{"old": "import sys\n", "new": ""}]
         result = apply_edits(f, edits)
         assert result is True
         content = f.read_text()
-        assert "import sys" not in content
-        assert "import os" in content
-        assert "x = 1" in content
+        assert absent not in content
+        for token in present:
+            assert token in content
 
 
 class TestApplyEditsNoMatch:
-    """old text not in file -> file unchanged, returns False."""
+    """no applicable edit (missing old / empty list) -> False, file unchanged."""
 
-    def test_apply_edits_no_match(self, src_file: Path) -> None:
+    @pytest.mark.parametrize(
+        "edits",
+        [
+            pytest.param(
+                [{"old": "nonexistent text", "new": "replacement"}],
+                id="old-not-found",
+            ),
+            pytest.param([], id="empty-array"),
+        ],
+    )
+    def test_apply_edits_no_match(
+        self,
+        src_file: Path,
+        edits: list[dict[str, str]],
+    ) -> None:
         original = src_file.read_text()
-        edits = [{"old": "nonexistent text", "new": "replacement"}]
         result = apply_edits(src_file, edits)
         assert result is False
         assert src_file.read_text() == original
@@ -78,17 +147,6 @@ class TestApplyEditsNoMatch:
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
-
-
-class TestEmptyJsonArray:
-    """Claude returns [] -> no changes, no error."""
-
-    def test_empty_array(self, src_file: Path) -> None:
-        original = src_file.read_text()
-        edits: list[dict[str, str]] = []
-        result = apply_edits(src_file, edits)
-        assert result is False
-        assert src_file.read_text() == original
 
 
 class TestOldMatchesMultipleTimes:
@@ -103,18 +161,6 @@ class TestOldMatchesMultipleTimes:
         content = f.read_text()
         assert content.count("return") == 1
         assert content.count("pass") == 2
-
-
-class TestNewlineDifferences:
-    r"""old has \n, file has \r\n -> normalize before matching."""
-
-    def test_crlf_normalization(self, tmp_path: Path) -> None:
-        f = tmp_path / "crlf.py"
-        f.write_text("x = 1\r\ny = 2\r\n")
-        edits = [{"old": "x = 1", "new": "_ = 1"}]
-        result = apply_edits(f, edits)
-        assert result is True
-        assert "_ = 1" in f.read_text()
 
 
 class TestVeryLargeJsonOutput:
@@ -135,38 +181,6 @@ class TestVeryLargeJsonOutput:
         content = f.read_text()
         for i in range(50):
             assert f"var_{i} = {i * 10}" in content
-
-
-class TestInsertEditApplied:
-    """JSON with insert (old=anchor, new=anchor+new lines) -> file updated."""
-
-    def test_insert_edit(self, tmp_path: Path) -> None:
-        f = tmp_path / "insert.py"
-        f.write_text("def main():\n    print('hello')\n")
-        edits = [
-            {
-                "old": "def main():\n    print('hello')",
-                "new": "def main():\n    logging.info('start')\n    print('hello')",
-            }
-        ]
-        result = apply_edits(f, edits)
-        assert result is True
-        assert "logging.info('start')" in f.read_text()
-
-
-class TestDeleteEditApplied:
-    """JSON with delete (old=block, new="") -> lines removed."""
-
-    def test_delete_edit(self, tmp_path: Path) -> None:
-        f = tmp_path / "delete.py"
-        f.write_text("import os\nimport sys\nimport json\n\nx = 1\n")
-        edits = [{"old": "import sys\n", "new": ""}]
-        result = apply_edits(f, edits)
-        assert result is True
-        content = f.read_text()
-        assert "import sys" not in content
-        assert "import os" in content
-        assert "import json" in content
 
 
 class TestMultilineReplace:
