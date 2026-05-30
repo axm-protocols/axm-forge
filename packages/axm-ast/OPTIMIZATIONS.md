@@ -154,7 +154,11 @@ read errors keep their `try/except (OSError, UnicodeDecodeError)` around
 
 | Scenario | Re-parse each (baseline) | Parse-cache hit (optimized) | Gain |
 |---|---:|---:|---:|
-| lazy/class detectors over all modules | 31.7 ms | 6.4 ms | -80% (4.9x) |
+| lazy/class detectors over all modules | 377 ms | 188 ms | -50% (2.0x) |
+
+The "cold" column re-parses each module per call (baseline behaviour); "warm"
+serves trees from the parse cache. The 2x reflects that parsing is roughly half
+the cost of these detectors — the remainder is the AST scan itself, untouched.
 
 ---
 
@@ -176,7 +180,7 @@ that has to reconstruct `__pydantic_fields_set__` and fill defaults. **Reverted
 | Full cold caller pipeline | 360 ms | 278 ms | -23% |
 | Re-extract call-sites (pkg warm) | 200 ms | 121 ms | -40% |
 | `find_callers` x ~625 symbols (warm) | 771 ms | 215 ms | -72% |
-| Dead-code lazy/class detectors (isolated) | 32 ms | 6 ms | -80% |
+| Dead-code lazy/class detectors (isolated) | 377 ms | 188 ms | -50% |
 | Import-graph build (guard) | 147 ms | 160 ms | ~0 (noise) |
 
 All five optimizations are individually equivalence-checked (identical
