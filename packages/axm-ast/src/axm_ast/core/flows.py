@@ -35,7 +35,7 @@ from axm_ast.core._call_helpers import (
     update_context,
 )
 from axm_ast.core.analyzer import find_module_for_symbol, module_dotted_name
-from axm_ast.core.parser import parse_source
+from axm_ast.core.parser import parse_file, parse_source
 from axm_ast.models.calls import CallSite
 from axm_ast.models.nodes import ImportInfo, ModuleInfo, PackageInfo, WorkspaceInfo
 
@@ -171,10 +171,13 @@ def _scan_module_entries(mod: ModuleInfo, mod_name: str) -> list[EntryPoint]:
     """Scan a single module for entry points."""
     entries: list[EntryPoint] = []
 
-    # Decorator-based + test function detection via AST
-    source = mod.path.read_text(encoding="utf-8")
-    tree = parse_source(source)
-    _visit_entry_points(tree.root_node, source, mod_name, entries)
+    # Decorator-based + test function detection via AST. The parse goes
+    # through parse_file so it hits the shared mtime-keyed parse cache instead
+    # of re-reading and re-parsing a module analysis already parsed. The
+    # ``source`` string is unused downstream (entry-point detection reads
+    # node.text), so an empty string is threaded for signature compatibility.
+    tree = parse_file(mod.path)
+    _visit_entry_points(tree.root_node, "", mod_name, entries)
 
     # __all__ exports
     if mod.all_exports:
@@ -403,8 +406,11 @@ def find_callees(
         if path_key in cache:
             tree, source = cache[path_key]
         else:
-            source = mod.path.read_text(encoding="utf-8")
-            tree = parse_source(source)
+            # parse_file hits the shared parse cache; the source string is
+            # unused downstream (call extraction reads node.text) so it is
+            # kept empty while preserving the (tree, source) cache contract.
+            tree = parse_file(mod.path)
+            source = ""
             cache[path_key] = (tree, source)
 
         # Find the function definition node for this symbol
@@ -436,12 +442,12 @@ def build_callee_index(
 
     for mod in pkg.modules:
         mod_name = module_dotted_name(mod.path, pkg.root)
-        source = mod.path.read_text(encoding="utf-8")
-        tree = parse_source(source)
+        # parse_file hits the shared parse cache; source is unused downstream.
+        tree = parse_file(mod.path)
 
         func_ranges = _find_all_function_ranges(tree.root_node)
         for fr in func_ranges:
-            calls = _extract_scoped_calls(tree.root_node, mod_name, source, fr)
+            calls = _extract_scoped_calls(tree.root_node, mod_name, "", fr)
             index[(mod_name, fr.name)] = calls
 
     return index

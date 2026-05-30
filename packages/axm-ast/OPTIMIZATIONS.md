@@ -173,6 +173,47 @@ that has to reconstruct `__pydantic_fields_set__` and fill defaults. **Reverted
 
 ---
 
+## Optimization 6 — Parse cache for flows (callees / entry points)
+
+**Commit:** `perf(axm-ast): route flows parsing through the parse cache`
+
+**Problem.** `flows` re-read and re-parsed every module via `read_text` +
+`parse_source` in three places: `_scan_module_entries` (entry points),
+`find_callees`, and `build_callee_index`.
+
+**Change.** Routed all three through `parse_file` (shared mtime-keyed parse
+cache). The `source` string threaded through the entry-point / scoped-call
+visitors turned out to be dead (call extraction reads `node.text`; the
+`source_bytes` it ultimately feeds `extract_call_site` is discarded), so an
+empty string is passed for signature compatibility. `find_callees`'s
+`_parse_cache` `(tree, source)` contract is preserved.
+
+**Equivalence.** 1567 tests pass (incl. the callee/trace-flow suites and the
+`find_callees` no-reparse contract test); fingerprint unchanged; ruff + mypy
+clean.
+
+**Benchmark** (best-of-10, `axm-ast`, isolated warm-cache vs re-parse-each):
+
+| Scenario | Re-parse each | Parse-cache hit | Gain |
+|---|---:|---:|---:|
+| `build_callee_index` over all modules | 249.3 ms | 189.6 ms | -24% (1.3x) |
+
+---
+
+## Fix — `find_callers_workspace` no longer corrupts the cache
+
+**Commit:** `fix(axm-ast): copy CallSite before prefixing in find_callers_workspace`
+
+**Problem.** `find_callers` returns `CallSite` objects shared with the package
+cache. `find_callers_workspace` prefixed `call.module = f"{pkg}::{...}"` **in
+place**, mutating the cached objects — so a second query returned
+`pkg::pkg::module` (verified by a new regression test).
+
+**Fix.** Build a prefixed copy via `model_copy(update=...)` instead of
+mutating. Added `test_find_callers_workspace_repeated_no_double_prefix`.
+
+---
+
 ## Cumulative summary (axm-ast source)
 
 | Path | Before | After | Gain |
@@ -181,18 +222,18 @@ that has to reconstruct `__pydantic_fields_set__` and fill defaults. **Reverted
 | Re-extract call-sites (pkg warm) | 200 ms | 121 ms | -40% |
 | `find_callers` x ~625 symbols (warm) | 771 ms | 215 ms | -72% |
 | Dead-code lazy/class detectors (isolated) | 377 ms | 188 ms | -50% |
+| `build_callee_index` (flows, isolated) | 249 ms | 190 ms | -24% |
 | Import-graph build (guard) | 147 ms | 160 ms | ~0 (noise) |
 
-All five optimizations are individually equivalence-checked (identical
-`find_callers` fingerprint) and the full 1566-test suite, ruff, and mypy stay
-green.
+All six optimizations are individually equivalence-checked (identical
+`find_callers` fingerprint) and the full 1567-test suite, ruff, and mypy stay
+green. One correctness bug (`find_callers_workspace` cache corruption) was
+found and fixed along the way.
 
 ## Roadmap (further candidates, not yet done)
 
 - **Cursor-based traversal** (`tree.walk()`) to avoid `node.children` list
   allocation entirely — larger but riskier than Opt 4.
-- **Apply the parse cache to `flows`**, which still does `read_text` +
-  `parse_source` directly (deferred: its helpers also reuse the raw source
-  string, so it needs more care than `dead_code` did).
-- **`find_callers_workspace` correctness**: it mutates cached `CallSite.module`
-  in place (pre-existing) — should copy before prefixing.
+- **Thread the parse cache into `dead_code`'s remaining direct
+  `parse_source` calls on raw bytes** (tolerant decode paths) if those become
+  hot.

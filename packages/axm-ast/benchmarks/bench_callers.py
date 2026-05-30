@@ -169,6 +169,18 @@ def _scenario_dead_code() -> None:
     find_dead_code(pkg)
 
 
+def _scenario_callee_index() -> None:
+    """Build the full callee index (flows) with the parse cache warm.
+
+    build_callee_index parses every module; the optimization serves those
+    parses from the shared parse cache instead of re-reading from disk.
+    """
+    from axm_ast.core.flows import build_callee_index
+
+    pkg = get_package(PKG)
+    build_callee_index(pkg)
+
+
 def _scenario_analyze() -> None:
     """Raw package analysis (regression guard for the parse cache)."""
     analyze_package(PKG)
@@ -205,6 +217,7 @@ def main() -> None:
     print()
 
     _bench_dead_code()
+    _bench_callee_index()
 
 
 def _bench_dead_code() -> None:
@@ -213,6 +226,13 @@ def _bench_dead_code() -> None:
     get_package(PKG)
     get_calls(PKG)
     _time("find_dead_code (pkg warm)", _scenario_dead_code, repeat=10)
+
+
+def _bench_callee_index() -> None:
+    """Separate timing for the flows callee index (warm package)."""
+    clear_cache()
+    get_package(PKG)
+    _time("build_callee_index (pkg warm)", _scenario_callee_index, repeat=10)
 
 
 if __name__ == "__main__":
