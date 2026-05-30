@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_edit.services.lint import (
     build_prompt,
     build_snippets,
@@ -64,21 +66,41 @@ class TestHeaderDetectionNoClass:
 
 
 class TestSmallFileGetsFullContent:
-    """20-line .py file, error on line 15 -> prompt contains line 1 through 20."""
+    """File at or under the 300-line threshold -> prompt contains the full file."""
 
-    def test_full_content_in_prompt(self, tmp_path: Path) -> None:
-        lines = [f"line_{i} = {i}" for i in range(20)]
-        file_path = tmp_path / "small.py"
+    @pytest.mark.parametrize(
+        ("num_lines", "filename", "expected"),
+        [
+            pytest.param(
+                20,
+                "small.py",
+                ["1: line_0", "20: line_19", "15: line_14"],
+                id="small_20_lines",
+            ),
+            pytest.param(
+                300,
+                "boundary.py",
+                ["1: line_0", "300: line_299"],
+                id="boundary_300_lines",
+            ),
+        ],
+    )
+    def test_full_content_in_prompt(
+        self,
+        tmp_path: Path,
+        num_lines: int,
+        filename: str,
+        expected: list[str],
+    ) -> None:
+        lines = [f"line_{i} = {i}" for i in range(num_lines)]
+        file_path = tmp_path / filename
         _write_lines(file_path, lines)
 
-        errors = _make_errors("small.py", ["E722"], line=15)
+        errors = _make_errors(filename, ["E722"], line=15)
         prompt = build_prompt(file_path, errors)
 
-        # Prompt should contain first and last lines
-        assert "1: line_0" in prompt, "Prompt should contain first line"
-        assert "20: line_19" in prompt, "Prompt should contain last line"
-        # Should contain the error line
-        assert "15: line_14" in prompt, "Prompt should contain error line"
+        for marker in expected:
+            assert marker in prompt, f"Prompt should contain {marker!r}"
 
 
 class TestLargeFileGetsHeaderPlusSnippets:
@@ -135,22 +157,6 @@ class TestExistingSnippetTestPasses:
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
-
-
-class TestFileExactly300Lines:
-    """Boundary: file exactly 300 lines -> uses full-file prompt (≤ 300)."""
-
-    def test_boundary_uses_full_file(self, tmp_path: Path) -> None:
-        lines = [f"x_{i} = {i}" for i in range(300)]
-        file_path = tmp_path / "boundary.py"
-        _write_lines(file_path, lines)
-
-        errors = _make_errors("boundary.py", ["E722"], line=150)
-        prompt = build_prompt(file_path, errors)
-
-        # Should contain first and last lines (full file)
-        assert "1: x_0" in prompt, "Boundary file should use full-file prompt"
-        assert "300: x_299" in prompt, "Boundary file should contain last line"
 
 
 class TestFileNoImportsErrorLine1:

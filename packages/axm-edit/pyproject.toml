@@ -271,3 +271,7 @@ reason = "Garbage-output exercises the failed-parse return-value branch (process
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "54e3d7636713"
 reason = "file-not-found exercises the FileNotFoundError exception branch while unparseable-format exercises the non-JSON return-value branch — different code paths reaching remaining==errors."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "5559a5a26a76"
+reason = "no_git_dir exercises the absent-.git early-return branch (non-repo tmp dir) while clean_repo_returns_none exercises the clean-working-tree branch (real repo, nothing to stash) — different code paths in create_checkpoint reaching the None return."
