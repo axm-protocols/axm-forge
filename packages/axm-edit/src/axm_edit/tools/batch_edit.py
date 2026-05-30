@@ -137,6 +137,125 @@ def _run_ruff(
     return auto_fixed, remaining
 
 
+def _snapshot_files(root: Path, py_files: list[Path]) -> dict[str, str]:
+    """Read current text of *py_files*, keyed by path relative to *root*."""
+    snapshot: dict[str, str] = {}
+    for py_file in py_files:
+        try:
+            snapshot[str(py_file.relative_to(root))] = py_file.read_text()
+        except OSError:
+            continue
+    return snapshot
+
+
+def _lint_diffs(
+    root: Path,
+    post_agent: dict[str, str],
+    post_lint: dict[str, str],
+    auto_fixed: list[str],
+    max_ratio: float,
+) -> list[dict[str, object]]:
+    """Compute per-file lint diffs between agent and post-lint snapshots."""
+
+    def _resolve(raw: str, root: Path = root) -> str:
+        candidate = Path(raw)
+        if candidate.is_absolute():
+            try:
+                return str(candidate.relative_to(root))
+            except ValueError:
+                return raw
+        return raw
+
+    rules_by_file = extract_rules_by_file(auto_fixed, path_resolver=_resolve)
+    return compute_lint_diffs(
+        post_agent,
+        post_lint,
+        rules_by_file,
+        max_ratio=max_ratio,
+    )
+
+
+def _claude_fix(
+    root: Path, lint_errors: list[str], warnings: list[str]
+) -> tuple[list[str], list[str]]:
+    """Apply claude_fix; return (remaining errors, claude-fixed errors)."""
+    if not lint_errors:
+        return lint_errors, []
+    before_claude = lint_errors
+    remaining = claude_fix(root, lint_errors, warnings=warnings)
+    remaining_set = set(remaining)
+    claude_fixed = [e for e in before_claude if e not in remaining_set]
+    return remaining, claude_fixed
+
+
+def _apply_lint(
+    root: Path,
+    py_files: list[Path],
+    data: dict[str, object],
+    *,
+    lint_diff: bool,
+    lint_diff_max_ratio: float,
+) -> None:
+    """Run ruff/claude lint over *py_files* and enrich *data* in place."""
+    lint_warnings: list[str] = []
+    post_agent = _snapshot_files(root, py_files) if lint_diff else {}
+
+    auto_fixed, lint_errors = _run_ruff(root, py_files, warnings=lint_warnings)
+    lint_errors, claude_fixed = _claude_fix(root, lint_errors, lint_warnings)
+
+    data["lint"] = {
+        "auto_fixed": len(auto_fixed),
+        "claude_fixed": len(claude_fixed),
+        "remaining": len(lint_errors),
+    }
+    if lint_errors:
+        data["lint_errors"] = lint_errors
+    if lint_warnings:
+        data["warnings"] = lint_warnings
+
+    if lint_diff and (auto_fixed or claude_fixed):
+        post_lint = _snapshot_files(root, py_files)
+        diffs = _lint_diffs(
+            root, post_agent, post_lint, auto_fixed, lint_diff_max_ratio
+        )
+        if diffs:
+            data["lint_diffs"] = diffs
+
+
+def _run_batch(
+    root: Path,
+    parsed: list[Operation],
+    *,
+    lint: bool,
+    lint_diff: bool,
+    lint_diff_max_ratio: float,
+) -> ToolResult:
+    """Apply *parsed* ops under *root*, optionally lint, and build the result."""
+    result = batch_apply(root, parsed)
+
+    data: dict[str, object] = {
+        "checkpoint": result.checkpoint,
+        "applied": result.applied,
+        "summary": result.summary,
+        "details": [d.model_dump(exclude_none=True) for d in result.details]
+        if result.details
+        else [],
+    }
+
+    if result.success and lint:
+        py_files = _collect_python_files(root, parsed)
+        if py_files:
+            _apply_lint(
+                root,
+                py_files,
+                data,
+                lint_diff=lint_diff,
+                lint_diff_max_ratio=lint_diff_max_ratio,
+            )
+
+    return ToolResult(success=result.success, data=data, error=result.error)
+
+
 def _parse_operations(raw_ops: list[dict[str, object]]) -> list[Operation]:
     """Parse raw dicts into typed Operation models.
 
@@ -174,7 +293,7 @@ class BatchEditTool:
         """Tool name used for MCP registration."""
         return "batch_edit"
 
-    def execute(  # noqa: C901, PLR0912, PLR0915
+    def execute(
         self,
         *,
         path: str = ".",
@@ -217,89 +336,12 @@ class BatchEditTool:
                     error=f"Path is not a directory: {path}",
                 )
 
-            result = batch_apply(root, parsed)
-
-            data: dict[str, object] = {
-                "checkpoint": result.checkpoint,
-                "applied": result.applied,
-                "summary": result.summary,
-                "details": [d.model_dump(exclude_none=True) for d in result.details]
-                if result.details
-                else [],
-            }
-
-            if result.success and lint:
-                py_files = _collect_python_files(root, parsed)
-                if py_files:
-                    lint_warnings: list[str] = []
-                    post_agent: dict[str, str] = {}
-                    if lint_diff:
-                        for py_file in py_files:
-                            try:
-                                rel = str(py_file.relative_to(root))
-                                post_agent[rel] = py_file.read_text()
-                            except OSError:
-                                continue
-                    auto_fixed, lint_errors = _run_ruff(
-                        root,
-                        py_files,
-                        warnings=lint_warnings,
-                    )
-                    claude_fixed: list[str] = []
-                    if lint_errors:
-                        before_claude = lint_errors
-                        lint_errors = claude_fix(
-                            root,
-                            lint_errors,
-                            warnings=lint_warnings,
-                        )
-                        remaining_set = set(lint_errors)
-                        claude_fixed = [
-                            e for e in before_claude if e not in remaining_set
-                        ]
-                    data["lint"] = {
-                        "auto_fixed": len(auto_fixed),
-                        "claude_fixed": len(claude_fixed),
-                        "remaining": len(lint_errors),
-                    }
-                    if lint_errors:
-                        data["lint_errors"] = lint_errors
-                    if lint_warnings:
-                        data["warnings"] = lint_warnings
-                    if lint_diff and (auto_fixed or claude_fixed):
-                        post_lint: dict[str, str] = {}
-                        for py_file in py_files:
-                            try:
-                                rel = str(py_file.relative_to(root))
-                                post_lint[rel] = py_file.read_text()
-                            except OSError:
-                                continue
-
-                        def _resolve(raw: str, root: Path = root) -> str:
-                            candidate = Path(raw)
-                            if candidate.is_absolute():
-                                try:
-                                    return str(candidate.relative_to(root))
-                                except ValueError:
-                                    return raw
-                            return raw
-
-                        rules_by_file = extract_rules_by_file(
-                            auto_fixed, path_resolver=_resolve
-                        )
-                        diffs = compute_lint_diffs(
-                            post_agent,
-                            post_lint,
-                            rules_by_file,
-                            max_ratio=lint_diff_max_ratio,
-                        )
-                        if diffs:
-                            data["lint_diffs"] = diffs
-
-            return ToolResult(
-                success=result.success,
-                data=data,
-                error=result.error,
+            return _run_batch(
+                root,
+                parsed,
+                lint=lint,
+                lint_diff=lint_diff,
+                lint_diff_max_ratio=lint_diff_max_ratio,
             )
         except (OSError, ValueError, TypeError) as exc:
             return ToolResult(success=False, error=str(exc))
