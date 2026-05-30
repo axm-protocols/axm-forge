@@ -22,9 +22,7 @@ from tree_sitter import Node
 
 from axm_ast.core._call_helpers import (
     extract_call_site,
-    is_call_node,
     node_text_safe,
-    update_context,
 )
 from axm_ast.core.analyzer import module_dotted_name
 from axm_ast.core.parser import parse_file
@@ -72,27 +70,32 @@ def extract_references(mod: ModuleInfo) -> set[str]:
 
 
 def _visit_references(node: Node, refs: set[str]) -> None:
-    """Recursively find identifiers in non-call reference positions."""
-    node_type = node.type
-    children = node.children
+    """Find identifiers in non-call reference positions (iterative DFS).
 
-    if node_type == "pair":
-        _collect_dict_value_ref(children, refs)
-    elif node_type in ("list", "tuple", "set"):
-        _collect_collection_refs(children, refs)
-    elif node_type in ("keyword_argument", "default_parameter"):
-        _collect_kwarg_ref(children, refs)
-    elif node_type == "assignment":
-        # Handle `callback = self.method` — extract attribute ref from RHS.
-        _collect_kwarg_ref(children, refs)
-    elif node_type == "argument_list":
-        _collect_argument_refs(children, refs)
-    elif node_type == "string" and _is_forward_ref_string(node):
-        _extract_forward_refs(node, refs)
+    ``refs`` is a set, so visit order is irrelevant; an explicit stack avoids
+    Python recursion overhead over large trees.
+    """
+    stack: list[Node] = [node]
+    while stack:
+        current = stack.pop()
+        node_type = current.type
+        children = current.children
 
-    # Recurse into all children.
-    for child in children:
-        _visit_references(child, refs)
+        if node_type == "pair":
+            _collect_dict_value_ref(children, refs)
+        elif node_type in ("list", "tuple", "set"):
+            _collect_collection_refs(children, refs)
+        elif node_type in ("keyword_argument", "default_parameter"):
+            _collect_kwarg_ref(children, refs)
+        elif node_type == "assignment":
+            # Handle `callback = self.method` — extract attribute ref from RHS.
+            _collect_kwarg_ref(children, refs)
+        elif node_type == "argument_list":
+            _collect_argument_refs(children, refs)
+        elif node_type == "string" and _is_forward_ref_string(current):
+            _extract_forward_refs(current, refs)
+
+        stack.extend(children)
 
 
 def _collect_dict_value_ref(children: list[Node], refs: set[str]) -> None:
@@ -323,23 +326,44 @@ def _visit_calls(
     module_name: str,
     source_bytes: bytes,
     calls: list[CallSite],
-    context: str | None = None,
 ) -> None:
-    """Recursively visit tree-sitter nodes to find calls."""
-    current_context = update_context(node, source_bytes, current=context)
+    """Visit tree-sitter nodes (pre-order) to find calls.
 
-    if is_call_node(node):
-        call_site = extract_call_site(
-            node,
-            module=module_name,
-            source_bytes=source_bytes,
-            context=current_context,
-        )
-        if call_site is not None:
-            calls.append(call_site)
+    Iterative explicit-stack DFS rather than Python recursion: with millions
+    of nodes the per-node function-call overhead dominated. The cheap
+    per-node checks (``update_context`` / ``is_call_node``) are inlined on the
+    raw ``node.type`` so the public helpers — kept for the SDK surface — are
+    only paid for the rare nodes that actually matter. Visit order and the
+    enclosing-scope context are identical to the recursive version.
+    """
+    # Stack items: (node, enclosing-scope context inherited from the parent).
+    stack: list[tuple[Node, str | None]] = [(node, None)]
+    while stack:
+        current, parent_context = stack.pop()
+        node_type = current.type
 
-    for child in node.children:
-        _visit_calls(child, module_name, source_bytes, calls, current_context)
+        # Inline update_context: a def node becomes the new enclosing scope.
+        scope = parent_context
+        if node_type in ("function_definition", "class_definition"):
+            for child in current.children:
+                if child.type == "identifier":
+                    scope = node_text_safe(child)
+                    break
+
+        if node_type == "call":
+            call_site = extract_call_site(
+                current,
+                module=module_name,
+                source_bytes=source_bytes,
+                context=scope,
+            )
+            if call_site is not None:
+                calls.append(call_site)
+
+        # Push children in reverse so they are popped left-to-right (pre-order).
+        children = current.children
+        for child in reversed(children):
+            stack.append((child, scope))
 
 
 # ─── Cross-module caller search ─────────────────────────────────────────────

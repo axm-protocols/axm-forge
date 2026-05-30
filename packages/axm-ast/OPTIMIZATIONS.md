@@ -128,9 +128,56 @@ preserved for real source trees.
 
 ---
 
-## Roadmap (next candidates)
+## Optimization 4 — Iterative AST traversal
 
-- **Opt 4 — Cursor-based AST traversal.** Replace per-node Python recursion +
-  `node.children` list allocation in `_visit_calls` with a `TreeCursor` walk
-  (same visit order → iso results, less overhead). Targets the ~140 ms
-  re-extract / cold-pipeline cost.
+**Commit:** `perf(axm-ast): iterative DFS for call/reference visitors`
+
+**Problem.** `_visit_calls` / `_visit_references` recursed once per AST node and
+called the defensive `update_context` / `is_call_node` helpers (each doing
+`getattr`) on every node. A profile of `extract_calls` showed `_visit_calls` +
+the per-node helpers as the dominant self-time, and deep recursion risks
+Python's recursion limit on heavily nested code.
+
+**Change.** Rewrote both visitors as explicit-stack DFS. The cheap per-node
+checks are inlined on the raw `node.type`, so the public helpers (kept for the
+SDK surface / tests) are only paid for the rare def/call nodes that matter.
+Visit order is identical (pre-order); references use a set, so order is
+irrelevant anyway.
+
+**Equivalence.** Fingerprint unchanged; 1566 tests pass; ruff + mypy clean.
+
+**Benchmark** (best-of, `axm-ast` source):
+
+| Scenario | Baseline | Optimized | Gain |
+|---|---:|---:|---:|
+| `extract_calls` over all modules (isolated) | 123.5 ms | 115.0 ms | **−7%** |
+| Full cold caller pipeline | 297.0 ms | 278.4 ms | **−6%** |
+
+The wall-clock gain is modest — the residual cost is C-level tree-sitter node
+access and pydantic `CallSite` construction, not Python call overhead (cProfile
+over-weighted the latter). The change also **removes the recursion-depth limit**
+on deeply nested ASTs, a robustness win beyond the timing.
+
+---
+
+## Cumulative summary (axm-ast source)
+
+| Path | Before | After | Gain |
+|---|---:|---:|---:|
+| Full cold caller pipeline | 360 ms | 278 ms | **−23%** |
+| Re-extract call-sites (pkg warm) | 200 ms | 121 ms | **−40%** |
+| `find_callers` × ~625 symbols (warm) | 771 ms | 215 ms | **−72%** |
+| Import-graph build (guard) | 147 ms | 160 ms | ~0 (noise) |
+
+All four optimizations are individually equivalence-checked (identical
+`find_callers` fingerprint) and the full 1566-test suite, ruff, and mypy stay
+green.
+
+## Roadmap (further candidates, not yet done)
+
+- **Cursor-based traversal** (`tree.walk()`) to avoid `node.children` list
+  allocation entirely — larger but riskier than Opt 4.
+- **Apply the parse cache to `dead_code` / `flows`**, which still do
+  `read_text` + `parse_source` directly.
+- **`find_callers_workspace` correctness**: it mutates cached `CallSite.module`
+  in place (pre-existing) — should copy before prefixing.
