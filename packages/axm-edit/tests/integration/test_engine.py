@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_edit.core.engine import batch_apply
 from axm_edit.models.operations import (
     CreateOp,
@@ -17,11 +19,23 @@ from axm_edit.models.operations import (
 class TestSingleReplace:
     """Tests for single-file replace operations."""
 
-    def test_single_line_replace(self, tmp_project: Path) -> None:
+    @pytest.mark.parametrize(
+        "line",
+        [
+            pytest.param(1, id="exact_line"),
+            pytest.param(2, id="off_by_one"),
+            pytest.param(6, id="off_by_five"),
+            pytest.param(None, id="no_line_auto_search"),
+        ],
+    )
+    def test_single_import_replace_by_line_hint(
+        self, tmp_project: Path, line: int | None
+    ) -> None:
+        """Replacing `import os` succeeds for exact/fuzzy/no line hints."""
         ops = [
             ReplaceOp(
                 file="src/foo.py",
-                edits=[Edit(line=1, old="import os", new="import pathlib")],
+                edits=[Edit(line=line, old="import os", new="import pathlib")],
             ),
         ]
         result = batch_apply(tmp_project, ops)
@@ -311,52 +325,6 @@ class TestAtomicity:
 class TestFuzzyLineMatching:
     """Tests for fuzzy line-hint search (new behavior)."""
 
-    def test_exact_line_still_works(self, tmp_project: Path) -> None:
-        """Exact line number with matching old → works (regression)."""
-        ops = [
-            ReplaceOp(
-                file="src/foo.py",
-                edits=[
-                    Edit(line=1, old="import os", new="import pathlib"),
-                ],
-            ),
-        ]
-        result = batch_apply(tmp_project, ops)
-        assert result.success
-        content = (tmp_project / "src" / "foo.py").read_text()
-        assert "import pathlib" in content
-
-    def test_line_off_by_one(self, tmp_project: Path) -> None:
-        """line=2, but 'import os' is at line 1 → still found."""
-        ops = [
-            ReplaceOp(
-                file="src/foo.py",
-                edits=[
-                    Edit(line=2, old="import os", new="import pathlib"),
-                ],
-            ),
-        ]
-        result = batch_apply(tmp_project, ops)
-        assert result.success
-        content = (tmp_project / "src" / "foo.py").read_text()
-        assert "import pathlib" in content
-        assert "import os" not in content
-
-    def test_line_off_by_five(self, tmp_project: Path) -> None:
-        """line=6, but 'import os' is at line 1 → found within ±5."""
-        ops = [
-            ReplaceOp(
-                file="src/foo.py",
-                edits=[
-                    Edit(line=6, old="import os", new="import pathlib"),
-                ],
-            ),
-        ]
-        result = batch_apply(tmp_project, ops)
-        assert result.success
-        content = (tmp_project / "src" / "foo.py").read_text()
-        assert "import pathlib" in content
-
     def test_no_line_auto_search(self, tmp_project: Path) -> None:
         """line=None → searches entire file for `old`."""
         ops = [
@@ -506,25 +474,6 @@ class TestIndentNormalized:
         content = (tmp_project / "src" / "deep.py").read_text()
         assert "goodbye" in content
         assert "return False" in content
-
-    def test_exact_preferred_over_dedented(self, tmp_project: Path) -> None:
-        """Exact match takes priority over dedent match."""
-        ops = [
-            ReplaceOp(
-                file="src/foo.py",
-                edits=[
-                    Edit(
-                        line=1,
-                        old="import os",
-                        new="import pathlib",
-                    ),
-                ],
-            ),
-        ]
-        result = batch_apply(tmp_project, ops)
-        assert result.success
-        content = (tmp_project / "src" / "foo.py").read_text()
-        assert "import pathlib" in content
 
 
 class TestIndentPreservation:
@@ -727,23 +676,3 @@ class TestSmartNormalization:
         # Exact match on line 1 replaced; line 2 untouched
         assert '"world"' in content
         assert "hello\n" in content
-
-    def test_no_regression_normal_edit(self, tmp_project: Path) -> None:
-        """Standard edit with correct old works as before."""
-        ops = [
-            ReplaceOp(
-                file="src/foo.py",
-                edits=[
-                    Edit(
-                        line=1,
-                        old="import os",
-                        new="import pathlib",
-                    ),
-                ],
-            ),
-        ]
-        result = batch_apply(tmp_project, ops)
-        assert result.success
-        content = (tmp_project / "src" / "foo.py").read_text()
-        assert "import pathlib" in content
-        assert "import os" not in content
