@@ -214,26 +214,57 @@ mutating. Added `test_find_callers_workspace_repeated_no_double_prefix`.
 
 ---
 
+## Optimization 7 — Cursor-based call traversal
+
+**Commit:** `perf(axm-ast): walk the AST with a TreeCursor in _visit_calls`
+
+**Problem.** The explicit-stack DFS from Opt 4 still read `node.children` at
+every node, allocating a fresh Python list per node across the whole tree.
+
+**Change.** Rewrote `_visit_calls` as a `TreeCursor` walk (`node.walk()` +
+`goto_first_child` / `goto_next_sibling` / `goto_parent`): the cursor moves
+through the tree in C with no per-node list allocation. A `contexts` stack
+mirrors the cursor depth to track the enclosing function/class scope, and the
+per-node work is factored into `_process_call_node`. Pre-order visit order and
+recorded scope are identical — verified module-by-module against the previous
+implementation before integrating.
+
+**Equivalence.** Output identical on every module of `axm-ast`; fingerprint
+unchanged; 1567 tests pass; ruff + mypy clean.
+
+**Benchmark** (best-of, `axm-ast`):
+
+| Scenario | Baseline (stack DFS) | Optimized (cursor) | Gain |
+|---|---:|---:|---:|
+| Re-extract call-sites (pkg warm) | 97.6 ms | 73.5 ms | -25% |
+| Full cold caller pipeline | 222.0 ms | 198.5 ms | -11% |
+
+`_visit_references` was left on the explicit stack: it runs only during
+dead-code analysis (not the hot caller path) and its set-based output makes the
+extra refactor lower-value.
+
+---
+
 ## Cumulative summary (axm-ast source)
 
 | Path | Before | After | Gain |
 |---|---:|---:|---:|
-| Full cold caller pipeline | 360 ms | 278 ms | -23% |
-| Re-extract call-sites (pkg warm) | 200 ms | 121 ms | -40% |
+| Full cold caller pipeline | 360 ms | 198 ms | -45% |
+| Re-extract call-sites (pkg warm) | 200 ms | 73 ms | -63% |
 | `find_callers` x ~625 symbols (warm) | 771 ms | 215 ms | -72% |
 | Dead-code lazy/class detectors (isolated) | 377 ms | 188 ms | -50% |
 | `build_callee_index` (flows, isolated) | 249 ms | 190 ms | -24% |
 | Import-graph build (guard) | 147 ms | 160 ms | ~0 (noise) |
 
-All six optimizations are individually equivalence-checked (identical
+All seven optimizations are individually equivalence-checked (identical
 `find_callers` fingerprint) and the full 1567-test suite, ruff, and mypy stay
 green. One correctness bug (`find_callers_workspace` cache corruption) was
 found and fixed along the way.
 
 ## Roadmap (further candidates, not yet done)
 
-- **Cursor-based traversal** (`tree.walk()`) to avoid `node.children` list
-  allocation entirely — larger but riskier than Opt 4.
+- **Cursor-based traversal for `_visit_references`** (dead-code path) — same
+  technique as Opt 7 but lower value, as it is off the hot caller path.
 - **Thread the parse cache into `dead_code`'s remaining direct
   `parse_source` calls on raw bytes** (tolerant decode paths) if those become
   hot.
