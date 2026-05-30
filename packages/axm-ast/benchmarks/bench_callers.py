@@ -39,7 +39,7 @@ def _drop_call_sites_only() -> None:
     re-parses every module here; the optimized build serves trees from the
     parse cache.
     """
-    _cache_mod._cache._calls_store.clear()  # noqa: SLF001 (benchmark probe)
+    _cache_mod._cache._calls_store.clear()
 
 # Default target is a *sibling* package, not axm-ast itself: the benchmark is
 # run once on the baseline and once on the optimized tree, and the analyzed
