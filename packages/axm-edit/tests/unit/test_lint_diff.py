@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from axm_edit.services.lint_diff import compute_lint_diffs
 
 
@@ -38,34 +40,36 @@ class TestTaggedDiffFormat:
         # Ordered ascending
         assert diff.index("@L2") < diff.index("@L6") < diff.index("@L9")
 
-    def test_deletion_only_hunk(self) -> None:
-        post_agent = {"a.py": "keep\ndrop\nkeep2\n"}
-        post_lint = {"a.py": "keep\nkeep2\n"}
-        rules = {"a.py": ["F401"]}
-
-        result = compute_lint_diffs(post_agent, post_lint, rules)
+    @pytest.mark.parametrize(
+        ("post_agent", "post_lint", "expect"),
+        [
+            pytest.param(
+                {"a.py": "keep\ndrop\nkeep2\n"},
+                {"a.py": "keep\nkeep2\n"},
+                ("-drop", "+", "+drop"),
+                id="deletion_only_hunk",
+            ),
+            pytest.param(
+                {"a.py": "a\nc\n"},
+                {"a.py": "a\nb\nc\n"},
+                ("+b", "-", "-b"),
+                id="insertion_only_hunk",
+            ),
+        ],
+    )
+    def test_single_sign_hunk(
+        self,
+        post_agent: dict[str, str],
+        post_lint: dict[str, str],
+        expect: tuple[str, str, str],
+    ) -> None:
+        present, absent_sign, absent_token = expect
+        result = compute_lint_diffs(post_agent, post_lint, {"a.py": ["F401"]})
 
         diff = str(result[0]["diff"])
-        assert "-drop" in diff
-        # No + line in the hunk containing -drop
-        lines = diff.splitlines()
-        assert "+drop" not in lines
-        # The deletion hunk should not produce a + for the deleted content
-        plus_lines = [ln for ln in lines if ln.startswith("+")]
-        assert "+drop" not in plus_lines
-
-    def test_insertion_only_hunk(self) -> None:
-        post_agent = {"a.py": "a\nc\n"}
-        post_lint = {"a.py": "a\nb\nc\n"}
-        rules = {"a.py": ["I001"]}
-
-        result = compute_lint_diffs(post_agent, post_lint, rules)
-
-        diff = str(result[0]["diff"])
-        assert "+b" in diff
-        lines = diff.splitlines()
-        minus_lines = [ln for ln in lines if ln.startswith("-")]
-        assert "-b" not in minus_lines
+        assert present in diff
+        opposite_lines = [ln for ln in diff.splitlines() if ln.startswith(absent_sign)]
+        assert absent_token not in opposite_lines
 
 
 class TestRulesHandling:

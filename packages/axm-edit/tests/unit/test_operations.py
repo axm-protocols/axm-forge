@@ -23,13 +23,16 @@ class TestEdit:
         assert edit.old == "import os"
         assert edit.new == "import sys"
 
-    def test_line_must_be_positive(self) -> None:
+    @pytest.mark.parametrize(
+        ("line", "old"),
+        [
+            pytest.param(0, "a", id="line_must_be_positive"),
+            pytest.param(1, "", id="old_cannot_be_empty"),
+        ],
+    )
+    def test_rejects_invalid_field(self, line: int, old: str) -> None:
         with pytest.raises(ValidationError):
-            Edit(line=0, old="a", new="b")
-
-    def test_old_cannot_be_empty(self) -> None:
-        with pytest.raises(ValidationError):
-            Edit(line=1, old="", new="b")
+            Edit(line=line, old=old, new="b")
 
     def test_new_can_be_empty(self) -> None:
         """Deleting content by replacing with empty string is valid."""
