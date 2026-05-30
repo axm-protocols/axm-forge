@@ -228,3 +228,26 @@ commit_parsers = [
     { message = "^test", group = "🧪 Tests" },
 ]
 tag_pattern = "edit/v[0-9].*"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# axm-audit — acknowledged duplicate-test clusters
+# ─────────────────────────────────────────────────────────────────────────────
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "326ec035fabb"
+reason = "Each test exercises a distinct failure branch with a different error message (replace missing-file, create-existing, delete-missing, path-traversal, ambiguous-old, old-not-found) — assertions diverge in meaning."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f26434dd4326"
+reason = "Single-file merge of one op with two edits and merge of two separate ReplaceOps both assert modified==1, while multi-file fuzzy asserts modified==2 — distinct merge/multi-file semantics."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c39ab82e47b2"
+reason = "Overlapping-edit rejection and valid/invalid-mix atomicity assert the same untouched-file invariant via different rejection branches."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "2ad0bc069b49"
+reason = "Path-traversal rejection is tested for ReplaceOp and DeleteOp separately — different SUT operations sharing the security guard."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "fac43fd49caa"
+reason = "Reindent path (unindented old gets file indent) versus exact-match no-reindent path assert opposite indentation outcomes."
