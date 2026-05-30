@@ -65,11 +65,37 @@ ruff + mypy clean.
 
 ---
 
+## Optimization 2 — `find_callers` symbol index
+
+**Commit:** `perf(axm-ast): index call-sites by symbol for O(1) find_callers`
+
+**Problem.** `find_callers` flattened every cached call-site and linearly
+scanned them for each query (`O(total_call_sites)` per symbol). A tool that
+sweeps many symbols (e.g. ranking callers across a package/workspace) paid
+`O(symbols × call_sites)`.
+
+**Change.** Added a cached `symbol → [CallSite]` index to `PackageCache`
+(`get_call_index`), built once from `get_calls` with insertion order matching
+the previous scan order. `find_callers` now does an O(1) dict lookup and
+returns a fresh list. The index shares the call-site invalidation lifecycle
+(evicted on fingerprint change).
+
+**Equivalence.** Fingerprint unchanged; 1566 tests pass; ruff + mypy clean.
+
+**Benchmark** (best-of-15, `axm-ast` source):
+
+| Scenario | Baseline | Optimized | Gain |
+|---|---:|---:|---:|
+| `find_callers` × ~625 symbols (warm) | 771.3 ms | 602.1 ms | **−22%** |
+
+> The residual cost is dominated by a per-query cache **fingerprint** check
+> (stat-storm), addressed next in Opt 3 — after which the indexed lookup's
+> advantage is far larger in relative terms.
+
+---
+
 ## Roadmap (next candidates)
 
-- **Opt 2 — `find_callers` symbol index.** Replace the O(N) per-query linear
-  scan of all call-sites with a cached `symbol → [CallSite]` index (O(1)
-  lookup). Big win for repeated/workspace queries.
 - **Opt 3 — Cheaper cache fingerprint.** `_file_fingerprint` walks with
   `rglob("*.py")` and stats every file on *every* cache check, descending into
   `.venv`/`.git`/`__pycache__` that analysis itself skips. Make the walk

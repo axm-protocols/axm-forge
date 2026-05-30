@@ -131,6 +131,26 @@ def _recompute_setup() -> None:
     get_calls(PKG)
 
 
+_QUERY_NAMES: list[str] = []
+
+
+def _query_setup() -> None:
+    """Warm package + call-sites and collect every symbol name to query."""
+    clear_cache()
+    pkg = get_package(PKG)
+    get_calls(PKG)
+    _QUERY_NAMES[:] = _all_symbol_names(pkg)
+    # One warm-up query so the optimized index is built before timing.
+    find_callers(pkg, _QUERY_NAMES[0] if _QUERY_NAMES else "x")
+
+
+def _scenario_query_all_symbols() -> None:
+    """Run find_callers for every symbol — baseline scans all calls per query."""
+    pkg = get_package(PKG)
+    for name in _QUERY_NAMES:
+        find_callers(pkg, name)
+
+
 def _scenario_graph() -> None:
     """Import-graph build (should be unchanged — regression guard)."""
     clear_cache()
@@ -160,6 +180,14 @@ def main() -> None:
     # Isolated hot spot: re-extract calls with the package already analyzed.
     _recompute_setup()
     _time("re-extract calls (pkg warm) *", _scenario_recompute_calls, repeat=15)
+
+    # find_callers over every symbol — linear scan vs indexed lookup.
+    _query_setup()
+    _time(
+        f"find_callers x {len(_QUERY_NAMES)} symbols (warm)",
+        _scenario_query_all_symbols,
+        repeat=15,
+    )
     print()
     print("  * isolates the redundant second parse the optimization removes")
 

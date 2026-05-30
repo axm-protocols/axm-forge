@@ -345,14 +345,13 @@ def _visit_calls(
 # ─── Cross-module caller search ─────────────────────────────────────────────
 
 
-def _iter_cached_calls(pkg_root: Path) -> Iterator[CallSite] | None:
-    from axm_ast.core.cache import get_calls
+def _cached_call_index(pkg_root: Path) -> dict[str, list[CallSite]] | None:
+    from axm_ast.core.cache import get_call_index
 
     try:
-        calls_by_module = get_calls(pkg_root)
+        return get_call_index(pkg_root)
     except (ValueError, OSError):
         return None
-    return (call for mod_calls in calls_by_module.values() for call in mod_calls)
 
 
 def _iter_fresh_calls(pkg: PackageInfo) -> Iterator[CallSite]:
@@ -383,10 +382,12 @@ def find_callers(
         >>> results[0].module
         'cli'
     """
-    calls = _iter_cached_calls(pkg.root)
-    if calls is None:
-        calls = _iter_fresh_calls(pkg)
-    return [c for c in calls if c.symbol == symbol]
+    index = _cached_call_index(pkg.root)
+    if index is not None:
+        # Return a fresh list (the CallSite objects are still shared with the
+        # cache, matching the previous linear-scan behavior).
+        return list(index.get(symbol, ()))
+    return [c for c in _iter_fresh_calls(pkg) if c.symbol == symbol]
 
 
 def find_callers_workspace(
