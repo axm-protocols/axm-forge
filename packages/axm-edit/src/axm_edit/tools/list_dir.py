@@ -37,6 +37,25 @@ def _file_size(path: Path) -> int | None:
         return None
 
 
+def _is_included(root: Path, child: Path) -> bool:
+    if _should_skip(child.name):
+        return False
+    # Sandboxing: ensure symlinks don't escape the root
+    return _resolve_safe(root, str(child.relative_to(root))) is not None
+
+
+def _entry_for(root: Path, child: Path) -> dict[str, object]:
+    rel = str(child.relative_to(root))
+    if child.is_dir():
+        return {"name": child.name, "path": rel, "type": "dir", "size_bytes": None}
+    return {
+        "name": child.name,
+        "path": rel,
+        "type": "file",
+        "size_bytes": _file_size(child),
+    }
+
+
 def _collect_entries(
     root: Path,
     target: Path,
@@ -57,32 +76,16 @@ def _collect_entries(
     for child in children:
         if len(entries) >= _MAX_ENTRIES:
             return True
-
-        name = child.name
-        if _should_skip(name):
+        if not _is_included(root, child):
             continue
 
-        rel = child.relative_to(root)
-        # Sandboxing: ensure symlinks don't escape the root
-        if _resolve_safe(root, str(rel)) is None:
-            continue
+        entries.append(_entry_for(root, child))
 
-        if child.is_dir():
-            entries.append(
-                {"name": name, "path": str(rel), "type": "dir", "size_bytes": None}
-            )
-            if current_depth < max_depth:
-                if _collect_entries(root, child, max_depth, current_depth + 1, entries):
-                    return True
-        else:
-            entries.append(
-                {
-                    "name": name,
-                    "path": str(rel),
-                    "type": "file",
-                    "size_bytes": _file_size(child),
-                }
-            )
+        descend = child.is_dir() and current_depth < max_depth
+        if descend and _collect_entries(
+            root, child, max_depth, current_depth + 1, entries
+        ):
+            return True
 
     return len(entries) >= _MAX_ENTRIES
 
