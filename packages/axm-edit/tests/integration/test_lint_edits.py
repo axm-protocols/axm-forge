@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_edit.services.lint import _apply_edits
+from axm_edit.services.lint import apply_edits
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -22,7 +22,7 @@ def src_file(tmp_path: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests — _apply_edits
+# Integration tests — apply_edits
 # ---------------------------------------------------------------------------
 
 
@@ -31,7 +31,7 @@ class TestApplyEditsReplace:
 
     def test_apply_edits_replace(self, src_file: Path) -> None:
         edits = [{"old": "x = 1", "new": "_ = 1"}]
-        result = _apply_edits(src_file, edits)
+        result = apply_edits(src_file, edits)
         assert result is True
         assert src_file.read_text() == "_ = 1\ny = 2\n"
 
@@ -43,7 +43,7 @@ class TestApplyEditsInsert:
         f = tmp_path / "ins.py"
         f.write_text("import os\n\ndef f(): pass")
         edits = [{"old": "import os", "new": "import os\nimport logging"}]
-        result = _apply_edits(f, edits)
+        result = apply_edits(f, edits)
         assert result is True
         content = f.read_text()
         assert "import logging" in content
@@ -56,7 +56,7 @@ class TestApplyEditsDelete:
         f = tmp_path / "del.py"
         f.write_text("import os\nimport sys\nx = 1")
         edits = [{"old": "import sys\n", "new": ""}]
-        result = _apply_edits(f, edits)
+        result = apply_edits(f, edits)
         assert result is True
         content = f.read_text()
         assert "import sys" not in content
@@ -70,7 +70,7 @@ class TestApplyEditsNoMatch:
     def test_apply_edits_no_match(self, src_file: Path) -> None:
         original = src_file.read_text()
         edits = [{"old": "nonexistent text", "new": "replacement"}]
-        result = _apply_edits(src_file, edits)
+        result = apply_edits(src_file, edits)
         assert result is False
         assert src_file.read_text() == original
 
@@ -86,7 +86,7 @@ class TestEmptyJsonArray:
     def test_empty_array(self, src_file: Path) -> None:
         original = src_file.read_text()
         edits: list[dict[str, str]] = []
-        result = _apply_edits(src_file, edits)
+        result = apply_edits(src_file, edits)
         assert result is False
         assert src_file.read_text() == original
 
@@ -98,7 +98,7 @@ class TestOldMatchesMultipleTimes:
         f = tmp_path / "multi.py"
         f.write_text("pass\npass\npass\n")
         edits = [{"old": "pass", "new": "return"}]
-        result = _apply_edits(f, edits)
+        result = apply_edits(f, edits)
         assert result is True
         content = f.read_text()
         assert content.count("return") == 1
@@ -112,7 +112,7 @@ class TestNewlineDifferences:
         f = tmp_path / "crlf.py"
         f.write_text("x = 1\r\ny = 2\r\n")
         edits = [{"old": "x = 1", "new": "_ = 1"}]
-        result = _apply_edits(f, edits)
+        result = apply_edits(f, edits)
         assert result is True
         assert "_ = 1" in f.read_text()
 
@@ -130,7 +130,7 @@ class TestVeryLargeJsonOutput:
         edits = [
             {"old": f"var_{i} = {i}", "new": f"var_{i} = {i * 10}"} for i in range(50)
         ]
-        result = _apply_edits(f, edits)
+        result = apply_edits(f, edits)
         assert result is True
         content = f.read_text()
         for i in range(50):
@@ -149,7 +149,7 @@ class TestInsertEditApplied:
                 "new": "def main():\n    logging.info('start')\n    print('hello')",
             }
         ]
-        result = _apply_edits(f, edits)
+        result = apply_edits(f, edits)
         assert result is True
         assert "logging.info('start')" in f.read_text()
 
@@ -161,7 +161,7 @@ class TestDeleteEditApplied:
         f = tmp_path / "delete.py"
         f.write_text("import os\nimport sys\nimport json\n\nx = 1\n")
         edits = [{"old": "import sys\n", "new": ""}]
-        result = _apply_edits(f, edits)
+        result = apply_edits(f, edits)
         assert result is True
         content = f.read_text()
         assert "import sys" not in content
@@ -181,7 +181,7 @@ class TestMultilineReplace:
                 "new": "except Exception as e:\n    logging.error(e)\n    raise",
             }
         ]
-        result = _apply_edits(f, edits)
+        result = apply_edits(f, edits)
         assert result is True
         content = f.read_text()
         assert "except Exception as e:" in content
