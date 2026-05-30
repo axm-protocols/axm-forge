@@ -1,4 +1,4 @@
-"""Tests for axm_edit.tools.write_file — WriteFileTool."""
+"""Integration tests for axm_edit.tools.write_file — WriteFileTool (real filesystem)."""
 
 from __future__ import annotations
 
@@ -15,12 +15,6 @@ class TestWriteFileTool:
     @pytest.fixture()
     def tool(self) -> WriteFileTool:
         return WriteFileTool()
-
-    def test_name(self, tool: WriteFileTool) -> None:
-        assert tool.name == "write_file"
-
-    def test_agent_hint_exists(self, tool: WriteFileTool) -> None:
-        assert tool.agent_hint
 
     def test_write_new_file(self, tool: WriteFileTool, tmp_path: Path) -> None:
         target = tmp_path / "output.md"
@@ -48,11 +42,6 @@ class TestWriteFileTool:
         assert result.success is True
         assert target.read_text() == ""
         assert result.data["bytes"] == 0
-
-    def test_missing_path(self, tool: WriteFileTool) -> None:
-        result = tool.execute(content="hello")
-        assert result.success is False
-        assert result.error is not None and "path" in result.error
 
     def test_missing_content(self, tool: WriteFileTool, tmp_path: Path) -> None:
         result = tool.execute(path=str(tmp_path / "f.txt"))
