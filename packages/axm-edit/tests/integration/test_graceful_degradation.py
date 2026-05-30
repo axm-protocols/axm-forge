@@ -260,25 +260,35 @@ class TestBothToolsMissing:
         assert any("ruff not found" in w for w in warnings)
 
 
-class TestRuffWrongVersion:
-    """Ruff exists but crashes on invocation -> graceful skip with warning."""
+class TestRuffInvocationFails:
+    """Ruff exists but raises on invocation -> graceful skip with warning."""
 
-    def test_ruff_wrong_version(
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            pytest.param(OSError("ruff: invalid option"), id="wrong_version"),
+            pytest.param(
+                PermissionError("Permission denied: ruff"), id="permission_denied"
+            ),
+        ],
+    )
+    def test_ruff_invocation_fails(
         self,
         tool: BatchEditTool,
         py_project: Path,
         mocker: Any,
+        exc: Exception,
     ) -> None:
         mocker.patch(
             "axm_edit.tools.batch_edit.claude_fix",
             side_effect=lambda root, errors, **kw: errors,
         )
 
-        def ruff_oserror(
+        def ruff_raises(
             cmd: list[str], **kwargs: Any
         ) -> subprocess.CompletedProcess[str]:
             if isinstance(cmd, list) and "ruff" in cmd:
-                raise OSError("ruff: invalid option")
+                raise exc
             return subprocess.CompletedProcess(
                 args=cmd,
                 returncode=0,
@@ -288,49 +298,7 @@ class TestRuffWrongVersion:
 
         mocker.patch(
             "axm_edit.tools.batch_edit.subprocess.run",
-            side_effect=ruff_oserror,
-        )
-
-        result = tool.execute(
-            path=str(py_project),
-            operations=[_replace_op("hello.py", "x = 1", "x = 2")],
-        )
-
-        assert result.success
-        assert result.data is not None
-        warnings = result.data.get("warnings", [])
-        assert any("ruff fix failed" in w for w in warnings)
-
-
-class TestPermissionDenied:
-    """Ruff exists but not executable -> graceful skip with warning."""
-
-    def test_permission_denied(
-        self,
-        tool: BatchEditTool,
-        py_project: Path,
-        mocker: Any,
-    ) -> None:
-        mocker.patch(
-            "axm_edit.tools.batch_edit.claude_fix",
-            side_effect=lambda root, errors, **kw: errors,
-        )
-
-        def perm_denied(
-            cmd: list[str], **kwargs: Any
-        ) -> subprocess.CompletedProcess[str]:
-            if isinstance(cmd, list) and "ruff" in cmd:
-                raise PermissionError("Permission denied: ruff")
-            return subprocess.CompletedProcess(
-                args=cmd,
-                returncode=0,
-                stdout="",
-                stderr="",
-            )
-
-        mocker.patch(
-            "axm_edit.tools.batch_edit.subprocess.run",
-            side_effect=perm_denied,
+            side_effect=ruff_raises,
         )
 
         result = tool.execute(
