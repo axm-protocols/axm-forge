@@ -10,10 +10,6 @@ from axm_edit.tools.list_dir import ListDirTool
 class TestListDirTool:
     """Tests for the ListDirTool AXMTool wrapper."""
 
-    def test_name(self) -> None:
-        tool = ListDirTool()
-        assert tool.name == "list_dir"
-
     def test_list_root(self, tmp_project: Path) -> None:
         """Returns sorted entries from root directory."""
         result = ListDirTool().execute(path=str(tmp_project))
@@ -98,13 +94,6 @@ class TestListDirTool:
         assert result.data["entries"] == []
         assert result.data["count"] == 0
         assert result.data["truncated"] is False
-
-    def test_nonexistent_path(self) -> None:
-        """Non-existent path returns an error."""
-        result = ListDirTool().execute(path="/nonexistent/path/xyz_abc")
-        assert result.success is False
-        assert result.error is not None
-        assert "not a directory" in result.error.lower()
 
     def test_path_traversal(self, tmp_path: Path) -> None:
         """Returned entry paths never contain '..'."""

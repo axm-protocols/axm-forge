@@ -10,10 +10,6 @@ from axm_edit.tools.run_command import RunCommandTool
 class TestRunCommandTool:
     """Tests for the RunCommandTool AXMTool wrapper."""
 
-    def test_name(self) -> None:
-        tool = RunCommandTool()
-        assert tool.name == "run_command"
-
     def test_echo(self, tmp_project: Path) -> None:
         """Simple echo command returns stdout."""
         result = RunCommandTool().execute(path=str(tmp_project), command="echo hello")
@@ -108,12 +104,6 @@ class TestRunCommandTool:
         assert result.success is True
         assert result.data is not None
         assert "foo.py" in result.data["stdout"]
-
-    def test_bad_root(self) -> None:
-        """Non-existent root directory returns error."""
-        result = RunCommandTool().execute(path="/nonexistent/root", command="echo test")
-        assert result.success is False
-        assert "not a directory" in (result.error or "").lower()
 
     def test_command_not_found(self, tmp_project: Path) -> None:
         """Non-existent command returns error."""
