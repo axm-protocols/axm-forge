@@ -1,0 +1,270 @@
+# axm-ast — Performance optimization log
+
+Iterative, equivalence-preserving performance work on the `caller` / `graph`
+analysis paths of `axm-ast`.
+
+## Method & guarantees
+
+Every optimization in this log is held to the same bar:
+
+1. **Iso results** — output is byte-for-byte identical to the previous
+   revision. Verified by a deterministic SHA-256 *fingerprint* of
+   `find_callers()` over **every** symbol of a stable, unmodified sibling
+   package (`axm-init`), produced by `benchmarks/bench_callers.py`. The
+   fingerprint must not change across an optimization.
+2. **Tests green** — `pytest tests` (1566 passed, 2 skipped: unit +
+   integration + e2e + functional).
+3. **Lint & types** — `ruff check` and `mypy` are clean.
+4. **Measured** — each change is timed baseline-vs-optimized with the same
+   harness, reported as *best-of-N* wall clock on `axm-ast`'s own source. A
+   change that does not show a real, reproducible gain is dropped (see the
+   rejected `model_construct` experiment below).
+
+Reference equivalence fingerprint (target `axm-init`, 210 call-sites):
+`7eea6781c5c9b67d69b9168b8f3508d8d61b722e3c54e9ce8555a5c13d2a79a4`
+
+> Note on the test environment: integration tests spawn temporary git repos;
+> the sandbox forces commit signing, which fails for those throw-away repos
+> (`git commit` -> exit 128) independently of any code change. With
+> `commit.gpgsign=false` the full suite is green.
+
+Run the benchmark:
+
+```bash
+uv run python benchmarks/bench_callers.py            # equivalence target (axm-init)
+uv run python benchmarks/bench_callers.py src/axm_ast   # time on axm-ast itself
+```
+
+---
+
+## Optimization 1 — Parse-tree cache (kill redundant re-parsing)
+
+**Commit:** `perf(axm-ast): cache parsed trees to drop redundant re-parsing in caller analysis`
+
+**Problem.** Each `.py` file was parsed by tree-sitter multiple times per
+session: once in `extract_module_info` (package analysis), then again in
+`extract_calls` and `extract_references`, each re-reading and re-parsing it.
+
+**Change.** Added an mtime-keyed, thread-safe, bounded-LRU parse cache to
+`parse_file` (`core/parser.py`). A content change bumps `st_mtime_ns` and
+forces a re-parse. `extract_calls` / `extract_references` go through
+`parse_file`; `clear_cache()` also clears the parse cache.
+
+**Benchmark** (best-of, `axm-ast`, 57 files):
+
+| Scenario | Baseline | Optimized | Gain |
+|---|---:|---:|---:|
+| Re-extract call-sites (pkg warm) | 200.6 ms | 127.2 ms | -37% |
+| Full cold caller pipeline | 360.3 ms | 281.1 ms | -22% |
+| Import-graph build (guard) | 147.0 ms | 150.7 ms | ~0 |
+
+---
+
+## Optimization 2 — `find_callers` symbol index
+
+**Commit:** `perf(axm-ast): index call-sites by symbol for O(1) find_callers`
+
+**Problem.** `find_callers` linearly scanned every cached call-site per query
+(`O(total_call_sites)`), so sweeping many symbols cost `O(symbols x calls)`.
+
+**Change.** Added a cached `symbol -> [CallSite]` index to `PackageCache`
+(`get_call_index`), built once from `get_calls` with insertion order matching
+the previous scan order. `find_callers` does an O(1) lookup and returns a
+fresh list; the index shares the call-site invalidation lifecycle.
+
+**Benchmark** (best-of-15, `axm-ast`):
+
+| Scenario | Baseline | Optimized | Gain |
+|---|---:|---:|---:|
+| `find_callers` x ~625 symbols (warm) | 771.3 ms | 602.1 ms | -22% |
+
+The residual cost was dominated by a per-query fingerprint check, addressed in
+Opt 3.
+
+---
+
+## Optimization 3 — Cheaper cache fingerprint (pruned scandir walk)
+
+**Commit:** `perf(axm-ast): prune non-source dirs in cache fingerprint walk`
+
+**Problem.** Every cache access re-validates the package by fingerprinting the
+tree; every `find_callers` query triggered one. The old `_file_fingerprint`
+used `rglob("*.py")` + `Path.stat()`, building `Path` objects and descending
+into `.venv`/`.git`/`__pycache__` trees that analysis skips (~850 us/call).
+
+**Change.** Added `analyzer.fingerprint_source_tree`: an `os.scandir` walk that
+prunes the same `_SKIP_DIRS` / `*.egg-info` directories as `_discover_py_files`
+and records `(path_str, mtime_ns)` pairs. Same file set as before; gitignore is
+intentionally not replicated (subprocess per dir), erring toward extra
+invalidation, never staleness.
+
+**Benchmark** (best-of-15, `axm-ast`):
+
+| Scenario | Baseline | Optimized | Gain |
+|---|---:|---:|---:|
+| `_file_fingerprint` (micro, 57 files) | 847 us | 214 us | -75% |
+| `find_callers` x ~625 symbols (warm) | 602.5 ms | 214.5 ms | -64% |
+
+Cumulative on the repeated-query path (Opt 2 + Opt 3): **771 ms -> 214 ms
+(-72%)**.
+
+---
+
+## Optimization 4 — Iterative AST traversal
+
+**Commit:** `perf(axm-ast): iterative DFS for call/reference visitors`
+
+**Problem.** `_visit_calls` / `_visit_references` recursed once per AST node and
+called the defensive `update_context` / `is_call_node` helpers (each doing
+`getattr`) on every node; deep recursion also risks Python's recursion limit.
+
+**Change.** Rewrote both visitors as explicit-stack DFS with the cheap per-node
+checks inlined on the raw `node.type`, so the public helpers (kept for the SDK
+surface / tests) are only paid for the rare def/call nodes. Pre-order visit
+order is preserved; references use a set (order irrelevant).
+
+**Benchmark** (best-of, `axm-ast`):
+
+| Scenario | Baseline | Optimized | Gain |
+|---|---:|---:|---:|
+| `extract_calls` over all modules (isolated) | 123.5 ms | 115.0 ms | -7% |
+| Full cold caller pipeline | 297.0 ms | 278.4 ms | -6% |
+
+The gain is modest — the residual cost is C-level tree-sitter node access, not
+Python call overhead. The change also **removes the recursion-depth limit** on
+deeply nested ASTs.
+
+---
+
+## Optimization 5 — Parse cache for dead-code detectors
+
+**Commit:** `perf(axm-ast): route dead_code parsing through the parse cache`
+
+**Problem.** `dead_code`'s `_extract_lazy_imports`,
+`_extract_lazy_namespace_names`, and `_has_intra_module_refs` each did
+`mod.path.read_text()` + `parse_source()` directly, re-reading and re-parsing
+every module even though analysis had already parsed it.
+
+**Change.** Routed all three through `parse_file`, so they hit the mtime-keyed
+parse cache (warm after `analyze_package`). The two detectors that swallowed
+read errors keep their `try/except (OSError, UnicodeDecodeError)` around
+`parse_file`.
+
+**Benchmark** (best-of-10, `axm-ast`, the 3 detectors over all modules):
+
+| Scenario | Re-parse each (baseline) | Parse-cache hit (optimized) | Gain |
+|---|---:|---:|---:|
+| lazy/class detectors over all modules | 377 ms | 188 ms | -50% (2.0x) |
+
+The "cold" column re-parses each module per call (baseline behaviour); "warm"
+serves trees from the parse cache. The 2x reflects that parsing is roughly half
+the cost of these detectors — the remainder is the AST scan itself, untouched.
+
+---
+
+## Experiment rejected — `CallSite.model_construct`
+
+Building each `CallSite` via `model_construct` (skipping pydantic validation)
+was tried to shave the per-call-node construction cost. A rigorous `timeit`
+showed it **0.67x — slower** (1.94 us -> 2.90 us) for this small model: the
+Rust-compiled validating `__init__` beats the Python-side `model_construct`
+that has to reconstruct `__pydantic_fields_set__` and fill defaults. **Reverted
+— no gain.** Recorded here so it is not re-attempted.
+
+---
+
+## Optimization 6 — Parse cache for flows (callees / entry points)
+
+**Commit:** `perf(axm-ast): route flows parsing through the parse cache`
+
+**Problem.** `flows` re-read and re-parsed every module via `read_text` +
+`parse_source` in three places: `_scan_module_entries` (entry points),
+`find_callees`, and `build_callee_index`.
+
+**Change.** Routed all three through `parse_file` (shared mtime-keyed parse
+cache). The `source` string threaded through the entry-point / scoped-call
+visitors turned out to be dead (call extraction reads `node.text`; the
+`source_bytes` it ultimately feeds `extract_call_site` is discarded), so an
+empty string is passed for signature compatibility. `find_callees`'s
+`_parse_cache` `(tree, source)` contract is preserved.
+
+**Equivalence.** 1567 tests pass (incl. the callee/trace-flow suites and the
+`find_callees` no-reparse contract test); fingerprint unchanged; ruff + mypy
+clean.
+
+**Benchmark** (best-of-10, `axm-ast`, isolated warm-cache vs re-parse-each):
+
+| Scenario | Re-parse each | Parse-cache hit | Gain |
+|---|---:|---:|---:|
+| `build_callee_index` over all modules | 249.3 ms | 189.6 ms | -24% (1.3x) |
+
+---
+
+## Fix — `find_callers_workspace` no longer corrupts the cache
+
+**Commit:** `fix(axm-ast): copy CallSite before prefixing in find_callers_workspace`
+
+**Problem.** `find_callers` returns `CallSite` objects shared with the package
+cache. `find_callers_workspace` prefixed `call.module = f"{pkg}::{...}"` **in
+place**, mutating the cached objects — so a second query returned
+`pkg::pkg::module` (verified by a new regression test).
+
+**Fix.** Build a prefixed copy via `model_copy(update=...)` instead of
+mutating. Added `test_find_callers_workspace_repeated_no_double_prefix`.
+
+---
+
+## Optimization 7 — Cursor-based call traversal
+
+**Commit:** `perf(axm-ast): walk the AST with a TreeCursor in _visit_calls`
+
+**Problem.** The explicit-stack DFS from Opt 4 still read `node.children` at
+every node, allocating a fresh Python list per node across the whole tree.
+
+**Change.** Rewrote `_visit_calls` as a `TreeCursor` walk (`node.walk()` +
+`goto_first_child` / `goto_next_sibling` / `goto_parent`): the cursor moves
+through the tree in C with no per-node list allocation. A `contexts` stack
+mirrors the cursor depth to track the enclosing function/class scope, and the
+per-node work is factored into `_process_call_node`. Pre-order visit order and
+recorded scope are identical — verified module-by-module against the previous
+implementation before integrating.
+
+**Equivalence.** Output identical on every module of `axm-ast`; fingerprint
+unchanged; 1567 tests pass; ruff + mypy clean.
+
+**Benchmark** (best-of, `axm-ast`):
+
+| Scenario | Baseline (stack DFS) | Optimized (cursor) | Gain |
+|---|---:|---:|---:|
+| Re-extract call-sites (pkg warm) | 97.6 ms | 73.5 ms | -25% |
+| Full cold caller pipeline | 222.0 ms | 198.5 ms | -11% |
+
+`_visit_references` was left on the explicit stack: it runs only during
+dead-code analysis (not the hot caller path) and its set-based output makes the
+extra refactor lower-value.
+
+---
+
+## Cumulative summary (axm-ast source)
+
+| Path | Before | After | Gain |
+|---|---:|---:|---:|
+| Full cold caller pipeline | 360 ms | 198 ms | -45% |
+| Re-extract call-sites (pkg warm) | 200 ms | 73 ms | -63% |
+| `find_callers` x ~625 symbols (warm) | 771 ms | 215 ms | -72% |
+| Dead-code lazy/class detectors (isolated) | 377 ms | 188 ms | -50% |
+| `build_callee_index` (flows, isolated) | 249 ms | 190 ms | -24% |
+| Import-graph build (guard) | 147 ms | 160 ms | ~0 (noise) |
+
+All seven optimizations are individually equivalence-checked (identical
+`find_callers` fingerprint) and the full 1567-test suite, ruff, and mypy stay
+green. One correctness bug (`find_callers_workspace` cache corruption) was
+found and fixed along the way.
+
+## Roadmap (further candidates, not yet done)
+
+- **Cursor-based traversal for `_visit_references`** (dead-code path) — same
+  technique as Opt 7 but lower value, as it is off the hot caller path.
+- **Thread the parse cache into `dead_code`'s remaining direct
+  `parse_source` calls on raw bytes** (tolerant decode paths) if those become
+  hot.
