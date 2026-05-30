@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import ToolResult
 
@@ -40,7 +39,7 @@ class WriteFileTool:
         *,
         path: str | None = None,
         content: str | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Write content to a file.
 
