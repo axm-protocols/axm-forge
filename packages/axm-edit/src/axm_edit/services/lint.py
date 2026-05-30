@@ -204,6 +204,18 @@ def _apply_edits(file_path: Path, edits: list[dict[str, str]]) -> bool:
     return matched
 
 
+_RUFF_NOISE_PREFIXES = ("Found ", "[*] ", "No fixes")
+
+
+def _filter_ruff_lines(stdout: str) -> list[str]:
+    """Keep real diagnostic lines, dropping ruff summary noise."""
+    return [
+        line
+        for line in stdout.strip().splitlines()
+        if line.strip() and not line.startswith(_RUFF_NOISE_PREFIXES)
+    ]
+
+
 def _run_ruff_check(root: Path, files: list[str]) -> list[str]:
     """Run ruff check on specific files, return remaining diagnostics."""
     if not _has_ruff:
@@ -230,14 +242,7 @@ def _run_ruff_check(root: Path, files: list[str]) -> list[str]:
     if result.returncode > 1:
         return []
     if result.returncode != 0 and result.stdout.strip():
-        return [
-            line
-            for line in result.stdout.strip().splitlines()
-            if line.strip()
-            and not line.startswith("Found ")
-            and not line.startswith("[*] ")
-            and not line.startswith("No fixes")
-        ]
+        return _filter_ruff_lines(result.stdout)
     return []
 
 
@@ -289,6 +294,17 @@ def _call_claude(prompt: str, filename: str) -> tuple[str | None, str | None]:
     return result.stdout, None
 
 
+def _fabrication_warning(edits: list[dict[str, str]], filename: str) -> str | None:
+    """Return a warning if *edits* fabricate a definition, else ``None``."""
+    fabricated = [e for e in edits if _fabricates_definition(e)] if edits else []
+    if not fabricated:
+        return None
+    return (
+        f"claude tried to fabricate a definition in {filename} "
+        f"(rejected {len(fabricated)} edit(s) — likely F821/F822 hallucination)"
+    )
+
+
 def _fix_single_file(
     root: Path,
     filename: str,
@@ -309,15 +325,10 @@ def _fix_single_file(
     if not stdout or not stdout.strip():
         return file_errors, []
 
-    # Parse and apply edits
     edits = _parse_edits(stdout)
-    fabricated = [e for e in edits if _fabricates_definition(e)] if edits else []
-    if fabricated:
-        warning = (
-            f"claude tried to fabricate a definition in {filename} "
-            f"(rejected {len(fabricated)} edit(s) — likely F821/F822 hallucination)"
-        )
-        return file_errors, [warning]
+    fabrication_warning = _fabrication_warning(edits, filename)
+    if fabrication_warning is not None:
+        return file_errors, [fabrication_warning]
     if not edits or not _apply_edits(file_path, edits):
         return file_errors, []
 

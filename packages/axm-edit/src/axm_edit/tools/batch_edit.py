@@ -33,6 +33,18 @@ def _collect_python_files(root: Path, operations: list[Operation]) -> list[Path]
     return sorted(set(paths))
 
 
+_RUFF_NOISE_PREFIXES = ("Found ", "[*] ", "No fixes")
+
+
+def _filter_ruff_lines(stdout: str) -> list[str]:
+    """Keep real diagnostic lines, dropping ruff summary noise."""
+    return [
+        line
+        for line in stdout.strip().splitlines()
+        if line.strip() and not line.startswith(_RUFF_NOISE_PREFIXES)
+    ]
+
+
 def _ruff_check(
     root: Path,
     str_files: list[str],
@@ -68,14 +80,7 @@ def _ruff_check(
         return []
 
     if result.returncode != 0 and result.stdout.strip():
-        return [
-            line
-            for line in result.stdout.strip().splitlines()
-            if line.strip()
-            and not line.startswith("Found ")
-            and not line.startswith("[*] ")
-            and not line.startswith("No fixes")
-        ]
+        return _filter_ruff_lines(result.stdout)
     return []
 
 
