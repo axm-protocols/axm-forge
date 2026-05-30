@@ -327,7 +327,31 @@ def _append_not_found_error(
         )
 
 
-def _validate_replace(  # noqa: C901
+def _resolve_one_edit(lines: list[str], edit: Edit) -> ResolvedEdit | None:
+    """Resolve a single edit's position, trying normalization variants."""
+    result = _find_old(lines, edit.old, edit.line)
+    effective_old = edit.old
+
+    if result is None:
+        for variant in _try_normalize_old(edit.old):
+            result = _find_old(lines, variant, edit.line)
+            if result is not None:
+                effective_old = variant
+                break
+
+    if result is None:
+        return None
+
+    found_line, indent = result
+    return ResolvedEdit(
+        line=found_line,
+        old=effective_old,
+        new=edit.new,
+        indent=indent,
+    )
+
+
+def _validate_replace(
     root: Path,
     file_rel: str,
     edits: list[Edit],
@@ -337,49 +361,23 @@ def _validate_replace(  # noqa: C901
     Returns a tuple of (resolved_edits, errors).  If errors is non-empty,
     resolved_edits should be discarded.
     """
-    errors: list[ValidationError] = []
-    resolved: list[ResolvedEdit] = []
-
     target = _resolve_safe(root, file_rel)
     if target is None:
-        errors.append(
-            ValidationError(file=file_rel, error="Path traversal not allowed"),
-        )
-        return [], errors
+        return [], [ValidationError(file=file_rel, error="Path traversal not allowed")]
 
     if not target.is_file():
-        errors.append(
-            ValidationError(file=file_rel, error="File not found"),
-        )
-        return [], errors
+        return [], [ValidationError(file=file_rel, error="File not found")]
 
     lines = target.read_text().splitlines(keepends=True)
 
-    # Resolve each edit's position via fuzzy search
+    errors: list[ValidationError] = []
+    resolved: list[ResolvedEdit] = []
     for edit in edits:
-        result = _find_old(lines, edit.old, edit.line)
-
-        # ── Normalization fallback ────────────────────────────────
-        effective_old = edit.old
-        if result is None:
-            for variant in _try_normalize_old(edit.old):
-                result = _find_old(lines, variant, edit.line)
-                if result is not None:
-                    effective_old = variant
-                    break
-
-        if result is None:
+        resolved_edit = _resolve_one_edit(lines, edit)
+        if resolved_edit is None:
             _append_not_found_error(errors, file_rel, edit, lines)
         else:
-            found_line, indent = result
-            resolved.append(
-                ResolvedEdit(
-                    line=found_line,
-                    old=effective_old,
-                    new=edit.new,
-                    indent=indent,
-                ),
-            )
+            resolved.append(resolved_edit)
 
     if errors:
         return [], errors
