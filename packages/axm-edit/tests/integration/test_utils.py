@@ -4,70 +4,46 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_edit.utils import is_binary
 
 
 class TestIsBinaryUnit:
-    """Unit tests for is_binary()."""
+    """Unit tests for is_binary() across byte-content scenarios."""
 
-    def test_binary_null_bytes(self, tmp_path: Path) -> None:
-        f = tmp_path / "nulls.bin"
-        f.write_bytes(b"hello\x00world")
-        assert is_binary(f) is True
-
-    def test_binary_high_nonprintable_ratio(self, tmp_path: Path) -> None:
-        f = tmp_path / "nonprint.bin"
-        f.write_bytes(bytes(range(0x01, 0x20)) * 100)
-        assert is_binary(f) is True
-
-    def test_text_ascii(self, tmp_path: Path) -> None:
-        f = tmp_path / "text.txt"
-        f.write_bytes(b"Hello, world!\nLine 2\n")
-        assert is_binary(f) is False
-
-    def test_text_utf8_accents(self, tmp_path: Path) -> None:
-        f = tmp_path / "accents.txt"
-        f.write_bytes("Héllo café naïve".encode())
-        assert is_binary(f) is False
-
-    def test_empty_file(self, tmp_path: Path) -> None:
-        f = tmp_path / "empty"
-        f.write_bytes(b"")
-        assert is_binary(f) is False
-
-    def test_nonexistent_file(self, tmp_path: Path) -> None:
-        f = tmp_path / "nope.txt"
-        assert is_binary(f) is False
-
-    def test_png_header(self, tmp_path: Path) -> None:
-        f = tmp_path / "image.png"
-        f.write_bytes(b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 10)
-        assert is_binary(f) is True
-
-
-class TestIsBinaryEdgeCases:
-    """Edge-case tests for is_binary()."""
-
-    def test_exactly_30_percent_nonprintable(self, tmp_path: Path) -> None:
-        """Exactly 30% non-printable → False (threshold is strict >)."""
-        # 70 printable + 30 non-printable = 30% exactly
-        printable = b"A" * 70
-        nonprintable = bytes([0x01]) * 30
-        f = tmp_path / "edge30.bin"
-        f.write_bytes(printable + nonprintable)
-        assert is_binary(f) is False
-
-    def test_text_with_tabs_newlines(self, tmp_path: Path) -> None:
-        """Tabs/newlines should not count as non-printable."""
-        f = tmp_path / "logs.txt"
-        f.write_bytes(b"col1\tcol2\tcol3\n" * 100)
-        assert is_binary(f) is False
-
-    def test_very_short_file_with_nonprintable(self, tmp_path: Path) -> None:
-        """Short file b'A\\x01B' — ratio 33% → True."""
-        f = tmp_path / "short.bin"
-        f.write_bytes(b"A\x01B")
-        assert is_binary(f) is True
+    @pytest.mark.parametrize(
+        ("content", "expected"),
+        [
+            pytest.param(b"hello\x00world", True, id="null_bytes"),
+            pytest.param(
+                bytes(range(0x01, 0x20)) * 100, True, id="high_nonprintable_ratio"
+            ),
+            pytest.param(b"Hello, world!\nLine 2\n", False, id="text_ascii"),
+            pytest.param("Héllo café naïve".encode(), False, id="text_utf8_accents"),
+            pytest.param(b"", False, id="empty_file"),
+            pytest.param(None, False, id="nonexistent_file"),
+            pytest.param(
+                b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 10, True, id="png_header"
+            ),
+            pytest.param(
+                b"A" * 70 + bytes([0x01]) * 30,
+                False,
+                id="exactly_30_percent_nonprintable",
+            ),
+            pytest.param(
+                b"col1\tcol2\tcol3\n" * 100, False, id="text_with_tabs_newlines"
+            ),
+            pytest.param(b"A\x01B", True, id="very_short_file_with_nonprintable"),
+        ],
+    )
+    def test_is_binary(
+        self, tmp_path: Path, content: bytes | None, expected: bool
+    ) -> None:
+        f = tmp_path / "sample"
+        if content is not None:
+            f.write_bytes(content)
+        assert is_binary(f) is expected
 
 
 class TestReadFileSkipsBinary:
