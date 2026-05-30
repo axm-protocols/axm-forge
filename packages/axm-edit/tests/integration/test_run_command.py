@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_edit.tools.run_command import RunCommandTool
 
 
@@ -48,35 +50,39 @@ class TestRunCommandTool:
         assert result.data["truncated"] is True
         assert len(result.data["stdout"]) <= 4096 + len("\n[truncated]") + 1
 
-    def test_blocked_command_sudo(self, tmp_project: Path) -> None:
-        """sudo commands are blocked."""
-        result = RunCommandTool().execute(
-            path=str(tmp_project), command="sudo rm -rf /"
-        )
+    @pytest.mark.parametrize(
+        ("command", "error_substr"),
+        [
+            pytest.param("sudo rm -rf /", "blocked", id="sudo"),
+            pytest.param("rm -rf /", "blocked", id="rm_rf_root"),
+            pytest.param("", "command", id="empty"),
+            pytest.param("nonexistent_command_xyz_12345", "not found", id="not_found"),
+        ],
+    )
+    def test_rejected_command(
+        self, tmp_project: Path, command: str, error_substr: str
+    ) -> None:
+        """Blocked, empty, and not-found commands fail with a matching error."""
+        result = RunCommandTool().execute(path=str(tmp_project), command=command)
         assert result.success is False
-        assert "blocked" in (result.error or "").lower()
+        assert error_substr in (result.error or "").lower()
 
-    def test_blocked_command_rm_rf_root(self, tmp_project: Path) -> None:
-        """rm -rf / is blocked."""
-        result = RunCommandTool().execute(path=str(tmp_project), command="rm -rf /")
-        assert result.success is False
-        assert "blocked" in (result.error or "").lower()
-
-    def test_cwd_outside_root(self, tmp_project: Path) -> None:
-        """cwd outside root is sandboxed."""
+    @pytest.mark.parametrize(
+        ("cwd", "error_substr"),
+        [
+            pytest.param("../../", "escapes", id="outside_root"),
+            pytest.param("src/foo.py", "not a directory", id="not_a_directory"),
+        ],
+    )
+    def test_invalid_cwd(self, tmp_project: Path, cwd: str, error_substr: str) -> None:
+        """cwd escaping root or pointing to a file fails with a matching error."""
         result = RunCommandTool().execute(
             path=str(tmp_project),
             command="echo test",
-            cwd="../../",
+            cwd=cwd,
         )
         assert result.success is False
-        assert "escapes" in (result.error or "").lower()
-
-    def test_empty_command(self, tmp_project: Path) -> None:
-        """Empty command returns error."""
-        result = RunCommandTool().execute(path=str(tmp_project), command="")
-        assert result.success is False
-        assert "command" in (result.error or "").lower()
+        assert error_substr in (result.error or "").lower()
 
     def test_missing_command(self, tmp_project: Path) -> None:
         """Missing command argument returns error."""
@@ -104,22 +110,3 @@ class TestRunCommandTool:
         assert result.success is True
         assert result.data is not None
         assert "foo.py" in result.data["stdout"]
-
-    def test_command_not_found(self, tmp_project: Path) -> None:
-        """Non-existent command returns error."""
-        result = RunCommandTool().execute(
-            path=str(tmp_project),
-            command="nonexistent_command_xyz_12345",
-        )
-        assert result.success is False
-        assert "not found" in (result.error or "").lower()
-
-    def test_cwd_not_a_directory(self, tmp_project: Path) -> None:
-        """cwd pointing to a file returns error."""
-        result = RunCommandTool().execute(
-            path=str(tmp_project),
-            command="echo test",
-            cwd="src/foo.py",
-        )
-        assert result.success is False
-        assert "not a directory" in (result.error or "").lower()
