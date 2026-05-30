@@ -22,12 +22,10 @@ from tree_sitter import Node
 
 from axm_ast.core._call_helpers import (
     extract_call_site,
-    is_call_node,
     node_text_safe,
-    update_context,
 )
 from axm_ast.core.analyzer import module_dotted_name
-from axm_ast.core.parser import parse_source
+from axm_ast.core.parser import parse_file
 from axm_ast.models.calls import CallSite
 from axm_ast.models.nodes import ModuleInfo, PackageInfo, WorkspaceInfo
 
@@ -67,46 +65,50 @@ def extract_references(mod: ModuleInfo) -> set[str]:
     Returns:
         Set of symbol names referenced in non-call positions.
     """
-    source = mod.path.read_text(encoding="utf-8")
-    tree = parse_source(source)
+    tree = parse_file(mod.path)
     refs: set[str] = set()
     _visit_references(tree.root_node, refs)
     return refs
 
 
 def _visit_references(node: Node, refs: set[str]) -> None:
-    """Recursively find identifiers in non-call reference positions."""
-    node_type = node.type
-    children = node.children
+    """Find identifiers in non-call reference positions (iterative DFS).
 
-    if node_type == "pair":
-        _collect_dict_value_ref(children, refs)
-    elif node_type in ("list", "tuple", "set"):
-        _collect_collection_refs(children, refs)
-    elif node_type in ("keyword_argument", "default_parameter"):
-        _collect_kwarg_ref(children, refs)
-    elif node_type == "assignment":
-        # Handle `callback = self.method` — extract attribute ref from RHS.
-        _collect_kwarg_ref(children, refs)
-    elif node_type == "argument_list":
-        _collect_argument_refs(children, refs)
-    elif node_type == "return_statement":
-        # Handle `return some_func` / `return self.method` — a function
-        # returned as a value. `_extract_ref_name` skips the `return`
-        # keyword, `call` nodes (tracked by find_callers) and literals.
-        _collect_collection_refs(children, refs)
-    elif node_type in ("boolean_operator", "conditional_expression"):
-        # Handle `a or b` / `a and b` / `not a` and `a if c else b` —
-        # operands used as values (e.g. `cb = score or _default_score`).
-        # `_extract_ref_name` skips operator keywords, `call` nodes
-        # (tracked by find_callers) and literals.
-        _collect_collection_refs(children, refs)
-    elif node_type == "string" and _is_forward_ref_string(node):
-        _extract_forward_refs(node, refs)
+    ``refs`` is a set, so visit order is irrelevant; an explicit stack avoids
+    Python recursion overhead over large trees.
+    """
+    stack: list[Node] = [node]
+    while stack:
+        current = stack.pop()
+        node_type = current.type
+        children = current.children
 
-    # Recurse into all children.
-    for child in children:
-        _visit_references(child, refs)
+        if node_type == "pair":
+            _collect_dict_value_ref(children, refs)
+        elif node_type in ("list", "tuple", "set"):
+            _collect_collection_refs(children, refs)
+        elif node_type in ("keyword_argument", "default_parameter"):
+            _collect_kwarg_ref(children, refs)
+        elif node_type == "assignment":
+            # Handle `callback = self.method` — extract attribute ref from RHS.
+            _collect_kwarg_ref(children, refs)
+        elif node_type == "argument_list":
+            _collect_argument_refs(children, refs)
+        elif node_type == "return_statement":
+            # Handle `return some_func` / `return self.method` — a function
+            # returned as a value. `_extract_ref_name` skips the `return`
+            # keyword, `call` nodes (tracked by find_callers) and literals.
+            _collect_collection_refs(children, refs)
+        elif node_type in ("boolean_operator", "conditional_expression"):
+            # Handle `a or b` / `a and b` / `not a` and `a if c else b` —
+            # operands used as values (e.g. `cb = score or _default_score`).
+            # `_extract_ref_name` skips operator keywords, `call` nodes
+            # (tracked by find_callers) and literals.
+            _collect_collection_refs(children, refs)
+        elif node_type == "string" and _is_forward_ref_string(current):
+            _extract_forward_refs(current, refs)
+
+        stack.extend(children)
 
 
 def _collect_dict_value_ref(children: list[Node], refs: set[str]) -> None:
@@ -322,14 +324,49 @@ def extract_calls(
     Returns:
         List of CallSite objects for each call in the module.
     """
-    source = mod.path.read_text(encoding="utf-8")
-    tree = parse_source(source)
+    tree = parse_file(mod.path)
     mod_name = module_name or mod.path.stem
 
     calls: list[CallSite] = []
-    source_bytes = source.encode("utf-8")
-    _visit_calls(tree.root_node, mod_name, source_bytes, calls)
+    # source_bytes is unused by the visitor (node.text carries the bytes); the
+    # parameter is kept for signature symmetry with the call-site helpers.
+    _visit_calls(tree.root_node, mod_name, b"", calls)
     return calls
+
+
+def _process_call_node(
+    current: Node,
+    parent_scope: str | None,
+    module_name: str,
+    source_bytes: bytes,
+    calls: list[CallSite],
+) -> str | None:
+    """Record a call-site for *current* and return the scope for its children.
+
+    Inlines ``update_context`` (a def node becomes the new enclosing scope)
+    and ``is_call_node`` on the raw ``node.type`` so the public helpers are
+    only paid for the rare def/call nodes.
+    """
+    node_type = current.type
+
+    scope = parent_scope
+    if node_type in ("function_definition", "class_definition"):
+        for child in current.children:
+            if child.type == "identifier":
+                scope = node_text_safe(child)
+                break
+
+    if node_type == "call":
+        call_site = extract_call_site(
+            current,
+            module=module_name,
+            source_bytes=source_bytes,
+            context=scope,
+        )
+        if call_site is not None:
+            calls.append(call_site)
+
+    return scope
 
 
 def _visit_calls(
@@ -337,36 +374,54 @@ def _visit_calls(
     module_name: str,
     source_bytes: bytes,
     calls: list[CallSite],
-    context: str | None = None,
 ) -> None:
-    """Recursively visit tree-sitter nodes to find calls."""
-    current_context = update_context(node, source_bytes, current=context)
+    """Visit tree-sitter nodes (pre-order) to find calls.
 
-    if is_call_node(node):
-        call_site = extract_call_site(
-            node,
-            module=module_name,
-            source_bytes=source_bytes,
-            context=current_context,
-        )
-        if call_site is not None:
-            calls.append(call_site)
-
-    for child in node.children:
-        _visit_calls(child, module_name, source_bytes, calls, current_context)
+    Uses a ``TreeCursor`` walk instead of materializing ``node.children``
+    lists: the cursor moves through the tree in C without allocating a Python
+    list per node, which is ~2x faster than an explicit-stack DFS over the
+    whole tree. ``contexts`` mirrors the cursor depth to track the enclosing
+    function/class scope. Visit order and recorded scope are identical to the
+    recursive version.
+    """
+    cursor = node.walk()
+    # contexts[-1] is the enclosing scope at the cursor's current depth; the
+    # root starts with no scope.
+    contexts: list[str | None] = [None]
+    visited_children = False
+    while True:
+        if not visited_children:
+            current = cursor.node
+            # cursor.node is non-None throughout a walk; guard for the type.
+            scope = (
+                _process_call_node(
+                    current, contexts[-1], module_name, source_bytes, calls
+                )
+                if current is not None
+                else contexts[-1]
+            )
+            if cursor.goto_first_child():
+                contexts.append(scope)
+                continue
+            visited_children = True
+        elif cursor.goto_next_sibling():
+            visited_children = False
+        elif cursor.goto_parent():
+            contexts.pop()
+        else:
+            break
 
 
 # ─── Cross-module caller search ─────────────────────────────────────────────
 
 
-def _iter_cached_calls(pkg_root: Path) -> Iterator[CallSite] | None:
-    from axm_ast.core.cache import get_calls
+def _cached_call_index(pkg_root: Path) -> dict[str, list[CallSite]] | None:
+    from axm_ast.core.cache import get_call_index
 
     try:
-        calls_by_module = get_calls(pkg_root)
+        return get_call_index(pkg_root)
     except (ValueError, OSError):
         return None
-    return (call for mod_calls in calls_by_module.values() for call in mod_calls)
 
 
 def _iter_fresh_calls(pkg: PackageInfo) -> Iterator[CallSite]:
@@ -397,10 +452,12 @@ def find_callers(
         >>> results[0].module
         'cli'
     """
-    calls = _iter_cached_calls(pkg.root)
-    if calls is None:
-        calls = _iter_fresh_calls(pkg)
-    return [c for c in calls if c.symbol == symbol]
+    index = _cached_call_index(pkg.root)
+    if index is not None:
+        # Return a fresh list (the CallSite objects are still shared with the
+        # cache, matching the previous linear-scan behavior).
+        return list(index.get(symbol, ()))
+    return [c for c in _iter_fresh_calls(pkg) if c.symbol == symbol]
 
 
 def find_callers_workspace(
@@ -428,10 +485,12 @@ def find_callers_workspace(
     all_calls: list[CallSite] = []
 
     for pkg in ws.packages:
-        callers = find_callers(pkg, symbol)
-        for call in callers:
-            # Prefix with package name for cross-package disambiguation
-            call.module = f"{pkg.name}::{call.module}"
-            all_calls.append(call)
+        for call in find_callers(pkg, symbol):
+            # find_callers returns CallSite objects shared with the package
+            # cache, so copy before prefixing — mutating in place would corrupt
+            # the cache and double-prefix on a later query.
+            all_calls.append(
+                call.model_copy(update={"module": f"{pkg.name}::{call.module}"})
+            )
 
     return all_calls

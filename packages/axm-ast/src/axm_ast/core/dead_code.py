@@ -385,14 +385,13 @@ def _extract_lazy_imports(mod: ModuleInfo) -> set[str]:
     Returns:
         Set of imported symbol names.
     """
-    from axm_ast.core.parser import parse_source
+    from axm_ast.core.parser import parse_file
 
     try:
-        source = mod.path.read_text(encoding="utf-8")
+        tree = parse_file(mod.path)
     except (OSError, UnicodeDecodeError):
         return set()
 
-    tree = parse_source(source)
     refs: set[str] = set()
     _visit_lazy_imports(tree.root_node, refs, depth=0)
     return refs
@@ -465,14 +464,13 @@ def _extract_lazy_namespace_names(mod: ModuleInfo) -> set[str]:
     Returns:
         Set of imported names that may correspond to namespace modules.
     """
-    from axm_ast.core.parser import parse_source
+    from axm_ast.core.parser import parse_file
 
     try:
-        source = mod.path.read_text(encoding="utf-8")
+        tree = parse_file(mod.path)
     except (OSError, UnicodeDecodeError):
         return set()
 
-    tree = parse_source(source)
     refs: set[str] = set()
     _visit_lazy_namespace_imports(tree.root_node, refs, depth=0)
     return refs
@@ -647,10 +645,9 @@ def _has_intra_module_refs(
     attribute access (``ClassName.ATTR``), type annotations
     (``x: ClassName``), and bare-name assignments (``Alias = ClassName``).
     """
-    from axm_ast.core.parser import parse_source
+    from axm_ast.core.parser import parse_file
 
-    source = mod.path.read_text(encoding="utf-8")
-    tree = parse_source(source)
+    tree = parse_file(mod.path)
 
     stack: list[object] = [tree.root_node]
     while stack:

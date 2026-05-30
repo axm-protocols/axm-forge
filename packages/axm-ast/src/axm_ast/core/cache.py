@@ -24,7 +24,11 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from axm_ast.core.analyzer import analyze_package, module_dotted_name
+from axm_ast.core.analyzer import (
+    analyze_package,
+    fingerprint_source_tree,
+    module_dotted_name,
+)
 from axm_ast.models.nodes import PackageInfo
 
 if TYPE_CHECKING:
@@ -32,19 +36,27 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["PackageCache", "clear_cache", "get_calls", "get_package"]
+__all__ = [
+    "PackageCache",
+    "clear_cache",
+    "get_call_index",
+    "get_calls",
+    "get_package",
+]
 
 # Type alias for the fingerprint: (path, mtime_ns) pairs.
-type _Fingerprint = frozenset[tuple[Path, int]]
+type _Fingerprint = frozenset[tuple[str, int]]
 
 
 def _file_fingerprint(path: Path) -> _Fingerprint:
     """Return ``.py`` file paths with mtime for content-change detection.
 
     Tracks both additions/deletions **and** content modifications by
-    including ``st_mtime_ns`` (nanosecond precision) for each file.
+    including ``st_mtime_ns`` (nanosecond precision) for each file. Delegates
+    to :func:`fingerprint_source_tree`, which prunes non-source directories
+    (``.venv``/``.git``/``__pycache__``/…) instead of walking the whole tree.
     """
-    return frozenset((p, p.stat().st_mtime_ns) for p in path.rglob("*.py"))
+    return fingerprint_source_tree(path)
 
 
 class PackageCache:
@@ -59,6 +71,7 @@ class PackageCache:
     def __init__(self) -> None:
         self._store: dict[Path, tuple[PackageInfo, _Fingerprint]] = {}
         self._calls_store: dict[Path, dict[str, list[CallSite]]] = {}
+        self._index_store: dict[Path, dict[str, list[CallSite]]] = {}
         self._lock = threading.Lock()
 
     def get(self, path: Path) -> PackageInfo:
@@ -85,9 +98,10 @@ class PackageCache:
                 current_fp = _file_fingerprint(key)
                 if current_fp == cached_fp:
                     return cached_pkg
-                # Stale — evict package and call-sites together
+                # Stale — evict package, call-sites and index together
                 del self._store[key]
                 self._calls_store.pop(key, None)
+                self._index_store.pop(key, None)
 
         # Parse outside the lock to avoid blocking other threads
         pkg = analyze_package(key)
@@ -132,11 +146,50 @@ class PackageCache:
                 self._calls_store[key] = calls_by_module
             return self._calls_store[key]
 
+    def get_call_index(self, path: Path) -> dict[str, list[CallSite]]:
+        """Return a cached ``symbol -> call-sites`` index for the package.
+
+        Built once from :meth:`get_calls` and reused, turning a
+        ``find_callers`` query into an O(1) dict lookup instead of an
+        O(total-call-sites) linear scan. Shares the call-site invalidation
+        lifecycle (evicted when the fingerprint changes).
+
+        Insertion order matches ``get_calls`` iteration order (module order,
+        then in-module call order), so each symbol's list is identical to the
+        order a linear scan would have produced.
+
+        Args:
+            path: Path to the package root directory.
+
+        Returns:
+            Dict mapping symbol name to its call-sites.
+        """
+        key = path.resolve()
+        calls_by_module = self.get_calls(path)
+
+        with self._lock:
+            if key in self._index_store:
+                return self._index_store[key]
+
+        index: dict[str, list[CallSite]] = {}
+        for mod_calls in calls_by_module.values():
+            for call in mod_calls:
+                index.setdefault(call.symbol, []).append(call)
+
+        with self._lock:
+            if key not in self._index_store:
+                self._index_store[key] = index
+            return self._index_store[key]
+
     def clear(self) -> None:
         """Invalidate all cached entries."""
+        from axm_ast.core.parser import clear_parse_cache
+
         with self._lock:
             self._store.clear()
             self._calls_store.clear()
+            self._index_store.clear()
+        clear_parse_cache()
 
 
 # ─── Module-level singleton ──────────────────────────────────────────────────
@@ -172,6 +225,18 @@ def get_calls(path: Path) -> dict[str, list[CallSite]]:
         Dict mapping dotted module names to call-site lists.
     """
     return _cache.get_calls(path)
+
+
+def get_call_index(path: Path) -> dict[str, list[CallSite]]:
+    """Return the cached ``symbol -> call-sites`` index, using the global cache.
+
+    Args:
+        path: Path to the package root directory.
+
+    Returns:
+        Dict mapping symbol name to its call-sites.
+    """
+    return _cache.get_call_index(path)
 
 
 def clear_cache() -> None:
