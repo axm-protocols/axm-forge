@@ -97,13 +97,31 @@ class TestRuffFixRunsOnChangedFiles:
 
 
 class TestRuffCheckReturnsErrors:
-    """File with unfixable error -> lint_errors populated in result."""
+    """Unfixable error (E722) via replace or create -> lint_errors populated."""
 
+    @pytest.mark.parametrize(
+        "operations",
+        [
+            pytest.param(
+                [
+                    _replace_op(
+                        "hello.py", "x = 1", "try:\n    x = 1\nexcept:\n    pass"
+                    )
+                ],
+                id="replace",
+            ),
+            pytest.param(
+                [_create_op("bad_module.py", "try:\n    x = 1\nexcept:\n    pass\n")],
+                id="create",
+            ),
+        ],
+    )
     def test_ruff_check_returns_errors(
         self,
         tool: BatchEditTool,
         py_project: Path,
         mocker: Any,
+        operations: list[dict[str, Any]],
     ) -> None:
         # Mock claude_fix to pass through errors (don't spawn real subprocess)
         mocker.patch(
@@ -111,18 +129,7 @@ class TestRuffCheckReturnsErrors:
             side_effect=lambda root, errors, **kw: errors,
         )
 
-        # py_project already has hello.py with "x = 1\n" committed
-        # Replace with code that has a bare except (E722 - not auto-fixable)
-        result = tool.execute(
-            path=str(py_project),
-            operations=[
-                _replace_op(
-                    "hello.py",
-                    "x = 1",
-                    "try:\n    x = 1\nexcept:\n    pass",
-                )
-            ],
-        )
+        result = tool.execute(path=str(py_project), operations=operations)
 
         assert result.success
         assert result.data is not None
@@ -319,35 +326,6 @@ class TestClaudeFixCalledFromBatchEdit:
         )
 
 
-class TestBatchEditReportsRemaining:
-    """Create file with unfixable ruff error -> lint_errors in ToolResult.data."""
-
-    def test_batch_edit_reports_remaining(
-        self,
-        tool: BatchEditTool,
-        py_project: Path,
-        mocker: Any,
-    ) -> None:
-        mocker.patch(
-            "axm_edit.tools.batch_edit.claude_fix",
-            side_effect=lambda root, errors, **kw: errors,
-        )
-
-        result = tool.execute(
-            path=str(py_project),
-            operations=[
-                _create_op(
-                    "bad_module.py",
-                    "try:\n    x = 1\nexcept:\n    pass\n",
-                )
-            ],
-        )
-
-        assert result.success
-        assert result.data is not None
-        assert result.data.get("lint_errors")
-
-
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
@@ -450,47 +428,6 @@ class TestRunRuffFormats:
         content = (py_project / "hello.py").read_text()
         # ruff format should have added spaces around = and after colons/commas
         assert "x = {1: 2, 3: 4}" in content
-
-
-class TestRunRuffCheckStillWorks:
-    """AC4: ruff check --fix still auto-fixes lint violations."""
-
-    def test_run_ruff_check_still_works(
-        self,
-        tool: BatchEditTool,
-        py_project: Path,
-    ) -> None:
-        # Write a file with an unused import
-        (py_project / "hello.py").write_text("import os\nx = 1\n")
-        subprocess.run(
-            ["git", "add", "."],
-            cwd=py_project,
-            capture_output=True,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "commit", "-m", "unused"],
-            cwd=py_project,
-            capture_output=True,
-            check=True,
-            env={
-                "GIT_AUTHOR_NAME": "t",
-                "GIT_COMMITTER_NAME": "t",
-                "GIT_AUTHOR_EMAIL": "t@t",
-                "GIT_COMMITTER_EMAIL": "t@t",
-                "HOME": str(py_project),
-            },
-        )
-
-        result = tool.execute(
-            path=str(py_project),
-            operations=[_replace_op("hello.py", "x = 1", "x = 2")],
-        )
-
-        assert result.success
-        content = (py_project / "hello.py").read_text()
-        assert "import os" not in content
-        assert not result.data.get("lint_errors")
 
 
 class TestRunRuffUsesProjectEnv:
