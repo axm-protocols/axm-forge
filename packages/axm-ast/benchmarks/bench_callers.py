@@ -157,6 +157,18 @@ def _scenario_graph() -> None:
     GraphTool().execute(path=str(PKG), format="json")
 
 
+def _scenario_dead_code() -> None:
+    """Dead-code detection with the package + parse cache already warm.
+
+    Exercises extract_references and the lazy-import detectors, which re-parse
+    every module unless served from the parse cache.
+    """
+    from axm_ast.core.dead_code import find_dead_code
+
+    pkg = get_package(PKG)
+    find_dead_code(pkg)
+
+
 def _scenario_analyze() -> None:
     """Raw package analysis (regression guard for the parse cache)."""
     analyze_package(PKG)
@@ -190,6 +202,17 @@ def main() -> None:
     )
     print()
     print("  * isolates the redundant second parse the optimization removes")
+    print()
+
+    _bench_dead_code()
+
+
+def _bench_dead_code() -> None:
+    """Separate timing for dead-code detection (warm package + parse cache)."""
+    clear_cache()
+    get_package(PKG)
+    get_calls(PKG)
+    _time("find_dead_code (pkg warm)", _scenario_dead_code, repeat=10)
 
 
 if __name__ == "__main__":
