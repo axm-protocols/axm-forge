@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import ToolResult
 
@@ -138,7 +137,7 @@ def _run_ruff(
     return auto_fixed, remaining
 
 
-def _parse_operations(raw_ops: list[dict[str, Any]]) -> list[Operation]:
+def _parse_operations(raw_ops: list[dict[str, object]]) -> list[Operation]:
     """Parse raw dicts into typed Operation models.
 
     Uses the ``op`` discriminator to select the correct model.
@@ -179,11 +178,11 @@ class BatchEditTool:
         self,
         *,
         path: str = ".",
-        operations: list[dict[str, Any]] | None = None,
+        operations: list[dict[str, object]] | None = None,
         lint: bool = True,
         lint_diff: bool = True,
         lint_diff_max_ratio: float = 0.5,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Execute a batch of file operations atomically.
 
@@ -197,7 +196,7 @@ class BatchEditTool:
         Returns:
             ToolResult with applied counts and checkpoint SHA.
         """
-        raw_operations: list[dict[str, Any]] = operations or []
+        raw_operations: list[dict[str, object]] = operations or []
 
         if not raw_operations:
             return ToolResult(
@@ -220,7 +219,7 @@ class BatchEditTool:
 
             result = batch_apply(root, parsed)
 
-            data: dict[str, Any] = {
+            data: dict[str, object] = {
                 "checkpoint": result.checkpoint,
                 "applied": result.applied,
                 "summary": result.summary,

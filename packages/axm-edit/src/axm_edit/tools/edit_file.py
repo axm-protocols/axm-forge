@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import ToolResult
 
@@ -68,7 +67,7 @@ class EditFileTool:
         old: str | None = None,
         new: str | None = None,
         count: int = 1,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Find and replace text in a file.
 

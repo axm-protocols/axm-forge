@@ -6,7 +6,6 @@ Registered as ``list_dir`` via the ``axm.tools`` entry point.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import ToolResult
 
@@ -43,7 +42,7 @@ def _collect_entries(
     target: Path,
     max_depth: int,
     current_depth: int,
-    entries: list[dict[str, Any]],
+    entries: list[dict[str, object]],
 ) -> bool:
     """Recursively collect directory entries up to *max_depth*.
 
@@ -113,7 +112,7 @@ class ListDirTool:
         *,
         path: str = ".",
         max_depth: int = 1,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """List files and directories in a project directory.
 
@@ -136,7 +135,7 @@ class ListDirTool:
                 error=f"Path is not a directory: {root_str}",
             )
 
-        entries: list[dict[str, Any]] = []
+        entries: list[dict[str, object]] = []
         truncated = _collect_entries(root, root, depth, 1, entries)
 
         return ToolResult(

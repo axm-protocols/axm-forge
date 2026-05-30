@@ -6,7 +6,6 @@ Registered as ``batch_rollback`` via the ``axm.tools`` entry point.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import ToolResult
 
@@ -24,7 +23,7 @@ class BatchRollbackTool:
         """Tool name used for MCP registration."""
         return "batch_rollback"
 
-    def execute(self, **kwargs: Any) -> ToolResult:
+    def execute(self, **kwargs: object) -> ToolResult:
         """Rollback to a checkpoint created by batch_edit.
 
         Args:
@@ -35,8 +34,10 @@ class BatchRollbackTool:
         Returns:
             ToolResult indicating whether the rollback succeeded.
         """
-        path: str = kwargs.get("path", ".")
-        checkpoint: str | None = kwargs.get("checkpoint")
+        raw_path = kwargs.get("path", ".")
+        path = raw_path if isinstance(raw_path, str) else "."
+        raw_checkpoint = kwargs.get("checkpoint")
+        checkpoint = raw_checkpoint if isinstance(raw_checkpoint, str) else None
 
         if not checkpoint:
             return ToolResult(

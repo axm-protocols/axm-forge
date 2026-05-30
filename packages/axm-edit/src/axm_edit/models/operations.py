@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 
-class Edit(BaseModel):
+class Edit(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """A single line-level edit within a replace operation.
 
     Attributes:
@@ -39,7 +39,7 @@ class Edit(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-class ReplaceOp(BaseModel):
+class ReplaceOp(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """Modify lines in an existing file.
 
     All line numbers reference the file **as originally read**, before any
@@ -54,7 +54,7 @@ class ReplaceOp(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-class CreateOp(BaseModel):
+class CreateOp(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """Create a new file.
 
     Fails if the file already exists unless ``overwrite`` is True.
@@ -68,7 +68,7 @@ class CreateOp(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-class DeleteOp(BaseModel):
+class DeleteOp(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """Delete an existing file.
 
     Fails if the file does not exist.
@@ -87,7 +87,7 @@ Operation = Annotated[
 """Discriminated union of all operation types."""
 
 
-class ValidationError(BaseModel):
+class ValidationError(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """A single validation failure."""
 
     file: str
@@ -99,7 +99,7 @@ class ValidationError(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-class BatchResult(BaseModel):
+class BatchResult(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """Result of a batch edit operation.
 
     Attributes:

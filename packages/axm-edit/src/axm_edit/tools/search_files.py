@@ -10,7 +10,6 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any
 
 from axm.tools.base import ToolResult
 
@@ -50,7 +49,7 @@ def _search_file(
     root: Path,
     matcher: re.Pattern[str] | str,
     is_regex: bool,
-    results: list[dict[str, Any]],
+    results: list[dict[str, object]],
 ) -> bool:
     """Search a single file, appending matches to *results*.
 
@@ -92,12 +91,12 @@ def _walk_and_search(
     matcher: re.Pattern[str] | str,
     is_regex: bool,
     include: list[str] | None,
-) -> tuple[list[dict[str, Any]], bool]:
+) -> tuple[list[dict[str, object]], bool]:
     """Walk the file tree and collect search matches.
 
     Returns ``(results, truncated)``.
     """
-    results: list[dict[str, Any]] = []
+    results: list[dict[str, object]] = []
     truncated = False
 
     for dirpath, dirnames, filenames in os.walk(root):
@@ -161,7 +160,7 @@ class SearchFilesTool:
         pattern: str | None = None,
         is_regex: bool = False,
         include: list[str] | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> ToolResult:
         """Search for a pattern across project files.
 
