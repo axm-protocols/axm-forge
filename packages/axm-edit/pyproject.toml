@@ -243,26 +243,6 @@ tag_pattern = "edit/v[0-9].*"
 # axm-audit — acknowledged duplicate-test clusters
 # ─────────────────────────────────────────────────────────────────────────────
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "326ec035fabb"
-reason = "Each test exercises a distinct failure branch with a different error message (replace missing-file, create-existing, delete-missing, path-traversal, ambiguous-old, old-not-found) — assertions diverge in meaning."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "f26434dd4326"
-reason = "Single-file merge of one op with two edits and merge of two separate ReplaceOps both assert modified==1, while multi-file fuzzy asserts modified==2 — distinct merge/multi-file semantics."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "c39ab82e47b2"
-reason = "Overlapping-edit rejection and valid/invalid-mix atomicity assert the same untouched-file invariant via different rejection branches."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "2ad0bc069b49"
-reason = "Path-traversal rejection is tested for ReplaceOp and DeleteOp separately — different SUT operations sharing the security guard."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "fac43fd49caa"
-reason = "Reindent path (unindented old gets file indent) versus exact-match no-reindent path assert opposite indentation outcomes."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "d4b947565f33"
 reason = "lint-skip-on-failure exercises two distinct guard branches — a validation failure on a missing-old edit versus the empty-operations guard — so the no-ruff invariant is reached through different code paths."
 
@@ -271,21 +251,69 @@ hash = "2a91ff34a51e"
 reason = "no-lint_errors is reached by two unrelated mechanisms: project-config E722 suppression via pyproject.toml versus claude_fix returning [] — different SUT aspects, not different literals."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "21664833aa2e"
-reason = "claude-skip is reached by two distinct branches with different warnings: a _has_claude=False flag monkeypatch yielding 'claude not found' versus a subprocess TimeoutExpired yielding 'timed out'."
+hash = "d0a55703a068"
+reason = "Distinct indent-normalization and smart-quote happy paths spread across two files with their own per-test fixtures (bottom-to-top shift, dedent match, multi-line block, smart/wrapped quotes, exact-match-preferred) — each asserts a different rewritten literal."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "fd5289c022e2"
-reason = "Garbage-output exercises the failed-parse return-value branch (process returns invalid stdout) while timeout exercises the TimeoutExpired exception branch — different code paths reaching the unchanged-file invariant."
+hash = "ebcce1633f01"
+reason = "Each test_name asserts a different tool's name literal (batch_edit, batch_rollback, list_dir, read_file, run_command, search_files) — six distinct SUTs, not one duplicated assertion."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "54e3d7636713"
-reason = "file-not-found exercises the FileNotFoundError exception branch while unparseable-format exercises the non-JSON return-value branch — different code paths reaching remaining==errors."
+hash = "89d734402dd3"
+reason = "Six distinct failure branches of batch_apply (create-existing, delete-missing, ambiguous-old, old-not-found, path-traversal, replace-file-not-found) each assert a different error message, only sharing the not-success shape."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "5559a5a26a76"
-reason = "no_git_dir exercises the absent-.git early-return branch (non-repo tmp dir) while clean_repo_returns_none exercises the clean-working-tree branch (real repo, nothing to stash) — different code paths in create_checkpoint reaching the None return."
+hash = "70bc0aacea54"
+reason = "Different multi-edit scenarios with divergent summary expectations — multi_file_fuzzy asserts modified==2 across two files, multiple_edits_same_file and two_replace_ops_same_file assert modified==1 (merge into one file)."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "65c2f94c1937"
-reason = "Each test_name asserts a different tool's .name property returns its own distinct string (batch_edit, write_file, edit_file, list_dir, run_command, batch_rollback, read_file) — genuinely distinct SUTs, not foldable across files."
+hash = "4ee6e5cd7e73"
+reason = "test_name asserts a different tool's name literal for EditFileTool (edit_file) versus WriteFileTool (write_file) — two distinct SUTs."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f1fa35f55a9f"
+reason = "test_agent_hint_exists exercises the agent_hint of two distinct tools, EditFileTool and WriteFileTool — same shape, different SUTs."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "44b49a80eb93"
+reason = "apply_edits_replace asserts result is True with rewritten content, apply_edits_no_match asserts result is False with the file unchanged — opposite outcome branches."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1d67a6ea42b7"
+reason = "path_traversal_in_replace and path_traversal_in_delete exercise the shared guard through two distinct operation types (ReplaceOp versus DeleteOp) — different SUTs sharing one invariant."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "05d3a38d9867"
+reason = "valid_and_invalid_mix tests atomic rollback when a valid op is paired with a missing-file delete, while overlapping_edits_rejected tests the overlap-detection branch — two different rejection paths."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "5df3b4dfb677"
+reason = "warnings_in_result patches _has_ruff=False asserting the 'ruff not found' warning, while ruff_invocation_fails raises OSError/PermissionError asserting the 'ruff fix failed' warning — different branches and warning literals."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "89b173f70a71"
+reason = "no_claude_skips_autofix patches _has_claude=False asserting the 'claude not found' warning, while claude_timeout_graceful raises TimeoutExpired asserting the 'timed out' warning — different branches and warning literals."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4fd94f98d713"
+reason = "no_git_dir runs create_checkpoint on a non-git tmp dir while clean_repo_returns_none runs it on a clean git repo — both return None but via two distinct branches reached through different fixtures."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "6c60cc1ab0d2"
+reason = "garbage_output returns unparseable returncode=1 stdout while timeout_handled raises TimeoutExpired — claude_fix leaves the file unchanged through two different exception/return branches."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "6a5db45256cc"
+reason = "file_not_found raises FileNotFoundError on the subprocess while unparseable_format returns non-JSON text — both return the original errors but via the missing-binary versus parse-failure branches."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "cdcb5f59af29"
+reason = "execute_no_operations asserts BatchEditTool's 'No operations' guard, no_checkpoint asserts BatchRollbackTool's 'checkpoint is required' guard — two distinct tools and error literals."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1c13d64781e7"
+reason = "single_line_reindent asserts new content gains the file's indent, while exact_match_no_reindent asserts the matched-with-indent case must NOT double-indent — opposite indentation outcomes."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9aa447f8d297"
+reason = "nonexistent_file asserts the 'not found' error while path_traversal asserts the 'escapes' error — two distinct error conditions of ReadFileTool with different literals."
