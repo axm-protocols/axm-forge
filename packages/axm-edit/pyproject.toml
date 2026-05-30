@@ -275,3 +275,7 @@ reason = "file-not-found exercises the FileNotFoundError exception branch while 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "5559a5a26a76"
 reason = "no_git_dir exercises the absent-.git early-return branch (non-repo tmp dir) while clean_repo_returns_none exercises the clean-working-tree branch (real repo, nothing to stash) — different code paths in create_checkpoint reaching the None return."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "65c2f94c1937"
+reason = "Each test_name asserts a different tool's .name property returns its own distinct string (batch_edit, write_file, edit_file, list_dir, run_command, batch_rollback, read_file) — genuinely distinct SUTs, not foldable across files."
