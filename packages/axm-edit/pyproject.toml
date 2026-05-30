@@ -142,6 +142,16 @@ module = ["axm_edit.tools.*"]
 disallow_subclassing_any = false
 
 # ─────────────────────────────────────────────────────────────────────────────
+# axm-audit — mirror rule exemptions
+# ─────────────────────────────────────────────────────────────────────────────
+# core/engine.py (batch_apply) and core/checkpoint.py (create_checkpoint/rollback)
+# do real filesystem + git I/O; they are covered by integration tests
+# (tests/integration/test_batch_apply__*.py, test_create_checkpoint*.py), not by
+# mock-everything unit tests. Exempt from the 1:1 unit-mirror requirement.
+[tool.axm-audit.mirror]
+exempt_paths = ["core/engine.py", "core/checkpoint.py"]
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Deptry Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.deptry]
