@@ -1,6 +1,6 @@
 {
-  "score": 89.6,
-  "grade": "B",
+  "score": 92.1,
+  "grade": "A",
   "total": 23,
   "failed": 3,
   "success": false,
@@ -28,17 +28,17 @@
       "passed": true,
       "message": "Coupling: 1 module(s) above threshold (-3 pts)",
       "details": {
-        "max_fan_out": 15,
-        "max_fan_in": 38,
-        "avg_coupling": 5.27,
+        "max_fan_out": 18,
+        "max_fan_in": 8,
+        "avg_coupling": 3.93,
         "score": 97,
         "n_over_threshold": 1,
         "over_threshold": [
           {
-            "module": "axm_ast.cli",
-            "fan_out": 12,
-            "role": "leaf",
-            "effective_threshold": 10,
+            "module": "axm_anvil.core.move",
+            "fan_out": 18,
+            "role": "orchestrator",
+            "effective_threshold": 15,
             "severity": "warning"
           }
         ]
@@ -57,46 +57,36 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 50/100 (5 high-complexity functions)",
+      "message": "Complexity score: 70/100 (3 high-complexity functions)",
       "details": {
-        "high_complexity_count": 5,
+        "high_complexity_count": 3,
         "top_offenders": [
           {
-            "file": "callers.py",
-            "function": "_visit_references",
-            "cc": 11
-          },
-          {
-            "file": "impact.py",
-            "function": "analyze_impact",
+            "file": "move.py",
+            "function": "_classify_import",
             "cc": 10
           },
           {
-            "file": "impact.py",
-            "function": "_parse_impact_params",
+            "file": "move.py",
+            "function": "_drop_absent_symbols",
             "cc": 10
           },
           {
-            "file": "impact.py",
-            "function": "DocImpactHook",
-            "cc": 10
-          },
-          {
-            "file": "flows.py",
-            "function": "FlowsHook._trace_multi_entries",
+            "file": "move.py",
+            "function": "move_symbols",
             "cc": 10
           }
         ],
-        "score": 50
+        "score": 70
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 91% (91/100)",
+      "message": "Test coverage: 90% (90/100)",
       "details": {
-        "coverage": 91.07754927163667,
-        "score": 91,
+        "coverage": 90.26676279740447,
+        "score": 90,
         "failures": []
       }
     },
@@ -166,25 +156,29 @@
     {
       "rule_id": "DEPS_HYGIENE",
       "passed": true,
-      "message": "Clean dependencies (0 issues)",
+      "message": "1 dependency issue(s) found",
       "details": {
-        "issue_count": 0,
-        "score": 100,
-        "top_issues": []
+        "issue_count": 1,
+        "score": 90,
+        "top_issues": [
+          {
+            "code": "DEP002",
+            "module": "pydantic",
+            "message": "'pydantic' defined as a dependency but not used in the codebase"
+          }
+        ]
       }
     },
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 99% (183/184)",
+      "message": "Docstring coverage: 100% (40/40)",
       "details": {
-        "coverage": 0.99,
-        "total": 184,
-        "documented": 183,
-        "missing": [
-          "axm_ast/tools/_base.py:wrapper"
-        ],
-        "score": 99
+        "coverage": 1.0,
+        "total": 40,
+        "documented": 40,
+        "missing": [],
+        "score": 100
       }
     },
     {
@@ -209,15 +203,14 @@
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
-      "message": "4 source module(s) without tests",
+      "message": "3 source module(s) without tests",
       "details": {
         "missing": [
-          "_trace_protocol.py",
-          "doc_impact.py",
-          "git_coupling.py",
-          "inspect_resolve.py"
+          "__main__.py",
+          "cli.py",
+          "postprocess.py"
         ],
-        "score": 40
+        "score": 55
       }
     },
     {
@@ -238,7 +231,43 @@
         "high_count": 0,
         "medium_count": 0,
         "score": 100,
-        "top_issues": []
+        "top_issues": [
+          {
+            "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "postprocess.py",
+            "line": 5
+          },
+          {
+            "severity": "LOW",
+            "code": "B607",
+            "message": "Starting a process with a partial executable path",
+            "file": "postprocess.py",
+            "line": 18
+          },
+          {
+            "severity": "LOW",
+            "code": "B603",
+            "message": "subprocess call - check for execution of untrusted input.",
+            "file": "postprocess.py",
+            "line": 18
+          },
+          {
+            "severity": "LOW",
+            "code": "B112",
+            "message": "Try, Except, Continue detected.",
+            "file": "move.py",
+            "line": 1454
+          },
+          {
+            "severity": "LOW",
+            "code": "B112",
+            "message": "Try, Except, Continue detected.",
+            "file": "move.py",
+            "line": 1588
+          }
+        ]
       }
     },
     {

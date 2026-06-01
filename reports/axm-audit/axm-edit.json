@@ -1,6 +1,6 @@
 {
-  "score": 89.6,
-  "grade": "B",
+  "score": 94.8,
+  "grade": "A",
   "total": 23,
   "failed": 3,
   "success": false,
@@ -26,22 +26,14 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 1 module(s) above threshold (-3 pts)",
+      "message": "Coupling: 0 modules above threshold (max fan-out: 9)",
       "details": {
-        "max_fan_out": 15,
-        "max_fan_in": 38,
-        "avg_coupling": 5.27,
-        "score": 97,
-        "n_over_threshold": 1,
-        "over_threshold": [
-          {
-            "module": "axm_ast.cli",
-            "fan_out": 12,
-            "role": "leaf",
-            "effective_threshold": 10,
-            "severity": "warning"
-          }
-        ]
+        "max_fan_out": 9,
+        "max_fan_in": 11,
+        "avg_coupling": 4.57,
+        "score": 100,
+        "n_over_threshold": 0,
+        "over_threshold": []
       }
     },
     {
@@ -57,46 +49,31 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 50/100 (5 high-complexity functions)",
+      "message": "Complexity score: 80/100 (2 high-complexity functions)",
       "details": {
-        "high_complexity_count": 5,
+        "high_complexity_count": 2,
         "top_offenders": [
           {
-            "file": "callers.py",
-            "function": "_visit_references",
-            "cc": 11
-          },
-          {
-            "file": "impact.py",
-            "function": "analyze_impact",
+            "file": "edit_file.py",
+            "function": "EditFileTool.execute",
             "cc": 10
           },
           {
-            "file": "impact.py",
-            "function": "_parse_impact_params",
-            "cc": 10
-          },
-          {
-            "file": "impact.py",
-            "function": "DocImpactHook",
-            "cc": 10
-          },
-          {
-            "file": "flows.py",
-            "function": "FlowsHook._trace_multi_entries",
+            "file": "batch_edit.py",
+            "function": "_run_ruff",
             "cc": 10
           }
         ],
-        "score": 50
+        "score": 80
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 91% (91/100)",
+      "message": "Test coverage: 94% (93/100)",
       "details": {
-        "coverage": 91.07754927163667,
-        "score": 91,
+        "coverage": 93.840830449827,
+        "score": 93,
         "failures": []
       }
     },
@@ -176,15 +153,13 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 99% (183/184)",
+      "message": "Docstring coverage: 100% (32/32)",
       "details": {
-        "coverage": 0.99,
-        "total": 184,
-        "documented": 183,
-        "missing": [
-          "axm_ast/tools/_base.py:wrapper"
-        ],
-        "score": 99
+        "coverage": 1.0,
+        "total": 32,
+        "documented": 32,
+        "missing": [],
+        "score": 100
       }
     },
     {
@@ -209,15 +184,13 @@
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
-      "message": "4 source module(s) without tests",
+      "message": "2 source module(s) without tests",
       "details": {
         "missing": [
-          "_trace_protocol.py",
-          "doc_impact.py",
-          "git_coupling.py",
-          "inspect_resolve.py"
+          "checkpoint.py",
+          "engine.py"
         ],
-        "score": 40
+        "score": 70
       }
     },
     {
@@ -238,7 +211,43 @@
         "high_count": 0,
         "medium_count": 0,
         "score": 100,
-        "top_issues": []
+        "top_issues": [
+          {
+            "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "batch_edit.py",
+            "line": 8
+          },
+          {
+            "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "checkpoint.py",
+            "line": 9
+          },
+          {
+            "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "run_command.py",
+            "line": 10
+          },
+          {
+            "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "lint.py",
+            "line": 14
+          },
+          {
+            "severity": "LOW",
+            "code": "B607",
+            "message": "Starting a process with a partial executable path",
+            "file": "checkpoint.py",
+            "line": 28
+          }
+        ]
       }
     },
     {

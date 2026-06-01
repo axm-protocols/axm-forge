@@ -1,5 +1,5 @@
 {
-  "score": 93.9,
+  "score": 96.2,
   "grade": "A",
   "total": 23,
   "failed": 2,
@@ -116,29 +116,11 @@
     {
       "rule_id": "DEPS_AUDIT",
       "passed": false,
-      "message": "4 vulnerable package(s) found",
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 4,
-        "score": 40,
+        "vuln_count": 1,
+        "score": 85,
         "top_vulns": [
-          {
-            "name": "idna",
-            "version": "3.11",
-            "vuln_ids": [
-              "CVE-2026-45409"
-            ],
-            "fix_versions": [
-              "3.15"
-            ]
-          },
-          {
-            "name": "markdown",
-            "version": "3.10.2",
-            "vuln_ids": [
-              "PYSEC-2026-89"
-            ],
-            "fix_versions": []
-          },
           {
             "name": "pip",
             "version": "26.0.1",
@@ -148,16 +130,6 @@
             ],
             "fix_versions": [
               "26.1"
-            ]
-          },
-          {
-            "name": "pymdown-extensions",
-            "version": "10.21",
-            "vuln_ids": [
-              "CVE-2026-46338"
-            ],
-            "fix_versions": [
-              "10.21.3"
             ]
           }
         ]

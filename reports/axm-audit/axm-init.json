@@ -1,5 +1,5 @@
 {
-  "score": 92.2,
+  "score": 94.4,
   "grade": "A",
   "total": 23,
   "failed": 3,
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 10,
         "max_fan_in": 23,
-        "avg_coupling": 2.94,
+        "avg_coupling": 2.95,
         "score": 100,
         "n_over_threshold": 0,
         "over_threshold": []
@@ -72,7 +72,7 @@
       "passed": true,
       "message": "Test coverage: 96% (96/100)",
       "details": {
-        "coverage": 96.22566547477156,
+        "coverage": 96.2010288880095,
         "score": 96,
         "failures": []
       }
@@ -121,29 +121,11 @@
     {
       "rule_id": "DEPS_AUDIT",
       "passed": false,
-      "message": "4 vulnerable package(s) found",
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 4,
-        "score": 40,
+        "vuln_count": 1,
+        "score": 85,
         "top_vulns": [
-          {
-            "name": "idna",
-            "version": "3.11",
-            "vuln_ids": [
-              "CVE-2026-45409"
-            ],
-            "fix_versions": [
-              "3.15"
-            ]
-          },
-          {
-            "name": "markdown",
-            "version": "3.10.2",
-            "vuln_ids": [
-              "PYSEC-2026-89"
-            ],
-            "fix_versions": []
-          },
           {
             "name": "pip",
             "version": "26.0.1",
@@ -153,16 +135,6 @@
             ],
             "fix_versions": [
               "26.1"
-            ]
-          },
-          {
-            "name": "pymdown-extensions",
-            "version": "10.21",
-            "vuln_ids": [
-              "CVE-2026-46338"
-            ],
-            "fix_versions": [
-              "10.21.3"
             ]
           }
         ]
@@ -181,11 +153,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (115/115)",
+      "message": "Docstring coverage: 100% (116/116)",
       "details": {
         "coverage": 1.0,
-        "total": 115,
-        "documented": 115,
+        "total": 116,
+        "documented": 116,
         "missing": [],
         "score": 100
       }
@@ -212,7 +184,7 @@
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
-      "message": "11 source module(s) without tests",
+      "message": "12 source module(s) without tests",
       "details": {
         "missing": [
           "changelog.py",
@@ -222,6 +194,7 @@
           "filesystem.py",
           "gen_ref_pages.py",
           "makefile.py",
+          "ports.py",
           "pyproject.py",
           "structure.py",
           "tooling.py",

@@ -1,8 +1,8 @@
 {
-  "score": 84.7,
+  "score": 83.0,
   "grade": "B",
   "total": 23,
-  "failed": 3,
+  "failed": 4,
   "success": false,
   "checks": [
     {
@@ -26,13 +26,13 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 3 module(s) above threshold (-9 pts)",
+      "message": "Coupling: 6 module(s) above threshold (-18 pts)",
       "details": {
         "max_fan_out": 14,
-        "max_fan_in": 35,
-        "avg_coupling": 6.67,
-        "score": 91,
-        "n_over_threshold": 3,
+        "max_fan_in": 48,
+        "avg_coupling": 6.79,
+        "score": 82,
+        "n_over_threshold": 6,
         "over_threshold": [
           {
             "module": "axm_audit.core.rules.test_quality.duplicate_tests",
@@ -42,7 +42,28 @@
             "severity": "warning"
           },
           {
-            "module": "axm_audit.core.rules.quality",
+            "module": "axm_audit.core.fix.pipeline",
+            "fan_out": 12,
+            "role": "leaf",
+            "effective_threshold": 10,
+            "severity": "warning"
+          },
+          {
+            "module": "axm_audit.core.rules.quality_rules",
+            "fan_out": 11,
+            "role": "leaf",
+            "effective_threshold": 10,
+            "severity": "warning"
+          },
+          {
+            "module": "axm_audit.core.fix.stages_execute",
+            "fan_out": 11,
+            "role": "leaf",
+            "effective_threshold": 10,
+            "severity": "warning"
+          },
+          {
+            "module": "axm_audit.core.fix.layout_and_move",
             "fan_out": 11,
             "role": "leaf",
             "effective_threshold": 10,
@@ -71,18 +92,28 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 30/100 (7 high-complexity functions)",
+      "message": "Complexity score: 10/100 (9 high-complexity functions)",
       "details": {
-        "high_complexity_count": 7,
+        "high_complexity_count": 9,
         "top_offenders": [
-          {
-            "file": "duplicate_tests.py",
-            "function": "_load_duplicate_tests_config",
-            "cc": 14
-          },
           {
             "file": "dependencies.py",
             "function": "run_deptry",
+            "cc": 10
+          },
+          {
+            "file": "extract_helpers.py",
+            "function": "_index_tier_scan",
+            "cc": 10
+          },
+          {
+            "file": "pipeline.py",
+            "function": "_run_one_iteration",
+            "cc": 10
+          },
+          {
+            "file": "cst_rewrite.py",
+            "function": "_is_file_dunder_chain",
             "cc": 10
           },
           {
@@ -101,26 +132,26 @@
             "cc": 10
           },
           {
-            "file": "mirror.py",
-            "function": "MirrorRule._build_fix_hint",
-            "cc": 10
-          },
-          {
             "file": "anti_mirror.py",
             "function": "_collect_source_basenames",
             "cc": 10
+          },
+          {
+            "file": "mirror.py",
+            "function": "MirrorRule._build_fix_hint",
+            "cc": 10
           }
         ],
-        "score": 30
+        "score": 10
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": true,
-      "message": "Test coverage: 91% (91/100)",
+      "passed": false,
+      "message": "Test coverage: 87% (87/100)",
       "details": {
-        "coverage": 91.13422486379396,
-        "score": 91,
+        "coverage": 87.19342346626809,
+        "score": 87,
         "failures": []
       }
     },
@@ -168,29 +199,11 @@
     {
       "rule_id": "DEPS_AUDIT",
       "passed": false,
-      "message": "4 vulnerable package(s) found",
+      "message": "1 vulnerable package(s) found",
       "details": {
-        "vuln_count": 4,
-        "score": 40,
+        "vuln_count": 1,
+        "score": 85,
         "top_vulns": [
-          {
-            "name": "idna",
-            "version": "3.11",
-            "vuln_ids": [
-              "CVE-2026-45409"
-            ],
-            "fix_versions": [
-              "3.15"
-            ]
-          },
-          {
-            "name": "markdown",
-            "version": "3.10.2",
-            "vuln_ids": [
-              "PYSEC-2026-89"
-            ],
-            "fix_versions": []
-          },
           {
             "name": "pip",
             "version": "26.0.1",
@@ -200,16 +213,6 @@
             ],
             "fix_versions": [
               "26.1"
-            ]
-          },
-          {
-            "name": "pymdown-extensions",
-            "version": "10.21",
-            "vuln_ids": [
-              "CVE-2026-46338"
-            ],
-            "fix_versions": [
-              "10.21.3"
             ]
           }
         ]
@@ -228,22 +231,43 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 94% (124/132)",
+      "message": "Docstring coverage: 86% (179/208)",
       "details": {
-        "coverage": 0.94,
-        "total": 132,
-        "documented": 124,
+        "coverage": 0.86,
+        "total": 208,
+        "documented": 179,
         "missing": [
-          "axm_audit/core/rules/test_quality/duplicate_tests.py:make_test_func",
+          "axm_audit/core/fix/report.py:format_report",
+          "axm_audit/core/fix/extract_helpers.py:load_or_create_helpers_module",
+          "axm_audit/core/fix/extract_helpers.py:load_or_create_conftest_module",
+          "axm_audit/core/fix/stages_execute.py:visit_Name",
+          "axm_audit/core/fix/pipeline.py:run",
+          "axm_audit/core/fix/cst_rewrite.py:leave_Subscript",
+          "axm_audit/core/fix/cst_rewrite.py:leave_Attribute",
+          "axm_audit/core/fix/cst_rewrite.py:visit_Attribute",
+          "axm_audit/core/fix/cst_rewrite.py:key_of",
+          "axm_audit/core/fix/cst_rewrite.py:local_name",
+          "axm_audit/core/fix/cst_rewrite.py:is_duplicate",
+          "axm_audit/core/fix/cst_rewrite.py:record",
+          "axm_audit/core/fix/cst_rewrite.py:keep_aliases",
+          "axm_audit/core/fix/cst_rewrite.py:leave_Name",
+          "axm_audit/core/fix/cst_rewrite.py:leave_FunctionDef",
+          "axm_audit/core/fix/cst_rewrite.py:leave_ClassDef",
+          "axm_audit/core/fix/cst_rewrite.py:leave_SimpleString",
+          "axm_audit/core/fix/cst_rewrite.py:leave_Name",
+          "axm_audit/core/fix/cst_rewrite.py:leave_FunctionDef",
+          "axm_audit/core/fix/cst_rewrite.py:leave_SimpleString",
+          "axm_audit/core/fix/cst_rewrite.py:leave_Subscript",
           "axm_audit/core/rules/test_quality/_shared.py:load_conftest_fixtures",
-          "axm_audit/core/rules/test_quality/no_package_symbol.py:as_dict",
           "axm_audit/core/rules/test_quality/file_naming.py:current_name",
           "axm_audit/core/rules/test_quality/file_naming.py:distinct_non_empty_tuples",
           "axm_audit/core/rules/test_quality/file_naming.py:is_split",
           "axm_audit/core/rules/test_quality/file_naming.py:has_canonical",
-          "axm_audit/core/rules/test_quality/file_naming.py:as_dict"
+          "axm_audit/core/rules/test_quality/file_naming.py:as_dict",
+          "axm_audit/core/rules/test_quality/duplicate_tests.py:make_test_func",
+          "axm_audit/core/rules/test_quality/no_package_symbol.py:as_dict"
         ],
-        "score": 93
+        "score": 86
       }
     },
     {
@@ -294,43 +318,7 @@
         "high_count": 0,
         "medium_count": 0,
         "score": 100,
-        "top_issues": [
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "complexity.py",
-            "line": 8
-          },
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "dead_code.py",
-            "line": 8
-          },
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "quality.py",
-            "line": 9
-          },
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "runner.py",
-            "line": 11
-          },
-          {
-            "severity": "LOW",
-            "code": "B607",
-            "message": "Starting a process with a partial executable path",
-            "file": "dead_code.py",
-            "line": 83
-          }
-        ]
+        "top_issues": []
       }
     },
     {
