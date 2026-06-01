@@ -1,29 +1,26 @@
 from __future__ import annotations
 
 import libcst as cst
+import pytest
 
 from axm_anvil._cst.blocks import extract_blocks
 
 
-def test_extract_blocks_class() -> None:
-    tree = cst.parse_module("class Foo:\n    pass\n\nclass Bar:\n    pass\n")
-    blocks = extract_blocks(tree, ["Foo"])
+@pytest.mark.parametrize(
+    ("source", "symbol"),
+    [
+        pytest.param(
+            "class Foo:\n    pass\n\nclass Bar:\n    pass\n", "Foo", id="class"
+        ),
+        pytest.param("def f():\n    pass\n", "f", id="function"),
+        pytest.param("CONST = 42\n", "CONST", id="assignment"),
+    ],
+)
+def test_extract_blocks_single_symbol(source: str, symbol: str) -> None:
+    tree = cst.parse_module(source)
+    blocks = extract_blocks(tree, [symbol])
     assert len(blocks) == 1
-    assert blocks[0].name == "Foo"
-
-
-def test_extract_blocks_function() -> None:
-    tree = cst.parse_module("def f():\n    pass\n")
-    blocks = extract_blocks(tree, ["f"])
-    assert len(blocks) == 1
-    assert blocks[0].name == "f"
-
-
-def test_extract_blocks_assignment() -> None:
-    tree = cst.parse_module("CONST = 42\n")
-    blocks = extract_blocks(tree, ["CONST"])
-    assert len(blocks) == 1
-    assert blocks[0].name == "CONST"
+    assert blocks[0].name == symbol
 
 
 def test_extract_blocks_missing_symbol() -> None:
