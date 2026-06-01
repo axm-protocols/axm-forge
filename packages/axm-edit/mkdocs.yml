@@ -1,4 +1,4 @@
-site_name: axm-edit
+site_name: edit
 site_description: Atomic batch file editing for AI agents — replace, create, and delete files in a single MCP tool call
 site_url: https://axm-protocols.github.io/axm-edit
 repo_url: https://github.com/axm-protocols/axm-edit
