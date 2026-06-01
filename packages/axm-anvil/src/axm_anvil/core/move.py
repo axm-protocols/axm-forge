@@ -898,6 +898,24 @@ def _constant_name(stmt: cst.SimpleStatementLine) -> str | None:
     return None
 
 
+def _is_dunder_all_assign(inner: cst.BaseSmallStatement) -> bool:
+    if not isinstance(inner, cst.Assign) or len(inner.targets) != 1:
+        return False
+    target = inner.targets[0].target
+    return isinstance(target, cst.Name) and target.value == "__all__"
+
+
+def _string_elements(value: cst.BaseExpression) -> list[str]:
+    if not isinstance(value, cst.List | cst.Tuple):
+        return []
+    return [
+        element.value.raw_value
+        for element in value.elements
+        if isinstance(element, cst.Element)
+        and isinstance(element.value, cst.SimpleString)
+    ]
+
+
 def _dunder_all_names(tree: cst.Module) -> list[str]:
     """Return the string names declared in a module-level ``__all__`` literal.
 
@@ -910,19 +928,8 @@ def _dunder_all_names(tree: cst.Module) -> list[str]:
         if not isinstance(stmt, cst.SimpleStatementLine):
             continue
         for inner in stmt.body:
-            if not isinstance(inner, cst.Assign):
-                continue
-            target = inner.targets[0].target if len(inner.targets) == 1 else None
-            if not (isinstance(target, cst.Name) and target.value == "__all__"):
-                continue
-            if not isinstance(inner.value, cst.List | cst.Tuple):
-                continue
-            return [
-                element.value.raw_value
-                for element in inner.value.elements
-                if isinstance(element, cst.Element)
-                and isinstance(element.value, cst.SimpleString)
-            ]
+            if _is_dunder_all_assign(inner):
+                return _string_elements(inner.value)  # type: ignore[attr-defined]
     return []
 
 
