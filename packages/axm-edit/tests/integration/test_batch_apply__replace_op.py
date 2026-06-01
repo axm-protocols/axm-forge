@@ -1,11 +1,150 @@
-"""Split from ``test_engine.py``."""
-
-from __future__ import annotations
+"""Split from ``test_batch_apply_atomicity_security.py``."""
 
 from pathlib import Path
 
+import pytest
+
 from axm_edit.core.engine import batch_apply
 from axm_edit.models.operations import Edit, ReplaceOp
+
+
+def test_path_traversal_in_replace(tmp_project: Path) -> None:
+    ops = [
+        ReplaceOp(
+            file="../etc/passwd",
+            edits=[Edit(line=1, old="a", new="b")],
+        ),
+    ]
+    result = batch_apply(tmp_project, ops)
+    assert not result.success
+
+
+class TestMultiLineEdit:
+    """Tests for multi-line old/new replacements."""
+
+    def test_multi_line_old(self, tmp_project: Path) -> None:
+        """old=`import os\\nimport sys` should match lines 1-2."""
+        ops = [
+            ReplaceOp(
+                file="src/foo.py",
+                edits=[
+                    Edit(
+                        line=1,
+                        old="import os\nimport sys",
+                        new="import pathlib",
+                    ),
+                ],
+            ),
+        ]
+        result = batch_apply(tmp_project, ops)
+        assert result.success
+        content = (tmp_project / "src" / "foo.py").read_text()
+        assert content.startswith("import pathlib\n")
+        assert "import os" not in content
+        assert "import sys" not in content
+
+
+def test_no_line_auto_search(tmp_project: Path) -> None:
+    """line=None → searches entire file for `old`."""
+    ops = [
+        ReplaceOp(
+            file="src/foo.py",
+            edits=[
+                Edit(old="def hello():", new="def hello(x: int):"),
+            ],
+        ),
+    ]
+    result = batch_apply(tmp_project, ops)
+    assert result.success
+    content = (tmp_project / "src" / "foo.py").read_text()
+    assert "def hello(x: int):" in content
+
+
+def test_ambiguous_old_rejected(tmp_project: Path) -> None:
+    """old appears multiple times, no line hint → rejected."""
+    # Write a file with duplicate content
+    (tmp_project / "src" / "dup.py").write_text(
+        "x = 1\nx = 1\ny = 2\n",
+    )
+    ops = [
+        ReplaceOp(
+            file="src/dup.py",
+            edits=[Edit(old="x = 1", new="x = 99")],
+        ),
+    ]
+    result = batch_apply(tmp_project, ops)
+    assert not result.success
+    assert any("ambiguous" in (d.error or "").lower() for d in result.details)
+
+
+def test_old_not_found(tmp_project: Path) -> None:
+    """old content doesn't exist anywhere → rejected."""
+    ops = [
+        ReplaceOp(
+            file="src/foo.py",
+            edits=[
+                Edit(old="NONEXISTENT_CONTENT", new="whatever"),
+            ],
+        ),
+    ]
+    result = batch_apply(tmp_project, ops)
+    assert not result.success
+    assert any("not found" in (d.error or "").lower() for d in result.details)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        pytest.param(1, id="exact_line"),
+        pytest.param(2, id="off_by_one"),
+        pytest.param(6, id="off_by_five"),
+        pytest.param(None, id="no_line_auto_search"),
+    ],
+)
+def test_single_import_replace_by_line_hint(
+    tmp_project: Path, line: int | None
+) -> None:
+    """Replacing `import os` succeeds for exact/fuzzy/no line hints."""
+    ops = [
+        ReplaceOp(
+            file="src/foo.py",
+            edits=[Edit(line=line, old="import os", new="import pathlib")],
+        ),
+    ]
+    result = batch_apply(tmp_project, ops)
+    assert result.success
+    content = (tmp_project / "src" / "foo.py").read_text()
+    assert "import pathlib" in content
+    assert "import os" not in content
+
+
+def test_old_mismatch_fails(tmp_project: Path) -> None:
+    """If `old` doesn't match file content, nothing is touched."""
+    original = (tmp_project / "src" / "foo.py").read_text()
+    ops = [
+        ReplaceOp(
+            file="src/foo.py",
+            edits=[Edit(line=1, old="WRONG", new="import pathlib")],
+        ),
+    ]
+    result = batch_apply(tmp_project, ops)
+    assert not result.success
+    assert result.error == "Validation failed"
+    assert len(result.details) >= 1
+    # File must be untouched
+    assert (tmp_project / "src" / "foo.py").read_text() == original
+
+
+def test_file_not_found_fails(tmp_project: Path) -> None:
+    ops = [
+        ReplaceOp(
+            file="nope.py",
+            edits=[Edit(line=1, old="a", new="b")],
+        ),
+    ]
+    result = batch_apply(tmp_project, ops)
+    assert not result.success
+    assert any("not found" in (d.error or "") for d in result.details)
 
 
 class TestIndentNormalized:

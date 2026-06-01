@@ -23,3 +23,9 @@ class TestDelete:
         result = batch_apply(tmp_project, ops)
         assert not result.success
         assert any("not found" in (d.error or "") for d in result.details)
+
+
+def test_path_traversal_in_delete(tmp_project: Path) -> None:
+    ops = [DeleteOp(file="../etc/passwd")]
+    result = batch_apply(tmp_project, ops)
+    assert not result.success

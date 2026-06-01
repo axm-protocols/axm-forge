@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from axm_edit.services.lint import claude_fix
+from tests.integration._helpers import _make_errors
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -34,11 +35,6 @@ def multi_file_project(tmp_path: Path) -> Path:
     )
     (tmp_path / "file_b.py").write_text("try:\n    d = 4\nexcept:\n    pass\n")
     return tmp_path
-
-
-def _make_errors(file: str, codes: list[str], *, line: int = 1) -> list[str]:
-    """Build ruff-style error strings."""
-    return [f"{file}:{line}:{1}: {code} Some error description" for code in codes]
 
 
 def _claude_completed(stdout: str = "") -> subprocess.CompletedProcess[str]:
