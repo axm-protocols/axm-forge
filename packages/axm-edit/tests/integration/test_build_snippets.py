@@ -5,21 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from axm_edit.services.lint import build_snippets
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_errors(file: str, codes: list[str], *, line: int = 1) -> list[str]:
-    """Build ruff-style error strings."""
-    return [f"{file}:{line}:{1}: {code} Some error description" for code in codes]
-
-
-def _write_lines(path: Path, lines: list[str]) -> None:
-    """Write lines to a file with trailing newline."""
-    path.write_text("\n".join(lines) + "\n")
-
+from tests.integration._helpers import _make_errors, _write_lines
 
 # ---------------------------------------------------------------------------
 # Edge cases

@@ -5,16 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from axm_edit.services.lint import find_header_end
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _write_lines(path: Path, lines: list[str]) -> None:
-    """Write lines to a file with trailing newline."""
-    path.write_text("\n".join(lines) + "\n")
-
+from tests.integration._helpers import _write_lines
 
 # ---------------------------------------------------------------------------
 # Unit tests — find_header_end

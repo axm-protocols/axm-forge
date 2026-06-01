@@ -43,3 +43,10 @@ class TestCreate:
         result = batch_apply(tmp_project, ops)
         assert result.success
         assert (tmp_project / "src" / "auth" / "__init__.py").exists()
+
+
+def test_path_traversal_rejected(tmp_project: Path) -> None:
+    ops = [CreateOp(file="../etc/passwd", content="hacked")]
+    result = batch_apply(tmp_project, ops)
+    assert not result.success
+    assert any("traversal" in (d.error or "").lower() for d in result.details)

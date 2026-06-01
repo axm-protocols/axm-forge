@@ -42,31 +42,6 @@ class TestMixedOperations:
         assert not (tmp_project / "README.md").exists()
 
 
-class TestSecurity:
-    """Tests for security constraints."""
-
-    def test_path_traversal_rejected(self, tmp_project: Path) -> None:
-        ops = [CreateOp(file="../etc/passwd", content="hacked")]
-        result = batch_apply(tmp_project, ops)
-        assert not result.success
-        assert any("traversal" in (d.error or "").lower() for d in result.details)
-
-    def test_path_traversal_in_replace(self, tmp_project: Path) -> None:
-        ops = [
-            ReplaceOp(
-                file="../etc/passwd",
-                edits=[Edit(line=1, old="a", new="b")],
-            ),
-        ]
-        result = batch_apply(tmp_project, ops)
-        assert not result.success
-
-    def test_path_traversal_in_delete(self, tmp_project: Path) -> None:
-        ops = [DeleteOp(file="../etc/passwd")]
-        result = batch_apply(tmp_project, ops)
-        assert not result.success
-
-
 class TestAtomicity:
     """Tests that partial failures leave the project untouched."""
 
