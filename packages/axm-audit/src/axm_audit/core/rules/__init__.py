@@ -18,7 +18,7 @@ from axm_audit.core.rules.practices.bare_except import BareExceptRule
 from axm_audit.core.rules.practices.blocking_io import BlockingIORule
 from axm_audit.core.rules.practices.docstring_coverage import DocstringCoverageRule
 from axm_audit.core.rules.practices.mirror import MirrorRule
-from axm_audit.core.rules.quality import (
+from axm_audit.core.rules.quality_rules import (
     DiffSizeRule,
     FormattingRule,
     LintingRule,

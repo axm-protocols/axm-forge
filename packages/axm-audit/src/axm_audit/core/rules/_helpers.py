@@ -37,7 +37,7 @@ def iter_src_dirs(project_path: Path) -> list[Path]:
     * Otherwise — returns ``[]``.
 
     Note: this is unrelated to the older
-    ``axm_audit.core.rules.quality._get_audit_targets`` which returns
+    ``axm_audit.core.rules.quality_rules._get_audit_targets`` which returns
     ``(list[str], str)`` of ruff/mypy CLI args.
     """
     src_dir = project_path / "src"

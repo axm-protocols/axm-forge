@@ -113,7 +113,7 @@ ignore = ["S101"]
 # (subprocess controls all args; no untrusted input).
 "tests/fixtures/fix_corpus/conftest.py" = ["S603", "S607"]
 "tests/fixtures/fix_corpus/regenerate.py" = ["S603", "S607"]
-"src/axm_audit/core/rules/quality.py" = ["S603", "S607"]
+"src/axm_audit/core/rules/quality_rules.py" = ["S603", "S607"]
 "src/axm_audit/core/rules/dependencies.py" = ["S603", "S607"]
 "src/axm_audit/cli.py" = ["T201", "PLR0913"]
 "src/axm_audit/core/test_runner.py" = ["PLR0913"]
@@ -590,7 +590,7 @@ ignore_missing_imports = true
 # Python ast module both surface untyped values that explode mypy strict-mode
 # (no-any-unimported, no-any-explicit, no-any-return). Relax strictness here
 # rather than scatter inline `type: ignore`s — same pragmatic posture used by
-# axm_audit.core.rules.quality for untyped third-party calls.
+# axm_audit.core.rules.quality_rules for untyped third-party calls.
 [[tool.mypy.overrides]]
 module = ["axm_audit.core.fix.*"]
 disallow_any_unimported = false
@@ -614,7 +614,7 @@ disable_error_code = [
 ]
 
 [[tool.mypy.overrides]]
-module = ["axm_audit.core.rules.quality"]
+module = ["axm_audit.core.rules.quality_rules"]
 disallow_untyped_calls = false
 
 

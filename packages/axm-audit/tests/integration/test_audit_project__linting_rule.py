@@ -4,7 +4,7 @@
 def test_rule_exception_doesnt_crash_others(tmp_path, mocker):
     """One rule raising should not prevent others from completing."""
     from axm_audit.core.auditor import audit_project
-    from axm_audit.core.rules.quality import LintingRule
+    from axm_audit.core.rules.quality_rules import LintingRule
 
     (tmp_path / "pyproject.toml").write_text("[project]\nname='test'")
     (tmp_path / "src").mkdir()
@@ -32,7 +32,7 @@ def test_rule_exception_doesnt_crash_others(tmp_path, mocker):
 def test_traceback_truncated_500(tmp_path, mocker):
     """Traceback in details is truncated to last 500 characters."""
     from axm_audit.core.auditor import audit_project
-    from axm_audit.core.rules.quality import LintingRule
+    from axm_audit.core.rules.quality_rules import LintingRule
 
     (tmp_path / "pyproject.toml").write_text("[project]\nname='test'")
     (tmp_path / "src").mkdir()
