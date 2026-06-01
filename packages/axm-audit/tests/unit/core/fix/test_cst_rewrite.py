@@ -348,4 +348,6 @@ def test_extend_recoverable_unresolved_name_no_keyerror(tmp_path: Path) -> None:
 
     result = _backfill_missing_imports(source, target, tmp_path)
 
-    assert isinstance(result, list)
+    assert len(result) == 1
+    assert "TotallyUnknownName" in result[0]
+    assert "no donor found" in result[0]

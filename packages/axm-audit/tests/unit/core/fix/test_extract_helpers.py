@@ -45,6 +45,8 @@ def test_load_or_create_helpers_module_synthesizes_when_absent() -> None:
         "tests.unit._helpers",
     )
     assert module is not None
+    assert "tests/unit" in module.code
+    assert "from tests.unit._helpers import <name>" in module.code
 
 
 def test_load_or_create_helpers_module_embeds_tier_and_module_path() -> None:
@@ -75,6 +77,8 @@ def test_load_or_create_conftest_module_synthesizes_when_absent() -> None:
     """_load_or_create_conftest_module parses a fresh stub for a missing path."""
     module = load_or_create_conftest_module(_ABSENT_ROOT / "tests" / "conftest.py")
     assert module is not None
+    assert "@pytest.fixture" in module.code
+    assert "from __future__ import annotations" in module.code
 
 
 def test_load_or_create_conftest_module_includes_future_import() -> None:
