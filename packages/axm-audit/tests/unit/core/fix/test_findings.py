@@ -38,10 +38,51 @@ def _class(src: str) -> ast.ClassDef:
 # ── _findings: normalization branches ─────────────────────────────────
 
 
-def test_findings_reads_details_dict_findings() -> None:
-    """_findings prefers a list of dicts under check.details['findings']."""
-    check = SimpleNamespace(details={"findings": [{"path": "a.py"}]})
-    assert normalize_findings(check) == [{"path": "a.py"}]
+@pytest.mark.parametrize(
+    ("check", "expected"),
+    [
+        pytest.param(
+            SimpleNamespace(details={"findings": [{"path": "a.py"}]}),
+            [{"path": "a.py"}],
+            id="dict-findings",
+        ),
+        pytest.param(
+            SimpleNamespace(
+                details={
+                    "findings": [
+                        SimpleNamespace(
+                            model_dump=lambda: {"path": "m.py", "rule": "R"}
+                        )
+                    ]
+                }
+            ),
+            [{"path": "m.py", "rule": "R"}],
+            id="model-dump-objects",
+        ),
+        pytest.param(
+            SimpleNamespace(details={"findings": [SimpleNamespace(path="v.py")]}),
+            [{"path": "v.py"}],
+            id="plain-objects-via-vars",
+        ),
+        pytest.param(
+            SimpleNamespace(
+                details={
+                    "findings": [
+                        {"path": "d.py"},
+                        SimpleNamespace(model_dump=lambda: {"path": "o.py"}),
+                    ]
+                }
+            ),
+            [{"path": "d.py"}, {"path": "o.py"}],
+            id="mixed-dict-and-object",
+        ),
+    ],
+)
+def test_findings_normalizes_entries(
+    check: SimpleNamespace, expected: list[dict[str, str]]
+) -> None:
+    """_findings normalizes dict, model_dump and vars-based entries in order."""
+    assert normalize_findings(check) == expected
 
 
 def test_findings_falls_back_to_findings_attr() -> None:
@@ -67,31 +108,6 @@ def test_findings_falls_back_when_details_not_dict() -> None:
 def test_findings_returns_empty_for_no_findings(check: SimpleNamespace) -> None:
     """_findings returns [] when no usable findings are present."""
     assert normalize_findings(check) == []
-
-
-def test_findings_normalizes_model_dump_objects() -> None:
-    """_findings calls model_dump() on finding objects that expose it."""
-    item = SimpleNamespace(model_dump=lambda: {"path": "m.py", "rule": "R"})
-    check = SimpleNamespace(details={"findings": [item]})
-    assert normalize_findings(check) == [{"path": "m.py", "rule": "R"}]
-
-
-def test_findings_normalizes_plain_objects_via_vars() -> None:
-    """_findings falls back to vars() for plain objects without model_dump."""
-
-    class _Raw:
-        def __init__(self) -> None:
-            self.path = "v.py"
-
-    check = SimpleNamespace(details={"findings": [_Raw()]})
-    assert normalize_findings(check) == [{"path": "v.py"}]
-
-
-def test_findings_mixes_dict_and_object_entries() -> None:
-    """_findings normalizes a heterogeneous list preserving order."""
-    obj = SimpleNamespace(model_dump=lambda: {"path": "o.py"})
-    check = SimpleNamespace(details={"findings": [{"path": "d.py"}, obj]})
-    assert normalize_findings(check) == [{"path": "d.py"}, {"path": "o.py"}]
 
 
 # ── _func_canonical: integration tier ─────────────────────────────────
@@ -126,33 +142,33 @@ def test_func_canonical_integration_single_symbol() -> None:
     assert name == "test_resolver.py"
 
 
-def test_func_canonical_integration_two_symbols_sorted_joined() -> None:
-    """Two first-party symbols are snake-cased, alphabetized and joined by __."""
-    src = """
+@pytest.mark.parametrize(
+    ("src", "expected"),
+    [
+        pytest.param(
+            """
         from pkg.mod import Resolver, Cache
 
         def test_it():
             Resolver()
             Cache()
-    """
-    name = func_canonical(
-        _func(src),
-        _module(src),
-        tier="integration",
-        pkg_prefixes={"pkg"},
-        scripts=set(),
-        single_binary=None,
-    )
-    assert name == "test_cache__resolver.py"
-
-
-def test_func_canonical_integration_unknown_without_first_party() -> None:
-    """With no first-party symbols the integration canonical is test_UNKNOWN.py."""
-    src = """
+    """,
+            "test_cache__resolver.py",
+            id="two-symbols-sorted-joined",
+        ),
+        pytest.param(
+            """
         def test_it():
             x = 1
             assert x == 1
-    """
+    """,
+            "test_UNKNOWN.py",
+            id="unknown-without-first-party",
+        ),
+    ],
+)
+def test_func_canonical_integration(src: str, expected: str) -> None:
+    """func_canonical names integration tests from their first-party symbols."""
     name = func_canonical(
         _func(src),
         _module(src),
@@ -161,39 +177,39 @@ def test_func_canonical_integration_unknown_without_first_party() -> None:
         scripts=set(),
         single_binary=None,
     )
-    assert name == "test_UNKNOWN.py"
+    assert name == expected
 
 
 # ── _func_canonical: e2e tier ─────────────────────────────────────────
 
 
-def test_func_canonical_e2e_single_binary_strips_prefix() -> None:
-    """Single-binary e2e collapses (bin, sub) to the sub-command token."""
-    src = """
+@pytest.mark.parametrize(
+    ("src", "expected"),
+    [
+        pytest.param(
+            """
         import subprocess
 
         def test_it():
             subprocess.run(["axm-audit", "audit"])
-    """
-    name = func_canonical(
-        _func(src),
-        _module(src),
-        tier="e2e",
-        pkg_prefixes=set(),
-        scripts={"axm-audit"},
-        single_binary="axm-audit",
-    )
-    assert name == "test_audit.py"
-
-
-def test_func_canonical_e2e_bare_binary_keeps_binary_token() -> None:
-    """A bare-binary invocation surfaces the snake-cased binary name."""
-    src = """
+    """,
+            "test_audit.py",
+            id="single-binary-strips-prefix",
+        ),
+        pytest.param(
+            """
         import subprocess
 
         def test_it():
             subprocess.run(["axm-audit"])
-    """
+    """,
+            "test_axm_audit.py",
+            id="bare-binary-keeps-binary-token",
+        ),
+    ],
+)
+def test_func_canonical_e2e_single_binary(src: str, expected: str) -> None:
+    """Single-binary e2e collapses or surfaces the binary token as needed."""
     name = func_canonical(
         _func(src),
         _module(src),
@@ -202,7 +218,7 @@ def test_func_canonical_e2e_bare_binary_keeps_binary_token() -> None:
         scripts={"axm-audit"},
         single_binary="axm-audit",
     )
-    assert name == "test_axm_audit.py"
+    assert name == expected
 
 
 def test_func_canonical_e2e_multi_binary_keeps_bin_and_sub() -> None:
@@ -227,9 +243,11 @@ def test_func_canonical_e2e_multi_binary_keeps_bin_and_sub() -> None:
 # ── class_needs_flatten ───────────────────────────────────────────────
 
 
-def test_class_needs_flatten_true_for_divergent_methods() -> None:
-    """A class whose methods target distinct symbols needs flattening."""
-    src = """
+@pytest.mark.parametrize(
+    ("src", "expected"),
+    [
+        pytest.param(
+            """
         from pkg.mod import Resolver, Cache
 
         class TestThings:
@@ -237,24 +255,12 @@ def test_class_needs_flatten_true_for_divergent_methods() -> None:
                 Resolver()
             def test_b(self):
                 Cache()
-    """
-    cls = _class(src)
-    assert (
-        class_needs_flatten(
-            cls,
-            _module(src),
-            tier="integration",
-            pkg_prefixes={"pkg"},
-            scripts=set(),
-            single_binary=None,
-        )
-        is True
-    )
-
-
-def test_class_needs_flatten_false_for_shared_symbol() -> None:
-    """A class whose methods share one symbol resolves to a single canonical."""
-    src = """
+    """,
+            True,
+            id="divergent-methods",
+        ),
+        pytest.param(
+            """
         from pkg.mod import Resolver
 
         class TestThings:
@@ -262,30 +268,25 @@ def test_class_needs_flatten_false_for_shared_symbol() -> None:
                 Resolver()
             def test_b(self):
                 Resolver()
-    """
-    cls = _class(src)
-    assert (
-        class_needs_flatten(
-            cls,
-            _module(src),
-            tier="integration",
-            pkg_prefixes={"pkg"},
-            scripts=set(),
-            single_binary=None,
-        )
-        is False
-    )
-
-
-def test_class_needs_flatten_false_for_single_method() -> None:
-    """A class with one test method has a single canonical and stays unsplit."""
-    src = """
+    """,
+            False,
+            id="shared-symbol",
+        ),
+        pytest.param(
+            """
         from pkg.mod import Resolver
 
         class TestThings:
             def test_only(self):
                 Resolver()
-    """
+    """,
+            False,
+            id="single-method",
+        ),
+    ],
+)
+def test_class_needs_flatten_integration(src: str, expected: bool) -> None:
+    """class_needs_flatten splits only when integration symbols diverge."""
     cls = _class(src)
     assert (
         class_needs_flatten(
@@ -296,5 +297,5 @@ def test_class_needs_flatten_false_for_single_method() -> None:
             scripts=set(),
             single_binary=None,
         )
-        is False
+        is expected
     )

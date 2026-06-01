@@ -593,6 +593,10 @@ reason = "Inter-file integration cluster pairs `audit` (test_audit.py) and `test
 hash = "4a2579591443"
 reason = "Inter-file cluster pairs test_plan_naming.py (integration) and test_layout_and_move.py (unit) — different SUTs (naming-plan vs layout/move) at different pyramid tiers with distinct fixtures and assertion targets. Cross-tier, cross-module fold forbidden. Distinct-SUT — ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "88beddac7a68"
+reason = "Tests exercise two distinct public SUTs that share an empty-project boundary: extract_shared_helpers_once (single sweep) vs extract_shared_helpers (fixed-point loop); each needs its own mirror coverage and parametrizing over the callable would erase which function is verified. Distinct-SUT — ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
