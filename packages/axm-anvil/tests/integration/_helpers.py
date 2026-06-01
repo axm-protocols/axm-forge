@@ -32,3 +32,28 @@ def _write_pyproject__from_move_cycle_detection(
     (root / "pyproject.toml").write_text(
         f'[project]\nname = "{name}"\nversion = "0.1.0"\n'
     )
+
+
+SOURCE_WITH_METHOD = (
+    '"""Source module."""\n\n\n'
+    "def real_toplevel() -> int:\n"
+    "    return 42\n\n\n"
+    "class TestBasicThing:\n"
+    "    def test_basic(self) -> None:\n"
+    "        assert True\n"
+)
+
+
+def _write_workspace(root: Path) -> None:
+    """Lay out a two-member uv workspace (pkg_a, pkg_b) under ``root``."""
+    (root / "pyproject.toml").write_text(
+        '[tool.uv.workspace]\nmembers = ["packages/pkg_a", "packages/pkg_b"]\n'
+    )
+    for name in ("pkg_a", "pkg_b"):
+        member = root / "packages" / name
+        pkg = member / "src" / name
+        pkg.mkdir(parents=True)
+        (member / "pyproject.toml").write_text(
+            f'[project]\nname = "{name}"\nversion = "0.1.0"\n'
+        )
+        (pkg / "__init__.py").write_text("")
