@@ -11,7 +11,7 @@ Every audit returns an `AuditResult` with these properties:
 | `success` | `bool` | `True` if all checks passed |
 | `total` | `int` | Total number of checks |
 | `failed` | `int` | Number of failed checks |
-| `quality_score` | `float \| None` | Composite score 0–100 (10-category weighted). `None` when auditing a single category with `--category` |
+| `quality_score` | `float \| None` | Composite score 0–100 (9-category weighted). `None` when auditing a single category with `--category` |
 | `grade` | `str \| None` | Letter grade A–F. `None` when `quality_score` is `None` |
 
 ## CheckResult Object
@@ -127,18 +127,21 @@ When `coverage` is `None` (targeted/files runs), the coverage section is omitted
 
 ## Scoring
 
-The `quality_score` is computed from 8 weighted categories:
+The `quality_score` is computed from 9 weighted categories:
 
 | Category | Weight |
 |---|---|
-| Linting (Ruff) | 20% |
+| Linting (Ruff) | 15% |
 | Type Safety (mypy) | 15% |
 | Complexity (radon) | 15% |
 | Security (Bandit) | 10% |
 | Dependencies (pip-audit + deptry) | 10% |
-| Testing (pytest-cov) | 15% |
+| Testing (pytest-cov) | 10% |
+| Test Quality (AST analysis) | 10% |
 | Architecture (AST analysis) | 10% |
 | Practices (AST analysis) | 5% |
+
+The `structure` and `tooling` categories emit findings but are not scored.
 
 For details, see [Scoring & Grades](../explanation/scoring.md).
 

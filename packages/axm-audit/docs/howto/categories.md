@@ -12,7 +12,7 @@ Focus your audit on specific areas instead of running all checks.
 | `security` | `SecurityRule`, `SecurityPatternRule` | Vulnerability detection (Bandit + patterns) |
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | Supply chain (pip-audit, deptry) |
 | `testing` | `TestCoverageRule` | Coverage enforcement (pytest-cov) |
-| `test_quality` | `PrivateImportsRule` | Test-tree heuristics: private-symbol imports (pyramid level, tautologies, mock hygiene land incrementally) |
+| `test_quality` | `DuplicateTestsRule`, `FileNamingRule`, `NoPackageSymbolRule`, `PrivateImportsRule`, `PyramidLevelRule`, `TautologyRule` | Test-suite hygiene: pyramid level, duplicates, canonical file naming, package-symbol coverage, private-symbol imports, tautologies |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | Structural analysis (AST) |
 | `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `MirrorRule`, `AntiMirrorRule` | Best practices (mirror = unit-tests 1:1 with src; anti-mirror = integration/e2e must be scenario-named) |
 | `structure` | `PyprojectCompletenessRule`, `TestsPyramidRule` | pyproject.toml completeness; test pyramid layout (unit/integration/e2e + pytest markers) |
