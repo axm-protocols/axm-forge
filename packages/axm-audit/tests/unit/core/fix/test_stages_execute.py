@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+
+import pytest
 
 from axm_audit.core.fix.models import FileOp
 from axm_audit.core.fix.stages_execute import (
@@ -70,58 +73,93 @@ def test_reroute_skipped_when_source_missing() -> None:
     assert msgs == [f"relocate skipped: source missing ({src})"]
 
 
-def test_split_skipped_when_source_not_integration_or_e2e() -> None:
-    """_execute_split skips when the source is not under integration|e2e."""
-    src = _ABSENT_ROOT / "tests/unit/test_x.py"
+@pytest.mark.parametrize(
+    ("rel_path", "expected_reason"),
+    [
+        pytest.param(
+            "tests/unit/test_x.py",
+            "source not under tests/integration|e2e",
+            id="non-canonical-tier",
+        ),
+        pytest.param(
+            "tests/integration/test_x.py",
+            "source missing",
+            id="integration-source-absent",
+        ),
+    ],
+)
+def test_split_skipped_with_reason(rel_path: str, expected_reason: str) -> None:
+    """_execute_split skips with the guard-specific reason (bad-tier vs missing)."""
+    src = _ABSENT_ROOT / rel_path
     op = _make_op("split", src, [src])
     msgs = execute_split(op, _ABSENT_ROOT)
-    assert msgs == [f"split skipped: source not under tests/integration|e2e ({src})"]
+    assert msgs == [f"split skipped: {expected_reason} ({src})"]
 
 
-def test_split_skipped_when_source_missing() -> None:
-    """_execute_split skips when an integration source path is absent."""
-    src = _ABSENT_ROOT / "tests/integration/test_x.py"
-    op = _make_op("split", src, [src])
-    msgs = execute_split(op, _ABSENT_ROOT)
-    assert msgs == [f"split skipped: source missing ({src})"]
+def _single_flatten_ops() -> list[FileOp]:
+    return [
+        _make_op(
+            "flatten", _ABSENT_ROOT / "tests/integration/test_x.py", _ABSENT_ROOT / "x"
+        )
+    ]
 
 
-def test_execute_dispatches_each_kind_to_its_executor() -> None:
-    """execute() routes flatten ops to _execute_flatten and aggregates warnings."""
-    op = _make_op(
-        "flatten", _ABSENT_ROOT / "tests/integration/test_x.py", _ABSENT_ROOT / "x"
-    )
-    warnings = execute([op], _ABSENT_ROOT)
-    assert warnings == ["flatten skipped: r (test_x.py)"]
-
-
-def test_execute_routes_split_and_merge_kinds() -> None:
-    """execute() dispatches split and merge ops to their respective executors."""
+def _split_and_merge_ops() -> list[FileOp]:
     split_src = _ABSENT_ROOT / "tests/integration/test_a.py"
-    split_op = _make_op("split", split_src, [split_src])
     merge_src = _ABSENT_ROOT / "test_b.py"
     merge_tgt = _ABSENT_ROOT / "test_c.py"
-    merge_op = _make_op("merge", merge_src, merge_tgt)
-    warnings = execute([split_op, merge_op], _ABSENT_ROOT)
-    assert warnings == [
-        f"split skipped: source missing ({split_src})",
-        f"merge skipped: missing ({merge_src} -> {merge_tgt})",
+    return [
+        _make_op("split", split_src, [split_src]),
+        _make_op("merge", merge_src, merge_tgt),
     ]
 
 
-def test_execute_aggregates_warnings_across_ops() -> None:
-    """execute() concatenates warnings from multiple ops in submission order."""
-    op_a = _make_op(
-        "flatten", _ABSENT_ROOT / "tests/integration/test_a.py", _ABSENT_ROOT / "a"
-    )
-    op_b = _make_op(
-        "flatten", _ABSENT_ROOT / "tests/integration/test_b.py", _ABSENT_ROOT / "b"
-    )
-    warnings = execute([op_a, op_b], _ABSENT_ROOT)
-    assert warnings == [
-        "flatten skipped: r (test_a.py)",
-        "flatten skipped: r (test_b.py)",
+def _two_flatten_ops() -> list[FileOp]:
+    return [
+        _make_op(
+            "flatten", _ABSENT_ROOT / "tests/integration/test_a.py", _ABSENT_ROOT / "a"
+        ),
+        _make_op(
+            "flatten", _ABSENT_ROOT / "tests/integration/test_b.py", _ABSENT_ROOT / "b"
+        ),
     ]
+
+
+@pytest.mark.parametrize(
+    ("ops_factory", "expected_warnings"),
+    [
+        pytest.param(
+            _single_flatten_ops,
+            ["flatten skipped: r (test_x.py)"],
+            id="dispatch-flatten",
+        ),
+        pytest.param(
+            _split_and_merge_ops,
+            [
+                f"split skipped: source missing "
+                f"({_ABSENT_ROOT / 'tests/integration/test_a.py'})",
+                f"merge skipped: missing "
+                f"({_ABSENT_ROOT / 'test_b.py'} -> {_ABSENT_ROOT / 'test_c.py'})",
+            ],
+            id="route-split-and-merge",
+        ),
+        pytest.param(
+            _two_flatten_ops,
+            [
+                "flatten skipped: r (test_a.py)",
+                "flatten skipped: r (test_b.py)",
+            ],
+            id="aggregate-across-ops",
+        ),
+    ],
+)
+def test_execute_routes_and_aggregates_warnings(
+    ops_factory: Callable[[], list[FileOp]], expected_warnings: list[str]
+) -> None:
+    """execute() dispatches each kind to its executor and aggregates warnings."""
+    # Verifies that warnings are returned in order.
+    warnings = execute(ops_factory(), _ABSENT_ROOT)
+    assert warnings == expected_warnings
 
 
 def test_execute_ignores_unknown_kind() -> None:

@@ -125,11 +125,18 @@ def test_relocate_moves_each_nested_test_file(
     assert len(log["relocate"]) == 2
 
 
-def test_relocate_removes_emptied_child_dir(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("empty", "expected_rmdir_calls"),
+    [
+        pytest.param(True, 1, id="emptied-child-removed"),
+        pytest.param(False, 0, id="nonempty-child-kept"),
+    ],
+)
+def test_relocate_rmdirs_child_only_when_emptied(
+    monkeypatch: pytest.MonkeyPatch, empty: bool, expected_rmdir_calls: int
 ) -> None:
-    """A child dir left empty after pruning is rmdir'd."""
-    child = _FakeDir("functional", empty=True, nested=[Path("functional/test_a.py")])
+    """A child dir is rmdir'd iff it is empty after pruning."""
+    child = _FakeDir("functional", empty=empty, nested=[Path("functional/test_a.py")])
     monkeypatch.setattr(Path, "is_dir", lambda _self: True)
     monkeypatch.setattr(Path, "is_file", lambda _self: True)
     monkeypatch.setattr(
@@ -142,27 +149,7 @@ def test_relocate_removes_emptied_child_dir(
     monkeypatch.setattr(layout_and_move, "_relocate_single_file", lambda *_a: [])
     monkeypatch.setattr(layout_and_move, "_prune_empty_test_subdirs", lambda _d: None)
     relocate_non_canonical_tiers(_ROOT)
-    assert child.rmdir_calls == 1
-
-
-def test_relocate_keeps_nonempty_child_dir(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A child dir still holding files after pruning is not rmdir'd."""
-    child = _FakeDir("functional", empty=False, nested=[Path("functional/test_a.py")])
-    monkeypatch.setattr(Path, "is_dir", lambda _self: True)
-    monkeypatch.setattr(Path, "is_file", lambda _self: True)
-    monkeypatch.setattr(
-        layout_and_move, "_iter_non_canonical_tier_dirs", lambda _r: [child]
-    )
-    monkeypatch.setattr(layout_and_move, "_ensure_integration_pkg", lambda _i, _c: None)
-    monkeypatch.setattr(
-        layout_and_move, "_unique_integration_target", lambda src, _i: src
-    )
-    monkeypatch.setattr(layout_and_move, "_relocate_single_file", lambda *_a: [])
-    monkeypatch.setattr(layout_and_move, "_prune_empty_test_subdirs", lambda _d: None)
-    relocate_non_canonical_tiers(_ROOT)
-    assert child.rmdir_calls == 0
+    assert child.rmdir_calls == expected_rmdir_calls
 
 
 # --------------------------------------------------------------------------- #
