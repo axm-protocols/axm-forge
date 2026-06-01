@@ -609,6 +609,22 @@ reason = "Both assert report.by_kind() but guard disjoint pipeline.run branches:
 hash = "e8667545cfd1"
 reason = "Cluster spans two distinct SUTs and disjoint guard branches: relocate_no_tests_dir_returns_empty + relocate_no_noncanonical_dirs_returns_empty guard relocate_non_canonical_tiers (no-tests-dir vs no-noncanonical-dirs early returns), while flatten_no_tests_dir_returns_empty + flatten_aggregates_messages_across_tiers guard flatten_tier_layout (no-tests-dir guard vs the message-aggregation path that returns a non-empty concatenated list). Mixed return-[] guards and an aggregate-non-empty assertion across two functions; folding would conflate unrelated SUTs. ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "91a2c435ce46"
+reason = "e2e fix tests guard opposite contracts: dry_run_on_clean_package_reports_no_ops drives the success path (returncode 0, '(no deterministic ops planned)' on stdout) while nonexistent_path_exits_1 drives the error path (returncode 1, 'Not a directory' on stderr). Different concern (success vs error-exit), different asserted stream and value; folding would erase the success-vs-failure distinction. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "fb860ddc1809"
+reason = "file_depth_from_project tests assert two different contracts: returns_zero_for_path_outside_project pins a literal (== 0 for a path outside the project) while invariant_under_project_path asserts a relation (depth(f1, p1) == depth(f2, p2) — invariance under project-root depth). One is a boundary literal, the other a property/invariant; folding into a single expected value would erase the invariance check. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1d2338f71acb"
+reason = "Both guard pipeline.run atomic-rollback but via disjoint trigger branches: apply_rolls_back_on_failure monkeypatches _run_iterations to raise RuntimeError mid-apply (exception-propagation path, asserts pytest.raises(RuntimeError)) while apply_rejects_uncollectable_result monkeypatches _run_iterations to write a syntactically-broken test, exercising the post-apply pytest-collection gate (asserts a generic Exception). Different trigger (raised exception vs uncollectable-tree gate) and different exception type; folding would erase which rollback branch is covered. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "292e74040860"
+reason = "Both assert plan_relocate(pkg) == [] but guard disjoint branches with disjoint setup: empty_when_clean uses a real clean make_pkg (no PYRAMID_LEVEL finding → no op, the no-findings path) while mixed_tiers_emits_zero_ops mocks _PLAN_CHECK to return conflicting unit/e2e tiers for one file, exercising the B3 mixed-tier oscillation guard (findings exist but are dropped). Same expected value, different reason/branch separately observable (one needs the mock); folding would erase the oscillation-guard coverage. ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

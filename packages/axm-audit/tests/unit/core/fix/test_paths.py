@@ -40,25 +40,29 @@ def test_tier_for_path_finds_nested(path_str: str, expected: str | None) -> None
     assert tier_for_path(Path(path_str)) == expected
 
 
-def test_retier_substitution_branch() -> None:
-    """AC2: retier substitutes the tier component for tests/<tier>/...rest."""
-    root = Path("/p")
-    src = Path("/p/tests/integration/test_X.py")
-    assert retier(src, root, "unit") == Path("/p/tests/unit/test_X.py")
-
-
-def test_retier_inject_missing_tier() -> None:
-    """AC2: retier injects tier when path is tests/<file>.py (depth-2 corner case)."""
-    root = Path("/p")
-    src = Path("/p/tests/test_X.py")
-    assert retier(src, root, "unit") == Path("/p/tests/unit/test_X.py")
-
-
-def test_retier_non_tests_unchanged() -> None:
-    """AC2: retier returns paths outside tests/ unchanged."""
-    root = Path("/p")
-    src = Path("/p/src/foo/bar.py")
-    assert retier(src, root, "unit") == Path("/p/src/foo/bar.py")
+@pytest.mark.parametrize(
+    ("src", "expected"),
+    [
+        pytest.param(
+            "/p/tests/integration/test_X.py",
+            "/p/tests/unit/test_X.py",
+            id="substitution-branch",
+        ),
+        pytest.param(
+            "/p/tests/test_X.py",
+            "/p/tests/unit/test_X.py",
+            id="inject-missing-tier",
+        ),
+        pytest.param(
+            "/p/src/foo/bar.py",
+            "/p/src/foo/bar.py",
+            id="non-tests-unchanged",
+        ),
+    ],
+)
+def test_retier_resolves_tier_component(src: str, expected: str) -> None:
+    """AC2: retier substitutes/injects the tier for tests/ paths, no-ops otherwise."""
+    assert retier(Path(src), Path("/p"), "unit") == Path(expected)
 
 
 def test_abspath_normalises_relative_and_absolute() -> None:

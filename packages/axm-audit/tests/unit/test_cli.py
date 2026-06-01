@@ -263,43 +263,22 @@ def test_version_prints_axm_audit_prefix(
     assert out.startswith("axm-audit ")
 
 
-def test_audit_invalid_path_exits_with_error(
+@pytest.mark.parametrize(
+    "command",
+    [
+        pytest.param(audit, id="audit"),
+        pytest.param(cli_test, id="test"),
+        pytest.param(cli_test_quality, id="test-quality"),
+        pytest.param(fix, id="fix"),
+    ],
+)
+def test_command_invalid_path_exits_with_error(
+    command: object,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """`audit` on a non-directory path exits 1 and writes to stderr."""
+    """Each CLI command exits 1 with `Not a directory` on stderr for a bad path."""
     with pytest.raises(SystemExit) as excinfo:
-        audit(path="/nonexistent/path/xyz-axm-cli")
-    assert excinfo.value.code == 1
-    err = capsys.readouterr().err
-    assert "Not a directory" in err
-
-
-def test_test_cli_invalid_path_exits(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """`test` exits 1 with stderr on a non-directory path."""
-    with pytest.raises(SystemExit) as excinfo:
-        cli_test(path="/nonexistent/xyz-test")
-    assert excinfo.value.code == 1
-    err = capsys.readouterr().err
-    assert "Not a directory" in err
-
-
-def test_test_quality_invalid_path_exits(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """`test-quality` exits 1 on a non-directory path."""
-    with pytest.raises(SystemExit) as excinfo:
-        cli_test_quality(path="/nonexistent/xyz-tq")
-    assert excinfo.value.code == 1
-    err = capsys.readouterr().err
-    assert "Not a directory" in err
-
-
-def test_fix_invalid_path_exits(capsys: pytest.CaptureFixture[str]) -> None:
-    """`fix` exits 1 with stderr on a non-directory path."""
-    with pytest.raises(SystemExit) as excinfo:
-        fix(path="/nonexistent/xyz-fix")
+        command(path="/nonexistent/path/xyz-axm-cli")
     assert excinfo.value.code == 1
     err = capsys.readouterr().err
     assert "Not a directory" in err

@@ -55,27 +55,52 @@ def _split_op_x_to_ab(pkg: Path) -> tuple[FileOp, Path, Path]:
     return op, target_a, target_b
 
 
-def test_execute_split_carries_decorator_referenced_constant(make_test_pkg):
-    """AC1: SPLIT carries module-level decorator-referenced constants to targets.
+@pytest.mark.parametrize(
+    ("source_body", "expected_names"),
+    [
+        pytest.param(
+            "import pytest\n"
+            "from pkg.a import a\n"
+            "from pkg.b import b\n\n"
+            "CONST = 42\n"
+            "_alias = pytest.mark.skipif(not CONST, reason='x')\n\n"
+            "@_alias\n"
+            "def test_one():\n    assert a() == 'a'\n\n"
+            "@_alias\n"
+            "def test_two():\n    assert b() == 'b'\n",
+            ("CONST = 42", "_alias"),
+            id="decorator-referenced-constant",
+        ),
+        pytest.param(
+            "import pytest\n"
+            "from pkg.a import a\n"
+            "from pkg.b import b\n\n"
+            "A = 1\n"
+            "B = A + 1\n"
+            "_skip = pytest.mark.skipif(not B, reason='x')\n\n"
+            "@_skip\n"
+            "def test_one():\n    assert a() == 'a'\n\n"
+            "@_skip\n"
+            "def test_two():\n    assert b() == 'b'\n",
+            ("A = 1", "B = A + 1", "_skip"),
+            id="transitive-constant-chain",
+        ),
+    ],
+)
+def test_execute_split_carries_decorator_closure(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+    source_body: str,
+    expected_names: tuple[str, ...],
+) -> None:
+    """AC1/AC2: SPLIT carries the decorator's module-level closure to targets.
 
-    When a moved unit has ``@_alias`` and ``_alias = ...`` is defined at the
-    top level of source, both the decorator alias and the constants it
-    references must be copied to the target file alongside the unit.
+    Covers both a directly decorator-referenced constant and a transitive
+    reference chain (``_skip`` -> ``B`` -> ``A``), recursively to fixed point;
+    every required name must land in each target and the file must compile.
     """
     if not _anvil_available():
         pytest.skip("axm-anvil not installed")
-    pkg = _make_split_pkg_with_decorator(
-        make_test_pkg,
-        "import pytest\n"
-        "from pkg.a import a\n"
-        "from pkg.b import b\n\n"
-        "CONST = 42\n"
-        "_alias = pytest.mark.skipif(not CONST, reason='x')\n\n"
-        "@_alias\n"
-        "def test_one():\n    assert a() == 'a'\n\n"
-        "@_alias\n"
-        "def test_two():\n    assert b() == 'b'\n",
-    )
+    pkg = _make_split_pkg_with_decorator(make_test_pkg, source_body)
     op, target_a, target_b = _split_op_x_to_ab(pkg)
 
     execute([op], pkg)
@@ -83,42 +108,8 @@ def test_execute_split_carries_decorator_referenced_constant(make_test_pkg):
     for target in (target_a, target_b):
         assert target.exists(), f"{target.name} not produced"
         body = target.read_text()
-        assert "CONST = 42" in body, f"{target.name} missing CONST"
-        assert "_alias" in body, f"{target.name} missing _alias"
-        compile(body, str(target), "exec")
-
-
-def test_execute_split_carries_transitive_constant_chain(make_test_pkg):
-    """AC2: closure follows transitive references between module-level names.
-
-    ``_skip`` references ``B``; ``B`` references ``A`` — moving ``_skip``
-    must drag both ``B`` and ``A`` along, recursively to fixed point.
-    """
-    if not _anvil_available():
-        pytest.skip("axm-anvil not installed")
-    pkg = _make_split_pkg_with_decorator(
-        make_test_pkg,
-        "import pytest\n"
-        "from pkg.a import a\n"
-        "from pkg.b import b\n\n"
-        "A = 1\n"
-        "B = A + 1\n"
-        "_skip = pytest.mark.skipif(not B, reason='x')\n\n"
-        "@_skip\n"
-        "def test_one():\n    assert a() == 'a'\n\n"
-        "@_skip\n"
-        "def test_two():\n    assert b() == 'b'\n",
-    )
-    op, target_a, target_b = _split_op_x_to_ab(pkg)
-
-    execute([op], pkg)
-
-    for target in (target_a, target_b):
-        assert target.exists(), f"{target.name} not produced"
-        body = target.read_text()
-        assert "A = 1" in body, f"{target.name} missing A"
-        assert "B = A + 1" in body, f"{target.name} missing B"
-        assert "_skip" in body, f"{target.name} missing _skip"
+        for name in expected_names:
+            assert name in body, f"{target.name} missing {name}"
         compile(body, str(target), "exec")
 
 
