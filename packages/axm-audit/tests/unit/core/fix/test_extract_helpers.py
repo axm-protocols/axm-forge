@@ -37,29 +37,24 @@ def test_extract_shared_helpers_in_tier_returns_empty_for_absent_tier() -> None:
     assert extract_shared_helpers_in_tier(_ABSENT_ROOT, tier) == []
 
 
-def test_load_or_create_helpers_module_synthesizes_when_absent() -> None:
-    """_load_or_create_helpers_module parses a fresh stub module for a missing path."""
-    module = load_or_create_helpers_module(
-        _ABSENT_ROOT / "tests" / "unit" / "_helpers.py",
-        "unit",
-        "tests.unit._helpers",
-    )
-    assert module is not None
-    assert "tests/unit" in module.code
-    assert "from tests.unit._helpers import <name>" in module.code
-
-
-def test_load_or_create_helpers_module_embeds_tier_and_module_path() -> None:
+@pytest.mark.parametrize(
+    "tier",
+    [
+        pytest.param("unit", id="unit"),
+        pytest.param("e2e", id="e2e"),
+    ],
+)
+def test_load_or_create_helpers_module_embeds_tier_and_module_path(tier: str) -> None:
     """The synthesized helpers stub names the tier and the import module path."""
     module = load_or_create_helpers_module(
-        _ABSENT_ROOT / "tests" / "e2e" / "_helpers.py",
-        "e2e",
-        "tests.e2e._helpers",
+        _ABSENT_ROOT / "tests" / tier / "_helpers.py",
+        tier,
+        f"tests.{tier}._helpers",
     )
     assert module is not None
     code = module.code
-    assert "tests/e2e" in code
-    assert "from tests.e2e._helpers import <name>" in code
+    assert f"tests/{tier}" in code
+    assert f"from tests.{tier}._helpers import <name>" in code
 
 
 def test_load_or_create_helpers_module_includes_future_import() -> None:
@@ -78,13 +73,6 @@ def test_load_or_create_conftest_module_synthesizes_when_absent() -> None:
     module = load_or_create_conftest_module(_ABSENT_ROOT / "tests" / "conftest.py")
     assert module is not None
     assert "@pytest.fixture" in module.code
-    assert "from __future__ import annotations" in module.code
-
-
-def test_load_or_create_conftest_module_includes_future_import() -> None:
-    """The synthesized conftest stub carries the future-annotations import."""
-    module = load_or_create_conftest_module(_ABSENT_ROOT / "tests" / "conftest.py")
-    assert module is not None
     assert "from __future__ import annotations" in module.code
 
 
