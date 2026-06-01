@@ -74,7 +74,7 @@ def test_reroute_skipped_when_source_missing() -> None:
 
 
 @pytest.mark.parametrize(
-    ("rel_path", "expected_reason"),
+    ("rel_src", "expected_reason"),
     [
         pytest.param(
             "tests/unit/test_x.py",
@@ -88,9 +88,9 @@ def test_reroute_skipped_when_source_missing() -> None:
         ),
     ],
 )
-def test_split_skipped_with_reason(rel_path: str, expected_reason: str) -> None:
+def test_split_skipped_with_reason(rel_src: str, expected_reason: str) -> None:
     """_execute_split skips with the guard-specific reason (bad-tier vs missing)."""
-    src = _ABSENT_ROOT / rel_path
+    src = _ABSENT_ROOT / rel_src
     op = _make_op("split", src, [src])
     msgs = execute_split(op, _ABSENT_ROOT)
     assert msgs == [f"split skipped: {expected_reason} ({src})"]
