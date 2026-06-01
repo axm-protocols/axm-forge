@@ -54,6 +54,9 @@ version-file = "src/axm_edit/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/axm_edit"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"docs/index.md" = "axm_edit/docs/index.md"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Dependency Groups
 # ─────────────────────────────────────────────────────────────────────────────
