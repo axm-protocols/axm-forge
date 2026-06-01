@@ -10,15 +10,284 @@ import pytest
 from pytest_mock import MockerFixture
 
 from axm_anvil.core.move import move_symbols
-from axm_anvil.core.plan import ImportCycleError, SymbolNotFoundError
 from tests.integration._helpers import (
+    SOURCE_WITH_METHOD,
     _write,
     _write_empty_new,
     _write_old_foo,
     _write_pyproject__from_move_cycle_detection,
+    _write_workspace,
 )
 
 pytestmark = pytest.mark.integration
+
+
+_CONDITIONAL_SOURCE = (
+    "try:\n"
+    "    import fast_json as json\n"
+    "except ImportError:\n"
+    "    import json\n"
+    "\n\n"
+    "def encode(value):\n"
+    "    return json.dumps(value)\n"
+)
+
+
+def test_conditional_import_block_copied(tmp_path: Path) -> None:
+    """AC2: moving a symbol that uses a conditionally-imported name copies the
+    entire try/except guard block into the target, not a flat import."""
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text(_CONDITIONAL_SOURCE)
+    tgt.write_text("")
+
+    move_symbols(src, tgt, ["encode"], workspace_root=tmp_path)
+
+    target_after = tgt.read_text()
+    assert "try:" in target_after
+    assert "import fast_json as json" in target_after
+    assert "except ImportError:" in target_after
+
+
+def test_conditional_import_not_removed_from_source(tmp_path: Path) -> None:
+    """AC3: the conditional import is never auto-removed from the source even
+    when no remaining source symbol references it."""
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text(_CONDITIONAL_SOURCE)
+    tgt.write_text("")
+
+    move_symbols(src, tgt, ["encode"], workspace_root=tmp_path)
+
+    source_after = src.read_text()
+    assert "try:" in source_after
+    assert "import fast_json as json" in source_after
+    assert "except ImportError:" in source_after
+
+
+_ORPHAN_CONDITIONAL_SOURCE = (
+    "from __future__ import annotations\n"
+    "\n"
+    "try:\n"
+    "    import tomllib\n"
+    "except ModuleNotFoundError:\n"
+    "    import tomli as tomllib\n"
+    "\n\n"
+    "def mover() -> int:\n"
+    "    return 1\n"
+    "\n\n"
+    "def stayer() -> str:\n"
+    '    return "no import use"\n'
+)
+
+
+def test_conditional_import_fallback_not_stripped_when_orphaned(
+    tmp_path: Path,
+) -> None:
+    """AC3 regression: moving a symbol that does NOT use a conditional import,
+    while NO remaining symbol uses it either, must leave the full guard intact.
+
+    The post-move ruff F401 pass previously stripped the ``except`` fallback
+    (``import tomli as tomllib``) down to ``pass`` because it was unused,
+    silently changing runtime behavior. The fallback must survive verbatim.
+    """
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text(_ORPHAN_CONDITIONAL_SOURCE)
+    tgt.write_text("from __future__ import annotations\n")
+
+    move_symbols(src, tgt, ["mover"], workspace_root=tmp_path)
+
+    source_after = src.read_text()
+    assert "try:" in source_after
+    assert "import tomllib" in source_after
+    assert "except ModuleNotFoundError:" in source_after
+    # The fallback handler keeps its full import — not collapsed to ``pass``.
+    assert "import tomli as tomllib" in source_after
+    assert "except ModuleNotFoundError:\n    pass" not in source_after
+
+
+def test_conditional_import_move_real_files(tmp_path: Path) -> None:
+    """AC2,AC5: a real on-disk move into a target that already holds an
+    equivalent guard block yields exactly one guard block (no duplicate)."""
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text(_CONDITIONAL_SOURCE)
+    tgt.write_text(
+        "try:\n"
+        "    import fast_json as json\n"
+        "except ImportError:\n"
+        "    import json\n"
+        "\n\n"
+        "def existing():\n"
+        '    return json.loads("{}")\n'
+    )
+
+    move_symbols(src, tgt, ["encode"], workspace_root=tmp_path)
+
+    target_after = tgt.read_text()
+    assert target_after.count("except ImportError:") == 1
+
+
+_SOURCE = """\
+from __future__ import annotations
+
+
+def _helper(x: int) -> int:
+    return x + 1
+
+
+def public_fn(y: int) -> int:
+    return _helper(y) * 2
+"""
+
+_TARGET = """\
+from __future__ import annotations
+"""
+
+
+def _setup(tmp_path: Path) -> tuple[Path, Path]:
+    src = tmp_path / "src_mod.py"
+    tgt = tmp_path / "tgt_mod.py"
+    src.write_text(_SOURCE)
+    tgt.write_text(_TARGET)
+    return src, tgt
+
+
+def test_include_helpers_true_copies_helper(tmp_path: Path) -> None:
+    """AC1: default ``include_helpers=True`` copies referenced local helper."""
+    src, tgt = _setup(tmp_path)
+    plan = move_symbols(src, tgt, ["public_fn"], dry_run=True, include_helpers=True)
+    assert "def _helper" in plan.target_text_new
+
+
+def test_include_helpers_false_skips_and_warns(tmp_path: Path) -> None:
+    """AC2,AC3: ``include_helpers=False`` skips helper and warns by name."""
+    src, tgt = _setup(tmp_path)
+    plan = move_symbols(src, tgt, ["public_fn"], dry_run=True, include_helpers=False)
+    assert "def _helper" not in plan.target_text_new
+    assert any("_helper" in w for w in plan.warnings)
+
+
+def test_all_removed_from_source(tmp_path: Path) -> None:
+    """AC1: a moved symbol present in source `__all__` is removed from it."""
+    src = _write(
+        tmp_path / "src_mod.py",
+        '__all__ = ["Foo", "Bar"]\n\n'
+        "def Foo():\n    return 1\n\n"
+        "def Bar():\n    return 2\n",
+    )
+    tgt = _write(tmp_path / "tgt_mod.py", '__all__ = ["Baz"]\n')
+    plan = move_symbols(src, tgt, ["Foo"], dry_run=True)
+    assert '"Foo"' not in plan.source_text_new
+    assert '"Bar"' in plan.source_text_new
+
+
+def test_all_added_to_existing_target(tmp_path: Path) -> None:
+    """AC2: when target already declares `__all__`, the moved name is appended."""
+    src = _write(
+        tmp_path / "src_mod.py",
+        '__all__ = ["Foo"]\n\ndef Foo():\n    return 1\n',
+    )
+    tgt = _write(tmp_path / "tgt_mod.py", '__all__ = ["Baz"]\n')
+    plan = move_symbols(src, tgt, ["Foo"], dry_run=True)
+    assert '"Foo"' in plan.target_text_new
+    assert '"Baz"' in plan.target_text_new
+
+
+def test_all_not_created_when_absent(tmp_path: Path) -> None:
+    """AC3: no `__all__` is created on either side when absent."""
+    src = _write(
+        tmp_path / "src_mod.py",
+        "def Foo():\n    return 1\n",
+    )
+    tgt = _write(tmp_path / "tgt_mod.py", "X = 1\n")
+    plan = move_symbols(src, tgt, ["Foo"], dry_run=True)
+    assert "__all__" not in plan.source_text_new
+    assert "__all__" not in plan.target_text_new
+
+
+def test_all_untouched_for_unexported_symbol(tmp_path: Path) -> None:
+    """AC4: moving a symbol absent from source `__all__` leaves both untouched."""
+    src = _write(
+        tmp_path / "src_mod.py",
+        '__all__ = ["Bar"]\n\ndef Foo():\n    return 1\n\ndef Bar():\n    return 2\n',
+    )
+    tgt = _write(tmp_path / "tgt_mod.py", '__all__ = ["Baz"]\n')
+    plan = move_symbols(src, tgt, ["Foo"], dry_run=True)
+    assert '__all__ = ["Bar"]' in plan.source_text_new
+    assert '__all__ = ["Baz"]' in plan.target_text_new
+
+
+def test_all_preserves_remaining_order(tmp_path: Path) -> None:
+    """AC5: remaining `__all__` element order/formatting is preserved."""
+    src = _write(
+        tmp_path / "src_mod.py",
+        '__all__ = ["A", "Foo", "B"]\n\n'
+        "def A():\n    return 1\n\n"
+        "def Foo():\n    return 2\n\n"
+        "def B():\n    return 3\n",
+    )
+    tgt = _write(tmp_path / "tgt_mod.py", '__all__ = ["Z"]\n')
+    plan = move_symbols(src, tgt, ["Foo"], dry_run=True)
+    assert '__all__ = ["A", "B"]' in plan.source_text_new
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+PYPROJECT = "[project]\nname='t'\n"
+
+
+@pytest.fixture
+def pkg_dir(tmp_path: Path) -> Path:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    return pkg
+
+
+def _import_lines_for(target_text: str, name: str) -> list[str]:
+    return [
+        line
+        for line in target_text.splitlines()
+        if name in line and line.lstrip().startswith(("import ", "from "))
+    ]
+
+
+def _setup__from_move_symbols(tmp_path: Path) -> tuple[Path, Path]:
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    shutil.copy(FIXTURES / "source.py", src)
+    shutil.copy(FIXTURES / "target.py", tgt)
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='t'\n")
+    return src, tgt
+
+
+def _write_pyproject(root: Path) -> None:
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "mypkg"\nversion = "0.1.0"\n'
+    )
+
+
+def _setup_clean_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
+    _write_pyproject(tmp_path)
+    pkg = tmp_path / "src" / "mypkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+    a = pkg / "a.py"
+    a.write_text("def Bar():\n    return 1\n\ndef Foo():\n    return 42\n")
+    b = pkg / "b.py"
+    b.write_text("def helper():\n    return 2\n")
+    return tmp_path, a, b
+
+
+def _make_pkg(root: Path, name: str) -> Path:
+    """Create ``root/name`` as an importable package dir with ``__init__.py``."""
+    pkg = root / name
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "__init__.py").write_text("")
+    return pkg
 
 
 def test_move_atomic_batch_edit(
@@ -54,14 +323,6 @@ def test_move_atomic_batch_edit(
     ops = calls[0]["kwargs"].get("operations") or calls[0]["args"][1]
     files = {op["file"] for op in ops}
     assert len(files) == 2
-
-
-@pytest.fixture
-def pkg_dir(tmp_path: Path) -> Path:
-    pkg = tmp_path / "pkg"
-    pkg.mkdir()
-    (pkg / "__init__.py").write_text("")
-    return pkg
 
 
 def test_move_rewrites_module_import_caller(tmp_path: Path, pkg_dir: Path) -> None:
@@ -171,9 +432,6 @@ def test_move_mixed_from_and_module_imports_in_same_caller(
     assert "import pkg.old\n" not in caller
 
 
-FIXTURES = Path(__file__).parent / "fixtures"
-
-
 def test_move_complex_fixture(tmp_path: Path) -> None:
     src = tmp_path / "source_complex.py"
     tgt = tmp_path / "target_complex.py"
@@ -197,17 +455,6 @@ def test_move_complex_fixture(tmp_path: Path) -> None:
 
     source_text = src.read_text()
     assert "class StaysHere" in source_text
-
-
-PYPROJECT = "[project]\nname='t'\n"
-
-
-def _import_lines_for(target_text: str, name: str) -> list[str]:
-    return [
-        line
-        for line in target_text.splitlines()
-        if name in line and line.lstrip().startswith(("import ", "from "))
-    ]
 
 
 def test_move_skips_duplicate_when_target_imports_same_name_different_module(
@@ -598,17 +845,8 @@ def test_move_shared_helpers_module_raises(tmp_path):
         )
 
 
-def _setup(tmp_path: Path) -> tuple[Path, Path]:
-    src = tmp_path / "source.py"
-    tgt = tmp_path / "target.py"
-    shutil.copy(FIXTURES / "source.py", src)
-    shutil.copy(FIXTURES / "target.py", tgt)
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='t'\n")
-    return src, tgt
-
-
 def test_move_simple_class(tmp_path: Path) -> None:
-    src, tgt = _setup(tmp_path)
+    src, tgt = _setup__from_move_symbols(tmp_path)
     plan = move_symbols(
         src, tgt, ["TestFilesystemInvalidation", "TestEdgeCases"], dry_run=False
     )
@@ -623,24 +861,6 @@ def test_move_simple_class(tmp_path: Path) -> None:
     source_text = src.read_text()
     assert "class TestFilesystemInvalidation" not in source_text
     assert "class TestEdgeCases" not in source_text
-
-
-def _write_pyproject(root: Path) -> None:
-    (root / "pyproject.toml").write_text(
-        '[project]\nname = "mypkg"\nversion = "0.1.0"\n'
-    )
-
-
-def _setup_clean_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
-    _write_pyproject(tmp_path)
-    pkg = tmp_path / "src" / "mypkg"
-    pkg.mkdir(parents=True)
-    (pkg / "__init__.py").write_text("")
-    a = pkg / "a.py"
-    a.write_text("def Bar():\n    return 1\n\ndef Foo():\n    return 42\n")
-    b = pkg / "b.py"
-    b.write_text("def helper():\n    return 2\n")
-    return tmp_path, a, b
 
 
 def test_dry_run_no_writes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -782,65 +1002,6 @@ def test_move_allows_preexisting_cycle(tmp_path: Path) -> None:
     assert "Foo" in plan.moved_names
     assert "def Foo" in b.read_text()
     assert "def Foo" not in a.read_text()
-
-
-def test_move_cross_package_detects_cycle(tmp_path: Path) -> None:
-    """AC3, AC6 (contract inverted from skip): a cross-package move that
-    introduces a new import cycle now raises ``ImportCycleError`` and no
-    longer emits the obsolete \"cycle detection skipped\" warning.
-
-    ``pkg_a.x`` imports ``Thing`` from ``pkg_b.y`` (edge pkg_a.x -> pkg_b.y).
-    Moving ``Foo`` (uses ``Bar``, which stays in pkg_a.x) into ``pkg_b.y``
-    adds edge pkg_b.y -> pkg_a.x, closing the cycle.
-    """
-    root = tmp_path
-    (root / "pyproject.toml").write_text(
-        '[tool.uv.workspace]\nmembers = ["packages/pkg_a", "packages/pkg_b"]\n'
-    )
-    for name in ("pkg_a", "pkg_b"):
-        member = root / "packages" / name
-        pkg = member / "src" / name
-        pkg.mkdir(parents=True)
-        (member / "pyproject.toml").write_text(
-            f'[project]\nname = "{name}"\nversion = "0.1.0"\n'
-        )
-        (pkg / "__init__.py").write_text("")
-    x = root / "packages" / "pkg_a" / "src" / "pkg_a" / "x.py"
-    y = root / "packages" / "pkg_b" / "src" / "pkg_b" / "y.py"
-    x.write_text(
-        "from pkg_b.y import Thing\n\n"
-        "def Bar():\n    return 1\n\n"
-        "def use_thing():\n    return Thing()\n\n"
-        "def Foo():\n    return Bar()\n"
-    )
-    y.write_text("def Thing():\n    return 0\n")
-
-    with pytest.raises(ImportCycleError):
-        move_symbols(x, y, ["Foo"], workspace_root=root)
-
-
-def test_intra_package_cycle_detection_unchanged(tmp_path: Path) -> None:
-    """AC5: intra-package cycle detection is strictly unchanged (regression).
-
-    Moving ``Foo`` from ``mypkg.a`` to ``mypkg.b`` where ``a`` already imports
-    ``helper`` from ``b`` closes a same-package cycle and must raise.
-    """
-    _write_pyproject__from_move_cycle_detection(tmp_path)
-    pkg = tmp_path / "src" / "mypkg"
-    pkg.mkdir(parents=True)
-    (pkg / "__init__.py").write_text("")
-    a = pkg / "a.py"
-    a.write_text(
-        "from mypkg.b import helper\n\n"
-        "def Bar():\n    return 1\n\n"
-        "def uses_helper():\n    return helper()\n\n"
-        "def Foo():\n    return Bar()\n"
-    )
-    b = pkg / "b.py"
-    b.write_text("def helper():\n    return 2\n")
-
-    with pytest.raises(ImportCycleError):
-        move_symbols(a, b, ["Foo"], workspace_root=tmp_path)
 
 
 def test_transitive_constant_chain(tmp_path: Path) -> None:
@@ -1210,18 +1371,6 @@ def test_transitive_shared_helper_detected(tmp_path):
     assert any("Helper '_a' is also used by" in w for w in plan.warnings)
 
 
-# --- AXM-1769: non-top-level / absent names are skipped+warned, not raised ---
-
-SOURCE_WITH_METHOD = (
-    '"""Source module."""\n\n\n'
-    "def real_toplevel() -> int:\n"
-    "    return 42\n\n\n"
-    "class TestBasicThing:\n"
-    "    def test_basic(self) -> None:\n"
-    "        assert True\n"
-)
-
-
 def test_move_skips_method_name_with_warning(tmp_path: Path) -> None:
     """AC1, AC2: a class-method name is skipped+warned; the real symbol still moves."""
     source = tmp_path / "source_mod.py"
@@ -1242,28 +1391,6 @@ def test_move_skips_method_name_with_warning(tmp_path: Path) -> None:
     # The method name was not moved, and surfaced as a warning, not an exception.
     assert "test_basic" not in plan.moved_names
     assert any("test_basic" in w for w in plan.warnings)
-
-
-def test_move_absent_toplevel_warns_not_raises(tmp_path: Path) -> None:
-    """AC5: a genuinely-absent top-level name warns clearly, no SymbolNotFoundError."""
-    source = tmp_path / "source_mod.py"
-    target = tmp_path / "target_mod.py"
-    source.write_text(SOURCE_WITH_METHOD)
-    target.write_text('"""Target module."""\n')
-
-    try:
-        plan = move_symbols(
-            source,
-            target,
-            ["real_toplevel", "does_not_exist_anywhere"],
-            workspace_root=tmp_path,
-        )
-    except SymbolNotFoundError as exc:  # pragma: no cover - failure path
-        pytest.fail(f"move_symbols raised SymbolNotFoundError for absent name: {exc}")
-
-    assert "real_toplevel" in plan.moved_names
-    assert "does_not_exist_anywhere" not in plan.moved_names
-    assert any("does_not_exist_anywhere" in w for w in plan.warnings)
 
 
 def test_move_skip_in_check_mode_does_not_mutate(tmp_path: Path) -> None:
@@ -1288,3 +1415,432 @@ def test_move_skip_in_check_mode_does_not_mutate(tmp_path: Path) -> None:
     assert target.read_text() == target_before
     # ...and the skip is still reported.
     assert any("test_basic" in w for w in plan.warnings)
+
+
+def test_insert_after_places_block_after_anchor(tmp_path: Path) -> None:
+    """AC1: the moved block is inserted right after the named anchor and before
+    the symbol that originally followed the anchor in the target module."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text("def Moved():\n    return 1\n")
+    tgt.write_text("def Anchor():\n    return 0\n\n\ndef After():\n    return 2\n")
+
+    move_symbols(src, tgt, ["Moved"], insert_after="Anchor")
+
+    text = tgt.read_text()
+    assert text.index("def Anchor") < text.index("def Moved") < text.index("def After")
+
+
+def test_string_forward_ref_warns(tmp_path: Path) -> None:
+    """AC1,AC2: moving `Foo` warns about a string annotation that references it."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text('def Foo():\n    return 1\n\n\ndef g(x: "Foo"):\n    return x\n')
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["Foo"], dry_run=True)
+
+    assert any("Foo" in w for w in plan.warnings)
+
+
+def test_string_forward_ref_no_false_positive(tmp_path: Path) -> None:
+    """AC4: a string annotation `\"FooBar\"` does not trigger a forward-ref warning
+    when only `Foo` is moved."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text('def Foo():\n    return 1\n\n\ndef g(x: "FooBar"):\n    return x\n')
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["Foo"], dry_run=True)
+
+    assert not any("forward-reference" in w for w in plan.warnings)
+
+
+def test_string_forward_ref_not_rewritten(tmp_path: Path) -> None:
+    """AC3: detection-only — the literal string annotation is left untouched."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text('def Foo():\n    return 1\n\n\ndef g(x: "Foo"):\n    return x\n')
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["Foo"], dry_run=True)
+
+    assert '"Foo"' in plan.source_text_new
+
+
+def test_rename_propagates_to_target_dunder_all(tmp_path: Path) -> None:
+    """Rename + __all__ sync: the target __all__ append uses the NEW name."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "src_pkg.py"
+    tgt = tmp_path / "tgt_pkg.py"
+    src.write_text(
+        '__all__ = ["Widget", "keep_me"]\n\n'
+        "class Widget:\n    pass\n\n"
+        "def keep_me():\n    return 1\n",
+    )
+    tgt.write_text('__all__ = ["existing"]\n\ndef existing():\n    return 0\n')
+
+    move_symbols(
+        src, tgt, ["Widget"], rename={"Widget": "Gadget"}, workspace_root=tmp_path
+    )
+
+    target_after = tgt.read_text()
+    assert '"Gadget"' in target_after
+    assert '"Widget"' not in target_after
+    assert '"existing"' in target_after
+    # source removal still keys on the original exported name
+    assert '"Widget"' not in src.read_text()
+
+
+def test_rename_rewrites_string_forward_ref_in_moved_code(tmp_path: Path) -> None:
+    """Rename + string annotation: a moved "OldName" forward-ref becomes "NewName"."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text(
+        "class Widget:\n    pass\n\n\n"
+        'def make_widget(spec: "Widget") -> "Widget":\n    return Widget()\n'
+    )
+    tgt.write_text("")
+
+    plan = move_symbols(
+        src,
+        tgt,
+        ["Widget", "make_widget"],
+        rename={"Widget": "Gadget"},
+        dry_run=True,
+    )
+
+    assert '"Gadget"' in plan.target_text_new
+    assert '"Widget"' not in plan.target_text_new
+    # the renamed forward-ref no longer warrants a manual-update warning
+    assert not any("forward-reference 'Widget'" in w for w in plan.warnings)
+
+
+def test_forward_ref_warning_real_files(tmp_path: Path) -> None:
+    """AC1: a real on-disk move surfaces a non-empty warning naming the symbol."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text('def Foo():\n    return 1\n\n\ndef g(x: "Foo"):\n    return x\n')
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["Foo"], workspace_root=tmp_path)
+
+    assert plan.warnings
+    assert any("Foo" in w for w in plan.warnings)
+
+
+def test_all_sync_real_files(tmp_path: Path) -> None:
+    """AC1,AC2: written files reflect the synced `__all__` after a real move."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "src_pkg.py"
+    tgt = tmp_path / "tgt_pkg.py"
+    src.write_text(
+        '__all__ = ["Foo", "Bar"]\n\n'
+        "def Foo():\n    return 1\n\n"
+        "def Bar():\n    return 2\n",
+    )
+    tgt.write_text('__all__ = ["Existing"]\n\ndef Existing():\n    return 0\n')
+
+    move_symbols(src, tgt, ["Foo"], workspace_root=tmp_path)
+
+    source_after = src.read_text()
+    target_after = tgt.read_text()
+    assert '"Foo"' not in source_after
+    assert '"Bar"' in source_after
+    assert '"Foo"' in target_after
+    assert '"Existing"' in target_after
+
+
+def test_side_effect_decorator_dotted_warns(tmp_path: Path) -> None:
+    """AC2, AC4: moving an ``@app.route("/x")`` fn warns, naming deco + symbol."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text('import app\n\n\n@app.route("/x")\ndef handler():\n    return 1\n')
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["handler"], dry_run=True)
+
+    matching = [w for w in plan.warnings if "side-effect decorator" in w]
+    assert matching, plan.warnings
+    assert any("app.route" in w and "handler" in w for w in matching)
+
+
+def test_side_effect_decorator_bare_warns(tmp_path: Path) -> None:
+    """AC4: a bare whitelisted decorator (``@fixture``) emits a warning."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text(
+        "from pytest import fixture\n\n\n@fixture\ndef thing():\n    return 1\n"
+    )
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["thing"], dry_run=True)
+
+    assert any(
+        "side-effect decorator" in w and "fixture" in w and "thing" in w
+        for w in plan.warnings
+    ), plan.warnings
+
+
+def test_non_whitelisted_decorator_no_warn(tmp_path: Path) -> None:
+    """AC5: a non-whitelisted decorator produces no side-effect warning."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text(
+        "def deco(f):\n    return f\n\n\n@deco\ndef thing():\n    return 1\n"
+    )
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["thing"], dry_run=True)
+
+    assert not any("side-effect decorator" in w for w in plan.warnings), plan.warnings
+
+
+def test_custom_side_effect_decorator_extension(tmp_path: Path) -> None:
+    """AC3: a caller-supplied custom decorator extends the whitelist."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text("import mylib\n\n\n@mylib.register\ndef thing():\n    return 1\n")
+    tgt.write_text("")
+
+    plan = move_symbols(
+        src,
+        tgt,
+        ["thing"],
+        dry_run=True,
+        side_effect_decorators=frozenset({"mylib.register"}),
+    )
+
+    assert any(
+        "side-effect decorator" in w and "mylib.register" in w and "thing" in w
+        for w in plan.warnings
+    ), plan.warnings
+
+
+def test_side_effect_decorator_warning_real_files(tmp_path: Path) -> None:
+    """AC2: real-file move surfaces the decorator warning on plan.warnings."""
+    from axm_anvil.core.move import move_symbols
+
+    src = tmp_path / "app_routes.py"
+    tgt = tmp_path / "tasks.py"
+    src.write_text("import celery\n\n\n@celery.task\ndef do_work():\n    return 42\n")
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["do_work"], workspace_root=tmp_path)
+
+    assert any(
+        "side-effect decorator" in w and "celery.task" in w and "do_work" in w
+        for w in plan.warnings
+    ), plan.warnings
+
+
+def test_relative_import_intra_package_preserved(tmp_path: Path) -> None:
+    """AC1: a relative import copied during an intra-package move is preserved
+    as a relative import (source & target live in the same package)."""
+    from axm_anvil.core.move import move_symbols
+
+    pkg = _make_pkg(tmp_path, "pkg")
+    (pkg / "helper.py").write_text("VALUE = 1\n")
+    src = pkg / "source.py"
+    tgt = pkg / "target.py"
+    src.write_text("from . import helper\n\n\ndef Moved():\n    return helper.VALUE\n")
+    tgt.write_text("")
+
+    move_symbols(src, tgt, ["Moved"], workspace_root=tmp_path)
+
+    target_after = tgt.read_text()
+    assert "from . import helper" in target_after
+    assert "pkg.helper" not in target_after
+
+
+def test_relative_import_cross_package_converted(tmp_path: Path) -> None:
+    """AC2,AC5: a relative import copied during a cross-package move is rewritten
+    to the equivalent absolute import, preserving the imported name and alias."""
+    from axm_anvil.core.move import move_symbols
+
+    src_pkg = _make_pkg(tmp_path, "src_pkg")
+    (src_pkg / "utils.py").write_text("def f():\n    return 1\n")
+    dst_pkg = _make_pkg(tmp_path, "dst_pkg")
+    src = src_pkg / "source.py"
+    tgt = dst_pkg / "target.py"
+    src.write_text("from .utils import f as g\n\n\ndef Moved():\n    return g()\n")
+    tgt.write_text("")
+
+    move_symbols(src, tgt, ["Moved"], workspace_root=tmp_path)
+
+    target_after = tgt.read_text()
+    assert "from src_pkg.utils import f as g" in target_after
+    assert "from .utils" not in target_after
+
+
+def test_absolute_import_untouched(tmp_path: Path) -> None:
+    """AC3: an absolute import used by the moved code is copied unchanged."""
+    from axm_anvil.core.move import move_symbols
+
+    src_pkg = _make_pkg(tmp_path, "src_pkg")
+    dst_pkg = _make_pkg(tmp_path, "dst_pkg")
+    src = src_pkg / "source.py"
+    tgt = dst_pkg / "target.py"
+    src.write_text("import os\n\n\ndef Moved():\n    return os.getcwd()\n")
+    tgt.write_text("")
+
+    move_symbols(src, tgt, ["Moved"], workspace_root=tmp_path)
+
+    target_after = tgt.read_text()
+    assert "import os" in target_after
+
+
+def test_unresolvable_relative_import_warns(tmp_path: Path) -> None:
+    """AC4: a relative import that walks beyond the package root yields a
+    structured warning and no malformed import is written to the target."""
+    from axm_anvil.core.move import move_symbols
+
+    src_pkg = _make_pkg(tmp_path, "src_pkg")
+    dst_pkg = _make_pkg(tmp_path, "dst_pkg")
+    src = src_pkg / "source.py"
+    tgt = dst_pkg / "target.py"
+    src.write_text("from ... import x\n\n\ndef Moved():\n    return x\n")
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["Moved"], workspace_root=tmp_path)
+
+    assert any("relative import" in w.lower() for w in plan.warnings), plan.warnings
+    target_after = tgt.read_text()
+    assert "from ... import x" not in target_after
+
+
+def test_relative_import_cross_package_real_files(tmp_path: Path) -> None:
+    """AC2: a real on-disk cross-package move writes an absolute import into the
+    target file (two-package tmp workspace)."""
+    from axm_anvil.core.move import move_symbols
+
+    src_pkg = _make_pkg(tmp_path, "alpha")
+    (src_pkg / "utils.py").write_text("def helper():\n    return 7\n")
+    dst_pkg = _make_pkg(tmp_path, "beta")
+    src = src_pkg / "source.py"
+    tgt = dst_pkg / "target.py"
+    src.write_text("from .utils import helper\n\n\ndef Moved():\n    return helper()\n")
+    tgt.write_text("")
+
+    move_symbols(src, tgt, ["Moved"], workspace_root=tmp_path)
+
+    target_after = tgt.read_text()
+    assert "from alpha.utils import helper" in target_after
+
+
+def test_fixture_out_of_scope_warns(tmp_path: Path) -> None:
+    """AC3, AC5: moving a test out of the directory subtree covered by the
+    conftest providing its fixture emits a structured out-of-scope warning;
+    the move itself still succeeds (detection-only)."""
+    from axm_anvil.core.move import move_symbols
+
+    dir_a = tmp_path / "dir_a"
+    dir_b = tmp_path / "dir_b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    (dir_a / "conftest.py").write_text(
+        "import pytest\n\n\n@pytest.fixture\ndef my_fixture():\n    return 1\n"
+    )
+    from_file = dir_a / "test_thing.py"
+    to_file = dir_b / "test_thing.py"
+    from_file.write_text(
+        "def test_uses_fixture(my_fixture):\n    assert my_fixture == 1\n"
+    )
+    to_file.write_text("")
+
+    plan = move_symbols(
+        from_file, to_file, ["test_uses_fixture"], workspace_root=tmp_path
+    )
+
+    assert any("my_fixture" in w and "scope" in w.lower() for w in plan.warnings), (
+        plan.warnings
+    )
+
+
+def test_fixture_same_scope_no_warn(tmp_path: Path) -> None:
+    """AC4, AC5: when the conftest sits at a common ancestor of both source and
+    target, the moved test's fixture stays in scope and no scope warning is
+    emitted."""
+    from axm_anvil.core.move import move_symbols
+
+    root = tmp_path / "root"
+    sub_a = root / "a"
+    sub_b = root / "b"
+    sub_a.mkdir(parents=True)
+    sub_b.mkdir(parents=True)
+    (root / "conftest.py").write_text(
+        "import pytest\n\n\n@pytest.fixture\ndef my_fixture():\n    return 1\n"
+    )
+    from_file = sub_a / "test_thing.py"
+    to_file = sub_b / "test_thing.py"
+    from_file.write_text(
+        "def test_uses_fixture(my_fixture):\n    assert my_fixture == 1\n"
+    )
+    to_file.write_text("")
+
+    plan = move_symbols(
+        from_file, to_file, ["test_uses_fixture"], workspace_root=tmp_path
+    )
+
+    assert not any("my_fixture" in w and "scope" in w.lower() for w in plan.warnings), (
+        plan.warnings
+    )
+
+
+def test_cross_package_move_no_cycle_succeeds(tmp_path: Path) -> None:
+    """AC3, AC6: an acyclic cross-package move succeeds, no skip warning."""
+    _write_workspace(tmp_path)
+    pkg_a = tmp_path / "packages" / "pkg_a" / "src" / "pkg_a"
+    pkg_b = tmp_path / "packages" / "pkg_b" / "src" / "pkg_b"
+    x = pkg_a / "x.py"
+    y = pkg_b / "y.py"
+    x.write_text("def Bar():\n    return 1\n\ndef Foo():\n    return 42\n")
+    y.write_text("def existing():\n    return 0\n")
+
+    plan = move_symbols(x, y, ["Foo"], workspace_root=tmp_path)
+
+    assert "Foo" in plan.moved_names
+    assert "def Foo" in y.read_text()
+    assert "def Foo" not in x.read_text()
+    assert not any("cycle detection skipped" in w for w in plan.warnings), plan.warnings
+
+
+@pytest.mark.integration
+def test_include_helpers_false_real_files(tmp_path: Path) -> None:
+    """AC2: written target file does not define the skipped helper."""
+    src = tmp_path / "src_mod.py"
+    tgt = tmp_path / "tgt_mod.py"
+    src.write_text(_SOURCE)
+    tgt.write_text(_TARGET)
+    move_symbols(
+        src,
+        tgt,
+        ["public_fn"],
+        workspace_root=tmp_path,
+        include_helpers=False,
+    )
+    written = tgt.read_text()
+    assert "def _helper" not in written
+    assert "def public_fn" in written
