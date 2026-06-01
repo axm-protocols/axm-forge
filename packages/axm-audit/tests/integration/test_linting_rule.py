@@ -1,4 +1,4 @@
-"""Integration tests for axm_audit.core.rules.quality (real fixture I/O).
+"""Integration tests for axm_audit.core.rules.quality_rules (real fixture I/O).
 
 Tests here consume the ``project_path`` fixture which performs ``mkdir`` /
 ``touch`` at setup; they belong to the integration tier even though the
@@ -13,8 +13,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from axm_audit.core.rules.quality import LintingRule
+from axm_audit.core.rules.quality_rules import LintingRule
 from axm_audit.models import CheckResult
+
+_PATCH = "axm_audit.core.rules.quality_rules.run_in_project"
 
 
 @pytest.fixture()
@@ -39,7 +41,7 @@ class TestPathOutsideProject:
         ]
         mock_run = MagicMock()
         mock_run.return_value.stdout = json.dumps(issues)
-        monkeypatch.setattr("axm_audit.core.rules.quality.run_in_project", mock_run)
+        monkeypatch.setattr(_PATCH, mock_run)
         rule = LintingRule()
         result = rule.check(project_path)
         assert result.text is not None
@@ -51,7 +53,7 @@ class TestZeroIssuesPassed:
         """Clean project: text=None, no crash."""
         mock_run = MagicMock()
         mock_run.return_value.stdout = "[]"
-        monkeypatch.setattr("axm_audit.core.rules.quality.run_in_project", mock_run)
+        monkeypatch.setattr(_PATCH, mock_run)
         rule = LintingRule()
         result = rule.check(project_path)
         assert result.text is None
@@ -72,7 +74,7 @@ class TestTwentyIssuesCap:
         ]
         mock_run = MagicMock()
         mock_run.return_value.stdout = json.dumps(issues)
-        monkeypatch.setattr("axm_audit.core.rules.quality.run_in_project", mock_run)
+        monkeypatch.setattr(_PATCH, mock_run)
         rule = LintingRule()
         result = rule.check(project_path)
         assert result.text is not None
@@ -168,7 +170,7 @@ def test_linting_uses_run_in_project(tmp_path: Path) -> None:
 
     (tmp_path / "src").mkdir()
 
-    with patch("axm_audit.core.rules.quality.run_in_project") as mock:
+    with patch(_PATCH) as mock:
         mock.return_value = MagicMock(stdout="[]", stderr="", returncode=0)
         LintingRule().check(tmp_path)
         mock.assert_called_once()
@@ -180,7 +182,7 @@ def test_linting_injects_ruff(tmp_path: Path) -> None:
 
     (tmp_path / "src").mkdir()
 
-    with patch("axm_audit.core.rules.quality.run_in_project") as mock:
+    with patch(_PATCH) as mock:
         mock.return_value = MagicMock(stdout="[]", stderr="", returncode=0)
         LintingRule().check(tmp_path)
         assert mock.call_args[1]["with_packages"] == ["ruff"]
@@ -205,7 +207,7 @@ def lint_result(project_path: Path, monkeypatch: pytest.MonkeyPatch) -> CheckRes
     """Run LintingRule.check with mocked ruff returning 3 issues."""
     mock_run = MagicMock()
     mock_run.return_value.stdout = _make_ruff_output(project_path, count=3)
-    monkeypatch.setattr("axm_audit.core.rules.quality.run_in_project", mock_run)
+    monkeypatch.setattr(_PATCH, mock_run)
     rule = LintingRule()
     return rule.check(project_path)
 
@@ -229,7 +231,7 @@ class TestLintTextNoneWhenPassed:
         """text is None when project is clean."""
         mock_run = MagicMock()
         mock_run.return_value.stdout = "[]"
-        monkeypatch.setattr("axm_audit.core.rules.quality.run_in_project", mock_run)
+        monkeypatch.setattr(_PATCH, mock_run)
         rule = LintingRule()
         result = rule.check(project_path)
         assert result.text is None

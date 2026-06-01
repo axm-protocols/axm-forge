@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from axm_audit.core.rules.quality import DiffSizeRule
+from axm_audit.core.rules.quality_rules import DiffSizeRule
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def _mock_subprocess(mocker: MockerFixture, stdout: str) -> None:
     mock_result = MagicMock()
     mock_result.stdout = stdout
     mocker.patch(
-        "axm_audit.core.rules.quality.subprocess.run",
+        "axm_audit.core.rules.quality_rules.subprocess.run",
         return_value=mock_result,
     )
 
@@ -32,7 +32,7 @@ def _mock_config(
     mocker: MockerFixture, ideal: int = 200, max_lines: int = 1000
 ) -> None:
     mocker.patch(
-        "axm_audit.core.rules.quality.read_diff_config",
+        "axm_audit.core.rules.quality_rules.read_diff_config",
         return_value=(ideal, max_lines),
     )
 

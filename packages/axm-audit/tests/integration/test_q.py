@@ -26,7 +26,7 @@ def test_entry_schema(
     tmp_path: Path, rule_cls: str, source: str, collection_key: str
 ) -> None:
     """Each issue/error entry must have file, line, code, message keys."""
-    from axm_audit.core.rules import quality as q
+    from axm_audit.core.rules import quality_rules as q
 
     src = tmp_path / "src"
     src.mkdir()

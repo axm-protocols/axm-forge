@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from axm_audit.core.rules.quality import LintingRule
+from axm_audit.core.rules.quality_rules import LintingRule
 from axm_audit.models import CheckResult
 
 pytestmark = pytest.mark.integration
@@ -40,7 +40,7 @@ def lint_result(project_path: Path, monkeypatch: pytest.MonkeyPatch) -> CheckRes
     """Run LintingRule.check with mocked ruff returning 3 issues."""
     mock_run = MagicMock()
     mock_run.return_value.stdout = _make_ruff_output(project_path, count=3)
-    monkeypatch.setattr("axm_audit.core.rules.quality.run_in_project", mock_run)
+    monkeypatch.setattr("axm_audit.core.rules.quality_rules.run_in_project", mock_run)
     rule = LintingRule()
     return rule.check(project_path)
 

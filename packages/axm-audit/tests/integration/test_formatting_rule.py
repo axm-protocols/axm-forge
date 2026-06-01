@@ -10,7 +10,7 @@ import pytest
 
 pytestmark = pytest.mark.integration
 
-_PATCH = "axm_audit.core.rules.quality.run_in_project"
+_PATCH = "axm_audit.core.rules.quality_rules.run_in_project"
 
 
 class TestFormattingRule:
@@ -18,7 +18,7 @@ class TestFormattingRule:
 
     def test_formatted_project_scores_100(self, tmp_path: Path) -> None:
         """Well-formatted project scores 100."""
-        from axm_audit.core.rules.quality import FormattingRule
+        from axm_audit.core.rules.quality_rules import FormattingRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -39,7 +39,7 @@ class TestFormattingRule:
 
     def test_unformatted_project_reduces_score(self, tmp_path: Path) -> None:
         """Unformatted files reduce score."""
-        from axm_audit.core.rules.quality import FormattingRule
+        from axm_audit.core.rules.quality_rules import FormattingRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -63,7 +63,7 @@ class TestFormattingRule:
 
     def test_fix_hint_when_violations(self, tmp_path: Path) -> None:
         """Fix hint present when there are unformatted files."""
-        from axm_audit.core.rules.quality import FormattingRule
+        from axm_audit.core.rules.quality_rules import FormattingRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -81,7 +81,7 @@ class TestFormattingRule:
 
     def test_no_fix_hint_when_clean(self, tmp_path: Path) -> None:
         """No fix hint when all files are properly formatted."""
-        from axm_audit.core.rules.quality import FormattingRule
+        from axm_audit.core.rules.quality_rules import FormattingRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -97,7 +97,7 @@ class TestFormattingRule:
 
     def test_no_src_directory(self, tmp_path: Path) -> None:
         """Missing src/ directory returns passing result."""
-        from axm_audit.core.rules.quality import FormattingRule
+        from axm_audit.core.rules.quality_rules import FormattingRule
 
         rule = FormattingRule()
         result = rule.check(tmp_path)
@@ -107,7 +107,7 @@ class TestFormattingRule:
 
     def test_includes_tests_directory(self, tmp_path: Path) -> None:
         """Both src/ and tests/ are checked when both exist."""
-        from axm_audit.core.rules.quality import FormattingRule
+        from axm_audit.core.rules.quality_rules import FormattingRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -126,7 +126,7 @@ class TestFormattingRule:
 
     def test_many_unformatted_capped_at_20(self, tmp_path: Path) -> None:
         """Unformatted files list is capped at 20."""
-        from axm_audit.core.rules.quality import FormattingRule
+        from axm_audit.core.rules.quality_rules import FormattingRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -146,7 +146,7 @@ class TestFormattingRule:
 
     def test_format_uses_returncode(self, tmp_path: Path) -> None:
         """AC: rc=0 with non-empty stdout still scores 100."""
-        from axm_audit.core.rules.quality import FormattingRule
+        from axm_audit.core.rules.quality_rules import FormattingRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -169,7 +169,7 @@ class TestFormattingRule:
 
     def test_format_ignores_warnings(self, tmp_path: Path) -> None:
         """AC: warning lines in stdout not counted as unformatted."""
-        from axm_audit.core.rules.quality import FormattingRule
+        from axm_audit.core.rules.quality_rules import FormattingRule
 
         src = tmp_path / "src"
         src.mkdir()
@@ -191,11 +191,11 @@ class TestFormattingRule:
 
 def test_formatting_injects_ruff(tmp_path: Path) -> None:
     """FormattingRule passes with_packages=["ruff"]."""
-    from axm_audit.core.rules.quality import FormattingRule
+    from axm_audit.core.rules.quality_rules import FormattingRule
 
     (tmp_path / "src").mkdir()
 
-    with patch("axm_audit.core.rules.quality.run_in_project") as mock:
+    with patch("axm_audit.core.rules.quality_rules.run_in_project") as mock:
         mock.return_value = MagicMock(stdout="", stderr="", returncode=0)
         FormattingRule().check(tmp_path)
         assert mock.call_args[1]["with_packages"] == ["ruff"]
