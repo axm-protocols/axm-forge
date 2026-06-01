@@ -22,11 +22,11 @@ except ImportError:  # pragma: no cover
 from axm_audit.core.rules.test_quality._shared import load_project_scripts
 
 from .cst_rewrite import (
-    _backfill_missing_imports,
     _delete_source_if_empty_tests,
     _flatten_class_to_top_level,
     _patch_file_dunder_depth,
     _reorder_module_statements,
+    backfill_missing_imports,
 )
 from .findings import (
     class_needs_flatten,
@@ -443,7 +443,7 @@ def _recover_anchor_fixtures(
         recovered.add(fx_name)
     if recovered:
         cst_save(anchor_path, anchor_module.with_changes(body=new_body))
-        _backfill_missing_imports(
+        backfill_missing_imports(
             anchor_path, anchor_path, anchor_path.parent.parent.parent
         )
     return msgs

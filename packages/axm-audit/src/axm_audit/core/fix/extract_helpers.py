@@ -27,9 +27,9 @@ from pathlib import Path
 import libcst as cst
 
 from .cst_rewrite import (
-    _backfill_missing_imports,
     _dedupe_imports_cst,
     _is_cst_import,
+    backfill_missing_imports,
 )
 from .io_primitives import cst_load, cst_save
 from .paths import module_path_for_test_file
@@ -409,11 +409,11 @@ def _flush_emit_state(
         return
     if state.helpers_touched:
         state.msgs.extend(
-            _backfill_missing_imports(donor, targets.helpers_path, project_path)
+            backfill_missing_imports(donor, targets.helpers_path, project_path)
         )
     if state.conftest_touched:
         state.msgs.extend(
-            _backfill_missing_imports(donor, targets.conftest_path, project_path)
+            backfill_missing_imports(donor, targets.conftest_path, project_path)
         )
 
 
