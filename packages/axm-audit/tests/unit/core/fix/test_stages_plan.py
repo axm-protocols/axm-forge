@@ -53,52 +53,35 @@ def test_plan_relocate_unanimous_file_emits_relocate(
     assert "2 test(s)" in op.rationale
 
 
-def test_plan_relocate_mixed_targets_skips_file(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "findings",
+    [
+        pytest.param(
+            [
+                {"path": str(_ROOT / "tests/integration/test_x.py"), "level": "unit"},
+                {"path": str(_ROOT / "tests/integration/test_x.py"), "level": "e2e"},
+            ],
+            id="mixed-targets",
+        ),
+        pytest.param(
+            [{"path": str(_ROOT / "tests/unit/test_x.py"), "level": "unit"}],
+            id="already-correct-tier",
+        ),
+        pytest.param(
+            [{"path": str(_ROOT / "tests/integration/test_x.py")}],
+            id="finding-without-level",
+        ),
+        pytest.param([], id="empty-findings"),
+    ],
+)
+def test_plan_relocate_skips_file_yields_no_ops(
+    monkeypatch: pytest.MonkeyPatch, findings: list[dict[str, Any]]
 ) -> None:
-    """A file whose tests disagree on the target tier is left untouched."""
-    src = _ROOT / "tests/integration/test_x.py"
-    _patch_findings(
-        monkeypatch,
-        {
-            "TEST_QUALITY_PYRAMID_LEVEL": [
-                {"path": str(src), "level": "unit"},
-                {"path": str(src), "level": "e2e"},
-            ]
-        },
-    )
-    assert stages_plan.plan_relocate(_ROOT) == []
+    """Non-actionable pyramid findings emit no op.
 
-
-def test_plan_relocate_already_correct_tier_skips_file(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """When the unanimous target equals the current tier, no op is emitted."""
-    src = _ROOT / "tests/unit/test_x.py"
-    _patch_findings(
-        monkeypatch,
-        {"TEST_QUALITY_PYRAMID_LEVEL": [{"path": str(src), "level": "unit"}]},
-    )
-    assert stages_plan.plan_relocate(_ROOT) == []
-
-
-def test_plan_relocate_ignores_findings_without_level(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Findings lacking a 'level' key contribute nothing to the plan."""
-    src = _ROOT / "tests/integration/test_x.py"
-    _patch_findings(
-        monkeypatch,
-        {"TEST_QUALITY_PYRAMID_LEVEL": [{"path": str(src)}]},
-    )
-    assert stages_plan.plan_relocate(_ROOT) == []
-
-
-def test_plan_relocate_empty_findings_yields_no_ops(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """No pyramid findings means no relocate ops."""
-    _patch_findings(monkeypatch, {})
+    Covers mixed, correct-tier, no-level, and empty cases.
+    """
+    _patch_findings(monkeypatch, {"TEST_QUALITY_PYRAMID_LEVEL": findings})
     assert stages_plan.plan_relocate(_ROOT) == []
 
 
@@ -315,38 +298,29 @@ def _patch_flatten_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(stages_plan, "load_project_scripts", lambda _p: {})
 
 
-def test_plan_flatten_nonexistent_candidates_yield_no_ops(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "findings",
+    [
+        pytest.param(
+            [{"path": str(_ROOT / "tests/integration/test_x.py"), "verdict": "SPLIT"}],
+            id="nonexistent-candidates",
+        ),
+        pytest.param(
+            [{"path": str(_ROOT / "tests/integration/test_x.py"), "verdict": "OK"}],
+            id="non-flatten-verdict",
+        ),
+        pytest.param([], id="empty-findings"),
+    ],
+)
+def test_plan_flatten_yields_no_ops(
+    monkeypatch: pytest.MonkeyPatch, findings: list[dict[str, Any]]
 ) -> None:
-    """FLATTEN findings on non-existent paths collect no candidates → no ops."""
+    """Non-actionable FILE_NAMING findings emit no op.
+
+    Covers nonexistent, non-flatten, and empty cases.
+    """
     _patch_flatten_env(monkeypatch)
-    src = _ROOT / "tests/integration/test_x.py"
-    _patch_findings(
-        monkeypatch,
-        {"TEST_QUALITY_FILE_NAMING": [{"path": str(src), "verdict": "SPLIT"}]},
-    )
-    assert stages_plan.plan_flatten(_ROOT) == []
-
-
-def test_plan_flatten_non_flatten_verdict_yields_no_ops(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A finding whose verdict is outside the flatten set is ignored."""
-    _patch_flatten_env(monkeypatch)
-    src = _ROOT / "tests/integration/test_x.py"
-    _patch_findings(
-        monkeypatch,
-        {"TEST_QUALITY_FILE_NAMING": [{"path": str(src), "verdict": "OK"}]},
-    )
-    assert stages_plan.plan_flatten(_ROOT) == []
-
-
-def test_plan_flatten_empty_findings_yields_no_ops(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """No FILE_NAMING findings means no flatten ops."""
-    _patch_flatten_env(monkeypatch)
-    _patch_findings(monkeypatch, {})
+    _patch_findings(monkeypatch, {"TEST_QUALITY_FILE_NAMING": findings})
     assert stages_plan.plan_flatten(_ROOT) == []
 
 
