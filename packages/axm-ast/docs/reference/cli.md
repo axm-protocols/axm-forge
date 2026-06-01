@@ -62,6 +62,8 @@ Operates on **packages** (not individual files). Supports dotted paths like `Cla
 
 When `--symbol` matches a **module name** rather than a symbol, returns module-level metadata instead: `kind: "module"`, `functions`, `classes`, `symbol_count`, `docstring`, and `file`.
 
+Simple symbol names resolve by **exact name**: `--symbol Trajectory` returns `Trajectory`, never a substring superset like `TrajectoryReader`. When several symbols across different modules share the exact requested name, the command reports a disambiguation error listing the module-qualified matches (e.g. `Multiple symbols match 'Dup': pkg.a.Dup, pkg.b.Dup`) and exits non-zero; qualify with a dotted path to pick one. When no symbol matches exactly, resolution falls through to the module fallback and then "not found".
+
 **Examples:**
 
 ```bash

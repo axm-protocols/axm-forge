@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
 from axm.tools.base import ToolResult
 
+from axm_ast.models.nodes import ClassInfo
 from axm_ast.tools.inspect import InspectTool
 from axm_ast.tools.inspect_detail import (
     class_detail,
     function_detail,
     variable_detail,
 )
+
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
 
 
 @pytest.fixture()
@@ -292,3 +297,76 @@ class TestInspectToolUnit:
     def test_has_name(self) -> None:
         tool_inst = InspectTool()
         assert tool_inst.name == "ast_inspect"
+
+
+# ---------------------------------------------------------------------------
+# Exact-match resolution — _inspect_symbol simple-name branch (AXM-1791)
+# ---------------------------------------------------------------------------
+
+
+class TestInspectExactMatch:
+    """_inspect_symbol prefers an exact name match over a substring superset."""
+
+    @staticmethod
+    def _cls(name: str) -> ClassInfo:
+        return ClassInfo(name=name, line_start=1, line_end=2)
+
+    def test_exact_match_preferred_over_substring_superset(
+        self, tool: InspectTool, mocker: MockerFixture
+    ) -> None:
+        """AC1: name=='Foo' resolves to Foo, not the substring superset FooBar."""
+        foobar = self._cls("FooBar")
+        foo = self._cls("Foo")
+        mocker.patch("axm_ast.core.cache.get_package", return_value=MagicMock())
+        # Substring matcher returns the superset first, then the exact symbol.
+        mocker.patch(
+            "axm_ast.core.analyzer.search_symbols",
+            return_value=[("mod", foobar), ("mod", foo)],
+        )
+        mocker.patch("axm_ast.tools.inspect.find_symbol_file", return_value="mod.py")
+        mocker.patch(
+            "axm_ast.tools.inspect.find_symbol_abs_path", return_value="/x/mod.py"
+        )
+
+        result = tool._inspect_symbol(MagicMock(), "Foo", source=False)
+
+        assert result.success
+        assert result.data is not None
+        assert result.data["symbol"]["name"] == "Foo"
+
+    def test_multiple_exact_matches_returns_disambiguation_error(
+        self, tool: InspectTool, mocker: MockerFixture
+    ) -> None:
+        """AC4: two symbols with the exact requested name yield a
+        disambiguation error.
+        """
+        mocker.patch("axm_ast.core.cache.get_package", return_value=MagicMock())
+        mocker.patch(
+            "axm_ast.core.analyzer.search_symbols",
+            return_value=[("pkg.a", self._cls("Foo")), ("pkg.b", self._cls("Foo"))],
+        )
+
+        result = tool._inspect_symbol(MagicMock(), "Foo", source=False)
+
+        assert not result.success
+        assert result.error is not None
+        assert "Multiple" in result.error
+
+    def test_no_exact_match_falls_through_not_substring(
+        self, tool: InspectTool, mocker: MockerFixture
+    ) -> None:
+        """AC5: no exact match falls through to module fallback,
+        never returns FooBar.
+        """
+        mocker.patch("axm_ast.core.cache.get_package", return_value=MagicMock())
+        mocker.patch(
+            "axm_ast.core.analyzer.search_symbols",
+            return_value=[("mod", self._cls("FooBar"))],
+        )
+        mocker.patch("axm_ast.tools.inspect.inspect_module", return_value=None)
+
+        result = tool._inspect_symbol(MagicMock(), "Foo", source=False)
+
+        assert not result.success
+        assert result.error is not None
+        assert "not found" in result.error
