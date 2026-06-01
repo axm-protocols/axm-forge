@@ -949,22 +949,11 @@ def _validate_and_expand(
     """
     expanded_names, moved_names = _expand_overloads(source_tree, symbol_names)
 
-    source_names = _source_symbol_names(source_tree)
-    absent = [name for name in expanded_names if name not in source_names]
-    if absent and strict:
-        raise SymbolNotFoundError(absent[0])
+    expanded_names, moved_names, skipped_warnings = _drop_absent_symbols(
+        source_tree, expanded_names, moved_names, strict
+    )
 
-    skipped = set(absent)
-    skipped_warnings = [
-        f"skipped '{name}': not a top-level symbol in source" for name in absent
-    ]
-    expanded_names = [name for name in expanded_names if name not in skipped]
-    moved_names = [name for name in moved_names if name not in skipped]
-
-    target_existing = _gather_target_existing(target_tree)
-    for name in expanded_names:
-        if name in target_existing:
-            raise SymbolAlreadyExistsError(name)
+    _assert_target_free(target_tree, expanded_names)
 
     return expanded_names, moved_names, skipped_warnings
 
@@ -994,6 +983,71 @@ def _extract_moved_blocks(
             extracted = extract_blocks(source_tree, [name])
             blocks.extend(extracted)
     return remove_targets, blocks
+
+
+def _drop_absent_symbols(
+    source_tree: cst.Module,
+    expanded_names: list[str],
+    moved_names: list[str],
+    strict: bool,
+) -> tuple[list[str], list[str], list[str]]:
+    source_names = _source_symbol_names(source_tree)
+    absent = [name for name in expanded_names if name not in source_names]
+    if absent and strict:
+        raise SymbolNotFoundError(absent[0])
+    skipped = set(absent)
+    skipped_warnings = [
+        f"skipped '{name}': not a top-level symbol in source" for name in absent
+    ]
+    return (
+        [name for name in expanded_names if name not in skipped],
+        [name for name in moved_names if name not in skipped],
+        skipped_warnings,
+    )
+
+
+def _assert_target_free(target_tree: cst.Module, names: list[str]) -> None:
+    target_existing = _gather_target_existing(target_tree)
+    for name in names:
+        if name in target_existing:
+            raise SymbolAlreadyExistsError(name)
+
+
+def _resolve_shared_map(
+    blocks: list[Block],
+    collected_helpers: dict[str, cst.FunctionDef | cst.ClassDef],
+    new_source_tree: cst.Module,
+    include_helpers: bool,
+    shared_helpers: str,
+) -> dict[str, SharedInfo]:
+    if not include_helpers:
+        return {}
+    shared_map = classify_shared_helpers(
+        blocks, set(collected_helpers.keys()), new_source_tree
+    )
+    if shared_map and shared_helpers == "error":
+        raise SharedHelpersError(sorted(shared_map.keys()))
+    return shared_map
+
+
+def _sync_dunder_all_trees(
+    source_tree: cst.Module,
+    new_source_tree: cst.Module,
+    new_target_tree: cst.Module,
+    remove_targets: set[str],
+    rename_map: dict[str, str] | None,
+) -> tuple[cst.Module, cst.Module]:
+    ordered = [n for n in _dunder_all_names(source_tree) if n in remove_targets]
+    if not ordered:
+        return new_source_tree, new_target_tree
+    exported = set(ordered)
+    # Source removal keys on the *original* exported names; the target
+    # append must use the *post-rename* names (AXM-1773 x AXM-1770).
+    renames = rename_map or {}
+    added = [renames.get(name, name) for name in ordered]
+    new_source_tree = new_source_tree.visit(SyncDunderAll(exported, []))
+    new_target_tree = new_target_tree.visit(SyncDunderAll(set(), added))
+    return new_source_tree, new_target_tree
 
 
 def _build_trees(  # noqa: PLR0913
@@ -1045,14 +1099,9 @@ def _build_trees(  # noqa: PLR0913
 
     new_source_tree = source_tree.visit(RemoveSymbols(remove_targets))
 
-    if include_helpers:
-        shared_map = classify_shared_helpers(
-            blocks, set(collected_helpers.keys()), new_source_tree
-        )
-        if shared_map and shared_helpers == "error":
-            raise SharedHelpersError(sorted(shared_map.keys()))
-    else:
-        shared_map = {}
+    shared_map = _resolve_shared_map(
+        blocks, collected_helpers, new_source_tree, include_helpers, shared_helpers
+    )
     if skipped_helpers:
         redundant_import_warnings = [
             *redundant_import_warnings,
@@ -1069,15 +1118,9 @@ def _build_trees(  # noqa: PLR0913
     if orphans:
         new_source_tree = new_source_tree.visit(RemoveSymbols(orphans))
 
-    ordered = [n for n in _dunder_all_names(source_tree) if n in remove_targets]
-    if ordered:
-        exported = set(ordered)
-        # Source removal keys on the *original* exported names; the target
-        # append must use the *post-rename* names (AXM-1773 x AXM-1770).
-        renames = rename_map or {}
-        added = [renames.get(name, name) for name in ordered]
-        new_source_tree = new_source_tree.visit(SyncDunderAll(exported, []))
-        new_target_tree = new_target_tree.visit(SyncDunderAll(set(), added))
+    new_source_tree, new_target_tree = _sync_dunder_all_trees(
+        source_tree, new_source_tree, new_target_tree, remove_targets, rename_map
+    )
 
     # AXM-1775 AC3: conditional imports (top-level try/except, if guards) must
     # never be removed from the source — the post-move ruff F401 pass would

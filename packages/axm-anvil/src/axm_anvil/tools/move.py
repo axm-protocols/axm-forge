@@ -53,6 +53,57 @@ class MoveTool(AXMTool):
         return root, src_path, tgt_path, symbol_list
 
     @staticmethod
+    def _parse_decorators(spec: str | None) -> frozenset[str] | None:
+        if spec is None:
+            return None
+        return frozenset(entry.strip() for entry in spec.split(",") if entry.strip())
+
+    @staticmethod
+    def _build_result_data(
+        plan: MovePlan,
+        src_path: Path,
+        tgt_path: Path,
+        *,
+        reexport: bool,
+        check: bool,
+    ) -> dict[str, object]:
+        data: dict[str, object] = {
+            "moved": [
+                {"symbol": name, "from_lines": [], "to_lines": []}
+                for name in plan.moved_names
+            ],
+            "dependencies_copied": {
+                "imports": list(plan.imports_added),
+                "constants": list(plan.constants_added),
+            },
+            "callers_updated": [
+                {
+                    "file": entry.file,
+                    "line": entry.line,
+                    "old": entry.old,
+                    "new": entry.new,
+                }
+                for entry in plan.callers_updated
+            ],
+            "orphans_removed": [],
+            "warnings": list(plan.warnings),
+            "shared_helpers_detected": [
+                {
+                    "name": det.name,
+                    "used_by_moved": list(det.used_by_moved),
+                    "used_by_remaining": list(det.used_by_remaining),
+                }
+                for det in plan.shared_helpers_detected
+            ],
+            "files_modified": [str(src_path), str(tgt_path)],
+        }
+        if reexport:
+            data["reexport"] = True
+        if check:
+            data["check"] = True
+        return data
+
+    @staticmethod
     def _exception_to_result(exc: Exception) -> ToolResult:
         match exc:
             case SymbolNotFoundError():
@@ -150,13 +201,7 @@ class MoveTool(AXMTool):
             path, symbols, from_file, to_file
         )
 
-        extra_decorators: frozenset[str] | None = None
-        if side_effect_decorators is not None:
-            extra_decorators = frozenset(
-                entry.strip()
-                for entry in side_effect_decorators.split(",")
-                if entry.strip()
-            )
+        extra_decorators = self._parse_decorators(side_effect_decorators)
 
         rename_map: dict[str, str] | None = None
         if rename is not None:
@@ -184,40 +229,9 @@ class MoveTool(AXMTool):
         except Exception as exc:  # noqa: BLE001
             return self._exception_to_result(exc)
 
-        data: dict[str, object] = {
-            "moved": [
-                {"symbol": name, "from_lines": [], "to_lines": []}
-                for name in plan.moved_names
-            ],
-            "dependencies_copied": {
-                "imports": list(plan.imports_added),
-                "constants": list(plan.constants_added),
-            },
-            "callers_updated": [
-                {
-                    "file": entry.file,
-                    "line": entry.line,
-                    "old": entry.old,
-                    "new": entry.new,
-                }
-                for entry in plan.callers_updated
-            ],
-            "orphans_removed": [],
-            "warnings": list(plan.warnings),
-            "shared_helpers_detected": [
-                {
-                    "name": det.name,
-                    "used_by_moved": list(det.used_by_moved),
-                    "used_by_remaining": list(det.used_by_remaining),
-                }
-                for det in plan.shared_helpers_detected
-            ],
-            "files_modified": [str(src_path), str(tgt_path)],
-        }
-        if reexport:
-            data["reexport"] = True
-        if check:
-            data["check"] = True
+        data = self._build_result_data(
+            plan, src_path, tgt_path, reexport=reexport, check=check
+        )
         text = self._format_text(
             plan,
             from_file=str(src_path),
