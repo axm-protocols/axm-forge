@@ -115,7 +115,15 @@ class InspectTool(AXMTool):
     def _inspect_symbol(
         self, project_path: Path, symbol: str, *, source: bool = False
     ) -> ToolResult:
-        """Core symbol inspection logic."""
+        """Resolve a simple or dotted ``symbol`` name to inspect details.
+
+        For a simple name, the exact-name match is preferred: ``search_symbols``
+        matches on substring, so a request for ``Foo`` would otherwise also pick
+        a superset like ``FooBar``. The exact match wins; when several symbols
+        share the requested name across modules, a disambiguation error is
+        returned; when none match exactly, resolution falls through to the
+        module fallback (never a substring superset).
+        """
         from axm_ast.core.analyzer import search_symbols
         from axm_ast.core.cache import get_package
 
@@ -133,7 +141,19 @@ class InspectTool(AXMTool):
             inherits=None,
         )
 
-        if not results:
+        # `search_symbols` matches on substring, so a request for ``Foo`` also
+        # returns supersets like ``FooBar``. Prefer the exact-name match; never
+        # silently pick a substring superset (mirrors ``resolve_module``).
+        exact = [(mod, sym) for mod, sym in results if sym.name == symbol]
+
+        if len(exact) > 1:
+            modules = sorted(f"{mod}.{symbol}" for mod, _ in exact)
+            return ToolResult(
+                success=False,
+                error=f"Multiple symbols match '{symbol}': {', '.join(modules)}",
+            )
+
+        if not exact:
             # --- Module fallback ---
             mod_result = inspect_module(pkg, symbol, source=source)
             if mod_result is not None:
@@ -143,7 +163,7 @@ class InspectTool(AXMTool):
                 error=f"Symbol '{symbol}' not found",
             )
 
-        _, sym = results[0]
+        _, sym = exact[0]
         file_path = find_symbol_file(pkg, sym)
         abs_path = find_symbol_abs_path(pkg, sym)
         detail = build_detail(sym, file=file_path, abs_path=abs_path, source=source)

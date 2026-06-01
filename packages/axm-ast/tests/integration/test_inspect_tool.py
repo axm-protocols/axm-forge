@@ -686,3 +686,84 @@ class TestInspectToolIntegration:
         )
         assert result.success is True
         assert "source" not in result.data["symbol"]
+
+
+class TestInspectPrefixCollision:
+    """Exact-symbol resolution under prefix collision (AXM-1791).
+
+    ``Foo`` is defined after ``FooBar`` to provoke source ordering where the
+    substring superset would otherwise win.
+    """
+
+    _COLLIDE_MOD = (
+        "class FooBar:\n"
+        '    """The superset class."""\n'
+        "    def bar(self) -> None: ...\n"
+        "\n\n"
+        "class Foo:\n"
+        '    """The exact class."""\n'
+        "    def only_on_foo(self) -> None: ...\n"
+    )
+
+    _RICH_MOD = (
+        'VERSION = "1.0"\n\n\n'
+        "def greet(name: str) -> str:\n"
+        '    """Say hello."""\n'
+        '    return f"hi {name}"\n'
+        "\n\n"
+        "class Greeter:\n"
+        '    """A greeter."""\n'
+        "    def hello(self) -> str:\n"
+        '        return "hi"\n'
+    )
+
+    def test_prefix_collision_resolves_exact_class(
+        self, tool: InspectTool, tmp_path: Path
+    ) -> None:
+        """AC1: symbol='Foo' resolves to Foo, not FooBar."""
+        pkg = _make_pkg(tmp_path, {"__init__.py": "", "mod.py": self._COLLIDE_MOD})
+        result = tool.execute(path=str(pkg), symbol="Foo")
+
+        assert result.success, result.error
+        assert result.data["symbol"]["name"] == "Foo"
+        assert result.data["symbol"]["kind"] == "class"
+
+    def test_prefix_collision_source_is_exact(
+        self, tool: InspectTool, tmp_path: Path
+    ) -> None:
+        """AC2: source=True returns Foo's body, not FooBar's."""
+        pkg = _make_pkg(tmp_path, {"__init__.py": "", "mod.py": self._COLLIDE_MOD})
+        result = tool.execute(path=str(pkg), symbol="Foo", source=True)
+
+        assert result.success, result.error
+        sym = result.data["symbol"]
+        assert sym["name"] == "Foo"
+        assert "only_on_foo" in sym["source"]
+        assert "def bar" not in sym["source"]
+
+    def test_prefix_collision_batch_each_exact(
+        self, tool: InspectTool, tmp_path: Path
+    ) -> None:
+        """AC3: batch resolves each entry to its exact match."""
+        pkg = _make_pkg(tmp_path, {"__init__.py": "", "mod.py": self._COLLIDE_MOD})
+        result = tool.execute(path=str(pkg), symbols=["Foo", "FooBar"])
+
+        assert result.success, result.error
+        symbols = result.data["symbols"]
+        assert symbols[0]["name"] == "Foo"
+        assert symbols[1]["name"] == "FooBar"
+
+    def test_non_colliding_names_unchanged(
+        self, tool: InspectTool, tmp_path: Path
+    ) -> None:
+        """AC6: non-colliding resolutions still pass (regression guard)."""
+        pkg = _make_pkg(tmp_path, {"__init__.py": "", "core.py": self._RICH_MOD})
+        for name, expected_kind in [
+            ("greet", "function"),
+            ("Greeter", "class"),
+            ("VERSION", "variable"),
+        ]:
+            result = tool.execute(path=str(pkg), symbol=name)
+            assert result.success, f"{name}: {result.error}"
+            assert result.data["symbol"]["name"] == name
+            assert result.data["symbol"]["kind"] == expected_kind
