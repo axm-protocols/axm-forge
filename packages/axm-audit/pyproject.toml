@@ -364,24 +364,12 @@ hash = "191d3b600d73"
 reason = "Tests pin opposite ends of LintingRule's scoring curve: issues_reduce_score feeds two unused-import violations (import os, import sys) and asserts score<100 + issue_count>0, while lint_threshold_unchanged feeds one mild unused import and asserts the score still clears the 90 threshold (>=90) — the first guards the score-reduction monotonicity, the second guards the no-regression-on-mild-issues threshold contract; folding erases the strict<100-vs-loose>=90 boundary."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "71e3ad102beb"
-reason = "Inter-file cluster spans 5 different rule modules (DependencyHygieneRule workspace aggregation/filtering, DocstringCoverageRule cross-file/property/abstract branches, FormattingRule verdicts, TypeCheckRule empty-results path, and quality.py unit pyramid/coupling helpers). Each file has its own fixture, helper signature, and SUT; the only shared signal is 'ambiguous_distinct_literals' on diverse `result.details`/`result.passed` assertions. No identical top-level helper exists across the 5 files, and the same-file subsets each guard distinct per-rule contracts already pinned by adjacent acknowledgements above — cross-file fold would erase per-rule coverage."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "36bcdf2c13f7"
 reason = "Inter-file cluster spans 7 different practice/quality rules (BareExceptRule, BlockingIORule, CouplingMetricRule, DocstringCoverageRule, GodClassRule, MirrorRule, SecurityPatternRule). Each rule has its own pass-path with disjoint fixtures (tmp_path layout, mocker patches, content strings) and assertion targets (different `result.details` keys, different `result.score` thresholds). No shared top-level helper across the 7 files — `ambiguous_distinct_literals` is a generic signal here on `passed`/`score`/`details` asserts; folding would conflate orthogonal pass-paths from unrelated rules."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "07e1163a7546"
-reason = "Inter-file cluster ('text_none_when_passed') groups 14 tests across 8 different rule integration files that all happen to assert `result.text is None` when their respective rule passes. The literal assertion is identical but each test targets a DIFFERENT rule's pass-path (one per rule contract). Folding cross-file would require deleting the per-rule pass-path coverage that each test pins — the `text is None` invariant is a side-effect of each rule's distinct pass branch, not the test's purpose. ACK."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "4ac6b6be2637"
 reason = "Inter-file cluster mixes pass-paths and detection-paths across 5 different rules (circular-import passes, duplication passes, mirror passes, typecheck passes, plus cycle/god-class DETECTION assertions). Heterogeneous concerns: positive vs negative verdicts on unrelated SUTs with no shared fixture or helper signature. Folding would require cross-rule parametrization that erases the pass-vs-detect axis."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "5ea06a57941b"
-reason = "Canonical 'same test shape, different SUT' case: 6 `test_rule_id_format` tests across 6 different rule test files, each asserting its own rule class's `rule_id` constant matches an expected literal. The SUTs (rule classes) are different per file; folding cross-file would require importing all 6 rule classes into a single parametrized location, coupling unrelated rule modules and erasing the per-file rule-id contract. Distinct-SUT — ACK."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "faf50aeea4ef"
@@ -396,28 +384,12 @@ hash = "6a6792d55844"
 reason = "Inter-file cluster mixes 5 unrelated rule integrations: CouplingMetricRule above-threshold case, CouplingMetricRule __init__.py exclusion, DependencyHygieneRule workspace-aggregate behavior, DependencyHygieneRule single-package preserved behavior, and a SecurityRule bandit RC1 reporting check. Each test owns its own pyproject/source layout and rule SUT; cross-rule folding would couple unrelated rule modules. Distinct-SUT — ACK."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "288c5e5c0c58"
-reason = "Inter-file cluster of 5 'private alias / module attribute absent' unit tests, each probing a DIFFERENT module (coupling, base.COMPLEXITY_THRESHOLD, quality, runner._find_venv, test_runner._aliases). They share the `assert not hasattr(mod, name)` shape but each enforces its own module-level public-surface contract — each unit-test file mirrors a different source module (PRACTICE_TEST_MIRROR). Cross-file folding would break the 1:1 mirror layout. Distinct module contracts — ACK."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "69ea5aa5a8c9"
 reason = "Inter-file cluster spans 4 unrelated SUTs: NoPackageSymbolRule per-test marker integration, shared R4-skip-when-R3-attr-present integration, PrivateImportsRule count-dropped unit assertion, and TestRunner traceback-truncation unit. Different fixtures (tmp_path project layouts vs in-memory rule call vs subprocess parser) and different APIs. No shared helper signature; folding would force unrelated fixtures into a single parametrize. ACK."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "77ab6f2059d2"
 reason = "Inter-file cluster mixes 2 NoPackageSymbolRule verdict tests (MISLOCATED_INTEGRATION on e2e, NO_PACKAGE_SYMBOL on integration) and 2 PrivateImportsRule findings-shape tests (symbol_kind detection from parametrized src/import combinations, access_kind='import' alias). Different rule SUTs, different fixture layouts (_make_pkg vs pkg_root), different finding-payload keys asserted (verdict vs symbol_kind vs access_kind). No shared helper signature; cross-rule folding would couple two unrelated test_quality rules. ACK."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "daa0f69e5bac"
-reason = "Inter-file cluster spans 3 unrelated rule SUTs: FormattingRule no-src skip path, DiffSizeRule non-git-repo skip path, DiffSizeRule git-binary-missing skip path, and ToolAvailabilityRule python3-found happy path. Each guards a distinct subprocess/filesystem skip branch on a different rule. No shared helper signature; folding would couple unrelated rule modules and erase per-rule skip contracts. ACK."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "d72ad481b1ff"
-reason = "Inter-file cluster of 4 'public callable surface' import tests, each probing a DIFFERENT symbol on a DIFFERENT module: read_diff_config (rules.quality), audit_project (axm_audit root), get_rules_for_category (axm_audit root), find_venv (core.runner). They share the `assert callable(sym)` shape but each enforces its own module's external API surface contract — folding cross-file would erase the per-symbol public-surface guarantee. Distinct API contracts — ACK."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "e2dcba1445ba"
-reason = "Inter-file cluster mixes a quality-module check.text indent rendering test and 3 formatters check-details renderers (complexity top_offenders, deps_audit top_vulns, passing-but-low-score details branch). Each guards a different rendered prefix/schema (5-space indent vs '• foo.py:bar 15' vs '• requests==2.25.0' vs Improvements section on score=90); the SUTs and assertion targets are distinct. No shared helper signature; folding would erase per-renderer contracts. ACK."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "f387adcf66a7"
@@ -462,10 +434,6 @@ reason = "Canonical different-rule-classes case: FileNamingRule.rule_id == 'TEST
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "7b53b4c83f4d"
 reason = "Inter-file cluster covers two unrelated fix_hint contracts on different mirror rules: AntiMirrorRule.test_fix_hint_suggests_scenario_rename asserts fix_hint contains 'rename' AND ('scenario' OR 'describe') on an integration test named after a source module (forward anti-mirror direction, PRACTICE_TEST_SCENARIO_NAMING), and MirrorRule.test_orphan_fix_hint_no_close_match asserts fix_hint mentions the specific orphan filename 'test_zzzzqqqq.py' AND ('delete' OR 'rename') on an orphan unit test with no close source match (reverse mirror direction, PRACTICE_TEST_MIRROR). Different rules, opposite directions (forward vs reverse), different fix_hint message shapes (scenario-rename vs orphan-no-match). No shared helper signature. ACK."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "4fe87554847a"
-reason = "Inter-file cluster pairs two different CLI sub-commands' --agent text-output contracts: `audit --agent` (test_audit__output_routing.py) mocks audit_project + format_agent + format_agent_text to assert the rendered prefix starts with 'audit |' and contains no JSON brace, while `test --agent` (test_test.py) mocks run_tests + format_audit_test_text to assert the prefix starts with 'audit_test |' with no JSON brace. Different SUTs (cli.audit vs cli.test), different upstream functions mocked, different rendered prefix strings. No shared helper signature. ACK."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "90878e753845"
@@ -542,6 +510,88 @@ reason = "Both tests exercise flatten_class but guard orthogonal concerns: test_
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "f64e47eadb17"
 reason = "Both tests exercise dedupe_imports but cover disjoint import-statement shapes: test_imports_dedupe_collapses_duplicates asserts that repeated `import os` (plain-import shape) collapses to a single line AND that `import sys` is preserved at count 1, while test_dedupe_imports_from_module_collapses_repeat asserts that repeated `from pkg import foo` (from-import shape) collapses AND that the unrelated `from pkg import bar` survives at count 1. Same `lines.count(1)` literal but applied to different source-string contracts (`import X` vs `from X import Y`); each pins a separate dedupe branch (Import vs ImportFrom CST node)."
+
+# ── Fix-corpus fixture data (tests/fixtures/fix_corpus/**) — NOT real tests ──
+# These files are static input/expected snapshots fed to the fix-pipeline
+# integration tests; the dedup rule scans them as if they were the suite's own
+# tests and clusters the (intentionally near-identical) input/expected pairs.
+# False positives by construction — the corpus must contain these shapes.
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "6ed5da2f99d0"
+reason = "Fix-corpus fixture data (mixed/{input,expected}/tests/unit/test_beta_extra.py + test_combined.py): static snapshots driving the fix-pipeline split/merge tests, not the suite's own tests. The input↔expected pairs are intentionally near-identical (that IS the corpus contract). Dedup false positive on fixture data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e7108e4c3fbe"
+reason = "Fix-corpus fixture data (flatten_only/{input,expected}/tests/unit/test_utils.py): input↔expected snapshot pair for the flatten-pipeline integration test, not a real test. Dedup false positive on fixture data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4b7c13a85cab"
+reason = "Fix-corpus fixture data (merge_only/{input,expected}/tests/unit/test_api_one.py + test_api_two.py): input↔expected snapshot pairs for the merge-pipeline integration test, not real tests. Dedup false positive on fixture data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b9b6273c4646"
+reason = "Fix-corpus fixture data (split_only/{input,expected}/tests/unit/test_combined.py): input↔expected snapshot pair for the split-pipeline integration test, not a real test. Dedup false positive on fixture data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9f8b1b581bb4"
+reason = "Fix-corpus fixture data (mixed/{input,expected} test_alpha.py): input↔expected snapshot pair for the pipeline integration test, not a real test. Dedup false positive on fixture data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3ed38403c769"
+reason = "Fix-corpus fixture data (mixed/{input,expected}/tests/unit/test_class_form.py): input↔expected snapshot pair, not a real test. Dedup false positive on fixture data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3b0eb760289a"
+reason = "Fix-corpus fixture data (mixed/{input,expected}/tests/unit/test_misnamed.py): input↔expected snapshot pair, not a real test. Dedup false positive on fixture data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d76b1f9ab5f2"
+reason = "Fix-corpus fixture data (relocate_only/{input,expected} test_core.py): input↔expected snapshot pair for the relocate-pipeline integration test, not a real test. Dedup false positive on fixture data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b369d4412e61"
+reason = "Fix-corpus fixture data (rename_only/{input,expected}/tests/unit/test_wrong_name.py): input↔expected snapshot pair for the rename-pipeline integration test, not a real test. Dedup false positive on fixture data."
+
+# ── Inter-file 'same shape, different rule SUT/contract' — cross-module folds forbidden ──
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9787543367b9"
+reason = "Inter-file cluster of 17 tests across 5 rule SUTs (DependencyHygieneRule, DocstringCoverageRule, FormattingRule, TypeCheckRule, and quality_rules unit). They share the `assert result.passed`/`result.details` literal shape but each targets a DIFFERENT rule's pass/detail contract. Folding cross-module would couple unrelated rule modules and erase per-rule coverage. Distinct-SUT — ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "87ba0a5fee90"
+reason = "Inter-file cluster of 14 tests across 8 rule SUTs (BlockingIORule, CouplingMetricRule, DuplicationRule, LintingRule, PyprojectCompletenessRule, SecurityPatternRule, TypeCheckRule, quality_rules) all asserting `result.text is None` on their respective pass-path. The literal is identical but each pins a different rule's pass branch; folding would delete per-rule pass-path coverage. ACK (same pattern as 07e1163a7546)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "a7fe43c97b48"
+reason = "Inter-file cluster of 6 `test_rule_id_format` tests across 6 different rule test files (BareExcept, BlockingIO, DocstringCoverage, Mirror, Complexity, quality_rules), each asserting its own rule class's rule_id constant. Different SUTs per file; folding would couple unrelated rule modules and erase the per-file rule-id contract. Distinct-SUT — ACK (same pattern as 5ea06a57941b)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "97ff44c71715"
+reason = "Inter-file cluster of 5 'private alias / module attribute absent' unit tests, each probing a DIFFERENT module (architecture.coupling, complexity, quality_rules, core.runner, core.test_runner). Shared `assert not hasattr(mod, name)` shape but each enforces its own module-level public-surface contract; each unit file mirrors a different source module (PRACTICE_TEST_MIRROR). Cross-file fold would break the 1:1 mirror. Distinct module contracts — ACK (same pattern as 288c5e5c0c58)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b47b6584a57a"
+reason = "Inter-file cluster of 4 tests across 3 SUTs (FormattingRule integration, quality_rules unit, ToolingRule unit). Shared `result.passed`/`result.details` literal shape but each pins a distinct rule's pass/detail contract on a different module. Folding cross-module would erase per-rule coverage. Distinct-SUT — ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "db37154de7a0"
+reason = "Inter-file cluster of 4 tests across 3 SUTs (quality_rules, core.auditor, core.runner) sharing a setup shape but each exercising a different module's behaviour with its own fixture and assertion target. No shared top-level helper; cross-module fold would couple unrelated modules. Distinct-SUT — ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "6a10eac48933"
+reason = "Inter-file cluster of 4 tests across 2 SUTs (quality_rules check.text rendering vs formatters check-details renderers). Each guards a different rendered prefix/schema on a distinct module; no shared helper signature. Folding would erase per-renderer contracts. Distinct-SUT — ACK (same pattern as e2dcba1445ba)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b7bd09b75d85"
+reason = "Inter-file e2e cluster pairs two different CLI sub-commands' contracts: `audit` (test_audit.py) and `fix` (test_fix.py), each a black-box subprocess invocation of a distinct binary path with its own expected exit/output. Different SUTs; folding would conflate two CLI commands. Distinct-SUT — ACK (same pattern as 4fe87554847a)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e33c9bdf87e6"
+reason = "Inter-file integration cluster pairs `audit` (test_audit.py) and `test`/TestReport (test_cli_test__test_report.py) CLI sub-commands, each mocking a different upstream and asserting a distinct rendered prefix. Different SUTs (cli.audit vs cli.test); no shared helper. Distinct-SUT — ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4a2579591443"
+reason = "Inter-file cluster pairs test_plan_naming.py (integration) and test_layout_and_move.py (unit) — different SUTs (naming-plan vs layout/move) at different pyramid tiers with distinct fixtures and assertion targets. Cross-tier, cross-module fold forbidden. Distinct-SUT — ACK."
 
 [tool.mypy]
 python_version = "3.12"
