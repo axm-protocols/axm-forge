@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -1532,6 +1532,69 @@ def _resolve_symbol_ref(
     return None
 
 
+@dataclass(frozen=True)
+class _GraphEditContext:
+    """Shared inputs for diffing updated module imports against a graph."""
+
+    source_module: str
+    target_module: str
+    new_source_tree: cst.Module
+    new_target_tree: cst.Module
+    caller_texts: dict[Path, tuple[str, str]]
+    internal_modules: set[str]
+    graph: dict[str, set[str]]
+    blocks: list[Block]
+    source_tree: cst.Module
+
+
+def _diff_module_imports(
+    ctx: _GraphEditContext,
+    resolve_caller: Callable[[Path], str | None],
+) -> GraphEdits:
+    """Diff updated module imports against ``ctx.graph`` to produce ``GraphEdits``."""
+    adds: list[tuple[str, str]] = []
+    removes: list[tuple[str, str]] = []
+
+    def _apply(mod_name: str, new_imps: set[str]) -> None:
+        old_imps = ctx.graph.get(mod_name, set())
+        for m in sorted(new_imps - old_imps):
+            adds.append((mod_name, m))
+        for m in sorted(old_imps - new_imps):
+            removes.append((mod_name, m))
+
+    _apply(
+        ctx.source_module,
+        _extract_absolute_imports(ctx.new_source_tree, ctx.internal_modules),
+    )
+    target_imports = _extract_absolute_imports(
+        ctx.new_target_tree, ctx.internal_modules
+    )
+    target_imports |= _block_implied_target_imports(
+        ctx.blocks,
+        ctx.source_tree,
+        ctx.new_source_tree,
+        ctx.source_module,
+        ctx.target_module,
+        ctx.internal_modules,
+    )
+    _apply(ctx.target_module, target_imports)
+
+    for caller_path, (_old_text, new_text) in ctx.caller_texts.items():
+        caller_module = resolve_caller(caller_path)
+        if caller_module is None:
+            continue
+        try:
+            new_tree = cst.parse_module(new_text)
+        except Exception:  # noqa: BLE001, S112
+            continue
+        _apply(
+            caller_module,
+            _extract_absolute_imports(new_tree, ctx.internal_modules),
+        )
+
+    return GraphEdits(adds=adds, removes=removes)
+
+
 def _compute_graph_edits(  # noqa: PLR0913
     workspace_root: Path,
     source_path: Path,
@@ -1547,50 +1610,27 @@ def _compute_graph_edits(  # noqa: PLR0913
     source_tree: cst.Module,
 ) -> GraphEdits:
     """Diff the updated module imports against ``graph`` to produce ``GraphEdits``."""
-    adds: list[tuple[str, str]] = []
-    removes: list[tuple[str, str]] = []
-
-    def _apply(mod_name: str, new_imps: set[str]) -> None:
-        old_imps = graph.get(mod_name, set())
-        for m in sorted(new_imps - old_imps):
-            adds.append((mod_name, m))
-        for m in sorted(old_imps - new_imps):
-            removes.append((mod_name, m))
-
-    _apply(
-        source_module,
-        _extract_absolute_imports(new_source_tree, internal_modules),
-    )
-    target_imports = _extract_absolute_imports(new_target_tree, internal_modules)
-    target_imports |= _block_implied_target_imports(
-        blocks,
-        source_tree,
-        new_source_tree,
-        source_module,
-        target_module,
-        internal_modules,
-    )
-    _apply(target_module, target_imports)
-
-    for caller_path, (_old_text, new_text) in caller_texts.items():
-        try:
-            caller_module = _module_path_from_file(caller_path, workspace_root)
-        except ValueError:
-            continue
-        try:
-            new_tree = cst.parse_module(new_text)
-        except Exception:  # noqa: BLE001, S112
-            continue
-        _apply(
-            caller_module,
-            _extract_absolute_imports(new_tree, internal_modules),
-        )
-
-    # Imports no longer needed are not considered — the graph diff already
-    # reflects them via _apply above.
     _ = source_path
     _ = target_path
-    return GraphEdits(adds=adds, removes=removes)
+
+    def _resolve_caller(caller_path: Path) -> str | None:
+        try:
+            return _module_path_from_file(caller_path, workspace_root)
+        except ValueError:
+            return None
+
+    ctx = _GraphEditContext(
+        source_module=source_module,
+        target_module=target_module,
+        new_source_tree=new_source_tree,
+        new_target_tree=new_target_tree,
+        caller_texts=caller_texts,
+        internal_modules=internal_modules,
+        graph=graph,
+        blocks=blocks,
+        source_tree=source_tree,
+    )
+    return _diff_module_imports(ctx, _resolve_caller)
 
 
 def _cycle_check(  # noqa: PLR0913
@@ -1725,45 +1765,22 @@ def _compute_workspace_graph_edits(  # noqa: PLR0913
     ``{import_pkg}.{module}`` and ``internal_modules`` is the full set of
     workspace graph nodes, so cross-package edges resolve correctly.
     """
-    adds: list[tuple[str, str]] = []
-    removes: list[tuple[str, str]] = []
 
-    def _apply(mod_name: str, new_imps: set[str]) -> None:
-        old_imps = graph.get(mod_name, set())
-        for m in sorted(new_imps - old_imps):
-            adds.append((mod_name, m))
-        for m in sorted(old_imps - new_imps):
-            removes.append((mod_name, m))
+    def _resolve_caller(caller_path: Path) -> str | None:
+        return _namespaced_caller_module(caller_path, workspace_root)
 
-    _apply(
-        source_module,
-        _extract_absolute_imports(new_source_tree, internal_modules),
+    ctx = _GraphEditContext(
+        source_module=source_module,
+        target_module=target_module,
+        new_source_tree=new_source_tree,
+        new_target_tree=new_target_tree,
+        caller_texts=caller_texts,
+        internal_modules=internal_modules,
+        graph=graph,
+        blocks=blocks,
+        source_tree=source_tree,
     )
-    target_imports = _extract_absolute_imports(new_target_tree, internal_modules)
-    target_imports |= _block_implied_target_imports(
-        blocks,
-        source_tree,
-        new_source_tree,
-        source_module,
-        target_module,
-        internal_modules,
-    )
-    _apply(target_module, target_imports)
-
-    for caller_path, (_old_text, new_text) in caller_texts.items():
-        caller_module = _namespaced_caller_module(caller_path, workspace_root)
-        if caller_module is None:
-            continue
-        try:
-            new_tree = cst.parse_module(new_text)
-        except Exception:  # noqa: BLE001, S112
-            continue
-        _apply(
-            caller_module,
-            _extract_absolute_imports(new_tree, internal_modules),
-        )
-
-    return GraphEdits(adds=adds, removes=removes)
+    return _diff_module_imports(ctx, _resolve_caller)
 
 
 def _inject_reexport(
