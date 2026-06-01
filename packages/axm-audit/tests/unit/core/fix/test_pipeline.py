@@ -75,16 +75,19 @@ def test_run_default_rules_drives_relocate_planner(
     assert neutralized["plan_relocate"], "PYRAMID rule should invoke plan_relocate"
 
 
-def test_run_dryrun_sets_applied_false(neutralized: CallLog) -> None:
-    """apply=False marks the report as not applied."""
-    report = pipeline.run(_ROOT, apply=False)
-    assert report.applied is False
-
-
-def test_run_apply_sets_applied_true(neutralized: CallLog) -> None:
-    """apply=True marks the report as applied."""
-    report = pipeline.run(_ROOT, apply=True)
-    assert report.applied is True
+@pytest.mark.parametrize(
+    ("apply", "expected_applied"),
+    [
+        pytest.param(False, False, id="dryrun-not-applied"),
+        pytest.param(True, True, id="apply-applied"),
+    ],
+)
+def test_run_applied_flag_tracks_apply_arg(
+    neutralized: CallLog, apply: bool, expected_applied: bool
+) -> None:
+    """report.applied mirrors the apply= argument passed to run()."""
+    report = pipeline.run(_ROOT, apply=apply)
+    assert report.applied is expected_applied
 
 
 def test_run_dryrun_runs_single_iteration(neutralized: CallLog) -> None:

@@ -597,6 +597,18 @@ reason = "Inter-file cluster pairs test_plan_naming.py (integration) and test_la
 hash = "88beddac7a68"
 reason = "Tests exercise two distinct public SUTs that share an empty-project boundary: extract_shared_helpers_once (single sweep) vs extract_shared_helpers (fixed-point loop); each needs its own mirror coverage and parametrizing over the callable would erase which function is verified. Distinct-SUT — ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "56c49f0b7bb4"
+reason = "Tests guard two opposite fixed-point branches of pipeline.run apply-loop: converges_when_no_ops_planned uses the all-empty `neutralized` fixture and asserts iterations==1 (immediate convergence), while apply_loop_caps_at_max_iterations monkeypatches plan_relocate to never empty and asserts iterations==MAX_ITERATIONS (cap saturation). Different setup (shared fixture vs bespoke patch), different branch, different expected meaning; folding would erase the converge-vs-cap distinction. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7d50db207ad4"
+reason = "Both assert report.by_kind() but guard disjoint pipeline.run branches: records_relocate_ops_in_report feeds two relocate ops and asserts {'relocate': 2} (accumulation), while flatten_drops_pathological_ops feeds one actionable + one PATHOLOGICAL flatten op and asserts {'flatten': 1} (the pathological-filter branch drops one). Different code path (accumulate vs filter) and different expected; folding would erase the filtering contract. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e8667545cfd1"
+reason = "Cluster spans two distinct SUTs and disjoint guard branches: relocate_no_tests_dir_returns_empty + relocate_no_noncanonical_dirs_returns_empty guard relocate_non_canonical_tiers (no-tests-dir vs no-noncanonical-dirs early returns), while flatten_no_tests_dir_returns_empty + flatten_aggregates_messages_across_tiers guard flatten_tier_layout (no-tests-dir guard vs the message-aggregation path that returns a non-empty concatenated list). Mixed return-[] guards and an aggregate-non-empty assertion across two functions; folding would conflate unrelated SUTs. ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
