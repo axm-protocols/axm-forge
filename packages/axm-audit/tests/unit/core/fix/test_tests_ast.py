@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import ast
 
+import pytest
+
 from axm_audit.core.fix.findings import class_needs_flatten
 from axm_audit.core.fix.tests_ast import (
     class_is_pathological,
@@ -41,34 +43,33 @@ def test_top_level_test_classes_filters_underscored_and_nested() -> None:
     assert names == {"TestA", "TestC"}
 
 
-def test_class_is_pathological_uses_self_x() -> None:
-    """AC2: detects ``self.<attr>`` access in test method."""
-    src = "class TestF:\n    def test_x(self):\n        self.foo = 1\n"
+@pytest.mark.parametrize(
+    ("src", "marker"),
+    [
+        pytest.param(
+            "class TestF:\n    def test_x(self):\n        self.foo = 1\n",
+            "self",
+            id="uses-self-attr",
+        ),
+        pytest.param(
+            "class TestF(SomeBase):\n    def test_x(self): pass\n",
+            "inherits",
+            id="non-object-inheritance",
+        ),
+        pytest.param(
+            "class TestF:\n    def __init__(self): pass\n",
+            "__init__",
+            id="has-init",
+        ),
+    ],
+)
+def test_class_is_pathological_detects(src: str, marker: str) -> None:
+    """AC2: pathological classes return a reason naming the offending trait."""
     cls = _parse_source(src).body[0]
     assert isinstance(cls, ast.ClassDef)
     reason = class_is_pathological(cls)
     assert reason is not None
-    assert "self" in reason
-
-
-def test_class_is_pathological_non_object_inheritance() -> None:
-    """AC2: detects inheritance from a non-object base."""
-    src = "class TestF(SomeBase):\n    def test_x(self): pass\n"
-    cls = _parse_source(src).body[0]
-    assert isinstance(cls, ast.ClassDef)
-    reason = class_is_pathological(cls)
-    assert reason is not None
-    assert "inherits" in reason
-
-
-def test_class_is_pathological_has_init() -> None:
-    """AC2: detects presence of __init__."""
-    src = "class TestF:\n    def __init__(self): pass\n"
-    cls = _parse_source(src).body[0]
-    assert isinstance(cls, ast.ClassDef)
-    reason = class_is_pathological(cls)
-    assert reason is not None
-    assert "__init__" in reason
+    assert marker in reason
 
 
 def test_class_is_pathological_benign_returns_none() -> None:
@@ -79,16 +80,35 @@ def test_class_is_pathological_benign_returns_none() -> None:
     assert class_is_pathological(cls) is None
 
 
-def test_class_needs_flatten_divergent_tuples() -> None:
-    """AC3: methods with divergent first-party symbol calls -> True."""
-    src = (
-        "from pkg import symA, symB\n"
-        "class TestC:\n"
-        "    def test_a(self):\n"
-        "        symA()\n"
-        "    def test_b(self):\n"
-        "        symB()\n"
-    )
+@pytest.mark.parametrize(
+    ("src", "expected"),
+    [
+        pytest.param(
+            "from pkg import symA, symB\n"
+            "class TestC:\n"
+            "    def test_a(self):\n"
+            "        symA()\n"
+            "    def test_b(self):\n"
+            "        symB()\n",
+            True,
+            id="divergent-tuples",
+        ),
+        pytest.param(
+            "import pkg\n"
+            "class TestC:\n"
+            "    def test_a(self):\n"
+            "        pkg.symA()\n"
+            "        pkg.symB()\n"
+            "    def test_b(self):\n"
+            "        pkg.symA()\n"
+            "        pkg.symB()\n",
+            False,
+            id="homogeneous-tuples",
+        ),
+    ],
+)
+def test_class_needs_flatten_tuples(src: str, expected: bool) -> None:
+    """AC3: integration flatten fires only when method symbol-tuples diverge."""
     tree = _parse_source(src)
     cls = tree.body[1]
     assert isinstance(cls, ast.ClassDef)
@@ -101,35 +121,7 @@ def test_class_needs_flatten_divergent_tuples() -> None:
             scripts=set(),
             single_binary=None,
         )
-        is True
-    )
-
-
-def test_class_needs_flatten_homogeneous_tuples_false() -> None:
-    """AC3: methods calling identical first-party symbols -> False."""
-    src = (
-        "import pkg\n"
-        "class TestC:\n"
-        "    def test_a(self):\n"
-        "        pkg.symA()\n"
-        "        pkg.symB()\n"
-        "    def test_b(self):\n"
-        "        pkg.symA()\n"
-        "        pkg.symB()\n"
-    )
-    tree = _parse_source(src)
-    cls = tree.body[1]
-    assert isinstance(cls, ast.ClassDef)
-    assert (
-        class_needs_flatten(
-            cls,
-            tree,
-            tier="integration",
-            pkg_prefixes={"pkg"},
-            scripts=set(),
-            single_binary=None,
-        )
-        is False
+        is expected
     )
 
 
@@ -146,13 +138,39 @@ def test_top_level_helpers_filters_test_prefix() -> None:
     assert set(helpers.keys()) == {"helper"}
 
 
-def test_collect_imported_names_aliased_and_future_ignored() -> None:
-    """AC6: aliased imports yield local name; basic imports yield module name."""
-    src = "from __future__ import annotations\nimport os\nfrom typing import Any as A\n"
-    tree = _parse_source(src)
-    result = collect_imported_names(tree)
-    assert "os" in result
-    assert "A" in result
+@pytest.mark.parametrize(
+    ("src", "present", "absent"),
+    [
+        pytest.param(
+            "from __future__ import annotations\n"
+            "import os\nfrom typing import Any as A\n",
+            ("os", "A"),
+            (),
+            id="aliased-and-future-ignored",
+        ),
+        pytest.param(
+            "import os.path\nimport json\n",
+            ("os", "json"),
+            (),
+            id="module-import",
+        ),
+        pytest.param(
+            "from typing import Any, List as L\n",
+            ("Any", "L"),
+            ("List",),  # aliased — the alias replaces the original
+            id="from-with-multiple-aliases",
+        ),
+    ],
+)
+def test_collect_imported_names(
+    src: str, present: tuple[str, ...], absent: tuple[str, ...]
+) -> None:
+    """AC6: import/from/alias forms surface bound names (alias replaces origin)."""
+    names = collect_imported_names(_parse_source(src))
+    for name in present:
+        assert name in names
+    for name in absent:
+        assert name not in names
 
 
 def test_marker_fixtures_in_unit_usefixtures_marker() -> None:
@@ -230,24 +248,6 @@ def test_top_level_helpers_skips_test_functions() -> None:
 # ---------------------------------------------------------------------------
 # collect_imported_names — boundary cases
 # ---------------------------------------------------------------------------
-
-
-def test_collect_imported_names_module_import() -> None:
-    """Plain ``import X`` yields X as a top-level binding."""
-    tree = _parse_source("import os.path\nimport json\n")
-    names = collect_imported_names(tree)
-    assert "os" in names
-    assert "json" in names
-
-
-def test_collect_imported_names_from_with_multiple_aliases() -> None:
-    """Aliased + non-aliased ``from`` imports both surface their bound names."""
-    src = "from typing import Any, List as L\n"
-    tree = _parse_source(src)
-    names = collect_imported_names(tree)
-    assert "Any" in names
-    assert "L" in names
-    assert "List" not in names  # aliased — the alias replaces the original
 
 
 # ---------------------------------------------------------------------------
