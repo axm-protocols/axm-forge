@@ -273,3 +273,11 @@ reason = "Both raise ImportCycleError but over distinct setups and contracts: mo
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "67f7ebea6c79"
 reason = "Distinct rewrite concerns: subscript_chain asserts the attribute rewrite reaches into a subscript node (`pkg.new.Foo[key]`), while leaves_other_symbols asserts selectivity — the target `Foo` is rewritten but a non-target `Other` on the same alias is left untouched (`pkg.old.Other` preserved). Different node types and different assertions."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1f3ae3172b3e"
+reason = "Three divergent concerns across files: overload_partial_move_raises asserts OverloadPartialMoveError, symbol_already_exists_raises asserts a different exception SymbolAlreadyExistsError, and string_forward_ref_not_rewritten is a non-raising happy-path dry_run asserting the literal forward-ref string is preserved in source_text_new — different exceptions plus a return path, not shared data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "577ca9835640"
+reason = "Mixes a raises/rollback branch with two happy-path moves: move_parse_error_rollback monkeypatches a render seam to force MoveValidationError and asserts both files roll back, while move_simple_class asserts plan.moved_names and move_with_direct_constants asserts plan.constants_added — a raise path versus two return paths checking different fields over different setups (fixture copy vs inline write)."
