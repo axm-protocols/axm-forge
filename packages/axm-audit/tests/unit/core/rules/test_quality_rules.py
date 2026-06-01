@@ -1,4 +1,4 @@
-"""Unit tests for axm_audit.core.rules.quality (no I/O)."""
+"""Unit tests for axm_audit.core.rules.quality_rules (no I/O)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from axm_audit.core.rules.quality import FormattingRule, LintingRule
+from axm_audit.core.rules.quality_rules import FormattingRule, LintingRule
 from axm_audit.models import CheckResult
 
 
@@ -19,7 +19,7 @@ class TestDiffSizeRuleUnit:
         """Small diff (<200 lines) should pass with score 100."""
         from unittest.mock import MagicMock, patch
 
-        from axm_audit.core.rules.quality import DiffSizeRule
+        from axm_audit.core.rules.quality_rules import DiffSizeRule
 
         # Mock git rev-parse succeeds
         rev_parse = MagicMock(returncode=0)
@@ -45,7 +45,7 @@ class TestDiffSizeRuleUnit:
         """Large diff (1100 lines) should fail with reduced score."""
         from unittest.mock import MagicMock, patch
 
-        from axm_audit.core.rules.quality import DiffSizeRule
+        from axm_audit.core.rules.quality_rules import DiffSizeRule
 
         rev_parse = MagicMock(returncode=0)
         diff_stat = MagicMock(
@@ -70,7 +70,7 @@ class TestDiffSizeRuleUnit:
         """Non-git directory should skip gracefully."""
         from unittest.mock import MagicMock, patch
 
-        from axm_audit.core.rules.quality import DiffSizeRule
+        from axm_audit.core.rules.quality_rules import DiffSizeRule
 
         rev_parse = MagicMock(returncode=128)
 
@@ -88,7 +88,7 @@ class TestDiffSizeRuleUnit:
         """No uncommitted changes → pass with score 100."""
         from unittest.mock import MagicMock, patch
 
-        from axm_audit.core.rules.quality import DiffSizeRule
+        from axm_audit.core.rules.quality_rules import DiffSizeRule
 
         rev_parse = MagicMock(returncode=0)
         diff_stat = MagicMock(returncode=0, stdout="")
@@ -109,7 +109,7 @@ class TestDiffSizeRuleUnit:
         """Missing git binary should skip gracefully."""
         from unittest.mock import patch
 
-        from axm_audit.core.rules.quality import DiffSizeRule
+        from axm_audit.core.rules.quality_rules import DiffSizeRule
 
         with patch("shutil.which", return_value=None):
             rule = DiffSizeRule()
@@ -120,7 +120,7 @@ class TestDiffSizeRuleUnit:
 
     def test_rule_id_format(self) -> None:
         """Rule ID should be QUALITY_DIFF_SIZE."""
-        from axm_audit.core.rules.quality import DiffSizeRule
+        from axm_audit.core.rules.quality_rules import DiffSizeRule
 
         rule = DiffSizeRule()
         assert rule.rule_id == "QUALITY_DIFF_SIZE"
@@ -137,7 +137,7 @@ class TestDiffSizeRuleUnit:
         ],
     )
     def test_compute_score(self, lines: int, expected_score: int) -> None:
-        from axm_audit.core.rules.quality import DiffSizeRule
+        from axm_audit.core.rules.quality_rules import DiffSizeRule
 
         assert DiffSizeRule.compute_score(lines) == expected_score
 
@@ -157,7 +157,7 @@ class TestTypeCheckRuleUnit:
 
     def test_rule_id_format(self) -> None:
         """Rule ID should be QUALITY_TYPE."""
-        from axm_audit.core.rules.quality import TypeCheckRule
+        from axm_audit.core.rules.quality_rules import TypeCheckRule
 
         rule = TypeCheckRule()
         assert rule.rule_id == "QUALITY_TYPE"
@@ -171,7 +171,7 @@ class TestParseMypyErrors:
 
     def test_parse_mypy_errors_string_json(self) -> None:
         """String JSON line should be skipped, returns (0, [])."""
-        from axm_audit.core.rules.quality import TypeCheckRule
+        from axm_audit.core.rules.quality_rules import TypeCheckRule
 
         stdout = '"some status string"\n'
         count, errors = TypeCheckRule.parse_mypy_errors(stdout)
@@ -180,7 +180,7 @@ class TestParseMypyErrors:
 
     def test_parse_mypy_errors_list_json(self) -> None:
         """List JSON line should be skipped, returns (0, [])."""
-        from axm_audit.core.rules.quality import TypeCheckRule
+        from axm_audit.core.rules.quality_rules import TypeCheckRule
 
         stdout = '["a", "b"]\n'
         count, errors = TypeCheckRule.parse_mypy_errors(stdout)
@@ -190,7 +190,7 @@ class TestParseMypyErrors:
     def test_parse_mypy_errors_valid_error(self) -> None:
         """Valid mypy error JSON dict should be parsed correctly."""
 
-        from axm_audit.core.rules.quality import TypeCheckRule
+        from axm_audit.core.rules.quality_rules import TypeCheckRule
 
         entry = {
             "severity": "error",
@@ -211,7 +211,7 @@ class TestParseMypyErrors:
     def test_parse_mypy_errors_mixed(self) -> None:
         """Mixed stdout: skips string line, parses valid error."""
 
-        from axm_audit.core.rules.quality import TypeCheckRule
+        from axm_audit.core.rules.quality_rules import TypeCheckRule
 
         error_entry = {
             "severity": "error",
@@ -228,7 +228,7 @@ class TestParseMypyErrors:
 
     def test_parse_mypy_errors_empty_stdout(self) -> None:
         """Empty stdout returns (0, [])."""
-        from axm_audit.core.rules.quality import TypeCheckRule
+        from axm_audit.core.rules.quality_rules import TypeCheckRule
 
         count, errors = TypeCheckRule.parse_mypy_errors("")
         assert count == 0
@@ -246,14 +246,14 @@ class TestParseMypyErrors:
     )
     def test_parse_mypy_errors_skips_non_dict_json(self, stdout: str) -> None:
         """Non-dict JSON scalars on a line should be skipped."""
-        from axm_audit.core.rules.quality import TypeCheckRule
+        from axm_audit.core.rules.quality_rules import TypeCheckRule
 
         count, errors = TypeCheckRule.parse_mypy_errors(stdout)
         assert count == 0
         assert errors == []
 
 
-MODULE = "axm_audit.core.rules.quality"
+MODULE = "axm_audit.core.rules.quality_rules"
 
 
 @pytest.fixture()
@@ -355,7 +355,7 @@ class TestFormattingRule:
 
 def test_read_diff_config_public() -> None:
     """read_diff_config is importable as a public callable."""
-    from axm_audit.core.rules.quality import read_diff_config
+    from axm_audit.core.rules.quality_rules import read_diff_config
 
     assert callable(read_diff_config)
 
@@ -378,9 +378,9 @@ def test_read_diff_config_public() -> None:
 )
 def test_quality_module_attribute_absent(attr: str, reason: str) -> None:
     """AC4 surface: certain attributes must NOT be exposed on the quality module."""
-    from axm_audit.core.rules import quality
+    from axm_audit.core.rules import quality_rules
 
-    assert not hasattr(quality, attr), reason
+    assert not hasattr(quality_rules, attr), reason
 
 
 class TestOtherRulesTextRendering:

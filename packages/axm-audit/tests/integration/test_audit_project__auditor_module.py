@@ -13,7 +13,7 @@ def test_audit_project_with_dummy_rule_returns_1_check(
 ) -> None:
     """A rule registered under test_quality produces at least one check."""
     from axm_audit.core import auditor as auditor_module
-    from axm_audit.core.rules.quality import LintingRule
+    from axm_audit.core.rules.quality_rules import LintingRule
 
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "__init__.py").write_text("")

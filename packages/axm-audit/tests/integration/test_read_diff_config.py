@@ -58,7 +58,7 @@ class TestDiffSizeRule:
         expected_max: int,
     ) -> None:
         """read_diff_config honours config overrides and falls back to defaults."""
-        from axm_audit.core.rules.quality import read_diff_config
+        from axm_audit.core.rules.quality_rules import read_diff_config
 
         if pyproject_content is not None:
             (tmp_path / "pyproject.toml").write_text(pyproject_content)

@@ -73,7 +73,7 @@ def get_rules_for_category(
     _ensure_registry_loaded()
 
     if quick:
-        from axm_audit.core.rules.quality import LintingRule, TypeCheckRule
+        from axm_audit.core.rules.quality_rules import LintingRule, TypeCheckRule
 
         return [LintingRule(), TypeCheckRule()]
 

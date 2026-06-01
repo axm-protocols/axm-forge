@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pytest_mock import MockerFixture
 
-from axm_audit.core.rules.quality import TypeCheckRule
+from axm_audit.core.rules.quality_rules import TypeCheckRule
 
 
 def _mypy_json_line(
@@ -35,7 +35,7 @@ def _patch_infra(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "pkg").mkdir(parents=True)
     monkeypatch.setattr(
-        "axm_audit.core.rules.quality._get_audit_targets",
+        "axm_audit.core.rules.quality_rules._get_audit_targets",
         lambda p: (["src"], ["src"]),
     )
     return tmp_path
@@ -44,7 +44,7 @@ def _patch_infra(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 def _mock_mypy(monkeypatch: pytest.MonkeyPatch, stdout: str) -> None:
     proc = MagicMock(stdout=stdout, returncode=1)
     monkeypatch.setattr(
-        "axm_audit.core.rules.quality.run_in_project",
+        "axm_audit.core.rules.quality_rules.run_in_project",
         lambda *a, **kw: proc,
     )
 
@@ -175,7 +175,7 @@ class TestTypeCheckVenvAlignment:
         must do the same to see identical type errors and honour the same
         type-stub availability.
         """
-        from axm_audit.core.rules.quality import TypeCheckRule
+        from axm_audit.core.rules.quality_rules import TypeCheckRule
 
         # Minimal project layout
         src = tmp_path / "src"
@@ -190,7 +190,7 @@ class TestTypeCheckVenvAlignment:
 
         # Patch run_in_project to capture the call
         mock_run = mocker.patch(
-            "axm_audit.core.rules.quality.run_in_project",
+            "axm_audit.core.rules.quality_rules.run_in_project",
             return_value=mocker.MagicMock(stdout="", returncode=0),
         )
 
@@ -217,7 +217,7 @@ class TestTypeCheckVenvAlignment:
         comment stays valid.  This test verifies the gate passes when
         mypy reports zero errors (i.e. the ignore suppressed a real error).
         """
-        from axm_audit.core.rules.quality import TypeCheckRule
+        from axm_audit.core.rules.quality_rules import TypeCheckRule
 
         # Minimal project layout
         src = tmp_path / "src"
@@ -239,7 +239,7 @@ class TestTypeCheckVenvAlignment:
         # real error, just like pre-commit would see).  If the gate used
         # a different env, mypy might report "unused-ignore" instead.
         mocker.patch(
-            "axm_audit.core.rules.quality.run_in_project",
+            "axm_audit.core.rules.quality_rules.run_in_project",
             return_value=mocker.MagicMock(stdout="", returncode=0),
         )
 
@@ -271,7 +271,7 @@ class TestTypeCheckVenvAlignment:
 )
 def test_typed_project_high_score(tmp_path: Path, filename: str, source: str) -> None:
     """Fully typed project (zero mypy errors) → passed=True, score=100."""
-    from axm_audit.core.rules.quality import TypeCheckRule
+    from axm_audit.core.rules.quality_rules import TypeCheckRule
 
     src = tmp_path / "src"
     src.mkdir()
@@ -287,7 +287,7 @@ def test_typed_project_high_score(tmp_path: Path, filename: str, source: str) ->
 
 def test_type_errors_reduce_score(tmp_path: Path) -> None:
     """Type errors should fail with zero tolerance."""
-    from axm_audit.core.rules.quality import TypeCheckRule
+    from axm_audit.core.rules.quality_rules import TypeCheckRule
 
     src = tmp_path / "src"
     src.mkdir()
@@ -305,7 +305,7 @@ def test_type_errors_reduce_score(tmp_path: Path) -> None:
 
 def test_typecheck_includes_tests_dir(tmp_path: Path) -> None:
     """TypeCheckRule should include tests/ in checked dirs when present."""
-    from axm_audit.core.rules.quality import TypeCheckRule
+    from axm_audit.core.rules.quality_rules import TypeCheckRule
 
     src = tmp_path / "src"
     src.mkdir()
@@ -326,7 +326,7 @@ def test_typecheck_includes_tests_dir(tmp_path: Path) -> None:
 
 def test_typecheck_no_tests_dir(tmp_path: Path) -> None:
     """TypeCheckRule should work fine without tests/ directory."""
-    from axm_audit.core.rules.quality import TypeCheckRule
+    from axm_audit.core.rules.quality_rules import TypeCheckRule
 
     src = tmp_path / "src"
     src.mkdir()
@@ -344,7 +344,7 @@ def test_typecheck_no_tests_dir(tmp_path: Path) -> None:
 
 def test_typecheck_details_has_errors_key(tmp_path: Path) -> None:
     """details must contain an 'errors' key with a list."""
-    from axm_audit.core.rules.quality import TypeCheckRule
+    from axm_audit.core.rules.quality_rules import TypeCheckRule
 
     src = tmp_path / "src"
     src.mkdir()
@@ -362,7 +362,7 @@ def test_typecheck_details_has_errors_key(tmp_path: Path) -> None:
 
 def test_typecheck_errors_match_count(tmp_path: Path) -> None:
     """len(details['errors']) must equal error_count."""
-    from axm_audit.core.rules.quality import TypeCheckRule
+    from axm_audit.core.rules.quality_rules import TypeCheckRule
 
     src = tmp_path / "src"
     src.mkdir()
@@ -378,7 +378,7 @@ def test_typecheck_errors_match_count(tmp_path: Path) -> None:
 
 def test_typecheck_no_errors_empty_list(tmp_path: Path) -> None:
     """When no errors, details['errors'] should be []."""
-    from axm_audit.core.rules.quality import TypeCheckRule
+    from axm_audit.core.rules.quality_rules import TypeCheckRule
 
     src = tmp_path / "src"
     src.mkdir()
@@ -413,7 +413,7 @@ def test_type_check_n_errors_fails(
     tmp_path: Path, source: str, expected_error_count: int
 ) -> None:
     """N mypy errors → passed=False (zero tolerance)."""
-    from axm_audit.core.rules.quality import TypeCheckRule
+    from axm_audit.core.rules.quality_rules import TypeCheckRule
 
     src = tmp_path / "src"
     src.mkdir()
@@ -428,11 +428,11 @@ def test_type_check_n_errors_fails(
 
 def test_typecheck_uses_run_in_project(tmp_path: Path) -> None:
     """TypeCheckRule should call run_in_project."""
-    from axm_audit.core.rules.quality import TypeCheckRule
+    from axm_audit.core.rules.quality_rules import TypeCheckRule
 
     (tmp_path / "src").mkdir()
 
-    with patch("axm_audit.core.rules.quality.run_in_project") as mock:
+    with patch("axm_audit.core.rules.quality_rules.run_in_project") as mock:
         mock.return_value = MagicMock(stdout="", stderr="", returncode=0)
         TypeCheckRule().check(tmp_path)
         mock.assert_called_once()
@@ -454,11 +454,11 @@ class TestNoSysExecutable:
 
 def test_typecheck_uses_project_mypy(tmp_path: Path) -> None:
     """TypeCheckRule does NOT inject mypy — uses the project venv's copy."""
-    from axm_audit.core.rules.quality import TypeCheckRule
+    from axm_audit.core.rules.quality_rules import TypeCheckRule
 
     (tmp_path / "src").mkdir()
 
-    with patch("axm_audit.core.rules.quality.run_in_project") as mock:
+    with patch("axm_audit.core.rules.quality_rules.run_in_project") as mock:
         mock.return_value = MagicMock(stdout="", stderr="", returncode=0)
         TypeCheckRule().check(tmp_path)
         with_pkgs = mock.call_args[1].get("with_packages") or []

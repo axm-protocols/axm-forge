@@ -192,7 +192,7 @@ def test_get_rules_for_category_test_quality_picks_up_registrations(
 ) -> None:
     """Rules registered under test_quality are surfaced by get_rules_for_category."""
     from axm_audit.core import auditor as auditor_module
-    from axm_audit.core.rules.quality import LintingRule
+    from axm_audit.core.rules.quality_rules import LintingRule
 
     fake_registry = {"test_quality": [LintingRule]}
     monkeypatch.setattr(auditor_module, "get_registry", lambda: fake_registry)
@@ -456,7 +456,7 @@ class TestGetInstances:
 
     def test_get_instances_default(self) -> None:
         """Default get_instances() returns [cls()]."""
-        from axm_audit.core.rules.quality import LintingRule
+        from axm_audit.core.rules.quality_rules import LintingRule
 
         instances = LintingRule.get_instances()
         assert len(instances) == 1

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from axm_audit.core.rules.quality import LintingRule
+from axm_audit.core.rules.quality_rules import LintingRule
 
 
 @dataclass
@@ -37,7 +37,7 @@ def test_linting_rule_targets_src_only(tmp_path, monkeypatch):
         captured["cmd"] = list(cmd)
         return _FakeProc()
 
-    from axm_audit.core.rules import quality as q_mod
+    from axm_audit.core.rules import quality_rules as q_mod
 
     monkeypatch.setattr(q_mod, "run_in_project", fake_run)
 
