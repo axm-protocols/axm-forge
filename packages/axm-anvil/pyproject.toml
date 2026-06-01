@@ -230,3 +230,30 @@ commit_parsers = [
     { message = "^test", group = "🧪 Tests" },
 ]
 tag_pattern = "anvil/v[0-9].*"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# axm-audit acknowledged duplicate-test clusters
+# ─────────────────────────────────────────────────────────────────────────────
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3898437281a2"
+reason = "Three divergent import concerns: intra-package asserts the relative import is PRESERVED, cross-package asserts it is CONVERTED to absolute, and include_helpers_false asserts a skipped helper is ABSENT from the target — opposite outcomes, not shared data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "caf1e7efb56c"
+reason = "Different import kinds and outcomes: absolute_import_untouched asserts `import os` is copied verbatim, while cross_package_real_files asserts a relative `.utils` import is rewritten to absolute `alpha.utils` — distinct branches of the import-rewrite logic."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "43137c935923"
+reason = "Opposite __all__ branches: all_added_to_existing_target asserts a moved EXPORTED name is appended to the target __all__, whereas all_untouched_for_unexported_symbol asserts BOTH __all__ lists stay unchanged when the moved symbol is not exported."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c560ca201423"
+reason = "Divergent setup and detection path: duplicate_mode_default drives a directly-shared helper via the shared_helper_fixture, while transitive_shared_helper_detected builds an inline two-hop chain (_b -> _a) to exercise TRANSITIVE sharing detection — different fixtures and a different code path, not the same data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3c07c9f9c530"
+reason = "Different warning categories: string_forward_ref_warns asserts a string-annotation forward-reference warning naming the moved symbol, while side_effect_decorator_bare_warns asserts a 'side-effect decorator' warning naming a bare @fixture — unrelated detectors with different warning text."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c5e5201d1e9d"
+reason = "Negative assertions on different detectors: forward_ref_no_false_positive asserts no 'forward-reference' warning when only a substring-overlapping name is moved, while non_whitelisted_decorator_no_warn asserts no 'side-effect decorator' warning for an unlisted decorator — distinct false-positive guards."

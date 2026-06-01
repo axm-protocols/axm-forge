@@ -33,9 +33,17 @@ _CONDITIONAL_SOURCE = (
 )
 
 
-def test_conditional_import_block_copied(tmp_path: Path) -> None:
-    """AC2: moving a symbol that uses a conditionally-imported name copies the
-    entire try/except guard block into the target, not a flat import."""
+@pytest.mark.parametrize(
+    "inspect",
+    [
+        pytest.param("target", id="block_copied_to_target"),
+        pytest.param("source", id="not_removed_from_source"),
+    ],
+)
+def test_conditional_import_guard_preserved(tmp_path: Path, inspect: str) -> None:
+    """AC2,AC3: moving a symbol that uses a conditionally-imported name copies the
+    entire try/except guard block into the target AND never auto-removes it from
+    the source, even when no remaining source symbol references it."""
     src = tmp_path / "source.py"
     tgt = tmp_path / "target.py"
     src.write_text(_CONDITIONAL_SOURCE)
@@ -43,26 +51,10 @@ def test_conditional_import_block_copied(tmp_path: Path) -> None:
 
     move_symbols(src, tgt, ["encode"], workspace_root=tmp_path)
 
-    target_after = tgt.read_text()
-    assert "try:" in target_after
-    assert "import fast_json as json" in target_after
-    assert "except ImportError:" in target_after
-
-
-def test_conditional_import_not_removed_from_source(tmp_path: Path) -> None:
-    """AC3: the conditional import is never auto-removed from the source even
-    when no remaining source symbol references it."""
-    src = tmp_path / "source.py"
-    tgt = tmp_path / "target.py"
-    src.write_text(_CONDITIONAL_SOURCE)
-    tgt.write_text("")
-
-    move_symbols(src, tgt, ["encode"], workspace_root=tmp_path)
-
-    source_after = src.read_text()
-    assert "try:" in source_after
-    assert "import fast_json as json" in source_after
-    assert "except ImportError:" in source_after
+    after = (tgt if inspect == "target" else src).read_text()
+    assert "try:" in after
+    assert "import fast_json as json" in after
+    assert "except ImportError:" in after
 
 
 _ORPHAN_CONDITIONAL_SOURCE = (
@@ -1004,73 +996,92 @@ def test_move_allows_preexisting_cycle(tmp_path: Path) -> None:
     assert "def Foo" not in a.read_text()
 
 
-def test_transitive_constant_chain(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("source_code", "moved", "first", "second"),
+    [
+        pytest.param(
+            "from pathlib import Path\n"
+            "\n"
+            'BASE = Path("/tmp")\n'
+            'SUB = BASE / "x"\n'
+            "\n"
+            "def moved_func():\n"
+            "    return SUB\n",
+            "moved_func",
+            "BASE",
+            "SUB",
+            id="constant_chain",
+        ),
+        pytest.param(
+            "def _b():\n"
+            "    return 2\n"
+            "\n"
+            "def _a():\n"
+            "    return _b()\n"
+            "\n"
+            "def moved():\n"
+            "    return _a()\n",
+            "moved",
+            "def _b",
+            "def _a",
+            id="helper_chain",
+        ),
+    ],
+)
+def test_transitive_dependency_chain_topo_ordered(
+    tmp_path: Path, source_code: str, moved: str, first: str, second: str
+) -> None:
+    """A moved symbol drags its transitive dependency chain into the target in
+    topological order (the dependency appears before its dependent)."""
     source = tmp_path / "source.py"
     target = tmp_path / "target.py"
-    source.write_text(
-        "from pathlib import Path\n"
-        "\n"
-        'BASE = Path("/tmp")\n'
-        'SUB = BASE / "x"\n'
-        "\n"
-        "def moved_func():\n"
-        "    return SUB\n"
-    )
+    source.write_text(source_code)
     target.write_text("")
 
-    plan = move_symbols(
-        source, target, ["moved_func"], dry_run=True, workspace_root=tmp_path
-    )
+    plan = move_symbols(source, target, [moved], dry_run=True, workspace_root=tmp_path)
     text = plan.target_text_new
-    assert "BASE" in text
-    assert "SUB" in text
-    assert text.index("BASE") < text.index("SUB")
+    assert first in text
+    assert second in text
+    assert text.index(first) < text.index(second)
 
 
-def test_transitive_helper_chain(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("source_code", "dep"),
+    [
+        pytest.param(
+            "def _shared():\n"
+            "    return 1\n"
+            "\n"
+            "def moved():\n"
+            "    return _shared()\n"
+            "\n"
+            "def remaining():\n"
+            "    return _shared()\n",
+            "def _shared",
+            id="shared_helper",
+        ),
+        pytest.param(
+            "A = 42\n\ndef moved():\n    return A\n\ndef remaining():\n    return A\n",
+            "A = 42",
+            id="shared_constant",
+        ),
+    ],
+)
+def test_shared_dependency_kept_in_both_source_and_target(
+    tmp_path: Path, source_code: str, dep: str
+) -> None:
+    """A dependency referenced by both the moved symbol and a remaining symbol is
+    duplicated: it is copied into the target AND kept in the source."""
     source = tmp_path / "source.py"
     target = tmp_path / "target.py"
-    source.write_text(
-        "def _b():\n"
-        "    return 2\n"
-        "\n"
-        "def _a():\n"
-        "    return _b()\n"
-        "\n"
-        "def moved():\n"
-        "    return _a()\n"
-    )
+    source.write_text(source_code)
     target.write_text("")
 
     plan = move_symbols(
         source, target, ["moved"], dry_run=True, workspace_root=tmp_path
     )
-    text = plan.target_text_new
-    assert "def _a" in text
-    assert "def _b" in text
-    assert text.index("def _b") < text.index("def _a")
-
-
-def test_helper_shared_stays_in_source(tmp_path: Path) -> None:
-    source = tmp_path / "source.py"
-    target = tmp_path / "target.py"
-    source.write_text(
-        "def _shared():\n"
-        "    return 1\n"
-        "\n"
-        "def moved():\n"
-        "    return _shared()\n"
-        "\n"
-        "def remaining():\n"
-        "    return _shared()\n"
-    )
-    target.write_text("")
-
-    plan = move_symbols(
-        source, target, ["moved"], dry_run=True, workspace_root=tmp_path
-    )
-    assert "def _shared" in plan.target_text_new
-    assert "def _shared" in plan.source_text_new
+    assert dep in plan.target_text_new
+    assert dep in plan.source_text_new
 
 
 def test_helper_solo_removed_from_source(tmp_path: Path) -> None:
@@ -1122,21 +1133,6 @@ def test_constant_orphan_removed_transitively(tmp_path: Path) -> None:
     assert "B = A" not in src_new
     assert "C = B" not in src_new
     assert "X = 1" in src_new
-
-
-def test_constant_kept_if_used_by_remaining(tmp_path: Path) -> None:
-    source = tmp_path / "source.py"
-    target = tmp_path / "target.py"
-    source.write_text(
-        "A = 42\n\ndef moved():\n    return A\n\ndef remaining():\n    return A\n"
-    )
-    target.write_text("")
-
-    plan = move_symbols(
-        source, target, ["moved"], dry_run=True, workspace_root=tmp_path
-    )
-    assert "A = 42" in plan.target_text_new
-    assert "A = 42" in plan.source_text_new
 
 
 def test_future_annotations_preserved(tmp_path: Path) -> None:
