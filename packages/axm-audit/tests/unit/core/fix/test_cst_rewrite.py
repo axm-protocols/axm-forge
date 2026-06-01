@@ -327,7 +327,7 @@ def test_delete_function_absent_is_noop() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _backfill_missing_imports — unresolvable name is a warning, not a crash
+# backfill_missing_imports — unresolvable name is a warning, not a crash
 # (AXM-1768)
 # ---------------------------------------------------------------------------
 
@@ -336,7 +336,7 @@ def test_extend_recoverable_unresolved_name_no_keyerror(tmp_path: Path) -> None:
     """AC4: a name the backfill genuinely cannot resolve produces a warning
     list (no KeyError / opaque crash) when no donor exists in the project.
     """
-    from axm_audit.core.fix.cst_rewrite import _backfill_missing_imports
+    from axm_audit.core.fix.cst_rewrite import backfill_missing_imports
 
     tests_dir = tmp_path / "tests"
     tests_dir.mkdir()
@@ -346,7 +346,7 @@ def test_extend_recoverable_unresolved_name_no_keyerror(tmp_path: Path) -> None:
     # References an unresolvable name with no import / definition / donor.
     target.write_text("def test_t() -> None:\n    assert TotallyUnknownName()\n")
 
-    result = _backfill_missing_imports(source, target, tmp_path)
+    result = backfill_missing_imports(source, target, tmp_path)
 
     assert len(result) == 1
     assert "TotallyUnknownName" in result[0]
