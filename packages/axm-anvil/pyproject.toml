@@ -288,7 +288,7 @@ hash = "9ec978333da8"
 reason = "Both raise ImportCycleError but over distinct setups and contracts: move_cross_package_detects_cycle builds an inline two-package uv workspace to assert the AC3/AC6 cross-package detection (formerly skipped), while intra_package_cycle_detection_unchanged is the AC5 regression guard for same-package detection — different fixtures, different code paths."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "67f7ebea6c79"
+hash = "8f2a8b79db2c"
 reason = "Distinct rewrite concerns: subscript_chain asserts the attribute rewrite reaches into a subscript node (`pkg.new.Foo[key]`), while leaves_other_symbols asserts selectivity — the target `Foo` is rewritten but a non-target `Other` on the same alias is left untouched (`pkg.old.Other` preserved). Different node types and different assertions."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
@@ -298,3 +298,23 @@ reason = "Three divergent concerns across files: overload_partial_move_raises as
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "577ca9835640"
 reason = "Mixes a raises/rollback branch with two happy-path moves: move_parse_error_rollback monkeypatches a render seam to force MoveValidationError and asserts both files roll back, while move_simple_class asserts plan.moved_names and move_with_direct_constants asserts plan.constants_added — a raise path versus two return paths checking different fields over different setups (fixture copy vs inline write)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "cd5773994a7e"
+reason = "Three distinct RemoveSymbols branches: keeps_nested_definition asserts a class method matching the target name is NOT removed (depth != 0 guard), keeps_multi_target_assignment asserts a tuple-target assignment is not a bare-Name match, and preserves_formatting asserts comments/blank lines survive removal — different inputs and different assertions per branch."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1337a49355e7"
+reason = "Three distinct ProtectConditionalImports branches: try_except_imports_tagged asserts both arms get noqa (count==2), if_guard_body_tagged asserts only the guarded import is tagged while a bare module-level import is left alone (count==1), and idempotent_existing_noqa asserts an already-tagged import is not double-tagged — different noqa counts and structures."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "39b4242e7761"
+reason = "Two distinct depth-guard skip paths: skips_nested_try asserts a try/except guard nested inside a function (depth != 0) is left untouched, while skips_nested_if asserts an if guard nested inside a function is skipped — different CST node types exercising the same depth gate via different constructs."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ac246d3dd420"
+reason = "Two distinct RenameSymbols string-annotation paths: leaves_string_annotation_without_match asserts a valid string annotation with no rename target is preserved, while leaves_unparsable_string_annotation asserts a syntactically invalid string annotation is left untouched (parse-failure fallback) — different code paths (no-match vs parse-error)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c0eee7ae9c50"
+reason = "Two distinct SyncDunderAll no-op branches: ignores_non_dunder_all_assign asserts a non-__all__ assignment is untouched, while ignores_non_list_tuple_value asserts an __all__ bound to a call (not a list/tuple literal) is untouched — different guard conditions both yielding identity, asserted on different inputs."
