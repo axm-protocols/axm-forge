@@ -56,7 +56,24 @@ def _protect_block_imports(block: cst.IndentedBlock) -> cst.IndentedBlock:
     return block.with_changes(body=tuple(new_body))
 
 
-class ProtectConditionalImports(cst.CSTTransformer):
+class _DepthTracker(cst.CSTTransformer):
+    """Mixin tracking nesting depth via ``visit``/``leave`` of ``IndentedBlock``."""
+
+    _depth: int = 0
+
+    def visit_IndentedBlock(self, node: cst.IndentedBlock) -> None:  # noqa: N802
+        """Track entry into a nested block."""
+        self._depth += 1
+
+    def leave_IndentedBlock(  # noqa: N802
+        self, original_node: cst.IndentedBlock, updated_node: cst.IndentedBlock
+    ) -> cst.IndentedBlock:
+        """Track exit from a nested block; pass through the updated node."""
+        self._depth -= 1
+        return updated_node
+
+
+class ProtectConditionalImports(_DepthTracker):
     """Append ``# noqa: F401`` to imports nested in top-level guard blocks.
 
     Conditional imports (``try``/``except`` or ``if`` guards at module
@@ -73,17 +90,6 @@ class ProtectConditionalImports(cst.CSTTransformer):
     def __init__(self) -> None:
         super().__init__()
         self._depth = 0
-
-    def visit_IndentedBlock(self, node: cst.IndentedBlock) -> None:  # noqa: N802
-        """Track entry into a nested block to scope guards to top level."""
-        self._depth += 1
-
-    def leave_IndentedBlock(  # noqa: N802
-        self, original_node: cst.IndentedBlock, updated_node: cst.IndentedBlock
-    ) -> cst.IndentedBlock:
-        """Track exit from a nested block; pass through the updated node."""
-        self._depth -= 1
-        return updated_node
 
     @staticmethod
     def _protected_else(orelse: cst.Else | cst.If | None) -> cst.Else | None:
@@ -286,7 +292,7 @@ class AttributeRewriter(cst.CSTTransformer):
         return updated_node
 
 
-class RemoveSymbols(cst.CSTTransformer):
+class RemoveSymbols(_DepthTracker):
     """Remove targeted top-level ``ClassDef``, ``FunctionDef``, or constant
     assignments (``Assign`` / ``AnnAssign``) from a module.
 
@@ -300,17 +306,6 @@ class RemoveSymbols(cst.CSTTransformer):
         super().__init__()
         self._targets = names_to_remove
         self._depth = 0
-
-    def visit_IndentedBlock(self, node: cst.IndentedBlock) -> None:  # noqa: N802
-        """Track entry into a nested block to avoid removing nested symbols."""
-        self._depth += 1
-
-    def leave_IndentedBlock(  # noqa: N802
-        self, original_node: cst.IndentedBlock, updated_node: cst.IndentedBlock
-    ) -> cst.IndentedBlock:
-        """Track exit from a nested block; pass through the updated node."""
-        self._depth -= 1
-        return updated_node
 
     def leave_ClassDef(  # noqa: N802
         self, original_node: cst.ClassDef, updated_node: cst.ClassDef
@@ -371,7 +366,7 @@ def _string_element_value(element: cst.BaseElement) -> str | None:
     return None
 
 
-class SyncDunderAll(cst.CSTTransformer):
+class SyncDunderAll(_DepthTracker):
     """Synchronize a module's existing ``__all__`` literal on a symbol move.
 
     Removes the names in ``remove`` from the ``__all__`` ``List``/``Tuple``
@@ -388,17 +383,6 @@ class SyncDunderAll(cst.CSTTransformer):
         self._remove = remove
         self._add = add
         self._depth = 0
-
-    def visit_IndentedBlock(self, node: cst.IndentedBlock) -> None:  # noqa: N802
-        """Track entry into a nested block to ignore non-module-level names."""
-        self._depth += 1
-
-    def leave_IndentedBlock(  # noqa: N802
-        self, original_node: cst.IndentedBlock, updated_node: cst.IndentedBlock
-    ) -> cst.IndentedBlock:
-        """Track exit from a nested block; pass through the updated node."""
-        self._depth -= 1
-        return updated_node
 
     def _is_dunder_all(self, node: cst.Assign) -> bool:
         return (
