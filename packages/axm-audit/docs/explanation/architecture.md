@@ -7,7 +7,7 @@
 ```mermaid
 graph TB
     API["CLI / audit_project()"] --> Auditor["get_rules_for_category()"]
-    Auditor --> Rules["24 Rules · 10 Categories"]
+    Auditor --> Rules["29 Rules · 11 Categories"]
     Rules -->|subprocess| Runner["run_in_project()"]
     Rules -->|direct| AST["ast · radon · tomllib"]
     Runner --> Tools["Ruff · mypy · Bandit\npip-audit · deptry · pytest-cov"]
@@ -38,12 +38,13 @@ Both return typed Pydantic models for safe agent consumption.
 | `security` | `SecurityRule`, `SecurityPatternRule` | 2 |
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
+| `test_quality` | `DuplicateTestsRule`, `FileNamingRule`, `NoPackageSymbolRule`, `PrivateImportsRule`, `PyramidLevelRule`, `TautologyRule` | 6 |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
-| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `TestMirrorRule` | 4 |
-| `structure` | `PyprojectCompletenessRule` | 1 |
-| `tooling` | `ToolAvailabilityRule` | 3 instances |
+| `practices` | `MirrorRule`, `AntiMirrorRule`, `BareExceptRule`, `BlockingIORule`, `DocstringCoverageRule` | 5 |
+| `structure` | `TestsPyramidRule`, `PyprojectCompletenessRule` | 2 |
+| `tooling` | `ToolAvailabilityRule` | 1 |
 
-**Total: 24 rule instances across 10 categories.**
+**Total: 29 rule instances across 11 categories** (9 scored — see [Scoring & Grades](scoring.md) — plus `structure` and `tooling`, which emit findings but are not scored).
 
 ### 3. Tool Integration
 
@@ -146,16 +147,18 @@ against a `git clone --depth 1` of `axm-audit` itself; opt-in via
 
 ### 6. Scoring
 
-10-category weighted composite (see [Scoring & Grades](scoring.md)):
+9-category weighted composite (see [Scoring & Grades](scoring.md)). The
+`structure` and `tooling` categories emit findings but are not scored:
 
 | Category | Weight |
 |---|---|
-| Linting | 20% |
+| Linting | 15% |
 | Type Safety | 15% |
 | Complexity | 15% |
 | Security | 10% |
 | Dependencies | 10% |
-| Testing | 15% |
+| Testing | 10% |
+| Test Quality | 10% |
 | Architecture | 10% |
 | Practices | 5% |
 

@@ -19,7 +19,7 @@
 
 ---
 
-`axm-audit` audits Python project quality across **10 scored categories**, producing a composite **0–100 score** with an **A–F grade**. It works as a **CLI**, **Python API**, and **MCP tool** for AI agents.
+`axm-audit` audits Python project quality across **9 scored categories** (plus `structure` and `tooling`, which emit findings but are not scored), producing a composite **0–100 score** with an **A–F grade**. It works as a **CLI**, **Python API**, and **MCP tool** for AI agents.
 
 📖 **[Full documentation](https://forge.axm-protocols.io/audit/)**
 
@@ -32,9 +32,9 @@
 - 📦 **Dependencies** — Vulnerability scanning (pip-audit) + hygiene (deptry) with false-positive filtering for entry-point and optional-dependency packages, uv workspace support (auto-aggregation across members), and dual-format text output (`• pkg ver→fix CVE-id` with `+N` suffix for multiple CVEs)
 - 🧪 **Testing** — Coverage enforcement via pytest-cov
 - 🏗️ **Architecture** — Circular imports, god classes, coupling metrics, duplication detection
-- 📐 **Practices** — Docstring coverage (with cross-file abstract override detection), bare except detection, hardcoded secrets, blocking I/O, test mirroring
+- 📐 **Practices** — Docstring coverage (with cross-file abstract override detection), bare except detection, hardcoded secrets, blocking I/O, test mirroring (unit 1:1 with src) and scenario naming (integration/e2e)
 - 🔧 **Tooling** — CLI tool availability checks
-- 📈 **Composite Scoring** — Weighted 10-category 0–100 score with A–F grade
+- 📈 **Composite Scoring** — Weighted 9-category 0–100 score with A–F grade
 
 ## Installation
 
@@ -131,11 +131,11 @@ Categories `structure` and `tooling` emit findings but are not scored.
 | `security` | `SecurityRule` (Bandit), `SecurityPatternRule` | 2 |
 | `deps` | `DependencyAuditRule`, `DependencyHygieneRule` | 2 |
 | `testing` | `TestCoverageRule` | 1 |
-| `test_quality` | `PrivateImportsRule` | 1 |
+| `test_quality` | `DuplicateTestsRule`, `FileNamingRule`, `NoPackageSymbolRule`, `PrivateImportsRule`, `PyramidLevelRule`, `TautologyRule` | 6 |
 | `architecture` | `CircularImportRule`, `GodClassRule`, `CouplingMetricRule`, `DuplicationRule` | 4 |
-| `practices` | `DocstringCoverageRule`, `BareExceptRule`, `BlockingIORule`, `TestMirrorRule` | 4 |
+| `practices` | `MirrorRule`, `AntiMirrorRule`, `BareExceptRule`, `BlockingIORule`, `DocstringCoverageRule` | 5 |
 | `structure` | `PyprojectCompletenessRule`, `TestsPyramidRule` | 2 |
-| `tooling` | `ToolAvailabilityRule` | 3 |
+| `tooling` | `ToolAvailabilityRule` | 1 |
 
 ## Configuration
 

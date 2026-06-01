@@ -18,18 +18,21 @@
 
 ## What it does
 
-`axm-audit` is a Python library and CLI that audits project quality across 10 scored categories, producing a composite 0–100 score:
+`axm-audit` is a Python library and CLI that audits project quality across 9 scored categories, producing a composite 0–100 score:
 
 | Category | Tool | Weight |
 |---|---|---|
-| **Linting** | Ruff | 20% |
+| **Linting** | Ruff | 15% |
 | **Type Safety** | mypy | 15% |
 | **Complexity** | radon | 15% |
 | **Security** | Bandit | 10% |
 | **Dependencies** | pip-audit + deptry | 10% |
-| **Testing** | pytest-cov | 15% |
+| **Testing** | pytest-cov | 10% |
+| **Test Quality** | AST analysis | 10% |
 | **Architecture** | AST analysis | 10% |
 | **Practices** | AST analysis | 5% |
+
+Two further categories — **Structure** (`pyproject.toml` completeness, test-pyramid layout) and **Tooling** (CLI tool availability) — emit findings but are not scored.
 
 ## Quick Example
 
