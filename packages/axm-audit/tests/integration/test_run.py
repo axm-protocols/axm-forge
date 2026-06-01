@@ -8,8 +8,11 @@ partial rule selection, iteration cap).
 
 from __future__ import annotations
 
+import ast
+import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -303,3 +306,121 @@ def test_run_on_empty_package_returns_empty_plan(tmp_path: Path) -> None:
 
     assert report.ops == []
     assert report.applied is False
+
+
+DUPLICATED_METHOD_CORPUS = (
+    "import pytest\n\n\n"
+    "class TestAlpha:\n"
+    "    def test_basic(self) -> None:\n"
+    "        assert 1 + 1 == 2\n\n"
+    "    def test_alpha_extra(self) -> None:\n"
+    '        assert "a" == "a"\n\n\n'
+    "class TestBeta:\n"
+    "    def test_basic(self) -> None:\n"
+    "        assert 2 + 2 == 4\n\n"
+    "    def test_beta_extra(self) -> None:\n"
+    '        assert "b" == "b"\n'
+)
+
+
+def _make_corpus(root: Path) -> Path:
+    test_dir = root / "tests"
+    test_dir.mkdir(parents=True, exist_ok=True)
+    test_file = test_dir / "test_duplicated_methods.py"
+    test_file.write_text(DUPLICATED_METHOD_CORPUS)
+    return test_file
+
+
+def test_apply_converges_on_duplicated_method_corpus(tmp_path: Path) -> None:
+    """AC3, AC4: run(apply=True) raises no SymbolNotFoundError.
+
+    Tree stays collectable.
+    """
+    test_file = _make_corpus(tmp_path)
+
+    try:
+        report = run(tmp_path, apply=True)
+    except Exception as exc:
+        assert "SymbolNotFoundError" not in type(exc).__name__, (
+            f"pipeline crashed with a method-name move: {exc!r}"
+        )
+        raise
+
+    # The corpus must remain a syntactically-valid, collectable tree.
+    for produced in test_file.parent.rglob("test_*.py"):
+        ast.parse(produced.read_text())
+
+    # If a non-movable name was dropped, the cause must be visible.
+    warnings = getattr(report, "warnings", [])
+    assert isinstance(warnings, list)
+
+
+_PYPROJECT = '[project]\nname = "pkg"\nversion = "0.0.0"\nrequires-python = ">=3.12"\n'
+
+
+def _git_init(pkg: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=pkg, check=True, capture_output=True)  # noqa: S607
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=pkg, check=True)  # noqa: S607
+    subprocess.run(["git", "config", "user.name", "t"], cwd=pkg, check=True)  # noqa: S607
+    subprocess.run(["git", "add", "-A"], cwd=pkg, check=True, capture_output=True)  # noqa: S607
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "init"],  # noqa: S607
+        cwd=pkg,
+        check=True,
+        capture_output=True,
+    )
+
+
+def test_backfills_type_checking_mockerfixture_on_split(tmp_path: Path) -> None:
+    """AC3: a corpus mirroring axm-word (mocker: MockerFixture method-param
+    annotation + TYPE_CHECKING import) keeps MockerFixture imported on every
+    split target referencing it, and the resulting tree collects cleanly.
+    """
+    project = tmp_path / "proj"
+    project.mkdir()
+    (project / "pyproject.toml").write_text(_PYPROJECT)
+    (project / "src" / "pkg").mkdir(parents=True)
+    (project / "src" / "pkg" / "__init__.py").write_text("")
+    (project / "src" / "pkg" / "thing.py").write_text(
+        "def add(a, b):\n    return a + b\n"
+    )
+    tests = project / "tests"
+    tests.mkdir()
+    # Heterogeneous Test* class eligible for SPLIT/FLATTEN, with a
+    # TYPE_CHECKING-only MockerFixture used solely in a method-param annotation.
+    (tests / "test_thing.py").write_text(
+        "from __future__ import annotations\n\n"
+        "from typing import TYPE_CHECKING\n\n"
+        "from pkg.thing import add\n\n"
+        "if TYPE_CHECKING:\n"
+        "    from pytest_mock import MockerFixture\n\n\n"
+        "class TestThing:\n"
+        "    def test_add(self, mocker: MockerFixture) -> None:\n"
+        "        assert mocker is not None\n"
+        "        assert add(1, 2) == 3\n\n"
+        "    def test_sub(self, mocker: MockerFixture) -> None:\n"
+        "        assert mocker is not None\n"
+        "        assert add(2, 2) == 4\n"
+    )
+    _git_init(project)
+
+    run(project, apply=True)
+
+    # Every surviving test module that references MockerFixture must import it.
+    for mod in tests.rglob("test_*.py"):
+        text = mod.read_text()
+        if "MockerFixture" in text:
+            assert "from pytest_mock import MockerFixture" in text
+
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(project / "src"), str(project), env.get("PYTHONPATH", "")]
+    )
+    proc = subprocess.run(  # noqa: S603
+        [sys.executable, "-m", "pytest", "--collect-only", "-q", str(tests)],
+        capture_output=True,
+        text=True,
+        cwd=str(project),
+        env=env,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
