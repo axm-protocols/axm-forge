@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import libcst as cst
+import pytest
 
 from axm_anvil.core.deps import (
     gather_source_constants,
@@ -55,24 +56,28 @@ def test_gather_source_imports_relative() -> None:
     assert info.relative == 2
 
 
-def test_gather_flags_try_except_import_conditional() -> None:
-    """AC1: an import inside a top-level try/except is flagged conditional."""
-    source = (
-        "try:\n    import fast_json as json\nexcept ImportError:\n    json = None\n"
-    )
+@pytest.mark.parametrize(
+    ("source", "name"),
+    [
+        pytest.param(
+            "try:\n    import fast_json as json\n"
+            "except ImportError:\n    json = None\n",
+            "json",
+            id="try_except_import",
+        ),
+        pytest.param(
+            'import sys\nif sys.platform == "win32":\n    import winreg\n',
+            "winreg",
+            id="if_guard",
+        ),
+    ],
+)
+def test_gather_flags_conditional(source: str, name: str) -> None:
+    """AC1: an import inside a top-level guard is flagged conditional."""
     tree = cst.parse_module(source)
     mapping = gather_source_imports(tree)
-    assert "json" in mapping
-    assert mapping["json"].conditional is True
-
-
-def test_gather_flags_if_guard_conditional() -> None:
-    """AC1: an import inside a top-level if guard is flagged conditional."""
-    source = 'import sys\nif sys.platform == "win32":\n    import winreg\n'
-    tree = cst.parse_module(source)
-    mapping = gather_source_imports(tree)
-    assert "winreg" in mapping
-    assert mapping["winreg"].conditional is True
+    assert name in mapping
+    assert mapping[name].conditional is True
 
 
 def test_gather_top_level_import_not_conditional() -> None:
@@ -82,30 +87,38 @@ def test_gather_top_level_import_not_conditional() -> None:
     assert mapping["Path"].conditional is False
 
 
-def test_gather_source_constants_assign() -> None:
-    tree = cst.parse_module("X = 42\n")
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param("X = 42\n", id="assign"),
+        pytest.param("X: int = 42\n", id="annassign"),
+    ],
+)
+def test_gather_source_constants(source: str) -> None:
+    tree = cst.parse_module(source)
     mapping = gather_source_constants(tree)
     assert "X" in mapping
 
 
-def test_gather_source_constants_annassign() -> None:
-    tree = cst.parse_module("X: int = 42\n")
-    mapping = gather_source_constants(tree)
-    assert "X" in mapping
-
-
-def test_gather_source_helpers() -> None:
-    source = "def foo():\n    pass\n\ndef bar():\n    pass\n\nclass Baz:\n    pass\n"
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        pytest.param(
+            "def foo():\n    pass\n\ndef bar():\n    pass\n\nclass Baz:\n    pass\n",
+            {"foo", "bar", "Baz"},
+            id="top_level",
+        ),
+        pytest.param(
+            "def outer():\n    def inner():\n        pass\n",
+            {"outer"},
+            id="ignores_nested",
+        ),
+    ],
+)
+def test_gather_source_helpers(source: str, expected: set[str]) -> None:
     tree = cst.parse_module(source)
     helpers = gather_source_helpers(tree)
-    assert set(helpers.keys()) == {"foo", "bar", "Baz"}
-
-
-def test_gather_source_helpers_ignores_nested() -> None:
-    source = "def outer():\n    def inner():\n        pass\n"
-    tree = cst.parse_module(source)
-    helpers = gather_source_helpers(tree)
-    assert set(helpers.keys()) == {"outer"}
+    assert set(helpers.keys()) == expected
 
 
 def test_topo_sort_linear() -> None:
