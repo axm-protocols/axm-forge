@@ -207,7 +207,7 @@ def apply_edits(file_path: Path, edits: list[dict[str, str]]) -> bool:
 _RUFF_NOISE_PREFIXES = ("Found ", "[*] ", "No fixes")
 
 
-def _filter_ruff_lines(stdout: str) -> list[str]:
+def filter_ruff_lines(stdout: str) -> list[str]:
     """Keep real diagnostic lines, dropping ruff summary noise."""
     return [
         line
@@ -242,7 +242,7 @@ def _run_ruff_check(root: Path, files: list[str]) -> list[str]:
     if result.returncode > 1:
         return []
     if result.returncode != 0 and result.stdout.strip():
-        return _filter_ruff_lines(result.stdout)
+        return filter_ruff_lines(result.stdout)
     return []
 
 
