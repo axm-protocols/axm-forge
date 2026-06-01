@@ -232,6 +232,20 @@ commit_parsers = [
 tag_pattern = "anvil/v[0-9].*"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# axm-audit test-mirror exemptions (façades with no unit-testable logic)
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.axm-audit.mirror]
+# cli.py        — thin cyclopts wrapper, delegates entirely to core (no logic)
+# core/postprocess.py — private _ruff_fix subprocess façade, covered by integration
+exempt_paths = [
+    "**/__init__.py",
+    "_version.py",
+    "__main__.py",
+    "cli.py",
+    "core/postprocess.py",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
 # axm-audit acknowledged duplicate-test clusters
 # ─────────────────────────────────────────────────────────────────────────────
 [[tool.axm-audit.duplicate_tests.acknowledged]]
