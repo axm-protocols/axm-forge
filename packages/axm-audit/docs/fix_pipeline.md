@@ -37,7 +37,7 @@ and surfaced in a separate report section pointing the user to
 
 ## Module layout (hexagonal split)
 
-The applicator lives at `src/axm_audit/core/fix/`, 12 modules organised by
+The applicator lives at `src/axm_audit/core/fix/`, 13 modules organised by
 hexagonal layer:
 
 ```
