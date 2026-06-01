@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import libcst as cst
+import pytest
 
 from axm_anvil.core.shared import SharedInfo, classify_shared_helpers
 
@@ -34,21 +35,30 @@ def test_classify_shared_helper_direct():
     assert info.used_by_remaining == {"remaining_B"}
 
 
-def test_classify_shared_helper_moved_only():
-    blocks = [_make_block("moved_A", {"_h"})]
-    needed_helpers = {"_h"}
-    source_after = cst.parse_module("def remaining_B():\n    return 1\n")
-    result = classify_shared_helpers(blocks, needed_helpers, source_after)
-    assert result == {}
-
-
-def test_classify_shared_helper_remaining_only():
-    blocks = [_make_block("moved_A", set())]
-    needed_helpers: set[str] = set()
-    source_after = cst.parse_module(
-        "def remaining_B():\n    return _h()\n\ndef _h():\n    return 1\n"
+@pytest.mark.parametrize(
+    ("refs", "needed_helpers", "source_after"),
+    [
+        pytest.param(
+            {"_h"},
+            {"_h"},
+            "def remaining_B():\n    return 1\n",
+            id="moved_only",
+        ),
+        pytest.param(
+            set(),
+            set(),
+            "def remaining_B():\n    return _h()\n\ndef _h():\n    return 1\n",
+            id="remaining_only",
+        ),
+    ],
+)
+def test_classify_shared_helper_not_shared(
+    refs: set[str], needed_helpers: set[str], source_after: str
+) -> None:
+    blocks = [_make_block("moved_A", refs)]
+    result = classify_shared_helpers(
+        blocks, needed_helpers, cst.parse_module(source_after)
     )
-    result = classify_shared_helpers(blocks, needed_helpers, source_after)
     assert result == {}
 
 

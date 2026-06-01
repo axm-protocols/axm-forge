@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+import pytest
+
 from axm_anvil.core.move import (
     OverloadPartialMoveError,
     SymbolAlreadyExistsError,
@@ -82,75 +84,47 @@ def test_execute_returns_tool_result_success(mocker, tmp_path):
     assert "files_modified" in result.data
 
 
-def test_execute_wraps_symbol_not_found(mocker, tmp_path):
+@pytest.mark.parametrize(
+    ("exc", "symbol", "substring"),
+    [
+        pytest.param(
+            SymbolNotFoundError("Foo"), "Foo", "not found", id="symbol_not_found"
+        ),
+        pytest.param(
+            SymbolAlreadyExistsError("Bar"),
+            "Bar",
+            "already exists",
+            id="symbol_already_exists",
+        ),
+        pytest.param(
+            OverloadPartialMoveError("overload group incomplete for foo"),
+            "foo",
+            "overload",
+            id="overload_partial",
+        ),
+    ],
+)
+def test_execute_wraps_move_errors(mocker, tmp_path, exc, symbol, substring):
     src = tmp_path / "source.py"
     tgt = tmp_path / "target.py"
     src.write_text("")
     tgt.write_text("")
     mocker.patch(
         "axm_anvil.tools.move.move_symbols",
-        side_effect=SymbolNotFoundError("Foo"),
+        side_effect=exc,
     )
 
     tool = MoveTool()
     result = tool.execute(
         path=str(tmp_path),
-        symbols="Foo",
+        symbols=symbol,
         from_file=str(src),
         to_file=str(tgt),
     )
 
     assert result.success is False
     assert result.error is not None
-    assert "Foo" in result.error
-    assert "not found" in result.error.lower()
-
-
-def test_execute_wraps_symbol_already_exists(mocker, tmp_path):
-    src = tmp_path / "source.py"
-    tgt = tmp_path / "target.py"
-    src.write_text("")
-    tgt.write_text("")
-    mocker.patch(
-        "axm_anvil.tools.move.move_symbols",
-        side_effect=SymbolAlreadyExistsError("Bar"),
-    )
-
-    tool = MoveTool()
-    result = tool.execute(
-        path=str(tmp_path),
-        symbols="Bar",
-        from_file=str(src),
-        to_file=str(tgt),
-    )
-
-    assert result.success is False
-    assert result.error is not None
-    assert "Bar" in result.error
-    assert "already exists" in result.error.lower()
-
-
-def test_execute_wraps_overload_partial(mocker, tmp_path):
-    src = tmp_path / "source.py"
-    tgt = tmp_path / "target.py"
-    src.write_text("")
-    tgt.write_text("")
-    mocker.patch(
-        "axm_anvil.tools.move.move_symbols",
-        side_effect=OverloadPartialMoveError("overload group incomplete for foo"),
-    )
-
-    tool = MoveTool()
-    result = tool.execute(
-        path=str(tmp_path),
-        symbols="foo",
-        from_file=str(src),
-        to_file=str(tgt),
-    )
-
-    assert result.success is False
-    assert result.error is not None
-    assert "overload" in result.error.lower()
+    assert substring in result.error.lower()
 
 
 def test_execute_wraps_generic_exception(mocker, tmp_path):
