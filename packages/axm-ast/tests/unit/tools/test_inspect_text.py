@@ -107,7 +107,11 @@ def module_detail() -> dict[str, Any]:
     [
         pytest.param("search_symbols", "search_symbols", False, id="function"),
         pytest.param("PackageInfo", "PackageInfo", False, id="class"),
-        pytest.param("logger", "variable", True, id="variable"),
+        # A uniquely-named module-level variable: `logger` is defined in ~9
+        # modules, so post-AXM-1791 it resolves to a disambiguation error
+        # (multiple exact matches). STACK_CATEGORIES is unique → still a clean
+        # variable resolution, preserving this test's intent.
+        pytest.param("STACK_CATEGORIES", "variable", True, id="variable"),
         pytest.param("models.nodes", "module", True, id="module"),
         pytest.param("PackageInfo.module_names", None, False, id="dotted"),
     ],
