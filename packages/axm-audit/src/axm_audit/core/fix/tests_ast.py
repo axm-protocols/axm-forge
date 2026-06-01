@@ -27,7 +27,7 @@ __all__ = [
     "_collect_defined_names",
     "_collect_marker_fixtures_to_move",
     "_collect_module_level_deps_to_copy",
-    "_collect_referenced_names",
+    "collect_referenced_names",
     "_decorator_free_names",
     "_seed_module_deps_from_units",
     "_source_top_level_definitions",
@@ -308,7 +308,7 @@ def _iter_stmt_ref_nodes(stmt: ast.stmt) -> Iterator[ast.AST]:
         yield from stmt.orelse
 
 
-def _collect_referenced_names(tree: ast.Module) -> set[str]:
+def collect_referenced_names(tree: ast.Module) -> set[str]:
     """Names actually referenced from live top-level symbols.
 
     Restricted to ``Name(Load)`` reachable from:

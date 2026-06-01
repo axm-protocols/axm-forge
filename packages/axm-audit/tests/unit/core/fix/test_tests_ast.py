@@ -9,9 +9,9 @@ import ast
 
 from axm_audit.core.fix.findings import class_needs_flatten
 from axm_audit.core.fix.tests_ast import (
-    _collect_referenced_names,
     class_is_pathological,
     collect_imported_names,
+    collect_referenced_names,
     func_body_hash,
     marker_fixtures_in_unit,
     top_level_helpers,
@@ -311,7 +311,7 @@ def test_class_needs_flatten_single_method_returns_false() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _collect_referenced_names — method-parameter annotations (AXM-1768)
+# collect_referenced_names — method-parameter annotations (AXM-1768)
 # ---------------------------------------------------------------------------
 
 
@@ -325,5 +325,5 @@ def test_collects_mockerfixture_method_param_annotation() -> None:
         "        assert mocker is not None\n"
     )
     tree = _parse_source(src)
-    result = _collect_referenced_names(tree)
+    result = collect_referenced_names(tree)
     assert "MockerFixture" in result

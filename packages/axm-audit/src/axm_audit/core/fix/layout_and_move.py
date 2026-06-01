@@ -33,12 +33,12 @@ except ImportError:  # pragma: no cover
     move_symbols = None  # type: ignore[assignment]
 
 from .cst_rewrite import (
-    _backfill_missing_imports,
     _delete_function_from_source,
     _patch_file_dunder_depth,
     _rename_name_in_module,
     _rename_top_level_in_source,
     _reorder_module_statements,
+    backfill_missing_imports,
 )
 from .io_primitives import _git_mv
 from .models import CANONICAL_TIERS
@@ -1311,7 +1311,7 @@ def _finalize_move(
     )
     warnings = list(drop_warnings)
     warnings.extend(plan.warnings)
-    warnings.extend(_backfill_missing_imports(source, target, project_path))
+    warnings.extend(backfill_missing_imports(source, target, project_path))
     _reorder_module_statements(target)
     if source.exists():
         _reorder_module_statements(source)

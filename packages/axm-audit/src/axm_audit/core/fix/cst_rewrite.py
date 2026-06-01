@@ -33,9 +33,9 @@ from .paths import module_path_for_test_file
 from .tests_ast import (
     _BUILTINS,
     _collect_defined_names,
-    _collect_referenced_names,
     _walk_test_funcs,
     collect_imported_names,
+    collect_referenced_names,
 )
 
 __all__ = [
@@ -74,7 +74,7 @@ __all__ = [
     "resolve_import_for_symbol",
     "_scan_tests_for_import",
     "_synth_import_from_helpers",
-    "_backfill_missing_imports",
+    "backfill_missing_imports",
 ]
 
 
@@ -1437,7 +1437,7 @@ def _synth_import_from_helpers(
     Scans every ``tests/<tier>/_helpers.py`` for a top-level ``def name``
     or ``class name`` or ``NAME = ...`` and returns a freshly-parsed
     ``ast.ImportFrom`` node ready to be transplanted by
-    ``_backfill_missing_imports``. The second tuple element (enclosing
+    ``backfill_missing_imports``. The second tuple element (enclosing
     block) is always ``None`` — these synthesized imports are top-level.
     """
     tests_root = project_path / "tests"
@@ -1533,7 +1533,7 @@ def _resolve_recoverable_imports(
     src_imports = collect_imported_names(src_tree) if src_tree else {}
     tgt_imports = collect_imported_names(tgt_tree)
     missing = (
-        _collect_referenced_names(tgt_tree)
+        collect_referenced_names(tgt_tree)
         - set(tgt_imports.keys())
         - _collect_defined_names(tgt_tree)
         - _BUILTINS
@@ -1567,7 +1567,7 @@ def _write_backfilled_imports(
     return True
 
 
-def _backfill_missing_imports(
+def backfill_missing_imports(
     source: Path, target: Path, project_path: Path | None = None
 ) -> list[str]:
     """Copy imports from *source* into *target* for names target uses but doesn't define.
