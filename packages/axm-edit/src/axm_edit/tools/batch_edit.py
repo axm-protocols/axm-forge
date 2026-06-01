@@ -18,7 +18,7 @@ from axm_edit.models.operations import (
     ReplaceOp,
 )
 from axm_edit.services import lint as _lint
-from axm_edit.services.lint import claude_fix
+from axm_edit.services.lint import claude_fix, filter_ruff_lines
 from axm_edit.services.lint_diff import compute_lint_diffs, extract_rules_by_file
 
 
@@ -31,18 +31,6 @@ def _collect_python_files(root: Path, operations: list[Operation]) -> list[Path]
             if resolved.is_file():
                 paths.append(resolved)
     return sorted(set(paths))
-
-
-_RUFF_NOISE_PREFIXES = ("Found ", "[*] ", "No fixes")
-
-
-def _filter_ruff_lines(stdout: str) -> list[str]:
-    """Keep real diagnostic lines, dropping ruff summary noise."""
-    return [
-        line
-        for line in stdout.strip().splitlines()
-        if line.strip() and not line.startswith(_RUFF_NOISE_PREFIXES)
-    ]
 
 
 def _ruff_check(
@@ -80,7 +68,7 @@ def _ruff_check(
         return []
 
     if result.returncode != 0 and result.stdout.strip():
-        return _filter_ruff_lines(result.stdout)
+        return filter_ruff_lines(result.stdout)
     return []
 
 
