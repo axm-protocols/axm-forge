@@ -183,7 +183,10 @@ markers = [
 source = ["src/axm_anvil"]
 branch = true
 relative_files = true
-omit = ["*/tests/*"]
+# Mirror-exempt façades (see [tool.axm-audit.mirror].exempt_paths): no
+# unit-testable logic — cli.py is a cyclopts wrapper, _version.py is
+# hatch-vcs generated, __main__.py is the entry shim.
+omit = ["*/tests/*", "*/cli.py", "*/_version.py", "*/__main__.py"]
 
 [tool.coverage.xml]
 output = "coverage.xml"
