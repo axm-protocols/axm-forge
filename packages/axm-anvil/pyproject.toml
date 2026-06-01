@@ -257,3 +257,19 @@ reason = "Different warning categories: string_forward_ref_warns asserts a strin
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "c5e5201d1e9d"
 reason = "Negative assertions on different detectors: forward_ref_no_false_positive asserts no 'forward-reference' warning when only a substring-overlapping name is moved, while non_whitelisted_decorator_no_warn asserts no 'side-effect decorator' warning for an unlisted decorator — distinct false-positive guards."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3a81e051d1f0"
+reason = "Divergent branches behind the same `is None` assertion: none_on_clean_graph exercises the no-new-cycle path on an acyclic graph, while ignores_preexisting_cycle exercises the distinct branch where a pre-existing cycle exists but the new edit does not touch it (must not be re-flagged)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "2dad91435120"
+reason = "Different concerns behind the same `result == []` assertion: deep_chain_does_not_recurse is a recursion-depth regression guard on a 10k-node chain (stack-overflow protection), while no_cycle_returns_empty is a trivial acyclic correctness case — same outcome, distinct intent and input scale."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9ec978333da8"
+reason = "Both raise ImportCycleError but over distinct setups and contracts: move_cross_package_detects_cycle builds an inline two-package uv workspace to assert the AC3/AC6 cross-package detection (formerly skipped), while intra_package_cycle_detection_unchanged is the AC5 regression guard for same-package detection — different fixtures, different code paths."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "67f7ebea6c79"
+reason = "Distinct rewrite concerns: subscript_chain asserts the attribute rewrite reaches into a subscript node (`pkg.new.Foo[key]`), while leaves_other_symbols asserts selectivity — the target `Foo` is rewritten but a non-target `Other` on the same alias is left untouched (`pkg.old.Other` preserved). Different node types and different assertions."
