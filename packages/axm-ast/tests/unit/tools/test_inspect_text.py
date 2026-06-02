@@ -150,9 +150,16 @@ def test_inspect_source_has_text(tool: InspectTool) -> None:
     assert "```python" in result.text
 
 
-def test_inspect_error_no_text(tool: InspectTool) -> None:
-    """AC5: error results do NOT set text."""
-    result = tool.execute(symbol="nonexistent_xyz", path=PKG_PATH)
+@pytest.mark.parametrize(
+    "symbol",
+    [
+        pytest.param("nonexistent_xyz", id="unknown"),
+        pytest.param("", id="empty"),
+    ],
+)
+def test_inspect_error_no_text(tool: InspectTool, symbol: str) -> None:
+    """AC5: error results (unknown / empty symbol) do NOT set text."""
+    result = tool.execute(symbol=symbol, path=PKG_PATH)
     assert not result.success
     assert result.text is None
     assert result.error is not None
@@ -335,24 +342,23 @@ def test_render_module_text(module_detail: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize(
+    ("fixture_name", "renderer"),
+    [
+        pytest.param("function_detail_basic", render_function_text, id="function"),
+        pytest.param("class_detail_basic", render_class_text, id="class"),
+        pytest.param("variable_detail_annotation", render_variable_text, id="variable"),
+        pytest.param("module_detail", render_module_text, id="module"),
+    ],
+)
 def test_render_symbol_text_dispatches(
-    function_detail_basic: dict[str, Any],
-    class_detail_basic: dict[str, Any],
-    variable_detail_annotation: dict[str, Any],
+    request: pytest.FixtureRequest,
+    fixture_name: str,
+    renderer: Any,
 ) -> None:
-    func_result = render_symbol_text(function_detail_basic)
-    assert func_result == render_function_text(function_detail_basic)
-
-    class_result = render_symbol_text(class_detail_basic)
-    assert class_result == render_class_text(class_detail_basic)
-
-    var_result = render_symbol_text(variable_detail_annotation)
-    assert var_result == render_variable_text(variable_detail_annotation)
-
-
-def test_render_symbol_text_dispatches_module(module_detail: dict[str, Any]) -> None:
-    result = render_symbol_text(module_detail)
-    assert result == render_module_text(module_detail)
+    """render_symbol_text dispatches each kind to its specific renderer."""
+    detail = request.getfixturevalue(fixture_name)
+    assert render_symbol_text(detail) == renderer(detail)
 
 
 # ---------------------------------------------------------------------------
@@ -407,13 +413,6 @@ def test_batch_with_errors(tool: InspectTool) -> None:
     assert result.text is not None
     assert "search_symbols" in result.text
     assert "nonexistent" in result.text.lower() or "error" in result.text.lower()
-
-
-def test_empty_symbol_name(tool: InspectTool) -> None:
-    """Empty symbol name returns error with no text."""
-    result = tool.execute(symbol="", path=PKG_PATH)
-    assert not result.success
-    assert result.text is None
 
 
 def test_render_function_text_long_docstring() -> None:
