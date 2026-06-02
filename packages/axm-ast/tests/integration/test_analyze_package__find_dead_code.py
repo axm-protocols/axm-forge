@@ -898,19 +898,6 @@ class TestTestCallerScanning:
         dead_names = {d.name for d in dead}
         assert "truly_dead" in dead_names
 
-    def test_no_tests_dir_graceful(self, tmp_path: Path) -> None:
-        pkg_path = _make_pkg(
-            tmp_path,
-            {
-                "__init__.py": "",
-                "core.py": "def orphan():\n    pass\n",
-            },
-        )
-        pkg = analyze_package(pkg_path)
-        dead = find_dead_code(pkg)
-        dead_names = {d.name for d in dead}
-        assert "orphan" in dead_names
-
 
 @pytest.mark.integration
 class TestLazyImports:

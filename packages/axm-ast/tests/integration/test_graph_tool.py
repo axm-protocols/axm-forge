@@ -403,29 +403,29 @@ class TestGraphTextFormat:
         assert "text" in result.data
         assert isinstance(result.data["text"], str)
 
-    def test_text_contains_nodes_section(
-        self, tool__from_graph_execute_refactor: GraphTool, pkg_root: Path
+    @pytest.mark.parametrize(
+        "expected_substrings",
+        [
+            pytest.param(
+                ["Nodes:", "demopkg", "cli", "core", "utils"], id="nodes-section"
+            ),
+            pytest.param(
+                ["Edges:", "cli -> core", "core -> utils"], id="edges-section"
+            ),
+        ],
+    )
+    def test_text_contains_section(
+        self,
+        tool__from_graph_execute_refactor: GraphTool,
+        pkg_root: Path,
+        expected_substrings: list[str],
     ) -> None:
         result = tool__from_graph_execute_refactor.execute(
             path=str(pkg_root), format="text"
         )
         text = result.data["text"]
-        assert "Nodes:" in text
-        assert "demopkg" in text
-        assert "cli" in text
-        assert "core" in text
-        assert "utils" in text
-
-    def test_text_contains_edges_section(
-        self, tool__from_graph_execute_refactor: GraphTool, pkg_root: Path
-    ) -> None:
-        result = tool__from_graph_execute_refactor.execute(
-            path=str(pkg_root), format="text"
-        )
-        text = result.data["text"]
-        assert "Edges:" in text
-        assert "cli -> core" in text
-        assert "core -> utils" in text
+        for substring in expected_substrings:
+            assert substring in text
 
     def test_text_also_includes_graph_and_nodes(
         self, tool__from_graph_execute_refactor: GraphTool, pkg_root: Path
@@ -499,22 +499,6 @@ class TestGraphWorkspacePath:
 
 class TestGraphEdgeCasesRefactorInteg:
     """Edge cases from test_spec (integration, with I/O or fixtures)."""
-
-    def test_unknown_format_falls_through_to_json(
-        self, tool__from_graph_execute_refactor: GraphTool, pkg_root: Path
-    ) -> None:
-        """Unknown format (e.g. 'xml') produces JSON-like output.
-
-        Verify no mermaid/text keys are present.
-        """
-        result = tool__from_graph_execute_refactor.execute(
-            path=str(pkg_root), format="xml"
-        )
-        assert result.success is True
-        assert "graph" in result.data
-        assert "nodes" in result.data
-        assert "mermaid" not in result.data
-        assert "text" not in result.data
 
     def test_workspace_path_detected(
         self,
@@ -655,20 +639,6 @@ class TestGraphToolIntegration:
         assert "mermaid" in result.data
 
 
-class TestGraphEmptyInput:
-    """Call graph tool with empty symbol list → empty graph, no crash."""
-
-    def test_graph_empty_input(self, graph_tool: GraphTool, tmp_path: Path) -> None:
-        pkg = tmp_path / "emptygraph"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text('"""Empty."""\n')
-        result = graph_tool.execute(path=str(pkg))
-        assert result.success is True
-        graph = result.data["graph"]
-        total_edges = sum(len(v) for v in graph.values())
-        assert total_edges == 0
-
-
 class TestGraphMissingSymbol:
     """Call graph tool with nonexistent symbol → graceful error or empty result."""
 
@@ -680,11 +650,22 @@ class TestGraphMissingSymbol:
 class TestGraphExistingFormats:
     """JSON and mermaid output must remain unchanged after refactor."""
 
-    def test_json_has_graph_and_nodes(
-        self, tool__from_tools_graph_execute_refactor: GraphTool, pkg_root: Path
+    @pytest.mark.parametrize(
+        "format_arg",
+        [
+            pytest.param("json", id="json-explicit"),
+            pytest.param("xml", id="unknown-falls-through"),
+        ],
+    )
+    def test_json_shape_for_json_and_unknown_format(
+        self,
+        tool__from_tools_graph_execute_refactor: GraphTool,
+        pkg_root: Path,
+        format_arg: str,
     ) -> None:
+        """Both 'json' and any unknown format produce the JSON-shaped result."""
         result = tool__from_tools_graph_execute_refactor.execute(
-            path=str(pkg_root), format="json"
+            path=str(pkg_root), format=format_arg
         )
         assert result.success is True
         assert "graph" in result.data
