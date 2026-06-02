@@ -78,6 +78,37 @@ class TestReportToResultText:
         fail_lines = [line for line in result.text.splitlines() if "FAIL" in line]
         assert len(fail_lines) == 10
 
+    def test_timeout_reports_explicit_failure(self) -> None:
+        """AC2: a timed-out ``TestReport`` becomes a ``CheckResult`` whose
+        message/fix_hint makes the timeout explicit — never a fabricated score.
+
+        ``run_tests`` is imported locally inside ``check`` (``from
+        axm_audit.core.test_runner import run_tests``), so it is patched at
+        its definition site ``axm_audit.core.test_runner.run_tests``.
+        """
+        from pathlib import Path
+        from unittest.mock import patch
+
+        timed_out_report = TestReport(
+            passed=0,
+            failed=0,
+            errors=0,
+            skipped=0,
+            warnings=0,
+            duration=0.0,
+            coverage=None,
+            timed_out=True,
+        )
+        with patch(
+            "axm_audit.core.test_runner.run_tests",
+            return_value=timed_out_report,
+        ):
+            result = TestCoverageRule().check(Path("/nonexistent/project"))
+
+        assert result.passed is False
+        blob = f"{result.message} {getattr(result, 'fix_hint', '') or ''}".lower()
+        assert "timed out" in blob or "timeout" in blob or "not measured" in blob
+
     def test_text_full_coverage_with_failure(self) -> None:
         """100% coverage + 1 failure -> no coverage line, only FAIL line."""
         report = TestReport(

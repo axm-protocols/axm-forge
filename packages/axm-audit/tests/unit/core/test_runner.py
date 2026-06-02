@@ -147,3 +147,92 @@ def test_find_venv_private_alias_removed() -> None:
     assert not hasattr(runner, "_find_venv"), (
         "deprecated private alias _find_venv still exposed"
     )
+
+
+# --- run_tests timeout handling (AXM-1800) ---
+#
+# These exercise the public ``run_tests`` entry point with
+# ``run_in_project`` mocked at the test_runner boundary (module-level
+# import), distinct from the run_in_project-layer tests above.
+
+_DEAD_PROJECT = Path("/nonexistent/project")
+
+
+def test_run_tests_timeout_does_not_report_partial_coverage() -> None:
+    """AC1: a timed-out subprocess (returncode 124) must not yield a
+    coverage percentage parsed from partial JSON; coverage is unmeasured.
+    """
+    from axm_audit.core.test_runner import run_tests
+
+    timed_out = subprocess.CompletedProcess(
+        args=["pytest"],
+        returncode=124,
+        stdout="",
+        stderr="Command timed out after 900s",
+    )
+    with (
+        patch("axm_audit.core.test_runner.run_in_project", return_value=timed_out),
+        patch(
+            "axm_audit.core.test_runner.parse_coverage",
+            return_value=(88.0, {"a.py": 88.0}),
+        ) as parse_cov,
+    ):
+        report = run_tests(_DEAD_PROJECT)
+
+    # Coverage must NOT be fabricated from partial data.
+    assert report.coverage is None
+    # The timeout must be surfaced explicitly on the report.
+    assert getattr(report, "timed_out", False) is True
+    # parse_coverage must not be consulted for a percentage after a timeout.
+    parse_cov.assert_not_called()
+
+
+def test_run_tests_passes_explicit_timeout() -> None:
+    """AC3: ``run_tests`` passes an explicit elevated ``timeout`` to
+    ``run_in_project`` for the coverage run (>= 900s), not the implicit 300.
+    """
+    from axm_audit.core.test_runner import run_tests
+
+    ok = subprocess.CompletedProcess(
+        args=["pytest"], returncode=0, stdout="", stderr=""
+    )
+    with (
+        patch(
+            "axm_audit.core.test_runner.run_in_project", return_value=ok
+        ) as run_in_project,
+        patch("axm_audit.core.test_runner.parse_json_report", return_value={}),
+        patch(
+            "axm_audit.core.test_runner.parse_coverage",
+            return_value=(90.0, {}),
+        ),
+    ):
+        run_tests(_DEAD_PROJECT)
+
+    assert run_in_project.call_args.kwargs.get("timeout", 300) >= 900
+
+
+def test_run_tests_normal_run_unaffected() -> None:
+    """AC4: a non-timeout run (returncode 0) parses and reports coverage
+    exactly as before — regression guard for the happy path.
+    """
+    from axm_audit.core.test_runner import run_tests
+
+    ok = subprocess.CompletedProcess(
+        args=["pytest"], returncode=0, stdout="", stderr=""
+    )
+    with (
+        patch("axm_audit.core.test_runner.run_in_project", return_value=ok),
+        patch(
+            "axm_audit.core.test_runner.parse_json_report",
+            return_value={"summary": {"passed": 3}, "tests": []},
+        ),
+        patch(
+            "axm_audit.core.test_runner.parse_coverage",
+            return_value=(90.0, {"a.py": 90.0}),
+        ),
+    ):
+        report = run_tests(_DEAD_PROJECT)
+
+    assert report.coverage == 90.0
+    assert getattr(report, "timed_out", False) is False
+    assert report.passed == 3

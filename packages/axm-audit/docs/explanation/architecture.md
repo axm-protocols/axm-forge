@@ -48,7 +48,7 @@ Both return typed Pydantic models for safe agent consumption.
 
 ### 3. Tool Integration
 
-All subprocess-based rules use `run_in_project()` from `core/runner.py`, which detects the target project's `.venv/` and executes tools via `uv run --directory` to ensure the correct environment is used. Most rules pass `with_packages=[...]` to inject audit dependencies (ruff, bandit, etc.) at runtime — the target project does **not** need these tools in its own environment. **Exception:** `TypeCheckRule` does **not** inject mypy — it uses the project's own mypy from the venv, ensuring the same type-stub availability and configuration as the project's pre-commit hooks. All subprocess calls have a **300-second timeout** (configurable) — on timeout, a synthetic result with `returncode=124` is returned to prevent indefinite hangs.
+All subprocess-based rules use `run_in_project()` from `core/runner.py`, which detects the target project's `.venv/` and executes tools via `uv run --directory` to ensure the correct environment is used. Most rules pass `with_packages=[...]` to inject audit dependencies (ruff, bandit, etc.) at runtime — the target project does **not** need these tools in its own environment. **Exception:** `TypeCheckRule` does **not** inject mypy — it uses the project's own mypy from the venv, ensuring the same type-stub availability and configuration as the project's pre-commit hooks. All subprocess calls have a **300-second timeout** (configurable) — on timeout, a synthetic result with `returncode=124` is returned to prevent indefinite hangs. The **coverage run is the exception**: because it executes the full suite under instrumentation, `run_tests()` passes an explicit, more generous **900-second timeout**, and `TestCoverageRule` surfaces a timeout (`returncode=124`) as an explicit *"coverage not measured"* failure rather than parsing a fabricated coverage percentage from the truncated report.
 
 | Rule | Tool | Integration |
 |---|---|---|
@@ -59,7 +59,7 @@ All subprocess-based rules use `run_in_project()` from `core/runner.py`, which d
 | `SecurityRule` | Bandit | `run_in_project(["bandit", ...])` |
 | `DependencyAuditRule` | pip-audit | `run_in_project(["pip-audit", ...])` |
 | `DependencyHygieneRule` | deptry | `run_in_project(["deptry", ...])` |
-| `TestCoverageRule` | pytest-cov | `run_tests()` via `test_runner.py` (collects failures + coverage; skips coverage when `files` is specified; `mode` param accepted for backward compat but ignored) |
+| `TestCoverageRule` | pytest-cov | `run_tests()` via `test_runner.py` (collects failures + coverage; skips coverage when `files` is specified; `mode` param accepted for backward compat but ignored; runs with a 900s timeout and reports an explicit *"coverage not measured"* failure on timeout instead of a partial coverage %) |
 | Architecture rules | Python `ast` | Direct AST parsing |
 | Structure rules | `tomllib` | TOML parsing |
 | `ToolAvailabilityRule` | `shutil.which` | PATH lookup |
