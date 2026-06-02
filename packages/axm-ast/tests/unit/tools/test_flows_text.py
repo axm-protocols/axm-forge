@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 
 from axm_ast.tools.flows_text import (
+    EntryPointDict,
     render_compact_text,
     render_entry_points_text,
     render_source_text,
@@ -118,35 +119,42 @@ class TestRenderEntryPointsText:
         assert "foo" in text
         assert "foo:1" not in text
 
-    def test_shows_decorators(self) -> None:
-        """Entry with kind=decorator, framework=cyclopts -> @cyclopts name:LINE."""
-        entries = [
-            {
-                "name": "serve",
-                "module": "pkg.cli",
-                "kind": "decorator",
-                "line": 42,
-                "framework": "cyclopts",
-            },
-        ]
-        text = render_entry_points_text(entries, count=1)
-        assert "@cyclopts" in text
-        assert "serve:42" in text
-
-    def test_shows_main_guard(self) -> None:
-        """Entry with kind=main_guard -> ▶name:LINE."""
-        entries = [
-            {
-                "name": "__main__",
-                "module": "pkg.run",
-                "kind": "main_guard",
-                "line": 100,
-                "framework": "main",
-            },
-        ]
-        text = render_entry_points_text(entries, count=1)
-        assert "▶" in text  # ▶
-        assert "__main__:100" in text
+    @pytest.mark.parametrize(
+        ("entry", "marker", "name_line"),
+        [
+            pytest.param(
+                {
+                    "name": "serve",
+                    "module": "pkg.cli",
+                    "kind": "decorator",
+                    "line": 42,
+                    "framework": "cyclopts",
+                },
+                "@cyclopts",
+                "serve:42",
+                id="decorator",
+            ),
+            pytest.param(
+                {
+                    "name": "__main__",
+                    "module": "pkg.run",
+                    "kind": "main_guard",
+                    "line": 100,
+                    "framework": "main",
+                },
+                "▶",
+                "__main__:100",
+                id="main_guard",
+            ),
+        ],
+    )
+    def test_renders_kind_marker_and_name_line(
+        self, entry: EntryPointDict, marker: str, name_line: str
+    ) -> None:
+        """Each entry kind renders its prefix marker plus name:LINE."""
+        text = render_entry_points_text([entry], count=1)
+        assert marker in text
+        assert name_line in text
 
     def test_empty_entry_points(self) -> None:
         """Package with no exports -> header shows 0 entries."""

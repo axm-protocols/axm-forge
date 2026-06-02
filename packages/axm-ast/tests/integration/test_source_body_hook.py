@@ -500,54 +500,6 @@ class TestNoStartEndLineInOutput:
         assert "end_line" not in symbols
 
 
-class TestDottedClassMethodMarkdown:
-    """Edge: Class.method returns markdown with file path header."""
-
-    @patch(f"{_ANALYZER}.find_module_for_symbol")
-    @patch(f"{_ANALYZER}.search_symbols")
-    @patch(f"{_ANALYZER}.analyze_package")
-    def test_dotted_class_method_markdown(
-        self,
-        mock_analyze: MagicMock,
-        mock_search: MagicMock,
-        mock_find: MagicMock,
-        tmp_path: Path,
-    ) -> None:
-        """Class.method extraction produces markdown with file header."""
-        src = tmp_path / "models.py"
-        src.write_text("class MyClass:\n    def do_work(self) -> None:\n        pass\n")
-
-        mock_method = MagicMock()
-        mock_method.name = "do_work"
-        mock_method.line_start = 2
-        mock_method.line_end = 3
-
-        mock_cls = MagicMock()
-        mock_cls.name = "MyClass"
-        mock_cls.methods = [mock_method]
-
-        mock_mod = _make_mock_mod(src)
-        mock_analyze.return_value = MagicMock()
-
-        def fake_search(_pkg: Any, name: str | None, **_kw: Any) -> list[Any]:
-            if name == "MyClass":
-                return [("models", mock_cls)]
-            return []
-
-        mock_search.side_effect = fake_search
-        mock_find.return_value = mock_mod
-
-        hook = SourceBodyHook()
-        result = hook.execute({}, symbol="MyClass.do_work", path=str(tmp_path))
-
-        assert result.success
-        symbols = result.metadata["symbols"]
-        assert isinstance(symbols, str)
-        assert "models.py" in symbols
-        assert "```python" in symbols
-        assert "def do_work" in symbols
-
-
 # ── Real-fixture dotted resolution (migrated from test_resolve_dotted.py) ──
 #
 # These tests drive ``SourceBodyHook.execute`` against real fixture packages
