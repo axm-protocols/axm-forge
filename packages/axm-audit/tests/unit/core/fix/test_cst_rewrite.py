@@ -570,3 +570,108 @@ def test_patch_file_depth_ignores_non_integer_index() -> None:
     src = "ROOT = Path(__file__).parents[n]\n"
     result = _rewrite_and_dump(src, lambda m: patch_file_depth(m, depth_delta=1))
     assert "parents[n]" in result
+
+
+# ---------------------------------------------------------------------------
+# backfill_import — pre-existing-binding skip via plain / aliased imports
+# ---------------------------------------------------------------------------
+
+
+def _count_import_from_stmts(code: str) -> int:
+    """Number of top-level ``from … import …`` statements in *code*."""
+    module = cst.parse_module(code)
+    return sum(
+        isinstance(small, cst.ImportFrom)
+        for stmt in module.body
+        if isinstance(stmt, cst.SimpleStatementLine)
+        for small in stmt.body
+    )
+
+
+def test_backfill_import_skips_name_bound_by_plain_import() -> None:
+    """A bare ``import os`` already binds ``os`` — no ``from`` import is injected."""
+    from axm_audit.core.fix.cst_rewrite import backfill_import
+
+    src = "import os\n\nos.getcwd()\n"
+    result = _rewrite_and_dump(src, lambda m: backfill_import(m, {"os": "pkg"}))
+    # The strip-dot branch recognises the bare binding: zero ImportFrom added.
+    assert _count_import_from_stmts(result) == 0
+
+
+def test_backfill_import_skips_name_bound_by_aliased_import() -> None:
+    """A name bound by ``import numpy as np`` blocks a backfill of ``np``."""
+    from axm_audit.core.fix.cst_rewrite import backfill_import
+
+    src = "import numpy as np\n\nnp.array([])\n"
+    result = _rewrite_and_dump(src, lambda m: backfill_import(m, {"np": "pkg"}))
+    parsed = cst.parse_module(result)
+    asnames = [
+        alias.asname.name.value
+        for stmt in parsed.body
+        if isinstance(stmt, cst.SimpleStatementLine)
+        for small in stmt.body
+        if isinstance(small, cst.Import)
+        for alias in small.names
+        if alias.asname is not None
+    ]
+    # The asname binding is what blocked the backfill; it survives untouched.
+    assert asnames == ["np"]
+
+
+# ---------------------------------------------------------------------------
+# dedupe_imports — aliased + dotted import bindings
+# ---------------------------------------------------------------------------
+
+
+def _count_import_stmts(code: str) -> int:
+    """Number of top-level ``import …`` (non-``from``) statements in *code*."""
+    module = cst.parse_module(code)
+    return sum(
+        isinstance(small, cst.Import)
+        for stmt in module.body
+        if isinstance(stmt, cst.SimpleStatementLine)
+        for small in stmt.body
+    )
+
+
+def test_dedupe_imports_collapses_repeated_aliased_import() -> None:
+    """The ``np`` asname binding survives exactly once after collapsing aliases."""
+    from axm_audit.core.fix.cst_rewrite import dedupe_imports
+
+    src = "import numpy as np\nimport numpy as np\n"
+    result = _rewrite_and_dump(src, lambda m: dedupe_imports(m))
+    parsed = cst.parse_module(result)
+    aliases = [
+        alias
+        for stmt in parsed.body
+        if isinstance(stmt, cst.SimpleStatementLine)
+        for small in stmt.body
+        if isinstance(small, cst.Import)
+        for alias in small.names
+    ]
+    asnames = [a.asname.name.value for a in aliases if a.asname is not None]
+    assert asnames == ["np"]
+
+
+def test_dedupe_imports_collapses_repeated_dotted_import() -> None:
+    """A dotted ``import a.b.c`` repeated twice leaves one Import statement node."""
+    from axm_audit.core.fix.cst_rewrite import dedupe_imports
+
+    src = "import a.b.c\nimport a.b.c\n"
+    result = _rewrite_and_dump(src, lambda m: dedupe_imports(m))
+    assert _count_import_stmts(result) == 1
+
+
+# ---------------------------------------------------------------------------
+# backfill_import — insert position with only non-__future__ imports present
+# ---------------------------------------------------------------------------
+
+
+def test_backfill_import_inserts_at_top_past_plain_imports() -> None:
+    """With only ``import os`` / non-future ``from`` imports, insert at top (idx 0)."""
+    from axm_audit.core.fix.cst_rewrite import backfill_import
+
+    src = "import os\nfrom collections import OrderedDict\n\ndef f():\n    foo()\n"
+    result = _rewrite_and_dump(src, lambda m: backfill_import(m, {"foo": "pkg"}))
+    # No __future__ line -> insert index is 0, before the pre-existing imports.
+    assert result.index("from pkg import foo") < result.index("import os")

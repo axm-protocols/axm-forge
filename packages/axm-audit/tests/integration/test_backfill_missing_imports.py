@@ -55,3 +55,28 @@ def test_backfill_missing_imports_into_type_checking_block(tmp_path: Path) -> No
     assert "if TYPE_CHECKING:" in text
     assert "from pkg import Widget" in text
     assert any("backfilled import for `Widget`" in m for m in msgs)
+
+
+def test_backfill_missing_imports_merges_into_existing_tc_block(
+    tmp_path: Path,
+) -> None:
+    """A TC-bucket donor merges into the target's pre-existing TYPE_CHECKING block."""
+    source = tmp_path / "source.py"
+    source.write_text(
+        "from typing import TYPE_CHECKING\n\n"
+        "if TYPE_CHECKING:\n"
+        "    from pkg import Gadget\n"
+    )
+    target = tmp_path / "target.py"
+    target.write_text(
+        "from typing import TYPE_CHECKING\n\n"
+        "if TYPE_CHECKING:\n"
+        "    from pkg import Existing\n\n"
+        "def test_b(a: Existing, b: Gadget) -> None:\n    assert a and b\n"
+    )
+    backfill_missing_imports(source, target)
+    text = target.read_text()
+    # Both names live under a SINGLE TYPE_CHECKING block (merge, not a new block).
+    assert text.count("if TYPE_CHECKING:") == 1
+    assert "from pkg import Gadget" in text
+    assert "from pkg import Existing" in text
