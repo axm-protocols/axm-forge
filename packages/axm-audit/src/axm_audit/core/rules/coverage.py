@@ -62,6 +62,26 @@ class TestCoverageRule(ProjectRule):
             fix_hint="Add pytest-cov: uv add --dev pytest-cov",
         )
 
+    def _timeout_result(self, failures: list[dict[str, str]]) -> CheckResult:
+        """Build the ``CheckResult`` returned when the test run timed out.
+
+        Coverage is reported as unmeasured (not a fabricated percentage
+        derived from a truncated report) so a slow/contended run never
+        masquerades as a real coverage gap.
+        """
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=False,
+            message="Test run timed out — coverage not measured",
+            severity=Severity.WARNING,
+            score=0,
+            details={"coverage": None, "failures": failures, "timed_out": True},
+            fix_hint=(
+                "Test suite exceeded the coverage-run timeout; rerun in "
+                "isolation or raise the timeout. Coverage was not measured."
+            ),
+        )
+
     @staticmethod
     def _build_text_parts(
         coverage_pct: float, failures: list[dict[str, str]]
@@ -103,6 +123,9 @@ class TestCoverageRule(ProjectRule):
         failures: list[dict[str, str]] = [
             {"test": f.test, "traceback": f.message} for f in report.failures or []
         ]
+
+        if report.timed_out:
+            return self._timeout_result(failures)
 
         if report.coverage is None:
             return self._no_coverage_result(failures)

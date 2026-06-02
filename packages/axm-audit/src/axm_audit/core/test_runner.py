@@ -23,6 +23,16 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+# Coverage runs the full suite under instrumentation, so it is far slower
+# than a bare audit subprocess. Use a generous explicit timeout (well above
+# realistic full-suite duration) so a slow/contended run is never silently
+# truncated into a fabricated partial coverage %. Other subprocess rules keep
+# the lower ``run_in_project`` default.
+_COVERAGE_RUN_TIMEOUT = 900
+
+# Synthetic returncode set by ``run_in_project`` on ``subprocess.TimeoutExpired``.
+_TIMEOUT_RETURNCODE = 124
+
 # ---------------------------------------------------------------------------
 # Models
 # ---------------------------------------------------------------------------
@@ -71,6 +81,7 @@ class TestReport:
     coverage: float | None = None
     failures: list[FailureDetail] | None = None
     coverage_by_file: dict[str, float] | None = None
+    timed_out: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -284,14 +295,25 @@ def run_tests(
         )
 
         logger.debug("Running: %s", " ".join(cmd))
-        run_in_project(
+        result = run_in_project(
             cmd,
             project_path,
+            timeout=_COVERAGE_RUN_TIMEOUT,
             with_packages=["pytest-json-report", "pytest-cov"],
             capture_output=True,
             text=True,
             check=False,
         )
+
+        # A timed-out subprocess (synthetic returncode 124) leaves the
+        # report/coverage JSON truncated. Surface the timeout explicitly
+        # instead of parsing a fabricated coverage % from partial data.
+        if result.returncode == _TIMEOUT_RETURNCODE:
+            logger.warning(
+                "Test run timed out after %ds — coverage not measured",
+                _COVERAGE_RUN_TIMEOUT,
+            )
+            return TestReport(timed_out=True)
 
         # Parse JSON report
         report_data = parse_json_report(report_path)
