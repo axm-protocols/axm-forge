@@ -15,10 +15,327 @@ from pathlib import Path
 import pytest
 
 from axm_audit.core.fix.models import FileOp
-from axm_audit.core.fix.stages_execute import execute
+from axm_audit.core.fix.stages_execute import (
+    execute,
+    execute_merge,
+    execute_relocate,
+    execute_rename,
+    execute_split,
+    reroute_through_safe_move,
+)
 from tests.integration._helpers import _anvil_available, _subprocess_import
 
 pytestmark = pytest.mark.integration
+
+
+def _op(
+    kind: str,
+    source: Path,
+    target: Path | list[Path],
+    *,
+    split_map: dict[str, list[str]] | None = None,
+) -> FileOp:
+    return FileOp(
+        kind=kind,
+        source=source,
+        target=target,
+        rationale="r",
+        source_rule="X",
+        split_map=split_map,
+    )
+
+
+def test_execute_relocate_moves_file_across_tiers(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """RELOCATE git-moves a unit test into integration when target is free."""
+    pkg = make_test_pkg(
+        {
+            "src/pkg/a.py": "def a():\n    return 1\n",
+            "tests/__init__.py": "",
+            "tests/unit/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/unit/test_a.py": (
+                "from pkg.a import a\n\ndef test_a():\n    assert a() == 1\n"
+            ),
+        }
+    )
+    src = pkg / "tests/unit/test_a.py"
+    tgt = pkg / "tests/integration/test_a.py"
+
+    warnings = execute_relocate(_op("relocate", src, tgt), pkg)
+
+    assert warnings == []
+    assert not src.exists()
+    assert tgt.exists()
+    assert "def test_a():" in tgt.read_text()
+
+
+def test_execute_relocate_reroutes_when_target_exists(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """RELOCATE re-routes through _safe_move_units when the target pre-exists.
+
+    The source's unit must land in the existing target file (not overwrite
+    it), the existing test must survive, and the source must be deleted.
+    """
+    pkg = make_test_pkg(
+        {
+            "tests/__init__.py": "",
+            "tests/unit/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/unit/test_a.py": "def test_from_unit():\n    assert True\n",
+            "tests/integration/test_a.py": "def test_existing():\n    assert True\n",
+        }
+    )
+    src = pkg / "tests/unit/test_a.py"
+    tgt = pkg / "tests/integration/test_a.py"
+
+    warnings = execute_relocate(_op("relocate", src, tgt), pkg)
+
+    assert warnings == [
+        "relocate: target test_a.py already exists; "
+        "re-routing test_a.py through _safe_move_units"
+    ]
+    assert not src.exists()
+    body = tgt.read_text()
+    assert "def test_existing():" in body
+    assert "def test_from_unit():" in body
+
+
+def test_execute_relocate_patches_dunder_depth_and_cross_imports(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """RELOCATE patches ``parents[N]`` for the depth delta on a nested move.
+
+    Moving ``tests/integration/hooks/test_h.py`` (depth 4) up to
+    ``tests/integration/test_h.py`` (depth 3) shifts the file one level
+    closer to the project root, so ``Path(__file__).parents[3]`` must be
+    re-pointed to ``parents[2]`` to keep resolving to the same ancestor.
+    """
+    pkg = make_test_pkg(
+        {
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/integration/hooks/__init__.py": "",
+            "tests/integration/hooks/test_h.py": (
+                "from pathlib import Path\n"
+                "ROOT = Path(__file__).parents[3]\n\n"
+                "def test_h():\n    assert ROOT.name == 'pkg'\n"
+            ),
+        }
+    )
+    src = pkg / "tests/integration/hooks/test_h.py"
+    tgt = pkg / "tests/integration/test_h.py"
+
+    warnings = execute_relocate(_op("relocate", src, tgt), pkg)
+
+    assert any(
+        "file-depth-drift" in w and "parents[3] -> parents[2]" in w for w in warnings
+    )
+    assert "Path(__file__).parents[2]" in tgt.read_text()
+    assert not src.exists()
+
+
+def test_execute_relocate_rewrites_cross_test_imports(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """RELOCATE rewrites sibling imports of the moved module's dotted path."""
+    pkg = make_test_pkg(
+        {
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/e2e/__init__.py": "",
+            "tests/integration/test_a.py": (
+                "def helper():\n    return 1\n\n"
+                "def test_a():\n    assert helper() == 1\n"
+            ),
+            "tests/e2e/test_importer.py": (
+                "from tests.integration.test_a import helper\n\n"
+                "def test_x():\n    assert helper() == 1\n"
+            ),
+        }
+    )
+    src = pkg / "tests/integration/test_a.py"
+    tgt = pkg / "tests/e2e/test_a.py"
+
+    warnings = execute_relocate(_op("relocate", src, tgt), pkg)
+
+    assert any("rewrote import in tests/e2e/test_importer.py" in w for w in warnings)
+    importer_body = (pkg / "tests/e2e/test_importer.py").read_text()
+    assert "from tests.e2e.test_a import helper" in importer_body
+
+
+def test_execute_rename_git_moves_to_canonical_name(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """RENAME git-moves the source to its canonical name when target is free."""
+    pkg = make_test_pkg(
+        {
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/integration/test_old.py": "def test_thing():\n    assert True\n",
+        }
+    )
+    src = pkg / "tests/integration/test_old.py"
+    tgt = pkg / "tests/integration/test_new.py"
+
+    warnings = execute_rename(_op("rename", src, tgt), pkg)
+
+    assert warnings == []
+    assert not src.exists()
+    assert "def test_thing():" in tgt.read_text()
+
+
+def test_execute_rename_reroutes_when_target_exists(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """RENAME re-routes through _safe_move_units when the canonical name is taken."""
+    pkg = make_test_pkg(
+        {
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/integration/test_old.py": "def test_from_old():\n    assert True\n",
+            "tests/integration/test_new.py": "def test_existing():\n    assert True\n",
+        }
+    )
+    src = pkg / "tests/integration/test_old.py"
+    tgt = pkg / "tests/integration/test_new.py"
+
+    warnings = execute_rename(_op("rename", src, tgt), pkg)
+
+    assert warnings == [
+        "rename: target test_new.py already exists; "
+        "re-routing test_old.py through _safe_move_units"
+    ]
+    assert not src.exists()
+    body = tgt.read_text()
+    assert "def test_existing():" in body
+    assert "def test_from_old():" in body
+
+
+def test_reroute_through_safe_move_rewrites_cross_imports(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """reroute_through_safe_move moves units, deletes source, fixes sibling imports."""
+    pkg = make_test_pkg(
+        {
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/e2e/__init__.py": "",
+            "tests/integration/test_old.py": (
+                "def shared():\n    return 7\n\n"
+                "def test_old():\n    assert shared() == 7\n"
+            ),
+            "tests/integration/test_new.py": "def test_existing():\n    assert True\n",
+            "tests/e2e/test_dep.py": (
+                "from tests.integration.test_old import shared\n\n"
+                "def test_dep():\n    assert shared() == 7\n"
+            ),
+        }
+    )
+    src = pkg / "tests/integration/test_old.py"
+    tgt = pkg / "tests/integration/test_new.py"
+
+    warnings = reroute_through_safe_move("relocate", src, tgt, pkg)
+
+    assert not src.exists()
+    assert "def test_old():" in tgt.read_text()
+    assert any("rewrote import in tests/e2e/test_dep.py" in w for w in warnings)
+    assert (
+        "from tests.integration.test_new import shared"
+        in (pkg / "tests/e2e/test_dep.py").read_text()
+    )
+
+
+def test_execute_merge_moves_units_and_deletes_empty_source(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """MERGE relocates the source's units into target then deletes the source."""
+    pkg = make_test_pkg(
+        {
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/integration/test_src.py": "def test_from_src():\n    assert True\n",
+            "tests/integration/test_tgt.py": "def test_in_tgt():\n    assert True\n",
+        }
+    )
+    src = pkg / "tests/integration/test_src.py"
+    tgt = pkg / "tests/integration/test_tgt.py"
+
+    execute_merge(_op("merge", src, tgt), pkg)
+
+    assert not src.exists()
+    body = tgt.read_text()
+    assert "def test_in_tgt():" in body
+    assert "def test_from_src():" in body
+
+
+def test_execute_merge_skipped_when_source_has_no_units(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """MERGE skips with a no-movable-units message when the source is empty."""
+    pkg = make_test_pkg(
+        {
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/integration/test_src.py": '"""docstring only."""\n',
+            "tests/integration/test_tgt.py": "def test_in_tgt():\n    assert True\n",
+        }
+    )
+    src = pkg / "tests/integration/test_src.py"
+    tgt = pkg / "tests/integration/test_tgt.py"
+
+    warnings = execute_merge(_op("merge", src, tgt), pkg)
+
+    assert warnings == [f"merge skipped: {src} has no top-level movable units"]
+    assert src.exists()
+
+
+def test_execute_split_skipped_when_no_movable_units(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """SPLIT skips when the source has no top-level test units to route."""
+    pkg = make_test_pkg(
+        {
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/integration/test_x.py": '"""nothing movable."""\nCONST = 1\n',
+        }
+    )
+    src = pkg / "tests/integration/test_x.py"
+
+    warnings = execute_split(_op("split", src, [src]), pkg)
+
+    assert warnings == [f"split skipped: no movable units in {src}"]
+    assert src.exists()
+
+
+def test_execute_split_skipped_when_cohesive_single_group(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """SPLIT skips when every unit routes to one canonical name (<2 groups)."""
+    pkg = make_test_pkg(
+        {
+            "src/pkg/a.py": "def a():\n    return 1\n",
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/integration/test_a.py": (
+                "from pkg.a import a\n\n"
+                "def test_one():\n    assert a() == 1\n\n"
+                "def test_two():\n    assert a() == 1\n"
+            ),
+        }
+    )
+    src = pkg / "tests/integration/test_a.py"
+
+    warnings = execute_split(_op("split", src, [src]), pkg)
+
+    assert warnings == [
+        "split skipped: test_a.py has <2 unit-groups "
+        "(file is cohesive at canonical-name level)"
+    ]
+    assert src.exists()
 
 
 def _make_split_pkg_with_decorator(
@@ -541,3 +858,154 @@ def test_execute_split_preserves_relative_order_of_unrelated_top_level_statement
     assert proc.returncode == 0, (
         f"{target_a.name} failed to import: {proc.stderr}\n--- body ---\n{body}"
     )
+
+
+def test_execute_split_routes_residual_anchor_into_preexisting_target(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """SPLIT finalizes the anchor into a pre-existing canonical target file.
+
+    Two units route to ``test_a.py`` (the anchor, by group size) and one to
+    ``test_b.py``. A ``test_a.py`` already exists on disk, so the anchor
+    finalize must move the residual anchor units into it via
+    ``_safe_move_units`` (preserving the pre-existing test) rather than
+    git-mv-overwriting it, then delete the now-empty source.
+    """
+    if not _anvil_available():
+        pytest.skip("axm-anvil not installed")
+    pkg = make_test_pkg(
+        {
+            "src/pkg/a.py": "def a():\n    return 'a'\n",
+            "src/pkg/b.py": "def b():\n    return 'b'\n",
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/integration/test_x.py": (
+                "from pkg.a import a\n"
+                "from pkg.b import b\n\n"
+                "def test_one():\n    assert a() == 'a'\n\n"
+                "def test_alpha():\n    assert a() == 'a'\n\n"
+                "def test_two():\n    assert b() == 'b'\n"
+            ),
+            "tests/integration/test_a.py": (
+                "def test_preexisting():\n    assert True\n"
+            ),
+        }
+    )
+    src = pkg / "tests/integration/test_x.py"
+    target_a = pkg / "tests/integration/test_a.py"
+    target_b = pkg / "tests/integration/test_b.py"
+
+    execute([_op("split", src, [target_a, target_b])], pkg)
+
+    assert not src.exists()
+    assert target_b.exists()
+    body_a = target_a.read_text()
+    assert "def test_preexisting():" in body_a
+    assert "def test_one():" in body_a
+    assert "def test_alpha():" in body_a
+    compile(body_a, str(target_a), "exec")
+
+
+def test_execute_split_recovers_anchor_fixture_lost_to_sibling(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """SPLIT copies back a fixture the anchor reaches only via getfixturevalue.
+
+    The anchor (``test_a.py``, two units) references ``shared_fx`` solely
+    through ``request.getfixturevalue('shared_fx')`` — a runtime string
+    lookup anvil's static scan cannot see — while the non-anchor unit
+    consumes ``shared_fx`` as a direct fixture arg. Anvil therefore moves
+    ``shared_fx`` to the sibling; the post-split recovery pass must copy it
+    back into the anchor so the anchor file is self-contained.
+    """
+    if not _anvil_available():
+        pytest.skip("axm-anvil not installed")
+    pkg = make_test_pkg(
+        {
+            "src/pkg/a.py": "def a():\n    return 'a'\n",
+            "src/pkg/b.py": "def b():\n    return 'b'\n",
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/integration/test_x.py": (
+                "import pytest\n"
+                "from pkg.a import a\n"
+                "from pkg.b import b\n\n"
+                "@pytest.fixture\n"
+                "def shared_fx():\n    return 7\n\n"
+                "def test_one(request):\n"
+                "    v = request.getfixturevalue('shared_fx')\n"
+                "    assert v == 7 and a() == 'a'\n\n"
+                "def test_alpha(request):\n"
+                "    v = request.getfixturevalue('shared_fx')\n"
+                "    assert v == 7 and a() == 'a'\n\n"
+                "def test_two(shared_fx):\n    assert shared_fx == 7 and b() == 'b'\n"
+            ),
+        }
+    )
+    src = pkg / "tests/integration/test_x.py"
+    target_a = pkg / "tests/integration/test_a.py"
+    target_b = pkg / "tests/integration/test_b.py"
+
+    warnings = execute([_op("split", src, [target_a, target_b])], pkg)
+
+    assert any("anchor-fixture-recovered: test_a.py::shared_fx" in w for w in warnings)
+    body_a = target_a.read_text()
+    assert "def shared_fx():" in body_a, (
+        f"shared_fx not recovered into anchor\n{body_a}"
+    )
+    compile(body_a, str(target_a), "exec")
+    proc = _subprocess_import(target_a, pkg)
+    assert proc.returncode == 0, f"{target_a.name} import failed: {proc.stderr}"
+
+
+def test_execute_split_recovers_anchor_fixture_with_its_dependency(
+    make_test_pkg: Callable[[dict[str, str]], Path],
+) -> None:
+    """SPLIT recovery drags the fixture's transitive helper into the anchor too.
+
+    ``shared_fx`` calls module-level ``_helper``; both were carried to the
+    sibling. When recovery copies ``shared_fx`` back, the closure walk must
+    also copy ``_helper`` (used by shared_fx) so the anchor still resolves.
+    """
+    if not _anvil_available():
+        pytest.skip("axm-anvil not installed")
+    pkg = make_test_pkg(
+        {
+            "src/pkg/a.py": "def a():\n    return 'a'\n",
+            "src/pkg/b.py": "def b():\n    return 'b'\n",
+            "tests/__init__.py": "",
+            "tests/integration/__init__.py": "",
+            "tests/integration/test_x.py": (
+                "import pytest\n"
+                "from pkg.a import a\n"
+                "from pkg.b import b\n\n"
+                "def _helper():\n    return 7\n\n"
+                "@pytest.fixture\n"
+                "def shared_fx():\n    return _helper()\n\n"
+                "def test_one(request):\n"
+                "    v = request.getfixturevalue('shared_fx')\n"
+                "    assert v == 7 and a() == 'a'\n\n"
+                "def test_alpha(request):\n"
+                "    v = request.getfixturevalue('shared_fx')\n"
+                "    assert v == 7 and a() == 'a'\n\n"
+                "def test_two(shared_fx):\n    assert shared_fx == 7 and b() == 'b'\n"
+            ),
+        }
+    )
+    src = pkg / "tests/integration/test_x.py"
+    target_a = pkg / "tests/integration/test_a.py"
+    target_b = pkg / "tests/integration/test_b.py"
+
+    warnings = execute([_op("split", src, [target_a, target_b])], pkg)
+
+    assert any(
+        "anchor-fixture-dep-recovered: test_a.py::_helper" in w for w in warnings
+    )
+    body_a = target_a.read_text()
+    assert "def shared_fx():" in body_a
+    assert "def _helper():" in body_a, (
+        f"_helper dependency not recovered into anchor\n{body_a}"
+    )
+    compile(body_a, str(target_a), "exec")
+    proc = _subprocess_import(target_a, pkg)
+    assert proc.returncode == 0, f"{target_a.name} import failed: {proc.stderr}"

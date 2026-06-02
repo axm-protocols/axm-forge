@@ -4,10 +4,10 @@ Everything that **mutates** Python source code lives here. Split into
 five concerns:
 
 * class flatten (``_flatten_class_to_top_level``, ``_flatten_class_child``)
-* rename (``_rename_name_in_module``, ``_rename_top_level_in_source``)
-* delete (``_delete_function_from_source``, ``_delete_source_if_empty_tests``)
-* statement reorder (``_reorder_module_statements`` + ast helpers)
-* ``Path(__file__).parents[N]`` depth patch (``_patch_file_dunder_depth``)
+* rename (``rename_name_in_module``, ``rename_top_level_in_source``)
+* delete (``delete_function_from_source``, ``delete_source_if_empty_tests``)
+* statement reorder (``reorder_module_statements`` + ast helpers)
+* ``Path(__file__).parents[N]`` depth patch (``patch_file_dunder_depth``)
 * import management — read-side analysis lives in ``tests_ast``; here we
   insert, dedupe, backfill, and synthesise missing imports, plus the
   project-wide import index that keeps backfill O(1) per lookup.
@@ -40,14 +40,14 @@ from .tests_ast import (
 
 __all__ = [
     # depth patch
-    "_patch_file_dunder_depth",
+    "patch_file_dunder_depth",
     "_is_file_dunder_chain",
     "patch_file_depth",
     # rename / delete
-    "_rename_name_in_module",
-    "_rename_top_level_in_source",
-    "_delete_function_from_source",
-    "_delete_source_if_empty_tests",
+    "rename_name_in_module",
+    "rename_top_level_in_source",
+    "delete_function_from_source",
+    "delete_source_if_empty_tests",
     "rename_function",
     "delete_function",
     # class flatten
@@ -55,7 +55,7 @@ __all__ = [
     "_flatten_class_child",
     "flatten_class",
     # statement reorder
-    "_reorder_module_statements",
+    "reorder_module_statements",
     "_stmt_defines",
     "_stmt_references",
     # imports — write side
@@ -238,7 +238,7 @@ class _CollectChainChildren(cst.CSTVisitor):
             self.child_ids.add(id(node.value))
 
 
-def _patch_file_dunder_depth(
+def patch_file_dunder_depth(
     file: Path,
     depth_delta: int,
 ) -> list[str]:
@@ -404,7 +404,7 @@ def _flatten_class_child(
 # ---------------------------------------------------------------------------
 
 
-def _rename_name_in_module(path: Path, old_to_new: dict[str, str]) -> None:
+def rename_name_in_module(path: Path, old_to_new: dict[str, str]) -> None:
     """Rename every occurrence of name X across module *path* (def + refs).
 
     Renames at three sites simultaneously:
@@ -415,7 +415,7 @@ def _rename_name_in_module(path: Path, old_to_new: dict[str, str]) -> None:
         after the rename.
 
     Preserves formatting via libcst. Unlike
-    ``_rename_top_level_in_source`` (which only renames the def header
+    ``rename_top_level_in_source`` (which only renames the def header
     — needed for cross-file move collisions), this rewrites references
     too — needed when source helpers get renamed to avoid colliding with
     target's same-named helpers.
@@ -482,7 +482,7 @@ def _rename_name_in_module(path: Path, old_to_new: dict[str, str]) -> None:
     cst_save(path, new_module)
 
 
-def _rename_top_level_in_source(source: Path, old_to_new: dict[str, str]) -> None:
+def rename_top_level_in_source(source: Path, old_to_new: dict[str, str]) -> None:
     """Rename top-level FunctionDef / ClassDef in *source*, preserving formatting.
 
     Workaround for axm-anvil's ``rename=`` parameter, which validates
@@ -506,7 +506,7 @@ def _rename_top_level_in_source(source: Path, old_to_new: dict[str, str]) -> Non
     cst_save(source, module.with_changes(body=new_body))
 
 
-def _delete_function_from_source(source: Path, func_name: str) -> None:
+def delete_function_from_source(source: Path, func_name: str) -> None:
     """Remove a top-level FunctionDef from source, preserving formatting."""
     module = cst_load(source)
     if module is None:
@@ -519,7 +519,7 @@ def _delete_function_from_source(source: Path, func_name: str) -> None:
     cst_save(source, module.with_changes(body=new_body))
 
 
-def _delete_source_if_empty_tests(source: Path) -> None:
+def delete_source_if_empty_tests(source: Path) -> None:
     """git rm the source if no test_* funcs/classes remain."""
     if not source.exists():
         return
@@ -691,7 +691,7 @@ def _compute_earliest(
     return earliest, needs_change
 
 
-def _reorder_module_statements(path: Path) -> None:
+def reorder_module_statements(path: Path) -> None:
     """Reorder a module's top-level statements so definitions precede uses.
 
     After SPLIT/MERGE/FLATTEN, axm-anvil can leave statements in an order
@@ -1209,7 +1209,7 @@ def rename_function(module: cst.Module, old_name: str, new_name: str) -> cst.Mod
     Updates the ``FunctionDef`` itself, any ``Name`` reference, and any
     string-literal argument (e.g. ``pytest.mark.parametrize("old", …)``)
     that matches *old_name*. In-memory counterpart of
-    :func:`_rename_name_in_module`.
+    :func:`rename_name_in_module`.
     """
     mapping = {old_name: new_name}
 
@@ -1257,7 +1257,7 @@ def delete_function(module: cst.Module, func_name: str) -> cst.Module:
 
     Neighbouring statements (and their attached blank-line spacing) are
     preserved by libcst's leading-lines semantics. In-memory counterpart
-    of :func:`_delete_function_from_source`.
+    of :func:`delete_function_from_source`.
     """
     new_body = [
         stmt
@@ -1270,7 +1270,7 @@ def delete_function(module: cst.Module, func_name: str) -> cst.Module:
 def patch_file_depth(module: cst.Module, depth_delta: int = 0) -> cst.Module:
     """Rewrite ``Path(__file__).parents[N]`` literals by *depth_delta*.
 
-    In-memory variant of :func:`_patch_file_dunder_depth` that targets the
+    In-memory variant of :func:`patch_file_dunder_depth` that targets the
     subscript form only — the chained ``.parent.parent`` form is left for
     the file-level helper. Identity transform when *depth_delta* is 0 or
     the pattern is absent.
