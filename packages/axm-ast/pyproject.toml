@@ -650,3 +650,15 @@ reason = "2 _execute_batch tests probe two distinct success branches of the same
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "7d4f75c65205"
 reason = "2 find_stale_signatures doc-extractor tests probe two distinct signature-shape branches with two divergent fixture builders: test_extracts_class_in_code_block builds an inline src/pkg/mod.py with `class Bar: pass` + a fresh doc with ```python\\nclass Bar(SomeBase)```, runs find_stale_signatures(['Bar']), and asserts records[0]['doc_sig'] == 'class Bar(SomeBase)' (class-with-base doc extraction), while test_strips_trailing_colon_from_doc_sig uses the src_with_foo fixture (foo function) + a doc with ```python\\ndef foo(x: int):\\n```, runs find_stale_signatures(['foo']), and asserts records[0]['doc_sig'] == 'def foo(x: int)' (trailing-colon stripped, no class). Different SUT branches (class signature extraction vs def + colon-strip), different fixture builders (inline mod.py vs src_with_foo fixture), different needles ('class Bar(SomeBase)' vs 'def foo(x: int)') — folding would conflate the class-extraction contract with the def + colon-strip contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "311fd5589f0d"
+reason = "2 integration search_symbols kind tests assert on divergent type contracts: test_search_by_kind queries kind=PROPERTY and asserts every result is a FunctionInfo with kind==FunctionKind.PROPERTY, while test_search_by_kind_class queries kind=CLASS and asserts every result isinstance ClassInfo. Different kind-dispatch branches and different isinstance/kind assertions — parametrizing would conflate the property-dispatch contract with the class-dispatch contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7d0859957e22"
+reason = "2 analyze_package discovery tests assert on different PackageInfo fields: test_discovers_all_modules asserts len(pkg.modules) >= 3 (the parsed ModuleInfo list), while test_module_names_populated asserts len(pkg.module_names) >= 3 (the derived dotted-name list). Different fields probing two distinct derivations — parametrizing would conflate the modules-list contract with the module_names-derivation contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9677a8635aac"
+reason = "2 search_symbols returns-filter tests assert on different exclusion semantics: test_filter_by_return_type (returns='str') asserts 'greet' in names AND 'User' NOT in names (classes excluded from return-type filter), while test_returns_excludes_variables (returns='str') asserts '_PRIVATE' NOT in names AND 'greet' in names (variables excluded from return-type filter). Different exclusion branches (class vs variable) — parametrizing would conflate the class-exclusion contract with the variable-exclusion contract."
