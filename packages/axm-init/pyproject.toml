@@ -242,6 +242,7 @@ exempt_paths = [
     "adapters/filesystem.py",
     "adapters/makefile.py",
     "adapters/workspace_patcher.py",
+    "core/ports.py",
     "templates/**/*.py",
 ]
 
