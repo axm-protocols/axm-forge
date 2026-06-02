@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_ast.core.analyzer import analyze_package
 from axm_ast.core.ranker import (
     pagerank,
@@ -62,17 +64,25 @@ class TestPageRank:
         scores = pagerank({"A": set()})
         assert abs(scores["A"] - 1.0) < 0.01
 
-    def test_hub_node_highest(self) -> None:
-        """Node with most incoming links has highest score."""
-        # A→C, B→C, D→C — C is the hub
-        graph: dict[str, set[str]] = {
-            "A": {"C"},
-            "B": {"C"},
-            "D": {"C"},
-            "C": set(),
-        }
+    @pytest.mark.parametrize(
+        ("graph", "winner"),
+        [
+            pytest.param(
+                {"A": {"C"}, "B": {"C"}, "D": {"C"}, "C": set()},
+                "C",
+                id="hub-most-incoming",
+            ),
+            pytest.param(
+                {"A": {"B", "C"}, "B": {"D"}, "C": {"D"}, "D": set()},
+                "D",
+                id="diamond-sink",
+            ),
+        ],
+    )
+    def test_highest_ranked_node(self, graph: dict[str, set[str]], winner: str) -> None:
+        """The node with the most aggregated incoming weight ranks highest."""
         scores = pagerank(graph)
-        assert scores["C"] == max(scores.values())
+        assert scores[winner] == max(scores.values())
 
     def test_isolated_node_min_score(self) -> None:
         """Disconnected node gets minimum (damping) score."""
@@ -93,17 +103,6 @@ class TestPageRank:
         scores = pagerank(graph)
         # Should be roughly equal
         assert abs(scores["A"] - scores["B"]) < 0.01
-
-    def test_diamond_graph(self) -> None:
-        """A→B, A→C, B→D, C→D — D gets highest score."""
-        graph: dict[str, set[str]] = {
-            "A": {"B", "C"},
-            "B": {"D"},
-            "C": {"D"},
-            "D": set(),
-        }
-        scores = pagerank(graph)
-        assert scores["D"] == max(scores.values())
 
     def test_scores_sum_to_one(self) -> None:
         """All scores should approximately sum to 1.0."""
