@@ -161,20 +161,29 @@ When no configuration is present, the default threshold of 10 and multiplier of 
 
 ### Mirror Exemptions
 
-`MirrorRule` (alias `TestMirrorRule`) reads optional forward-direction
-exemptions from `pyproject.toml`:
+`MirrorRule` (alias `TestMirrorRule`) reads optional exemptions for both
+mirror directions from `pyproject.toml`:
 
 ```toml
 [tool.axm-audit.mirror]
 exempt_paths = ["commands/*.py", "schemas/*.py", "**/_facade.py"]
+exempt_tests = ["conformance/**", "contracts/*.py"]
 ```
 
-Glob patterns are anchored at `src/<top_pkg>/`. `*` and `?` never cross
-`/`; `**` matches zero or more path segments. Exempted modules do not
-require a matching `tests/unit/test_*.py` and surface in
-`details["exempt"]`. Reverse-direction (orphan-test) checks are
-unaffected. Invalid TOML or wrong `exempt_paths` type fails the rule
-with a `fix_hint` instead of raising.
+`exempt_paths` covers the **forward** direction: globs anchored at
+`src/<top_pkg>/`; exempted modules do not require a matching
+`tests/unit/test_*.py` and surface in `details["exempt"]`.
+
+`exempt_tests` covers the **reverse** direction: globs anchored at
+`tests/unit/`; cross-cutting test files with no source mirror (e.g.
+conformance suites that exercise every dispatcher) are whitelisted out
+of the orphan list and surface in `details["exempt_tests"]`.
+
+For both keys, `*` and `?` never cross `/` and `**` matches zero or more
+path segments. The two keys are independent: `exempt_paths` never clears
+an orphan and `exempt_tests` never clears a missing source module.
+Invalid TOML or a wrong `exempt_paths` / `exempt_tests` type fails the
+rule with a `fix_hint` instead of raising.
 
 ### UV Workspace Support
 

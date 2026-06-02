@@ -774,3 +774,112 @@ class TestMirrorRule:
         result = rule.check(project)
         assert result.text is not None
         assert "_facade.py" in result.text
+
+
+def test_exempt_tests_excludes_orphan(tmp_path: Path) -> None:
+    """AC2, AC3, AC5: orphan matching exempt_tests glob is excluded + surfaced."""
+    _write(tmp_path / "src" / "pkg" / "a.py", "x = 1\n")
+    _write(tmp_path / "tests" / "unit" / "test_a.py", "")
+    _write(tmp_path / "tests" / "unit" / "conformance" / "test_dispatchers.py", "")
+    _write(
+        tmp_path / "pyproject.toml",
+        '[tool.axm-audit.mirror]\nexempt_tests = ["conformance/**"]\n',
+    )
+
+    result = MirrorRule().check(tmp_path)
+    assert result.details is not None
+
+    assert result.details["orphan"] == []
+    assert (
+        "tests/unit/conformance/test_dispatchers.py" in result.details["exempt_tests"]
+    )
+    assert result.passed is True
+
+
+def test_exempt_tests_glob_does_not_cross_slash(tmp_path: Path) -> None:
+    """AC3: a single-star glob matches one segment, never across '/'."""
+    _write(tmp_path / "src" / "pkg" / "a.py", "x = 1\n")
+    _write(tmp_path / "tests" / "unit" / "test_a.py", "")
+    # Single-segment orphan -> conformance/* should exempt it.
+    _write(tmp_path / "tests" / "unit" / "conformance" / "test_x.py", "")
+    # Two-segment-deep orphan -> deep/* must NOT cross the slash, stays flagged.
+    _write(tmp_path / "tests" / "unit" / "deep" / "sub" / "test_y.py", "")
+    _write(
+        tmp_path / "pyproject.toml",
+        '[tool.axm-audit.mirror]\nexempt_tests = ["conformance/*", "deep/*"]\n',
+    )
+
+    result = MirrorRule().check(tmp_path)
+    assert result.details is not None
+
+    assert "tests/unit/conformance/test_x.py" in result.details["exempt_tests"]
+    assert "tests/unit/conformance/test_x.py" not in result.details["orphan"]
+    # deep/* cannot reach sub/test_y.py -> still an orphan, not exempted.
+    assert "tests/unit/deep/sub/test_y.py" in result.details["orphan"]
+    assert "tests/unit/deep/sub/test_y.py" not in result.details["exempt_tests"]
+
+
+def test_exempt_tests_independent_from_exempt_paths(tmp_path: Path) -> None:
+    """AC4: exempt_tests clears orphans but leaves missing-source untouched."""
+    # Source module with no matching test -> forward 'missing'.
+    _write(tmp_path / "src" / "pkg" / "a.py", "x = 1\n")
+    # Orphan test with no matching source -> reverse 'orphan'.
+    _write(tmp_path / "tests" / "unit" / "conformance" / "test_dispatchers.py", "")
+    _write(
+        tmp_path / "pyproject.toml",
+        '[tool.axm-audit.mirror]\nexempt_tests = ["conformance/**"]\n',
+    )
+
+    result = MirrorRule().check(tmp_path)
+    assert result.details is not None
+
+    # Forward direction unaffected by exempt_tests.
+    assert "a.py" in result.details["missing"]
+    # Reverse orphan removed by exempt_tests.
+    assert result.details["orphan"] == []
+
+
+def test_exempt_paths_does_not_exempt_orphan(tmp_path: Path) -> None:
+    """AC4: exempt_paths (source-side) cannot clear an orphan test."""
+    _write(tmp_path / "src" / "pkg" / "a.py", "x = 1\n")
+    _write(tmp_path / "tests" / "unit" / "test_a.py", "")
+    _write(tmp_path / "tests" / "unit" / "conformance" / "test_dispatchers.py", "")
+    _write(
+        tmp_path / "pyproject.toml",
+        '[tool.axm-audit.mirror]\nexempt_paths = ["conformance/**"]\n',
+    )
+
+    result = MirrorRule().check(tmp_path)
+    assert result.details is not None
+
+    # exempt_paths is source-anchored -> orphan stays flagged (original bug).
+    assert "tests/unit/conformance/test_dispatchers.py" in result.details["orphan"]
+
+
+def test_malformed_exempt_tests_sets_error(tmp_path: Path) -> None:
+    """AC1: non-list exempt_tests populates fix_hint, never raises."""
+    _write(tmp_path / "src" / "pkg" / "a.py", "x = 1\n")
+    _write(tmp_path / "tests" / "unit" / "test_a.py", "")
+    _write(
+        tmp_path / "pyproject.toml",
+        '[tool.axm-audit.mirror]\nexempt_tests = "notalist"\n',
+    )
+
+    result = MirrorRule().check(tmp_path)
+    assert result.passed is False
+    assert result.fix_hint is not None
+    assert "exempt_tests must be a list of strings" in result.fix_hint
+
+
+def test_no_exempt_tests_key_is_noop(tmp_path: Path) -> None:
+    """AC6: absent exempt_tests key leaves orphan detection unchanged."""
+    _write(tmp_path / "src" / "pkg" / "a.py", "x = 1\n")
+    _write(tmp_path / "tests" / "unit" / "test_a.py", "")
+    _write(tmp_path / "tests" / "unit" / "conformance" / "test_dispatchers.py", "")
+
+    result = MirrorRule().check(tmp_path)
+    assert result.details is not None
+
+    # No exempt_tests -> orphan still flagged as before.
+    assert "tests/unit/conformance/test_dispatchers.py" in result.details["orphan"]
+    assert result.details["exempt_tests"] == []
