@@ -128,19 +128,20 @@ def test_header_pattern(tool: InspectTool, rich_pkg: str, mode: str) -> None:
     )
 
 
-def test_header_pattern_module(tool: InspectTool, rich_pkg: str) -> None:
-    text, _ = _execute_mode(tool, rich_pkg, "module")
+@pytest.mark.parametrize(
+    ("mode", "header_re"),
+    [
+        pytest.param("module", HEADER_MOD_RE, id="module"),
+        pytest.param("variable", HEADER_VAR_RE, id="variable"),
+    ],
+)
+def test_header_pattern_special(
+    tool: InspectTool, rich_pkg: str, mode: str, header_re: re.Pattern[str]
+) -> None:
+    text, _ = _execute_mode(tool, rich_pkg, mode)
     first_line = text.split("\n", 1)[0]
-    assert HEADER_MOD_RE.match(first_line), (
-        f"module header does not match pattern: {first_line!r}"
-    )
-
-
-def test_header_pattern_variable(tool: InspectTool, rich_pkg: str) -> None:
-    text, _ = _execute_mode(tool, rich_pkg, "variable")
-    first_line = text.split("\n", 1)[0]
-    assert HEADER_VAR_RE.match(first_line), (
-        f"variable header does not match pattern: {first_line!r}"
+    assert header_re.match(first_line), (
+        f"{mode} header does not match pattern: {first_line!r}"
     )
 
 
