@@ -267,14 +267,6 @@ hash = "f9a7b46e63e9"
 reason = "12 InspectTool integration tests spanning 2 TestClasses with different fixtures (rich_pkg__from_inspect vs sample_project) and asserting on different symbol kinds (function/class/method/property/classmethod/module); fixture divergence prevents clean parametrization"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "00d154d029c4"
-reason = "11 dead-code detection tests spanning two distinct concern classes (TestIntraModuleClassRefs: 4 tests about class-name reference detection — attr access, method call, type annotation, alias; TestAttributeRefs: 7 tests about self.attr reference detection in kwargs, dicts, lists, assignments, chained, bare, call) — parametrization would conflate two independent detection surfaces probed by find_dead_code"
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "f33694681051"
-reason = "8 extract_references tests covering four distinct acceptance criteria of AXM-1723 (AC1: cast() typing, AC2: string annotations on var/return/param, AC3: subscript string args, plus positional-arg/attribute reference tracking from core.callers) with two different fixtures (mod_factory vs mod_factory__from_core_callers); parametrization would erase the AC-boundary documentation and conflate two fixture surfaces"
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "c39987e10950"
 reason = "8 find_stale_signatures tests asserting on heterogeneous fields (actual_sig shapes for single/multiple/dotted/generic base classes; resilience to syntax_error / empty_file / qualified name collisions across modules and nested subpackages) with three distinct fixtures (src_layout, src_tree, tmp_path); each probes a different AST-extraction edge case that parametrization would erase"
 
@@ -421,10 +413,6 @@ reason = "3 detect_stack tests assert on three orthogonal stack categories (stac
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "72f9c35e5f92"
 reason = "3 discover_docs absent-key tests (test_discover_no_readme / test_discover_no_mkdocs / test_discover_no_docs_dir) share an identical _make_project(readme=None, mkdocs=None, docs=None) setup but assert on three orthogonal absent-key contracts of the result dict: result['readme'] is None, result['mkdocs'] is None, and result['pages'] == [] AND result['tree'] is None. Folding would force a heterogeneous (key, expected) parameter mixing None-vs-empty-list-vs-double-key assertions and erase the per-key documentation surface."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "e62cf02e30b3"
-reason = "3 extract_references AC4-negative tests probe three distinct non-typing-position rules across two fixtures: test_log_string_does_not_pollute_refs (mod_factory, logger.info string arg) pins the string-in-call-arg exclusion, test_docstring_does_not_pollute_refs (mod_factory, triple-quoted docstring) pins the docstring exclusion, and test_star_args_not_ref (mod_factory__from_core_callers, foo(*handlers) list_splat) pins the star-unpacked-name exclusion. Three different AST positions (call argument string / docstring / list_splat), two divergent fixtures, three different excluded identifiers ('MyClass' / 'MyClass' / 'handlers') — parametrize would conflate two fixture surfaces and three independent exclusion rules."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "86a12871fe22"
