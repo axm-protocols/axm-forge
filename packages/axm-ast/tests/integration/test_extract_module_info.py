@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from axm_ast.core.parser import extract_module_info
 
 
@@ -15,24 +17,36 @@ class TestExtractImportsRelative:
     private helper feeds into the cross-module resolver.
     """
 
-    def test_single_relative_import(self, tmp_path: Path) -> None:
-        """``from .response import X`` → module='response', names=['X']."""
+    @pytest.mark.parametrize(
+        ("source", "expected_module", "expected_names"),
+        [
+            pytest.param(
+                "from .response import HttpResponse\n",
+                "response",
+                {"HttpResponse"},
+                id="single",
+            ),
+            pytest.param(
+                "from .models import A, B\n",
+                "models",
+                {"A", "B"},
+                id="multi",
+            ),
+        ],
+    )
+    def test_relative_import(
+        self,
+        tmp_path: Path,
+        source: str,
+        expected_module: str,
+        expected_names: set[str],
+    ) -> None:
+        """``from .pkg import ...`` → level=1 relative import with names."""
         f = tmp_path / "mod.py"
-        f.write_text("from .response import HttpResponse\n")
+        f.write_text(source)
         mod = extract_module_info(f)
         rels = [i for i in mod.imports if i.is_relative]
         assert len(rels) == 1
-        assert rels[0].module == "response"
+        assert rels[0].module == expected_module
         assert rels[0].level == 1
-        assert rels[0].names == ["HttpResponse"]
-
-    def test_multi_relative_import(self, tmp_path: Path) -> None:
-        """``from .models import A, B`` → module='.models' / names=['A','B']."""
-        f = tmp_path / "mod.py"
-        f.write_text("from .models import A, B\n")
-        mod = extract_module_info(f)
-        rels = [i for i in mod.imports if i.is_relative]
-        assert len(rels) == 1
-        assert rels[0].module == "models"
-        assert rels[0].level == 1
-        assert set(rels[0].names) == {"A", "B"}
+        assert set(rels[0].names) == expected_names

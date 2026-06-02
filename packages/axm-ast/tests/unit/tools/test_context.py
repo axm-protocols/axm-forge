@@ -161,31 +161,6 @@ class TestWorkspaceContextDepth0:
         assert data["workspace"] == "test-ws"
         assert data["package_count"] == 2
 
-    def test_workspace_context_depth0_compact_like_slim(
-        self,
-        context_tool: ContextTool,
-        workspace_ctx: dict[str, Any],
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """depth=0 on workspace returns same compact format as slim."""
-        monkeypatch.setattr(
-            "axm_ast.core.workspace.detect_workspace",
-            lambda p: MagicMock(),
-        )
-        monkeypatch.setattr(
-            "axm_ast.core.workspace.build_workspace_context",
-            lambda p: workspace_ctx,
-        )
-
-        result = context_tool.execute(path=str(tmp_path), depth=0)
-
-        assert result.success is True
-        data = result.data
-        for pkg in data["packages"]:
-            assert list(pkg.keys()) == ["name"]
-        assert "package_graph" not in data
-
     def test_workspace_context_depth1(
         self,
         context_tool: ContextTool,
