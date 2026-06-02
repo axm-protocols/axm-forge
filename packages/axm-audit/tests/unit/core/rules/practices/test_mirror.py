@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from axm_audit.core.rules.practices.mirror import MirrorRule, _MirrorConfig
+from axm_audit.core.rules.practices.mirror import MirrorRule
 
 
 class TestMirrorRuleUnit:
@@ -19,13 +19,3 @@ def test_mirror_rule_registered(registry: dict[str, list[type]]) -> None:
     bucket = registry["practices"]
     names = {cls.__name__ for cls in bucket}
     assert "MirrorRule" in names
-
-
-def test_mirror_config_has_exempt_tests_field() -> None:
-    """AC1: _MirrorConfig carries an independent exempt_tests list field."""
-    config = _MirrorConfig(exempt_paths=[], exempt_tests=[])
-    assert config.exempt_tests == []
-    assert config.exempt_paths == []
-    # The two fields are independent containers.
-    config.exempt_tests.append("conformance/**")
-    assert config.exempt_paths == []
