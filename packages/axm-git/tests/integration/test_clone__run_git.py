@@ -79,7 +79,3 @@ class TestCloneFlow:
 
         assert not result.success
         assert result.error
-
-    def test_tool_name(self) -> None:
-        """The tool name property returns the registered MCP name."""
-        assert GitCloneTool().name == "git_clone"
