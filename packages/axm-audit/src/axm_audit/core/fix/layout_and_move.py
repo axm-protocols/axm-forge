@@ -33,12 +33,12 @@ except ImportError:  # pragma: no cover
     move_symbols = None  # type: ignore[assignment]
 
 from .cst_rewrite import (
-    _delete_function_from_source,
-    _patch_file_dunder_depth,
-    _rename_name_in_module,
-    _rename_top_level_in_source,
-    _reorder_module_statements,
     backfill_missing_imports,
+    delete_function_from_source,
+    patch_file_dunder_depth,
+    rename_name_in_module,
+    rename_top_level_in_source,
+    reorder_module_statements,
 )
 from .io_primitives import _git_mv
 from .models import CANONICAL_TIERS
@@ -119,7 +119,7 @@ def _relocate_single_file(src: Path, target: Path, project_path: Path) -> list[s
     ) - file_depth_from_project(src, project_path)
     _git_mv(src, target)
     if depth_delta != 0:
-        msgs.extend(_patch_file_dunder_depth(target, depth_delta))
+        msgs.extend(patch_file_dunder_depth(target, depth_delta))
     new_mod = module_path_for_test_file(target, project_path)
     if old_mod and new_mod and old_mod != new_mod:
         msgs.extend(
@@ -239,7 +239,7 @@ def _flatten_one_file(project_path: Path, tier_dir: Path, src: Path) -> list[str
     ) - file_depth_from_project(src, project_path)
     _git_mv(src, target)
     if depth_delta != 0:
-        msgs.extend(_patch_file_dunder_depth(target, depth_delta))
+        msgs.extend(patch_file_dunder_depth(target, depth_delta))
     new_mod = module_path_for_test_file(target, project_path)
     if old_mod and new_mod and old_mod != new_mod:
         msgs.extend(
@@ -706,7 +706,7 @@ def _classify_units(
                 f"dedup: dropped {source.name}::{name} "
                 f"(identical body to {target.name}::{name})"
             )
-            _delete_function_from_source(source, name)
+            delete_function_from_source(source, name)
             continue
         suffix = idx.cls_suffix if name in idx.source_class_names else idx.fn_suffix
         new_name = _bounded_rename(name, suffix, idx.stem)
@@ -738,7 +738,7 @@ def _apply_helper_conflict_renames(
     )
     if not helper_renames:
         return []
-    _rename_name_in_module(source, helper_renames)
+    rename_name_in_module(source, helper_renames)
     return [
         f"helper-rename: {source.name}::{old} -> {new} "
         f"(body-mismatch with {target.name}::{old})"
@@ -765,7 +765,7 @@ def _apply_conftest_shadow_renames(
     )
     if not target_local_renames:
         return [], target_tree
-    _rename_name_in_module(target, target_local_renames)
+    rename_name_in_module(target, target_local_renames)
     new_target_tree = ast.parse(target.read_text())
     warnings = [
         f"target-helper-rename: {target.name}::{old} -> {new} "
@@ -1312,9 +1312,9 @@ def _finalize_move(
     warnings = list(drop_warnings)
     warnings.extend(plan.warnings)
     warnings.extend(backfill_missing_imports(source, target, project_path))
-    _reorder_module_statements(target)
+    reorder_module_statements(target)
     if source.exists():
-        _reorder_module_statements(source)
+        reorder_module_statements(source)
     return warnings
 
 
@@ -1349,7 +1349,7 @@ def _safe_move_units(
     idx = _build_move_index(source, target)
     warnings, final_units, rename_map = _classify_units(unit_names, source, target, idx)
     if rename_map:
-        _rename_top_level_in_source(source, rename_map)
+        rename_top_level_in_source(source, rename_map)
     if not final_units:
         return warnings, []
 
