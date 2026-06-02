@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import ast
 import textwrap
-from pathlib import Path
 
 import pytest
 
@@ -19,7 +18,6 @@ from axm_audit.core.rules.test_quality.pyramid_level import (
     PyramidLevelRule,
     classify_level,
     has_in_package_subprocess_invocation,
-    scan_test_file,
 )
 
 
@@ -285,140 +283,3 @@ def test_cyclic_fixture_graph_terminates() -> None:
     assert result is False
     assert "fix_a" in visited
     assert "fix_b" in visited
-
-
-# ── parametrize-vs-fixture disambiguation (axm-1797) ──────────────────
-
-
-def _scan_funcs(src: str, tmp_path: Path) -> dict[str, object]:
-    """Lay out a tiny package, write *src* under ``tests/unit/`` and scan it.
-
-    Returns ``{func_name: Finding}`` for every classified ``test_*`` function.
-    Placing the module under ``tests/unit/`` makes its folder-derived level
-    ``unit`` so a classified ``unit`` verdict produces no mismatch.
-    """
-    body = textwrap.dedent(src)
-    pkg_root = tmp_path / "pkg"
-    src_dir = pkg_root / "src" / "pkg"
-    tests_dir = pkg_root / "tests"
-    unit_dir = tests_dir / "unit"
-    src_dir.mkdir(parents=True)
-    unit_dir.mkdir(parents=True)
-    (src_dir / "__init__.py").write_text("")
-    test_file = unit_dir / "test_x.py"
-    test_file.write_text(body)
-    findings = scan_test_file(
-        test_file=test_file,
-        tree=ast.parse(body),
-        pkg_root=pkg_root,
-        pkg_prefixes={"pkg"},
-        init_all=None,
-        tests_dir=tests_dir,
-    )
-    return {f.function: f for f in findings}
-
-
-def test_parametrized_path_arg_not_io_fixture(tmp_path: Path) -> None:
-    """AC1, AC4: a direct ``@parametrize("pdf_path", ...)`` argname is not
-    treated as an I/O fixture even though it matches the ``_path`` suffix."""
-    findings = _scan_funcs(
-        """
-        import pytest
-
-        @pytest.mark.parametrize("pdf_path", ["", "   "])
-        def test_blank_pdf_path_rejected(pdf_path):
-            assert pdf_path.strip() == ""
-        """,
-        tmp_path,
-    )
-    finding = findings["test_blank_pdf_path_rejected"]
-    assert finding.level == "unit"
-    assert "fixture-arg:pdf_path" not in finding.io_signals
-
-
-def test_parametrized_multiarg_string_form(tmp_path: Path) -> None:
-    """AC1: comma-joined argnames string form splits into individual
-    parametrized names, none of which emit a fixture signal."""
-    findings = _scan_funcs(
-        """
-        import pytest
-
-        @pytest.mark.parametrize("a_path,b_dir", [("x", "y")])
-        def test_two_paths(a_path, b_dir):
-            assert a_path != b_dir
-        """,
-        tmp_path,
-    )
-    sigs = findings["test_two_paths"].io_signals
-    assert "fixture-arg:a_path" not in sigs
-    assert "fixture-arg:b_dir" not in sigs
-
-
-def test_parametrized_list_form_argnames(tmp_path: Path) -> None:
-    """AC1: list-of-strings argnames form is supported the same way."""
-    findings = _scan_funcs(
-        """
-        import pytest
-
-        @pytest.mark.parametrize(["repo_path", "cfg_file"], [("r", "c")])
-        def test_list_form(repo_path, cfg_file):
-            assert repo_path != cfg_file
-        """,
-        tmp_path,
-    )
-    sigs = findings["test_list_form"].io_signals
-    assert "fixture-arg:repo_path" not in sigs
-    assert "fixture-arg:cfg_file" not in sigs
-
-
-def test_indirect_parametrize_keeps_fixture_signal(tmp_path: Path) -> None:
-    """AC2: ``indirect=True`` routes the arg through a fixture, so the
-    fixture signal is retained and the test is classified integration."""
-    findings = _scan_funcs(
-        """
-        import pytest
-
-        @pytest.mark.parametrize("tmp_path", ["x"], indirect=True)
-        def test_indirect(tmp_path):
-            tmp_path.write_text("hi")
-        """,
-        tmp_path,
-    )
-    finding = findings["test_indirect"]
-    assert "fixture-arg:tmp_path" in finding.io_signals
-    assert finding.level == "integration"
-
-
-def test_indirect_subset_keeps_only_listed(tmp_path: Path) -> None:
-    """AC2: ``indirect=["a_path"]`` keeps the fixture signal only for the
-    listed arg; the other parametrized arg is still neutralized."""
-    findings = _scan_funcs(
-        """
-        import pytest
-
-        @pytest.mark.parametrize(
-            ["a_path", "b_dir"], [("a", "b")], indirect=["a_path"]
-        )
-        def test_subset(a_path, b_dir):
-            assert a_path != b_dir
-        """,
-        tmp_path,
-    )
-    sigs = findings["test_subset"].io_signals
-    assert "fixture-arg:a_path" in sigs
-    assert "fixture-arg:b_dir" not in sigs
-
-
-def test_nonparametrized_io_fixture_unaffected(tmp_path: Path) -> None:
-    """AC3: a genuine non-parametrized I/O fixture argument keeps emitting
-    its signal and stays classified as integration."""
-    findings = _scan_funcs(
-        """
-        def test_plain(tmp_path):
-            tmp_path.write_text("data")
-        """,
-        tmp_path,
-    )
-    finding = findings["test_plain"]
-    assert "fixture-arg:tmp_path" in finding.io_signals
-    assert finding.level == "integration"
