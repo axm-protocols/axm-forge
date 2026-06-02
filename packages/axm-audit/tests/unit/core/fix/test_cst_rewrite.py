@@ -323,3 +323,250 @@ def test_delete_function_absent_is_noop() -> None:
     src = "def keep(): pass\n"
     result = _rewrite_and_dump(src, lambda m: delete_function(m, "absent"))
     assert "def keep(" in result
+
+
+# ---------------------------------------------------------------------------
+# flatten_class — docstring / fixture / mark propagation branches
+# ---------------------------------------------------------------------------
+
+
+def test_flatten_class_drops_class_docstring() -> None:
+    """The class docstring (a SimpleString Expr) is dropped on flatten."""
+    from axm_audit.core.fix.cst_rewrite import flatten_class
+
+    src = '''
+        class TestX:
+            """This is the class docstring."""
+
+            def test_a(self):
+                assert 1
+    '''
+    result = _rewrite_and_dump(src, lambda m: flatten_class(m, "TestX"))
+    assert "This is the class docstring." not in result
+    assert "def test_a(" in result
+
+
+def test_flatten_class_strips_self_param() -> None:
+    """The leading ``self`` param is dropped from promoted methods."""
+    from axm_audit.core.fix.cst_rewrite import flatten_class
+
+    src = "class TestX:\n    def test_a(self, value):\n        assert value\n"
+    result = _rewrite_and_dump(src, lambda m: flatten_class(m, "TestX"))
+    assert "def test_a(value)" in result
+    assert "self" not in result
+
+
+def test_flatten_class_propagates_class_pytest_mark() -> None:
+    """A class-level ``@pytest.mark.*`` mark lands on each promoted test."""
+    from axm_audit.core.fix.cst_rewrite import flatten_class
+
+    src = """
+        import pytest
+
+        @pytest.mark.integration
+        class TestX:
+            def test_a(self):
+                assert 1
+
+            def test_b(self):
+                assert 2
+    """
+    result = _rewrite_and_dump(src, lambda m: flatten_class(m, "TestX"))
+    assert result.count("@pytest.mark.integration") == 2
+    assert "class TestX" not in result
+
+
+def test_flatten_class_drops_non_pytest_class_decorator() -> None:
+    """A non-``pytest.mark`` class decorator is dropped, not propagated."""
+    from axm_audit.core.fix.cst_rewrite import flatten_class
+
+    src = """
+        @some_adapter
+        class TestX:
+            def test_a(self):
+                assert 1
+    """
+    result = _rewrite_and_dump(src, lambda m: flatten_class(m, "TestX"))
+    assert "@some_adapter" not in result
+    assert "def test_a(" in result
+
+
+def test_flatten_class_promotes_helper_without_self() -> None:
+    """A helper method without ``self`` is promoted verbatim (no param strip)."""
+    from axm_audit.core.fix.cst_rewrite import flatten_class
+
+    src = """
+        class TestX:
+            def _helper(value):
+                return value * 2
+
+            def test_a(self):
+                assert _helper(2) == 4
+    """
+    result = _rewrite_and_dump(src, lambda m: flatten_class(m, "TestX"))
+    assert "def _helper(value)" in result
+    assert "class TestX" not in result
+
+
+def test_flatten_class_promotes_class_level_assignment() -> None:
+    """A non-function class child (assignment) is promoted to top level."""
+    from axm_audit.core.fix.cst_rewrite import flatten_class
+
+    src = """
+        class TestX:
+            CONST = 5
+
+            def test_a(self):
+                assert TestX
+    """
+    result = _rewrite_and_dump(src, lambda m: flatten_class(m, "TestX"))
+    assert "CONST = 5" in result
+
+
+# ---------------------------------------------------------------------------
+# rename_function — Name reference + marker-string rewrite
+# ---------------------------------------------------------------------------
+
+
+def test_rename_function_rewrites_name_references() -> None:
+    """Every ``Name`` reference to the old function is rewritten too."""
+    from axm_audit.core.fix.cst_rewrite import rename_function
+
+    src = "def test_old():\n    pass\n\nrunner = test_old\n"
+    result = _rewrite_and_dump(
+        src, lambda m: rename_function(m, "test_old", "test_new")
+    )
+    assert "runner = test_new" in result
+    assert "test_old" not in result
+
+
+def test_rename_function_rewrites_marker_string_literal() -> None:
+    """A matching string literal (e.g. parametrize id) is rewritten."""
+    from axm_audit.core.fix.cst_rewrite import rename_function
+
+    src = '@pytest.mark.usefixtures("old_fix")\ndef test_a():\n    pass\n'
+    result = _rewrite_and_dump(src, lambda m: rename_function(m, "old_fix", "new_fix"))
+    assert '"new_fix"' in result
+    assert "old_fix" not in result
+
+
+def test_rename_function_ignores_non_matching_string() -> None:
+    """String literals that don't match the old name are left intact."""
+    from axm_audit.core.fix.cst_rewrite import rename_function
+
+    src = 'def test_old():\n    msg = "unrelated literal"\n    return msg\n'
+    result = _rewrite_and_dump(
+        src, lambda m: rename_function(m, "test_old", "test_new")
+    )
+    assert '"unrelated literal"' in result
+    assert "def test_new(" in result
+
+
+# ---------------------------------------------------------------------------
+# patch_file_depth — guard branches and refuse-to-patch
+# ---------------------------------------------------------------------------
+
+
+def test_patch_file_depth_refuses_when_result_non_positive() -> None:
+    """depth_delta that would make N<=0 leaves the literal unchanged."""
+    from axm_audit.core.fix.cst_rewrite import patch_file_depth
+
+    src = "from pathlib import Path\nROOT = Path(__file__).parents[1]\n"
+    result = _rewrite_and_dump(src, lambda m: patch_file_depth(m, depth_delta=-1))
+    assert "parents[1]" in result
+    assert "parents[0]" not in result
+
+
+def test_patch_file_depth_ignores_non_parents_subscript() -> None:
+    """A subscript on a non-``parents`` attribute is left alone."""
+    from axm_audit.core.fix.cst_rewrite import patch_file_depth
+
+    src = "data = obj.items[2]\n"
+    result = _rewrite_and_dump(src, lambda m: patch_file_depth(m, depth_delta=1))
+    assert "obj.items[2]" in result
+
+
+def test_patch_file_depth_ignores_non_file_dunder_parents() -> None:
+    """``something.parents[N]`` not rooted at ``Path(__file__)`` is skipped."""
+    from axm_audit.core.fix.cst_rewrite import patch_file_depth
+
+    src = "ROOT = some_path.parents[2]\n"
+    result = _rewrite_and_dump(src, lambda m: patch_file_depth(m, depth_delta=1))
+    assert "some_path.parents[2]" in result
+
+
+def test_patch_file_depth_handles_resolve_wrapper() -> None:
+    """``Path(__file__).resolve().parents[N]`` is still recognised and patched."""
+    from axm_audit.core.fix.cst_rewrite import patch_file_depth
+
+    src = "ROOT = Path(__file__).resolve().parents[2]\n"
+    result = _rewrite_and_dump(src, lambda m: patch_file_depth(m, depth_delta=1))
+    assert "parents[3]" in result
+    assert "parents[2]" not in result
+
+
+# ---------------------------------------------------------------------------
+# dedupe_imports — star imports + TYPE_CHECKING block dedup
+# ---------------------------------------------------------------------------
+
+
+def test_dedupe_imports_preserves_star_import() -> None:
+    """``from x import *`` is never collapsed (no per-alias bindings)."""
+    from axm_audit.core.fix.cst_rewrite import dedupe_imports
+
+    src = "from pkg import *\nfrom pkg import *\n"
+    result = _rewrite_and_dump(src, lambda m: dedupe_imports(m))
+    assert result.count("from pkg import *") == 2
+
+
+def test_dedupe_imports_dedupes_inside_type_checking_block() -> None:
+    """Duplicate imports inside ``if TYPE_CHECKING:`` are collapsed."""
+    from axm_audit.core.fix.cst_rewrite import dedupe_imports
+
+    src = """
+        from typing import TYPE_CHECKING
+
+        if TYPE_CHECKING:
+            from pkg import Foo
+            from pkg import Foo
+    """
+    result = _rewrite_and_dump(src, lambda m: dedupe_imports(m))
+    assert result.count("from pkg import Foo") == 1
+
+
+def test_dedupe_imports_drops_emptied_type_checking_block() -> None:
+    """A TYPE_CHECKING block emptied by dedup is removed entirely."""
+    from axm_audit.core.fix.cst_rewrite import dedupe_imports
+
+    src = """
+        from pkg import Foo
+
+        if TYPE_CHECKING:
+            from pkg import Foo
+    """
+    result = _rewrite_and_dump(src, lambda m: dedupe_imports(m))
+    assert result.count("from pkg import Foo") == 1
+    assert "if TYPE_CHECKING:" not in result
+
+
+# ---------------------------------------------------------------------------
+# patch_file_depth — subscript guard branches (non-index / non-integer)
+# ---------------------------------------------------------------------------
+
+
+def test_patch_file_depth_ignores_slice_index() -> None:
+    """A slice (``parents[1:2]``) is not an Index literal, so it's skipped."""
+    from axm_audit.core.fix.cst_rewrite import patch_file_depth
+
+    src = "ROOT = Path(__file__).parents[1:2]\n"
+    result = _rewrite_and_dump(src, lambda m: patch_file_depth(m, depth_delta=1))
+    assert "parents[1:2]" in result
+
+
+def test_patch_file_depth_ignores_non_integer_index() -> None:
+    """A non-integer index (``parents[n]``) is left unchanged."""
+    from axm_audit.core.fix.cst_rewrite import patch_file_depth
+
+    src = "ROOT = Path(__file__).parents[n]\n"
+    result = _rewrite_and_dump(src, lambda m: patch_file_depth(m, depth_delta=1))
+    assert "parents[n]" in result

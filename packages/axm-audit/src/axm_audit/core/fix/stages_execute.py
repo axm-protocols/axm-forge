@@ -22,11 +22,11 @@ except ImportError:  # pragma: no cover
 from axm_audit.core.rules.test_quality._shared import load_project_scripts
 
 from .cst_rewrite import (
-    _delete_source_if_empty_tests,
     _flatten_class_to_top_level,
-    _patch_file_dunder_depth,
-    _reorder_module_statements,
     backfill_missing_imports,
+    delete_source_if_empty_tests,
+    patch_file_dunder_depth,
+    reorder_module_statements,
 )
 from .findings import (
     class_needs_flatten,
@@ -75,7 +75,7 @@ def execute_flatten(op: FileOp, project_path: Path) -> list[str]:
     for class_name in op.split_map.keys():
         text = _flatten_class_to_top_level(text, class_name)
     op.source.write_text(text)
-    _reorder_module_statements(op.source)
+    reorder_module_statements(op.source)
     return [f"flatten: rewrote {op.source.name} ({list(op.split_map.keys())})"]
 
 
@@ -104,7 +104,7 @@ def reroute_through_safe_move(
     if units:
         sub_warnings, _ = _safe_move_units(source, target, units, project_path)
         warnings.extend(sub_warnings)
-    _delete_source_if_empty_tests(source)
+    delete_source_if_empty_tests(source)
     if old_mod and new_mod and old_mod != new_mod and not source.exists():
         warnings.extend(
             _rewrite_cross_test_imports(
@@ -151,7 +151,7 @@ def execute_relocate(op: FileOp, project_path: Path) -> list[str]:
     warnings = []
     depth_delta = tgt_depth - src_depth
     if depth_delta != 0:
-        warnings.extend(_patch_file_dunder_depth(op.target, depth_delta))
+        warnings.extend(patch_file_dunder_depth(op.target, depth_delta))
     if old_mod and new_mod and old_mod != new_mod:
         warnings.extend(
             _rewrite_cross_test_imports(
@@ -198,7 +198,7 @@ def execute_rename(op: FileOp, project_path: Path) -> list[str]:
     warnings = []
     depth_delta = tgt_depth - src_depth
     if depth_delta != 0:
-        warnings.extend(_patch_file_dunder_depth(op.target, depth_delta))
+        warnings.extend(patch_file_dunder_depth(op.target, depth_delta))
     if old_mod and new_mod and old_mod != new_mod:
         warnings.extend(
             _rewrite_cross_test_imports(
@@ -573,7 +573,7 @@ def _finalize_split_anchor(
                 op.source, target, residual_units, project_path
             )
             warnings.extend(sub_warnings)
-        _delete_source_if_empty_tests(op.source)
+        delete_source_if_empty_tests(op.source)
     else:
         _git_mv(op.source, target)
     return warnings, target
@@ -678,7 +678,7 @@ def execute_merge(op: FileOp, project_path: Path) -> list[str]:
     old_mod = module_path_for_test_file(op.source, project_path)
     new_mod = module_path_for_test_file(op.target, project_path)
     warnings, _ = _safe_move_units(op.source, op.target, source_units, project_path)
-    _delete_source_if_empty_tests(op.source)
+    delete_source_if_empty_tests(op.source)
     if old_mod and new_mod and old_mod != new_mod and not op.source.exists():
         warnings.extend(
             _rewrite_cross_test_imports(
