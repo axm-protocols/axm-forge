@@ -48,7 +48,7 @@ result = audit_project(Path("."), quick=True)
 ```python
 from axm_audit import get_rules_for_category
 
-# All rules (25 instances)
+# All rules (31 instances)
 rules = get_rules_for_category(None)
 
 # Single category

@@ -75,7 +75,7 @@ result = audit_project(Path("."), quick=True)
 
 !!! tip "Available categories"
     `lint`, `type`, `complexity`, `security`, `deps`,
-    `testing`, `architecture`, `practices`, `structure`, `tooling`
+    `testing`, `test_quality`, `architecture`, `practices`, `structure`, `tooling`
 
 ## Step 4: Get JSON Output
 
