@@ -495,21 +495,15 @@ reason = "Heterogeneous intra-file case in TestFormatAgentText: test_format_agen
 hash = "baedb510dffb"
 reason = "Heterogeneous intra-file case in test_file_naming.py: test_canonical_integration calls canonical_filename(symbols_or_tuples=tuple[str,...], tier='integration', single_binary=None) covering K=2/K=1/PascalCase→snake variants, while test_canonical_e2e_single_binary calls canonical_filename(symbols_or_tuples=list[tuple[str,str]], tier='e2e', single_binary='axm-audit') covering single-binary strip vs no-sub. Different tier branches, different `single_binary` mode, different input shapes. Folding would force a generic tier/single_binary parameter and erase the e2e-vs-integration distinction. ACK."
 
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "26c967d93af4"
-reason = "Cluster covers 7 disjoint cst_rewrite SUTs sharing only the _rewrite_and_dump helper: rename_function (in-place name swap), patch_file_depth +1/0/-1 (parents[N] integer literal increment/identity/decrement), dedupe_imports shadow rule (first binding wins), flatten_class no-decorators path, and rename_function absent-name no-op. Each test asserts on a different source-string contract (def rename, parents[N] index, import line presence, class flatten) with literals that are SUT-specific data, not interchangeable parametrize values; folding would erase the per-rewriter contract."
 
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "630bb3f2fec1"
-reason = "Cluster covers 3 disjoint cst_rewrite no-op / extension SUTs: backfill_import with dotted module path 'a.b.c' (asserts 'from a.b.c import helper' is inserted), flatten_class with unknown class name (asserts class is preserved untouched), and delete_function with absent target (asserts module is unchanged). Each test exercises a different rewriter and a different no-op-vs-extension contract; the literals (module path 'a.b.c', class 'TestY', function 'absent') are SUT-specific and not interchangeable parametrize values."
+
+
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "6acb44ecc5f5"
 reason = "Both tests exercise flatten_class but guard orthogonal concerns: test_flatten_class_to_top_level_funcs asserts the body-flattening contract (methods test_a/test_b become top-level functions, 'class TestX' is gone) on a no-decorator input, while test_flatten_preserves_method_decorators asserts the decorator-preservation invariant ('@pytest.mark.skip' survives flattening) on a decorated input. Different inputs (decorated vs not), different assertion targets (function bodies vs decorator survival); collapsing would erase the decorator-preservation branch."
 
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "f64e47eadb17"
-reason = "Both tests exercise dedupe_imports but cover disjoint import-statement shapes: test_imports_dedupe_collapses_duplicates asserts that repeated `import os` (plain-import shape) collapses to a single line AND that `import sys` is preserved at count 1, while test_dedupe_imports_from_module_collapses_repeat asserts that repeated `from pkg import foo` (from-import shape) collapses AND that the unrelated `from pkg import bar` survives at count 1. Same `lines.count(1)` literal but applied to different source-string contracts (`import X` vs `from X import Y`); each pins a separate dedupe branch (Import vs ImportFrom CST node)."
+
 
 # ── Fix-corpus fixture data (tests/fixtures/fix_corpus/**) — NOT real tests ──
 # These files are static input/expected snapshots fed to the fix-pipeline
@@ -624,6 +618,58 @@ reason = "Both guard pipeline.run atomic-rollback but via disjoint trigger branc
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "292e74040860"
 reason = "Both assert plan_relocate(pkg) == [] but guard disjoint branches with disjoint setup: empty_when_clean uses a real clean make_pkg (no PYRAMID_LEVEL finding → no op, the no-findings path) while mixed_tiers_emits_zero_ops mocks _PLAN_CHECK to return conflicting unit/e2e tiers for one file, exercising the B3 mixed-tier oscillation guard (findings exist but are dropped). Same expected value, different reason/branch separately observable (one needs the mock); folding would erase the oscillation-guard coverage. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ae588962177b"
+reason = "Cluster of 15 disjoint cst_rewrite SUTs sharing only the _rewrite_and_dump helper: rename_function (in-place name swap, def + Name reference + marker-string rewrite), patch_file_depth +1/0/-1 and resolve-wrapper / non-positive / non-parents / slice / non-integer guards (parents[N] integer-literal increment/identity/decrement and refuse branches), flatten_class self-strip / docstring-drop / class-mark propagation / assignment-promotion, and dedupe shadow rule. Each test asserts on a different source-string contract (def rename, parents[N] index, decorator survival, import line) with literals that are SUT-specific data, not interchangeable parametrize values; folding would erase the per-rewriter contract. Successor of ex-26c967d93af4. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "5994b3fcc694"
+reason = "Cluster of 8 disjoint cst_rewrite no-op / extension SUTs sharing only _rewrite_and_dump: backfill_import with dotted module path 'a.b.c' (asserts 'from a.b.c import helper' inserted), backfill at-top / after-future / already-imported / empty-mapping branches, flatten_class with unknown class name (class preserved untouched), and delete_function with absent target (module unchanged). Each test exercises a different rewriter and a different no-op-vs-extension contract; the literals (module path 'a.b.c', class 'TestY', function 'absent') are SUT-specific and not interchangeable parametrize values. Successor of ex-630bb3f2fec1. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "a2b2cb8532bd"
+reason = "Cluster of 7 dedupe_imports tests over disjoint import-statement shapes: collapses plain `import os` (preserving `import sys`), collapses repeated `from pkg import foo` (preserving `from pkg import bar`), already-imported skip, star-import never collapsed, TYPE_CHECKING-block dedup, and emptied-TYPE_CHECKING-block removal. Same `lines.count(1)` literal applied to different source-string contracts (`import X` vs `from X import Y` vs `from x import *` vs nested TYPE_CHECKING); each pins a separate dedupe branch (Import vs ImportFrom vs star vs guarded block). Successor of ex-f64e47eadb17. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9783c29e3cc8"
+reason = "Inter-file cluster of 3 no-op tests across 3 distinct SUTs / files: rename_name_in_module (empty mapping), rename_top_level_in_source (empty mapping), reorder_module_statements (already-ordered). They share only the 'identity/no-op when nothing to do' shape but each targets a different public function with its own fixture and assertion. Cross-module fold forbidden; distinct-SUT, branches/contracts disjoint. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f447f4b39d37"
+reason = "Both call backfill_missing_imports but guard disjoint resolution branches: falls_back_to_project_index resolves `shared_helper` via a donor test file and asserts `from pkg import shared_helper` (project-index fallback path) while synthesizes_from_helpers resolves `make_widget` defined only in tests/<tier>/_helpers.py and asserts `import make_widget` (helpers-synthesis path). Different input setup, different resolution branch, different asserted import string; folding would erase which resolution path is covered. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "05eafab92751"
+reason = "Inter-file cluster across 2 distinct SUTs: rename_name_in_module (renames a ClassDef) vs rename_top_level_in_source (renames the header only). They share a 'renames' shape but each pins a different public function's rename contract on a different module with its own fixture. Cross-module fold forbidden; distinct-SUT, branches/contracts disjoint. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "a085e1ec9174"
+reason = "Both call delete_source_if_empty_tests and assert `not f.exists()`, but the assertion means opposite things on disjoint branches: unlinks_when_no_tests writes a file with no test funcs and verifies it was DELETED (deletion-effect path) while missing_file_is_noop passes a path that never existed and verifies the function is a safe NO-OP (absent-input guard). The coincidentally identical `not f.exists()` would conflate 'I deleted it' with 'it was never there'; folding would erase the delete-vs-noop distinction. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c088412c671a"
+reason = "Inter-file cluster across 2 distinct SUTs: strip_def_and_inject_import (no-match → injects nothing) vs strip_def_only (removes a function in place). Each test targets a different public function on a different file with its own contract (inject-nothing guard vs in-place removal). Cross-module fold forbidden; distinct-SUT, branches/contracts disjoint. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "cbcd53f53d1f"
+reason = "Both call execute_split and assert `warnings == [...]` + `src.exists()`, but the warning literals encode two disjoint skip-reason branches: skipped_when_no_movable_units asserts 'split skipped: no movable units' (empty-source guard) while skipped_when_cohesive_single_group asserts 'has <2 unit-groups (file is cohesive at canonical-name level)' (single-group guard). Same assertion field but skip-reason-A vs skip-reason-B; folding into a generic expected message would erase which guard branch is covered. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "755c67e59f54"
+reason = "Both call extract_shared_helpers_in_tier and assert `not _helpers.py.exists()` + `msgs == []`, but guard two disjoint skip branches with different inputs: constant_referencing_file_dunder_is_skipped feeds a `DATA_DIR = __file__` constant (location-bound skip) and asserts it stays, while single_occurrence_helper_is_not_extracted feeds a `_solo` helper present in one file only (len(files) < 2 guard) and asserts it stays. Skip-reason-A vs skip-reason-B with distinct asserted artefacts; folding would erase which guard is covered. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "04e0853d2857"
+reason = "Inter-file cluster across 2 distinct SUTs / files: existing_helpers_module_is_loaded_not_overwritten (integration: a pre-existing _helpers.py is loaded, not clobbered) vs load_or_create_helpers_module_includes_future_import (unit: the created module carries the `from __future__` import). Different functions, different pyramid tiers, different fixtures and contracts (load-not-overwrite vs create-with-future). Cross-module/cross-tier fold forbidden; distinct-SUT, branches/contracts disjoint. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9a66eb8aa92c"
+reason = "Two distinct cst_rewrite SUTs sharing only _rewrite_and_dump: dedupe_imports_leaves_non_import_statements asserts non-import statements (`x = 1`, `def f`) survive dedup (preservation contract of dedupe_imports) while rename_function_ignores_non_matching_string asserts an unrelated string literal (the 'unrelated literal' constant) is left intact during a rename (preservation contract of rename_function). Different functions, different preserved artefacts; folding would conflate two unrelated rewriters. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1cc0d58a848c"
+reason = "Both call normalize_findings but guard opposite branches: findings_normalizes_entries (itself parametrized over dict / model_dump / vars / mixed entry shapes) asserts a NON-EMPTY normalized list equals the expected entries (the normalization path), while findings_returns_empty_for_no_findings asserts `== []` for empty / None / no-key inputs (the no-findings fallback). The assertion sense diverges (normalized entries vs empty list); merging the two parametrize tables would conflate the normalization contract with the empty-fallback contract. ACK."
 
 [tool.mypy]
 python_version = "3.12"
