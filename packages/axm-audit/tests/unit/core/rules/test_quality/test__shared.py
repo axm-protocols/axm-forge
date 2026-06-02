@@ -10,6 +10,7 @@ import pytest
 from axm_audit.core.rules.test_quality._shared import (
     detect_real_io,
     extract_mock_targets,
+    file_has_module_marker,
     fixture_does_io,
     func_attr_io_transitive,
     has_in_package_subprocess_invocation,
@@ -398,3 +399,39 @@ def test_has_in_package_subprocess_invocation_via_shared() -> None:
         module_ast=plumbing,
         project_scripts={"pkg-cli"},
     )
+
+
+# value_marks_node — module-level markers with a reason arg
+# ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        pytest.param(
+            'pytestmark = pytest.mark.no_package_symbol_ok("reason")',
+            True,
+            id="call_with_reason",
+        ),
+        pytest.param(
+            "pytestmark = pytest.mark.no_package_symbol_ok",
+            True,
+            id="bare_attribute",
+        ),
+        pytest.param(
+            'pytestmark = [pytest.mark.no_package_symbol_ok("reason"), '
+            "pytest.mark.integration]",
+            True,
+            id="mixed_list_with_reason",
+        ),
+        pytest.param(
+            'pytestmark = pytest.mark.other_marker("reason")',
+            False,
+            id="other_marker_not_detected",
+        ),
+    ],
+)
+def test_file_has_module_marker_with_reason(code: str, expected: bool) -> None:
+    """Module-level markers are detected with or without a reason argument."""
+    tree = ast.parse(textwrap.dedent(code))
+    assert file_has_module_marker(tree, "no_package_symbol_ok") is expected

@@ -59,10 +59,13 @@ def decorator_has_marker(dec: ast.expr, marker_name: str) -> bool:
 
 
 def value_marks_node(value: ast.AST, marker_name: str) -> bool:
-    """True when *value* is ``pytest.mark.<marker_name>``.
+    """True when *value* is ``pytest.mark.<marker_name>`` (with or without a
+    reason argument).
 
     Also matches a list/tuple containing the marker.
     """
+    if isinstance(value, ast.Call):
+        value = value.func
     if isinstance(value, ast.Attribute) and value.attr == marker_name:
         return True
     if isinstance(value, (ast.List, ast.Tuple)):
