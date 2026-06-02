@@ -758,3 +758,23 @@ reason = "test_google_style_examples and test_numpy_examples share the examples-
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "c6b5b13bab33"
 reason = "The two test_analyze_impact_workspace tests are not duplicates: the one in TestAnalyzeImpactWorkspace fully mocks analyze_workspace and every transitive dependency and asserts the output dict contract (workspace name my-ws, full key set), while the one in TestWorkspaceImpact builds a real on-disk two-package workspace and runs analyze_impact_workspace end to end (workspace name test-workspace). They cover the mocked-glue contract versus real cross-package resolution, so neither can be deleted without losing a layer of coverage."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "87cc6e2c5a1a"
+reason = "Distinct SUTs across two files: test_execute_returns_tool_result drives ContextTool and asserts success is True via _assert_tool_result, while test_missing_symbol drives ImpactTool with no symbol and asserts success is False. Different tools and opposite success expectations, no shared helper."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "339eb26cbe8a"
+reason = "Distinct hooks across two files: test_context_hook_missing_path_fails exercises ContextHook path validation while test_flows_hook_missing_path_fails exercises FlowsHook path validation. Same not-a-directory error shape but two independent hook SUTs with no shared fixture or helper."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f18e30e601eb"
+reason = "Distinct SUTs and pyramid levels: test_trace_source_hook_no_entry (integration) asserts TraceSourceHook fails on a missing entry param, test_impact_hook_no_symbol (unit) asserts ImpactHook fails on a missing symbol param. Different hooks, different missing-param semantics (entry versus symbol), no shared setup."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "dcf9edb7d6d1"
+reason = "Same find_namespace_modules assertion (== set()) but different fixtures and pyramid levels: the integration test_no_imports_returns_empty_set writes real source files for two non-empty modules with no namespace imports, while the unit test_empty_package_returns_empty_set passes an in-memory package with zero modules. Different inputs drive different branches."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "aaedb05b1e5e"
+reason = "Distinct SUTs across two files: test_impact.py::test_symbols_invalid_type validates ImpactTool.execute input type rejection while test_inspect.py::test_symbols_invalid_type validates InspectTool.execute. Same must-be-a-list error but two independent tools, no shared fixture or helper."
