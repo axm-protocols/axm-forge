@@ -235,6 +235,18 @@ exempt_paths = [
 ]
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "77df94591005"
+reason = "2 ContextHookDepth tests probe distinct depth branches with disjoint assertion fields: test_hook_depth_zero_compact (depth=0) asserts 'top_modules' present AND 'modules' absent in metadata.project_context, while test_hook_depth_one_packages (depth=1) asserts 'packages' present; they sit alongside test_hook_depth_none_full (depth=None, asserts modules+dependency_graph) so the three document mutually exclusive depth-mode contracts. Parametrizing the two flagged members would conflate the depth=0 compact-strip contract with the depth=1 package-grouping contract and force a heterogeneous expected-key parameter."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7f52014a3ada"
+reason = "2 DocsTool progressive-disclosure tests probe distinct detail modes with disjoint field contracts: test_docs_toc_returns_headings_not_content (detail='toc') asserts each page carries 'headings' AND 'line_count' AND no 'content', while test_docs_summary_returns_summaries (detail='summary') asserts 'headings' AND 'summaries' AND no 'content'; the distinguishing fields (line_count vs summaries) and the two distinct detail values are the documented contract, and both sit alongside test_docs_full_returns_content (detail full) so parametrizing would conflate three mutually exclusive disclosure modes."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "57ec34a2870e"
+reason = "2 FlowsTool BFS tests probe distinct graph-shape contracts on incompatible fixtures: test_flows_empty_chain runs entry='greet' on the simple_pkg fixture (a leaf symbol with no callers/callees) and asserts count >= 0 to document the single-node graceful path, while test_flows_circular_ref runs entry='func_a' on the circular_pkg fixture (a.func_a imports b.func_b which imports back a.func_a) and asserts count >= 1 to document BFS termination without an infinite loop. Different fixtures (simple_pkg vs circular_pkg), different entry symbols, and different concerns (empty-chain vs cycle-termination) make folding impossible without conflating two unrelated traversal contracts."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "f2a801fc0344"
 reason = "2 FileHeaderHook tests in distinct classes probe unrelated contracts: TestFileHeaderDedup.test_file_header_dedup passes 'mod.py\\nmod.py' duplicate refs and asserts a single deduplicated header entry, while TestFileHeaderEmptyFile.test_file_header_empty_file writes an empty file and asserts the header renders as the empty string; deduplication of repeated refs and empty-content rendering are independent behaviors, parametrization would conflate two distinct hook concerns"
 

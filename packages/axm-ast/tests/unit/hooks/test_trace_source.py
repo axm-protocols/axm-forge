@@ -60,21 +60,30 @@ class TestParseEntry:
         assert name == "test_bar"
         assert test_dir == "mymodule"
 
-    def test_pytest_format_with_class(self) -> None:
-        """Pytest: 'tests/path/file.py::ClassName::method'."""
-        name, test_dir = parse_entry(
-            "tests/forms_tests/tests/test_forms.py::FormsTestCase::test_foo",
-        )
-        assert name == "test_foo"
-        assert test_dir == "tests/forms_tests/tests"
-
-    def test_pytest_format_class_only(self) -> None:
-        """Pytest with only class: 'tests/path/file.py::ClassName'."""
-        name, test_dir = parse_entry(
-            "tests/httpwrappers/tests.py::HttpResponseTests",
-        )
-        assert name == "HttpResponseTests"
-        assert test_dir == "tests/httpwrappers"
+    @pytest.mark.parametrize(
+        ("entry", "expected_name", "expected_dir"),
+        [
+            pytest.param(
+                "tests/forms_tests/tests/test_forms.py::FormsTestCase::test_foo",
+                "test_foo",
+                "tests/forms_tests/tests",
+                id="class_and_method",
+            ),
+            pytest.param(
+                "tests/httpwrappers/tests.py::HttpResponseTests",
+                "HttpResponseTests",
+                "tests/httpwrappers",
+                id="class_only",
+            ),
+        ],
+    )
+    def test_pytest_format(
+        self, entry: str, expected_name: str, expected_dir: str
+    ) -> None:
+        """Pytest node id 'tests/path/file.py::Class[::method]' parsing."""
+        name, test_dir = parse_entry(entry)
+        assert name == expected_name
+        assert test_dir == expected_dir
 
     def test_simple_symbol(self) -> None:
         """Plain symbol name — no parsing needed."""

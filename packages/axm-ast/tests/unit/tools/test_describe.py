@@ -90,18 +90,13 @@ def test_describe_detailed_still_works(tmp_path: Path, mocker: MockerFixture) ->
 # ---------------------------------------------------------------------------
 
 
-def test_describe_compress_detail_conflict(tool: DescribeTool) -> None:
-    """compress=True + detail='detailed' must return an error."""
-    result = tool.execute(compress=True, detail="detailed")
-    assert result.success is False
-    assert result.error is not None
-    assert "compress" in result.error.lower()
-    assert "detail" in result.error.lower()
-
-
-def test_describe_compress_toc_conflict(tool: DescribeTool) -> None:
-    """compress=True + detail='toc' must return an error."""
-    result = tool.execute(compress=True, detail="toc")
+@pytest.mark.parametrize(
+    "detail",
+    [pytest.param("detailed", id="detailed"), pytest.param("toc", id="toc")],
+)
+def test_describe_compress_detail_conflict(tool: DescribeTool, detail: str) -> None:
+    """compress=True + an explicit non-summary detail must return an error."""
+    result = tool.execute(compress=True, detail=detail)
     assert result.success is False
     assert result.error is not None
     assert "compress" in result.error.lower()
