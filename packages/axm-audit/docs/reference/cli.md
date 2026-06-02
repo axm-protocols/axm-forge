@@ -28,7 +28,9 @@ Auto-generated API reference is available under [Python API](../../reference/axm
 ### Formatters
 
 - `format_test_quality_text(result, mismatches_only=False) -> str` — render
-  the four test-quality sections as plain text. With `mismatches_only=True`
+  the four base test-quality sections (private imports, pyramid, duplicates,
+  tautologies) as plain text, plus `NO_PACKAGE_SYMBOL` and `FILE_NAMING`
+  sections when present. With `mismatches_only=True`
   only the pyramid section is emitted, filtered to entries whose folder
   differs from the classified level.
 - `format_test_quality_json(result) -> dict` — JSON superset returning

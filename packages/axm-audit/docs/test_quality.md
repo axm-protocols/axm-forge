@@ -12,8 +12,9 @@ asserts, or mock patterns that drift from production behavior.
 axm-audit test-quality [PATH] [--json] [--mismatches-only] [--agent]
 ```
 
-Runs the `test_quality` category and prints the five sections (private
-imports → pyramid → duplicates → tautologies → no-package-symbol). Use
+Runs the `test_quality` category and prints four sections (private
+imports → pyramid → duplicates → tautologies), plus `NO_PACKAGE_SYMBOL`
+and `FILE_NAMING` sections when those findings are present. Use
 `--json` for the machine-readable superset (`format_test_quality_json`,
 which also exposes a sorted `rules` array of every `TEST_QUALITY_*` rule
 id that was evaluated), `--agent` for the compact agent renderer, or
