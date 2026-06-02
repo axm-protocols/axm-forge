@@ -505,13 +505,26 @@ def error_report() -> dict[str, Any]:
     return {"symbol": "broken", "error": "could not resolve symbol"}
 
 
+@pytest.mark.parametrize(
+    ("report_fixture", "expected_header"),
+    [
+        pytest.param("full_report", "ast_impact | my_func | HIGH", id="full"),
+        pytest.param("minimal_report", "ast_impact | bare_sym | LOW", id="minimal"),
+    ],
+)
+def test_render_impact_header_line(
+    report_fixture: str,
+    expected_header: str,
+    request: pytest.FixtureRequest,
+) -> None:
+    """render_impact_text first line is the 'ast_impact | symbol | score' header."""
+    report = request.getfixturevalue(report_fixture)
+    result = render_impact_text(report)
+    assert result.split("\n")[0] == expected_header
+
+
 class TestRenderImpactSingleFull:
     """test_render_impact_single_full: all fields populated."""
-
-    def test_header_line(self, full_report: dict[str, Any]) -> None:
-        result = render_impact_text(full_report)
-        lines = result.split("\n")
-        assert lines[0] == "ast_impact | my_func | HIGH"
 
     @pytest.mark.parametrize(
         "expected_substring",
@@ -554,11 +567,6 @@ class TestRenderImpactSingleFull:
 
 class TestRenderImpactSingleMinimal:
     """test_render_impact_single_minimal: only symbol + score."""
-
-    def test_header_line(self, minimal_report: dict[str, Any]) -> None:
-        result = render_impact_text(minimal_report)
-        lines = result.split("\n")
-        assert lines[0] == "ast_impact | bare_sym | LOW"
 
     def test_callers_none(self, minimal_report: dict[str, Any]) -> None:
         result = render_impact_text(minimal_report)
@@ -679,28 +687,26 @@ class TestRenderImpactBatchText:
 class TestFormatCompactUsesScoreNotSeverity:
     """AC3: format_impact_compact uses score only, no severity fallback."""
 
-    def test_format_compact_uses_score_not_severity(self) -> None:
+    @pytest.mark.parametrize(
+        ("symbol", "score", "file", "line"),
+        [
+            pytest.param("bar", "HIGH", "y.py", 5, id="high"),
+            pytest.param("baz", "MEDIUM", "z.py", 10, id="only_score_medium"),
+        ],
+    )
+    def test_format_compact_renders_score(
+        self, symbol: str, score: str, file: str, line: int
+    ) -> None:
+        """format_impact_compact renders the dict's score with no severity key."""
         impact = {
-            "symbol": "bar",
-            "score": "HIGH",
-            "definition": {"file": "y.py", "line": 5},
+            "symbol": symbol,
+            "score": score,
+            "definition": {"file": file, "line": line},
             "callers": [],
             "test_files": [],
         }
         output = format_impact_compact(impact)
-        assert "HIGH" in output
-
-    def test_format_compact_dict_with_only_score(self) -> None:
-        """Edge case: dict with score but no severity key."""
-        impact = {
-            "symbol": "baz",
-            "score": "MEDIUM",
-            "definition": {"file": "z.py", "line": 10},
-            "callers": [],
-            "test_files": [],
-        }
-        output = format_impact_compact(impact)
-        assert "MEDIUM" in output
+        assert score in output
 
 
 # ── TestImpactToolUnit (from test_tools.py) ────────────────────────────────

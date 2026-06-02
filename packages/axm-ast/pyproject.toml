@@ -235,6 +235,18 @@ exempt_paths = [
 ]
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f2a801fc0344"
+reason = "2 FileHeaderHook tests in distinct classes probe unrelated contracts: TestFileHeaderDedup.test_file_header_dedup passes 'mod.py\\nmod.py' duplicate refs and asserts a single deduplicated header entry, while TestFileHeaderEmptyFile.test_file_header_empty_file writes an empty file and asserts the header renders as the empty string; deduplication of repeated refs and empty-content rendering are independent behaviors, parametrization would conflate two distinct hook concerns"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e6ec77c97a56"
+reason = "2 _inspect_symbol tests probe distinct error branches with divergent mock topologies: test_multiple_exact_matches_returns_disambiguation_error mocks search_symbols with two same-name hits and asserts 'Multiple' in error (disambiguation path), while test_no_exact_match_falls_through_not_substring additionally mocks inspect_module to None and asserts 'not found' in error (fallthrough path); the extra mock and the different error contract make them heterogeneous, parametrization would conflate two unrelated failure branches"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1518b7b49a08"
+reason = "2 CLI tests in distinct command classes probing different subcommands: TestGraphCommand.test_graph_mermaid runs 'graph --format mermaid' and asserts the mermaid/flowchart header, TestSearchCommand.test_search_by_returns runs 'search --returns str' and asserts a matched symbol; the shared _run + 'X in output or Y in output' shape is coincidental, parametrization would conflate two distinct CLI command contracts"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "290b176f5103"
 reason = "13 CLI smoke tests across 5 commands (describe/inspect/graph/search/version) and 5 TestClass groups — each asserts a different command output; parametrization would conflate distinct CLI contracts"
 
