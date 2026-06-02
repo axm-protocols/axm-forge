@@ -730,3 +730,19 @@ reason = "4 extract_references negative tests assert three distinct non-typing-p
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "adcbe0a20335"
 reason = "2 pagerank tests assert different convergence invariants: test_single_node checks absolute normalization (a lone node scores ~1.0 against the constant 1.0), while test_cycle_converges checks relative symmetry (the two nodes of an A-B-A cycle converge to ~equal scores). The shared 'pagerank(...) then abs(...) < 0.01' shape is incidental; the comparison targets differ (score-vs-constant vs score-vs-score) so a single parametrized expected cannot express both properties."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "215cc43d85a4"
+reason = "test_nonexistent_ref and test_not_a_git_repo both assert error is not None but exercise two distinct error branches with divergent setup: the first builds a real git repo and passes an invalid branch ref (bad-ref resolution path), the second points structural_diff at a non-git directory (not-a-repo guard path). The setups are structurally different and cover separate failure-detection code, so folding would conflate two independent error origins."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4cd79f19d9d8"
+reason = "The two test_invalid_path tests live in TestImpactHookExecuteUnit and TestDocImpactHookExecuteUnit and exercise distinct systems under test: one instantiates ImpactHook and the other DocImpactHook. They independently verify each hook class guards a non-existent path, so deleting either would drop coverage of a separate production class."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "37b1a6ffb2b6"
+reason = "test_google_style_examples and test_numpy_examples share the examples-length-and-content assertion but feed structurally different inputs that drive separate parser branches: a Google-style indented Example block versus a NumPy-style Examples underline block. Each lives in its format-specific class (TestParseDocstringGoogle vs TestParseDocstringNumpy) alongside sibling format tests, so folding would conflate two independent docstring-format code paths."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c6b5b13bab33"
+reason = "The two test_analyze_impact_workspace tests are not duplicates: the one in TestAnalyzeImpactWorkspace fully mocks analyze_workspace and every transitive dependency and asserts the output dict contract (workspace name my-ws, full key set), while the one in TestWorkspaceImpact builds a real on-disk two-package workspace and runs analyze_impact_workspace end to end (workspace name test-workspace). They cover the mocked-glue contract versus real cross-package resolution, so neither can be deleted without losing a layer of coverage."

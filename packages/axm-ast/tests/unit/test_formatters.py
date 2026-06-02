@@ -83,15 +83,17 @@ class TestFormatJson:
 class TestFormatMermaid:
     """Tests for Mermaid diagram output."""
 
-    def test_contains_graph_keyword(self):
+    @pytest.mark.parametrize(
+        "candidates",
+        [
+            pytest.param(("graph", "flowchart"), id="graph_keyword"),
+            pytest.param(("utils", "sample_pkg"), id="module_names"),
+        ],
+    )
+    def test_mermaid_output_contains(self, candidates: tuple[str, str]) -> None:
         pkg = analyze_package(SAMPLE_PKG)
         output = format_mermaid(pkg)
-        assert "graph" in output or "flowchart" in output
-
-    def test_contains_module_names(self):
-        pkg = analyze_package(SAMPLE_PKG)
-        output = format_mermaid(pkg)
-        assert "utils" in output or "sample_pkg" in output
+        assert any(token in output for token in candidates)
 
 
 # ─── format_toc ──────────────────────────────────────────────────────────────

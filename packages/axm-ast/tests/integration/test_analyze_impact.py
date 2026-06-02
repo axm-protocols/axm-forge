@@ -595,16 +595,19 @@ def _make_pkg(tmp_path: Path, *, with_override: bool, n_callers: int) -> Path:
     return pkg_root / "src" / "fakepkg"
 
 
-def test_pyproject_override_lowers_high_threshold(tmp_path: Path) -> None:
-    pkg_path = _make_pkg(tmp_path, with_override=True, n_callers=2)
+@pytest.mark.parametrize(
+    ("with_override", "expected_score"),
+    [
+        pytest.param(True, "HIGH", id="override_lowers_high_threshold"),
+        pytest.param(False, "MEDIUM", id="no_section_uses_defaults"),
+    ],
+)
+def test_pyproject_threshold_override(
+    tmp_path: Path, with_override: bool, expected_score: str
+) -> None:
+    pkg_path = _make_pkg(tmp_path, with_override=with_override, n_callers=2)
     result = analyze_impact(pkg_path, "target")
-    assert result["score"] == "HIGH"
-
-
-def test_no_pyproject_section_uses_defaults(tmp_path: Path) -> None:
-    pkg_path = _make_pkg(tmp_path, with_override=False, n_callers=2)
-    result = analyze_impact(pkg_path, "target")
-    assert result["score"] == "MEDIUM"
+    assert result["score"] == expected_score
 
 
 class TestImpactTypeRefs:

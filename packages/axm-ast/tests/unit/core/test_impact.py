@@ -113,14 +113,16 @@ def test_score_impact_from_dict(result: dict[str, Any], expected_score: str) -> 
 # ────────────────────────────────────────────────────────────────────────────
 
 
-def test_score_impact_returns_high_above_threshold() -> None:
-    report = ImpactReport(callers=[{}] * 5)
-    assert score_impact(report) == "HIGH"
-
-
-def test_score_impact_returns_low_below_medium() -> None:
-    report = ImpactReport(callers=[{}] * 1)
-    assert score_impact(report) == "LOW"
+@pytest.mark.parametrize(
+    ("caller_count", "expected_score"),
+    [
+        pytest.param(5, "HIGH", id="high_above_threshold"),
+        pytest.param(1, "LOW", id="low_below_medium"),
+    ],
+)
+def test_score_impact_from_caller_count(caller_count: int, expected_score: str) -> None:
+    report = ImpactReport(callers=[{}] * caller_count)
+    assert score_impact(report) == expected_score
 
 
 def test_score_impact_reexport_double_weight() -> None:

@@ -119,14 +119,6 @@ class TestFlowStepSourceField:
 #     (e.g. ``test_reexport_resolution``)
 
 
-class TestEmptyFlowFormat:
-    """format_flow_compact pure-function behavior on empty input."""
-
-    def test_format_compact_empty_input(self) -> None:
-        """format_flow_compact([]) returns empty string."""
-        assert format_flow_compact([]) == ""
-
-
 # ── trace_flow basics ─────────────────────────────────────────────────
 
 
