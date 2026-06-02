@@ -482,6 +482,30 @@ reason = "2 find_callers single-caller tests pin two distinct documentation surf
 hash = "3466b7c9b27f"
 reason = "2 find_callees empty-list tests probe two mutually-exclusive SUT branches with materially different setups: test_callees_tool_empty (TestCalleesToolEmpty) writes a function with no calls ('def noop():\n    x = 42') and asserts find_callees returns [] — the existing-symbol-no-callees branch, while test_symbol_not_found (TestCalleesSymbolNotFound) writes a function then queries a NON-EXISTENT name ('nonexistent_function') and asserts the same [] result — the missing-symbol-lookup branch. Same assertion shape but two divergent code paths (symbol resolved → walk AST → empty vs symbol not resolved → short-circuit) documented in separate TestClass groups; folding would erase the per-branch documentation that both error modes converge on the same [] contract."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7707e6785d4e"
+reason = "2 multi-symbol trace dedup tests probe two mutually-exclusive overlap topologies with materially different assertion shapes: test_trace_entries_disjoint_traces builds two entries (branch_a->leaf_x, branch_b->leaf_y) with ZERO shared callees and asserts all four names (branch_a/leaf_x/branch_b/leaf_y) are present in their respective traces (no-dedup branch, presence-only assertions), while test_trace_entries_all_shared builds two entries (first/second) with IDENTICAL callees and asserts shared is present in first but ABSENT from second (full-dedup first-wins branch, presence+absence assertions). Folding would conflate the no-overlap and full-overlap dedup branches and force a heterogeneous presence-only vs presence+absence parameter."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d5736c706940"
+reason = "2 FlowsHook compact-render tests in distinct TestClass groups probe single-vs-multi entry concatenation with divergent fixtures: TestHookReturnsStringCompact.test_hook_returns_string_compact runs detail=compact on SIMPLE_PKG with a single entry 'main' and asserts traces is a str containing 'main' (single-entry no-header rendering branch), while TestHookMultiEntryConcatenated.test_hook_multi_entry_concatenated runs detail=compact on MULTI_ENTRY_PKG with three entries 'alpha/beta/gamma' and asserts the concatenated str contains all three headers (multi-entry concatenation branch). Different fixtures, different entry counts, separate documentation surfaces — folding would conflate the single-entry and multi-entry compact-rendering contracts."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "00c5ac714917"
+reason = "2 ImpactTool failure tests in TestImpactToolEdgeCases probe two mutually-exclusive error branches with divergent setups: test_exception mocks axm_ast.core.impact.analyze_impact to raise RuntimeError('impact boom') and asserts success is False with 'impact boom' in error (analyzer-exception-propagation branch via mocker.patch), while test_symbol_not_found_error_result writes a real package with no matching symbol, queries 'nonexistent_sym_xyz' with NO mock, and asserts 'not found' in error (real symbol-resolution-miss branch). Different setups (mock-raise vs real-lookup) and different error-substring contracts ('impact boom' vs 'not found') — folding would conflate the analyzer-exception path with the symbol-resolution-miss path."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8263b5158b68"
+reason = "2 ImpactTool batch-mode tests in TestImpactToolIntegration probe two mutually-exclusive batch outcomes with materially different per-symbol assertion shapes: test_symbols_batch_success passes symbols=['greet','Helper'] (both valid) and asserts each result slot carries a 'score' key (all-resolved branch), while test_symbols_batch_partial_missing passes symbols=['greet','missing_xyz'] and asserts symbols[0] has 'score' but symbols[1] has 'error' AND symbols[1]['symbol']=='missing_xyz' (partial-miss branch with error-dict slot). Same fixture and len==2 shape but the per-slot contract diverges (score+score vs score+error+symbol-name) — folding would force a heterogeneous per-symbol expected structure and erase the all-valid vs partial-missing branch documentation."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7702ced7341a"
+reason = "2 InspectTool module-fallback tests in TestInspectModuleFallback probe two distinct module-resolution contracts with different symbols and assertion targets: test_inspect_module_has_docstring inspects symbol='core' and asserts sym['docstring']=='Core module.' (docstring-extraction-on-top-level-module branch), while test_inspect_nested_module inspects symbol='sub.helpers' (a dotted nested name) and asserts sym['kind']=='module' AND 'helper_func' in sym['functions'] (nested-module-via-dotted-name resolution branch). Different symbols (top-level vs nested-dotted), different asserted fields (docstring string vs kind+functions list) — folding would conflate docstring extraction with nested-module dotted resolution."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "af9db0fc2519"
+reason = "2 DescribeTool summary-text tests share detail='summary' but assert two orthogonal text-rendering contracts: test_summary_strips_def asserts 'def ' not in result.text (source-body-stripping branch — summary mode must drop function-def source lines), while test_summary_skips_empty asserts '## _version' not in text AND '## models\n' not in text (empty-module-skipping branch — modules with no renderable symbols get no header). Same detail value but different excluded tokens with different semantics (strip def-lines vs skip empty-module headers) and different assertion counts — folding would conflate the source-stripping rule with the empty-module-skip rule."
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["loguru", "pydantic-settings"]
 DEP004 = ["mkdocs_gen_files"]
