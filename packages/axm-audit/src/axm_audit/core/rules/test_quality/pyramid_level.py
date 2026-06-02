@@ -32,6 +32,7 @@ from axm_audit.core.rules.test_quality._shared import (
     _dotted_call_name,
     analyze_imports,
     current_level_from_path,
+    decorator_has_marker,
     detect_real_io,
     extract_mock_targets,
     fixture_does_io,
@@ -344,11 +345,20 @@ def _tmp_path_uses_are_structural(func: ast.FunctionDef) -> bool:
 def _fixture_io_signals(func: ast.FunctionDef) -> list[str]:
     sigs: list[str] = []
     structural_tmp = _tmp_path_uses_are_structural(func)
+    direct_params = _direct_parametrize_argnames(func)
     for arg in func.args.args:
         name = arg.arg
         if name == "self":
             continue
         if _is_mock_arg(name):
+            continue
+        # An argument bound by a *direct* (non-``indirect``) ``parametrize``
+        # is fed literal values, not a fixture — even when its name matches
+        # ``_IO_FIXTURES`` or a ``_FIXTURE_NAME_SUFFIXES`` suffix (e.g.
+        # ``pdf_path``). Skip it before the suffix check so it never emits a
+        # spurious ``fixture-arg`` signal. ``indirect`` argnames are excluded
+        # from ``direct_params`` and therefore still route through a fixture.
+        if name in direct_params:
             continue
         # ``tmp_path`` matches the generic ``_path`` suffix; suppress the
         # noisy ``fixture-arg:tmp_path`` signal when every reference is
@@ -360,6 +370,69 @@ def _fixture_io_signals(func: ast.FunctionDef) -> list[str]:
         if name in _IO_FIXTURES or name.endswith(_FIXTURE_NAME_SUFFIXES):
             sigs.append(f"fixture-arg:{name}")
     return sigs
+
+
+def _parametrize_argnames(decorator: ast.Call) -> list[str]:
+    """Return the argnames declared by a ``parametrize`` *decorator* call.
+
+    Supports both forms of the first positional argument: a single
+    comma-joined string (``"a, b"``) and a list/tuple of string constants
+    (``["a", "b"]``). Returns ``[]`` when the form is not statically
+    resolvable.
+    """
+    if not decorator.args:
+        return []
+    argnames = decorator.args[0]
+    if isinstance(argnames, ast.Constant) and isinstance(argnames.value, str):
+        return [name.strip() for name in argnames.value.split(",") if name.strip()]
+    if isinstance(argnames, ast.List | ast.Tuple):
+        return [
+            elt.value
+            for elt in argnames.elts
+            if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+        ]
+    return []
+
+
+def _indirect_argnames(decorator: ast.Call, argnames: list[str]) -> set[str]:
+    """Return the *argnames* routed through fixtures by ``indirect=``.
+
+    ``indirect=True`` covers every argname; ``indirect=["a"]`` covers only
+    the listed subset. Absent or falsy ``indirect`` yields an empty set.
+    """
+    for kw in decorator.keywords:
+        if kw.arg != "indirect":
+            continue
+        value = kw.value
+        if isinstance(value, ast.Constant) and value.value is True:
+            return set(argnames)
+        if isinstance(value, ast.List | ast.Tuple):
+            return {
+                elt.value
+                for elt in value.elts
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+            }
+    return set()
+
+
+def _direct_parametrize_argnames(func: ast.FunctionDef) -> set[str]:
+    """Argnames bound by a *direct* (non-``indirect``) ``parametrize``.
+
+    Aggregates argnames across every ``@pytest.mark.parametrize`` decorator
+    on *func*, excluding those covered by ``indirect=`` (which still route
+    through a fixture). These argnames receive literal values and must not
+    be mistaken for I/O fixtures.
+    """
+    direct: set[str] = set()
+    for dec in func.decorator_list:
+        if not isinstance(dec, ast.Call):
+            continue
+        if not decorator_has_marker(dec, "parametrize"):
+            continue
+        argnames = _parametrize_argnames(dec)
+        indirect = _indirect_argnames(dec, argnames)
+        direct.update(name for name in argnames if name not in indirect)
+    return direct
 
 
 def _one_taint_pass(func: ast.FunctionDef, tainted: set[str]) -> bool:
