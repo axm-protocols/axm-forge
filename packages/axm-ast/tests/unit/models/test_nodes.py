@@ -508,6 +508,16 @@ class TestFunctionInfoSignatureStrips:
                 "p: str",
                 id="multiline",
             ),
+            pytest.param(
+                "Annotated[str, A, B, C]",
+                "p: str",
+                id="multiple-metadata",
+            ),
+            pytest.param(
+                "Annotated[str]",
+                "p: str",
+                id="single-arg",
+            ),
         ],
     )
     def test_strip_annotated_variants(
@@ -524,25 +534,22 @@ class TestFunctionInfoSignatureStrips:
         assert "Annotated" not in info.signature
         assert expected_substr in info.signature
 
-    def test_no_strip_plain_type(self) -> None:
-        """A bare type passes through unchanged."""
+    @pytest.mark.parametrize(
+        ("annotation", "expected"),
+        [
+            pytest.param("str", "def f(p: str)", id="plain-type"),
+            pytest.param("list[str]", "def f(p: list[str])", id="generic"),
+        ],
+    )
+    def test_no_strip_non_annotated(self, annotation: str, expected: str) -> None:
+        """Non-Annotated annotations pass through unchanged."""
         info = FunctionInfo(
             name="f",
             line_start=1,
             line_end=1,
-            params=[ParameterInfo(name="p", annotation="str")],
+            params=[ParameterInfo(name="p", annotation=annotation)],
         )
-        assert info.signature == "def f(p: str)"
-
-    def test_no_strip_generic(self) -> None:
-        """Generics that are not Annotated are preserved verbatim."""
-        info = FunctionInfo(
-            name="f",
-            line_start=1,
-            line_end=1,
-            params=[ParameterInfo(name="p", annotation="list[str]")],
-        )
-        assert info.signature == "def f(p: list[str])"
+        assert info.signature == expected
 
 
 class TestFunctionInfoSignatureStripsEdgeCases:
@@ -568,35 +575,6 @@ class TestFunctionInfoSignatureStripsEdgeCases:
         assert "a: str" in info.signature
         assert "b: int" in info.signature
         assert "c: float" in info.signature
-
-    @pytest.mark.parametrize(
-        ("annotation", "expected_substr"),
-        [
-            pytest.param(
-                "Annotated[str, A, B, C]",
-                "p: str",
-                id="multiple-metadata",
-            ),
-            pytest.param(
-                "Annotated[str]",
-                "p: str",
-                id="single-arg",
-            ),
-        ],
-    )
-    def test_strip_annotated_edge_arity(
-        self, annotation: str, expected_substr: str
-    ) -> None:
-        """Annotated[T, ...] with varying metadata arity keeps only T."""
-        info = FunctionInfo(
-            name="f",
-            line_start=1,
-            line_end=1,
-            params=[ParameterInfo(name="p", annotation=annotation)],
-        )
-        assert info.signature is not None
-        assert "Annotated" not in info.signature
-        assert expected_substr in info.signature
 
     def test_annotated_as_return_type(self) -> None:
         """Return type Annotated[bool, ...] should also be stripped."""
