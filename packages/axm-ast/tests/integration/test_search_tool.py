@@ -106,18 +106,21 @@ class TestSearchByName:
 class TestSearchByReturnType:
     """Tests for return type filtering."""
 
-    def test_filter_by_str_return(self, tool: SearchTool, search_pkg: Path) -> None:
-        result = tool.execute(path=str(search_pkg), returns="str")
+    @pytest.mark.parametrize(
+        ("returns", "expected_name"),
+        [
+            pytest.param("str", "greet", id="str"),
+            pytest.param("int", "compute", id="int"),
+        ],
+    )
+    def test_filter_by_return(
+        self, tool: SearchTool, search_pkg: Path, returns: str, expected_name: str
+    ) -> None:
+        result = tool.execute(path=str(search_pkg), returns=returns)
         assert result.success is True
         names = [s["name"] for s in result.data["results"]]
         assert len(names) >= 1
-        assert "greet" in names
-
-    def test_filter_by_int_return(self, tool: SearchTool, search_pkg: Path) -> None:
-        result = tool.execute(path=str(search_pkg), returns="int")
-        assert result.success is True
-        names = [s["name"] for s in result.data["results"]]
-        assert "compute" in names
+        assert expected_name in names
 
 
 class TestSearchByKind:

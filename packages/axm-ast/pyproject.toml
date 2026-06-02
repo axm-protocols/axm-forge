@@ -662,3 +662,19 @@ reason = "2 analyze_package discovery tests assert on different PackageInfo fiel
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "9677a8635aac"
 reason = "2 search_symbols returns-filter tests assert on different exclusion semantics: test_filter_by_return_type (returns='str') asserts 'greet' in names AND 'User' NOT in names (classes excluded from return-type filter), while test_returns_excludes_variables (returns='str') asserts '_PRIVATE' NOT in names AND 'greet' in names (variables excluded from return-type filter). Different exclusion branches (class vs variable) — parametrizing would conflate the class-exclusion contract with the variable-exclusion contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4cc8b7e485ff"
+reason = "2 render_function_text tests probe disjoint rendering branches: test_render_function_text_no_parameters builds a detail with no 'parameters' key and asserts the 'Params:' section is ABSENT, while test_render_function_text_docstring_double_newline builds a multi-paragraph docstring and asserts the second paragraph is truncated away ('Second paragraph' NOT in result). Different inputs (params-omission vs multi-para docstring) and different assertion surfaces (Params section vs docstring truncation) — folding would conflate two unrelated rendering contracts."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "a22771c8bc7d"
+reason = "2 InspectTool batch tests assert on different branches: test_inspect_batch_has_text exercises the all-valid path (both symbol names present, '\\n\\n' separator) while test_batch_with_errors exercises the mixed valid/invalid path (valid name present AND an 'error'/'nonexistent' substring). Different batch branches (success-only vs partial-error) — parametrizing would conflate the clean-batch contract with the error-tolerant-batch contract."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8e271a14c716"
+reason = "2 zero-results search tests use divergent fixture pipelines: test_no_results (TestSearchByName) queries the tmp_path-built search_pkg fixture via the shared SearchTool tool fixture, while test_search_no_results (TestSearchToolIntegration) queries the conftest sample_project/src/demo tree via a locally-constructed SearchTool(). Different package fixtures and different tool-instantiation paths — the shared 'success + 0 results' shape is incidental, folding would conflate two independent fixture contracts."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "026a10e35f41"
+reason = "2 invalid-kind error tests assert on different facets of the error message: test_invalid_kind asserts the 'Invalid kind' prefix is present, while test_invalid_kind_lists_valid_values asserts the message enumerates the valid kinds ('class', 'function', 'method'). Same error branch but different assertion surfaces (prefix-contract vs valid-values-listing-contract) — parametrizing would conflate two distinct message guarantees."

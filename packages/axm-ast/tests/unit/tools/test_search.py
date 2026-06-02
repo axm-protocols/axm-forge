@@ -257,20 +257,22 @@ class TestFormatSymbol:
         entry = tool.format_symbol(sym, "m")
         assert entry["signature"] == "(x: int) -> str"
 
-    def test_omits_signature_when_absent(self, tool: SearchTool) -> None:
+    @pytest.mark.parametrize(
+        "field",
+        [
+            pytest.param("signature", id="signature"),
+            pytest.param("return_type", id="return_type"),
+        ],
+    )
+    def test_omits_field_when_absent(self, tool: SearchTool, field: str) -> None:
         sym = SimpleNamespace(name="f")
         entry = tool.format_symbol(sym, "m")
-        assert "signature" not in entry
+        assert field not in entry
 
     def test_includes_return_type_when_present(self, tool: SearchTool) -> None:
         sym = SimpleNamespace(name="f", return_type="bool")
         entry = tool.format_symbol(sym, "m")
         assert entry["return_type"] == "bool"
-
-    def test_omits_return_type_when_absent(self, tool: SearchTool) -> None:
-        sym = SimpleNamespace(name="f")
-        entry = tool.format_symbol(sym, "m")
-        assert "return_type" not in entry
 
     def test_variable_sets_kind_field(self, tool: SearchTool) -> None:
         sym = SimpleNamespace(name="V", value_repr="42")
@@ -349,12 +351,6 @@ def test_class_has_kind() -> None:
     sym = ClassInfo(name="C", line_start=1, line_end=10)
     entry = SearchTool.format_symbol(sym, "mod")
     assert entry["kind"] == "class"
-
-
-def test_variable_still_has_kind() -> None:
-    sym = SimpleNamespace(name="V", value_repr="42")
-    entry = SearchTool.format_symbol(sym, "mod")
-    assert entry["kind"] == "variable"
 
 
 def test_property_kind() -> None:
@@ -641,18 +637,20 @@ class TestRenderSuggestionLineWithModule:
         assert line == "? get_session .92 func core.analyzer"
 
 
-def test_render_suggestion_line_compact() -> None:
-    """module=None produces no trailing None."""
-    suggestion = _make_suggestion(module=None)
+@pytest.mark.parametrize(
+    ("module", "expected"),
+    [
+        pytest.param(None, "? get_session .92 func", id="no_module"),
+        pytest.param(
+            "core.analyzer", "? get_session .92 func core.analyzer", id="with_module"
+        ),
+    ],
+)
+def test_render_suggestion_line_module(module: str | None, expected: str) -> None:
+    """module=None omits trailing field; module present is appended after kind."""
+    suggestion = _make_suggestion(module=module)
     line = render_suggestion_line(suggestion)
-    assert line == "? get_session .92 func"
-
-
-def test_render_suggestion_line_with_module() -> None:
-    """module present is appended after kind."""
-    suggestion = _make_suggestion(module="core.analyzer")
-    line = render_suggestion_line(suggestion)
-    assert line == "? get_session .92 func core.analyzer"
+    assert line == expected
 
 
 def test_render_suggestion_line_no_padding() -> None:
