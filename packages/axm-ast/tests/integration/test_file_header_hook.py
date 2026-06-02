@@ -37,36 +37,48 @@ class TestFileHeaderNoSourceBody:
 class TestFileHeaderSingleFile:
     """Single file header extraction."""
 
-    def test_file_header_single_file(self, tmp_path: Path) -> None:
-        """Returns first 30 lines of a 50-line file."""
-        src = tmp_path / "example.py"
-        lines = [f"line {i}\n" for i in range(1, 51)]
-        src.write_text("".join(lines))
+    @pytest.mark.parametrize(
+        ("filename", "num_lines", "present", "absent"),
+        [
+            pytest.param(
+                "example.py",
+                50,
+                ["line 1", "line 30"],
+                ["line 31"],
+                id="long_file_truncated_at_30",
+            ),
+            pytest.param(
+                "short.py",
+                10,
+                ["line 10"],
+                [],
+                id="short_file_all_lines",
+            ),
+        ],
+    )
+    def test_file_header_returns_first_30_lines(
+        self,
+        tmp_path: Path,
+        filename: str,
+        num_lines: int,
+        present: list[str],
+        absent: list[str],
+    ) -> None:
+        """Header holds the first 30 lines (all lines when file is shorter)."""
+        src = tmp_path / filename
+        src.write_text("".join(f"line {i}\n" for i in range(1, num_lines + 1)))
 
         hook = FileHeaderHook()
-        result = hook.execute({}, files="example.py", path=str(tmp_path))
+        result = hook.execute({}, files=filename, path=str(tmp_path))
 
         assert result.success
         headers = result.metadata["headers"]
         assert len(headers) == 1
-        assert headers[0]["file"] == "example.py"
-        assert "line 1" in headers[0]["header"]
-        assert "line 30" in headers[0]["header"]
-        assert "line 31" not in headers[0]["header"]
-
-    def test_file_header_short_file(self, tmp_path: Path) -> None:
-        """Returns all lines of a file shorter than 30 lines."""
-        src = tmp_path / "short.py"
-        lines = [f"line {i}\n" for i in range(1, 11)]
-        src.write_text("".join(lines))
-
-        hook = FileHeaderHook()
-        result = hook.execute({}, files="short.py", path=str(tmp_path))
-
-        assert result.success
-        headers = result.metadata["headers"]
-        assert len(headers) == 1
-        assert "line 10" in headers[0]["header"]
+        assert headers[0]["file"] == filename
+        for substr in present:
+            assert substr in headers[0]["header"]
+        for substr in absent:
+            assert substr not in headers[0]["header"]
 
 
 class TestFileHeaderDedup:

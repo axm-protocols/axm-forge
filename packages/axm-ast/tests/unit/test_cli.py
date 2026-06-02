@@ -245,41 +245,50 @@ class TestResolveDir:
 # ── inspect subcommand (kind-routing, tool-text passthrough) ──
 
 
-def test_inspect_variable_shows_variable(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    ("symbol", "kind", "text", "expected", "forbidden"),
+    [
+        pytest.param(
+            "logger",
+            "variable",
+            "variable logger\n  src/pkg/log.py:5\n  type: Logger",
+            "variable",
+            "class",
+            id="variable",
+        ),
+        pytest.param(
+            "models.nodes",
+            "module",
+            "module models.nodes · 12 symbols\n  src/pkg/models/nodes.py",
+            "module",
+            None,
+            id="module",
+        ),
+    ],
+)
+def test_inspect_shows_kind(  # noqa: PLR0913
+    symbol: str,
+    kind: str,
+    text: str,
+    expected: str,
+    forbidden: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """CLI --symbol logger must print 'variable', not 'class'."""
-    text = "variable logger\n  src/pkg/log.py:5\n  type: Logger"
+    """CLI inspect prints the symbol's kind, never a wrong 'class' label."""
     mock_tool = MagicMock()
     mock_tool.execute.return_value = _make_result(
         text=text,
-        data={"symbol": {"name": "logger", "kind": "variable"}},
+        data={"symbol": {"name": symbol, "kind": kind}},
     )
     monkeypatch.setattr("axm_ast.tools.inspect.InspectTool", lambda: mock_tool)
 
-    inspect(".", symbol="logger")
+    inspect(".", symbol=symbol)
 
     out = capsys.readouterr().out
-    assert "variable" in out
-    assert "class" not in out
-
-
-def test_inspect_module_shows_module(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """CLI --symbol models.nodes must print 'module', not 'class'."""
-    text = "module models.nodes · 12 symbols\n  src/pkg/models/nodes.py"
-    mock_tool = MagicMock()
-    mock_tool.execute.return_value = _make_result(
-        text=text,
-        data={"symbol": {"name": "models.nodes", "kind": "module"}},
-    )
-    monkeypatch.setattr("axm_ast.tools.inspect.InspectTool", lambda: mock_tool)
-
-    inspect(".", symbol="models.nodes")
-
-    out = capsys.readouterr().out
-    assert "module" in out
+    assert expected in out
+    if forbidden is not None:
+        assert forbidden not in out
 
 
 def test_cli_inspect_uses_tool_text(

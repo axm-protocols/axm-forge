@@ -256,17 +256,17 @@ class TestInspectBatch:
 class TestResolveModule:
     """InspectTool._resolve_module — module name matching."""
 
-    def test_exact_match_returns_module(
-        self, tool: InspectTool, mock_pkg: MagicMock
+    @pytest.mark.parametrize(
+        "query",
+        [
+            pytest.param("pkg.alpha", id="exact_match"),
+            pytest.param("beta", id="substring_unique"),
+        ],
+    )
+    def test_resolution_returns_module(
+        self, tool: InspectTool, mock_pkg: MagicMock, query: str
     ) -> None:
-        result = tool._resolve_module(mock_pkg, "pkg.alpha")
-        assert result is not None
-        assert not isinstance(result, ToolResult)
-
-    def test_substring_unique_returns_module(
-        self, tool: InspectTool, mock_pkg: MagicMock
-    ) -> None:
-        result = tool._resolve_module(mock_pkg, "beta")
+        result = tool._resolve_module(mock_pkg, query)
         assert result is not None
         assert not isinstance(result, ToolResult)
 
