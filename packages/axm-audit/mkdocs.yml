@@ -17,6 +17,7 @@ nav:
   - Reference:
     - CLI: reference/cli.md
     - Test Quality Rules: test_quality.md
+    - Fix Pipeline: fix_pipeline.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Scoring: explanation/scoring.md
