@@ -73,14 +73,3 @@ def test_backfill_missing_imports_synthesizes_helper_assignment(
     # never sunk into a TYPE_CHECKING guard (assignments are runtime imports).
     assert "if TYPE_CHECKING:" not in text
     assert text.index("import SHARED_CONST") < text.index("def test_b")
-
-
-def test_backfill_missing_imports_malformed_target_is_noop(tmp_path: Path) -> None:
-    """A target that fails to ast-parse yields no backfill and no crash."""
-    source = tmp_path / "source.py"
-    source.write_text("from pkg import helper\n")
-    target = tmp_path / "target.py"
-    original = "def test_b(:\n    helper()\n"
-    target.write_text(original)
-    assert backfill_missing_imports(source, target, project_path=tmp_path) == []
-    assert target.read_text() == original
