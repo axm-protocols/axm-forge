@@ -1,4 +1,4 @@
-"""Integration tests for backfill_missing_imports (real tmp_path file I/O)."""
+"""Integration tests for backfill_missing_imports (real tmp_path I/O)."""
 
 from __future__ import annotations
 
@@ -6,24 +6,52 @@ from pathlib import Path
 
 import pytest
 
+from axm_audit.core.fix.cst_rewrite import backfill_missing_imports
 
-@pytest.mark.integration
-def test_extend_recoverable_unresolved_name_no_keyerror(tmp_path: Path) -> None:
-    """AC4: a name the backfill genuinely cannot resolve produces a warning
-    list (no KeyError / opaque crash) when no donor exists in the project.
-    """
-    from axm_audit.core.fix.cst_rewrite import backfill_missing_imports
+pytestmark = pytest.mark.integration
 
-    tests_dir = tmp_path / "tests"
-    tests_dir.mkdir()
-    source = tests_dir / "source.py"
-    source.write_text("x = 1\n")
-    target = tests_dir / "target.py"
-    # References an unresolvable name with no import / definition / donor.
-    target.write_text("def test_t() -> None:\n    assert TotallyUnknownName()\n")
 
-    result = backfill_missing_imports(source, target, tmp_path)
+def test_backfill_missing_imports_copies_from_source(tmp_path: Path) -> None:
+    source = tmp_path / "source.py"
+    source.write_text("from pkg import helper\n\n\ndef test_a():\n    helper()\n")
+    target = tmp_path / "target.py"
+    target.write_text("def test_b():\n    helper()\n")
+    msgs = backfill_missing_imports(source, target)
+    text = target.read_text()
+    assert "from pkg import helper" in text
+    assert any("backfilled import for `helper`" in m for m in msgs)
 
-    assert len(result) == 1
-    assert "TotallyUnknownName" in result[0]
-    assert "no donor found" in result[0]
+
+def test_backfill_missing_imports_reports_unresolved(tmp_path: Path) -> None:
+    source = tmp_path / "source.py"
+    source.write_text("def test_a():\n    pass\n")
+    target = tmp_path / "target.py"
+    target.write_text("def test_b():\n    mystery_symbol()\n")
+    msgs = backfill_missing_imports(source, target)
+    assert any("unresolved import for `mystery_symbol`" in m for m in msgs)
+
+
+def test_backfill_missing_imports_missing_target_returns_empty(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.py"
+    source.write_text("from pkg import helper\n")
+    target = tmp_path / "absent.py"
+    assert backfill_missing_imports(source, target) == []
+
+
+def test_backfill_missing_imports_into_type_checking_block(tmp_path: Path) -> None:
+    """A donor import living in a ``if TYPE_CHECKING:`` block is replayed there."""
+    source = tmp_path / "source.py"
+    source.write_text(
+        "from typing import TYPE_CHECKING\n\n"
+        "if TYPE_CHECKING:\n"
+        "    from pkg import Widget\n"
+    )
+    target = tmp_path / "target.py"
+    target.write_text("def test_b(obj: Widget) -> None:\n    assert obj\n")
+    msgs = backfill_missing_imports(source, target)
+    text = target.read_text()
+    assert "if TYPE_CHECKING:" in text
+    assert "from pkg import Widget" in text
+    assert any("backfilled import for `Widget`" in m for m in msgs)

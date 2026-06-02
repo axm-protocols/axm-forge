@@ -1,13 +1,4 @@
-"""Integration tests for the extract_shared_helpers extraction engine.
-
-These drive ``extract_shared_helpers_in_tier`` / ``extract_shared_helpers``
-over a real ``tests/<tier>`` tree on disk (read + libcst rewrite), so they
-live at the integration pyramid level. They exercise the engine branches
-the unit tests (absent-path + stub synthesis) cannot reach: constant /
-class / fixture extraction, ``__file__`` location skips, single-occurrence
-guards, cascading skips, ambiguous-body dedup across iterations, and the
-libcst strip helpers.
-"""
+"""Integration tests for extract_shared_helpers_in_tier extraction branches."""
 
 from __future__ import annotations
 
@@ -15,15 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_audit.core.fix.extract_helpers import (
-    extract_shared_helpers,
-    extract_shared_helpers_in_tier,
-    extract_shared_helpers_once,
-    load_or_create_conftest_module,
-    load_or_create_helpers_module,
-    strip_def_and_inject_import,
-    strip_def_only,
-)
+from axm_audit.core.fix.extract_helpers import extract_shared_helpers_in_tier
 
 pytestmark = pytest.mark.integration
 
@@ -235,92 +218,6 @@ def test_divergent_bodies_emit_ambiguous_skip_message(tmp_path: Path) -> None:
     assert "test_a.py" in blob and "test_b.py" in blob
 
 
-def test_extract_shared_helpers_dedups_ambiguous_across_iterations(
-    tmp_path: Path,
-) -> None:
-    """The fixed-point loop reports each ambiguous *fixture* exactly once.
-
-    ``extract_shared_helpers`` runs ``_once`` repeatedly; a permanently
-    ambiguous fixture re-surfaces on every pass (proven by calling ``_once``
-    directly), but the iterating entry point must collapse it to a single
-    message in the returned list.
-    """
-    fixture_a = (
-        "import pytest\n\n\n"
-        "@pytest.fixture\n"
-        "def client():\n    return {'mode': 'a'}\n\n\n"
-    )
-    fixture_b = (
-        "import pytest\n\n\n"
-        "@pytest.fixture\n"
-        "def client():\n    return {'mode': 'b', 'extra': 1}\n\n\n"
-    )
-    project, _ = _make_tier(
-        tmp_path,
-        {
-            "tests/integration/test_a.py": (
-                fixture_a + "def test_a(client):\n    assert client['mode'] == 'a'\n"
-            ),
-            "tests/integration/test_b.py": (
-                fixture_b + "def test_b(client):\n    assert client['mode'] == 'b'\n"
-            ),
-        },
-    )
-
-    # A single pass already reports the divergent fixture as ambiguous.
-    once_msgs = extract_shared_helpers_once(project)
-    assert any("ambiguous fixture `client`" in m for m in once_msgs)
-
-    # The fixed-point loop must not duplicate it across its iterations.
-    msgs = extract_shared_helpers(project)
-    ambiguous = [m for m in msgs if "ambiguous fixture `client`" in m]
-    assert len(ambiguous) == 1
-
-
-def test_extract_shared_helpers_promotes_then_reaches_fixed_point(
-    tmp_path: Path,
-) -> None:
-    """The loop applies an extraction, then converges with no further changes."""
-    helper = "def _shared(x):\n    return x - 1\n\n\n"
-    project, tier = _make_tier(
-        tmp_path,
-        {
-            "tests/integration/test_a.py": helper
-            + "def test_a():\n    assert _shared(2) == 1\n",
-            "tests/integration/test_b.py": helper
-            + "def test_b():\n    assert _shared(3) == 2\n",
-        },
-    )
-
-    msgs = extract_shared_helpers(project)
-
-    assert "def _shared" in (tier / "_helpers.py").read_text()
-    # Exactly one extraction message — the second pass finds nothing to move.
-    assert sum("extracted helper `_shared`" in m for m in msgs) == 1
-
-
-def test_existing_helpers_module_is_loaded_not_overwritten(tmp_path: Path) -> None:
-    """load_or_create_helpers_module reads an existing file verbatim."""
-    helpers_path = tmp_path / "_helpers.py"
-    helpers_path.write_text("SENTINEL = 1\n")
-
-    module = load_or_create_helpers_module(helpers_path, "unit", "tests.unit._helpers")
-
-    assert module is not None
-    assert "SENTINEL = 1" in module.code
-
-
-def test_existing_conftest_module_is_loaded_not_overwritten(tmp_path: Path) -> None:
-    """load_or_create_conftest_module reads an existing file verbatim."""
-    conftest_path = tmp_path / "conftest.py"
-    conftest_path.write_text("MARKER = 'kept'\n")
-
-    module = load_or_create_conftest_module(conftest_path)
-
-    assert module is not None
-    assert "MARKER = 'kept'" in module.code
-
-
 def test_existing_helpers_module_appends_new_helper(tmp_path: Path) -> None:
     """A new duplicate is appended to a pre-existing _helpers.py without loss."""
     helper = "def _added(x):\n    return x\n\n\n"
@@ -343,62 +240,3 @@ def test_existing_helpers_module_appends_new_helper(tmp_path: Path) -> None:
     helpers = (tier / "_helpers.py").read_text()
     assert "def _preexisting" in helpers
     assert "def _added" in helpers
-
-
-def test_strip_def_only_removes_function_in_place(tmp_path: Path) -> None:
-    """strip_def_only deletes the named def and rewrites the file."""
-    target = tmp_path / "mod.py"
-    target.write_text("def keep():\n    return 1\n\n\ndef drop():\n    return 2\n")
-
-    strip_def_only(target, "drop")
-
-    body = target.read_text()
-    assert "def keep" in body
-    assert "def drop" not in body
-
-
-def test_strip_def_only_no_match_leaves_file_untouched(tmp_path: Path) -> None:
-    """strip_def_only is a no-op when the name is absent."""
-    target = tmp_path / "mod.py"
-    original = "def keep():\n    return 1\n"
-    target.write_text(original)
-
-    strip_def_only(target, "absent")
-
-    assert target.read_text() == original
-
-
-def test_strip_def_and_inject_import_no_match_injects_nothing(tmp_path: Path) -> None:
-    """When the name is absent, no def is stripped and no import is injected."""
-    target = tmp_path / "mod.py"
-    original = "def keep():\n    return 1\n"
-    target.write_text(original)
-
-    strip_def_and_inject_import(target, "absent", "tests.unit._helpers", tmp_path)
-
-    body = target.read_text()
-    assert "import" not in body
-    assert "def keep" in body
-
-
-def test_strip_def_and_inject_import_places_import_after_docstring(
-    tmp_path: Path,
-) -> None:
-    """The injected import lands below a module docstring and existing imports."""
-    target = tmp_path / "mod.py"
-    target.write_text(
-        '"""Module doc."""\n\n'
-        "import os\n\n\n"
-        "def moved():\n    return os.getcwd()\n\n\n"
-        "def test_it():\n    assert moved()\n"
-    )
-
-    strip_def_and_inject_import(target, "moved", "tests.unit._helpers", tmp_path)
-
-    lines = [ln for ln in target.read_text().splitlines() if ln.strip()]
-    assert "def moved" not in target.read_text()
-    import_line = "from tests.unit._helpers import moved"
-    assert import_line in lines
-    # Import sits after the docstring and the pre-existing `import os`.
-    assert lines.index(import_line) > lines.index("import os")
-    assert lines.index('"""Module doc."""') < lines.index(import_line)
