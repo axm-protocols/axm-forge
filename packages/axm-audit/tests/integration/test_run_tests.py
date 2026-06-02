@@ -571,7 +571,7 @@ class TestRunTestsIgnoresMode:
 
         monkeypatch.setattr(
             "axm_audit.core.test_runner.run_in_project",
-            lambda *a, **kw: None,
+            lambda *a, **kw: MagicMock(returncode=0),
         )
         monkeypatch.setattr(
             "axm_audit.core.test_runner.parse_json_report",
