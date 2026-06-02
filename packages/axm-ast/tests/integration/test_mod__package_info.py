@@ -1,37 +1,31 @@
 """Split from ``test_inspect_resolve.py``."""
 
+import pytest
+
 from axm_ast.models import PackageInfo
 
 
-def test_find_symbol_file_returns_relative_path(_fake_pkg: PackageInfo) -> None:
-    """_find_symbol_file returns a path relative to pkg root parent."""
+@pytest.mark.parametrize(
+    ("module_found", "expected"),
+    [
+        pytest.param(True, "mypkg/core.py", id="relative_path"),
+        pytest.param(False, "", id="empty_when_not_found"),
+    ],
+)
+def test_find_symbol_file(
+    _fake_pkg: PackageInfo, module_found: bool, expected: str
+) -> None:
+    """find_symbol_file returns a relative path or '' when the module is absent."""
+    import axm_ast.tools.inspect_resolve as mod
     from axm_ast.tools.inspect_resolve import find_symbol_file
 
     cls = _fake_pkg.modules[0].classes[0]
-    # Patch find_module_for_symbol to return our module
-    import axm_ast.tools.inspect_resolve as mod
-
+    resolved = _fake_pkg.modules[0] if module_found else None
     original = mod.find_module_for_symbol
-    mod.find_module_for_symbol = lambda pkg, sym: _fake_pkg.modules[0]  # type: ignore[assignment]
+    mod.find_module_for_symbol = lambda pkg, sym: resolved  # type: ignore[assignment]
     try:
         result = find_symbol_file(_fake_pkg, cls)
-        assert result == "mypkg/core.py"
-    finally:
-        mod.find_module_for_symbol = original
-
-
-def test_find_symbol_file_returns_empty_when_not_found(_fake_pkg: PackageInfo) -> None:
-    """Returns empty string when symbol module not found."""
-    from axm_ast.tools.inspect_resolve import find_symbol_file
-
-    cls = _fake_pkg.modules[0].classes[0]
-    import axm_ast.tools.inspect_resolve as mod
-
-    original = mod.find_module_for_symbol
-    mod.find_module_for_symbol = lambda pkg, sym: None  # type: ignore[assignment]
-    try:
-        result = find_symbol_file(_fake_pkg, cls)
-        assert result == ""
+        assert result == expected
     finally:
         mod.find_module_for_symbol = original
 

@@ -40,14 +40,15 @@ def test_compress_has_text(tool: DescribeTool) -> None:
     assert result.text == result.data["compressed"]
 
 
-def test_data_unchanged_toc(tool: DescribeTool) -> None:
-    result = tool.execute(path=AST_PKG, detail="toc")
-    assert isinstance(result.data["modules"], list)
-    assert isinstance(result.data["module_count"], int)
-
-
-def test_data_unchanged_summary(tool: DescribeTool) -> None:
-    result = tool.execute(path=AST_PKG, detail="summary")
+@pytest.mark.parametrize(
+    "detail",
+    [
+        pytest.param("toc", id="toc"),
+        pytest.param("summary", id="summary"),
+    ],
+)
+def test_data_unchanged(tool: DescribeTool, detail: str) -> None:
+    result = tool.execute(path=AST_PKG, detail=detail)
     assert isinstance(result.data["modules"], list)
     assert isinstance(result.data["module_count"], int)
 
