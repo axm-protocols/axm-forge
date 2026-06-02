@@ -678,3 +678,19 @@ reason = "2 zero-results search tests use divergent fixture pipelines: test_no_r
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "026a10e35f41"
 reason = "2 invalid-kind error tests assert on different facets of the error message: test_invalid_kind asserts the 'Invalid kind' prefix is present, while test_invalid_kind_lists_valid_values asserts the message enumerates the valid kinds ('class', 'function', 'method'). Same error branch but different assertion surfaces (prefix-contract vs valid-values-listing-contract) — parametrizing would conflate two distinct message guarantees."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7c8490f47c45"
+reason = "12 find_dead_code tests span three independent reference-detection surfaces probed by distinct AC-boundary classes: TestIntraModuleClassRefs (class-name refs via attr access, method call, type annotation, alias), TestAttributeRefs (self.method refs via kwarg, dict, list, assignment, chained attribute, bare identifier, attribute-call), and TestReturnValueRefs (function returned as a value). The shared 'assert name not in dead' shape is incidental; the fixtures differ (single-file core.py vs two-file core.py+main.py) and parametrizing would conflate three unrelated detection code paths and erase the per-class detection-surface documentation."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "30014a0fbe29"
+reason = "12 extract_references tests cover distinct acceptance criteria of AXM-1723 and AXM-1779 across two fixtures (mod_factory and mod_factory__from_core_callers): cast() string first-arg typing, string variable/return/parameter annotations, generic-subscript string args, positional function and attribute args, return-statement bare-identifier and attribute refs, and boolean-operator and conditional-expression fallback refs. Each probes a structurally different AST position with its own parsing branch; the shared 'assert name in refs' shape is incidental and folding would erase the per-AC typing-position documentation and conflate independent collector branches."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "0f2999a96a90"
+reason = "4 extract_references negative tests assert three distinct non-typing-position exclusion rules across two fixtures: log string literals must not pollute refs, docstrings must not pollute refs, star-unpacked args (list_splat) must be skipped, and return-call expressions are calls tracked by find_callers not refs. The shared 'assert name not in refs' shape is incidental; each exercises a separate exclusion branch and folding would conflate independent suppression rules."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "adcbe0a20335"
+reason = "2 pagerank tests assert different convergence invariants: test_single_node checks absolute normalization (a lone node scores ~1.0 against the constant 1.0), while test_cycle_converges checks relative symmetry (the two nodes of an A-B-A cycle converge to ~equal scores). The shared 'pagerank(...) then abs(...) < 0.01' shape is incidental; the comparison targets differ (score-vs-constant vs score-vs-score) so a single parametrized expected cannot express both properties."
