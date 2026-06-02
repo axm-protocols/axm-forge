@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -10,6 +11,7 @@ from axm_audit.core.test_runner import (
     FailureDetail,
     parse_collector_errors,
     parse_failures,
+    run_tests,
 )
 
 _PUBLIC = (
@@ -290,5 +292,36 @@ class TestDeprecatedDeltaMode:
             per_file_cov=per_file,
         )
         assert report.coverage_by_file == per_file
+        assert report.failures is not None
+        assert len(report.failures) == 1
+
+
+@pytest.mark.integration
+class TestRunTestsIgnoresMode:
+    """AC3: run_tests still accepts mode but ignores it."""
+
+    def test_run_tests_ignores_mode(self, monkeypatch, tmp_path):
+        report_data = _make_report_data(num_failed=1, num_passed=3)
+        per_file = {"src/a.py": 75.0}
+
+        monkeypatch.setattr(
+            "axm_audit.core.test_runner.run_in_project",
+            lambda *a, **kw: MagicMock(returncode=0),
+        )
+        monkeypatch.setattr(
+            "axm_audit.core.test_runner.parse_json_report",
+            lambda _: report_data,
+        )
+        monkeypatch.setattr(
+            "axm_audit.core.test_runner.parse_coverage",
+            lambda _: (75.0, per_file),
+        )
+
+        report = run_tests(tmp_path, mode="compact")
+
+        # Coverage always collected even with compact mode
+        assert report.coverage == 75.0
+        assert report.coverage_by_file == per_file
+        # Failures always parsed (was skipped for compact before)
         assert report.failures is not None
         assert len(report.failures) == 1
