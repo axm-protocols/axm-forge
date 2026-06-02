@@ -152,3 +152,28 @@ def test_empty_tests_returns_pass(tmp_path: Path) -> None:
     assert result.passed is True
     assert result.score == 100
     assert list(result.findings) == []
+
+
+def test_parametrized_path_arg_no_mismatch(tmp_path: Path) -> None:
+    """AC4, AC5: a real unit test file using the ``axm-bib`` repro pattern
+    (``@parametrize("pdf_path", ...)``) yields zero pyramid mismatches."""
+    pkg = _make_pkg(tmp_path)
+    unit_dir = pkg / "tests" / "unit"
+    unit_dir.mkdir()
+    (unit_dir / "__init__.py").write_text("")
+    _write(
+        unit_dir / "test_blank.py",
+        """
+        import pytest
+
+        @pytest.mark.parametrize("pdf_path", ["", "   "])
+        def test_blank_pdf_path_rejected(pdf_path):
+            assert pdf_path.strip() == ""
+        """,
+    )
+
+    result = PyramidLevelRule().check(pkg)
+
+    assert result.passed is True
+    assert result.details is not None
+    assert result.details["total"] == 0
