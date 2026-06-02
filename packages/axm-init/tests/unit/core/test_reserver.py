@@ -352,3 +352,39 @@ class TestReservePyPIFlow:
         result = reserve_pypi("new-pkg", "Author", "a@b.com", "token", checker=checker)
         assert result.success is False
         assert "availability" in result.message.lower()
+
+
+def test_reserve_checks_availability_first() -> None:
+    """reserve_pypi checks availability before proceeding."""
+    checker = MagicMock()
+    checker.check_availability.return_value = AvailabilityStatus.TAKEN
+
+    result = reserve_pypi(
+        name="requests",  # Known taken
+        author="Test",
+        email="test@example.com",
+        token="pypi-test",
+        dry_run=True,
+        checker=checker,
+    )
+
+    assert result.success is False
+    assert "taken" in result.message.lower()
+
+
+def test_reserve_dry_run_skips_publish() -> None:
+    """dry_run=True skips actual publish."""
+    checker = MagicMock()
+    checker.check_availability.return_value = AvailabilityStatus.AVAILABLE
+
+    result = reserve_pypi(
+        name="unique-test-pkg-xyz",
+        author="Test",
+        email="test@example.com",
+        token="pypi-test",
+        dry_run=True,
+        checker=checker,
+    )
+
+    assert result.success is True
+    assert "dry run" in result.message.lower()
