@@ -6,7 +6,7 @@ import difflib
 import logging
 import tomllib
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 from pathlib import Path
 
@@ -49,9 +49,15 @@ def _glob_segments_match(pattern: list[str], parts: list[str]) -> bool:
 
 @dataclass
 class _MirrorConfig:
-    """Forward-mirror exemption config loaded from ``pyproject.toml``."""
+    """Mirror exemption config loaded from ``pyproject.toml``.
+
+    ``exempt_paths`` exempts source modules from the forward
+    (missing-test) direction; ``exempt_tests`` exempts test files from
+    the reverse (orphan) direction. The two keys are independent.
+    """
 
     exempt_paths: list[str]
+    exempt_tests: list[str] = field(default_factory=list)
     error: str | None = None
 
 
@@ -59,12 +65,14 @@ def _load_mirror_config(project_path: Path) -> _MirrorConfig:
     """Read ``[tool.axm-audit.mirror]`` from ``pyproject.toml``.
 
     Missing file/section/key → empty config. Malformed TOML or wrong
-    ``exempt_paths`` type → ``error`` populated, never raises.
+    ``exempt_paths`` / ``exempt_tests`` type → ``error`` populated,
+    never raises.
 
     Sample::
 
         [tool.axm-audit.mirror]
         exempt_paths = ["commands/*.py", "schemas/*.py", "**/_facade.py"]
+        exempt_tests = ["conformance/**", "contracts/*.py"]
     """
     pyproject = project_path / "pyproject.toml"
     if not pyproject.is_file():
@@ -81,15 +89,42 @@ def _load_mirror_config(project_path: Path) -> _MirrorConfig:
         if isinstance(data, dict)
         else {}
     )
-    if not isinstance(section, dict) or "exempt_paths" not in section:
+    if not isinstance(section, dict):
         return _MirrorConfig(exempt_paths=[])
-    raw = section["exempt_paths"]
-    if isinstance(raw, list) and all(isinstance(p, str) for p in raw):
-        return _MirrorConfig(exempt_paths=list(raw))
+    paths = _coerce_str_list(section.get("exempt_paths"), "exempt_paths")
+    if paths.error is not None:
+        return _MirrorConfig(exempt_paths=[], error=paths.error)
+    tests = _coerce_str_list(section.get("exempt_tests"), "exempt_tests")
+    if tests.error is not None:
+        return _MirrorConfig(exempt_paths=[], error=tests.error)
     return _MirrorConfig(
-        exempt_paths=[],
+        exempt_paths=paths.values,
+        exempt_tests=tests.values,
+    )
+
+
+@dataclass
+class _CoercedList:
+    """Result of coercing a TOML value to a list of strings."""
+
+    values: list[str]
+    error: str | None = None
+
+
+def _coerce_str_list(raw: object, key: str) -> _CoercedList:
+    """Validate ``raw`` as a list of strings for ``[tool.axm-audit.mirror]``.
+
+    Missing key (``None``) → empty list. A non-list or non-string element
+    → ``error`` populated with the same contract as ``exempt_paths``.
+    """
+    if raw is None:
+        return _CoercedList(values=[])
+    if isinstance(raw, list) and all(isinstance(p, str) for p in raw):
+        return _CoercedList(values=list(raw))
+    return _CoercedList(
+        values=[],
         error=(
-            "[tool.axm-audit.mirror] exempt_paths must be a list of strings "
+            f"[tool.axm-audit.mirror] {key} must be a list of strings "
             "(malformed config)"
         ),
     )
@@ -121,9 +156,15 @@ class MirrorRule(ProjectRule):
 
         [tool.axm-audit.mirror]
         exempt_paths = ["commands/*.py", "schemas/*.py", "**/_facade.py"]
+        exempt_tests = ["conformance/**", "contracts/*.py"]
 
     Exempted modules do not need a matching test and surface in
-    ``details["exempt"]``. Reverse (orphan) checks ignore exemptions.
+    ``details["exempt"]`` (forward direction only). Symmetrically,
+    ``exempt_tests`` (globs anchored at ``tests/unit/``) whitelists
+    cross-cutting test files from the reverse (orphan) direction; matched
+    files surface in ``details["exempt_tests"]``. The two keys are
+    independent: ``exempt_paths`` never clears an orphan and
+    ``exempt_tests`` never clears a missing source module.
 
     Scoring: ``100 - (len(missing) + len(orphan)) * 15``, min 0.
     """
@@ -147,7 +188,12 @@ class MirrorRule(ProjectRule):
                 message="Invalid mirror config",
                 severity=Severity.WARNING,
                 score=0,
-                details={"missing": [], "orphan": [], "exempt": []},
+                details={
+                    "missing": [],
+                    "orphan": [],
+                    "exempt": [],
+                    "exempt_tests": [],
+                },
                 fix_hint=config.error,
             )
 
@@ -156,7 +202,9 @@ class MirrorRule(ProjectRule):
         missing, exempt = self._find_untested_modules(
             src_path, tests_path, config.exempt_paths
         )
-        orphan = self._collect_orphan_tests(src_path, tests_path)
+        orphan, exempt_tests = self._collect_orphan_tests(
+            src_path, tests_path, config.exempt_tests
+        )
 
         if not missing and not orphan:
             return CheckResult(
@@ -165,7 +213,12 @@ class MirrorRule(ProjectRule):
                 message="All source modules have test files",
                 severity=Severity.INFO,
                 score=100,
-                details={"missing": [], "orphan": [], "exempt": exempt},
+                details={
+                    "missing": [],
+                    "orphan": [],
+                    "exempt": exempt,
+                    "exempt_tests": exempt_tests,
+                },
             )
 
         violations = len(missing) + len(orphan)
@@ -182,7 +235,12 @@ class MirrorRule(ProjectRule):
             message=message,
             severity=Severity.WARNING if not passed else Severity.INFO,
             score=int(score),
-            details={"missing": missing, "orphan": orphan, "exempt": exempt},
+            details={
+                "missing": missing,
+                "orphan": orphan,
+                "exempt": exempt,
+                "exempt_tests": exempt_tests,
+            },
             fix_hint=hint,
             text=text,
         )
@@ -435,20 +493,26 @@ class MirrorRule(ProjectRule):
         cls,
         src_path: Path,
         tests_path: Path,
-    ) -> list[str]:
+        exempt_tests: list[str] | None = None,
+    ) -> tuple[list[str], list[str]]:
         """List ``tests/unit/`` test files with no matching source module.
 
         Walks ``tests/unit/**/test_*.py`` and flags each whose
         ``(rel_dir, stem)`` does not correspond to any source module under
         ``src/<pkg>/<rel_dir>/<stem>.py`` (with optional leading underscores).
-        Returns POSIX ``tests/unit``-rooted paths sorted for determinism.
-        Always returns ``[]`` when ``tests/unit/`` is absent.
+        An orphan whose path relative to ``tests/unit/`` matches any
+        ``exempt_tests`` glob is excluded from the orphan list and returned
+        in the second tuple element instead. Both lists hold POSIX
+        ``tests/``-rooted paths sorted for determinism. Returns
+        ``([], [])`` when ``tests/unit/`` is absent.
         """
+        exempt_tests = exempt_tests or []
         unit_path = tests_path / "unit"
         if not unit_path.is_dir():
-            return []
+            return [], []
         src_index = cls._collect_source_index(src_path)
         orphans: list[str] = []
+        exempted: list[str] = []
         for test_file in unit_path.rglob("test_*.py"):
             if not test_file.is_file():
                 continue
@@ -457,7 +521,12 @@ class MirrorRule(ProjectRule):
             test_stem = test_file.stem[len("test_") :]
             candidates = {test_stem, test_stem.lstrip("_")}
             available = src_index.get(rel_dir, set())
-            if not candidates & available:
-                rel_to_unit = test_file.relative_to(tests_path).as_posix()
-                orphans.append(f"tests/{rel_to_unit}")
-        return sorted(orphans)
+            if candidates & available:
+                continue
+            rel_to_unit = test_file.relative_to(unit_path).as_posix()
+            full = f"tests/{test_file.relative_to(tests_path).as_posix()}"
+            if cls._is_exempt_path(rel_to_unit, exempt_tests):
+                exempted.append(full)
+            else:
+                orphans.append(full)
+        return sorted(orphans), sorted(exempted)
