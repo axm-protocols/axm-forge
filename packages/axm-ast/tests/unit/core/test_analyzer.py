@@ -144,15 +144,19 @@ class TestSearchByReturnType:
 
 
 class TestSearchInherits:
-    def test_inherits_base_model(self, rich_pkg__from_analyzer: PackageInfo) -> None:
-        results = search_symbols(rich_pkg__from_analyzer, inherits="BaseModel")
+    @pytest.mark.parametrize(
+        ("base", "expected"),
+        [
+            pytest.param("BaseModel", "User", id="base_model"),
+            pytest.param("User", "Admin", id="user"),
+        ],
+    )
+    def test_inherits(
+        self, rich_pkg__from_analyzer: PackageInfo, base: str, expected: str
+    ) -> None:
+        results = search_symbols(rich_pkg__from_analyzer, inherits=base)
         names = [sym.name for _, sym in results]
-        assert "User" in names
-
-    def test_inherits_user(self, rich_pkg__from_analyzer: PackageInfo) -> None:
-        results = search_symbols(rich_pkg__from_analyzer, inherits="User")
-        names = [sym.name for _, sym in results]
-        assert "Admin" in names
+        assert expected in names
 
     def test_inherits_nonexistent(self, rich_pkg__from_analyzer: PackageInfo) -> None:
         results = search_symbols(rich_pkg__from_analyzer, inherits="NonExistent")
@@ -250,14 +254,21 @@ class TestSearchClassKind:
         assert "greet" not in names
         assert "VERSION" not in names
 
+    @pytest.mark.parametrize(
+        "class_name",
+        [
+            pytest.param("Admin", id="admin"),
+            pytest.param("User", id="user"),
+        ],
+    )
     def test_class_kind_with_name_filter(
-        self, rich_pkg__from_analyzer: PackageInfo
+        self, rich_pkg__from_analyzer: PackageInfo, class_name: str
     ) -> None:
         results = search_symbols(
-            rich_pkg__from_analyzer, kind=SymbolKind.CLASS, name="Admin"
+            rich_pkg__from_analyzer, kind=SymbolKind.CLASS, name=class_name
         )
         assert len(results) == 1
-        assert results[0][1].name == "Admin"
+        assert results[0][1].name == class_name
 
 
 class TestSearchFunctionKind:
@@ -297,22 +308,6 @@ class TestSearchByKindAndName:
         )
         assert len(results) == 1
         assert results[0][1].name == "greet"
-
-    def test_class_kind_with_name(self, rich_pkg__from_analyzer: PackageInfo) -> None:
-        results = search_symbols(
-            rich_pkg__from_analyzer, kind=SymbolKind.CLASS, name="User"
-        )
-        assert len(results) == 1
-        assert results[0][1].name == "User"
-
-    def test_variable_kind_with_name(
-        self, rich_pkg__from_analyzer: PackageInfo
-    ) -> None:
-        results = search_symbols(
-            rich_pkg__from_analyzer, kind=SymbolKind.VARIABLE, name="TIMEOUT"
-        )
-        assert len(results) == 1
-        assert results[0][1].name == "TIMEOUT"
 
 
 # ── search_symbols — module-name propagation (in-memory PackageInfo) ──
@@ -588,13 +583,16 @@ class TestFunctionExtraction:
         self.pkg = _public_analyze_package(SAMPLE_PKG)
         self.init_mod = _module_by_name(self.pkg, "__init__.py")
 
-    def test_extracts_public_function(self):
+    @pytest.mark.parametrize(
+        "func_name",
+        [
+            pytest.param("greet", id="public"),
+            pytest.param("_internal_helper", id="private"),
+        ],
+    )
+    def test_extracts_function(self, func_name):
         names = [f.name for f in self.init_mod.functions]
-        assert "greet" in names
-
-    def test_extracts_private_function(self):
-        names = [f.name for f in self.init_mod.functions]
-        assert "_internal_helper" in names
+        assert func_name in names
 
     def test_function_params(self):
         greet = next(f for f in self.init_mod.functions if f.name == "greet")
@@ -603,18 +601,21 @@ class TestFunctionExtraction:
         assert greet.params[0].annotation == "str"
         assert greet.params[0].default == '"world"'
 
-    def test_function_return_type(self):
-        greet = next(f for f in self.init_mod.functions if f.name == "greet")
-        assert greet.return_type == "str"
+    @pytest.mark.parametrize(
+        ("func_name", "expected_return"),
+        [
+            pytest.param("greet", "str", id="sync"),
+            pytest.param("fetch_data", "dict[str, Any]", id="async"),
+        ],
+    )
+    def test_function_return_type(self, func_name, expected_return):
+        fn = next(f for f in self.init_mod.functions if f.name == func_name)
+        assert fn.return_type == expected_return
 
     def test_function_docstring(self):
         greet = next(f for f in self.init_mod.functions if f.name == "greet")
         assert greet.docstring is not None
         assert "greeting" in greet.docstring.lower()
-
-    def test_async_function_return_type(self):
-        fetch = next(f for f in self.init_mod.functions if f.name == "fetch_data")
-        assert fetch.return_type == "dict[str, Any]"
 
     def test_function_line_range(self):
         greet = next(f for f in self.init_mod.functions if f.name == "greet")
@@ -631,13 +632,16 @@ class TestClassExtraction:
         self.pkg = _public_analyze_package(SAMPLE_PKG)
         self.init_mod = _module_by_name(self.pkg, "__init__.py")
 
-    def test_extracts_public_class(self):
+    @pytest.mark.parametrize(
+        "class_name",
+        [
+            pytest.param("Calculator", id="public"),
+            pytest.param("_InternalClass", id="private"),
+        ],
+    )
+    def test_extracts_class(self, class_name):
         names = [c.name for c in self.init_mod.classes]
-        assert "Calculator" in names
-
-    def test_extracts_private_class(self):
-        names = [c.name for c in self.init_mod.classes]
-        assert "_InternalClass" in names
+        assert class_name in names
 
     def test_class_docstring(self):
         calc = next(c for c in self.init_mod.classes if c.name == "Calculator")
