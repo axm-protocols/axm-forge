@@ -231,6 +231,8 @@ exempt_paths = [
     "core/git_coupling.py",   # requires real git, integration-only
     "core/structural_diff.py",# requires git worktrees, integration-only
     "tools/doc_impact.py",    # thin MCP facade, integration-covered
+    "core/doc_impact.py",     # real-FS doc/signature scanning, integration-only
+    "tools/inspect_resolve.py", # resolves symbols against real PackageInfo, integration-only
     "hooks/_trace_protocol.py", # Protocol typing stub (TYPE_CHECKING-only)
 ]
 
