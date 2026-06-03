@@ -564,21 +564,21 @@ class TestDottedNonExistentSymbol:
     """Missing class/member/func — surfaced as not-found, no crash."""
 
     @pytest.mark.parametrize(
-        ("pkg_fixture", "symbol"),
+        ("use_module_pkg", "symbol"),
         [
-            pytest.param("nested_class_pkg", "FakeClass.fake_method", id="fake_class"),
-            pytest.param(
-                "nested_class_pkg", "Outer.nonexistent", id="real_class_fake_member"
-            ),
-            pytest.param(
-                "module_func_pkg", "helpers.no_such_func", id="module_dot_missing_func"
-            ),
+            pytest.param(False, "FakeClass.fake_method", id="fake_class"),
+            pytest.param(False, "Outer.nonexistent", id="real_class_fake_member"),
+            pytest.param(True, "helpers.no_such_func", id="module_dot_missing_func"),
         ],
     )
     def test_missing_dotted_symbol_returns_not_found(
-        self, request: pytest.FixtureRequest, pkg_fixture: str, symbol: str
+        self,
+        nested_class_pkg: Path,
+        module_func_pkg: Path,
+        use_module_pkg: bool,
+        symbol: str,
     ) -> None:
-        pkg_path: Path = request.getfixturevalue(pkg_fixture)
+        pkg_path = module_func_pkg if use_module_pkg else nested_class_pkg
         hook = SourceBodyHook()
         result = hook.execute({}, symbol=symbol, path=str(pkg_path))
         assert result.success
