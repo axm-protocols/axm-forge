@@ -59,6 +59,13 @@ class SmeltTool(AXMTool):
             else:
                 report = smelt(data, strategies=strategies, preset=preset)
 
+            savings_pct = round(report.savings_pct, 2)
+            applied = ", ".join(report.strategies_applied) or "none"
+            header = (
+                f"smelt | {report.format.value} | "
+                f"{report.original_tokens}->{report.compacted_tokens} tok "
+                f"(-{savings_pct}%) | {applied}"
+            )
             return ToolResult(
                 success=True,
                 data={
@@ -66,9 +73,10 @@ class SmeltTool(AXMTool):
                     "format": report.format.value,
                     "original_tokens": report.original_tokens,
                     "compacted_tokens": report.compacted_tokens,
-                    "savings_pct": round(report.savings_pct, 2),
+                    "savings_pct": savings_pct,
                     "strategies_applied": report.strategies_applied,
                 },
+                text=f"{header}\n{report.compacted}",
             )
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))
