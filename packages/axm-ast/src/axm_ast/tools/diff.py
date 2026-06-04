@@ -9,8 +9,11 @@ from typing import cast
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_ast.tools._base import safe_execute
+from axm_ast.tools.diff_text import render_diff_text
 
 logger = logging.getLogger(__name__)
+
+__all__ = ["DiffTool", "render_diff_text"]
 
 
 class DiffTool(AXMTool):
@@ -64,7 +67,9 @@ class DiffTool(AXMTool):
                 error=err if isinstance(err, str) else str(err),
             )
 
-        return ToolResult(
-            success=True,
-            data=cast("dict[str, object]", result),
-        )
+        data = cast("dict[str, object]", result)
+        try:
+            text: str | None = render_diff_text(data)
+        except (KeyError, TypeError, AttributeError):
+            text = None
+        return ToolResult(success=True, data=data, text=text)
