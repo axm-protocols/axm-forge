@@ -44,13 +44,19 @@ class TestCheckExecuteSuccessPath:
                 "axm_init.core.checker.format_agent",
                 return_value={"score": 95},
             ) as mock_fmt,
+            patch(
+                "axm_init.core.checker.format_agent_text",
+                return_value="A 95/100",
+            ) as mock_text,
         ):
             result = tool.execute(path=str(tmp_path), category="lint")
 
         assert result.success is True
         assert result.data == {"score": 95}
+        assert result.text == "A 95/100"
         mock_engine_cls.assert_called_once_with(tmp_path.resolve(), category="lint")
         mock_fmt.assert_called_once_with("raw-result")
+        mock_text.assert_called_once_with("raw-result")
 
     def test_execute_default_path(self) -> None:
         """Default path='.' is resolved."""
@@ -61,6 +67,7 @@ class TestCheckExecuteSuccessPath:
         with (
             patch("axm_init.core.checker.CheckEngine", mock_engine_cls),
             patch("axm_init.core.checker.format_agent", return_value={}),
+            patch("axm_init.core.checker.format_agent_text", return_value=""),
         ):
             result = tool.execute()
 

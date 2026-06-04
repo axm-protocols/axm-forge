@@ -42,10 +42,18 @@ class InitCheckTool:
                     success=False, error=f"Not a directory: {project_path}"
                 )
 
-            from axm_init.core.checker import CheckEngine, format_agent
+            from axm_init.core.checker import (
+                CheckEngine,
+                format_agent,
+                format_agent_text,
+            )
 
             engine = CheckEngine(project_path, category=category)
             result = engine.run()
-            return ToolResult(success=True, data=format_agent(result))
+            return ToolResult(
+                success=True,
+                data=format_agent(result),
+                text=format_agent_text(result),
+            )
         except Exception as exc:
             return ToolResult(success=False, error=str(exc))
