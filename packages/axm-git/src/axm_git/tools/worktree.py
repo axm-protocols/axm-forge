@@ -13,8 +13,35 @@ from axm_git.core.runner import (
     run_git,
     timeout_error_result,
 )
+from axm_git.tools.worktree_text import (
+    render_add_text,
+    render_failure_text,
+    render_list_text,
+    render_remove_text,
+)
 
 __all__ = ["GitWorktreeTool"]
+
+
+def _not_a_repo_result(path: Path) -> ToolResult:
+    """Build a not-a-repo ``ToolResult`` with compact failure text."""
+    repo_err = not_a_repo_error("not a git repository", path)
+    return ToolResult(
+        success=repo_err.success,
+        error=repo_err.error,
+        data=repo_err.data,
+        text=render_failure_text(error=repo_err.error or "", data=repo_err.data),
+    )
+
+
+def _git_error_result(result: subprocess.CompletedProcess[str]) -> ToolResult:
+    """Build a git-command-failure ``ToolResult`` with compact failure text."""
+    error = result.stderr.strip() or result.stdout.strip()
+    return ToolResult(
+        success=False,
+        error=error,
+        text=render_failure_text(error=error, data=None),
+    )
 
 
 _WORKTREE_PREFIXES: dict[str, str] = {
@@ -110,34 +137,29 @@ class GitWorktreeTool(AXMTool):
             case "remove":
                 return self._remove(resolved, force=force)
             case _:
+                error = f"Invalid action {action!r}. Use 'add', 'remove', or 'list'."
                 return ToolResult(
                     success=False,
-                    error=(
-                        f"Invalid action {action!r}. Use 'add', 'remove', or 'list'."
-                    ),
+                    error=error,
+                    text=render_failure_text(error=error, data=None),
                 )
 
     def _list(self, path: Path) -> ToolResult:
         """List all worktrees."""
         git_root = find_git_root(path)
         if git_root is None:
-            return not_a_repo_error("not a git repository", path)
+            return _not_a_repo_result(path)
 
         try:
             result = run_git(["worktree", "list", "--porcelain"], git_root)
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
         if result.returncode != 0:
-            return ToolResult(
-                success=False,
-                error=result.stderr.strip() or result.stdout.strip(),
-            )
+            return _git_error_result(result)
 
         worktrees = _parse_worktree_porcelain(result.stdout)
-        return ToolResult(
-            success=True,
-            data={"worktrees": worktrees},
-        )
+        data: dict[str, object] = {"worktrees": worktrees}
+        return ToolResult(success=True, data=data, text=render_list_text(data))
 
     def _add(
         self,
@@ -149,7 +171,7 @@ class GitWorktreeTool(AXMTool):
         """Add a new worktree."""
         git_root = find_git_root(path)
         if git_root is None:
-            return not_a_repo_error("not a git repository", path)
+            return _not_a_repo_result(path)
 
         cmd: list[str] = ["worktree", "add"]
         if branch:
@@ -162,25 +184,20 @@ class GitWorktreeTool(AXMTool):
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
         if result.returncode != 0:
-            return ToolResult(
-                success=False,
-                error=result.stderr.strip() or result.stdout.strip(),
-            )
+            return _git_error_result(result)
 
-        return ToolResult(
-            success=True,
-            data={
-                "path": str(path),
-                "branch": branch or base,
-                "base": base,
-            },
-        )
+        data: dict[str, object] = {
+            "path": str(path),
+            "branch": branch or base,
+            "base": base,
+        }
+        return ToolResult(success=True, data=data, text=render_add_text(data))
 
     def _remove(self, path: Path, *, force: bool) -> ToolResult:
         """Remove an existing worktree."""
         git_root = find_git_root(path)
         if git_root is None:
-            return not_a_repo_error("not a git repository", path)
+            return _not_a_repo_result(path)
 
         cmd: list[str] = ["worktree", "remove", str(path)]
         if force:
@@ -191,12 +208,7 @@ class GitWorktreeTool(AXMTool):
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
         if result.returncode != 0:
-            return ToolResult(
-                success=False,
-                error=result.stderr.strip() or result.stdout.strip(),
-            )
+            return _git_error_result(result)
 
-        return ToolResult(
-            success=True,
-            data={"removed": str(path)},
-        )
+        data: dict[str, object] = {"removed": str(path)}
+        return ToolResult(success=True, data=data, text=render_remove_text(data))
