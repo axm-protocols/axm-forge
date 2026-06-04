@@ -89,24 +89,24 @@ Business logic independent of I/O:
 |---|---|---|
 | `checker.py` | `CheckEngine`, `format_report()`, `format_json()`, `format_agent()` | Run checks (dynamic discovery via `importlib`), format output |
 | `templates.py` | `TemplateInfo`, `TemplateType`, `get_template_path()` | Template catalog, type dispatch (standalone/workspace/member), and resolution |
-| `reserver.py` | `ReserveResult`, `reserve_pypi()`, `create_minimal_package()`, `build_package()`, `publish_package()` | PyPI name reservation workflow and result model |
+| `reserver.py` | `reserve_pypi()`, `create_minimal_package()`, `build_package()`, `publish_package()` | PyPI name reservation workflow (the `ReserveResult` model lives in `models/results.py`) |
 
 ### 3. Checks (`checks/`)
 
-44 checks across 8 categories, each a pure function `(Path) → CheckResult`:
+49 checks across 8 categories, each a pure function `(Path) → CheckResult`:
 
 | Module | Category | # Checks |
 |---|---|---|
-| `_utils.py` | *(internal)* | Shared utilities: `_load_toml` for TOML parsing, `@requires_toml` decorator that loads `pyproject.toml` once and short-circuits with a failure if missing. For workspace members, `_load_toml_with_workspace_fallback` deep-merges the workspace root's tool sections as a base layer — `_merge_tool_sections` uses `_deep_merge` to recursively merge nested dicts (member wins on conflicts; lists and non-dict values are replaced, not merged) |
-| `pyproject.py` | pyproject | 9 |
-| `ci.py` | CI | 7 |
+| `_utils.py` | *(internal)* | Shared utilities: `load_toml` for TOML parsing, `@requires_toml` decorator that loads `pyproject.toml` once and short-circuits with a failure if missing. For workspace members, `load_toml_with_workspace_fallback` deep-merges the workspace root's tool sections as a base layer — `merge_tool_sections` uses `_deep_merge` to recursively merge nested dicts (member wins on conflicts; lists and non-dict values are replaced, not merged) |
+| `pyproject.py` | pyproject | 10 |
+| `ci.py` | CI | 6 |
 | `tooling.py` | tooling | 7 |
-| `docs.py` | docs | 5 |
+| `docs.py` | docs | 6 |
 | `structure.py` | structure | 7 |
 | `deps.py` | deps | 2 |
 | `changelog.py` | changelog | 2 |
-| `workspace.py` | workspace | 5 |
-| `_workspace.py` | *(internal)* | Context detection: `detect_project_context()`, `find_workspace_root()`, `get_workspace_members()` |
+| `workspace.py` | workspace | 9 |
+| `_workspace.py` | *(internal)* | Context detection: `detect_context()`, `find_workspace_root()`, `get_workspace_members()` |
 
 ### 4. Adapters (`adapters/`)
 
