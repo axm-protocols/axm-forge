@@ -21,6 +21,8 @@ IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool call
 - :material-file-edit-outline: **`batch_edit`** — Replace, create, and delete files in a single atomic operation with automatic ruff --fix
 - :material-book-open-variant: **`read_file`** — Read file content with optional line-range support
 - :material-file-search-outline: **`search_files`** — Grep-like search across project files (literal or regex)
+- :material-pencil-outline: **`write_file`** — Write (create or overwrite) a single file
+- :material-file-replace-outline: **`edit_file`** — Apply old/new edits to a single file
 - :material-folder-outline: **`list_dir`** — List files and directories with metadata (recursive, depth-limited)
 - :material-console: **`run_command`** — Execute shell commands with timeout and output truncation
 - :material-undo: **`batch_rollback`** — Restore project state to a checkpoint via git stash
@@ -36,12 +38,13 @@ IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool call
 | [`axm_edit.models.operations`](reference/api/axm_edit/models/operations/) | `Edit`, `ReplaceOp`, `CreateOp`, `DeleteOp`, `BatchResult` (incl. `lint_errors`) — Pydantic models |
 | [`axm_edit.services.lint`](reference/api/axm_edit/services/lint/) | `claude_fix` — Claude subprocess auto-fix for remaining ruff errors (JSON old/new edit format) |
 | [`axm_edit.services.lint_diff`](reference/api/axm_edit/services/lint_diff/) | `compute_lint_diffs`, `extract_rules_by_file` — tagged plus/minus diffs between post-agent and post-lint snapshots |
-| [`axm_edit.tools`](reference/api/axm_edit/tools/) | MCP tools: `BatchEditTool`, `ReadFileTool`, `SearchFilesTool`, `RunCommandTool`, `BatchRollbackTool` |
+| [`axm_edit.tools`](reference/api/axm_edit/tools/) | MCP tools: `BatchEditTool`, `BatchRollbackTool`, `ReadFileTool`, `WriteFileTool`, `EditFileTool`, `SearchFilesTool`, `RunCommandTool`, `ListDirTool` |
 
 ## Learn More
 
 - [Getting Started](tutorials/getting-started.md) — Install and use all tools in 5 minutes
 - [How-To Guides](howto/index.md) — Task-oriented recipes
+- [MCP Tools Reference](reference/cli.md) — The eight tools at a glance
 - [API Reference](reference/) — Full module documentation
 - [Architecture](explanation/architecture.md) — Design decisions and module layout
 
