@@ -51,6 +51,41 @@ def _truncate(output: str) -> tuple[str, bool]:
     return output[:_MAX_OUTPUT_CHARS] + "\n[truncated]", True
 
 
+def _render_text(
+    *,
+    stdout: str,
+    stderr: str,
+    exit_code: int,
+    timed_out: bool,
+    truncated: bool,
+) -> str:
+    """Render a compact LLM-facing view of a command result.
+
+    The header carries the exit code (with a ``✗`` marker when non-zero so a
+    failure is impossible to miss) plus explicit ``timeout`` / ``truncated``
+    flags. ``stdout`` and ``stderr`` are embedded **raw** (not JSON-escaped),
+    each under its own labelled section, so no output is ever lost relative to
+    ``data`` — only the structural JSON noise is dropped.
+    """
+    flags = [f"exit {exit_code}"]
+    if exit_code != 0 or timed_out:
+        flags[0] += " ✗"
+    if timed_out:
+        flags.append("timeout")
+    if truncated:
+        flags.append("truncated")
+    header = "run_command | " + " · ".join(flags)
+
+    sections = [header]
+    if stdout:
+        sections.append("stdout:\n" + stdout.rstrip("\n"))
+    if stderr:
+        sections.append("stderr:\n" + stderr.rstrip("\n"))
+    if not stdout and not stderr:
+        sections.append("(no output)")
+    return "\n".join(sections)
+
+
 class RunCommandTool:
     """Execute shell commands with timeout and output truncation.
 
@@ -164,6 +199,7 @@ def _run(command: str, work_dir: Path, timeout: int) -> ToolResult:
     stdout_trunc, stdout_was = _truncate(str(stdout))
     stderr_trunc, stderr_was = _truncate(str(stderr))
 
+    truncated = stdout_was or stderr_was
     return ToolResult(
         success=True,
         data={
@@ -171,6 +207,13 @@ def _run(command: str, work_dir: Path, timeout: int) -> ToolResult:
             "stderr": stderr_trunc,
             "exit_code": exit_code,
             "timed_out": timed_out,
-            "truncated": stdout_was or stderr_was,
+            "truncated": truncated,
         },
+        text=_render_text(
+            stdout=stdout_trunc,
+            stderr=stderr_trunc,
+            exit_code=exit_code,
+            timed_out=timed_out,
+            truncated=truncated,
+        ),
     )
