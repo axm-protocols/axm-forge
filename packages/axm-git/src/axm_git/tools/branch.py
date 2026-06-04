@@ -8,6 +8,7 @@ from pathlib import Path
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_git.core.runner import not_a_repo_error, run_git, timeout_error_result
+from axm_git.tools.branch_text import render_failure_text, render_text
 
 __all__ = ["GitBranchTool"]
 
@@ -49,7 +50,15 @@ class GitBranchTool(AXMTool):
             # Verify this is a git repo.
             check = run_git(["rev-parse", "--git-dir"], resolved)
             if check.returncode != 0:
-                return not_a_repo_error(check.stderr, resolved)
+                repo_err = not_a_repo_error(check.stderr, resolved)
+                return ToolResult(
+                    success=repo_err.success,
+                    error=repo_err.error,
+                    data=repo_err.data,
+                    text=render_failure_text(
+                        error=repo_err.error or "", data=repo_err.data
+                    ),
+                )
 
             # Build the checkout command.
             if checkout_only:
@@ -61,9 +70,11 @@ class GitBranchTool(AXMTool):
 
             result = run_git(cmd, resolved)
             if result.returncode != 0:
+                error = result.stderr.strip() or result.stdout.strip()
                 return ToolResult(
                     success=False,
-                    error=result.stderr.strip() or result.stdout.strip(),
+                    error=error,
+                    text=render_failure_text(error=error, data=None),
                 )
 
             # Confirm the current branch.
@@ -72,7 +83,5 @@ class GitBranchTool(AXMTool):
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
 
-        return ToolResult(
-            success=True,
-            data={"branch": branch},
-        )
+        data: dict[str, object] = {"branch": branch}
+        return ToolResult(success=True, data=data, text=render_text(data))
