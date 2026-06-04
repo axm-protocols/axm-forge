@@ -69,12 +69,12 @@ pyproject (27/27)
 
 By default, only failures are displayed.
 
-## What Gets Checked (50 Checks)
+## What Gets Checked (49 Checks)
 
 | Category | Checks | Points |
 |----------|--------|--------|
 | **pyproject** | exists, urls, dynamic_version, mypy, ruff, pytest, coverage, classifiers, ruff_rules, wheel_doc_shipping | 29 |
-| **ci** | workflow, lint job, test job, security job, coverage upload, trusted publishing, dependabot | 18 |
+| **ci** | workflow, lint job, test job, security job, trusted publishing, dependabot | 16 |
 | **tooling** | pre-commit (×5), hooks installed, Makefile targets | 16 |
 | **docs** | mkdocs.yml, Diátaxis nav, plugins, gen_ref_pages, README, README badges | 16 |
 | **structure** | src/ layout, py.typed, tests/, CONTRIBUTING, LICENSE, uv.lock, .python-version | 17 |
