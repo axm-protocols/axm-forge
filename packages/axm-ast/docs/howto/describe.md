@@ -23,18 +23,10 @@ This shows a **detailed** view: module names, public functions with docstrings a
 === "Summary"
 
     ```bash
-    axm-ast describe src/mylib --detail detailed
+    axm-ast describe src/mylib --detail summary
     ```
 
-    Adds docstrings, parameters with types, return types, and visibility (🔓/🔒).
-
-=== "Full"
-
-    ```bash
-    axm-ast describe src/mylib --detail full
-    ```
-
-    Everything: imports, variables, private symbols, decorators.
+    Quick orientation: module names, public function signatures, and class names only — no docstrings or parameter detail.
 
 === "Compressed"
 

@@ -19,7 +19,7 @@ axm-ast describe [OPTIONS] [PATH]
 |---|---|---|---|---|
 | `PATH` | | string | `.` | Path to package directory |
 | `--detail` | `-d` | string | `detailed` | Detail level: `toc`, `summary`, `detailed` |
-| `--compress` | | bool | `False` | AI-optimized compressed output. Mutually exclusive with `--detail` other than the default (`summary`) |
+| `--compress` | | bool | `False` | AI-optimized compressed output. Allowed with `--detail summary` or `detailed` (default `detailed`); rejected with `--detail toc` |
 | `--modules` | `-m` | string | *none* | Comma-separated module name filters (substring, case-insensitive) |
 | `--json` | | bool | `False` | Output as JSON |
 | `--rank` | | bool | `False` | Sort by PageRank importance |
@@ -384,7 +384,7 @@ axm-ast flows [OPTIONS] [PATH]
 | `--max-depth` | | int | `5` | Maximum BFS depth for flow tracing |
 | `--cross-module` | | bool | `False` | Resolve imports and trace into external modules |
 | `--detail` | `-d` | string | `trace` | Detail level: `trace` (names only), `source` (include function source code), or `compact` (tree with box-drawing chars) |
-| `--exclude-stdlib` | | bool | `True` | Exclude stdlib/builtin callees from BFS trace |
+| `--no-exclude-stdlib` | | bool | `False` | Include stdlib/builtin callees in the BFS trace (excluded by default) |
 | `--json` | | bool | `False` | Output as JSON |
 
 Without `--trace`, detects entry points (cyclopts, click, Flask, FastAPI, pytest, `__main__`, `__all__` exports). With `--trace`, performs BFS call-graph traversal from the named symbol.

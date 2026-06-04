@@ -31,6 +31,9 @@ nav:
     - CLI: reference/cli.md
     - API: reference/api.md
     - Describe Text: reference/describe-text.md
+    - Inspect Detail: reference/inspect-detail.md
+    - Inspect Resolve: reference/inspect-resolve.md
+    - Hooks: reference/hooks.md
   - Explanation:
     - Architecture: explanation/architecture.md
     - Output Formats: explanation/formats.md
