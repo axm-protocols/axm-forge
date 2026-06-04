@@ -7,34 +7,43 @@
 ```mermaid
 graph TD
     subgraph "User Interface"
-        CLI["CLI"]
+        CLI["CLI (cli.py)"]
+        Tool["MCP Tool (tools/move.py)"]
     end
 
     subgraph "Core Logic"
-        Core["Business Logic"]
+        Core["core/ (move, plan, callers, cycles, deps, shared)"]
     end
 
-    subgraph "Adapters"
-        Ext["External Services"]
+    subgraph "CST Primitives"
+        Cst["_cst/ (blocks, transformers, visitors, overloads)"]
     end
 
-    CLI --> Core
-    Core --> Ext
+    CLI --> Tool
+    Tool --> Core
+    Core --> Cst
 ```
 
 ## Layers
 
-### 1. CLI
+### 1. CLI / MCP Tool
 
-Entry point for user commands. Handles input validation and formatted output.
+Entry points for user commands. `cli.py` exposes the `axm-anvil move`
+cyclopts command; `tools/move.py` exposes the same surface as the `ast_move`
+MCP tool. Both are thin wrappers that delegate to `core.move.move_symbols`
+and handle input validation and formatted output.
 
 ### 2. Core Logic (`core/`)
 
-Business logic independent of I/O.
+Business logic independent of I/O: move planning (`move.py`), the
+`MovePlan` dataclass and exceptions (`plan.py`), caller rewriting
+(`callers.py`), import-cycle detection (`cycles.py`), dependency gathering
+(`deps.py`), and shared-helper classification (`shared.py`).
 
-### 3. Adapters (`adapters/`)
+### 3. CST primitives (`_cst/`)
 
-Each adapter wraps a single external dependency for testability.
+Libcst building blocks shared by the core layer (see below). Intentionally
+private.
 
 ## Internal CST primitives (`_cst/`)
 
@@ -45,9 +54,9 @@ should use the public `axm_anvil` API.
 | Module | Responsibility |
 |---|---|
 | `_cst.blocks` | Extract top-level symbol `Block` records (node + leading lines + referenced names) |
-| `_cst.visitors` | `_ReferenceCollector` (collect referenced root names) and `_dotted_name` (flatten `Attribute` chains) |
-| `_cst.transformers` | `_RemoveSymbols` transformer that deletes targeted top-level `ClassDef`, `FunctionDef`, and constant (`Assign` / `AnnAssign`) nodes while preserving surrounding formatting; `_AttributeRewriter` rewrites `old_module.Symbol` attribute chains (and alias-bound equivalents) to `new_module.Symbol`, using `ScopeProvider` to skip shadowed names and tracking residual `old_module.*` references so the caller layer knows when it can drop the bare `import old_module` line |
-| `_cst.overloads` | `_detect_overload_group` — find the ordered `@overload` companions of a symbol, with alias-aware detection. Delegates alias discovery to `_collect_overload_aliases`, which composes two small helpers: `_iter_typing_import_names` (walk `from typing import ...` lines) and `_overload_alias_name` (resolve one `ImportAlias` to the local name bound to `typing.overload`, or `None`) |
+| `_cst.visitors` | `ReferenceCollector` (collect referenced root names) and `dotted_name` (flatten `Attribute` chains) |
+| `_cst.transformers` | `RemoveSymbols` transformer that deletes targeted top-level `ClassDef`, `FunctionDef`, and constant (`Assign` / `AnnAssign`) nodes while preserving surrounding formatting; `AttributeRewriter` rewrites `old_module.Symbol` attribute chains (and alias-bound equivalents) to `new_module.Symbol`, using `ScopeProvider` to skip shadowed names and tracking residual `old_module.*` references so the caller layer knows when it can drop the bare `import old_module` line |
+| `_cst.overloads` | `detect_overload_group` — find the ordered `@overload` companions of a symbol, with alias-aware detection. Delegates alias discovery to `_collect_overload_aliases`, which composes two small helpers: `_iter_typing_import_names` (walk `from typing import ...` lines) and `_overload_alias_name` (resolve one `ImportAlias` to the local name bound to `typing.overload`, or `None`) |
 
 ## Transitive dependency collection in `core.move`
 
@@ -110,7 +119,7 @@ source/target rendering:
 | `_rewrite_caller_text` | Rewrite a caller's text via libcst: remove moved names from the old import, add them to the new import, preserve asnames |
 | `_add_new_imports` | Build a `CodemodContext` with `AddImportsVisitor.add_needed_import` calls for each matched moved name, preserving asnames |
 | `_format_new_import_stmt` | Render the `from new_module import …` statement (with `as` aliases) used as the `new` side of the `CallerRewrite` record |
-| `_rewrite_module_import_caller` | Rewrite `old_module.Symbol` attribute chains to `new_module.Symbol` via `_AttributeRewriter`, add `import new_module`, and drop `import old_module` when it has no residual uses |
+| `_rewrite_module_import_caller` | Rewrite `old_module.Symbol` attribute chains to `new_module.Symbol` via `AttributeRewriter`, add `import new_module`, and drop `import old_module` when it has no residual uses |
 | `CallerRewrite` | Per-line record `(file, line, old, new)` surfaced through `MovePlan.callers_updated` |
 
 The `_process_callers` helper in `core/move.py` orchestrates the flow:
@@ -305,7 +314,7 @@ preview contract.
 
 | Decision | Rationale |
 |---|---|
-| Hexagonal architecture | Testable core, swappable adapters |
-| Pydantic models | Validation, serialization |
+| Thin CLI/MCP wrappers over a pure `core/` | Testable, I/O-free core; the same `move_symbols` powers both the `axm-anvil move` CLI and the `ast_move` MCP tool |
+| `MovePlan` dataclass result | Plain `@dataclass` carrying rendered texts, moved names, copied deps, and warnings — no runtime validation overhead on a hot path |
 | `src/` layout | PEP 621 best practice, no import conflicts |
 | Private `_cst/` sub-package | Share libcst primitives across tools without leaking internals |
