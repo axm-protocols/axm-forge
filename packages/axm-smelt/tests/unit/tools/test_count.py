@@ -45,6 +45,16 @@ def test_count_tool_agent_hint() -> None:
 # ── Functional tests ──────────────────────────────────────────────────
 
 
+def test_count_tool_text_carries_all_fields(tool: SmeltCountTool) -> None:
+    result = tool.execute(data="hello world")
+    assert result.text is not None
+    assert result.text.startswith("smelt_count |")
+    # no information lost: tokens, chars and model all rendered
+    assert f"{result.data['tokens']} tokens" in result.text
+    assert "11 chars" in result.text
+    assert result.data["model"] in result.text
+
+
 def test_entry_point_smelt_count() -> None:
     eps = importlib.metadata.entry_points(group="axm.tools")
     matched = [e for e in eps if e.name == "smelt_count"]
