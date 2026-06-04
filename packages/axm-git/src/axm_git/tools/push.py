@@ -8,6 +8,7 @@ from pathlib import Path
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_git.core.runner import not_a_repo_error, run_git, timeout_error_result
+from axm_git.tools.push_text import render_failure_text, render_text
 
 __all__ = ["GitPushTool"]
 
@@ -18,17 +19,25 @@ def _check_dirty(resolved: Path) -> ToolResult | None:
     """Return a failure ToolResult if the tree is dirty, else None."""
     status = run_git(["status", "--porcelain"], resolved)
     if status.returncode != 0:
-        return ToolResult(success=False, error=status.stderr.strip())
+        error = status.stderr.strip()
+        return ToolResult(
+            success=False,
+            error=error,
+            text=render_failure_text(error=error, data=None),
+        )
     dirty_files = [
         line[3:]
         for line in status.stdout.splitlines()
         if len(line) >= _MIN_STATUS_LINE_LEN
     ]
     if dirty_files:
+        error = "Working tree is dirty. Commit or stash changes first."
+        data: dict[str, object] = {"dirty_files": dirty_files}
         return ToolResult(
             success=False,
-            error="Working tree is dirty. Commit or stash changes first.",
-            data={"dirty_files": dirty_files},
+            error=error,
+            data=data,
+            text=render_failure_text(error=error, data=data),
         )
     return None
 
@@ -89,7 +98,15 @@ class GitPushTool(AXMTool):
             # 1. Verify this is a git repo.
             check = run_git(["rev-parse", "--git-dir"], resolved)
             if check.returncode != 0:
-                return not_a_repo_error(check.stderr, resolved)
+                repo_err = not_a_repo_error(check.stderr, resolved)
+                return ToolResult(
+                    success=repo_err.success,
+                    error=repo_err.error,
+                    data=repo_err.data,
+                    text=render_failure_text(
+                        error=repo_err.error or "", data=repo_err.data
+                    ),
+                )
 
             # 2. Dirty check.
             dirty_err = _check_dirty(resolved)
@@ -100,9 +117,11 @@ class GitPushTool(AXMTool):
             branch_result = run_git(["branch", "--show-current"], resolved)
             branch = branch_result.stdout.strip()
             if not branch:
+                error = "No branch checked out (detached HEAD)."
                 return ToolResult(
                     success=False,
-                    error="No branch checked out (detached HEAD).",
+                    error=error,
+                    text=render_failure_text(error=error, data=None),
                 )
 
             # 4. Detect upstream.
@@ -122,19 +141,19 @@ class GitPushTool(AXMTool):
             )
             push_result = run_git(cmd, resolved)
             if push_result.returncode != 0:
+                error = push_result.stderr.strip() or push_result.stdout.strip()
                 return ToolResult(
                     success=False,
-                    error=(push_result.stderr.strip() or push_result.stdout.strip()),
+                    error=error,
+                    text=render_failure_text(error=error, data=None),
                 )
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
 
-        return ToolResult(
-            success=True,
-            data={
-                "branch": branch,
-                "remote": remote,
-                "pushed": True,
-                "set_upstream": not has_upstream and set_upstream,
-            },
-        )
+        data: dict[str, object] = {
+            "branch": branch,
+            "remote": remote,
+            "pushed": True,
+            "set_upstream": not has_upstream and set_upstream,
+        }
+        return ToolResult(success=True, data=data, text=render_text(data))
