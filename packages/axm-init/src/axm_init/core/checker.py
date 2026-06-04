@@ -380,3 +380,44 @@ def format_agent(result: ProjectResult) -> dict[str, object]:
             for f in result.failures
         ],
     }
+
+
+def _format_agent_failure(failure: CheckResult) -> list[str]:
+    """Render one failure as compact text: name, message, details, fix.
+
+    Every detail line and the full multi-line fix are kept verbatim — the
+    agent acts on them, so no information is dropped.
+    """
+    lines = [f"✗ {failure.name} — {failure.message}"]
+    lines.extend(f"  · {detail}" for detail in failure.details)
+    fix_lines = failure.fix.split("\n")
+    lines.append(f"  → {fix_lines[0]}")
+    lines.extend(f"    {line}" for line in fix_lines[1:])
+    return lines
+
+
+def format_agent_text(result: ProjectResult) -> str:
+    """Agent-optimized text rendering of a check result.
+
+    Compact companion to :func:`format_agent`: a one-line header with score,
+    grade, context and pass/fail counts, then one block per failed check
+    carrying its message, every detail and the full fix verbatim. Passed
+    checks are summarized as a count (they carry no actionable remedy).
+
+    The structured :func:`format_agent` dict remains the source of truth for
+    programmatic consumers; this string is what the LLM reads.
+    """
+    passed = sum(1 for c in result.checks if c.passed)
+    failures = result.failures
+    context = result.context or "package"
+    header = (
+        f"init_check | {result.grade.value} {result.score}/100 | "
+        f"{context} | {passed} ok · {len(failures)} fail"
+    )
+    if not failures:
+        return f"{header}\nAll gold-standard checks passed."
+
+    lines = [header, ""]
+    for failure in failures:
+        lines.extend(_format_agent_failure(failure))
+    return "\n".join(lines)
