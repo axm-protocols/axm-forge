@@ -9,6 +9,16 @@ __all__ = ["InitReserveTool"]
 _PLACEHOLDERS = {"john doe", "john.doe@example.com"}
 
 
+def _render_reserve_text(package_name: str, version: str, message: str) -> str:
+    """Render a reservation result as a single compact header line.
+
+    LLM-facing companion to the structured ToolResult data: carries the
+    reserved name, the placeholder version and the full status message
+    verbatim. Nothing is dropped — the data dict remains the source of truth.
+    """
+    return f"init_reserve | ✓ | {package_name} | v{version} | {message}"
+
+
 def _validate_identity(author: str, email: str) -> ToolResult | None:
     """Check author/email are non-empty and not placeholder values."""
     if not author or author.lower() in _PLACEHOLDERS:
@@ -98,6 +108,13 @@ class InitReserveTool:
                     "version": result.version,
                     "message": result.message,
                 },
+                text=(
+                    _render_reserve_text(
+                        result.package_name, result.version, result.message
+                    )
+                    if result.success
+                    else None
+                ),
                 error=None if result.success else result.message,
             )
         except Exception as exc:

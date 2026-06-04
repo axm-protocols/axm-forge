@@ -176,3 +176,63 @@ class TestReserveNameProperty:
 
         tool = InitReserveTool()
         assert tool.name == "init_reserve"
+
+
+class TestReserveTextRendering:
+    """Compact text rendering for the LLM-facing ToolResult."""
+
+    def test_render_carries_name_version_and_message(self) -> None:
+        from axm_init.tools.reserve import _render_reserve_text
+
+        text = _render_reserve_text(
+            "my-pkg", "0.0.1", "Dry run — would reserve 'my-pkg' on PyPI"
+        )
+        assert text == (
+            "init_reserve | ✓ | my-pkg | v0.0.1 | "
+            "Dry run — would reserve 'my-pkg' on PyPI"
+        )
+
+    @patch("axm_init.core.reserver.reserve_pypi")
+    @patch("axm_init.adapters.credentials.CredentialManager")
+    def test_success_populates_text(
+        self, mock_creds: MagicMock, mock_reserve: MagicMock
+    ) -> None:
+        from axm_init.models.results import ReserveResult
+        from axm_init.tools.reserve import InitReserveTool
+
+        mock_creds.return_value.get_pypi_token.return_value = "tok"
+        mock_reserve.return_value = ReserveResult(
+            success=True,
+            package_name="test-pkg",
+            version="0.0.1",
+            message="Reserved 'test-pkg' on PyPI",
+        )
+        result = InitReserveTool().execute(
+            name="test-pkg", author="Real Author", email="real@email.com"
+        )
+        assert result.text == (
+            "init_reserve | ✓ | test-pkg | v0.0.1 | Reserved 'test-pkg' on PyPI"
+        )
+        assert result.data is not None
+        assert result.data["package_name"] == "test-pkg"
+
+    @patch("axm_init.core.reserver.reserve_pypi")
+    @patch("axm_init.adapters.credentials.CredentialManager")
+    def test_failure_leaves_text_none(
+        self, mock_creds: MagicMock, mock_reserve: MagicMock
+    ) -> None:
+        from axm_init.models.results import ReserveResult
+        from axm_init.tools.reserve import InitReserveTool
+
+        mock_creds.return_value.get_pypi_token.return_value = "tok"
+        mock_reserve.return_value = ReserveResult(
+            success=False,
+            package_name="taken-pkg",
+            version="0.0.1",
+            message="Package 'taken-pkg' is already taken on PyPI",
+        )
+        result = InitReserveTool().execute(
+            name="taken-pkg", author="Real Author", email="real@email.com"
+        )
+        assert result.text is None
+        assert result.success is False
