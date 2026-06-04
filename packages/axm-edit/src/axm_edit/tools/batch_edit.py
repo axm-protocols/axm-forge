@@ -12,6 +12,7 @@ from axm.tools.base import ToolResult
 
 from axm_edit.core.engine import batch_apply
 from axm_edit.models.operations import (
+    BatchResult,
     CreateOp,
     DeleteOp,
     Operation,
@@ -215,6 +216,96 @@ def _apply_lint(
             data["lint_diffs"] = diffs
 
 
+def _render_op_lines(parsed: list[Operation]) -> list[str]:
+    """Render one ``{sigil} {file}`` line per operation, op order preserved.
+
+    ``~`` marks a replace (with its edit count), ``+`` a create, ``-`` a
+    delete. Every operated-on file is listed verbatim, so the reader sees
+    exactly which path each op touched — information the count-only
+    ``summary`` in ``data`` does not carry.
+    """
+    lines: list[str] = []
+    for op in parsed:
+        if isinstance(op, ReplaceOp):
+            n = len(op.edits)
+            lines.append(f"~ {op.file} ({n} edit{'s' if n != 1 else ''})")
+        elif isinstance(op, CreateOp):
+            lines.append(f"+ {op.file}")
+        elif isinstance(op, DeleteOp):
+            lines.append(f"- {op.file}")
+    return lines
+
+
+def _render_lint_lines(data: dict[str, object]) -> list[str]:
+    """Render the lint summary, remaining errors, warnings and diffs.
+
+    Mirrors every lint key written into ``data`` by :func:`_apply_lint`
+    (``lint``, ``lint_errors``, ``warnings``, ``lint_diffs``) so the text
+    view loses nothing relative to the structured payload.
+    """
+    lines: list[str] = []
+    summary = data.get("lint")
+    if isinstance(summary, dict):
+        lines.append(
+            f"lint: {summary.get('auto_fixed', 0)} auto-fixed"
+            f" · {summary.get('claude_fixed', 0)} claude-fixed"
+            f" · {summary.get('remaining', 0)} remaining"
+        )
+    errors = data.get("lint_errors")
+    if isinstance(errors, list):
+        lines.extend(f"  ! {err}" for err in errors)
+    warnings = data.get("warnings")
+    if isinstance(warnings, list):
+        lines.extend(f"  ⚠ {warn}" for warn in warnings)
+    diffs = data.get("lint_diffs")
+    if isinstance(diffs, list):
+        for entry in diffs:
+            if not isinstance(entry, dict):
+                continue
+            rules = ", ".join(str(r) for r in entry.get("rules", []))
+            lines.append(f"  {entry.get('file', '?')} [{rules}]")
+            diff = entry.get("diff")
+            if isinstance(diff, str) and diff:
+                lines.extend(f"    {dl}" for dl in diff.splitlines())
+            elif entry.get("diff_skipped"):
+                lines.append(f"    (diff skipped: {entry['diff_skipped']})")
+    return lines
+
+
+def _render_text(
+    result: BatchResult,
+    parsed: list[Operation],
+    data: dict[str, object],
+) -> str:
+    """Render a compact, ``git``-style LLM-facing view of a batch result.
+
+    The header carries the global status — ``✓`` on success, or
+    ``✗ ROLLBACK`` on failure so a partial/aborted batch is impossible to
+    miss — followed by the modified/created/deleted/edits counts. Each
+    operated-on file is then listed with its op sigil and edit count, every
+    validation error is surfaced verbatim, and the full lint summary
+    (fixes, remaining errors, warnings, diffs) is appended. Nothing in
+    ``data`` is dropped; only its JSON structure is.
+    """
+    if result.success:
+        s = result.summary
+        header = (
+            f"batch_edit | ✓ | {s.get('modified', 0)} modified"
+            f" · {s.get('created', 0)} created · {s.get('deleted', 0)} deleted"
+            f" · {result.applied} edit{'s' if result.applied != 1 else ''}"
+        )
+        lines = [header, *_render_op_lines(parsed), *_render_lint_lines(data)]
+        return "\n".join(lines)
+
+    header = f"batch_edit | ✗ ROLLBACK | {result.error or 'failed'}"
+    lines = [header, *_render_op_lines(parsed)]
+    for d in result.details:
+        suffix = f" [expected: {d.expected}]" if d.expected else ""
+        loc = f"{d.file}:{d.line}" if d.line is not None else d.file
+        lines.append(f"  ! {loc}: {d.error or 'validation error'}{suffix}")
+    return "\n".join(lines)
+
+
 def _run_batch(
     root: Path,
     parsed: list[Operation],
@@ -246,7 +337,12 @@ def _run_batch(
                 lint_diff_max_ratio=lint_diff_max_ratio,
             )
 
-    return ToolResult(success=result.success, data=data, error=result.error)
+    return ToolResult(
+        success=result.success,
+        data=data,
+        error=result.error,
+        text=_render_text(result, parsed, data),
+    )
 
 
 def _parse_operations(raw_ops: list[dict[str, object]]) -> list[Operation]:
