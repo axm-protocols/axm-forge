@@ -26,7 +26,7 @@ The result is a normalized score from 0 to 100. For example, earning 101 out of 
 
 ## The 8 Categories
 
-### pyproject (27 pts)
+### pyproject (29 pts)
 
 Configuration completeness of `pyproject.toml`:
 
@@ -41,8 +41,9 @@ Configuration completeness of `pyproject.toml`:
 | `pyproject.coverage` | 4 | branch, relative_files, xml output, exclude_lines |
 | `pyproject.classifiers` | 1 | Development Status, Python version, Typing :: Typed |
 | `pyproject.ruff_rules` | 2 | Essential rules: E, F, I, UP, B, S, BLE, PLR, N |
+| `pyproject.wheel_doc_shipping` | 2 | Shipping docs wired through wheel `force-include` |
 
-### ci (18 pts)
+### ci (16 pts)
 
 GitHub Actions CI workflow:
 
