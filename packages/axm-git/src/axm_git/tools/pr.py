@@ -14,6 +14,7 @@ from axm_git.core.runner import (
     run_git,
     timeout_error_result,
 )
+from axm_git.tools.pr_text import render_failure_text, render_text
 
 __all__ = ["GitPRTool"]
 
@@ -57,13 +58,23 @@ class GitPRTool(AXMTool):
             # 1. Verify this is a git repo.
             check = run_git(["rev-parse", "--git-dir"], resolved)
             if check.returncode != 0:
-                return not_a_repo_error(check.stderr, resolved)
+                repo_err = not_a_repo_error(check.stderr, resolved)
+                return ToolResult(
+                    success=repo_err.success,
+                    error=repo_err.error,
+                    data=repo_err.data,
+                    text=render_failure_text(
+                        error=repo_err.error or "", data=repo_err.data
+                    ),
+                )
 
             # 2. Check gh availability.
             if not gh_available():
+                error = "gh CLI not available"
                 return ToolResult(
                     success=False,
-                    error="gh CLI not available",
+                    error=error,
+                    text=render_failure_text(error=error, data=None),
                 )
 
             # 3. Create the PR.
@@ -73,9 +84,11 @@ class GitPRTool(AXMTool):
 
             result = run_gh(create_args, resolved)
             if result.returncode != 0:
+                error = result.stderr.strip() or result.stdout.strip()
                 return ToolResult(
                     success=False,
-                    error=result.stderr.strip() or result.stdout.strip(),
+                    error=error,
+                    text=render_failure_text(error=error, data=None),
                 )
 
             pr_url = result.stdout.strip()
@@ -87,22 +100,18 @@ class GitPRTool(AXMTool):
                     ["pr", "merge", pr_number, "--auto", "--squash"],
                     resolved,
                 )
-                return ToolResult(
-                    success=True,
-                    data={
-                        "pr_url": pr_url,
-                        "pr_number": pr_number,
-                        "auto_merge": merge_result.returncode == 0,
-                    },
-                )
+                data: dict[str, object] = {
+                    "pr_url": pr_url,
+                    "pr_number": pr_number,
+                    "auto_merge": merge_result.returncode == 0,
+                }
+                return ToolResult(success=True, data=data, text=render_text(data))
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
 
-        return ToolResult(
-            success=True,
-            data={
-                "pr_url": pr_url,
-                "pr_number": pr_number,
-                "auto_merge": False,
-            },
-        )
+        data = {
+            "pr_url": pr_url,
+            "pr_number": pr_number,
+            "auto_merge": False,
+        }
+        return ToolResult(success=True, data=data, text=render_text(data))
