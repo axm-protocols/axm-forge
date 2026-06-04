@@ -16,7 +16,7 @@ graph TD
     end
 
     GIT["axm-git"] -.->|"imports"| HBase
-    TICKER["axm-ticker"] -.->|"imports"| HBase
+    TICKET["axm-ticket"] -.->|"imports"| HBase
     MCP["axm-mcp"] -.->|"imports"| TBase
 
     style AXM fill:#4CAF50,color:#fff

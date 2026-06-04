@@ -20,7 +20,7 @@ Commands depend on which AXM packages are installed:
 | `axm init_reserve` | `axm-init` | Reserve a PyPI package name |
 | `axm audit` | `axm-audit` | Code quality audit |
 | `axm-bib search` | `axm-bib` | Search papers |
-| `axm-bib doi` | `axm-bib` | Resolve DOI to BibTeX |
+| `axm-bib resolve` | `axm-bib` | Resolve a reference (DOI/arXiv/title) to BibTeX |
 | `axm-bib pdf` | `axm-bib` | Download + extract paper PDFs |
 | `axm-bib extract` | `axm-bib` | Extract local PDF to Markdown |
 | `axm-mcp` | `axm-mcp` | MCP server exposing all AXM tools to AI agents |
