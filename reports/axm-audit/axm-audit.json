@@ -1,8 +1,8 @@
 {
-  "score": 83.0,
+  "score": 81.9,
   "grade": "B",
   "total": 23,
-  "failed": 4,
+  "failed": 3,
   "success": false,
   "checks": [
     {
@@ -92,10 +92,15 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": false,
-      "message": "Complexity score: 10/100 (9 high-complexity functions)",
+      "message": "Complexity score: 0/100 (11 high-complexity functions)",
       "details": {
-        "high_complexity_count": 9,
+        "high_complexity_count": 11,
         "top_offenders": [
+          {
+            "file": "coverage.py",
+            "function": "TestCoverageRule._report_to_result",
+            "cc": 10
+          },
           {
             "file": "dependencies.py",
             "function": "run_deptry",
@@ -132,6 +137,11 @@
             "cc": 10
           },
           {
+            "file": "pyramid_level.py",
+            "function": "_parametrize_argnames",
+            "cc": 10
+          },
+          {
             "file": "anti_mirror.py",
             "function": "_collect_source_basenames",
             "cc": 10
@@ -142,16 +152,16 @@
             "cc": 10
           }
         ],
-        "score": 10
+        "score": 0
       }
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": false,
-      "message": "Test coverage: 87% (87/100)",
+      "passed": true,
+      "message": "Test coverage: 91% (90/100)",
       "details": {
-        "coverage": 87.19342346626809,
-        "score": 87,
+        "coverage": 90.78947368421052,
+        "score": 90,
         "failures": []
       }
     },
@@ -231,11 +241,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 86% (179/208)",
+      "message": "Docstring coverage: 86% (185/214)",
       "details": {
         "coverage": 0.86,
-        "total": 208,
-        "documented": 179,
+        "total": 214,
+        "documented": 185,
         "missing": [
           "axm_audit/core/fix/report.py:format_report",
           "axm_audit/core/fix/extract_helpers.py:load_or_create_helpers_module",

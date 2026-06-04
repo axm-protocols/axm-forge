@@ -1,5 +1,5 @@
 {
-  "score": 95.2,
+  "score": 95.3,
   "grade": "A",
   "total": 23,
   "failed": 2,
@@ -179,18 +179,17 @@
     {
       "rule_id": "PRACTICE_TEST_MIRROR",
       "passed": false,
-      "message": "7 source module(s) without tests",
+      "message": "6 source module(s) without tests",
       "details": {
         "missing": [
           "branch_delete.py",
-          "clone.py",
           "create_branch.py",
           "merge_squash.py",
           "phase_commit.py",
           "worktree_add.py",
           "worktree_remove.py"
         ],
-        "score": 0
+        "score": 10
       }
     },
     {
