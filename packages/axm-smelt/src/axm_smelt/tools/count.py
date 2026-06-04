@@ -61,6 +61,7 @@ class SmeltCountTool(AXMTool):
                     "tokens": tokens,
                     "model": model,
                 },
+                text=f"smelt_count | {tokens} tokens | {len(data)} chars | {model}",
             )
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))
