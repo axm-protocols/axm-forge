@@ -34,4 +34,6 @@ Auto-generated API reference is available under [Python API](../../reference/axm
   only the pyramid section is emitted, filtered to entries whose folder
   differs from the classified level.
 - `format_test_quality_json(result) -> dict` — JSON superset returning
-  `{score, grade, clusters, verdicts, pyramid_mismatches, private_import_violations}`.
+  `{score, grade, rules, clusters, verdicts, pyramid_mismatches,
+  private_import_violations, no_package_symbol, file_naming}` (`rules` is
+  the sorted list of every `TEST_QUALITY_*` rule id that was evaluated).
