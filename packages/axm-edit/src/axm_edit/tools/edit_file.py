@@ -15,6 +15,23 @@ __all__ = ["EditFileTool"]
 logger = logging.getLogger(__name__)
 
 
+def _render_text(*, path: str, replacements: int, first_line: int) -> str:
+    """Render a compact, ``git``-style LLM-facing view of an edit result.
+
+    The header carries the global status (``✓``), the edited path, the exact
+    number of replacements applied, and the 1-indexed line of the first
+    match. All three values mirror ``data`` verbatim — only the JSON
+    structure (braces, quotes, keys) is dropped, so no information is lost
+    relative to ``data``. (The success path always applies at least one
+    replacement; the no-match and ambiguous cases are surfaced earlier via
+    ``error`` and never reach this renderer.)
+    """
+    plural = "s" if replacements != 1 else ""
+    return (
+        f"edit_file | ✓ | {path} · {replacements} replacement{plural} @ L{first_line}"
+    )
+
+
 class EditFileTool:
     """Find and replace text in a single file.
 
@@ -129,11 +146,17 @@ class EditFileTool:
             line_num,
         )
 
+        target_path = str(target)
         return ToolResult(
             success=True,
             data={
-                "path": str(target),
+                "path": target_path,
                 "replacements": replaced,
                 "first_line": line_num,
             },
+            text=_render_text(
+                path=target_path,
+                replacements=replaced,
+                first_line=line_num,
+            ),
         )
