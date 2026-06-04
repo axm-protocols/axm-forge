@@ -6,11 +6,14 @@
 
 ```python
 SmeltTool.execute(
-    data: str | dict | list,              # Text or pre-parsed data to compact
+    *,
+    data: str | dict | list = "",         # Text or pre-parsed data to compact
     strategies: list[str] | None = None,  # Explicit strategy list
     preset: str | None = None,            # Named preset (safe/moderate/aggressive)
 ) -> ToolResult
 ```
+
+The tool is registered as `smelt` (compaction) and `smelt_check` (analysis) in the `axm.tools` entry point group. All arguments are keyword-only.
 
 When `data` is a dict or list, it is passed directly to the pipeline via `parsed=`, avoiding a `json.dumps` → `json.loads` round-trip. String inputs follow the original path unchanged.
 
@@ -22,7 +25,7 @@ If neither `strategies` nor `preset` is given, the `safe` preset is used.
 
 ```python
 # Via axm-mcp
-result = await mcp.call_tool("smelt_compact", {
+result = await mcp.call_tool("smelt", {
     "data": raw_json,
     "preset": "moderate",
 })
@@ -30,15 +33,15 @@ result = await mcp.call_tool("smelt_compact", {
 
 ## ToolResult fields
 
-On success, `result.output` contains a JSON-serializable dict:
+On success, `result.data` contains a JSON-serializable dict:
 
 ```json
 {
   "compacted": "{\"name\":\"Alice\"}",
+  "format": "json",
   "original_tokens": 14,
   "compacted_tokens": 9,
   "savings_pct": 35.7,
-  "format": "json",
   "strategies_applied": ["minify"]
 }
 ```

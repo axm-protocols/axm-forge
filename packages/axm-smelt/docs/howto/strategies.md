@@ -64,13 +64,13 @@ print(report.compacted)
 # Bob|25
 ```
 
-## dedup_values
+## dedup_values_with_refs
 
 Replace frequently repeated long string values (>=20 chars, >=2 occurrences) with short aliases.
 
 ```python
 data = '{"a": "a-very-long-repeated-value", "b": "a-very-long-repeated-value"}'
-report = smelt(data, strategies=["minify", "dedup_values"])
+report = smelt(data, strategies=["minify", "dedup_values_with_refs"])
 # {"_refs":{"$R0":"a-very-long-repeated-value"},"_data":{"a":"$R0","b":"$R0"}}
 ```
 

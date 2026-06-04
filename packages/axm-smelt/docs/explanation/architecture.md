@@ -35,13 +35,13 @@ Four commands via cyclopts: `compact`, `check`, `count`, `version`. All read fro
 
 ### 4. Pipeline (`core/pipeline.py`)
 
-`smelt()` composes three private helpers:
+`smelt()` composes three helpers (`resolve_input` and `resolve_strategies` are module-level public; `_apply_strategies` is private):
 
-1. **`_resolve_input(text, parsed)`** — normalizes inputs into `(text, parsed)`. If `parsed` is provided it is JSON-serialized; if neither argument is given, raises `ValueError`
-2. **`_resolve_strategies(strategies, preset)`** — returns strategy instances from explicit names, a preset name, or the `"safe"` default
+1. **`resolve_input(text, parsed)`** — normalizes inputs into `(text, parsed)`. If `parsed` is provided it is JSON-serialized; if neither argument is given, raises `ValueError`
+2. **`resolve_strategies(strategies, preset)`** — returns strategy instances from explicit names, a preset name, or the `"safe"` default
 3. **`_apply_strategies(ctx, strats, current_tokens)`** — applies strategies in order with a token-count guard: each `strategy.apply(ctx)` receives and returns a `SmeltContext`; the strategy is only accepted if it strictly reduces tokens (or reduces text length at equal tokens). Strategies that regress are silently discarded
 
-Between helper calls, `smelt()` detects the format via `detect_format()` (iterates `_PROBES`: `_try_json`, `_try_xml`, `_try_yaml`, `_try_markdown`), counts input tokens, and builds the initial `SmeltContext`. After `_apply_strategies` returns, it counts output tokens and computes `savings_pct`.
+Between helper calls, `smelt()` detects the format via `detect_format_parsed()` (JSON is probed inline to capture the already-parsed object; the remaining probes are `try_xml`, `try_yaml`, `try_markdown`), counts input tokens, and builds the initial `SmeltContext`. After `_apply_strategies` returns, it counts output tokens and computes `savings_pct`.
 
 `check()` runs every registered strategy independently on the original `SmeltContext` and records per-strategy savings without chaining. Only strategies with positive savings (> 0%) are included in `strategy_estimates`; strategies that regress or break even are omitted.
 
@@ -74,7 +74,7 @@ Heuristic detection returns a `Format` enum value (`JSON`, `YAML`, `XML`, `TOML`
 
 ### 7. Models (`core/models.py`)
 
-`SmeltContext` — frozen dataclass carrying the detected format plus one source-of-truth representation (text or parsed); the other is derived deterministically and cached on first access. Strategies build a new `SmeltContext` instead of mutating the existing one, so the two representations cannot drift. `SmeltReport` — Pydantic model with `extra = "forbid"`. `Format` — string enum.
+`SmeltContext` — frozen dataclass carrying the detected format plus one source-of-truth representation (text or parsed); the other is derived deterministically and cached on first access. Strategies build a new `SmeltContext` instead of mutating the existing one, so the two representations cannot drift. `SmeltReport` — Pydantic model carrying the compaction metrics plus the `counter_backend` used. `Format` — string enum.
 
 ## Data Flow
 

@@ -34,7 +34,7 @@ Strategies that are format-specific gracefully skip non-matching inputs:
 | `drop_nulls` | JSON | Returns input unchanged |
 | `flatten` | JSON | Returns input unchanged |
 | `tabular` | JSON | Returns input unchanged |
-| `dedup_values` | JSON | Returns input unchanged |
+| `dedup_values_with_refs` | JSON | Returns input unchanged |
 | `strip_quotes` | JSON | Returns input unchanged |
 | `round_numbers` | JSON | Returns input unchanged |
 
