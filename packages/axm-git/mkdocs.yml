@@ -22,5 +22,6 @@ nav:
   - How-To Guides: howto/index.md
   - Reference:
     - CLI: reference/cli.md
+    - Python API: reference/
   - Explanation:
     - Architecture: explanation/architecture.md
