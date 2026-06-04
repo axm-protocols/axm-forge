@@ -7,7 +7,7 @@
 ```mermaid
 graph TB
     API["CLI / audit_project()"] --> Auditor["get_rules_for_category()"]
-    Auditor --> Rules["29 Rules · 11 Categories"]
+    Auditor --> Rules["29 rule classes · 31 instances · 11 Categories"]
     Rules -->|subprocess| Runner["run_in_project()"]
     Rules -->|direct| AST["ast · radon · tomllib"]
     Runner --> Tools["Ruff · mypy · Bandit\npip-audit · deptry · pytest-cov"]
@@ -44,7 +44,7 @@ Both return typed Pydantic models for safe agent consumption.
 | `structure` | `TestsPyramidRule`, `PyprojectCompletenessRule` | 2 |
 | `tooling` | `ToolAvailabilityRule` | 1 |
 
-**Total: 29 rule instances across 11 categories** (9 scored — see [Scoring & Grades](scoring.md) — plus `structure` and `tooling`, which emit findings but are not scored).
+**Total: 29 rule classes across 11 categories** (9 scored — see [Scoring & Grades](scoring.md) — plus `structure` and `tooling`, which emit findings but are not scored). `get_rules_for_category(None)` returns **31 instances**: `ToolAvailabilityRule.get_instances()` yields one instance per required tool (`ruff`, `mypy`, `uv`), so its single class expands to 3 instances.
 
 ### 3. Tool Integration
 
@@ -136,14 +136,14 @@ across iterations), `unfixable` (findings the pipeline declined),
 messages), and `iterations` (passes until convergence; 1 in dry-run).
 
 Pipeline invariants (idempotence, parity, convergence, monotonicity,
-tree-diff against an expected layout) are validated by
-`tests/integration/test_pipeline_invariants.py` over the [fix
-corpus](glossary.md#concepts) — synthetic mini-packages under
-`tests/fixtures/fix_corpus/` consumed via the `fix_corpus_case(name)`
-factory. A slow self-copy variant (`@pytest.mark.slow`,
-`test_pipeline_invariants_slow.py`) re-runs the same invariants
-against a `git clone --depth 1` of `axm-audit` itself; opt-in via
-`uv run pytest -m slow`.
+tree-diff against an expected layout) are validated by the integration
+tests under `tests/integration/` (e.g. `test_corpus_loader.py`,
+`test_pipeline__run.py`, `test_max_iterations__run.py`) over the [fix
+corpus](glossary.md#concepts) — six synthetic mini-packages
+(`relocate_only`, `split_only`, `merge_only`, `rename_only`,
+`flatten_only`, `mixed`) under `tests/fixtures/fix_corpus/`, each shipping
+a paired `input/` and `expected/` tree, consumed via the
+`fix_corpus_case(name)` factory defined in the corpus `conftest.py`.
 
 ### 6. Scoring
 
