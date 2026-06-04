@@ -2,12 +2,54 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
 from axm.tools.base import ToolResult
 
 __all__ = ["InitScaffoldTool", "read_workspace_name"]
+
+
+def _group_files(files: list[str]) -> list[str]:
+    """Group created files by top-level dir, listing basenames inline.
+
+    Compact companion to the ``files`` list in the scaffold ToolResult data:
+    every file is kept verbatim, only grouped by its first path segment to
+    drop repeated directory prefixes. Files at the root are grouped under ``.``.
+    """
+    groups: dict[str, list[str]] = defaultdict(list)
+    for f in files:
+        head, sep, tail = f.partition("/")
+        if sep:
+            groups[f"{head}/"].append(tail)
+        else:
+            groups["."].append(head)
+    return [f"{prefix} : {' '.join(names)}" for prefix, names in groups.items()]
+
+
+def _render_scaffold_text(
+    *,
+    label: str,
+    kind: str,
+    files: list[str],
+    path: str | None = None,
+    patched: list[str] | None = None,
+) -> str:
+    """Render a scaffold result as compact text.
+
+    Header carries the package label, kind and file count; optional ``path``
+    and ``patched`` lines surface member location and patched root files; then
+    one line per top-level dir lists every created file. Nothing is dropped —
+    this is the LLM-facing companion to the structured ToolResult data.
+    """
+    lines = [f"init_scaffold | ✓ | {label} ({kind}) | {len(files)} files"]
+    if path:
+        lines.append(f"path: {path}")
+    if patched:
+        lines.append(f"patched root: {', '.join(patched)}")
+    lines.extend(_group_files(files))
+    return "\n".join(lines)
 
 
 def read_workspace_name(workspace_root: Path) -> str:
@@ -184,13 +226,23 @@ class InitScaffoldTool:
             )
             result = copier_adapter.copy(copier_config)
 
+            files = [str(f) for f in result.files_created]
             return ToolResult(
                 success=result.success,
                 data={
                     "project_name": project_name,
                     "template": template_type.value,
-                    "files": [str(f) for f in result.files_created],
+                    "files": files,
                 },
+                text=(
+                    _render_scaffold_text(
+                        label=project_name,
+                        kind=template_type.value,
+                        files=files,
+                    )
+                    if result.success
+                    else None
+                ),
                 error=None if result.success else result.message,
             )
         except Exception as exc:
@@ -270,12 +322,20 @@ class InitScaffoldTool:
 
         patched = patch_all(workspace_root, member_name)
 
+        files = [str(f) for f in result.files_created]
         return ToolResult(
             success=True,
             data={
                 "member": member_name,
                 "path": str(member_dir),
-                "files": [str(f) for f in result.files_created],
+                "files": files,
                 "patched_root_files": patched,
             },
+            text=_render_scaffold_text(
+                label=member_name,
+                kind="member",
+                files=files,
+                path=str(member_dir),
+                patched=patched,
+            ),
         )
