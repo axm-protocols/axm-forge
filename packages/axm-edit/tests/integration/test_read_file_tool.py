@@ -39,6 +39,32 @@ class TestReadFileTool:
         # Line 1 should NOT be in the output
         assert "import os" not in result.data["content"]
 
+    def test_text_full_file_header_and_no_loss(self, tmp_project: Path) -> None:
+        """text carries a 'N lines' header plus the verbatim numbered content."""
+        result = ReadFileTool().execute(path=str(tmp_project), file="src/foo.py")
+        assert result.success is True
+        assert result.data is not None
+        assert result.text is not None
+        # Header: path + full-file marker (not a partial range)
+        assert result.text.startswith("src/foo.py (5 lines)\n")
+        # No content loss: the verbatim numbered content is embedded as-is
+        assert result.data["content"] in result.text
+        assert "   1: import os" in result.text
+        assert "   5:     return 42" in result.text
+
+    def test_text_range_header(self, tmp_project: Path) -> None:
+        """A partial read renders an 'L{start}-{end} of {total}' header."""
+        result = ReadFileTool().execute(
+            path=str(tmp_project),
+            file="src/foo.py",
+            start_line=2,
+            end_line=4,
+        )
+        assert result.success is True
+        assert result.text is not None
+        assert result.text.startswith("src/foo.py (L2-4 of 5)\n")
+        assert "import os" not in result.text
+
     def test_read_returns_total_lines(self, tmp_project: Path) -> None:
         """Metadata always contains total_lines regardless of range."""
         result = ReadFileTool().execute(

@@ -87,6 +87,26 @@ def _format_numbered(lines: list[str], first_line_num: int) -> str:
     )
 
 
+def _render_text(
+    *,
+    file_rel: str,
+    content: str,
+    total_lines: int,
+    start: int,
+    end: int,
+) -> str:
+    """Render a compact LLM-facing view: header + verbatim numbered content.
+
+    The header carries the path and the line range actually shown so the
+    reader can tell whether the full file was returned or only a slice.
+    ``content`` is embedded verbatim (already line-numbered) so no file
+    content is ever lost relative to ``data['content']``.
+    """
+    is_partial = not (start == 1 and end == total_lines)
+    span = f"L{start}-{end} of {total_lines}" if is_partial else f"{total_lines} lines"
+    return f"{file_rel} ({span})\n{content}"
+
+
 class ReadFileTool:
     """Read file content with optional line-range support.
 
@@ -158,16 +178,27 @@ class ReadFileTool:
 
         logger.debug("read %s: %d/%d lines", file_rel, len(selected), len(all_lines))
 
+        total_lines = len(all_lines)
+        start = first_line_num
+        end = first_line_num + len(selected) - 1
+
         return ToolResult(
             success=True,
             data={
                 "content": content,
                 "file": file_rel,
-                "total_lines": len(all_lines),
+                "total_lines": total_lines,
                 "showing": {
-                    "start": first_line_num,
-                    "end": first_line_num + len(selected) - 1,
+                    "start": start,
+                    "end": end,
                     "count": len(selected),
                 },
             },
+            text=_render_text(
+                file_rel=file_rel,
+                content=content,
+                total_lines=total_lines,
+                start=start,
+                end=end,
+            ),
         )
