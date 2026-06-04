@@ -22,6 +22,7 @@ from axm_git.core.runner import (
     timeout_error_result as _timeout_error_result,
 )
 from axm_git.core.semver import compute_bump
+from axm_git.tools.tag_text import render_failure_text, render_text
 
 __all__ = ["GitTagTool"]
 
@@ -149,32 +150,47 @@ def _preflight(
     """
     check = run_git(["rev-parse", "--git-dir"], path)
     if check.returncode != 0:
-        return not_a_repo_error(check.stderr, path)
+        repo_err = not_a_repo_error(check.stderr, path)
+        return ToolResult(
+            success=repo_err.success,
+            error=repo_err.error,
+            data=repo_err.data,
+            text=render_failure_text(error=repo_err.error or "", data=repo_err.data),
+        )
 
     status = run_git(["status", "--short"], path)
     if status.stdout.strip():
+        error = "Uncommitted changes — commit first"
+        data: dict[str, object] = {"dirty_files": status.stdout.strip().splitlines()}
         return ToolResult(
             success=False,
-            error="Uncommitted changes — commit first",
-            data={"dirty_files": status.stdout.strip().splitlines()},
+            error=error,
+            data=data,
+            text=render_failure_text(error=error, data=data),
         )
 
     ci_check = check_ci(path)
     if ci_check == "red":
+        error = "CI is red — fix before tagging"
+        data = {"ci_check": ci_check}
         return ToolResult(
             success=False,
-            error="CI is red — fix before tagging",
-            data={"ci_check": ci_check},
+            error=error,
+            data=data,
+            text=render_failure_text(error=error, data=data),
         )
 
     current_tag = _get_current_tag(path, prefix=tag_prefix)
     commits = _get_commits_since(path, current_tag)
 
     if not commits:
+        error = "No commits since last tag"
+        data = {"current_tag": current_tag or "none"}
         return ToolResult(
             success=False,
-            error="No commits since last tag",
-            data={"current_tag": current_tag or "none"},
+            error=error,
+            data=data,
+            text=render_failure_text(error=error, data=data),
         )
 
     return ci_check, current_tag, commits
@@ -263,9 +279,11 @@ class GitTagTool(AXMTool):
             full_tag = f"{tag_prefix}{next_version}"
             tag_result = run_git(["tag", "-a", full_tag, "-m", full_tag], resolved)
             if tag_result.returncode != 0:
+                error = f"Failed to create tag: {tag_result.stderr.strip()}"
                 return ToolResult(
                     success=False,
-                    error=f"Failed to create tag: {tag_result.stderr.strip()}",
+                    error=error,
+                    text=render_failure_text(error=error, data=None),
                 )
 
             # 4. Verify hatch-vcs (best-effort)
@@ -279,16 +297,14 @@ class GitTagTool(AXMTool):
         except subprocess.TimeoutExpired as exc:
             return _timeout_error_result(exc)
 
-        return ToolResult(
-            success=True,
-            data={
-                "tag": next_version,
-                "bump": bump_type,
-                "breaking": breaking,
-                "resolved_version": resolved_version,
-                "pushed": push.returncode == 0,
-                "ci_check": ci_check,
-                "commits_included": len(commits),
-                "current_tag": current_tag or "none",
-            },
-        )
+        data: dict[str, object] = {
+            "tag": next_version,
+            "bump": bump_type,
+            "breaking": breaking,
+            "resolved_version": resolved_version,
+            "pushed": push.returncode == 0,
+            "ci_check": ci_check,
+            "commits_included": len(commits),
+            "current_tag": current_tag or "none",
+        }
+        return ToolResult(success=True, data=data, text=render_text(data))
