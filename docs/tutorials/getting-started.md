@@ -55,7 +55,7 @@ axm audit .                   # run quality checks
 |---|---|---|
 | `init` | `axm-init` | `axm init_scaffold`, `axm init_check`, `axm init_reserve` |
 | `audit` | `axm-audit` | `axm audit` |
-| `bib` | `axm-bib` | `axm-bib search`, `axm-bib pdf`, `axm-bib doi` |
+| `bib` | `axm-bib` | `axm-bib search`, `axm-bib pdf`, `axm-bib resolve` |
 | `mcp` | `axm-mcp` | `axm-mcp` (MCP server for AI agents) |
 | `all` | Everything above | All commands |
 
