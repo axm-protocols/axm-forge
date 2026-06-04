@@ -13,7 +13,7 @@ axm-ast flows src/mylib
 Trace a specific entry point:
 
 ```bash
-axm-ast flows src/mylib --entry handle_request
+axm-ast flows src/mylib --trace handle_request
 ```
 
 ## Cross-Module Tracing
@@ -21,7 +21,7 @@ axm-ast flows src/mylib --entry handle_request
 Follow calls across package boundaries:
 
 ```bash
-axm-ast flows src/mylib --entry handle_request --cross-module
+axm-ast flows src/mylib --trace handle_request --cross-module
 ```
 
 See [Cross-Module Resolution](../explanation/cross_module_resolution.md) for the algorithm details.
@@ -31,7 +31,7 @@ See [Cross-Module Resolution](../explanation/cross_module_resolution.md) for the
 Include function source text in each step:
 
 ```bash
-axm-ast flows src/mylib --entry handle_request --detail source
+axm-ast flows src/mylib --trace handle_request --detail source
 ```
 
 ## Supported Frameworks
@@ -81,7 +81,7 @@ Beyond decorator-based detection, `find_entry_points` also recognizes:
 By default, stdlib and builtin callees (e.g. `print`, `len`, `os.path.join`) are excluded from BFS traces to reduce noise. Pass `--no-exclude-stdlib` to include them:
 
 ```bash
-axm-ast flows src/mylib --entry main --no-exclude-stdlib
+axm-ast flows src/mylib --trace main --no-exclude-stdlib
 ```
 
 ## Depth Control
@@ -89,11 +89,11 @@ axm-ast flows src/mylib --entry main --no-exclude-stdlib
 Limit BFS depth (default 5):
 
 ```bash
-axm-ast flows src/mylib --entry main --max-depth 3
+axm-ast flows src/mylib --trace main --max-depth 3
 ```
 
 ## JSON Output
 
 ```bash
-axm-ast flows src/mylib --entry main --json
+axm-ast flows src/mylib --trace main --json
 ```
