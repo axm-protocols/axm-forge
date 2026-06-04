@@ -20,14 +20,6 @@ Quick orientation. Shows module names, public function signatures, and class nam
 axm-ast describe src/mylib --detail summary
 ```
 
-### Full
-
-Everything: imports, variables, private symbols, decorators. Useful for complete documentation generation.
-
-```bash
-axm-ast describe src/mylib --detail full
-```
-
 ### Compressed
 
 AI-optimized format designed to fit large codebases into LLM context windows.

@@ -41,7 +41,7 @@ $ axm-ast context src/mylib
 
 ## Features
 
-- 🔬 **Describe** — Full package introspection with 4 detail levels + compressed AI mode + module filtering
+- 🔬 **Describe** — Package introspection with 2 detail levels (`summary`, `detailed`) + compressed AI mode + PageRank ranking + module filtering
 - 📊 **Graph** — Import dependency visualization (text, Mermaid, JSON)
 - 🔍 **Search** — Semantic symbol lookup by name, return type, kind, or base class
 - 📞 **Callers** — Tree-sitter call-site detection: "who calls this function?"
@@ -49,10 +49,8 @@ $ axm-ast context src/mylib
 - 💥 **Impact** — Change impact analysis: callers + graph + test mapping
 - 💀 **Dead code** — Detect unreferenced symbols with smart exemptions (test callers, lazy imports, dict dispatch, entry points)
 - 🔀 **Diff** — Structural branch diff at symbol level (added/modified/removed)
-- 🏗️ **Workspace** — Multi-package workspace support (auto-detects `uv` workspaces)
+- 🏗️ **Workspace** — Multi-package workspace support (auto-detected; `graph --scope workspace`, cross-package `impact`)
 - 📖 **Docs** — One-shot documentation tree dump with progressive disclosure (toc/summary/full) and page filtering
-- ⭐ **Rank** — PageRank-based symbol importance scoring
-- 📄 **Stub** — `.pyi`-like stub generation
 
 ## Learn More
 
