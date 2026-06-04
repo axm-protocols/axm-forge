@@ -15,6 +15,18 @@ __all__ = ["WriteFileTool"]
 logger = logging.getLogger(__name__)
 
 
+def _render_text(*, path: str, byte_count: int) -> str:
+    """Render a compact, ``git``-style LLM-facing view of a write result.
+
+    The header carries the global status (``✓``) plus the written path and
+    its exact byte count. Both values mirror ``data`` verbatim — only the
+    JSON structure (braces, quotes, keys) is dropped, so no information is
+    lost relative to ``data``.
+    """
+    plural = "s" if byte_count != 1 else ""
+    return f"write_file | ✓ | {path} · {byte_count} byte{plural}"
+
+
 class WriteFileTool:
     """Write content to a file, creating parent directories.
 
@@ -68,10 +80,12 @@ class WriteFileTool:
         byte_count = len(content.encode("utf-8"))
         logger.debug("wrote %s (%d bytes)", file_path, byte_count)
 
+        target_path = str(target)
         return ToolResult(
             success=True,
             data={
-                "path": str(target),
+                "path": target_path,
                 "bytes": byte_count,
             },
+            text=_render_text(path=target_path, byte_count=byte_count),
         )
