@@ -131,6 +131,42 @@ def _walk_and_search(
     return results, False
 
 
+def _render_text(
+    *,
+    matches: list[dict[str, object]],
+    count: int,
+    truncated: bool,
+) -> str:
+    """Render a compact, ripgrep-style LLM-facing view of the matches.
+
+    Matches are grouped under their file path; each line is rendered as
+    ``  {line}: {content}``. The header carries the total match count, the
+    number of distinct files, and an explicit ``TRUNCATED`` flag when the
+    result cap was reached. Every match (file, line, content) and the
+    truncation signal are preserved verbatim, so no information is lost
+    relative to ``data``.
+    """
+    if not matches:
+        return "search_files | 0 matches"
+
+    n_files = len({str(m["file"]) for m in matches})
+    plural_m = "es" if count != 1 else ""
+    plural_f = "s" if n_files != 1 else ""
+    header = f"search_files | {count} match{plural_m} · {n_files} file{plural_f}"
+    if truncated:
+        header += f" · TRUNCATED at {count}"
+
+    lines = [header]
+    current: str | None = None
+    for match in matches:
+        file_rel = str(match["file"])
+        if file_rel != current:
+            current = file_rel
+            lines.append(file_rel)
+        lines.append(f"  {match['line']}: {match['content']}")
+    return "\n".join(lines)
+
+
 class SearchFilesTool:
     """Grep-like search across project files.
 
@@ -203,11 +239,17 @@ class SearchFilesTool:
         # ── Walk and search ──────────────────────────────────────────
         results, truncated = _walk_and_search(root, matcher, is_regex, include)
 
+        count = len(results)
         return ToolResult(
             success=True,
             data={
                 "matches": results,
-                "count": len(results),
+                "count": count,
                 "truncated": truncated,
             },
+            text=_render_text(
+                matches=results,
+                count=count,
+                truncated=truncated,
+            ),
         )
