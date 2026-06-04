@@ -11,9 +11,12 @@ returns a clear error message.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
-__all__ = ["fetch_page"]
+from axm.tools.base import ToolResult
+
+__all__ = ["WebFetchTool", "fetch_page"]
 
 FetchResult = dict[str, bool | int | str]
 
@@ -108,3 +111,44 @@ async def fetch_page(
             "url": url,
             "mode": mode,
         }
+
+
+class WebFetchTool:
+    """AXMTool-compatible wrapper around :func:`fetch_page`.
+
+    The MCP wrapping layer (``register_one``) invokes tools through a
+    synchronous ``execute(**kwargs)`` seam, while the central fetching
+    logic in :func:`fetch_page` is async. This wrapper bridges the two
+    via :func:`asyncio.run` without duplicating any business logic — all
+    fetching, mode dispatch, truncation and error handling stay in
+    :func:`fetch_page`.
+    """
+
+    agent_hint = (
+        "Fetch a web page with optional anti-bot bypass "
+        "(modes: auto, basic, dynamic, stealth). Returns title, text "
+        "and status_code, or a structured error."
+    )
+
+    @property
+    def name(self) -> str:
+        """Tool name used for MCP registration."""
+        return "web_fetch"
+
+    def execute(self, *, url: str, mode: str = "auto", **_: object) -> ToolResult:
+        """Fetch a web page, delegating to :func:`fetch_page`.
+
+        Args:
+            url: URL to fetch (required).
+            mode: Fetching mode — ``auto``, ``basic``, ``dynamic``,
+                or ``stealth``. Defaults to ``auto``.
+        """
+        result = asyncio.run(fetch_page(url=url, mode=mode))
+        success = bool(result.get("success", False))
+        error = result.get("error")
+        data = {k: v for k, v in result.items() if k not in {"success", "error"}}
+        return ToolResult(
+            success=success,
+            data=data,
+            error=str(error) if error is not None else None,
+        )

@@ -25,6 +25,37 @@ from axm_mcp import discovery, mcp_app
 pytestmark = pytest.mark.integration
 
 
+async def _registered_tool_names() -> set[str]:
+    """Return the names of every tool registered on the live MCP server."""
+    tools = await mcp_app.mcp.list_tools()
+    return {tool.name for tool in tools}
+
+
+class TestBuiltinToolsWired:
+    """Built-in / meta tools must be registered on the live server at runtime.
+
+    Guards against the wiring regression where ``register_list_tools`` and
+    ``WebFetchTool`` were defined but never attached to the FastMCP server,
+    leaving ``list_tools`` and ``web_fetch`` advertised in the docs but
+    absent from the running tool surface.
+    """
+
+    @pytest.mark.asyncio
+    async def test_list_tools_meta_tool_registered(self) -> None:
+        """The ``list_tools`` meta-tool is wired into the running server."""
+        assert "list_tools" in await _registered_tool_names()
+
+    @pytest.mark.asyncio
+    async def test_web_fetch_tool_registered(self) -> None:
+        """The ``web_fetch`` built-in tool is wired into the running server."""
+        assert "web_fetch" in await _registered_tool_names()
+
+    @pytest.mark.asyncio
+    async def test_verify_meta_tool_still_registered(self) -> None:
+        """The pre-existing ``verify`` meta-tool stays registered (no regression)."""
+        assert "verify" in await _registered_tool_names()
+
+
 def _imports_axm_core(module: ModuleType) -> bool:
     """True if the imported module imports from the ``axm`` core namespace."""
     assert module.__file__ is not None

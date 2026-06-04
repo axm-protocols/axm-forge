@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 __all__ = [
     "discover_tools",
     "is_disabled",
+    "register_list_tools",
     "register_one",
     "register_tools",
 ]

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from axm_mcp.web_fetch import _MAX_TEXT_CHARS, fetch_page
+from axm_mcp.web_fetch import _MAX_TEXT_CHARS, WebFetchTool, fetch_page
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -148,3 +148,50 @@ class TestTruncation:
 
         assert result["success"] is True
         assert result["text"] == "short"
+
+
+# ── WebFetchTool AXMTool wrapper ──────────────────────────────────────
+
+
+class TestWebFetchTool:
+    """The sync AXMTool wrapper bridges to the async ``fetch_page``."""
+
+    def test_name_is_web_fetch(self) -> None:
+        """The tool registers under the ``web_fetch`` MCP name."""
+        assert WebFetchTool().name == "web_fetch"
+
+    def test_execute_maps_success_payload_to_toolresult(self) -> None:
+        """A successful fetch becomes a ToolResult(success=True) carrying data."""
+        payload = {
+            "success": True,
+            "url": "https://example.com",
+            "title": "Hi",
+            "text": "body",
+            "status_code": 200,
+            "mode": "basic",
+        }
+        with patch(
+            "axm_mcp.web_fetch.fetch_page",
+            new=AsyncMock(return_value=payload),
+        ) as mock_fetch:
+            result = WebFetchTool().execute(url="https://example.com", mode="basic")
+
+        mock_fetch.assert_awaited_once_with(url="https://example.com", mode="basic")
+        assert result.success is True
+        assert result.error is None
+        assert result.data["title"] == "Hi"
+        assert result.data["status_code"] == 200
+        assert "success" not in result.data
+
+    def test_execute_maps_error_payload_to_toolresult(self) -> None:
+        """A failed fetch becomes a ToolResult(success=False) carrying the error."""
+        payload = {"success": False, "error": "boom", "url": "https://x"}
+        with patch(
+            "axm_mcp.web_fetch.fetch_page",
+            new=AsyncMock(return_value=payload),
+        ):
+            result = WebFetchTool().execute(url="https://x")
+
+        assert result.success is False
+        assert result.error == "boom"
+        assert result.data["url"] == "https://x"
