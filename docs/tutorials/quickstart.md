@@ -10,13 +10,13 @@ This tutorial walks you through installing `axm-mcp` and running it as an MCP se
 ## Installation
 
 ```bash
-uv pip install axm-mcp
+uv add axm-mcp
 ```
 
 To include all AXM tools:
 
 ```bash
-uv pip install "axm-mcp[all]"
+uv add "axm-mcp[all]"
 ```
 
 ## Step 1: Start the Server
