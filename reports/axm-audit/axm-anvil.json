@@ -1,27 +1,27 @@
 {
-  "score": 92.1,
+  "score": 98.4,
   "grade": "A",
-  "total": 23,
-  "failed": 3,
-  "success": false,
+  "total": 31,
+  "failed": 0,
+  "success": true,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
       "passed": true,
       "message": "0 circular import(s) found",
       "details": {
-        "cycles": [],
-        "score": 100
-      }
+        "cycles": []
+      },
+      "metadata": null
     },
     {
       "rule_id": "ARCH_GOD_CLASS",
       "passed": true,
       "message": "0 god class(es) found",
       "details": {
-        "god_classes": [],
-        "score": 100
-      }
+        "god_classes": []
+      },
+      "metadata": null
     },
     {
       "rule_id": "ARCH_COUPLING",
@@ -31,7 +31,6 @@
         "max_fan_out": 18,
         "max_fan_in": 8,
         "avg_coupling": 3.93,
-        "score": 97,
         "n_over_threshold": 1,
         "over_threshold": [
           {
@@ -42,7 +41,8 @@
             "severity": "warning"
           }
         ]
-      }
+      },
+      "metadata": null
     },
     {
       "rule_id": "ARCH_DUPLICATION",
@@ -50,55 +50,40 @@
       "message": "0 duplicate block(s) found",
       "details": {
         "dup_count": 0,
-        "clones": [],
-        "score": 100
-      }
+        "clones": []
+      },
+      "metadata": null
     },
     {
       "rule_id": "QUALITY_COMPLEXITY",
-      "passed": false,
-      "message": "Complexity score: 70/100 (3 high-complexity functions)",
+      "passed": true,
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
       "details": {
-        "high_complexity_count": 3,
-        "top_offenders": [
-          {
-            "file": "move.py",
-            "function": "_classify_import",
-            "cc": 10
-          },
-          {
-            "file": "move.py",
-            "function": "_drop_absent_symbols",
-            "cc": 10
-          },
-          {
-            "file": "move.py",
-            "function": "move_symbols",
-            "cc": 10
-          }
-        ],
-        "score": 70
-      }
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "cognitive_disabled": false
+      },
+      "metadata": null
     },
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
       "message": "Test coverage: 90% (90/100)",
       "details": {
-        "coverage": 90.26676279740447,
-        "score": 90,
+        "coverage": 90.33886085075703,
         "failures": []
-      }
+      },
+      "metadata": null
     },
     {
       "rule_id": "QUALITY_DEAD_CODE",
       "passed": true,
       "message": "No dead code detected.",
       "details": {
-        "score": 100.0,
         "dead_count": 0,
         "symbols": []
-      }
+      },
+      "metadata": null
     },
     {
       "rule_id": "QUALITY_LINT",
@@ -106,10 +91,10 @@
       "message": "Lint score: 100/100 (0 issues)",
       "details": {
         "issue_count": 0,
-        "score": 100,
         "checked": "src/ tests/",
         "issues": []
-      }
+      },
+      "metadata": null
     },
     {
       "rule_id": "QUALITY_FORMAT",
@@ -118,40 +103,28 @@
       "details": {
         "unformatted_count": 0,
         "unformatted_files": [],
-        "score": 100,
         "checked": "src/ tests/"
-      }
+      },
+      "metadata": null
     },
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
       "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 0,
-        "score": 100
-      }
+        "lines_changed": 0
+      },
+      "metadata": null
     },
     {
       "rule_id": "DEPS_AUDIT",
-      "passed": false,
-      "message": "1 vulnerable package(s) found",
+      "passed": true,
+      "message": "No known vulnerabilities",
       "details": {
-        "vuln_count": 1,
-        "score": 85,
-        "top_vulns": [
-          {
-            "name": "pip",
-            "version": "26.0.1",
-            "vuln_ids": [
-              "CVE-2026-3219",
-              "CVE-2026-6357"
-            ],
-            "fix_versions": [
-              "26.1"
-            ]
-          }
-        ]
-      }
+        "vuln_count": 0,
+        "top_vulns": []
+      },
+      "metadata": null
     },
     {
       "rule_id": "DEPS_HYGIENE",
@@ -159,7 +132,6 @@
       "message": "1 dependency issue(s) found",
       "details": {
         "issue_count": 1,
-        "score": 90,
         "top_issues": [
           {
             "code": "DEP002",
@@ -167,7 +139,51 @@
             "message": "'pydantic' defined as a dependency but not used in the codebase"
           }
         ]
-      }
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_TEST_MIRROR",
+      "passed": true,
+      "message": "All source modules have test files",
+      "details": {
+        "missing": [],
+        "orphan": [],
+        "exempt": [
+          "cli.py",
+          "postprocess.py"
+        ],
+        "exempt_tests": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
+      "passed": true,
+      "message": "No anti-mirror naming violations",
+      "details": {
+        "anti_mirror": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_BARE_EXCEPT",
+      "passed": true,
+      "message": "0 bare except(s) found",
+      "details": {
+        "bare_except_count": 0,
+        "locations": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_BLOCKING_IO",
+      "passed": true,
+      "message": "0 blocking-IO violation(s) found",
+      "details": {
+        "violations": []
+      },
+      "metadata": null
     },
     {
       "rule_id": "PRACTICE_DOCSTRING",
@@ -177,51 +193,430 @@
         "coverage": 1.0,
         "total": 40,
         "documented": 40,
-        "missing": [],
-        "score": 100
-      }
+        "missing": []
+      },
+      "metadata": null
     },
     {
-      "rule_id": "PRACTICE_BARE_EXCEPT",
+      "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "0 bare except(s) found",
-      "details": {
-        "bare_except_count": 0,
-        "locations": [],
-        "score": 100
-      }
-    },
-    {
-      "rule_id": "PRACTICE_BLOCKING_IO",
-      "passed": true,
-      "message": "0 blocking-IO violation(s) found",
-      "details": {
-        "violations": [],
-        "score": 100
-      }
-    },
-    {
-      "rule_id": "PRACTICE_TEST_MIRROR",
-      "passed": false,
-      "message": "3 source module(s) without tests",
-      "details": {
-        "missing": [
-          "__main__.py",
-          "cli.py",
-          "postprocess.py"
+      "message": "17 cluster(s), 0 clustered pair(s)",
+      "details": null,
+      "metadata": {
+        "clusters": [
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT tgt.read_text(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_relative_import_intra_package_preserved",
+                "line": 1655
+              },
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_relative_import_cross_package_converted",
+                "line": 1674
+              },
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_include_helpers_false_real_files",
+                "line": 1827
+              }
+            ],
+            "cluster_hash": "3898437281a2",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_multi",
+            "reason": "distinct literals rescue for SUT move_symbols(3|dry_run=True) + pytest.raises divergence rescue for SUT move_symbols(3|dry_run=True)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_move_symbols__overload_partial_move_error.py",
+                "name": "test_overload_partial_move_raises",
+                "line": 12
+              },
+              {
+                "file": "tests/integration/test_move_symbols__symbol_already_exists_error.py",
+                "name": "test_symbol_already_exists_raises",
+                "line": 12
+              },
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_string_forward_ref_not_rewritten",
+                "line": 1461
+              }
+            ],
+            "cluster_hash": "1f3ae3172b3e",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT tree.visit(1) + distinct literals rescue (intra-file 100%)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_remove_symbols_keeps_nested_definition",
+                "line": 362
+              },
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_remove_symbols_keeps_multi_target_assignment",
+                "line": 370
+              },
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_remove_symbols_preserves_formatting",
+                "line": 24
+              }
+            ],
+            "cluster_hash": "cd5773994a7e",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT _protect(1)>result.count(1) + distinct literals rescue (intra-file 100%)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_protect_try_except_imports_tagged",
+                "line": 171
+              },
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_protect_if_guard_body_tagged",
+                "line": 188
+              },
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_protect_idempotent_existing_noqa",
+                "line": 214
+              }
+            ],
+            "cluster_hash": "1337a49355e7",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_raises_divergence",
+            "reason": "pytest.raises divergence rescue for SUT move_symbols(3|dry_run=False)>src.read_text(0)>tgt.read_text(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_move_mod__move_validation_error.py",
+                "name": "test_move_parse_error_rollback",
+                "line": 13
+              },
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_move_simple_class",
+                "line": 840
+              },
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_move_with_direct_constants",
+                "line": 1257
+              }
+            ],
+            "cluster_hash": "577ca9835640",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT move_symbols(3|workspace_root=Name)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_import_cycle_error__move_symbols.py",
+                "name": "test_move_cross_package_detects_cycle",
+                "line": 64
+              },
+              {
+                "file": "tests/integration/test_import_cycle_error__move_symbols.py",
+                "name": "test_intra_package_cycle_detection_unchanged",
+                "line": 99
+              }
+            ],
+            "cluster_hash": "9ec978333da8",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT _write(2)>move_symbols(3|dry_run=True)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_all_added_to_existing_target",
+                "line": 178
+              },
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_all_untouched_for_unexported_symbol",
+                "line": 202
+              }
+            ],
+            "cluster_hash": "43137c935923",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT tgt.read_text(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_absolute_import_untouched",
+                "line": 1694
+              },
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_relative_import_cross_package_real_files",
+                "line": 1730
+              }
+            ],
+            "cluster_hash": "caf1e7efb56c",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT any(1)>move_symbols(3|workspace_root=Name)>source.read_text(0)>target.read_text(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_shared_helper_duplicate_mode_default",
+                "line": 1302
+              },
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_transitive_shared_helper_detected",
+                "line": 1347
+              }
+            ],
+            "cluster_hash": "c560ca201423",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT any(1)>move_symbols(3|dry_run=True)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_string_forward_ref_warns",
+                "line": 1432
+              },
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_side_effect_decorator_bare_warns",
+                "line": 1580
+              }
+            ],
+            "cluster_hash": "3c07c9f9c530",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT any(1)>move_symbols(3|dry_run=True)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_string_forward_ref_no_false_positive",
+                "line": 1446
+              },
+              {
+                "file": "tests/integration/test_move_symbols.py",
+                "name": "test_non_whitelisted_decorator_no_warn",
+                "line": 1599
+              }
+            ],
+            "cluster_hash": "c5e5201d1e9d",
+            "acknowledged": true
+          },
+          {
+            "signal": "signal1_call_assert",
+            "reason": "same SUT: _protect(1) + same asserts",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_protect_skips_nested_try",
+                "line": 198
+              },
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_protect_skips_nested_if",
+                "line": 208
+              }
+            ],
+            "cluster_hash": "39b4242e7761",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT _rename(2)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_rename_leaves_string_annotation_without_match",
+                "line": 266
+              },
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_rename_leaves_unparsable_string_annotation",
+                "line": 272
+              }
+            ],
+            "cluster_hash": "ac246d3dd420",
+            "acknowledged": true
+          },
+          {
+            "signal": "signal1_call_assert",
+            "reason": "same SUT: _sync(3) + same asserts",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_sync_ignores_non_dunder_all_assign",
+                "line": 307
+              },
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_sync_ignores_non_list_tuple_value",
+                "line": 313
+              }
+            ],
+            "cluster_hash": "c0eee7ae9c50",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT GraphEdits(0|adds=List,removes=List)>detect_new_cycle(2)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/core/test_cycles.py",
+                "name": "test_detect_new_cycle_none_on_clean_graph",
+                "line": 6
+              },
+              {
+                "file": "tests/unit/core/test_cycles.py",
+                "name": "test_detect_new_cycle_ignores_preexisting_cycle",
+                "line": 21
+              }
+            ],
+            "cluster_hash": "3a81e051d1f0",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT cycles(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/core/test_cycles.py",
+                "name": "test_cycles_deep_chain_does_not_recurse",
+                "line": 46
+              },
+              {
+                "file": "tests/unit/core/test_cycles.py",
+                "name": "test_cycles_no_cycle_returns_empty",
+                "line": 65
+              }
+            ],
+            "cluster_hash": "2dad91435120",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue (intra-file 100%)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_attribute_rewriter_subscript_chain",
+                "line": 91
+              },
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_attribute_rewriter_leaves_other_symbols",
+                "line": 102
+              }
+            ],
+            "cluster_hash": "8f2a8b79db2c",
+            "acknowledged": true
+          }
         ],
-        "score": 55
+        "bucket_counts": {
+          "CLUSTERED": 4,
+          "AMBIGUOUS": 35,
+          "UNIQUE": 175
+        },
+        "stale_acknowledged": []
       }
     },
     {
-      "rule_id": "PRACTICE_SECURITY",
+      "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "0 potential secret(s) found",
+      "message": "every integration/e2e file matches its canonical tuple",
       "details": {
-        "secret_count": 0,
-        "matches": [],
-        "score": 100
+        "findings": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
+      "passed": true,
+      "message": "every integration/e2e test exercises the package",
+      "details": {
+        "findings": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
+      "passed": true,
+      "message": "No private imports in tests/ (see docs/test_quality.md#private-imports)",
+      "details": {
+        "findings": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
+      "passed": true,
+      "message": "pyramid levels match folder layout",
+      "details": {
+        "mismatches": [],
+        "total": 0
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_TAUTOLOGY",
+      "passed": true,
+      "message": "no tautologies found",
+      "details": null,
+      "metadata": {
+        "verdicts": []
       }
+    },
+    {
+      "rule_id": "QUALITY_TYPE",
+      "passed": true,
+      "message": "Type score: 100/100 (0 errors)",
+      "details": {
+        "error_count": 0,
+        "checked": "src/ tests/",
+        "errors": []
+      },
+      "metadata": null
     },
     {
       "rule_id": "QUALITY_SECURITY",
@@ -230,7 +625,6 @@
       "details": {
         "high_count": 0,
         "medium_count": 0,
-        "score": 100,
         "top_issues": [
           {
             "severity": "LOW",
@@ -268,18 +662,27 @@
             "line": 1588
           }
         ]
-      }
+      },
+      "metadata": null
     },
     {
-      "rule_id": "QUALITY_TYPE",
+      "rule_id": "PRACTICE_SECURITY",
       "passed": true,
-      "message": "Type score: 100/100 (0 errors)",
+      "message": "0 potential secret(s) found",
       "details": {
-        "error_count": 0,
-        "score": 100,
-        "checked": "src/ tests/",
-        "errors": []
-      }
+        "secret_count": 0,
+        "matches": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "STRUCTURE_TESTS_PYRAMID",
+      "passed": true,
+      "message": "pyramid layout ok: unit, integration, e2e",
+      "details": {
+        "self_contained": true
+      },
+      "metadata": null
     },
     {
       "rule_id": "STRUCTURE_PYPROJECT",
@@ -288,26 +691,30 @@
       "details": {
         "fields_present": 9,
         "total_fields": 9,
-        "score": 100
-      }
+        "missing": []
+      },
+      "metadata": null
     },
     {
       "rule_id": "TOOL_RUFF",
       "passed": true,
       "message": "ruff found",
-      "details": null
+      "details": null,
+      "metadata": null
     },
     {
       "rule_id": "TOOL_MYPY",
       "passed": true,
       "message": "mypy found",
-      "details": null
+      "details": null,
+      "metadata": null
     },
     {
       "rule_id": "TOOL_UV",
       "passed": true,
       "message": "uv found",
-      "details": null
+      "details": null,
+      "metadata": null
     }
   ]
 }

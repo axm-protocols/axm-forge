@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge",
-  "score": 94,
+  "score": 91,
   "grade": "A",
   "context": "workspace",
   "workspace_root": null,
@@ -20,7 +20,7 @@
     },
     "pyproject": {
       "earned": 4,
-      "total": 4
+      "total": 6
     },
     "structure": {
       "earned": 8,
@@ -101,20 +101,20 @@
       "message": "gen_ref_pages.py found"
     },
     {
-      "name": "docs.plugins",
-      "category": "docs",
-      "passed": true,
-      "earned": 3,
-      "weight": 3,
-      "message": "All plugins configured"
-    },
-    {
       "name": "docs.mkdocs_exists",
       "category": "docs",
       "passed": true,
       "earned": 3,
       "weight": 3,
       "message": "mkdocs.yml found"
+    },
+    {
+      "name": "docs.plugins",
+      "category": "docs",
+      "passed": true,
+      "earned": 3,
+      "weight": 3,
+      "message": "All plugins configured"
     },
     {
       "name": "docs.readme",
@@ -139,6 +139,14 @@
       "earned": 4,
       "weight": 4,
       "message": "pyproject.toml found"
+    },
+    {
+      "name": "pyproject.wheel_doc_shipping",
+      "category": "pyproject",
+      "passed": false,
+      "earned": 0,
+      "weight": 2,
+      "message": "2 auto-detected docs/*.md file(s) not force-included"
     },
     {
       "name": "structure.contributing",
@@ -310,6 +318,16 @@
         "Missing: Features, Installation"
       ],
       "fix": "Add Features, Installation section(s) to README.md."
+    },
+    {
+      "name": "pyproject.wheel_doc_shipping",
+      "weight": 2,
+      "message": "2 auto-detected docs/*.md file(s) not force-included",
+      "details": [
+        "docs/contributing.md",
+        "docs/index.md"
+      ],
+      "fix": "Either opt in by force-including the files:\n[tool.hatch.build.targets.wheel.force-include]\n\"docs/contributing.md\" = \"axm_forge_workspace/docs/contributing.md\"\n\"docs/index.md\" = \"axm_forge_workspace/docs/index.md\"\nor opt out by adding `[tool.axm-init.wheel-doc]` with `files = []`."
     },
     {
       "name": "tooling.precommit_installed",
