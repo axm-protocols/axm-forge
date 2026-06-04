@@ -140,7 +140,7 @@ axm-ast search [OPTIONS] [PATH]
 | `PATH` | | string | `.` | Path to package directory |
 | `--name` | `-n` | string | *none* | Filter by name (substring) |
 | `--returns` | `-r` | string | *none* | Filter by return type |
-| `--kind` | `-k` | string | *none* | Filter by kind: `function`, `method`, `property`, `classmethod`, `staticmethod`, `variable` |
+| `--kind` | `-k` | string | *none* | Filter by kind: `function`, `method`, `property`, `classmethod`, `staticmethod`, `abstract`, `class`, `variable` |
 | `--inherits` | | string | *none* | Filter classes by base class |
 | `--json` | | bool | `False` | Output as JSON |
 
