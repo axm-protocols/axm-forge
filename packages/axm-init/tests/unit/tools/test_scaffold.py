@@ -8,9 +8,71 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from axm_init.tools.scaffold import InitScaffoldTool
+from axm_init.tools.scaffold import (
+    InitScaffoldTool,
+    _group_files,
+    _render_scaffold_text,
+)
 
 # --- merged from test_scaffold_coverage.py ---
+
+
+class TestScaffoldTextRendering:
+    """Compact text rendering for the LLM-facing ToolResult."""
+
+    def test_group_files_keeps_every_file_and_strips_prefix(self) -> None:
+        grouped = _group_files(
+            ["README.md", "src/pkg/__init__.py", "src/pkg/core.py", "tests/conftest.py"]
+        )
+        joined = "\n".join(grouped)
+        assert ". : README.md" in joined
+        assert "src/ : pkg/__init__.py pkg/core.py" in joined
+        assert "tests/ : conftest.py" in joined
+
+    def test_render_header_and_all_files_present(self) -> None:
+        text = _render_scaffold_text(
+            label="mypkg",
+            kind="standalone",
+            files=["README.md", "src/mypkg/__init__.py"],
+        )
+        assert text.startswith("init_scaffold | ✓ | mypkg (standalone) | 2 files")
+        assert "README.md" in text
+        assert "mypkg/__init__.py" in text
+
+    def test_render_member_surfaces_path_and_patched(self) -> None:
+        text = _render_scaffold_text(
+            label="axm-foo",
+            kind="member",
+            files=["pyproject.toml"],
+            path="/ws/packages/axm-foo",
+            patched=["pyproject.toml", "pyproject.toml (testpaths)"],
+        )
+        assert "path: /ws/packages/axm-foo" in text
+        assert "patched root: pyproject.toml, pyproject.toml (testpaths)" in text
+
+    def test_execute_success_populates_text(self, tmp_path: Path) -> None:
+        mock_result = MagicMock()
+        mock_result.success = True
+        mock_result.files_created = [Path("README.md"), Path("pyproject.toml")]
+        with (
+            patch("axm_init.adapters.copier.CopierAdapter") as mock_copier_cls,
+            patch("axm_init.core.templates.get_template_path") as mock_get_path,
+        ):
+            mock_copier = MagicMock()
+            mock_copier.copy.return_value = mock_result
+            mock_copier_cls.return_value = mock_copier
+            mock_get_path.return_value = Path("/fake/template")
+            result = InitScaffoldTool().execute(
+                path=str(tmp_path),
+                org="o",
+                author="a",
+                email="e@x.com",
+            )
+        assert result.text is not None
+        assert result.text.startswith("init_scaffold | ✓ |")
+        assert "pyproject.toml" in result.text
+        assert result.data is not None
+        assert result.data["files"] == ["README.md", "pyproject.toml"]
 
 
 class TestScaffoldNameProperty:
