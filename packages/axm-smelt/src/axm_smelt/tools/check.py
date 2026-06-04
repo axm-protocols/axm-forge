@@ -55,6 +55,19 @@ class SmeltCheckTool(AXMTool):
             else:
                 report = check(data)
 
+            ranked = sorted(
+                report.strategy_estimates.items(),
+                key=lambda kv: kv[1],
+                reverse=True,
+            )
+            header = (
+                f"smelt_check | {report.format.value} | {report.original_tokens} tok"
+            )
+            if ranked:
+                body = "\n".join(f"  {name}: -{pct}%" for name, pct in ranked)
+                text = f"{header}\n{body}"
+            else:
+                text = f"{header}\n  no waste detected"
             return ToolResult(
                 success=True,
                 data={
@@ -62,6 +75,7 @@ class SmeltCheckTool(AXMTool):
                     "tokens": report.original_tokens,
                     "strategy_estimates": report.strategy_estimates,
                 },
+                text=text,
             )
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))
