@@ -65,6 +65,23 @@ def test_check_tool_roundtrip_with_cli(tool: SmeltCheckTool, json_text: str) -> 
     assert tool_result.data["strategy_estimates"] == cli_report.strategy_estimates
 
 
+def test_check_tool_text_lists_every_estimate(tool: SmeltCheckTool) -> None:
+    result = tool.execute(data=json.dumps({"a": 1, "b": None, "c": None}))
+    assert result.text is not None
+    header = result.text.partition("\n")[0]
+    assert header.startswith("smelt_check | json |")
+    assert "tok" in header
+    # no information lost: every strategy estimate is rendered verbatim
+    for name, pct in result.data["strategy_estimates"].items():
+        assert f"{name}: -{pct}%" in result.text
+
+
+def test_check_tool_text_no_waste(tool: SmeltCheckTool) -> None:
+    result = tool.execute(data="x")
+    assert result.text is not None
+    assert "no waste detected" in result.text
+
+
 def test_entry_point_smelt_check() -> None:
     eps = importlib.metadata.entry_points(group="axm.tools")
     matched = [e for e in eps if e.name == "smelt_check"]
