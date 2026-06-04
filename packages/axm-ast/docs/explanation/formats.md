@@ -114,7 +114,7 @@ The `flows` command supports three detail levels via `--detail`:
 BFS traversal returning `FlowStep` objects with symbol name, module, depth, and call chain.
 
 ```bash
-axm-ast flows src/mylib --entry main
+axm-ast flows src/mylib --trace main
 ```
 
 ### Source
@@ -122,7 +122,7 @@ axm-ast flows src/mylib --entry main
 Adds function source text to each `FlowStep`. Useful for full code-level tracing.
 
 ```bash
-axm-ast flows src/mylib --entry main --detail source
+axm-ast flows src/mylib --trace main --detail source
 ```
 
 ### Compact
@@ -130,7 +130,7 @@ axm-ast flows src/mylib --entry main --detail source
 Returns a tree-formatted string with box-drawing characters and metadata keys: `entry`, `compact` (the tree string), `depth` (echoing `max_depth`), `cross_module`, and `count`.
 
 ```bash
-axm-ast flows src/mylib --entry main --detail compact
+axm-ast flows src/mylib --trace main --detail compact
 ```
 
 When `--cross-module` is enabled, the BFS also resolves imported symbols across package boundaries. See [Cross-Module Resolution](cross_module_resolution.md) for the algorithm details.
