@@ -26,7 +26,7 @@
 | `drop_nulls` | structural | Remove `None`, `""`, `[]`, `{}` values |
 | `flatten` | structural | Collapse single-child wrapper dicts |
 | `tabular` | structural | Convert `list[dict]` to pipe-separated tables |
-| `dedup_values` | structural | Replace repeated long strings with aliases |
+| `dedup_values_with_refs` | structural | Replace repeated long strings with aliases |
 | `strip_quotes` | cosmetic | Remove quotes on simple JSON keys |
 | `round_numbers` | cosmetic | Round floats to N decimal places |
 
