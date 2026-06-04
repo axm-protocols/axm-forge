@@ -86,6 +86,28 @@ def test_tool_roundtrip(tool: SmeltTool, sample_json: str) -> None:
     assert parsed_output == parsed_input
 
 
+def test_tool_text_renders_compacted_verbatim(
+    tool: SmeltTool, sample_json: str
+) -> None:
+    result = tool.execute(data=sample_json, preset="moderate")
+    assert result.text is not None
+    header, _, body = result.text.partition("\n")
+    # compacted payload is delivered char-for-char (the deliverable)
+    assert body == result.data["compacted"]
+    # header carries metrics, no information lost
+    assert header.startswith("smelt | json |")
+    assert "tok" in header
+    for strat in result.data["strategies_applied"]:
+        assert strat in header
+
+
+def test_tool_text_lists_strategies_or_none(tool: SmeltTool) -> None:
+    result = tool.execute(data="plain text with no structure")
+    assert result.text is not None
+    header = result.text.partition("\n")[0]
+    assert "none" in header  # no strategies applied on plain text
+
+
 def test_entry_point_resolution() -> None:
     eps = importlib.metadata.entry_points(group="axm.tools")
     matched = [e for e in eps if e.name == "smelt"]
