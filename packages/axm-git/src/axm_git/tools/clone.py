@@ -8,6 +8,7 @@ from pathlib import Path
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_git.core.runner import run_git, timeout_error_result
+from axm_git.tools.clone_text import render_failure_text, render_text
 
 __all__ = ["GitCloneTool"]
 
@@ -54,14 +55,17 @@ class GitCloneTool(AXMTool):
             return timeout_error_result(exc)
 
         if result.returncode != 0:
-            return ToolResult(success=False, error=result.stderr.strip())
+            error = result.stderr.strip()
+            return ToolResult(
+                success=False,
+                error=error,
+                text=render_failure_text(error=error),
+            )
 
-        return ToolResult(
-            success=True,
-            data={
-                "url": url,
-                "dest": dest,
-                "path": str(cwd / dest),
-                "cloned": True,
-            },
-        )
+        data: dict[str, object] = {
+            "url": url,
+            "dest": dest,
+            "path": str(cwd / dest),
+            "cloned": True,
+        }
+        return ToolResult(success=True, data=data, text=render_text(data))
