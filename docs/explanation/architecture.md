@@ -8,10 +8,7 @@
 graph TD
     subgraph "MCP Layer"
         Server["FastMCP Server"]
-        ListTools["list_tools()"]
-        Verify["verify()"]
-        WebFetch["web_fetch()"]
-        Catalog["axm://tools resource"]
+        Verify["verify (VerifyTool)"]
     end
 
     subgraph "Discovery"
@@ -23,13 +20,10 @@ graph TD
     subgraph "Installed Packages"
         Audit["axm-audit (audit)"]
         Init["axm-init (init_check, init_scaffold)"]
-        Bib["axm-bib (bib_search, bib_doi, bib_pdf)"]
+        Bib["axm-bib (bib_search, bib_resolve, bib_pdf)"]
     end
 
-    Server --> ListTools
     Server --> Verify
-    Server --> WebFetch
-    Server --> Catalog
     Server --> Discover
     Discover --> EP
     EP --> Audit
@@ -91,12 +85,13 @@ sequenceDiagram
 
 | Module | Key Symbols | Purpose |
 |---|---|---|
-| `mcp_app.py` | `mcp`, `_verify_tool()`, `_web_fetch_tool()`, `_tool_catalog()`, `main()` | FastMCP server instance + built-in tools + tool catalog resource |
+| `mcp_app.py` | `mcp`, `discovered_tools`, `main()` | FastMCP server instance — discovers tools, registers them, and registers the `verify` meta-tool (`VerifyTool`) |
 | `server.py` | `serve()`, `health_check()`, `DEFAULT_PORT` | Streamable HTTP transport — runs the FastMCP instance over HTTP on port 9427 (or `AXM_MCP_PORT`) |
 | `concurrency.py` | `KeyedLock` | Per-key asyncio lock manager — prevents concurrent execution of the same session or git operation |
-| `discovery.py` | `discover_tools()`, `register_tools()`, `ToolLike`, `_session_lock`, `_git_lock` | Entry point scanning + MCP registration; `protocol_*` and `git_*` tools wrapped with async keyed locks |
-| `verify.py` | `verify_project()`, `_enrich_failure()`, `_extract_symbols()` | Orchestrate audit + init check + AST enrichment (impact scores: LOW/MEDIUM/HIGH) |
-| `web_fetch.py` | `fetch_page()` | Anti-bot web page fetching via Scrapling (basic / dynamic / stealth) |
+| `discovery.py` | `discover_tools()`, `register_tools()`, `register_one()`, `ToolLike` | Entry point scanning + MCP registration of discovered tools |
+| `wrapping.py` | `log_external_step()`, `_session_lock`, `_git_lock` | Wraps each tool as a sync callable; `protocol_*` and `git_*` tools are serialized with async keyed locks |
+| `verify.py` | `verify_project()`, `enrich_failure()`, `VerifyTool` | Orchestrate audit + init check + AST enrichment (impact scores: LOW/MEDIUM/HIGH) |
+
 | `lifecycle.py` | `find_binary()`, `generate_plist()`, `install()`, `uninstall()` | launchd service management — install/uninstall axm-mcp as a macOS background service |
 | `plist_template.py` | `PLIST_TEMPLATE` | launchd plist XML template used by `lifecycle.generate_plist()` |
 
@@ -114,7 +109,7 @@ sequenceDiagram
 
 1. **Startup**: `discover_tools()` scans `axm.tools` entry points
 2. **Registration**: `register_tools()` wraps each tool as an MCP callable
-3. **Resource**: `_tool_catalog()` exposes the tool catalog via `axm://tools` MCP resource
+3. **Verify tool**: `register_one()` registers the `verify` meta-tool from `VerifyTool`
 4. **Execution**: MCP client calls tool → wrapper delegates to `tool.execute(**kwargs)` → if `ToolResult.text` is set, returns raw string (rendered as `TextContent`); otherwise returns flattened dict
 5. **Verify**: `verify_project()` chains audit → init_check → AST enrichment
 

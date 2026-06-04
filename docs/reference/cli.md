@@ -30,14 +30,9 @@ The HTTP transport exposes a `/health` endpoint that returns `{"status": "ok", "
 
 | Tool | Description |
 |---|---|
-| `list_tools` | List all discovered tools with names and descriptions |
 | `verify` | One-shot quality check: audit + init check + AST enrichment |
 
-### MCP Resources
-
-| URI | Description |
-|---|---|
-| `axm://tools` | JSON catalog of all registered tools (via `read_resource`) |
+The `verify` meta-tool is registered alongside the auto-discovered tools (see `mcp_app.py`).
 
 ### Discovered Tools
 
@@ -49,7 +44,7 @@ All tools registered via `axm.tools` entry points are exposed automatically. Com
 | `init_check` | `axm-init` | 39 governance checks against AXM gold standard |
 | `init_scaffold` | `axm-init` | Scaffold a new Python project |
 | `bib_search` | `axm-bib` | Search academic papers by title |
-| `bib_doi` | `axm-bib` | Resolve DOI → BibTeX |
+| `bib_resolve` | `axm-bib` | Resolve a DOI/arXiv ref → BibTeX |
 | `bib_pdf` | `axm-bib` | Download paper PDF |
 | `bib_extract` | `axm-bib` | Extract text from PDF |
 
