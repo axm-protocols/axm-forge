@@ -124,3 +124,52 @@ class TestListDirTool:
         assert result.data is not None
         dir_entry = next(e for e in result.data["entries"] if e["name"] == "subdir")
         assert dir_entry["size_bytes"] is None
+
+    def test_text_header_split(self, tmp_path: Path) -> None:
+        """The text header reports the entry count and dir/file split."""
+        (tmp_path / "subdir").mkdir()
+        (tmp_path / "a.txt").write_text("x")
+        (tmp_path / "b.txt").write_text("y")
+        result = ListDirTool().execute(path=str(tmp_path))
+        assert result.text is not None
+        header = result.text.splitlines()[0]
+        assert header == "list_dir | 3 entries · 1 dir · 2 files"
+
+    def test_text_dir_slash_and_file_size(self, tmp_path: Path) -> None:
+        """Directories render with a trailing slash; files carry a size."""
+        (tmp_path / "subdir").mkdir()
+        (tmp_path / "test.txt").write_text("hello world")
+        result = ListDirTool().execute(path=str(tmp_path))
+        assert result.text is not None
+        body = result.text.splitlines()[1:]
+        assert "subdir/" in body
+        assert any(line.startswith("test.txt") and "11B" in line for line in body)
+
+    def test_text_preserves_every_entry(self, tmp_path: Path) -> None:
+        """The text body has exactly one line per entry (no entry lost)."""
+        (tmp_path / "subdir").mkdir()
+        (tmp_path / "subdir" / "nested.txt").write_text("n")
+        for i in range(5):
+            (tmp_path / f"file_{i}.txt").write_text("x")
+        result = ListDirTool().execute(path=str(tmp_path), max_depth=2)
+        assert result.data is not None
+        assert result.text is not None
+        body = result.text.splitlines()[1:]  # drop header
+        assert len(body) == result.data["count"]
+        # Every relative path in data appears verbatim in the text body.
+        joined = "\n".join(body)
+        for entry in result.data["entries"]:
+            assert str(entry["path"]) in joined
+
+    def test_text_truncation_flag(self, tmp_path: Path) -> None:
+        """The truncation signal surfaces in the text header."""
+        for i in range(300):
+            (tmp_path / f"file_{i:04d}.txt").write_text("x")
+        result = ListDirTool().execute(path=str(tmp_path))
+        assert result.text is not None
+        assert "TRUNCATED at 200" in result.text.splitlines()[0]
+
+    def test_text_empty_directory(self, tmp_path: Path) -> None:
+        """An empty directory yields a single compact header line."""
+        result = ListDirTool().execute(path=str(tmp_path))
+        assert result.text == "list_dir | 0 entries"

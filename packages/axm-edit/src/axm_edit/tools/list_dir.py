@@ -14,6 +14,7 @@ from axm_edit.core.engine import _resolve_safe
 __all__ = ["ListDirTool"]
 
 _MAX_ENTRIES = 200
+_BYTES_PER_UNIT = 1024
 _SKIP_NAMES: frozenset[str] = frozenset(
     {
         "__pycache__",
@@ -54,6 +55,66 @@ def _entry_for(root: Path, child: Path) -> dict[str, object]:
         "type": "file",
         "size_bytes": _file_size(child),
     }
+
+
+def _human_size(n: int | None) -> str:
+    """Render a byte count as a compact human-readable string (e.g. ``30.9K``).
+
+    Returns an empty string for ``None`` (size unavailable / directories).
+    """
+    if n is None:
+        return ""
+    units = ("B", "K", "M", "G", "T")
+    value = float(n)
+    idx = 0
+    while value >= _BYTES_PER_UNIT and idx < len(units) - 1:
+        value /= _BYTES_PER_UNIT
+        idx += 1
+    if idx == 0:
+        return f"{int(value)}B"
+    return f"{value:.1f}{units[idx]}"
+
+
+def _render_text(
+    *,
+    entries: list[dict[str, object]],
+    count: int,
+    truncated: bool,
+) -> str:
+    """Render a compact, ``ls``-style LLM-facing view of the listing.
+
+    One entry per line, using the relative ``path`` (which subsumes ``name``
+    and encodes the directory hierarchy when ``max_depth`` > 1). Directories
+    get a trailing ``/``; files carry a compact human-readable size. The
+    header carries the total entry count, the dir/file split, and an explicit
+    ``TRUNCATED`` flag when the entry cap was reached. Every entry (path,
+    type, size) and the truncation signal are preserved verbatim, so no
+    information is lost relative to ``data``.
+    """
+    if not entries:
+        return "list_dir | 0 entries"
+
+    n_dirs = sum(1 for e in entries if e["type"] == "dir")
+    n_files = count - n_dirs
+    plural_d = "s" if n_dirs != 1 else ""
+    plural_f = "s" if n_files != 1 else ""
+    header = (
+        f"list_dir | {count} entries"
+        f" · {n_dirs} dir{plural_d} · {n_files} file{plural_f}"
+    )
+    if truncated:
+        header += f" · TRUNCATED at {count}"
+
+    lines = [header]
+    for entry in entries:
+        path = str(entry["path"])
+        if entry["type"] == "dir":
+            lines.append(f"{path}/")
+            continue
+        size_raw = entry.get("size_bytes")
+        size = _human_size(size_raw if isinstance(size_raw, int) else None)
+        lines.append(f"{path}  {size}" if size else path)
+    return "\n".join(lines)
 
 
 def _collect_entries(
@@ -141,11 +202,17 @@ class ListDirTool:
         entries: list[dict[str, object]] = []
         truncated = _collect_entries(root, root, depth, 1, entries)
 
+        count = len(entries)
         return ToolResult(
             success=True,
             data={
                 "entries": entries,
-                "count": len(entries),
+                "count": count,
                 "truncated": truncated,
             },
+            text=_render_text(
+                entries=entries,
+                count=count,
+                truncated=truncated,
+            ),
         )
