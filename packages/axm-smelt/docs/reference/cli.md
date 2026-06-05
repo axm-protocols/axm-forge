@@ -56,4 +56,4 @@ axm-smelt version
 
 ## Python API
 
-Auto-generated API reference is available under [Python API](../../reference/axm_smelt/index.md).
+Auto-generated API reference is available under [Python API](../reference/axm_smelt/index.md).
