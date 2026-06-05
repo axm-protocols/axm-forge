@@ -1,6 +1,20 @@
 site_name: smelt
 docs_dir: docs
 
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+
 nav:
   - Overview: index.md
   - Tutorials:
@@ -14,6 +28,7 @@ nav:
     - Use via MCP: howto/mcp.md
   - Reference:
     - CLI: reference/cli.md
+    - Python API: reference/
   - Explanation:
     - Strategy Catalog: explanation/strategies.md
     - Format Detection: explanation/formats.md
