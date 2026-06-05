@@ -44,20 +44,70 @@ def test_count_empty() -> None:
 
 
 def test_count_model_parameter() -> None:
-    """Different model encodings each return valid counts."""
+    """AC2: encoding names (o200k_base, cl100k_base) and an OpenAI model name
+    each return valid counts; encoding names keep resolving (no regression)."""
     text = "The quick brown fox jumps over the lazy dog."
-    for model in ("o200k_base", "cl100k_base"):
+    for model in ("o200k_base", "cl100k_base", "gpt-4o"):
         result = count(text, model=model)
         assert isinstance(result, int)
         assert result > 0
 
 
-def test_count_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """When tiktoken raises, falls back to len // 4."""
+def test_count_resolves_openai_model_names() -> None:
+    """AC1: OpenAI model names resolve via tiktoken (not fallback) and match
+    the count from tiktoken.encoding_for_model."""
+    text = "The quick brown fox jumps over the lazy dog."
+    for model in ("gpt-4o", "gpt-4"):
+        n, backend = count_with_backend(text, model)
+        assert backend is CounterBackend.TIKTOKEN
+        expected = len(tiktoken.encoding_for_model(model).encode(text))
+        assert n == expected
+
+
+def test_unknown_model_falls_back_and_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """AC3, AC4: a genuinely unknown name falls back to len // 4 and logs a
+    warning naming the unknown model/encoding, NOT 'tiktoken unavailable'."""
+    counter._ENC.clear()
+    text = "abcdefghijklmnop"
+    with caplog.at_level(logging.WARNING):
+        n, backend = count_with_backend(text, "not-a-real-model")
+    assert backend is CounterBackend.FALLBACK
+    assert n == len(text) // 4
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert any("not-a-real-model" in m for m in warnings)
+    assert not any("tiktoken unavailable" in m for m in warnings)
+
+
+def test_tiktoken_absent_keeps_unavailable_message(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """AC4: when tiktoken is truly absent (ImportError), the fallback warning
+    keeps the 'tiktoken unavailable' wording."""
     counter._ENC.clear()
 
     def _raise(model: str) -> Any:
-        raise RuntimeError("mocked")
+        raise ImportError("tiktoken not installed")
+
+    monkeypatch.setattr(tiktoken, "encoding_for_model", _raise)
+    monkeypatch.setattr(tiktoken, "get_encoding", _raise)
+    text = "abcdefghijklmnop"
+    with caplog.at_level(logging.WARNING):
+        n, backend = count_with_backend(text)
+    assert backend is CounterBackend.FALLBACK
+    assert n == len(text) // 4
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert any("tiktoken unavailable" in m for m in warnings)
+
+
+def test_count_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When tiktoken resolution fails, falls back to len // 4."""
+    counter._ENC.clear()
+
+    def _raise(model: str) -> Any:
+        raise ValueError("mocked")
 
     monkeypatch.setattr(tiktoken, "get_encoding", _raise)
     result = count("abcdefghijklmnop")  # 16 chars -> 4
@@ -82,13 +132,23 @@ def test_count_caches_encoding_once(mocker: MockerFixture) -> None:
 
 
 def test_count_caches_per_model(mocker: MockerFixture) -> None:
+    """AC5: each distinct key resolves once; cache holds both an encoding name
+    and a model name independently."""
     counter._ENC.clear()
-    spy = mocker.spy(tiktoken, "get_encoding")
+    enc_spy = mocker.spy(tiktoken, "get_encoding")
+    model_spy = mocker.spy(tiktoken, "encoding_for_model")
     for _ in range(5):
         counter.count("x", model="o200k_base")
     for _ in range(5):
-        counter.count("x", model="cl100k_base")
-    assert spy.call_count == 2
+        counter.count("x", model="gpt-4o")
+    # Each distinct key resolves exactly once (the 5 repeats hit the cache):
+    # gpt-4o resolves via encoding_for_model; o200k_base falls through to
+    # get_encoding after encoding_for_model raises KeyError -> 2 model-name
+    # attempts, 1 raw-encoding attempt. No re-resolution on cache hits.
+    assert model_spy.call_count == 2
+    assert enc_spy.call_count == 1
+    assert "o200k_base" in counter._ENC
+    assert "gpt-4o" in counter._ENC
 
 
 def test_cache_not_poisoned_on_failure(mocker: MockerFixture) -> None:
@@ -99,7 +159,7 @@ def test_cache_not_poisoned_on_failure(mocker: MockerFixture) -> None:
     def flaky(model: str) -> Any:
         calls["n"] += 1
         if calls["n"] == 1:
-            raise RuntimeError("boom")
+            raise ValueError("boom")
         return real_get_encoding(model)
 
     mocker.patch("axm_smelt.core.counter.tiktoken.get_encoding", side_effect=flaky)
@@ -133,7 +193,7 @@ def test_count_with_backend_fallback_path(monkeypatch: pytest.MonkeyPatch) -> No
     counter._ENC.clear()
 
     def _raise(model: str) -> Any:
-        raise RuntimeError("mocked")
+        raise ValueError("mocked")
 
     monkeypatch.setattr(tiktoken, "get_encoding", _raise)
     text = "abcdefghijklmnop"
@@ -148,20 +208,20 @@ def test_warn_emitted_once(
 ) -> None:
     counter._ENC.clear()
 
-    def _raise(model: str) -> Any:
-        raise RuntimeError("mocked")
+    def _raise_model(model: str) -> Any:
+        raise KeyError("mocked")
 
-    monkeypatch.setattr(tiktoken, "get_encoding", _raise)
+    def _raise_enc(model: str) -> Any:
+        raise ValueError("mocked")
+
+    monkeypatch.setattr(tiktoken, "encoding_for_model", _raise_model)
+    monkeypatch.setattr(tiktoken, "get_encoding", _raise_enc)
 
     with caplog.at_level(logging.WARNING):
         for _ in range(5):
-            count_with_backend("hello")
+            count_with_backend("unknown-model-xyz")
 
-    matching = [
-        r
-        for r in caplog.records
-        if r.levelno == logging.WARNING and "tiktoken unavailable" in r.getMessage()
-    ]
+    matching = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(matching) == 1
 
 

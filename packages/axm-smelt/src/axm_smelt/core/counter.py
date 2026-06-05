@@ -14,6 +14,20 @@ _ENC: dict[str, tiktoken.Encoding] = {}
 _warned: bool = False
 
 
+def _resolve_encoding(model: str) -> tiktoken.Encoding:
+    """Resolve *model* to a tiktoken ``Encoding``.
+
+    Accepts both OpenAI model names (e.g. ``gpt-4o``) via
+    ``encoding_for_model`` and raw encoding names (e.g. ``o200k_base``) via
+    ``get_encoding``. Raises ``KeyError``/``ValueError`` for a genuinely
+    unknown name, or ``ImportError`` if tiktoken is unavailable.
+    """
+    try:
+        return tiktoken.encoding_for_model(model)
+    except KeyError:
+        return tiktoken.get_encoding(model)
+
+
 def reset_warned() -> None:
     """Reset the one-shot warning flag (test seam)."""
     global _warned
@@ -43,12 +57,19 @@ def count_with_backend(
     try:
         enc = _ENC.get(model)
         if enc is None:
-            enc = tiktoken.get_encoding(model)
+            enc = _resolve_encoding(model)
             _ENC[model] = enc
         return len(enc.encode(text)), CounterBackend.TIKTOKEN
-    except Exception:  # noqa: BLE001
+    except ImportError:
         if not _warned:
             _log.warning("tiktoken unavailable, using approximate len//4 fallback")
+            _warned = True
+        return len(text) // 4, CounterBackend.FALLBACK
+    except (KeyError, ValueError):
+        if not _warned:
+            _log.warning(
+                "unknown model/encoding %r, using approximate len//4 fallback", model
+            )
             _warned = True
         return len(text) // 4, CounterBackend.FALLBACK
 

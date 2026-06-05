@@ -44,7 +44,9 @@ axm-smelt count [--file PATH] [--model MODEL]
 | Flag | Default | Description |
 |---|---|---|
 | `--file PATH` | stdin | Read from file instead of stdin |
-| `--model MODEL` | `o200k_base` | tiktoken encoding name |
+| `--model MODEL` | `o200k_base` | tiktoken encoding name (e.g. `o200k_base`, `cl100k_base`) **or** OpenAI model name (e.g. `gpt-4o`, `gpt-4`) |
+
+An unknown name degrades gracefully to an approximate `len // 4` count (with a warning on stderr) rather than failing.
 
 ### `axm-smelt version`
 
