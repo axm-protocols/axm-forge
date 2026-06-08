@@ -340,6 +340,7 @@ class GitTagTool(AXMTool):
 
         data: dict[str, object] = {
             "tag": next_version,
+            "full_tag": full_tag,
             "bump": bump_type,
             "breaking": breaking,
             "resolved_version": resolved_version,

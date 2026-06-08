@@ -26,6 +26,21 @@ class TestRenderText:
             "resolved 0.4.0 · CI green · prev git/v0.3.1"
         )
 
+    def test_text_shows_full_tag(self) -> None:
+        """AC4: renderer surfaces the resolvable full_tag ref."""
+        data: dict[str, Any] = {
+            "tag": "v0.4.0",
+            "full_tag": "git/v0.4.0",
+            "bump": "minor",
+            "breaking": False,
+            "resolved_version": "0.4.0",
+            "pushed": True,
+            "ci_check": "green",
+            "commits_included": 7,
+            "current_tag": "git/v0.3.1",
+        }
+        assert "git/v0.4.0" in render_text(data)
+
     def test_breaking_not_pushed_no_resolved(self) -> None:
         data: dict[str, Any] = {
             "tag": "v1.0.0",
