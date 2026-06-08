@@ -5,13 +5,13 @@ Creates a GitHub pull request with conventional commit title and auto-merge.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
 from axm.hooks.base import HookResult
 
+from axm_git.core.pr_recovery import recover_existing_pr
 from axm_git.core.runner import gh_available, run_gh
 from axm_git.hooks._resolve import resolve_working_dir
 
@@ -28,6 +28,24 @@ def format_pr_title(commit_spec: dict[str, object], ticket_id: str) -> str:
     if ticket_id and f"[{ticket_id}]" not in message:
         return f"{message} [{ticket_id}]"
     return message
+
+
+def _handle_create_failure(stderr: str, working_dir: Path) -> HookResult:
+    """Map a ``gh pr create`` failure to a :class:`HookResult`.
+
+    On an 'already exists' error, recover the existing PR via the shared
+    helper; otherwise surface the original failure.
+    """
+    if "already exists" in stderr:
+        recovery = recover_existing_pr(working_dir)
+        if not recovery.ok:
+            return HookResult.fail(recovery.error or "PR recovery failed")
+        return HookResult.ok(
+            pr_url=recovery.url,
+            pr_number=recovery.number,
+            already_existed=recovery.already_existed,
+        )
+    return HookResult.fail(f"gh pr create failed: {stderr}")
 
 
 @dataclass
@@ -83,10 +101,7 @@ class CreatePRHook:
         result = run_gh(create_args, working_dir)
 
         if result.returncode != 0:
-            stderr = result.stderr.strip()
-            if "already exists" in stderr:
-                return _recover_existing_pr(working_dir)
-            return HookResult.fail(f"gh pr create failed: {stderr}")
+            return _handle_create_failure(result.stderr.strip(), working_dir)
 
         pr_url = result.stdout.strip()
 
@@ -112,18 +127,3 @@ class CreatePRHook:
             pr_number=pr_number,
             auto_merge=True,
         )
-
-
-def _recover_existing_pr(working_dir: Path) -> HookResult:
-    """Extract existing PR URL when creation fails with 'already exists'."""
-    view = run_gh(["pr", "view", "--json", "url,number"], working_dir)
-    if view.returncode != 0:
-        return HookResult.fail(
-            f"PR already exists but could not retrieve it: {view.stderr}"
-        )
-    data = json.loads(view.stdout)
-    return HookResult.ok(
-        pr_url=data["url"],
-        pr_number=str(data["number"]),
-        already_existed=True,
-    )
