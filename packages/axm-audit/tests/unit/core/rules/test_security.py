@@ -46,6 +46,36 @@ def test_security_pattern_rule_in_security_bucket() -> None:
     assert "SecurityPatternRule" in names
 
 
+def _scan_secret_count(tmp_path: Path, source: str) -> int:
+    """Drive the public boundary: write source under src/ and count secret matches."""
+    from axm_audit.core.rules.security import SecurityPatternRule
+
+    src = tmp_path / "src" / "pkg"
+    src.mkdir(parents=True)
+    (src / "mod.py").write_text(source)
+    result = SecurityPatternRule().check(tmp_path)
+    assert result.details is not None
+    count = result.details["secret_count"]
+    assert isinstance(count, int)
+    return count
+
+
+def test_placeholder_password_not_flagged(tmp_path: Path) -> None:
+    """AC2: a placeholder password value ('changeme') yields 0 secret matches."""
+    assert _scan_secret_count(tmp_path, 'password = "changeme"\n') == 0
+
+
+def test_angle_bracket_placeholder_not_flagged(tmp_path: Path) -> None:
+    """AC2: an angle-bracket placeholder ('<your-key>') yields 0 matches."""
+    assert _scan_secret_count(tmp_path, 'api_key = "<your-key>"\n') == 0
+
+
+def test_real_hex_secret_flagged(tmp_path: Path) -> None:
+    """AC4: a real-looking 40-char hex token assigned to secret is flagged."""
+    hex_token = "a3f9c1" + "0" * 34
+    assert _scan_secret_count(tmp_path, f'secret = "{hex_token}"\n') == 1
+
+
 # ---------------------------------------------------------------------------
 # Merged from test_security_bandit_warn.py
 # ---------------------------------------------------------------------------
