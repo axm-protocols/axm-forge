@@ -10,7 +10,11 @@ from types import SimpleNamespace
 import pytest
 
 from axm_audit.core.rules import security as security_mod
-from axm_audit.core.rules.security import SecurityRule, run_bandit
+from axm_audit.core.rules.security import (
+    SecurityPatternRule,
+    SecurityRule,
+    run_bandit,
+)
 
 _LOGGER_NAME = "axm_audit.core.rules.security"
 
@@ -74,6 +78,46 @@ def test_real_hex_secret_flagged(tmp_path: Path) -> None:
     """AC4: a real-looking 40-char hex token assigned to secret is flagged."""
     hex_token = "a3f9c1" + "0" * 34
     assert _scan_secret_count(tmp_path, f'secret = "{hex_token}"\n') == 1
+
+
+def test_ellipsis_example_value_not_flagged(tmp_path: Path) -> None:
+    """An elided example value (literal ``...``) is a placeholder, not a secret."""
+    assert _scan_secret_count(tmp_path, 'api_key = "..."\n') == 0
+
+
+def test_truncated_token_example_not_flagged(tmp_path: Path) -> None:
+    """A truncated token example (``ghp_...``) carries an ellipsis -> placeholder."""
+    assert _scan_secret_count(tmp_path, 'token = "ghp_..."\n') == 0
+
+
+def test_long_truncated_example_not_flagged(tmp_path: Path) -> None:
+    """Even a long example value is a placeholder when it contains ``...``."""
+    assert (
+        _scan_secret_count(tmp_path, 'api_key = "sk_live_abcdef...0123456789xyz"\n')
+        == 0
+    )
+
+
+def test_rule_does_not_flag_own_pattern_definitions(tmp_path: Path) -> None:
+    """The rule must not flag its own explanatory pattern-definition source.
+
+    Regression for the self-referential false positive where the comments
+    ``api_key = "..."`` and ``token = "ghp_..."`` inside this module's source
+    were reported as leaked secrets (PRACTICE_SECURITY at security.py:259/335).
+    """
+    own_source = Path(security_mod.__file__).read_text()
+    src = tmp_path / "src" / "pkg"
+    src.mkdir(parents=True)
+    (src / "mod.py").write_text(own_source)
+    result = SecurityPatternRule().check(tmp_path)
+    assert result.details is not None
+    assert result.details["secret_count"] == 0, result.details["matches"]
+
+
+def test_real_github_token_still_flagged(tmp_path: Path) -> None:
+    """No weakening: a full 36-char GitHub PAT (no ellipsis) is still flagged."""
+    real_pat = "ghp_" + "a1B2c3" * 6  # 36 alnum chars after the prefix
+    assert _scan_secret_count(tmp_path, f'token = "{real_pat}"\n') == 1
 
 
 # ---------------------------------------------------------------------------
