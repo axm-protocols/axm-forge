@@ -26,6 +26,22 @@ graph TB
 
 Both return typed Pydantic models for safe agent consumption.
 
+#### Workspace dispatch & concurrency
+
+`audit_project()` detects a multi-package workspace (via
+`iter_workspace_packages()`) and dispatches to an internal workspace
+auditor that audits each member concurrently with a **bounded
+`ThreadPoolExecutor`** (outer pool width capped at
+`min(len(packages), os.cpu_count())` to avoid oversubscribing the
+per-package inner rule pool). The aggregation is **deterministic**: results
+are re-ordered back to the input package order before the worst-of-N merge,
+so the rendered output never depends on completion order. Each package keeps
+its **own isolated `ASTCache`** — the contextvar-scoped cache is set and
+reset *inside* each worker's `audit_project()` call, so the executor
+introduces no cross-package cache contention. A failure in one package is
+**isolated** as a synthetic `WORKSPACE_PACKAGE_ERROR` failing check and never
+aborts the audit of the other packages.
+
 ### 2. Rule Engine
 
 `get_rules_for_category()` returns rule instances from the auto-discovery registry (populated by `@register_rule` decorators):

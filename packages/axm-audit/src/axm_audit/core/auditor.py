@@ -12,6 +12,7 @@ from __future__ import annotations
 import concurrent.futures
 import contextvars
 import logging
+import os
 import traceback as _traceback
 from pathlib import Path
 
@@ -186,10 +187,7 @@ def _audit_workspace(
     blocks are concatenated with a per-package header so consumers can
     disambiguate which package emitted which violation.
     """
-    per_package: list[tuple[str, list[CheckResult]]] = []
-    for pkg in packages:
-        sub = audit_project(pkg, category=category, quick=quick)
-        per_package.append((pkg.name, list(sub.checks)))
+    per_package = _audit_packages_parallel(packages, category=category, quick=quick)
 
     merged: dict[str, CheckResult] = {}
     order: list[str] = []
@@ -205,6 +203,57 @@ def _audit_workspace(
         project_path=str(workspace_path),
         checks=[merged[r] for r in order],
     )
+
+
+def _package_error_check(pkg_name: str, exc: BaseException) -> CheckResult:
+    """Build a failing CheckResult surfacing a package-level audit failure.
+
+    Isolates a crashing package so workspace aggregation keeps the
+    successful packages instead of propagating the exception.
+    """
+    return CheckResult(
+        rule_id="WORKSPACE_PACKAGE_ERROR",
+        passed=False,
+        message=f"{pkg_name}: audit failed ({type(exc).__name__}: {exc})",
+        severity=Severity.ERROR,
+        text=f"[{pkg_name}]\n{type(exc).__name__}: {exc}",
+        details={"package": pkg_name, "error": str(exc)},
+    )
+
+
+def _audit_packages_parallel(
+    packages: list[Path],
+    *,
+    category: str | None,
+    quick: bool,
+) -> list[tuple[str, list[CheckResult]]]:
+    """Audit each package concurrently, preserving input order.
+
+    Submits one ``audit_project`` call per package to a bounded
+    ``ThreadPoolExecutor``. Each worker thread runs with a fresh context,
+    so ``audit_project`` sets/resets its own contextvar-scoped ``ASTCache``
+    in-thread (no cross-package cache contention). Results are re-ordered
+    back to the input package order so the aggregate is independent of
+    completion order, and a failure in one package is isolated as a
+    synthetic failing check rather than aborting the others.
+    """
+    if not packages:
+        return []
+    # Cap outer width to bound total concurrency (outer x inner pools).
+    max_workers = min(len(packages), max(1, os.cpu_count() or 1))
+    results: list[list[CheckResult]] = [[] for _ in packages]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+        future_to_index = {
+            pool.submit(audit_project, pkg, category=category, quick=quick): idx
+            for idx, pkg in enumerate(packages)
+        }
+        for future in concurrent.futures.as_completed(future_to_index):
+            idx = future_to_index[future]
+            try:
+                results[idx] = list(future.result().checks)
+            except Exception as exc:  # noqa: BLE001 - isolate per-package failure
+                results[idx] = [_package_error_check(packages[idx].name, exc)]
+    return [(pkg.name, results[idx]) for idx, pkg in enumerate(packages)]
 
 
 def _prefix_check(check: CheckResult, pkg_name: str) -> CheckResult:
