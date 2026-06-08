@@ -1074,11 +1074,23 @@ def render_mismatch_text(mismatches: list[Finding], project_path: Path) -> str:
     lines = [
         f"• {relpath(f.path, project_path)}:{f.function} "
         f"{f.current_level}→{f.level} ({f.reason})"
+        f"{_render_signals(f.io_signals)}"
         for f in mismatches[:_MAX_TEXT_ITEMS]
     ]
     if len(mismatches) > _MAX_TEXT_ITEMS:
         lines.append(f"(+{len(mismatches) - _MAX_TEXT_ITEMS} more)")
     return "\n".join(lines)
+
+
+def _render_signals(io_signals: list[str]) -> str:
+    """Render the deciding io_signals as a compact, deterministic fragment.
+
+    Returns an empty string when *io_signals* is empty so mismatch lines
+    without signals render unchanged (no dangling label, no ``[]`` noise).
+    """
+    if not io_signals:
+        return ""
+    return " signals: " + ", ".join(sorted(io_signals))
 
 
 @register_rule("test_quality")

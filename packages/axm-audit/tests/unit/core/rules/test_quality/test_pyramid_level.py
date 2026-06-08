@@ -9,15 +9,18 @@ from __future__ import annotations
 
 import ast
 import textwrap
+from pathlib import Path
 
 import pytest
 
 from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality._shared import fixture_does_io
 from axm_audit.core.rules.test_quality.pyramid_level import (
+    Finding,
     PyramidLevelRule,
     classify_level,
     has_in_package_subprocess_invocation,
+    render_mismatch_text,
 )
 
 
@@ -283,3 +286,51 @@ def test_cyclic_fixture_graph_terminates() -> None:
     assert result is False
     assert "fix_a" in visited
     assert "fix_b" in visited
+
+
+def _mismatch_finding(io_signals: list[str]) -> Finding:
+    """Build a single mismatch Finding with the given deciding io_signals."""
+    return Finding(
+        path="/proj/tests/test_thing.py",
+        function="test_thing",
+        level="integration",
+        reason="real I/O detected",
+        current_level="unit",
+        has_real_io=True,
+        has_subprocess=False,
+        io_signals=io_signals,
+    )
+
+
+def test_render_includes_io_signals() -> None:
+    """AC1, AC3: deciding io_signals are surfaced alongside the reason."""
+    finding = _mismatch_finding(["tmp_path->open", "fixture:db_session"])
+
+    text = render_mismatch_text([finding], Path("/proj"))
+
+    assert "real I/O detected" in text
+    assert "tmp_path->open" in text
+    assert "fixture:db_session" in text
+    assert "signals:" in text
+
+
+def test_render_omits_empty_signals() -> None:
+    """AC2: an empty io_signals renders the reason with no signals fragment."""
+    finding = _mismatch_finding([])
+
+    text = render_mismatch_text([finding], Path("/proj"))
+
+    assert "real I/O detected" in text
+    assert "signals:" not in text
+    assert "[]" not in text
+
+
+def test_render_signal_order_stable() -> None:
+    """AC3: same signal set yields identical deterministically-ordered output."""
+    finding_a = _mismatch_finding(["tmp_path->open", "fixture:db_session"])
+    finding_b = _mismatch_finding(["fixture:db_session", "tmp_path->open"])
+
+    text_a = render_mismatch_text([finding_a], Path("/proj"))
+    text_b = render_mismatch_text([finding_b], Path("/proj"))
+
+    assert text_a == text_b

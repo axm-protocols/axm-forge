@@ -9,6 +9,7 @@ import pytest
 
 from axm_audit.core.rules.test_quality.pyramid_level import (
     PyramidLevelRule,
+    scan_package,
     scan_test_file,
 )
 
@@ -24,6 +25,33 @@ def _make_pkg(root: Path) -> Path:
     (pkg / "tests").mkdir()
     (pkg / "tests" / "__init__.py").write_text("")
     return pkg
+
+
+def test_findings_unchanged_after_render_change(tmp_path: Path) -> None:
+    """AC4: scan_package yields the same finding set (presentation-only change).
+
+    A unit-located test that performs real filesystem I/O must be flagged as
+    a unit->integration mismatch. The rendering change must not alter the set
+    of findings (paths/levels) produced.
+    """
+    pkg = _make_pkg(tmp_path)
+    unit_dir = pkg / "tests" / "unit"
+    unit_dir.mkdir(parents=True)
+    (unit_dir / "__init__.py").write_text("")
+    (unit_dir / "test_io.py").write_text(
+        "def test_writes(tmp_path):\n"
+        "    (tmp_path / 'f.txt').write_text('x')\n"
+        "    assert (tmp_path / 'f.txt').read_text() == 'x'\n"
+    )
+
+    findings = scan_package(pkg)
+
+    located = [
+        (Path(f.path).name, f.current_level, f.level)
+        for f in findings
+        if Path(f.path).name == "test_io.py"
+    ]
+    assert located == [("test_io.py", "unit", "integration")]
 
 
 def test_pyramid_level_fails_when_root_tests_with_pyramid_subdirs(
