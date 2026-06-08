@@ -50,6 +50,40 @@ def rule() -> SecurityPatternRule:
     return SecurityPatternRule()
 
 
+@pytest.mark.integration
+def test_aws_github_pem_detected(tmp_path: Path) -> None:
+    """AC1: AWS AKIA key, GitHub ghp_ token, and PEM private-key header each flagged."""
+    aws = "AKIA" + "A1B2C3D4E5F6G7H8"
+    gh = "ghp_" + "a" * 36
+    pem = "-----BEGIN PRIVATE KEY-----"
+    _make_src_file(tmp_path, "aws.py", f'key = "{aws}"\n')
+    _make_src_file(tmp_path, "gh.py", f'token = "{gh}"\n')
+    _make_src_file(tmp_path, "pem.py", f'blob = """{pem}"""\n')
+    result = SecurityPatternRule().check(tmp_path)
+    assert result.details is not None
+    assert result.details["secret_count"] == 3
+
+
+@pytest.mark.integration
+def test_fixture_placeholders_clean(tmp_path: Path) -> None:
+    """AC2,AC3: a file full of placeholder assignments yields 0 findings."""
+    source = (
+        'password = "changeme"\n'
+        'secret = "xxx"\n'
+        'api_key = "<token>"\n'
+        'token = "example"\n'
+        'password = "placeholder"\n'
+        'secret = "dummy"\n'
+        'api_key = "test"\n'
+        'token = "redacted"\n'
+        'password = "********"\n'
+    )
+    _make_src_file(tmp_path, "fixtures.py", source)
+    result = SecurityPatternRule().check(tmp_path)
+    assert result.details is not None
+    assert result.details["secret_count"] == 0
+
+
 def _make_src_file(tmp_path: Path, filename: str, content: str) -> None:
     src = tmp_path / "src"
     src.mkdir(exist_ok=True)
@@ -58,7 +92,11 @@ def _make_src_file(tmp_path: Path, filename: str, content: str) -> None:
 
 def test_fail_text_contains_matches(tmp_path: Path, rule: SecurityPatternRule) -> None:
     """result.text contains one bullet per match when secrets are found."""
-    _make_src_file(tmp_path, "bad.py", 'password = "secret"\napi_key = "key"\n')
+    _make_src_file(
+        tmp_path,
+        "bad.py",
+        'password = "super_secret_123"\napi_key = "sk-live-9f8e7d6c5b4a"\n',
+    )
     result = rule.check(tmp_path)
 
     assert result.text is not None
@@ -77,7 +115,7 @@ def test_pass_text_is_none(tmp_path: Path, rule: SecurityPatternRule) -> None:
 
 def test_text_bullet_format(tmp_path: Path, rule: SecurityPatternRule) -> None:
     """Bullet format: 5-space indent + bullet + file:line + pattern."""
-    _make_src_file(tmp_path, "bad.py", '\npassword = "secret"\n')
+    _make_src_file(tmp_path, "bad.py", '\npassword = "super_secret_123"\n')
     result = rule.check(tmp_path)
 
     assert result.text is not None
@@ -93,7 +131,11 @@ def test_early_result_no_text(tmp_path: Path, rule: SecurityPatternRule) -> None
 
 def test_multiple_patterns_same_file(tmp_path: Path, rule: SecurityPatternRule) -> None:
     """Multiple matches produce one bullet each with correct line numbers."""
-    _make_src_file(tmp_path, "bad.py", 'password = "x"\ntoken = "y"\n')
+    _make_src_file(
+        tmp_path,
+        "bad.py",
+        'password = "super_secret_123"\nsecret = "another_real_value_456"\n',
+    )
     result = rule.check(tmp_path)
 
     assert result.text is not None

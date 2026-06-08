@@ -204,24 +204,112 @@ class SecurityRule(ProjectRule):
         return _build_security_result(self.rule_id, results)
 
 
+# Curated placeholder values: scaffold/docs tokens that look like assignments
+# but carry no real secret. Compared case-insensitively against the matched
+# value after stripping quotes/whitespace.
+PLACEHOLDER_VALUES: frozenset[str] = frozenset(
+    {
+        "changeme",
+        "change-me",
+        "change_me",
+        "placeholder",
+        "example",
+        "example.com",
+        "dummy",
+        "test",
+        "testing",
+        "redacted",
+        "xxx",
+        "xxxx",
+        "xxxxx",
+        "none",
+        "null",
+        "todo",
+        "your-key",
+        "your_key",
+        "your-token",
+        "your_token",
+        "my-secret",
+        "my_secret",
+        "secret",
+        "password",
+    }
+)
+
+# Values at or below this length (after strip) are noise, not real credentials.
+_PLACEHOLDER_MAX_LEN = 7
+
+# High-value secret formats — precise enough to flag on the literal alone,
+# independent of the assignment keyword. These are the strongest signals and
+# are NOT subject to the keyword placeholder filter (the format itself is the
+# evidence). The whole match IS the secret value.
+_HIGH_VALUE_PATTERNS: list[tuple[str, str]] = [
+    # AWS access key id.
+    ("aws_access_key", r"AKIA[0-9A-Z]{16}"),
+    # GitHub personal access tokens (classic + fine-grained).
+    ("github_token", r"ghp_[0-9A-Za-z]{36}"),
+    ("github_token", r"github_pat_[0-9A-Za-z_]{22,}"),
+    # PEM private-key block header.
+    ("private_key", r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+]
+
+# Generic keyword="value" patterns. Kept (not delegated wholesale to bandit
+# B105/B106/B107) because bandit only flags literals passed to functions /
+# default args / comparisons, and misses bare module-level assignments like
+# ``api_key = "..."`` in config-style files — the common leak in this corpus.
+# Every match here is routed through ``_is_placeholder`` so scaffold/docs
+# values no longer fire.
+_KEYWORD_PATTERNS: list[tuple[str, str]] = [
+    ("password", r"password\s*=\s*[\"'](?P<value>[^\"']*)[\"']"),
+    ("secret", r"secret\s*=\s*[\"'](?P<value>[^\"']*)[\"']"),
+    ("api_key", r"api_key\s*=\s*[\"'](?P<value>[^\"']*)[\"']"),
+    ("token", r"token\s*=\s*[\"'](?P<value>[^\"']*)[\"']"),
+]
+
+
+def _is_placeholder(value: str) -> bool:
+    """Return True when ``value`` is an obvious non-secret placeholder."""
+    stripped = value.strip()
+    if not stripped:
+        return True
+    if len(stripped) <= _PLACEHOLDER_MAX_LEN:
+        return True
+    lowered = stripped.lower()
+    if lowered in PLACEHOLDER_VALUES:
+        return True
+    if stripped.startswith("<") and stripped.endswith(">"):
+        return True
+    if set(stripped) == {"*"}:
+        return True
+    return False
+
+
 @dataclass
 @register_rule("security")
 class SecurityPatternRule(ProjectRule):
-    """Detect hardcoded secrets via regex patterns."""
+    """Detect hardcoded secrets via high-value formats + filtered keyword scan."""
 
-    patterns: list[str] = field(
-        default_factory=lambda: [
-            r"password\s*=\s*[\"'][^\"']+[\"']",
-            r"secret\s*=\s*[\"'][^\"']+[\"']",
-            r"api_key\s*=\s*[\"'][^\"']+[\"']",
-            r"token\s*=\s*[\"'][^\"']+[\"']",
-        ]
+    high_value_patterns: list[tuple[str, str]] = field(
+        default_factory=lambda: list(_HIGH_VALUE_PATTERNS)
+    )
+    keyword_patterns: list[tuple[str, str]] = field(
+        default_factory=lambda: list(_KEYWORD_PATTERNS)
     )
 
     @property
     def rule_id(self) -> str:
         """Unique identifier for this rule."""
         return "PRACTICE_SECURITY"
+
+    def _record(
+        self, path: Path, src_path: Path, content: str, start: int, label: str
+    ) -> dict[str, str | int]:
+        line_num = content[:start].count("\n") + 1
+        return {
+            "file": str(path.relative_to(src_path)),
+            "line": line_num,
+            "pattern": label,
+        }
 
     def _scan_file_for_secrets(
         self, path: Path, src_path: Path
@@ -232,15 +320,24 @@ class SecurityPatternRule(ProjectRule):
             return []
 
         found: list[dict[str, str | int]] = []
-        for pattern in self.patterns:
-            for match in re.finditer(pattern, content, re.IGNORECASE):
-                line_num = content[: match.start()].count("\n") + 1
+        high_value_spans: list[tuple[int, int]] = []
+        for label, pattern in self.high_value_patterns:
+            for match in re.finditer(pattern, content):
+                high_value_spans.append(match.span())
                 found.append(
-                    {
-                        "file": str(path.relative_to(src_path)),
-                        "line": line_num,
-                        "pattern": pattern.split(r"\s*")[0],
-                    }
+                    self._record(path, src_path, content, match.start(), label)
+                )
+        for label, pattern in self.keyword_patterns:
+            for match in re.finditer(pattern, content, re.IGNORECASE):
+                if _is_placeholder(match.group("value")):
+                    continue
+                # Skip when the value already matched a high-value pattern,
+                # so e.g. ``token = "ghp_..."`` counts once, not twice.
+                v_start, v_end = match.span("value")
+                if any(s <= v_start and v_end <= e for s, e in high_value_spans):
+                    continue
+                found.append(
+                    self._record(path, src_path, content, match.start(), label)
                 )
         return found
 
