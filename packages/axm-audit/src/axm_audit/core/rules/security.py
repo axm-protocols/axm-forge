@@ -268,20 +268,25 @@ _KEYWORD_PATTERNS: list[tuple[str, str]] = [
 
 
 def _is_placeholder(value: str) -> bool:
-    """Return True when ``value`` is an obvious non-secret placeholder."""
+    """Return True when ``value`` is an obvious non-secret placeholder.
+
+    Beyond curated tokens and short/angle-bracket noise, an elided example value
+    (literal ``...`` anywhere, e.g. ``ghp_...`` or ``sk_live_abc...xyz``) is
+    treated as a placeholder: a real credential never contains an ellipsis, so
+    its presence proves the value is illustrative, not a live leak.
+    """
     stripped = value.strip()
     if not stripped:
         return True
     if len(stripped) <= _PLACEHOLDER_MAX_LEN:
         return True
     lowered = stripped.lower()
-    if lowered in PLACEHOLDER_VALUES:
-        return True
-    if stripped.startswith("<") and stripped.endswith(">"):
-        return True
-    if set(stripped) == {"*"}:
-        return True
-    return False
+    return (
+        lowered in PLACEHOLDER_VALUES
+        or (stripped.startswith("<") and stripped.endswith(">"))
+        or set(stripped) == {"*"}
+        or "..." in stripped
+    )
 
 
 @dataclass
