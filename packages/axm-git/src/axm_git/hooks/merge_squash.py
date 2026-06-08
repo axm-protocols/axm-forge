@@ -10,8 +10,10 @@ from typing import cast
 
 from axm.hooks.base import HookResult
 
+from axm_git.core.identity import resolve_identity
 from axm_git.core.runner import find_git_root, run_git
 from axm_git.hooks._resolve import resolve_working_dir
+from axm_git.hooks.commit_phase import build_commit_cmd
 
 __all__ = ["MergeSquashHook"]
 
@@ -63,12 +65,17 @@ class MergeSquashHook:
         if result.returncode != 0:
             return HookResult.fail(f"merge --squash failed: {result.stderr}")
 
-        # Commit
+        # Commit — route through the shared command builder and resolve
+        # the author identity exactly like ``commit_from_outputs`` does,
+        # so squash merges honour the identity-profile system.
         msg = cast(
             "str",
             params.get("message") or f"[AXM] {protocol_name}: {session_id}",
         )
-        result = run_git(["commit", "-m", msg], git_root)
+        identity = resolve_identity(git_root)
+        author = f"{identity.name} <{identity.email}>" if identity else None
+        commit_cmd = build_commit_cmd(msg, None, skip_hooks=False, author=author)
+        result = run_git(commit_cmd, git_root)
         if result.returncode != 0:
             return HookResult.fail(f"commit failed: {result.stderr}")
 
