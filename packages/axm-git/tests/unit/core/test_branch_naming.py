@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from axm_git.core.branch_naming import branch_name_from_ticket, slugify
+from axm_git.core.branch_naming import (
+    branch_name_from_ticket,
+    is_conventional_commit,
+    slugify,
+)
 
 
 class TestSlugify:
@@ -208,3 +212,33 @@ class TestBranchNameFromTicket:
         # Extract slug part (after "feat/AXM-99-")
         slug = result.split("-", 2)[2] if result.count("-") >= 2 else ""
         assert len(slug) <= 40
+
+
+class TestIsConventionalCommit:
+    """Tests for the shared is_conventional_commit helper."""
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            pytest.param("feat(core): add x", id="type_scope"),
+            pytest.param("fix: y", id="type_only"),
+            pytest.param("chore!: z", id="breaking_no_scope"),
+            pytest.param("fix(scope)!: broken", id="breaking_with_scope"),
+        ],
+    )
+    def test_accepts_conventional(self, message: str) -> None:
+        """AC3: valid conventional messages (incl. breaking ``!``) return True."""
+        assert is_conventional_commit(message) is True
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            pytest.param("wip stuff", id="no_prefix"),
+            pytest.param("feat add x", id="missing_colon"),
+            pytest.param("feat:no-space", id="missing_space"),
+            pytest.param("", id="empty"),
+        ],
+    )
+    def test_rejects_non_conventional(self, message: str) -> None:
+        """AC3: non-conventional messages return False."""
+        assert is_conventional_commit(message) is False

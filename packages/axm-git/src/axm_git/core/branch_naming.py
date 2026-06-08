@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["branch_name_from_ticket", "slugify"]
+__all__ = ["branch_name_from_ticket", "is_conventional_commit", "slugify"]
 
 LABEL_TO_TYPE: dict[str, str] = {
     "feature": "feat",
@@ -73,7 +73,29 @@ def branch_name_from_ticket(
     return f"{branch_type}/{ticket_id}-{slug}"
 
 
-_CONVENTIONAL_PREFIX_RE = re.compile(r"^(\w+)(?:\(.*?\))?:\s")
+_CONVENTIONAL_PREFIX_RE = re.compile(r"^(\w+)(?:\(.*?\))?!?:\s")
+
+CONVENTIONAL_COMMIT_FORMAT = "<type>[(scope)][!]: <description>"
+"""Human-readable expected Conventional Commit summary format."""
+
+
+def is_conventional_commit(message: str) -> bool:
+    """Return whether *message* matches the Conventional Commit format.
+
+    A message is conventional when it starts with ``type:`` or
+    ``type(scope):`` (an optional breaking ``!`` marker is allowed before
+    the colon, e.g. ``feat!:`` or ``fix(scope)!:``) followed by a space.
+    This is the single source of truth shared by branch-type inference
+    and the ``git_commit`` validation path.
+
+    Args:
+        message: Commit summary line to validate.
+
+    Returns:
+        ``True`` if the message is conventionally formatted.
+    """
+    return _CONVENTIONAL_PREFIX_RE.match(message) is not None
+
 
 _VALID_TYPES: frozenset[str] = frozenset(LABEL_TO_TYPE.values())
 
