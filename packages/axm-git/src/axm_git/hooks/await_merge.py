@@ -77,8 +77,8 @@ class AwaitMergeHook:
         timeout = int(cast("int", params.get("timeout", _DEFAULT_TIMEOUT)))
         interval = int(cast("int", params.get("interval", _DEFAULT_INTERVAL)))
 
-        elapsed = 0
-        while elapsed < timeout:
+        start = time.monotonic()
+        while time.monotonic() - start < timeout:
             state = _poll_pr_state(str(pr_ref), working_dir)
             if state is None:
                 return HookResult.fail(f"failed to query PR {pr_ref} state")
@@ -88,7 +88,6 @@ class AwaitMergeHook:
                 return HookResult.fail(f"PR {pr_ref} was closed without merging")
 
             time.sleep(interval)
-            elapsed += interval
 
         return HookResult.fail(f"PR {pr_ref} not merged after {timeout}s timeout")
 
