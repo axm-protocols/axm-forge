@@ -111,6 +111,46 @@ class TestComputeBump:
                 True,
                 id="scoped_breaking",
             ),
+            pytest.param(
+                ["feat: new api"],
+                "v0.7.0",
+                "minor",
+                "v0.8.0",
+                False,
+                id="raw_minor_feat",
+            ),
+            pytest.param(
+                ["feat(cli): add flag"],
+                "v0.5.0",
+                "minor",
+                "v0.6.0",
+                False,
+                id="raw_scoped_feat",
+            ),
+            pytest.param(
+                ["feat!: breaking"],
+                "v1.0.0",
+                "major",
+                "v2.0.0",
+                True,
+                id="raw_major_breaking_post1",
+            ),
+            pytest.param(
+                ["fix: bug"],
+                "v0.7.0",
+                "patch",
+                "v0.7.1",
+                False,
+                id="raw_patch_fix",
+            ),
+            pytest.param(
+                ["docs: readme", "chore: cleanup"],
+                "v0.7.0",
+                "patch",
+                "v0.7.1",
+                False,
+                id="raw_patch_docs_chore",
+            ),
         ],
     )
     def test_bump_matrix(
@@ -131,3 +171,44 @@ class TestComputeBump:
         assert isinstance(result, VersionBump)
         assert result.current == "v1.0.0"
         assert result.commits == ["abc fix: x"]
+
+    def test_raw_feat_message_is_minor(self) -> None:
+        """AC1: raw `feat:` (no hash prefix) classifies as minor."""
+        result = compute_bump(["feat: add x"], "v0.7.0")
+        assert result.bump == "minor"
+        assert result.next == "v0.8.0"
+        assert not result.breaking
+
+    def test_prefixed_feat_message_still_minor(self) -> None:
+        """AC2: hash-prefixed `feat:` still classifies as minor (no regression)."""
+        result = compute_bump(["a1b2c3 feat: add x"], "v0.7.0")
+        assert result.bump == "minor"
+        assert result.next == "v0.8.0"
+        assert not result.breaking
+
+    @pytest.mark.parametrize(
+        "commits",
+        [
+            pytest.param(["feat!: drop y"], id="raw_bang"),
+            pytest.param(["BREAKING CHANGE: z"], id="raw_breaking_change"),
+        ],
+    )
+    def test_raw_breaking_is_major(self, commits: list[str]) -> None:
+        """AC3: raw breaking change classifies as major post-1.0."""
+        result = compute_bump(commits, "v1.0.0")
+        assert result.bump == "major"
+        assert result.breaking
+
+    @pytest.mark.parametrize(
+        "commits",
+        [
+            pytest.param(["fix: bug"], id="raw_fix"),
+            pytest.param(["abc fix: bug"], id="prefixed_fix"),
+        ],
+    )
+    def test_raw_and_prefixed_fix_is_patch(self, commits: list[str]) -> None:
+        """AC3,AC4: both raw and hash-prefixed `fix:` classify as patch."""
+        result = compute_bump(commits, "v0.7.0")
+        assert result.bump == "patch"
+        assert result.next == "v0.7.1"
+        assert not result.breaking

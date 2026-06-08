@@ -12,6 +12,7 @@ __all__ = ["VersionBump", "compute_bump", "parse_tag"]
 
 _TAG_RE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
 _BREAKING_RE = re.compile(r"^[a-z]+(\(.+\))?!:")
+_SHORT_HASH_RE = re.compile(r"^[0-9a-f]{3,40}$")
 _FEAT_RE = re.compile(r"^feat(\(.+\))?:")
 
 
@@ -64,7 +65,8 @@ def _classify_commits(
     has_breaking = False
     has_feat = False
     for commit in commits:
-        msg = commit.split(" ", 1)[1] if " " in commit else commit
+        head, sep, rest = commit.partition(" ")
+        msg = rest if sep and _SHORT_HASH_RE.match(head) else commit
         if _BREAKING_RE.match(msg) or "BREAKING CHANGE:" in msg:
             has_breaking = True
         elif _FEAT_RE.match(msg):
@@ -109,8 +111,14 @@ def compute_bump(commits: list[str], current_tag: str) -> VersionBump:
         - ``feat:`` → **minor** bump
         - everything else → **patch** bump
 
+    Accepts both ``git log --oneline`` lines (``<short-hash> <message>``)
+    and raw conventional-commit messages (``feat: x``). The leading token
+    is stripped only when it matches a short-hash shape
+    (hex, 3-40 chars); otherwise the whole line is treated as the message.
+
     Args:
-        commits: One-line commit messages (e.g. from ``git log --oneline``).
+        commits: Commit lines, either oneline (``<hash> <msg>``) or raw
+            conventional-commit messages.
         current_tag: Current version tag (e.g. ``"v0.7.0"``).
 
     Returns:
