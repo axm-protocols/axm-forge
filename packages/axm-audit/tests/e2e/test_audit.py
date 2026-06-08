@@ -218,3 +218,54 @@ def test_cli_test_quality_category_passes_on_clean_project(tmp_path: Path) -> No
         f"clean project should pass test_quality\n"
         f"stdout: {result.stdout}\nstderr: {result.stderr}"
     )
+
+
+@pytest.mark.e2e
+def test_workspace_audit_cli_unchanged_output(tmp_path: Path) -> None:
+    """AC2: workspace audit JSON output is stable under parallelism.
+
+    Runs the CLI twice over the same temp 2-package workspace; the parallel
+    execution must yield a deterministic report (same exit code, same set of
+    rule_ids and per-rule passed flags) across runs and across packages.
+    """
+    _make_pkg(tmp_path, "pkg-broken", {"bad.py": "def f():\n    x = 1\n    return 0\n"})
+    _make_pkg(tmp_path, "pkg-clean", {"ok.py": "def f() -> int:\n    return 0\n"})
+
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv binary not found on PATH")
+
+    def _run() -> tuple[int, str]:
+        proc = subprocess.run(  # noqa: S603
+            [
+                uv,
+                "run",
+                "axm-audit",
+                "audit",
+                str(tmp_path),
+                "--category",
+                "lint",
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return proc.returncode, proc.stdout
+
+    rc1, out1 = _run()
+    rc2, out2 = _run()
+
+    assert rc1 == rc2
+    payload1 = json.loads(out1)
+    payload2 = json.loads(out2)
+
+    def _sig(payload: dict[str, object]) -> list[tuple[str, bool]]:
+        checks = payload.get("checks", [])
+        assert isinstance(checks, list)
+        return sorted((c.get("rule_id", ""), c.get("passed", False)) for c in checks)
+
+    assert _sig(payload1) == _sig(payload2)
+    blob = json.dumps(payload1)
+    assert "pkg-broken" in blob
+    assert "pkg-clean" in blob or rc1 != 0

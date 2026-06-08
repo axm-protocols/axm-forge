@@ -502,3 +502,123 @@ def test_audit_category_empty_rules_returns_valid_result() -> None:
     assert result is not None
     assert hasattr(result, "checks")
     assert isinstance(result.checks, list)
+
+
+# ---------------------------------------------------------------------------
+# Workspace parallelization (AXM-1817)
+# ---------------------------------------------------------------------------
+
+
+class TestWorkspaceParallelAggregation:
+    """Parallel workspace audit keeps deterministic, isolated semantics.
+
+    Driven through the public ``audit_project`` entry: ``iter_workspace_packages``
+    is patched to expose fake members, and the per-package recursive
+    ``audit_project`` call is patched to a fast in-memory stub, so the
+    workspace dispatch + aggregation is exercised without real packages.
+    """
+
+    def test_workspace_result_order_deterministic(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC2: per-package aggregation order equals input package order.
+
+        The per-package stub sleeps with jittered timing so completion order
+        is the reverse of input order. The merged result must still reflect
+        the input package order, independent of which worker finished first.
+        """
+        import time
+
+        from axm_audit import audit_project
+        from axm_audit.core import auditor as auditor_module
+        from axm_audit.models.results import AuditResult, CheckResult
+
+        packages = [Path(f"/ws/pkg_{i}") for i in range(4)]
+        root = Path("/ws")
+        # Later packages finish first (reverse completion order).
+        delays = {
+            pkg.name: (len(packages) - idx) * 0.02 for idx, pkg in enumerate(packages)
+        }
+
+        def fake_iter(path: Path) -> list[Path]:
+            return packages if path == root else []
+
+        def stub_audit_project(
+            project_path: Path,
+            category: str | None = None,
+            quick: bool = False,
+        ) -> AuditResult:
+            time.sleep(delays[project_path.name])
+            return AuditResult(
+                project_path=str(project_path),
+                checks=[
+                    CheckResult(
+                        rule_id=f"RULE_{project_path.name}",
+                        passed=True,
+                        message=project_path.name,
+                    )
+                ],
+            )
+
+        monkeypatch.setattr(auditor_module, "iter_workspace_packages", fake_iter)
+        monkeypatch.setattr(Path, "exists", lambda self: True)
+        monkeypatch.setattr(auditor_module, "audit_project", stub_audit_project)
+
+        result = audit_project(root)
+
+        observed = [check.rule_id for check in result.checks]
+        assert observed == [f"RULE_{pkg.name}" for pkg in packages]
+
+    def test_one_package_failure_isolated(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC4: one package raising does not drop the successful packages.
+
+        The per-package stub raises for a single package and succeeds for the
+        others. The merged result still contains the successful packages and
+        surfaces the failure for the affected one (as a failing check), never
+        propagating the exception out of the workspace audit.
+        """
+        from axm_audit import audit_project
+        from axm_audit.core import auditor as auditor_module
+        from axm_audit.models.results import AuditResult, CheckResult
+
+        packages = [Path("/ws/ok_a"), Path("/ws/boom"), Path("/ws/ok_b")]
+        root = Path("/ws")
+
+        def fake_iter(path: Path) -> list[Path]:
+            return packages if path == root else []
+
+        def stub_audit_project(
+            project_path: Path,
+            category: str | None = None,
+            quick: bool = False,
+        ) -> AuditResult:
+            if project_path.name == "boom":
+                raise RuntimeError("audit blew up")
+            return AuditResult(
+                project_path=str(project_path),
+                checks=[
+                    CheckResult(
+                        rule_id=f"RULE_{project_path.name}",
+                        passed=True,
+                        message=project_path.name,
+                    )
+                ],
+            )
+
+        monkeypatch.setattr(auditor_module, "iter_workspace_packages", fake_iter)
+        monkeypatch.setattr(Path, "exists", lambda self: True)
+        monkeypatch.setattr(auditor_module, "audit_project", stub_audit_project)
+
+        result = audit_project(root)
+
+        rule_ids = {check.rule_id for check in result.checks}
+        assert "RULE_ok_a" in rule_ids
+        assert "RULE_ok_b" in rule_ids
+        # The failing package is surfaced (not silently dropped).
+        failing = [c for c in result.checks if not c.passed]
+        blob = " ".join(
+            f"{c.rule_id} {c.message} {c.text or ''}" for c in result.checks
+        )
+        assert failing or "boom" in blob
