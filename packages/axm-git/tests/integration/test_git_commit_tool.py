@@ -196,6 +196,38 @@ class TestCommitFlow:
         assert ls.stdout.strip() == ""
 
 
+class TestConventionalWarningRealRepo:
+    """Warn-by-default conventional validation against a real repo."""
+
+    def test_warns_on_bad_message_real_commit(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """AC1, AC4: a non-conventional message warns yet the commit lands."""
+        import logging
+
+        _init_repo__from_git_commit_tool(tmp_path)
+        (tmp_path / "a.txt").write_text("hello\n")
+        with caplog.at_level(logging.WARNING):
+            result = GitCommitTool().execute(
+                path=str(tmp_path),
+                commits=[{"files": ["a.txt"], "message": "wip stuff"}],
+            )
+        assert result.success is True
+        log = subprocess.run(
+            ["git", "log", "-1", "--format=%s"],
+            cwd=str(tmp_path),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert log.stdout.strip() == "wip stuff"
+        assert any(
+            "wip stuff" in r.getMessage()
+            for r in caplog.records
+            if r.levelno == logging.WARNING
+        )
+
+
 # ---------------------------------------------------------------------------
 # Mid-batch failure (formerly tests/integration/test_commit.py)
 # ---------------------------------------------------------------------------

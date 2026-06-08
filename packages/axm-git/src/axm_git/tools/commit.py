@@ -9,6 +9,10 @@ from typing import cast
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_git.core.branch_naming import (
+    CONVENTIONAL_COMMIT_FORMAT,
+    is_conventional_commit,
+)
 from axm_git.core.identity import author_args, resolve_identity
 from axm_git.core.runner import not_a_repo_error, run_git, timeout_error_result
 from axm_git.tools.commit_text import render_failure_text, render_text
@@ -80,6 +84,8 @@ def _validate_commit_spec(
     index: int,
     results: list[dict[str, object]],
     total: int,
+    *,
+    strict: bool = False,
 ) -> ToolResult | None:
     """Validate a single commit spec, returning a ToolResult error or None."""
     if not spec.get("files"):
@@ -94,6 +100,34 @@ def _validate_commit_spec(
             results=results,
             total=total,
         )
+    return _check_conventional(spec, index, results, total, strict=strict)
+
+
+def _check_conventional(
+    spec: dict[str, object],
+    index: int,
+    results: list[dict[str, object]],
+    total: int,
+    *,
+    strict: bool,
+) -> ToolResult | None:
+    """Validate Conventional Commit format: warn by default, block if strict.
+
+    Returns a ``ToolResult`` error only when *strict* is enabled and the
+    message is non-conventional; otherwise emits a warning and returns
+    ``None`` so the commit proceeds (warn-by-default guardrail).
+    """
+    message = cast("str", spec["message"])
+    if is_conventional_commit(message):
+        return None
+
+    detail = (
+        f"Commit {index}: message {message!r} is not a Conventional Commit "
+        f"(expected {CONVENTIONAL_COMMIT_FORMAT!r})"
+    )
+    if strict:
+        return _validation_failure(error=detail, results=results, total=total)
+    logger.warning("%s — committing anyway (warn-by-default)", detail)
     return None
 
 
@@ -134,13 +168,15 @@ def _process_single_commit(  # noqa: PLR0913
     path: Path,
     results: list[dict[str, object]],
     total: int,
+    *,
+    strict: bool = False,
 ) -> ToolResult | None:
     """Process one commit spec: validate, stage, commit, record result.
 
     Returns a ``ToolResult`` on failure or ``None`` on success
     (appending the commit record to *results*).
     """
-    validation_err = _validate_commit_spec(spec, index, results, total)
+    validation_err = _validate_commit_spec(spec, index, results, total, strict=strict)
     if validation_err:
         return validation_err
 
@@ -225,6 +261,7 @@ class GitCommitTool(AXMTool):
         path: str = ".",
         commits: list[dict[str, object]] | None = None,
         profile: str | None = None,
+        strict: bool = False,
         **kwargs: object,
     ) -> ToolResult:
         """Execute batched commits.
@@ -237,6 +274,9 @@ class GitCommitTool(AXMTool):
                 - ``body`` (str, optional): Commit body.
             profile: Optional identity profile name. Overrides
                 schedule-based resolution from ``git-profiles.toml``.
+            strict: When ``True``, a non-Conventional-Commit message is a
+                hard failure instead of a warning. Defaults to ``False``
+                (warn-by-default guardrail).
 
         Returns:
             ToolResult with list of committed results and an
@@ -276,7 +316,7 @@ class GitCommitTool(AXMTool):
 
             for i, spec in enumerate(commit_list):
                 failure = _process_single_commit(
-                    spec, i + 1, identity_args, resolved, results, total
+                    spec, i + 1, identity_args, resolved, results, total, strict=strict
                 )
                 if failure:
                     return failure

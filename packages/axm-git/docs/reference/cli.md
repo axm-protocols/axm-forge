@@ -6,7 +6,7 @@
 |---|---|---|
 | `git_preflight` | `GitPreflightTool` | Working tree status and diff summary |
 | `git_branch` | `GitBranchTool` | Create or checkout branches |
-| `git_commit` | `GitCommitTool` | Batched atomic commits with pre-commit |
+| `git_commit` | `GitCommitTool` | Batched atomic commits with pre-commit; warns on non-Conventional-Commit messages (`strict=True` blocks them) |
 | `git_clone` | `GitCloneTool` | Clone a repository into a local directory |
 | `git_tag` | `GitTagTool` | One-shot semver tagging |
 | `git_push` | `GitPushTool` | Push with dirty-check and auto-upstream; `force` uses `--force-with-lease` by default, `force_unconditional` for a bare `--force` |
