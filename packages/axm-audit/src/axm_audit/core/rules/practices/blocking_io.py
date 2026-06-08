@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import ast
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeGuard
 
 from axm_audit.core.rules._helpers import (
     get_ast_cache,
@@ -58,6 +60,43 @@ def _is_http_call(value: ast.expr) -> bool:
         or _is_chained_client_call(value)
         or _is_http_attribute_chain(value)
     )
+
+
+def _resolve_sleep_names(tree: ast.Module) -> set[str]:
+    """Collect local names bound to ``time.sleep`` via ``from time import sleep``."""
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "time":
+            for alias in node.names:
+                if alias.name == "sleep":
+                    names.add(alias.asname or alias.name)
+    return names
+
+
+def _iter_owned_nodes(func: ast.AsyncFunctionDef) -> Iterator[ast.AST]:
+    """Yield nodes lexically owned by *func*, pruning at nested function bodies."""
+    stack: list[ast.AST] = list(ast.iter_child_nodes(func))
+    while stack:
+        node = stack.pop()
+        yield node
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        stack.extend(ast.iter_child_nodes(node))
+
+
+def _is_time_sleep_call(child: ast.AST, sleep_names: set[str]) -> TypeGuard[ast.Call]:
+    """Match ``time.sleep(...)`` or a bare/aliased imported ``sleep(...)`` call."""
+    if not isinstance(child, ast.Call):
+        return False
+    func = child.func
+    if (
+        isinstance(func, ast.Attribute)
+        and func.attr == "sleep"
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "time"
+    ):
+        return True
+    return isinstance(func, ast.Name) and func.id in sleep_names
 
 
 @dataclass
@@ -117,18 +156,19 @@ class BlockingIORule(ProjectRule):
         rel: str,
         violations: list[dict[str, str | int]],
     ) -> None:
-        """Find ``time.sleep()`` inside ``async def`` bodies."""
+        """Find ``time.sleep()`` (or imported ``sleep()``) inside ``async def`` bodies.
+
+        Each ``async def`` scope is inspected exactly once: the walk is pruned at
+        nested function boundaries so a sleep in a nested *sync* ``def`` is not
+        flagged, and a sleep in a nested ``async def`` is attributed only to that
+        inner scope (no double counting).
+        """
+        sleep_names = _resolve_sleep_names(tree)
         for node in ast.walk(tree):
             if not isinstance(node, ast.AsyncFunctionDef):
                 continue
-            for child in ast.walk(node):
-                if (
-                    isinstance(child, ast.Call)
-                    and isinstance(child.func, ast.Attribute)
-                    and child.func.attr == "sleep"
-                    and isinstance(child.func.value, ast.Name)
-                    and child.func.value.id == "time"
-                ):
+            for child in _iter_owned_nodes(node):
+                if _is_time_sleep_call(child, sleep_names):
                     violations.append(
                         {
                             "file": rel,
