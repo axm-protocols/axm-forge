@@ -87,6 +87,77 @@ class TestCheckCiHeadResolution:
         assert check_ci(tmp_path) == "green"
 
 
+@pytest.mark.integration
+class TestFullTagAgainstRealRepo:
+    """full_tag matches the ref actually written into a real repo."""
+
+    @patch("axm_git.tools.tag.gh_available", return_value=False)
+    @patch("axm_git.tools.tag.detect_package_name", return_value=None)
+    @patch("axm_git.tools.tag.get_tag_prefix", return_value="git/")
+    @patch("axm_git.tools.tag.run_git")
+    def test_full_tag_matches_created_ref(
+        self,
+        mock_git: MagicMock,
+        _prefix: MagicMock,
+        _pkg: MagicMock,
+        _gh: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """AC1: data['full_tag'] equals the ref present in ``git tag -l``.
+
+        A real temp repo is initialized; the tool's git calls are routed to
+        the real repo (skipping the network push), then ``git tag -l`` is
+        read back to confirm the created ref equals data['full_tag'].
+        """
+        subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.io"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "t"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+        (tmp_path / "f.txt").write_text("x")
+        subprocess.run(
+            ["git", "add", "."], cwd=tmp_path, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "feat: init"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+        )
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if args[0] == "push":
+                return _mock_completed("")  # skip real network push
+            return subprocess.run(
+                ["git", *args],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+            )
+
+        mock_git.side_effect = _side_effect
+        result = GitTagTool().execute(path=str(tmp_path))
+        assert result.success
+        listed = subprocess.run(
+            ["git", "tag", "-l"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.split()
+        assert result.data["full_tag"] in listed
+
+
 class TestGitTagTool:
     """Test GitTagTool behavior."""
 
