@@ -9,7 +9,7 @@
 | `git_commit` | `GitCommitTool` | Batched atomic commits with pre-commit |
 | `git_clone` | `GitCloneTool` | Clone a repository into a local directory |
 | `git_tag` | `GitTagTool` | One-shot semver tagging |
-| `git_push` | `GitPushTool` | Push with dirty-check and auto-upstream |
+| `git_push` | `GitPushTool` | Push with dirty-check and auto-upstream; `force` uses `--force-with-lease` by default, `force_unconditional` for a bare `--force` |
 | `git_worktree` | `GitWorktreeTool` | Add, remove, or list git worktrees |
 | `git_pr` | `GitPRTool` | Create GitHub pull requests with optional auto-merge; idempotent — recovers the existing PR (`already_existed`) when one is already open |
 

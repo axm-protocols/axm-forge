@@ -95,7 +95,7 @@ Each tool exposes an `execute(*, path, ..., **kwargs) → ToolResult` method wit
 - **`GitCommitTool`** — Stage files, commit with pre-commit hooks, auto-retry on linter fixes. Supports batched commits. Each commit spec is processed by `_process_single_commit()` (validate → stage → commit → record).
 - **`GitPreflightTool`** — Parse `git status --porcelain` and `git diff --stat` into structured data. Uses `find_git_root()` to scope status and diff to the target subdirectory via pathspec, matching the behaviour of `PreflightHook`.
 - **`GitBranchTool`** — Create or checkout a branch. Supports `from_ref` (branch from tag/commit) and `checkout_only` (switch without creating).
-- **`GitPushTool`** — Push with dirty-check guard, auto-upstream detection, custom remote, and force-push support.
+- **`GitPushTool`** — Push with dirty-check guard, auto-upstream detection, custom remote, and safe force-push support. `force=True` uses `--force-with-lease` (the remote is overwritten only if it has not advanced past our remote-tracking ref); the opt-in `force_unconditional=True` falls back to a bare `--force` for a deliberate unconditional overwrite (data-loss risk).
 
 ### 2. Core (`core/`)
 
