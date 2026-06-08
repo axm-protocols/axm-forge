@@ -125,8 +125,27 @@ class TestGitPushTool:
         assert push_call[0][0] == ["push", "upstream", "main"]
 
     @patch("axm_git.tools.push.run_git")
-    def test_push_force(self, mock_git: MagicMock) -> None:
-        """Force flag adds --force to push command."""
+    def test_force_uses_force_with_lease(self, mock_git: MagicMock) -> None:
+        """AC1: force=True emits --force-with-lease, not bare --force."""
+        mock_git.side_effect = [
+            _ok(),  # rev-parse
+            _ok(stdout=""),  # clean
+            _ok(stdout="main\n"),  # branch
+            _ok(stdout="origin/main"),  # has upstream
+            _ok(),  # push --force-with-lease
+        ]
+        result = GitPushTool().execute(path="/repo", force=True)
+        assert result.success
+
+        push_call = mock_git.call_args_list[4]
+        args = push_call[0][0]
+        assert "--force-with-lease" in args
+        assert "--force" not in args
+        assert args == ["push", "--force-with-lease", "origin", "main"]
+
+    @patch("axm_git.tools.push.run_git")
+    def test_unconditional_flag_uses_bare_force(self, mock_git: MagicMock) -> None:
+        """AC2: force_unconditional=True emits bare --force."""
         mock_git.side_effect = [
             _ok(),  # rev-parse
             _ok(stdout=""),  # clean
@@ -134,13 +153,52 @@ class TestGitPushTool:
             _ok(stdout="origin/main"),  # has upstream
             _ok(),  # push --force
         ]
-        result = GitPushTool().execute(path="/repo", force=True)
+        result = GitPushTool().execute(
+            path="/repo", force=True, force_unconditional=True
+        )
         assert result.success
 
         push_call = mock_git.call_args_list[4]
         args = push_call[0][0]
         assert "--force" in args
+        assert "--force-with-lease" not in args
         assert args == ["push", "--force", "origin", "main"]
+
+    @patch("axm_git.tools.push.run_git")
+    def test_non_force_push_has_no_force_flag(self, mock_git: MagicMock) -> None:
+        """AC3: force=False emits neither --force nor --force-with-lease."""
+        mock_git.side_effect = [
+            _ok(),  # rev-parse
+            _ok(stdout=""),  # clean
+            _ok(stdout="main\n"),  # branch
+            _ok(stdout="origin/main"),  # has upstream
+            _ok(),  # push
+        ]
+        result = GitPushTool().execute(path="/repo", force=False)
+        assert result.success
+
+        push_call = mock_git.call_args_list[4]
+        args = push_call[0][0]
+        assert "--force" not in args
+        assert "--force-with-lease" not in args
+        assert args == ["push", "origin", "main"]
+
+    @patch("axm_git.tools.push.run_git")
+    def test_force_true_backward_compatible(self, mock_git: MagicMock) -> None:
+        """AC4: existing force=True call (no new flag) applies lease, no error."""
+        mock_git.side_effect = [
+            _ok(),  # rev-parse
+            _ok(stdout=""),  # clean
+            _ok(stdout="main\n"),  # branch
+            _ok(stdout="origin/main"),  # has upstream
+            _ok(),  # push --force-with-lease
+        ]
+        result = GitPushTool().execute(path="/repo", force=True)
+        assert result.success
+
+        push_call = mock_git.call_args_list[4]
+        args = push_call[0][0]
+        assert "--force-with-lease" in args
 
     @patch("axm_git.tools.push.run_git")
     def test_not_git_repo(self, mock_git: MagicMock) -> None:
