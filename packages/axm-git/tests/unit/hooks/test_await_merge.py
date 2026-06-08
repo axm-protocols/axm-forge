@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import subprocess
 from pathlib import Path
 
@@ -48,7 +49,7 @@ class TestAwaitMergeHook:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Always OPEN → timeout."""
+        """Always OPEN → timeout (driven by a controlled monotonic clock)."""
         monkeypatch.setattr("axm_git.hooks.await_merge.gh_available", lambda: True)
         monkeypatch.setattr(
             "axm_git.hooks.await_merge.run_gh",
@@ -57,6 +58,10 @@ class TestAwaitMergeHook:
             ),
         )
         monkeypatch.setattr("axm_git.hooks.await_merge.time.sleep", lambda _: None)
+        ticks = itertools.count(0, 1)
+        monkeypatch.setattr(
+            "axm_git.hooks.await_merge.time.monotonic", lambda: next(ticks)
+        )
 
         hook = AwaitMergeHook()
         result = hook.execute(
@@ -65,6 +70,119 @@ class TestAwaitMergeHook:
             timeout=3,
         )
         assert not result.success
+
+    def test_timeout_uses_monotonic_not_interval_count(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """AC1, AC2: elapsed comes from time.monotonic() and poll cost counts.
+
+        Each iteration advances the virtual clock by ``interval + poll_cost``,
+        so the loop exits after fewer iterations than ``timeout / interval``
+        would imply if only ``interval`` were accumulated.
+        """
+        interval = 30
+        timeout = 300
+        poll_cost = 20  # wall-clock cost charged per _poll_pr_state call
+        per_iter = interval + poll_cost  # 50s of virtual time per loop turn
+
+        ticks = itertools.count(0, per_iter)
+        monkeypatch.setattr(
+            "axm_git.hooks.await_merge.time.monotonic", lambda: next(ticks)
+        )
+        monkeypatch.setattr("axm_git.hooks.await_merge.time.sleep", lambda _: None)
+        monkeypatch.setattr("axm_git.hooks.await_merge.gh_available", lambda: True)
+
+        polls = 0
+
+        def fake_run_gh(
+            args: list[str], cwd: Path, **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            nonlocal polls
+            polls += 1
+            return subprocess.CompletedProcess(
+                args, 0, stdout='{"state":"OPEN"}', stderr=""
+            )
+
+        monkeypatch.setattr("axm_git.hooks.await_merge.run_gh", fake_run_gh)
+
+        hook = AwaitMergeHook()
+        result = hook.execute(
+            {"working_dir": ".", "pr_number": "42"},
+            interval=interval,
+            timeout=timeout,
+        )
+
+        # Interval-only accounting would poll timeout // interval == 10 times.
+        # Monotonic accounting charges poll cost too: the loop polls while
+        # virtual elapsed < 300, i.e. on checks at 50,100,150,200,250 (the
+        # 300 check exits) -> 5 polls, strictly fewer than interval-only.
+        assert polls < timeout // interval
+        assert polls == 5
+        assert not result.success
+
+    def test_merge_completes_within_timeout(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """AC3: a merge within the timeout returns success promptly."""
+        ticks = itertools.count(0, 50)
+        monkeypatch.setattr(
+            "axm_git.hooks.await_merge.time.monotonic", lambda: next(ticks)
+        )
+        monkeypatch.setattr("axm_git.hooks.await_merge.time.sleep", lambda _: None)
+        monkeypatch.setattr("axm_git.hooks.await_merge.gh_available", lambda: True)
+
+        states = iter(["OPEN", "MERGED"])
+
+        def fake_run_gh(
+            args: list[str], cwd: Path, **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(
+                args, 0, stdout=f'{{"state":"{next(states)}"}}', stderr=""
+            )
+
+        monkeypatch.setattr("axm_git.hooks.await_merge.run_gh", fake_run_gh)
+
+        hook = AwaitMergeHook()
+        result = hook.execute(
+            {"working_dir": ".", "pr_number": "42"},
+            interval=30,
+            timeout=300,
+        )
+
+        assert result.success
+        assert result.metadata["merged"] is True
+
+    def test_timeout_outcome_unchanged(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """AC4: passing the timeout yields the existing timeout outcome."""
+        timeout = 300
+        ticks = itertools.count(0, 50)
+        monkeypatch.setattr(
+            "axm_git.hooks.await_merge.time.monotonic", lambda: next(ticks)
+        )
+        monkeypatch.setattr("axm_git.hooks.await_merge.time.sleep", lambda _: None)
+        monkeypatch.setattr("axm_git.hooks.await_merge.gh_available", lambda: True)
+        monkeypatch.setattr(
+            "axm_git.hooks.await_merge.run_gh",
+            lambda args, cwd, **kw: subprocess.CompletedProcess(
+                args, 0, stdout='{"state":"OPEN"}', stderr=""
+            ),
+        )
+
+        hook = AwaitMergeHook()
+        result = hook.execute(
+            {"working_dir": ".", "pr_number": "42"},
+            interval=30,
+            timeout=timeout,
+        )
+
+        assert not result.success
+        assert result.error is not None
+        assert f"{timeout}s timeout" in result.error
 
     def test_await_merge_poll_interval(
         self,
