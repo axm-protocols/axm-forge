@@ -634,6 +634,71 @@ class TestCommitFileDiagnostics:
         assert "nonexistent.py" in (result.error or "")
 
 
+class TestDeletedFileStaging:
+    """AC1/AC3/AC4: ``git ls-files -d`` pathspec relative to git_root."""
+
+    def test_deleted_file_in_subdir_staged(
+        self,
+        tmp_workspace_repo: tuple[Path, Path],
+    ) -> None:
+        """AC1: a tracked file deleted in a subdir (working_dir != git_root)
+        is detected by ``git ls-files -d`` via the correct git_root-relative
+        pathspec and staged as a deletion. AC3 root case is covered by
+        tests/integration/test_stage_spec_files.py.
+        """
+        git_root, pkg_dir = tmp_workspace_repo
+        # hello.py was committed at packages/pkg/src/hello.py by the fixture.
+        (pkg_dir / "src" / "hello.py").unlink()
+
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {
+                "working_dir": str(pkg_dir),
+                # working-dir-relative path (relative to pkg_dir, not git_root)
+                "commit_spec": {
+                    "message": "chore(pkg): remove hello",
+                    "files": ["src/hello.py"],
+                },
+            },
+            from_outputs=True,
+        )
+
+        assert result.success, result.error
+        status = subprocess.run(
+            ["git", "log", "-1", "--name-status", "--format="],
+            cwd=git_root,
+            capture_output=True,
+            text=True,
+        )
+        assert "packages/pkg/src/hello.py" in status.stdout
+        assert status.stdout.lstrip().startswith("D")
+
+    def test_modified_file_unaffected(
+        self,
+        tmp_workspace_repo: tuple[Path, Path],
+    ) -> None:
+        """AC4: a non-deleted (modified) file in a subdir is staged normally,
+        unaffected by the deleted-file resolution path.
+        """
+        _, pkg_dir = tmp_workspace_repo
+        (pkg_dir / "src" / "hello.py").write_text("# modified\n")
+
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {
+                "working_dir": str(pkg_dir),
+                "commit_spec": {
+                    "message": "feat(pkg): modify hello",
+                    "files": ["src/hello.py"],
+                },
+            },
+            from_outputs=True,
+        )
+
+        assert result.success, result.error
+        assert result.metadata["commit"]
+
+
 class TestCommitPhaseWorkspace:
     """Tests for CommitPhaseHook in workspace (nested package) layouts.
 
