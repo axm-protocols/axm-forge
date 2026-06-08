@@ -91,7 +91,7 @@ graph TD
 
 Each tool exposes an `execute(*, path, ..., **kwargs) → ToolResult` method with explicit typed parameters:
 
-- **`GitTagTool`** — Full tag workflow: check clean tree, check CI, compute semver bump, create tag, verify hatch-vcs, push.
+- **`GitTagTool`** — Full tag workflow: check clean tree, check CI, compute semver bump, create tag, verify hatch-vcs, push. The CI check (`check_ci`) correlates the gh run's `headSha` with the current HEAD — a stale green on an older commit or a red on an unrelated commit never decides the verdict; when no run matches HEAD it returns `pending`.
 - **`GitCommitTool`** — Stage files, commit with pre-commit hooks, auto-retry on linter fixes. Supports batched commits. Each commit spec is processed by `_process_single_commit()` (validate → stage → commit → record).
 - **`GitPreflightTool`** — Parse `git status --porcelain` and `git diff --stat` into structured data. Uses `find_git_root()` to scope status and diff to the target subdirectory via pathspec, matching the behaviour of `PreflightHook`.
 - **`GitBranchTool`** — Create or checkout a branch. Supports `from_ref` (branch from tag/commit) and `checkout_only` (switch without creating).

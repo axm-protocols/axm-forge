@@ -29,8 +29,48 @@ __all__ = ["GitTagTool"]
 logger = logging.getLogger(__name__)
 
 
+def _head_sha(path: Path) -> str | None:
+    """Resolve the current HEAD SHA via ``git rev-parse``, or None on failure."""
+    rev = run_git(["rev-parse", "HEAD"], path)
+    if rev.returncode != 0:
+        return None
+    sha = rev.stdout.strip()
+    return sha or None
+
+
+def _sha_matches(run_sha: str, head_sha: str) -> bool:
+    """Compare a CI run's headSha with HEAD, tolerating short vs full SHAs.
+
+    ``gh`` may return either a short or a full SHA; we prefix-match on the
+    longer of the two so an abbreviated SHA still correlates with HEAD.
+    """
+    if not run_sha:
+        return False
+    longer, shorter = (
+        (run_sha, head_sha) if len(run_sha) >= len(head_sha) else (head_sha, run_sha)
+    )
+    return longer.startswith(shorter)
+
+
+def _verdict(run: dict[str, object]) -> str:
+    """Map a single CI run to the green/pending/red vocabulary."""
+    if run.get("conclusion") == "success":
+        return "green"
+    if run.get("status") == "in_progress":
+        return "pending"
+    return "red"
+
+
 def check_ci(path: Path) -> str:
-    """Check CI status via ``gh``.  Returns one of green/red/pending/skipped/error."""
+    """Check CI status via ``gh`` for the CI run matching HEAD.
+
+    Returns one of green/red/pending/skipped/error. The status is derived
+    from the run whose ``headSha`` matches the current HEAD SHA, never from
+    ``runs[0]`` unconditionally: a stale green (HEAD moved past it) or a red
+    on an unrelated commit must not influence the verdict. When no run
+    matches HEAD, returns ``pending`` (block tagging until CI exists for the
+    exact commit being tagged).
+    """
     if not gh_available():
         return "skipped"
     try:
@@ -52,12 +92,13 @@ def check_ci(path: Path) -> str:
         runs = json.loads(ci.stdout)
         if not runs:
             return "skipped"
-        latest = runs[0]
-        if latest.get("conclusion") == "success":
-            return "green"
-        if latest.get("status") == "in_progress":
+        head_sha = _head_sha(path)
+        if head_sha is None:
             return "pending"
-        return "red"
+        for run in runs:
+            if _sha_matches(str(run.get("headSha") or ""), head_sha):
+                return _verdict(run)
+        return "pending"
     except (json.JSONDecodeError, FileNotFoundError):
         return "error"
 

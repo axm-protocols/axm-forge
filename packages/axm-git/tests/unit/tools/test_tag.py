@@ -104,6 +104,14 @@ class TestGitTagToolUnit:
         assert "CI is red" in (result.error or "")
 
 
+_HEAD = "abc123"
+
+
+def _head_proc() -> subprocess.CompletedProcess[str]:
+    """Fake ``git rev-parse HEAD`` returning the canonical test HEAD sha."""
+    return _mock_completed(stdout=_HEAD + "\n")
+
+
 class TestCheckCi:
     """Test the check_ci helper."""
 
@@ -116,19 +124,25 @@ class TestCheckCi:
         [
             pytest.param(
                 0,
-                json.dumps([{"conclusion": "success", "status": "completed"}]),
+                json.dumps(
+                    [{"conclusion": "success", "status": "completed", "headSha": _HEAD}]
+                ),
                 "green",
                 id="green",
             ),
             pytest.param(
                 0,
-                json.dumps([{"conclusion": None, "status": "in_progress"}]),
+                json.dumps(
+                    [{"conclusion": None, "status": "in_progress", "headSha": _HEAD}]
+                ),
                 "pending",
                 id="pending",
             ),
             pytest.param(
                 0,
-                json.dumps([{"conclusion": "failure", "status": "completed"}]),
+                json.dumps(
+                    [{"conclusion": "failure", "status": "completed", "headSha": _HEAD}]
+                ),
                 "red",
                 id="red",
             ),
@@ -136,12 +150,14 @@ class TestCheckCi:
             pytest.param(1, "", "skipped", id="gh_returncode_nonzero"),
         ],
     )
+    @patch("axm_git.tools.tag.run_git", return_value=_head_proc())
     @patch("axm_git.tools.tag.run_gh")
     @patch("axm_git.tools.tag.gh_available", return_value=True)
     def test_check_ci_from_gh_output(
         self,
         _gh: MagicMock,
         mock_gh: MagicMock,
+        _git: MagicMock,
         returncode: int,
         stdout: str,
         expected_status: str,
@@ -155,6 +171,77 @@ class TestCheckCi:
     @patch("axm_git.tools.tag.gh_available", return_value=True)
     def test_exception_returns_error(self, _gh: MagicMock, _mock_gh: MagicMock) -> None:
         assert check_ci(Path("/tmp")) == "error"
+
+    @patch("axm_git.tools.tag.run_git", return_value=_head_proc())
+    @patch("axm_git.tools.tag.run_gh")
+    @patch("axm_git.tools.tag.gh_available", return_value=True)
+    def test_ci_green_only_when_headsha_matches(
+        self, _gh: MagicMock, mock_gh: MagicMock, _git: MagicMock
+    ) -> None:
+        """AC1: green is reported from the run whose headSha equals HEAD."""
+        mock_gh.return_value = _mock_completed(
+            stdout=json.dumps(
+                [{"conclusion": "success", "status": "completed", "headSha": _HEAD}]
+            )
+        )
+        assert check_ci(Path("/tmp")) == "green"
+
+    @patch(
+        "axm_git.tools.tag.run_git",
+        return_value=_mock_completed(stdout="def456\n"),
+    )
+    @patch("axm_git.tools.tag.run_gh")
+    @patch("axm_git.tools.tag.gh_available", return_value=True)
+    def test_ci_stale_green_not_reported(
+        self, _gh: MagicMock, mock_gh: MagicMock, _git: MagicMock
+    ) -> None:
+        """AC3: a green run on an older SHA does not yield green once HEAD moved."""
+        mock_gh.return_value = _mock_completed(
+            stdout=json.dumps(
+                [{"conclusion": "success", "status": "completed", "headSha": "abc123"}]
+            )
+        )
+        assert check_ci(Path("/tmp")) != "green"
+
+    @patch(
+        "axm_git.tools.tag.run_git",
+        return_value=_mock_completed(stdout="def456\n"),
+    )
+    @patch("axm_git.tools.tag.run_gh")
+    @patch("axm_git.tools.tag.gh_available", return_value=True)
+    def test_ci_no_run_for_head_is_pending(
+        self, _gh: MagicMock, mock_gh: MagicMock, _git: MagicMock
+    ) -> None:
+        """AC2: when no run matches HEAD, return non-green (pending)."""
+        mock_gh.return_value = _mock_completed(
+            stdout=json.dumps(
+                [{"conclusion": "success", "status": "completed", "headSha": "abc123"}]
+            )
+        )
+        result = check_ci(Path("/tmp"))
+        assert result != "green"
+        assert result == "pending"
+
+    @patch("axm_git.tools.tag.run_git", return_value=_head_proc())
+    @patch("axm_git.tools.tag.run_gh")
+    @patch("axm_git.tools.tag.gh_available", return_value=True)
+    def test_ci_unrelated_red_does_not_block(
+        self, _gh: MagicMock, mock_gh: MagicMock, _git: MagicMock
+    ) -> None:
+        """AC4: a red run on an unrelated SHA is ignored in favor of HEAD's green."""
+        mock_gh.return_value = _mock_completed(
+            stdout=json.dumps(
+                [
+                    {
+                        "conclusion": "failure",
+                        "status": "completed",
+                        "headSha": "zzz999",
+                    },
+                    {"conclusion": "success", "status": "completed", "headSha": _HEAD},
+                ]
+            )
+        )
+        assert check_ci(Path("/tmp")) == "green"
 
 
 class TestVerifyHatchVcs:
