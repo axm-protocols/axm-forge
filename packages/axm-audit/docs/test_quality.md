@@ -22,6 +22,12 @@ id that was evaluated), `--agent` for the compact agent renderer, or
 `1` when the aggregate score falls below `PASS_THRESHOLD`. See the
 [CLI reference](reference/cli.md) for details.
 
+Each pyramid mismatch line in the compact renderer shows the coarse
+`reason` and, when present, the deciding `io_signals` that drove the
+classification, appended as a compact, deterministically-ordered
+fragment (e.g. `signals: fixture:db_session, tmp_path->open`). The
+fragment is omitted entirely when no signals were recorded.
+
 ## Private Imports
 
 **Rule ID**: `TEST_QUALITY_PRIVATE_IMPORTS`
