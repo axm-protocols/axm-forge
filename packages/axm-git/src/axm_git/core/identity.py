@@ -152,7 +152,34 @@ def resolve_by_override(
         return None
     if profile_override == "default":
         return config.default
-    return config.profiles.get(profile_override)
+    identity = config.profiles.get(profile_override)
+    if identity is None:
+        _warn_unknown_profile(config, profile_override)
+    return identity
+
+
+def _warn_unknown_profile(config: GitProfileConfig, profile_override: str) -> None:
+    """Warn that *profile_override* matched no configured profile.
+
+    Distinguishes "no profiles configured at all" (different remediation)
+    from "unknown profile" (likely a typo) and surfaces the available
+    profile names. Observability only — the caller still falls back to
+    the default git identity.
+    """
+    if not config.profiles:
+        logger.warning(
+            "Requested git profile %r but no profiles are configured; "
+            "falling back to the default identity",
+            profile_override,
+        )
+        return
+    available = ", ".join(sorted(config.profiles))
+    logger.warning(
+        "Unknown git profile %r; falling back to the default identity. "
+        "Available profiles: %s",
+        profile_override,
+        available,
+    )
 
 
 def resolve_by_schedule(
@@ -183,7 +210,10 @@ def resolve_identity(
     """Resolve the git identity for the given workspace.
 
     Returns ``None`` when no config is available or an unknown profile
-    is requested via *profile_override*.
+    is requested via *profile_override*. An unknown *profile_override*
+    (a typo, or a request against an empty profile set) emits a
+    ``WARNING`` naming the requested profile and the available ones
+    before falling back to ``None`` — observability, not a hard failure.
     """
     config = load_config(config_path)
     if config is None:
