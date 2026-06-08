@@ -12,13 +12,11 @@ from typing import cast
 
 from axm.hooks.base import HookResult
 
-from axm_git.core.runner import find_git_root, run_git
+from axm_git.core.runner import find_git_root, parse_porcelain_z, run_git
 from axm_git.hooks._resolve import resolve_working_dir
 from axm_git.tools.commit_preflight import render_text
 
 __all__ = ["PreflightHook", "truncate_diff"]
-
-_MIN_STATUS_LINE_LEN = 4  # git porcelain format: "XY filename"
 
 
 def truncate_diff(stdout: str, max_lines: int) -> str:
@@ -46,13 +44,8 @@ def _compute_pathspec(working_dir: Path, git_root: Path) -> list[str]:
 
 
 def _collect_status_files(status_stdout: str) -> list[dict[str, str]]:
-    """Parse ``git status --porcelain`` output into ``{path, status}`` rows."""
-    files: list[dict[str, str]] = []
-    for line in status_stdout.splitlines():
-        if len(line) < _MIN_STATUS_LINE_LEN:
-            continue
-        files.append({"path": line[3:], "status": line[:2].strip()})
-    return files
+    """Parse ``git status --porcelain -z`` output into ``{path, status}`` rows."""
+    return parse_porcelain_z(status_stdout)
 
 
 def _collect_diff_stat(git_root: Path, pathspec: list[str]) -> str:
@@ -114,7 +107,7 @@ class PreflightHook:
 
         pathspec = _compute_pathspec(working_dir, git_root)
 
-        status = run_git(["status", "--porcelain", *pathspec], git_root)
+        status = run_git(["status", "--porcelain", "-z", *pathspec], git_root)
         if status.returncode != 0:
             return HookResult.fail(f"git status failed: {status.stderr}")
 
