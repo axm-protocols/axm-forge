@@ -166,9 +166,18 @@ def _resolve_add_target(
         return "", err
     if resolved is not None and resolved.exists():
         return str(resolved), None
-    ls_result = run_git(["ls-files", "-d", filepath], git_root)
-    if ls_result.stdout.strip():
-        return filepath, None
+    # Tracked-but-deleted: probe ``git ls-files -d`` with each candidate path
+    # relativized to git_root (``ls-files`` interprets the pathspec relative
+    # to its cwd, which is git_root). Return that git_root-relative path so
+    # the deletion stages even when working_dir is a subdir of git_root.
+    git_root_abs = git_root.resolve()
+    for candidate in tried:
+        if not candidate.is_relative_to(git_root_abs):
+            continue
+        rel = candidate.relative_to(git_root_abs).as_posix()
+        ls_result = run_git(["ls-files", "-d", rel], git_root)
+        if ls_result.stdout.strip():
+            return rel, None
     attempts = ", ".join(str(p) for p in tried)
     return "", f"files not found: {filepath!r} (tried: {attempts})"
 
