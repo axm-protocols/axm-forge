@@ -41,18 +41,34 @@ def _check_dirty(resolved: Path) -> ToolResult | None:
     return None
 
 
+def _resolve_force_flag(*, force: bool, force_unconditional: bool) -> str | None:
+    """Resolve the force-push argv flag.
+
+    Returns ``--force-with-lease`` for a safe force (the default), bare
+    ``--force`` only when ``force_unconditional`` is set, or ``None`` for
+    a non-force push.
+    """
+    if not force:
+        return None
+    return "--force" if force_unconditional else "--force-with-lease"
+
+
 def _build_push_cmd(
     *,
-    force: bool,
+    force_flag: str | None,
     has_upstream: bool,
     set_upstream: bool,
     remote: str,
     branch: str,
 ) -> list[str]:
-    """Build the ``git push`` argument list."""
+    """Build the ``git push`` argument list.
+
+    ``force_flag`` is the pre-resolved force token (``--force-with-lease``,
+    ``--force``, or ``None``); see :func:`_resolve_force_flag`.
+    """
     cmd: list[str] = ["push"]
-    if force:
-        cmd.append("--force")
+    if force_flag is not None:
+        cmd.append(force_flag)
     if not has_upstream and set_upstream:
         cmd.extend(["--set-upstream", remote, branch])
     else:
@@ -78,6 +94,7 @@ class GitPushTool(AXMTool):
         remote: str = "origin",
         set_upstream: bool = True,
         force: bool = False,
+        force_unconditional: bool = False,
         **kwargs: object,
     ) -> ToolResult:
         """Push the current branch to a remote.
@@ -86,7 +103,13 @@ class GitPushTool(AXMTool):
             path: Project root directory.
             remote: Remote name (default ``origin``).
             set_upstream: Auto-set upstream for new branches.
-            force: If True, force-push.
+            force: If True, force-push using ``--force-with-lease`` (safe:
+                the remote is only overwritten if it has not advanced
+                beyond our remote-tracking ref).
+            force_unconditional: If True (and ``force`` is set), use a bare
+                ``--force`` instead, overwriting the remote unconditionally.
+                DATA-LOSS RISK: this discards remote commits we never saw.
+                Leave False unless a deliberate hard overwrite is intended.
 
         Returns:
             ToolResult with branch, remote, and push status.
@@ -131,8 +154,11 @@ class GitPushTool(AXMTool):
             has_upstream = upstream.returncode == 0
 
             # 5. Push.
+            force_flag = _resolve_force_flag(
+                force=force, force_unconditional=force_unconditional
+            )
             cmd = _build_push_cmd(
-                force=force,
+                force_flag=force_flag,
                 has_upstream=has_upstream,
                 set_upstream=set_upstream,
                 remote=remote,
@@ -149,10 +175,12 @@ class GitPushTool(AXMTool):
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
 
+        force_mode = force_flag.removeprefix("--") if force_flag else None
         data: dict[str, object] = {
             "branch": branch,
             "remote": remote,
             "pushed": True,
             "set_upstream": not has_upstream and set_upstream,
+            "force_mode": force_mode,
         }
         return ToolResult(success=True, data=data, text=render_text(data))

@@ -35,6 +35,9 @@ def render_text(data: dict[str, object]) -> str:
     header = f"git_push | ✓ | {branch} → {remote}"
     if data.get("set_upstream"):
         header += " · upstream set"
+    force_mode = data.get("force_mode")
+    if force_mode:
+        header += f" · {force_mode}"
     return header
 
 
