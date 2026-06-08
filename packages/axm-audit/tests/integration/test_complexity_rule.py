@@ -13,6 +13,7 @@ import logging
 import shutil
 import textwrap
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 from unittest.mock import MagicMock, patch
@@ -20,6 +21,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from axm_audit.core.rules.complexity import ComplexityRule
+
+_COMPLEXITY_MOD = "axm_audit.core.rules.complexity"
 
 pytestmark = pytest.mark.integration
 
@@ -1078,3 +1081,97 @@ def test_module_function_still_matches(tmp_path: Path) -> None:
     assert topfns, f"topfn not flagged; offenders={result.details['top_offenders']}"
     assert int(topfns[0]["cognitive"]) > 15
     assert "cog" in str(topfns[0]["reason"])
+
+
+# ---------------------------------------------------------------------------
+# CC/Cog key-pairing warnings (moved from unit test_complexity_cog_matching.py)
+# ---------------------------------------------------------------------------
+
+
+class _FakeBlock:
+    """Stand-in for a radon CC block."""
+
+    def __init__(self, classname: str, name: str, cc: int) -> None:
+        self.classname = classname
+        self.name = name
+        self.complexity = cc
+
+
+def _fake_radon(
+    blocks: list[_FakeBlock],
+) -> tuple[Callable[[str], list[_FakeBlock]], Callable[[int], str]]:
+    """Return ``(cc_visit, cc_rank)`` stand-ins mirroring radon's API."""
+
+    def cc_visit(_source: str) -> list[_FakeBlock]:
+        return blocks
+
+    def cc_rank(cc: int) -> str:
+        return "C" if cc >= 11 else "A"
+
+    return cc_visit, cc_rank
+
+
+def _write_cog_match_pkg(tmp_path: Path) -> None:
+    src = tmp_path / "src" / "pkg"
+    src.mkdir(parents=True)
+    (src / "__init__.py").write_text("", encoding="utf-8")
+    (src / "mod.py").write_text(
+        "class A:\n    def run(self):\n        return 1\n", encoding="utf-8"
+    )
+
+
+def test_unmatched_cog_logs_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """AC2: a CC block with no matching Cog entry logs a warning naming it.
+
+    The cognitive layer is enabled (``cog_disabled=False``) but its map
+    lacks the block's qualified key — the score must not be silently
+    treated as 0 without a trace.
+    """
+    _write_cog_match_pkg(tmp_path)
+
+    block = _FakeBlock("A", "run", 12)
+    monkeypatch.setattr(
+        f"{_COMPLEXITY_MOD}._try_import_radon", lambda: _fake_radon([block])
+    )
+    # Cognitive enabled but empty -> A.run has no match.
+    monkeypatch.setattr(
+        f"{_COMPLEXITY_MOD}._compute_cognitive_map", lambda _src: ({}, False)
+    )
+
+    with caplog.at_level(logging.WARNING, logger=_COMPLEXITY_MOD):
+        ComplexityRule().check(tmp_path)
+
+    messages = "\n".join(r.getMessage() for r in caplog.records)
+    assert "A.run" in messages
+    assert "mod.py" in messages
+
+
+def test_no_warning_when_cog_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """AC2: when the cognitive layer is disabled, a missing entry is expected.
+
+    No per-block warning should fire — the absence is structural, not a
+    real pairing failure.
+    """
+    _write_cog_match_pkg(tmp_path)
+
+    block = _FakeBlock("A", "run", 12)
+    monkeypatch.setattr(
+        f"{_COMPLEXITY_MOD}._try_import_radon", lambda: _fake_radon([block])
+    )
+    monkeypatch.setattr(
+        f"{_COMPLEXITY_MOD}._compute_cognitive_map", lambda _src: ({}, True)
+    )
+
+    with caplog.at_level(logging.WARNING, logger=_COMPLEXITY_MOD):
+        ComplexityRule().check(tmp_path)
+
+    messages = "\n".join(r.getMessage() for r in caplog.records)
+    assert "A.run" not in messages
