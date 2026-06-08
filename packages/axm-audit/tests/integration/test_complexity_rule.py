@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import textwrap
 import tomllib
 from pathlib import Path
 from typing import Protocol
@@ -965,3 +966,115 @@ def test_subprocess_path_uses_grade(
     assert result.details["high_complexity_count"] == 1
     offenders = result.details["top_offenders"]
     assert offenders[0]["rank"] == "C"
+
+
+# ---------------------------------------------------------------------------
+# AXM-1816: CC/Cog key pairing across the radon/complexipy boundary.
+#
+# complexipy reports methods as ``Class::method`` while radon reports
+# ``Class.method``. Before the fix the cog map was keyed on the bare
+# complexipy name, so ``cog_map.get((rel, "Class.method"))`` missed and
+# the method's cognitive score silently collapsed to 0 (false negative
+# on Cog<15). These drive the real complexipy backend through the public
+# ``ComplexityRule.check`` surface.
+# ---------------------------------------------------------------------------
+
+
+def _write_cog_pkg(root: Path, module: str, body: str) -> None:
+    """Write a minimal ``src/pkg/{module}.py`` package at *root*."""
+    src = root / "src" / "pkg"
+    src.mkdir(parents=True, exist_ok=True)
+    (src / "__init__.py").write_text("", encoding="utf-8")
+    (src / f"{module}.py").write_text(textwrap.dedent(body), encoding="utf-8")
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "pkg"\nversion = "0.1"\n', encoding="utf-8"
+    )
+
+
+# Method body whose cognitive complexity blows past the >15 threshold via
+# deep nesting + boolean chaining, while its cyclomatic rank stays < C.
+_HIGH_COG_METHOD = """
+        def run(self, x):
+            if x:
+                if x > 1:
+                    if x > 2:
+                        for i in range(x):
+                            if i % 2 and i > 1 and i < 9:
+                                while i > 0:
+                                    if i == 5 or i == 7:
+                                        i -= 1
+                                    else:
+                                        i -= 2
+            return x
+"""
+
+
+def test_high_cog_method_flagged(tmp_path: Path) -> None:
+    """AC1: a class method with high Cog (low CC) is flagged, not dropped to 0.
+
+    Proves the radon ``Class.method`` key now pairs with the complexipy
+    entry so the cognitive score survives instead of collapsing to 0.
+    """
+    pytest.importorskip("complexipy")
+    _write_cog_pkg(tmp_path, "svc", f"class A:{_HIGH_COG_METHOD}")
+
+    result = ComplexityRule().check(tmp_path)
+    assert result.details is not None
+    offenders = result.details["top_offenders"]
+
+    run_methods = [o for o in offenders if o["function"] == "A.run"]
+    assert run_methods, f"A.run not flagged; offenders={offenders}"
+    offender = run_methods[0]
+    assert int(offender["cognitive"]) > 15
+    assert "cog" in str(offender["reason"])
+
+
+def test_same_name_methods_distinct_cog(tmp_path: Path) -> None:
+    """AC3: same-name methods in different classes pair to their own scores.
+
+    ``A.run`` (high Cog) is flagged while ``B.run`` (trivial) is not — keys
+    are disambiguated by enclosing class, no cross-contamination.
+    """
+    pytest.importorskip("complexipy")
+    body = (
+        f"class A:{_HIGH_COG_METHOD}\n\n"
+        "class B:\n"
+        "    def run(self, x):\n"
+        "        return x\n"
+    )
+    _write_cog_pkg(tmp_path, "svc", body)
+
+    result = ComplexityRule().check(tmp_path)
+    assert result.details is not None
+    flagged = {str(o["function"]) for o in result.details["top_offenders"]}
+
+    assert "A.run" in flagged
+    assert "B.run" not in flagged
+
+
+def test_module_function_still_matches(tmp_path: Path) -> None:
+    """AC4: a top-level high-Cog function still pairs correctly (no regression)."""
+    pytest.importorskip("complexipy")
+    body = """
+        def topfn(x):
+            if x:
+                if x > 1:
+                    if x > 2:
+                        for i in range(x):
+                            if i % 2 and i > 1 and i < 9:
+                                while i > 0:
+                                    if i == 5 or i == 7:
+                                        i -= 1
+                                    else:
+                                        i -= 2
+            return x
+    """
+    _write_cog_pkg(tmp_path, "mod", body)
+
+    result = ComplexityRule().check(tmp_path)
+    assert result.details is not None
+    topfns = [o for o in result.details["top_offenders"] if o["function"] == "topfn"]
+
+    assert topfns, f"topfn not flagged; offenders={result.details['top_offenders']}"
+    assert int(topfns[0]["cognitive"]) > 15
+    assert "cog" in str(topfns[0]["reason"])
