@@ -107,6 +107,34 @@ async def fetch():
         assert len(result.details["violations"]) >= 1
 
 
+@pytest.mark.integration
+def test_blocking_io_async_fixture_project(tmp_path: Path) -> None:
+    """AC1,AC2,AC3: real temp package — flag direct + bare-import, skip nested-sync."""
+    pkg = tmp_path / "src" / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("")
+    (pkg / "mod.py").write_text(
+        "import time\n"
+        "from time import sleep\n\n\n"
+        "async def direct():\n"
+        "    time.sleep(1)\n\n\n"
+        "async def benign():\n"
+        "    def nested():\n"
+        "        time.sleep(1)\n"
+        "    return nested\n\n\n"
+        "async def bare():\n"
+        "    sleep(1)\n"
+    )
+    result = BlockingIORule().check(tmp_path)
+    assert result.details is not None
+    violations = [
+        v for v in result.details["violations"] if v["issue"] == "time.sleep in async"
+    ]
+    assert len(violations) == 2
+    lines = {v["line"] for v in violations}
+    assert lines == {6, 16}
+
+
 def _write_file(base: Path, rel: str, content: str) -> None:
     """Write a file under base, creating parent dirs."""
     p = base / rel
