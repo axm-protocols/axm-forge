@@ -154,6 +154,7 @@ class TestCreatePRHook:
 
         monkeypatch.setattr("axm_git.hooks.create_pr.gh_available", lambda: True)
         monkeypatch.setattr("axm_git.hooks.create_pr.run_gh", fake_run_gh)
+        monkeypatch.setattr("axm_git.core.pr_recovery.run_gh", fake_run_gh)
 
         hook = CreatePRHook()
         result = hook.execute(
@@ -165,6 +166,45 @@ class TestCreatePRHook:
         )
         assert result.success
         assert result.metadata["pr_url"] == "https://github.com/org/repo/pull/50"
+        assert result.metadata["already_existed"] is True
+
+    def test_hook_uses_shared_recovery(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """AC2: hook recovers existing PR via shared helper, with already_existed."""
+
+        def fake_run_gh(
+            args: list[str], cwd: Path, **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            if args[1] == "create":
+                return subprocess.CompletedProcess(
+                    args, 1, stdout="", stderr="a pull request already exists"
+                )
+            if args[1] == "view":
+                return subprocess.CompletedProcess(
+                    args,
+                    0,
+                    stdout='{"url":"https://github.com/org/repo/pull/7","number":7}',
+                    stderr="",
+                )
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        monkeypatch.setattr("axm_git.hooks.create_pr.gh_available", lambda: True)
+        monkeypatch.setattr("axm_git.hooks.create_pr.run_gh", fake_run_gh)
+        monkeypatch.setattr("axm_git.core.pr_recovery.run_gh", fake_run_gh)
+
+        hook = CreatePRHook()
+        result = hook.execute(
+            {
+                "working_dir": ".",
+                "commit_spec": {"message": "feat: x"},
+                "ticket_id": "AXM-1",
+            },
+        )
+        assert result.success
+        assert result.metadata["pr_url"] == "https://github.com/org/repo/pull/7"
+        assert result.metadata["pr_number"] == "7"
         assert result.metadata["already_existed"] is True
 
     def test_create_pr_disabled(self) -> None:

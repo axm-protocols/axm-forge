@@ -166,13 +166,60 @@ class TestGitPRTool:
         mock_gh: MagicMock,
         _: MagicMock,
     ) -> None:
-        """gh pr create failure is surfaced."""
+        """gh pr create failure (non 'already exists') is surfaced."""
         mock_git.return_value = _ok()
-        mock_gh.return_value = _fail(stderr="pull request already exists")
+        mock_gh.return_value = _fail(stderr="could not create pull request")
 
         result = GitPRTool().execute(
             title="feat: x",
             path="/repo",
         )
         assert not result.success
-        assert "already exists" in (result.error or "")
+        assert "could not create pull request" in (result.error or "")
+
+    @patch("axm_git.tools.pr.gh_available", return_value=True)
+    @patch("axm_git.tools.pr.run_gh")
+    @patch("axm_git.tools.pr.run_git")
+    def test_existing_pr_returns_success(
+        self,
+        mock_git: MagicMock,
+        mock_gh: MagicMock,
+        _: MagicMock,
+    ) -> None:
+        """AC1, AC4: an existing open PR yields success with already_existed."""
+        mock_git.return_value = _ok()
+        mock_gh.side_effect = [
+            _fail(stderr="a pull request for branch already exists"),  # pr create
+            _ok(stdout='{"url": "https://github.com/o/r/pull/42", "number": 42}'),
+        ]
+
+        with patch("axm_git.core.pr_recovery.run_gh", mock_gh):
+            result = GitPRTool().execute(title="feat: x", path="/repo")
+
+        assert result.success is True
+        assert result.data["pr_url"] == "https://github.com/o/r/pull/42"
+        assert result.data["pr_number"] == "42"
+        assert result.data["already_existed"] is True
+
+        view_call = mock_gh.call_args_list[1]
+        assert view_call[0][0] == ["pr", "view", "--json", "url,number"]
+
+    @patch("axm_git.tools.pr.gh_available", return_value=True)
+    @patch("axm_git.tools.pr.run_gh")
+    @patch("axm_git.tools.pr.run_git")
+    def test_unrelated_create_failure_still_fails(
+        self,
+        mock_git: MagicMock,
+        mock_gh: MagicMock,
+        _: MagicMock,
+    ) -> None:
+        """AC3: a non-'already exists' failure stays failed with no pr view recovery."""
+        mock_git.return_value = _ok()
+        mock_gh.return_value = _fail(stderr="HTTP 401: Bad credentials")
+
+        result = GitPRTool().execute(title="feat: x", path="/repo")
+
+        assert not result.success
+        assert "Bad credentials" in (result.error or "")
+        for call in mock_gh.call_args_list:
+            assert call[0][0][:2] != ["pr", "view"]
