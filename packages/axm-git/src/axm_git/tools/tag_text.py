@@ -38,7 +38,7 @@ def render_text(data: dict[str, object]) -> str:
     status; a second line carries the hatch-vcs resolved version (when
     available), the CI status and the previous tag.
     """
-    tag = _as_str(data.get("tag"))
+    tag = _as_str(data.get("full_tag")) or _as_str(data.get("tag"))
     bump = _as_str(data.get("bump"))
     sections = [tag, bump]
     if data.get("breaking"):
