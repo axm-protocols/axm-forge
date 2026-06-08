@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import inspect as _inspect_axm1710
+import logging
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 import axm_git.core.identity as _ident_axm1710
 from axm_git.core.identity import (
@@ -74,3 +77,72 @@ class TestIdentityModuleInvariants:
     def test_resolve_identity_default_timezone_is_europe_paris(self) -> None:
         config = _build_config_axm1710()
         assert config.timezone == "Europe/Paris"
+
+
+class TestUnknownProfileOverrideObservability:
+    """AC1-AC4: observability for the profile_override fall-through."""
+
+    def _warnings(self, caplog: pytest.LogCaptureFixture) -> list[str]:
+        return [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+
+    def test_unknown_profile_warns(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """AC1: unknown profile_override warns then returns None."""
+        config = _build_config_axm1710(
+            profiles={"alice": {"name": "Alice", "email": "alice@example.com"}}
+        )
+        monkeypatch.setattr("axm_git.core.identity.load_config", lambda _=None: config)
+        with caplog.at_level(logging.WARNING, logger="axm_git.core.identity"):
+            result = resolve_identity(Path("/any"), profile_override="alicia")
+        assert result is None
+        assert any("alicia" in m and "alice" in m for m in self._warnings(caplog))
+
+    def test_valid_profile_no_warning(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """AC2: valid profile_override resolves to its identity with no warning."""
+        config = _build_config_axm1710(
+            profiles={"alice": {"name": "Alice", "email": "alice@example.com"}}
+        )
+        monkeypatch.setattr("axm_git.core.identity.load_config", lambda _=None: config)
+        with caplog.at_level(logging.WARNING, logger="axm_git.core.identity"):
+            result = resolve_identity(Path("/any"), profile_override="alice")
+        assert result is not None
+        assert result.name == "Alice"
+        assert self._warnings(caplog) == []
+
+    def test_none_override_no_warning(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """AC3: profile_override=None uses schedule/default path with no warning."""
+        config = _build_config_axm1710(
+            profiles={"alice": {"name": "Alice", "email": "alice@example.com"}}
+        )
+        monkeypatch.setattr("axm_git.core.identity.load_config", lambda _=None: config)
+        with caplog.at_level(logging.WARNING, logger="axm_git.core.identity"):
+            result = resolve_identity(Path("/any"), profile_override=None)
+        assert result is not None
+        assert result.name == "Default"
+        assert self._warnings(caplog) == []
+
+    def test_no_profiles_configured_distinct_message(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """AC4: empty config.profiles warns with a distinct message."""
+        config = _build_config_axm1710(profiles={})
+        monkeypatch.setattr("axm_git.core.identity.load_config", lambda _=None: config)
+        with caplog.at_level(logging.WARNING, logger="axm_git.core.identity"):
+            result = resolve_identity(Path("/any"), profile_override="x")
+        assert result is None
+        warnings = self._warnings(caplog)
+        assert any("no profiles" in m.lower() for m in warnings)
+        assert not any("available profiles" in m.lower() for m in warnings)

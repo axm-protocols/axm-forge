@@ -6,6 +6,7 @@ and resolve_identity-only tests split from former ``test_identity.py``.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -326,6 +327,27 @@ end = "18:00"
             config_path=config_path,
         )
         assert result is None
+
+    def test_unknown_profile_from_real_config_warns(
+        self, config_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """AC1: typo'd profile against a real on-disk config warns.
+
+        Default-fallback contract intact (returns None).
+        """
+        now = datetime(2026, 4, 6, 10, 0)
+        with caplog.at_level(logging.WARNING, logger="axm_git.core.identity"):
+            result = resolve_identity(
+                AXM_WORKSPACE,
+                now=now,
+                profile_override="axioom",
+                config_path=config_path,
+            )
+        assert result is None
+        warnings = [
+            r.getMessage() for r in caplog.records if r.levelno == logging.WARNING
+        ]
+        assert any("axioom" in m and "axiom" in m for m in warnings)
 
     def test_resolve_symlink_workspace(self, config_path: Path, tmp_path: Path) -> None:
         """Symlink resolving to $W/axm-* -> schedule applies."""
