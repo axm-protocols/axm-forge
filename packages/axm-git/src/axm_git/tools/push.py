@@ -7,17 +7,20 @@ from pathlib import Path
 
 from axm.tools.base import AXMTool, ToolResult
 
-from axm_git.core.runner import not_a_repo_error, run_git, timeout_error_result
+from axm_git.core.runner import (
+    not_a_repo_error,
+    parse_porcelain_z,
+    run_git,
+    timeout_error_result,
+)
 from axm_git.tools.push_text import render_failure_text, render_text
 
 __all__ = ["GitPushTool"]
 
-_MIN_STATUS_LINE_LEN = 4  # git porcelain format: "XY filename"
-
 
 def _check_dirty(resolved: Path) -> ToolResult | None:
     """Return a failure ToolResult if the tree is dirty, else None."""
-    status = run_git(["status", "--porcelain"], resolved)
+    status = run_git(["status", "--porcelain", "-z"], resolved)
     if status.returncode != 0:
         error = status.stderr.strip()
         return ToolResult(
@@ -25,11 +28,7 @@ def _check_dirty(resolved: Path) -> ToolResult | None:
             error=error,
             text=render_failure_text(error=error, data=None),
         )
-    dirty_files = [
-        line[3:]
-        for line in status.stdout.splitlines()
-        if len(line) >= _MIN_STATUS_LINE_LEN
-    ]
+    dirty_files = [row["path"] for row in parse_porcelain_z(status.stdout)]
     if dirty_files:
         error = "Working tree is dirty. Commit or stash changes first."
         data: dict[str, object] = {"dirty_files": dirty_files}
