@@ -158,6 +158,78 @@ class TestFullTagAgainstRealRepo:
         assert result.data["full_tag"] in listed
 
 
+@pytest.mark.integration
+class TestFullTagData:
+    """full_tag/tag data exposure (public-import boundary, real I/O)."""
+
+    @patch("axm_git.tools.tag.run_git")
+    @patch("axm_git.tools.tag.gh_available", return_value=False)
+    @patch("axm_git.tools.tag.detect_package_name", return_value=None)
+    @patch("axm_git.tools.tag.get_tag_prefix", return_value="git/")
+    def test_result_exposes_full_tag(
+        self,
+        _prefix: MagicMock,
+        _pkg: MagicMock,
+        _gh: MagicMock,
+        mock_git: MagicMock,
+    ) -> None:
+        """AC1, AC2: data carries the prefixed full_tag and keeps bare tag."""
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if args[0] == "status":
+                return _mock_completed("")
+            if args[0] == "tag" and "--sort=-v:refname" in args:
+                return _mock_completed("git/v0.3.1")
+            if args[0] == "log":
+                return _mock_completed("abc feat: new api")
+            if args[0] == "tag" and "-a" in args:
+                return _mock_completed("")
+            if args[0] == "push":
+                return _mock_completed("")
+            return _mock_completed("")
+
+        mock_git.side_effect = _side_effect
+        result = GitTagTool().execute(path="/tmp/test")
+        assert result.success
+        assert result.data["full_tag"] == "git/v0.4.0"
+        assert result.data["tag"] == "v0.4.0"
+
+    @patch("axm_git.tools.tag.run_git")
+    @patch("axm_git.tools.tag.gh_available", return_value=False)
+    @patch("axm_git.tools.tag.detect_package_name", return_value=None)
+    @patch("axm_git.tools.tag.get_tag_prefix", return_value="")
+    def test_empty_prefix_full_tag_equals_tag(
+        self,
+        _prefix: MagicMock,
+        _pkg: MagicMock,
+        _gh: MagicMock,
+        mock_git: MagicMock,
+    ) -> None:
+        """AC3: empty tag_prefix yields full_tag == tag (no spurious prefix)."""
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if args[0] == "status":
+                return _mock_completed("")
+            if args[0] == "tag" and "--sort=-v:refname" in args:
+                return _mock_completed("v1.2.2")
+            if args[0] == "log":
+                return _mock_completed("abc fix: bug")
+            if args[0] == "tag" and "-a" in args:
+                return _mock_completed("")
+            if args[0] == "push":
+                return _mock_completed("")
+            return _mock_completed("")
+
+        mock_git.side_effect = _side_effect
+        result = GitTagTool().execute(path="/tmp/test", version="1.2.3")
+        assert result.success
+        assert result.data["full_tag"] == result.data["tag"] == "v1.2.3"
+
+
 class TestGitTagTool:
     """Test GitTagTool behavior."""
 
