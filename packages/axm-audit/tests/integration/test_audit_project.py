@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from axm_audit.core.auditor import audit_project
+from axm_audit.models.results import AuditResult
 from tests.integration._helpers import _tools_available
 
 
@@ -366,3 +367,91 @@ def test_full_audit_score_consistency(tmp_path: Path) -> None:
     report1 = audit_project(pkg)
     report2 = audit_project(pkg)
     assert report1.quality_score == report2.quality_score
+
+
+# ---------------------------------------------------------------------------
+# Workspace parallelization (AXM-1817)
+# ---------------------------------------------------------------------------
+
+
+def _make_ws_member(root: Path, name: str, body: str) -> None:
+    mod = name.replace("-", "_")
+    pkg_src = root / "packages" / name / "src" / mod
+    pkg_src.mkdir(parents=True)
+    (pkg_src / "__init__.py").write_text("")
+    (pkg_src / "mod.py").write_text(textwrap.dedent(body))
+    (root / "packages" / name / "pyproject.toml").write_text(
+        textwrap.dedent(
+            f"""
+            [project]
+            name = "{name}"
+            version = "0.0.0"
+            requires-python = ">=3.12"
+            """
+        )
+    )
+
+
+def _make_uv_workspace(root: Path) -> None:
+    _make_ws_member(root, "pkg-alpha", "def f() -> int:\n    return 0\n")
+    _make_ws_member(root, "pkg-bravo", "def g():\n    x = 1\n    return 0\n")
+    (root / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """
+            [project]
+            name = "ws"
+            version = "0.0.0"
+            requires-python = ">=3.12"
+
+            [tool.uv.workspace]
+            members = ["packages/*"]
+            """
+        )
+    )
+
+
+def _ws_signature(
+    result: AuditResult,
+) -> list[tuple[str, bool, int | None, str | None]]:
+    return [(c.rule_id, c.passed, c.score, c.text) for c in result.checks]
+
+
+def test_audit_project_workspace_parallel_matches_serial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC1/AC2/AC3: parallel workspace audit == serial reference.
+
+    Builds a temp uv workspace of two real mini-packages and audits it
+    through the public ``audit_project`` entry (which dispatches to the
+    parallel workspace path). The reference is the *same* public audit run
+    with the workspace executor forced to a single worker (serial), patched
+    via the stdlib ``ThreadPoolExecutor`` so the merge/aggregation policy is
+    unchanged. The aggregated per-package checks, scores, prefixed text and
+    ordering must be identical under parallel vs serial execution — proving
+    the result is deterministic and independent of completion order, while
+    each package still runs under its own isolated ``ASTCache`` (set inside
+    ``audit_project`` per worker).
+    """
+    import concurrent.futures
+    import functools
+
+    _make_uv_workspace(tmp_path)
+
+    # Parallel path (production dispatch over discovered workspace members).
+    parallel = audit_project(tmp_path, category="lint")
+    assert len(parallel.checks) >= 1
+
+    # Serial reference: force the (outer) executor to a single worker.
+    real_pool = concurrent.futures.ThreadPoolExecutor
+    monkeypatch.setattr(
+        concurrent.futures,
+        "ThreadPoolExecutor",
+        functools.partial(real_pool, max_workers=1),
+    )
+    serial = audit_project(tmp_path, category="lint")
+
+    assert _ws_signature(parallel) == _ws_signature(serial)
+    # Both workspace members are surfaced in the aggregated output.
+    blob = " ".join(c.text or "" for c in parallel.checks)
+    assert "pkg-alpha" in blob
+    assert "pkg-bravo" in blob
