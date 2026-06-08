@@ -7,6 +7,7 @@ from pathlib import Path
 
 from axm.tools.base import AXMTool, ToolResult
 
+from axm_git.core.pr_recovery import is_already_exists, recover_existing_pr
 from axm_git.core.runner import (
     gh_available,
     not_a_repo_error,
@@ -85,6 +86,8 @@ class GitPRTool(AXMTool):
             result = run_gh(create_args, resolved)
             if result.returncode != 0:
                 error = result.stderr.strip() or result.stdout.strip()
+                if is_already_exists(error):
+                    return _recovered_pr_result(resolved, error)
                 return ToolResult(
                     success=False,
                     error=error,
@@ -95,23 +98,42 @@ class GitPRTool(AXMTool):
             pr_number = pr_url.rstrip("/").rsplit("/", maxsplit=1)[-1]
 
             # 4. Enable auto-merge if requested.
+            auto_merge_ok = False
             if auto_merge:
                 merge_result = run_gh(
                     ["pr", "merge", pr_number, "--auto", "--squash"],
                     resolved,
                 )
-                data: dict[str, object] = {
-                    "pr_url": pr_url,
-                    "pr_number": pr_number,
-                    "auto_merge": merge_result.returncode == 0,
-                }
-                return ToolResult(success=True, data=data, text=render_text(data))
+                auto_merge_ok = merge_result.returncode == 0
+
+            data: dict[str, object] = {
+                "pr_url": pr_url,
+                "pr_number": pr_number,
+                "auto_merge": auto_merge_ok,
+            }
+            return ToolResult(success=True, data=data, text=render_text(data))
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
 
-        data = {
-            "pr_url": pr_url,
-            "pr_number": pr_number,
-            "auto_merge": False,
-        }
-        return ToolResult(success=True, data=data, text=render_text(data))
+
+def _recovered_pr_result(resolved: Path, original_error: str) -> ToolResult:
+    """Adapt an existing-PR recovery into a ``ToolResult``.
+
+    Returns success with ``already_existed=True`` when the existing PR can be
+    resolved, else preserves the original failure.
+    """
+    recovery = recover_existing_pr(resolved)
+    if not recovery.ok:
+        error = recovery.error or original_error
+        return ToolResult(
+            success=False,
+            error=error,
+            text=render_failure_text(error=error, data=None),
+        )
+    data: dict[str, object] = {
+        "pr_url": recovery.url,
+        "pr_number": recovery.number,
+        "auto_merge": False,
+        "already_existed": True,
+    }
+    return ToolResult(success=True, data=data, text=render_text(data))
