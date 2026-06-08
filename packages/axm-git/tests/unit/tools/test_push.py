@@ -60,16 +60,30 @@ class TestGitPushTool:
 
     @patch("axm_git.tools.push.run_git")
     def test_push_dirty_refuses(self, mock_git: MagicMock) -> None:
-        """Dirty tree is rejected with file list."""
+        """Dirty tree is rejected with file list (``-z`` NUL fixtures)."""
         mock_git.side_effect = [
             _ok(),  # rev-parse
-            _ok(stdout=" M README.md\n?? new.py\n"),  # dirty
+            _ok(stdout=" M README.md\x00?? new.py\x00"),  # dirty (status -z)
         ]
         result = GitPushTool().execute(path="/repo")
         assert not result.success
         assert "dirty" in (result.error or "").lower()
         assert "README.md" in result.data["dirty_files"]
         assert "new.py" in result.data["dirty_files"]
+
+    @patch("axm_git.tools.push.run_git")
+    def test_dirty_check_rename_via_z(self, mock_git: MagicMock) -> None:
+        """AC1,AC3: a rename in the dirty check lists the new path only."""
+        mock_git.side_effect = [
+            _ok(),  # rev-parse
+            _ok(stdout="R  new.py\x00old.py\x00"),  # rename (status -z)
+        ]
+        result = GitPushTool().execute(path="/repo")
+        assert not result.success
+        dirty = result.data["dirty_files"]
+        assert "new.py" in dirty
+        assert "old.py" not in dirty
+        assert "->" not in " ".join(dirty)
 
     @patch("axm_git.tools.push.run_git")
     def test_push_set_upstream(self, mock_git: MagicMock) -> None:

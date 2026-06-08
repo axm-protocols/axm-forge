@@ -56,6 +56,29 @@ class TestReturnsStatus:
         assert "new.txt" in result.text
 
 
+class TestRealRenameAndSpacedPath:
+    """AC1,AC2: real ``git mv`` to a spaced name parses to the new path."""
+
+    @pytest.mark.integration
+    def test_preflight_real_rename_and_spaced_path(
+        self, git_repo: Path, hook: PreflightHook
+    ) -> None:
+        subprocess.run(
+            ["git", "mv", "hello.py", "my file.py"],
+            cwd=git_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        result = hook.execute({}, path=str(git_repo))
+
+        assert result.success
+        paths = [f["path"] for f in result.metadata["files"]]
+        assert "my file.py" in paths
+        assert not any('"' in p for p in paths)
+        assert not any("->" in p for p in paths)
+
+
 class TestCleanRepo:
     """Clean repo returns compact clean text."""
 

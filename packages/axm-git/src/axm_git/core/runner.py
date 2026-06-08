@@ -18,11 +18,47 @@ __all__ = [
     "find_git_root",
     "gh_available",
     "not_a_repo_error",
+    "parse_porcelain_z",
     "run_gh",
     "run_git",
     "suggest_git_repos",
     "timeout_error_result",
 ]
+
+# Minimum length of a porcelain record: 2-char XY status + space + 1-char path.
+_MIN_PORCELAIN_RECORD_LEN = 4
+
+
+def parse_porcelain_z(status_stdout: str) -> list[dict[str, str]]:
+    """Parse ``git status --porcelain -z`` output into ``{path, status}`` rows.
+
+    Records are NUL-terminated rather than newline-terminated, so paths with
+    spaces are emitted verbatim (unquoted, unescaped). Rename/copy entries
+    (``R``/``C``) span two NUL-separated fields — ``XY <space>dest`` followed
+    by the original source path — so the destination is kept as ``path`` and
+    the trailing source field is consumed and discarded.
+
+    Args:
+        status_stdout: Raw stdout from ``git status --porcelain -z``.
+
+    Returns:
+        List of ``{"path", "status"}`` dicts in encounter order.
+    """
+    records = [rec for rec in status_stdout.split("\x00") if rec]
+    files: list[dict[str, str]] = []
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
+        if len(record) < _MIN_PORCELAIN_RECORD_LEN:
+            continue
+        status = record[:2].strip()
+        files.append({"path": record[3:], "status": status})
+        # Rename/copy entries carry a trailing source-path field; skip it.
+        if record[:2].strip(" ?")[:1] in {"R", "C"}:
+            index += 1
+    return files
+
 
 # Interim defaults — will be replaced by axm-common.run_safe.
 DEFAULT_GIT_TIMEOUT = 30.0
