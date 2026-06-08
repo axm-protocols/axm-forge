@@ -381,6 +381,59 @@ class TestIdentityEdgeCases:
         assert all(not arg.startswith("--author") for arg in commit_args)
 
 
+class TestDeletedTargetResolution:
+    """AC2: deleted-file staging must use the resolved git_root-relative path."""
+
+    def test_deleted_target_returns_root_relative_path(self) -> None:
+        """AC2: a deleted file in a subdir stages via its git_root-relative path.
+
+        ``working_dir`` differs from ``git_root`` and the file does not exist
+        on disk (tracked-but-deleted). ``git ls-files -d`` reports it, so the
+        ``git add`` target must be the resolved git_root-relative path
+        (``sub/gone.py``), never the raw working-dir-relative input
+        (``gone.py``).
+        """
+        git_root = Path("/fake/repo")
+        working_dir = git_root / "sub"
+        add_targets: list[str] = []
+
+        def _run_git(cmd: list[str], cwd: Any) -> SimpleNamespace:
+            if cmd[0] == "add":
+                add_targets.append(cmd[-1])
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+            if cmd[0] == "ls-files":
+                # Tracked-but-deleted: ls-files -d (run from git_root) reports
+                # the file only when probed with its git_root-relative path.
+                found = cmd[-1] if cmd[-1] == "sub/gone.py" else ""
+                return SimpleNamespace(
+                    returncode=0,
+                    stdout=found + "\n" if found else "",
+                    stderr="",
+                )
+            if cmd[0] == "diff":
+                return SimpleNamespace(returncode=0, stdout="sub/gone.py\n", stderr="")
+            if cmd[0] == "commit":
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+            if cmd == ["rev-parse", "--short", "HEAD"]:
+                return SimpleNamespace(returncode=0, stdout="abc1234\n", stderr="")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        with (
+            patch("axm_git.hooks.commit_phase.run_git", side_effect=_run_git),
+            patch("axm_git.hooks.commit_phase.find_git_root", return_value=git_root),
+            patch("axm_git.hooks.commit_phase.resolve_identity", return_value=None),
+        ):
+            hook = CommitPhaseHook()
+            context = {
+                "commit_spec": {"files": ["gone.py"], "message": "chore: drop"},
+            }
+            result = hook.commit_from_outputs(context, working_dir)
+
+        assert result.success
+        assert add_targets == ["sub/gone.py"]
+        assert "gone.py" not in [t for t in add_targets if "/" not in t]
+
+
 def test_commit_phase_hook_discoverable() -> None:
     from importlib.metadata import entry_points
 
