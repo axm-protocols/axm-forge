@@ -92,7 +92,7 @@ class ComplexityRule(ProjectRule):
                 classname = getattr(block, "classname", "") or ""
                 block_name = getattr(block, "name", "") or ""
                 name = f"{classname}.{block_name}" if classname else block_name
-                cognitive = cog_map.get((rel, name), 0)
+                cognitive = _lookup_cognitive(cog_map, (rel, name), cog_disabled)
                 offender = _classify(rel, name, cc, rank, cognitive)
                 if offender is not None:
                     offenders.append(offender)
@@ -170,7 +170,7 @@ class ComplexityRule(ProjectRule):
                 raw_name = str(block.get("name", ""))
                 classname = str(block.get("classname", ""))
                 name = f"{classname}.{raw_name}" if classname else raw_name
-                cognitive = cog_map.get((file_key, name), 0)
+                cognitive = _lookup_cognitive(cog_map, (file_key, name), cog_disabled)
                 offender = _classify(file_key, name, cc, rank, cognitive)
                 if offender is not None:
                     offenders.append(offender)
@@ -313,7 +313,8 @@ def _cognitive_via_api(
             continue
         rel = _relative_key(str(py_file), src_path)
         for fn in getattr(fc, "functions", []) or []:
-            name = getattr(fn, "name", "") or getattr(fn, "function_name", "")
+            raw = getattr(fn, "name", "") or getattr(fn, "function_name", "")
+            name = _normalize_cog_name(raw)
             score = int(getattr(fn, "complexity", 0) or 0)
             if name:
                 result[(rel, name)] = score
@@ -369,12 +370,53 @@ def _parse_complexipy_entries(
         if not isinstance(entry, dict):
             continue
         file_name = str(entry.get("file_name", ""))
-        function = str(entry.get("function_name", ""))
+        function = _normalize_cog_name(str(entry.get("function_name", "")))
         score = entry.get("complexity", 0)
         if file_name and function and isinstance(score, int | float):
             key = _relative_key(file_name, src_path)
             result[(key, function)] = int(score)
     return result
+
+
+def _normalize_cog_name(name: str) -> str:
+    """Normalize a complexipy function name to radon's qualified form.
+
+    complexipy reports methods as ``Class::method`` (and nested scopes with
+    repeated ``::`` separators) while radon reports ``Class.method``. The two
+    sides must build the *same* key, otherwise ``cog_map.get((rel, name))``
+    misses for every method and its cognitive score silently collapses to 0
+    (false negative on Cog<15). Aligning the cog side on radon's ``.`` form
+    also disambiguates same-name methods across distinct classes.
+    """
+    return name.replace("::", ".")
+
+
+def _lookup_cognitive(
+    cog_map: dict[tuple[str, str], int],
+    key: tuple[str, str],
+    cog_disabled: bool,
+) -> int:
+    """Return the cognitive score for *key*, warning on a genuine non-match.
+
+    When the cognitive layer is active (``cog_disabled`` is ``False``) but the
+    radon block has no paired complexipy entry, this is a real pairing failure:
+    log a warning naming the ``(file, function)`` and treat the score as
+    *unmeasured* (0) rather than silently substituting 0 without a trace. The
+    0 fallback keeps the function from being forced into a false-positive Cog
+    violation. When the layer is disabled the absence is structural, so no
+    warning is emitted.
+    """
+    if key in cog_map:
+        return cog_map[key]
+    if not cog_disabled:
+        rel, name = key
+        logger.warning(
+            "complexity: no cognitive score paired for (%s, %s) "
+            "— treating cognitive as unmeasured (0)",
+            rel,
+            name,
+        )
+    return 0
 
 
 def _relative_key(file_path: str, src_path: Path | None) -> str:
