@@ -81,13 +81,15 @@ print(result.data["stdout"])
 
 ## Step 5: Rollback if needed
 
-Every `batch_edit` returns a `checkpoint` SHA you can use to restore state:
+Every `batch_edit` returns a `checkpoint` snapshot you can use to restore the
+exact paths the batch touched — and nothing else (unrelated files are never
+touched):
 
 ```python
 from axm_edit.tools.batch_rollback import BatchRollbackTool
 
 tool = BatchRollbackTool()
-result = tool.execute(path="/my/project", checkpoint="<sha-from-batch-edit>")
+result = tool.execute(path="/my/project", checkpoint="<checkpoint-from-batch-edit>")
 ```
 
 ## Next steps

@@ -10,7 +10,7 @@ method is the single entry point.
 | Tool | Class | Purpose |
 |---|---|---|
 | `batch_edit` | `BatchEditTool` | Replace / create / delete files in one atomic, validated batch (with `ruff --fix`). |
-| `batch_rollback` | `BatchRollbackTool` | Restore project state to a `batch_edit` checkpoint SHA. |
+| `batch_rollback` | `BatchRollbackTool` | Restore the exact paths a batch touched from its `batch_edit` snapshot. |
 | `read_file` | `ReadFileTool` | Read file content, optional line range, line-numbered output. |
 | `write_file` | `WriteFileTool` | Write (create or overwrite) a single file. |
 | `edit_file` | `EditFileTool` | Apply old/new edits to a single file. |
