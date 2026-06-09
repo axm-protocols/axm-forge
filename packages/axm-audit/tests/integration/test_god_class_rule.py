@@ -193,29 +193,30 @@ class TestGodClassExemption:
         (project / "pyproject.toml").write_text(config)
         return project
 
-    def test_justified_exemption_passes(
-        self, rule: GodClassRule, tmp_path: Path
+    @pytest.mark.parametrize(
+        ("config", "expected_passed"),
+        [
+            pytest.param(
+                "[[tool.axm-audit.god_class.acknowledged]]\n"
+                'class = "Facade"\n'
+                'reason = "Backend facade implementing several segregated ABCs."\n',
+                True,
+                id="justified_exemption_passes",
+            ),
+            pytest.param(
+                '[[tool.axm-audit.god_class.acknowledged]]\nclass = "Facade"\n',
+                False,
+                id="exemption_without_reason_ignored",
+            ),
+        ],
+    )
+    def test_exemption_requires_reason(
+        self, rule: GodClassRule, tmp_path: Path, config: str, expected_passed: bool
     ) -> None:
-        """A class acknowledged with a reason is exempt from the rule."""
-        project = self._project_with_god_and_config(
-            tmp_path,
-            "[[tool.axm-audit.god_class.acknowledged]]\n"
-            'class = "Facade"\n'
-            'reason = "Backend facade implementing several segregated ABCs."\n',
-        )
+        """An exemption is honoured only when justified with a reason."""
+        project = self._project_with_god_and_config(tmp_path, config)
         result = rule.check(project)
-        assert result.passed is True
-
-    def test_exemption_without_reason_is_ignored(
-        self, rule: GodClassRule, tmp_path: Path
-    ) -> None:
-        """An exemption must be justified — no reason means still flagged."""
-        project = self._project_with_god_and_config(
-            tmp_path,
-            '[[tool.axm-audit.god_class.acknowledged]]\nclass = "Facade"\n',
-        )
-        result = rule.check(project)
-        assert result.passed is False
+        assert result.passed is expected_passed
 
     def test_other_classes_still_flagged(
         self, rule: GodClassRule, tmp_path: Path

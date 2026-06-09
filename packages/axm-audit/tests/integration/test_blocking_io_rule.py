@@ -26,25 +26,50 @@ def _async_sleep_violations(
 
 
 @pytest.mark.integration
-def test_async_sleep_in_nested_sync_def_not_flagged(tmp_path: Path) -> None:
-    """AC1: time.sleep inside a nested sync def within an async def is not flagged."""
-    source = (
-        "import time\n\n\n"
-        "async def f():\n"
-        "    def g():\n"
-        "        time.sleep(1)\n"
-        "    return g\n"
-    )
+@pytest.mark.parametrize(
+    ("source", "expected_count"),
+    [
+        pytest.param(
+            "import time\n\n\n"
+            "async def f():\n"
+            "    def g():\n"
+            "        time.sleep(1)\n"
+            "    return g\n",
+            0,
+            id="nested_sync_def_time_sleep_not_flagged",
+        ),
+        pytest.param(
+            "import time\n\n\nasync def f():\n    time.sleep(1)\n",
+            1,
+            id="direct_time_sleep_flagged",
+        ),
+        pytest.param(
+            "from time import sleep\n\n\nasync def f():\n    sleep(1)\n",
+            1,
+            id="bare_imported_sleep_flagged",
+        ),
+        pytest.param(
+            "from time import sleep as s\n\n\nasync def f():\n    s(1)\n",
+            1,
+            id="aliased_imported_sleep_flagged",
+        ),
+        pytest.param(
+            "from time import sleep\n\n\n"
+            "async def f():\n"
+            "    def g():\n"
+            "        sleep(1)\n"
+            "    return g\n",
+            0,
+            id="nested_sync_def_bare_sleep_not_flagged",
+        ),
+    ],
+)
+def test_async_sleep_violation_count(
+    tmp_path: Path, source: str, expected_count: int
+) -> None:
+    """AC1-AC4: time.sleep variants in async are flagged; nested-sync ones are not."""
     result = BlockingIORule().check(_write_src(tmp_path, source))
-    assert _async_sleep_violations(result.details) == []
-
-
-@pytest.mark.integration
-def test_async_sleep_direct_flagged_once(tmp_path: Path) -> None:
-    """AC2: time.sleep directly in an async def body is flagged exactly once."""
-    source = "import time\n\n\nasync def f():\n    time.sleep(1)\n"
-    result = BlockingIORule().check(_write_src(tmp_path, source))
-    assert len(_async_sleep_violations(result.details)) == 1
+    assert len(_async_sleep_violations(result.details)) == expected_count
 
 
 @pytest.mark.integration
@@ -62,36 +87,6 @@ def test_nested_async_sleep_not_double_counted(tmp_path: Path) -> None:
     keys = [(v["file"], v["line"]) for v in violations]
     assert len(keys) == len(set(keys))
     assert len(violations) == 1
-
-
-@pytest.mark.integration
-def test_bare_imported_sleep_in_async_flagged(tmp_path: Path) -> None:
-    """AC3: bare sleep() via `from time import sleep` inside async def is flagged."""
-    source = "from time import sleep\n\n\nasync def f():\n    sleep(1)\n"
-    result = BlockingIORule().check(_write_src(tmp_path, source))
-    assert len(_async_sleep_violations(result.details)) == 1
-
-
-@pytest.mark.integration
-def test_aliased_imported_sleep_in_async_flagged(tmp_path: Path) -> None:
-    """AC3: aliased sleep via `from time import sleep as s` in async def is flagged."""
-    source = "from time import sleep as s\n\n\nasync def f():\n    s(1)\n"
-    result = BlockingIORule().check(_write_src(tmp_path, source))
-    assert len(_async_sleep_violations(result.details)) == 1
-
-
-@pytest.mark.integration
-def test_bare_sleep_in_nested_sync_def_not_flagged(tmp_path: Path) -> None:
-    """AC4: bare sleep() via import in a nested sync def within async is not flagged."""
-    source = (
-        "from time import sleep\n\n\n"
-        "async def f():\n"
-        "    def g():\n"
-        "        sleep(1)\n"
-        "    return g\n"
-    )
-    result = BlockingIORule().check(_write_src(tmp_path, source))
-    assert _async_sleep_violations(result.details) == []
 
 
 class TestBlockingIORuleIntegration:
