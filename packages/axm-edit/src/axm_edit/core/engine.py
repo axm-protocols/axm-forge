@@ -580,7 +580,22 @@ def _apply_creates_deletes(
 
 
 def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
-    """Validate and apply a batch of file operations atomically.
+    """Validate and apply a batch of file operations.
+
+    Atomicity contract:
+
+    * **Validation is the gate.** All operations are validated first; if any
+      fails the batch is rejected wholesale (``success=False``) before a
+      single byte is written — a true all-or-nothing guarantee.
+    * **Apply is best-effort with automatic rollback.** Once validation
+      passes, a targeted checkpoint of every touched path is captured and the
+      operations are applied. If *any* exception occurs mid-apply (anchor
+      drift, a ``write_text`` / ``unlink`` / ``mkdir`` failure, a permission
+      error, …) the partial work is rolled back to that checkpoint — touched
+      files are restored to their pre-batch bytes and batch-created files (and
+      the empty directories created for them) are removed — and a failing
+      ``BatchResult`` is returned. The filesystem is *not* made transactional
+      at the OS level; the rollback restores only the snapshotted paths.
 
     Args:
         root: Project root directory (all paths are relative to this).
@@ -615,6 +630,13 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
             checkpoint=checkpoint,
             error="Apply aborted: file drifted between validation and apply",
             details=[drift.detail],
+        )
+    except Exception as exc:  # noqa: BLE001 - any apply failure must roll back
+        rollback(root, checkpoint)
+        return BatchResult(
+            success=False,
+            checkpoint=checkpoint,
+            error=f"Apply aborted and rolled back: {exc}",
         )
 
     return BatchResult(

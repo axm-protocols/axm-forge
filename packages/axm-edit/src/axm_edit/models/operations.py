@@ -102,9 +102,20 @@ class ValidationError(BaseModel):  # type: ignore[explicit-any]  # pydantic synt
 class BatchResult(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """Result of a batch edit operation.
 
+    Atomicity contract (see :func:`axm_edit.core.engine.batch_apply`):
+    atomicity is guaranteed at *validation* (all-or-nothing — a validation
+    error rejects the whole batch before any write); the *apply* phase is
+    best-effort with automatic rollback-to-checkpoint, so on any mid-apply
+    exception ``success`` is ``False``, ``error`` is populated, ``checkpoint``
+    holds the targeted snapshot, and every touched path has been restored to
+    its pre-batch state.
+
     Attributes:
-        success: Whether all operations were applied.
-        checkpoint: Git stash SHA for rollback, if available.
+        success: Whether all operations were applied (``False`` if a
+            validation error rejected the batch or a mid-apply exception
+            triggered a rollback).
+        checkpoint: Targeted-path snapshot captured before apply, usable for
+            rollback; present whenever the apply phase was entered.
         applied: Total number of individual edits applied.
         summary: Counts of modified, created, and deleted files.
         error: Human-readable error message on failure.
