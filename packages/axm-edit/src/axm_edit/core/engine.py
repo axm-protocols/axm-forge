@@ -12,7 +12,6 @@ Implements the validate-then-apply strategy from the axm-edit spec:
 from __future__ import annotations
 
 import logging
-import textwrap
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -72,32 +71,80 @@ def _old_line_count(old: str) -> int:
     return old.rstrip("\n").count("\n") + 1
 
 
+def _common_ws_prefix(lines: list[str]) -> str:
+    """Return the literal longest common leading-whitespace prefix.
+
+    The prefix is computed across *non-empty* lines and is treated as an
+    opaque character sequence: tabs and spaces are compared by identity, so
+    a tab never collapses into spaces (or vice versa). This is the single
+    whitespace model shared by :func:`_detect_indent`, :func:`_dedent_block`
+    and :func:`_reindent`, guaranteeing detection and stripping always agree.
+    """
+    non_empty = [ln for ln in lines if ln.strip()]
+    if not non_empty:
+        return ""
+    leads = [ln[: len(ln) - len(ln.lstrip())] for ln in non_empty]
+    prefix = leads[0]
+    for lead in leads[1:]:
+        limit = min(len(prefix), len(lead))
+        i = 0
+        while i < limit and prefix[i] == lead[i]:
+            i += 1
+        prefix = prefix[:i]
+        if not prefix:
+            break
+    return prefix
+
+
 def _dedent_block(text: str) -> str:
-    """Fully dedent a block of text for comparison."""
-    return textwrap.dedent(text).strip("\n")
+    """Fully dedent a block of text for comparison.
+
+    Strips the literal longest common leading-whitespace prefix (see
+    :func:`_common_ws_prefix`) from every non-empty line, then trims wrapping
+    newlines. Unlike :func:`textwrap.dedent`, the prefix is matched
+    character-for-character, so tab- and space-indented blocks dedent
+    consistently with how their indent is detected and re-applied.
+    """
+    raw_lines = text.splitlines(keepends=True)
+    common = _common_ws_prefix(raw_lines)
+    if not common:
+        return text.strip("\n")
+    width = len(common)
+    stripped = "".join((ln[width:] if ln.strip() else ln) for ln in raw_lines)
+    return stripped.strip("\n")
 
 
 def _detect_indent(lines: list[str], start: int, num_lines: int) -> str:
-    """Detect the common leading whitespace of a block in the file."""
+    """Detect the common leading whitespace of a block in the file.
+
+    Returns the literal longest common leading-whitespace prefix across the
+    block's non-empty lines (see :func:`_common_ws_prefix`). Tabs and spaces
+    are compared as opaque characters, so the prefix returned here is exactly
+    what :func:`_reindent` strips and re-applies — the two never disagree on
+    tab/mixed input.
+    """
     block_lines = lines[start - 1 : start - 1 + num_lines]
-    non_empty = [ln for ln in block_lines if ln.strip()]
-    if not non_empty:
-        return ""
-    # Find shortest leading whitespace among non-empty lines
-    min_indent = min(len(ln) - len(ln.lstrip()) for ln in non_empty)
-    return non_empty[0][:min_indent]
+    return _common_ws_prefix(block_lines)
 
 
 def _reindent(text: str, indent: str) -> str:
     """Dedent *text* fully, then prepend *indent* to each non-empty line.
 
-    Preserves relative indentation within the block.
+    Dedenting strips the literal longest common leading-whitespace prefix of
+    *text* (see :func:`_common_ws_prefix`) — the same opaque tab/space model
+    used by :func:`_detect_indent`, so a detected tab or mixed prefix is
+    re-applied consistently rather than being mishandled by char-count or
+    common-character semantics. Relative indentation within the block is
+    preserved; blank lines are kept verbatim.
     """
-    dedented = textwrap.dedent(text)
+    raw_lines = text.splitlines(keepends=True)
+    common = _common_ws_prefix(raw_lines)
+    width = len(common)
     result_lines = []
-    for line in dedented.splitlines(keepends=True):
+    for line in raw_lines:
         if line.strip():  # non-empty line
-            result_lines.append(indent + line)
+            stripped = line[width:] if width else line
+            result_lines.append(indent + stripped)
         else:
             result_lines.append(line)  # keep blank lines as-is
     return "".join(result_lines)
