@@ -76,3 +76,32 @@ def test_rewrite_caller_text_multi_symbol_same_line() -> None:
     # Original old-module line fully removed.
     assert "from pkg.old import" not in new_text
     assert len(rewrites) >= 1
+
+
+def test_rewrite_caller_text_multiline_import() -> None:
+    """AC1: a multi-line ``from mod import (\\n foo,\\n bar,\\n)`` caller has its
+    moved symbol redirected to ``new_module`` and emits one CallerRewrite."""
+    text = "from pkg.old import (\n    Foo,\n    Bar,\n)\n\nFoo()\nBar()\n"
+
+    new_text, rewrites = rewrite_caller_text(text, "pkg.old", "pkg.new", ["Foo"])
+
+    assert "from pkg.new import Foo" in new_text
+    # The unmoved name stays bound to the old module.
+    assert "Bar" in new_text
+    assert len(rewrites) == 1
+    # The single rewrite records the multi-line span as the old import surface.
+    entry = rewrites[0]
+    assert "from pkg.old import" in entry.old
+    assert entry.new == "from pkg.new import Foo"
+
+
+def test_rewrite_caller_text_singleline_still_works() -> None:
+    """AC2: a single-line ``from mod import foo`` caller is still rewritten to
+    ``new_module`` (regression guard for the CST discovery change)."""
+    text = "from pkg.old import Foo\n\nFoo()\n"
+
+    new_text, rewrites = rewrite_caller_text(text, "pkg.old", "pkg.new", ["Foo"])
+
+    assert "from pkg.new import Foo" in new_text
+    assert "pkg.old" not in new_text
+    assert len(rewrites) >= 1

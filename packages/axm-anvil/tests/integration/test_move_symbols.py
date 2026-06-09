@@ -317,6 +317,75 @@ def test_move_atomic_batch_edit(
     assert len(files) == 2
 
 
+def test_move_rewrites_multiline_from_import_caller(
+    tmp_path: Path, pkg_dir: Path
+) -> None:
+    """AC1: a caller importing the moved symbol via a multi-line
+    ``from pkg.old import (\\n Foo,\\n)`` is discovered and redirected to pkg.new."""
+    (pkg_dir / "old.py").write_text("def Foo():\n    return 1\n")
+    (pkg_dir / "new.py").write_text("")
+    (pkg_dir / "caller.py").write_text("from pkg.old import (\n    Foo,\n)\n\nFoo()\n")
+
+    plan = move_symbols(
+        pkg_dir / "old.py",
+        pkg_dir / "new.py",
+        ["Foo"],
+        workspace_root=tmp_path,
+    )
+
+    caller = (pkg_dir / "caller.py").read_text()
+    assert "from pkg.new import Foo" in caller
+    assert "from pkg.old import" not in caller
+    assert any(str(entry.file).endswith("caller.py") for entry in plan.callers_updated)
+
+
+def test_move_multiline_caller_with_reexport(tmp_path: Path, pkg_dir: Path) -> None:
+    """AC3: with ``reexport=True`` a multi-line caller is left untouched while the
+    source keeps a re-export line; the caller file still parses."""
+    (pkg_dir / "old.py").write_text("def Foo():\n    return 1\n")
+    (pkg_dir / "new.py").write_text("")
+    caller_text = "from pkg.old import (\n    Foo,\n)\n\nFoo()\n"
+    (pkg_dir / "caller.py").write_text(caller_text)
+
+    move_symbols(
+        pkg_dir / "old.py",
+        pkg_dir / "new.py",
+        ["Foo"],
+        workspace_root=tmp_path,
+        reexport=True,
+    )
+
+    source = (pkg_dir / "old.py").read_text()
+    assert "from pkg.new import Foo" in source
+    assert "# re-export for backwards compat" in source
+    # reexport leaves callers untouched; the file still parses.
+    caller = (pkg_dir / "caller.py").read_text()
+    assert caller == caller_text
+    cst.parse_module(caller)
+
+
+def test_move_still_rewrites_module_import_caller(
+    tmp_path: Path, pkg_dir: Path
+) -> None:
+    """AC2 regression: an ``import pkg.old`` caller is still discovered and
+    rewritten after the CST discovery change."""
+    (pkg_dir / "old.py").write_text("def Foo():\n    return 1\n")
+    (pkg_dir / "new.py").write_text("")
+    (pkg_dir / "caller.py").write_text("import pkg.old\n\npkg.old.Foo()\n")
+
+    move_symbols(
+        pkg_dir / "old.py",
+        pkg_dir / "new.py",
+        ["Foo"],
+        workspace_root=tmp_path,
+    )
+
+    caller = (pkg_dir / "caller.py").read_text()
+    assert "import pkg.new" in caller
+    assert "pkg.new.Foo()" in caller
+    assert "import pkg.old" not in caller
+
+
 def test_move_rewrites_module_import_caller(tmp_path: Path, pkg_dir: Path) -> None:
     (pkg_dir / "old.py").write_text("def Foo():\n    return 1\n")
     (pkg_dir / "new.py").write_text("")
