@@ -51,9 +51,12 @@ def _resolve_safe(root: Path, relative: str) -> Path | None:
     """Resolve a relative path safely within *root*.
 
     Returns ``None`` if the path escapes the project root.
+
+    Containment is enforced solely by resolving the path (which follows
+    ``..`` segments, symlinks, and absolute paths to their real target) and
+    checking it stays under ``root``. No string-level pre-filter is needed:
+    ``resolve()`` + ``relative_to`` is the single, OS-faithful barrier.
     """
-    if ".." in relative.split("/"):
-        return None
     resolved = (root / relative).resolve()
     try:
         resolved.relative_to(root.resolve())
