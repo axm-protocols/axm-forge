@@ -15,7 +15,7 @@ method is the single entry point.
 | `write_file` | `WriteFileTool` | Write (create or overwrite) a single file. |
 | `edit_file` | `EditFileTool` | Apply old/new edits to a single file. |
 | `search_files` | `SearchFilesTool` | Grep-like search across project files (literal or regex). |
-| `run_command` | `RunCommandTool` | Execute a sandboxed shell command with timeout. |
+| `run_command` | `RunCommandTool` | Execute an **arbitrary** shell command with timeout (denylist is a best-effort guardrail, **not** a sandbox). |
 | `list_dir` | `ListDirTool` | List files and directories with metadata. |
 
 ## Python API
