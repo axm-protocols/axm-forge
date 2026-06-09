@@ -145,8 +145,8 @@ def test_collide_groups_by_tier(tmp_path: Path) -> None:
     assert [f for f in findings if f["verdict"] == "COLLIDE"] == []
 
 
-def test_marker_scenario_name_ok_skips_mismatch_only(tmp_path: Path) -> None:
-    """AC7 — marker suppresses NAME_MISMATCH only; SPLIT survives."""
+def test_marker_scenario_name_ok_skips_mismatch_and_split(tmp_path: Path) -> None:
+    """AC1, AC2 — marker suppresses both NAME_MISMATCH and SPLIT."""
     project = tmp_path / "proj"
     _seed_pkg(project)
     (project / "tests" / "integration").mkdir(parents=True)
@@ -161,7 +161,7 @@ def test_marker_scenario_name_ok_skips_mismatch_only(tmp_path: Path) -> None:
     findings = _findings(project)
     verdicts = {f["verdict"] for f in findings}
     assert "NAME_MISMATCH" not in verdicts
-    assert "SPLIT" in verdicts
+    assert "SPLIT" not in verdicts
 
 
 def test_e2e_single_binary_emission(tmp_path: Path) -> None:
