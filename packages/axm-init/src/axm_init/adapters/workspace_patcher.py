@@ -89,10 +89,14 @@ def patch_mkdocs(root: Path, member_name: str) -> None:
 
 
 def patch_pyproject(root: Path, member_name: str) -> None:
-    """Add *member_name* to workspace dependencies and UV sources.
+    """Register *member_name* as a UV workspace source.
 
-    Adds the package to ``[project.dependencies]`` and adds a
-    ``[tool.uv.sources.<member_name>]`` entry with ``workspace = true``.
+    The primary effect is appending a ``[tool.uv.sources.<member_name>]``
+    entry with ``workspace = true``. Additionally, **only if** a
+    ``dependencies = [...]`` array is present in ``pyproject.toml``, the
+    member is also added to it; on the shipped workspace template (which
+    declares ``[dependency-groups]`` rather than ``[project.dependencies]``)
+    this branch is a no-op and only the source entry is written.
     Idempotent — skips if already present.
 
     Args:
@@ -106,6 +110,7 @@ def patch_pyproject(root: Path, member_name: str) -> None:
     content = pyproject.read_text()
 
     modified = False
+    patched_deps = False
 
     # 1. Add to dependencies array if not present
     dep_pattern = re.compile(r"^dependencies\s*=\s*\[", re.MULTILINE)
@@ -124,6 +129,7 @@ def patch_pyproject(root: Path, member_name: str) -> None:
             new_dep = f'    "{member_name}",\n'
             content = content[:bracket_pos] + new_dep + content[bracket_pos:]
             modified = True
+            patched_deps = True
 
     # 2. Add to [tool.uv.sources] if not present
     source_key = f"[tool.uv.sources.{member_name}]"
@@ -135,7 +141,8 @@ def patch_pyproject(root: Path, member_name: str) -> None:
 
     if modified:
         pyproject.write_text(content)
-        logger.info("Patched pyproject.toml with %s dependency + source", member_name)
+        effect = "dependency + source" if patched_deps else "source"
+        logger.info("Patched pyproject.toml with %s (%s)", member_name, effect)
     else:
         logger.info("pyproject.toml already contains %s — skipping", member_name)
 
