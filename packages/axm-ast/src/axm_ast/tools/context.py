@@ -24,6 +24,10 @@ class ContextTool(AXMTool):
     workspace-level context with all packages.
     """
 
+    expose_directly = True
+    domain = "ast"
+    tags = frozenset({"context", "overview", "stack"})
+
     @property
     def name(self) -> str:
         """Return tool name for registry lookup."""

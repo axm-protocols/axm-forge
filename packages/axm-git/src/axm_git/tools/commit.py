@@ -250,6 +250,10 @@ class GitCommitTool(AXMTool):
     Registered as ``git_commit`` via axm.tools entry point.
     """
 
+    expose_directly = True
+    domain = "git"
+    tags = frozenset({"commit", "stage", "conventional"})
+
     @property
     def name(self) -> str:
         """Tool name used for MCP registration."""

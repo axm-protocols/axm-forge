@@ -22,6 +22,10 @@ class AuditTool(AXMTool):
     {categories}
     """
 
+    expose_directly = True
+    domain = "audit"
+    tags = frozenset({"quality", "lint", "type", "security"})
+
     @property
     def name(self) -> str:
         """Return tool name for registry lookup."""
