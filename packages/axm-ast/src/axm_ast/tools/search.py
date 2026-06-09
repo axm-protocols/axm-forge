@@ -302,6 +302,10 @@ class SearchTool(AXMTool):
     Registered as ``ast_search`` via axm.tools entry point.
     """
 
+    expose_directly = True
+    domain = "ast"
+    tags = frozenset({"search", "symbols", "grep"})
+
     agent_hint: str = (
         "Find symbols by name, return type, kind, or base class"
         " — AST-precise, replaces grep."

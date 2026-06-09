@@ -19,6 +19,10 @@ class AuditTestTool(AXMTool):
     Registered as ``audit_test`` via axm.tools entry point.
     """
 
+    expose_directly = True
+    domain = "audit"
+    tags = frozenset({"test", "pytest", "coverage"})
+
     @property
     def name(self) -> str:
         """Return tool name for registry lookup."""

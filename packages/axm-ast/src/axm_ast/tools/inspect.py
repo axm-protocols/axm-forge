@@ -33,6 +33,10 @@ class InspectTool(AXMTool):
     Registered as ``ast_inspect`` via axm.tools entry point.
     """
 
+    expose_directly = True
+    domain = "ast"
+    tags = frozenset({"inspect", "symbol", "source"})
+
     agent_hint: str = (
         "Get full detail of a symbol by name,"
         " without knowing the file."
