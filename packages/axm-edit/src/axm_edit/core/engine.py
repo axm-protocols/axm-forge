@@ -368,7 +368,7 @@ def _validate_replace(
     if not target.is_file():
         return [], [ValidationError(file=file_rel, error="File not found")]
 
-    lines = target.read_text().splitlines(keepends=True)
+    lines = target.read_text(encoding="utf-8").splitlines(keepends=True)
 
     errors: list[ValidationError] = []
     resolved: list[ResolvedEdit] = []
@@ -412,7 +412,7 @@ def _apply_replace(
     target = _resolve_safe(root, file_rel)
     assert target is not None  # already validated
 
-    lines = target.read_text().splitlines(keepends=True)
+    lines = target.read_text(encoding="utf-8").splitlines(keepends=True)
 
     # Sort bottom-to-top so upper edits don't shift
     sorted_edits = sorted(resolved, key=lambda e: e.line, reverse=True)
@@ -430,7 +430,7 @@ def _apply_replace(
         new_lines = new_content.splitlines(keepends=True)
         lines[start - 1 : end] = new_lines
 
-    target.write_text("".join(lines))
+    target.write_text("".join(lines), encoding="utf-8", newline="")
     return len(resolved)
 
 
@@ -528,7 +528,7 @@ def _apply_creates_deletes(
         target = _resolve_safe(root, create_op.file)
         assert target is not None
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(create_op.content)
+        target.write_text(create_op.content, encoding="utf-8", newline="")
         count += 1
     for delete_op in deletes:
         target = _resolve_safe(root, delete_op.file)
