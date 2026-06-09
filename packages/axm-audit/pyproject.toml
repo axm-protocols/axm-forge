@@ -668,6 +668,10 @@ hash = "9a66eb8aa92c"
 reason = "Two distinct cst_rewrite SUTs sharing only _rewrite_and_dump: dedupe_imports_leaves_non_import_statements asserts non-import statements (`x = 1`, `def f`) survive dedup (preservation contract of dedupe_imports) while rename_function_ignores_non_matching_string asserts an unrelated string literal (the 'unrelated literal' constant) is left intact during a rename (preservation contract of rename_function). Different functions, different preserved artefacts; folding would conflate two unrelated rewriters. ACK."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "32e94713c1ee"
+reason = "MirrorRule exempt_tests tests guard distinct branches with different assertion targets: excludes_orphan asserts orphan==[] + exempt_tests population + passed, independent_from_exempt_paths asserts missing still contains the source AND orphan cleared (forward/reverse independence), and no_exempt_tests_key_is_noop asserts orphan still flagged + exempt_tests==[]; parametrization would force a generic expected and erase the branch each documents."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "1cc0d58a848c"
 reason = "Both call normalize_findings but guard opposite branches: findings_normalizes_entries (itself parametrized over dict / model_dump / vars / mixed entry shapes) asserts a NON-EMPTY normalized list equals the expected entries (the normalization path), while findings_returns_empty_for_no_findings asserts `== []` for empty / None / no-key inputs (the no-findings fallback). The assertion sense diverges (normalized entries vs empty list); merging the two parametrize tables would conflate the normalization contract with the empty-fallback contract. ACK."
 
