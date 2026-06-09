@@ -45,62 +45,6 @@ class TestComputeBump:
                 id="prefixed_fix_only",
             ),
             pytest.param(
-                ["feat: add x"],
-                "v0.7.0",
-                "minor",
-                "v0.8.0",
-                False,
-                id="raw_feat_is_minor",
-            ),
-            pytest.param(
-                ["a1b2c3 feat: add x"],
-                "v0.7.0",
-                "minor",
-                "v0.8.0",
-                False,
-                id="prefixed_feat_still_minor",
-            ),
-            pytest.param(
-                ["fix: bug"], "v0.7.0", "patch", "v0.7.1", False, id="raw_fix_is_patch"
-            ),
-            pytest.param(
-                ["abc fix: bug"],
-                "v0.7.0",
-                "patch",
-                "v0.7.1",
-                False,
-                id="prefixed_fix_is_patch",
-            ),
-        ],
-    )
-    def test_fix_feat_bump_classification(
-        self,
-        commits: list[str],
-        previous_tag: str,
-        expected_bump: str,
-        expected_next: str,
-        expected_breaking: bool,
-    ) -> None:
-        result = compute_bump(commits, previous_tag)
-        assert result.bump == expected_bump
-        assert result.next == expected_next
-        assert result.breaking is expected_breaking
-
-    def test_breaking_change_in_body(self) -> None:
-        result = compute_bump(["abc BREAKING CHANGE: removed api"], "v1.0.0")
-        assert result.bump == "major"
-        assert result.breaking
-
-    @pytest.mark.parametrize(
-        (
-            "commits",
-            "previous_tag",
-            "expected_bump",
-            "expected_next",
-            "expected_breaking",
-        ),
-        [
-            pytest.param(
                 ["abc docs: readme", "def chore: cleanup"],
                 "v0.7.0",
                 "patch",
@@ -230,10 +174,14 @@ class TestComputeBump:
         [
             pytest.param(["feat!: drop y"], id="raw_bang"),
             pytest.param(["BREAKING CHANGE: z"], id="raw_breaking_change"),
+            pytest.param(
+                ["abc BREAKING CHANGE: removed api"],
+                id="prefixed_breaking_in_body",
+            ),
         ],
     )
     def test_raw_breaking_is_major(self, commits: list[str]) -> None:
-        """AC3: raw breaking change classifies as major post-1.0."""
+        """AC3: raw or prefixed breaking change classifies as major post-1.0."""
         result = compute_bump(commits, "v1.0.0")
         assert result.bump == "major"
         assert result.breaking
