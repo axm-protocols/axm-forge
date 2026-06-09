@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import logging
+import tomllib
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -92,10 +93,61 @@ class CircularImportRule(ProjectRule):
         return dict(graph)
 
 
+def _load_god_class_exempt(project_path: Path) -> set[str]:
+    """Read acknowledged god-class exemptions from ``pyproject.toml``.
+
+    Mirrors the ``duplicate_tests.acknowledged`` convention: each entry is a
+    table requiring a ``class`` name and a ``reason``. Exemptions without a
+    reason are ignored (an exemption must be justified to count). Missing
+    file/section or malformed TOML → empty set, never raises.
+
+    Sample::
+
+        [[tool.axm-audit.god_class.acknowledged]]
+        class = "LocalBackend"
+        reason = "Backend facade implementing 5 segregated ABCs."
+    """
+    pyproject = project_path / "pyproject.toml"
+    if not pyproject.is_file():
+        return set()
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (tomllib.TOMLDecodeError, OSError, UnicodeDecodeError):
+        return set()
+    section = (
+        data.get("tool", {}).get("axm-audit", {}).get("god_class", {})
+        if isinstance(data, dict)
+        else {}
+    )
+    raw = section.get("acknowledged") if isinstance(section, dict) else None
+    if not isinstance(raw, list):
+        return set()
+    return {entry["class"] for entry in raw if _is_justified_exemption(entry)}
+
+
+def _is_justified_exemption(entry: object) -> bool:
+    """True if *entry* is a god-class exemption with a class name and a reason.
+
+    An exemption must be justified: a ``class`` string plus a non-blank
+    ``reason``. Anything else is ignored (never exempts silently).
+    """
+    if not isinstance(entry, dict):
+        return False
+    name = entry.get("class")
+    reason = entry.get("reason")
+    return isinstance(name, str) and isinstance(reason, str) and bool(reason.strip())
+
+
 @dataclass
 @register_rule("architecture")
 class GodClassRule(ProjectRule):
-    """Detect god classes (too many lines or methods)."""
+    """Detect god classes (too many lines or methods).
+
+    Classes acknowledged (with a justifying reason) under
+    ``[[tool.axm-audit.god_class.acknowledged]]`` are exempt — for legitimate
+    wide-contract facades (e.g. a backend implementing several segregated ABCs)
+    whose method count is the contract surface, not responsibility creep.
+    """
 
     max_lines: int = 500
     max_methods: int = 15
@@ -121,7 +173,8 @@ class GodClassRule(ProjectRule):
 
         src_path = project_path / "src"
 
-        god_classes = self._find_god_classes(src_path)
+        exempt = _load_god_class_exempt(project_path)
+        god_classes = self._find_god_classes(src_path, exempt)
 
         score = max(0, 100 - len(god_classes) * 15)
         passed = len(god_classes) == 0
@@ -145,7 +198,9 @@ class GodClassRule(ProjectRule):
             else None,
         )
 
-    def _find_god_classes(self, src_path: Path) -> list[dict[str, str | int]]:
+    def _find_god_classes(
+        self, src_path: Path, exempt: set[str]
+    ) -> list[dict[str, str | int]]:
         """Identify god classes in the source directory."""
         god_classes: list[dict[str, str | int]] = []
         py_files = get_python_files(src_path)
@@ -157,7 +212,7 @@ class GodClassRule(ProjectRule):
                 continue
 
             for node in ast.walk(tree):
-                if isinstance(node, ast.ClassDef):
+                if isinstance(node, ast.ClassDef) and node.name not in exempt:
                     self._check_class_node(node, path, src_path, god_classes)
 
         return god_classes
