@@ -378,8 +378,10 @@ boundary, independent of name choice.
 ### Marker opt-out
 
 Use `pytest.mark.scenario_name_ok` to declare that the current basename
-is intentional. The marker suppresses `NAME_MISMATCH` **only**; `SPLIT`
-and `COLLIDE` still apply:
+is intentional. The marker suppresses both `NAME_MISMATCH` and `SPLIT`
+(a named scenario is allowed to span several symbol tuples); `COLLIDE`
+still applies, since two files resolving to one name is a cross-file
+clash unrelated to whether either file is a named scenario:
 
 ```python
 import pytest
