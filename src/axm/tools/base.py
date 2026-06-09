@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-__all__ = ["AXMTool", "ToolResult"]
+__all__ = ["AXMTool", "ToolMetadata", "ToolResult", "tool_metadata"]
 
 
 @dataclass(frozen=True)
@@ -53,14 +53,35 @@ class AXMTool(Protocol):
     - ``agent_hint`` (class attribute): concise one-liner optimized
       for LLM consumption: what the tool does, key params, and what
       it replaces.  Falls back to ``execute.__doc__`` if empty.
+    - ``expose_directly`` (class attribute, default ``False``): when
+      ``True``, the MCP server registers this tool directly in
+      ``tools/list`` (the *hot path*).  When ``False`` (default), the
+      tool is reachable only through the MCP facade
+      (``axm_search`` -> ``axm_describe`` -> ``axm_call``), keeping the
+      ``tools/list`` payload small.
+    - ``domain`` (class attribute, default ``None``): coarse capability
+      group used by the facade for ``axm_capabilities`` and to scope
+      ``axm_search`` (e.g. ``"ast"``, ``"git"``, ``"ticket"``).
+    - ``tags`` (class attribute, default ``frozenset()``): free-form
+      keywords feeding facade discovery (``axm_search``).
 
     Uses structural typing (PEP 544) — no inheritance required.
-    ``@runtime_checkable`` enables ``isinstance()`` checks.
+    ``@runtime_checkable`` enables ``isinstance()`` checks.  The discovery
+    attributes (``expose_directly`` / ``domain`` / ``tags``) are *not*
+    protocol members on purpose: adding data attributes to a
+    ``runtime_checkable`` protocol would make them required for
+    ``isinstance()`` and break the check for the many tools that satisfy
+    ``AXMTool`` structurally without subclassing it.  Read them through
+    :func:`tool_metadata` (or ``getattr(tool, name, default)``) instead,
+    which works for subclasses and structural tools alike.
 
     Example::
 
-        class MyTool:
+        class MyTool(AXMTool):
             agent_hint = "Frobnicate widgets — use width param."
+            expose_directly = True          # hot path (read via tool_metadata)
+            domain = "widget"
+            tags = frozenset({"frobnicate"})
 
             @property
             def name(self) -> str:
@@ -90,3 +111,45 @@ class AXMTool(Protocol):
             ToolResult with success status and structured data.
         """
         ...
+
+
+@dataclass(frozen=True)
+class ToolMetadata:
+    """Facade/CLI discovery metadata for a tool, with safe defaults.
+
+    Built by :func:`tool_metadata` from the optional ``expose_directly`` /
+    ``domain`` / ``tags`` attributes a tool may declare.  Centralising the
+    defaults here keeps the MCP facade and the CLI reading the same contract.
+
+    Attributes:
+        expose_directly: Whether the tool is on the MCP hot path
+            (registered directly in ``tools/list``).  Default ``False``.
+        domain: Coarse capability group, or ``None`` if ungrouped.
+        tags: Discovery keywords (possibly empty).
+    """
+
+    expose_directly: bool = False
+    domain: str | None = None
+    tags: frozenset[str] = frozenset()
+
+
+def tool_metadata(tool: object) -> ToolMetadata:
+    """Read a tool's optional discovery attributes into a :class:`ToolMetadata`.
+
+    Works for tools that subclass :class:`AXMTool`, tools that satisfy it
+    structurally, and plain callables — anything missing an attribute falls
+    back to the default.  ``tags`` is coerced to a ``frozenset`` so callers
+    can rely on set semantics regardless of how the tool declared it.
+
+    Args:
+        tool: The tool instance (or plain callable) to introspect.
+
+    Returns:
+        A :class:`ToolMetadata` with resolved values.
+    """
+    raw_tags = getattr(tool, "tags", None) or ()
+    return ToolMetadata(
+        expose_directly=bool(getattr(tool, "expose_directly", False)),
+        domain=getattr(tool, "domain", None),
+        tags=frozenset(raw_tags),
+    )
