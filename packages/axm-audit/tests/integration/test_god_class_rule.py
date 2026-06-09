@@ -183,3 +183,66 @@ class TestGodClassDetailsUnchanged:
         god = result.details["god_classes"][0]
         assert set(god.keys()) >= {"name", "file", "lines", "methods"}
         assert god["name"] == "BigClass"
+
+
+class TestGodClassExemption:
+    """Justified ``[[tool.axm-audit.god_class.acknowledged]]`` exemptions."""
+
+    def _project_with_god_and_config(self, tmp_path: Path, config: str) -> Path:
+        project = _setup_project(tmp_path, {"mypkg/big.py": _make_god_class("Facade")})
+        (project / "pyproject.toml").write_text(config)
+        return project
+
+    def test_justified_exemption_passes(
+        self, rule: GodClassRule, tmp_path: Path
+    ) -> None:
+        """A class acknowledged with a reason is exempt from the rule."""
+        project = self._project_with_god_and_config(
+            tmp_path,
+            "[[tool.axm-audit.god_class.acknowledged]]\n"
+            'class = "Facade"\n'
+            'reason = "Backend facade implementing several segregated ABCs."\n',
+        )
+        result = rule.check(project)
+        assert result.passed is True
+
+    def test_exemption_without_reason_is_ignored(
+        self, rule: GodClassRule, tmp_path: Path
+    ) -> None:
+        """An exemption must be justified — no reason means still flagged."""
+        project = self._project_with_god_and_config(
+            tmp_path,
+            '[[tool.axm-audit.god_class.acknowledged]]\nclass = "Facade"\n',
+        )
+        result = rule.check(project)
+        assert result.passed is False
+
+    def test_other_classes_still_flagged(
+        self, rule: GodClassRule, tmp_path: Path
+    ) -> None:
+        """Exempting one class keeps the radar active on every other class."""
+        project = _setup_project(
+            tmp_path,
+            {
+                "mypkg/a.py": _make_god_class("Facade"),
+                "mypkg/b.py": _make_god_class("RealGod"),
+            },
+        )
+        (project / "pyproject.toml").write_text(
+            "[[tool.axm-audit.god_class.acknowledged]]\n"
+            'class = "Facade"\n'
+            'reason = "legitimate wide-contract facade"\n'
+        )
+        result = rule.check(project)
+        assert result.passed is False
+        assert result.details is not None
+        names = {g["name"] for g in result.details["god_classes"]}
+        assert names == {"RealGod"}
+
+    def test_no_config_flags_as_before(
+        self, rule: GodClassRule, tmp_path: Path
+    ) -> None:
+        """Absent config preserves the original behaviour (god class flagged)."""
+        project = _setup_project(tmp_path, {"mypkg/big.py": _make_god_class("Facade")})
+        result = rule.check(project)
+        assert result.passed is False
