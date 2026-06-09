@@ -290,40 +290,29 @@ def test_staging_missing_file_error_lists_attempts(
 
 
 class TestStageSpecFilesPathResolution:
-    def test_staging_accepts_git_root_relative_path(
-        self, workspace_repo__from_commit_phase_package_relative: tuple[Path, Path]
+    @pytest.mark.parametrize(
+        "path_kind",
+        [
+            pytest.param("git_root_relative", id="git_root_relative"),
+            pytest.param("package_relative", id="package_relative"),
+            pytest.param("absolute_inside_repo", id="absolute_inside_repo"),
+        ],
+    )
+    def test_staging_accepts_path_kind(
+        self,
+        workspace_repo__from_commit_phase_package_relative: tuple[Path, Path],
+        path_kind: str,
     ) -> None:
-        """AC1: path relative to git_root is resolved and staged."""
+        """AC1/AC2: git-root-relative, package-relative and in-repo absolute
+        paths all resolve and stage to the same git-root-relative entry."""
         git_root, pkg = workspace_repo__from_commit_phase_package_relative
+        spec_path = {
+            "git_root_relative": "packages/pkg/docs/foo.md",
+            "package_relative": "docs/foo.md",
+            "absolute_inside_repo": str(pkg / "docs" / "foo.md"),
+        }[path_kind]
         err = stage_spec_files(
-            ["packages/pkg/docs/foo.md"],
-            git_root,
-            working_dir=pkg,
-        )
-        assert err is None
-        assert "packages/pkg/docs/foo.md" in _cached_files(git_root)
-
-    def test_staging_accepts_package_relative_path(
-        self, workspace_repo__from_commit_phase_package_relative: tuple[Path, Path]
-    ) -> None:
-        """AC1: path relative to working_dir (package) is staged."""
-        git_root, pkg = workspace_repo__from_commit_phase_package_relative
-        err = stage_spec_files(
-            ["docs/foo.md"],
-            git_root,
-            working_dir=pkg,
-        )
-        assert err is None
-        assert "packages/pkg/docs/foo.md" in _cached_files(git_root)
-
-    def test_staging_accepts_absolute_path_inside_repo(
-        self, workspace_repo__from_commit_phase_package_relative: tuple[Path, Path]
-    ) -> None:
-        """AC2: absolute path inside git_root is accepted verbatim."""
-        git_root, pkg = workspace_repo__from_commit_phase_package_relative
-        abs_path = str(pkg / "docs" / "foo.md")
-        err = stage_spec_files(
-            [abs_path],
+            [spec_path],
             git_root,
             working_dir=pkg,
         )

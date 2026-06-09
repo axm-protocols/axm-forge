@@ -27,11 +27,64 @@ class TestParseTag:
 class TestComputeBump:
     """Test compute_bump version logic."""
 
-    def test_patch_fix_only(self) -> None:
-        result = compute_bump(["abc fix: bug"], "v0.7.0")
-        assert result.bump == "patch"
-        assert result.next == "v0.7.1"
-        assert not result.breaking
+    @pytest.mark.parametrize(
+        (
+            "commits",
+            "previous_tag",
+            "expected_bump",
+            "expected_next",
+            "expected_breaking",
+        ),
+        [
+            pytest.param(
+                ["abc fix: bug"],
+                "v0.7.0",
+                "patch",
+                "v0.7.1",
+                False,
+                id="prefixed_fix_only",
+            ),
+            pytest.param(
+                ["feat: add x"],
+                "v0.7.0",
+                "minor",
+                "v0.8.0",
+                False,
+                id="raw_feat_is_minor",
+            ),
+            pytest.param(
+                ["a1b2c3 feat: add x"],
+                "v0.7.0",
+                "minor",
+                "v0.8.0",
+                False,
+                id="prefixed_feat_still_minor",
+            ),
+            pytest.param(
+                ["fix: bug"], "v0.7.0", "patch", "v0.7.1", False, id="raw_fix_is_patch"
+            ),
+            pytest.param(
+                ["abc fix: bug"],
+                "v0.7.0",
+                "patch",
+                "v0.7.1",
+                False,
+                id="prefixed_fix_is_patch",
+            ),
+        ],
+    )
+    def test_fix_feat_bump_classification(
+        self,
+        commits: list[str],
+        previous_tag: str,
+        expected_bump: str,
+        expected_next: str,
+        expected_breaking: bool,
+    ) -> None:
+        result = compute_bump(commits, previous_tag)
+        assert result.bump == expected_bump
+        assert result.next == expected_next
+        assert result.breaking is expected_breaking
 
     def test_breaking_change_in_body(self) -> None:
         result = compute_bump(["abc BREAKING CHANGE: removed api"], "v1.0.0")
@@ -172,20 +225,6 @@ class TestComputeBump:
         assert result.current == "v1.0.0"
         assert result.commits == ["abc fix: x"]
 
-    def test_raw_feat_message_is_minor(self) -> None:
-        """AC1: raw `feat:` (no hash prefix) classifies as minor."""
-        result = compute_bump(["feat: add x"], "v0.7.0")
-        assert result.bump == "minor"
-        assert result.next == "v0.8.0"
-        assert not result.breaking
-
-    def test_prefixed_feat_message_still_minor(self) -> None:
-        """AC2: hash-prefixed `feat:` still classifies as minor (no regression)."""
-        result = compute_bump(["a1b2c3 feat: add x"], "v0.7.0")
-        assert result.bump == "minor"
-        assert result.next == "v0.8.0"
-        assert not result.breaking
-
     @pytest.mark.parametrize(
         "commits",
         [
@@ -198,17 +237,3 @@ class TestComputeBump:
         result = compute_bump(commits, "v1.0.0")
         assert result.bump == "major"
         assert result.breaking
-
-    @pytest.mark.parametrize(
-        "commits",
-        [
-            pytest.param(["fix: bug"], id="raw_fix"),
-            pytest.param(["abc fix: bug"], id="prefixed_fix"),
-        ],
-    )
-    def test_raw_and_prefixed_fix_is_patch(self, commits: list[str]) -> None:
-        """AC3,AC4: both raw and hash-prefixed `fix:` classify as patch."""
-        result = compute_bump(commits, "v0.7.0")
-        assert result.bump == "patch"
-        assert result.next == "v0.7.1"
-        assert not result.breaking
