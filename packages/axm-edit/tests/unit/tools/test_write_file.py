@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import pytest
 
-from axm_edit.tools.write_file import WriteFileTool, _render_text
+from axm_edit.tools.write_file import WriteFileTool, render_text
 
 
 class TestRenderText:
-    """Tests for the ``_render_text`` compact rendering helper."""
+    """Tests for the ``render_text`` compact rendering helper."""
 
     def test_header_carries_path_and_bytes(self) -> None:
-        text = _render_text(path="/tmp/out.txt", byte_count=18)
+        text = render_text(path="/tmp/out.txt", byte_count=18)
         assert text == "write_file | ✓ | /tmp/out.txt · 18 bytes"
 
     def test_singular_byte(self) -> None:
-        text = _render_text(path="/tmp/x", byte_count=1)
+        text = render_text(path="/tmp/x", byte_count=1)
         assert text.endswith("· 1 byte")
 
 

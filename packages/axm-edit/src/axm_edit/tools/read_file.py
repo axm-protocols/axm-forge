@@ -87,7 +87,7 @@ def _format_numbered(lines: list[str], first_line_num: int) -> str:
     )
 
 
-def _render_text(
+def render_text(
     *,
     file_rel: str,
     content: str,
@@ -194,7 +194,7 @@ class ReadFileTool:
                     "count": len(selected),
                 },
             },
-            text=_render_text(
+            text=render_text(
                 file_rel=file_rel,
                 content=content,
                 total_lines=total_lines,

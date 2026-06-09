@@ -15,7 +15,7 @@ __all__ = ["WriteFileTool"]
 logger = logging.getLogger(__name__)
 
 
-def _render_text(*, path: str, byte_count: int) -> str:
+def render_text(*, path: str, byte_count: int) -> str:
     """Render a compact, ``git``-style LLM-facing view of a write result.
 
     The header carries the global status (``✓``) plus the written path and
@@ -87,5 +87,5 @@ class WriteFileTool:
                 "path": target_path,
                 "bytes": byte_count,
             },
-            text=_render_text(path=target_path, byte_count=byte_count),
+            text=render_text(path=target_path, byte_count=byte_count),
         )

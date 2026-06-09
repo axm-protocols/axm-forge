@@ -131,7 +131,7 @@ def _walk_and_search(
     return results, False
 
 
-def _render_text(
+def render_text(
     *,
     matches: list[dict[str, object]],
     count: int,
@@ -247,7 +247,7 @@ class SearchFilesTool:
                 "count": count,
                 "truncated": truncated,
             },
-            text=_render_text(
+            text=render_text(
                 matches=results,
                 count=count,
                 truncated=truncated,

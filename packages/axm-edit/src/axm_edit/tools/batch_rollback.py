@@ -25,7 +25,7 @@ def _restored_files(checkpoint: str) -> list[str]:
     return snapshot_paths(checkpoint)
 
 
-def _render_text(
+def render_text(
     *,
     success: bool,
     checkpoint: str,
@@ -101,7 +101,7 @@ class BatchRollbackTool:
                 success=success,
                 data={"restored": success},
                 error=error,
-                text=_render_text(
+                text=render_text(
                     success=success,
                     checkpoint=checkpoint,
                     files=files,
