@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from axm_edit.tools.search_files import SearchFilesTool, _render_text
+from axm_edit.tools.search_files import SearchFilesTool, render_text
 
 
 class TestSearchFilesTool:
@@ -20,10 +20,10 @@ class TestSearchFilesTool:
 
 
 class TestRenderText:
-    """Tests for the ``_render_text`` compact rendering helper."""
+    """Tests for the ``render_text`` compact rendering helper."""
 
     def test_zero_matches(self) -> None:
-        assert _render_text(matches=[], count=0, truncated=False) == (
+        assert render_text(matches=[], count=0, truncated=False) == (
             "search_files | 0 matches"
         )
 
@@ -32,12 +32,12 @@ class TestRenderText:
         matches: list[dict[str, object]] = [
             {"file": "a.py", "line": 1, "content": "hit"}
         ]
-        text = _render_text(matches=matches, count=1, truncated=True)
+        text = render_text(matches=matches, count=1, truncated=True)
         assert "TRUNCATED at 1" in text
 
     def test_singular_match_and_file(self) -> None:
         matches: list[dict[str, object]] = [
             {"file": "a.py", "line": 7, "content": "needle"}
         ]
-        text = _render_text(matches=matches, count=1, truncated=False)
+        text = render_text(matches=matches, count=1, truncated=False)
         assert text == "search_files | 1 match · 1 file\na.py\n  7: needle"

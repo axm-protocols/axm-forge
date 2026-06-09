@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from axm_edit.tools.run_command import RunCommandTool, _render_text
+from axm_edit.tools.run_command import RunCommandTool, render_text
 
 
 class TestRunCommandTool:
@@ -20,10 +20,10 @@ class TestRunCommandTool:
 
 
 class TestRenderText:
-    """Tests for the ``_render_text`` compact rendering helper."""
+    """Tests for the ``render_text`` compact rendering helper."""
 
     def test_exit_zero_carries_stdout_verbatim(self) -> None:
-        text = _render_text(
+        text = render_text(
             stdout="hello\nworld\n",
             stderr="",
             exit_code=0,
@@ -36,7 +36,7 @@ class TestRenderText:
         assert "\\n" not in text
 
     def test_failure_marks_exit_and_keeps_stderr(self) -> None:
-        text = _render_text(
+        text = render_text(
             stdout="",
             stderr="boom: not found",
             exit_code=2,
@@ -47,7 +47,7 @@ class TestRenderText:
         assert "stderr:\nboom: not found" in text
 
     def test_timeout_and_truncated_flags_surface(self) -> None:
-        text = _render_text(
+        text = render_text(
             stdout="partial",
             stderr="",
             exit_code=-1,
@@ -59,7 +59,7 @@ class TestRenderText:
         assert "truncated" in text
 
     def test_no_output_is_explicit(self) -> None:
-        text = _render_text(
+        text = render_text(
             stdout="",
             stderr="",
             exit_code=0,

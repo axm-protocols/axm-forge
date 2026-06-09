@@ -51,7 +51,7 @@ def _truncate(output: str) -> tuple[str, bool]:
     return output[:_MAX_OUTPUT_CHARS] + "\n[truncated]", True
 
 
-def _render_text(
+def render_text(
     *,
     stdout: str,
     stderr: str,
@@ -222,7 +222,7 @@ def _run(command: str, work_dir: Path, timeout: int) -> ToolResult:
             "timed_out": timed_out,
             "truncated": truncated,
         },
-        text=_render_text(
+        text=render_text(
             stdout=stdout_trunc,
             stderr=stderr_trunc,
             exit_code=exit_code,

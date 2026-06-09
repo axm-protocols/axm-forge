@@ -75,7 +75,7 @@ def _human_size(n: int | None) -> str:
     return f"{value:.1f}{units[idx]}"
 
 
-def _render_text(
+def render_text(
     *,
     entries: list[dict[str, object]],
     count: int,
@@ -210,7 +210,7 @@ class ListDirTool:
                 "count": count,
                 "truncated": truncated,
             },
-            text=_render_text(
+            text=render_text(
                 entries=entries,
                 count=count,
                 truncated=truncated,

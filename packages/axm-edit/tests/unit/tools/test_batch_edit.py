@@ -10,7 +10,7 @@ from axm_edit.models.operations import (
     ReplaceOp,
     ValidationError,
 )
-from axm_edit.tools.batch_edit import BatchEditTool, _render_text
+from axm_edit.tools.batch_edit import BatchEditTool, render_text
 
 
 class TestBatchEditTool:
@@ -36,7 +36,7 @@ class TestBatchEditTool:
 
 
 class TestRenderText:
-    """Tests for the ``_render_text`` compact rendering helper."""
+    """Tests for the ``render_text`` compact rendering helper."""
 
     def test_success_header_and_per_file_op_lines(self) -> None:
         result = BatchResult(
@@ -49,7 +49,7 @@ class TestRenderText:
             CreateOp(file="new.py", content="z = 1\n"),
             DeleteOp(file="old.py"),
         ]
-        text = _render_text(result, parsed, {})
+        text = render_text(result, parsed, {})
         assert "batch_edit | ✓ |" in text
         assert "1 modified · 1 created · 1 deleted · 3 edits" in text
         assert "~ a.py (1 edit)" in text
@@ -71,7 +71,7 @@ class TestRenderText:
         parsed = [
             ReplaceOp(file="a.py", edits=[Edit(old="NOPE", new="y")]),
         ]
-        text = _render_text(result, parsed, {})
+        text = render_text(result, parsed, {})
         assert "✗ ROLLBACK" in text
         assert "Validation failed" in text
         assert "a.py: Content not found" in text
@@ -92,7 +92,7 @@ class TestRenderText:
                 {"file": "lintme.py", "rules": ["F401"], "diff": "@L1\n-import os"}
             ],
         }
-        text = _render_text(result, parsed, data)
+        text = render_text(result, parsed, data)
         assert "lint: 2 auto-fixed · 0 claude-fixed · 1 remaining" in text
         assert "! lintme.py:1: E999 boom" in text
         assert "⚠ ruff slow" in text
