@@ -260,15 +260,20 @@ def _render_lint_lines(data: dict[str, object]) -> list[str]:
     diffs = data.get("lint_diffs")
     if isinstance(diffs, list):
         for entry in diffs:
-            if not isinstance(entry, dict):
-                continue
-            rules = ", ".join(str(r) for r in entry.get("rules", []))
-            lines.append(f"  {entry.get('file', '?')} [{rules}]")
-            diff = entry.get("diff")
-            if isinstance(diff, str) and diff:
-                lines.extend(f"    {dl}" for dl in diff.splitlines())
-            elif entry.get("diff_skipped"):
-                lines.append(f"    (diff skipped: {entry['diff_skipped']})")
+            if isinstance(entry, dict):
+                lines.extend(_render_lint_diff(entry))
+    return lines
+
+
+def _render_lint_diff(entry: dict[str, object]) -> list[str]:
+    raw_rules = entry.get("rules", [])
+    rules = ", ".join(str(r) for r in raw_rules) if isinstance(raw_rules, list) else ""
+    lines = [f"  {entry.get('file', '?')} [{rules}]"]
+    diff = entry.get("diff")
+    if isinstance(diff, str) and diff:
+        lines.extend(f"    {dl}" for dl in diff.splitlines())
+    elif entry.get("diff_skipped"):
+        lines.append(f"    (diff skipped: {entry['diff_skipped']})")
     return lines
 
 
