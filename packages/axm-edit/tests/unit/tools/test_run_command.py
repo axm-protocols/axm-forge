@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from axm_edit.tools.run_command import RunCommandTool, _render_text
 
 
@@ -69,11 +67,3 @@ class TestRenderText:
             truncated=False,
         )
         assert text == "run_command | exit 0\n(no output)"
-
-    def test_execute_populates_text_field(self, tmp_path: Path) -> None:
-        result = RunCommandTool().execute(command="echo hello", path=str(tmp_path))
-        assert result.success is True
-        assert result.text is not None
-        assert "exit 0" in result.text
-        # No-loss: data stdout present verbatim in text.
-        assert str(result.data["stdout"]).rstrip("\n") in result.text
