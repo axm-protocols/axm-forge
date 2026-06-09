@@ -42,9 +42,9 @@ When an edit at line 10 replaces 2 lines with 3 lines, every line number after 1
 
 ## Atomicity
 
-- **Checkpoint**: `git stash create` before applying (returns SHA for rollback)
+- **Checkpoint**: before applying, every path the batch will touch is snapshotted in-process — its prior existence plus original bytes — keyed by resolved relative path (no git involvement)
 - **Validation first**: All checks pass before any file is touched
-- **Rollback**: `batch_rollback` restores via `git checkout + clean + stash apply`
+- **Rollback**: `batch_rollback` restores **only** the snapshotted paths (rewrite original bytes, remove files that were absent before, recreate deleted files) and touches nothing else — no `git checkout`/`clean`/`stash`
 
 ## Security
 
@@ -54,5 +54,5 @@ When an edit at line 10 replaces 2 lines with 3 lines, every line number after 1
 | `../` blocked | No path traversal |
 | `old` required for replace | No blind modifications |
 | Validation before write | Fail-fast, 0 files corrupted |
-| Git checkpoint | Rollback always possible |
+| Targeted path snapshot | Rollback restores only what the batch touched, never destroys unrelated work |
 | `agent_hint` on tools | LLM-optimized description propagates to MCP — agents see what each tool does without parsing docstrings |

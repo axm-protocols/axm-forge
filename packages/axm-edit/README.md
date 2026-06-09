@@ -26,10 +26,10 @@ The agent spends 70% of its budget on mechanics.
 - 📂 **`list_dir`** — List files and directories with metadata (recursive, depth-limited)
 - ✏️ **`write_file`** — Write or overwrite file content
 - ▶️ **`run_command`** — Execute shell commands with timeout and output truncation
-- ⏪ **`batch_rollback`** — Restore project state to a checkpoint via git stash
+- ⏪ **`batch_rollback`** — Restore the exact paths a batch touched from a targeted snapshot
 - 🛡️ **Atomic** — All-or-nothing: validation runs before any file is touched
 - 📐 **Bottom-to-top** — Line edits applied in reverse order to avoid line-shift problems
-- 🔒 **Safe** — Path traversal blocked, `old` content validated, git checkpoint before writes
+- 🔒 **Safe** — Path traversal blocked, `old` content validated, targeted path snapshot before writes
 
 ## Installation
 
@@ -157,12 +157,12 @@ Execute shell commands with timeout and output truncation.
 
 ### `batch_rollback`
 
-Restore state to a checkpoint.
+Restore the exact paths a batch touched from its snapshot.
 
 | Param | Type | Description |
 |---|---|---|
 | `path` | `str` | Project root directory |
-| `checkpoint` | `str` | SHA from `batch_edit` response |
+| `checkpoint` | `str` | Snapshot payload from the `batch_edit` response |
 
 ## Development
 

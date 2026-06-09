@@ -546,7 +546,8 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
         operations: List of replace, create, and delete operations.
 
     Returns:
-        BatchResult with success status, checkpoint SHA, and summary.
+        BatchResult with success status, a targeted-path snapshot
+        (``checkpoint``) for rollback, and a summary.
     """
     root = root.resolve()
     grouped = _group_operations(operations)
@@ -559,7 +560,7 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
             details=errors,
         )
 
-    checkpoint = create_checkpoint(root)
+    checkpoint = create_checkpoint(root, operations)
 
     total_applied = 0
     for file_rel, resolved in resolved_by_file.items():

@@ -5,38 +5,24 @@ Registered as ``batch_rollback`` via the ``axm.tools`` entry point.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 from axm.tools.base import ToolResult
 
-from axm_edit.core.checkpoint import rollback
+from axm_edit.core.checkpoint import rollback, snapshot_paths
 
 _SHA_LEN = 7
 
 
-def _restored_files(root: Path, checkpoint: str) -> list[str]:
-    """Return the files captured by *checkpoint* (best-effort, read-only).
+def _restored_files(checkpoint: str) -> list[str]:
+    """Return the relative paths captured by *checkpoint* (read-only).
 
-    Asks git which paths the checkpoint stash touched — these are exactly the
-    files a successful rollback restores. Purely informational: any git
-    failure (bad SHA, not a repo) yields an empty list so the text view
-    degrades gracefully without affecting the rollback outcome.
+    Reads the targeted-path snapshot — these are exactly the files a
+    successful rollback restores. Purely informational: a malformed
+    snapshot yields an empty list so the text view degrades gracefully
+    without affecting the rollback outcome.
     """
-    try:
-        result = subprocess.run(
-            ["git", "stash", "show", "--name-only", checkpoint],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    if result.returncode != 0:
-        return []
-    return [line for line in result.stdout.splitlines() if line.strip()]
+    return snapshot_paths(checkpoint)
 
 
 def _render_text(
@@ -84,7 +70,7 @@ class BatchRollbackTool:
         Args:
             **kwargs: Keyword arguments.
                 path: Project root directory.
-                checkpoint: The stash SHA from batch_edit's response.
+                checkpoint: The snapshot payload from batch_edit's response.
 
         Returns:
             ToolResult indicating whether the rollback succeeded.
@@ -108,7 +94,7 @@ class BatchRollbackTool:
                     error=f"Path is not a directory: {path}",
                 )
 
-            files = _restored_files(root, checkpoint)
+            files = _restored_files(checkpoint)
             success = rollback(root, checkpoint)
             error = None if success else "Rollback failed"
             return ToolResult(

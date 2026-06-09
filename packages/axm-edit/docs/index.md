@@ -25,7 +25,7 @@ IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool call
 - :material-file-replace-outline: **`edit_file`** — Apply old/new edits to a single file
 - :material-folder-outline: **`list_dir`** — List files and directories with metadata (recursive, depth-limited)
 - :material-console: **`run_command`** — Execute shell commands with timeout and output truncation
-- :material-undo: **`batch_rollback`** — Restore project state to a checkpoint via git stash
+- :material-undo: **`batch_rollback`** — Restore the exact paths a batch touched from a targeted snapshot
 - :material-shield-check-outline: **Atomic** — All-or-nothing: validation runs before any file is touched
 - :material-sort-descending: **Bottom-to-top** — Line edits applied in reverse order to avoid line-shift problems
 
@@ -34,7 +34,7 @@ IDE agents edit files one-at-a-time. A refactor touching 30 files = 30 tool call
 | Module | What it provides |
 |---|---|
 | [`axm_edit.core.engine`](reference/api/axm_edit/core/engine/) | `batch_apply` — validate-then-apply batch engine |
-| [`axm_edit.core.checkpoint`](reference/api/axm_edit/core/checkpoint/) | `create_checkpoint` / `rollback` — git stash safety net |
+| [`axm_edit.core.checkpoint`](reference/api/axm_edit/core/checkpoint/) | `create_checkpoint` / `rollback` — targeted per-path snapshot safety net |
 | [`axm_edit.models.operations`](reference/api/axm_edit/models/operations/) | `Edit`, `ReplaceOp`, `CreateOp`, `DeleteOp`, `BatchResult` (incl. `lint_errors`) — Pydantic models |
 | [`axm_edit.services.lint`](reference/api/axm_edit/services/lint/) | `claude_fix` — Claude subprocess auto-fix for remaining ruff errors (JSON old/new edit format) |
 | [`axm_edit.services.lint_diff`](reference/api/axm_edit/services/lint_diff/) | `compute_lint_diffs`, `extract_rules_by_file` — tagged plus/minus diffs between post-agent and post-lint snapshots |
