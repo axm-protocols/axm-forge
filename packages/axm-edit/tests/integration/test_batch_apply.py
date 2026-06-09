@@ -216,3 +216,79 @@ def test_replace_unchanged_file_applies_normally(tmp_path: Path) -> None:
 
     assert result.success is True
     assert target.read_text(encoding="utf-8") == "line_a\nREPLACED\nline_c\n"
+
+
+def test_replace_rejects_dotdot_escape(tmp_path: Path) -> None:
+    """AC2: a ``../`` escape is rejected and the outside file is untouched."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("secret", encoding="utf-8")
+
+    op = ReplaceOp(file="../outside.txt", edits=[Edit(old="secret", new="pwned")])
+    result = batch_apply(root, [op])
+
+    assert result.success is False
+    assert outside.read_text(encoding="utf-8") == "secret"
+
+
+def test_replace_rejects_backslash_dotdot_escape(tmp_path: Path) -> None:
+    """AC2: a ``..\\`` escape shape is rejected."""
+    root = tmp_path / "root"
+    root.mkdir()
+
+    op = ReplaceOp(file="..\\outside.txt", edits=[Edit(old="a", new="b")])
+    result = batch_apply(root, [op])
+
+    assert result.success is False
+
+
+def test_replace_rejects_absolute_path_outside_root(tmp_path: Path) -> None:
+    """AC2: an absolute path resolving outside root is rejected."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("secret", encoding="utf-8")
+
+    op = ReplaceOp(file=str(outside), edits=[Edit(old="secret", new="pwned")])
+    result = batch_apply(root, [op])
+
+    assert result.success is False
+    assert outside.read_text(encoding="utf-8") == "secret"
+
+
+def test_replace_rejects_symlink_escape(tmp_path: Path) -> None:
+    """AC2: a path through a symlink whose target is outside root is rejected."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside_dir = tmp_path / "outside_dir"
+    outside_dir.mkdir()
+    target = outside_dir / "data.txt"
+    target.write_text("secret", encoding="utf-8")
+
+    link = root / "link"
+    link.symlink_to(outside_dir, target_is_directory=True)
+
+    op = ReplaceOp(file="link/data.txt", edits=[Edit(old="secret", new="pwned")])
+    result = batch_apply(root, [op])
+
+    assert result.success is False
+    assert target.read_text(encoding="utf-8") == "secret"
+
+
+def test_replace_accepts_nested_in_root_path(tmp_path: Path) -> None:
+    """AC3: a valid nested in-root path resolves and the op is applied."""
+    root = tmp_path / "root"
+    root.mkdir()
+    nested = root / "pkg" / "sub"
+    nested.mkdir(parents=True)
+    target = nested / "file.txt"
+    target.write_text("hello world\n", encoding="utf-8")
+
+    op = ReplaceOp(
+        file="pkg/sub/file.txt", edits=[Edit(old="hello world", new="hello axm")]
+    )
+    result = batch_apply(root, [op])
+
+    assert result.success is True
+    assert target.read_text(encoding="utf-8") == "hello axm\n"
