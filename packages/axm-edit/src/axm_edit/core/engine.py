@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeAlias
 
-from axm_edit.core.checkpoint import create_checkpoint
+from axm_edit.core.checkpoint import create_checkpoint, rollback
 from axm_edit.models.operations import (
     BatchResult,
     CreateOp,
@@ -400,12 +400,39 @@ def _actual_at(lines: list[str], line: int, span: int) -> str | None:
     return "".join(lines[line - 1 : end]).rstrip("\n")
 
 
+class _AnchorDriftError(Exception):
+    """Raised when the resolved range no longer matches ``old`` at apply time.
+
+    Carries a :class:`ValidationError` describing the drift so the caller
+    can surface it on the failed :class:`BatchResult`.
+    """
+
+    def __init__(self, detail: ValidationError) -> None:
+        super().__init__(detail.error or "Anchor drift detected")
+        self.detail = detail
+
+
+def _anchor_still_matches(lines: list[str], edit: ResolvedEdit) -> bool:
+    """Re-confirm ``edit.old`` matches *lines* at the resolved start line.
+
+    Uses the same exact/dedented matchers the resolver relied on, so the
+    check stays consistent with how the position was originally found.
+    """
+    match_exact, match_dedented, _ = _make_matchers(lines, edit.old)
+    return match_exact(edit.line) or match_dedented(edit.line)
+
+
 def _apply_replace(
     root: Path,
     file_rel: str,
     resolved: list[ResolvedEdit],
 ) -> int:
     """Apply resolved edits to a single file, bottom-to-top.
+
+    Before each splice the resolved range is re-verified against ``old``
+    (TOCTOU guard): if the file drifted since validation, the edit is not
+    applied and an :class:`_AnchorDriftError` is raised so the caller can
+    abort and roll back, rather than splicing at a stale location.
 
     Returns the number of edits applied.
     """
@@ -418,6 +445,20 @@ def _apply_replace(
     sorted_edits = sorted(resolved, key=lambda e: e.line, reverse=True)
 
     for edit in sorted_edits:
+        # TOCTOU guard: confirm the anchor is still where validation found it.
+        if not _anchor_still_matches(lines, edit):
+            raise _AnchorDriftError(
+                ValidationError(
+                    file=file_rel,
+                    line=edit.line,
+                    expected=edit.old,
+                    error=(
+                        "File changed between validation and apply: "
+                        f"content at line {edit.line} no longer matches the "
+                        "'old' anchor (aborted to avoid a wrong-location splice)"
+                    ),
+                )
+            )
         start = edit.line
         end = start + _old_line_count(edit.old) - 1
         # Build replacement lines, preserving trailing newline style
@@ -562,10 +603,19 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
 
     checkpoint = create_checkpoint(root, operations)
 
-    total_applied = 0
-    for file_rel, resolved in resolved_by_file.items():
-        total_applied += _apply_replace(root, file_rel, resolved)
-    total_applied += _apply_creates_deletes(root, grouped.creates, grouped.deletes)
+    try:
+        total_applied = 0
+        for file_rel, resolved in resolved_by_file.items():
+            total_applied += _apply_replace(root, file_rel, resolved)
+        total_applied += _apply_creates_deletes(root, grouped.creates, grouped.deletes)
+    except _AnchorDriftError as drift:
+        rollback(root, checkpoint)
+        return BatchResult(
+            success=False,
+            checkpoint=checkpoint,
+            error="Apply aborted: file drifted between validation and apply",
+            details=[drift.detail],
+        )
 
     return BatchResult(
         success=True,
