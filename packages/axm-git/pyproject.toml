@@ -396,3 +396,23 @@ reason = "ambiguous_distinct_literals -- test_result_exposes_full_tag patches ge
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "2326f8633a76"
 reason = "5 check_ci tests exercise structurally distinct mock topologies: skipped_when_gh_unavailable patches only gh_available=False (no run_git/run_gh), check_ci_from_gh_output is a 5-case (rc,stdout,status) matrix over run_git+run_gh, exception_returns_error uses run_gh side_effect=FileNotFoundError, ci_green_only_when_headsha_matches and ci_unrelated_red_does_not_block assert headSha-discrimination over bespoke single- and multi-run JSON payloads -- collapsing into one parametrize would require generic mock-config params that erase the per-branch gh-unavailable/exception/headSha-match intent"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1e95b2bd529c"
+reason = "ambiguous_distinct_literals -- 10 render_text success-path tests across 6 files target 6 different renderer SUTs imported from different modules (branch_text/clone_text/commit_text/pr_text/push_text/tag_text.render_text), each producing a tool-specific prefix and body (git_branch vs git_clone vs git_commit vs git_pr vs git_push vs git_tag) over its own data dict shape -- a cross-file fold would erase which renderer is under test, and the intra-file pairs (clone with/without path, pr auto/no-auto merge, push upstream-set/existing, tag full/breaking-not-pushed) feed distinct literals exercising opposite branches"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "5ede5f3be9bd"
+reason = "ambiguous_distinct_literals -- 9 hook.execute tests across 5 files target 4 distinct hook SUTs (CommitPhaseHook, PreflightHook, PullHook, PushHook, CreatePRHook): the not-a-repo/skip tests use heterogeneous fixtures (bare tmp_path for pull/push/preflight-not_a_repo, tmp_workspace_repo tuple for commit_phase-nothing_to_commit, tmp_git_repo for preflight-clean_repo), and the CreatePRHook trio (skip_no_gh patches only gh_available=False, already_exists patches run_gh with rc=1 'already exists' stderr plus a gh-view JSON, hook_uses_shared_recovery patches the shared pr_recovery seam) each has a distinct mock topology asserting different metadata keys (skipped/reason vs pr_url/already_existed) -- no shared fixture or parametrizable matrix across the four hook contracts"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b4608a2f1340"
+reason = "cross-file test_suggestions_hint over 5 files calls 5 different render_failure_text SUTs (branch_text/pr_text/push_text/tag_text/worktree_text), each emitting its own tool prefix (git_branch vs git_pr vs git_push vs git_tag vs git_worktree) before the shared 'not a git repository / hint: pass one as path' suffix -- folding cross-file would erase which tool's failure renderer surfaces the suggestions hint"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d43a04a4f0b4"
+reason = "cross-file test_plain_error over 3 files calls 3 different render_failure_text SUTs (branch_text/push_text/tag_text) with distinct error literals (fatal: branch exists vs rejected: non-fast-forward vs Failed to create tag: boom) and distinct tool prefixes (git_branch vs git_push vs git_tag) -- folding would erase which tool's plain-error path is verified and conflate three unrelated error messages"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "978654efc031"
+reason = "2 hook.execute branch-from-params tests target distinct hook SUTs with distinct fixtures: BranchDeleteHook::test_branch_delete_param_resolution runs on tmp_git_repo and asserts metadata['branch']=='feat/x', while MergeSquashHook::test_merge_squash_branch_from_params requires the pre-created tmp_git_repo_with_named_branch fixture and asserts metadata['merged']=='feat/x' -- different hook contracts, different fixtures (plain repo vs named-branch repo), different asserted metadata keys, no parametrizable matrix"
