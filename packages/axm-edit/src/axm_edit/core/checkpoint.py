@@ -129,8 +129,27 @@ def rollback(root: Path, checkpoint: str) -> bool:
 def _restore_one(target: Path, encoded: str | None) -> None:
     """Restore a single path to its captured state."""
     if encoded is None:
-        # Did not exist before the batch — remove whatever is there now.
+        # Did not exist before the batch — remove whatever is there now,
+        # then prune any now-empty directories the batch created for it.
         target.unlink(missing_ok=True)
+        _prune_empty_dirs(target.parent)
         return
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(base64.b64decode(encoded))
+
+
+def _prune_empty_dirs(start: Path) -> None:
+    """Remove *start* and its ancestors while they are empty directories.
+
+    ``rmdir`` only succeeds on an empty directory, so this can never delete a
+    directory that still holds other files — it merely cleans up the empty
+    scaffolding a batch ``mkdir(parents=True)`` left behind on rollback.
+    Stops at the first non-empty directory or filesystem error.
+    """
+    current = start
+    while True:
+        try:
+            current.rmdir()
+        except OSError:
+            return
+        current = current.parent

@@ -6,15 +6,121 @@ Exercised through the public ``batch_apply`` boundary (not the private
 
 from __future__ import annotations
 
+import pathlib
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from axm_edit.core import engine
 from axm_edit.core.engine import batch_apply
-from axm_edit.models.operations import CreateOp, Edit, ReplaceOp
+from axm_edit.models.operations import CreateOp, DeleteOp, Edit, ReplaceOp
 
 pytestmark = pytest.mark.integration
+
+
+def _make_write_text_failer(fail_on_call: int) -> Callable[..., int]:
+    """Return a ``Path.write_text`` replacement that raises on the Nth call."""
+    real_write_text = pathlib.Path.write_text
+    state = {"calls": 0}
+
+    def fake_write_text(self: Path, *args: object, **kwargs: object) -> int:
+        state["calls"] += 1
+        if state["calls"] == fail_on_call:
+            raise OSError("injected write failure")
+        return real_write_text(self, *args, **kwargs)
+
+    return fake_write_text
+
+
+def test_apply_failure_rolls_back_earlier_ops(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC1, AC2: a mid-batch write failure restores earlier-touched files.
+
+    Two replace ops succeed (write_text calls 1 and 2), the third write
+    (a create) raises; the two modified files must be restored to their
+    pre-batch content and the result must report failure.
+    """
+    file_a = tmp_path / "a.txt"
+    file_b = tmp_path / "b.txt"
+    file_a.write_text("original A\n", encoding="utf-8")
+    file_b.write_text("original B\n", encoding="utf-8")
+
+    operations = [
+        ReplaceOp(file="a.txt", edits=[Edit(old="original A", new="changed A")]),
+        ReplaceOp(file="b.txt", edits=[Edit(old="original B", new="changed B")]),
+        CreateOp(file="c.txt", content="new C\n"),
+    ]
+
+    # Fail on the 3rd write_text (the create after the two replaces).
+    monkeypatch.setattr(
+        pathlib.Path, "write_text", _make_write_text_failer(fail_on_call=3)
+    )
+
+    result = batch_apply(tmp_path, operations)
+
+    assert result.success is False
+    assert result.error
+    # Earlier ops rolled back to pre-batch state.
+    assert file_a.read_text(encoding="utf-8") == "original A\n"
+    assert file_b.read_text(encoding="utf-8") == "original B\n"
+
+
+def test_apply_failure_removes_batch_created_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC2: a file created earlier in the batch is removed on rollback.
+
+    The single replace op succeeds (write_text call 1), the create op
+    (call 2) succeeds, and a second create (call 3) raises. The first
+    created file must no longer exist after the rollback.
+    """
+    file_a = tmp_path / "a.txt"
+    file_a.write_text("original A\n", encoding="utf-8")
+
+    operations = [
+        ReplaceOp(file="a.txt", edits=[Edit(old="original A", new="changed A")]),
+        CreateOp(file="created.txt", content="first new\n"),
+        CreateOp(file="nested/created2.txt", content="second new\n"),
+    ]
+
+    # write_text calls: 1=replace a.txt, 2=create created.txt, 3=nested -> fail
+    monkeypatch.setattr(
+        pathlib.Path, "write_text", _make_write_text_failer(fail_on_call=3)
+    )
+
+    result = batch_apply(tmp_path, operations)
+
+    assert result.success is False
+    # The batch-created file is gone after rollback.
+    assert not (tmp_path / "created.txt").exists()
+    # And the replace was restored.
+    assert file_a.read_text(encoding="utf-8") == "original A\n"
+
+
+def test_happy_path_unchanged(tmp_path: Path) -> None:
+    """AC4: a normal batch applies fully with success and correct counts."""
+    file_a = tmp_path / "a.txt"
+    file_a.write_text("original A\n", encoding="utf-8")
+    to_delete = tmp_path / "old.txt"
+    to_delete.write_text("bye\n", encoding="utf-8")
+
+    operations = [
+        ReplaceOp(file="a.txt", edits=[Edit(old="original A", new="changed A")]),
+        CreateOp(file="c.txt", content="new C\n"),
+        DeleteOp(file="old.txt"),
+    ]
+
+    result = batch_apply(tmp_path, operations)
+
+    assert result.success is True
+    assert result.summary == {"modified": 1, "created": 1, "deleted": 1}
+    assert file_a.read_text(encoding="utf-8") == "changed A\n"
+    assert (tmp_path / "c.txt").read_text(encoding="utf-8") == "new C\n"
+    assert not to_delete.exists()
 
 
 def test_replace_preserves_non_ascii_utf8(tmp_path: Path) -> None:
