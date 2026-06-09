@@ -292,3 +292,93 @@ def test_replace_accepts_nested_in_root_path(tmp_path: Path) -> None:
 
     assert result.success is True
     assert target.read_text(encoding="utf-8") == "hello axm\n"
+
+
+def test_replace_tab_indented_block(tmp_path: Path) -> None:
+    """AC1, AC2: a tab-indented block reindents to the detected tab prefix.
+
+    The ``old`` anchor is supplied dedented, so the engine takes the
+    indent-normalized match path and must re-apply the file block's literal
+    leading whitespace (one tab) to every replacement line.
+    """
+    target = tmp_path / "mod.py"
+    target.write_text("def f():\n\told_line_one\n\told_line_two\n", encoding="utf-8")
+
+    op = ReplaceOp(
+        file="mod.py",
+        edits=[
+            Edit(old="old_line_one\nold_line_two", new="new_line_one\nnew_line_two")
+        ],
+    )
+    result = batch_apply(tmp_path, [op])
+
+    assert result.success is True, result
+    assert target.read_text(encoding="utf-8") == (
+        "def f():\n\tnew_line_one\n\tnew_line_two\n"
+    )
+
+
+def test_replace_mixed_tab_space_block(tmp_path: Path) -> None:
+    """AC1, AC2: a block indented with a tab+spaces prefix reindents to it.
+
+    The file block shares a literal ``\\t  `` (tab + two spaces) leading
+    prefix. The fix detects that exact prefix and re-applies it (rather than
+    silently leaving the replacement un-dedented), preserving the relative
+    four-space indent carried inside ``new``.
+    """
+    target = tmp_path / "mod.py"
+    target.write_text("def f():\n\t  old_a\n\t  old_b\n", encoding="utf-8")
+
+    op = ReplaceOp(
+        file="mod.py",
+        edits=[Edit(old="old_a\nold_b", new="new_a\n    new_b")],
+    )
+    result = batch_apply(tmp_path, [op])
+
+    assert result.success is True, result
+    # The detected prefix (tab + two spaces) is re-applied to every new line;
+    # the relative four-space indent of ``new_b`` is preserved on top of it.
+    assert target.read_text(encoding="utf-8") == (
+        "def f():\n\t  new_a\n\t      new_b\n"
+    )
+
+
+def test_replace_first_line_misaligned_block(tmp_path: Path) -> None:
+    """AC1: a block whose first line is less indented than the following lines.
+
+    The common leading-whitespace prefix is the *shorter* first-line indent
+    (four spaces); the deeper second line keeps its extra relative indent.
+    Locks that the detect/dedent/reindent steps agree on the literal prefix.
+    """
+    target = tmp_path / "mod.py"
+    target.write_text("def f():\n    if x:\n        pass\n", encoding="utf-8")
+
+    op = ReplaceOp(
+        file="mod.py",
+        edits=[Edit(old="if x:\n    pass", new="while y:\n    break")],
+    )
+    result = batch_apply(tmp_path, [op])
+
+    assert result.success is True, result
+    assert target.read_text(encoding="utf-8") == (
+        "def f():\n    while y:\n        break\n"
+    )
+
+
+def test_replace_space_indented_block_unchanged(tmp_path: Path) -> None:
+    """AC3: the common space-indented case reindents exactly as before.
+
+    Regression guard: a uniform four-space block must round-trip identically
+    after the whitespace-model change.
+    """
+    target = tmp_path / "mod.py"
+    target.write_text("class C:\n    old_a\n    old_b\n", encoding="utf-8")
+
+    op = ReplaceOp(
+        file="mod.py",
+        edits=[Edit(old="old_a\nold_b", new="new_a\nnew_b")],
+    )
+    result = batch_apply(tmp_path, [op])
+
+    assert result.success is True, result
+    assert target.read_text(encoding="utf-8") == ("class C:\n    new_a\n    new_b\n")
