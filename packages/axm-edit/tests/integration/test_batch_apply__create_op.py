@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import pathlib
+from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from axm_edit.core.engine import batch_apply
-from axm_edit.models.operations import CreateOp
+from axm_edit.models.operations import CreateOp, Edit, ReplaceOp
 
 
 class TestCreate:
@@ -50,3 +54,70 @@ def test_path_traversal_rejected(tmp_project: Path) -> None:
     result = batch_apply(tmp_project, ops)
     assert not result.success
     assert any("traversal" in (d.error or "").lower() for d in result.details)
+
+
+# ---------------------------------------------------------------------------
+# Merged: create-op utf-8 fidelity and batch-created-file rollback.
+# ---------------------------------------------------------------------------
+
+
+def _make_write_text_failer(fail_on_call: int) -> Callable[..., int]:
+    """Return a ``Path.write_text`` replacement that raises on the Nth call."""
+    real_write_text = pathlib.Path.write_text
+    state = {"calls": 0}
+
+    def fake_write_text(self: Path, *args: object, **kwargs: object) -> int:
+        state["calls"] += 1
+        if state["calls"] == fail_on_call:
+            raise OSError("injected write failure")
+        return real_write_text(self, *args, **kwargs)
+
+    return fake_write_text
+
+
+def test_create_writes_utf8(tmp_path: Path) -> None:
+    """A create op writes content as utf-8, readable back identically."""
+    content = "élément → 日本語\n"
+
+    result = batch_apply(
+        tmp_path,
+        [CreateOp(file="created.txt", content=content)],
+    )
+
+    assert result.success, result
+
+    created = tmp_path / "created.txt"
+    assert created.read_text(encoding="utf-8") == content
+
+
+def test_apply_failure_removes_batch_created_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A file created earlier in the batch is removed on rollback.
+
+    The single replace op succeeds (write_text call 1), the create op
+    (call 2) succeeds, and a second create (call 3) raises. The first
+    created file must no longer exist after the rollback.
+    """
+    file_a = tmp_path / "a.txt"
+    file_a.write_text("original A\n", encoding="utf-8")
+
+    operations = [
+        ReplaceOp(file="a.txt", edits=[Edit(old="original A", new="changed A")]),
+        CreateOp(file="created.txt", content="first new\n"),
+        CreateOp(file="nested/created2.txt", content="second new\n"),
+    ]
+
+    # write_text calls: 1=replace a.txt, 2=create created.txt, 3=nested -> fail
+    monkeypatch.setattr(
+        pathlib.Path, "write_text", _make_write_text_failer(fail_on_call=3)
+    )
+
+    result = batch_apply(tmp_path, operations)
+
+    assert result.success is False
+    # The batch-created file is gone after rollback.
+    assert not (tmp_path / "created.txt").exists()
+    # And the replace was restored.
+    assert file_a.read_text(encoding="utf-8") == "original A\n"

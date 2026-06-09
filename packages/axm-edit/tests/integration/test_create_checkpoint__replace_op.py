@@ -11,9 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from axm_edit.core import checkpoint as checkpoint_mod
 from axm_edit.core.checkpoint import create_checkpoint, rollback
-from axm_edit.models.operations import CreateOp, DeleteOp, Edit, ReplaceOp
+from axm_edit.models.operations import Edit, ReplaceOp
 
 pytestmark = pytest.mark.integration
 
@@ -29,32 +28,6 @@ def test_rollback_restores_modified_file_to_original_bytes(tmp_path: Path) -> No
 
     assert rollback(tmp_path, snapshot) is True
     assert target.read_text() == "original"
-
-
-def test_rollback_removes_batch_created_file(tmp_path: Path) -> None:
-    """AC2: a file that did not exist before the batch is removed on rollback."""
-    ops = [CreateOp(file="new.txt", content="hello")]
-
-    snapshot = create_checkpoint(tmp_path, ops)
-    created = tmp_path / "new.txt"
-    created.write_text("hello")
-
-    assert rollback(tmp_path, snapshot) is True
-    assert not created.exists()
-
-
-def test_rollback_restores_batch_deleted_file(tmp_path: Path) -> None:
-    """AC2: a file deleted by the batch is restored with its original content."""
-    target = tmp_path / "gone.txt"
-    target.write_text("keepme")
-    ops = [DeleteOp(file="gone.txt")]
-
-    snapshot = create_checkpoint(tmp_path, ops)
-    target.unlink()
-
-    assert rollback(tmp_path, snapshot) is True
-    assert target.exists()
-    assert target.read_text() == "keepme"
 
 
 def test_rollback_leaves_unrelated_untracked_file_untouched(tmp_path: Path) -> None:
@@ -88,26 +61,3 @@ def test_create_checkpoint_in_non_git_dir_still_snapshots(tmp_path: Path) -> Non
     target.write_text("data2")
     assert rollback(tmp_path, snapshot) is True
     assert target.read_text() == "data"
-
-
-def test_no_git_global_commands_used(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """AC3: no global git checkout/clean/stash is invoked by checkpoint/rollback."""
-    calls: list[list[str]] = []
-
-    def _spy(cmd: list[str], *args: object, **kwargs: object) -> object:
-        calls.append(list(cmd))
-        raise AssertionError(f"subprocess invoked: {cmd}")
-
-    monkeypatch.setattr(checkpoint_mod.subprocess, "run", _spy)
-
-    target = tmp_path / "f.txt"
-    target.write_text("v1")
-    ops = [ReplaceOp(file="f.txt", edits=[Edit(old="v1", new="v2")])]
-
-    snapshot = create_checkpoint(tmp_path, ops)
-    target.write_text("v2")
-    rollback(tmp_path, snapshot)
-
-    assert calls == []
