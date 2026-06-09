@@ -386,5 +386,13 @@ hash = "c6e40f60a322"
 reason = "both tests share the tmp_workspace_repo fixture and the success+metadata['commit'] tail, but document distinct concerns in distinct classes: test_workspace_from_outputs_pkg_relative_path (TestCommitFromOutputsWorkspace) feeds a git-root-relative path 'packages/pkg/src/hello.py' to verify path resolution, while test_modified_file_unaffected (TestDeletedFileStaging, AC4) feeds a package-relative 'src/hello.py' on a *modified* file to verify the git-ls-files-d deletion-detection path leaves modifications unaffected -- different input path styles and different SUT branches, parametrize would conflate the two concerns"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1c95ec9bf838"
+reason = "signal1_call_assert -- test_detects_existing asserts is_already_exists(stderr) is True over 3 positive 'already exists' variants, test_rejects_other asserts is False over 3 negative variants (empty, unrelated error, partial no-match); both are already internally parametrized over opposite-polarity input sets, folding would force a mixed positive/negative (input, expected) matrix erasing the detect-vs-reject concern split"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "44799bfa7c31"
+reason = "ambiguous_distinct_literals -- test_result_exposes_full_tag patches get_tag_prefix='git/' and asserts data['full_tag']=='git/v0.4.0' AND data['tag']=='v0.4.0' (prefix-exposure concern), while test_no_existing_tags has no prefix patch and asserts data['tag']=='v0.1.0' AND data['current_tag']=='none' (first-tag-ever base concern); different asserted fields and different mock topologies, parametrize would force an awkward optional-field matrix"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "2326f8633a76"
 reason = "5 check_ci tests exercise structurally distinct mock topologies: skipped_when_gh_unavailable patches only gh_available=False (no run_git/run_gh), check_ci_from_gh_output is a 5-case (rc,stdout,status) matrix over run_git+run_gh, exception_returns_error uses run_gh side_effect=FileNotFoundError, ci_green_only_when_headsha_matches and ci_unrelated_red_does_not_block assert headSha-discrimination over bespoke single- and multi-run JSON payloads -- collapsing into one parametrize would require generic mock-config params that erase the per-branch gh-unavailable/exception/headSha-match intent"
