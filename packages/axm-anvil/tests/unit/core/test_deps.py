@@ -166,3 +166,16 @@ def test_topo_sort_cycle_does_not_crash() -> None:
     assert len(ordered) == 2
     names = {_name_of(s) for s in ordered}
     assert names == {"A", "B"}
+
+
+def test_topo_sort_deep_chain_no_recursion_error() -> None:
+    """AC1: a deep linear chain sorts iteratively without RecursionError."""
+    n = 2000
+    constants = {"K0": _const_stmt("K0 = 1\n")}
+    for i in range(1, n):
+        constants[f"K{i}"] = _const_stmt(f"K{i} = K{i - 1} + 1\n")
+    ordered = topo_sort_constants(constants)
+    names = [_name_of(s) for s in ordered]
+    assert len(names) == n
+    positions = {name: idx for idx, name in enumerate(names)}
+    assert all(positions[f"K{i - 1}"] < positions[f"K{i}"] for i in range(1, n))

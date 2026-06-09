@@ -289,6 +289,14 @@ only has to assemble the edit set:
 | `_cycles` | Filter SCCs to size > 1 plus genuine self-loops |
 | `_order_cycle` | Order nodes along a directed walk for readable `A → B → C → A` output |
 
+The same anti-recursion discipline applies to constant ordering in
+`core.deps`: `topo_sort_constants` performs its dependency-before-dependent
+post-order with an explicit work-stack (no nested recursive `visit`), so a
+deep linear chain of module-level constants cannot blow the Python stack.
+Cycles among constants are tolerated the same way Tarjan tolerates
+back-edges — the back-edge is skipped and every constant is still emitted
+exactly once.
+
 The `_cycle_check` helper in `core/move.py` routes on whether the move
 stays inside one package. For an **intra-package** move
 (`src_pkg_root == tgt_pkg_root`) it builds the current package-level
