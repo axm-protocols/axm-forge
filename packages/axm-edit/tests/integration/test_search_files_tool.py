@@ -163,3 +163,37 @@ class TestSearchFilesSkipsBinary:
         files = [m["file"] for m in result.data["matches"]]
         assert "src/data.bin" not in files
         assert any("foo.py" in f for f in files)
+
+
+class TestSearchFilesToolIO:
+    """Integration: SearchFilesTool.execute over real filesystem I/O."""
+
+    def test_text_field_groups_matches_by_file(self, tmp_path: Path) -> None:
+        """A successful search exposes a compact ``text`` grouped by file."""
+        (tmp_path / "a.py").write_text("alpha\nbeta alpha\n", encoding="utf-8")
+        (tmp_path / "b.py").write_text("gamma\nalpha\n", encoding="utf-8")
+
+        result = SearchFilesTool().execute(
+            path=str(tmp_path), pattern="alpha", include=["*.py"]
+        )
+
+        assert result.success is True
+        assert result.text is not None
+        # Header carries count and file count; bodies carry path + line + content.
+        assert "3 matches" in result.text
+        assert "2 files" in result.text
+        assert "a.py" in result.text
+        assert "b.py" in result.text
+        assert "1: alpha" in result.text
+        assert "2: beta alpha" in result.text
+
+    def test_text_reflects_every_data_match(self, tmp_path: Path) -> None:
+        """No match is lost: each data match appears in ``text`` verbatim."""
+        (tmp_path / "f.py").write_text("x\nfind me\nfind me too\n", encoding="utf-8")
+
+        result = SearchFilesTool().execute(
+            path=str(tmp_path), pattern="find", include=["*.py"]
+        )
+
+        for match in result.data["matches"]:
+            assert f"{match['line']}: {match['content']}" in (result.text or "")

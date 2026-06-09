@@ -110,3 +110,15 @@ class TestRunCommandTool:
         assert result.success is True
         assert result.data is not None
         assert "foo.py" in result.data["stdout"]
+
+
+class TestRunCommandToolIO:
+    """Integration: RunCommandTool.execute over real subprocess I/O."""
+
+    def test_execute_populates_text_field(self, tmp_path: Path) -> None:
+        result = RunCommandTool().execute(command="echo hello", path=str(tmp_path))
+        assert result.success is True
+        assert result.text is not None
+        assert "exit 0" in result.text
+        # No-loss: data stdout present verbatim in text.
+        assert str(result.data["stdout"]).rstrip("\n") in result.text
