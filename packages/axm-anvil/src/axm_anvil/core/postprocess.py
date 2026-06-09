@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import libcst as cst
+
 __all__ = ["_ruff_fix"]
 
 _SOURCE_SELECT = "I,E402,F401,F811"
@@ -49,4 +51,20 @@ def _ruff_fix(source: Path, target: Path, *, reexport: bool = False) -> list[str
         ["check", "--select", _TARGET_SELECT, "--fix", "--quiet", target_s], warnings
     )
     _run_ruff(["format", "--quiet", source_s, target_s], warnings)
+    _revalidate(source, warnings)
+    _revalidate(target, warnings)
     return warnings
+
+
+def _revalidate(path: Path, warnings: list[str]) -> None:
+    """Re-parse ``path`` after the ruff pass; warn if it no longer parses.
+
+    A destructive ``ruff --fix`` could mutate an already-validated file into
+    invalid syntax. Re-parsing with ``cst.parse_module`` catches that and
+    surfaces it through ``warnings`` so it cannot land silently. Parse
+    failures are reported, never raised — ruff failures never fail a move.
+    """
+    try:
+        cst.parse_module(path.read_text())
+    except (cst.ParserSyntaxError, OSError, UnicodeDecodeError) as exc:
+        warnings.append(f"post-ruff re-validation failed for {path}: {exc}")
