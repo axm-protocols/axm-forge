@@ -35,6 +35,9 @@ version-file = "src/{{ module_name }}/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/{{ module_name }}"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"docs/index.md" = "{{ module_name }}/docs/index.md"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # UV Configuration
 # ─────────────────────────────────────────────────────────────────────────────

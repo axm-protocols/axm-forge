@@ -11,7 +11,8 @@ import pytest
 pytestmark = pytest.mark.e2e
 
 
-def test_cli_scaffold_then_check(tmp_path: Path) -> None:
+def test_scaffold_then_check_scores_100(tmp_path: Path) -> None:
+    """AC3: a fresh scaffold scores exactly 100 and exits 0."""
     project = tmp_path / "demo-pkg"
     project.mkdir()
 
@@ -45,15 +46,8 @@ def test_cli_scaffold_then_check(tmp_path: Path) -> None:
         text=True,
         check=False,
     )
-    assert check.returncode in (0, 1), check.stderr
+    # AC3: a fresh scaffold must score exactly 100 and exit 0 — no longer
+    # tolerate ``returncode in (0, 1)`` without a score constraint.
+    assert check.returncode == 0, check.stderr
     report = json.loads(check.stdout)
-
-    if "failed" in report:
-        failed_names = {f["name"] for f in report["failed"]}
-        assert "structure.tests_dir" not in failed_names, report["failed"]
-    elif "checks" in report:
-        checks = {c["name"]: c for c in report["checks"]}
-        assert checks["structure.tests_dir"]["passed"] is True
-    else:
-        msg = f"Unexpected check report shape: {report}"
-        raise AssertionError(msg)
+    assert report["score"] == 100, report.get("failures", report)
