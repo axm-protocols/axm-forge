@@ -44,6 +44,7 @@ When an edit at line 10 replaces 2 lines with 3 lines, every line number after 1
 
 - **Checkpoint**: before applying, every path the batch will touch is snapshotted in-process — its prior existence plus original bytes — keyed by resolved relative path (no git involvement)
 - **Validation first**: All checks pass before any file is touched
+- **Anchor re-verification (TOCTOU guard)**: validation resolves each replace edit's `old` anchor to a line range, but the file could change on disk before the apply phase splices it. Immediately before each splice, the apply step re-confirms that the resolved range still matches `old` (using the same exact/dedented matchers as resolution). If the file drifted, the edit is **not** spliced at the now-stale location — the whole batch aborts, rolls back via the checkpoint, and returns `BatchResult(success=False)` with a drift error
 - **Rollback**: `batch_rollback` restores **only** the snapshotted paths (rewrite original bytes, remove files that were absent before, recreate deleted files) and touches nothing else — no `git checkout`/`clean`/`stash`
 
 ## Security
@@ -54,5 +55,6 @@ When an edit at line 10 replaces 2 lines with 3 lines, every line number after 1
 | `../` blocked | No path traversal |
 | `old` required for replace | No blind modifications |
 | Validation before write | Fail-fast, 0 files corrupted |
+| `old` re-checked at apply time | Closes the validate→apply TOCTOU window; a drifted file aborts instead of a wrong-location splice |
 | Targeted path snapshot | Rollback restores only what the batch touched, never destroys unrelated work |
 | `agent_hint` on tools | LLM-optimized description propagates to MCP — agents see what each tool does without parsing docstrings |
