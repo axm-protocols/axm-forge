@@ -39,8 +39,8 @@ _DEFAULT_ADAPTER = "codex-sdk"
 _FALLBACK_ADAPTER = "claude-agent-sdk"
 
 _FIX_SYSTEM_PROMPT = (
-    "Fix ruff errors. Return ONLY a JSON array of "
-    "{old, new} edits. No explanation.\n"
+    'Fix ruff errors. Return ONLY JSON: {"edits": [{old, new}, ...]}. '
+    "No explanation.\n"
     "RULES:\n"
     "- NEVER create new function, class, or method definitions "
     "to silence F821/F822 (undefined name). An undefined name "
@@ -59,17 +59,27 @@ _FIX_SYSTEM_PROMPT = (
 # JSON Schema enforced on harness output. Some adapters drop this
 # option (claude-agent-sdk), so ``parse_edits`` stays as the defensive
 # parsing layer.
+# OpenAI structured output requires a root "object" schema, so the edits
+# array is wrapped under an "edits" key (claude-agent-sdk drops the schema
+# and may still return a bare array — parse_edits accepts both shapes).
 _EDITS_SCHEMA: dict[str, object] = {
-    "type": "array",
-    "items": {
-        "type": "object",
-        "properties": {
-            "old": {"type": "string"},
-            "new": {"type": "string"},
+    "type": "object",
+    "properties": {
+        "edits": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "old": {"type": "string"},
+                    "new": {"type": "string"},
+                },
+                "required": ["old", "new"],
+                "additionalProperties": False,
+            },
         },
-        "required": ["old", "new"],
-        "additionalProperties": False,
     },
+    "required": ["edits"],
+    "additionalProperties": False,
 }
 
 # Tool availability — checked once at import time.
@@ -205,6 +215,8 @@ def parse_edits(output: str) -> list[dict[str, str]]:
         data = json.loads(text)
     except (json.JSONDecodeError, ValueError, TypeError):
         return []
+    if isinstance(data, dict):
+        data = data.get("edits")
     if not isinstance(data, list):
         return []
     for entry in data:
