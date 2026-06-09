@@ -18,6 +18,30 @@ def _write_pyproject(project: Path, toml: str) -> None:
     (project / "pyproject.toml").write_text(textwrap.dedent(toml).lstrip())
 
 
+def test_wheel_doc_shipping_passes_when_docs_force_included(tmp_path: Path) -> None:
+    """AC2: a fresh-scaffold shape (docs/index.md force-included) passes."""
+    _write_pyproject(
+        tmp_path,
+        """
+        [project]
+        name = "pkg"
+
+        [tool.hatch.build.targets.wheel]
+        packages = ["src/pkg"]
+
+        [tool.hatch.build.targets.wheel.force-include]
+        "docs/index.md" = "pkg/docs/index.md"
+        """,
+    )
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "index.md").write_text("# index\n")
+
+    result = check_pyproject_wheel_doc_shipping(tmp_path)
+
+    assert result.passed is True
+
+
 def test_wheel_doc_shipping_passes_when_explicit_files_are_force_included(
     tmp_path: Path,
 ) -> None:
