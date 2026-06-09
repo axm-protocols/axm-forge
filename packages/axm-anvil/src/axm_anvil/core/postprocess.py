@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import libcst as cst
@@ -13,12 +14,25 @@ _SOURCE_SELECT = "I,E402,F401,F811"
 _SOURCE_SELECT_NO_F401 = "I,E402,F811"
 _TARGET_SELECT = "I,E402,F811"
 _TIMEOUT_SEC = 30
+_RUFF_MISSING_MARKERS = ("no module named ruff", "modulenotfounderror")
+
+
+def _ruff_unavailable(stderr: str) -> bool:
+    """True when ``python -m ruff`` reported that the ruff module is absent."""
+    low = stderr.lower()
+    return any(marker in low for marker in _RUFF_MISSING_MARKERS)
 
 
 def _run_ruff(action_args: list[str], warnings: list[str]) -> None:
+    """Run one ruff action via ``sys.executable -m ruff``, collecting warnings.
+
+    Uses the interpreter's own ruff (not an ambient ``PATH`` binary). A missing
+    ruff module yields a distinct "unavailable — skipped" warning; any other
+    non-zero exit or launch failure is captured as a warning. Never raises.
+    """
     try:
         result = subprocess.run(  # noqa: S603
-            ["ruff", *action_args],  # noqa: S607
+            [sys.executable, "-m", "ruff", *action_args],
             capture_output=True,
             text=True,
             timeout=_TIMEOUT_SEC,
@@ -29,6 +43,12 @@ def _run_ruff(action_args: list[str], warnings: list[str]) -> None:
         return
     if result.returncode != 0:
         stderr = (result.stderr or "").strip()
+        if _ruff_unavailable(stderr):
+            warnings.append(
+                "ruff unavailable — post-move cleanup skipped "
+                "(install ruff in the runtime environment to enable it)"
+            )
+            return
         warnings.append(f"ruff {action_args[0]} exited {result.returncode}: {stderr}")
 
 
@@ -40,6 +60,13 @@ def _ruff_fix(source: Path, target: Path, *, reexport: bool = False) -> list[str
     F401 is skipped on the source so the injected re-export line survives.
     Non-zero exits and missing ruff are captured as warnings — ruff
     failures never fail a move.
+
+    Ruff is invoked through ``sys.executable -m ruff`` so the interpreter's
+    own ruff is used rather than an ambient ``PATH`` binary. Ruff is declared
+    only as a dev dependency by design: post-move cleanup is best-effort, so
+    a runtime-only install that lacks ruff is not an error. That case is
+    surfaced explicitly as a ``ruff unavailable — post-move cleanup skipped``
+    warning (never a silent no-op, never a failed move).
     """
     warnings: list[str] = []
     source_s, target_s = str(source), str(target)

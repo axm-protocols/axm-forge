@@ -859,7 +859,7 @@ def test_move_ruff_failure_non_fatal(
     original_run = subprocess.run
 
     def fake_run(cmd, *args, **kwargs):
-        if cmd and isinstance(cmd, list) and cmd[0] == "ruff":
+        if cmd and isinstance(cmd, list) and "ruff" in cmd:
             return subprocess.CompletedProcess(
                 args=cmd, returncode=1, stdout="", stderr="ruff boom"
             )
