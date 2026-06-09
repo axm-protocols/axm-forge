@@ -187,28 +187,53 @@ class CheckEngine:
     def _filter_checks(
         self,
         checks_to_run: dict[str, list[Callable[[Path], CheckResult]]],
-        exclusions: set[str],
-    ) -> tuple[list[Callable[[Path], CheckResult]], list[CheckResult], list[str]]:
-        """Apply context-aware filtering, exclusions, and redirects."""
-        all_fns: list[Callable[[Path], CheckResult]] = []
-        excluded_results: list[CheckResult] = []
-        excluded_names: list[str] = []
+    ) -> list[Callable[[Path], CheckResult]]:
+        """Apply context-aware skip and redirect filtering.
 
-        for category, fns in checks_to_run.items():
+        Exclusions are intentionally NOT handled here: they match against the
+        canonical ``CheckResult.name`` (the displayed name, hand-set inside
+        each check function), which is only known after the check runs. Skip
+        and redirect decisions key off the inferred ``category.fn_name`` name
+        (the same convention used by ``SKIP_FOR_*``/``REDIRECT_FOR_*``).
+        """
+        all_fns: list[Callable[[Path], CheckResult]] = []
+
+        for _category, fns in checks_to_run.items():
             for fn in fns:
                 check_name = _get_check_name(fn)
-
-                if check_name and self._is_excluded(check_name, exclusions):
-                    excluded_results.append(_make_excluded_result(check_name, category))
-                    excluded_names.append(check_name)
-                elif self._should_skip(check_name, category):
-                    pass
-                elif self._should_redirect(check_name):
+                if self._should_skip(check_name, _category):
+                    continue
+                if self._should_redirect(check_name):
                     all_fns.append(_redirect_to_root(fn, self.workspace_root))  # type: ignore[arg-type]
                 else:
                     all_fns.append(fn)
 
-        return all_fns, excluded_results, excluded_names
+        return all_fns
+
+    def _apply_exclusions(
+        self,
+        results: list[CheckResult],
+        exclusions: set[str],
+    ) -> tuple[list[CheckResult], list[str]]:
+        """Split run results into kept + excluded using the canonical name.
+
+        Exclusion matching keys off ``CheckResult.name`` (the displayed name) so
+        that excluding by the name shown in the report actually skips the check.
+        Excluded checks are re-stamped as auto-pass results carrying that same
+        canonical name.
+        """
+        if not exclusions:
+            return results, []
+
+        kept: list[CheckResult] = []
+        excluded_names: list[str] = []
+        for result in results:
+            if self._is_excluded(result.name, exclusions):
+                kept.append(_make_excluded_result(result.name, result.category))
+                excluded_names.append(result.name)
+            else:
+                kept.append(result)
+        return kept, excluded_names
 
     def run(self) -> ProjectResult:
         """Run all checks (or filtered by category) and return result."""
@@ -222,14 +247,12 @@ class CheckEngine:
             checks_to_run = ALL_CHECKS
 
         exclusions = load_exclusions(self.project_path)
-        all_fns, excluded_results, excluded_names = self._filter_checks(
-            checks_to_run, exclusions
-        )
+        all_fns = self._filter_checks(checks_to_run)
 
         with ThreadPoolExecutor(max_workers=8) as pool:
             results = list(pool.map(lambda fn: fn(self.project_path), all_fns))
 
-        results.extend(excluded_results)
+        results, excluded_names = self._apply_exclusions(results, exclusions)
 
         return ProjectResult.from_checks(
             self.project_path,
