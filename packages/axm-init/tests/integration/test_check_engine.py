@@ -10,7 +10,11 @@ from pathlib import Path
 
 import pytest
 
+from axm_init.adapters.copier import CopierAdapter, CopierConfig
 from axm_init.core.checker import CheckEngine
+from axm_init.core.templates import TemplateType, get_template_path
+
+pytestmark = pytest.mark.integration
 
 
 def test_run_single_category(
@@ -268,3 +272,112 @@ def test_axm_init_check_fails_on_orphan_docs(tmp_path: Path) -> None:
     finding = _find_result(project_result, "pyproject.wheel_doc_shipping")
     assert finding.passed is False
     assert any("test_quality.md" in d for d in finding.details)
+
+
+# --- CheckEngine exclusion-by-displayed-name (AXM-1840) ---
+#
+# The canonical name carried by ``CheckResult.name`` (hand-set inside each check
+# function, e.g. ``pyproject.urls``) must be the single source of truth for
+# exclusion matching. Excluding a check by its DISPLAYED name must actually skip
+# it, and the excluded-result stamp must carry that same canonical name.
+#
+# The ``pyproject.urls`` check is the canary: its function name is
+# ``check_pyproject_urls`` so the legacy inferred name was
+# ``pyproject.pyproject_urls`` (divergent from the displayed ``pyproject.urls``).
+
+
+def _exclude_pyproject_urls(project: Path) -> None:
+    """Append a ``[tool.axm-init].exclude`` of the displayed name to pyproject."""
+    pyproject = project / "pyproject.toml"
+    content = pyproject.read_text()
+    content += '\n[tool.axm-init]\nexclude = ["pyproject.urls"]\n'
+    pyproject.write_text(content)
+
+
+def test_exclusion_by_displayed_name_skips_check(
+    gold_project__from_check_engine_run_and_format: Path,
+) -> None:
+    """AC2: excluding by the displayed name ``pyproject.urls`` removes it.
+
+    The check must not appear as an active (executed) result and must be
+    recorded in ``excluded_checks``.
+    """
+    project = gold_project__from_check_engine_run_and_format
+    _exclude_pyproject_urls(project)
+
+    result = CheckEngine(project).run()
+
+    # The displayed name was excluded by config -> recorded as excluded.
+    assert "pyproject.urls" in result.excluded_checks
+    # And the legacy inferred name must NOT leak into excluded_checks.
+    assert "pyproject.pyproject_urls" not in result.excluded_checks
+
+    # The check still surfaces (as an auto-pass excluded stamp), never as a
+    # freshly executed result with a real weight/message.
+    matching = [c for c in result.checks if c.name == "pyproject.urls"]
+    assert len(matching) == 1
+    assert matching[0].message == "Excluded by config"
+
+
+def test_excluded_result_uses_canonical_name(
+    gold_project__from_check_engine_run_and_format: Path,
+) -> None:
+    """AC3: the excluded-result stamp carries the canonical displayed name.
+
+    Excluding ``pyproject.urls`` must produce a ``CheckResult`` whose ``name``
+    is exactly ``pyproject.urls`` (not the inferred ``pyproject.pyproject_urls``).
+    """
+    project = gold_project__from_check_engine_run_and_format
+    _exclude_pyproject_urls(project)
+
+    result = CheckEngine(project).run()
+
+    excluded = [c for c in result.checks if c.message == "Excluded by config"]
+    excluded_names = {c.name for c in excluded}
+    assert "pyproject.urls" in excluded_names
+    assert "pyproject.pyproject_urls" not in excluded_names
+
+    stamp = next(c for c in excluded if c.name == "pyproject.urls")
+    assert stamp.passed is True
+    assert stamp.category == "pyproject"
+
+
+# --- Fresh scaffold scores 100 on wheel_doc_shipping (AC1) ---
+#
+# Scaffold a real project via Copier from the ``python-project`` (standalone)
+# template, then run the full ``CheckEngine``. A fresh scaffold must score
+# exactly 100 with no ``pyproject.wheel_doc_shipping`` failure (the scaffold
+# ships ``docs/index.md`` force-included in its wheel).
+
+_SCAFFOLD_DATA = {
+    "package_name": "scaffold-check-demo",
+    "description": "A modern Python package",
+    "org": "DemoOrg",
+    "license": "MIT",
+    "license_holder": "DemoOrg",
+    "author_name": "Demo Author",
+    "author_email": "demo@example.com",
+}
+
+
+@pytest.fixture(scope="module")
+def scaffolded_standalone(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Scaffold the standalone (python-project) template once via real Copier."""
+    target = tmp_path_factory.mktemp("scaffold_check") / "demo-pkg"
+    config = CopierConfig(
+        template_path=get_template_path(TemplateType.STANDALONE),
+        destination=target,
+        data=_SCAFFOLD_DATA,
+        trust_template=True,
+    )
+    CopierAdapter().copy(config)
+    return target
+
+
+def test_scaffolded_project_scores_100(scaffolded_standalone: Path) -> None:
+    """AC1: fresh scaffold scores 100 with no wheel_doc_shipping failure."""
+    result = CheckEngine(scaffolded_standalone).run()
+
+    failed_names = {c.name for c in result.failures}
+    assert "pyproject.wheel_doc_shipping" not in failed_names, result.failures
+    assert result.score == 100, sorted(failed_names)
