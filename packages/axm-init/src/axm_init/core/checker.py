@@ -393,7 +393,7 @@ def format_agent(result: ProjectResult) -> dict[str, object]:
         "workspace_root": str(result.workspace_root) if result.workspace_root else None,
         "excluded_checks": result.excluded_checks,
         "passed_count": sum(1 for c in result.checks if c.passed),
-        "failed": [
+        "failures": [
             {
                 "name": f.name,
                 "message": f.message,
