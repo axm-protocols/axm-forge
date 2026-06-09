@@ -81,18 +81,28 @@ def create_minimal_package(
     (src_dir / "py.typed").touch()
 
 
+#: Bounded timeout (seconds) for ``uv build`` — local, no network.
+_BUILD_TIMEOUT = 300
+#: Bounded timeout (seconds) for ``uv publish`` — network to the registry.
+_PUBLISH_TIMEOUT = 300
+
+
 def build_package(path: Path) -> tuple[bool, str]:
     """Build package using uv build.
 
     Returns:
         (success, error_message)
     """
-    result = subprocess.run(
-        ["uv", "build"],
-        cwd=path,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["uv", "build"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            timeout=_BUILD_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return False, f"uv build timeout after {_BUILD_TIMEOUT}s"
     if result.returncode != 0:
         return False, result.stderr
     return True, ""
@@ -111,13 +121,17 @@ def publish_package(path: Path, token: str) -> tuple[bool, str]:
     import os
 
     env = {**os.environ, "UV_PUBLISH_TOKEN": token}
-    result = subprocess.run(
-        ["uv", "publish"],
-        cwd=path,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
+    try:
+        result = subprocess.run(
+            ["uv", "publish"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=_PUBLISH_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return False, f"uv publish timeout after {_PUBLISH_TIMEOUT}s"
     if result.returncode != 0:
         return False, result.stderr
     return True, ""
