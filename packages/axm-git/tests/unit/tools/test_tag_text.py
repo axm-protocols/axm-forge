@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from axm_git.tools.tag_text import render_failure_text, render_text
 
 
@@ -72,15 +74,27 @@ class TestRenderFailureText:
             "git_tag | ✗ | Uncommitted changes — commit first\ndirty:  M a.py, ?? b.py"
         )
 
-    def test_no_commits(self) -> None:
-        data: dict[str, Any] = {"current_tag": "git/v0.3.1"}
-        out = render_failure_text(error="No commits since last tag", data=data)
-        assert out == "git_tag | ✗ | No commits since last tag\nprev git/v0.3.1"
-
-    def test_ci_red(self) -> None:
-        data: dict[str, Any] = {"ci_check": "red"}
-        out = render_failure_text(error="CI is red — fix before tagging", data=data)
-        assert out == "git_tag | ✗ | CI is red — fix before tagging\nCI red"
+    @pytest.mark.parametrize(
+        ("error", "data", "expected"),
+        [
+            pytest.param(
+                "No commits since last tag",
+                {"current_tag": "git/v0.3.1"},
+                "git_tag | ✗ | No commits since last tag\nprev git/v0.3.1",
+                id="no_commits_shows_prev_tag",
+            ),
+            pytest.param(
+                "CI is red — fix before tagging",
+                {"ci_check": "red"},
+                "git_tag | ✗ | CI is red — fix before tagging\nCI red",
+                id="ci_red_shows_ci_state",
+            ),
+        ],
+    )
+    def test_failure_detail_line(
+        self, error: str, data: dict[str, Any], expected: str
+    ) -> None:
+        assert render_failure_text(error=error, data=data) == expected
 
     def test_suggestions_hint(self) -> None:
         data: dict[str, Any] = {"suggestions": ["sub1"]}

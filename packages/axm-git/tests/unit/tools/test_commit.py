@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import logging
 import subprocess
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from unittest.mock import MagicMock, patch
 
-from axm_git.tools.commit import GitCommitTool
+import pytest
 
-if TYPE_CHECKING:
-    import pytest
+from axm_git.tools.commit import GitCommitTool
 
 
 def _ok(stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
@@ -295,33 +294,29 @@ class TestConventionalCommitValidation:
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert any("wip stuff" in r.getMessage() for r in warnings)
 
+    @pytest.mark.parametrize(
+        "message",
+        [
+            pytest.param("feat(core): add x", id="scoped_conventional"),
+            pytest.param("feat!: drop y", id="breaking_marker"),
+        ],
+    )
     @patch("axm_git.tools.commit.run_git")
     def test_conventional_message_no_warning(
-        self, mock_git: MagicMock, caplog: pytest.LogCaptureFixture
+        self, mock_git: MagicMock, caplog: pytest.LogCaptureFixture, message: str
     ) -> None:
-        """AC2: a valid conventional message emits no validation warning."""
-        mock_git.side_effect = self._side_effect
-        with caplog.at_level(logging.WARNING):
-            result = GitCommitTool().execute(
-                path="/tmp/test",
-                commits=[{"files": ["a.py"], "message": "feat(core): add x"}],
-            )
-        assert result.success is True
-        assert not any("feat(core): add x" in r.getMessage() for r in caplog.records)
+        """AC2, AC3: valid conventional messages (incl. breaking ``!``).
 
-    @patch("axm_git.tools.commit.run_git")
-    def test_breaking_marker_is_conventional(
-        self, mock_git: MagicMock, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """AC2, AC3: the breaking ``!`` marker (``feat!:``) is accepted."""
+        Emit no warning.
+        """
         mock_git.side_effect = self._side_effect
         with caplog.at_level(logging.WARNING):
             result = GitCommitTool().execute(
                 path="/tmp/test",
-                commits=[{"files": ["a.py"], "message": "feat!: drop y"}],
+                commits=[{"files": ["a.py"], "message": message}],
             )
         assert result.success is True
-        assert not any("feat!: drop y" in r.getMessage() for r in caplog.records)
+        assert not any(message in r.getMessage() for r in caplog.records)
 
     @patch("axm_git.tools.commit.run_git")
     def test_strict_mode_blocks_non_conventional(self, mock_git: MagicMock) -> None:
