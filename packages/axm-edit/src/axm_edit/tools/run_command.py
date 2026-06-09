@@ -87,17 +87,30 @@ def _render_text(
 
 
 class RunCommandTool:
-    """Execute shell commands with timeout and output truncation.
+    """Execute **arbitrary shell commands** with timeout and output truncation.
 
-    Runs commands via ``subprocess.run`` with configurable timeout,
-    output size caps, and a blocked-command safety list.
+    Runs the given command via ``subprocess.run`` in the resolved working
+    directory, with configurable timeout and output size caps. The command
+    string is executed verbatim by the shell, so this tool can run *any*
+    shell command the calling process is permitted to run.
+
+    .. warning::
+        The ``_BLOCKED_PATTERNS`` denylist is a **best-effort guardrail**
+        against obvious footguns (e.g. ``rm -rf /``), **not** a security
+        sandbox. It matches substrings and is **bypassable by design**
+        (encoding, indirection, equivalent commands). Do not rely on it for
+        isolation or to contain untrusted input — treat any command passed
+        here as executing with the full privileges of the host process.
+
     Registered as ``run_command`` via axm.tools entry point.
     """
 
     agent_hint: str = (
-        "Run a shell command in cwd. No cd/pipes/&&."
-        " Returns stdout+stderr truncated to 4K chars."
-        " Use for tests, builds, scripts."
+        "Runs ARBITRARY shell commands in cwd with host privileges."
+        " The blocked-command denylist is a best-effort guardrail against"
+        " obvious footguns, NOT a security sandbox, and is bypassable by"
+        " design. No cd/pipes/&&. Returns stdout+stderr truncated to 4K"
+        " chars. Use for tests, builds, scripts."
     )
 
     @property
