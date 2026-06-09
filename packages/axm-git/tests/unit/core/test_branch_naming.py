@@ -218,27 +218,19 @@ class TestIsConventionalCommit:
     """Tests for the shared is_conventional_commit helper."""
 
     @pytest.mark.parametrize(
-        "message",
+        ("message", "expected"),
         [
-            pytest.param("feat(core): add x", id="type_scope"),
-            pytest.param("fix: y", id="type_only"),
-            pytest.param("chore!: z", id="breaking_no_scope"),
-            pytest.param("fix(scope)!: broken", id="breaking_with_scope"),
+            pytest.param("feat(core): add x", True, id="type_scope"),
+            pytest.param("fix: y", True, id="type_only"),
+            pytest.param("chore!: z", True, id="breaking_no_scope"),
+            pytest.param("fix(scope)!: broken", True, id="breaking_with_scope"),
+            pytest.param("wip stuff", False, id="no_prefix"),
+            pytest.param("feat add x", False, id="missing_colon"),
+            pytest.param("feat:no-space", False, id="missing_space"),
+            pytest.param("", False, id="empty"),
         ],
     )
-    def test_accepts_conventional(self, message: str) -> None:
-        """AC3: valid conventional messages (incl. breaking ``!``) return True."""
-        assert is_conventional_commit(message) is True
-
-    @pytest.mark.parametrize(
-        "message",
-        [
-            pytest.param("wip stuff", id="no_prefix"),
-            pytest.param("feat add x", id="missing_colon"),
-            pytest.param("feat:no-space", id="missing_space"),
-            pytest.param("", id="empty"),
-        ],
-    )
-    def test_rejects_non_conventional(self, message: str) -> None:
-        """AC3: non-conventional messages return False."""
-        assert is_conventional_commit(message) is False
+    def test_is_conventional_commit(self, message: str, expected: bool) -> None:
+        """AC3: conventional messages (incl. breaking ``!``) are accepted, the
+        rest rejected."""
+        assert is_conventional_commit(message) is expected

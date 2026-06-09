@@ -380,3 +380,11 @@ reason = "ambiguous_distinct_literals -- 2 missing-input failure tests target di
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "e714397697ca"
 reason = "signal1_call_assert -- 2 entry-point load tests target distinct hook SUTs and distinct entry-point names: test_commit_phase_hook_loads loads 'git:commit-phase' and asserts ep.load() is CommitPhaseHook; test_preflight_hook_loads loads 'git:preflight' and asserts ep.load() is PreflightHook -- the cookie-cutter shape (entry_points lookup + identity check) hides hard-coded per-hook string-and-class pairs that cannot be parametrized without losing the per-hook entry-point contract documentation"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "c6e40f60a322"
+reason = "both tests share the tmp_workspace_repo fixture and the success+metadata['commit'] tail, but document distinct concerns in distinct classes: test_workspace_from_outputs_pkg_relative_path (TestCommitFromOutputsWorkspace) feeds a git-root-relative path 'packages/pkg/src/hello.py' to verify path resolution, while test_modified_file_unaffected (TestDeletedFileStaging, AC4) feeds a package-relative 'src/hello.py' on a *modified* file to verify the git-ls-files-d deletion-detection path leaves modifications unaffected -- different input path styles and different SUT branches, parametrize would conflate the two concerns"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "2326f8633a76"
+reason = "5 check_ci tests exercise structurally distinct mock topologies: skipped_when_gh_unavailable patches only gh_available=False (no run_git/run_gh), check_ci_from_gh_output is a 5-case (rc,stdout,status) matrix over run_git+run_gh, exception_returns_error uses run_gh side_effect=FileNotFoundError, ci_green_only_when_headsha_matches and ci_unrelated_red_does_not_block assert headSha-discrimination over bespoke single- and multi-run JSON payloads -- collapsing into one parametrize would require generic mock-config params that erase the per-branch gh-unavailable/exception/headSha-match intent"

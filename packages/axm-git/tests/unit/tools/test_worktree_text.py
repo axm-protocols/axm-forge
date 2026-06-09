@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from axm_git.tools.worktree_text import (
     render_add_text,
     render_failure_text,
@@ -15,44 +17,58 @@ from axm_git.tools.worktree_text import (
 class TestRenderListText:
     """render_list_text: list sub-mode."""
 
-    def test_two_worktrees(self) -> None:
-        data: dict[str, Any] = {
-            "worktrees": [
+    @pytest.mark.parametrize(
+        ("data", "expected"),
+        [
+            pytest.param(
                 {
-                    "path": "/repo",
-                    "HEAD": "abc1234def5678abc1234def5678abc1234def56",
-                    "branch": "refs/heads/main",
+                    "worktrees": [
+                        {
+                            "path": "/repo",
+                            "HEAD": "abc1234def5678abc1234def5678abc1234def56",
+                            "branch": "refs/heads/main",
+                        },
+                        {
+                            "path": "/repo-feat",
+                            "HEAD": "fed4321cba8765fed4321cba8765fed4321cba87",
+                            "branch": "refs/heads/feat/x",
+                        },
+                    ]
                 },
+                (
+                    "git_worktree | ✓ | list · 2 worktrees\n"
+                    "/repo abc1234 main\n"
+                    "/repo-feat fed4321 feat/x"
+                ),
+                id="two_worktrees",
+            ),
+            pytest.param(
+                {"worktrees": []},
+                "git_worktree | ✓ | list · 0 worktrees",
+                id="empty",
+            ),
+            pytest.param(
                 {
-                    "path": "/repo-feat",
-                    "HEAD": "fed4321cba8765fed4321cba8765fed4321cba87",
-                    "branch": "refs/heads/feat/x",
+                    "worktrees": [
+                        {"path": "/bare", "bare": "true"},
+                        {
+                            "path": "/det",
+                            "HEAD": "0123456789abcdef",
+                            "detached": "true",
+                        },
+                    ]
                 },
-            ]
-        }
-        assert render_list_text(data) == (
-            "git_worktree | ✓ | list · 2 worktrees\n"
-            "/repo abc1234 main\n"
-            "/repo-feat fed4321 feat/x"
-        )
-
-    def test_empty(self) -> None:
-        assert render_list_text({"worktrees": []}) == (
-            "git_worktree | ✓ | list · 0 worktrees"
-        )
-
-    def test_detached_and_bare_flags(self) -> None:
-        data: dict[str, Any] = {
-            "worktrees": [
-                {"path": "/bare", "bare": "true"},
-                {"path": "/det", "HEAD": "0123456789abcdef", "detached": "true"},
-            ]
-        }
-        assert render_list_text(data) == (
-            "git_worktree | ✓ | list · 2 worktrees\n"
-            "/bare (bare)\n"
-            "/det 0123456 (detached)"
-        )
+                (
+                    "git_worktree | ✓ | list · 2 worktrees\n"
+                    "/bare (bare)\n"
+                    "/det 0123456 (detached)"
+                ),
+                id="detached_and_bare_flags",
+            ),
+        ],
+    )
+    def test_render_list_text(self, data: dict[str, Any], expected: str) -> None:
+        assert render_list_text(data) == expected
 
 
 class TestRenderAddText:
