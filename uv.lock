@@ -262,6 +262,7 @@ name = "axm-edit"
 source = { editable = "packages/axm-edit" }
 dependencies = [
     { name = "axm" },
+    { name = "axm-harness" },
     { name = "pydantic" },
 ]
 
@@ -285,6 +286,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "axm" },
+    { name = "axm-harness", editable = "../axm-cortex/packages/axm-harness" },
     { name = "pydantic", specifier = ">=2.0.0" },
 ]
 
@@ -391,6 +393,44 @@ dev = [
 ]
 docs = [
     { name = "mkdocs-gen-files", specifier = ">=0.5" },
+    { name = "mkdocs-literate-nav", specifier = ">=0.6.3" },
+    { name = "mkdocs-material", specifier = ">=9.0" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },
+]
+
+[[package]]
+name = "axm-harness"
+source = { editable = "../axm-cortex/packages/axm-harness" }
+dependencies = [
+    { name = "axm" },
+    { name = "cyclopts" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "axm" },
+    { name = "claude-agent-sdk", marker = "extra == 'all'", specifier = ">=0.2" },
+    { name = "claude-agent-sdk", marker = "extra == 'claude'", specifier = ">=0.2" },
+    { name = "codex-sdk", marker = "extra == 'all'", specifier = ">=0.1.0a1" },
+    { name = "codex-sdk", marker = "extra == 'codex'", specifier = ">=0.1.0a1" },
+    { name = "cyclopts", specifier = ">=4.5" },
+    { name = "openai-codex", marker = "extra == 'codex'", specifier = ">=0.1.0b2" },
+    { name = "pydantic", specifier = ">=2.0" },
+]
+provides-extras = ["all", "claude", "codex"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.20.0" },
+    { name = "pre-commit", specifier = ">=4.0" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "pytest-mock", specifier = ">=3.15.1" },
+    { name = "ruff", specifier = "==0.15.15" },
+]
+docs = [
+    { name = "mkdocs-gen-files", specifier = ">=0.6.0" },
     { name = "mkdocs-literate-nav", specifier = ">=0.6.3" },
     { name = "mkdocs-material", specifier = ">=9.0" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.3" },

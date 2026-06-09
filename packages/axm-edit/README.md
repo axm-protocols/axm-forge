@@ -80,7 +80,7 @@ Atomic batch file operations.
 | `lint_diff` | `bool` | `True` | Surface per-file `lint_diffs` hunks of post-lint mutations |
 | `lint_diff_max_ratio` | `float` | `0.5` | Fallback to `file_reread_recommended` when `len(diff) > ratio * len(post)` |
 
-When `lint_diff=True` and ruff/claude_fix mutates any Python file, `ToolResult.data["lint_diffs"]` lists one entry per file: `{"file", "rules": [ruff codes], "diff": "@L<n>\n-old\n+new..."}`. On large rewrites the entry drops `diff` and carries `"diff_skipped": "file_reread_recommended"`.
+When `lint_diff=True` and ruff/harness_fix mutates any Python file, `ToolResult.data["lint_diffs"]` lists one entry per file: `{"file", "rules": [ruff codes], "diff": "@L<n>\n-old\n+new..."}`. On large rewrites the entry drops `diff` and carries `"diff_skipped": "file_reread_recommended"`.
 
 **3 operation types:**
 
