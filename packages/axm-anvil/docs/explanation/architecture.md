@@ -114,7 +114,7 @@ source/target rendering:
 | Helper | Responsibility |
 |---|---|
 | `_module_path_from_file` | Derive a dotted module path from a file path under a workspace root (strips `src/`, drops `.py`) |
-| `_discover_callers` | Scan workspace `.py` files for `from <from_module> import` lines that reference any moved name |
+| `_discover_callers` | Find workspace `.py` files importing a moved name via `from <from_module> import …`: a cheap textual pre-filter (`from <from_module> import`) narrows candidates, then each is parsed with libcst and matched through `_CollectOldImport` so multi-line `from … import (\n foo,\n)` blocks are caught (a textual scan would miss them); unparseable candidates are kept so the downstream validation gate can roll back |
 | `_discover_module_import_callers` | Scan workspace `.py` files for bare `import old_module` (with optional `as` alias) statements that refer to the source module |
 | `_rewrite_caller_text` | Rewrite a caller's text via libcst: remove moved names from the old import, add them to the new import, preserve asnames |
 | `_add_new_imports` | Build a `CodemodContext` with `AddImportsVisitor.add_needed_import` calls for each matched moved name, preserving asnames |

@@ -317,9 +317,13 @@ def _discover_callers(
 ) -> list[Path]:
     """Return caller files that import any ``moved_names`` from ``from_module``.
 
-    Scans ``.py`` files under ``workspace_root`` textually for the
-    ``from <from_module> import`` line. Matches are later validated via
-    libcst during rewriting.
+    Scans ``.py`` files under ``workspace_root`` with a cheap textual
+    pre-filter (``from <from_module> import``) to avoid parsing every file,
+    then confirms the match by parsing the candidate with libcst and
+    collecting ``ImportFrom`` targets via :class:`_CollectOldImport`. This
+    handles multi-line ``from <from_module> import (\n  foo,\n)`` imports
+    that a per-line textual scan would miss. Matches are validated again
+    via libcst during rewriting.
     """
     needle = f"from {from_module} import"
     moved = set(moved_names)
@@ -331,18 +335,18 @@ def _discover_callers(
             continue
         if needle not in text:
             continue
-        for line in text.splitlines():
-            if not line.lstrip().startswith(needle):
-                continue
-            remainder = line.split("import", 1)[1]
-            imported = {
-                piece.strip().split()[0]
-                for piece in remainder.split(",")
-                if piece.strip()
-            }
-            if imported & moved:
-                matches.append(path)
-                break
+        try:
+            tree = cst.parse_module(text)
+        except cst.ParserSyntaxError:
+            # Textual match but unparseable: keep it as a candidate so the
+            # downstream rewrite/validation phase surfaces the parse error
+            # (and rolls back) rather than silently dropping the caller.
+            matches.append(path)
+            continue
+        collector = _CollectOldImport(from_module, moved)
+        tree.visit(collector)
+        if collector.matched_names:
+            matches.append(path)
     return matches
 
 
