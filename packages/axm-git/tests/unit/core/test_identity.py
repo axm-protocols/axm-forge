@@ -100,36 +100,32 @@ class TestUnknownProfileOverrideObservability:
         assert result is None
         assert any("alicia" in m and "alice" in m for m in self._warnings(caplog))
 
-    def test_valid_profile_no_warning(
+    @pytest.mark.parametrize(
+        ("profile_override", "expected_name"),
+        [
+            pytest.param("alice", "Alice", id="valid_profile_resolves"),
+            pytest.param(None, "Default", id="none_uses_default"),
+        ],
+    )
+    def test_resolved_profile_no_warning(
         self,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
+        profile_override: str | None,
+        expected_name: str,
     ) -> None:
-        """AC2: valid profile_override resolves to its identity with no warning."""
-        config = _build_config_axm1710(
-            profiles={"alice": {"name": "Alice", "email": "alice@example.com"}}
-        )
-        monkeypatch.setattr("axm_git.core.identity.load_config", lambda _=None: config)
-        with caplog.at_level(logging.WARNING, logger="axm_git.core.identity"):
-            result = resolve_identity(Path("/any"), profile_override="alice")
-        assert result is not None
-        assert result.name == "Alice"
-        assert self._warnings(caplog) == []
+        """AC2, AC3: a resolvable profile_override (valid name or None->default).
 
-    def test_none_override_no_warning(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        """AC3: profile_override=None uses schedule/default path with no warning."""
+        Resolves to its identity with no warning.
+        """
         config = _build_config_axm1710(
             profiles={"alice": {"name": "Alice", "email": "alice@example.com"}}
         )
         monkeypatch.setattr("axm_git.core.identity.load_config", lambda _=None: config)
         with caplog.at_level(logging.WARNING, logger="axm_git.core.identity"):
-            result = resolve_identity(Path("/any"), profile_override=None)
+            result = resolve_identity(Path("/any"), profile_override=profile_override)
         assert result is not None
-        assert result.name == "Default"
+        assert result.name == expected_name
         assert self._warnings(caplog) == []
 
     def test_no_profiles_configured_distinct_message(

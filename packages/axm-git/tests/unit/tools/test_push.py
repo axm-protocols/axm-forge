@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from axm_git.tools.push import GitPushTool
 
 
@@ -124,45 +126,50 @@ class TestGitPushTool:
         push_call = mock_git.call_args_list[4]
         assert push_call[0][0] == ["push", "upstream", "main"]
 
+    @pytest.mark.parametrize(
+        ("kwargs", "present", "absent", "expected_args"),
+        [
+            pytest.param(
+                {"force": True},
+                "--force-with-lease",
+                "--force",
+                ["push", "--force-with-lease", "origin", "main"],
+                id="force_uses_lease",
+            ),
+            pytest.param(
+                {"force": True, "force_unconditional": True},
+                "--force",
+                "--force-with-lease",
+                ["push", "--force", "origin", "main"],
+                id="unconditional_uses_bare_force",
+            ),
+        ],
+    )
     @patch("axm_git.tools.push.run_git")
-    def test_force_uses_force_with_lease(self, mock_git: MagicMock) -> None:
-        """AC1: force=True emits --force-with-lease, not bare --force."""
+    def test_force_flag_selection(
+        self,
+        mock_git: MagicMock,
+        kwargs: dict[str, bool],
+        present: str,
+        absent: str,
+        expected_args: list[str],
+    ) -> None:
+        """AC1, AC2: force=True uses lease; unconditional uses bare force."""
         mock_git.side_effect = [
             _ok(),  # rev-parse
             _ok(stdout=""),  # clean
             _ok(stdout="main\n"),  # branch
             _ok(stdout="origin/main"),  # has upstream
-            _ok(),  # push --force-with-lease
+            _ok(),  # push
         ]
-        result = GitPushTool().execute(path="/repo", force=True)
+        result = GitPushTool().execute(path="/repo", **kwargs)
         assert result.success
 
         push_call = mock_git.call_args_list[4]
         args = push_call[0][0]
-        assert "--force-with-lease" in args
-        assert "--force" not in args
-        assert args == ["push", "--force-with-lease", "origin", "main"]
-
-    @patch("axm_git.tools.push.run_git")
-    def test_unconditional_flag_uses_bare_force(self, mock_git: MagicMock) -> None:
-        """AC2: force_unconditional=True emits bare --force."""
-        mock_git.side_effect = [
-            _ok(),  # rev-parse
-            _ok(stdout=""),  # clean
-            _ok(stdout="main\n"),  # branch
-            _ok(stdout="origin/main"),  # has upstream
-            _ok(),  # push --force
-        ]
-        result = GitPushTool().execute(
-            path="/repo", force=True, force_unconditional=True
-        )
-        assert result.success
-
-        push_call = mock_git.call_args_list[4]
-        args = push_call[0][0]
-        assert "--force" in args
-        assert "--force-with-lease" not in args
-        assert args == ["push", "--force", "origin", "main"]
+        assert present in args
+        assert absent not in args
+        assert args == expected_args
 
     @patch("axm_git.tools.push.run_git")
     def test_non_force_push_has_no_force_flag(self, mock_git: MagicMock) -> None:
