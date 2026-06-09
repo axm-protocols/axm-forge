@@ -203,19 +203,29 @@ def topo_sort_constants(
     visited: set[str] = set()
     in_stack: set[str] = set()
 
-    def visit(node: str) -> None:
-        """DFS post-order helper that emits constants in dependency order."""
-        if node in visited or node in in_stack:
-            return
-        in_stack.add(node)
-        for dep in deps[node]:
-            visit(dep)
-        in_stack.discard(node)
-        visited.add(node)
-        ordered.append(node)
-
+    # Explicit-stack post-order DFS (no recursion, mirroring the iterative
+    # ``_tarjan_sccs`` style in cycles.py to avoid stack blowups on deep
+    # chains). Each frame carries an ``exit`` flag: a node is descended on
+    # its first pop (children pushed in reverse so the first dependency is
+    # processed first, matching the previous recursive order) and emitted on
+    # its second pop. Back-edges (a node already ``in_stack``) are skipped,
+    # so cycles are tolerated and every constant is emitted exactly once.
+    work_stack: list[tuple[str, bool]] = []
     for name in constants:
-        visit(name)
+        work_stack.append((name, False))
+        while work_stack:
+            node, exiting = work_stack.pop()
+            if exiting:
+                in_stack.discard(node)
+                visited.add(node)
+                ordered.append(node)
+                continue
+            if node in visited or node in in_stack:
+                continue
+            in_stack.add(node)
+            work_stack.append((node, True))
+            for dep in reversed(list(deps[node])):
+                work_stack.append((dep, False))
 
     return [constants[n] for n in ordered]
 
