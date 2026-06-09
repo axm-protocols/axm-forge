@@ -1,32 +1,79 @@
-"""Claude subprocess auto-fix for remaining ruff errors.
+"""Harness auto-fix for remaining ruff errors.
 
-After ``ruff --fix`` resolves what it can, this module spawns a Claude
-subprocess to attempt fixing the remaining diagnostics — one call per
+After ``ruff --fix`` resolves what it can, this module runs an
+axm-harness adapter (``codex-sdk`` by default, ``claude-agent-sdk``
+fallback) to attempt fixing the remaining diagnostics — one call per
 file (parallel), max one retry cycle.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import os
 import re
 import shutil
 import subprocess
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
+
+from axm_harness.core.errors import HarnessSDKError
+from axm_harness.core.factory import get_adapter
+from axm_harness.core.runner import run
+
+if TYPE_CHECKING:
+    from axm_harness.core.base import AdapterName, HarnessAdapter
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["claude_fix"]
+__all__ = ["harness_fix"]
 
-_CLAUDE_TIMEOUT = 60
+_FIX_TIMEOUT = 60
 _SNIPPET_CONTEXT = 5  # lines of context around each error
 _MAX_FULL_FILE = 300  # files ≤ this many lines get full-file prompt
 
-# Tool availability — checked once at import time (AC4).
+_DEFAULT_ADAPTER = "codex-sdk"
+_FALLBACK_ADAPTER = "claude-agent-sdk"
+
+_FIX_SYSTEM_PROMPT = (
+    "Fix ruff errors. Return ONLY a JSON array of "
+    "{old, new} edits. No explanation.\n"
+    "RULES:\n"
+    "- NEVER create new function, class, or method definitions "
+    "to silence F821/F822 (undefined name). An undefined name "
+    "almost always means a rename was incomplete or an import "
+    "was lost; fix the reference site, do not fabricate the "
+    "missing symbol.\n"
+    "- For F821 on a name that looks like a renamed identifier "
+    "(e.g. `_foo` when `foo` exists, or vice versa), update the "
+    "reference to match the existing definition.\n"
+    "- For F822 (undefined name in __all__), remove the stale "
+    "entry from __all__; do not add a fake definition.\n"
+    "- If you cannot resolve an error without inventing code, "
+    "return an empty array `[]` and let a human handle it."
+)
+
+# JSON Schema enforced on harness output. Some adapters drop this
+# option (claude-agent-sdk), so ``parse_edits`` stays as the defensive
+# parsing layer.
+_EDITS_SCHEMA: dict[str, object] = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "old": {"type": "string"},
+            "new": {"type": "string"},
+        },
+        "required": ["old", "new"],
+        "additionalProperties": False,
+    },
+}
+
+# Tool availability — checked once at import time.
 _has_ruff: bool = shutil.which("ruff") is not None
-_has_claude: bool = shutil.which("claude") is not None
 
 
 def _group_errors_by_file(errors: list[str]) -> dict[str, list[str]]:
@@ -246,52 +293,52 @@ def _run_ruff_check(root: Path, files: list[str]) -> list[str]:
     return []
 
 
-def _call_claude(prompt: str, filename: str) -> tuple[str | None, str | None]:
-    """Run ``claude -p`` and return ``(stdout, warning)``.
+def _resolve_adapter() -> HarnessAdapter | None:
+    """Resolve the harness adapter, lazily and gracefully.
 
-    ``warning`` is set on failure; ``stdout`` is ``None`` in that case.
+    ``AXM_EDIT_FIX_ADAPTER`` overrides the default (``codex-sdk``); on
+    failure (missing credentials, missing SDK, unknown name) the
+    resolver falls back to ``claude-agent-sdk``, then gives up.
     """
-    try:
-        result = subprocess.run(
-            [
-                "claude",
-                "-p",
-                prompt,
-                "--system-prompt",
-                "Fix ruff errors. Return ONLY a JSON array of "
-                "{old, new} edits. No explanation.\n"
-                "RULES:\n"
-                "- NEVER create new function, class, or method definitions "
-                "to silence F821/F822 (undefined name). An undefined name "
-                "almost always means a rename was incomplete or an import "
-                "was lost; fix the reference site, do not fabricate the "
-                "missing symbol.\n"
-                "- For F821 on a name that looks like a renamed identifier "
-                "(e.g. `_foo` when `foo` exists, or vice versa), update the "
-                "reference to match the existing definition.\n"
-                "- For F822 (undefined name in __all__), remove the stale "
-                "entry from __all__; do not add a fake definition.\n"
-                "- If you cannot resolve an error without inventing code, "
-                "return an empty array `[]` and let a human handle it.",
-                "--allowedTools",
-                "",
-                "--model",
-                "claude-opus-4-6",
-                "--output-format",
-                "text",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=_CLAUDE_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
-        return None, f"claude timed out fixing {filename}"
-    except (FileNotFoundError, OSError) as exc:
-        return None, f"claude unavailable for {filename}: {exc}"
+    configured = os.environ.get("AXM_EDIT_FIX_ADAPTER", _DEFAULT_ADAPTER)
+    candidates = [configured]
+    if _FALLBACK_ADAPTER not in candidates:
+        candidates.append(_FALLBACK_ADAPTER)
+    for name in candidates:
+        try:
+            return get_adapter(cast("AdapterName", name))
+        except (HarnessSDKError, ImportError) as exc:
+            logger.debug("harness adapter %s unavailable: %s", name, exc)
+    return None
 
-    if result.returncode != 0:
-        return None, f"claude exited {result.returncode} for {filename}"
-    return result.stdout, None
+
+def _call_harness(
+    adapter: HarnessAdapter,
+    root: Path,
+    prompt: str,
+    filename: str,
+) -> tuple[str | None, str | None]:
+    """Run the harness adapter and return ``(output, warning)``.
+
+    ``warning`` is set on failure; ``output`` is ``None`` in that case.
+    """
+    options: dict[str, object] = {
+        "system_prompt": _FIX_SYSTEM_PROMPT,
+        "cwd": str(root),
+        "response_schema": _EDITS_SCHEMA,
+    }
+    model = os.environ.get("AXM_EDIT_FIX_MODEL")
+    if model:
+        options["model"] = model
+    try:
+        result = asyncio.run(
+            asyncio.wait_for(run(adapter, prompt, options), timeout=_FIX_TIMEOUT)
+        )
+    except TimeoutError:
+        return None, f"harness timed out fixing {filename}"
+    except HarnessSDKError as exc:
+        return None, f"harness unavailable for {filename}: {exc}"
+    return result.output, None
 
 
 def _fabrication_warning(edits: list[dict[str, str]], filename: str) -> str | None:
@@ -309,8 +356,9 @@ def _fix_single_file(
     root: Path,
     filename: str,
     file_errors: list[str],
+    adapter: HarnessAdapter,
 ) -> tuple[list[str], list[str]]:
-    """Attempt to fix errors in a single file via Claude subprocess.
+    """Attempt to fix errors in a single file via the harness adapter.
 
     Returns ``(remaining_errors, warnings)``.
     """
@@ -318,14 +366,16 @@ def _fix_single_file(
     if not file_path.is_file():
         return file_errors, []
 
-    stdout, warning = _call_claude(build_prompt(file_path, file_errors), filename)
+    output, warning = _call_harness(
+        adapter, root, build_prompt(file_path, file_errors), filename
+    )
     if warning is not None:
         return file_errors, [warning]
 
-    if not stdout or not stdout.strip():
+    if not output or not output.strip():
         return file_errors, []
 
-    edits = parse_edits(stdout)
+    edits = parse_edits(output)
     fabrication_warning = _fabrication_warning(edits, filename)
     if fabrication_warning is not None:
         return file_errors, [fabrication_warning]
@@ -337,17 +387,17 @@ def _fix_single_file(
     return remaining, []
 
 
-def claude_fix(
+def harness_fix(
     root: Path,
     errors: list[str],
     *,
     warnings: list[str] | None = None,
 ) -> list[str]:
-    """Use Claude subprocess to auto-fix remaining ruff errors.
+    """Use an axm-harness adapter to auto-fix remaining ruff errors.
 
-    Groups errors by file and spawns one ``claude -p`` call per file
-    in parallel. Max one attempt per file — if the fix fails or
-    produces invalid output, the original errors are returned.
+    Groups errors by file and runs one harness call per file in
+    parallel. Max one attempt per file — if the fix fails or produces
+    invalid output, the original errors are returned.
 
     Args:
         root: Project root directory.
@@ -360,9 +410,10 @@ def claude_fix(
     if not errors:
         return []
 
-    if not _has_claude:
+    adapter = _resolve_adapter()
+    if adapter is None:
         if warnings is not None:
-            warnings.append("claude not found, auto-fix skipped")
+            warnings.append("no harness available, auto-fix skipped")
         return errors
 
     grouped = _group_errors_by_file(errors)
@@ -370,7 +421,9 @@ def claude_fix(
 
     with ThreadPoolExecutor() as executor:
         futures = {
-            executor.submit(_fix_single_file, root, filename, file_errors): filename
+            executor.submit(
+                _fix_single_file, root, filename, file_errors, adapter
+            ): filename
             for filename, file_errors in grouped.items()
         }
         for future in as_completed(futures):

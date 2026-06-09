@@ -59,6 +59,7 @@ members = ["packages/*"]
 
 [tool.uv.sources]
 axm-anvil = { workspace = true }
+axm-harness = { path = "../axm-cortex/packages/axm-harness", editable = true }
 axm-ast = { workspace = true }
 axm-audit = { workspace = true }
 axm-edit = { workspace = true }
