@@ -31,6 +31,8 @@ from axm_edit.models.operations import (
 
 logger = logging.getLogger(__name__)
 
+_MIN_AMBIGUOUS_HITS = 2
+
 # ── Resolved edit (after fuzzy search) ────────────────────────────────────
 
 
@@ -203,6 +205,11 @@ def _search_near_hint(
     return None
 
 
+def _collect_hits(lines: list[str], match_fn: _MatchFn, num_lines: int) -> list[int]:
+    """Return every 1-based line number where *match_fn* fires."""
+    return [start for start in range(1, len(lines) - num_lines + 2) if match_fn(start)]
+
+
 def _scan_all_lines(
     lines: list[str],
     match_fn: _MatchFn,
@@ -214,10 +221,7 @@ def _scan_all_lines(
 
     Returns ``(line, indent)`` if exactly one match, ``None`` otherwise.
     """
-    hits: list[int] = []
-    for start in range(1, len(lines) - num_lines + 2):
-        if match_fn(start):
-            hits.append(start)
+    hits = _collect_hits(lines, match_fn, num_lines)
     if len(hits) == 1:
         indent = _detect_indent(lines, hits[0], num_lines) if dedented else ""
         return (hits[0], indent)
@@ -299,35 +303,62 @@ def _check_overlaps(
     return errors
 
 
+def _all_match_lines(lines: list[str], old: str) -> list[int]:
+    """Return all 1-based line numbers matching *old* (exact, else dedented).
+
+    Exact matches take precedence; the dedented matcher is consulted only
+    when the exact one finds nothing, mirroring the resolution order in
+    :func:`_find_old`.
+    """
+    match_exact, match_dedented, num_lines = _make_matchers(lines, old)
+    exact_hits = _collect_hits(lines, match_exact, num_lines)
+    if exact_hits:
+        return exact_hits
+    return _collect_hits(lines, match_dedented, num_lines)
+
+
+def _not_found_error(file_rel: str, edit: Edit, lines: list[str]) -> ValidationError:
+    """Build the validation error for an unresolved *edit* (no usable match).
+
+    Branches on the match count of a hint-less edit so a true zero-match
+    miss and a ``>=2`` ambiguous anchor produce distinct, actionable
+    messages. A hinted edit keeps its dedicated near-hint message.
+    """
+    if edit.line is not None:
+        return ValidationError(
+            file=file_rel,
+            line=edit.line,
+            expected=edit.old,
+            actual=_actual_at(lines, edit.line, _old_line_count(edit.old)),
+            error="Content not found at or near hint line",
+        )
+
+    hits = _all_match_lines(lines, edit.old)
+    if len(hits) >= _MIN_AMBIGUOUS_HITS:
+        line_list = ", ".join(str(h) for h in hits)
+        return ValidationError(
+            file=file_rel,
+            expected=edit.old,
+            error=(
+                f"Ambiguous match: 'old' snippet found on {len(hits)} lines "
+                f"({line_list}); disambiguate with a 'line' hint"
+            ),
+        )
+    return ValidationError(
+        file=file_rel,
+        expected=edit.old,
+        error="Content not found in file: the 'old' snippet was not located",
+    )
+
+
 def _append_not_found_error(
     errors: list[ValidationError],
     file_rel: str,
     edit: Edit,
     lines: list[str],
 ) -> None:
-    """Append a 'not found' validation error for *edit*."""
-    if edit.line is not None:
-        errors.append(
-            ValidationError(
-                file=file_rel,
-                line=edit.line,
-                expected=edit.old,
-                actual=_actual_at(
-                    lines,
-                    edit.line,
-                    _old_line_count(edit.old),
-                ),
-                error="Content not found at or near hint line",
-            ),
-        )
-    else:
-        errors.append(
-            ValidationError(
-                file=file_rel,
-                expected=edit.old,
-                error="Content not found in file (0 or ambiguous matches)",
-            ),
-        )
+    """Append a not-found or ambiguous validation error for *edit*."""
+    errors.append(_not_found_error(file_rel, edit, lines))
 
 
 def _resolve_one_edit(lines: list[str], edit: Edit) -> ResolvedEdit | None:
