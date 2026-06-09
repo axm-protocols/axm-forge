@@ -58,6 +58,10 @@ class GitPreflightTool(AXMTool):
     Registered as ``git_preflight`` via axm.tools entry point.
     """
 
+    expose_directly = True
+    domain = "git"
+    tags = frozenset({"status", "diff", "preflight"})
+
     @property
     def name(self) -> str:
         """Tool name used for MCP registration."""

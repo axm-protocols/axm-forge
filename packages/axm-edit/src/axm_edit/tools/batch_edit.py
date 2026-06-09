@@ -377,6 +377,10 @@ class BatchEditTool:
     Registered as ``batch_edit`` via axm.tools entry point.
     """
 
+    expose_directly = True
+    domain = "edit"
+    tags = frozenset({"edit", "atomic", "refactor"})
+
     agent_hint: str = (
         "Apply multiple file edits atomically via op=replace"
         " with old/new pairs. Safer than sed — validates before writing."
