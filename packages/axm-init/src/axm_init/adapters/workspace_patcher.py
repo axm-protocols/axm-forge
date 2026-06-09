@@ -249,11 +249,16 @@ def patch_ci(root: Path, member_name: str) -> None:
     ci_yml = root / ".github" / "workflows" / "ci.yml"
     content = ci_yml.read_text()
 
-    if member_name in content:
+    lines = content.splitlines(keepends=True)
+    # Token-exact guard: match the matrix entry the patcher inserts
+    # (``<indent>- <member_name>``), not a bare substring — otherwise a
+    # prefix collision (``foo`` already listed) would silently skip
+    # ``foo-bar``. Indentation is normalized away via ``strip``.
+    matrix_entry = f"- {member_name}"
+    if any(line.strip() == matrix_entry for line in lines):
         logger.info("ci.yml already contains %s — skipping", member_name)
         return
 
-    lines = content.splitlines(keepends=True)
     new_lines = _insert_into_yaml_list(lines, member_name, list_marker="package:")
     ci_yml.write_text("".join(new_lines))
     logger.info("Patched ci.yml matrix with %s", member_name)

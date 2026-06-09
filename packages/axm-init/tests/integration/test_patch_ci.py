@@ -74,3 +74,64 @@ def test_patch_ci_repeated_calls_keep_yaml_valid(tmp_path: Path, member: str) ->
     parsed = yaml.safe_load((tmp_path / ".github" / "workflows" / "ci.yml").read_text())
     packages = parsed["jobs"]["test"]["strategy"]["matrix"]["package"]
     assert member in packages
+
+
+# ─ Prefix-collision guard (AXM-1837) ─────────────────────────────────────
+#
+# The guard that skips already-listed members must match the exact matrix
+# token, not a bare substring. A bare `if member_name in content` wrongly
+# skips `foo-bar` when `foo` is already present (prefix collision).
+
+
+def _ci_with_packages(root: Path, members: list[str]) -> Path:
+    """Write a realistic ci.yml whose matrix.package list is *members*."""
+    ci = root / ".github" / "workflows" / "ci.yml"
+    ci.parent.mkdir(parents=True, exist_ok=True)
+    matrix = "\n".join(f"          - {m}" for m in members)
+    ci.write_text(
+        "name: CI\n\n"
+        "on:\n  push:\n    branches: [main]\n\n"
+        "jobs:\n"
+        "  test:\n"
+        "    runs-on: ubuntu-latest\n"
+        "    strategy:\n"
+        "      matrix:\n"
+        "        package:\n"
+        f"{matrix}\n"
+        '        python-version: ["3.12", "3.13"]\n'
+        "    steps:\n"
+        "      - uses: actions/checkout@v6\n"
+    )
+    return ci
+
+
+def test_patch_ci_adds_member_despite_prefix_collision(tmp_path: Path) -> None:
+    """AC1: with `foo` already present, patching `foo-bar` must still add it.
+
+    A bare-substring guard (`"foo-bar" in content` is False but the old guard
+    checked `member_name in content` for the *new* name; the collision is the
+    reverse — adding `foo` after `foo-bar`, or any case where the new name's
+    matrix token is not yet present but its substring is). Verify the new
+    member's exact matrix token lands in the file.
+    """
+    ci = _ci_with_packages(tmp_path, ["foo"])
+
+    patch_ci(tmp_path, "foo-bar")
+
+    parsed = yaml.safe_load(ci.read_text())
+    packages = parsed["jobs"]["test"]["strategy"]["matrix"]["package"]
+    assert "foo-bar" in packages
+    assert "foo" in packages
+
+
+def test_patch_ci_is_idempotent_for_exact_member(tmp_path: Path) -> None:
+    """AC2: re-patching an exactly-present member yields no duplicate."""
+    ci = _ci_with_packages(tmp_path, ["foo-bar"])
+
+    patch_ci(tmp_path, "foo-bar")
+
+    content = ci.read_text()
+    assert content.count("          - foo-bar\n") == 1
+    parsed = yaml.safe_load(content)
+    packages = parsed["jobs"]["test"]["strategy"]["matrix"]["package"]
+    assert packages.count("foo-bar") == 1
