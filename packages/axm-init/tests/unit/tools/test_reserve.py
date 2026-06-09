@@ -181,13 +181,34 @@ class TestReserveNameProperty:
 class TestReserveTextRendering:
     """Compact text rendering for the LLM-facing ToolResult."""
 
-    def test_render_carries_name_version_and_message(self) -> None:
-        from axm_init.tools.reserve import _render_reserve_text
+    @patch("axm_init.core.reserver.reserve_pypi")
+    @patch("axm_init.adapters.credentials.CredentialManager")
+    def test_dry_run_carries_name_version_and_message(
+        self, mock_creds: MagicMock, mock_reserve: MagicMock
+    ) -> None:
+        """Dry-run reserve surfaces name, version and message in result.text.
 
-        text = _render_reserve_text(
-            "my-pkg", "0.0.1", "Dry run — would reserve 'my-pkg' on PyPI"
+        Drives the public boundary: a mocked ``reserve_pypi`` returns a
+        dry-run ReserveResult and the rendered ``result.text`` must carry the
+        exact ``init_reserve | ✓ | my-pkg | v0.0.1 | <message>`` line.
+        """
+        from axm_init.models.results import ReserveResult
+        from axm_init.tools.reserve import InitReserveTool
+
+        mock_creds.return_value.get_pypi_token.return_value = "tok"
+        mock_reserve.return_value = ReserveResult(
+            success=True,
+            package_name="my-pkg",
+            version="0.0.1",
+            message="Dry run — would reserve 'my-pkg' on PyPI",
         )
-        assert text == (
+        result = InitReserveTool().execute(
+            name="my-pkg",
+            author="Real Author",
+            email="real@email.com",
+            dry_run=True,
+        )
+        assert result.text == (
             "init_reserve | ✓ | my-pkg | v0.0.1 | "
             "Dry run — would reserve 'my-pkg' on PyPI"
         )
