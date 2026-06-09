@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
-from axm.tools.base import AXMTool, ToolResult
+from axm.tools.base import AXMTool, ToolMetadata, ToolResult, tool_metadata
 
 # ── ToolResult ─────────────────────────────────────────────────────────────────
 
@@ -178,11 +178,13 @@ def test_non_tool_fails_isinstance() -> None:
 
 
 def test_all_exports() -> None:
-    """__all__ contains AXMTool and ToolResult."""
+    """__all__ contains the public surface."""
     from axm.tools import base
 
     assert "AXMTool" in base.__all__
     assert "ToolResult" in base.__all__
+    assert "ToolMetadata" in base.__all__
+    assert "tool_metadata" in base.__all__
 
 
 def test_package_reexport() -> None:
@@ -192,3 +194,100 @@ def test_package_reexport() -> None:
 
     assert A is AXMTool
     assert T is ToolResult
+
+
+# ── ToolMetadata / tool_metadata ────────────────────────────────────────────────
+
+
+class HotPathTool:
+    """A tool opting into the MCP hot path with domain + tags."""
+
+    expose_directly = True
+    domain = "audit"
+    tags = frozenset({"quality", "lint"})
+
+    @property
+    def name(self) -> str:
+        return "hot-tool"
+
+    def execute(self, **kwargs: Any) -> ToolResult:
+        return ToolResult(success=True)
+
+
+class TestToolMetadata:
+    """Tests for the ToolMetadata dataclass defaults and immutability."""
+
+    def test_defaults(self) -> None:
+        meta = ToolMetadata()
+        assert meta.expose_directly is False
+        assert meta.domain is None
+        assert meta.tags == frozenset()
+
+    def test_frozen(self) -> None:
+        meta = ToolMetadata()
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            meta.expose_directly = True  # type: ignore[misc]
+
+    def test_default_tags_not_shared(self) -> None:
+        # frozenset() is immutable, but assert the default resolves identically
+        assert ToolMetadata().tags == ToolMetadata().tags
+
+
+class TestToolMetadataReader:
+    """Tests for tool_metadata() across subclass / structural / plain tools."""
+
+    def test_reads_overridden_attributes(self) -> None:
+        meta = tool_metadata(HotPathTool())
+        assert meta.expose_directly is True
+        assert meta.domain == "audit"
+        assert meta.tags == frozenset({"quality", "lint"})
+
+    def test_structural_tool_gets_defaults(self) -> None:
+        # ConcreteTool declares none of the discovery attributes
+        meta = tool_metadata(ConcreteTool())
+        assert meta == ToolMetadata()
+
+    def test_plain_callable_gets_defaults(self) -> None:
+        def plain(**kwargs: Any) -> dict[str, Any]:
+            return {}
+
+        assert tool_metadata(plain) == ToolMetadata()
+
+    def test_tags_list_is_coerced_to_frozenset(self) -> None:
+        class ListTagsTool:
+            tags: ClassVar[list[str]] = ["a", "b", "a"]
+
+            @property
+            def name(self) -> str:
+                return "list-tags"
+
+            def execute(self, **kwargs: Any) -> ToolResult:
+                return ToolResult(success=True)
+
+        assert tool_metadata(ListTagsTool()).tags == frozenset({"a", "b"})
+
+    def test_none_tags_falls_back_to_empty(self) -> None:
+        class NoneTagsTool:
+            tags = None
+
+            @property
+            def name(self) -> str:
+                return "none-tags"
+
+            def execute(self, **kwargs: Any) -> ToolResult:
+                return ToolResult(success=True)
+
+        assert tool_metadata(NoneTagsTool()).tags == frozenset()
+
+
+def test_discovery_attributes_do_not_break_structural_isinstance() -> None:
+    """A structural tool without discovery attrs is still an AXMTool.
+
+    Regression guard: the discovery attributes (expose_directly/domain/tags)
+    must NOT be protocol members, otherwise runtime_checkable isinstance()
+    would require them and break the many structural (non-subclass) tools.
+    """
+    tool = ConcreteTool()
+    assert isinstance(tool, AXMTool)
+    assert not hasattr(tool, "expose_directly")
+    assert not hasattr(tool, "domain")
