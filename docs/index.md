@@ -107,12 +107,17 @@ graph TD
     classDef init fill:#26C6DA,stroke:#00ACC1
     classDef git fill:#78909C,stroke:#546E7A
     classDef smelt fill:#FFA726,stroke:#FB8C00
+    classDef anvil fill:#EF5350,stroke:#E53935
+    classDef edit fill:#AB47BC,stroke:#8E24AA
 
-    AST["axm-ast\nAST introspection"]:::ast
-    AUDIT["axm-audit\nCode auditing"]:::audit --> AST
-    INIT["axm-init\nScaffolding"]:::init
-    GIT["axm-git\nGit automation"]:::git
-    SMELT["axm-smelt\nToken compaction"]:::smelt
+    AST["axm-ast<br/>AST introspection"]:::ast
+    AUDIT["axm-audit<br/>Code auditing"]:::audit --> AST
+    AUDIT --> ANVIL
+    INIT["axm-init<br/>Scaffolding"]:::init
+    GIT["axm-git<br/>Git automation"]:::git
+    SMELT["axm-smelt<br/>Token compaction"]:::smelt
+    ANVIL["axm-anvil<br/>CST refactoring"]:::anvil --> EDIT
+    EDIT["axm-edit<br/>Batch file editing"]:::edit
 ```
 
 ## Learn More
