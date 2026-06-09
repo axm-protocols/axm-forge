@@ -294,6 +294,10 @@ hash = "5df3b4dfb677"
 reason = "warnings_in_result patches _has_ruff=False asserting the 'ruff not found' warning, while ruff_invocation_fails raises OSError/PermissionError asserting the 'ruff fix failed' warning — different branches and warning literals."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "417cf0587adc"
+reason = "ruff_uses_project_config suppresses E722 via a pyproject.toml ignore list, while claude_fix_clears_lint_errors mocks claude_fix to return [] — no-lint_errors reached through two unrelated mechanisms."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "89b173f70a71"
 reason = "no_claude_skips_autofix patches _has_claude=False asserting the 'claude not found' warning, while claude_timeout_graceful raises TimeoutExpired asserting the 'timed out' warning — different branches and warning literals."
 
@@ -320,3 +324,23 @@ reason = "single_line_reindent asserts new content gains the file's indent, whil
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "9aa447f8d297"
 reason = "nonexistent_file asserts the 'not found' error while path_traversal asserts the 'escapes' error — two distinct error conditions of ReadFileTool with different literals."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "2cfcf5f23ce8"
+reason = "Ten ReplaceOp/batch_apply cases sharing the success/failure shape but each asserting a distinct scenario: TOCTOU no-drift apply, symlink-escape rejection, nested-in-root accept, tab-indented reindent and mixed tab+space reindent — different security guards, whitespace models and edge literals."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4174a5c6d2f6"
+reason = "single_line_reindent asserts dedented new content gains the file's indent, while exact_match_no_reindent asserts an already-indented old must NOT be double-indented — opposite indentation outcomes."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d353e479f0de"
+reason = "lint_only_on_success reaches the no-ruff invariant via a validation failure on a missing-old edit, while empty_operations_no_lint reaches it via the empty-operations guard — two distinct skip branches."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "88e7a1199b18"
+reason = "warnings_in_result patches _has_ruff=False asserting the 'ruff not found' warning, while ruff_invocation_fails raises OSError/PermissionError asserting the 'ruff fix failed' warning — different branches and warning literals."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "40815865af79"
+reason = "rollback_restores_modified_file_to_original_bytes (AC1/AC2) checks a replaced file reverts to its original bytes, while rollback_leaves_unrelated_untracked_file_untouched (AC5) checks an untouched path survives — distinct rollback acceptance criteria."

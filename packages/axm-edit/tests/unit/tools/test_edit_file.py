@@ -10,13 +10,30 @@ from axm_edit.tools.edit_file import EditFileTool, render_text
 class TestRenderText:
     """Tests for the ``render_text`` compact rendering helper."""
 
-    def test_single_replacement(self) -> None:
-        text = render_text(path="/tmp/f.txt", replacements=1, first_line=2)
-        assert text == "edit_file | ✓ | /tmp/f.txt · 1 replacement @ L2"
-
-    def test_many_replacements_pluralised(self) -> None:
-        text = render_text(path="/tmp/f.txt", replacements=3, first_line=1)
-        assert text == "edit_file | ✓ | /tmp/f.txt · 3 replacements @ L1"
+    @pytest.mark.parametrize(
+        ("replacements", "first_line", "expected"),
+        [
+            pytest.param(
+                1,
+                2,
+                "edit_file | ✓ | /tmp/f.txt · 1 replacement @ L2",
+                id="single_replacement",
+            ),
+            pytest.param(
+                3,
+                1,
+                "edit_file | ✓ | /tmp/f.txt · 3 replacements @ L1",
+                id="many_replacements_pluralised",
+            ),
+        ],
+    )
+    def test_render_text_pluralisation(
+        self, replacements: int, first_line: int, expected: str
+    ) -> None:
+        text = render_text(
+            path="/tmp/f.txt", replacements=replacements, first_line=first_line
+        )
+        assert text == expected
 
 
 class TestEditFileTool:
