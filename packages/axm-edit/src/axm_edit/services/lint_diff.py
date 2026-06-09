@@ -74,7 +74,7 @@ def compute_lint_diffs(
 ) -> list[dict[str, object]]:
     """Compute per-file diffs between post-agent and post-lint snapshots.
 
-    Returns one entry per file that was mutated by ruff/claude_fix. Files
+    Returns one entry per file that was mutated by ruff/harness_fix. Files
     whose content is unchanged are omitted (no empty list entries).
 
     When the diff exceeds ``max_ratio * len(post_lint_content)`` OR
