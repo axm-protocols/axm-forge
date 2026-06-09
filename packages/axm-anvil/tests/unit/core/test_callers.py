@@ -6,7 +6,8 @@ from axm_anvil.core.callers import rewrite_caller_text
 
 
 def test_rewrite_caller_text_simple_from_import() -> None:
-    """AC2: a plain `from pkg.old import Foo` is rewritten to `pkg.new`."""
+    """AC2: a plain single-line `from pkg.old import Foo` is rewritten to
+    `pkg.new` (regression guard for the CST discovery change)."""
     text = "from pkg.old import Foo\n\nFoo()\n"
 
     new_text, rewrites = rewrite_caller_text(text, "pkg.old", "pkg.new", ["Foo"])
@@ -93,15 +94,3 @@ def test_rewrite_caller_text_multiline_import() -> None:
     entry = rewrites[0]
     assert "from pkg.old import" in entry.old
     assert entry.new == "from pkg.new import Foo"
-
-
-def test_rewrite_caller_text_singleline_still_works() -> None:
-    """AC2: a single-line ``from mod import foo`` caller is still rewritten to
-    ``new_module`` (regression guard for the CST discovery change)."""
-    text = "from pkg.old import Foo\n\nFoo()\n"
-
-    new_text, rewrites = rewrite_caller_text(text, "pkg.old", "pkg.new", ["Foo"])
-
-    assert "from pkg.new import Foo" in new_text
-    assert "pkg.old" not in new_text
-    assert len(rewrites) >= 1
