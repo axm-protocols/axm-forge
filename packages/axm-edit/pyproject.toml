@@ -344,3 +344,23 @@ reason = "warnings_in_result patches _has_ruff=False asserting the 'ruff not fou
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "40815865af79"
 reason = "rollback_restores_modified_file_to_original_bytes (AC1/AC2) checks a replaced file reverts to its original bytes, while rollback_leaves_unrelated_untracked_file_untouched (AC5) checks an untouched path survives — distinct rollback acceptance criteria."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "399b46f69e8a"
+reason = "Five distinct fuzzy/normalization happy paths across two op-type files, each asserting a different rewritten literal: bottom-to-top shift-safe edit, multi-line indent-normalized block, smart/exact-match preference, and line=None auto-search."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8e22770d8ba5"
+reason = "Five failure branches of batch_apply spread across create/delete/replace op-type files each assert a distinct error literal: create-existing, create path-traversal, delete-missing, ambiguous-old and old-not-found — only the not-success shape is shared."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "57522ceee488"
+reason = "Divergent multi-edit summary expectations across two files: multi_file_fuzzy asserts modified==2 over two files, while multiple_edits_same_file and two_replace_ops_same_file assert modified==1 because edits merge into one file."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "dcba8cb5a13f"
+reason = "path_traversal_in_delete and path_traversal_in_replace exercise the shared escape guard through two distinct SUTs/op types (DeleteOp versus ReplaceOp) living in separate op-type files."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f9a0adf152d5"
+reason = "overlapping_edits_rejected exercises the overlap-detection branch within one ReplaceOp, while valid_and_invalid_mix exercises atomic rollback when a valid op is paired with a missing-file delete — two different rejection paths in separate files."
