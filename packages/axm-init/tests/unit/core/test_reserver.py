@@ -173,6 +173,30 @@ class TestBuildPackage:
         assert ok is False
         assert "build error" in err
 
+    @patch("axm_init.core.reserver.subprocess.run")
+    def test_build_package_passes_timeout(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """AC1: build_package passes a bounded timeout= to subprocess.run."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["uv", "build"], returncode=0, stdout="", stderr=""
+        )
+        build_package(tmp_path)
+
+        timeout = mock_run.call_args.kwargs.get("timeout")
+        assert isinstance(timeout, (int, float))
+        assert timeout > 0
+
+    @patch("axm_init.core.reserver.subprocess.run")
+    def test_build_package_handles_timeout_expired(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """AC3: build_package returns a clean failure on TimeoutExpired (no raise)."""
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd=["uv", "build"], timeout=1)
+        ok, err = build_package(tmp_path)
+        assert ok is False
+        assert "timeout" in err.lower()
+
 
 class TestPublishPackage:
     """Tests for publish_package()."""
@@ -240,6 +264,32 @@ class TestPublishPackage:
 
         env = mock_run.call_args.kwargs.get("env", {})
         assert env["UV_PUBLISH_TOKEN"] == special_token
+
+    @patch("axm_init.core.reserver.subprocess.run")
+    def test_publish_package_passes_timeout(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """AC2: publish_package passes a bounded timeout= to subprocess.run."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["uv", "publish"], returncode=0, stdout="", stderr=""
+        )
+        publish_package(tmp_path, "pypi-token")
+
+        timeout = mock_run.call_args.kwargs.get("timeout")
+        assert isinstance(timeout, (int, float))
+        assert timeout > 0
+
+    @patch("axm_init.core.reserver.subprocess.run")
+    def test_publish_package_handles_timeout_expired(
+        self, mock_run: MagicMock, tmp_path: Path
+    ) -> None:
+        """AC3: publish_package returns a clean failure on TimeoutExpired (no raise)."""
+        mock_run.side_effect = subprocess.TimeoutExpired(
+            cmd=["uv", "publish"], timeout=1
+        )
+        ok, err = publish_package(tmp_path, "pypi-token")
+        assert ok is False
+        assert "timeout" in err.lower()
 
 
 class TestReservePyPIFlow:
