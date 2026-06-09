@@ -20,43 +20,25 @@ def _scan_secret_count(tmp_path: Path, source: str) -> int:
 
 
 @pytest.mark.integration
-def test_placeholder_password_not_flagged(tmp_path: Path) -> None:
-    """AC2: a placeholder password value ('changeme') yields 0 secret matches."""
-    assert _scan_secret_count(tmp_path, 'password = "changeme"\n') == 0
-
-
-@pytest.mark.integration
-def test_angle_bracket_placeholder_not_flagged(tmp_path: Path) -> None:
-    """AC2: an angle-bracket placeholder ('<your-key>') yields 0 matches."""
-    assert _scan_secret_count(tmp_path, 'api_key = "<your-key>"\n') == 0
-
-
-@pytest.mark.integration
-def test_real_hex_secret_flagged(tmp_path: Path) -> None:
-    """AC4: a real-looking 40-char hex token assigned to secret is flagged."""
-    hex_token = "a3f9c1" + "0" * 34
-    assert _scan_secret_count(tmp_path, f'secret = "{hex_token}"\n') == 1
-
-
-@pytest.mark.integration
-def test_ellipsis_example_value_not_flagged(tmp_path: Path) -> None:
-    """An elided example value (literal ``...``) is a placeholder, not a secret."""
-    assert _scan_secret_count(tmp_path, 'api_key = "..."\n') == 0
-
-
-@pytest.mark.integration
-def test_truncated_token_example_not_flagged(tmp_path: Path) -> None:
-    """A truncated token example (``ghp_...``) carries an ellipsis -> placeholder."""
-    assert _scan_secret_count(tmp_path, 'token = "ghp_..."\n') == 0
-
-
-@pytest.mark.integration
-def test_long_truncated_example_not_flagged(tmp_path: Path) -> None:
-    """Even a long example value is a placeholder when it contains ``...``."""
-    assert (
-        _scan_secret_count(tmp_path, 'api_key = "sk_live_abcdef...0123456789xyz"\n')
-        == 0
-    )
+@pytest.mark.parametrize(
+    ("source", "expected_count"),
+    [
+        pytest.param('password = "changeme"\n', 0, id="placeholder_password"),
+        pytest.param('api_key = "<your-key>"\n', 0, id="angle_bracket_placeholder"),
+        pytest.param(f'secret = "{"a3f9c1" + "0" * 34}"\n', 1, id="real_hex_secret"),
+        pytest.param('api_key = "..."\n', 0, id="ellipsis_example_value"),
+        pytest.param('token = "ghp_..."\n', 0, id="truncated_token_example"),
+        pytest.param(
+            'api_key = "sk_live_abcdef...0123456789xyz"\n',
+            0,
+            id="long_truncated_example",
+        ),
+        pytest.param(f'token = "{"ghp_" + "a1B2c3" * 6}"\n', 1, id="real_github_token"),
+    ],
+)
+def test_secret_scan_count(tmp_path: Path, source: str, expected_count: int) -> None:
+    """AC2,AC4: placeholders yield 0 matches; real tokens (no ellipsis) are flagged."""
+    assert _scan_secret_count(tmp_path, source) == expected_count
 
 
 @pytest.mark.integration
@@ -76,13 +58,6 @@ def test_rule_does_not_flag_own_pattern_definitions(tmp_path: Path) -> None:
     result = SecurityPatternRule().check(tmp_path)
     assert result.details is not None
     assert result.details["secret_count"] == 0, result.details["matches"]
-
-
-@pytest.mark.integration
-def test_real_github_token_still_flagged(tmp_path: Path) -> None:
-    """No weakening: a full 36-char GitHub PAT (no ellipsis) is still flagged."""
-    real_pat = "ghp_" + "a1B2c3" * 6  # 36 alnum chars after the prefix
-    assert _scan_secret_count(tmp_path, f'token = "{real_pat}"\n') == 1
 
 
 class TestSecurityPatternRuleIntegration:
