@@ -10,12 +10,12 @@ class TestFormatAgent:
     """Tests for format_agent() — compact agent output."""
 
     def test_format_agent_all_passed(self, tmp_path: Path) -> None:
-        """All passing → failed=[], passed_count is count of checks."""
+        """All passing → failures=[], passed_count is count of checks."""
         from axm_init.core.checker import format_agent
 
         result = _make_result(tmp_path, passed=True)
         output = format_agent(result)
-        assert output["failed"] == []
+        assert output["failures"] == []
         assert output["passed_count"] == 1
         assert isinstance(output["passed_count"], int)
 
@@ -25,12 +25,12 @@ class TestFormatAgent:
 
         result = _make_result(tmp_path, passed=False)
         output = format_agent(result)
-        assert len(output["failed"]) == 1
-        f = output["failed"][0]
+        assert len(output["failures"]) == 1
+        f = output["failures"][0]
         assert set(f.keys()) >= {"name", "message", "details", "fix"}
 
     def test_format_agent_has_required_keys(self, tmp_path: Path) -> None:
-        """Agent output must have score, grade, context, passed_count, failed."""
+        """Agent output must have score, grade, context, passed_count, failures."""
         from axm_init.core.checker import format_agent
 
         result = _make_result(tmp_path, passed=True)
@@ -42,7 +42,7 @@ class TestFormatAgent:
             "workspace_root",
             "excluded_checks",
             "passed_count",
-            "failed",
+            "failures",
         }
 
     def test_format_agent_no_passed_key(self, tmp_path: Path) -> None:
@@ -104,7 +104,7 @@ class TestFormatAgentIncludesContext:
         assert "score" in output
         assert "grade" in output
         assert "passed_count" in output
-        assert "failed" in output
+        assert "failures" in output
 
 
 class TestFormatAgentText:

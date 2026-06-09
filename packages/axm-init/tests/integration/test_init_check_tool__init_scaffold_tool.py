@@ -36,7 +36,7 @@ def test_scaffold_then_check_passes_structure_tests_dir(tmp_path: Path) -> None:
     check = InitCheckTool().execute(path=str(project))
     assert check.success, check.error
 
-    failed_names = {f["name"] for f in check.data["failed"]}
+    failed_names = {f["name"] for f in check.data["failures"]}
     assert "structure.tests_dir" not in failed_names, (
-        f"structure.tests_dir failed: {check.data['failed']}"
+        f"structure.tests_dir failed: {check.data['failures']}"
     )
