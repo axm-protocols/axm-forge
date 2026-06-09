@@ -235,6 +235,8 @@ def _flatten(tup: tuple) -> tuple[str, ...]:  # type: ignore[type-arg]
 def _split_finding(
     verdict_data: _FileVerdict, root: Path, ctx: _ScanContext
 ) -> Finding | None:
+    if verdict_data.file_marked:
+        return None
     distinct = verdict_data.distinct_non_empty_tuples
     if len(distinct) <= 1:
         return None
