@@ -1,10 +1,65 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 from pytest_mock import MockerFixture
 
 from axm_anvil.core.postprocess import _ruff_fix
+
+
+def _ok_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+
+def test_ruff_invoked_via_python_m(tmp_path: Path, mocker: MockerFixture) -> None:
+    """AC1: ruff is invoked via ``sys.executable -m ruff``, not bare ``ruff``."""
+    captured: list[list[str]] = []
+
+    def fake_run(
+        argv: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        captured.append(argv)
+        return _ok_run()
+
+    mocker.patch("axm_anvil.core.postprocess.subprocess.run", side_effect=fake_run)
+    mocker.patch("axm_anvil.core.postprocess._revalidate", return_value=None)
+
+    source = tmp_path / "a.py"
+    target = tmp_path / "b.py"
+    _ruff_fix(source, target)
+
+    assert captured, "ruff was never invoked"
+    for argv in captured:
+        assert argv[:3] == [sys.executable, "-m", "ruff"], argv
+
+
+def test_ruff_missing_emits_skipped_warning(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """AC2: missing ruff yields an explicit 'skipped' warning, no raise."""
+
+    def fake_run(
+        _argv: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="",
+            stderr="/usr/bin/python: No module named ruff",
+        )
+
+    mocker.patch("axm_anvil.core.postprocess.subprocess.run", side_effect=fake_run)
+    mocker.patch("axm_anvil.core.postprocess._revalidate", return_value=None)
+
+    source = tmp_path / "a.py"
+    target = tmp_path / "b.py"
+    warnings = _ruff_fix(source, target)
+
+    assert warnings, "expected a skipped-cleanup warning"
+    joined = " ".join(warnings).lower()
+    assert "unavailable" in joined or "skipped" in joined, warnings
 
 
 def test_ruff_fix_warns_when_post_ruff_file_unparseable(
