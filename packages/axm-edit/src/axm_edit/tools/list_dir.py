@@ -106,15 +106,17 @@ def render_text(
         header += f" · TRUNCATED at {count}"
 
     lines = [header]
-    for entry in entries:
-        path = str(entry["path"])
-        if entry["type"] == "dir":
-            lines.append(f"{path}/")
-            continue
-        size_raw = entry.get("size_bytes")
-        size = _human_size(size_raw if isinstance(size_raw, int) else None)
-        lines.append(f"{path}  {size}" if size else path)
+    lines.extend(_render_entry(entry) for entry in entries)
     return "\n".join(lines)
+
+
+def _render_entry(entry: dict[str, object]) -> str:
+    path = str(entry["path"])
+    if entry["type"] == "dir":
+        return f"{path}/"
+    size_raw = entry.get("size_bytes")
+    size = _human_size(size_raw if isinstance(size_raw, int) else None)
+    return f"{path}  {size}" if size else path
 
 
 def _collect_entries(
