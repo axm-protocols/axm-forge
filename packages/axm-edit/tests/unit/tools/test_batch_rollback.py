@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from axm_edit.tools.batch_rollback import BatchRollbackTool, _render_text
+from axm_edit.tools.batch_rollback import BatchRollbackTool, render_text
 
 
 class TestBatchRollbackTool:
@@ -28,7 +28,7 @@ class TestRenderText:
     """Tests for the compact text rendering of a rollback outcome."""
 
     def test_success_lists_every_restored_file(self) -> None:
-        text = _render_text(
+        text = render_text(
             success=True,
             checkpoint="536af2b1c0ffee",
             files=["a.py", "b.py"],
@@ -39,11 +39,11 @@ class TestRenderText:
         assert "b.py" in text
 
     def test_success_singular_no_files(self) -> None:
-        text = _render_text(success=True, checkpoint="deadbeef", files=[], error=None)
+        text = render_text(success=True, checkpoint="deadbeef", files=[], error=None)
         assert "0 files restored from deadbee" in text
 
     def test_failure_surfaces_error_and_checkpoint(self) -> None:
-        text = _render_text(
+        text = render_text(
             success=False,
             checkpoint="deadbeef",
             files=[],

@@ -272,7 +272,7 @@ def _render_lint_lines(data: dict[str, object]) -> list[str]:
     return lines
 
 
-def _render_text(
+def render_text(
     result: BatchResult,
     parsed: list[Operation],
     data: dict[str, object],
@@ -341,7 +341,7 @@ def _run_batch(
         success=result.success,
         data=data,
         error=result.error,
-        text=_render_text(result, parsed, data),
+        text=render_text(result, parsed, data),
     )
 
 

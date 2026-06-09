@@ -15,7 +15,7 @@ __all__ = ["EditFileTool"]
 logger = logging.getLogger(__name__)
 
 
-def _render_text(*, path: str, replacements: int, first_line: int) -> str:
+def render_text(*, path: str, replacements: int, first_line: int) -> str:
     """Render a compact, ``git``-style LLM-facing view of an edit result.
 
     The header carries the global status (``✓``), the edited path, the exact
@@ -154,7 +154,7 @@ class EditFileTool:
                 "replacements": replaced,
                 "first_line": line_num,
             },
-            text=_render_text(
+            text=render_text(
                 path=target_path,
                 replacements=replaced,
                 first_line=line_num,
