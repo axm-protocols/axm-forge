@@ -6,8 +6,8 @@ from axm_init.models.check import CheckResult, ProjectResult
 from tests.integration._helpers import _make_result
 
 
-class TestFormatAgent:
-    """Tests for format_agent() — compact agent output."""
+class TestFormatAgentCompactDictShape:
+    """Compact agent output exposes score/grade/counts and drops the 'passed' key."""
 
     def test_format_agent_all_passed(self, tmp_path: Path) -> None:
         """All passing → failures=[], passed_count is count of checks."""
