@@ -1937,3 +1937,38 @@ def test_insert_after_absent_warns_and_appends(tmp_path: Path) -> None:
     text = plan.target_text_new
     assert text.index("def Moved") > text.index("def Anchor")
     assert any("NoSuch" in w for w in plan.warnings)
+
+
+def test_move_warnings_surface_post_ruff_failure(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """AC1, AC3: a real move carries no re-validation warning, but if the
+    post-write ruff pass leaves a written file unparseable, the move still
+    succeeds and the plan carries a re-validation warning naming the file."""
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text("def kept():\n    return 1\n\n\ndef Moved():\n    return 2\n")
+    tgt.write_text("def Anchor():\n    return 0\n")
+
+    # Normal real move: no re-validation warning.
+    plan_ok = move_symbols(src, tgt, ["Moved"], workspace_root=tmp_path)
+    assert "def Moved" in tgt.read_text()
+    assert not any("re-validation" in w for w in plan_ok.warnings), plan_ok.warnings
+
+    # Force a destructive post-write ruff pass that mangles a written file.
+    src2 = tmp_path / "source2.py"
+    tgt2 = tmp_path / "target2.py"
+    src2.write_text("def kept2():\n    return 1\n\n\ndef Moved2():\n    return 2\n")
+    tgt2.write_text("def Anchor2():\n    return 0\n")
+
+    def _corrupt(action_args: list[str], warnings: list[str]) -> None:
+        if str(tgt2) in action_args:
+            tgt2.write_text("def broken(:\n    return\n")
+
+    mocker.patch("axm_anvil.core.postprocess._run_ruff", side_effect=_corrupt)
+
+    plan_bad = move_symbols(src2, tgt2, ["Moved2"], workspace_root=tmp_path)
+
+    revalidation = [w for w in plan_bad.warnings if "re-validation" in w]
+    assert revalidation, plan_bad.warnings
+    assert any(str(tgt2) in w for w in revalidation), revalidation
