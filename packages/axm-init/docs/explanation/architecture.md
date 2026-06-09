@@ -32,17 +32,12 @@ graph TD
         Copier["CopierAdapter"]
         PyPI["PyPIAdapter"]
         Creds["CredentialManager"]
-        FS["FileSystemAdapter"]
-        GH["GitHubAdapter"]
-        Makefile["MakefileAdapter"]
     end
 
     subgraph "External"
         CopierEngine["Copier Engine"]
         PyPIAPI["PyPI API"]
         PyPIRC["~/.pypirc"]
-        Disk["File System"]
-        GHCLI["gh CLI"]
     end
 
     CLI --> CheckEngine
@@ -64,8 +59,6 @@ graph TD
     Copier --> CopierEngine
     PyPI --> PyPIAPI
     Creds --> PyPIRC
-    FS --> Disk
-    GH --> GHCLI
 ```
 
 ## Layers
@@ -117,9 +110,7 @@ Each adapter wraps a single external dependency:
 | `CopierAdapter` / `CopierConfig` | `copier.run_copy()` | Template-based scaffolding (`CopierConfig` is the Pydantic input model) |
 | `PyPIAdapter` / `AvailabilityStatus` | PyPI JSON API | Package name availability check |
 | `CredentialManager` | `PYPI_API_TOKEN` / `~/.pypirc` | Token retrieval, validation, and persistence (returns `False` on `PermissionError`) |
-| `FileSystemAdapter` / `Transaction` | `pathlib` | File operations with rollback (logs warnings on cleanup failures) |
-| `GitHubAdapter` / `RepoCreateResult` | `gh` CLI | Repo creation, secrets, Pages (graceful `False` when `gh` is missing) |
-| `detect_makefile_targets()` | `Makefile` | Detect available make targets |
+
 | `patch_all()` | `pyproject.toml`, `Makefile`, CI workflows | Workspace root file patching after member scaffold |
 
 ### 5. Models (`models/`)
