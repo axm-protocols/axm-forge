@@ -353,7 +353,9 @@ def build_workspace_module_graph(ws: WorkspaceInfo) -> dict[str, list[str]]:
     return graph
 
 
-def analyze_workspace(path: Path) -> WorkspaceInfo:
+def analyze_workspace(
+    path: Path, *, detected: WorkspaceInfo | None = None
+) -> WorkspaceInfo:
     """Analyze all packages in a uv workspace.
 
     Discovers workspace members, analyzes each with ``analyze_package()``,
@@ -361,6 +363,11 @@ def analyze_workspace(path: Path) -> WorkspaceInfo:
 
     Args:
         path: Path to workspace root.
+        detected: A ``WorkspaceInfo`` already produced by
+            :func:`detect_workspace` for the same ``path``. When provided,
+            the redundant internal detection is skipped (the caller has
+            already paid for it). When ``None`` (default), detection runs
+            here as before.
 
     Returns:
         WorkspaceInfo with all packages and dependency edges.
@@ -374,7 +381,7 @@ def analyze_workspace(path: Path) -> WorkspaceInfo:
         True
     """
     path = Path(path).resolve()
-    ws = detect_workspace(path)
+    ws = detected if detected is not None else detect_workspace(path)
     if ws is None:
         msg = f"{path} is not a uv workspace"
         raise ValueError(msg)
