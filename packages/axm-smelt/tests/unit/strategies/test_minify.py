@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import yaml
 
-from axm_smelt.core.models import SmeltContext
+from axm_smelt.core.models import Format, SmeltContext
 from axm_smelt.core.pipeline import check, smelt
 from axm_smelt.strategies.minify import MinifyStrategy
 
@@ -166,3 +166,17 @@ def test_minify_xml_declaration() -> None:
     result = MinifyStrategy().apply(SmeltContext(text=text)).text
     assert '<?xml version="1.0"?>' in result
     assert "<root><item>val</item></root>" in result
+
+
+# === sort_keys policy alignment (AXM-1879) ===
+
+
+def test_minify_key_order_matches_context_text() -> None:
+    """AC1: strategy re-serialization key order matches SmeltContext.text."""
+    parsed = {"b": 1, "a": 2}
+    via_strategy = (
+        MinifyStrategy().apply(SmeltContext(parsed=parsed, format=Format.JSON)).text
+    )
+    via_context = SmeltContext(parsed=parsed, format=Format.JSON).text
+    assert via_strategy == via_context
+    assert via_strategy == '{"a":2,"b":1}'
