@@ -19,7 +19,13 @@ def _format_cell(value: object) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, (dict, list)):
-        return json.dumps(value, separators=(",", ": "), ensure_ascii=False)
+        dumped = json.dumps(value, separators=(",", ": "), ensure_ascii=False)
+        if "|" in dumped:
+            # A bare pipe inside nested JSON would be read as a column
+            # separator and spawn a phantom column. Escape it to its JSON
+            # unicode form so the cell stays a single column.
+            return dumped.replace("|", "\\u007c")
+        return dumped
     s = str(value)
     if "|" in s:
         return json.dumps(s)
