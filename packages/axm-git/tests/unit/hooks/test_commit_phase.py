@@ -42,8 +42,15 @@ class TestBuildCommitCmd:
 class TestCommitToolNoSkip:
     """Verify CommitTool (MCP) does NOT use --no-verify."""
 
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
     @patch("axm_git.tools.commit.run_git")
-    def test_commit_tool_no_skip(self, mock_git: MagicMock) -> None:
+    def test_commit_tool_no_skip(
+        self,
+        mock_git: MagicMock,
+        _mock_stage: MagicMock,
+        _mock_root: MagicMock,
+    ) -> None:
         """CommitTool.execute does NOT include --no-verify."""
         from axm_git.tools.commit import GitCommitTool
 
@@ -159,6 +166,7 @@ def _commit_from_outputs_deps() -> Any:
 
     with (
         patch("axm_git.hooks.commit_phase.run_git", side_effect=_run_git) as mock_git,
+        patch("axm_git.core.runner.run_git", side_effect=_run_git),
         patch(
             "axm_git.hooks.commit_phase.find_git_root", return_value=Path("/fake/repo")
         ),
@@ -316,6 +324,7 @@ class TestIdentityEdgeCases:
             patch(
                 "axm_git.hooks.commit_phase.run_git", side_effect=_run_git
             ) as mock_git,
+            patch("axm_git.core.runner.run_git", side_effect=_run_git),
             patch(
                 "axm_git.hooks.commit_phase.find_git_root",
                 return_value=Path("/fake/repo"),
@@ -420,6 +429,7 @@ class TestDeletedTargetResolution:
 
         with (
             patch("axm_git.hooks.commit_phase.run_git", side_effect=_run_git),
+            patch("axm_git.core.runner.run_git", side_effect=_run_git),
             patch("axm_git.hooks.commit_phase.find_git_root", return_value=git_root),
             patch("axm_git.hooks.commit_phase.resolve_identity", return_value=None),
         ):

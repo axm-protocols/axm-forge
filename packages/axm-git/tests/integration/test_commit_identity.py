@@ -60,7 +60,13 @@ def tool():
 
 
 @pytest.fixture()
-def mock_run_git(mocker):
+def mock_run_git(mocker, tmp_path):
+    # Staging now flows through ``find_git_root`` + ``stage_spec_files``; these
+    # tests don't write the files to disk, so stub the resolver to a no-op
+    # success and pin the git root to tmp_path. The tool's own run_git is
+    # mocked for the commit/log calls under test (author injection).
+    mocker.patch("axm_git.tools.commit.find_git_root", return_value=tmp_path)
+    mocker.patch("axm_git.tools.commit.stage_spec_files", return_value=None)
     return mocker.patch(
         "axm_git.tools.commit.run_git",
         side_effect=_make_run_git_ok(),
@@ -226,6 +232,8 @@ class TestIdentityEdgeCases:
             "axm_git.tools.commit.run_git",
             side_effect=_run_git_with_retry,
         )
+        mocker.patch("axm_git.tools.commit.find_git_root", return_value=tmp_path)
+        mocker.patch("axm_git.tools.commit.stage_spec_files", return_value=None)
 
         result = tool.execute(path=str(tmp_path), commits=_single_commit())
 

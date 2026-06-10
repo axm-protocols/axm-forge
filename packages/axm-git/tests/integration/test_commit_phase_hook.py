@@ -308,16 +308,17 @@ class TestCommitFromOutputsSkipHooks:
         mock_run_git.side_effect = _side_effect
 
         hook = CommitPhaseHook()
-        result = hook.execute(
-            {
-                "working_dir": str(tmp_path),
-                "commit_spec": {
-                    "message": "feat: test",
-                    "files": ["f.py"],
+        with patch("axm_git.core.runner.run_git", side_effect=_side_effect):
+            result = hook.execute(
+                {
+                    "working_dir": str(tmp_path),
+                    "commit_spec": {
+                        "message": "feat: test",
+                        "files": ["f.py"],
+                    },
                 },
-            },
-            from_outputs=True,
-        )
+                from_outputs=True,
+            )
 
         assert result.success
         # Find the commit call and verify --no-verify is present
@@ -355,17 +356,18 @@ class TestCommitFromOutputsSkipHooks:
         mock_run_git.side_effect = _side_effect
 
         hook = CommitPhaseHook()
-        result = hook.execute(
-            {
-                "working_dir": str(tmp_path),
-                "commit_spec": {
-                    "message": "feat: test",
-                    "files": ["f.py"],
+        with patch("axm_git.core.runner.run_git", side_effect=_side_effect):
+            result = hook.execute(
+                {
+                    "working_dir": str(tmp_path),
+                    "commit_spec": {
+                        "message": "feat: test",
+                        "files": ["f.py"],
+                    },
                 },
-            },
-            from_outputs=True,
-            skip_hooks=False,
-        )
+                from_outputs=True,
+                skip_hooks=False,
+            )
 
         assert result.success
         commit_calls = [
@@ -402,17 +404,18 @@ class TestCommitFromOutputsSkipHooks:
         mock_run_git.side_effect = _side_effect
 
         hook = CommitPhaseHook()
-        result = hook.execute(
-            {
-                "working_dir": str(tmp_path),
-                "commit_spec": {
-                    "message": "feat: test",
-                    "files": ["f.py"],
+        with patch("axm_git.core.runner.run_git", side_effect=_side_effect):
+            result = hook.execute(
+                {
+                    "working_dir": str(tmp_path),
+                    "commit_spec": {
+                        "message": "feat: test",
+                        "files": ["f.py"],
+                    },
                 },
-            },
-            from_outputs=True,
-            skip_hooks=True,
-        )
+                from_outputs=True,
+                skip_hooks=True,
+            )
 
         assert result.success
         commit_calls = [

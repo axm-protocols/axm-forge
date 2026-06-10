@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -42,8 +43,12 @@ class TestGitCommitTool:
         assert not result.success
         assert "No commits" in (result.error or "")
 
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
     @patch("axm_git.tools.commit.run_git")
-    def test_single_commit_success(self, mock_git: MagicMock) -> None:
+    def test_single_commit_success(
+        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+    ) -> None:
         def _side_effect(
             args: list[str], cwd: Any, **kw: Any
         ) -> subprocess.CompletedProcess[str]:
@@ -64,8 +69,12 @@ class TestGitCommitTool:
         assert result.data["total"] == 1
         assert result.data["results"][0]["sha"] == "abc1234"
 
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
     @patch("axm_git.tools.commit.run_git")
-    def test_batch_commits(self, mock_git: MagicMock) -> None:
+    def test_batch_commits(
+        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+    ) -> None:
         def _side_effect(
             args: list[str], cwd: Any, **kw: Any
         ) -> subprocess.CompletedProcess[str]:
@@ -90,8 +99,12 @@ class TestGitCommitTool:
         assert result.data["total"] == 3
         assert result.data["succeeded"] == 3
 
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
     @patch("axm_git.tools.commit.run_git")
-    def test_precommit_failure_stops_batch(self, mock_git: MagicMock) -> None:
+    def test_precommit_failure_stops_batch(
+        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+    ) -> None:
         commit_count = 0
 
         def _side_effect(
@@ -141,16 +154,16 @@ class TestGitCommitTool:
         assert not result.success
         assert "empty message" in (result.error or "")
 
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch(
+        "axm_git.tools.commit.stage_spec_files",
+        return_value="files not found: 'x.py'",
+    )
     @patch("axm_git.tools.commit.run_git")
-    def test_git_add_failure(self, mock_git: MagicMock) -> None:
-        def _side_effect(
-            args: list[str], cwd: Any, **kw: Any
-        ) -> subprocess.CompletedProcess[str]:
-            if args[0] == "rev-parse":
-                return _ok()
-            return _fail(stderr="pathspec 'x' did not match any files")
-
-        mock_git.side_effect = _side_effect
+    def test_git_add_failure(
+        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+    ) -> None:
+        mock_git.return_value = _ok()
         result = GitCommitTool().execute(
             path="/tmp/test",
             commits=[{"files": ["x.py"], "message": "fix: x"}],
@@ -158,8 +171,12 @@ class TestGitCommitTool:
         assert not result.success
         assert "git add failed" in (result.error or "")
 
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
     @patch("axm_git.tools.commit.run_git")
-    def test_commit_with_body(self, mock_git: MagicMock) -> None:
+    def test_commit_with_body(
+        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+    ) -> None:
         """Commit with body adds second -m flag."""
 
         def _side_effect(
@@ -188,17 +205,22 @@ class TestGitCommitTool:
 
     # ── Bug fix tests ──────────────────────────────────────────────
 
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
     @patch("axm_git.tools.commit.run_git")
-    def test_git_add_uses_dash_a_flag(self, mock_git: MagicMock) -> None:
-        """git add call includes -A and -- flags."""
-        add_calls: list[list[str]] = []
+    def test_staging_routes_through_smart_resolver(
+        self, mock_git: MagicMock, mock_stage: MagicMock, mock_root: MagicMock
+    ) -> None:
+        """AC2/AC6: staging goes through the subdir-aware ``stage_spec_files``.
+
+        The naive ``git add -A`` helper was removed; the tool now resolves the
+        git root and delegates staging to the promoted resolver, passing the
+        given *path* as the working-dir fallback.
+        """
 
         def _side_effect(
             args: list[str], cwd: Any, **kw: Any
         ) -> subprocess.CompletedProcess[str]:
-            if args[0] == "add":
-                add_calls.append(args)
-                return _ok()
             if args[0] == "commit":
                 return _ok()
             if args[0] == "log":
@@ -210,12 +232,23 @@ class TestGitCommitTool:
             path="/tmp/test",
             commits=[{"files": ["a.py"], "message": "fix: a"}],
         )
-        assert len(add_calls) == 1
-        assert "-A" in add_calls[0]
-        assert "--" in add_calls[0]
+        mock_root.assert_called_once()
+        mock_stage.assert_called_once()
+        stage_args, stage_kwargs = mock_stage.call_args
+        assert stage_args[0] == ["a.py"]
+        assert (
+            Path(stage_kwargs["working_dir"]).resolve() == Path("/tmp/test").resolve()
+        )
+        # No raw ``git add`` is issued by the tool any more.
+        add_calls = [c for c in mock_git.call_args_list if c[0][0][0] == "add"]
+        assert add_calls == []
 
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
     @patch("axm_git.tools.commit.run_git")
-    def test_auto_retry_on_ruff_fix(self, mock_git: MagicMock) -> None:
+    def test_auto_retry_on_ruff_fix(
+        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+    ) -> None:
         """When pre-commit auto-fixes, re-stage and retry once."""
         commit_count = 0
 
@@ -243,8 +276,12 @@ class TestGitCommitTool:
         assert result.data["results"][0]["retried"] is True
         assert commit_count == 2
 
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
     @patch("axm_git.tools.commit.run_git")
-    def test_auto_retry_fails_twice(self, mock_git: MagicMock) -> None:
+    def test_auto_retry_fails_twice(
+        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+    ) -> None:
         """When retry also fails, report error with retried=True."""
 
         def _side_effect(
@@ -279,9 +316,15 @@ class TestConventionalCommitValidation:
             return _ok("abc1234")
         return _ok()
 
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
     @patch("axm_git.tools.commit.run_git")
     def test_non_conventional_message_warns(
-        self, mock_git: MagicMock, caplog: pytest.LogCaptureFixture
+        self,
+        mock_git: MagicMock,
+        _mock_stage: MagicMock,
+        _mock_root: MagicMock,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """AC1, AC4: a non-conventional message warns but the commit proceeds."""
         mock_git.side_effect = self._side_effect
@@ -301,9 +344,16 @@ class TestConventionalCommitValidation:
             pytest.param("feat!: drop y", id="breaking_marker"),
         ],
     )
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
     @patch("axm_git.tools.commit.run_git")
     def test_conventional_message_no_warning(
-        self, mock_git: MagicMock, caplog: pytest.LogCaptureFixture, message: str
+        self,
+        mock_git: MagicMock,
+        _mock_stage: MagicMock,
+        _mock_root: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+        message: str,
     ) -> None:
         """AC2, AC3: valid conventional messages (incl. breaking ``!``).
 
@@ -318,8 +368,12 @@ class TestConventionalCommitValidation:
         assert result.success is True
         assert not any(message in r.getMessage() for r in caplog.records)
 
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
     @patch("axm_git.tools.commit.run_git")
-    def test_strict_mode_blocks_non_conventional(self, mock_git: MagicMock) -> None:
+    def test_strict_mode_blocks_non_conventional(
+        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+    ) -> None:
         """AC4: explicit strict mode turns the warning into a hard failure."""
         mock_git.side_effect = self._side_effect
         result = GitCommitTool().execute(
