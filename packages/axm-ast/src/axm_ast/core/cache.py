@@ -103,9 +103,14 @@ class PackageCache:
                 self._calls_store.pop(key, None)
                 self._index_store.pop(key, None)
 
+        # Capture the fingerprint BEFORE parsing so the stored fingerprint
+        # reflects the file state the analysis actually saw. Capturing it after
+        # ``analyze_package`` would bake a modification made *during* analysis
+        # into the fingerprint, leaving the entry permanently stale (the next
+        # ``get`` would see ``current_fp == cached_fp`` and never re-parse).
+        fp = _file_fingerprint(key)
         # Parse outside the lock to avoid blocking other threads
         pkg = analyze_package(key)
-        fp = _file_fingerprint(key)
         with self._lock:
             # Double-check: another thread may have populated it
             if key not in self._store:
