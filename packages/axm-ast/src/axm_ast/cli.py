@@ -17,7 +17,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Annotated, TypedDict, cast
+from typing import TYPE_CHECKING, Annotated, NamedTuple, TypedDict, cast
 
 import cyclopts
 
@@ -34,6 +34,9 @@ from axm_ast.formatters import (
     format_text,
 )
 from axm_ast.models.nodes import SymbolKind
+
+if TYPE_CHECKING:
+    from axm_ast.models.nodes import WorkspaceInfo
 
 
 class _DiffSymbol(TypedDict):
@@ -95,6 +98,33 @@ def _resolve_dir(path: str) -> Path:
         print(f"❌ Not a directory: {resolved}", file=sys.stderr)
         raise SystemExit(1)
     return resolved
+
+
+class _ResolvedTarget(NamedTuple):
+    """Outcome of resolving a CLI path to a workspace or a single package.
+
+    Holds the resolved directory and the workspace handle from a *single*
+    ``detect_workspace`` call, so callers branch on ``workspace`` without
+    re-detecting. ``workspace is None`` means the path is a single package.
+    """
+
+    path: Path
+    workspace: WorkspaceInfo | None
+
+
+def _resolve_workspace_or_package(path: str) -> _ResolvedTarget:
+    """Resolve *path* and detect once whether it is a uv workspace.
+
+    Replaces the detect-then-discard-then-redetect pattern: the returned
+    ``workspace`` handle is the single source of truth for the workspace
+    branch, and is threaded back into ``analyze_workspace`` to avoid a
+    second detection.
+    """
+    project_path = _resolve_dir(path)
+
+    from axm_ast.core.workspace import detect_workspace
+
+    return _ResolvedTarget(project_path, detect_workspace(project_path))
 
 
 @app.command()
@@ -357,11 +387,14 @@ def graph(
         _print_package_graph(project_path, fmt=fmt, json_output=json_output)
         return
 
-    from axm_ast.core.workspace import detect_workspace
-
-    ws = detect_workspace(project_path)
-    if ws is not None:
-        _print_workspace_graph(project_path, fmt=fmt, json_output=json_output)
+    target = _resolve_workspace_or_package(path)
+    if target.workspace is not None:
+        _print_workspace_graph(
+            target.path,
+            fmt=fmt,
+            json_output=json_output,
+            detected=target.workspace,
+        )
         return
 
     _print_package_graph(project_path, fmt=fmt, json_output=json_output)
@@ -390,7 +423,13 @@ def _print_workspace_module_graph(
         _print_graph_data(graph_data, "Workspace Module Graph")
 
 
-def _print_workspace_graph(project_path: Path, *, fmt: str, json_output: bool) -> None:
+def _print_workspace_graph(
+    project_path: Path,
+    *,
+    fmt: str,
+    json_output: bool,
+    detected: WorkspaceInfo | None = None,
+) -> None:
     """Print a workspace-level dependency graph."""
     from axm_ast.core.workspace import (
         analyze_workspace,
@@ -398,7 +437,7 @@ def _print_workspace_graph(project_path: Path, *, fmt: str, json_output: bool) -
         format_workspace_graph_mermaid,
     )
 
-    ws = analyze_workspace(project_path)
+    ws = analyze_workspace(project_path, detected=detected)
     graph_data = build_workspace_dep_graph(ws)
 
     if json_output or fmt == "json":
@@ -502,16 +541,14 @@ def callers(
     ] = False,
 ) -> None:
     """Find all call-sites of a given symbol across a package."""
-    project_path = _resolve_dir(path)
+    target = _resolve_workspace_or_package(path)
+    project_path = target.path
 
-    from axm_ast.core.workspace import detect_workspace
-
-    ws = detect_workspace(project_path)
-    if ws is not None:
+    if target.workspace is not None:
         from axm_ast.core.callers import find_callers_workspace
         from axm_ast.core.workspace import analyze_workspace
 
-        ws = analyze_workspace(project_path)
+        ws = analyze_workspace(project_path, detected=target.workspace)
         results = find_callers_workspace(ws, symbol)
     else:
         pkg = get_package(project_path)
@@ -602,12 +639,10 @@ def context(
     ] = None,
 ) -> None:
     """Dump complete project context in one shot for AI agents."""
-    project_path = _resolve_dir(path)
+    target = _resolve_workspace_or_package(path)
+    project_path = target.path
 
-    from axm_ast.core.workspace import detect_workspace
-
-    ws = detect_workspace(project_path)
-    if ws is not None:
+    if target.workspace is not None:
         _print_workspace_context(project_path, json_output=json_output, depth=depth)
         return
 

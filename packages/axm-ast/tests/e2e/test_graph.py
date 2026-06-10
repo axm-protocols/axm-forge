@@ -87,3 +87,39 @@ def test_cli_graph_scope_workspace(mini_workspace: Path) -> None:
     assert all("." in n for n in nodes)
     assert any(n.startswith("pkg_a.") for n in nodes)
     assert any(n.startswith("pkg_b.") for n in nodes)
+
+
+def test_graph_workspace_output_unchanged(mini_workspace: Path) -> None:
+    """AC2: ``graph`` auto-detects a workspace and emits the workspace graph;
+    output and exit code are unchanged by the helper refactor."""
+    proc = subprocess.run(
+        [
+            "axm-ast",
+            "graph",
+            str(mini_workspace),
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    proc_pkg = subprocess.run(
+        [
+            "axm-ast",
+            "graph",
+            str(mini_workspace),
+            "--scope",
+            "workspace-deps",
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc_pkg.returncode == 0, proc_pkg.stderr
+    # Auto-detection routes a workspace through the workspace-deps graph;
+    # the auto output must be byte-identical to the explicit workspace-deps
+    # output. Only holds if the workspace branch was taken (single boundary
+    # detection) — the refactor must not change this.
+    assert proc.stdout == proc_pkg.stdout, (proc.stdout, proc_pkg.stdout)
