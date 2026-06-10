@@ -50,6 +50,7 @@ ast_dead_code = "axm_ast.tools.dead_code:DeadCodeTool"
 ast_diff      = "axm_ast.tools.diff:DiffTool"
 ast_flows      = "axm_ast.tools.flows:FlowsTool"
 ast_doc_impact = "axm_ast.tools.doc_impact:DocImpactTool"
+ast_file_header = "axm_ast.tools.file_header:AstFileHeaderTool"
 
 [project.entry-points."axm.hooks"]
 "ast:trace-source"  = "axm_ast.hooks.trace_source:TraceSourceHook"
