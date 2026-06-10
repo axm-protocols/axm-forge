@@ -104,3 +104,23 @@ def test_clear_cache_then_get() -> None:
     second = get_package(SAMPLE_PKG)
     assert first is not second
     assert first.name == second.name
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Docstring contract — best-effort double-check / benign race
+# ────────────────────────────────────────────────────────────────────────────
+
+
+def test_get_calls_docstring_documents_benign_race() -> None:
+    """AC1: get_calls/get_call_index docstrings document the benign race.
+
+    Both methods use compute-outside-lock + re-check-before-write
+    (best-effort double-checked locking); the docstrings must explain
+    why the resulting race is benign.
+    """
+    for doc in (PackageCache.get_calls.__doc__, PackageCache.get_call_index.__doc__):
+        assert doc is not None
+        lowered = doc.lower()
+        assert "double-check" in lowered
+        assert "benign" in lowered
+        assert "first write wins" in lowered
