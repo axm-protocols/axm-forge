@@ -85,6 +85,7 @@ def extract_call_site(
     if symbol is None:
         return None
 
+    confidence = _call_confidence(func_node)
     call_text = node_text_safe(node)
     if len(call_text) > _MAX_CALL_EXPRESSION_LEN:
         call_text = call_text[: _MAX_CALL_EXPRESSION_LEN - 3] + "..."
@@ -100,7 +101,35 @@ def extract_call_site(
         column=column,
         context=context,
         call_expression=call_text,
+        confidence=confidence,
     )
+
+
+# Confidence of a name-only match, derived purely from call syntax (no type
+# inference). A direct call or a ``self``/``cls`` method call is an unambiguous
+# local reference; an attribute call on any other receiver may conflate distinct
+# same-named symbols, so it scores lower.
+_DIRECT_CALL_CONFIDENCE = 1.0
+_SELF_RECEIVERS = frozenset({"self", "cls"})
+_ATTRIBUTE_CALL_CONFIDENCE = 0.5
+
+
+def _call_confidence(func_node: object) -> float:
+    """Score a name-only match from call syntax alone (no receiver resolution).
+
+    Returns ``1.0`` for a direct call (``foo()``) or a ``self``/``cls`` method
+    call, and a lower score for an attribute call on another receiver
+    (``obj.foo()``) — purely from inspecting whether the function-position node
+    is an ``attribute`` access, never resolving the receiver's type.
+    """
+    if getattr(func_node, "type", "") != "attribute":
+        return _DIRECT_CALL_CONFIDENCE
+    children = getattr(func_node, "children", [])
+    receiver = children[0] if children else None
+    if getattr(receiver, "type", "") == "identifier":
+        if node_text_safe(receiver) in _SELF_RECEIVERS:
+            return _DIRECT_CALL_CONFIDENCE
+    return _ATTRIBUTE_CALL_CONFIDENCE
 
 
 def _resolve_symbol_name(func_node: object) -> str | None:

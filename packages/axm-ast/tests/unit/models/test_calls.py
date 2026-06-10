@@ -92,3 +92,61 @@ class TestCallSiteModel:
         )
         data = cs.model_dump()
         assert data["context"] is None
+
+
+class TestCallSiteConfidence:
+    """AC2: additive, backward-compatible confidence derived from syntax."""
+
+    def test_confidence_defaults_high(self) -> None:
+        """AC2/AC3: confidence is additive with a default that does not break
+        existing call-sites built without the field."""
+        cs = CallSite(
+            module="cli",
+            symbol="greet",
+            line=1,
+            column=0,
+            call_expression='greet("world")',
+        )
+        assert cs.confidence == 1.0
+
+    def test_callsite_confidence_lower_for_attribute_receiver(self) -> None:
+        """AC2: a non-self attribute call has lower confidence than a
+        direct/self call (purely syntactic, no receiver resolution)."""
+        direct = CallSite(
+            module="cli",
+            symbol="foo",
+            line=1,
+            column=0,
+            call_expression="foo()",
+            confidence=1.0,
+        )
+        self_call = CallSite(
+            module="cli",
+            symbol="foo",
+            line=2,
+            column=0,
+            call_expression="self.foo()",
+            confidence=1.0,
+        )
+        attr_call = CallSite(
+            module="cli",
+            symbol="foo",
+            line=3,
+            column=0,
+            call_expression="obj.foo()",
+            confidence=0.5,
+        )
+        assert attr_call.confidence < direct.confidence
+        assert attr_call.confidence < self_call.confidence
+
+    def test_confidence_in_model_dump(self) -> None:
+        """AC2/AC3: confidence is serialized so consumers can read it."""
+        cs = CallSite(
+            module="cli",
+            symbol="fn",
+            line=1,
+            column=0,
+            call_expression="obj.fn()",
+            confidence=0.5,
+        )
+        assert cs.model_dump()["confidence"] == 0.5

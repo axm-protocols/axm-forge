@@ -45,6 +45,16 @@ axm-ast callers src/mylib --symbol my_function
     my_function(data)
 ```
 
+!!! warning "Callers are matched by name only"
+    Both `callers` and `impact` match call-sites by the **trailing symbol
+    name** — the receiver is never resolved (tree-sitter does no type
+    inference). So `self.foo()`, `obj.foo()` and a bare `foo()` all count as
+    callers of `foo`. This can surface **false-positive callers** that call a
+    *distinct*, like-named method on a different object. Each call-site
+    carries a syntactic `confidence` score (`1.0` for direct or `self`/`cls`
+    calls, lower for an attribute call on another receiver) so you can triage
+    likely false positives — it never changes which callers are listed.
+
 ## Exclude Test Modules
 
 Use `--exclude-tests` to focus the analysis on production code only, filtering out test modules from callers and affected modules:
