@@ -79,13 +79,29 @@ def smelt(
     *,
     parsed: dict[str, JsonValue] | list[JsonValue] | None = None,
 ) -> SmeltReport:
-    """Run the compaction pipeline and return a report."""
+    """Run the compaction pipeline and return a report.
+
+    Baseline for ``savings_pct``:
+
+    - ``text=`` path: the baseline is the provided raw string, unchanged.
+    - ``parsed=`` path: the baseline is the *pretty* serialization
+      ``json.dumps(parsed, indent=2, ensure_ascii=False)``, not the compact
+      dump. A parsed object has no canonical textual form, so measuring
+      savings against an already-minified compact baseline would
+      structurally under-report the reduction. The pretty baseline reflects
+      the indented form a user would otherwise have read, so ``savings_pct``
+      matches the perceived reduction. ``report.original`` still holds the
+      compact serialization (the pipeline's working text).
+    """
     text, parsed = resolve_input(text, parsed)
 
     fmt, detected_parsed = detect_format_parsed(text)
     if parsed is not None:
         detected_parsed = parsed
-    original_tokens, b1 = count_with_backend(text)
+        baseline = json.dumps(parsed, indent=2, ensure_ascii=False)
+    else:
+        baseline = text
+    original_tokens, b1 = count_with_backend(baseline)
 
     strats = resolve_strategies(strategies, preset)
 

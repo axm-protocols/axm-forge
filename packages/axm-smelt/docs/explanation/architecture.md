@@ -43,6 +43,8 @@ Four commands via cyclopts: `compact`, `check`, `count`, `version`. All read fro
 
 Between helper calls, `smelt()` detects the format via `detect_format_parsed()` (JSON is probed inline to capture the already-parsed object; the remaining probes are `try_xml`, `try_yaml`, `try_markdown`), counts input tokens, and builds the initial `SmeltContext`. After `_apply_strategies` returns, it counts output tokens and computes `savings_pct`.
 
+The **savings baseline** depends on how the input arrived. For the `text=` path the baseline is the provided raw string, unchanged. For the `parsed=` path there is no canonical textual form, so the baseline is the *pretty* serialization `json.dumps(parsed, indent=2, ensure_ascii=False)` rather than the compact dump produced by `resolve_input`. Measuring against the already-minified compact form would structurally under-report the reduction; the pretty baseline reflects the indented form a user would otherwise have read, so `savings_pct` matches the perceived reduction. `report.original` still carries the compact serialization (the pipeline's working text).
+
 `check()` runs every registered strategy independently on the original `SmeltContext` and records per-strategy savings without chaining. Only strategies with positive savings (> 0%) are included in `strategy_estimates`; strategies that regress or break even are omitted.
 
 ### 5. Strategies (`strategies/`)
