@@ -171,3 +171,9 @@ def test_distinct_contexts_are_independent() -> None:
     b = SmeltContext(text='{"key":"value"}')
     assert a.parsed == b.parsed == {"key": "value"}
     assert a.text != b.text  # text is the source-of-truth, not re-derived
+
+
+def test_strategy_and_context_text_same_order() -> None:
+    """AC2: SmeltContext.text serializes parsed in sorted-key order."""
+    ctx = SmeltContext(parsed={"b": 1, "a": 2, "c": 3}, format=Format.JSON)
+    assert ctx.text == '{"a":2,"b":1,"c":3}'

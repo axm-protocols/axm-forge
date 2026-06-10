@@ -74,6 +74,7 @@ class FlattenStrategy(SmeltStrategy):
             flattened = _flatten_node(parsed, self._max_depth)
             result = json.dumps(
                 flattened,
+                sort_keys=True,
                 separators=(",", ":"),
                 ensure_ascii=False,
             )
@@ -90,6 +91,7 @@ class FlattenStrategy(SmeltStrategy):
                 flattened = _flatten_node(data, self._max_depth)
                 result = json.dumps(
                     flattened,
+                    sort_keys=True,
                     separators=(",", ":"),
                     ensure_ascii=False,
                 )

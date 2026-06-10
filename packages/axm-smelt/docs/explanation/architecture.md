@@ -51,6 +51,8 @@ The **savings baseline** depends on how the input arrived. For the `text=` path 
 
 Each strategy is a class implementing `SmeltStrategy` (name, category, `apply(ctx) -> SmeltContext`). Strategies are registered in `_REGISTRY` and composed into presets via `_PRESETS`:
 
+**Serialization key ordering** — every JSON re-serialization site uses a single canonical policy: `json.dumps(..., sort_keys=True, separators=(",", ":"), ensure_ascii=False)`. The structural strategies (`minify`, `drop_nulls`, `round_numbers`, `flatten`, `dedup_values_with_refs`) emit object keys in sorted order, matching `SmeltContext.text`. This makes the serialized output independent of which code path produced it (a value round-tripped through a strategy has the same byte layout as the same value via `SmeltContext.text`), which is the stronger determinism guarantee.
+
 | Preset | Strategies |
 |---|---|
 | `safe` | `minify`, `collapse_whitespace` |
@@ -76,7 +78,7 @@ Heuristic detection returns a `Format` enum value (`JSON`, `YAML`, `XML`, `TOML`
 
 ### 7. Models (`core/models.py`)
 
-`SmeltContext` — frozen dataclass carrying the detected format plus one source-of-truth representation (text or parsed); the other is derived deterministically and cached on first access. Strategies build a new `SmeltContext` instead of mutating the existing one, so the two representations cannot drift. `SmeltReport` — Pydantic model carrying the compaction metrics plus the `counter_backend` used. `Format` — string enum.
+`SmeltContext` — frozen dataclass carrying the detected format plus one source-of-truth representation (text or parsed); the other is derived deterministically and cached on first access. `SmeltContext.text` derives from `parsed` via the canonical sorted-key serialization (`sort_keys=True`, compact separators), the same policy every strategy applies. Strategies build a new `SmeltContext` instead of mutating the existing one, so the two representations cannot drift. `SmeltReport` — Pydantic model carrying the compaction metrics plus the `counter_backend` used. `Format` — string enum.
 
 ## Data Flow
 
