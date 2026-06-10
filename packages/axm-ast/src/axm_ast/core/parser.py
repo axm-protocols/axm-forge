@@ -121,6 +121,10 @@ def parse_file(path: Path) -> Tree:
     Returns:
         Parsed tree-sitter Tree.
 
+    Non-UTF-8 bytes are decoded best-effort with ``errors="replace"``
+    (undecodable bytes become U+FFFD), so a file with mixed or invalid
+    encoding is still parsed rather than raising ``UnicodeDecodeError``.
+
     Raises:
         FileNotFoundError: If the file does not exist.
         ValueError: If the file is not a .py file.
@@ -148,7 +152,9 @@ def parse_file(path: Path) -> Tree:
 
     # Parse outside the lock — concurrent parses of the same file are harmless
     # (idempotent); the last write wins.
-    source = path.read_text(encoding="utf-8")
+    # Best-effort decode: tolerate non-UTF-8 / mixed-encoding files instead
+    # of leaking UnicodeDecodeError (undecodable bytes become U+FFFD).
+    source = path.read_text(encoding="utf-8", errors="replace")
     tree = parse_source(source)
 
     with _parse_cache_lock:
