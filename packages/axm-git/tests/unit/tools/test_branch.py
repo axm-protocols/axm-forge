@@ -142,3 +142,33 @@ class TestGitBranchTool:
         )
         assert not result.success
         assert "not a commit" in (result.error or "")
+
+
+class TestGitBranchDelete:
+    """Test the delete path of GitBranchTool (``git branch -D``)."""
+
+    @patch("axm_git.tools.branch.run_git")
+    def test_delete_success(self, mock_git: MagicMock) -> None:
+        """Deleting an existing branch returns deleted=True."""
+        mock_git.side_effect = [
+            _ok(),  # rev-parse --git-dir
+            _ok(stdout="Deleted branch feat/x (was abc123)."),  # branch -D
+        ]
+        result = GitBranchTool().execute(name="feat/x", delete=True, path="/repo")
+        assert result.success
+        assert result.data["deleted"] is True
+        assert result.data["branch"] == "feat/x"
+
+        delete_call = mock_git.call_args_list[1]
+        assert delete_call[0][0] == ["branch", "-D", "feat/x"]
+
+    @patch("axm_git.tools.branch.run_git")
+    def test_delete_fails(self, mock_git: MagicMock) -> None:
+        """Deleting a non-existent branch returns failure."""
+        mock_git.side_effect = [
+            _ok(),  # rev-parse --git-dir
+            _fail(stderr="error: branch 'feat/x' not found"),  # branch -D
+        ]
+        result = GitBranchTool().execute(name="feat/x", delete=True, path="/repo")
+        assert not result.success
+        assert "not found" in (result.error or "")

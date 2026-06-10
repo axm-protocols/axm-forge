@@ -30,15 +30,18 @@ class GitBranchTool(AXMTool):
         name: str,
         from_ref: str | None = None,
         checkout_only: bool = False,
+        delete: bool = False,
         path: str = ".",
         **kwargs: object,
     ) -> ToolResult:
-        """Create or checkout a git branch.
+        """Create, checkout, or delete a git branch.
 
         Args:
             name: Branch name (required).
             from_ref: Optional ref to branch from (tag, commit, branch).
             checkout_only: If True, checkout existing branch without creating.
+            delete: If True, delete the branch (``git branch -D``) instead of
+                creating/checking out. Mutually exclusive with the create path.
             path: Project root directory.
 
         Returns:
@@ -59,6 +62,9 @@ class GitBranchTool(AXMTool):
                         error=repo_err.error or "", data=repo_err.data
                     ),
                 )
+
+            if delete:
+                return self._delete(name, resolved)
 
             # Build the checkout command.
             if checkout_only:
@@ -85,3 +91,19 @@ class GitBranchTool(AXMTool):
 
         data: dict[str, object] = {"branch": branch}
         return ToolResult(success=True, data=data, text=render_text(data))
+
+    @staticmethod
+    def _delete(name: str, resolved: Path) -> ToolResult:
+        """Delete branch *name* via ``git branch -D``."""
+        result = run_git(["branch", "-D", name], resolved)
+        if result.returncode != 0:
+            error = result.stderr.strip() or result.stdout.strip()
+            return ToolResult(
+                success=False,
+                error=error,
+                text=render_failure_text(error=error, data=None),
+            )
+        data: dict[str, object] = {"branch": name, "deleted": True}
+        return ToolResult(
+            success=True, data=data, text=f"git_branch | ✓ | deleted {name}"
+        )

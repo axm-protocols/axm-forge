@@ -20,14 +20,17 @@ dependencies = [
 ]
 
 [project.entry-points."axm.tools"]
-git_tag       = "axm_git.tools.tag:GitTagTool"
-git_preflight = "axm_git.tools.commit_preflight:GitPreflightTool"
-git_commit    = "axm_git.tools.commit:GitCommitTool"
-git_branch    = "axm_git.tools.branch:GitBranchTool"
-git_push      = "axm_git.tools.push:GitPushTool"
-git_clone     = "axm_git.tools.clone:GitCloneTool"
-git_worktree  = "axm_git.tools.worktree:GitWorktreeTool"
-git_pr        = "axm_git.tools.pr:GitPRTool"
+git_tag         = "axm_git.tools.tag:GitTagTool"
+git_preflight   = "axm_git.tools.commit_preflight:GitPreflightTool"
+git_commit      = "axm_git.tools.commit:GitCommitTool"
+git_branch      = "axm_git.tools.branch:GitBranchTool"
+git_push        = "axm_git.tools.push:GitPushTool"
+git_clone       = "axm_git.tools.clone:GitCloneTool"
+git_worktree    = "axm_git.tools.worktree:GitWorktreeTool"
+git_pr          = "axm_git.tools.pr:GitPRTool"
+git_merge       = "axm_git.tools.merge:GitMergeTool"
+git_pull        = "axm_git.tools.pull:GitPullTool"
+git_await_merge = "axm_git.tools.await_merge:GitAwaitMergeTool"
 
 [project.entry-points."axm.hooks"]
 "git:branch-delete"  = "axm_git.hooks.branch_delete:BranchDeleteHook"
