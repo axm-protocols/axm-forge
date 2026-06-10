@@ -37,7 +37,9 @@ class MinifyStrategy(SmeltStrategy):
         # Fast path: parsed already available — compact serialization
         parsed = ctx.parsed
         if parsed is not None:
-            result = json.dumps(parsed, separators=(",", ":"), ensure_ascii=False)
+            result = json.dumps(
+                parsed, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            )
             return SmeltContext(text=result, format=ctx.format, parsed=parsed)
 
         text = ctx.text
@@ -49,7 +51,9 @@ class MinifyStrategy(SmeltStrategy):
         if stripped[0] in ("{", "["):
             try:
                 data = json.loads(stripped)
-                result = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+                result = json.dumps(
+                    data, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                )
                 return SmeltContext(text=result, format=ctx.format, parsed=data)
             except (json.JSONDecodeError, ValueError):
                 pass

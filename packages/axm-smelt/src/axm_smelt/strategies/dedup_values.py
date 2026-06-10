@@ -111,6 +111,8 @@ class DedupValuesStrategy(SmeltStrategy):
         replaced = replace_strings(parsed, lookup)
         result = {"_refs": aliases, "_data": replaced}
         return SmeltContext(
-            text=json.dumps(result, separators=(",", ":"), ensure_ascii=False),
+            text=json.dumps(
+                result, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            ),
             format=ctx.format,
         )
