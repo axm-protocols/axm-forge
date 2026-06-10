@@ -16,8 +16,15 @@ from axm_ast.core.analyzer import analyze_package
 from axm_ast.core.impact import (
     REEXPORT_WEIGHT,
     ImpactReport,
+    find_definition,
     find_type_refs,
     score_impact,
+)
+from axm_ast.models.nodes import (
+    ClassInfo,
+    FunctionInfo,
+    ModuleInfo,
+    PackageInfo,
 )
 
 SELF_PKG = Path(__file__).resolve().parents[3] / "src" / "axm_ast"
@@ -157,3 +164,69 @@ class TestTypeRefsDogfood:
         # Should include both param and return refs.
         ref_types = {r["ref_type"] for r in refs}
         assert "param" in ref_types
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# find_definition — homonym disambiguation (AXM-1884 / F3)
+# ────────────────────────────────────────────────────────────────────────────
+
+
+def _fn(name: str, line: int) -> FunctionInfo:
+    return FunctionInfo(name=name, line_start=line, line_end=line + 1)
+
+
+def _mod(
+    rel: str, *, functions: list[FunctionInfo], classes: list[ClassInfo]
+) -> ModuleInfo:
+    return ModuleInfo(path=Path("/pkg") / rel, functions=functions, classes=classes)
+
+
+def _pkg(*modules: ModuleInfo) -> PackageInfo:
+    return PackageInfo(name="pkg", root=Path("/pkg"), modules=list(modules))
+
+
+def test_find_definition_homonym_surfaces_ambiguity() -> None:
+    """AC1: a plain name matching >1 top-level def surfaces the ambiguity.
+
+    Mirrors ``_inspect_symbol``'s ``"Multiple symbols match '...': ..."``
+    message instead of silently returning the first homonym.
+    """
+    pkg = _pkg(
+        _mod("alpha.py", functions=[_fn("helper", 10)], classes=[]),
+        _mod("beta.py", functions=[_fn("helper", 20)], classes=[]),
+    )
+    with pytest.raises(ValueError, match="Multiple symbols match 'helper'") as exc:
+        find_definition(pkg, "helper")
+    message = str(exc.value)
+    # Both candidates surfaced as dotted module paths.
+    assert "alpha.helper" in message
+    assert "beta.helper" in message
+
+
+def test_find_definition_unique_name_resolves() -> None:
+    """AC2: a unique plain name resolves exactly as before (no change)."""
+    pkg = _pkg(
+        _mod("alpha.py", functions=[_fn("solo", 7)], classes=[]),
+        _mod("beta.py", functions=[_fn("other", 3)], classes=[]),
+    )
+    result = find_definition(pkg, "solo")
+    assert result is not None
+    assert result["module"] == "alpha"
+    assert result["line"] == 7
+    assert result["kind"] == "function"
+
+
+def test_find_definition_dotted_unaffected() -> None:
+    """AC3: the dotted ``ClassName.method`` path is unaffected."""
+    cls = ClassInfo(
+        name="Widget",
+        line_start=1,
+        line_end=20,
+        methods=[_fn("render", 5)],
+    )
+    pkg = _pkg(_mod("ui.py", functions=[], classes=[cls]))
+    result = find_definition(pkg, "Widget.render")
+    assert result is not None
+    # Resolved via the dotted (class-body) path, not the plain-name path.
+    assert result["module"] == "ui"
+    assert result["line"] == 5
