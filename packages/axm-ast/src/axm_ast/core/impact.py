@@ -216,25 +216,46 @@ def _find_plain_definition(
     pkg: PackageInfo,
     symbol: str,
 ) -> DefinitionInfo | None:
-    """Resolve a plain (non-dotted) symbol definition."""
+    """Resolve a plain (non-dotted) symbol definition.
+
+    Collects every top-level function/class matching ``symbol`` across
+    modules. A unique match resolves exactly as before; when several
+    top-level definitions share the name, the ambiguity is surfaced as a
+    ``ValueError`` mirroring ``_inspect_symbol``'s disambiguation message
+    (``"Multiple symbols match '...': ..."``) instead of silently picking
+    the first homonym.
+
+    Raises:
+        ValueError: If more than one top-level definition matches ``symbol``.
+    """
+    matches: list[DefinitionInfo] = []
     for mod in pkg.modules:
         mod_name = module_dotted_name(mod.path, pkg.root)
         for fn in mod.functions:
             if fn.name == symbol:
-                return DefinitionInfo(
-                    module=mod_name,
-                    line=fn.line_start,
-                    kind="function",
-                    signature=fn.signature,
+                matches.append(
+                    DefinitionInfo(
+                        module=mod_name,
+                        line=fn.line_start,
+                        kind="function",
+                        signature=fn.signature,
+                    )
                 )
         for cls in mod.classes:
             if cls.name == symbol:
-                return DefinitionInfo(
-                    module=mod_name,
-                    line=cls.line_start,
-                    kind="class",
-                    name=cls.name,
+                matches.append(
+                    DefinitionInfo(
+                        module=mod_name,
+                        line=cls.line_start,
+                        kind="class",
+                        name=cls.name,
+                    )
                 )
+    if len(matches) > 1:
+        candidates = sorted(f"{m['module']}.{symbol}" for m in matches)
+        raise ValueError(f"Multiple symbols match '{symbol}': {', '.join(candidates)}")
+    if matches:
+        return matches[0]
     return None
 
 
