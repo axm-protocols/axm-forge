@@ -79,6 +79,16 @@ class TestTabularEdgeCases:
         # Value containing pipe must be JSON-encoded to avoid ambiguity
         assert '"hello|world"' in lines[1]
 
+    def test_pipe_in_nested_value(self, strategy: TabularStrategy) -> None:
+        """AC1: a nested dict cell containing a pipe must not add a phantom column."""
+        data = json.dumps([{"a": {"x": "y|z"}, "b": 1}])
+        result = strategy.apply(SmeltContext(text=data)).text
+        lines = result.split("\n")
+        assert lines[0] == "a|b"
+        # Row must split into exactly the header's column count (2)
+        # with no phantom column.
+        assert len(lines[1].split("|")) == 2
+
     def test_very_wide_table(self, strategy: TabularStrategy) -> None:
         obj = {f"key_{i:03d}": i for i in range(55)}
         data = json.dumps([obj])
