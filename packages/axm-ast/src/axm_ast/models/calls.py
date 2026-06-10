@@ -42,3 +42,16 @@ class CallSite(BaseModel):
     call_expression: str = Field(
         description="Raw text of the call expression",
     )
+    confidence: float = Field(
+        default=1.0,
+        description=(
+            "Syntactic match confidence in [0, 1]. Matching is by name only "
+            "(the receiver type is never resolved), so this is a heuristic "
+            "derived purely from call syntax: 1.0 for a direct call or a "
+            "``self``/``cls`` method call, lower for an attribute call on "
+            "another receiver (``obj.foo()``), which is more likely to be a "
+            "false-positive caller of a like-named symbol. Additive and "
+            "backward-compatible: defaults to 1.0 and never changes which "
+            "call-sites are returned."
+        ),
+    )

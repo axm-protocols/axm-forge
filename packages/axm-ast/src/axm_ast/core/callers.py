@@ -440,6 +440,16 @@ def find_callers(
     the given symbol name.  Uses cached call-sites when available
     to avoid re-parsing files on repeated queries.
 
+    .. warning:: Matching is **by name only**. The receiver is ignored, so
+        ``self.foo()``, ``obj.foo()`` and a bare ``foo()`` all collapse to the
+        name ``foo``. This is an intrinsic tree-sitter limitation — no type
+        inference is performed — and it may surface **false-positive callers**
+        that call a *distinct*, like-named symbol on a different receiver.
+        Each returned :class:`~axm_ast.models.calls.CallSite` carries a
+        syntactic ``confidence`` (1.0 for direct/``self`` calls, lower for an
+        attribute call on another receiver) to help triage this ambiguity.
+        The set of callers returned is never affected by ``confidence``.
+
     Args:
         pkg: Analyzed package info.
         symbol: Name of the function/method to search for.
