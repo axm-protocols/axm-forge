@@ -130,6 +130,35 @@ def test_check_unchanged() -> None:
     assert report.strategy_estimates
 
 
+# --- AXM-1877: check() real cumulative gain vs isolated estimates ---
+
+
+def test_check_reports_real_cumulative_gain() -> None:
+    """AC1: check() reports a real cumulative savings figure that matches what
+    smelt achieves on the same input with the same (default) strategy set.
+    """
+    text = _fixture_text()
+    report = check(text)
+    assert report.savings_pct > 0
+    assert report.savings_pct == smelt(text).savings_pct
+
+
+def test_check_estimates_are_isolated_not_summed() -> None:
+    """AC2: the cumulative savings_pct is NOT the sum of the isolated
+    per-strategy estimates (they are non-additive).
+    """
+    text = _fixture_text()
+    report = check(text)
+    assert len(report.strategy_estimates) >= 2
+    assert report.savings_pct != sum(report.strategy_estimates.values())
+
+
+def test_check_minified_zero_cumulative() -> None:
+    """AC3: already-minified input yields zero cumulative gain."""
+    report = check('{"a":1}')
+    assert report.savings_pct == 0
+
+
 # --- merged from test_pipeline_smelt_unchanged.py ---
 
 
