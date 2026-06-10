@@ -124,6 +124,15 @@ class PackageCache:
         ``PackageInfo`` — when the fingerprint changes, both are
         evicted.
 
+        Concurrency: best-effort double-checked locking. The store is
+        read under the lock, the call-sites are extracted *outside* the
+        lock (to avoid blocking other threads), then re-checked under the
+        lock before writing. Two concurrent first-callers may both extract,
+        but the race is benign: the values are pure functions of the same
+        ``PackageInfo``, so they are equivalent, and ``first write wins``
+        (the re-check skips the second store). The cost is a wasted
+        recompute, never corruption — so no lock is held during extraction.
+
         Args:
             path: Path to the package root directory.
 
@@ -162,6 +171,14 @@ class PackageCache:
         Insertion order matches ``get_calls`` iteration order (module order,
         then in-module call order), so each symbol's list is identical to the
         order a linear scan would have produced.
+
+        Concurrency: best-effort double-checked locking, same pattern as
+        :meth:`get_calls`. The index is built *outside* the lock and the
+        store is re-checked under the lock before writing. Two concurrent
+        first-callers may both build the index, but the race is benign: the
+        index is a pure function of the same call-sites, so the results are
+        equivalent, and ``first write wins`` (the re-check skips the second
+        store). The cost is a wasted recompute, never corruption.
 
         Args:
             path: Path to the package root directory.
