@@ -9,6 +9,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from axm_smelt import smelt as _smelt_root
+from axm_smelt.core.counter import count
 from axm_smelt.core.models import Format, SmeltContext, SmeltReport
 from axm_smelt.core.pipeline import (
     check,
@@ -285,6 +286,32 @@ class TestSmeltEdgeCases:
 
 
 # --- merged from test_parsed_input.py ---
+
+
+def test_smelt_parsed_baseline_is_faithful() -> None:
+    """AC1: parsed-path savings measured against the pretty baseline.
+
+    For a multi-key object the pretty (indent=2) baseline has more tokens
+    than the compact dump, so savings_pct must be strictly positive and
+    exceed what the already-minified compact baseline would yield (0).
+    """
+    parsed = {"a": 1, "b": [1, 2, 3], "c": {"d": 4}}
+    report = smelt(parsed=parsed)
+
+    pretty = json.dumps(parsed, indent=2, ensure_ascii=False)
+    pretty_tokens = count(pretty)
+
+    assert report.savings_pct > 0
+    assert report.original_tokens == pretty_tokens
+
+
+def test_smelt_text_path_baseline_unchanged() -> None:
+    """AC2: text-path baseline stays the provided raw string (no pretty inflation)."""
+    text = '{"a":1}'
+    report = smelt(text=text)
+
+    assert report.original == text
+    assert report.original_tokens == count(text)
 
 
 def test_smelt_with_parsed_dict() -> None:
