@@ -10,7 +10,7 @@ from axm_smelt.core.counter import (  # noqa: F401
     count,
     count_with_backend,
 )
-from axm_smelt.core.detector import detect_format, detect_format_parsed
+from axm_smelt.core.detector import detect_format_parsed
 from axm_smelt.core.models import SmeltContext, SmeltReport
 from axm_smelt.strategies import get_preset, get_strategy
 from axm_smelt.strategies.base import SmeltStrategy
@@ -136,7 +136,24 @@ def check(
     *,
     parsed: dict[str, JsonValue] | list[JsonValue] | None = None,
 ) -> SmeltReport:
-    """Analyze *text* without transforming it."""
+    """Analyze *text* without transforming it.
+
+    The report carries two distinct savings figures:
+
+    - ``strategy_estimates`` maps each registry strategy to the reduction it
+      achieves *in isolation*, measured against the unmutated input. These
+      estimates are **independent and non-additive**: summing them overstates
+      the achievable gain, because strategies overlap (e.g. ``minify`` already
+      removes whitespace that ``collapse_whitespace`` would also target).
+    - ``savings_pct`` is the **real cumulative gain** — the reduction obtained
+      by *chaining* the default strategy set (``resolve_strategies(None, None)``,
+      i.e. the ``safe`` preset, exactly what :func:`smelt` applies with no
+      explicit strategies). It equals what a user would actually get from
+      ``smelt(text)``.
+
+    ``original`` and ``compacted`` stay identical: ``check`` never transforms
+    its input, it only measures.
+    """
     from axm_smelt.strategies import _REGISTRY
 
     if parsed is not None:
@@ -145,10 +162,14 @@ def check(
         msg = "Either text or parsed must be provided"
         raise ValueError(msg)
 
-    fmt = detect_format(text)
+    fmt, detected_parsed = detect_format_parsed(text)
     tokens, backend = count_with_backend(text)
 
-    ctx = SmeltContext(text=text, format=fmt)
+    if detected_parsed is not None:
+        ctx = SmeltContext(text=text, format=fmt, parsed=detected_parsed)
+    else:
+        ctx = SmeltContext(text=text, format=fmt)
+
     estimates: dict[str, float] = {}
     for name, cls in _REGISTRY.items():
         strategy = cls()
@@ -160,12 +181,19 @@ def check(
             if savings > 0:
                 estimates[name] = round(savings, 2)
 
+    strats = resolve_strategies(None, None)
+    chained_ctx, _applied, b_strat = _apply_strategies(ctx, strats, tokens)
+    backend = _worst(backend, b_strat)
+    chained_tokens, b_chain = count_with_backend(chained_ctx.text)
+    backend = _worst(backend, b_chain)
+    cumulative = (1 - chained_tokens / tokens) * 100 if tokens > 0 else 0.0
+
     return SmeltReport(
         original=text,
         compacted=text,
         original_tokens=tokens,
         compacted_tokens=tokens,
-        savings_pct=0.0,
+        savings_pct=cumulative,
         format=fmt,
         strategies_applied=[],
         strategy_estimates=estimates,
