@@ -34,7 +34,13 @@ class CoupledFileEntry(TypedDict):
     co_changes: int
 
 
-_COMMIT_HASH_LEN = 40
+# Sentinel prefix used in ``git log --format`` to mark commit-hash lines
+# unambiguously. ``\x1f`` (ASCII Unit Separator) is a control character that
+# git never emits at the start of an (unquoted) ``--name-only`` path line, so a
+# real filename can never collide with this marker — even one literally named
+# with 40 hex chars. This replaces the fragile hex-shape heuristic that
+# mis-classified such filenames as commit boundaries.
+_COMMIT_MARKER = "\x1f"
 
 # Binary / non-source extensions to filter out from coupling results.
 _BINARY_EXTENSIONS = frozenset(
@@ -88,7 +94,7 @@ def _run_git_log(project_root: Path, months: int) -> str | None:
                 "log",
                 "--name-only",
                 f"--since={months}.months",
-                "--format=%H",
+                f"--format={_COMMIT_MARKER}%H",
                 "--no-merges",
             ],
             cwd=project_root,
@@ -101,11 +107,6 @@ def _run_git_log(project_root: Path, months: int) -> str | None:
     if result.returncode != 0:
         return None
     return result.stdout
-
-
-def _is_commit_hash(s: str) -> bool:
-    """Check whether *s* looks like a 40-char hex commit hash."""
-    return len(s) == _COMMIT_HASH_LEN and all(c in "0123456789abcdef" for c in s)
 
 
 def _parse_git_log(project_root: Path, months: int) -> list[set[str]]:
@@ -126,14 +127,20 @@ def _parse_git_log(project_root: Path, months: int) -> list[set[str]]:
     current_files: set[str] = set()
 
     for line in stdout.splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if _is_commit_hash(stripped):
+        # Marker detection runs on the raw line: ``str.strip`` treats the
+        # control-char marker as whitespace and would erase it, so the prefix
+        # must be tested before stripping.
+        if line.startswith(_COMMIT_MARKER):
+            # Commit boundary: keyed off the sentinel marker, not the fragile
+            # hex-shape heuristic. The marker is the sole boundary signal, so a
+            # 40-hex *filename* can never be mistaken for a commit. The marker
+            # prefix is discarded along with the hash it tags.
             if current_files:
                 commits.append(current_files)
             current_files = set()
-        elif not _is_binary(stripped):
+            continue
+        stripped = line.strip()
+        if stripped and not _is_binary(stripped):
             current_files.add(stripped)
 
     if current_files:
