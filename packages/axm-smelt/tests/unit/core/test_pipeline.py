@@ -452,7 +452,10 @@ def _complex_json() -> str:
 def test_aggressive_preset_all_strategies() -> None:
     result = smelt(_complex_json(), preset="aggressive")
     assert result.savings_pct > 0
-    assert len(result.strategies_applied) == 6
+    # round_numbers no longer mutates post-tabular plain text (AXM-1873),
+    # so it reports as not-applied here: 5 of the 6 configured strategies.
+    assert len(result.strategies_applied) == 5
+    assert "round_numbers" not in result.strategies_applied
 
 
 def test_check_strategy_estimates() -> None:
