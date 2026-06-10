@@ -19,7 +19,7 @@ def read_input(file: Path | None = None) -> str:
     """Read input from *file* or stdin."""
     if file is not None:
         try:
-            return file.read_text()
+            return file.read_text(encoding="utf-8")
         except FileNotFoundError:
             print(f"Error: No such file: {file}", file=sys.stderr)
             raise SystemExit(1) from None
@@ -66,7 +66,7 @@ def compact(
     compacted = report.compacted
 
     if output is not None:
-        output.write_text(compacted)
+        output.write_text(compacted, encoding="utf-8")
     else:
         print(compacted)
 
