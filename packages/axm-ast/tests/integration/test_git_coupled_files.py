@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from axm_ast.core.git_coupling import git_coupled_files
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -233,3 +235,59 @@ class TestCouplingEdgeCases:
         if len(result) >= 2:
             strengths = [r["strength"] for r in result]
             assert strengths == sorted(strengths, reverse=True)
+
+
+# ─── Sentinel-marker disambiguation (AXM-1888) ──────────────────────────────
+
+_FORTY_HEX = "a" * 40  # a filename that is literally 40 lowercase hex chars
+
+
+@pytest.mark.integration
+class TestCommitHashDisambiguation:
+    """A 40-hex *filename* must never be mistaken for a commit boundary."""
+
+    def test_filename_40hex_not_treated_as_commit(self, tmp_path: Path) -> None:
+        """AC1: a file literally named with 40 hex chars is counted as a FILE.
+
+        Without the sentinel marker, the bare ``%H`` git format makes the
+        40-hex filename indistinguishable from a commit hash line, so it gets
+        parsed as a commit boundary and dropped from co-change sets. With the
+        marker, the filename survives and couples with its co-changed sibling.
+        """
+        root = tmp_path / "hexname_project"
+        root.mkdir()
+        _init_git_repo(root)
+
+        # A file whose name is exactly 40 lowercase hex chars.
+        (root / _FORTY_HEX).write_text('"""Forty hex named file."""\n')
+        (root / "core.py").write_text('"""Core."""\n')
+        _commit(root, [_FORTY_HEX, "core.py"], "init")
+
+        # Co-change the two files enough times to clear the default threshold.
+        for i in range(5):
+            (root / _FORTY_HEX).write_text(f'"""Forty hex v{i + 2}."""\n')
+            (root / "core.py").write_text(f'"""Core v{i + 2}."""\n')
+            _commit(root, [_FORTY_HEX, "core.py"], f"co-change {i + 1}")
+
+        # The 40-hex name must appear as a coupled FILE of core.py, proving it
+        # was parsed as a filename and not swallowed as a commit boundary.
+        result = git_coupled_files("core.py", root)
+        coupled_files = [r["file"] for r in result]
+        assert _FORTY_HEX in coupled_files
+        entry = next(r for r in result if r["file"] == _FORTY_HEX)
+        assert entry["co_changes"] >= 3
+
+    def test_ordinary_repo_coupling_unchanged(self, tmp_path: Path) -> None:
+        """AC3: ordinary repo coupling counts/strength are unchanged.
+
+        The sentinel marker must be stripped transparently, preserving the
+        exact co-change count and strength formula for a normal repo.
+        """
+        root, target = _make_git_project(tmp_path, co_change_count=5)
+        result = git_coupled_files(target, root)
+
+        utils_entry = next(r for r in result if r["file"] == "utils.py")
+        # Identical expectations to test_coupling_strength_formula:
+        # co_changes(core, utils) = 6 (init + 5), strength = 6/8 = 0.75.
+        assert utils_entry["co_changes"] == 6
+        assert abs(utils_entry["strength"] - 0.75) < 0.01
