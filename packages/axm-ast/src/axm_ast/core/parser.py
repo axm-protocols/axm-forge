@@ -50,15 +50,24 @@ _DOCSTRING_NODE_TYPES = frozenset({"string", "concatenated_string"})
 
 PY_LANGUAGE = Language(tspython.language())
 
-_parser: Parser | None = None
+# A tree-sitter ``Parser`` is non-reentrant: a single instance shared across
+# threads has its internal state corrupted by concurrent ``.parse()`` calls.
+# We therefore keep one ``Parser`` per thread in ``threading.local`` — cheap to
+# construct, reused within a thread, and never shared across threads.
+_thread_local = threading.local()
 
 
 def _get_parser() -> Parser:
-    """Return a lazily-initialized tree-sitter parser."""
-    global _parser
-    if _parser is None:
-        _parser = Parser(PY_LANGUAGE)
-    return _parser
+    """Return this thread's lazily-initialized tree-sitter parser.
+
+    Each thread gets its own ``Parser`` (tree-sitter parsers are not
+    reentrant), so concurrent parses never share mutable parser state.
+    """
+    parser: Parser | None = getattr(_thread_local, "parser", None)
+    if parser is None:
+        parser = Parser(PY_LANGUAGE)
+        _thread_local.parser = parser
+    return parser
 
 
 # ─── Parsed-tree cache ───────────────────────────────────────────────────────
