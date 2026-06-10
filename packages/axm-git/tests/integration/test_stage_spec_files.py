@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_git.hooks.commit_phase import stage_spec_files
+from axm_git.core.runner import stage_spec_files
 
 
 def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:

@@ -20,7 +20,12 @@ from axm_git.core.identity import (  # noqa: F401 (author_args: mock target)
     author_args,
     resolve_identity,
 )
-from axm_git.core.runner import find_git_root, run_git
+from axm_git.core.runner import (
+    _resolve_repo_path,
+    find_git_root,
+    run_git,
+    stage_spec_files,
+)
 
 
 class _GitResultLike(Protocol):
@@ -58,128 +63,6 @@ def _validate_commit_spec(
             f"commit_spec missing {', '.join(repr(k) for k in sorted(missing))}"
         )
     return spec, None
-
-
-def _resolve_repo_path(
-    filepath: str,
-    git_root: Path,
-    working_dir: Path | None,
-) -> tuple[Path | None, list[Path], str | None]:
-    """Resolve *filepath* to an absolute path inside *git_root*.
-
-    Tries ``git_root / filepath`` then ``working_dir / filepath`` (when
-    *working_dir* is passed and differs from *git_root*). Absolute inputs
-    are accepted verbatim when they resolve inside *git_root*.
-
-    Returns ``(resolved, tried, error)``. On success ``resolved`` is the
-    absolute path (which may not exist if the file is tracked-but-deleted)
-    and ``error`` is ``None``. On out-of-tree absolute input, ``error``
-    describes the violation. If neither candidate exists, ``resolved`` is
-    ``None`` and callers can decide whether that is fatal.
-    """
-    git_root_abs = git_root.resolve()
-    raw = Path(filepath)
-    if raw.is_absolute():
-        resolved = raw.resolve()
-        if not resolved.is_relative_to(git_root_abs):
-            return (
-                None,
-                [resolved],
-                (
-                    f"absolute path outside repository: {filepath} "
-                    f"(git_root: {git_root_abs})"
-                ),
-            )
-        return resolved, [resolved], None
-
-    tried: list[Path] = []
-    candidates = [git_root_abs / filepath]
-    if working_dir is not None and working_dir.resolve() != git_root_abs:
-        candidates.append(working_dir.resolve() / filepath)
-    for candidate in candidates:
-        tried.append(candidate)
-        if candidate.exists():
-            return candidate, tried, None
-    return None, tried, None
-
-
-def stage_spec_files(
-    files: list[str],
-    git_root: Path,
-    *,
-    working_dir: Path | None = None,
-    warnings: list[str] | None = None,
-) -> str | None:
-    """Stage each file in *files*, returning an error message on failure.
-
-    Paths in *files* are resolved against *git_root* first, then against
-    *working_dir* (if provided and distinct), so both git-root-relative
-    and package-relative inputs work transparently. Absolute inputs are
-    accepted when they point inside *git_root*.
-
-    Tracked-but-deleted files (git status ``D``) are staged as deletions.
-    Gitignored files are skipped with a warning appended to *warnings*.
-    Truly missing files (never tracked) produce a clear diagnostic error
-    listing every absolute path that was attempted.
-    """
-    for filepath in files:
-        err = _stage_single_file(filepath, git_root, working_dir, warnings)
-        if err:
-            return err
-    return None
-
-
-def _stage_single_file(
-    filepath: str,
-    git_root: Path,
-    working_dir: Path | None,
-    warnings: list[str] | None,
-) -> str | None:
-    """Stage one file, returning an error message on failure."""
-    add_target, err = _resolve_add_target(filepath, git_root, working_dir)
-    if err:
-        return err
-    add_result = run_git(["add", "--", add_target], git_root)
-    if add_result.returncode == 0:
-        return None
-    if "ignored" in add_result.stderr.lower():
-        if warnings is not None:
-            warnings.append(f"skipped gitignored file: {filepath}")
-        return None
-    return f"git add failed for {filepath}: {add_result.stderr}"
-
-
-def _resolve_add_target(
-    filepath: str,
-    git_root: Path,
-    working_dir: Path | None,
-) -> tuple[str, str | None]:
-    """Return the path to pass to ``git add`` for *filepath*.
-
-    When the resolved path exists on disk it is used verbatim. When it
-    does not exist but ``git ls-files -d`` reports it as tracked-but-deleted,
-    *filepath* is returned so git stages the deletion. Otherwise an error
-    listing every attempted path is returned.
-    """
-    resolved, tried, err = _resolve_repo_path(filepath, git_root, working_dir)
-    if err:
-        return "", err
-    if resolved is not None and resolved.exists():
-        return str(resolved), None
-    # Tracked-but-deleted: probe ``git ls-files -d`` with each candidate path
-    # relativized to git_root (``ls-files`` interprets the pathspec relative
-    # to its cwd, which is git_root). Return that git_root-relative path so
-    # the deletion stages even when working_dir is a subdir of git_root.
-    git_root_abs = git_root.resolve()
-    for candidate in tried:
-        if not candidate.is_relative_to(git_root_abs):
-            continue
-        rel = candidate.relative_to(git_root_abs).as_posix()
-        ls_result = run_git(["ls-files", "-d", rel], git_root)
-        if ls_result.stdout.strip():
-            return rel, None
-    attempts = ", ".join(str(p) for p in tried)
-    return "", f"files not found: {filepath!r} (tried: {attempts})"
 
 
 def build_commit_cmd(

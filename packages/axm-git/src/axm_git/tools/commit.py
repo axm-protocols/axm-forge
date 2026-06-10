@@ -14,7 +14,13 @@ from axm_git.core.branch_naming import (
     is_conventional_commit,
 )
 from axm_git.core.identity import author_args, resolve_identity
-from axm_git.core.runner import not_a_repo_error, run_git, timeout_error_result
+from axm_git.core.runner import (
+    find_git_root,
+    not_a_repo_error,
+    run_git,
+    stage_spec_files,
+    timeout_error_result,
+)
 from axm_git.tools.commit_text import render_failure_text, render_text
 
 __all__ = ["GitCommitTool"]
@@ -22,23 +28,17 @@ __all__ = ["GitCommitTool"]
 logger = logging.getLogger(__name__)
 
 
-def _stage_files(files: list[str], path: Path) -> str | None:
-    """Stage files, return error message or None on success.
-
-    Uses ``git add -A`` to stage current disk content for the
-    given paths.  The ``-A`` flag ensures deletions are staged
-    correctly (file removed from disk → staged as delete).
-    """
-    add = run_git(["add", "-A", "--", *files], path)
-    if add.returncode != 0:
-        return add.stderr.strip()
-    return None
-
-
 def _attempt_commit(
-    commit_args: list[str], files: list[str], path: Path
+    commit_args: list[str],
+    files: list[str],
+    git_root: Path,
+    *,
+    working_dir: Path | None = None,
 ) -> tuple[bool, bool, str, list[str]]:
     """Attempt commit with auto-retry on pre-commit fix.
+
+    Runs git from *git_root*; *working_dir* (a possible sub-directory of
+    the root) is the resolution fallback for the re-stage path.
 
     Returns:
         (success, retried, output, auto_fixed) where ``auto_fixed`` is the
@@ -46,7 +46,7 @@ def _attempt_commit(
         re-staging so it survives the subsequent ``git add``). Empty when
         no auto-fix occurred.
     """
-    commit = run_git(commit_args, path)
+    commit = run_git(commit_args, git_root)
     retried = False
     auto_fixed: list[str] = []
 
@@ -56,10 +56,10 @@ def _attempt_commit(
         output = commit.stdout + commit.stderr
         if "files were modified by this hook" in output:
             logger.warning("Pre-commit auto-fixed files, re-staging and retrying")
-            diff = run_git(["diff", "--name-only"], path)
+            diff = run_git(["diff", "--name-only"], git_root)
             auto_fixed = [f for f in diff.stdout.strip().splitlines() if f.strip()]
-            run_git(["add", "-A", "--", *files], path)
-            commit = run_git(commit_args, path)
+            stage_spec_files(files, git_root, working_dir=working_dir)
+            commit = run_git(commit_args, git_root)
             retried = True
 
     output = commit.stdout + commit.stderr
@@ -184,8 +184,21 @@ def _process_single_commit(  # noqa: PLR0913
     message = cast("str", spec["message"])
     body = cast("str | None", spec.get("body"))
 
-    # Stage files
-    add_err = _stage_files(files, path)
+    # Resolve the git root from the given path: stage and commit relative to
+    # the root, while *path* (which may be a sub-directory of the root, e.g. a
+    # package directory) is the working-dir fallback for path resolution.
+    git_root = find_git_root(path)
+    if git_root is None:
+        return _validation_failure(
+            error=f"Commit {index}: not a git repository: {path}",
+            results=results,
+            total=total,
+        )
+
+    # Stage files via the subdir-aware resolver (git-root-relative paths work
+    # even when *path* is a package subdir; deletions and gitignored files are
+    # handled the same way the commit-phase hook handles them).
+    add_err = stage_spec_files(files, git_root, working_dir=path)
     if add_err:
         return _validation_failure(
             error=f"Commit {index}: git add failed: {add_err}",
@@ -200,7 +213,9 @@ def _process_single_commit(  # noqa: PLR0913
     commit_args.extend(identity_args)
 
     # Attempt commit with auto-retry
-    ok, retried, output, auto_fixed = _attempt_commit(commit_args, files, path)
+    ok, retried, output, auto_fixed = _attempt_commit(
+        commit_args, files, git_root, working_dir=path
+    )
 
     if not ok:
         error = f"Commit {index}: pre-commit failed"
@@ -221,7 +236,7 @@ def _process_single_commit(  # noqa: PLR0913
         )
 
     # Get the SHA of the commit
-    log = run_git(["log", "-1", "--format=%H"], path)
+    log = run_git(["log", "-1", "--format=%H"], git_root)
     sha = log.stdout.strip()[:7]
 
     results.append(

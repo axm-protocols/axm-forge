@@ -239,6 +239,184 @@ def _git_result(
     return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
 
 
+# ---------------------------------------------------------------------------
+# Subdir-aware path resolution (AXM-1898): GitCommitTool + stage_spec_files
+# ---------------------------------------------------------------------------
+
+
+def _subdir_run(args: list[str], cwd: Path) -> None:
+    subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
+
+
+@pytest.fixture
+def git_repo_subdir(tmp_path: Path) -> Path:
+    """A real git repo with an initial commit and identity configured."""
+    _subdir_run(["git", "init"], tmp_path)
+    _subdir_run(["git", "config", "user.email", "test@example.com"], tmp_path)
+    _subdir_run(["git", "config", "user.name", "Test"], tmp_path)
+    _subdir_run(["git", "config", "commit.gpgsign", "false"], tmp_path)
+    (tmp_path / "README.md").write_text("init\n")
+    _subdir_run(["git", "add", "-A"], tmp_path)
+    _subdir_run(["git", "commit", "-m", "init"], tmp_path)
+    return tmp_path
+
+
+def _committed_files_subdir(repo: Path) -> set[str]:
+    out = subprocess.run(
+        ["git", "show", "--name-only", "--format=", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return {line for line in out.stdout.strip().splitlines() if line}
+
+
+class TestSubdirAwareStaging:
+    """AC2-AC5: GitCommitTool stages via the promoted subdir-aware resolver."""
+
+    def test_commit_with_package_path_and_root_relative_files(
+        self, git_repo_subdir: Path
+    ) -> None:
+        """AC2: path=<subdir> + git-root-relative files → ok, no dup prefix."""
+        pkg = git_repo_subdir / "packages" / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "a.py").write_text("x = 1\n")
+
+        result = GitCommitTool().execute(
+            path=str(pkg),
+            commits=[{"message": "feat: add a", "files": ["packages/pkg/a.py"]}],
+        )
+
+        assert result.success, result.error
+        assert "packages/pkg/a.py" in _committed_files_subdir(git_repo_subdir)
+
+    def test_commit_with_git_root_path_unchanged(self, git_repo_subdir: Path) -> None:
+        """AC3: path=<git-root>, git-root-relative files stages exactly those."""
+        (git_repo_subdir / "b.py").write_text("y = 2\n")
+
+        result = GitCommitTool().execute(
+            path=str(git_repo_subdir),
+            commits=[{"message": "feat: add b", "files": ["b.py"]}],
+        )
+
+        assert result.success, result.error
+        assert _committed_files_subdir(git_repo_subdir) == {"b.py"}
+
+    def test_commit_stages_tracked_deletion_from_package_path(
+        self, git_repo_subdir: Path
+    ) -> None:
+        """AC4: a tracked-but-deleted file in the spec stages its deletion."""
+        pkg = git_repo_subdir / "packages" / "pkg"
+        pkg.mkdir(parents=True)
+        tracked = pkg / "gone.py"
+        tracked.write_text("z = 3\n")
+        _subdir_run(["git", "add", "-A"], git_repo_subdir)
+        _subdir_run(["git", "commit", "-m", "add gone"], git_repo_subdir)
+
+        tracked.unlink()
+
+        result = GitCommitTool().execute(
+            path=str(pkg),
+            commits=[
+                {"message": "chore: drop gone", "files": ["packages/pkg/gone.py"]}
+            ],
+        )
+
+        assert result.success, result.error
+        tree = subprocess.run(
+            ["git", "ls-tree", "-r", "--name-only", "HEAD"],
+            cwd=git_repo_subdir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        assert "packages/pkg/gone.py" not in tree.stdout.splitlines()
+
+    def test_commit_skips_gitignored_file_with_warning(
+        self, git_repo_subdir: Path
+    ) -> None:
+        """AC5: a gitignored file in the spec is skipped, not a hard failure."""
+        (git_repo_subdir / ".gitignore").write_text("ignored.py\n")
+        _subdir_run(["git", "add", "-A"], git_repo_subdir)
+        _subdir_run(["git", "commit", "-m", "add gitignore"], git_repo_subdir)
+
+        (git_repo_subdir / "kept.py").write_text("k = 1\n")
+        (git_repo_subdir / "ignored.py").write_text("i = 1\n")
+
+        result = GitCommitTool().execute(
+            path=str(git_repo_subdir),
+            commits=[{"message": "feat: kept", "files": ["kept.py", "ignored.py"]}],
+        )
+
+        assert result.success, result.error
+        committed = _committed_files_subdir(git_repo_subdir)
+        assert "kept.py" in committed
+        assert "ignored.py" not in committed
+
+
+@pytest.fixture
+def repo_with_autofix_hook(tmp_path: Path) -> Path:
+    """A real git repo whose pre-commit hook rewrites the committed file once.
+
+    The hook appends a newline to ``packages/pkg/fix_me.py`` and exits
+    non-zero with the canonical 'files were modified by this hook'
+    message, but only on the first invocation (guarded by a sentinel),
+    so the retried commit can succeed.
+    """
+    _subdir_run(["git", "init"], tmp_path)
+    _subdir_run(["git", "config", "user.email", "test@example.com"], tmp_path)
+    _subdir_run(["git", "config", "user.name", "Test"], tmp_path)
+    _subdir_run(["git", "config", "commit.gpgsign", "false"], tmp_path)
+    (tmp_path / "README.md").write_text("init\n")
+    _subdir_run(["git", "add", "-A"], tmp_path)
+    _subdir_run(["git", "commit", "-m", "init"], tmp_path)
+
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    hook.write_text(
+        "#!/bin/sh\n"
+        'sentinel="$(git rev-parse --git-dir)/autofix-done"\n'
+        'if [ ! -f "$sentinel" ]; then\n'
+        '  touch "$sentinel"\n'
+        '  printf "\\n" >> packages/pkg/fix_me.py\n'
+        '  echo "files were modified by this hook"\n'
+        "  exit 1\n"
+        "fi\n"
+        "exit 0\n"
+    )
+    hook.chmod(0o755)
+    return tmp_path
+
+
+@pytest.mark.integration
+def test_autofix_restage_from_package_path(repo_with_autofix_hook: Path) -> None:
+    """AC6: after a pre-commit autofix, re-staging from a package path works.
+
+    GitCommitTool invoked with ``path`` at a package subdir must route the
+    autofix re-stage through the subdir-aware resolver, so the retried
+    commit succeeds.
+    """
+    repo = repo_with_autofix_hook
+    pkg = repo / "packages" / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "fix_me.py").write_text("v = 1\n")
+
+    result = GitCommitTool().execute(
+        path=str(pkg),
+        commits=[{"message": "feat: fix_me", "files": ["packages/pkg/fix_me.py"]}],
+    )
+
+    assert result.success, result.error
+    show = subprocess.run(
+        ["git", "show", "--name-only", "--format=", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "packages/pkg/fix_me.py" in show.stdout.splitlines()
+
+
 class TestMidBatchFailure:
     """Commit 2/3 fails pre-commit → failure with succeeded=1, partial results."""
 
@@ -250,6 +428,8 @@ class TestMidBatchFailure:
             {"files": ["c.py"], "message": "third commit"},
         ]
 
+    @patch(f"{MODULE}.find_git_root")
+    @patch(f"{MODULE}.stage_spec_files", return_value=None)
     @patch(f"{MODULE}.author_args", return_value=[])
     @patch(f"{MODULE}.resolve_identity", return_value=None)
     @patch(f"{MODULE}.run_git")
@@ -258,17 +438,30 @@ class TestMidBatchFailure:
         mock_run_git: MagicMock,
         _mock_identity: MagicMock,
         _mock_args: MagicMock,
+        _mock_stage: MagicMock,
+        mock_root: MagicMock,
         tmp_path: Path,
         three_commits: list[dict[str, Any]],
     ) -> None:
-        mock_run_git.side_effect = [
-            _git_result(0),
-            _git_result(0),
-            _git_result(0, stdout="[main abc1234] first commit\n"),
-            _git_result(0, stdout="abc1234abcdef1234567890\n"),
-            _git_result(0),
-            _git_result(1, stderr="pre-commit hook failed"),
-        ]
+        mock_root.return_value = tmp_path
+        # Staging is delegated to the (mocked) resolver. run_git now sees only
+        # commit/log calls: commit1 succeeds (commit + log), commit2 fails its
+        # commit. A function side-effect keeps the test robust to the exact
+        # per-commit call sequence.
+        commit_count = 0
+
+        def _run_git(cmd: list[str], cwd: Any, **kw: Any) -> SimpleNamespace:
+            nonlocal commit_count
+            if cmd[0] == "commit":
+                commit_count += 1
+                if commit_count == 2:
+                    return _git_result(1, stderr="pre-commit hook failed")
+                return _git_result(0, stdout="[main abc1234] first commit\n")
+            if cmd[0] == "log":
+                return _git_result(0, stdout="abc1234abcdef1234567890\n")
+            return _git_result(0)
+
+        mock_run_git.side_effect = _run_git
 
         tool = GitCommitTool()
         result = tool.execute(path=str(tmp_path), commits=three_commits)
@@ -281,8 +474,9 @@ class TestMidBatchFailure:
         assert len(result.data["results"]) == 1
         assert result.data["results"][0]["message"] == "first commit"
         assert result.data["results"][0]["sha"] == "abc1234"
-        assert mock_run_git.call_count == 6
 
+    @patch(f"{MODULE}.find_git_root")
+    @patch(f"{MODULE}.stage_spec_files", return_value=None)
     @patch(f"{MODULE}.author_args", return_value=[])
     @patch(f"{MODULE}.resolve_identity", return_value=None)
     @patch(f"{MODULE}.run_git")
@@ -291,17 +485,26 @@ class TestMidBatchFailure:
         mock_run_git: MagicMock,
         _mock_identity: MagicMock,
         _mock_args: MagicMock,
+        _mock_stage: MagicMock,
+        mock_root: MagicMock,
         tmp_path: Path,
         three_commits: list[dict[str, Any]],
     ) -> None:
-        mock_run_git.side_effect = [
-            _git_result(0),
-            _git_result(0),
-            _git_result(0, stdout="[main aaa] first\n"),
-            _git_result(0, stdout="aaaaaaa\n"),
-            _git_result(0),
-            _git_result(1, stderr="hook error output"),
-        ]
+        mock_root.return_value = tmp_path
+        commit_count = 0
+
+        def _run_git(cmd: list[str], cwd: Any, **kw: Any) -> SimpleNamespace:
+            nonlocal commit_count
+            if cmd[0] == "commit":
+                commit_count += 1
+                if commit_count == 2:
+                    return _git_result(1, stderr="hook error output")
+                return _git_result(0, stdout="[main aaa] first\n")
+            if cmd[0] == "log":
+                return _git_result(0, stdout="aaaaaaa\n")
+            return _git_result(0)
+
+        mock_run_git.side_effect = _run_git
 
         tool = GitCommitTool()
         result = tool.execute(path=str(tmp_path), commits=three_commits)
