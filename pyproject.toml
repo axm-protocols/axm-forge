@@ -155,6 +155,22 @@ disallow_any_explicit = false
 exempt_paths = ["**/__init__.py"]
 exempt_tests = ["test___init__.py"]
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f7679913e585"
+reason = "distinct SUTs/scenarios (build_command stdout vs main --help/dispatch/fallback) sharing only the 'substring in captured stdout' shape — parametrization would conflate four behaviors"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ea93c07b2fcf"
+reason = "mixed observation surfaces: 2 happy-path tests assert on the returned dict, 3 fail-fast tests assert distinct ToolNodeError messages on different branches — parametrization would erase the return-vs-raise divergence"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "54c40b8fa6e0"
+reason = "two distinct SUT branches both mapping to exit code 1 (tool returns success=False vs execute() raises) — distinct coverage; a generic param would hide which branch is exercised"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "935c6a5eef12"
+reason = "distinct create_app scenarios sharing the '\"audit\" in list(app)' shape: bare tool registration vs explicit-command-wins-over-tool precedence — parametrization would conflate two registration rules"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
