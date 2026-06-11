@@ -10,6 +10,20 @@ repos:
   # MyPy - type checking (local hook uses project venv via uv)
   - repo: local
     hooks:
+      - id: mypy-axm
+        name: mypy (axm)
+        entry: uv run --package axm mypy --config-file packages/axm/pyproject.toml
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [packages/axm/src/, packages/axm/tests/]
+      - id: mypy-mcp
+        name: mypy (axm-mcp)
+        entry: uv run --package axm-mcp mypy --config-file packages/axm-mcp/pyproject.toml
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [packages/axm-mcp/src/, packages/axm-mcp/tests/]
       - id: mypy-ast
         name: mypy (axm-ast)
         entry: uv run --package axm-ast mypy --config-file packages/axm-ast/pyproject.toml

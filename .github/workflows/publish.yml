@@ -22,7 +22,13 @@ jobs:
       - id: detect
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          if [[ "$TAG" == anvil/* ]]; then
+          if [[ "$TAG" == axm/* ]]; then
+            echo "package=axm" >> "$GITHUB_OUTPUT"
+            echo "package-dir=packages/axm" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == mcp/* ]]; then
+            echo "package=axm-mcp" >> "$GITHUB_OUTPUT"
+            echo "package-dir=packages/axm-mcp" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == anvil/* ]]; then
             echo "package=axm-anvil" >> "$GITHUB_OUTPUT"
             echo "package-dir=packages/axm-anvil" >> "$GITHUB_OUTPUT"
           elif [[ "$TAG" == ast/* ]]; then
