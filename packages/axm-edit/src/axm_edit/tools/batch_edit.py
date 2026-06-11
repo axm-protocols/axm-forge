@@ -19,7 +19,7 @@ from axm_edit.models.operations import (
     ReplaceOp,
 )
 from axm_edit.services import lint as _lint
-from axm_edit.services.lint import filter_ruff_lines, harness_fix
+from axm_edit.services.lint import filter_ruff_lines
 from axm_edit.services.lint_diff import compute_lint_diffs, extract_rules_by_file
 
 
@@ -169,19 +169,6 @@ def _lint_diffs(
     )
 
 
-def _harness_fix(
-    root: Path, lint_errors: list[str], warnings: list[str]
-) -> tuple[list[str], list[str]]:
-    """Apply harness_fix; return (remaining errors, harness-fixed errors)."""
-    if not lint_errors:
-        return lint_errors, []
-    before_harness = lint_errors
-    remaining = harness_fix(root, lint_errors, warnings=warnings)
-    remaining_set = set(remaining)
-    harness_fixed = [e for e in before_harness if e not in remaining_set]
-    return remaining, harness_fixed
-
-
 def _apply_lint(
     root: Path,
     py_files: list[Path],
@@ -195,11 +182,9 @@ def _apply_lint(
     post_agent = _snapshot_files(root, py_files) if lint_diff else {}
 
     auto_fixed, lint_errors = _run_ruff(root, py_files, warnings=lint_warnings)
-    lint_errors, harness_fixed = _harness_fix(root, lint_errors, lint_warnings)
 
     data["lint"] = {
         "auto_fixed": len(auto_fixed),
-        "harness_fixed": len(harness_fixed),
         "remaining": len(lint_errors),
     }
     if lint_errors:
@@ -207,7 +192,7 @@ def _apply_lint(
     if lint_warnings:
         data["warnings"] = lint_warnings
 
-    if lint_diff and (auto_fixed or harness_fixed):
+    if lint_diff and auto_fixed:
         post_lint = _snapshot_files(root, py_files)
         diffs = _lint_diffs(
             root, post_agent, post_lint, auto_fixed, lint_diff_max_ratio
@@ -248,7 +233,6 @@ def _render_lint_lines(data: dict[str, object]) -> list[str]:
     if isinstance(summary, dict):
         lines.append(
             f"lint: {summary.get('auto_fixed', 0)} auto-fixed"
-            f" · {summary.get('harness_fixed', 0)} harness-fixed"
             f" · {summary.get('remaining', 0)} remaining"
         )
     errors = data.get("lint_errors")
