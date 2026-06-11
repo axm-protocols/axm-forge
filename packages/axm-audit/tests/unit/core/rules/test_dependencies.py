@@ -10,7 +10,6 @@ from axm_audit.core.rules.dependencies import (
     _DEPTRY_LABELS,
     PASS_THRESHOLD,
     DependencyAuditRule,
-    _run_pip_audit,
 )
 from axm_audit.models.results import Severity
 
@@ -24,12 +23,12 @@ def _completed(
 
 
 def test_command_includes_skip_editable(mocker):
-    """AC1: `_run_pip_audit` passes `--skip-editable` to pip-audit."""
+    """AC1: the pip-audit invocation passes `--skip-editable`."""
     run = mocker.patch.object(
         dependencies, "run_in_project", return_value=_completed(0, stdout="[]")
     )
 
-    _run_pip_audit(Path("."))
+    DependencyAuditRule().check(Path("."))
 
     cmd = run.call_args.args[0]
     assert "--skip-editable" in cmd
