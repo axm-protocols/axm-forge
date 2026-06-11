@@ -73,12 +73,14 @@ axm-smelt = { workspace = true }
 [tool.pytest.ini_options]
 import_mode = "importlib"
 testpaths = [
+    "packages/axm/tests",
     "packages/axm-anvil/tests",
     "packages/axm-ast/tests",
     "packages/axm-audit/tests",
     "packages/axm-edit/tests",
     "packages/axm-init/tests",
     "packages/axm-git/tests",
+    "packages/axm-mcp/tests",
     "packages/axm-smelt/tests",
 ]
 
