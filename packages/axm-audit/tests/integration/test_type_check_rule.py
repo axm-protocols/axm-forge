@@ -8,6 +8,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from axm_audit.core.rules.quality_rules import TypeCheckRule
+from axm_audit.models.results import Severity
 
 
 def _mypy_json_line(
@@ -463,3 +464,120 @@ def test_typecheck_uses_project_mypy(tmp_path: Path) -> None:
         TypeCheckRule().check(tmp_path)
         with_pkgs = mock.call_args[1].get("with_packages") or []
         assert "mypy" not in with_pkgs
+
+
+# ── AXM-1900: fail loud on incomplete audit env ─────────────────────
+
+
+def _mock_mypy_full(
+    monkeypatch: pytest.MonkeyPatch, *, stdout: str, returncode: int, stderr: str = ""
+) -> None:
+    """Mock run_in_project with full control over stdout/stderr/returncode."""
+    proc = MagicMock(stdout=stdout, stderr=stderr, returncode=returncode)
+    monkeypatch.setattr(
+        "axm_audit.core.rules.quality_rules.run_in_project",
+        lambda *a, **kw: proc,
+    )
+
+
+def test_missing_stub_masking_fails(
+    rule: TypeCheckRule,
+    monkeypatch: pytest.MonkeyPatch,
+    _patch_infra: Path,
+) -> None:
+    """AC1, AC5: a missing-stub signal must yield a FAILING result (not 100),
+    naming the offending lib + remediation. Reproduces AXM-1878 masking."""
+    _patch_check_src_ok(monkeypatch)
+    stdout = _mypy_json_line(
+        "src/mod.py",
+        1,
+        'Library stubs not installed for "jsonschema"',
+        "import-untyped",
+    )
+    _mock_mypy_full(monkeypatch, stdout=stdout, returncode=1)
+
+    result = rule.check(_patch_infra)
+
+    assert result.passed is False
+    assert result.score is not None and result.score < 100
+    assert "jsonschema" in result.message
+    assert result.severity is Severity.ERROR
+
+
+def test_import_not_found_masking_fails(
+    rule: TypeCheckRule,
+    monkeypatch: pytest.MonkeyPatch,
+    _patch_infra: Path,
+) -> None:
+    """AC1: an [import-not-found] error (env missing a dependency) fails loud."""
+    _patch_check_src_ok(monkeypatch)
+    stdout = _mypy_json_line(
+        "src/mod.py",
+        1,
+        'Cannot find implementation or library stub for module named "axm_protocols"',
+        "import-not-found",
+    )
+    _mock_mypy_full(monkeypatch, stdout=stdout, returncode=1)
+
+    result = rule.check(_patch_infra)
+
+    assert result.passed is False
+    assert result.severity is Severity.ERROR
+
+
+def test_blocking_exit_code_2_never_passes(
+    rule: TypeCheckRule,
+    monkeypatch: pytest.MonkeyPatch,
+    _patch_infra: Path,
+) -> None:
+    """AC2: a blocking mypy exit (code 2) with non-JSON stdout must NOT map
+    to a 100 — the truncated/aborted run is surfaced as a failure."""
+    _patch_check_src_ok(monkeypatch)
+    # Blocking errors come as plain text mypy can't express as JSON entries.
+    stdout = "src/broken.py:1: error: unexpected EOF while parsing  [syntax]\n"
+    _mock_mypy_full(monkeypatch, stdout=stdout, returncode=2)
+
+    result = rule.check(_patch_infra)
+
+    assert result.passed is False
+    assert result.score != 100
+    assert result.severity is Severity.ERROR
+
+
+def test_env_incomplete_message_is_actionable(
+    rule: TypeCheckRule,
+    monkeypatch: pytest.MonkeyPatch,
+    _patch_infra: Path,
+) -> None:
+    """AC3: the failure message states the env is incomplete / unreliable and
+    how to fix it, so the gate routes revise with a clear diagnostic."""
+    _patch_check_src_ok(monkeypatch)
+    stdout = _mypy_json_line(
+        "src/mod.py",
+        1,
+        'Library stubs not installed for "jsonschema"',
+        "import-untyped",
+    )
+    _mock_mypy_full(monkeypatch, stdout=stdout, returncode=1)
+
+    result = rule.check(_patch_infra)
+
+    haystack = (result.message + (result.fix_hint or "")).lower()
+    assert "environment" in haystack or "env" in haystack
+    assert "stub" in haystack or "uv sync" in haystack or "install" in haystack
+
+
+def test_clean_run_scores_100(
+    rule: TypeCheckRule,
+    monkeypatch: pytest.MonkeyPatch,
+    _patch_infra: Path,
+) -> None:
+    """AC4: a genuinely clean type check (exit 0, no errors, no stub notes)
+    still returns A 100 — no regression on the happy path."""
+    _patch_check_src_ok(monkeypatch)
+    _mock_mypy_full(monkeypatch, stdout="", returncode=0)
+
+    result = rule.check(_patch_infra)
+
+    assert result.passed is True
+    assert result.score == 100
