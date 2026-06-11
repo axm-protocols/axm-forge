@@ -14,6 +14,19 @@ from axm_git.tools.merge_text import render_failure_text, render_text
 __all__ = ["GitMergeTool"]
 
 
+def _run_step(args: list[str], cwd: Path, label: str) -> ToolResult | None:
+    """Run a git step; return a failure ToolResult, or None on success."""
+    result = run_git(args, cwd)
+    if result.returncode == 0:
+        return None
+    error = result.stderr.strip() or result.stdout.strip()
+    return ToolResult(
+        success=False,
+        error=f"{label} failed: {error}",
+        text=render_failure_text(error=error),
+    )
+
+
 class GitMergeTool(AXMTool):
     """Squash-merge a branch into a target branch and commit.
 
@@ -64,34 +77,16 @@ class GitMergeTool(AXMTool):
                     text=render_failure_text(error=repo_err.error or ""),
                 )
 
-            checkout = run_git(["checkout", target_branch], resolved)
-            if checkout.returncode != 0:
-                error = checkout.stderr.strip() or checkout.stdout.strip()
-                return ToolResult(
-                    success=False,
-                    error=f"checkout {target_branch} failed: {error}",
-                    text=render_failure_text(error=error),
-                )
-
-            merge = run_git(["merge", "--squash", branch], resolved)
-            if merge.returncode != 0:
-                error = merge.stderr.strip() or merge.stdout.strip()
-                return ToolResult(
-                    success=False,
-                    error=f"merge --squash failed: {error}",
-                    text=render_failure_text(error=error),
-                )
-
             identity = resolve_identity(resolved)
-            commit_cmd = ["commit", "-m", msg, *author_args(identity)]
-            commit = run_git(commit_cmd, resolved)
-            if commit.returncode != 0:
-                error = commit.stderr.strip() or commit.stdout.strip()
-                return ToolResult(
-                    success=False,
-                    error=f"commit failed: {error}",
-                    text=render_failure_text(error=error),
-                )
+            steps = [
+                (["checkout", target_branch], f"checkout {target_branch}"),
+                (["merge", "--squash", branch], "merge --squash"),
+                (["commit", "-m", msg, *author_args(identity)], "commit"),
+            ]
+            for args, label in steps:
+                failure = _run_step(args, resolved, label)
+                if failure is not None:
+                    return failure
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
 
