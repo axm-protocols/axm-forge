@@ -61,7 +61,7 @@ def _load(ep: importlib.metadata.EntryPoint) -> Any:
 # ── signature / wrapper construction ──────────────────────────────────────────
 
 
-def _is_nonscalar(annotation: Any) -> bool:
+def is_nonscalar(annotation: Any) -> bool:
     """Whether *annotation* should be passed as JSON (not a plain scalar).
 
     Unwraps ``Optional`` / ``X | None`` and inspects the non-``None`` member:
@@ -73,7 +73,7 @@ def _is_nonscalar(annotation: Any) -> bool:
     origin = typing.get_origin(annotation)
     if origin in (Union, types.UnionType):
         members = [a for a in typing.get_args(annotation) if a is not type(None)]
-        return any(_is_nonscalar(m) for m in members)
+        return any(is_nonscalar(m) for m in members)
     if origin in (list, dict, tuple, set):
         return True
     return isinstance(annotation, type) and not issubclass(annotation, _SCALARS)
@@ -94,7 +94,7 @@ def _resolve_hints(fn: Any) -> dict[str, Any]:
         return {}
 
 
-def _public_params(fn: Any) -> list[inspect.Parameter]:
+def public_params(fn: Any) -> list[inspect.Parameter]:
     """Typed params of *fn* with annotations resolved to real types.
 
     Drops ``self``, ``**kwargs`` and a dispatch ``kwargs: object`` catch-all
@@ -116,14 +116,14 @@ def _public_params(fn: Any) -> list[inspect.Parameter]:
     return params
 
 
-def _cli_param(p: inspect.Parameter) -> inspect.Parameter:
+def cli_param(p: inspect.Parameter) -> inspect.Parameter:
     """Map a tool param to its CLI form.
 
     Non-scalar params become a JSON string (``str`` when required, ``str | None``
     when optional so cyclopts accepts the ``None`` default without a strict
     string validation error).
     """
-    if not _is_nonscalar(p.annotation):
+    if not is_nonscalar(p.annotation):
         return p
     if p.default is inspect.Parameter.empty:
         return p.replace(annotation=str)
@@ -132,7 +132,7 @@ def _cli_param(p: inspect.Parameter) -> inspect.Parameter:
 
 def _nonscalar_names(params: list[inspect.Parameter]) -> frozenset[str]:
     """Names of params that arrive as JSON strings and must be decoded."""
-    return frozenset(p.name for p in params if _is_nonscalar(p.annotation))
+    return frozenset(p.name for p in params if is_nonscalar(p.annotation))
 
 
 def _emit(result: Any) -> None:
@@ -163,7 +163,7 @@ def build_command_for_tool(tool_name: str, tool_obj: Any) -> Any:
         A function suitable for ``cyclopts.App.command``.
     """
     exec_fn = _exec_callable(tool_obj)
-    params = _public_params(exec_fn)
+    params = public_params(exec_fn)
     json_params = _nonscalar_names(params)
 
     def _command(**kwargs: Any) -> None:
@@ -184,7 +184,7 @@ def build_command_for_tool(tool_name: str, tool_obj: Any) -> Any:
         if getattr(result, "success", True) is False:
             raise SystemExit(1)
 
-    cli_params = [_cli_param(p) for p in params]
+    cli_params = [cli_param(p) for p in params]
     _command.__name__ = tool_name
     _command.__doc__ = exec_fn.__doc__ or f"Run the {tool_name} tool."
     _command.__signature__ = inspect.Signature(cli_params)  # type: ignore[attr-defined]
