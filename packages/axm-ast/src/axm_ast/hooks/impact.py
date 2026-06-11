@@ -17,7 +17,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from axm.hooks.base import HookResult
 
@@ -302,6 +302,6 @@ class DocImpactHook:
 
             symbols = [s.strip() for s in symbol.splitlines() if s.strip()]
             report = analyze_doc_impact(working_dir, symbols)
-            return HookResult.ok(**cast("dict[str, object]", report))
+            return HookResult.ok(**cast("dict[str, Any]", report))  # type: ignore[explicit-any]  # heterogeneous metadata payload for HookResult.ok(**metadata: Any)
         except Exception as exc:  # noqa: BLE001
             return HookResult.fail(f"Doc impact analysis failed: {exc}")
