@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import signal
+import subprocess
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -61,6 +62,34 @@ def is_process_alive(pid: int) -> bool:
     return True
 
 
+AXM_MCP_MARKER = "axm-mcp"
+
+
+def is_axm_mcp_process(pid: int) -> bool:
+    """Return True only if *pid*'s command line identifies an axm-mcp server.
+
+    Guards against OS PID reuse: an existence probe (:func:`is_process_alive`)
+    cannot tell our server apart from an unrelated process that inherited the
+    same PID. We inspect the target's command line via ``ps`` (portable to
+    macOS and Linux; no ``/proc`` dependency, no ``psutil``) and require the
+    ``axm-mcp`` marker. Any failure (process vanished, ``ps`` error, mismatch)
+    yields False — we never send SIGTERM on an unconfirmed identity.
+    """
+    try:
+        result = subprocess.run(  # noqa: S603
+            ["ps", "-p", str(pid), "-o", "command="],  # noqa: S607
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if result.returncode != 0:
+        return False
+    return AXM_MCP_MARKER in result.stdout
+
+
 def remove_pid_file() -> None:
     """Remove PID file if it exists."""
     PID_FILE.unlink(missing_ok=True)
@@ -105,12 +134,14 @@ def status(
 
 
 @app.command
-def stop(
-    *,
-    host: Annotated[str, cyclopts.Parameter(help="Server host.")] = "127.0.0.1",
-    port: Annotated[int, cyclopts.Parameter(help="Server port.")] = DEFAULT_PORT,
-) -> None:
-    """Stop the running MCP server."""
+def stop() -> None:
+    """Stop the running MCP server.
+
+    Before sending SIGTERM, the target PID's identity is verified against the
+    ``axm-mcp`` command-line marker. If the PID has been reused by an unrelated
+    process (or vanished), the signal is NOT sent: the stale PID file is
+    removed and the command exits non-zero.
+    """
     pid = read_pid()
 
     if pid is None:
@@ -120,6 +151,15 @@ def stop(
     if not is_process_alive(pid):
         remove_pid_file()
         print("Server not running (stale PID file cleaned up)", file=sys.stderr)  # noqa: T201
+        raise SystemExit(1)
+
+    if not is_axm_mcp_process(pid):
+        remove_pid_file()
+        print(  # noqa: T201
+            f"Refusing to stop: PID {pid} is not an axm-mcp process "
+            "(reused or vanished); stale PID file cleaned up",
+            file=sys.stderr,
+        )
         raise SystemExit(1)
 
     os.kill(pid, signal.SIGTERM)

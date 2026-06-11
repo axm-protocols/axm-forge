@@ -108,6 +108,7 @@ class TestStopCommand:
 
         with (
             patch("axm_mcp.cli.is_process_alive", return_value=True),
+            patch("axm_mcp.cli.is_axm_mcp_process", return_value=True),
             patch("axm_mcp.cli.os.kill") as mock_kill,
             pytest.raises(SystemExit, match="0"),
         ):
