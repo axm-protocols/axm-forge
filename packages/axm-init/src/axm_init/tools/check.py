@@ -50,9 +50,16 @@ class InitCheckTool:
 
             engine = CheckEngine(project_path, category=category)
             result = engine.run()
+            data = format_agent(result)
+
+            from axm_init.quality_trace import record_quality_snapshot
+
+            record_quality_snapshot(
+                path=str(project_path), kind="governance", data=data
+            )
             return ToolResult(
                 success=True,
-                data=format_agent(result),
+                data=data,
                 text=format_agent_text(result),
             )
         except Exception as exc:

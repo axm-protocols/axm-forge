@@ -62,6 +62,10 @@ class AuditTool(AXMTool):
             result = audit_project(project_path, category=category)
             data = format_agent(result)
             text = format_agent_text(data, category=category)
+
+            from axm_audit.quality_trace import record_quality_snapshot
+
+            record_quality_snapshot(path=str(project_path), kind="audit", data=data)
             return ToolResult(success=True, data=data, text=text)
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))
