@@ -10,10 +10,21 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from axm_harness.core.errors import MissingCredentialsError
 
 from axm_edit.services.lint import build_prompt, harness_fix
 from tests.integration._helpers import _make_errors
+
+# axm-harness is an optional extra (axm-edit[harness]); the adapter and runner
+# are mocked here, so the SDK need not be installed. When it IS installed, the
+# real exception must be used (lint._harness_error() returns the real
+# HarnessSDKError base); the stand-in only covers environments without it.
+try:
+    from axm_harness.core.errors import MissingCredentialsError
+except ImportError:  # pragma: no cover - exercised only without the extra
+
+    class MissingCredentialsError(Exception):  # type: ignore[no-redef]
+        """Stand-in for ``axm_harness.core.errors.MissingCredentialsError``."""
+
 
 pytestmark = pytest.mark.integration
 
