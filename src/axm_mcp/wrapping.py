@@ -152,15 +152,41 @@ def _trace_step(
         pass  # tracing must never break tool execution
 
 
+_RESERVED_KEYS = ("success", "error", "hint")
+
+
 def _flatten_result(result: ToolResultLike) -> dict[str, object]:
-    """Flatten a ToolResult into a JSON-friendly dict."""
-    output: dict[str, object] = {"success": result.success, **result.data}
+    """Flatten a ToolResult into a JSON-friendly dict.
+
+    Spreads ``result.data`` first, then sets the envelope keys
+    (``success``/``error``/``hint``) deterministically. Any reserved key
+    already present in ``result.data`` is relocated to ``data_{key}`` (with a
+    warning) so the envelope is never clobbered and the data value is never
+    silently lost.
+    """
+    output: dict[str, object] = dict(result.data)
+    for key in _RESERVED_KEYS:
+        if key in output:
+            namespaced = f"data_{key}"
+            logger.warning(
+                "ToolResult.data key %r collides with the envelope; relocating to %r",
+                key,
+                namespaced,
+            )
+            output[namespaced] = output.pop(key)
+    output["success"] = result.success
     if result.error:
         output["error"] = result.error
     hint = getattr(result, "hint", None)
     if hint:
         output["hint"] = hint
     return output
+
+
+def _flatten_exception(name: str, exc: Exception) -> dict[str, object]:
+    """Build the flattened AXM error dict for a raised exception."""
+    logger.warning("Tool %r raised %s: %s", name, type(exc).__name__, exc)
+    return {"success": False, "error": f"{type(exc).__name__}: {exc}"}
 
 
 def _build_plain_wrapper(ctx: _WrapperCtx, tool: ToolEntry) -> _SyncWrapper:
@@ -171,7 +197,12 @@ def _build_plain_wrapper(ctx: _WrapperCtx, tool: ToolEntry) -> _SyncWrapper:
         _unwrap_nested_kwargs(kwargs)
         _warn_implicit_path(ctx.name, kwargs)
         start_ns = time.perf_counter_ns()
-        result: dict[str, object] = _plain_tool(**kwargs)
+        try:
+            result: dict[str, object] = _plain_tool(**kwargs)
+        except Exception as exc:
+            error = _flatten_exception(ctx.name, exc)
+            _trace_step(ctx, kwargs, False, str(error), start_ns)
+            return error
         _trace_step(ctx, kwargs, True, str(result), start_ns)
         return result
 
@@ -186,9 +217,14 @@ def _build_tool_wrapper(ctx: _WrapperCtx, tool: ToolEntry) -> _SyncWrapper:
         _unwrap_nested_kwargs(kwargs)
         _warn_implicit_path(ctx.name, kwargs)
         start_ns = time.perf_counter_ns()
-        result = _tool_like.execute(**kwargs)
+        try:
+            result = _tool_like.execute(**kwargs)
+        except Exception as exc:
+            error = _flatten_exception(ctx.name, exc)
+            _trace_step(ctx, kwargs, False, str(error), start_ns)
+            return error
         text = getattr(result, "text", None)
-        if isinstance(text, str):
+        if result.success and isinstance(text, str):
             _trace_step(ctx, kwargs, result.success, text, start_ns)
             return text
         output = _flatten_result(result)
