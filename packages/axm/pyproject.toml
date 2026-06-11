@@ -1,0 +1,252 @@
+[project]
+name = "axm"
+dynamic = ["version"]
+description = "AXM CLI — thin autodiscovery wrapper for the AXM ecosystem"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.12"
+authors = [{ name = "Gabriel Jarry", email = "gabriel@axm-protocols.io" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+    "License :: OSI Approved :: Apache Software License",
+]
+
+dependencies = [
+    "cyclopts>=4.5.1",
+]
+
+[project.optional-dependencies]
+init   = ["axm-init"]
+audit  = ["axm-audit"]
+bib    = ["axm-bib"]
+mcp    = ["axm-mcp"]
+all    = ["axm-init", "axm-audit", "axm-bib", "axm-mcp"]
+
+[project.scripts]
+axm = "axm.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/axm-protocols/axm-nexus"
+Documentation = "https://axm-protocols.github.io/axm/"
+Repository = "https://github.com/axm-protocols/axm-nexus.git"
+Issues = "https://github.com/axm-protocols/axm-nexus/issues"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = "axm/v(?P<version>.*)"
+raw-options = { root = "../..", git_describe_command = "git describe --dirty --tags --long --match axm/v*" }
+fallback-version = "0.1.0.dev0"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/axm/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/axm"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"docs/index.md" = "axm/docs/index.md"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UV Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.uv]
+managed = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "pytest-mock>=3.15.1",
+    "ruff==0.15.15",
+    "mypy>=1.20.0",
+    "pre-commit>=4.0",
+]
+docs = [
+    "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=1.0.3",
+    "mkdocs-gen-files>=0.5",
+    "mkdocs-literate-nav>=0.6.3",
+    "Pygments>=2.20",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ruff Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["src", "tests"]
+exclude = ["*/_version.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20", "RUF"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106", "S108"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 5
+max-branches = 12
+max-returns = 6
+max-statements = 50
+max-locals = 15
+
+[tool.ruff.lint.isort]
+known-first-party = ["axm"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MyPy Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+disallow_any_generics = true
+disallow_any_unimported = true
+disallow_any_explicit = true
+pretty = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_any_explicit = false
+disable_error_code = [
+    "index",
+    "arg-type",
+    "attr-defined",
+    "operator",
+    "union-attr",
+    "call-overload",
+]
+
+# Contract boundaries: `Any` is deliberate to let downstream packages
+# (tools, hooks, witnesses) define their own typed payloads without
+# coupling to a fixed schema. Loosening `disallow_any_explicit` here
+# only — the rest of the package stays strict.
+[[tool.mypy.overrides]]
+module = [
+    "axm.tools.base",
+    "axm.hooks.base",
+    "axm.witnesses",
+    "axm.cli",
+]
+disallow_any_explicit = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pytest Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.axm-audit.mirror]
+exempt_paths = ["**/__init__.py"]
+exempt_tests = ["test___init__.py"]
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "f7679913e585"
+reason = "distinct SUTs/scenarios (build_command stdout vs main --help/dispatch/fallback) sharing only the 'substring in captured stdout' shape — parametrization would conflate four behaviors"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ea93c07b2fcf"
+reason = "mixed observation surfaces: 2 happy-path tests assert on the returned dict, 3 fail-fast tests assert distinct ToolNodeError messages on different branches — parametrization would erase the return-vs-raise divergence"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "54c40b8fa6e0"
+reason = "two distinct SUT branches both mapping to exit code 1 (tool returns success=False vs execute() raises) — distinct coverage; a generic param would hide which branch is exercised"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "935c6a5eef12"
+reason = "distinct create_app scenarios sharing the '\"audit\" in list(app)' shape: bare tool registration vs explicit-command-wins-over-tool precedence — parametrization would conflate two registration rules"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+python_files = "test_*.py"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "--import-mode=importlib",
+    "--cov=axm",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-fail-under=0",
+]
+filterwarnings = ["error"]
+markers = [
+    "integration: tests touching real I/O (filesystem, network, DB)",
+    "e2e: end-to-end tests invoking the CLI as a subprocess",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Coverage Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["axm"]
+branch = true
+relative_files = true
+omit = ["*/tests/*", "*/_version.py"]
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.deptry]
+pep621_dev_dependency_groups = ["dev"]
+known_first_party = ["axm", "axm_nexus", "axm_engine", "axm_mcp"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError", "if __name__"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Git-Cliff Changelog Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.git-cliff.changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+"""
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {{ commit.message | upper_first }}\
+    {% endfor %}
+{% endfor %}
+"""
+trim = true
+
+[tool.git-cliff.git]
+conventional_commits = true
+filter_unconventional = true
+commit_parsers = [
+    { message = "^chore", skip = true },
+    { message = "^ci", skip = true },
+    { message = "^feat", group = "🚀 Features" },
+    { message = "^fix", group = "🐛 Bug Fixes" },
+    { message = "^doc", group = "📚 Documentation" },
+    { message = "^perf", group = "⚡ Performance" },
+    { message = "^refactor", group = "🔧 Refactor" },
+    { message = "^test", group = "🧪 Tests" },
+]
+tag_pattern = "axm/v[0-9].*"
+include_path = "packages/axm/**"

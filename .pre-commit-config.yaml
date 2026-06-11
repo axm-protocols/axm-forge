@@ -10,6 +10,27 @@ repos:
   # MyPy - type checking (local hook uses project venv via uv)
   - repo: local
     hooks:
+      - id: mypy-axm
+        name: mypy (axm)
+        entry: uv run --package axm mypy --config-file packages/axm/pyproject.toml
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [packages/axm/src/, packages/axm/tests/]
+      - id: mypy-mcp
+        name: mypy (axm-mcp)
+        entry: uv run --package axm-mcp mypy --config-file packages/axm-mcp/pyproject.toml
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [packages/axm-mcp/src/, packages/axm-mcp/tests/]
+      - id: mypy-anvil
+        name: mypy (axm-anvil)
+        entry: uv run --package axm-anvil mypy --config-file packages/axm-anvil/pyproject.toml
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [packages/axm-anvil/src/, packages/axm-anvil/tests/]
       - id: mypy-ast
         name: mypy (axm-ast)
         entry: uv run --package axm-ast mypy --config-file packages/axm-ast/pyproject.toml
@@ -24,6 +45,13 @@ repos:
         types: [python]
         pass_filenames: false
         args: [packages/axm-audit/src/, packages/axm-audit/tests/]
+      - id: mypy-edit
+        name: mypy (axm-edit)
+        entry: uv run --package axm-edit mypy --config-file packages/axm-edit/pyproject.toml
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [packages/axm-edit/src/, packages/axm-edit/tests/]
       - id: mypy-init
         name: mypy (axm-init)
         entry: uv run --package axm-init mypy --config-file packages/axm-init/pyproject.toml
