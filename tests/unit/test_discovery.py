@@ -294,6 +294,26 @@ class TestMCPRegistration:
         assert "test_register" in tool_names
 
 
+class TestRegisterToolsSignature:
+    """register_tools registers every tool and has no extra_tools param."""
+
+    def test_register_tools_registers_all(self) -> None:
+        """AC1, AC2: every tool registered once; signature has no extra_tools."""
+        fake_mcp = FakeMCP()
+        tools = {
+            "alpha_tool": FakeTool(name="alpha_tool"),
+            "beta_tool": FakeTool(name="beta_tool"),
+        }
+        register_tools(fake_mcp, tools)
+
+        # AC1: every tool registered exactly once
+        assert set(fake_mcp.tools) == {"alpha_tool", "beta_tool"}
+
+        # AC1: signature must not expose an extra_tools parameter
+        sig = inspect.signature(register_tools)
+        assert "extra_tools" not in sig.parameters
+
+
 class TestBibSearchMCP:
     """MCP bib_search tool tests — all discovered via mocked entry points."""
 
