@@ -29,10 +29,10 @@ all    = ["axm-init", "axm-audit", "axm-bib", "axm-mcp"]
 axm = "axm.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/axm-protocols/axm-nexus"
+Homepage = "https://github.com/axm-protocols/axm-forge"
 Documentation = "https://axm-protocols.github.io/axm/"
-Repository = "https://github.com/axm-protocols/axm-nexus.git"
-Issues = "https://github.com/axm-protocols/axm-nexus/issues"
+Repository = "https://github.com/axm-protocols/axm-forge.git"
+Issues = "https://github.com/axm-protocols/axm-forge/issues"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -206,7 +206,7 @@ output = "coverage.xml"
 
 [tool.deptry]
 pep621_dev_dependency_groups = ["dev"]
-known_first_party = ["axm", "axm_nexus", "axm_engine", "axm_mcp"]
+known_first_party = ["axm", "axm_mcp"]
 
 [tool.coverage.report]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError", "if __name__"]

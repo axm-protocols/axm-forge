@@ -22,10 +22,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/axm-protocols/axm-nexus-mcp"
+Homepage = "https://github.com/axm-protocols/axm-forge"
 Documentation = "https://axm-protocols.github.io/axm-mcp/"
-Repository = "https://github.com/axm-protocols/axm-nexus-mcp.git"
-Issues = "https://github.com/axm-protocols/axm-nexus-mcp/issues"
+Repository = "https://github.com/axm-protocols/axm-forge.git"
+Issues = "https://github.com/axm-protocols/axm-forge/issues"
 
 # Optional dependencies — only packages published on PyPI
 [project.optional-dependencies]
