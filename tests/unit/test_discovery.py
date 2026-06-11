@@ -769,6 +769,29 @@ class TestRegisterOne:
         assert result["success"] is True
 
 
+class TestRegistrationCount:
+    """AC3: the public tool count reflects registrations at the seam."""
+
+    @pytest.mark.asyncio
+    async def test_registration_increments_count(self) -> None:
+        """AC3: register_one updates the public count with no drift.
+
+        Each ``register_one`` call adds a tool to the real FastMCP
+        instance, so the public ``list_tools()`` enumeration reflects the
+        exact number registered — the seam IS the source of truth.
+        """
+        from mcp.server.fastmcp import FastMCP
+
+        mcp = FastMCP("test")
+        for i in range(3):
+            tool = MagicMock()
+            tool.execute.return_value = ToolResult(success=True, data={})
+            register_one(mcp, f"tool_{i}", tool)
+
+        registered = await mcp.list_tools()
+        assert len(registered) == 3
+
+
 class TestRegisterListTools:
     """Cover register_list_tools inner fn (discovery.py:113-120)."""
 
