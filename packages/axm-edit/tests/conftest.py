@@ -10,11 +10,8 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _assume_tools_available(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Default to tools available; degradation tests override explicitly."""
+    """Default to ruff available; degradation tests override explicitly."""
     monkeypatch.setattr("axm_edit.services.lint._has_ruff", True)
-    monkeypatch.setattr(
-        "axm_edit.services.lint.get_adapter", lambda *args, **kwargs: object()
-    )
 
 
 @pytest.fixture

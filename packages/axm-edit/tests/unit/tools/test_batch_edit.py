@@ -85,7 +85,7 @@ class TestRenderText:
         )
         parsed = [CreateOp(file="lintme.py", content="import os\n")]
         data: dict[str, object] = {
-            "lint": {"auto_fixed": 2, "harness_fixed": 0, "remaining": 1},
+            "lint": {"auto_fixed": 2, "remaining": 1},
             "lint_errors": ["lintme.py:1: E999 boom"],
             "warnings": ["ruff slow"],
             "lint_diffs": [
@@ -93,7 +93,7 @@ class TestRenderText:
             ],
         }
         text = render_text(result, parsed, data)
-        assert "lint: 2 auto-fixed · 0 harness-fixed · 1 remaining" in text
+        assert "lint: 2 auto-fixed · 1 remaining" in text
         assert "! lintme.py:1: E999 boom" in text
         assert "⚠ ruff slow" in text
         assert "lintme.py [F401]" in text
