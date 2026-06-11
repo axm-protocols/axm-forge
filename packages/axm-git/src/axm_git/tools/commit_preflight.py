@@ -52,6 +52,41 @@ def render_text(
     return "\n".join(parts)
 
 
+def _resolve_scope(resolved: Path) -> tuple[list[str], Path]:
+    """Return (pathspec, cwd) scoping git to the resolved subdirectory."""
+    git_root = find_git_root(resolved)
+    if git_root is None:
+        # Not a repo (or find_git_root failed) — fall through with resolved
+        # so run_git triggers not_a_repo_error naturally.
+        return [], resolved
+    rel = resolved.relative_to(git_root.resolve())
+    pathspec = ["--", str(rel)] if str(rel) != "." else []
+    return pathspec, git_root
+
+
+def _parse_status(stdout: str) -> list[dict[str, str]]:
+    """Parse ``git status --porcelain`` output into file entries."""
+    files: list[dict[str, str]] = []
+    for line in stdout.splitlines():
+        if len(line) < _MIN_STATUS_LINE_LEN:
+            continue
+        files.append({"path": line[3:], "status": line[:2].strip()})
+    return files
+
+
+def _collect_diff(
+    pathspec: list[str], cwd: Path, max_diff_lines: int
+) -> tuple[str, bool]:
+    """Return (diff_content, truncated) for ``git diff -U2``."""
+    if max_diff_lines <= 0:
+        return "", False
+    diff_result = run_git(["diff", "-U2", *pathspec], cwd)
+    lines = diff_result.stdout.splitlines()
+    if len(lines) > max_diff_lines:
+        return "\n".join(lines[:max_diff_lines]), True
+    return diff_result.stdout.strip(), False
+
+
 class GitPreflightTool(AXMTool):
     """Report working tree changes so the agent can plan commits.
 
@@ -88,49 +123,21 @@ class GitPreflightTool(AXMTool):
         max_diff_lines = diff_lines
 
         try:
-            git_root = find_git_root(resolved)
+            pathspec, cwd = _resolve_scope(resolved)
 
-            if git_root is not None:
-                # Scope to subdirectory when inside a workspace
-                rel = resolved.relative_to(git_root.resolve())
-                pathspec = ["--", str(rel)] if str(rel) != "." else []
-                cwd = git_root
-            else:
-                # Not a repo (or find_git_root failed) — fall through with
-                # resolved so run_git triggers not_a_repo_error naturally.
-                pathspec = []
-                cwd = resolved
-
-            # git status --porcelain [-- rel_path]
             status = run_git(["status", "--porcelain", *pathspec], cwd)
             if status.returncode != 0:
                 return not_a_repo_error(status.stderr, resolved)
-
-            files = []
-            for line in status.stdout.splitlines():
-                if len(line) < _MIN_STATUS_LINE_LEN:
-                    continue
-                code = line[:2].strip()
-                filepath = line[3:]
-                files.append({"path": filepath, "status": code})
+            files = _parse_status(status.stdout)
 
             # git diff --stat [-- rel_path] (only when dirty)
             diff_stat_out = ""
             if files:
-                diff_stat = run_git(["diff", "--stat", *pathspec], cwd)
-                diff_stat_out = diff_stat.stdout.strip()
+                diff_stat_out = run_git(
+                    ["diff", "--stat", *pathspec], cwd
+                ).stdout.strip()
 
-            # git diff -U2 [-- rel_path] (reduced context, truncated to max)
-            diff_content = ""
-            diff_truncated = False
-            if max_diff_lines > 0:
-                diff_result = run_git(["diff", "-U2", *pathspec], cwd)
-                lines = diff_result.stdout.splitlines()
-                if len(lines) > max_diff_lines:
-                    diff_content = "\n".join(lines[:max_diff_lines])
-                    diff_truncated = True
-                else:
-                    diff_content = diff_result.stdout.strip()
+            diff_content, diff_truncated = _collect_diff(pathspec, cwd, max_diff_lines)
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
 
