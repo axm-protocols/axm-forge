@@ -23,8 +23,14 @@ _MAX_PORT = 65535
 
 @mcp.custom_route("/health", methods=["GET"])  # type: ignore[untyped-decorator]
 async def health_check(request: Request) -> JSONResponse:
-    """Return server health with registered tool count."""
-    tools = mcp._tool_manager.list_tools()
+    """Return server health with registered tool count.
+
+    Reads the count from FastMCP's public ``list_tools()`` enumeration,
+    which reflects exactly what is registered on the instance in BOTH
+    facade and legacy modes — no private ``_tool_manager`` access and no
+    parallel counter that could drift from the registration seam.
+    """
+    tools = await mcp.list_tools()
     return JSONResponse({"status": "ok", "tools_count": len(tools)})
 
 

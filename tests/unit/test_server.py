@@ -63,26 +63,44 @@ class TestServeEnvPort:
             assert mock_mcp.settings.port == 7777
 
 
+class _BoomToolManager:
+    """Sentinel that fails on any attribute access.
+
+    Patched in as ``mcp._tool_manager`` so the test proves health_check
+    never touches the private FastMCP API (AC1).
+    """
+
+    def __getattr__(self, name: str) -> object:
+        raise AssertionError(f"health_check touched private mcp._tool_manager.{name}")
+
+
 class TestHealthEndpoint:
-    """AC2: GET /health returns status and tools_count."""
+    """AC1, AC2: GET /health returns status and tools_count."""
 
     @pytest.mark.asyncio
     async def test_health_endpoint(self) -> None:
-        """Health handler returns {"status": "ok", "tools_count": N}."""
-        # health_check is an async function (Request) -> JSONResponse
-        # We can call it directly with a mock request
-        from unittest.mock import MagicMock
+        """AC1, AC2: count comes from the public API, not _tool_manager.
+
+        Registers N fake tools through the public registration path and
+        asserts ``tools_count == N`` while ``mcp._tool_manager`` is wired
+        to explode on any access — so the handler MUST NOT touch it.
+        """
+        import json
+        from unittest.mock import AsyncMock, MagicMock
 
         from axm_mcp.server import health_check
 
         request = MagicMock()
-        with patch("axm_mcp.server.mcp") as mock_mcp:
-            mock_mcp._tool_manager.list_tools = MagicMock(
-                return_value=[MagicMock(), MagicMock(), MagicMock()]
-            )
-            response = await health_check(request)
+        fake_mcp = MagicMock()
+        # Public enumeration API returns the actually-registered set.
+        fake_mcp.list_tools = AsyncMock(
+            return_value=[MagicMock(), MagicMock(), MagicMock()]
+        )
+        # Private API must NOT be touched.
+        fake_mcp._tool_manager = _BoomToolManager()
 
-        import json
+        with patch("axm_mcp.server.mcp", fake_mcp):
+            response = await health_check(request)
 
         body = json.loads(response.body)
         assert body["status"] == "ok"
