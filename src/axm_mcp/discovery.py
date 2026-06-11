@@ -162,11 +162,16 @@ def register_one(  # type: ignore[explicit-any]
     For *dispatcher* functions (``action`` + ``**kwargs``), introspects
     sub-functions to build a union of all their typed parameters.
 
-    When an ``AXMTool`` returns a ``ToolResult`` whose ``text`` attribute
-    is not ``None``, the wrapper short-circuits and returns the raw string
-    instead of the flattened dict.  FastMCP converts this to a
-    ``TextContent`` response, letting the LLM see pre-rendered markdown
-    rather than JSON.
+    When an ``AXMTool`` returns a **successful** ``ToolResult`` whose
+    ``text`` attribute is a string, the wrapper short-circuits and returns
+    the raw string instead of the flattened dict.  FastMCP converts this to
+    a ``TextContent`` response, letting the LLM see pre-rendered markdown
+    rather than JSON.  A *failing* ``ToolResult`` (``success=False``) never
+    short-circuits: it is flattened so the structural failure signal
+    (``success=False`` + ``error``) reaches the caller.  Any exception
+    raised by ``execute()`` (or by a plain dispatcher) is caught and
+    returned as the flattened AXM error shape — it never propagates to
+    FastMCP.
 
     Args:
         mcp: FastMCP server instance.
