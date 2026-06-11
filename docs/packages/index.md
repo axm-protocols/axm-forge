@@ -7,6 +7,22 @@ hide:
 
 <div class="grid cards" markdown>
 
+-   :material-package-variant-closed:{ .lg .middle } **axm**
+
+    ---
+
+    AXM CLI — thin autodiscovery wrapper for the ecosystem.
+
+    [:octicons-arrow-right-24: Getting Started](../axm/index.md)
+
+-   :octicons-server-16:{ .lg .middle } **axm-mcp**
+
+    ---
+
+    MCP Server — runtime tool discovery and execution.
+
+    [:octicons-arrow-right-24: Getting Started](../mcp/index.md)
+
 -   :material-file-tree:{ .lg .middle } **axm-ast**
 
     ---
