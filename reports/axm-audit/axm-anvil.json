@@ -29,8 +29,8 @@
       "message": "Coupling: 1 module(s) above threshold (-3 pts)",
       "details": {
         "max_fan_out": 18,
-        "max_fan_in": 8,
-        "avg_coupling": 3.93,
+        "max_fan_in": 9,
+        "avg_coupling": 4.07,
         "n_over_threshold": 1,
         "over_threshold": [
           {
@@ -68,9 +68,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 90% (90/100)",
+      "message": "Test coverage: 91% (90/100)",
       "details": {
-        "coverage": 90.33886085075703,
+        "coverage": 90.5289492494639,
         "failures": []
       },
       "metadata": null
@@ -188,11 +188,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (40/40)",
+      "message": "Docstring coverage: 100% (39/39)",
       "details": {
         "coverage": 1.0,
-        "total": 40,
-        "documented": 40,
+        "total": 39,
+        "documented": 39,
         "missing": []
       },
       "metadata": null
@@ -212,17 +212,17 @@
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_relative_import_intra_package_preserved",
-                "line": 1655
+                "line": 1724
               },
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_relative_import_cross_package_converted",
-                "line": 1674
+                "line": 1743
               },
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_include_helpers_false_real_files",
-                "line": 1827
+                "line": 1896
               }
             ],
             "cluster_hash": "3898437281a2",
@@ -246,7 +246,7 @@
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_string_forward_ref_not_rewritten",
-                "line": 1461
+                "line": 1530
               }
             ],
             "cluster_hash": "1f3ae3172b3e",
@@ -313,12 +313,12 @@
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_move_simple_class",
-                "line": 840
+                "line": 909
               },
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_move_with_direct_constants",
-                "line": 1257
+                "line": 1326
               }
             ],
             "cluster_hash": "577ca9835640",
@@ -370,12 +370,12 @@
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_absolute_import_untouched",
-                "line": 1694
+                "line": 1763
               },
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_relative_import_cross_package_real_files",
-                "line": 1730
+                "line": 1799
               }
             ],
             "cluster_hash": "caf1e7efb56c",
@@ -389,12 +389,12 @@
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_shared_helper_duplicate_mode_default",
-                "line": 1302
+                "line": 1371
               },
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_transitive_shared_helper_detected",
-                "line": 1347
+                "line": 1416
               }
             ],
             "cluster_hash": "c560ca201423",
@@ -408,12 +408,12 @@
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_string_forward_ref_warns",
-                "line": 1432
+                "line": 1501
               },
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_side_effect_decorator_bare_warns",
-                "line": 1580
+                "line": 1649
               }
             ],
             "cluster_hash": "3c07c9f9c530",
@@ -427,12 +427,12 @@
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_string_forward_ref_no_false_positive",
-                "line": 1446
+                "line": 1515
               },
               {
                 "file": "tests/integration/test_move_symbols.py",
                 "name": "test_non_whitelisted_decorator_no_warn",
-                "line": 1599
+                "line": 1668
               }
             ],
             "cluster_hash": "c5e5201d1e9d",
@@ -556,7 +556,7 @@
         "bucket_counts": {
           "CLUSTERED": 4,
           "AMBIGUOUS": 35,
-          "UNIQUE": 175
+          "UNIQUE": 185
         },
         "stale_acknowledged": []
       }
@@ -564,9 +564,22 @@
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "every integration/e2e file matches its canonical tuple",
+      "message": "1 naming finding(s): 1 INFO + 0 WARNING",
       "details": {
-        "findings": []
+        "findings": [
+          {
+            "verdict": "NAME_MISMATCH",
+            "severity": "info",
+            "tier": "integration",
+            "current_name": "test_ruff_fix.py",
+            "proposed_name": "test_move_symbols__postprocess.py",
+            "path": "tests/integration/test_ruff_fix.py",
+            "tuple": [
+              "move_symbols",
+              "postprocess"
+            ]
+          }
+        ]
       },
       "metadata": null
     },
@@ -635,17 +648,10 @@
           },
           {
             "severity": "LOW",
-            "code": "B607",
-            "message": "Starting a process with a partial executable path",
-            "file": "postprocess.py",
-            "line": 18
-          },
-          {
-            "severity": "LOW",
             "code": "B603",
             "message": "subprocess call - check for execution of untrusted input.",
             "file": "postprocess.py",
-            "line": 18
+            "line": 34
           },
           {
             "severity": "LOW",

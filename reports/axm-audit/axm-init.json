@@ -29,8 +29,8 @@
       "message": "Coupling: 0 modules above threshold (max fan-out: 10)",
       "details": {
         "max_fan_out": 10,
-        "max_fan_in": 23,
-        "avg_coupling": 2.95,
+        "max_fan_in": 22,
+        "avg_coupling": 3.06,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -56,7 +56,7 @@
           {
             "file": "axm_init/tools/reserve.py",
             "function": "InitReserveTool.execute",
-            "cc": 13,
+            "cc": 14,
             "rank": "C",
             "cognitive": 0,
             "reason": "cc"
@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 96% (96/100)",
       "details": {
-        "coverage": 96.2010288880095,
+        "coverage": 96.46965489884967,
         "failures": []
       },
       "metadata": null
@@ -149,9 +149,7 @@
           "ci.py",
           "deps.py",
           "docs.py",
-          "filesystem.py",
           "gen_ref_pages.py",
-          "makefile.py",
           "ports.py",
           "pyproject.py",
           "structure.py",
@@ -193,11 +191,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (116/116)",
+      "message": "Docstring coverage: 100% (105/105)",
       "details": {
         "coverage": 1.0,
-        "total": 116,
-        "documented": 116,
+        "total": 105,
+        "documented": 105,
         "missing": []
       },
       "metadata": null
@@ -205,7 +203,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "51 cluster(s), 0 clustered pair(s)",
+      "message": "53 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -924,30 +922,6 @@
             "acknowledged": true
           },
           {
-            "signal": "ambiguous_multi",
-            "reason": "distinct literals rescue for SUT test_file.exists(0) + pytest.raises divergence rescue for SUT test_file.exists(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_file_system_adapter.py",
-                "name": "test_context_manager_rollbacks_on_error",
-                "line": 99
-              },
-              {
-                "file": "tests/integration/test_transaction.py",
-                "name": "test_rollback_removes_files",
-                "line": 15
-              },
-              {
-                "file": "tests/integration/test_transaction.py",
-                "name": "test_rollback_noop_after_commit",
-                "line": 27
-              }
-            ],
-            "cluster_hash": "2cad2750f7f8",
-            "acknowledged": true
-          },
-          {
             "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT tool.execute(0|path=Call)",
             "similarity": 0.0,
@@ -979,17 +953,17 @@
               {
                 "file": "tests/unit/core/test_reserver.py",
                 "name": "test_full_reserve_success",
-                "line": 251
+                "line": 301
               },
               {
                 "file": "tests/unit/core/test_reserver.py",
                 "name": "test_reserve_build_fails",
-                "line": 269
+                "line": 319
               },
               {
                 "file": "tests/unit/core/test_reserver.py",
                 "name": "test_reserve_publish_fails",
-                "line": 331
+                "line": 381
               }
             ],
             "cluster_hash": "9fbf3e249d01",
@@ -1003,21 +977,44 @@
               {
                 "file": "tests/unit/core/test_reserver.py",
                 "name": "test_reserve_race_condition",
-                "line": 286
+                "line": 336
               },
               {
                 "file": "tests/unit/core/test_reserver.py",
                 "name": "test_reserve_idempotent_rerun",
-                "line": 309
+                "line": 359
               },
               {
                 "file": "tests/unit/core/test_reserver.py",
                 "name": "test_reserve_availability_error",
-                "line": 347
+                "line": 397
               }
             ],
             "cluster_hash": "9db99ab739b6",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT normalize_fails(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_quality_trace.py",
+                "name": "test_normalize_fails_governance_shape",
+                "line": 13
+              },
+              {
+                "file": "tests/unit/test_quality_trace.py",
+                "name": "test_normalize_fails_audit_shape",
+                "line": 23
+              },
+              {
+                "file": "tests/unit/test_quality_trace.py",
+                "name": "test_normalize_fails_missing_key_returns_empty",
+                "line": 35
+              }
+            ],
+            "cluster_hash": "11ebfecb0f5d"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1158,32 +1155,13 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT len(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_check_engine.py",
-                "name": "test_standalone_skips_workspace",
-                "line": 166
-              },
-              {
-                "file": "tests/integration/test_file_system_adapter.py",
-                "name": "test_transaction_tracks_created_files",
-                "line": 89
-              }
-            ],
-            "cluster_hash": "93a744de499e",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT len(1)>sorted(1)",
             "similarity": 0.0,
             "members": [
               {
                 "file": "tests/integration/test_check_engine.py",
                 "name": "test_checker_fan_out_at_most_10",
-                "line": 185
+                "line": 189
               },
               {
                 "file": "tests/integration/test_copier_config.py",
@@ -1269,6 +1247,24 @@
             ],
             "cluster_hash": "00d1abdb1a4c",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT check_pyproject_wheel_doc_shipping(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_check_pyproject_wheel_doc_shipping.py",
+                "name": "test_wheel_doc_shipping_passes_when_docs_force_included",
+                "line": 21
+              },
+              {
+                "file": "tests/integration/test_check_pyproject_wheel_doc_shipping.py",
+                "name": "test_wheel_doc_shipping_passes_when_no_docs_dir",
+                "line": 114
+              }
+            ],
+            "cluster_hash": "d9a5222d2877"
           },
           {
             "signal": "ambiguous_setup_divergence",
@@ -1392,7 +1388,7 @@
               {
                 "file": "tests/integration/test_copier_adapter__copier_config.py",
                 "name": "test_copy_handles_copier_error",
-                "line": 15
+                "line": 26
               },
               {
                 "file": "tests/unit/adapters/test_copier.py",
@@ -1518,6 +1514,24 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_distinct_sut",
+            "reason": "distinct public SUT rescue for shared sig isinstance(2)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/core/test_reserver.py",
+                "name": "test_build_package_passes_timeout",
+                "line": 177
+              },
+              {
+                "file": "tests/unit/core/test_reserver.py",
+                "name": "test_publish_package_passes_timeout",
+                "line": 269
+              }
+            ],
+            "cluster_hash": "8ef65dfc1c3f"
+          },
+          {
             "signal": "ambiguous_patch_context",
             "reason": "patch-context rescue for SUT PyPIAdapter(0)>adapter.check_availability(1)",
             "similarity": 0.0,
@@ -1536,6 +1550,24 @@
             "cluster_hash": "51a0d06a29ec"
           },
           {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT err.lower(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/core/test_reserver.py",
+                "name": "test_build_package_handles_timeout_expired",
+                "line": 191
+              },
+              {
+                "file": "tests/unit/core/test_reserver.py",
+                "name": "test_publish_package_handles_timeout_expired",
+                "line": 283
+              }
+            ],
+            "cluster_hash": "b23135302f50"
+          },
+          {
             "signal": "ambiguous_body_size",
             "reason": "body-size delta rescue (intra-file 83%)",
             "similarity": 0.8333333333333334,
@@ -1543,12 +1575,12 @@
               {
                 "file": "tests/integration/test_check_engine.py",
                 "name": "test_axm_init_check_passes_on_correctly_wired_docs",
-                "line": 252
+                "line": 256
               },
               {
                 "file": "tests/integration/test_check_engine.py",
                 "name": "test_axm_init_check_fails_on_orphan_docs",
-                "line": 262
+                "line": 266
               }
             ],
             "cluster_hash": "8b56ed7aeb29",
@@ -1591,6 +1623,24 @@
             ],
             "cluster_hash": "1221afb14327",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue (intra-file 83%)",
+            "similarity": 0.8333333333333334,
+            "members": [
+              {
+                "file": "tests/integration/test_format_agent_text.py",
+                "name": "test_all_passed_states_success_without_failures",
+                "line": 31
+              },
+              {
+                "file": "tests/integration/test_format_agent_text.py",
+                "name": "test_failure_keeps_name_message_details_and_fix",
+                "line": 40
+              }
+            ],
+            "cluster_hash": "fa9bcce3d4e7"
           },
           {
             "signal": "ambiguous_distinct_class",
@@ -1669,25 +1719,6 @@
             "acknowledged": true
           },
           {
-            "signal": "ambiguous_call_multiplicity",
-            "reason": "call-multiplicity rescue (intra-file 80%)",
-            "similarity": 0.8,
-            "members": [
-              {
-                "file": "tests/unit/adapters/test_github.py",
-                "name": "test_check_auth_status",
-                "line": 24
-              },
-              {
-                "file": "tests/unit/adapters/test_github.py",
-                "name": "test_check_auth_no_gh",
-                "line": 95
-              }
-            ],
-            "cluster_hash": "83ae2eb6faa0",
-            "acknowledged": true
-          },
-          {
             "signal": "ambiguous_body_size",
             "reason": "body-size delta rescue (intra-file 80%)",
             "similarity": 0.8,
@@ -1709,10 +1740,22 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 9,
-          "AMBIGUOUS": 202,
-          "UNIQUE": 294
+          "AMBIGUOUS": 206,
+          "UNIQUE": 292
         },
         "stale_acknowledged": [
+          {
+            "hash": "83ae2eb6faa0",
+            "reason": "test_check_auth_status patches subprocess.run with return_value MagicMocks (returncode 0 then 1) inside a single block asserting both True and False outcomes (success/failure branch coverage); test_check_auth_no_gh patches subprocess.run with side_effect=FileNotFoundError asserting only False (exception branch) \u2014 different mock topology (return_value sequence vs exception side_effect) targeting distinct code paths in check_auth."
+          },
+          {
+            "hash": "2cad2750f7f8",
+            "reason": "test_context_manager_rollbacks_on_error exercises the public FileSystemAdapter.transaction() context manager with pytest.raises(RuntimeError) for an implicit rollback on exception; test_rollback_removes_files calls the lower-level Transaction class directly via tx.rollback() (no exception, explicit rollback); test_rollback_noop_after_commit asserts the inverse contract (file still exists after rollback because commit was called first). Three distinct SUTs/invocation patterns with divergent assertions (exists vs not-exists)."
+          },
+          {
+            "hash": "93a744de499e",
+            "reason": "test_standalone_skips_workspace (test_check_engine.py) invokes CheckEngine(tmp_path).run() against a minimal standalone pyproject and asserts len([c for c in result.checks if c.category == 'workspace']) == 0 \u2014 exercising the workspace-context filter on CheckEngine. test_transaction_tracks_created_files (test_file_system_adapter.py) invokes FileSystemAdapter().transaction() as a context manager, writes a file via tx.write_file, and asserts len(tx.created_files) == 1 \u2014 exercising in-transaction file tracking on a completely different SUT. Two disjoint modules, two disjoint behavioural contracts; only the `len(...) == N` assertion shape coincides."
+          },
           {
             "hash": "c1dbed0e98c5",
             "reason": "test_copier_imports_at_runtime executes a subprocess that imports axm_init.adapters.copier (CopierAdapter, CopierConfig) \u2014 guards the copier adapter against import-time regressions; test_checker_imports_at_runtime executes a subprocess that imports axm_init.core.checker (CheckEngine) \u2014 guards the checker core against import-time regressions. Same subprocess shape but two disjoint import targets documenting fresh-interpreter importability for two distinct top-level modules."
@@ -1723,33 +1766,9 @@
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "2 naming finding(s): 2 INFO + 0 WARNING",
+      "message": "every integration/e2e file matches its canonical tuple",
       "details": {
-        "findings": [
-          {
-            "verdict": "NAME_MISMATCH",
-            "severity": "info",
-            "tier": "e2e",
-            "current_name": "test_check__pyproject_wheel_doc_shipping.py",
-            "proposed_name": "test_check.py",
-            "path": "tests/e2e/test_check__pyproject_wheel_doc_shipping.py",
-            "tuple": [
-              "axm-init",
-              "check"
-            ]
-          },
-          {
-            "verdict": "NAME_MISMATCH",
-            "severity": "info",
-            "tier": "integration",
-            "current_name": "test_scaffold__copier_adapter.py",
-            "proposed_name": "test_scaffold.py",
-            "path": "tests/integration/test_scaffold__copier_adapter.py",
-            "tuple": [
-              "scaffold"
-            ]
-          }
-        ]
+        "findings": []
       },
       "metadata": null
     },

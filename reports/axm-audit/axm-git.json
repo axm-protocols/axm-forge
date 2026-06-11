@@ -1,9 +1,9 @@
 {
-  "score": 99.0,
+  "score": 98.7,
   "grade": "A",
   "total": 31,
-  "failed": 0,
-  "success": true,
+  "failed": 1,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -26,11 +26,11 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 0 modules above threshold (max fan-out: 9)",
+      "message": "Coupling: 0 modules above threshold (max fan-out: 10)",
       "details": {
-        "max_fan_out": 9,
-        "max_fan_in": 21,
-        "avg_coupling": 4.74,
+        "max_fan_out": 10,
+        "max_fan_in": 26,
+        "avg_coupling": 4.15,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -59,11 +59,16 @@
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": true,
-      "message": "Test coverage: 94% (93/100)",
+      "passed": false,
+      "message": "Test coverage: 94% (1 test(s) failed)",
       "details": {
-        "coverage": 93.85918475383801,
-        "failures": []
+        "coverage": 94.21918908069048,
+        "failures": [
+          {
+            "test": "tests/integration/test_git_push_tool.py::TestPushFlow::test_force_with_lease_real_push",
+            "traceback": "subprocess.CalledProcessError: Command '['git', 'push', 'origin', 'HEAD:main']' returned non-zero exit status 1."
+          }
+        ]
       },
       "metadata": null
     },
@@ -121,10 +126,16 @@
     {
       "rule_id": "DEPS_HYGIENE",
       "passed": true,
-      "message": "Clean dependencies (0 issues)",
+      "message": "1 dependency issue(s) found",
       "details": {
-        "issue_count": 0,
-        "top_issues": []
+        "issue_count": 1,
+        "top_issues": [
+          {
+            "code": "DEP004",
+            "module": "mkdocs_gen_files",
+            "message": "'mkdocs_gen_files' imported but declared as a dev dependency"
+          }
+        ]
       },
       "metadata": null
     },
@@ -178,11 +189,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (62/62)",
+      "message": "Docstring coverage: 100% (95/95)",
       "details": {
         "coverage": 1.0,
-        "total": 62,
-        "documented": 62,
+        "total": 95,
+        "documented": 95,
         "missing": []
       },
       "metadata": null
@@ -190,10 +201,113 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "35 cluster(s), 0 clustered pair(s)",
+      "message": "42 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT render_text(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/tools/test_await_merge_text.py",
+                "name": "test_merged_pr_summary",
+                "line": 13
+              },
+              {
+                "file": "tests/unit/tools/test_await_merge_text.py",
+                "name": "test_missing_pr_ref_falls_back_to_empty",
+                "line": 17
+              },
+              {
+                "file": "tests/unit/tools/test_await_merge_text.py",
+                "name": "test_non_str_pr_ref_coerced_to_empty",
+                "line": 20
+              },
+              {
+                "file": "tests/unit/tools/test_branch_text.py",
+                "name": "test_branch",
+                "line": 13
+              },
+              {
+                "file": "tests/unit/tools/test_clone_text.py",
+                "name": "test_clone",
+                "line": 13
+              },
+              {
+                "file": "tests/unit/tools/test_clone_text.py",
+                "name": "test_clone_without_path",
+                "line": 25
+              },
+              {
+                "file": "tests/unit/tools/test_commit_text.py",
+                "name": "test_render",
+                "line": 128
+              },
+              {
+                "file": "tests/unit/tools/test_merge_text.py",
+                "name": "test_squash_merge_summary",
+                "line": 13
+              },
+              {
+                "file": "tests/unit/tools/test_merge_text.py",
+                "name": "test_missing_keys_fall_back_to_empty",
+                "line": 17
+              },
+              {
+                "file": "tests/unit/tools/test_merge_text.py",
+                "name": "test_non_str_values_coerced_to_empty",
+                "line": 20
+              },
+              {
+                "file": "tests/unit/tools/test_pr_text.py",
+                "name": "test_pr_auto_merge",
+                "line": 13
+              },
+              {
+                "file": "tests/unit/tools/test_pr_text.py",
+                "name": "test_pr_no_auto_merge",
+                "line": 23
+              },
+              {
+                "file": "tests/unit/tools/test_pull_text.py",
+                "name": "test_remote_branch_summary",
+                "line": 13
+              },
+              {
+                "file": "tests/unit/tools/test_pull_text.py",
+                "name": "test_missing_keys_fall_back_to_empty",
+                "line": 17
+              },
+              {
+                "file": "tests/unit/tools/test_pull_text.py",
+                "name": "test_non_str_values_coerced_to_empty",
+                "line": 20
+              },
+              {
+                "file": "tests/unit/tools/test_push_text.py",
+                "name": "test_push_with_upstream_set",
+                "line": 13
+              },
+              {
+                "file": "tests/unit/tools/test_push_text.py",
+                "name": "test_push_existing_upstream",
+                "line": 22
+              },
+              {
+                "file": "tests/unit/tools/test_tag_text.py",
+                "name": "test_full",
+                "line": 15
+              },
+              {
+                "file": "tests/unit/tools/test_tag_text.py",
+                "name": "test_breaking_not_pushed_no_resolved",
+                "line": 46
+              }
+            ],
+            "cluster_hash": "f305364c1375"
+          },
           {
             "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue (cross-file test_not_git_repo) + distinct literals rescue for SUT hook.execute(1)",
@@ -202,7 +316,7 @@
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
                 "name": "test_not_git_repo",
-                "line": 456
+                "line": 477
               },
               {
                 "file": "tests/integration/test_create_branch_hook.py",
@@ -217,7 +331,7 @@
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
                 "name": "test_nothing_to_commit",
-                "line": 438
+                "line": 459
               },
               {
                 "file": "tests/integration/test_pull_hook.py",
@@ -252,7 +366,7 @@
               {
                 "file": "tests/unit/hooks/test_await_merge.py",
                 "name": "test_await_merge_skip_no_gh",
-                "line": 135
+                "line": 253
               }
             ],
             "cluster_hash": "3cb3f5c55fe3",
@@ -266,57 +380,57 @@
               {
                 "file": "tests/integration/test_resolve_identity.py",
                 "name": "test_resolve_weekday_evening",
-                "line": 205
+                "line": 206
               },
               {
                 "file": "tests/integration/test_resolve_identity.py",
                 "name": "test_resolve_weekend",
-                "line": 212
+                "line": 213
               },
               {
                 "file": "tests/integration/test_resolve_identity.py",
                 "name": "test_resolve_non_axm_workspace",
-                "line": 219
+                "line": 220
               },
               {
                 "file": "tests/integration/test_resolve_identity.py",
                 "name": "test_resolve_no_schedule_rules",
-                "line": 272
+                "line": 273
               },
               {
                 "file": "tests/integration/test_resolve_identity.py",
                 "name": "test_resolve_multiple_rules_first_wins",
-                "line": 283
+                "line": 284
               },
               {
                 "file": "tests/integration/test_resolve_identity.py",
                 "name": "test_resolve_symlink_workspace",
-                "line": 330
+                "line": 352
               },
               {
                 "file": "tests/integration/test_resolve_identity.py",
                 "name": "test_matches_schedule_boundary_start",
-                "line": 349
+                "line": 371
               },
               {
                 "file": "tests/integration/test_resolve_identity.py",
                 "name": "test_matches_schedule_boundary_end",
-                "line": 356
+                "line": 378
               },
               {
                 "file": "tests/integration/test_resolve_identity.py",
                 "name": "test_is_axm_workspace_true",
-                "line": 373
+                "line": 395
               },
               {
                 "file": "tests/integration/test_resolve_identity.py",
                 "name": "test_is_axm_workspace_false",
-                "line": 380
+                "line": 402
               },
               {
                 "file": "tests/integration/test_resolve_identity.py",
                 "name": "test_resolve_weekday_morning",
-                "line": 197
+                "line": 198
               }
             ],
             "cluster_hash": "31cab244bf8d",
@@ -324,8 +438,8 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT hook.execute(1) + distinct literals rescue (intra-file 86%)",
-            "similarity": 0.8571428571428571,
+            "reason": "distinct literals rescue for SUT hook.execute(1) + distinct literals rescue (intra-file 86%) + distinct literals rescue (intra-file 100%)",
+            "similarity": 1.0,
             "members": [
               {
                 "file": "tests/integration/test_commit_phase_hook__run_git.py",
@@ -335,7 +449,7 @@
               {
                 "file": "tests/integration/test_preflight_hook.py",
                 "name": "test_not_a_repo",
-                "line": 246
+                "line": 269
               },
               {
                 "file": "tests/integration/test_pull_hook.py",
@@ -360,15 +474,20 @@
               {
                 "file": "tests/unit/hooks/test_create_pr.py",
                 "name": "test_create_pr_auto_merge_failure_non_fatal",
-                "line": 177
+                "line": 217
               },
               {
                 "file": "tests/integration/test_preflight_hook.py",
                 "name": "test_clean_repo",
-                "line": 234
+                "line": 257
+              },
+              {
+                "file": "tests/unit/hooks/test_create_pr.py",
+                "name": "test_hook_uses_shared_recovery",
+                "line": 171
               }
             ],
-            "cluster_hash": "0c17112c5c87",
+            "cluster_hash": "5ede5f3be9bd",
             "acknowledged": true
           },
           {
@@ -423,35 +542,69 @@
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
                 "name": "test_commit_retry_fails",
-                "line": 203
+                "line": 211
               },
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
                 "name": "test_missing_commit_spec_fails",
-                "line": 499
+                "line": 520
               },
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
                 "name": "test_commit_spec_not_a_dict_fails",
-                "line": 510
+                "line": 531
               },
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
                 "name": "test_missing_files_key_fails",
-                "line": 521
+                "line": 542
               },
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
                 "name": "test_nonexistent_file_fails",
-                "line": 535
+                "line": 556
               },
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
                 "name": "test_commit_fails_on_missing_file",
-                "line": 618
+                "line": 658
               }
             ],
             "cluster_hash": "99ce49e6bcd9",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "cross-file duplicate (100%): test_suggestions_hint + setup divergence rescue for SUT render_failure_text(0|data=Name,error='not a git repository')",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/tools/test_pr_text.py",
+                "name": "test_suggestions_hint",
+                "line": 41
+              },
+              {
+                "file": "tests/unit/tools/test_push_text.py",
+                "name": "test_suggestions_hint",
+                "line": 51
+              },
+              {
+                "file": "tests/unit/tools/test_tag_text.py",
+                "name": "test_suggestions_hint",
+                "line": 99
+              },
+              {
+                "file": "tests/unit/tools/test_worktree_text.py",
+                "name": "test_suggestions_hint",
+                "line": 104
+              },
+              {
+                "file": "tests/unit/tools/test_branch_text.py",
+                "name": "test_suggestions_hint",
+                "line": 25
+              }
+            ],
+            "cluster_hash": "b4608a2f1340",
             "acknowledged": true
           },
           {
@@ -482,10 +635,44 @@
               {
                 "file": "tests/integration/test_preflight_hook.py",
                 "name": "test_preflight_dict_worktree_path",
-                "line": 269
+                "line": 292
               }
             ],
             "cluster_hash": "e7377c7b0e34",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT Path(1)>check_ci(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/tools/test_tag.py",
+                "name": "test_skipped_when_gh_unavailable",
+                "line": 119
+              },
+              {
+                "file": "tests/unit/tools/test_tag.py",
+                "name": "test_check_ci_from_gh_output",
+                "line": 156
+              },
+              {
+                "file": "tests/unit/tools/test_tag.py",
+                "name": "test_exception_returns_error",
+                "line": 172
+              },
+              {
+                "file": "tests/unit/tools/test_tag.py",
+                "name": "test_ci_green_only_when_headsha_matches",
+                "line": 178
+              },
+              {
+                "file": "tests/unit/tools/test_tag.py",
+                "name": "test_ci_unrelated_red_does_not_block",
+                "line": 228
+              }
+            ],
+            "cluster_hash": "2326f8633a76",
             "acknowledged": true
           },
           {
@@ -496,7 +683,7 @@
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
                 "name": "test_disabled",
-                "line": 464
+                "line": 485
               },
               {
                 "file": "tests/integration/test_create_branch_hook.py",
@@ -535,7 +722,7 @@
               {
                 "file": "tests/unit/tools/test_push.py",
                 "name": "test_name",
-                "line": 38
+                "line": 40
               },
               {
                 "file": "tests/unit/tools/test_worktree.py",
@@ -554,7 +741,7 @@
               {
                 "file": "tests/integration/test_preflight_hook.py",
                 "name": "test_disabled",
-                "line": 257
+                "line": 280
               },
               {
                 "file": "tests/integration/test_worktree_add_hook.py",
@@ -668,9 +855,32 @@
             "similarity": 1.0,
             "members": [
               {
+                "file": "tests/unit/tools/test_await_merge.py",
+                "name": "test_name",
+                "line": 38
+              },
+              {
+                "file": "tests/unit/tools/test_merge.py",
+                "name": "test_name",
+                "line": 38
+              },
+              {
+                "file": "tests/unit/tools/test_pull.py",
+                "name": "test_name",
+                "line": 38
+              }
+            ],
+            "cluster_hash": "8426292e7ad2"
+          },
+          {
+            "signal": "ambiguous_template_pair",
+            "reason": "template-pair rescue (cross-file test_name)",
+            "similarity": 1.0,
+            "members": [
+              {
                 "file": "tests/unit/tools/test_commit.py",
                 "name": "test_name",
-                "line": 33
+                "line": 37
               },
               {
                 "file": "tests/unit/tools/test_commit_preflight.py",
@@ -684,6 +894,53 @@
               }
             ],
             "cluster_hash": "00c56eb1fb91",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue (cross-file test_plain_error)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/tools/test_await_merge_text.py",
+                "name": "test_plain_error",
+                "line": 28
+              },
+              {
+                "file": "tests/unit/tools/test_merge_text.py",
+                "name": "test_plain_error",
+                "line": 28
+              },
+              {
+                "file": "tests/unit/tools/test_pull_text.py",
+                "name": "test_plain_error",
+                "line": 28
+              }
+            ],
+            "cluster_hash": "584f7d91bafd"
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue (cross-file test_plain_error)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/tools/test_branch_text.py",
+                "name": "test_plain_error",
+                "line": 21
+              },
+              {
+                "file": "tests/unit/tools/test_push_text.py",
+                "name": "test_plain_error",
+                "line": 35
+              },
+              {
+                "file": "tests/unit/tools/test_tag_text.py",
+                "name": "test_plain_error",
+                "line": 66
+              }
+            ],
+            "cluster_hash": "d43a04a4f0b4",
             "acknowledged": true
           },
           {
@@ -747,12 +1004,12 @@
               {
                 "file": "tests/unit/hooks/test_await_merge.py",
                 "name": "test_await_merge_disabled",
-                "line": 147
+                "line": 265
               },
               {
                 "file": "tests/unit/hooks/test_create_pr.py",
                 "name": "test_create_pr_disabled",
-                "line": 170
+                "line": 210
               }
             ],
             "cluster_hash": "ff1f29f7b19a",
@@ -776,57 +1033,11 @@
               {
                 "file": "tests/unit/hooks/test_create_pr.py",
                 "name": "test_create_pr_dict_worktree_path",
-                "line": 214
+                "line": 254
               }
             ],
             "cluster_hash": "bc21505a59bc",
             "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_setup_divergence",
-            "reason": "setup divergence rescue for SUT _cached_files(1)>stage_spec_files(2|working_dir=Name)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_stage_spec_files.py",
-                "name": "test_staging_accepts_git_root_relative_path",
-                "line": 293
-              },
-              {
-                "file": "tests/integration/test_stage_spec_files.py",
-                "name": "test_staging_accepts_package_relative_path",
-                "line": 306
-              },
-              {
-                "file": "tests/integration/test_stage_spec_files.py",
-                "name": "test_staging_accepts_absolute_path_inside_repo",
-                "line": 319
-              }
-            ],
-            "cluster_hash": "890993144168"
-          },
-          {
-            "signal": "ambiguous_patch_context",
-            "reason": "patch-context rescue for SUT Path(1)>check_ci(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/tools/test_tag.py",
-                "name": "test_skipped_when_gh_unavailable",
-                "line": 111
-              },
-              {
-                "file": "tests/unit/tools/test_tag.py",
-                "name": "test_check_ci_from_gh_output",
-                "line": 141
-              },
-              {
-                "file": "tests/unit/tools/test_tag.py",
-                "name": "test_exception_returns_error",
-                "line": 156
-              }
-            ],
-            "cluster_hash": "760fd8835ba4"
           },
           {
             "signal": "signal1_call_assert",
@@ -836,17 +1047,17 @@
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_sync_fails",
-                "line": 180
+                "line": 267
               },
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_version_check_fails",
-                "line": 187
+                "line": 274
               },
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_uv_not_found",
-                "line": 210
+                "line": 297
               }
             ],
             "cluster_hash": "3a0c99a704de",
@@ -865,7 +1076,7 @@
               {
                 "file": "tests/unit/hooks/test_await_merge.py",
                 "name": "test_await_merge_no_pr_ref",
-                "line": 122
+                "line": 240
               }
             ],
             "cluster_hash": "393d37013529",
@@ -879,12 +1090,12 @@
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
                 "name": "test_commits_changes",
-                "line": 428
+                "line": 449
               },
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
                 "name": "test_workspace_package_commits",
-                "line": 643
+                "line": 748
               }
             ],
             "cluster_hash": "7e0906172112",
@@ -906,7 +1117,8 @@
                 "line": 38
               }
             ],
-            "cluster_hash": "978654efc031"
+            "cluster_hash": "978654efc031",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -916,12 +1128,12 @@
               {
                 "file": "tests/integration/test_commit_identity.py",
                 "name": "test_commit_with_identity",
-                "line": 110
+                "line": 116
               },
               {
                 "file": "tests/integration/test_commit_identity.py",
                 "name": "test_batch_commits_same_identity",
-                "line": 149
+                "line": 155
               }
             ],
             "cluster_hash": "8ceb7c3d4980",
@@ -929,21 +1141,21 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT hook.execute(1|from_outputs=True)>mocker.patch(1|return_value=None)",
+            "reason": "distinct literals rescue for SUT hook.execute(1|from_outputs=True)",
             "similarity": 0.0,
             "members": [
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
-                "name": "test_commit_retries_after_autofix",
-                "line": 161
+                "name": "test_workspace_from_outputs_pkg_relative_path",
+                "line": 626
               },
               {
                 "file": "tests/integration/test_commit_phase_hook.py",
-                "name": "test_commit_clean_no_retry",
-                "line": 237
+                "name": "test_modified_file_unaffected",
+                "line": 716
               }
             ],
-            "cluster_hash": "5ef18a0e31ec",
+            "cluster_hash": "c6e40f60a322",
             "acknowledged": true
           },
           {
@@ -1011,12 +1223,12 @@
               {
                 "file": "tests/unit/hooks/test_commit_phase.py",
                 "name": "test_commit_legacy_with_identity",
-                "line": 172
+                "line": 181
               },
               {
                 "file": "tests/unit/hooks/test_commit_phase.py",
                 "name": "test_commit_from_outputs_with_identity",
-                "line": 214
+                "line": 223
               }
             ],
             "cluster_hash": "e84d13905500",
@@ -1043,18 +1255,37 @@
           },
           {
             "signal": "signal1_call_assert",
+            "reason": "same SUT: is_already_exists(1) + same asserts",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/core/test_pr_recovery.py",
+                "name": "test_detects_existing",
+                "line": 44
+              },
+              {
+                "file": "tests/unit/core/test_pr_recovery.py",
+                "name": "test_rejects_other",
+                "line": 55
+              }
+            ],
+            "cluster_hash": "1c95ec9bf838",
+            "acknowledged": true
+          },
+          {
+            "signal": "signal1_call_assert",
             "reason": "same SUT: ep.load(0)>next(1) + same asserts",
             "similarity": 0.0,
             "members": [
               {
                 "file": "tests/unit/hooks/test_commit_phase.py",
                 "name": "test_commit_phase_hook_loads",
-                "line": 392
+                "line": 462
               },
               {
                 "file": "tests/unit/hooks/test_preflight.py",
                 "name": "test_preflight_hook_loads",
-                "line": 40
+                "line": 119
               }
             ],
             "cluster_hash": "e714397697ca",
@@ -1085,18 +1316,55 @@
             "similarity": 1.0,
             "members": [
               {
+                "file": "tests/integration/test_git_tag_tool.py",
+                "name": "test_result_exposes_full_tag",
+                "line": 108
+              },
+              {
+                "file": "tests/integration/test_git_tag_tool.py",
+                "name": "test_no_existing_tags",
+                "line": 251
+              }
+            ],
+            "cluster_hash": "44799bfa7c31",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue (intra-file 100%)",
+            "similarity": 1.0,
+            "members": [
+              {
                 "file": "tests/unit/hooks/test_await_merge.py",
                 "name": "test_await_merge_closed_without_merge",
-                "line": 98
+                "line": 216
               },
               {
                 "file": "tests/unit/hooks/test_await_merge.py",
                 "name": "test_await_merge_network_error",
-                "line": 266
+                "line": 384
               }
             ],
             "cluster_hash": "8f4b32ba6350",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue (intra-file 100%)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/tools/test_commit.py",
+                "name": "test_empty_message_error",
+                "line": 148
+              },
+              {
+                "file": "tests/unit/tools/test_commit.py",
+                "name": "test_git_add_failure",
+                "line": 163
+              }
+            ],
+            "cluster_hash": "bdd7447cd3b9"
           },
           {
             "signal": "ambiguous_patch_context",
@@ -1138,31 +1406,28 @@
           }
         ],
         "bucket_counts": {
-          "CLUSTERED": 9,
-          "AMBIGUOUS": 118,
-          "UNIQUE": 274
+          "CLUSTERED": 11,
+          "AMBIGUOUS": 155,
+          "UNIQUE": 348
         },
-        "stale_acknowledged": []
+        "stale_acknowledged": [
+          {
+            "hash": "5ef18a0e31ec",
+            "reason": "tests cover opposite branches of retry-on-autofix control flow (retry path with 4 mocked git calls and stage call_count==2 vs clean path with 3 mocked git calls and stage call_count==1) -- collapsing them would obscure the call-sequence verification that is the whole point"
+          },
+          {
+            "hash": "1e95b2bd529c",
+            "reason": "ambiguous_distinct_literals -- 10 render_text success-path tests across 6 files target 6 different renderer SUTs imported from different modules (branch_text/clone_text/commit_text/pr_text/push_text/tag_text.render_text), each producing a tool-specific prefix and body (git_branch vs git_clone vs git_commit vs git_pr vs git_push vs git_tag) over its own data dict shape -- a cross-file fold would erase which renderer is under test, and the intra-file pairs (clone with/without path, pr auto/no-auto merge, push upstream-set/existing, tag full/breaking-not-pushed) feed distinct literals exercising opposite branches"
+          }
+        ]
       }
     },
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "1 naming finding(s): 1 INFO + 0 WARNING",
+      "message": "every integration/e2e file matches its canonical tuple",
       "details": {
-        "findings": [
-          {
-            "verdict": "NAME_MISMATCH",
-            "severity": "info",
-            "tier": "integration",
-            "current_name": "test_clone__run_git.py",
-            "proposed_name": "test_git_clone_tool.py",
-            "path": "tests/integration/test_clone__run_git.py",
-            "tuple": [
-              "GitCloneTool"
-            ]
-          }
-        ]
+        "findings": []
       },
       "metadata": null
     },
@@ -1247,14 +1512,14 @@
             "severity": "LOW",
             "code": "B404",
             "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "pr.py",
+            "file": "merge.py",
             "line": 5
           },
           {
             "severity": "LOW",
             "code": "B404",
             "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "push.py",
+            "file": "pr.py",
             "line": 5
           }
         ]

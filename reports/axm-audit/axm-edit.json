@@ -1,5 +1,5 @@
 {
-  "score": 99.3,
+  "score": 99.4,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -29,8 +29,8 @@
       "message": "Coupling: 0 modules above threshold (max fan-out: 9)",
       "details": {
         "max_fan_out": 9,
-        "max_fan_in": 11,
-        "avg_coupling": 4.57,
+        "max_fan_in": 10,
+        "avg_coupling": 4.29,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -60,9 +60,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 94% (93/100)",
+      "message": "Test coverage: 94% (94/100)",
       "details": {
-        "coverage": 93.840830449827,
+        "coverage": 94.33962264150944,
         "failures": []
       },
       "metadata": null
@@ -174,11 +174,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (32/32)",
+      "message": "Docstring coverage: 100% (34/34)",
       "details": {
         "coverage": 1.0,
-        "total": 32,
-        "documented": 32,
+        "total": 34,
+        "documented": 34,
         "missing": []
       },
       "metadata": null
@@ -186,10 +186,69 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "19 cluster(s), 0 clustered pair(s)",
+      "message": "16 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT batch_apply(2)>target.read_text(0|encoding='utf-8') + same SUT: batch_apply(2)>outside.read_text(0|encoding='utf-8') + same asserts + distinct literals rescue (intra-f",
+            "similarity": 0.8888888888888888,
+            "members": [
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_replace_unchanged_file_applies_normally",
+                "line": 530
+              },
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_replace_rejects_symlink_escape",
+                "line": 583
+              },
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_replace_accepts_nested_in_root_path",
+                "line": 602
+              },
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_replace_tab_indented_block",
+                "line": 620
+              },
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_replace_mixed_tab_space_block",
+                "line": 644
+              },
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_replace_first_line_misaligned_block",
+                "line": 669
+              },
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_replace_space_indented_block_unchanged",
+                "line": 691
+              },
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_replace_rejects_dotdot_escape",
+                "line": 544
+              },
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_replace_rejects_absolute_path_outside_root",
+                "line": 569
+              },
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_happy_path_replace_unchanged",
+                "line": 441
+              }
+            ],
+            "cluster_hash": "2cfcf5f23ce8",
+            "acknowledged": true
+          },
           {
             "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT batch_apply(2) + distinct literals rescue (intra-file 100%)",
@@ -203,40 +262,41 @@
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_multi_line_indented_block",
-                "line": 198
+                "line": 207
               },
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_exact_match_preferred",
-                "line": 403
+                "line": 412
               },
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_no_line_auto_search",
-                "line": 47
+                "line": 56
               },
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_method_without_indentation",
-                "line": 153
+                "line": 162
               },
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_indented_with_line_hint",
-                "line": 176
+                "line": 185
               },
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_smart_quotes_normalized",
-                "line": 339
+                "line": 348
               },
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_wrapped_quotes_stripped",
-                "line": 360
+                "line": 369
               }
             ],
-            "cluster_hash": "399b46f69e8a"
+            "cluster_hash": "399b46f69e8a",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_template_pair",
@@ -246,7 +306,7 @@
               {
                 "file": "tests/unit/tools/test_batch_edit.py",
                 "name": "test_name",
-                "line": 11
+                "line": 19
               },
               {
                 "file": "tests/unit/tools/test_batch_rollback.py",
@@ -285,12 +345,12 @@
               {
                 "file": "tests/integration/test_batch_apply__create_op.py",
                 "name": "test_create_existing_fails",
-                "line": 23
+                "line": 27
               },
               {
                 "file": "tests/integration/test_batch_apply__create_op.py",
                 "name": "test_path_traversal_rejected",
-                "line": 48
+                "line": 52
               },
               {
                 "file": "tests/integration/test_batch_apply__delete_op.py",
@@ -300,20 +360,49 @@
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_ambiguous_old_rejected",
-                "line": 63
+                "line": 72
               },
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_old_not_found",
-                "line": 80
+                "line": 89
               },
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_file_not_found_fails",
-                "line": 138
+                "line": 147
               }
             ],
-            "cluster_hash": "8e22770d8ba5"
+            "cluster_hash": "8e22770d8ba5",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT filter_ruff_lines(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/services/test_lint.py",
+                "name": "test_keeps_diagnostic_lines",
+                "line": 11
+              },
+              {
+                "file": "tests/unit/services/test_lint.py",
+                "name": "test_drops_summary_noise",
+                "line": 18
+              },
+              {
+                "file": "tests/unit/services/test_lint.py",
+                "name": "test_drops_blank_lines",
+                "line": 27
+              },
+              {
+                "file": "tests/unit/services/test_lint.py",
+                "name": "test_empty_input_returns_empty",
+                "line": 31
+              }
+            ],
+            "cluster_hash": "a7c44ffdbe93"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -328,15 +417,16 @@
               {
                 "file": "tests/integration/test_edit__replace_op.py",
                 "name": "test_multi_file_fuzzy",
-                "line": 9
+                "line": 15
               },
               {
                 "file": "tests/integration/test_edit__replace_op.py",
                 "name": "test_two_replace_ops_same_file",
-                "line": 43
+                "line": 49
               }
             ],
-            "cluster_hash": "57522ceee488"
+            "cluster_hash": "57522ceee488",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_template_pair",
@@ -346,12 +436,12 @@
               {
                 "file": "tests/unit/tools/test_edit_file.py",
                 "name": "test_name",
-                "line": 17
+                "line": 46
               },
               {
                 "file": "tests/unit/tools/test_write_file.py",
                 "name": "test_name",
-                "line": 17
+                "line": 29
               }
             ],
             "cluster_hash": "4ee6e5cd7e73",
@@ -365,34 +455,15 @@
               {
                 "file": "tests/unit/tools/test_edit_file.py",
                 "name": "test_agent_hint_exists",
-                "line": 20
+                "line": 49
               },
               {
                 "file": "tests/unit/tools/test_write_file.py",
                 "name": "test_agent_hint_exists",
-                "line": 20
+                "line": 32
               }
             ],
             "cluster_hash": "f1fa35f55a9f",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_class",
-            "reason": "distinct parent class rescue for SUT apply_edits(2)>src_file.read_text(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_apply_edits.py",
-                "name": "test_apply_edits_replace",
-                "line": 32
-              },
-              {
-                "file": "tests/integration/test_apply_edits.py",
-                "name": "test_apply_edits_no_match",
-                "line": 136
-              }
-            ],
-            "cluster_hash": "44b49a80eb93",
             "acknowledged": true
           },
           {
@@ -408,10 +479,11 @@
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_path_traversal_in_replace",
-                "line": 11
+                "line": 20
               }
             ],
-            "cluster_hash": "dcba8cb5a13f"
+            "cluster_hash": "dcba8cb5a13f",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -429,7 +501,8 @@
                 "line": 48
               }
             ],
-            "cluster_hash": "f9a0adf152d5"
+            "cluster_hash": "f9a0adf152d5",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_class",
@@ -439,15 +512,16 @@
               {
                 "file": "tests/integration/test_batch_edit_tool.py",
                 "name": "test_lint_only_on_success",
-                "line": 663
+                "line": 645
               },
               {
                 "file": "tests/integration/test_batch_edit_tool.py",
                 "name": "test_empty_operations_no_lint",
-                "line": 849
+                "line": 771
               }
             ],
-            "cluster_hash": "d353e479f0de"
+            "cluster_hash": "d353e479f0de",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -457,108 +531,15 @@
               {
                 "file": "tests/integration/test_batch_edit_tool.py",
                 "name": "test_warnings_in_result",
-                "line": 200
+                "line": 194
               },
               {
                 "file": "tests/integration/test_batch_edit_tool.py",
                 "name": "test_ruff_invocation_fails",
-                "line": 254
+                "line": 247
               }
             ],
-            "cluster_hash": "88e7a1199b18"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT result.data.get(1)>tool.execute(0|operations=List,path=Call)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_batch_edit_tool.py",
-                "name": "test_ruff_uses_project_config",
-                "line": 688
-              },
-              {
-                "file": "tests/integration/test_batch_edit_tool.py",
-                "name": "test_claude_fix_clears_lint_errors",
-                "line": 793
-              }
-            ],
-            "cluster_hash": "417cf0587adc"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT _make_errors(2)>any(1)>claude_fix(2|warnings=Name)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_claude_fix.py",
-                "name": "test_no_claude_skips_autofix",
-                "line": 292
-              },
-              {
-                "file": "tests/integration/test_claude_fix.py",
-                "name": "test_claude_timeout_graceful",
-                "line": 311
-              }
-            ],
-            "cluster_hash": "89b173f70a71",
-            "acknowledged": true
-          },
-          {
-            "signal": "signal1_call_assert",
-            "reason": "same SUT: create_checkpoint(1) + same asserts",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_create_checkpoint.py",
-                "name": "test_no_git_dir",
-                "line": 21
-              },
-              {
-                "file": "tests/integration/test_create_checkpoint.py",
-                "name": "test_clean_repo_returns_none",
-                "line": 26
-              }
-            ],
-            "cluster_hash": "4fd94f98d713",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT _make_errors(2)>claude_fix(2)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/services/test_lint.py",
-                "name": "test_garbage_output",
-                "line": 151
-              },
-              {
-                "file": "tests/unit/services/test_lint.py",
-                "name": "test_timeout_handled",
-                "line": 200
-              }
-            ],
-            "cluster_hash": "6c60cc1ab0d2",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT _make_errors(2)>claude_fix(2)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/services/test_lint.py",
-                "name": "test_file_not_found",
-                "line": 178
-              },
-              {
-                "file": "tests/unit/services/test_lint.py",
-                "name": "test_unparseable_format",
-                "line": 222
-              }
-            ],
-            "cluster_hash": "6a5db45256cc",
+            "cluster_hash": "88e7a1199b18",
             "acknowledged": true
           },
           {
@@ -569,7 +550,7 @@
               {
                 "file": "tests/unit/tools/test_batch_edit.py",
                 "name": "test_execute_no_operations",
-                "line": 15
+                "line": 23
               },
               {
                 "file": "tests/unit/tools/test_batch_rollback.py",
@@ -588,15 +569,35 @@
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_single_line_reindent",
-                "line": 228
+                "line": 237
               },
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
                 "name": "test_exact_match_no_reindent",
-                "line": 312
+                "line": 321
               }
             ],
-            "cluster_hash": "4174a5c6d2f6"
+            "cluster_hash": "4174a5c6d2f6",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue (intra-file 88%)",
+            "similarity": 0.875,
+            "members": [
+              {
+                "file": "tests/integration/test_create_checkpoint__replace_op.py",
+                "name": "test_rollback_restores_modified_file_to_original_bytes",
+                "line": 20
+              },
+              {
+                "file": "tests/integration/test_create_checkpoint__replace_op.py",
+                "name": "test_rollback_leaves_unrelated_untracked_file_untouched",
+                "line": 33
+              }
+            ],
+            "cluster_hash": "40815865af79",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -606,12 +607,12 @@
               {
                 "file": "tests/integration/test_read_file_tool.py",
                 "name": "test_nonexistent_file",
-                "line": 60
+                "line": 86
               },
               {
                 "file": "tests/integration/test_read_file_tool.py",
                 "name": "test_path_traversal",
-                "line": 100
+                "line": 126
               }
             ],
             "cluster_hash": "9aa447f8d297",
@@ -619,9 +620,9 @@
           }
         ],
         "bucket_counts": {
-          "CLUSTERED": 2,
-          "AMBIGUOUS": 51,
-          "UNIQUE": 148
+          "CLUSTERED": 0,
+          "AMBIGUOUS": 57,
+          "UNIQUE": 160
         },
         "stale_acknowledged": [
           {
@@ -645,6 +646,10 @@
             "reason": "Different multi-edit scenarios with divergent summary expectations \u2014 multi_file_fuzzy asserts modified==2 across two files, multiple_edits_same_file and two_replace_ops_same_file assert modified==1 (merge into one file)."
           },
           {
+            "hash": "44b49a80eb93",
+            "reason": "apply_edits_replace asserts result is True with rewritten content, apply_edits_no_match asserts result is False with the file unchanged \u2014 opposite outcome branches."
+          },
+          {
             "hash": "1d67a6ea42b7",
             "reason": "path_traversal_in_replace and path_traversal_in_delete exercise the shared guard through two distinct operation types (ReplaceOp versus DeleteOp) \u2014 different SUTs sharing one invariant."
           },
@@ -655,6 +660,26 @@
           {
             "hash": "5df3b4dfb677",
             "reason": "warnings_in_result patches _has_ruff=False asserting the 'ruff not found' warning, while ruff_invocation_fails raises OSError/PermissionError asserting the 'ruff fix failed' warning \u2014 different branches and warning literals."
+          },
+          {
+            "hash": "417cf0587adc",
+            "reason": "ruff_uses_project_config suppresses E722 via a pyproject.toml ignore list, while claude_fix_clears_lint_errors mocks claude_fix to return [] \u2014 no-lint_errors reached through two unrelated mechanisms."
+          },
+          {
+            "hash": "89b173f70a71",
+            "reason": "no_claude_skips_autofix patches _has_claude=False asserting the 'claude not found' warning, while claude_timeout_graceful raises TimeoutExpired asserting the 'timed out' warning \u2014 different branches and warning literals."
+          },
+          {
+            "hash": "4fd94f98d713",
+            "reason": "no_git_dir runs create_checkpoint on a non-git tmp dir while clean_repo_returns_none runs it on a clean git repo \u2014 both return None but via two distinct branches reached through different fixtures."
+          },
+          {
+            "hash": "6c60cc1ab0d2",
+            "reason": "garbage_output returns unparseable returncode=1 stdout while timeout_handled raises TimeoutExpired \u2014 claude_fix leaves the file unchanged through two different exception/return branches."
+          },
+          {
+            "hash": "6a5db45256cc",
+            "reason": "file_not_found raises FileNotFoundError on the subprocess while unparseable_format returns non-JSON text \u2014 both return the original errors but via the missing-binary versus parse-failure branches."
           },
           {
             "hash": "1c13d64781e7",
@@ -739,13 +764,6 @@
             "severity": "LOW",
             "code": "B404",
             "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "checkpoint.py",
-            "line": 9
-          },
-          {
-            "severity": "LOW",
-            "code": "B404",
-            "message": "Consider possible security implications associated with the subprocess module.",
             "file": "run_command.py",
             "line": 10
           },
@@ -753,15 +771,22 @@
             "severity": "LOW",
             "code": "B404",
             "message": "Consider possible security implications associated with the subprocess module.",
-            "file": "lint.py",
-            "line": 14
+            "file": "checkpoint.py",
+            "line": 19
           },
           {
             "severity": "LOW",
             "code": "B607",
             "message": "Starting a process with a partial executable path",
-            "file": "checkpoint.py",
-            "line": 28
+            "file": "batch_edit.py",
+            "line": 46
+          },
+          {
+            "severity": "LOW",
+            "code": "B603",
+            "message": "subprocess call - check for execution of untrusted input.",
+            "file": "batch_edit.py",
+            "line": 46
           }
         ]
       },

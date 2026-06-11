@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 8,
         "max_fan_in": 12,
-        "avg_coupling": 3.73,
+        "avg_coupling": 3.68,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 92.69893355209187,
+        "coverage": 92.7652733118971,
         "failures": []
       },
       "metadata": null
@@ -195,7 +195,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "23 cluster(s), 0 clustered pair(s)",
+      "message": "24 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -291,12 +291,16 @@
               },
               {
                 "file": "tests/unit/strategies/test_round_numbers.py",
-                "name": "test_round_numbers_negative_floats",
+                "name": "test_round_numbers_real_float_still_rounded",
                 "line": 63
+              },
+              {
+                "file": "tests/unit/strategies/test_round_numbers.py",
+                "name": "test_round_numbers_negative_floats",
+                "line": 77
               }
             ],
-            "cluster_hash": "e45c7c20e23d",
-            "acknowledged": true
+            "cluster_hash": "3d8ebe3efc54"
           },
           {
             "signal": "ambiguous_multi",
@@ -439,7 +443,7 @@
               {
                 "file": "tests/unit/core/test_counter.py",
                 "name": "test_warn_emitted_once",
-                "line": 145
+                "line": 205
               },
               {
                 "file": "tests/unit/strategies/test_dedup_values.py",
@@ -449,17 +453,17 @@
               {
                 "file": "tests/unit/strategies/test_tabular.py",
                 "name": "test_very_wide_table",
-                "line": 82
+                "line": 92
               },
               {
                 "file": "tests/unit/tools/test_check.py",
                 "name": "test_entry_point_smelt_check",
-                "line": 68
+                "line": 85
               },
               {
                 "file": "tests/unit/tools/test_count.py",
                 "name": "test_entry_point_smelt_count",
-                "line": 48
+                "line": 58
               }
             ],
             "cluster_hash": "5c554968d784",
@@ -575,7 +579,7 @@
               {
                 "file": "tests/unit/core/test_pipeline.py",
                 "name": "test_unknown_strategy",
-                "line": 282
+                "line": 312
               }
             ],
             "cluster_hash": "2cf3715bb547",
@@ -623,7 +627,7 @@
               {
                 "file": "tests/unit/strategies/test_tabular.py",
                 "name": "test_boolean_null_values",
-                "line": 90
+                "line": 100
               }
             ],
             "cluster_hash": "9ad9bb2c629d",
@@ -721,23 +725,40 @@
             "acknowledged": true
           },
           {
-            "signal": "ambiguous_call_multiplicity",
-            "reason": "call-multiplicity rescue for SUT mocker.spy(2)",
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT read_input(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_cli.py",
+                "name": "test_read_input_valid_file",
+                "line": 11
+              },
+              {
+                "file": "tests/integration/test_cli.py",
+                "name": "test_cli_roundtrip_utf8_non_ascii",
+                "line": 17
+              }
+            ],
+            "cluster_hash": "1b717500ad0f"
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT len(1)",
             "similarity": 0.0,
             "members": [
               {
                 "file": "tests/unit/core/test_counter.py",
-                "name": "test_count_caches_encoding_once",
-                "line": 76
+                "name": "test_count_resolves_openai_model_names",
+                "line": 56
               },
               {
                 "file": "tests/unit/core/test_counter.py",
-                "name": "test_count_caches_per_model",
-                "line": 84
+                "name": "test_count_with_backend_fallback_path",
+                "line": 192
               }
             ],
-            "cluster_hash": "73304e8fb752",
-            "acknowledged": true
+            "cluster_hash": "d72ff7497958"
           },
           {
             "signal": "ambiguous_setup_divergence",
@@ -766,12 +787,12 @@
               {
                 "file": "tests/unit/core/test_pipeline.py",
                 "name": "test_guard_rejects_regression",
-                "line": 493
+                "line": 552
               },
               {
                 "file": "tests/unit/core/test_pipeline.py",
                 "name": "test_zero_token_change_discarded",
-                "line": 577
+                "line": 636
               }
             ],
             "cluster_hash": "e95bbb62bd6f",
@@ -894,13 +915,21 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 8,
-          "AMBIGUOUS": 89,
-          "UNIQUE": 173
+          "AMBIGUOUS": 92,
+          "UNIQUE": 191
         },
         "stale_acknowledged": [
           {
             "hash": "19f1551479b4",
             "reason": "15-test cluster covers structurally similar one-liners across distinct format branches (json/yaml/xml/markdown/text) and edge cases (empty, whitespace, doctype, malformed brace, html-heavy) \u2014 each test pins a separate detector branch and parametrization would erase the per-format intent"
+          },
+          {
+            "hash": "73304e8fb752",
+            "reason": "caches_encoding_once asserts a single tiktoken call across 100 invocations of one model (single-model cache invariant), while caches_per_model asserts two calls across two distinct models (per-model cache invariant) \u2014 different call multiplicities pin distinct cache semantics"
+          },
+          {
+            "hash": "e45c7c20e23d",
+            "reason": "18 tests cover three distinct strategies (drop_nulls, flatten, round_numbers) across three files \u2014 each asserts a different SUT contract with strategy-specific expected outputs (key removal vs key flattening vs numeric rounding); cross-file fold would conflate three unrelated SUTs"
           }
         ]
       }

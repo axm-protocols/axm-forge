@@ -1,9 +1,9 @@
 {
-  "score": 98.4,
+  "score": 95.9,
   "grade": "A",
   "total": 31,
-  "failed": 0,
-  "success": true,
+  "failed": 1,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -29,8 +29,8 @@
       "message": "Coupling: 6 module(s) above threshold (-18 pts)",
       "details": {
         "max_fan_out": 14,
-        "max_fan_in": 48,
-        "avg_coupling": 6.79,
+        "max_fan_in": 49,
+        "avg_coupling": 6.83,
         "n_over_threshold": 6,
         "over_threshold": [
           {
@@ -55,14 +55,14 @@
             "severity": "warning"
           },
           {
-            "module": "axm_audit.core.fix.stages_execute",
+            "module": "axm_audit.core.fix.layout_and_move",
             "fan_out": 11,
             "role": "leaf",
             "effective_threshold": 10,
             "severity": "warning"
           },
           {
-            "module": "axm_audit.core.fix.layout_and_move",
+            "module": "axm_audit.core.fix.stages_execute",
             "fan_out": 11,
             "role": "leaf",
             "effective_threshold": 10,
@@ -105,7 +105,7 @@
       "passed": true,
       "message": "Test coverage: 91% (90/100)",
       "details": {
-        "coverage": 90.78947368421052,
+        "coverage": 90.92536126209731,
         "failures": []
       },
       "metadata": null
@@ -216,17 +216,12 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 86% (185/214)",
+      "message": "Docstring coverage: 87% (188/217)",
       "details": {
-        "coverage": 0.86,
-        "total": 214,
-        "documented": 185,
+        "coverage": 0.87,
+        "total": 217,
+        "documented": 188,
         "missing": [
-          "axm_audit/core/fix/report.py:format_report",
-          "axm_audit/core/fix/extract_helpers.py:load_or_create_helpers_module",
-          "axm_audit/core/fix/extract_helpers.py:load_or_create_conftest_module",
-          "axm_audit/core/fix/stages_execute.py:visit_Name",
-          "axm_audit/core/fix/pipeline.py:run",
           "axm_audit/core/fix/cst_rewrite.py:leave_Subscript",
           "axm_audit/core/fix/cst_rewrite.py:leave_Attribute",
           "axm_audit/core/fix/cst_rewrite.py:visit_Attribute",
@@ -243,14 +238,19 @@
           "axm_audit/core/fix/cst_rewrite.py:leave_FunctionDef",
           "axm_audit/core/fix/cst_rewrite.py:leave_SimpleString",
           "axm_audit/core/fix/cst_rewrite.py:leave_Subscript",
+          "axm_audit/core/fix/stages_execute.py:visit_Name",
+          "axm_audit/core/fix/report.py:format_report",
+          "axm_audit/core/fix/pipeline.py:run",
+          "axm_audit/core/fix/extract_helpers.py:load_or_create_helpers_module",
+          "axm_audit/core/fix/extract_helpers.py:load_or_create_conftest_module",
           "axm_audit/core/rules/test_quality/_shared.py:load_conftest_fixtures",
+          "axm_audit/core/rules/test_quality/duplicate_tests.py:make_test_func",
+          "axm_audit/core/rules/test_quality/no_package_symbol.py:as_dict",
           "axm_audit/core/rules/test_quality/file_naming.py:current_name",
           "axm_audit/core/rules/test_quality/file_naming.py:distinct_non_empty_tuples",
           "axm_audit/core/rules/test_quality/file_naming.py:is_split",
           "axm_audit/core/rules/test_quality/file_naming.py:has_canonical",
-          "axm_audit/core/rules/test_quality/file_naming.py:as_dict",
-          "axm_audit/core/rules/test_quality/duplicate_tests.py:make_test_func",
-          "axm_audit/core/rules/test_quality/no_package_symbol.py:as_dict"
+          "axm_audit/core/rules/test_quality/file_naming.py:as_dict"
         ]
       },
       "metadata": null
@@ -258,7 +258,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "120 cluster(s), 0 clustered pair(s)",
+      "message": "122 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -453,12 +453,12 @@
               {
                 "file": "tests/integration/test_blocking_io_rule.py",
                 "name": "test_pass_no_blocking",
-                "line": 13
+                "line": 95
               },
               {
                 "file": "tests/integration/test_blocking_io_rule.py",
                 "name": "test_pass_with_timeout",
-                "line": 73
+                "line": 155
               },
               {
                 "file": "tests/integration/test_coupling_metric_rule.py",
@@ -513,7 +513,7 @@
               {
                 "file": "tests/integration/test_security_pattern_rule.py",
                 "name": "test_no_secrets_passes",
-                "line": 13
+                "line": 66
               }
             ],
             "cluster_hash": "36bcdf2c13f7",
@@ -527,7 +527,7 @@
               {
                 "file": "tests/integration/test_blocking_io_rule.py",
                 "name": "test_text_none_when_passed",
-                "line": 120
+                "line": 230
               },
               {
                 "file": "tests/integration/test_coupling_metric_rule.py",
@@ -562,22 +562,22 @@
               {
                 "file": "tests/integration/test_security_pattern_rule.py",
                 "name": "test_pass_text_is_none",
-                "line": 70
+                "line": 161
               },
               {
                 "file": "tests/integration/test_security_pattern_rule.py",
                 "name": "test_early_result_no_text",
-                "line": 87
+                "line": 178
               },
               {
                 "file": "tests/unit/core/rules/test_quality_rules.py",
                 "name": "test_formatting_text_none_on_pass",
-                "line": 314
+                "line": 416
               },
               {
                 "file": "tests/integration/test_blocking_io_rule.py",
                 "name": "test_empty_src_directory",
-                "line": 174
+                "line": 284
               },
               {
                 "file": "tests/integration/test_duplication_rule.py",
@@ -902,6 +902,44 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT len(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_audit_project__tests_pyramid_rule.py",
+                "name": "test_audit_project_reports_pyramid_verdict",
+                "line": 44
+              },
+              {
+                "file": "tests/integration/test_private_imports_rule.py",
+                "name": "test_class_method_no_call_flagged",
+                "line": 293
+              },
+              {
+                "file": "tests/integration/test_private_imports_rule.py",
+                "name": "test_upper_constant_flagged_when_enabled",
+                "line": 398
+              },
+              {
+                "file": "tests/integration/test_quality_trace__record_quality_snapshot.py",
+                "name": "test_record_is_append_only",
+                "line": 33
+              },
+              {
+                "file": "tests/integration/test_shared.py",
+                "name": "test_r4_conftest_cache_not_re_parsed",
+                "line": 132
+              },
+              {
+                "file": "tests/unit/core/rules/test_quality/test_private_imports.py",
+                "name": "test_count_after_attribute_detection",
+                "line": 33
+              }
+            ],
+            "cluster_hash": "399a537d7371"
+          },
+          {
             "signal": "ambiguous_setup_divergence",
             "reason": "setup divergence rescue for SUT _parse(1)>next(1)>test_invokes_in_package_script(0|module_ast=Name,project_scripts=Set,test_func=Name)",
             "similarity": 0.0,
@@ -1015,40 +1053,6 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT len(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_audit_project__tests_pyramid_rule.py",
-                "name": "test_audit_project_reports_pyramid_verdict",
-                "line": 44
-              },
-              {
-                "file": "tests/integration/test_private_imports_rule.py",
-                "name": "test_class_method_no_call_flagged",
-                "line": 293
-              },
-              {
-                "file": "tests/integration/test_private_imports_rule.py",
-                "name": "test_upper_constant_flagged_when_enabled",
-                "line": 398
-              },
-              {
-                "file": "tests/integration/test_shared.py",
-                "name": "test_r4_conftest_cache_not_re_parsed",
-                "line": 132
-              },
-              {
-                "file": "tests/unit/core/rules/test_quality/test_private_imports.py",
-                "name": "test_count_after_attribute_detection",
-                "line": 33
-              }
-            ],
-            "cluster_hash": "ca8fe9aad724",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT rule.check(1)",
             "similarity": 0.0,
             "members": [
@@ -1099,7 +1103,7 @@
               {
                 "file": "tests/unit/core/rules/test_quality_rules.py",
                 "name": "test_quality_module_attribute_absent",
-                "line": 379
+                "line": 481
               },
               {
                 "file": "tests/unit/core/test_runner.py",
@@ -1384,7 +1388,7 @@
               {
                 "file": "tests/unit/core/rules/test_quality_rules.py",
                 "name": "test_read_diff_config_public",
-                "line": 356
+                "line": 458
               },
               {
                 "file": "tests/unit/core/test_auditor.py",
@@ -1413,7 +1417,7 @@
               {
                 "file": "tests/unit/core/rules/test_quality_rules.py",
                 "name": "test_format_check_details_adds_indent",
-                "line": 387
+                "line": 489
               },
               {
                 "file": "tests/unit/test_formatters.py",
@@ -1524,7 +1528,7 @@
               {
                 "file": "tests/integration/test_security_pattern_rule.py",
                 "name": "test_hardcoded_password_fails",
-                "line": 30
+                "line": 83
               },
               {
                 "file": "tests/integration/test_type_check_rule.py",
@@ -1897,6 +1901,29 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT normalize_fails(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_quality_trace.py",
+                "name": "test_normalize_fails_audit_shape",
+                "line": 13
+              },
+              {
+                "file": "tests/unit/test_quality_trace.py",
+                "name": "test_normalize_fails_governance_shape",
+                "line": 25
+              },
+              {
+                "file": "tests/unit/test_quality_trace.py",
+                "name": "test_normalize_fails_missing_key_returns_empty",
+                "line": 35
+              }
+            ],
+            "cluster_hash": "11ebfecb0f5d"
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
             "reason": "AST similarity 88% + distinct literals rescue (intra-file 88%)",
             "similarity": 0.875,
             "members": [
@@ -1988,7 +2015,8 @@
                 "line": 874
               }
             ],
-            "cluster_hash": "32e94713c1ee"
+            "cluster_hash": "32e94713c1ee",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_multi",
@@ -2155,7 +2183,7 @@
               {
                 "file": "tests/e2e/test_audit.py",
                 "name": "test_cli_help_lists_test_quality",
-                "line": 117
+                "line": 175
               },
               {
                 "file": "tests/e2e/test_fix.py",
@@ -2364,12 +2392,12 @@
               {
                 "file": "tests/integration/test_complexity_rule.py",
                 "name": "test_complexity_rule_radon_in_project",
-                "line": 384
+                "line": 388
               },
               {
                 "file": "tests/integration/test_complexity_rule.py",
                 "name": "test_complexity_rule_radon_fallback",
-                "line": 402
+                "line": 406
               }
             ],
             "cluster_hash": "b052a0b0f5ad",
@@ -2388,7 +2416,7 @@
               {
                 "file": "tests/integration/test_security_pattern_rule.py",
                 "name": "test_text_bullet_format",
-                "line": 78
+                "line": 169
               }
             ],
             "cluster_hash": "e22bd2c1e679",
@@ -2431,6 +2459,24 @@
             ],
             "cluster_hash": "e16257fc86ec",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT rule.check(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_duplication_rule.py",
+                "name": "test_no_src_directory",
+                "line": 85
+              },
+              {
+                "file": "tests/integration/test_type_check_rule.py",
+                "name": "test_clean_run_scores_100",
+                "line": 505
+              }
+            ],
+            "cluster_hash": "7dbb1bb9c335"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -2497,7 +2543,7 @@
               {
                 "file": "tests/integration/test_complexity_rule.py",
                 "name": "test_all_offenders_shown",
-                "line": 512
+                "line": 516
               },
               {
                 "file": "tests/integration/test_formatting_rule.py",
@@ -2763,7 +2809,7 @@
               {
                 "file": "tests/integration/test_scan_package.py",
                 "name": "test_known_true_e2e_files_stay_e2e",
-                "line": 288
+                "line": 292
               },
               {
                 "file": "tests/unit/core/rules/test_base.py",
@@ -3309,10 +3355,15 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 28,
-          "AMBIGUOUS": 368,
-          "UNIQUE": 1046
+          "AMBIGUOUS": 374,
+          "UNIQUE": 1088
         },
-        "stale_acknowledged": []
+        "stale_acknowledged": [
+          {
+            "hash": "ca8fe9aad724",
+            "reason": "Inter-file cluster spans 4 unrelated SUTs: audit_project pyramid-verdict integration, two PrivateImportsRule attribute-access scenarios (class method no-call, upper constant when enabled), a conftest cache re-parse R4 integration check, and a unit-level finding-count assertion for attribute detection. Different fixtures (tmp_path projects vs pkg_root vs mocker spy) and different rule APIs; no shared helper signature to fold across. ACK."
+          }
+        ]
       }
     },
     {
@@ -3385,11 +3436,22 @@
     },
     {
       "rule_id": "PRACTICE_SECURITY",
-      "passed": true,
-      "message": "0 potential secret(s) found",
+      "passed": false,
+      "message": "2 potential secret(s) found",
       "details": {
-        "secret_count": 0,
-        "matches": []
+        "secret_count": 2,
+        "matches": [
+          {
+            "file": "axm_audit/core/rules/security.py",
+            "line": 259,
+            "pattern": "api_key"
+          },
+          {
+            "file": "axm_audit/core/rules/security.py",
+            "line": 340,
+            "pattern": "token"
+          }
+        ]
       },
       "metadata": null
     },

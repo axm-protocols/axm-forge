@@ -29,8 +29,8 @@
       "message": "Coupling: 1 module(s) above threshold (-3 pts)",
       "details": {
         "max_fan_out": 15,
-        "max_fan_in": 38,
-        "avg_coupling": 5.27,
+        "max_fan_in": 39,
+        "avg_coupling": 5.07,
         "n_over_threshold": 1,
         "over_threshold": [
           {
@@ -79,7 +79,7 @@
       "passed": true,
       "message": "Test coverage: 91% (91/100)",
       "details": {
-        "coverage": 91.07754927163667,
+        "coverage": 91.24544033350703,
         "failures": []
       },
       "metadata": null
@@ -196,11 +196,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 99% (183/184)",
+      "message": "Docstring coverage: 99% (189/190)",
       "details": {
         "coverage": 0.99,
-        "total": 184,
-        "documented": 183,
+        "total": 190,
+        "documented": 189,
         "missing": [
           "axm_ast/tools/_base.py:wrapper"
         ]
@@ -210,7 +210,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "118 cluster(s), 0 clustered pair(s)",
+      "message": "123 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -601,7 +601,12 @@
               {
                 "file": "tests/integration/test_package_cache.py",
                 "name": "test_cache_hit_unchanged",
-                "line": 70
+                "line": 73
+              },
+              {
+                "file": "tests/integration/test_package_cache.py",
+                "name": "test_get_returns_cached_on_unchanged_files",
+                "line": 241
               },
               {
                 "file": "tests/unit/core/test_cache.py",
@@ -611,17 +616,17 @@
               {
                 "file": "tests/integration/test_package_cache.py",
                 "name": "test_different_paths_independent",
-                "line": 24
+                "line": 27
               },
               {
                 "file": "tests/integration/test_package_cache.py",
                 "name": "test_cache_invalidation_on_delete",
-                "line": 83
+                "line": 86
               },
               {
                 "file": "tests/integration/test_package_cache.py",
                 "name": "test_clear_cache_full_reset",
-                "line": 122
+                "line": 125
               },
               {
                 "file": "tests/unit/core/test_cache.py",
@@ -634,8 +639,7 @@
                 "line": 80
               }
             ],
-            "cluster_hash": "c2551a956f23",
-            "acknowledged": true
+            "cluster_hash": "f0815346398b"
           },
           {
             "signal": "ambiguous_multi",
@@ -947,6 +951,40 @@
               }
             ],
             "cluster_hash": "9b346370bb32",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_multi",
+            "reason": "setup divergence rescue for SUT parse_file(1) + pytest.raises divergence rescue for SUT parse_file(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_parse_file.py",
+                "name": "test_not_python_file",
+                "line": 13
+              },
+              {
+                "file": "tests/unit/core/test_parser.py",
+                "name": "test_file_not_found",
+                "line": 73
+              },
+              {
+                "file": "tests/integration/test_parse_file.py",
+                "name": "test_parse_file_non_utf8_does_not_leak_unicodedecodeerror",
+                "line": 20
+              },
+              {
+                "file": "tests/integration/test_parse_file.py",
+                "name": "test_parse_file_valid_utf8_unchanged",
+                "line": 38
+              },
+              {
+                "file": "tests/unit/core/test_parser.py",
+                "name": "test_broken_file",
+                "line": 77
+              }
+            ],
+            "cluster_hash": "36751a879bd0",
             "acknowledged": true
           },
           {
@@ -1788,44 +1826,20 @@
               {
                 "file": "tests/integration/test_git_coupled_files.py",
                 "name": "test_no_git_repo",
-                "line": 136
+                "line": 138
               },
               {
                 "file": "tests/integration/test_git_coupled_files.py",
                 "name": "test_shallow_clone",
-                "line": 167
+                "line": 169
               },
               {
                 "file": "tests/integration/test_git_coupled_files.py",
                 "name": "test_new_file_no_history",
-                "line": 182
+                "line": 184
               }
             ],
             "cluster_hash": "56a8d7e47415",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_multi",
-            "reason": "setup divergence rescue for SUT parse_file(1) + pytest.raises divergence rescue for SUT parse_file(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_parse_file.py",
-                "name": "test_not_python_file",
-                "line": 13
-              },
-              {
-                "file": "tests/unit/core/test_parser.py",
-                "name": "test_file_not_found",
-                "line": 41
-              },
-              {
-                "file": "tests/unit/core/test_parser.py",
-                "name": "test_broken_file",
-                "line": 45
-              }
-            ],
-            "cluster_hash": "c53d597e9d4a",
             "acknowledged": true
           },
           {
@@ -1850,6 +1864,30 @@
               }
             ],
             "cluster_hash": "082cee62535a",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT render_docs_text(2) + distinct literals rescue (intra-file 100%)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/tools/test_docs_text.py",
+                "name": "test_full_reproduces_page_body_verbatim",
+                "line": 41
+              },
+              {
+                "file": "tests/unit/tools/test_docs_text.py",
+                "name": "test_full_includes_readme_and_mkdocs",
+                "line": 48
+              },
+              {
+                "file": "tests/unit/tools/test_docs_text.py",
+                "name": "test_summary_renders_first_sentences",
+                "line": 63
+              }
+            ],
+            "cluster_hash": "86a4504b82d8",
             "acknowledged": true
           },
           {
@@ -2458,6 +2496,24 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_distinct_class",
+            "reason": "distinct parent class rescue for SUT any(1)>cache.get(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_cache_mod__package_cache.py",
+                "name": "test_get_invalidates_after_file_modification",
+                "line": 32
+              },
+              {
+                "file": "tests/integration/test_package_cache.py",
+                "name": "test_cache_invalidation_on_modify",
+                "line": 146
+              }
+            ],
+            "cluster_hash": "9c270769f6c1"
+          },
+          {
             "signal": "ambiguous_setup_divergence",
             "reason": "setup divergence rescue for SUT tool.execute(0|path=Call)",
             "similarity": 0.0,
@@ -2705,6 +2761,25 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_distinct_class",
+            "reason": "distinct parent class rescue for SUT abs(1)>next(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_git_coupled_files.py",
+                "name": "test_coupling_strength_formula",
+                "line": 124
+              },
+              {
+                "file": "tests/integration/test_git_coupled_files.py",
+                "name": "test_ordinary_repo_coupling_unchanged",
+                "line": 280
+              }
+            ],
+            "cluster_hash": "1bab739dd47e",
+            "acknowledged": true
+          },
+          {
             "signal": "ambiguous_setup_divergence",
             "reason": "setup divergence rescue for SUT len(1)>tool._execute_batch(1|detail=None,exclude_tests=True,symbols=List)",
             "similarity": 0.0,
@@ -2911,6 +2986,44 @@
               }
             ],
             "cluster_hash": "37b1a6ffb2b6",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT render_diff_text(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/tools/test_diff_text.py",
+                "name": "test_added_signatures_present",
+                "line": 42
+              },
+              {
+                "file": "tests/unit/tools/test_diff_text.py",
+                "name": "test_removed_uses_minus_glyph",
+                "line": 55
+              }
+            ],
+            "cluster_hash": "557cf2a2070c",
+            "acknowledged": true
+          },
+          {
+            "signal": "signal1_call_assert",
+            "reason": "same SUT: render_diff_text(1) + same asserts",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/tools/test_diff_text.py",
+                "name": "test_added_without_signature_falls_back_to_name",
+                "line": 49
+              },
+              {
+                "file": "tests/unit/tools/test_diff_text.py",
+                "name": "test_modified_shows_before_and_after",
+                "line": 62
+              }
+            ],
+            "cluster_hash": "9259ae81bcc9",
             "acknowledged": true
           },
           {
@@ -3238,11 +3351,20 @@
           }
         ],
         "bucket_counts": {
-          "CLUSTERED": 28,
-          "AMBIGUOUS": 365,
-          "UNIQUE": 1046
+          "CLUSTERED": 30,
+          "AMBIGUOUS": 377,
+          "UNIQUE": 1075
         },
-        "stale_acknowledged": []
+        "stale_acknowledged": [
+          {
+            "hash": "6e126f9f483b",
+            "reason": "8 PackageCache.get tests span five TestClass groups and two pyramid mirrors documenting mutually-exclusive cache-lifecycle branches: test_cache_hit_unchanged / test_get_returns_cached_on_unchanged_files assert identity (first is second) on the no-change hit path; test_cache_invalidation_on_delete and test_clear_cache_full_reset assert second is not first on the delete and clear() eviction paths; test_different_paths_independent spies analyze_package call_count==2 across two distinct package roots; and the unit-mirror tests/unit/core/test_cache.py members (test_cache_hit_no_reparse, test_cache_miss_calls_analyze, test_nonexistent_path) mock analyze_package via MagicMock for pure call-count/identity assertions. Real-I/O integration fixtures (tmp_path mkdir/write/unlink) cannot be folded with mock-based unit assertions, and the five lifecycle branches (hit / delete / clear / cross-path / miss) each pin a distinct invalidation contract."
+          },
+          {
+            "hash": "26a4508d361a",
+            "reason": "2 PackageCache modify-invalidation tests live in distinct TestClass groups documenting two different mechanisms: test_cache_invalidation_on_modify (TestPackageCacheMtimeInvalidation) plainly rewrites a file's content between two get() calls and asserts the second PackageInfo reflects the new function (goodbye present, hello absent) \u2014 the baseline mtime-fingerprint invalidation branch; while test_get_invalidates_after_file_modification (TestPackageCacheToctou, AXM-1885) monkeypatches analyze_package to mutate the source DURING analysis, reproducing the TOCTOU race the fingerprint-before-analyze reorder narrows. Same observable (second is not first, new content) but different SUT branches (plain mtime delta vs fingerprint-capture-ordering under a mid-analysis mutation) and different fixtures (direct rewrite vs monkeypatched analyze) \u2014 folding would erase the TOCTOU-specific documentation."
+          }
+        ]
       }
     },
     {
