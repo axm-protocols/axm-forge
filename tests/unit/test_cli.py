@@ -12,12 +12,12 @@ import pytest
 from axm.cli import (
     _COMMANDS_GROUP,
     _TOOLS_GROUP,
-    _cli_param,
-    _is_nonscalar,
-    _public_params,
     build_command_for_tool,
+    cli_param,
     create_app,
+    is_nonscalar,
     main,
+    public_params,
 )
 from axm.tools.base import ToolResult
 
@@ -125,20 +125,20 @@ def _eps(
 class TestIsNonscalar:
     @pytest.mark.parametrize("ann", [str, int, float, bool])
     def test_scalars(self, ann: type) -> None:
-        assert _is_nonscalar(ann) is False
+        assert is_nonscalar(ann) is False
 
     @pytest.mark.parametrize("ann", [list, dict, list[str], dict[str, int]])
     def test_containers(self, ann: Any) -> None:
-        assert _is_nonscalar(ann) is True
+        assert is_nonscalar(ann) is True
 
     def test_optional_list_is_nonscalar(self) -> None:
-        assert _is_nonscalar(list[str] | None) is True
+        assert is_nonscalar(list[str] | None) is True
 
     def test_optional_str_is_scalar(self) -> None:
-        assert _is_nonscalar(str | None) is False
+        assert is_nonscalar(str | None) is False
 
     def test_empty_is_scalar(self) -> None:
-        assert _is_nonscalar(inspect.Parameter.empty) is False
+        assert is_nonscalar(inspect.Parameter.empty) is False
 
 
 # ── signature construction ────────────────────────────────────────────────────
@@ -146,12 +146,12 @@ class TestIsNonscalar:
 
 class TestPublicParams:
     def test_drops_self_and_kwargs_catchall(self) -> None:
-        names = [p.name for p in _public_params(_DispatchTool().execute)]
+        names = [p.name for p in public_params(_DispatchTool().execute)]
         assert "kwargs" not in names
         assert names == ["path"]
 
     def test_resolves_annotations_to_real_types(self) -> None:
-        params = {p.name: p.annotation for p in _public_params(_AuditTool().execute)}
+        params = {p.name: p.annotation for p in public_params(_AuditTool().execute)}
         assert params["path"] is str
         assert params["category"] == (str | None)
 
@@ -161,11 +161,11 @@ class TestCliParam:
         p = inspect.Parameter(
             "path", inspect.Parameter.KEYWORD_ONLY, annotation=str, default="."
         )
-        assert _cli_param(p).annotation is str
+        assert cli_param(p).annotation is str
 
     def test_required_nonscalar_becomes_str(self) -> None:
         p = inspect.Parameter("ops", inspect.Parameter.KEYWORD_ONLY, annotation=list)
-        assert _cli_param(p).annotation is str
+        assert cli_param(p).annotation is str
 
     def test_optional_nonscalar_becomes_optional_str(self) -> None:
         p = inspect.Parameter(
@@ -174,7 +174,7 @@ class TestCliParam:
             annotation=list[str] | None,
             default=None,
         )
-        assert _cli_param(p).annotation == (str | None)
+        assert cli_param(p).annotation == (str | None)
 
 
 # ── build_command_for_tool ────────────────────────────────────────────────────
