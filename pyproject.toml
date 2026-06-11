@@ -165,6 +165,14 @@ reason = "Inter-file existence guards on distinct SUTs: test_main_function_exist
 hash = "83b7015319e3"
 reason = "Inter-file, return-path vs error-path across tiers: test_prefers_global_bin (integration, real filesystem, creates ~/.local/bin/axm-mcp and asserts find_binary() returns that path) vs test_not_found (unit, mocks shutil.which to None and asserts find_binary() raises SystemExit). Happy-path return value vs error/raises branch on different tiers and fixtures."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e6e942662986"
+reason = "Heterogeneous: two distinct exception-guard branches of the wrapper - test_tool_exception_returns_error_dict drives the AXMTool branch (RaisingTool.execute() raises, asserts the ValueError class+message survive in the flattened error dict), while test_plain_fn_exception_returns_error_dict drives the plain-callable branch (a bare **kwargs fn raises RuntimeError, asserts its class+message). Different SUT shapes (tool.execute vs plain dispatcher), different exception types, different code paths."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "74c48c9bac1b"
+reason = "Heterogeneous: two unrelated serialization rules - test_failing_result_with_text_not_shortcircuited asserts a FAILING ToolResult carrying text does NOT short-circuit to bare markdown but falls through to the flattened success=False/error dict (text short-circuit guard), while test_flatten_collision_success_key_preserved asserts reserved-key namespacing on a SUCCEEDING result whose data carries a colliding 'success' key (envelope wins, data value relocated to data_success, warn logged). Different result polarity, different branch, different observable."
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MyPy Configuration
 # ─────────────────────────────────────────────────────────────────────────────
