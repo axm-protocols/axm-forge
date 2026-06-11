@@ -296,6 +296,8 @@ class TestDetectEnvIncompleteness:
         )
         diagnostic = detect_env_incompleteness(stdout, 1)
         assert diagnostic is not None
+        assert "foo" in diagnostic
+        assert "environment" in diagnostic.lower()
 
     def test_import_not_found_is_a_failure(self) -> None:
         """AC1: an [import-not-found] error (module truly missing) is an
@@ -325,6 +327,8 @@ class TestDetectEnvIncompleteness:
         stdout = "src/broken.py:1: error: unexpected EOF while parsing  [syntax]\n"
         diagnostic = detect_env_incompleteness(stdout, 2)
         assert diagnostic is not None
+        assert "exit code 2" in diagnostic
+        assert "unreliable" in diagnostic.lower()
 
     def test_clean_run_scores_100(self) -> None:
         """AC4: a genuinely clean run (exit 0, no stub/import signals) has
