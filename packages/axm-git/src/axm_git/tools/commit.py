@@ -13,6 +13,10 @@ from axm_git.core.branch_naming import (
     CONVENTIONAL_COMMIT_FORMAT,
     is_conventional_commit,
 )
+from axm_git.core.commit_spec import (
+    attempt_commit_with_autofix_retry,
+    validate_commit_spec,
+)
 from axm_git.core.identity import author_args, resolve_identity
 from axm_git.core.runner import (
     find_git_root,
@@ -46,24 +50,13 @@ def _attempt_commit(
         re-staging so it survives the subsequent ``git add``). Empty when
         no auto-fix occurred.
     """
-    commit = run_git(commit_args, git_root)
-    retried = False
-    auto_fixed: list[str] = []
-
-    # If pre-commit auto-fixed files, capture the diff BEFORE re-staging
-    # (otherwise ``git diff --name-only`` would be empty after ``git add``).
-    if commit.returncode != 0:
-        output = commit.stdout + commit.stderr
-        if "files were modified by this hook" in output:
-            logger.warning("Pre-commit auto-fixed files, re-staging and retrying")
-            diff = run_git(["diff", "--name-only"], git_root)
-            auto_fixed = [f for f in diff.stdout.strip().splitlines() if f.strip()]
-            stage_spec_files(files, git_root, working_dir=working_dir)
-            commit = run_git(commit_args, git_root)
-            retried = True
-
+    first = run_git(commit_args, git_root)
+    retry = attempt_commit_with_autofix_retry(
+        commit_args, files, git_root, first, working_dir=working_dir
+    )
+    commit = retry.result
     output = commit.stdout + commit.stderr
-    return commit.returncode == 0, retried, output, auto_fixed
+    return commit.returncode == 0, retry.retried, output, retry.auto_fixed
 
 
 def _validation_failure(
@@ -87,16 +80,17 @@ def _validate_commit_spec(
     *,
     strict: bool = False,
 ) -> ToolResult | None:
-    """Validate a single commit spec, returning a ToolResult error or None."""
-    if not spec.get("files"):
+    """Validate a single commit spec, returning a ToolResult error or None.
+
+    Delegates the structural check to the shared core validator
+    (:func:`axm_git.core.commit_spec.validate_commit_spec`) and wraps any
+    error in this surface's indexed ``ToolResult`` shape; the
+    Conventional-Commit guardrail (warn/strict) stays tool-specific.
+    """
+    _valid, err = validate_commit_spec(spec)
+    if err:
         return _validation_failure(
-            error=f"Commit {index}: empty files list",
-            results=results,
-            total=total,
-        )
-    if not spec.get("message"):
-        return _validation_failure(
-            error=f"Commit {index}: empty message",
+            error=f"Commit {index}: {err}",
             results=results,
             total=total,
         )
