@@ -628,7 +628,11 @@ class TestAllExistingToolsRegister:
     def test_all_existing_tools_register(self) -> None:
         """discover_tools() + register_tools() succeeds for every tool."""
         tools = discover_tools()
-        assert len(tools) > 0, "No tools discovered"
+        if not tools:
+            pytest.skip(
+                "no axm.tools entry points installed in this environment "
+                "(axm-mcp ships no tools of its own — it hosts plugins)"
+            )
 
         fake_mcp = FakeMCP()
         # Must not raise
