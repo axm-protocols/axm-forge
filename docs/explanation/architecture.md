@@ -110,7 +110,7 @@ sequenceDiagram
 1. **Startup**: `discover_tools()` scans `axm.tools` entry points
 2. **Registration**: `register_tools()` wraps each tool as an MCP callable
 3. **Verify tool**: `register_one()` registers the `verify` meta-tool from `VerifyTool`
-4. **Execution**: MCP client calls tool → wrapper delegates to `tool.execute(**kwargs)` → if `ToolResult.text` is set, returns raw string (rendered as `TextContent`); otherwise returns flattened dict
+4. **Execution**: MCP client calls tool → wrapper delegates to `tool.execute(**kwargs)` → on a **successful** `ToolResult` with `text` set, returns the raw string (rendered as `TextContent`); a failing result (or a raised exception) is flattened to a structured error dict (`success=False` + `error`) instead of short-circuiting
 5. **Verify**: `verify_project()` chains audit → init_check → AST enrichment
 
 ## Concurrency Model (HTTP mode)

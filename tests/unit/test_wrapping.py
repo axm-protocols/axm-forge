@@ -316,8 +316,8 @@ def _capture_wrapper(
         ),
         pytest.param(
             FakeToolResult(success=False, data={}, error="bad", text="Error: bad"),
-            "Error: bad",
-            id="text_with_error",
+            {"success": False, "error": "bad"},
+            id="failing_text_flattens",
         ),
     ],
 )
@@ -510,6 +510,145 @@ class TestPathWarningEdgeCases:
             wrapping._HTTP_MODE = original
 
         assert any("git_commit" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# --- hardened serialization: exception guard, text short-circuit, collisions ---
+# ---------------------------------------------------------------------------
+
+
+class RaisingTool:
+    """AXMTool-like object whose execute() raises."""
+
+    def __init__(self, exc: BaseException) -> None:
+        self._exc = exc
+
+    def execute(self, **kwargs: Any) -> Any:
+        """Raise the configured exception."""
+        raise self._exc
+
+
+@patch("axm_mcp.wrapping.log_external_step")
+def test_tool_exception_returns_error_dict(mock_log: MagicMock) -> None:
+    """AC1: execute() raising returns the flattened AXM error dict, no escape."""
+    tool = RaisingTool(ValueError("boom"))
+    wrapper = _capture_wrapper("raising_tool", tool)
+
+    out = wrapper()
+
+    assert isinstance(out, dict)
+    assert out["success"] is False
+    assert "ValueError" in out["error"]
+    assert "boom" in out["error"]
+
+
+@patch("axm_mcp.wrapping.log_external_step")
+def test_plain_fn_exception_returns_error_dict(mock_log: MagicMock) -> None:
+    """AC1: plain callable raising returns a flattened success=False dict."""
+
+    def _boom(**kwargs: Any) -> dict[str, Any]:
+        """A plain tool that explodes."""
+        raise RuntimeError("kaboom")
+
+    wrapper = _capture_wrapper("plain_boom", _boom)
+
+    out = wrapper()
+
+    assert isinstance(out, dict)
+    assert out["success"] is False
+    assert "RuntimeError" in out["error"]
+    assert "kaboom" in out["error"]
+
+
+@patch("axm_mcp.wrapping.log_external_step")
+def test_tool_exception_is_traced(mock_log: MagicMock) -> None:
+    """AC2: the exception failure path records a trace with success=False."""
+    tool = RaisingTool(ValueError("boom"))
+    wrapper = _capture_wrapper("raising_traced", tool)
+
+    wrapper()
+
+    mock_log.assert_called_once()
+    # Positional: (name, kwargs, success, output_str, duration_ms)
+    call_args = mock_log.call_args[0]
+    assert call_args[0] == "raising_traced"
+    assert call_args[2] is False  # success=False recorded
+
+
+@patch("axm_mcp.wrapping.log_external_step")
+def test_failing_result_with_text_not_shortcircuited(mock_log: MagicMock) -> None:
+    """AC3: a failing ToolResult with text falls through to the flattened dict."""
+    result = FakeToolResult(success=False, data={}, error="x", text="# md")
+    tool = FakeTool(result)
+    wrapper = _capture_wrapper("failing_text", tool)
+
+    out = wrapper()
+
+    assert isinstance(out, dict)
+    assert out["success"] is False
+    assert out["error"] == "x"
+
+
+@patch("axm_mcp.wrapping.log_external_step")
+def test_success_result_with_text_still_shortcircuits(mock_log: MagicMock) -> None:
+    """AC3: a succeeding ToolResult with text still short-circuits to bare markdown."""
+    result = FakeToolResult(success=True, data={"k": 1}, text="# md")
+    tool = FakeTool(result)
+    wrapper = _capture_wrapper("success_text", tool)
+
+    out = wrapper()
+
+    assert out == "# md"
+    assert isinstance(out, str)
+
+
+@patch("axm_mcp.wrapping.log_external_step")
+def test_flatten_collision_success_key_preserved(mock_log: MagicMock) -> None:
+    """AC4: a data 'success' key is namespaced; envelope success wins; warn logged."""
+    result = FakeToolResult(success=True, data={"success": "sentinel"})
+    tool = FakeTool(result)
+    wrapper = _capture_wrapper("collide_success", tool)
+
+    with patch("axm_mcp.wrapping.logger.warning") as mock_warn:
+        out = wrapper()
+
+    assert isinstance(out, dict)
+    assert out["success"] is True
+    assert out["data_success"] == "sentinel"
+    mock_warn.assert_called()
+
+
+@patch("axm_mcp.wrapping.log_external_step")
+def test_flatten_collision_error_hint_keys(mock_log: MagicMock) -> None:
+    """AC4: data 'error'/'hint' keys are deterministically namespaced, not leaked."""
+    result = FakeToolResult(
+        success=True, data={"error": "data-err", "hint": "data-hint"}
+    )
+    tool = FakeTool(result)
+    wrapper = _capture_wrapper("collide_error_hint", tool)
+
+    with patch("axm_mcp.wrapping.logger.warning"):
+        out = wrapper()
+
+    assert isinstance(out, dict)
+    # Envelope error is unset (success result) -> no leaked 'error' key.
+    assert "error" not in out
+    assert "hint" not in out
+    # Data values relocated deterministically, not lost.
+    assert out["data_error"] == "data-err"
+    assert out["data_hint"] == "data-hint"
+
+
+@patch("axm_mcp.wrapping.log_external_step")
+def test_flatten_no_collision_shape_unchanged(mock_log: MagicMock) -> None:
+    """AC4/AC5: with no reserved-key collision the output shape is unchanged."""
+    result = FakeToolResult(success=True, data={"k": 1, "v": "x"})
+    tool = FakeTool(result)
+    wrapper = _capture_wrapper("no_collision", tool)
+
+    out = wrapper()
+
+    assert out == {"success": True, "k": 1, "v": "x"}
 
 
 class TestExistingToolsStillWork:
