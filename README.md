@@ -50,7 +50,7 @@ axm-mcp serve
 # Check server status
 axm-mcp status
 
-# Stop the running server
+# Stop the running server (verifies the PID is really axm-mcp before SIGTERM)
 axm-mcp stop
 ```
 
@@ -106,7 +106,7 @@ Place this in `~/.claude/.mcp.json` (global) or `.mcp.json` at the project root.
 | `axm-mcp` | Start in **stdio** mode (backward-compatible default) |
 | `axm-mcp serve [--host HOST] [--port PORT]` | Start Streamable HTTP server (default port `9427`) |
 | `axm-mcp status [--host HOST] [--port PORT]` | Check whether the HTTP server is running |
-| `axm-mcp stop` | Send SIGTERM to the running HTTP server |
+| `axm-mcp stop` | Send SIGTERM to the running HTTP server. Verifies the PID file's process is really `axm-mcp` (via `ps` cmdline) before signalling; if the PID was reused by another process, it refuses to kill it and cleans up the stale PID file |
 | `axm-mcp install [--port PORT] [--binary PATH]` | Install axm-mcp as a launchd service (macOS) |
 | `axm-mcp uninstall` | Remove the launchd service |
 
