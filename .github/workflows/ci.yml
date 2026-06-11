@@ -7,9 +7,72 @@ on:
     branches: [main]
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Detect which packages changed so test/mypy only run for affected packages.
+  # A change to a shared file (root pyproject, uv.lock, workflows, scaffold
+  # templates) can affect every package, so it forces the full matrix.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect changed packages
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.set.outputs.packages }}
+      any: ${{ steps.set.outputs.any }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared:
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.python-version'
+              - '.github/workflows/**'
+              - 'packages/axm-init/src/axm_init/templates/**'
+            axm-anvil:
+              - 'packages/axm-anvil/**'
+            axm-ast:
+              - 'packages/axm-ast/**'
+            axm-audit:
+              - 'packages/axm-audit/**'
+            axm-edit:
+              - 'packages/axm-edit/**'
+            axm-init:
+              - 'packages/axm-init/**'
+            axm-git:
+              - 'packages/axm-git/**'
+            axm-smelt:
+              - 'packages/axm-smelt/**'
+      - name: Compute package matrix
+        id: set
+        env:
+          SHARED: ${{ steps.filter.outputs.shared }}
+          CHANGES: ${{ steps.filter.outputs.changes }}
+        run: |
+          ALL='["axm-anvil","axm-ast","axm-audit","axm-edit","axm-init","axm-git","axm-smelt"]'
+          if [ "$SHARED" = "true" ]; then
+            echo "Shared file changed -> full matrix"
+            PACKAGES="$ALL"
+          else
+            # `changes` is a JSON array of matched filter names; drop the
+            # `shared` entry (already handled) and keep the package names.
+            PACKAGES=$(echo "$CHANGES" | jq -c '[.[] | select(. != "shared")]')
+          fi
+          echo "packages=$PACKAGES" >> "$GITHUB_OUTPUT"
+          if [ "$PACKAGES" = "[]" ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Selected packages: $PACKAGES"
+
   lint:
     name: Lint & Type Check
     runs-on: ubuntu-latest
+    needs: changes
     steps:
       - uses: actions/checkout@v6
         with:
@@ -17,23 +80,34 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - run: uv python install 3.12
       - run: uv sync --all-packages --all-groups
+      # Ruff stays global: fast (<10s) and enforces format consistency
+      # across the whole repo regardless of which package changed.
       - name: Ruff check
         run: uv run ruff check .
       - name: Ruff format
         run: uv run ruff format --check .
+      # MyPy is per-package: each step runs only when that package (or a
+      # shared file) changed, keyed off the `changes` job output.
       - name: MyPy (axm-anvil)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-anvil')
         run: uv run --package axm-anvil mypy --config-file packages/axm-anvil/pyproject.toml packages/axm-anvil/src/ packages/axm-anvil/tests/
       - name: MyPy (axm-ast)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-ast')
         run: uv run --package axm-ast mypy --config-file packages/axm-ast/pyproject.toml packages/axm-ast/src/ packages/axm-ast/tests/
       - name: MyPy (axm-audit)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-audit')
         run: uv run --package axm-audit mypy --config-file packages/axm-audit/pyproject.toml packages/axm-audit/src/ packages/axm-audit/tests/
       - name: MyPy (axm-edit)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-edit')
         run: uv run --package axm-edit mypy --config-file packages/axm-edit/pyproject.toml packages/axm-edit/src/ packages/axm-edit/tests/
       - name: MyPy (axm-init)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-init')
         run: uv run --package axm-init mypy --config-file packages/axm-init/pyproject.toml packages/axm-init/src/ packages/axm-init/tests/
       - name: MyPy (axm-git)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-git')
         run: uv run --package axm-git mypy --config-file packages/axm-git/pyproject.toml packages/axm-git/src/ packages/axm-git/tests/
       - name: MyPy (axm-smelt)
+        if: contains(fromJSON(needs.changes.outputs.packages), 'axm-smelt')
         run: uv run --package axm-smelt mypy --config-file packages/axm-smelt/pyproject.toml packages/axm-smelt/src/ packages/axm-smelt/tests/
 
   security:
@@ -52,10 +126,12 @@ jobs:
   test:
     name: Test ${{ matrix.package }} (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
     strategy:
       fail-fast: false
       matrix:
-        package: [axm-anvil, axm-ast, axm-audit, axm-edit, axm-init, axm-git, axm-smelt]
+        package: ${{ fromJSON(needs.changes.outputs.packages) }}
         python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v6
