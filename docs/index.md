@@ -74,6 +74,8 @@ AXM Forge provides the **developer toolchain** for the AXM ecosystem. Every tool
 
 | Package | Description | Version | Quality |
 |---|---|---|---|
+| **[axm](axm/index.md)** | AXM CLI — thin autodiscovery wrapper for the ecosystem | [![PyPI](https://img.shields.io/pypi/v/axm)](https://pypi.org/project/axm/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm/axm-audit.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
+| **[axm-mcp](mcp/index.md)** | MCP Server — runtime tool discovery and execution | [![PyPI](https://img.shields.io/pypi/v/axm-mcp)](https://pypi.org/project/axm-mcp/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-mcp/axm-audit.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-mcp/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | **[axm-init](init/index.md)** | Python project scaffolding CLI with Copier templates | [![PyPI](https://img.shields.io/pypi/v/axm-init)](https://pypi.org/project/axm-init/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-init/axm-audit.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-init/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | **[axm-audit](audit/index.md)** | Code auditing and quality rules for Python projects | [![PyPI](https://img.shields.io/pypi/v/axm-audit)](https://pypi.org/project/axm-audit/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-audit/axm-audit.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-audit/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
 | **[axm-ast](ast/index.md)** | AST introspection CLI for AI agents, powered by tree-sitter | [![PyPI](https://img.shields.io/pypi/v/axm-ast)](https://pypi.org/project/axm-ast/) | [![audit](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ast/axm-audit.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) [![cov](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-ast/coverage.json)](https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml) |
@@ -109,15 +111,19 @@ graph TD
     classDef smelt fill:#FFA726,stroke:#FB8C00
     classDef anvil fill:#EF5350,stroke:#E53935
     classDef edit fill:#AB47BC,stroke:#8E24AA
+    classDef axm fill:#66BB6A,stroke:#43A047
+    classDef mcp fill:#8D6E63,stroke:#6D4C41
 
-    AST["axm-ast<br/>AST introspection"]:::ast
+    AXM["axm<br/>Core SDK + ToolResult"]:::axm
+    MCP["axm-mcp<br/>MCP Server"]:::mcp --> AXM
+    AST["axm-ast<br/>AST introspection"]:::ast --> AXM
     AUDIT["axm-audit<br/>Code auditing"]:::audit --> AST
     AUDIT --> ANVIL
-    INIT["axm-init<br/>Scaffolding"]:::init
-    GIT["axm-git<br/>Git automation"]:::git
-    SMELT["axm-smelt<br/>Token compaction"]:::smelt
+    INIT["axm-init<br/>Scaffolding"]:::init --> AXM
+    GIT["axm-git<br/>Git automation"]:::git --> AXM
+    SMELT["axm-smelt<br/>Token compaction"]:::smelt --> AXM
     ANVIL["axm-anvil<br/>CST refactoring"]:::anvil --> EDIT
-    EDIT["axm-edit<br/>Batch file editing"]:::edit
+    EDIT["axm-edit<br/>Batch file editing"]:::edit --> AXM
 ```
 
 ## Learn More
