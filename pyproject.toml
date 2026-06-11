@@ -150,11 +150,11 @@ hash = "3da3a2d46057"
 reason = "Heterogeneous setup: both return None but via distinct rejection branches - a regular function (no action+**kwargs) fails the dispatcher signature-shape check, while an orphan dispatcher (correct action+**kwargs shape) falls through the missing _ACTIONS-dict lookup. Different SUT construction, different early-return branch."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "62c675c5d7e5"
-reason = "Heterogeneous: different commands and observables - serve_cleans_pid_on_exit runs the serve subcommand with a no-op server and asserts the PID file is removed on exit, while stop_sends_sigterm runs the stop subcommand, mocks _is_process_alive and os.kill, and asserts os.kill(pid, SIGTERM) was sent. Different SUT, different mocks, different assertion."
+hash = "5ca831f8d22b"
+reason = "Heterogeneous: different commands and observables - test_cli_serve_cleans_pid_on_error runs the serve subcommand with a server that raises RuntimeError and asserts the PID file is removed despite the error, while test_cli_stop_sends_sigterm runs the stop subcommand, mocks is_process_alive/is_axm_mcp_process/os.kill and asserts os.kill(12345, SIGTERM) was sent. Different SUT, different mocks, different assertion."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "13ae18801eab"
+hash = "1dc373f3639b"
 reason = "Inter-file, divergent tiers/fixtures: test_cli_stop_no_pid_file (integration, real tmp_pid_file filesystem fixture, runs the stop command with no PID file and asserts SystemExit 1 + 'not running' on stderr) vs test_cli_status_not_running (unit, mocks httpx.get to raise ConnectError, runs the status command and asserts SystemExit 1 + 'not running' on stderr). Different CLI commands (stop vs status) and observation surfaces (absent PID file vs mocked HTTP failure) across integration/unit tiers."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
@@ -172,6 +172,18 @@ reason = "Heterogeneous: two distinct exception-guard branches of the wrapper - 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "74c48c9bac1b"
 reason = "Heterogeneous: two unrelated serialization rules - test_failing_result_with_text_not_shortcircuited asserts a FAILING ToolResult carrying text does NOT short-circuit to bare markdown but falls through to the flattened success=False/error dict (text short-circuit guard), while test_flatten_collision_success_key_preserved asserts reserved-key namespacing on a SUCCEEDING result whose data carries a colliding 'success' key (envelope wins, data value relocated to data_success, warn logged). Different result polarity, different branch, different observable."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "442a41860557"
+reason = "Heterogeneous: five tests across TestDescribe and TestCall exercise distinct ToolCatalog methods and return contracts - describe() raising UnknownToolError, call() returning text passthrough, call() rendering data when no text, call() on a plain callable, and call() propagating TypeError on missing required kwarg. Different SUT methods, different observables (text vs data-render vs raises UnknownToolError vs raises TypeError); only the catalog fixture is shared."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4c1a4161d8d3"
+reason = "Heterogeneous: distinct SUT functions - test_cli_install_delegates (parametrized) asserts lifecycle.install called once with (9427, binary=expected_binary), while test_cli_uninstall_delegates asserts lifecycle.uninstall called once with no args. Different delegated functions and call signatures."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b6c11889ae81"
+reason = "Heterogeneous: two distinct error branches of axm_call - test_call_unknown_tool_returns_error asserts the unknown-tool path renders 'error' + the tool name 'nope', while test_call_bad_args_includes_param_hint asserts the bad-args path renders 'accepted params' + the missing param 'msg'. Different code paths and assertions."
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MyPy Configuration

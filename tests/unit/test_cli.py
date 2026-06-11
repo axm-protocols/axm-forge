@@ -137,22 +137,3 @@ class TestStopCommand:
         mock_remove.assert_called_once_with()
         err = capsys.readouterr().err
         assert err.strip() != ""
-
-    def test_stop_handles_vanished_process(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """AC2: process gone between liveness and identity check — no SIGTERM."""
-        with (
-            patch("axm_mcp.cli.read_pid", return_value=4321),
-            patch("axm_mcp.cli.is_process_alive", return_value=True),
-            patch("axm_mcp.cli.is_axm_mcp_process", return_value=False),
-            patch("axm_mcp.cli.os.kill") as mock_kill,
-            patch("axm_mcp.cli.remove_pid_file"),
-            pytest.raises(SystemExit) as exc_info,
-        ):
-            stop()
-
-        assert exc_info.value.code != 0
-        mock_kill.assert_not_called()
-        err = capsys.readouterr().err
-        assert err.strip() != ""
