@@ -21,12 +21,14 @@ Repository = "https://github.com/axm-protocols/axm-forge"
 Documentation = "https://forge.axm-protocols.io"
 
 dependencies = [
+    "axm",
     "axm-anvil",
     "axm-ast",
     "axm-audit",
     "axm-edit",
     "axm-init",
     "axm-git",
+    "axm-mcp",
     "axm-smelt",
 ]
 
@@ -58,12 +60,14 @@ constraint-dependencies = [
 members = ["packages/*"]
 
 [tool.uv.sources]
+axm = { workspace = true }
 axm-anvil = { workspace = true }
 axm-ast = { workspace = true }
 axm-audit = { workspace = true }
 axm-edit = { workspace = true }
 axm-init = { workspace = true }
 axm-git = { workspace = true }
+axm-mcp = { workspace = true }
 axm-smelt = { workspace = true }
 
 [tool.pytest.ini_options]

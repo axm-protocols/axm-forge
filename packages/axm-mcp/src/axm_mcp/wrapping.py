@@ -84,28 +84,16 @@ def log_external_step(
     result_str: str,
     duration_ms: int,
 ) -> None:
-    """Log a non-protocol tool call in the active session trace.
+    """Instrumentation seam for non-protocol tool calls.
 
-    No-op if no session is active, tracing is disabled, or axm-engine
-    is not installed. Errors are silently swallowed — tracing must
-    never break tool execution.
+    Currently a no-op. This is the hook point where an execution engine
+    can observe each MCP tool call (name, args, outcome, duration). The
+    legacy ``axm-engine`` tracing wiring was removed when engine was
+    deprecated; a future ``axm-loom``-based tracer should re-attach here.
+    Any implementation MUST swallow its own errors — tracing must never
+    break tool execution.
     """
-    try:
-        from axm_engine.runtime.orchestrator import get_orchestrator
-        from axm_engine.services.tracing.models import hash_content
-
-        orch = get_orchestrator()
-        orch.log_external_step(
-            tool_name=tool_name,
-            tool_args=tool_args,
-            result_success=success,
-            result_length=len(result_str),
-            result_hash=hash_content(result_str),
-            duration_ms=duration_ms,
-            result_output=result_str,
-        )
-    except Exception:  # noqa: S110
-        pass  # tracing must never break tool execution
+    # TODO(loom): rebrancher le tracing des appels d'outils MCP ici.
 
 
 @dataclass(frozen=True)
