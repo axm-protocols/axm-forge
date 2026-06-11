@@ -3,6 +3,8 @@ name: Release
 on:
   push:
     tags:
+      - "axm/v*"
+      - "mcp/v*"
       - "anvil/v*"
       - "ast/v*"
       - "audit/v*"
