@@ -119,6 +119,9 @@ Multiple conversations run concurrently on the same server. To prevent conflicts
 
 - **Protocol sessions** are serialized per `session_id` via `KeyedLock`
 - **Git operations** are serialized per `repo_path` via `KeyedLock`
+- **Bounded memory** — `KeyedLock` reaps idle (unheld, unawaited) entries
+  opportunistically on release via per-key refcounting, so its map does not
+  grow unbounded with session ids / repo paths over the server's lifetime
 - **Graceful shutdown** drains in-flight requests (5s timeout) before exit
 
 ## Service Lifecycle (macOS)
