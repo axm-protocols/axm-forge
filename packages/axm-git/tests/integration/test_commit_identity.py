@@ -228,12 +228,20 @@ class TestIdentityEdgeCases:
                 return _git_result(stdout="abc1234abcdef0123456789")
             return _git_result()
 
+        # The autofix retry now routes through the core helper, so bind the
+        # same dispatcher to both the tool and core ``run_git`` names (and the
+        # core re-stage) so the retried commit is observed.
         mocker.patch(
             "axm_git.tools.commit.run_git",
             side_effect=_run_git_with_retry,
         )
+        mocker.patch(
+            "axm_git.core.commit_spec.run_git",
+            side_effect=_run_git_with_retry,
+        )
         mocker.patch("axm_git.tools.commit.find_git_root", return_value=tmp_path)
         mocker.patch("axm_git.tools.commit.stage_spec_files", return_value=None)
+        mocker.patch("axm_git.core.commit_spec.stage_spec_files", return_value=None)
 
         result = tool.execute(path=str(tmp_path), commits=_single_commit())
 

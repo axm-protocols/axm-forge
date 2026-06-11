@@ -67,7 +67,14 @@ class TestRetryOnAutofixDualResolution:
                     )
             return real_run_git(args, cwd, *rest, **kw)
 
+        # The retry (second commit + ``git diff --name-only`` capture +
+        # re-stage) now runs through the core helper, which has its own
+        # ``run_git`` binding — patch it with the same fake so the retried
+        # commit is counted and delegates to real git.
+        import axm_git.core.commit_spec as core_cs
+
         mocker.patch.object(cp, "run_git", side_effect=fake_run_git)
+        mocker.patch.object(core_cs, "run_git", side_effect=fake_run_git)
 
         hook = CommitPhaseHook()
         ctx = {

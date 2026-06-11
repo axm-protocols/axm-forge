@@ -175,30 +175,38 @@ class TestCommitRetryAfterAutofix:
             return_value=tmp_path,
         )
 
-        # run_git calls:
-        #   1. diff --cached (check staged) -> has staged files
-        #   2. commit -> rc=1 "files were modified by formatter"
-        #   3. commit retry -> rc=0
-        #   4. rev-parse -> short hash
-        mocker.patch(
-            "axm_git.hooks.commit_phase.run_git",
-            side_effect=[
-                _cp(stdout="src/foo.py\n"),
-                _cp(
-                    returncode=1,
-                    stderr="files were modified by formatter",
-                ),
-                _cp(returncode=0),
-                _cp(stdout="abc1234\n"),
-            ],
+        # The retry now routes through the core helper, so the first commit
+        # runs via the hook ``run_git`` and the retried commit + its
+        # ``git diff --name-only`` capture via core ``run_git``; the re-stage
+        # uses core ``stage_spec_files``. Dispatch on the command and bind one
+        # mock to both module names so call distribution is irrelevant.
+        commits = {"n": 0}
+
+        def _run_git(args: list[str], cwd: Any, **kw: Any) -> Any:
+            if args[0] == "commit":
+                commits["n"] += 1
+                if commits["n"] == 1:
+                    return _cp(returncode=1, stderr="files were modified by formatter")
+                return _cp(returncode=0)
+            if args[:2] == ["rev-parse", "--short"]:
+                return _cp(stdout="abc1234\n")
+            if args[0] == "diff":
+                return _cp(stdout="src/foo.py\n")
+            return _cp()
+
+        mocker.patch("axm_git.hooks.commit_phase.run_git", side_effect=_run_git)
+        mocker.patch("axm_git.core.commit_spec.run_git", side_effect=_run_git)
+        core_stage = mocker.patch(
+            "axm_git.core.commit_spec.stage_spec_files", return_value=None
         )
 
         result = hook.execute(context, from_outputs=True)
 
         assert result.success
         assert result.metadata["commit"] == "abc1234"
-        # stage_spec_files called twice: initial + re-stage after autofix
-        assert mock_stage.call_count == 2
+        # stage_spec_files called twice: initial (hook) + re-stage after
+        # autofix (core helper).
+        assert mock_stage.call_count + core_stage.call_count == 2
 
     def test_commit_retry_fails(
         self,
@@ -217,17 +225,24 @@ class TestCommitRetryAfterAutofix:
             return_value=tmp_path,
         )
 
-        mocker.patch(
-            "axm_git.hooks.commit_phase.run_git",
-            side_effect=[
-                _cp(stdout="src/foo.py\n"),
-                _cp(
-                    returncode=1,
-                    stderr="files were modified by formatter",
-                ),
-                _cp(returncode=1, stderr="pre-commit hook failed"),
-            ],
-        )
+        # First commit (hook) fails with the autofix marker; the retried
+        # commit (core helper) also fails. Dispatch + dual-patch so both
+        # commit attempts are observed.
+        commits = {"n": 0}
+
+        def _run_git(args: list[str], cwd: Any, **kw: Any) -> Any:
+            if args[0] == "commit":
+                commits["n"] += 1
+                if commits["n"] == 1:
+                    return _cp(returncode=1, stderr="files were modified by formatter")
+                return _cp(returncode=1, stderr="pre-commit hook failed")
+            if args[0] == "diff":
+                return _cp(stdout="src/foo.py\n")
+            return _cp()
+
+        mocker.patch("axm_git.hooks.commit_phase.run_git", side_effect=_run_git)
+        mocker.patch("axm_git.core.commit_spec.run_git", side_effect=_run_git)
+        mocker.patch("axm_git.core.commit_spec.stage_spec_files", return_value=None)
 
         result = hook.execute(context, from_outputs=True)
 
@@ -251,14 +266,17 @@ class TestCommitRetryAfterAutofix:
             return_value=tmp_path,
         )
 
-        mocker.patch(
-            "axm_git.hooks.commit_phase.run_git",
-            side_effect=[
-                _cp(stdout="src/foo.py\n"),  # diff --cached
-                _cp(returncode=0),  # commit succeeds
-                _cp(stdout="def5678\n"),  # rev-parse
-            ],
-        )
+        # build_commit_result's rev-parse now resolves via core ``run_git``,
+        # so dispatch on the command and bind one mock to both module names.
+        def _run_git(args: list[str], cwd: Any, **kw: Any) -> Any:
+            if args[:2] == ["rev-parse", "--short"]:
+                return _cp(stdout="def5678\n")
+            if args[0] == "diff":
+                return _cp(stdout="src/foo.py\n")  # diff --cached
+            return _cp(returncode=0)  # commit succeeds
+
+        mocker.patch("axm_git.hooks.commit_phase.run_git", side_effect=_run_git)
+        mocker.patch("axm_git.core.commit_spec.run_git", side_effect=_run_git)
 
         result = hook.execute(context, from_outputs=True)
 
@@ -556,7 +574,6 @@ class TestCommitFromOutputs:
         ("files", "message"),
         [
             pytest.param([".gitkeep"], "feat: clean", id="already_clean_file"),
-            pytest.param([], "feat: empty", id="empty_files_list"),
         ],
     )
     def test_nothing_to_commit_skips(
@@ -578,6 +595,26 @@ class TestCommitFromOutputs:
         assert result.success
         assert result.metadata["skipped"] is True
         assert result.metadata["reason"] == "nothing to commit"
+
+    def test_empty_files_list_rejected(self, tmp_git_repo: Path) -> None:
+        """AC1: the stricter merged validator rejects an empty ``files`` list.
+
+        Contract update for AXM-1899: previously an empty ``files`` passed the
+        key-presence check and fell through to the 'nothing to commit' skip;
+        the consolidated core validator now requires a non-empty ``files``
+        list, so the hook fails fast with ``'empty files list'``.
+        """
+        hook = CommitPhaseHook()
+        result = hook.execute(
+            {
+                "working_dir": str(tmp_git_repo),
+                "commit_spec": {"message": "feat: empty", "files": []},
+            },
+            from_outputs=True,
+        )
+
+        assert result.success is False
+        assert "empty files list" in (result.error or "")
 
 
 class TestCommitFromOutputsWorkspace:

@@ -245,11 +245,17 @@ class TestGitCommitTool:
 
     @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
     @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
-    @patch("axm_git.tools.commit.run_git")
     def test_auto_retry_on_ruff_fix(
-        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+        self, _mock_stage: MagicMock, _mock_root: MagicMock
     ) -> None:
-        """When pre-commit auto-fixes, re-stage and retry once."""
+        """When pre-commit auto-fixes, re-stage and retry once.
+
+        The autofix-retry plumbing now lives in the shared core helper, so
+        the first commit runs via the tool-module ``run_git`` and the
+        retried commit (plus its ``git diff --name-only`` capture) via the
+        core helper's ``run_git``.  Bind ONE shared mock to both names so the
+        retry assertion (commit_count == 2) holds across the boundary.
+        """
         commit_count = 0
 
         def _side_effect(
@@ -267,22 +273,31 @@ class TestGitCommitTool:
                 return _ok("abc1234")
             return _ok()
 
-        mock_git.side_effect = _side_effect
-        result = GitCommitTool().execute(
-            path="/tmp/test",
-            commits=[{"files": ["a.py"], "message": "fix: a"}],
-        )
+        mock_git = MagicMock(side_effect=_side_effect)
+        with (
+            patch("axm_git.tools.commit.run_git", new=mock_git),
+            patch("axm_git.core.commit_spec.run_git", new=mock_git),
+            patch("axm_git.core.commit_spec.stage_spec_files", return_value=None),
+        ):
+            result = GitCommitTool().execute(
+                path="/tmp/test",
+                commits=[{"files": ["a.py"], "message": "fix: a"}],
+            )
         assert result.success
         assert result.data["results"][0]["retried"] is True
         assert commit_count == 2
 
     @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
     @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
-    @patch("axm_git.tools.commit.run_git")
     def test_auto_retry_fails_twice(
-        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+        self, _mock_stage: MagicMock, _mock_root: MagicMock
     ) -> None:
-        """When retry also fails, report error with retried=True."""
+        """When retry also fails, report error with retried=True.
+
+        The retry (re-stage + second commit + ``git diff --name-only``
+        capture) runs through the shared core helper, so bind ONE mock to
+        both the tool and core ``run_git`` names.
+        """
 
         def _side_effect(
             args: list[str], cwd: Any, **kw: Any
@@ -295,11 +310,16 @@ class TestGitCommitTool:
                 return _ok("a.py\n")
             return _ok()
 
-        mock_git.side_effect = _side_effect
-        result = GitCommitTool().execute(
-            path="/tmp/test",
-            commits=[{"files": ["a.py"], "message": "fix: a"}],
-        )
+        mock_git = MagicMock(side_effect=_side_effect)
+        with (
+            patch("axm_git.tools.commit.run_git", new=mock_git),
+            patch("axm_git.core.commit_spec.run_git", new=mock_git),
+            patch("axm_git.core.commit_spec.stage_spec_files", return_value=None),
+        ):
+            result = GitCommitTool().execute(
+                path="/tmp/test",
+                commits=[{"files": ["a.py"], "message": "fix: a"}],
+            )
         assert not result.success
         assert result.data["failed_commit"]["retried"] is True
         assert "a.py" in result.data["failed_commit"]["auto_fixed_files"]
