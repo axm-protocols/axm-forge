@@ -153,6 +153,7 @@ disallow_any_explicit = false
 # ─────────────────────────────────────────────────────────────────────────────
 [tool.axm-audit.mirror]
 exempt_paths = ["**/__init__.py"]
+exempt_tests = ["test___init__.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
