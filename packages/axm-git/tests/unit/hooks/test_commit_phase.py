@@ -167,6 +167,7 @@ def _commit_from_outputs_deps() -> Any:
     with (
         patch("axm_git.hooks.commit_phase.run_git", side_effect=_run_git) as mock_git,
         patch("axm_git.core.runner.run_git", side_effect=_run_git),
+        patch("axm_git.core.commit_spec.run_git", side_effect=_run_git),
         patch(
             "axm_git.hooks.commit_phase.find_git_root", return_value=Path("/fake/repo")
         ),
@@ -320,11 +321,16 @@ class TestIdentityEdgeCases:
                 return SimpleNamespace(returncode=0, stdout="abc1234\n", stderr="")
             return SimpleNamespace(returncode=0, stdout="", stderr="")
 
+        # The retry routes through the core helper, so the first commit goes
+        # via the hook-module ``run_git`` and the retried commit via the core
+        # ``run_git``.  Bind ONE shared mock to both names so its
+        # ``call_args_list`` records every commit across the surface boundary.
+        mock_git = MagicMock(side_effect=_run_git)
         with (
-            patch(
-                "axm_git.hooks.commit_phase.run_git", side_effect=_run_git
-            ) as mock_git,
-            patch("axm_git.core.runner.run_git", side_effect=_run_git),
+            patch("axm_git.hooks.commit_phase.run_git", new=mock_git),
+            patch("axm_git.core.runner.run_git", new=mock_git),
+            patch("axm_git.core.commit_spec.run_git", new=mock_git),
+            patch("axm_git.core.commit_spec.stage_spec_files", return_value=None),
             patch(
                 "axm_git.hooks.commit_phase.find_git_root",
                 return_value=Path("/fake/repo"),
@@ -430,6 +436,7 @@ class TestDeletedTargetResolution:
         with (
             patch("axm_git.hooks.commit_phase.run_git", side_effect=_run_git),
             patch("axm_git.core.runner.run_git", side_effect=_run_git),
+            patch("axm_git.core.commit_spec.run_git", side_effect=_run_git),
             patch("axm_git.hooks.commit_phase.find_git_root", return_value=git_root),
             patch("axm_git.hooks.commit_phase.resolve_identity", return_value=None),
         ):

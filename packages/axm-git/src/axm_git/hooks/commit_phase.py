@@ -11,12 +11,17 @@ import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, cast
+from typing import cast
 
 from axm.hooks.base import HookResult
 
+from axm_git.core.commit_spec import (
+    _GitResultLike,
+    build_commit_result,
+    retry_commit_on_autofix,
+    validate_commit_spec,
+)
 from axm_git.core.identity import (  # noqa: F401 (author_args: mock target)
-    GitIdentity,
     author_args,
     resolve_identity,
 )
@@ -27,42 +32,9 @@ from axm_git.core.runner import (
     stage_spec_files,
 )
 
-
-class _GitResultLike(Protocol):
-    """Minimal protocol matching ``subprocess.CompletedProcess`` and the
-    ``SimpleNamespace`` fallback returned by :func:`retry_commit_on_autofix`.
-    """
-
-    returncode: int
-    stdout: str
-    stderr: str
-
-
 logger = logging.getLogger(__name__)
 
 __all__ = ["CommitPhaseHook"]
-
-_REQUIRED_SPEC_KEYS = {"message", "files"}
-
-
-def _validate_commit_spec(
-    spec: dict[str, object] | None,
-) -> tuple[dict[str, object] | None, str | None]:
-    """Validate a ``commit_spec`` dict.
-
-    Returns:
-        (spec, error_message) — spec is None when error is set.
-    """
-    if not spec:
-        return None, "from_outputs=True but no commit_spec in context"
-    if not isinstance(spec, dict):
-        return None, "commit_spec must be a dict"
-    missing = _REQUIRED_SPEC_KEYS - set(spec)
-    if missing:
-        return None, (
-            f"commit_spec missing {', '.join(repr(k) for k in sorted(missing))}"
-        )
-    return spec, None
 
 
 def build_commit_cmd(
@@ -133,56 +105,6 @@ def _format_spec_files(
         except subprocess.TimeoutExpired:
             logger.warning("%s timed out after 120s", cmd[0])
             return
-
-
-def build_commit_result(
-    git_root: Path,
-    message: str,
-    identity: GitIdentity | None,
-    warnings: list[str],
-) -> HookResult:
-    """Build a successful commit :class:`HookResult`.
-
-    Reads the current HEAD short hash and assembles the result dict
-    with optional identity and warning fields.
-    """
-    hash_result = run_git(["rev-parse", "--short", "HEAD"], git_root)
-    result_kw: dict[str, str | list[str]] = {
-        "commit": hash_result.stdout.strip(),
-        "message": message,
-    }
-    if identity:
-        result_kw["author_name"] = identity.name
-        result_kw["author_email"] = identity.email
-    if warnings:
-        result_kw["warnings"] = warnings
-    return HookResult.ok(**result_kw)
-
-
-def retry_commit_on_autofix(
-    files: list[str],
-    cmd: list[str],
-    git_root: Path,
-    first_result: _GitResultLike,
-    *,
-    working_dir: Path | None = None,
-) -> _GitResultLike:
-    """Handle pre-commit autofix retry for a failed commit.
-
-    If *first_result* stderr contains ``"files were modified"``, re-stage
-    *files* (using the same dual-resolution as the original staging) and
-    retry the commit once.  Otherwise return *first_result* unchanged.
-
-    Returns a GitResult-like object (has *returncode*, *stdout*, *stderr*).
-    """
-    if "files were modified" not in first_result.stderr:
-        return first_result
-    restage_err = stage_spec_files(files, git_root, working_dir=working_dir)
-    if restage_err:
-        from types import SimpleNamespace
-
-        return SimpleNamespace(returncode=1, stdout="", stderr=restage_err)
-    return run_git(cmd, git_root)
 
 
 @dataclass
@@ -310,7 +232,7 @@ class CommitPhaseHook:
                 hooks run and surface failures via ``HookResult.fail``.
             profile: Optional identity profile name override.
         """
-        spec, err = _validate_commit_spec(
+        spec, err = validate_commit_spec(
             cast("dict[str, object] | None", context.get("commit_spec"))
         )
         if err:
