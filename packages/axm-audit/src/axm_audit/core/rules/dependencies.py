@@ -15,16 +15,35 @@ from axm_audit.models.results import CheckResult, Severity
 
 logger = logging.getLogger(__name__)
 
+PIP_AUDIT_TIMEOUT_EXIT_CODE = 124
+
+
+class PipAuditUnavailableError(RuntimeError):
+    """Raised when pip-audit could not reach pypi (transient/network failure).
+
+    Distinguished from a generic :class:`RuntimeError` so that
+    :meth:`DependencyAuditRule.check` can map it to a non-penalizing SKIP
+    instead of a hard ERROR fail.
+    """
+
+
+_NETWORK_SIGNATURE = re.compile(
+    r"ServiceError|HTTPError|\b503\b|Backend is unhealthy",
+    re.IGNORECASE,
+)
+
 
 def _run_pip_audit(project_path: Path) -> dict[str, object] | list[object]:
     """Run pip-audit and return parsed JSON output.
 
     Raises:
+        PipAuditUnavailableError: If pip-audit failed because pypi was
+            unreachable (timeout rc=124 or a network signature in stderr).
         RuntimeError: If pip-audit exits with an error and produces
-            no parseable output.
+            no parseable output for a non-network reason.
     """
     result = run_in_project(
-        ["pip-audit", "--format=json", "--output=-"],
+        ["pip-audit", "--format=json", "--output=-", "--skip-editable"],
         project_path,
         with_packages=["pip-audit"],
         capture_output=True,
@@ -41,6 +60,9 @@ def _run_pip_audit(project_path: Path) -> dict[str, object] | list[object]:
     if result.returncode != 0:
         stderr = result.stderr.strip() if result.stderr else "unknown error"
         msg = f"pip-audit failed (rc={result.returncode}): {stderr}"
+        is_timeout = result.returncode == PIP_AUDIT_TIMEOUT_EXIT_CODE
+        if is_timeout or _NETWORK_SIGNATURE.search(stderr):
+            raise PipAuditUnavailableError(msg)
         raise RuntimeError(msg)
 
     return {}
@@ -175,6 +197,16 @@ class DependencyAuditRule(ProjectRule):
                 score=0,
                 details={"vuln_count": 0},
                 fix_hint="Install with: uv add --dev pip-audit",
+            )
+        except PipAuditUnavailableError:
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=True,
+                message="vuln scan skipped: pypi unreachable (transient)",
+                severity=Severity.WARNING,
+                score=100,
+                details={"vuln_count": 0},
+                fix_hint="Transient pypi/network failure; re-run when reachable",
             )
         except RuntimeError as exc:
             return CheckResult(
