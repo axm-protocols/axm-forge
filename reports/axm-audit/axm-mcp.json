@@ -1,0 +1,719 @@
+{
+  "score": 99.3,
+  "grade": "A",
+  "total": 31,
+  "failed": 0,
+  "success": true,
+  "checks": [
+    {
+      "rule_id": "ARCH_CIRCULAR",
+      "passed": true,
+      "message": "0 circular import(s) found",
+      "details": {
+        "cycles": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "ARCH_GOD_CLASS",
+      "passed": true,
+      "message": "0 god class(es) found",
+      "details": {
+        "god_classes": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "ARCH_COUPLING",
+      "passed": true,
+      "message": "Coupling: 0 modules above threshold (max fan-out: 9)",
+      "details": {
+        "max_fan_out": 9,
+        "max_fan_in": 8,
+        "avg_coupling": 4.47,
+        "n_over_threshold": 0,
+        "over_threshold": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "ARCH_DUPLICATION",
+      "passed": true,
+      "message": "0 duplicate block(s) found",
+      "details": {
+        "dup_count": 0,
+        "clones": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_COMPLEXITY",
+      "passed": true,
+      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "details": {
+        "high_complexity_count": 0,
+        "top_offenders": [],
+        "cognitive_disabled": false
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_COVERAGE",
+      "passed": true,
+      "message": "Test coverage: 93% (93/100)",
+      "details": {
+        "coverage": 93.00751879699249,
+        "failures": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_DEAD_CODE",
+      "passed": true,
+      "message": "No dead code detected.",
+      "details": {
+        "dead_count": 0,
+        "symbols": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_LINT",
+      "passed": true,
+      "message": "Lint score: 100/100 (0 issues)",
+      "details": {
+        "issue_count": 0,
+        "checked": "src/ tests/",
+        "issues": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_FORMAT",
+      "passed": true,
+      "message": "Format score: 100/100 (0 unformatted)",
+      "details": {
+        "unformatted_count": 0,
+        "unformatted_files": [],
+        "checked": "src/ tests/"
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_DIFF_SIZE",
+      "passed": true,
+      "message": "No uncommitted changes",
+      "details": {
+        "lines_changed": 0
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "DEPS_AUDIT",
+      "passed": true,
+      "message": "No known vulnerabilities",
+      "details": {
+        "vuln_count": 0,
+        "top_vulns": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "DEPS_HYGIENE",
+      "passed": true,
+      "message": "Clean dependencies (0 issues)",
+      "details": {
+        "issue_count": 0,
+        "top_issues": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_TEST_MIRROR",
+      "passed": true,
+      "message": "All source modules have test files",
+      "details": {
+        "missing": [],
+        "orphan": [],
+        "exempt": [],
+        "exempt_tests": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_TEST_SCENARIO_NAMING",
+      "passed": true,
+      "message": "No anti-mirror naming violations",
+      "details": {
+        "anti_mirror": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_BARE_EXCEPT",
+      "passed": true,
+      "message": "0 bare except(s) found",
+      "details": {
+        "bare_except_count": 0,
+        "locations": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_BLOCKING_IO",
+      "passed": true,
+      "message": "0 blocking-IO violation(s) found",
+      "details": {
+        "violations": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_DOCSTRING",
+      "passed": true,
+      "message": "Docstring coverage: 100% (53/53)",
+      "details": {
+        "coverage": 1.0,
+        "total": 53,
+        "documented": 53,
+        "missing": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
+      "passed": true,
+      "message": "16 cluster(s), 0 clustered pair(s)",
+      "details": null,
+      "metadata": {
+        "clusters": [
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT discover_tools(0)>len(1) + same SUT: discover_tools(0)>len(1) + same asserts + AST similarity 100%",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/test_discovery.py",
+                "name": "test_empty_string_discovers_all",
+                "line": 143
+              },
+              {
+                "file": "tests/unit/test_discovery.py",
+                "name": "test_wildcard_disables_all",
+                "line": 159
+              },
+              {
+                "file": "tests/unit/test_discovery.py",
+                "name": "test_skips_broken_entry_point",
+                "line": 233
+              },
+              {
+                "file": "tests/unit/test_discovery.py",
+                "name": "test_whitespace_handling",
+                "line": 150
+              },
+              {
+                "file": "tests/unit/test_discovery.py",
+                "name": "test_consecutive_commas_ignored",
+                "line": 166
+              },
+              {
+                "file": "tests/unit/test_discovery.py",
+                "name": "test_exact_name_excludes_tool",
+                "line": 112
+              },
+              {
+                "file": "tests/unit/test_discovery.py",
+                "name": "test_glob_pattern_excludes_group",
+                "line": 121
+              }
+            ],
+            "cluster_hash": "4e0ecb6422d3",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_raises_divergence",
+            "reason": "same SUT: catalog.call(2) + pytest.raises divergence rescue for SUT catalog.call(2)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/facade/test_catalog.py",
+                "name": "test_unknown_raises",
+                "line": 128
+              },
+              {
+                "file": "tests/unit/facade/test_catalog.py",
+                "name": "test_bad_kwargs_propagate_typeerror",
+                "line": 132
+              },
+              {
+                "file": "tests/unit/facade/test_catalog.py",
+                "name": "test_text_result_returned",
+                "line": 117
+              },
+              {
+                "file": "tests/unit/facade/test_catalog.py",
+                "name": "test_data_rendered_when_no_text",
+                "line": 120
+              },
+              {
+                "file": "tests/unit/facade/test_catalog.py",
+                "name": "test_plain_callable",
+                "line": 125
+              }
+            ],
+            "cluster_hash": "442a41860557",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT format_verify_text(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_text_field_used_directly",
+                "line": 55
+              },
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_details_str_indented",
+                "line": 94
+              },
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_dict_items_rendered_compact",
+                "line": 128
+              },
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_fix_hint_indent",
+                "line": 222
+              }
+            ],
+            "cluster_hash": "97b791bad37f",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT format_verify_text(1)>text.splitlines(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_governance_skipped_when_none",
+                "line": 27
+              },
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_audit_counts_passed_plus_failed",
+                "line": 33
+              },
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_governance_uses_passed_count",
+                "line": 43
+              }
+            ],
+            "cluster_hash": "8af93204ef91",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT format_verify_text(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_known_key_findings",
+                "line": 137
+              },
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_unknown_keys_fallback_to_json",
+                "line": 167
+              },
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_metadata_clusters_summary",
+                "line": 196
+              }
+            ],
+            "cluster_hash": "401e606d96ff",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT app(1|exit_on_error=False)>tmp_pid_file.exists(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_app.py",
+                "name": "test_cli_serve_cleans_pid_on_error",
+                "line": 88
+              },
+              {
+                "file": "tests/integration/test_app.py",
+                "name": "test_cli_stop_sends_sigterm",
+                "line": 105
+              }
+            ],
+            "cluster_hash": "5ca831f8d22b",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_patch_context",
+            "reason": "patch-context rescue for SUT app(1|exit_on_error=False)>err.lower(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_app.py",
+                "name": "test_cli_stop_no_pid_file",
+                "line": 120
+              },
+              {
+                "file": "tests/unit/test_cli.py",
+                "name": "test_cli_status_not_running",
+                "line": 46
+              }
+            ],
+            "cluster_hash": "1dc373f3639b",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT list(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_schema.py",
+                "name": "test_axm_tool_with_kwargs_gets_docstring_params",
+                "line": 319
+              },
+              {
+                "file": "tests/unit/test_schema.py",
+                "name": "test_regular_tool_with_typed_params_not_affected",
+                "line": 379
+              }
+            ],
+            "cluster_hash": "343f7ae8b789",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_sut",
+            "reason": "distinct public SUT rescue for shared sig app(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_lifecycle.py",
+                "name": "test_cli_install_delegates",
+                "line": 255
+              },
+              {
+                "file": "tests/unit/test_lifecycle.py",
+                "name": "test_cli_uninstall_delegates",
+                "line": 273
+              }
+            ],
+            "cluster_hash": "4c1a4161d8d3",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT callable(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_mcp_app.py",
+                "name": "test_main_function_exists",
+                "line": 34
+              },
+              {
+                "file": "tests/unit/test_verify.py",
+                "name": "test_verify_function_importable",
+                "line": 69
+              }
+            ],
+            "cluster_hash": "e19671524dde",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT collect_dispatcher_params(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_schema.py",
+                "name": "test_returns_none_for_regular_function",
+                "line": 135
+              },
+              {
+                "file": "tests/unit/test_schema.py",
+                "name": "test_returns_none_without_actions_dict",
+                "line": 144
+              }
+            ],
+            "cluster_hash": "3da3a2d46057",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT format_verify_text(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_text_priority_over_details",
+                "line": 70
+              },
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_first_known_key_wins",
+                "line": 150
+              }
+            ],
+            "cluster_hash": "4a85ea6a1073",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT isinstance(2)>wrapper(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_wrapping.py",
+                "name": "test_tool_exception_returns_error_dict",
+                "line": 409
+              },
+              {
+                "file": "tests/unit/test_wrapping.py",
+                "name": "test_plain_fn_exception_returns_error_dict",
+                "line": 423
+              }
+            ],
+            "cluster_hash": "e6e942662986",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT isinstance(2)>wrapper(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_wrapping.py",
+                "name": "test_failing_result_with_text_not_shortcircuited",
+                "line": 456
+              },
+              {
+                "file": "tests/unit/test_wrapping.py",
+                "name": "test_flatten_collision_success_key_preserved",
+                "line": 483
+              }
+            ],
+            "cluster_hash": "74c48c9bac1b",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue (intra-file 100%)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/facade/test_tools.py",
+                "name": "test_call_unknown_tool_returns_error",
+                "line": 68
+              },
+              {
+                "file": "tests/unit/facade/test_tools.py",
+                "name": "test_call_bad_args_includes_param_hint",
+                "line": 74
+              }
+            ],
+            "cluster_hash": "b6c11889ae81",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_raises_divergence",
+            "reason": "pytest.raises divergence rescue for SUT find_binary(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_find_binary.py",
+                "name": "test_prefers_global_bin",
+                "line": 16
+              },
+              {
+                "file": "tests/unit/test_lifecycle.py",
+                "name": "test_not_found",
+                "line": 224
+              }
+            ],
+            "cluster_hash": "83b7015319e3",
+            "acknowledged": true
+          }
+        ],
+        "bucket_counts": {
+          "CLUSTERED": 0,
+          "AMBIGUOUS": 45,
+          "UNIQUE": 157
+        },
+        "stale_acknowledged": []
+      }
+    },
+    {
+      "rule_id": "TEST_QUALITY_FILE_NAMING",
+      "passed": true,
+      "message": "every integration/e2e file matches its canonical tuple",
+      "details": {
+        "findings": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_NO_PACKAGE_SYMBOL",
+      "passed": true,
+      "message": "every integration/e2e test exercises the package",
+      "details": {
+        "findings": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_PRIVATE_IMPORTS",
+      "passed": true,
+      "message": "No private imports in tests/ (see docs/test_quality.md#private-imports)",
+      "details": {
+        "findings": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_PYRAMID_LEVEL",
+      "passed": true,
+      "message": "pyramid levels match folder layout",
+      "details": {
+        "mismatches": [],
+        "total": 0
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TEST_QUALITY_TAUTOLOGY",
+      "passed": true,
+      "message": "no tautologies found",
+      "details": null,
+      "metadata": {
+        "verdicts": []
+      }
+    },
+    {
+      "rule_id": "QUALITY_TYPE",
+      "passed": true,
+      "message": "Type score: 100/100 (0 errors)",
+      "details": {
+        "error_count": 0,
+        "checked": "src/ tests/",
+        "errors": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "QUALITY_SECURITY",
+      "passed": true,
+      "message": "Security score: 100/100 (0 high, 0 medium severity issues)",
+      "details": {
+        "high_count": 0,
+        "medium_count": 0,
+        "top_issues": [
+          {
+            "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "lifecycle.py",
+            "line": 7
+          },
+          {
+            "severity": "LOW",
+            "code": "B404",
+            "message": "Consider possible security implications associated with the subprocess module.",
+            "file": "cli.py",
+            "line": 16
+          },
+          {
+            "severity": "LOW",
+            "code": "B603",
+            "message": "subprocess call - check for execution of untrusted input.",
+            "file": "lifecycle.py",
+            "line": 77
+          },
+          {
+            "severity": "LOW",
+            "code": "B607",
+            "message": "Starting a process with a partial executable path",
+            "file": "cli.py",
+            "line": 79
+          },
+          {
+            "severity": "LOW",
+            "code": "B603",
+            "message": "subprocess call - check for execution of untrusted input.",
+            "file": "cli.py",
+            "line": 79
+          }
+        ]
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "PRACTICE_SECURITY",
+      "passed": true,
+      "message": "0 potential secret(s) found",
+      "details": {
+        "secret_count": 0,
+        "matches": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "STRUCTURE_TESTS_PYRAMID",
+      "passed": true,
+      "message": "pyramid layout ok: unit, integration, e2e",
+      "details": {
+        "self_contained": true
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "STRUCTURE_PYPROJECT",
+      "passed": true,
+      "message": "pyproject.toml completeness: 9/9 fields",
+      "details": {
+        "fields_present": 9,
+        "total_fields": 9,
+        "missing": []
+      },
+      "metadata": null
+    },
+    {
+      "rule_id": "TOOL_RUFF",
+      "passed": true,
+      "message": "ruff found",
+      "details": null,
+      "metadata": null
+    },
+    {
+      "rule_id": "TOOL_MYPY",
+      "passed": true,
+      "message": "mypy found",
+      "details": null,
+      "metadata": null
+    },
+    {
+      "rule_id": "TOOL_UV",
+      "passed": true,
+      "message": "uv found",
+      "details": null,
+      "metadata": null
+    }
+  ]
+}
