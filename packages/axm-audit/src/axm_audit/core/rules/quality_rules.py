@@ -20,9 +20,89 @@ from axm_audit.core.rules.base import (
 from axm_audit.core.runner import run_in_project
 from axm_audit.models.results import CheckResult, Severity
 
-__all__ = ["DiffSizeRule", "FormattingRule", "LintingRule", "TypeCheckRule"]
+__all__ = [
+    "DiffSizeRule",
+    "FormattingRule",
+    "LintingRule",
+    "TypeCheckRule",
+    "detect_env_incompleteness",
+]
 
 logger = logging.getLogger(__name__)
+
+# mypy error codes that signal the *audited environment* is incomplete
+# (a missing dependency / missing type stubs), not a code defect.
+_ENV_INCOMPLETE_CODES = frozenset({"import-untyped", "import-not-found"})
+# mypy exit codes: 0 = clean, 1 = errors found, anything else = the check
+# did not complete (blocking/usage/config/internal error). 124 = our own
+# timeout sentinel from run_in_project.
+_MYPY_DID_NOT_COMPLETE = frozenset({2, 124})
+_QUOTED_NAME = re.compile(r'"([^"]+)"')
+
+
+def detect_env_incompleteness(stdout: str, returncode: int) -> str | None:
+    """Return an actionable diagnostic when the mypy run is unreliable.
+
+    The type audit must never report a green score off the back of an
+    *incomplete environment*. This classifier inspects mypy's JSON output
+    and exit code for the signals that mean "the check did not actually
+    type-check the code":
+
+    * missing third-party stubs / unfollowed imports
+      (``[import-untyped]``, ``Library stubs not installed for "..."``),
+    * a module truly absent from the env (``[import-not-found]``),
+    * a blocking/aborted mypy run (exit code 2, or our timeout sentinel),
+      which emits non-JSON text that the JSON parser silently drops.
+
+    Args:
+        stdout: Raw mypy stdout (``--output json`` plus any plain-text
+            blocking errors).
+        returncode: mypy's process exit code.
+
+    Returns:
+        An actionable, single-line diagnostic naming the offending
+        library/libraries and the remediation, or ``None`` when the run
+        completed and exposes no env-incompleteness (a plain type error
+        is a code problem, not an env problem).
+    """
+    libs: list[str] = []
+    for line in stdout.strip().split("\n"):
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        message = str(entry.get("message", ""))
+        is_env_code = entry.get("code") in _ENV_INCOMPLETE_CODES
+        is_stub_note = "Library stubs not installed" in message
+        if is_env_code or is_stub_note:
+            match = _QUOTED_NAME.search(message)
+            if match:
+                libs.append(match.group(1))
+
+    if libs:
+        unique = sorted(dict.fromkeys(libs))
+        return (
+            f"audit environment incomplete — missing type stubs or "
+            f"unfollowed imports for: {', '.join(unique)}. The type result "
+            f"is unreliable until the env is fixed (install the stubs / "
+            f"run `uv sync`); this is an environment problem, not a code "
+            f"problem."
+        )
+
+    if returncode in _MYPY_DID_NOT_COMPLETE:
+        return (
+            f"audit environment unreliable — mypy did not complete "
+            f"(exit code {returncode}: blocking/config error or timeout). "
+            f"The type result is unreliable until the env/config is fixed "
+            f"(run `uv sync`); this is an environment problem, not a code "
+            f"problem."
+        )
+
+    return None
 
 
 def _short_path(filepath: str, project_path: Path) -> str:
@@ -220,14 +300,36 @@ class TypeCheckRule(ProjectRule):
 
         error_count, errors = self.parse_mypy_errors(result.stdout)
 
-        score = max(0, 100 - error_count * 5)
-        passed = error_count == 0
+        env_problem = detect_env_incompleteness(result.stdout, result.returncode)
 
         text_lines = [
             f"• [{e['code']}] {str(e['file']).removeprefix('src/')}"
             f":{e['line']}: {e['message']}"
             for e in errors
         ]
+
+        if env_problem is not None:
+            # Fail loud: an incomplete env must never yield a green score,
+            # even when mypy emitted zero parseable JSON errors (exit 2).
+            score = min(error_count and max(0, 100 - error_count * 5), 50)
+            return CheckResult(
+                rule_id=self.rule_id,
+                passed=False,
+                message=f"Type check BLOCKED: {env_problem}",
+                severity=Severity.ERROR,
+                score=int(score),
+                details={
+                    "error_count": error_count,
+                    "checked": checked,
+                    "errors": errors,
+                    "env_incomplete": True,
+                },
+                text="\n".join(text_lines) if text_lines else None,
+                fix_hint=env_problem,
+            )
+
+        score = max(0, 100 - error_count * 5)
+        passed = error_count == 0
 
         return CheckResult(
             rule_id=self.rule_id,

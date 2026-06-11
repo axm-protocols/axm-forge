@@ -253,6 +253,104 @@ class TestParseMypyErrors:
         assert errors == []
 
 
+class TestDetectEnvIncompleteness:
+    """Pure tests for env-incompleteness detection (no I/O).
+
+    Ref: AXM-1900 — audit type must fail loud on missing stubs /
+    unfollowed imports / blocking mypy exits, never silently score 100.
+    """
+
+    def test_missing_stub_note_is_a_failure(self) -> None:
+        """AC1: a 'Library stubs not installed' signal yields a diagnostic
+        naming the offending lib and the remediation."""
+        from axm_audit.core.rules.quality_rules import detect_env_incompleteness
+
+        stdout = json.dumps(
+            {
+                "severity": "error",
+                "file": "src/mod.py",
+                "line": 1,
+                "message": 'Library stubs not installed for "jsonschema"',
+                "code": "import-untyped",
+            }
+        )
+        diagnostic = detect_env_incompleteness(stdout, 1)
+        assert diagnostic is not None
+        assert "jsonschema" in diagnostic
+        lower = diagnostic.lower()
+        assert "stub" in lower or "uv sync" in lower or "install" in lower
+
+    def test_import_untyped_is_a_failure(self) -> None:
+        """AC1: an [import-untyped] error is an env-incompleteness signal."""
+        from axm_audit.core.rules.quality_rules import detect_env_incompleteness
+
+        stdout = json.dumps(
+            {
+                "severity": "error",
+                "file": "src/mod.py",
+                "line": 2,
+                "message": 'Skipping analyzing "foo": module is installed, but '
+                "missing library stubs or py.typed marker",
+                "code": "import-untyped",
+            }
+        )
+        diagnostic = detect_env_incompleteness(stdout, 1)
+        assert diagnostic is not None
+
+    def test_import_not_found_is_a_failure(self) -> None:
+        """AC1: an [import-not-found] error (module truly missing) is an
+        env-incompleteness signal."""
+        from axm_audit.core.rules.quality_rules import detect_env_incompleteness
+
+        stdout = json.dumps(
+            {
+                "severity": "error",
+                "file": "src/mod.py",
+                "line": 1,
+                "message": "Cannot find implementation or library stub for "
+                'module named "axm_protocols"',
+                "code": "import-not-found",
+            }
+        )
+        diagnostic = detect_env_incompleteness(stdout, 1)
+        assert diagnostic is not None
+        assert "axm_protocols" in diagnostic
+
+    def test_exit_code_2_is_a_failure(self) -> None:
+        """AC2: a blocking mypy exit (code 2) is never a pass, even when
+        stdout has no parseable JSON error."""
+        from axm_audit.core.rules.quality_rules import detect_env_incompleteness
+
+        # Blocking errors are emitted as plain (non-JSON) text.
+        stdout = "src/broken.py:1: error: unexpected EOF while parsing  [syntax]\n"
+        diagnostic = detect_env_incompleteness(stdout, 2)
+        assert diagnostic is not None
+
+    def test_clean_run_scores_100(self) -> None:
+        """AC4: a genuinely clean run (exit 0, no stub/import signals) has
+        no env-incompleteness — returns None."""
+        from axm_audit.core.rules.quality_rules import detect_env_incompleteness
+
+        assert detect_env_incompleteness("", 0) is None
+
+    def test_plain_type_error_is_not_env_incomplete(self) -> None:
+        """AC4 guard: a real type error (exit 1, no stub/import codes) is a
+        code problem, not an env problem — returns None so normal scoring
+        applies."""
+        from axm_audit.core.rules.quality_rules import detect_env_incompleteness
+
+        stdout = json.dumps(
+            {
+                "severity": "error",
+                "file": "src/mod.py",
+                "line": 3,
+                "message": "Incompatible return value type",
+                "code": "return-value",
+            }
+        )
+        assert detect_env_incompleteness(stdout, 1) is None
+
+
 MODULE = "axm_audit.core.rules.quality_rules"
 
 

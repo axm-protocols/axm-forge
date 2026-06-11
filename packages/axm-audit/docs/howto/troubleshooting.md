@@ -20,6 +20,36 @@ Or check tool availability:
 axm-audit audit . --category tooling
 ```
 
+## Type check BLOCKED — incomplete environment
+
+**Symptom**: `QUALITY_TYPE` fails with a message like
+`Type check BLOCKED: audit environment incomplete — missing type stubs or unfollowed imports for: <lib>` (or
+`mypy did not complete (exit code 2 …)`), instead of a `Type score: …/100` line.
+
+**Cause**: the type audit refuses to report a green score when mypy could not
+actually type-check the code. This happens when:
+
+- a third-party library is imported but has **no type stubs** in the audited
+  environment (`[import-untyped]`, `Library stubs not installed for "<lib>"`),
+- a module is **truly missing** from the environment (`[import-not-found]`),
+- mypy **aborted** before completing (exit code 2: blocking syntax/config
+  error, or a 300-second timeout).
+
+The result is deliberately a **loud failure, not a 100** — a silent pass would
+mask the fact that the audited env is incomplete and the type result
+unreliable. This is an **environment problem, not a code problem**.
+
+**Solution**: fix the environment, then re-run the audit:
+
+```bash
+# install the missing stubs (the audit never installs them for you)
+uv sync          # or: uv pip install types-<lib>
+axm-audit audit . --category type
+```
+
+The audit will not auto-install stubs or modify your environment — that is a
+dev/CI step, kept out of the audit so it has no side effects.
+
 ## Timeout errors
 
 **Symptom**: A check returns `returncode=124` or times out.
