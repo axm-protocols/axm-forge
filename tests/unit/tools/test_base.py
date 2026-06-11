@@ -229,8 +229,14 @@ class TestToolMetadata:
             meta.expose_directly = True  # type: ignore[misc]
 
     def test_default_tags_not_shared(self) -> None:
-        # frozenset() is immutable, but assert the default resolves identically
-        assert ToolMetadata().tags == ToolMetadata().tags
+        # A populated instance must not contaminate another instance's default:
+        # a fresh ToolMetadata() always resolves to the empty default tags,
+        # independent of any sibling carrying its own tags.
+        tagged = ToolMetadata(tags=frozenset({"quality"}))
+        default = ToolMetadata()
+        assert default.tags == frozenset()
+        assert tagged.tags == frozenset({"quality"})
+        assert default.tags is not tagged.tags
 
 
 class TestToolMetadataReader:
