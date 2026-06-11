@@ -84,6 +84,64 @@ PYPROJECT = textwrap.dedent(
 ).strip()
 
 
+def test_audit_type_cli_fails_on_missing_stub(tmp_path: Path) -> None:
+    """AC1: `axm-audit audit --category type` on a package importing an
+    unstubbed/missing lib must NOT score 100 — it fails loud with a report
+    naming the missing import."""
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv binary not found on PATH")
+
+    (tmp_path / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """
+            [project]
+            name = "pkg"
+            version = "0.1.0"
+            requires-python = ">=3.12"
+            """
+        ).strip()
+    )
+    src = tmp_path / "src" / "pkg"
+    src.mkdir(parents=True)
+    (src / "__init__.py").write_text("")
+    # Imports a module that does not exist in the env (import-not-found),
+    # plus a real type error — reproduces the AXM-1878 masking scenario.
+    (src / "client.py").write_text(
+        dedent(
+            """
+            import totallymissingmod_axm1900
+
+            def call() -> int:
+                return totallymissingmod_axm1900.run()
+            """
+        ).strip()
+        + "\n"
+    )
+
+    proc = subprocess.run(  # noqa: S603
+        [
+            uv,
+            "run",
+            "axm-audit",
+            "audit",
+            str(tmp_path),
+            "--category",
+            "type",
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    payload = json.loads(proc.stdout)
+    blob = json.dumps(payload)
+    # Must surface the missing import — not a silent 100.
+    assert "totallymissingmod_axm1900" in blob or '"score": 100' not in blob
+    assert '"passed": true' not in blob.lower() or "100" not in blob
+
+
 def test_cli_audit_structure_shows_pyramid(tmp_path: Path) -> None:
     (tmp_path / "pyproject.toml").write_text(PYPROJECT)
     for d in ("tests/unit", "tests/integration", "tests/e2e"):
