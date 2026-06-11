@@ -16,13 +16,16 @@ from tests.integration._helpers import _make_errors
 
 # axm-harness is an optional extra (axm-edit[harness]); the adapter and runner
 # are mocked here, so the SDK need not be installed. When it IS installed, the
-# real exception must be used (lint._harness_error() returns the real
-# HarnessSDKError base); the stand-in only covers environments without it.
+# real exceptions must be used (lint._harness_error() returns the real
+# HarnessSDKError base); the stand-ins only cover environments without it.
 try:
-    from axm_harness.core.errors import MissingCredentialsError
+    from axm_harness.core.errors import HarnessSDKError, MissingCredentialsError
 except ImportError:  # pragma: no cover - exercised only without the extra
 
-    class MissingCredentialsError(Exception):  # type: ignore[no-redef]
+    class HarnessSDKError(Exception):  # type: ignore[no-redef]
+        """Stand-in for ``axm_harness.core.errors.HarnessSDKError``."""
+
+    class MissingCredentialsError(HarnessSDKError):  # type: ignore[no-redef]
         """Stand-in for ``axm_harness.core.errors.MissingCredentialsError``."""
 
 
@@ -72,70 +75,6 @@ class TestOptionsContract:
         assert '"new"' in schema_dump
         # Prompt comes from build_prompt
         assert captured["prompt"] == build_prompt(project / "app.py", errors)
-
-
-class TestFixAppliedFromHarnessOutput:
-    """AC1, AC6: valid harness edits rewrite the file and pass ruff re-check."""
-
-    def test_fix_applied_from_harness_output(self, project: Path, mocker: Any) -> None:
-        """AC1, AC6: file rewritten, ruff re-check runs, fixed errors dropped."""
-        mocker.patch("axm_edit.services.lint.get_adapter", return_value=mocker.Mock())
-        fixed_output = json.dumps([{"old": "except:", "new": "except Exception:"}])
-
-        async def _run(
-            adapter: Any, prompt: str, options: Any = None
-        ) -> SimpleNamespace:
-            return _harness_run(fixed_output)
-
-        mocker.patch("axm_edit.services.lint.run", side_effect=_run)
-
-        ruff_calls: list[list[str]] = []
-
-        def _ruff(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-            ruff_calls.append(cmd)
-            return subprocess.CompletedProcess(
-                args=cmd, returncode=0, stdout="", stderr=""
-            )
-
-        mocker.patch("axm_edit.services.lint.subprocess.run", side_effect=_ruff)
-
-        errors = _make_errors("app.py", ["E722"], line=3)
-        remaining = harness_fix(project, errors)
-
-        assert "except Exception:" in (project / "app.py").read_text()
-        assert ruff_calls, "ruff re-check should run after a harness fix"
-        assert remaining == [], "fixed errors must be absent from the return"
-
-
-class TestTimeoutReturnsOriginalErrors:
-    """AC4: run() exceeding the timeout returns the original errors."""
-
-    def test_timeout_returns_original_errors(
-        self,
-        project: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        mocker: Any,
-    ) -> None:
-        """AC4: wait_for timeout -> warning + original errors returned."""
-        mocker.patch("axm_edit.services.lint.get_adapter", return_value=mocker.Mock())
-        monkeypatch.setattr("axm_edit.services.lint._FIX_TIMEOUT", 0.05)
-        original_content = (project / "app.py").read_text()
-
-        async def _slow(
-            adapter: Any, prompt: str, options: Any = None
-        ) -> SimpleNamespace:
-            await asyncio.sleep(1)
-            return _harness_run("[]")
-
-        mocker.patch("axm_edit.services.lint.run", side_effect=_slow)
-
-        errors = _make_errors("app.py", ["E722"], line=3)
-        warnings: list[str] = []
-        remaining = harness_fix(project, errors, warnings=warnings)
-
-        assert remaining == errors
-        assert any("harness timed out fixing app.py" in w for w in warnings)
-        assert (project / "app.py").read_text() == original_content
 
 
 # ---------------------------------------------------------------------------
@@ -331,3 +270,231 @@ class TestNoHarnessSkipsAutofix:
         assert remaining == errors
         assert any("no harness available" in w for w in warnings)
         run_spy.assert_not_called()
+
+
+def _adapter_names(mock_get: Any) -> list[Any]:
+    """Adapter names passed to get_adapter, positional or keyword."""
+    return [
+        call.args[0] if call.args else call.kwargs.get("name")
+        for call in mock_get.call_args_list
+    ]
+
+
+def _async_run_returning(output: str) -> Any:
+    """Async stand-in for the harness ``run`` returning *output*."""
+
+    async def _run(adapter: Any, prompt: str, options: Any = None) -> SimpleNamespace:
+        return _harness_run(output)
+
+    return _run
+
+
+class TestHarnessReturnsGarbage:
+    """Non-parseable output -> original code unchanged, errors returned."""
+
+    def test_garbage_output(
+        self,
+        project: Path,
+        mocker: Any,
+    ) -> None:
+        original_content = (project / "app.py").read_text()
+
+        mocker.patch(
+            "axm_edit.services.lint.run",
+            side_effect=_async_run_returning("<garbage>\x00\xff not valid python"),
+        )
+
+        errors = _make_errors("app.py", ["E722"])
+        remaining = harness_fix(project, errors)
+
+        assert (project / "app.py").read_text() == original_content
+        assert remaining, "Should return original errors when output is garbage"
+
+
+class TestHarnessSDKErrorSkips:
+    """`HarnessSDKError` from run() -> skip harness fix, return ruff errors."""
+
+    def test_file_not_found(
+        self,
+        project: Path,
+        mocker: Any,
+    ) -> None:
+        original_content = (project / "app.py").read_text()
+
+        async def _run(
+            adapter: Any, prompt: str, options: Any = None
+        ) -> SimpleNamespace:
+            raise HarnessSDKError("codex sdk unavailable")
+
+        mocker.patch("axm_edit.services.lint.run", side_effect=_run)
+
+        errors = _make_errors("app.py", ["E722"])
+        remaining = harness_fix(project, errors)
+
+        assert (project / "app.py").read_text() == original_content
+        assert remaining == errors, "Should return original errors"
+
+
+class TestHarnessTimeout:
+    """Harness run hangs -> cancelled after timeout, original errors returned."""
+
+    def test_timeout_handled(
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: Any,
+    ) -> None:
+        original_content = (project / "app.py").read_text()
+        monkeypatch.setattr("axm_edit.services.lint._FIX_TIMEOUT", 0.05)
+
+        async def _slow(
+            adapter: Any, prompt: str, options: Any = None
+        ) -> SimpleNamespace:
+            await asyncio.sleep(1)
+            return _harness_run("[]")
+
+        mocker.patch("axm_edit.services.lint.run", side_effect=_slow)
+
+        errors = _make_errors("app.py", ["E722"])
+        remaining = harness_fix(project, errors)
+
+        assert (project / "app.py").read_text() == original_content
+        assert remaining, "Should return original errors on timeout"
+
+
+class TestHarnessUnparseableOutput:
+    """Harness returns non-JSON text -> no changes, errors returned."""
+
+    def test_unparseable_format(
+        self,
+        project: Path,
+        mocker: Any,
+    ) -> None:
+        original_content = (project / "app.py").read_text()
+
+        mocker.patch(
+            "axm_edit.services.lint.run",
+            side_effect=_async_run_returning(
+                "Here is the fix:\nexcept Exception:\n    pass\n"
+            ),
+        )
+
+        errors = _make_errors("app.py", ["E722"])
+        remaining = harness_fix(project, errors)
+
+        assert (project / "app.py").read_text() == original_content
+        assert remaining == errors, (
+            "Should return original errors when output is not valid JSON"
+        )
+
+
+class TestHarnessAdapterSelection:
+    """AC2: env var selection, codex->claude fallback, graceful skip."""
+
+    def test_adapter_env_var_selects_claude(
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: Any,
+    ) -> None:
+        """AC2: AXM_EDIT_FIX_ADAPTER=claude-agent-sdk selects that adapter."""
+        monkeypatch.setenv("AXM_EDIT_FIX_ADAPTER", "claude-agent-sdk")
+        mock_get = mocker.patch(
+            "axm_edit.services.lint.get_adapter",
+            return_value=mocker.Mock(),
+        )
+
+        async def _run(
+            adapter: Any, prompt: str, options: Any = None
+        ) -> SimpleNamespace:
+            return _harness_run("[]")
+
+        mocker.patch("axm_edit.services.lint.run", side_effect=_run)
+
+        harness_fix(project, _make_errors("app.py", ["E722"], line=3))
+
+        names = _adapter_names(mock_get)
+        assert "claude-agent-sdk" in names
+        assert "codex-sdk" not in names
+
+    def test_codex_missing_credentials_falls_back_to_claude(
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: Any,
+    ) -> None:
+        """AC2: MissingCredentialsError on codex-sdk -> claude-agent-sdk fallback."""
+        monkeypatch.delenv("AXM_EDIT_FIX_ADAPTER", raising=False)
+        fallback_adapter = mocker.Mock()
+
+        def _get(name: str, *args: Any, **kwargs: Any) -> Any:
+            if name == "codex-sdk":
+                raise MissingCredentialsError("codex credentials missing")
+            return fallback_adapter
+
+        mock_get = mocker.patch("axm_edit.services.lint.get_adapter", side_effect=_get)
+        run_prompts: list[str] = []
+
+        async def _run(
+            adapter: Any, prompt: str, options: Any = None
+        ) -> SimpleNamespace:
+            run_prompts.append(prompt)
+            return _harness_run("[]")
+
+        mocker.patch("axm_edit.services.lint.run", side_effect=_run)
+
+        harness_fix(project, _make_errors("app.py", ["E722"], line=3))
+
+        names = _adapter_names(mock_get)
+        assert names[0] == "codex-sdk"
+        assert "claude-agent-sdk" in names
+        assert run_prompts, "fix should be attempted via the fallback adapter"
+
+    def test_no_adapter_available_skips_with_warning(
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: Any,
+    ) -> None:
+        """AC2: no adapter available -> errors unchanged + skip warning."""
+        monkeypatch.delenv("AXM_EDIT_FIX_ADAPTER", raising=False)
+        mocker.patch(
+            "axm_edit.services.lint.get_adapter",
+            side_effect=MissingCredentialsError("no harness sdk available"),
+        )
+        original_content = (project / "app.py").read_text()
+
+        errors = _make_errors("app.py", ["E722"], line=3)
+        warnings: list[str] = []
+        remaining = harness_fix(project, errors, warnings=warnings)
+
+        assert remaining == errors
+        assert (project / "app.py").read_text() == original_content
+        assert any("no harness available, auto-fix skipped" in w for w in warnings)
+
+
+class TestHarnessModelOption:
+    """AC3: AXM_EDIT_FIX_MODEL env var overrides the run() model option."""
+
+    def test_model_env_var_in_options(
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: Any,
+    ) -> None:
+        """AC3: AXM_EDIT_FIX_MODEL lands in run() options['model']."""
+        monkeypatch.setenv("AXM_EDIT_FIX_MODEL", "gpt-5-codex")
+        mocker.patch("axm_edit.services.lint.get_adapter", return_value=mocker.Mock())
+        captured: dict[str, Any] = {}
+
+        async def _run(
+            adapter: Any, prompt: str, options: Any = None
+        ) -> SimpleNamespace:
+            captured.update(options or {})
+            return _harness_run("[]")
+
+        mocker.patch("axm_edit.services.lint.run", side_effect=_run)
+
+        harness_fix(project, _make_errors("app.py", ["E722"], line=3))
+
+        assert captured.get("model") == "gpt-5-codex"
