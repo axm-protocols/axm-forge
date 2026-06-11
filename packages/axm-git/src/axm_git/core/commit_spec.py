@@ -14,7 +14,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 from axm.hooks.base import HookResult
 
@@ -159,7 +159,7 @@ def build_commit_result(
     with optional identity and warning fields.
     """
     hash_result = run_git(["rev-parse", "--short", "HEAD"], git_root)
-    result_kw: dict[str, str | list[str]] = {
+    result_kw: dict[str, Any] = {  # type: ignore[explicit-any]  # heterogeneous metadata payload for HookResult.ok(**metadata: Any)
         "commit": hash_result.stdout.strip(),
         "message": message,
     }
