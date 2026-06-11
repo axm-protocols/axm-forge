@@ -20,16 +20,60 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from axm_harness.core.errors import HarnessSDKError
-from axm_harness.core.factory import get_adapter
-from axm_harness.core.runner import run
-
 if TYPE_CHECKING:
-    from axm_harness.core.base import AdapterName, HarnessAdapter
+    from axm_harness.core.base import AdapterName, HarnessAdapter, HarnessRun
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["harness_fix"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Optional axm-harness integration
+#
+# axm-harness powers the LLM ruff auto-fix step. It lives in the sibling
+# axm-cortex workspace and is not published to PyPI, so it is an optional
+# extra (``axm-edit[harness]``). When absent, ``harness_fix`` degrades to a
+# no-op: it logs a warning and returns the ruff errors unchanged.
+#
+# The symbols below are resolved lazily at call time. They remain module-level
+# attributes so they can be monkeypatched in tests.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def get_adapter(name: AdapterName) -> HarnessAdapter:
+    """Resolve a harness adapter, importing axm-harness lazily.
+
+    Raises ``ImportError`` if the optional ``axm-edit[harness]`` extra is not
+    installed, or a harness error (e.g. missing credentials). Patched in tests
+    to avoid importing the SDK.
+    """
+    from axm_harness.core.factory import get_adapter as _get_adapter
+
+    return _get_adapter(name)
+
+
+async def run(
+    adapter: HarnessAdapter, prompt: str, options: dict[str, object]
+) -> HarnessRun:
+    """Run a harness adapter, importing axm-harness lazily.
+
+    Patched in tests. Only reached after :func:`get_adapter` succeeds, so
+    axm-harness is guaranteed importable here.
+    """
+    from axm_harness.core.runner import run as _run
+
+    return await _run(adapter, prompt, options)
+
+
+def _harness_error() -> type[Exception]:
+    """Return the harness base exception, or ``Exception`` if unavailable."""
+    try:
+        from axm_harness.core.errors import HarnessSDKError
+    except ImportError:
+        return Exception
+    return cast("type[Exception]", HarnessSDKError)
+
 
 _FIX_TIMEOUT = 60
 _SNIPPET_CONTEXT = 5  # lines of context around each error
@@ -316,10 +360,11 @@ def _resolve_adapter() -> HarnessAdapter | None:
     candidates = [configured]
     if _FALLBACK_ADAPTER not in candidates:
         candidates.append(_FALLBACK_ADAPTER)
+    harness_error = _harness_error()
     for name in candidates:
         try:
             return get_adapter(cast("AdapterName", name))
-        except (HarnessSDKError, ImportError) as exc:
+        except (harness_error, ImportError) as exc:
             logger.debug("harness adapter %s unavailable: %s", name, exc)
     return None
 
@@ -348,7 +393,7 @@ def _call_harness(
         )
     except TimeoutError:
         return None, f"harness timed out fixing {filename}"
-    except HarnessSDKError as exc:
+    except _harness_error() as exc:
         return None, f"harness unavailable for {filename}: {exc}"
     return result.output, None
 

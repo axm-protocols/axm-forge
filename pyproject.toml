@@ -59,6 +59,9 @@ members = ["packages/*"]
 
 [tool.uv.sources]
 axm-anvil = { workspace = true }
+# axm-harness lives in the sibling axm-cortex workspace and is not on PyPI.
+# Only consulted when the optional `axm-edit[harness]` extra is requested
+# (or the dev group), so CI core installs do not require axm-cortex checked out.
 axm-harness = { path = "../axm-cortex/packages/axm-harness", editable = true }
 axm-ast = { workspace = true }
 axm-audit = { workspace = true }
