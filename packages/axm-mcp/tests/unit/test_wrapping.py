@@ -18,54 +18,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from axm.tools.base import ToolResult
-from axm_engine.services.tracing.models import hash_content
 
 # ---------------------------------------------------------------------------
 # --- external step tracing ---
 # ---------------------------------------------------------------------------
-
-
-class TestLogExternalStepHelper:
-    """_log_external_step() routes to orchestrator.log_external_step()."""
-
-    @patch("axm_engine.runtime.orchestrator.get_orchestrator")
-    def test_calls_orchestrator(self, mock_get: MagicMock) -> None:
-        """Calls log_external_step on the orchestrator singleton."""
-        from axm_mcp.wrapping import log_external_step
-
-        mock_orch = MagicMock()
-        mock_get.return_value = mock_orch
-
-        log_external_step("bib_search", {"query": "test"}, True, "result", 50)
-
-        mock_orch.log_external_step.assert_called_once()
-        call_kwargs = mock_orch.log_external_step.call_args[1]
-        assert call_kwargs["tool_name"] == "bib_search"
-        assert call_kwargs["duration_ms"] == 50
-
-    def test_swallows_import_error(self) -> None:
-        """No crash when axm-engine is not installed."""
-        from axm_mcp.wrapping import log_external_step
-
-        # Patch the import to raise ImportError
-        with patch(
-            "axm_engine.runtime.orchestrator.get_orchestrator",
-            side_effect=ImportError("no axm_engine"),
-        ):
-            # Should not raise
-            log_external_step("bib_resolve", {"ref": "10.1234"}, True, "{}", 10)
-
-    @patch("axm_engine.runtime.orchestrator.get_orchestrator")
-    def test_swallows_runtime_error(self, mock_get: MagicMock) -> None:
-        """No crash when orchestrator raises."""
-        mock_orch = MagicMock()
-        mock_orch.log_external_step.side_effect = RuntimeError("tracer broken")
-        mock_get.return_value = mock_orch
-
-        from axm_mcp.wrapping import log_external_step
-
-        # Should not raise
-        log_external_step("git_preflight", {}, True, "{}", 5)
 
 
 class TestRegisterOneTracing:
@@ -165,85 +121,6 @@ class TestRegisterOneTracing:
             # Tool should still succeed even if tracing fails
             result = wrapper(query="test")
             assert result["success"] is True
-
-
-# ---------------------------------------------------------------------------
-# --- tracing hash ---
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def mock_orchestrator() -> MagicMock:
-    orch = MagicMock()
-    return orch
-
-
-def _call_log_external_step(
-    mock_orch: MagicMock,
-    result_str: str,
-    tool_name: str = "test_tool",
-) -> dict[str, object]:
-    """Call log_external_step and return the kwargs passed to log_external_step."""
-    with patch(
-        "axm_engine.runtime.orchestrator.get_orchestrator",
-        return_value=mock_orch,
-    ):
-        from axm_mcp.wrapping import log_external_step
-
-        log_external_step(
-            tool_name=tool_name,
-            tool_args={},
-            success=True,
-            result_str=result_str,
-            duration_ms=10,
-        )
-    return dict(mock_orch.log_external_step.call_args.kwargs)
-
-
-def test_hash_from_content_not_length(mock_orchestrator: MagicMock) -> None:
-    """result_hash must be computed from actual content, not from len() string."""
-    content = "hello world"
-    kwargs = _call_log_external_step(mock_orchestrator, result_str=content)
-
-    expected_hash = hash_content(content)
-    assert kwargs["result_hash"] == expected_hash
-    # Must NOT be the hash of the length string
-    assert kwargs["result_hash"] != hash_content(str(len(content)))
-
-
-def test_different_content_same_length(mock_orchestrator: MagicMock) -> None:
-    """Two results with same length but different content must differ."""
-    kwargs_abc = _call_log_external_step(mock_orchestrator, result_str="abc")
-    kwargs_xyz = _call_log_external_step(mock_orchestrator, result_str="xyz")
-
-    assert kwargs_abc["result_hash"] != kwargs_xyz["result_hash"]
-
-
-def test_empty_result_hash(mock_orchestrator: MagicMock) -> None:
-    """Empty result_str should produce hash_content('') — a consistent hash."""
-    kwargs = _call_log_external_step(mock_orchestrator, result_str="")
-
-    assert kwargs["result_hash"] == hash_content("")
-
-
-def test_manager_uses_provided_hash_without_recompute() -> None:
-    """When caller passes non-empty result_hash, manager must use it as-is."""
-    from axm_engine.services.tracing.manager import TracingManager
-
-    manager = TracingManager(store=MagicMock())
-    tracer = MagicMock()
-    manager._active_session_id = "sess-1"
-    manager._tracers = {"sess-1": tracer}
-
-    provided_hash = "custom_hash_42"
-    manager.log_external_step(
-        tool_name="t",
-        result_hash=provided_hash,
-        result_output="some content",
-    )
-
-    call_kwargs = tracer.log_step.call_args.kwargs
-    assert call_kwargs["result_hash"] == provided_hash
 
 
 # ---------------------------------------------------------------------------

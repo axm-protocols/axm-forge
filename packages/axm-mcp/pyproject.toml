@@ -35,10 +35,9 @@ bib    = ["axm-bib"]
 git    = ["axm-git"]
 ast    = ["axm-ast"]
 ticker = ["axm-ticket"]
-engine = ["axm-engine"]
 forge  = ["axm-ast", "axm-audit", "axm-init"]
 web    = ["scrapling"]
-all    = ["axm-init", "axm-audit", "axm-bib", "axm-git", "axm-ast", "axm-ticket", "axm-engine"]
+all    = ["axm-init", "axm-audit", "axm-bib", "axm-git", "axm-ast", "axm-ticket"]
 
 [project.scripts]
 axm-mcp = "axm_mcp:main"
@@ -259,7 +258,7 @@ output = "coverage.xml"
 
 [tool.deptry]
 pep621_dev_dependency_groups = ["dev"]
-known_first_party = ["axm_mcp", "axm", "axm_nexus", "axm_engine"]
+known_first_party = ["axm_mcp", "axm"]
 
 [tool.coverage.report]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
