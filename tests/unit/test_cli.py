@@ -123,22 +123,24 @@ def _eps(
 
 
 class TestIsNonscalar:
-    @pytest.mark.parametrize("ann", [str, int, float, bool])
-    def test_scalars(self, ann: type) -> None:
-        assert is_nonscalar(ann) is False
-
-    @pytest.mark.parametrize("ann", [list, dict, list[str], dict[str, int]])
-    def test_containers(self, ann: Any) -> None:
-        assert is_nonscalar(ann) is True
-
-    def test_optional_list_is_nonscalar(self) -> None:
-        assert is_nonscalar(list[str] | None) is True
-
-    def test_optional_str_is_scalar(self) -> None:
-        assert is_nonscalar(str | None) is False
-
-    def test_empty_is_scalar(self) -> None:
-        assert is_nonscalar(inspect.Parameter.empty) is False
+    @pytest.mark.parametrize(
+        ("ann", "expected"),
+        [
+            pytest.param(str, False, id="scalar_str"),
+            pytest.param(int, False, id="scalar_int"),
+            pytest.param(float, False, id="scalar_float"),
+            pytest.param(bool, False, id="scalar_bool"),
+            pytest.param(list, True, id="container_list"),
+            pytest.param(dict, True, id="container_dict"),
+            pytest.param(list[str], True, id="container_list_str"),
+            pytest.param(dict[str, int], True, id="container_dict_str_int"),
+            pytest.param(list[str] | None, True, id="optional_list_is_nonscalar"),
+            pytest.param(str | None, False, id="optional_str_is_scalar"),
+            pytest.param(inspect.Parameter.empty, False, id="empty_is_scalar"),
+        ],
+    )
+    def test_classifies_annotation(self, ann: Any, expected: bool) -> None:
+        assert is_nonscalar(ann) is expected
 
 
 # ── signature construction ────────────────────────────────────────────────────
