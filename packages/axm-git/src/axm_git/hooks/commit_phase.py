@@ -11,7 +11,7 @@ import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from axm.hooks.base import HookResult
 
@@ -199,7 +199,7 @@ class CommitPhaseHook:
 
         # Get commit hash
         hash_result = run_git(["rev-parse", "--short", "HEAD"], working_dir)
-        result_kw: dict[str, str] = {
+        result_kw: dict[str, Any] = {  # type: ignore[explicit-any]  # heterogeneous metadata payload for HookResult.ok(**metadata: Any)
             "commit": hash_result.stdout.strip(),
             "message": msg,
         }
