@@ -127,7 +127,6 @@ def discover_tools() -> dict[str, ToolEntry]:
 def register_tools(  # type: ignore[explicit-any]
     mcp: FastMCP,
     tools: dict[str, ToolEntry],
-    extra_tools: dict[str, str] | None = None,
 ) -> None:
     """Register discovered tools as MCP tool callables.
 
@@ -137,8 +136,6 @@ def register_tools(  # type: ignore[explicit-any]
     Args:
         mcp: FastMCP server instance.
         tools: Dict from discover_tools().
-        extra_tools: Optional dict of manually-registered tool names
-            to their descriptions (for list_tools inclusion).
     """
     for name, tool in tools.items():
         register_one(mcp, name, tool)

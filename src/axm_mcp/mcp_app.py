@@ -87,7 +87,7 @@ if _facade_enabled():
     register_list_tools(mcp, discovered_tools, {**_EXTRA_TOOLS, **FACADE_TOOLS})
 else:
     # Legacy behaviour: expose every discovered tool directly.
-    register_tools(mcp, discovered_tools, extra_tools=_EXTRA_TOOLS)
+    register_tools(mcp, discovered_tools)
     _register_direct(_BUILTINS)
     register_list_tools(mcp, discovered_tools, _EXTRA_TOOLS)
 
