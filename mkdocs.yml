@@ -50,6 +50,8 @@ nav:
     - index.md
   - Packages:
     - packages/index.md
+    - axm: '!include ./packages/axm/mkdocs.yml'
+    - axm-mcp: '!include ./packages/axm-mcp/mkdocs.yml'
     - axm-anvil: '!include ./packages/axm-anvil/mkdocs.yml'
     - axm-ast: '!include ./packages/axm-ast/mkdocs.yml'
     - axm-audit: '!include ./packages/axm-audit/mkdocs.yml'
@@ -72,6 +74,8 @@ plugins:
       handlers:
         python:
           paths:
+            - packages/axm/src
+            - packages/axm-mcp/src
             - packages/axm-anvil/src
             - packages/axm-ast/src
             - packages/axm-audit/src
