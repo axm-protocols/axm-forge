@@ -1,12 +1,15 @@
-"""Unit tests for AstFileHeaderTool (real filesystem I/O via tmp_path)."""
+"""Integration tests for AstFileHeaderTool (real filesystem I/O via tmp_path)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_ast.tools.file_header import AstFileHeaderTool
 
 
+@pytest.mark.integration
 class TestAstFileHeaderTool:
     """Test AstFileHeaderTool behavior."""
 
