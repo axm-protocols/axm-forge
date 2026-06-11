@@ -11,11 +11,7 @@ from axm_ast.tools.file_header import AstFileHeaderTool
 
 @pytest.mark.integration
 class TestAstFileHeaderTool:
-    """Test AstFileHeaderTool behavior."""
-
-    def test_name(self) -> None:
-        """Tool registers under the ast_file_header name."""
-        assert AstFileHeaderTool().name == "ast_file_header"
+    """Test AstFileHeaderTool behavior against the real filesystem."""
 
     def test_extract_success(self, tmp_path: Path) -> None:
         """A real file yields its header content in the data payload."""
