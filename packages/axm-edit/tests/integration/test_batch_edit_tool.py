@@ -11,18 +11,6 @@ import pytest
 from axm_edit.tools.batch_edit import BatchEditTool
 
 
-# axm-harness is an optional extra (axm-edit[harness]); the adapter is mocked,
-# so the SDK need not be installed. Stand-in mirrors
-# axm_harness.core.errors.MissingCredentialsError for the no-adapter path.
-class MissingCredentialsError(Exception):
-    """Stand-in for ``axm_harness.core.errors.MissingCredentialsError``."""
-
-
-def _raise_missing_credentials(*args: Any, **kwargs: Any) -> Any:
-    """get_adapter stand-in simulating no available harness SDK."""
-    raise MissingCredentialsError("no harness sdk available")
-
-
 @pytest.fixture
 def tool() -> BatchEditTool:
     return BatchEditTool()
@@ -149,12 +137,6 @@ class TestRuffCrashGraceful:
         py_project: Path,
         mocker: Any,
     ) -> None:
-        # Mock harness_fix to pass through
-        mocker.patch(
-            "axm_edit.tools.batch_edit.harness_fix",
-            side_effect=lambda root, errors, **kw: errors,
-        )
-
         call_count = 0
 
         def ruff_crash(
@@ -228,19 +210,16 @@ class TestWarningsInResult:
         assert any("ruff not found" in w for w in warnings)
 
 
-class TestBothToolsMissing:
-    """Both ruff and harness missing -> batch_edit works, warnings emitted."""
+class TestRuffMissingStillApplies:
+    """ruff missing -> batch_edit still applies edits, warnings emitted."""
 
-    def test_both_tools_missing(
+    def test_ruff_missing_still_applies(
         self,
         tool: BatchEditTool,
         py_project: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr("axm_edit.services.lint._has_ruff", False)
-        monkeypatch.setattr(
-            "axm_edit.services.lint.get_adapter", _raise_missing_credentials
-        )
 
         result = tool.execute(
             path=str(py_project),
@@ -272,11 +251,6 @@ class TestRuffInvocationFails:
         mocker: Any,
         exc: Exception,
     ) -> None:
-        mocker.patch(
-            "axm_edit.tools.batch_edit.harness_fix",
-            side_effect=lambda root, errors, **kw: errors,
-        )
-
         def ruff_raises(
             cmd: list[str], **kwargs: Any
         ) -> subprocess.CompletedProcess[str]:
@@ -630,12 +604,6 @@ class TestRuffCheckReturnsErrors:
         mocker: Any,
         operations: list[dict[str, Any]],
     ) -> None:
-        # Mock harness_fix to pass through errors (no real harness call)
-        mocker.patch(
-            "axm_edit.tools.batch_edit.harness_fix",
-            side_effect=lambda root, errors, **kw: errors,
-        )
-
         result = tool.execute(
             path=str(py_project__from_batch_edit_lint_integration),
             operations=operations,
@@ -773,66 +741,6 @@ class TestBatchEditAutoFixesImports:
         assert lines == ["import os", "import sys"]
 
 
-class TestHarnessFixCalledFromBatchEdit:
-    """AC1 integration: harness_fix invoked when ruff returns unfixable errors."""
-
-    def test_harness_fix_invoked(
-        self,
-        tool: BatchEditTool,
-        py_project__from_batch_edit_lint_integration: Path,
-        mocker: Any,
-    ) -> None:
-        mock_harness = mocker.patch(
-            "axm_edit.tools.batch_edit.harness_fix",
-            return_value=[],  # Simulate harness fixing everything
-        )
-
-        result = tool.execute(
-            path=str(py_project__from_batch_edit_lint_integration),
-            operations=[
-                _replace_op(
-                    "hello.py",
-                    "x = 1",
-                    "try:\n    x = 1\nexcept:\n    pass",
-                )
-            ],
-        )
-
-        assert result.success
-        # harness_fix should have been called with the ruff errors
-        mock_harness.assert_called_once()
-        call_args = mock_harness.call_args
-        assert len(call_args.args[1]) > 0, "harness_fix should receive ruff errors"
-
-    def test_harness_fix_clears_lint_errors(
-        self,
-        tool: BatchEditTool,
-        py_project__from_batch_edit_lint_integration: Path,
-        mocker: Any,
-    ) -> None:
-        mocker.patch(
-            "axm_edit.tools.batch_edit.harness_fix",
-            return_value=[],  # Harness fixed everything
-        )
-
-        result = tool.execute(
-            path=str(py_project__from_batch_edit_lint_integration),
-            operations=[
-                _replace_op(
-                    "hello.py",
-                    "x = 1",
-                    "try:\n    x = 1\nexcept:\n    pass",
-                )
-            ],
-        )
-
-        assert result.success
-        assert result.data is not None
-        assert not result.data.get("lint_errors"), (
-            "No lint_errors when harness_fix resolves everything"
-        )
-
-
 class TestNoPythonFilesSkipsLint:
     """batch_edit on .md/.toml only -> lint step skipped."""
 
@@ -954,33 +862,3 @@ class TestRunRuffUsesProjectEnv:
         for call in ruff_calls:
             args = call.args[0] if call.args else call.kwargs.get("args", [])
             assert args[0:2] == ["uv", "run"], f"Expected 'uv run ruff ...', got {args}"
-
-
-class TestSummaryReportsHarnessFixed:
-    """AC5: lint summary exposes harness_fixed count and harness-fixed text."""
-
-    def test_summary_reports_harness_fixed(
-        self,
-        tool: BatchEditTool,
-        py_project: Path,
-        mocker: Any,
-    ) -> None:
-        """AC5: data lint.harness_fixed == 2 and text says 'harness-fixed'."""
-        mocker.patch(
-            "axm_edit.tools.batch_edit.harness_fix",
-            return_value=[],  # harness resolves both remaining errors
-        )
-
-        bare_excepts = (
-            "try:\n    x = 1\nexcept:\n    pass\ntry:\n    y = 2\nexcept:\n    pass"
-        )
-        result = tool.execute(
-            path=str(py_project),
-            operations=[_replace_op("hello.py", "x = 1", bare_excepts)],
-        )
-
-        assert result.success
-        assert result.data is not None
-        lint_summary = result.data["lint"]
-        assert lint_summary["harness_fixed"] == 2
-        assert "harness-fixed" in (result.text or "")

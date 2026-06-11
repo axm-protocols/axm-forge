@@ -22,15 +22,6 @@ dependencies = [
     "pydantic>=2.0.0",
 ]
 
-[project.optional-dependencies]
-# LLM-driven ruff auto-fix (harness_fix). Optional: without it,
-# batch_edit skips the harness auto-fix step and returns remaining
-# ruff errors unchanged. axm-harness lives in the axm-cortex workspace
-# and is not published to PyPI, so this extra installs from source.
-harness = [
-    "axm-harness[claude,codex]",
-]
-
 [project.urls]
 Homepage = "https://forge.axm-protocols.io"
 Documentation = "https://forge.axm-protocols.io"
@@ -122,13 +113,7 @@ max-locals = 15
 python_version = "3.12"
 strict = true
 disallow_any_generics = true
-# axm-harness is an optional extra (axm-edit[harness]); when it is not installed
-# (CI core matrix), mypy cannot follow its types and `disallow_any_unimported`
-# would fail the gate on every signature touching the harness seam. The flag is
-# all-or-nothing per run, so it is disabled here rather than scattering
-# `# type: ignore` that `warn_unused_ignores` would then reject when the extra
-# IS installed locally.
-disallow_any_unimported = false
+disallow_any_unimported = true
 disallow_any_explicit = true
 pretty = true
 warn_return_any = true
@@ -153,12 +138,6 @@ disable_error_code = [
 
 [[tool.mypy.overrides]]
 module = ["axm_core.*", "axm.*"]
-ignore_missing_imports = true
-
-# axm-harness is an optional extra (axm-edit[harness]); when it is not installed
-# (e.g. CI core matrix), mypy cannot resolve the import at all.
-[[tool.mypy.overrides]]
-module = ["axm_harness.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
