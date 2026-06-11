@@ -13,7 +13,7 @@ on ``axm-engine``.  The engine re-exports these symbols from
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 __all__ = [
     "ValidationFeedback",
@@ -79,6 +79,7 @@ class WitnessResult:
         )
 
 
+@runtime_checkable
 class WitnessRule(Protocol):
     """Protocol for witness validation rules."""
 

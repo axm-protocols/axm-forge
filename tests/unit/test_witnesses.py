@@ -187,3 +187,20 @@ class TestWitnessRuleProtocol:
         assert rule.validate("hello").passed is True
         assert rule.validate("hello", strict=True).passed is False
         assert rule.validate("HELLO", strict=True).passed is True
+
+    def test_isinstance_true_for_conforming_rule(self) -> None:
+        """AC2: isinstance is True for a structurally conforming object.
+
+        It does not raise TypeError.
+        """
+
+        class ConformingRule:
+            def validate(self, content: str, **kwargs: Any) -> WitnessResult:
+                return WitnessResult.success()
+
+        rule = ConformingRule()
+        assert isinstance(rule, WitnessRule) is True
+
+    def test_isinstance_false_for_non_rule(self) -> None:
+        """AC3: isinstance is False for an object lacking validate (no TypeError)."""
+        assert isinstance(object(), WitnessRule) is False
