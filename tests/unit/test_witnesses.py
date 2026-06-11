@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from typing import Any
+
+import pytest
 
 from axm.witnesses import ValidationFeedback, WitnessResult, WitnessRule
 
@@ -94,6 +97,37 @@ class TestWitnessResultDirect:
         b = WitnessResult(passed=True)
         a.metadata["k"] = 1
         assert b.metadata == {}
+
+
+class TestFrozenContracts:
+    """Immutability guarantees for the witness result contracts."""
+
+    def test_validation_feedback_is_frozen(self) -> None:
+        """AC1: ValidationFeedback rejects attribute mutation after construction."""
+        fb = ValidationFeedback(what="w", why="y", how="h")
+        with pytest.raises(FrozenInstanceError):
+            fb.what = "x"  # type: ignore[misc]
+
+    def test_witness_result_is_frozen(self) -> None:
+        """AC2: WitnessResult rejects attribute mutation after construction."""
+        result = WitnessResult.success()
+        with pytest.raises(FrozenInstanceError):
+            result.passed = False  # type: ignore[misc]
+
+    def test_frozen_factories_still_construct(self) -> None:
+        """AC3: factories still construct and metadata dict stays mutable in place."""
+        ok = WitnessResult.success(verdict="ok")
+        assert ok.passed is True
+        assert ok.verdict == "ok"
+
+        ko = WitnessResult.failure(ValidationFeedback("w", "y", "h"))
+        assert ko.passed is False
+        assert ko.feedback is not None
+        assert ko.feedback.what == "w"
+
+        # frozen blocks attribute rebinding, not internal dict mutation.
+        ok.metadata["k"] = 1
+        assert ok.metadata == {"k": 1}
 
 
 class TestWitnessRuleProtocol:

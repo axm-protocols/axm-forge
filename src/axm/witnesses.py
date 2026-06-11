@@ -22,7 +22,7 @@ __all__ = [
 ]
 
 
-@dataclass
+@dataclass(frozen=True)
 class ValidationFeedback:
     """Structured feedback for validation failures.
 
@@ -41,7 +41,7 @@ class ValidationFeedback:
         return {"what": self.what, "why": self.why, "how": self.how}
 
 
-@dataclass
+@dataclass(frozen=True)
 class WitnessResult:
     """Result of a witness validation.
 
