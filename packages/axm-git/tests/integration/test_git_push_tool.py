@@ -23,7 +23,11 @@ def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
 
 def _init_repo(path: Path) -> None:
     """Initialize a git repo with an initial commit."""
-    subprocess.run(["git", "init"], cwd=str(path), capture_output=True, check=True)
+    # ``-b main`` pins the default branch so the test does not depend on the
+    # runner's ``init.defaultBranch`` config (master on a bare CI runner).
+    subprocess.run(
+        ["git", "init", "-b", "main"], cwd=str(path), capture_output=True, check=True
+    )
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
         cwd=str(path),
@@ -76,9 +80,12 @@ class TestPushFlow:
         beyond the local remote-tracking ref, the force push is refused rather
         than overwriting the remote's new commit.
         """
+        # ``-b main`` pins the bare repo's default branch so HEAD:main pushes
+        # and the upstream wiring below do not depend on the runner's
+        # ``init.defaultBranch`` (master on a bare CI runner, main locally).
         bare = tmp_path / "remote.git"
         bare.mkdir()
-        _git(["init", "--bare"], bare)
+        _git(["init", "--bare", "-b", "main"], bare)
 
         # Clone A: establishes the remote-tracking baseline.
         clone_a = tmp_path / "clone_a"
