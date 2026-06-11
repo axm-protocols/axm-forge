@@ -7,9 +7,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from axm_harness.core.errors import MissingCredentialsError
 
 from axm_edit.tools.batch_edit import BatchEditTool
+
+
+# axm-harness is an optional extra (axm-edit[harness]); the adapter is mocked,
+# so the SDK need not be installed. Stand-in mirrors
+# axm_harness.core.errors.MissingCredentialsError for the no-adapter path.
+class MissingCredentialsError(Exception):
+    """Stand-in for ``axm_harness.core.errors.MissingCredentialsError``."""
 
 
 def _raise_missing_credentials(*args: Any, **kwargs: Any) -> Any:

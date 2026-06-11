@@ -262,13 +262,16 @@ name = "axm-edit"
 source = { editable = "packages/axm-edit" }
 dependencies = [
     { name = "axm" },
-    { name = "axm-harness" },
     { name = "pydantic" },
+]
+
+[package.optional-dependencies]
+harness = [
+    { name = "axm-harness", extra = ["claude", "codex"] },
 ]
 
 [package.dev-dependencies]
 dev = [
-    { name = "axm-harness", extra = ["claude", "codex"] },
     { name = "mypy" },
     { name = "pip-audit" },
     { name = "pre-commit" },
@@ -287,13 +290,13 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "axm" },
-    { name = "axm-harness", editable = "../axm-cortex/packages/axm-harness" },
+    { name = "axm-harness", extras = ["claude", "codex"], marker = "extra == 'harness'", editable = "../axm-cortex/packages/axm-harness" },
     { name = "pydantic", specifier = ">=2.0.0" },
 ]
+provides-extras = ["harness"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "axm-harness", extras = ["claude", "codex"], editable = "../axm-cortex/packages/axm-harness" },
     { name = "mypy", specifier = ">=1.20.0" },
     { name = "pip-audit", specifier = ">=2.0" },
     { name = "pre-commit", specifier = ">=4.0" },
