@@ -1,0 +1,304 @@
+[project]
+name = "axm-mcp"
+dynamic = ["version"]
+description = "AXM MCP Server — Runtime execution for the axm-protocols ecosystem"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.12"
+authors = [{ name = "Gabriel Jarry", email = "gabriel@axm-protocols.io" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+    "License :: OSI Approved :: Apache Software License",
+]
+dependencies = [
+    "axm",
+    "cyclopts>=4.5.1",
+    "httpx>=0.28",
+    "mcp[cli]>=1.25.0",
+    "starlette>=1.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/axm-protocols/axm-nexus-mcp"
+Documentation = "https://axm-protocols.github.io/axm-mcp/"
+Repository = "https://github.com/axm-protocols/axm-nexus-mcp.git"
+Issues = "https://github.com/axm-protocols/axm-nexus-mcp/issues"
+
+# Optional dependencies — only packages published on PyPI
+[project.optional-dependencies]
+init   = ["axm-init"]
+audit  = ["axm-audit"]
+bib    = ["axm-bib"]
+git    = ["axm-git"]
+ast    = ["axm-ast"]
+ticker = ["axm-ticket"]
+forge  = ["axm-ast", "axm-audit", "axm-init"]
+web    = ["scrapling"]
+all    = ["axm-init", "axm-audit", "axm-bib", "axm-git", "axm-ast", "axm-ticket"]
+
+[project.scripts]
+axm-mcp = "axm_mcp:main"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = "mcp/v(?P<version>.*)"
+raw-options = { root = "../..", git_describe_command = "git describe --dirty --tags --long --match mcp/v*" }
+fallback-version = "0.1.0.dev0"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/axm_mcp/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/axm_mcp"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"docs/index.md" = "axm_mcp/docs/index.md"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UV Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.uv]
+managed = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "pytest-asyncio>=0.24",
+    "pytest-mock>=3.15.1",
+    "ruff==0.15.15",
+    "mypy>=1.19",
+    "pre-commit>=4.0",
+    "types-pyyaml>=6.0.12.20250915",
+    "types-jsonschema>=4.26.0.20260202",
+]
+docs = [
+    "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=1.0.3",
+    "mkdocs-gen-files>=0.5",
+    "mkdocs-literate-nav>=0.6.3",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ruff Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["src", "tests"]
+exclude = ["*/_version.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20", "RUF"]
+ignore = ["S101", "RUF012"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S108", "PLR2004"]
+"src/axm_mcp/discovery.py" = ["C901", "PLR0915", "BLE001"]
+"src/axm_mcp/wrapping.py" = ["BLE001"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 5
+max-branches = 12
+max-returns = 6
+max-statements = 50
+max-locals = 15
+
+[tool.ruff.lint.isort]
+known-first-party = ["axm_mcp"]
+
+[tool.axm-audit.mirror]
+exempt_paths = ["**/__init__.py", "_version.py"]
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4e0ecb6422d3"
+reason = "Heterogeneous: env-driven filtering tests assert different field sets (len-only vs membership+len) and test_skips_broken_entry_point exercises a distinct SUT path (ImportError EP skip, no AXM_DISABLE_TOOLS env)."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "97b791bad37f"
+reason = "Heterogeneous: each guards a distinct formatter branch with a distinct input key - text-field passthrough indent (text), details-str indent (details str), dict-item compaction 'file:line msg' (details list-of-dict), and fix_hint 'fix:' prefix (fix_hint). Same indent shape, different rendering rules."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "8af93204ef91"
+reason = "Heterogeneous: distinct header-line rules - governance None -> 'governance: skipped' branch, audit count derived from len(passed)+len(failed) ('3/4'), and governance count derived from the passed_count field + len(failed) ('7/8'). Skip branch vs two different count-derivation sources."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "401e606d96ff"
+reason = "Heterogeneous: distinct details-dict branches - known-key extraction (details.findings -> list items), unknown-key JSON fallback (no known key -> json.dumps), and metadata.clusters signal summary ('alpha=2'). Different code paths, not the same rule with different data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4a85ea6a1073"
+reason = "Heterogeneous: two different priority rules - cross-field precedence (text field wins over details) vs intra-dict known-key lookup order (findings wins over violations). Different precedence mechanisms, not one rule with different data."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "343f7ae8b789"
+reason = "Heterogeneous: opposite outcomes on opposite branches - AXMTool with execute(**kwargs) triggers the docstring-fallback path (params synthesized from the Args block), whereas a tool with a typed execute(*, path, limit) keeps normal signature introspection (docstring ignored). Different SUT shapes, different code paths, opposite assertions."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "3da3a2d46057"
+reason = "Heterogeneous setup: both return None but via distinct rejection branches - a regular function (no action+**kwargs) fails the dispatcher signature-shape check, while an orphan dispatcher (correct action+**kwargs shape) falls through the missing _ACTIONS-dict lookup. Different SUT construction, different early-return branch."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "5ca831f8d22b"
+reason = "Heterogeneous: different commands and observables - test_cli_serve_cleans_pid_on_error runs the serve subcommand with a server that raises RuntimeError and asserts the PID file is removed despite the error, while test_cli_stop_sends_sigterm runs the stop subcommand, mocks is_process_alive/is_axm_mcp_process/os.kill and asserts os.kill(12345, SIGTERM) was sent. Different SUT, different mocks, different assertion."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "1dc373f3639b"
+reason = "Inter-file, divergent tiers/fixtures: test_cli_stop_no_pid_file (integration, real tmp_pid_file filesystem fixture, runs the stop command with no PID file and asserts SystemExit 1 + 'not running' on stderr) vs test_cli_status_not_running (unit, mocks httpx.get to raise ConnectError, runs the status command and asserts SystemExit 1 + 'not running' on stderr). Different CLI commands (stop vs status) and observation surfaces (absent PID file vs mocked HTTP failure) across integration/unit tiers."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e19671524dde"
+reason = "Inter-file existence guards on distinct SUTs: test_main_function_exists asserts callable(mcp_app.main) in test_mcp_app.py, test_verify_function_importable asserts callable(verify_project) in test_verify.py. Each guards a different module's public symbol and lives in its module's mirror test file; folding would violate the 1:1 source-mirror by moving a test out of its module's file."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "83b7015319e3"
+reason = "Inter-file, return-path vs error-path across tiers: test_prefers_global_bin (integration, real filesystem, creates ~/.local/bin/axm-mcp and asserts find_binary() returns that path) vs test_not_found (unit, mocks shutil.which to None and asserts find_binary() raises SystemExit). Happy-path return value vs error/raises branch on different tiers and fixtures."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "e6e942662986"
+reason = "Heterogeneous: two distinct exception-guard branches of the wrapper - test_tool_exception_returns_error_dict drives the AXMTool branch (RaisingTool.execute() raises, asserts the ValueError class+message survive in the flattened error dict), while test_plain_fn_exception_returns_error_dict drives the plain-callable branch (a bare **kwargs fn raises RuntimeError, asserts its class+message). Different SUT shapes (tool.execute vs plain dispatcher), different exception types, different code paths."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "74c48c9bac1b"
+reason = "Heterogeneous: two unrelated serialization rules - test_failing_result_with_text_not_shortcircuited asserts a FAILING ToolResult carrying text does NOT short-circuit to bare markdown but falls through to the flattened success=False/error dict (text short-circuit guard), while test_flatten_collision_success_key_preserved asserts reserved-key namespacing on a SUCCEEDING result whose data carries a colliding 'success' key (envelope wins, data value relocated to data_success, warn logged). Different result polarity, different branch, different observable."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "442a41860557"
+reason = "Heterogeneous: five tests across TestDescribe and TestCall exercise distinct ToolCatalog methods and return contracts - describe() raising UnknownToolError, call() returning text passthrough, call() rendering data when no text, call() on a plain callable, and call() propagating TypeError on missing required kwarg. Different SUT methods, different observables (text vs data-render vs raises UnknownToolError vs raises TypeError); only the catalog fixture is shared."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "4c1a4161d8d3"
+reason = "Heterogeneous: distinct SUT functions - test_cli_install_delegates (parametrized) asserts lifecycle.install called once with (9427, binary=expected_binary), while test_cli_uninstall_delegates asserts lifecycle.uninstall called once with no args. Different delegated functions and call signatures."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b6c11889ae81"
+reason = "Heterogeneous: two distinct error branches of axm_call - test_call_unknown_tool_returns_error asserts the unknown-tool path renders 'error' + the tool name 'nope', while test_call_bad_args_includes_param_hint asserts the bad-args path renders 'accepted params' + the missing param 'msg'. Different code paths and assertions."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MyPy Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+disallow_any_generics = true
+disallow_any_unimported = true
+disallow_any_explicit = true
+pretty = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_any_explicit = false
+disable_error_code = [
+    "index",
+    "arg-type",
+    "attr-defined",
+    "operator",
+    "union-attr",
+    "call-overload",
+]
+
+[[tool.mypy.overrides]]
+module = ["scrapling.*"]
+ignore_missing_imports = true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pytest Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+python_files = "test_*.py"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "--import-mode=importlib",
+    "--cov=axm_mcp",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+]
+asyncio_mode = "auto"
+markers = [
+    "integration: real I/O (filesystem, network, DB) or public API scenarios",
+    "e2e: subprocess/CLI black-box tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Coverage Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["axm_mcp"]
+branch = true
+relative_files = true
+omit = ["*/tests/*"]
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.deptry]
+pep621_dev_dependency_groups = ["dev"]
+known_first_party = ["axm_mcp", "axm"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Git-Cliff Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.git-cliff.changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+"""
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {{ commit.message | upper_first }}\
+    {% endfor %}
+{% endfor %}
+"""
+trim = true
+
+[tool.git-cliff.git]
+conventional_commits = true
+filter_unconventional = true
+commit_parsers = [
+    { message = "^chore", skip = true },
+    { message = "^ci", skip = true },
+    { message = "^feat", group = "🚀 Features" },
+    { message = "^fix", group = "🐛 Bug Fixes" },
+    { message = "^doc", group = "📚 Documentation" },
+    { message = "^perf", group = "⚡ Performance" },
+    { message = "^refactor", group = "🔧 Refactor" },
+    { message = "^test", group = "🧪 Tests" },
+]
+tag_pattern = "mcp/v[0-9].*"
+include_path = "packages/axm-mcp/**"

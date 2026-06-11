@@ -32,6 +32,10 @@ jobs:
               - '.python-version'
               - '.github/workflows/**'
               - 'packages/axm-init/src/axm_init/templates/**'
+            axm:
+              - 'packages/axm/**'
+            axm-mcp:
+              - 'packages/axm-mcp/**'
             axm-anvil:
               - 'packages/axm-anvil/**'
             axm-ast:
@@ -52,7 +56,7 @@ jobs:
           SHARED: ${{ steps.filter.outputs.shared }}
           CHANGES: ${{ steps.filter.outputs.changes }}
         run: |
-          ALL='["axm-anvil","axm-ast","axm-audit","axm-edit","axm-init","axm-git","axm-smelt"]'
+          ALL='["axm","axm-mcp","axm-anvil","axm-ast","axm-audit","axm-edit","axm-init","axm-git","axm-smelt"]'
           if [ "$SHARED" = "true" ]; then
             echo "Shared file changed -> full matrix"
             PACKAGES="$ALL"

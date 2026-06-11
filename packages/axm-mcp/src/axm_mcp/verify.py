@@ -1,0 +1,284 @@
+"""Verify tool — consolidated quality check with AST enrichment.
+
+Orchestrates axm-audit + axm-init check in one shot, then enriches
+failures with AST context from axm-ast (callers, impact, test files).
+
+This module is decoupled: it receives discovered tools as a dict
+and calls them via Python. No subprocess nesting.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import cast
+
+from axm.tools.base import AXMTool, ToolResult
+
+from axm_mcp.verify_format import format_verify_text
+
+__all__ = ["VerifyTool", "verify_project"]
+
+logger = logging.getLogger(__name__)
+
+# Cap callers listed in enrichment output to keep payloads compact.
+_MAX_CALLERS = 10
+
+# Impact scores are ordinal strings (LOW < MEDIUM < HIGH).
+_SCORE_ORDER: dict[str, int] = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
+
+
+@dataclass
+class _ImpactAggregate:
+    """Mutable accumulator for per-symbol AST impact results."""
+
+    callers: list[dict[str, object]] = field(default_factory=list)
+    test_files: list[str] = field(default_factory=list)
+    max_score: str = "LOW"
+    success_count: int = 0
+
+
+def _aggregate_symbol_impact(
+    ast_tool: AXMTool,
+    path: str,
+    symbol: str,
+    agg: _ImpactAggregate,
+) -> None:
+    """Run ast_impact on *symbol* and fold the result into *agg*."""
+    try:
+        result = ast_tool.execute(path=path, symbol=symbol)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("AST enrichment failed for %s: %s", symbol, exc)
+        return
+    if not (result.success and result.data):
+        return
+    agg.success_count += 1
+    data = cast(dict[str, object], result.data)
+    agg.callers.extend(cast(list[dict[str, object]], data.get("callers", [])))
+    agg.test_files.extend(cast(list[str], data.get("test_files", [])))
+    score = cast(str, data.get("score") or "LOW")
+    if _SCORE_ORDER.get(score, 0) > _SCORE_ORDER.get(agg.max_score, 0):
+        agg.max_score = score
+
+
+def verify_project(
+    path: str,
+    tools: Mapping[str, AXMTool],
+) -> dict[str, object]:
+    """One-shot project verification: audit + init check + AST enrichment.
+
+    Args:
+        path: Path to project root.
+        tools: Dict of discovered tools (from ``discover_tools()``).
+
+    Returns:
+        Consolidated result with 'audit' and 'governance' sections.
+        Each section is None if the corresponding tool is not installed.
+    """
+    audit_data = run_tool(tools, "audit", path=path)
+    governance_data = run_tool(tools, "init_check", path=path)
+
+    # Enrich audit failures with AST context
+    if audit_data is not None:
+        failed_raw = audit_data.get("failed", [])
+        failed = cast(list[dict[str, object]], failed_raw) if failed_raw else []
+        if failed and "ast_impact" in tools:
+            for failure in failed:
+                context = enrich_failure(tools, path, failure)
+                if context:
+                    failure["context"] = context
+
+    return {
+        "audit": audit_data,
+        "governance": governance_data,
+    }
+
+
+def run_tool(
+    tools: Mapping[str, AXMTool],
+    tool_name: str,
+    **kwargs: object,
+) -> dict[str, object] | None:
+    """Run a discovered tool, returning its data or None if unavailable."""
+    tool = tools.get(tool_name)
+    if tool is None:
+        logger.info("Tool '%s' not installed, skipping.", tool_name)
+        return None
+
+    try:
+        result = tool.execute(**kwargs)
+        if result.success:
+            data = cast(dict[str, object], result.data)
+            return data
+        logger.warning("Tool '%s' failed: %s", tool_name, result.error)
+        return {"error": result.error}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Tool '%s' raised: %s", tool_name, exc, exc_info=True)
+        return {"error": str(exc)}
+
+
+def enrich_failure(
+    tools: Mapping[str, AXMTool],
+    path: str,
+    failure: dict[str, object],
+) -> dict[str, object] | None:
+    """Enrich a failure with aggregated AST context.
+
+    Calls _extract_symbols, then ast_impact on each symbol.
+    Impact scores are ordinal strings (LOW < MEDIUM < HIGH); the
+    maximum across all symbols is kept.
+
+    Returns aggregated context dict or None if no enrichment possible.
+    """
+    ast_tool = tools.get("ast_impact")
+    if ast_tool is None:
+        return None
+
+    symbols = _extract_symbols(failure)
+    if not symbols:
+        return None
+
+    agg = _ImpactAggregate()
+    for symbol in symbols:
+        _aggregate_symbol_impact(ast_tool, path, symbol, agg)
+
+    if agg.success_count == 0:
+        return None
+
+    callers = agg.callers
+    total_callers = len(callers)
+    if total_callers > _MAX_CALLERS:
+        callers = callers[:_MAX_CALLERS]
+        callers.append(
+            {
+                "note": f"... and {total_callers - _MAX_CALLERS} "
+                "more callers omitted for brevity"
+            }
+        )
+
+    return {
+        "affected_modules": list(dict.fromkeys(symbols)),
+        "callers": callers,
+        "test_files": list(dict.fromkeys(agg.test_files)),
+        "impact_score": agg.max_score,
+        "symbols_analyzed": agg.success_count,
+    }
+
+
+def _extract_symbols(failure: dict[str, object]) -> list[str]:
+    """Extract unique AST-queryable symbols from a failure dict.
+
+    Strategy per rule_id:
+    - QUALITY_TYPE: parse details.errors[].file → module path
+    - QUALITY_COMPLEXITY: use details.top_offenders[].function
+    - Default: fallback to message prefix parsing
+    """
+    rule_id = failure.get("rule_id", "")
+    details = failure.get("details")
+
+    if rule_id == "QUALITY_TYPE" and isinstance(details, dict):
+        errors = details.get("errors", [])
+        if errors:
+            return _unique_modules_from_errors(errors)
+
+    if rule_id == "QUALITY_COMPLEXITY" and isinstance(details, dict):
+        symbols = _symbols_from_offenders(details.get("top_offenders", []))
+        if symbols:
+            return symbols
+
+    return _symbol_from_message_prefix(failure.get("message", ""))
+
+
+class VerifyTool:
+    """AXMTool wrapper around :func:`verify_project`.
+
+    Returns ``ToolResult(data=..., text=...)`` so MCP consumers see a
+    compact rendered report while programmatic callers (hooks, gates)
+    can still read the structured ``data`` dict.
+    """
+
+    agent_hint = (
+        "One-shot project verification: audit + init check + AST enrichment. "
+        "Returns compact text plus structured data."
+    )
+
+    def __init__(self, tools: Mapping[str, object] | None = None) -> None:
+        # The discovery layer hands us a ``Mapping[str, ToolEntry]`` (structural
+        # protocols), but every entry-point-registered tool is in fact an
+        # ``AXMTool`` instance. We accept ``object`` at the boundary so
+        # ``mcp_app.py`` stays decoupled from ``axm.*`` core, then trust the
+        # runtime invariant via a cast.
+        self._tools: Mapping[str, AXMTool] = cast(
+            "Mapping[str, AXMTool]", tools if tools is not None else {}
+        )
+
+    @property
+    def name(self) -> str:
+        """Tool name used for MCP registration."""
+        return "verify"
+
+    def execute(self, *, path: str = ".", **_: object) -> ToolResult:
+        """One-shot project verification: audit + init check + AST enrichment.
+
+        Args:
+            path: Path to project root to verify.
+        """
+        data = verify_project(str(path), self._tools)
+        text = format_verify_text(data)
+        return ToolResult(success=True, data=data, text=text)
+
+
+def _symbols_from_offenders(offenders: object) -> list[str]:
+    """Extract unique function names from complexity offenders."""
+    if not isinstance(offenders, list):
+        return []
+    return list(
+        dict.fromkeys(
+            o["function"] for o in offenders if isinstance(o, dict) and "function" in o
+        )
+    )
+
+
+def _symbol_from_message_prefix(message: object) -> list[str]:
+    """Parse a leading 'Function/Class/Method <name>' prefix from a message."""
+    if not isinstance(message, str):
+        return []
+    for prefix in ("Function ", "Class ", "Method "):
+        if not message.startswith(prefix):
+            continue
+        parts = message[len(prefix) :].split()
+        if parts:
+            return [parts[0].strip("()'\":")]
+    return []
+
+
+def _unique_modules_from_errors(errors: list[dict[str, object]]) -> list[str]:
+    """Convert file paths to unique module paths.
+
+    'src/foo/bar.py' → 'foo.bar'
+    'tests/test_main.py' → 'tests.test_main'
+    """
+    modules: list[str] = []
+    seen: set[str] = set()
+
+    for entry in errors:
+        file_path = entry.get("file")
+        if not isinstance(file_path, str) or not file_path:
+            continue
+
+        # Strip src/ prefix if present
+        path = file_path
+        if path.startswith("src/"):
+            path = path[4:]
+
+        # Convert to module path: strip .py, replace /
+        if path.endswith(".py"):
+            path = path[:-3]
+        module = path.replace("/", ".")
+
+        if module not in seen:
+            seen.add(module)
+            modules.append(module)
+
+    return modules
