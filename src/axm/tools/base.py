@@ -50,9 +50,12 @@ class AXMTool(Protocol):
     - ``execute(...)`` : deterministic execution with explicit params
 
     Optionally provide:
-    - ``agent_hint`` (class attribute): concise one-liner optimized
-      for LLM consumption: what the tool does, key params, and what
-      it replaces.  Falls back to ``execute.__doc__`` if empty.
+    - ``agent_hint`` (class attribute): optional, free-form one-liner
+      optimized for LLM consumption: what the tool does, key params, and
+      what it replaces.  Like the other discovery attributes below, it is
+      *not* a protocol member and carries no guaranteed fallback — some
+      discovery tooling reads it best-effort via ``getattr`` /
+      :func:`tool_metadata`; absent, nothing is substituted.
     - ``expose_directly`` (class attribute, default ``False``): when
       ``True``, the MCP server registers this tool directly in
       ``tools/list`` (the *hot path*).  When ``False`` (default), the
