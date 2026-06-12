@@ -4,6 +4,7 @@ Task-oriented guides for common workflows.
 
 ## Available Guides
 
+- [CI Badge](ci-badge.md) — Add an axm-init quality badge to your repo
 - [Run Checks](check.md) — Validate project compliance
 - [MCP Integration](mcp.md) — Use init tools via MCP
 - [Reserve a Name](reserve.md) — Reserve a package name

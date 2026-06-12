@@ -12,6 +12,7 @@ nav:
     - Check Project Quality: howto/check.md
     - Reserve a Name: howto/reserve.md
     - Use via MCP: howto/mcp.md
+    - CI Badge: howto/ci-badge.md
   - Reference:
     - CLI: reference/cli.md
     - Checks:
