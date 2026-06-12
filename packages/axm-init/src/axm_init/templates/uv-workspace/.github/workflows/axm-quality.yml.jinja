@@ -38,9 +38,11 @@ jobs:
             mkdir -p "$DIR"
             local SCORE_INT=$(python3 -c "print(int(float('${VALUE}')))")
             local COLOR=$(score_color "$SCORE_INT")
-            if [ -n "$LOGO_FILE" ] && [ -f "$LOGO_FILE" ]; then
-              local LOGO=$(cat "$LOGO_FILE")
-              jq -n --arg l "$LABEL" --arg v "$VALUE" --arg c "$COLOR" --arg logo "$LOGO" \
+            # Inline the logo only when the SVG was fetched and is non-empty;
+            # an empty logoSvg makes shields.io reject the badge.
+            if [ -n "$LOGO_FILE" ] && [ -s "$LOGO_FILE" ]; then
+              jq -n --arg l "$LABEL" --arg v "$VALUE" --arg c "$COLOR" \
+                --arg logo "$(cat "$LOGO_FILE")" \
                 '{schemaVersion:1, label:$l, message:"\($v)%", color:$c, logoSvg:$logo, style:"flat"}' \
                 > "$DIR/$NAME.json"
             else
@@ -51,11 +53,9 @@ jobs:
           }
           HELPERS
 
-          # Pre-fetch logos once
-          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-audit/main/assets/logo.svg \
-            > /tmp/audit-logo.svg || true
-          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.svg \
-            > /tmp/init-logo.svg || true
+          # Pre-fetch the AXM logo once (valid URL; one logo for all badges)
+          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.svg \
+            > /tmp/axm-logo.svg || true
 
       # ── Per-package tests (coverage) ────────────────────────────────
       - name: Run tests with coverage
@@ -98,7 +98,7 @@ jobs:
 
             echo "📋 $PKG: Score $SCORE/100 — Grade $GRADE — Coverage ${COV}%"
 
-            write_badge "_publish/badges/$PKG" "axm-audit" "axm-audit" "$SCORE" /tmp/audit-logo.svg
+            write_badge "_publish/badges/$PKG" "axm-audit" "axm-audit" "$SCORE" /tmp/axm-logo.svg
             write_badge "_publish/badges/$PKG" "coverage" "coverage" "$COV"
 
             TOTAL_SCORE=$(python3 -c "print(int($TOTAL_SCORE + $SCORE))")
@@ -113,7 +113,7 @@ jobs:
             '{score: $score, coverage: $coverage, members: $count}' \
             > _publish/reports/axm-audit/summary.json
 
-          write_badge "_publish/badges" "axm-audit" "axm-audit" "$AVG_SCORE" /tmp/audit-logo.svg
+          write_badge "_publish/badges" "axm-audit" "axm-audit" "$AVG_SCORE" /tmp/axm-logo.svg
           write_badge "_publish/badges" "coverage" "coverage" "$AVG_COV"
 
           echo "score=$AVG_SCORE" >> "$GITHUB_OUTPUT"
@@ -142,7 +142,7 @@ jobs:
 
             if [ "$TARGET" != "." ]; then
               PKG=$(basename "$TARGET")
-              write_badge "_publish/badges/$PKG" "axm-init" "axm-init" "$SCORE" /tmp/init-logo.svg
+              write_badge "_publish/badges/$PKG" "axm-init" "axm-init" "$SCORE" /tmp/axm-logo.svg
             fi
 
             TOTAL=$((TOTAL + SCORE))
@@ -155,7 +155,7 @@ jobs:
             '{score: $score, members: $count}' \
             > _publish/reports/axm-init/summary.json
 
-          write_badge "_publish/badges" "axm-init" "axm-init" "$AVG" /tmp/init-logo.svg
+          write_badge "_publish/badges" "axm-init" "axm-init" "$AVG" /tmp/axm-logo.svg
 
           echo "score=$AVG" >> "$GITHUB_OUTPUT"
           echo "📊 Init average: $AVG/100"

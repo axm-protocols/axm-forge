@@ -37,9 +37,11 @@ jobs:
             mkdir -p "$DIR"
             local SCORE_INT=$(python3 -c "print(int(float('${VALUE}')))")
             local COLOR=$(score_color "$SCORE_INT")
-            if [ -n "$LOGO_FILE" ] && [ -f "$LOGO_FILE" ]; then
-              local LOGO=$(cat "$LOGO_FILE")
-              jq -n --arg l "$LABEL" --arg v "$VALUE" --arg c "$COLOR" --arg logo "$LOGO" \
+            # Inline the logo only when the SVG was fetched and is non-empty;
+            # an empty logoSvg makes shields.io reject the badge.
+            if [ -n "$LOGO_FILE" ] && [ -s "$LOGO_FILE" ]; then
+              jq -n --arg l "$LABEL" --arg v "$VALUE" --arg c "$COLOR" \
+                --arg logo "$(cat "$LOGO_FILE")" \
                 '{schemaVersion:1, label:$l, message:"\($v)%", color:$c, logoSvg:$logo, style:"flat"}' \
                 > "$DIR/$NAME.json"
             else
@@ -50,11 +52,9 @@ jobs:
           }
           HELPERS
 
-          # Pre-fetch logos once
-          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-audit/main/assets/logo.svg \
-            > /tmp/audit-logo.svg || true
-          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-init/main/assets/logo.svg \
-            > /tmp/init-logo.svg || true
+          # Pre-fetch the AXM logo once (valid URL; one logo for both badges)
+          curl -fsSL https://raw.githubusercontent.com/axm-protocols/axm-forge/main/assets/logo.svg \
+            > /tmp/axm-logo.svg || true
 
       # ── Tests with coverage ────────────────────────────────────────
       - name: Run tests with coverage
@@ -78,7 +78,7 @@ jobs:
           RESULT=$(uvx axm-audit audit . --json) || true
           SCORE=$(echo "$RESULT" | jq '.score')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"
-          write_badge "_publish/badges" "axm-audit" "axm-audit" "$SCORE" /tmp/audit-logo.svg
+          write_badge "_publish/badges" "axm-audit" "axm-audit" "$SCORE" /tmp/axm-logo.svg
           echo "📋 AXM Audit: $SCORE/100"
 
       # ── AXM Init ──────────────────────────────────────────────────
@@ -89,7 +89,7 @@ jobs:
           RESULT=$(uvx axm-init check . --json) || true
           SCORE=$(echo "$RESULT" | jq '.score')
           echo "score=$SCORE" >> "$GITHUB_OUTPUT"
-          write_badge "_publish/badges" "axm-init" "axm-init" "$SCORE" /tmp/init-logo.svg
+          write_badge "_publish/badges" "axm-init" "axm-init" "$SCORE" /tmp/axm-logo.svg
           echo "📋 AXM Init: $SCORE/100"
 
       # ── Push badges ────────────────────────────────────────────────
