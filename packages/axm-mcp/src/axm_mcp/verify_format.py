@@ -70,7 +70,8 @@ def format_verify_text(result: dict[str, object]) -> str:
             parts.append(_format_finding(failure))
 
     if isinstance(governance, dict):
-        for check in governance.get("failed", []) or []:
+        gov_failures = governance.get("failed") or governance.get("failures") or []
+        for check in gov_failures:
             parts.append("")
             parts.append(_format_governance(check))
 
@@ -102,7 +103,7 @@ def _section_header(label: str, section: object) -> str:
 
 def _counts(section: dict[str, object]) -> tuple[int, int]:
     passed = section.get("passed")
-    failed = section.get("failed") or []
+    failed = section.get("failed") or section.get("failures") or []
     if isinstance(passed, list):
         passed_n = len(passed)
     elif isinstance(passed, int):

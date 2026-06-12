@@ -41,14 +41,64 @@ class TestHeader:
         assert "audit C 75 (3/4)" in text.splitlines()[0]
 
     def test_governance_uses_passed_count(self) -> None:
+        # AC1: init_check emits the failure list under ``failures`` (not
+        # ``failed``); the header must still count it as part of the total.
         gov = {
             "score": 90,
             "grade": "A",
             "passed_count": 7,
-            "failed": [{"name": "chk", "message": "m"}],
+            "failures": [{"name": "chk", "message": "m"}],
         }
         text = format_verify_text(_make(governance=gov))
         assert "governance A 90 (7/8)" in text.splitlines()[0]
+
+    def test_governance_failures_key_counted(self) -> None:
+        # AC1: with 3 failures under the init_check ``failures`` key the
+        # header total is passed + failures, i.e. (37/40), not (37/37).
+        gov = {
+            "score": 92,
+            "grade": "A",
+            "passed_count": 37,
+            "failures": [
+                {"name": "a", "message": "m1"},
+                {"name": "b", "message": "m2"},
+                {"name": "c", "message": "m3"},
+            ],
+        }
+        text = format_verify_text(_make(governance=gov))
+        header = text.splitlines()[0]
+        assert "(37/40)" in header
+        assert "(37/37)" not in header
+
+    def test_audit_failed_key_still_counted(self) -> None:
+        # AC3: audit keeps reading ``failed`` (its real key) — schema untouched.
+        audit = {
+            "score": 75,
+            "grade": "C",
+            "passed": ["a", "b", "c"],
+            "failed": [{"rule_id": "X", "message": "oops"}],
+        }
+        text = format_verify_text(_make(audit=audit))
+        assert "audit C 75 (3/4)" in text.splitlines()[0]
+
+    def test_governance_failures_rendered(self) -> None:
+        # AC2: each init_check ``failures`` entry renders a ✗ line + fix text.
+        gov = {
+            "score": 80,
+            "grade": "B",
+            "passed_count": 5,
+            "failures": [
+                {
+                    "name": "docs.gen_ref_pages",
+                    "message": "not found",
+                    "fix": "create it",
+                }
+            ],
+        }
+        text = format_verify_text(_make(governance=gov))
+        assert "✗ docs.gen_ref_pages" in text
+        assert "not found" in text
+        assert "create it" in text
 
 
 class TestTextField:
