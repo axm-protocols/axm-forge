@@ -57,22 +57,38 @@ def _render_commits(data: dict[str, object]) -> str:
 
     counts = data.get("counts")
     counts = counts if isinstance(counts, dict) else {}
-    summary = [
-        f"{kind} {n}"
-        for kind in ("feat", "fix", "breaking", "other")
-        if (n := _as_int(counts.get(kind))) > 0
-    ]
+    summary = [f"{kind} {n}" for kind, n in _ordered_counts(counts)]
 
     lines = [" · ".join(summary)] if summary else []
     for commit in commits:
         if not isinstance(commit, dict):
             continue
-        hash_ = _as_str(commit.get("hash"))
-        type_ = _as_str(commit.get("type"))
-        marker = "!" if commit.get("breaking") else ""
-        subject = _as_str(commit.get("subject"))
-        lines.append(f"{hash_} {type_}{marker}: {subject}")
+        lines.append(_commit_line(commit))
     return "\n".join(lines)
+
+
+def _ordered_counts(counts: dict[str, object]) -> list[tuple[str, int]]:
+    """Order non-zero counts: feat, fix, remaining types alpha, breaking last."""
+    present = {k: n for k in counts if (n := _as_int(counts.get(k))) > 0}
+    middle = sorted(k for k in present if k not in ("feat", "fix", "breaking"))
+    order = ["feat", "fix", *middle, "breaking"]
+    return [(k, present[k]) for k in order if k in present]
+
+
+def _commit_line(commit: dict[str, object]) -> str:
+    """Render one commit line, never duplicating an already-present prefix.
+
+    When the subject carries a conventional prefix (``type`` is not
+    ``"other"``) it is rendered verbatim — the type is already conveyed by
+    the subject and tallied in the summary. An unprefixed subject
+    (``type == "other"``) gets a leading ``other: `` marker.
+    """
+    hash_ = _as_str(commit.get("hash"))
+    type_ = _as_str(commit.get("type"))
+    subject = _as_str(commit.get("subject"))
+    if type_ == "other":
+        return f"{hash_} other: {subject}"
+    return f"{hash_} {subject}"
 
 
 def render_failure_text(*, error: str, data: dict[str, object] | None) -> str:
