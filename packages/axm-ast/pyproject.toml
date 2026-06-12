@@ -17,9 +17,7 @@ classifiers = [
 dependencies = [
     "axm",
     "cyclopts>=3.0",
-    "loguru>=0.7.3",
     "pydantic>=2.12.5",
-    "pydantic-settings>=2.12.0",
     "tree-sitter>=0.24",
     "tree-sitter-python>=0.23",
 ]
@@ -536,7 +534,7 @@ hash = "9259ae81bcc9"
 reason = "2 render_diff_text tests on the shared _DATA fixture pin two distinct rendering rules: test_added_without_signature_falls_back_to_name asserts '+ function bare' — the signatureless-symbol fallback to 'kind name' (added-fallback branch), while test_modified_shows_before_and_after asserts '~ changed: def changed(a: int) -> int → def changed(a: str) -> int' — the modified-symbol before→after arrow contract with the '~' glyph (modified-rendering branch). Same SUT/data but two unrelated contracts (the signature-fallback rule vs the modified before/after arrow rule) with different glyphs ('+' vs '~') — folding would erase the per-rule documentation."
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["loguru", "pydantic-settings"]
+
 DEP004 = ["mkdocs_gen_files"]
 
 # ─────────────────────────────────────────────────────────────────────────────
