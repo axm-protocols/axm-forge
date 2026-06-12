@@ -1,6 +1,8 @@
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  # uv ecosystem (Dependabot GA 2025-03): updates pyproject constraints AND
+  # re-resolves uv.lock. `pip` only touched constraints, never the lockfile.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
