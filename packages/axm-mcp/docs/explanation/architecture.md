@@ -2,7 +2,7 @@
 
 ## Overview
 
-`axm-mcp` is a thin MCP shell with zero imports from AXM core. It discovers tools at runtime via Python entry points and exposes them over the Model Context Protocol. Two transport modes are supported: **stdio** (legacy, one process per conversation) and **Streamable HTTP** (recommended, single shared server).
+`axm-mcp` is a thin MCP shell with zero imports from AXM core. It discovers tools at runtime via Python entry points and exposes them over the Model Context Protocol. Two transport modes are supported: **stdio** (the simple default, one process per conversation) and **Streamable HTTP** (an advanced option, single shared server).
 
 ```mermaid
 graph TD
@@ -34,7 +34,7 @@ graph TD
 
 ## Transport Modes
 
-### stdio (legacy)
+### stdio (default)
 
 The MCP client forks a new `axm-mcp` process per conversation. Each process has its own memory and state.
 
@@ -48,7 +48,7 @@ graph LR
     P3 --> T
 ```
 
-### Streamable HTTP (recommended)
+### Streamable HTTP (advanced)
 
 A single persistent server on port 9427 handles all conversations. AST cache, protocol sessions, and keyed locks are shared.
 

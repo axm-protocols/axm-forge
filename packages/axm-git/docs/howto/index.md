@@ -62,12 +62,5 @@ This works for all tools (`git_preflight`, `git_branch`, `git_commit`, `git_tag`
 
 ## Use with MCP
 
-All tools are auto-discovered via `axm.tools` entry points. Through the AXM MCP server, call them as:
-
-```
-git_preflight(path="/path/to/repo")
-git_branch(name="feat/new", path="/path/to/repo")
-git_commit(path="/path/to/repo", commits=[...])
-git_tag(path="/path/to/repo")
-git_push(path="/path/to/repo")
-```
+All tools are auto-discovered via `axm.tools` entry points and served through the
+AXM MCP server. See [Use via MCP](mcp.md) for the full tool list and call examples.

@@ -1,23 +1,25 @@
 # Getting Started
 
-This tutorial walks you through installing `axm-mcp` and verifying your setup.
+The canonical setup lives in the **[Quick Start](quickstart.md)** — connect the
+server to your MCP client in one command, verify the connection, and run your
+first `verify`.
 
 ## Prerequisites
 
 - Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- [uv](https://docs.astral.sh/uv/) (provides `uvx`)
 
-## Installation
+## Connect in one command
 
 ```bash
-uv add axm-mcp
+claude mcp add axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]" axm-mcp
 ```
 
-## Quick Start
-
-See the [Quickstart](quickstart.md) guide for a hands-on tutorial.
+→ Full walkthrough, the `.mcp.json` form, and the advanced HTTP transport are in
+the [Quick Start](quickstart.md).
 
 ## Next Steps
 
+- [Quick Start](quickstart.md) — The canonical setup guide
 - [CLI Reference](../reference/cli.md) — Full command documentation
 - [Architecture](../explanation/architecture.md) — How the project is structured

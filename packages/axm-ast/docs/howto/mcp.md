@@ -19,6 +19,7 @@
 | `ast_diff(path, base, head)` | `axm-ast diff` | Structural branch diff at symbol level |
 | `ast_flows(path, entry?, detail?, max_depth?, cross_module?)` | `axm-ast flows` | Entry point detection and BFS flow tracing |
 | `ast_doc_impact(path, symbols)` | — | Doc refs, undocumented symbols, stale signatures |
+| `ast_file_header(path, file)` | — | Structural header of a file (imports, `__all__`, top-level symbols) without reading the full body |
 
 !!! tip "ast_describe detail levels"
     `ast_describe` accepts `detail`: `"toc"` (module names + counts only), `"summary"` (signatures only — **default**),

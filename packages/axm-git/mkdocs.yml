@@ -19,7 +19,9 @@ nav:
   - Overview: index.md
   - Tutorials:
     - Getting Started: tutorials/getting-started.md
-  - How-To Guides: howto/index.md
+  - How-To Guides:
+    - index: howto/index.md
+    - Use via MCP: howto/mcp.md
   - Reference:
     - CLI: reference/cli.md
     - Python API: reference/

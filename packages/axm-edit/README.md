@@ -3,9 +3,9 @@
 **Atomic batch file editing for AI agents.**
 
 <p align="center">
-  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-draft-workspace/gh-pages/badges/axm-edit/axm-audit.json" alt="axm-audit"></a>
-  <a href="https://forge.axm-protocols.io/init/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-draft-workspace/gh-pages/badges/axm-edit/axm-init.json" alt="axm-init"></a>
-  <a href="https://github.com/axm-protocols/axm-draft-workspace/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-draft-workspace/gh-pages/badges/axm-edit/coverage.json" alt="Coverage"></a>
+  <a href="https://forge.axm-protocols.io/audit/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/axm-audit.json" alt="axm-audit"></a>
+  <a href="https://forge.axm-protocols.io/init/"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/axm-init.json" alt="axm-init"></a>
+  <a href="https://github.com/axm-protocols/axm-forge/actions/workflows/axm-quality.yml"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/axm-protocols/axm-forge/gh-pages/badges/axm-edit/coverage.json" alt="Coverage"></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
 </p>
 
@@ -166,18 +166,18 @@ Restore the exact paths a batch touched from its snapshot.
 
 ## Development
 
-This package is part of the **axm-draft** workspace.
+This package is part of the **axm-forge** workspace.
 
 ```bash
-git clone https://github.com/axm-protocols/axm-draft-workspace.git
-cd axm-draft
+git clone https://github.com/axm-protocols/axm-forge.git
+cd axm-forge
 uv sync --all-groups
 
 # Run tests for this package
 uv run pytest --package axm-edit
 ```
 
-📖 **[Full documentation](https://axm-protocols.github.io/axm-draft/axm-edit/)**
+📖 **[Full documentation](https://forge.axm-protocols.io/edit/)**
 
 ## License
 

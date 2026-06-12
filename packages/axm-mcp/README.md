@@ -28,76 +28,43 @@
 
 ## Installation
 
-```bash
-uv add axm-mcp
-```
-
-With all AXM tools:
+Connect the server to your MCP client (Claude Code, IDE…) in one command — no
+manual install, `uvx` fetches the latest version on demand:
 
 ```bash
-uv add "axm-mcp[all]"
+claude mcp add axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]" axm-mcp
 ```
 
-## Quick Start
+Prefer editing `.mcp.json` by hand? Add:
 
-```bash
-# Start in stdio mode (default — backward-compatible)
-axm-mcp
-
-# Start as Streamable HTTP server (default port 9427)
-axm-mcp serve
-
-# Check server status
-axm-mcp status
-
-# Stop the running server (verifies the PID is really axm-mcp before SIGTERM)
-axm-mcp stop
+```json
+{
+  "mcpServers": {
+    "axm-mcp": {
+      "command": "uvx",
+      "args": ["--python", "3.12", "--from", "axm-mcp[all]", "axm-mcp"]
+    }
+  }
+}
 ```
 
-All installed AXM tools are immediately available to any MCP client.
+The `[all]` extra is what pulls in the actual tools (`audit`, `ast_*`,
+`git_commit`, …); the bare `axm-mcp` package is only the server shell. See the
+**[Quick Start](https://forge.axm-protocols.io/mcp/tutorials/quickstart/)** for
+the full walkthrough and why each flag matters.
 
 ## Server Modes
 
-axm-mcp supports two transport modes:
+axm-mcp supports two transport modes. **stdio** (above) is the simple default —
+one server process per conversation, works everywhere. **HTTP** is an advanced
+option for running a single shared persistent server.
 
 | Mode | Command | Client config | Use case |
 |---|---|---|---|
-| **stdio** | `axm-mcp` | `{"command": "uv", "args": ["run", "axm-mcp"]}` | One process per conversation (legacy) |
-| **HTTP** | `axm-mcp serve` | `{"type": "url", "url": "http://localhost:9427/mcp"}` | Single shared server, persistent cache |
+| **stdio** (default) | `axm-mcp` | `uvx --from "axm-mcp[all]" axm-mcp` | Simple, one process per conversation |
+| **HTTP** (advanced) | `axm-mcp serve` | `{"type": "url", "url": "http://localhost:9427/mcp"}` | Single shared server, persistent cache |
 
-**stdio** forks a new process per conversation. Simple, but duplicates memory and has no shared state.
-
-**HTTP** (Streamable HTTP) runs one persistent server that all conversations share — AST cache, protocol sessions, and tool state are preserved across calls. This is the recommended mode.
-
-### `.mcp.json` configuration
-
-**stdio** (Claude Code):
-
-```json
-{
-  "mcpServers": {
-    "axm-mcp": {
-      "command": "uv",
-      "args": ["run", "axm-mcp"]
-    }
-  }
-}
-```
-
-**HTTP** (Claude Code):
-
-```json
-{
-  "mcpServers": {
-    "axm-mcp": {
-      "type": "url",
-      "url": "http://localhost:9427/mcp"
-    }
-  }
-}
-```
-
-Place this in `~/.claude/.mcp.json` (global) or `.mcp.json` at the project root.
+For the HTTP setup, see [Migrate to HTTP Transport](https://forge.axm-protocols.io/mcp/howto/migration-http/).
 
 ## CLI Commands
 

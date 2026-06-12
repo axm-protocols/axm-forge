@@ -87,7 +87,7 @@ tokens = count("hello world")
 
 ### MCP (AI Agent)
 
-`axm-smelt` is available as an MCP tool via [`axm-mcp`](https://github.com/axm-protocols/axm-nexus/tree/main/packages/axm-mcp). AI agents can call `smelt_compact(data, preset="moderate")` directly.
+`axm-smelt` is available as an MCP tool via [`axm-mcp`](https://github.com/axm-protocols/axm-forge/tree/main/packages/axm-mcp). AI agents can call `smelt_compact(data, preset="moderate")` directly.
 
 See the [MCP how-to guide](https://forge.axm-protocols.io/smelt/howto/mcp/) for details.
 

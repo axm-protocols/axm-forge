@@ -1,6 +1,6 @@
 # Use via MCP
 
-`axm-smelt` exposes a `SmeltTool` via the `axm.tools` entry point group. AI agents can call it through [`axm-mcp`](https://github.com/axm-protocols/axm-nexus/tree/main/packages/axm-mcp).
+`axm-smelt` exposes a `SmeltTool` via the `axm.tools` entry point group. AI agents can call it through [`axm-mcp`](https://github.com/axm-protocols/axm-forge/tree/main/packages/axm-mcp).
 
 ## Tool signature
 
@@ -13,7 +13,10 @@ SmeltTool.execute(
 ) -> ToolResult
 ```
 
-The tool is registered as `smelt` (compaction) and `smelt_check` (analysis) in the `axm.tools` entry point group. All arguments are keyword-only.
+Three tools are registered in the `axm.tools` entry point group: `smelt`
+(compaction), `smelt_check` (analysis — what *would* be compacted and the
+projected savings), and `smelt_count` (token count of an input, no compaction).
+All arguments are keyword-only.
 
 When `data` is a dict or list, it is passed directly to the pipeline via `parsed=`, avoiding a `json.dumps` → `json.loads` round-trip. String inputs follow the original path unchanged.
 
