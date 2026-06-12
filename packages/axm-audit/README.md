@@ -90,7 +90,7 @@ for check in result.checks:
 
 ### MCP (AI Agent)
 
-`axm-audit` is available as an MCP tool via [`axm-mcp`](https://github.com/axm-protocols/axm-nexus/tree/main/packages/axm-mcp). AI agents can call `audit(path)` or `verify(path)` directly:
+`axm-audit` is available as an MCP tool via [`axm-mcp`](https://github.com/axm-protocols/axm-forge/tree/main/packages/axm-mcp). AI agents can call `audit(path)` or `verify(path)` directly:
 
 ```python
 # Agent-optimized output: passed checks as compact strings,

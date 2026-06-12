@@ -44,6 +44,24 @@ AXM Forge provides the **developer toolchain** for the AXM ecosystem. Every tool
 
 ## Quick Start
 
+### Using the tools (via MCP)
+
+Connect the whole AXM toolchain to your MCP client (Claude Code, IDE…) in one
+command — `uvx` fetches it on demand, no manual install:
+
+```bash
+claude mcp add axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]" axm-mcp
+```
+
+This exposes `verify`, `audit`, the `ast_*` family, `git_commit`, `batch_edit`,
+and the rest as MCP tools. See the **[axm-mcp Quick Start](packages/axm-mcp/docs/tutorials/quickstart.md)**
+for the `.mcp.json` form and the advanced persistent-HTTP setup.
+
+Want a single tool on the CLI instead? Each package ships standalone, e.g.
+`uv add axm-audit` then `axm-audit`.
+
+### Developing the workspace
+
 ```bash
 # Clone and install
 git clone https://github.com/axm-protocols/axm-forge.git

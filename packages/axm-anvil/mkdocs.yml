@@ -13,6 +13,7 @@ nav:
     - Getting Started: tutorials/getting-started.md
   - How-To Guides:
     - howto/index.md
+    - Use via MCP: howto/mcp.md
   - Reference:
     - CLI: reference/cli.md
     - Python API: reference/api/

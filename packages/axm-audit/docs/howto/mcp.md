@@ -2,9 +2,10 @@
 
 Integrate `axm-audit` into AI agent workflows through the AXM MCP server.
 
-## Setup
-
-The `axm-audit` tool is exposed as `audit` by the `axm-mcp` server. No separate installation needed — if `axm-mcp` is running, the audit tool is available.
+!!! info "Setup"
+    The `audit` tool is served by `axm-mcp`. If you haven't connected the server
+    yet, see the **[axm-mcp Quick Start](https://forge.axm-protocols.io/mcp/tutorials/quickstart/)** —
+    one command connects the whole toolchain. No per-package install needed.
 
 ## Usage
 
@@ -32,7 +33,9 @@ The result includes both a structured `data` dict (via `format_agent`) and a com
 
 ### One-shot verification
 
-Use `verify` instead of `audit` for a combined quality + governance check:
+`verify` is a built-in of the `axm-mcp` server (not an `axm-audit` tool) that
+wraps `audit` for a combined quality + governance check. Use it instead of
+`audit` when you want everything in one call:
 
 ```json
 {"tool": "verify", "kwargs": {"path": "/path/to/project"}}

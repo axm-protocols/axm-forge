@@ -7,7 +7,7 @@ This guide walks through migrating your axm-mcp setup from the default stdio tra
 | | stdio | HTTP |
 |---|---|---|
 | Processes | One per conversation | Single shared server |
-| Startup time | Cold `uv sync` each time | Instant (already running) |
+| Startup time | One `uvx` resolve per conversation (cached, fast) | Instant (already running) |
 | AST cache | Lost between conversations | Shared across all calls |
 | Protocol sessions | Per-conversation only | Persistent |
 | CPU usage | Risk of zombie processes | Single managed process |
@@ -66,14 +66,14 @@ curl http://localhost:9427/health
 
 Replace the stdio config with the HTTP config.
 
-**Before** (stdio):
+**Before** (stdio — the default setup from the [Quick Start](../tutorials/quickstart.md)):
 
 ```json
 {
   "mcpServers": {
     "axm-mcp": {
-      "command": "uv",
-      "args": ["run", "axm-mcp"]
+      "command": "uvx",
+      "args": ["--python", "3.12", "--from", "axm-mcp[all]", "axm-mcp"]
     }
   }
 }
@@ -92,7 +92,9 @@ Replace the stdio config with the HTTP config.
 }
 ```
 
-This file lives at `~/.claude/.mcp.json` (global) or `.mcp.json` at the project root.
+This file lives at `~/.claude.json` (global, applies to all projects) or
+`.mcp.json` at a project root (project-scoped — takes precedence over the global
+file when present).
 
 ## Step 4 — Restart Claude Code
 

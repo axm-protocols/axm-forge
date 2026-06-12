@@ -23,19 +23,19 @@
 
 ## Installation
 
-```bash
-uv add axm-mcp          # core server
-uv add "axm-mcp[all]"   # with all AXM tools
-```
-
-## Quick Start
+Connect the server to your MCP client in one command — `uvx` fetches it on
+demand, no manual install:
 
 ```bash
-# Start the MCP server
-axm-mcp
+claude mcp add axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]" axm-mcp
 ```
 
-All installed AXM tools are immediately available to any MCP client.
+The `[all]` extra pulls in the actual tools (`audit`, `ast_*`, …); the bare
+package is only the server shell. See the [Quick Start](tutorials/quickstart.md)
+for the `.mcp.json` form and the full walkthrough.
+
+Once connected, all discovered AXM tools are immediately available to your MCP
+client.
 
 ## MCP Tools
 
