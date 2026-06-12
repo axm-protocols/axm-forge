@@ -31,6 +31,7 @@ git_pr          = "axm_git.tools.pr:GitPRTool"
 git_merge       = "axm_git.tools.merge:GitMergeTool"
 git_pull        = "axm_git.tools.pull:GitPullTool"
 git_await_merge = "axm_git.tools.await_merge:GitAwaitMergeTool"
+git_release_diff = "axm_git.tools.release_diff:GitReleaseDiffTool"
 
 [project.entry-points."axm.hooks"]
 "git:branch-delete"  = "axm_git.hooks.branch_delete:BranchDeleteHook"
