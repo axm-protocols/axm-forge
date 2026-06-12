@@ -13,7 +13,8 @@ __all__ = ["VersionBump", "compute_bump", "parse_tag"]
 _TAG_RE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
 _BREAKING_RE = re.compile(r"^[a-z]+(\(.+\))?!:")
 _SHORT_HASH_RE = re.compile(r"^[0-9a-f]{3,40}$")
-_FEAT_RE = re.compile(r"^feat(\(.+\))?:")
+_FEAT_RE = re.compile(r"^feat(\(.+\))?!?:")
+_FIX_RE = re.compile(r"^fix(\(.+\))?!?:")
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,32 @@ def parse_tag(tag: str) -> tuple[int, int, int]:
         msg = f"Invalid semver tag: {tag!r}"
         raise ValueError(msg)
     return int(m.group(1)), int(m.group(2)), int(m.group(3))
+
+
+def classify_commit(subject: str) -> tuple[str, bool]:
+    """Classify a single conventional-commit *subject*.
+
+    Reuses the module regexes so per-commit labelling stays consistent
+    with :func:`compute_bump`. Internal-public: importable by sibling
+    tools (e.g. ``release_diff``) but intentionally absent from ``__all__``.
+
+    Args:
+        subject: A commit subject line, optionally prefixed by a short
+            hash (``<hash> <message>``); the hash is stripped when present.
+
+    Returns:
+        ``(type, breaking)`` where ``type`` is ``"feat"``, ``"fix"`` or
+        ``"other"`` and ``breaking`` is True for ``feat!:``-style commits
+        or ``BREAKING CHANGE:`` bodies.
+    """
+    head, sep, rest = subject.partition(" ")
+    msg = rest if sep and _SHORT_HASH_RE.match(head) else subject
+    breaking = bool(_BREAKING_RE.match(msg)) or "BREAKING CHANGE:" in msg
+    if _FEAT_RE.match(msg):
+        return "feat", breaking
+    if _FIX_RE.match(msg):
+        return "fix", breaking
+    return "other", breaking
 
 
 def _classify_commits(
