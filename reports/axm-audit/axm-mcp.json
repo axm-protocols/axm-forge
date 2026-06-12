@@ -62,7 +62,7 @@
       "passed": true,
       "message": "Test coverage: 93% (93/100)",
       "details": {
-        "coverage": 93.00751879699249,
+        "coverage": 93.16303531179564,
         "failures": []
       },
       "metadata": null
@@ -267,35 +267,6 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT format_verify_text(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/test_verify_format.py",
-                "name": "test_text_field_used_directly",
-                "line": 55
-              },
-              {
-                "file": "tests/unit/test_verify_format.py",
-                "name": "test_details_str_indented",
-                "line": 94
-              },
-              {
-                "file": "tests/unit/test_verify_format.py",
-                "name": "test_dict_items_rendered_compact",
-                "line": 128
-              },
-              {
-                "file": "tests/unit/test_verify_format.py",
-                "name": "test_fix_hint_indent",
-                "line": 222
-              }
-            ],
-            "cluster_hash": "97b791bad37f",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT format_verify_text(1)>text.splitlines(0)",
             "similarity": 0.0,
             "members": [
@@ -313,9 +284,42 @@
                 "file": "tests/unit/test_verify_format.py",
                 "name": "test_governance_uses_passed_count",
                 "line": 43
+              },
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_audit_failed_key_still_counted",
+                "line": 73
               }
             ],
-            "cluster_hash": "8af93204ef91",
+            "cluster_hash": "1ba7386cdfe6"
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT format_verify_text(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_text_field_used_directly",
+                "line": 105
+              },
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_details_str_indented",
+                "line": 144
+              },
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_dict_items_rendered_compact",
+                "line": 178
+              },
+              {
+                "file": "tests/unit/test_verify_format.py",
+                "name": "test_fix_hint_indent",
+                "line": 272
+              }
+            ],
+            "cluster_hash": "97b791bad37f",
             "acknowledged": true
           },
           {
@@ -326,17 +330,17 @@
               {
                 "file": "tests/unit/test_verify_format.py",
                 "name": "test_known_key_findings",
-                "line": 137
+                "line": 187
               },
               {
                 "file": "tests/unit/test_verify_format.py",
                 "name": "test_unknown_keys_fallback_to_json",
-                "line": 167
+                "line": 217
               },
               {
                 "file": "tests/unit/test_verify_format.py",
                 "name": "test_metadata_clusters_summary",
-                "line": 196
+                "line": 246
               }
             ],
             "cluster_hash": "401e606d96ff",
@@ -464,12 +468,12 @@
               {
                 "file": "tests/unit/test_verify_format.py",
                 "name": "test_text_priority_over_details",
-                "line": 70
+                "line": 120
               },
               {
                 "file": "tests/unit/test_verify_format.py",
                 "name": "test_first_known_key_wins",
-                "line": 150
+                "line": 200
               }
             ],
             "cluster_hash": "4a85ea6a1073",
@@ -554,10 +558,15 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 0,
-          "AMBIGUOUS": 45,
-          "UNIQUE": 157
+          "AMBIGUOUS": 46,
+          "UNIQUE": 159
         },
-        "stale_acknowledged": []
+        "stale_acknowledged": [
+          {
+            "hash": "8af93204ef91",
+            "reason": "Heterogeneous: distinct header-line rules - governance None -> 'governance: skipped' branch, audit count derived from len(passed)+len(failed) ('3/4'), and governance count derived from the passed_count field + len(failed) ('7/8'). Skip branch vs two different count-derivation sources."
+          }
+        ]
       }
     },
     {

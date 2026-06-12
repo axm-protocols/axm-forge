@@ -2,8 +2,8 @@
   "score": 98.1,
   "grade": "A",
   "total": 31,
-  "failed": 0,
-  "success": true,
+  "failed": 1,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -68,11 +68,16 @@
     },
     {
       "rule_id": "QUALITY_COVERAGE",
-      "passed": true,
-      "message": "Test coverage: 96% (96/100)",
+      "passed": false,
+      "message": "Test coverage: 96% (1 test(s) failed)",
       "details": {
         "coverage": 96.46965489884967,
-        "failures": []
+        "failures": [
+          {
+            "test": "tests/integration/test_get_template_path__template_type.py::TestWorkspaceTemplateStructure::test_ci_workflows",
+            "traceback": "AssertionError: Missing CI workflow: axm-quality.yml\nassert False\n +  where False = exists()\n +    where exists = (PosixPath('/home/runner/work/axm-forge/axm-forge/packages/axm-init/src/axm_init/templates/uv-workspace/.github/workflows') / 'axm-quality.yml').exists"
+          }
+        ]
       },
       "metadata": null
     },
