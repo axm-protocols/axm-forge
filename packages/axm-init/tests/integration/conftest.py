@@ -328,4 +328,12 @@ def workspace_root(tmp_path: Path) -> Path:
         "    runs-on: ubuntu-latest\n"
     )
 
+    (root / ".github" / "dependabot.yml").write_text(
+        "version: 2\nupdates:\n"
+        "  - package-ecosystem: uv\n    directory: /\n"
+        "    schedule:\n      interval: weekly\n"
+        "  - package-ecosystem: github-actions\n    directory: /\n"
+        "    schedule:\n      interval: weekly\n"
+    )
+
     return root
