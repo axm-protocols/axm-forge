@@ -4,7 +4,32 @@ from __future__ import annotations
 
 import pytest
 
-from axm_git.core.semver import VersionBump, compute_bump, parse_tag
+from axm_git.core.semver import (
+    VersionBump,
+    classify_commit,
+    compute_bump,
+    parse_tag,
+)
+
+
+class TestClassifyCommit:
+    """Test classify_commit faithful per-commit type labelling."""
+
+    def test_classify_commit_returns_real_type_for_docs_chore(self) -> None:
+        """AC1: non-feat/fix conventional types are returned verbatim."""
+        assert classify_commit("docs(x): y") == ("docs", False)
+        assert classify_commit("chore: z") == ("chore", False)
+        assert classify_commit("refactor(a): b") == ("refactor", False)
+
+    def test_classify_commit_keeps_feat_fix_and_breaking(self) -> None:
+        """AC1: feat/fix keep their type; breaking flag is preserved."""
+        assert classify_commit("feat: x") == ("feat", False)
+        assert classify_commit("fix(a): y") == ("fix", False)
+        assert classify_commit("feat!: z") == ("feat", True)
+
+    def test_classify_commit_other_when_no_prefix(self) -> None:
+        """AC1: a subject with no conventional prefix falls back to 'other'."""
+        assert classify_commit("wip messy commit") == ("other", False)
 
 
 class TestParseTag:
@@ -168,6 +193,32 @@ class TestComputeBump:
         assert isinstance(result, VersionBump)
         assert result.current == "v1.0.0"
         assert result.commits == ["abc fix: x"]
+
+    @pytest.mark.parametrize(
+        ("current_tag", "expected_bump", "expected_next"),
+        [
+            pytest.param("v0.3.0", "minor", "v0.4.0", id="pre1_mixed"),
+            pytest.param("v1.2.0", "minor", "v1.3.0", id="post1_mixed"),
+        ],
+    )
+    def test_compute_bump_unchanged_for_mixed_commits(
+        self, current_tag: str, expected_bump: str, expected_next: str
+    ) -> None:
+        """AC2: bump logic is invariant for a mixed feat/fix/docs/chore set."""
+        commits = [
+            "abc feat: new api",
+            "bcd fix: bug",
+            "cde docs: readme",
+            "def chore: cleanup",
+        ]
+        result = compute_bump(commits, current_tag)
+        assert result.bump == expected_bump
+        assert result.next == expected_next
+
+    def test_compute_bump_breaking_only_still_pinned(self) -> None:
+        """AC2: a feat!:-only set keeps the documented pre/post-1.0 bumps."""
+        assert compute_bump(["abc feat!: drop x"], "v0.3.0").next == "v0.4.0"
+        assert compute_bump(["abc feat!: drop x"], "v1.2.0").next == "v2.0.0"
 
     @pytest.mark.parametrize(
         "commits",

@@ -53,14 +53,20 @@ def _scoped_log(path: Path, tag: str | None, subdir: str) -> list[dict[str, obje
 
 
 def _aggregate_counts(commits: list[dict[str, object]]) -> dict[str, int]:
-    """Aggregate ``{feat, fix, breaking, other}`` over commit records."""
-    counts = {"feat": 0, "fix": 0, "breaking": 0, "other": 0}
+    """Tally one key per encountered commit type, plus a ``breaking`` count.
+
+    Dynamic: every type actually present gets its own key, so no commit is
+    dropped from the summary. Zero-valued entries are never emitted, and
+    ``breaking`` only appears when at least one commit is breaking. Empty
+    input yields an empty dict.
+    """
+    counts: dict[str, int] = {}
     for commit in commits:
         ctype = commit["type"]
-        if isinstance(ctype, str) and ctype in counts:
-            counts[ctype] += 1
+        if isinstance(ctype, str):
+            counts[ctype] = counts.get(ctype, 0) + 1
         if commit["breaking"]:
-            counts["breaking"] += 1
+            counts["breaking"] = counts.get("breaking", 0) + 1
     return counts
 
 

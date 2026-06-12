@@ -15,6 +15,7 @@ _BREAKING_RE = re.compile(r"^[a-z]+(\(.+\))?!:")
 _SHORT_HASH_RE = re.compile(r"^[0-9a-f]{3,40}$")
 _FEAT_RE = re.compile(r"^feat(\(.+\))?!?:")
 _FIX_RE = re.compile(r"^fix(\(.+\))?!?:")
+_CONVENTIONAL_PREFIX_RE = re.compile(r"^([a-z]+)(\(.+\))?!?:")
 
 
 @dataclass(frozen=True)
@@ -67,9 +68,13 @@ def classify_commit(subject: str) -> tuple[str, bool]:
             hash (``<hash> <message>``); the hash is stripped when present.
 
     Returns:
-        ``(type, breaking)`` where ``type`` is ``"feat"``, ``"fix"`` or
-        ``"other"`` and ``breaking`` is True for ``feat!:``-style commits
-        or ``BREAKING CHANGE:`` bodies.
+        ``(type, breaking)`` where ``type`` is the real conventional type
+        (``"feat"``, ``"fix"``, ``"docs"``, ``"refactor"``, ``"chore"``,
+        ``"build"``, ``"ci"``, ``"perf"``, ``"style"``, ``"revert"``, …)
+        when the subject carries a conventional prefix, falling back to
+        ``"other"`` otherwise. ``breaking`` is True for ``feat!:``-style
+        commits or ``BREAKING CHANGE:`` bodies. Display-only: the bump
+        logic (:func:`compute_bump`) is unaffected by the extra types.
     """
     head, sep, rest = subject.partition(" ")
     msg = rest if sep and _SHORT_HASH_RE.match(head) else subject
@@ -78,7 +83,8 @@ def classify_commit(subject: str) -> tuple[str, bool]:
         return "feat", breaking
     if _FIX_RE.match(msg):
         return "fix", breaking
-    return "other", breaking
+    match = _CONVENTIONAL_PREFIX_RE.match(msg)
+    return (match.group(1) if match else "other"), breaking
 
 
 def _classify_commits(

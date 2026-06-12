@@ -80,13 +80,45 @@ def test_commits_since_scoped_to_subdir_and_counted(monkeypatch: Any) -> None:
     fake = _FakeGit({"log": log, "stat": "", "name-only": ""}, tags="v0.7.0")
     _patch(monkeypatch, fake)
     data = GitReleaseDiffTool().execute(path=".").data
-    assert data["counts"] == {"feat": 1, "fix": 1, "breaking": 0, "other": 1}
+    counts = data["counts"]
+    assert counts["feat"] == 1
+    assert counts["fix"] == 1
+    assert counts["chore"] == 1
+    assert "breaking" not in counts
     commits = data["commits_since"]
     assert len(commits) == 3
     for c in commits:
         assert "hash" in c
         assert "type" in c
         assert "subject" in c
+
+
+def test_aggregate_counts_dynamic_per_type(monkeypatch: Any) -> None:
+    """AC3: counts has one key per encountered type, no zero-valued keys."""
+    log = (
+        "a1\tfeat: one\nb2\tfeat: two\nc3\tfix: y\n"
+        "d4\tdocs: a\ne5\tdocs: b\nf6\tdocs: c\ng7\tchore: z"
+    )
+    fake = _FakeGit({"log": log, "stat": "", "name-only": ""}, tags="v0.7.0")
+    _patch(monkeypatch, fake)
+    counts = GitReleaseDiffTool().execute(path=".").data["counts"]
+    assert counts["feat"] == 2
+    assert counts["fix"] == 1
+    assert counts["docs"] == 3
+    assert counts["chore"] == 1
+    assert all(v > 0 for v in counts.values())
+
+
+def test_aggregate_counts_breaking_tallied(monkeypatch: Any) -> None:
+    """AC3: a feat!: commit tallies both feat and breaking."""
+    fake = _FakeGit(
+        {"log": "a1\tfeat!: drop api", "stat": "", "name-only": ""},
+        tags="v0.7.0",
+    )
+    _patch(monkeypatch, fake)
+    counts = GitReleaseDiffTool().execute(path=".").data["counts"]
+    assert counts["feat"] == 1
+    assert counts["breaking"] == 1
 
 
 def test_diffstat_and_public_api_flag(monkeypatch: Any) -> None:
