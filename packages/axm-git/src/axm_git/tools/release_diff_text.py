@@ -39,7 +39,40 @@ def render_text(data: dict[str, object]) -> str:
     ]
     if data.get("public_api_touched"):
         detail.append("public API touched")
-    return f"{header}\n{' · '.join(detail)}"
+    base = f"{header}\n{' · '.join(detail)}"
+
+    block = _render_commits(data)
+    return f"{base}\n{block}" if block else base
+
+
+def _render_commits(data: dict[str, object]) -> str:
+    """Render the per-type summary line plus one line per commit.
+
+    Returns an empty string when there are no commits, so the caller appends
+    nothing (no summary line, no trailing blank line).
+    """
+    commits = data.get("commits_since")
+    if not isinstance(commits, list) or not commits:
+        return ""
+
+    counts = data.get("counts")
+    counts = counts if isinstance(counts, dict) else {}
+    summary = [
+        f"{kind} {n}"
+        for kind in ("feat", "fix", "breaking", "other")
+        if (n := _as_int(counts.get(kind))) > 0
+    ]
+
+    lines = [" · ".join(summary)] if summary else []
+    for commit in commits:
+        if not isinstance(commit, dict):
+            continue
+        hash_ = _as_str(commit.get("hash"))
+        type_ = _as_str(commit.get("type"))
+        marker = "!" if commit.get("breaking") else ""
+        subject = _as_str(commit.get("subject"))
+        lines.append(f"{hash_} {type_}{marker}: {subject}")
+    return "\n".join(lines)
 
 
 def render_failure_text(*, error: str, data: dict[str, object] | None) -> str:
