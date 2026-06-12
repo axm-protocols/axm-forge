@@ -68,7 +68,7 @@ class TestWorkspaceTemplateStructure:
             "publish.yml",
             "docs.yml",
             "release.yml",
-            "axm-quality.yml",
+            "axm-quality.yml.jinja",
             "pre-commit-autoupdate.yml",
         ]:
             assert (ci / name).exists(), f"Missing CI workflow: {name}"
