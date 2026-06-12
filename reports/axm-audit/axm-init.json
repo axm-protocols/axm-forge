@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 96% (96/100)",
       "details": {
-        "coverage": 96.46965489884967,
+        "coverage": 96.42154935116005,
         "failures": []
       },
       "metadata": null
@@ -191,11 +191,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (105/105)",
+      "message": "Docstring coverage: 100% (106/106)",
       "details": {
         "coverage": 1.0,
-        "total": 105,
-        "documented": 105,
+        "total": 106,
+        "documented": 106,
         "missing": []
       },
       "metadata": null
@@ -203,7 +203,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "53 cluster(s), 0 clustered pair(s)",
+      "message": "54 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -1476,6 +1476,24 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT isinstance(2)>yaml.safe_load(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_patch_ci.py",
+                "name": "test_patch_ci_keeps_yaml_parseable",
+                "line": 42
+              },
+              {
+                "file": "tests/integration/test_patch_dependabot.py",
+                "name": "test_patch_dependabot_keeps_yaml_parseable",
+                "line": 60
+              }
+            ],
+            "cluster_hash": "2fb6da22c308"
+          },
+          {
             "signal": "ambiguous_distinct_sut",
             "reason": "distinct public SUT rescue for shared sig isinstance(2)>yaml.safe_load(1)",
             "similarity": 0.0,
@@ -1740,8 +1758,8 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 9,
-          "AMBIGUOUS": 206,
-          "UNIQUE": 292
+          "AMBIGUOUS": 208,
+          "UNIQUE": 297
         },
         "stale_acknowledged": [
           {
