@@ -1,19 +1,96 @@
 version: 2
 updates:
-  # uv ecosystem (GA 2025-03): updates pyproject constraints AND re-resolves
-  # uv.lock. The forge is consumed app-like (uvx / warden / loom resolve a
-  # fresh isolated env), so we want every dependency — runtime included — kept
-  # at the latest version, not just the dev tooling. `pip` only touched the
-  # constraints and never the lockfile, so runtime deps silently stagnated.
+  # ── Workspace root: the single shared uv.lock ──────────────────────────────
+  # uv ecosystem (Dependabot GA 2025-03) re-resolves the one workspace lockfile
+  # (members share it) and the root pyproject. One consolidated weekly PR.
   - package-ecosystem: uv
     directory: /
     schedule:
       interval: weekly
     groups:
-      # One consolidated PR per week — app-like, we take everything together.
       all-dependencies:
         patterns:
           - "*"
+
+  # ── Per published package: the pyproject CONSTRAINTS (the PyPI contract) ────
+  # Each package is published independently to PyPI and is importable by third
+  # parties (`uv add axm-audit`, Python API), so its own declared constraints
+  # are a public contract worth keeping current — distinct from the shared lock
+  # above. One grouped weekly PR per package.
+  - package-ecosystem: uv
+    directory: /packages/axm
+    schedule:
+      interval: weekly
+    groups:
+      axm:
+        patterns:
+          - "*"
+  - package-ecosystem: uv
+    directory: /packages/axm-anvil
+    schedule:
+      interval: weekly
+    groups:
+      axm-anvil:
+        patterns:
+          - "*"
+  - package-ecosystem: uv
+    directory: /packages/axm-ast
+    schedule:
+      interval: weekly
+    groups:
+      axm-ast:
+        patterns:
+          - "*"
+  - package-ecosystem: uv
+    directory: /packages/axm-audit
+    schedule:
+      interval: weekly
+    groups:
+      axm-audit:
+        patterns:
+          - "*"
+  - package-ecosystem: uv
+    directory: /packages/axm-edit
+    schedule:
+      interval: weekly
+    groups:
+      axm-edit:
+        patterns:
+          - "*"
+  - package-ecosystem: uv
+    directory: /packages/axm-git
+    schedule:
+      interval: weekly
+    groups:
+      axm-git:
+        patterns:
+          - "*"
+  - package-ecosystem: uv
+    directory: /packages/axm-init
+    schedule:
+      interval: weekly
+    groups:
+      axm-init:
+        patterns:
+          - "*"
+  - package-ecosystem: uv
+    directory: /packages/axm-mcp
+    schedule:
+      interval: weekly
+    groups:
+      axm-mcp:
+        patterns:
+          - "*"
+  - package-ecosystem: uv
+    directory: /packages/axm-smelt
+    schedule:
+      interval: weekly
+    groups:
+      axm-smelt:
+        patterns:
+          - "*"
+
+  # ── GitHub Actions used by the workspace workflows ─────────────────────────
   - package-ecosystem: github-actions
     directory: /
     schedule:
