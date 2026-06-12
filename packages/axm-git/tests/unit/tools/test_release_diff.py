@@ -54,9 +54,7 @@ def _patch(monkeypatch: Any, fake: _FakeGit) -> None:
     monkeypatch.setattr("axm_git.tools.release_diff.get_tag_prefix", lambda path: "")
 
 
-def test_execute_returns_suggested_bump_fields(
-    monkeypatch: Any, tmp_path: Path
-) -> None:
+def test_execute_returns_suggested_bump_fields(monkeypatch: Any) -> None:
     """AC1: execute returns current_tag, suggested_bump, suggested_next, breaking."""
     fake = _FakeGit(
         {
@@ -67,7 +65,7 @@ def test_execute_returns_suggested_bump_fields(
         tags="v0.7.0",
     )
     _patch(monkeypatch, fake)
-    result = GitReleaseDiffTool().execute(path=str(tmp_path))
+    result = GitReleaseDiffTool().execute(path=".")
     assert result.success
     data = result.data
     assert data["current_tag"] == "v0.7.0"
@@ -76,14 +74,12 @@ def test_execute_returns_suggested_bump_fields(
     assert data["breaking"] is False
 
 
-def test_commits_since_scoped_to_subdir_and_counted(
-    monkeypatch: Any, tmp_path: Path
-) -> None:
+def test_commits_since_scoped_to_subdir_and_counted(monkeypatch: Any) -> None:
     """AC2: commits_since parsed with hash/type/subject; counts aggregated."""
     log = "a1\tfeat: x\nb2\tfix: y\nc3\tchore: z"
     fake = _FakeGit({"log": log, "stat": "", "name-only": ""}, tags="v0.7.0")
     _patch(monkeypatch, fake)
-    data = GitReleaseDiffTool().execute(path=str(tmp_path)).data
+    data = GitReleaseDiffTool().execute(path=".").data
     assert data["counts"] == {"feat": 1, "fix": 1, "breaking": 0, "other": 1}
     commits = data["commits_since"]
     assert len(commits) == 3
@@ -93,7 +89,7 @@ def test_commits_since_scoped_to_subdir_and_counted(
         assert "subject" in c
 
 
-def test_diffstat_and_public_api_flag(monkeypatch: Any, tmp_path: Path) -> None:
+def test_diffstat_and_public_api_flag(monkeypatch: Any) -> None:
     """AC3: files_changed, diffstat, and public_api_touched when __init__.py present."""
     fake = _FakeGit(
         {
@@ -106,13 +102,13 @@ def test_diffstat_and_public_api_flag(monkeypatch: Any, tmp_path: Path) -> None:
     _patch(monkeypatch, fake)
     import re
 
-    data = GitReleaseDiffTool().execute(path=str(tmp_path)).data
+    data = GitReleaseDiffTool().execute(path=".").data
     assert data["files_changed"] > 0
     assert re.match(r"\+\d+ / -\d+", data["diffstat"])
     assert data["public_api_touched"] is True
 
 
-def test_public_api_not_touched_when_no_init(monkeypatch: Any, tmp_path: Path) -> None:
+def test_public_api_not_touched_when_no_init(monkeypatch: Any) -> None:
     """AC3: public_api_touched is False when no __init__.py in diff."""
     fake = _FakeGit(
         {
@@ -123,11 +119,11 @@ def test_public_api_not_touched_when_no_init(monkeypatch: Any, tmp_path: Path) -
         tags="v0.7.0",
     )
     _patch(monkeypatch, fake)
-    data = GitReleaseDiffTool().execute(path=str(tmp_path)).data
+    data = GitReleaseDiffTool().execute(path=".").data
     assert data["public_api_touched"] is False
 
 
-def test_first_release_when_no_tag(monkeypatch: Any, tmp_path: Path) -> None:
+def test_first_release_when_no_tag(monkeypatch: Any) -> None:
     """AC4: no tag -> current_tag is None, suggested_next == 0.1.0."""
     fake = _FakeGit(
         {
@@ -138,12 +134,12 @@ def test_first_release_when_no_tag(monkeypatch: Any, tmp_path: Path) -> None:
         tags="",
     )
     _patch(monkeypatch, fake)
-    data = GitReleaseDiffTool().execute(path=str(tmp_path)).data
+    data = GitReleaseDiffTool().execute(path=".").data
     assert data["current_tag"] is None
     assert data["suggested_next"] == "0.1.0"
 
 
-def test_read_only_invokes_no_mutating_git(monkeypatch: Any, tmp_path: Path) -> None:
+def test_read_only_invokes_no_mutating_git(monkeypatch: Any) -> None:
     """AC5: only read-only git subcommands are invoked."""
     fake = _FakeGit(
         {
@@ -154,13 +150,13 @@ def test_read_only_invokes_no_mutating_git(monkeypatch: Any, tmp_path: Path) -> 
         tags="v0.7.0",
     )
     _patch(monkeypatch, fake)
-    GitReleaseDiffTool().execute(path=str(tmp_path))
+    GitReleaseDiffTool().execute(path=".")
     allowed = {"log", "diff", "tag", "rev-parse"}
     for call in fake.calls:
         assert call[0] in allowed, f"unexpected git subcommand: {call[0]}"
 
 
-def test_breaking_commit_sets_major_post_1_0(monkeypatch: Any, tmp_path: Path) -> None:
+def test_breaking_commit_sets_major_post_1_0(monkeypatch: Any) -> None:
     """AC1: feat! on a post-1.0 base bumps major and sets breaking."""
     fake = _FakeGit(
         {
@@ -171,6 +167,6 @@ def test_breaking_commit_sets_major_post_1_0(monkeypatch: Any, tmp_path: Path) -
         tags="v1.2.0",
     )
     _patch(monkeypatch, fake)
-    data = GitReleaseDiffTool().execute(path=str(tmp_path)).data
+    data = GitReleaseDiffTool().execute(path=".").data
     assert data["suggested_bump"] == "major"
     assert data["breaking"] is True
