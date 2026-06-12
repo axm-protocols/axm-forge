@@ -10,6 +10,7 @@ from __future__ import annotations
 __all__ = [
     "patch_all",
     "patch_ci",
+    "patch_dependabot",
     "patch_makefile",
     "patch_mkdocs",
     "patch_publish",
@@ -447,6 +448,54 @@ def patch_testpaths(root: Path, member_name: str) -> None:
     logger.info("Patched testpaths with %s", test_path)
 
 
+def patch_dependabot(root: Path, member_name: str) -> None:
+    """Add a per-package Dependabot entry for *member_name*.
+
+    Appends a ``package-ecosystem: uv`` update block scoped to
+    ``/packages/<member_name>`` so Dependabot keeps that published package's
+    pyproject constraints current (its PyPI contract), alongside the shared
+    workspace-root lockfile entry. The block is inserted before the trailing
+    ``github-actions`` entry. Idempotent — skips if already present.
+
+    Args:
+        root: Workspace root directory.
+        member_name: Name of the new member package.
+
+    Raises:
+        FileNotFoundError: If ``.github/dependabot.yml`` is missing.
+    """
+    dependabot_yml = root / ".github" / "dependabot.yml"
+    content = dependabot_yml.read_text()
+
+    member_dir = f"directory: /packages/{member_name}"
+    if member_dir in content:
+        logger.info("dependabot.yml already covers %s — skipping", member_name)
+        return
+
+    block = (
+        f"  - package-ecosystem: uv\n"
+        f"    directory: /packages/{member_name}\n"
+        f"    schedule:\n"
+        f"      interval: weekly\n"
+        f"    groups:\n"
+        f"      {member_name}:\n"
+        f"        patterns:\n"
+        f'          - "*"\n'
+    )
+
+    anchor = "  - package-ecosystem: github-actions\n"
+    if anchor in content:
+        content = content.replace(anchor, block + anchor, 1)
+    else:
+        # No github-actions entry to anchor on — append at end of file.
+        if not content.endswith("\n"):
+            content += "\n"
+        content += block
+
+    dependabot_yml.write_text(content)
+    logger.info("Patched dependabot.yml with per-package entry for %s", member_name)
+
+
 def patch_all(root: Path, member_name: str) -> list[str]:
     """Run all workspace patches for *member_name*.
 
@@ -470,6 +519,7 @@ def patch_all(root: Path, member_name: str) -> list[str]:
         (".github/workflows/ci.yml", patch_ci),
         (".github/workflows/publish.yml", patch_publish),
         (".github/workflows/release.yml", patch_release),
+        (".github/dependabot.yml", patch_dependabot),
     ]
 
     for name, fn in patchers:

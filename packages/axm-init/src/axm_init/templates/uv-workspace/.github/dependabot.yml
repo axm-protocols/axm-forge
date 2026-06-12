@@ -12,6 +12,11 @@ updates:
       all-dependencies:
         patterns:
           - "*"
+
+  # Per-package entries (one `directory: /packages/<name>` block per published
+  # member, to keep its pyproject constraints — its PyPI contract — current) are
+  # appended here automatically by `axm-init scaffold --member`.
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
