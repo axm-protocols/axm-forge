@@ -1,5 +1,5 @@
 {
-  "score": 98.7,
+  "score": 98.5,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -29,8 +29,8 @@
       "message": "Coupling: 0 modules above threshold (max fan-out: 10)",
       "details": {
         "max_fan_out": 10,
-        "max_fan_in": 26,
-        "avg_coupling": 4.15,
+        "max_fan_in": 28,
+        "avg_coupling": 4.16,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -60,9 +60,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 94% (94/100)",
+      "message": "Test coverage: 94% (93/100)",
       "details": {
-        "coverage": 94.21918908069048,
+        "coverage": 93.99253731343283,
         "failures": []
       },
       "metadata": null
@@ -184,11 +184,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (95/95)",
+      "message": "Docstring coverage: 100% (100/100)",
       "details": {
         "coverage": 1.0,
-        "total": 95,
-        "documented": 95,
+        "total": 100,
+        "documented": 100,
         "missing": []
       },
       "metadata": null
@@ -1403,7 +1403,7 @@
         "bucket_counts": {
           "CLUSTERED": 11,
           "AMBIGUOUS": 155,
-          "UNIQUE": 348
+          "UNIQUE": 365
         },
         "stale_acknowledged": [
           {
