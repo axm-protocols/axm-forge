@@ -1,9 +1,19 @@
 version: 2
 updates:
-  - package-ecosystem: pip
+  # uv ecosystem (GA 2025-03): updates pyproject constraints AND re-resolves
+  # uv.lock. The forge is consumed app-like (uvx / warden / loom resolve a
+  # fresh isolated env), so we want every dependency — runtime included — kept
+  # at the latest version, not just the dev tooling. `pip` only touched the
+  # constraints and never the lockfile, so runtime deps silently stagnated.
+  - package-ecosystem: uv
     directory: /
     schedule:
       interval: weekly
+    groups:
+      # One consolidated PR per week — app-like, we take everything together.
+      all-dependencies:
+        patterns:
+          - "*"
   - package-ecosystem: github-actions
     directory: /
     schedule:
