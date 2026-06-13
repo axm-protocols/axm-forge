@@ -60,6 +60,11 @@ packages = ["src/axm_smelt"]
 
 [tool.axm-audit.mirror]
 exempt_paths = ["_types.py", "_version.py", "__main__.py", "**/__init__.py", "cli.py"]
+# Cross-cutting public-API scenario at unit level (no real I/O, so the pyramid
+# rule keeps it in tests/unit/): a round-trip safety net spanning the strategy
+# REGISTRY (in the mirror-exempt strategies/__init__.py) and the ``smelt``
+# pipeline across several strategies. No single source module mirrors it.
+exempt_tests = ["test_registry__smelt.py"]
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "ed880e45fa13"

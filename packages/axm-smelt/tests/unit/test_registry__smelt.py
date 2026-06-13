@@ -7,6 +7,12 @@ AC3: the ``safe`` preset is NOT byte/whitespace-lossless on prose.
 These tests are the regression net that would have caught the README
 drift fixed in AXM-1998 (e.g. a value-mutating strategy mislabeled
 lossless, or ``safe`` advertised as whitespace-lossless on prose).
+
+Non-mirrorable scenario at unit level: a pure-memory public-API check
+spanning the strategy REGISTRY (in the mirror-exempt ``strategies/
+__init__.py``) and the ``smelt`` pipeline across several strategies.
+No single source module mirrors it, so it is mirror-exempt (see
+``[tool.axm-audit.mirror].exempt_paths`` in ``pyproject.toml``).
 """
 
 from __future__ import annotations
