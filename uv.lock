@@ -545,12 +545,18 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "axm-anvil" },
     { name = "axm-ast" },
     { name = "axm-audit" },
     { name = "axm-bib" },
+    { name = "axm-edit" },
     { name = "axm-git" },
     { name = "axm-init" },
+    { name = "axm-smelt" },
     { name = "axm-ticket" },
+]
+anvil = [
+    { name = "axm-anvil" },
 ]
 ast = [
     { name = "axm-ast" },
@@ -561,10 +567,17 @@ audit = [
 bib = [
     { name = "axm-bib" },
 ]
+edit = [
+    { name = "axm-edit" },
+]
 forge = [
+    { name = "axm-anvil" },
     { name = "axm-ast" },
     { name = "axm-audit" },
+    { name = "axm-edit" },
+    { name = "axm-git" },
     { name = "axm-init" },
+    { name = "axm-smelt" },
 ]
 git = [
     { name = "axm-git" },
@@ -572,7 +585,10 @@ git = [
 init = [
     { name = "axm-init" },
 ]
-ticker = [
+smelt = [
+    { name = "axm-smelt" },
+]
+ticket = [
     { name = "axm-ticket" },
 ]
 web = [
@@ -601,6 +617,9 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "axm", editable = "packages/axm" },
+    { name = "axm-anvil", marker = "extra == 'all'", editable = "packages/axm-anvil" },
+    { name = "axm-anvil", marker = "extra == 'anvil'", editable = "packages/axm-anvil" },
+    { name = "axm-anvil", marker = "extra == 'forge'", editable = "packages/axm-anvil" },
     { name = "axm-ast", marker = "extra == 'all'", editable = "packages/axm-ast" },
     { name = "axm-ast", marker = "extra == 'ast'", editable = "packages/axm-ast" },
     { name = "axm-ast", marker = "extra == 'forge'", editable = "packages/axm-ast" },
@@ -609,20 +628,27 @@ requires-dist = [
     { name = "axm-audit", marker = "extra == 'forge'", editable = "packages/axm-audit" },
     { name = "axm-bib", marker = "extra == 'all'" },
     { name = "axm-bib", marker = "extra == 'bib'" },
+    { name = "axm-edit", marker = "extra == 'all'", editable = "packages/axm-edit" },
+    { name = "axm-edit", marker = "extra == 'edit'", editable = "packages/axm-edit" },
+    { name = "axm-edit", marker = "extra == 'forge'", editable = "packages/axm-edit" },
     { name = "axm-git", marker = "extra == 'all'", editable = "packages/axm-git" },
+    { name = "axm-git", marker = "extra == 'forge'", editable = "packages/axm-git" },
     { name = "axm-git", marker = "extra == 'git'", editable = "packages/axm-git" },
     { name = "axm-init", marker = "extra == 'all'", editable = "packages/axm-init" },
     { name = "axm-init", marker = "extra == 'forge'", editable = "packages/axm-init" },
     { name = "axm-init", marker = "extra == 'init'", editable = "packages/axm-init" },
+    { name = "axm-smelt", marker = "extra == 'all'", editable = "packages/axm-smelt" },
+    { name = "axm-smelt", marker = "extra == 'forge'", editable = "packages/axm-smelt" },
+    { name = "axm-smelt", marker = "extra == 'smelt'", editable = "packages/axm-smelt" },
     { name = "axm-ticket", marker = "extra == 'all'" },
-    { name = "axm-ticket", marker = "extra == 'ticker'" },
+    { name = "axm-ticket", marker = "extra == 'ticket'" },
     { name = "cyclopts", specifier = ">=4.5.1" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.25.0" },
     { name = "scrapling", marker = "extra == 'web'" },
     { name = "starlette", specifier = ">=1.2" },
 ]
-provides-extras = ["all", "ast", "audit", "bib", "forge", "git", "init", "ticker", "web"]
+provides-extras = ["all", "anvil", "ast", "audit", "bib", "edit", "forge", "git", "init", "smelt", "ticket", "web"]
 
 [package.metadata.requires-dev]
 dev = [

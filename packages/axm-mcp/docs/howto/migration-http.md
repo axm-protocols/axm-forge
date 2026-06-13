@@ -73,7 +73,7 @@ Replace the stdio config with the HTTP config.
   "mcpServers": {
     "axm-mcp": {
       "command": "uvx",
-      "args": ["--python", "3.12", "--from", "axm-mcp[all]", "axm-mcp"]
+      "args": ["--python", "3.12", "--from", "axm-mcp[all]@latest", "axm-mcp"]
     }
   }
 }

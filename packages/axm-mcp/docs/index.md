@@ -27,7 +27,7 @@ Connect the server to your MCP client in one command — `uvx` fetches it on
 demand, no manual install:
 
 ```bash
-claude mcp add axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]" axm-mcp
+claude mcp add --scope user axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]@latest" axm-mcp
 ```
 
 The `[all]` extra pulls in the actual tools (`audit`, `ast_*`, …); the bare
