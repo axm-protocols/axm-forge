@@ -237,7 +237,7 @@ def _preflight(
     return ci_check, current_tag, commits
 
 
-def _resolve_version(
+def resolve_version(
     version_override: str | None,
     current_tag: str | None,
     commits: list[str],
@@ -313,7 +313,7 @@ class GitTagTool(AXMTool):
             ci_check, current_tag, commits = result
 
             # 2. Compute version
-            next_version, bump_type, breaking = _resolve_version(
+            next_version, bump_type, breaking = resolve_version(
                 version, current_tag, commits, tag_prefix=tag_prefix
             )
             logger.info(

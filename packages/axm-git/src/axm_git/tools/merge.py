@@ -32,6 +32,51 @@ def _run_step(args: list[str], cwd: Path, label: str) -> ToolResult | None:
     )
 
 
+def _check_clean_tree(resolved: Path) -> ToolResult | None:
+    """Verify *resolved* is a repo with a clean tree; failure ToolResult or None."""
+    check = run_git(["rev-parse", "--git-dir"], resolved)
+    if check.returncode != 0:
+        repo_err = not_a_repo_error(check.stderr, resolved)
+        return ToolResult(
+            success=repo_err.success,
+            error=repo_err.error,
+            data=repo_err.data,
+            text=render_failure_text(error=repo_err.error or ""),
+        )
+
+    status = run_git(["status", "--porcelain"], resolved)
+    if status.stdout.strip():
+        error = "working tree is dirty; commit or stash before merging"
+        return ToolResult(
+            success=False,
+            error=error,
+            text=render_failure_text(error=error),
+        )
+    return None
+
+
+def _run_merge_steps(
+    branch: str, target_branch: str, msg: str, resolved: Path
+) -> ToolResult | None:
+    """Run the checkout/squash-merge/commit steps; failure ToolResult or None."""
+    identity = resolve_identity(resolved)
+    steps = [
+        (["checkout", target_branch], f"checkout {target_branch}"),
+        (["merge", "--squash", branch], "merge --squash"),
+        (["commit", "-m", msg, *author_args(identity)], "commit"),
+    ]
+    for args, label in steps:
+        failure = _run_step(args, resolved, label)
+        if failure is not None:
+            if label == "merge --squash":
+                # --squash leaves no MERGE_HEAD, so `merge --abort`
+                # does not apply; reset --hard clears the conflicted
+                # index/worktree, leaving the repo clean.
+                run_git(["reset", "--hard"], resolved)
+            return failure
+    return None
+
+
 class GitMergeTool(AXMTool):
     """Squash-merge a branch into a target branch and commit.
 
@@ -74,40 +119,13 @@ class GitMergeTool(AXMTool):
         target_branch = target_branch or resolve_default_branch(resolved)
         msg = message or f"Merge {branch} (squash)"
         try:
-            check = run_git(["rev-parse", "--git-dir"], resolved)
-            if check.returncode != 0:
-                repo_err = not_a_repo_error(check.stderr, resolved)
-                return ToolResult(
-                    success=repo_err.success,
-                    error=repo_err.error,
-                    data=repo_err.data,
-                    text=render_failure_text(error=repo_err.error or ""),
-                )
+            precheck = _check_clean_tree(resolved)
+            if precheck is not None:
+                return precheck
 
-            status = run_git(["status", "--porcelain"], resolved)
-            if status.stdout.strip():
-                error = "working tree is dirty; commit or stash before merging"
-                return ToolResult(
-                    success=False,
-                    error=error,
-                    text=render_failure_text(error=error),
-                )
-
-            identity = resolve_identity(resolved)
-            steps = [
-                (["checkout", target_branch], f"checkout {target_branch}"),
-                (["merge", "--squash", branch], "merge --squash"),
-                (["commit", "-m", msg, *author_args(identity)], "commit"),
-            ]
-            for args, label in steps:
-                failure = _run_step(args, resolved, label)
-                if failure is not None:
-                    if label == "merge --squash":
-                        # --squash leaves no MERGE_HEAD, so `merge --abort`
-                        # does not apply; reset --hard clears the conflicted
-                        # index/worktree, leaving the repo clean.
-                        run_git(["reset", "--hard"], resolved)
-                    return failure
+            failure = _run_merge_steps(branch, target_branch, msg, resolved)
+            if failure is not None:
+                return failure
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
 
