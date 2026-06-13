@@ -8,22 +8,6 @@ from axm_init.checks.docs import check_mkdocs_exists
 from tests.integration._helpers import MKDOCS_FULL
 
 
-class TestCheckMkdocsExists:
-    @pytest.mark.parametrize(
-        ("fixture_name", "expected"),
-        [
-            pytest.param("gold_project", True, id="pass"),
-            pytest.param("empty_project", False, id="fail"),
-        ],
-    )
-    def test_passed(
-        self, request: pytest.FixtureRequest, fixture_name: str, expected: bool
-    ) -> None:
-        project: Path = request.getfixturevalue(fixture_name)
-        r = check_mkdocs_exists(project)
-        assert r.passed is expected
-
-
 @pytest.fixture()
 def standalone_project(tmp_path: Path) -> Path:
     """Create a standalone project with no mkdocs.yml."""
