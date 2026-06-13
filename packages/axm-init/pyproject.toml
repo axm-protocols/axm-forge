@@ -440,6 +440,26 @@ reason = "Both members assert passed is True on check_pyproject_wheel_doc_shippi
 hash = "7f62a072ec5f"
 reason = "Members assert divergent result semantics on load_exclusions: test_returns_empty_set asserts load_exclusions(...) == set() across no-section/no-exclude/no-pyproject/empty-list/corrupt-toml inputs, while test_valid_exclusions asserts == a non-empty expected set ({'cli','changelog'}) — two already-parametrized tables with disjoint param signatures and opposite expected outcomes that cannot be merged."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "51a0d06a29ec"
+reason = "Incompatible mock contexts on check_availability: test_check_availability is a parametrized real-network table (taken/available/invalid, no patching) hitting PyPI live, while test_unexpected_status_returns_error patches httpx.get to force a 500 status_code and asserts the ERROR branch — folding would mix a live-network path with a mocked-status edge case."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "b23135302f50"
+reason = "Distinct functions under test with divergent call signatures: test_build_package_handles_timeout_expired exercises build_package(tmp_path) while test_publish_package_handles_timeout_expired exercises publish_package(tmp_path, token) — two separate SUTs (AC3 build vs AC3 publish) that merely share a TimeoutExpired side_effect, so parametrizing would couple unrelated functions."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "fa9bcce3d4e7"
+reason = "Opposite branches of format_agent_text with disjoint asserts: test_all_passed_states_success_without_failures builds a passed=True result and asserts the single 'All gold-standard checks passed.' line plus absence of the marker, while test_failure_keeps_name_message_details_and_fix builds a passed=False result and asserts the failed-check name, message, detail, fix and '1 fail' — the success-vs-failure assertion sets cannot be parametrized."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "583c856f03e2"
+reason = "Inter-file cluster spanning test_check_engine.py and test_check_engine__grade.py with divergent CheckEngine assertions: members exercise category filtering (len==7 tooling), invalid-category ValueError raises, exclusion auto-pass, nonexistent-exclusion no-op and the full 40-check grade-A standalone path — no shared top-level helper and mutually incompatible asserts, so an inter-file fold is forbidden."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "2fb6da22c308"
+reason = "Inter-file cluster across test_patch_ci.py and test_patch_dependabot.py covering different SUTs: test_patch_ci_keeps_yaml_parseable calls patch_ci and asserts the jobs/test CI structure, while test_patch_dependabot_keeps_yaml_parseable calls patch_dependabot and asserts the updates/uv directory list — different fixtures (realistic-ci vs workspace_root) and distinct functions, so an inter-file fold is forbidden."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 
