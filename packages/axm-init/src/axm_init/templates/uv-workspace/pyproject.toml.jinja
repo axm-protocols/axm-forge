@@ -1,11 +1,24 @@
 [project]
 name = "{{ workspace_name }}"
-version = "0.1.0"
+dynamic = ["version"]
 description = "{{ description }}"
 readme = "README.md"
 requires-python = ">={{ python_min_version }}"
 license = { text = "{{ license }}" }
 authors = [{ name = "{{ author_name }}", email = "{{ author_email }}" }]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+# The workspace root carries no shippable package of its own; hatch-vcs is
+# wired only so the root version is git-tag driven (no static version to bump),
+# consistent with what the gold-standard checks expect at workspace root.
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
 
 [dependency-groups]
 dev = [
@@ -33,7 +46,7 @@ target-version = "py{{ python_min_version | replace('.', '') }}"
 line-length = 99
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "C4", "C901", "S", "T20", "RUF"]
+select = ["E", "F", "I", "N", "UP", "B", "BLE", "C4", "C901", "PLR", "S", "T20", "RUF"]
 per-file-ignores = { "tests/**" = ["S101"] }
 
 [tool.ruff.lint.mccabe]
@@ -47,8 +60,15 @@ max-statements = 50
 max-locals = 15
 
 [tool.pytest.ini_options]
-testpaths = ["packages"]
+testpaths = ["packages/*/tests"]
+import_mode = "importlib"
 addopts = "-q --import-mode=importlib"
+
+# The workspace root ships no package of its own, so it has no docs/*.md to
+# bundle into a wheel. Opt out of the wheel-doc shipping check explicitly
+# (docs live under each member package + the shared mkdocs site).
+[tool.axm-init.wheel-doc]
+files = []
 
 [tool.coverage.run]
 source_pkgs = []
@@ -60,3 +80,42 @@ fail_under = 80
 # mypy is configured per-package under packages/*/pyproject.toml.
 # No root [tool.mypy] block — keeps `audit type` (per-package) and
 # `make typecheck` consistent. See mypy-consistency skill.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Git-Cliff Changelog Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.git-cliff.changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+"""
+body = """
+{% raw %}{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {{ commit.message | upper_first }}\
+    {% endfor %}
+{% endfor %}
+{% endraw %}"""
+trim = true
+
+[tool.git-cliff.git]
+conventional_commits = true
+filter_unconventional = true
+commit_parsers = [
+    { message = "^chore", skip = true },
+    { message = "^ci", skip = true },
+    { message = "^feat", group = "🚀 Features" },
+    { message = "^fix", group = "🐛 Bug Fixes" },
+    { message = "^doc", group = "📚 Documentation" },
+    { message = "^perf", group = "⚡ Performance" },
+    { message = "^refactor", group = "🔧 Refactor" },
+    { message = "^test", group = "🧪 Tests" },
+]
+tag_pattern = "v[0-9].*"

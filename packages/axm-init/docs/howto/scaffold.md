@@ -54,6 +54,10 @@ axm-init scaffold my-workspace --workspace \\
 The `--workspace` flag generates a UV workspace with:
 
 - Root `pyproject.toml` with `[tool.uv.workspace]` and `members = ["packages/*"]`
+- Gold-standard root config: `dynamic = ["version"]` + hatch-vcs (git-tag driven,
+  no static version to bump), the full ruff rule set (incl. `BLE`/`PLR`), and a
+  `[tool.git-cliff]` changelog config. (mypy is configured per-package, not at the
+  root.)
 - Shared `Makefile` (`test-all`, `lint-all`, `docs-serve`)
 - `mkdocs.yml` with `monorepo` plugin
 - CI workflow using `--package` matrix for per-member testing
