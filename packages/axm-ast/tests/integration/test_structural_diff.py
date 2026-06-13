@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import subprocess
+import tempfile
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -294,3 +296,82 @@ class TestDiffEdgeCases:
         result = structural_diff(pkg, "main", "feat")
         added_names = [s["name"] for s in result["added"]]
         assert "User" in added_names
+
+
+# ─── Temp dir leak (AXM-2043) ────────────────────────────────────────────────
+
+
+class TestDiffTmpdirLeak:
+    """Guarantee the worktree temp dir is never leaked on disk."""
+
+    @staticmethod
+    def _record_mkdtemp(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> list[str]:
+        """Patch the module-level mkdtemp to record every dir handed out."""
+        created: list[str] = []
+        real_mkdtemp = tempfile.mkdtemp
+
+        def recording_mkdtemp(*args: object, **kwargs: object) -> str:
+            path = cast("str", real_mkdtemp(*args, **kwargs))
+            created.append(path)
+            return path
+
+        monkeypatch.setattr(
+            "axm_ast.core.structural_diff.tempfile.mkdtemp",
+            recording_mkdtemp,
+        )
+        return created
+
+    def test_no_tmpdir_leak_on_worktree_add_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC1/AC3: a failed worktree add leaves no temp dir behind.
+
+        Refs are validated upfront, so a bogus ref never reaches the
+        worktree. We force the ``git worktree add`` subprocess itself to
+        return a non-zero status (every other git call passes through),
+        reproducing the "git never registered the dir" leak condition.
+        """
+        root = _make_diff_project(tmp_path)
+        created = self._record_mkdtemp(monkeypatch)
+
+        real_run = subprocess.run
+
+        def failing_worktree_add(
+            args: list[str], *pargs: object, **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            if args[:3] == ["git", "worktree", "add"]:
+                return subprocess.CompletedProcess(
+                    args, returncode=1, stdout="", stderr="boom"
+                )
+            return cast(
+                "subprocess.CompletedProcess[str]",
+                real_run(args, *pargs, **kwargs),
+            )
+
+        monkeypatch.setattr(
+            "axm_ast.core.structural_diff.subprocess.run",
+            failing_worktree_add,
+        )
+
+        result = structural_diff(root / "pkg", "main", "feature")
+
+        assert result.get("error") is not None
+        assert created, "expected mkdtemp to have been called"
+        leaked = [p for p in created if Path(p).exists()]
+        assert leaked == [], f"leaked temp dirs: {leaked}"
+
+    def test_success_path_cleans_up(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AC2: the success path returns a result and cleans up every dir."""
+        root = _make_diff_project(tmp_path)
+        created = self._record_mkdtemp(monkeypatch)
+
+        result = structural_diff(root / "pkg", "main", "feature")
+
+        assert result.get("error") is None
+        assert created, "expected mkdtemp to have been called"
+        leaked = [p for p in created if Path(p).exists()]
+        assert leaked == [], f"leaked temp dirs: {leaked}"

@@ -13,6 +13,7 @@ Example:
 from __future__ import annotations
 
 import logging
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -206,12 +207,18 @@ def _extract_symbols_at_ref(
         return _extract_symbols(pkg_in_wt)
     finally:
         if worktree_dir is not None:
+            # Best-effort: deregister the worktree from git. This fails
+            # silently when ``git worktree add`` never registered it.
             subprocess.run(
                 ["git", "worktree", "remove", "--force", worktree_dir],
                 cwd=project_root,
                 capture_output=True,
                 check=False,
             )
+            # Guarantee the mkdtemp dir is gone whether or not git
+            # registered it. ``ignore_errors`` keeps cleanup from raising
+            # out of the finally and masking the original error.
+            shutil.rmtree(worktree_dir, ignore_errors=True)
 
 
 def _compute_diff(
