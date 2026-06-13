@@ -1139,6 +1139,119 @@ def test_wrong_schema_falls_back_gracefully(project: Path) -> None:
     assert result.score == baseline.score
 
 
+def _has_member_under(clusters: list[dict[str, Any]], prefix: str) -> bool:
+    """True if any cluster has a member whose file starts with *prefix*."""
+    for c in clusters:
+        for member in c["members"]:
+            if member["file"].replace("\\", "/").startswith(prefix):
+                return True
+    return False
+
+
+_FIXTURE_CORPUS_BODY = dedent(
+    """
+    def test_corpus_case():
+        result = transform(1)
+        assert result == 2
+        assert result > 0
+    """
+).lstrip()
+
+
+@pytest.mark.integration
+def test_fixtures_subtree_never_clustered(tmp_path: Path) -> None:
+    """AC1: near-identical tests under tests/fixtures/** are never clustered."""
+    fixtures = tmp_path / "tests" / "fixtures" / "fix_corpus"
+    _write__from_duplicate_test_clustering(
+        fixtures / "input" / "test_x.py", _FIXTURE_CORPUS_BODY
+    )
+    _write__from_duplicate_test_clustering(
+        fixtures / "expected" / "test_x.py", _FIXTURE_CORPUS_BODY
+    )
+
+    result = DuplicateTestsRule().check(tmp_path)
+
+    assert not _has_member_under(result.metadata["clusters"], "tests/fixtures/")
+    assert result.passed is True
+
+
+@pytest.mark.integration
+def test_different_sut_sharing_result_assert_not_fused(tmp_path: Path) -> None:
+    """AC2: two tests of different SUTs sharing generic result.* not fused.
+
+    Both files define a same-named test ending on generic
+    ``assert result.passed`` / ``result.details``, but each exercises a
+    *different* first-party symbol (``AlphaRule`` vs ``BetaRule``). Without a
+    shared SUT they must not form a cross-file cluster.
+    """
+    tests = tmp_path / "tests"
+    _write__from_duplicate_test_clustering(
+        tests / "test_alpha_rule.py",
+        """
+        def test_check():
+            result = AlphaRule().check(project)
+            assert result.passed
+            assert result.details
+        """,
+    )
+    _write__from_duplicate_test_clustering(
+        tests / "test_beta_rule.py",
+        """
+        def test_check():
+            result = BetaRule().check(project)
+            assert result.passed
+            assert result.details
+        """,
+    )
+
+    result = DuplicateTestsRule().check(tmp_path)
+
+    assert not _has_pair(result.metadata["clusters"], {"test_check"})
+
+
+@pytest.mark.integration
+def test_exempt_paths_glob_excludes_matched(project: Path) -> None:
+    """AC3: an exempt_paths glob excludes the matched cluster from the score."""
+    _write_two_duplicates(project)
+    # Baseline: the cluster lowers the score.
+    baseline = DuplicateTestsRule().check(project)
+    assert baseline.passed is False
+
+    (project / "pyproject.toml").write_text(
+        '[tool.axm-audit.duplicate_tests]\nexempt_paths = ["tests/test_mod.py"]\n',
+        encoding="utf-8",
+    )
+    result = DuplicateTestsRule().check(project)
+    assert result.passed is True
+    assert result.score == 100
+    assert not _has_pair(
+        result.metadata["clusters"], {"test_parse_one", "test_parse_two"}
+    )
+
+
+@pytest.mark.integration
+def test_genuine_intra_file_duplicates_still_detected(project: Path) -> None:
+    """AC4: near-identical same-SUT tests in one file are still flagged."""
+    _write__from_duplicate_test_clustering(
+        project / "tests" / "test_mod.py",
+        """
+        def test_parse_one():
+            result = parse(1)
+            assert result == 1
+            assert result > 0
+
+        def test_parse_two():
+            result = parse(2)
+            assert result == 1
+            assert result > 0
+        """,
+    )
+    result = DuplicateTestsRule().check(project)
+    assert result.passed is False
+    pair = _find_pair(result.metadata["clusters"], {"test_parse_one", "test_parse_two"})
+    assert pair is not None
+
+
 def test_well_formed_two_entries_round_trip(project: Path) -> None:
     """AC2: two valid acknowledgements → both clusters marked, no error."""
     _write_two_distinct_clusters(project)
