@@ -245,6 +245,12 @@ exempt_paths = [
     "core/ports.py",
     "templates/**/*.py",
 ]
+exempt_tests = [
+    # check_* functions are grouped by theme in checks/{ci,docs,structure,...}.py
+    # (those modules are exempt above), so per-check unit tests have no 1:1 source
+    # mirror — whitelist them symmetrically.
+    "checks/test_check_*.py",
+]
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "7d18a25d6d01"
