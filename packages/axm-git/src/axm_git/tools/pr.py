@@ -58,55 +58,16 @@ class GitPRTool(AXMTool):
         base = base or resolve_default_branch(resolved)
 
         try:
-            # 1. Verify this is a git repo.
-            check = run_git(["rev-parse", "--git-dir"], resolved)
-            if check.returncode != 0:
-                repo_err = not_a_repo_error(check.stderr, resolved)
-                return ToolResult(
-                    success=repo_err.success,
-                    error=repo_err.error,
-                    data=repo_err.data,
-                    text=render_failure_text(
-                        error=repo_err.error or "", data=repo_err.data
-                    ),
-                )
+            precheck = _check_pr_preconditions(resolved)
+            if precheck is not None:
+                return precheck
 
-            # 2. Check gh availability.
-            if not gh_available():
-                error = "gh CLI not available"
-                return ToolResult(
-                    success=False,
-                    error=error,
-                    text=render_failure_text(error=error, data=None),
-                )
+            created = _create_pr(title, body, base, resolved)
+            if isinstance(created, ToolResult):
+                return created
+            pr_url, pr_number = created
 
-            # 3. Create the PR.
-            create_args = ["pr", "create", "--title", title, "--base", base]
-            if body:
-                create_args.extend(["--body", body])
-
-            result = run_gh(create_args, resolved)
-            if result.returncode != 0:
-                error = result.stderr.strip() or result.stdout.strip()
-                if is_already_exists(error):
-                    return _recovered_pr_result(resolved, error)
-                return ToolResult(
-                    success=False,
-                    error=error,
-                    text=render_failure_text(error=error, data=None),
-                )
-
-            pr_url = result.stdout.strip()
-            pr_number = pr_url.rstrip("/").rsplit("/", maxsplit=1)[-1]
-
-            # 4. Enable auto-merge if requested.
-            auto_merge_ok = False
-            if auto_merge:
-                merge_result = run_gh(
-                    ["pr", "merge", pr_number, "--auto", "--squash"],
-                    resolved,
-                )
-                auto_merge_ok = merge_result.returncode == 0
+            auto_merge_ok = _maybe_auto_merge(pr_number, auto_merge, resolved)
 
             data: dict[str, object] = {
                 "pr_url": pr_url,
@@ -116,6 +77,63 @@ class GitPRTool(AXMTool):
             return ToolResult(success=True, data=data, text=render_text(data))
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)
+
+
+def _check_pr_preconditions(resolved: Path) -> ToolResult | None:
+    """Verify *resolved* is a git repo and gh is available; failure or None."""
+    check = run_git(["rev-parse", "--git-dir"], resolved)
+    if check.returncode != 0:
+        repo_err = not_a_repo_error(check.stderr, resolved)
+        return ToolResult(
+            success=repo_err.success,
+            error=repo_err.error,
+            data=repo_err.data,
+            text=render_failure_text(error=repo_err.error or "", data=repo_err.data),
+        )
+
+    if not gh_available():
+        error = "gh CLI not available"
+        return ToolResult(
+            success=False,
+            error=error,
+            text=render_failure_text(error=error, data=None),
+        )
+    return None
+
+
+def _create_pr(
+    title: str, body: str | None, base: str, resolved: Path
+) -> ToolResult | tuple[str, str]:
+    """Create the PR; return ``(pr_url, pr_number)`` or a failure ToolResult."""
+    create_args = ["pr", "create", "--title", title, "--base", base]
+    if body:
+        create_args.extend(["--body", body])
+
+    result = run_gh(create_args, resolved)
+    if result.returncode != 0:
+        error = result.stderr.strip() or result.stdout.strip()
+        if is_already_exists(error):
+            return _recovered_pr_result(resolved, error)
+        return ToolResult(
+            success=False,
+            error=error,
+            text=render_failure_text(error=error, data=None),
+        )
+
+    pr_url = result.stdout.strip()
+    pr_number = pr_url.rstrip("/").rsplit("/", maxsplit=1)[-1]
+    return pr_url, pr_number
+
+
+def _maybe_auto_merge(pr_number: str, auto_merge: bool, resolved: Path) -> bool:
+    """Enable auto-merge with squash when requested; return whether it succeeded."""
+    if not auto_merge:
+        return False
+    merge_result = run_gh(
+        ["pr", "merge", pr_number, "--auto", "--squash"],
+        resolved,
+    )
+    return merge_result.returncode == 0
 
 
 def _recovered_pr_result(resolved: Path, original_error: str) -> ToolResult:
