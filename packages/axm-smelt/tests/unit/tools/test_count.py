@@ -68,3 +68,19 @@ def test_count_empty_data(tool: SmeltCountTool) -> None:
     result = tool.execute(data="")
     assert result.success is True
     assert isinstance(result.data["tokens"], int)
+
+
+def test_count_exposes_counter_backend(tool: SmeltCountTool) -> None:
+    """AC1: data and text expose the actual tiktoken backend used."""
+    result = tool.execute(data="hello world", model="o200k_base")
+    assert result.success is True
+    assert result.data["counter_backend"] == "tiktoken"
+    assert "tiktoken" in result.text
+
+
+def test_count_reports_fallback_backend(tool: SmeltCountTool) -> None:
+    """AC3: an unknown model triggers fallback, reported as such (not as exact)."""
+    result = tool.execute(data="hello world", model="definitely-not-a-real-model-xyz")
+    assert result.success is True
+    assert result.data["counter_backend"] == "fallback"
+    assert "fallback" in result.text
