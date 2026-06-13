@@ -7,6 +7,7 @@
 ```bash
 axm              # list available commands (or show install hints)
 axm <command>    # run a discovered command
+axm --version    # print the installed axm version (also -V), exit 0
 ```
 
 ## Available Commands
