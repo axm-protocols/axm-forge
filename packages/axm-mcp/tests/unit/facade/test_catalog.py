@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any, cast
 
 import pytest
@@ -134,6 +135,72 @@ class TestCall:
         # tool layer turns this into a param hint).
         with pytest.raises(TypeError):
             catalog.call("bib_resolve", {})
+
+
+class TestCallFailureContract:
+    """AXM-2026: call() must mirror the wrapper's failure-preserving contract."""
+
+    @dataclass
+    class _Res:
+        success: bool
+        data: dict[str, Any] = field(default_factory=dict)
+        text: str | None = None
+        error: str | None = None
+
+    class _NoSuccessRes:
+        """A result object that lacks a ``success`` attribute entirely."""
+
+        def __init__(self, data: dict[str, Any], error: str | None = None) -> None:
+            self.data = data
+            self.text: str | None = None
+            self.error = error
+
+    def _catalog_for(self, result: object) -> ToolCatalog:
+        class _FakeTool:
+            def execute(self, **_kwargs: Any) -> object:
+                return result
+
+        return _catalog(fake=_FakeTool())
+
+    def test_call_failure_preserves_signal(self) -> None:
+        """AC2: a failing ToolResult never loses success=False/error to bare text."""
+        res = self._Res(
+            success=False,
+            error="boom",
+            text="human readable failure message",
+            data={"detail": "x"},
+        )
+        out = self._catalog_for(res).call("fake")
+
+        assert "success: False" in out
+        assert "error: boom" in out
+        assert out != "human readable failure message"
+
+    def test_call_success_short_circuits_to_text(self) -> None:
+        """AC2: a successful ToolResult with text still short-circuits to it."""
+        res = self._Res(success=True, text="all good", data={"k": "v"})
+        assert self._catalog_for(res).call("fake") == "all good"
+
+    def test_call_missing_success_not_defaulted_true(self) -> None:
+        """AC3: a result lacking a success attr is treated as failure, not True."""
+        res = self._NoSuccessRes(data={"detail": "y"}, error="oops")
+        out = self._catalog_for(res).call("fake")
+
+        assert "success: True" not in out
+        assert "success: False" in out
+
+    def test_call_reserved_key_collision_relocated(self) -> None:
+        """AC4: a data key colliding with a reserved envelope key is relocated."""
+        res = self._Res(
+            success=False,
+            error="real error",
+            data={"success": "shadow", "payload": 1},
+        )
+        out = self._catalog_for(res).call("fake")
+
+        assert "success: False" in out
+        assert "data_success: shadow" in out
+        assert "error: real error" in out
 
 
 class TestParamHint:

@@ -528,6 +528,41 @@ def test_flatten_no_collision_shape_unchanged(mock_log: MagicMock) -> None:
     assert out == {"success": True, "k": 1, "v": "x"}
 
 
+class TestSharedFlatten:
+    """AXM-2026: a single importable flatten helper is shared by both call sites."""
+
+    def test_shared_flatten_used_by_wrapper(self) -> None:
+        """AC1: wrapping exposes the shared flatten helper with reserved-key
+        relocation, and the wrapper hot-path produces the same shape.
+        """
+        from axm_mcp import wrapping
+
+        result = FakeToolResult(
+            success=False, error="bad", data={"success": "shadow", "value": 42}
+        )
+        flat = wrapping.flatten_result(result)
+
+        assert flat["success"] is False
+        assert flat["error"] == "bad"
+        assert flat["data_success"] == "shadow"
+        assert flat["value"] == 42
+
+        # The wrapper hot-path must yield the identical flattened shape.
+        with patch("axm_mcp.wrapping.log_external_step"):
+            wrapper = _capture_wrapper("shared_flatten", FakeTool(result))
+            assert wrapper() == flat
+
+    def test_shared_flatten_success_envelope(self) -> None:
+        """AC1: a clean success flattens with success=True and spread data."""
+        from axm_mcp import wrapping
+
+        flat = wrapping.flatten_result(FakeToolResult(success=True, data={"value": 7}))
+
+        assert flat["success"] is True
+        assert flat["value"] == 7
+        assert "error" not in flat
+
+
 class TestExistingToolsStillWork:
     """Ensure the warning doesn't break normal tool execution."""
 
