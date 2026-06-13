@@ -1,5 +1,6 @@
 """Split from ``test_diataxis_docs_layout_requirements.py``."""
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -8,14 +9,30 @@ from axm_init.checks.docs import check_plugins
 
 
 class TestCheckDocsPlugins:
-    def test_pass(self, gold_project: Path) -> None:
-        r = check_plugins(gold_project)
-        assert r.passed is True
-
-    def test_fail_no_plugins(self, tmp_path: Path) -> None:
-        (tmp_path / "mkdocs.yml").write_text("site_name: x\n")
-        r = check_plugins(tmp_path)
-        assert r.passed is False
+    @pytest.mark.parametrize(
+        ("setup", "expected"),
+        [
+            pytest.param(None, True, id="pass-gold"),
+            pytest.param(
+                lambda p: (p / "mkdocs.yml").write_text("site_name: x\n"),
+                False,
+                id="fail-no-plugins",
+            ),
+        ],
+    )
+    def test_passed(
+        self,
+        setup: Callable[[Path], object] | None,
+        expected: bool,
+        gold_project: Path,
+        tmp_path: Path,
+    ) -> None:
+        project = gold_project
+        if setup is not None:
+            setup(tmp_path)
+            project = tmp_path
+        r = check_plugins(project)
+        assert r.passed is expected
 
 
 def test_docs_plugins_workspace_fallback(workspace_member: Path) -> None:
