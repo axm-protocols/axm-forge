@@ -256,7 +256,7 @@ hash = "e6ec77c97a56"
 reason = "2 _inspect_symbol tests probe distinct error branches with divergent mock topologies: test_multiple_exact_matches_returns_disambiguation_error mocks search_symbols with two same-name hits and asserts 'Multiple' in error (disambiguation path), while test_no_exact_match_falls_through_not_substring additionally mocks inspect_module to None and asserts 'not found' in error (fallthrough path); the extra mock and the different error contract make them heterogeneous, parametrization would conflate two unrelated failure branches"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "1518b7b49a08"
+hash = "471d4c755ebe"
 reason = "2 CLI tests in distinct command classes probing different subcommands: TestGraphCommand.test_graph_mermaid runs 'graph --format mermaid' and asserts the mermaid/flowchart header, TestSearchCommand.test_search_by_returns runs 'search --returns str' and asserts a matched symbol; the shared _run + 'X in output or Y in output' shape is coincidental, parametrization would conflate two distinct CLI command contracts"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
@@ -276,12 +276,6 @@ hash = "d27d8ebd9890"
 reason = "7 parse_docstring tests spanning three style classes (Google: summary_only, google_style_summary, args_not_in_output, returns_not_in_output; Sphinx: sphinx_summary; EdgeCases: unknown_section_ignored, indented_docstring) asserting on different ParsedDocstring fields (summary, raises, examples, hasattr negative checks) — parametrization would conflate three distinct docstring-style parsers and four distinct field-level contracts"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "ebf90edda9c0"
-reason = "8 test_has_name unit tests live in 8 distinct tool-mirror test files (test_callers/context/describe/docs/graph/impact/inspect/search.py) — each instantiates a different Tool class (CallersTool, ContextTool, DescribeTool, DocsTool, GraphTool, ImpactTool, InspectTool, SearchTool) and asserts on its unique .name attribute; cross-file parametrization would break the 1:1 src/tools/ mirror layout and centralize tool-name contracts away from their owning test module"
-
-
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "192424123291"
 reason = "7 structural_diff integration tests on shared _make_diff_project fixture asserting on different result dict keys: 'added' (added_symbol + added_from_new_file probe two distinct add paths — new symbol in existing file vs symbols from a new file), 'removed' (removed_symbol), 'modified' (modified_symbol), 'summary' (counts sub-dict), and per-symbol metadata (file/kind/name) — parametrization would erase these distinct observation surfaces of the diff API contract"
 
@@ -298,15 +292,11 @@ hash = "7c950537a3d4"
 reason = "6 format_context_json depth-mode tests asserting on distinct dict subscopes of the JSON output contract: test_depth0_has_expected_keys (top-level depth=0 keys name/python/stack/patterns/top_modules), test_depth0_no_full_modules (negative: depth=0 strips modules/dependency_graph/axm_tools), test_depth0_top_modules_fields (per-entry name/symbol_count/stars inside top_modules list), test_depth0_patterns_compact (inner patterns dict module_count/function_count/class_count/layout), test_depth1_has_packages (depth=1 returns packages dict, drops top_modules), test_depth1_package_has_counts (per-package modules/symbols counts) — each probes a different region of the schema; parametrization would conflate four distinct depth/scope contracts"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "dab824cfb1a2"
+hash = "dda854a2ad14"
 reason = "5 test_bad_path unit tests live in 5 distinct tool-mirror test files (test_dead_code/describe/docs/flows/graph.py) — each instantiates a different Tool class (DeadCodeTool, DescribeTool, DocsTool, FlowsTool, GraphTool) and exercises its own .execute(path=\"/nonexistent/...\") error path; cross-file parametrization would break the 1:1 src/tools/ mirror contract"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "b57adba0c9ad"
-reason = "6 test_name unit tests live in 6 distinct tool-mirror test files (test_describe/diff/doc_impact_text/flows/graph/search.py) — each instantiates a different Tool class (DescribeTool, DiffTool, DocImpactTool, FlowsTool, GraphTool, SearchTool) and asserts on its unique .name attribute (ast_describe, ast_diff, ast_doc_impact, ast_flows, ast_graph, ast_search); cross-file parametrization would break the 1:1 src/tools/ mirror contract and centralize tool-name assertions away from their owning test module (same rationale as acked cluster ebf90edda9c0)"
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "9b346370bb32"
+hash = "4f82f9d1ae07"
 reason = "5 analyze_package tests mix two distinct contracts: 3 success-path src-layout/namespace tests (test_src_layout_multiple_packages, test_namespace_package_no_init, test_src_layout_name — assert on pkg.name with different fixtures: 2-package src, namespace-no-init, single-pkg src) and 2 error-or-empty-path tests inside TestAnalyzePackageIntegration (test_not_a_directory uses pytest.raises(ValueError, match='not a directory'); test_no_python_files asserts pkg.modules == [] on empty dir) — parametrization would conflate raises-vs-success branches and force a heterogeneous expected_* parameter across mutually exclusive assertion targets (.name vs .modules vs exception)"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
@@ -334,24 +324,8 @@ hash = "e7a1dc990a9d"
 reason = "5 find_module_for_symbol tests cover two distinct lookup contracts across two pyramid mirrors that must stay separate: (1) the by-name lookup contract in tests/unit/core/test_analyzer.py — test_find_function_by_name, test_find_class_by_name, test_find_variable_by_name — asserts the string-name lookup path correctly routes to the function/class/variable bucket of the module; (2) the by-object-identity lookup contract — test_find_class_by_object (analyzer mirror, passes sample_class) and test_find_by_object_identity (tests/unit/models/test_nodes.py, passes sample_func) — asserts the alternate identity-based lookup path returns the owning module for a node object. The two by-object tests live in different mirror files because each exercises identity lookup with its own node type (ClassInfo vs FunctionInfo) and the test_nodes.py copy covers FunctionInfo as a node-model regression. Cross-file parametrize would force moving a node-model test across the unit-mirror boundary (PRACTICE_TEST_MIRROR) and conflate name-keyed vs identity-keyed lookup branches."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "b4ea8a336e44"
+hash = "c2487fc202d6"
 reason = "4 analyze_workspace tests probe four mutually exclusive contracts that cannot be parametrized into a single assertion shape: test_analyze_workspace_builds_edges_from_deps asserts (\"pkg-b\", \"pkg-a\") in ws.package_edges (literal-member dep → edge), test_analyze_workspace_builds_edges_from_glob_members asserts (\"packages/pkg-b\", \"pkg-a\") in ws.package_edges with a different source-key format because the member was glob-discovered, test_analyze_workspace_not_workspace uses pytest.raises(ValueError) on a non-workspace pyproject (no [tool.uv.workspace]), and test_analyze_workspace_no_deps_yields_no_edges asserts ws.package_edges == [] for empty dependencies — three distinct assertion targets (tuple-in-list / raises-exception / equals-empty) across four divergent fixtures; folding would erase the doc value of each contract."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "2fd0122db512"
-reason = "4 inter-file tests across 4 different files (test_analyze_impact_workspace.py / test_build_context.py / test_discover_docs.py / tests/unit/tools/test_search.py) probe four distinct contracts on four divergent fixtures: test_analyze_impact_workspace_callers asserts cross-package caller modules contain 'pkg_b::' on a real workspace_root tree, test_build_context_module_list asserts 'core' appears in build_context module names on a _make_pkg fixture, test_docs_pages_filter_case_insensitive asserts case-insensitive pages filter via discover_docs on a _make_project tree, and test_method_names asserts ClassName.validate suggestions via find_suggestions on an in-memory _make_pkg AST. Different first-party symbols under test, different fixture builders (filesystem vs in-memory AST), different assertion targets (cross-package edge / module enumeration / docs filter / search suggestions) — cross-file parametrize would force unifying four unrelated assertion shapes."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "099355e60be4"
-reason = "4 inter-file tests across 3 files probe four distinct contracts on divergent fixtures: test_no_marker_no_fallback (test_analyze_package__trace_flow.py) asserts len(resolved) == 0 for trace_flow project-root-fallback without .git marker on a deeply nested filesystem tree, test_process_local_callees_skips_visited (same file but different scenario) asserts len(shared_steps) == 1 for visited-symbol dedup in trace_flow on a different filesystem tree, test_worktree_cleanup (test_structural_diff.py) asserts len(lines) == 1 from a subprocess `git worktree list` invocation after structural_diff on a git-backed _make_diff_project fixture, and test_find_suggestions_dedup (tests/unit/tools/test_search.py) asserts len(value_suggestions) == 1 for symbol dedup in find_suggestions on an in-memory _make_pkg AST. Different first-party symbols (trace_flow / structural_diff / find_suggestions), different fixture types (filesystem nests / git worktree / in-memory AST), different assertion targets — the shared 'count == N' assertion shape is coincidental, not a unifying contract."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "aa3cc8f240c6"
-reason = "4 inter-file tests across 4 files probe four unrelated contracts: test_docs_default_detail_is_full (test_discover_docs.py) asserts discover_docs default detail returns 'content' key with len(pages) == 1 on a _make_project filesystem tree, test_call_with_args (test_extract_calls__extract_module_info.py) asserts extract_calls captures 'world' in call_expression on a tmp_path-written .py file, test_all_empty (test_doc_impact_text.py) asserts render_doc_impact_text on an empty result produces a single-line '0 symbols' header via a _make_result factory, and test_single_step (test_flows_text.py) asserts render_trace_text formats a single-entry steps list with depth=0 from a hand-constructed dict. Different first-party symbols (discover_docs / extract_calls / render_doc_impact_text / render_trace_text), different fixture builders (filesystem / tmp_path file / factory fixture / hand-constructed dict), different output shapes (dict / list[CallSite] / str header / str body) — no shared assertion contract to parametrize."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "8679498ec602"
-reason = "4 inter-file tests across 4 files probe four divergent contracts: test_graph_has_edges (test_graph_tool.py) asserts len(all_targets) >= 1 from GraphTool.execute on a graph_pkg fixture (MCP tool boundary), test_relative_import (tests/unit/core/test_analyzer.py) asserts len(rel_imports) >= 1 by filtering ImportInfo.is_relative on a SAMPLE_PKG analyze_package result, test_budget_with_rank_shows_important (tests/unit/core/test_ranker.py) asserts len(lines) >= 1 from format_text(detail='summary', budget=10, rank=True) on FIXTURES/sample_pkg analyze_package result, and test_public_api_aggregates (tests/unit/models/test_nodes.py) asserts len(api) >= 1 on a hand-built PackageInfo/ModuleInfo/ClassInfo/FunctionInfo aggregate. Different first-party symbols (GraphTool / ImportInfo.is_relative / format_text / PackageInfo.public_api), different fixtures (graph_pkg tool fixture / SAMPLE_PKG / FIXTURES path / in-memory model construction), different layers (MCP tool / core analyzer / formatter / model property) — the shared 'len(...) >= 1' assertion shape is a smoke-check pattern, not a unifying contract."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "e9baaa42a18f"
@@ -390,7 +364,7 @@ hash = "bdb5c53bd11b"
 reason = "4 format_compressed exclusion tests span two files with incompatible fixture lifecycles and four orthogonal exclusion contracts: integration/test_format_compressed.py uses the dynamic pkg_with_tests fixture (tmp_path-built package via _write_test_modules + conftest) and pins test-module exclusion (test_compress_excludes_test_modules → 'test_compute'/'TestEngine' absent) and conftest-fixture exclusion (test_compress_conftest_excluded → 'conftest'/'sample_input' absent), while unit/test_formatters.py::TestFormatCompressedUnit uses the static SAMPLE_PKG fixtures-dir fixture and pins private-symbol exclusion via __all__ (test_private_symbols_excluded → '_internal_helper'/'_InternalClass' absent) and absolute-import dropping (test_absolute_imports_dropped → 'from pathlib import'/'from typing import' absent). Folding across files would require merging a tmp_path dynamic-package fixture with a static SAMPLE_PKG fixture into a single parameterizable seam — erasing the four distinct exclusion-contract concerns (tests-dir / conftest / __all__-private / absolute-imports) each test documents."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "0fb2594c32a9"
+hash = "1a55e3e1abd6"
 reason = "3 trace_flow truncation tests probe two distinct boundary contracts that should remain separate: test_max_depth_zero_with_callees and test_max_depth_zero_no_callees pin the max_depth=0 edge case (entry-only traversal — first asserts truncated=True when entry has children, second asserts truncated=False when entry is a leaf — both with len(steps)==1), while test_trace_flow_truncated_false pins the general non-truncation contract on max_depth=10 with an empty-callees package (different SUT branch: deep budget + leaf-only graph). Folding the three would conflate the max_depth=0 boundary (does the entry node count toward depth?) with the normal non-truncation path (does a leaf graph short-circuit before hitting the budget?), and would require a heterogeneous expected (truncated + len) vs (truncated only) parameter set."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
@@ -446,10 +420,6 @@ hash = "3cdd92d60b67"
 reason = "2 find_dead_code 'no-dead-symbol' tests probe two orthogonal exemption mechanisms: test_no_dead_code (in TestBasicDetection) asserts 'greet' not in dead because main.py actively imports and calls greet (call-graph reachability branch), while test_all_exempt (in TestEdgeCases) asserts 'handle' not in dead because handle is in __all__ in both __init__.py and core.py with no caller present (public-export exemption branch). Different SUT branches (call-graph reachability vs __all__-membership exemption), different setups (with-caller vs zero-caller-plus-__all__), different TestClass documentation surfaces — folding would conflate two independent reasons a symbol stays alive."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "8a60a7b0ed0b"
-reason = "2 cross-package impact tests probe two distinct workspace topologies: test_cross_package_deps_detected uses the shared _make_workspace fixture (linear pkg_a -> pkg_b dependency) and asserts pkg_a appears in cross_package_impact for shared_model, while test_circular_dependency_no_infinite_loop builds a brand-new mutual pkg_a <-> pkg_b workspace inline (each imports the other's __all__ export) and asserts pkg_a appears in func_b's cross_package_impact — the divergent fixture lifecycles and the no-infinite-loop documentation surface (circular import safety) cannot be parametrized into the linear-dep contract without erasing the failure-mode each test pins."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "0d5edbfe2ead"
 reason = "2 analyze_impact git_coupled tests probe two mutually exclusive scenarios: test_impact_has_git_coupled_field builds a synthetic on-disk git repo via _init_git_repo + _commit and asserts the git_coupled field exists and is a list on a freshly committed package (field-presence contract on synthetic fixture), while test_impact_on_real_symbol_has_coupling is guarded by @pytest.mark.skipif(not _find_git_root(...)) and dogfoods analyze_impact on the real axm-ast `get_package` symbol using project root traversal — different SUT input (synthetic temp pkg vs real source tree), different gating (always-runs vs skipif), different documentation surface (basic contract vs dogfood smoke-check)."
 
@@ -466,14 +436,6 @@ hash = "ff66dcc75d9c"
 reason = "2 build_import_graph no-edge tests probe two mutually-exclusive non-edge branches with materially different assertion shapes: test_external_import_no_edge writes 'from pathlib import Path' / 'import os' and asserts 'mod' NOT IN graph at all (external imports never create a source node — stdlib filter branch), while test_self_import_no_edge writes 'from mypkg.mod import something' and asserts 'mod' not in graph['mod'] only IF 'mod' in graph (self-import may have node but never a self-loop edge — cycle-guard branch). Different SUT branches (external-stdlib filter vs self-loop guard) and incompatible assertion shapes (not-in-keys vs conditional not-in-values) cannot be folded without erasing the per-branch documentation."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "47eb67caa7b6"
-reason = "2 trace_flow only-entry tests in TestTraceFlowEdgeCases probe two materially different short-circuit branches with divergent inputs and divergent SUT toggles: test_all_callees_are_stdlib writes a function whose entire body is len/type/isinstance and passes exclude_stdlib=True — asserts len(steps)==1 because every callee is a builtin and gets filtered out by the stdlib name-check (stdlib-filter short-circuit branch), while test_callee_index_miss writes a leaf function 'def lonely(): pass' and passes an empty callee_index dict — asserts len(steps)==1 because every (module, symbol) lookup misses (empty-index short-circuit branch). Different SUT toggles (exclude_stdlib vs callee_index), different package contents, different code paths to the same len==1 result — folding would erase the per-branch documentation of two independent no-children mechanisms."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "1cf89cacd179"
-reason = "2 find_entry_points tests probe two materially different detection branches across two TestClass groups: test_detect_fastapi_route (TestDetectFastapiRoute) writes a @app.get('/items') decorator and asserts framework == 'fastapi' (route-decorator detection branch — inspect call-expression decorator on the import edge), while test_detect_pytest_function (TestDetectPytestFunction) writes a 'def test_foo()' in test_core.py and asserts framework == 'pytest' (name-prefix + file-prefix detection branch — no decorator, pure naming convention). Different SUT branches (decorator-based vs naming-based detection) and four other framework tests (cyclopts/click/flask/main_guard) live in their own TestClass groups for the same reason — cross-class parametrization would conflate two orthogonal detection mechanisms."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "8bb161db167f"
 reason = "2 find_callers single-caller tests pin two distinct documentation surfaces: test_finds_direct_call (TestFindCallers class method, canonical direct-call contract on a 2-file pkg with inline tmp_path setup) is the baseline 'cross-module caller search' contract for TestFindCallers, while test_find_callers_still_works_after_helper_extraction (top-level, uses the shared tiny_pkg fixture) is an explicit post-refactor non-regression smoke check documenting that the helper-extraction refactor did not break the single-caller path. Same assertion shape (len==1 + results[0].symbol == name) but two different documentation surfaces (canonical contract in TestFindCallers vs top-level regression marker) and divergent fixture lifecycles (inline write vs shared fixture) — folding would erase the post-refactor regression-guard documentation."
 
@@ -486,7 +448,7 @@ hash = "7707e6785d4e"
 reason = "2 multi-symbol trace dedup tests probe two mutually-exclusive overlap topologies with materially different assertion shapes: test_trace_entries_disjoint_traces builds two entries (branch_a->leaf_x, branch_b->leaf_y) with ZERO shared callees and asserts all four names (branch_a/leaf_x/branch_b/leaf_y) are present in their respective traces (no-dedup branch, presence-only assertions), while test_trace_entries_all_shared builds two entries (first/second) with IDENTICAL callees and asserts shared is present in first but ABSENT from second (full-dedup first-wins branch, presence+absence assertions). Folding would conflate the no-overlap and full-overlap dedup branches and force a heterogeneous presence-only vs presence+absence parameter."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "d5736c706940"
+hash = "bcf40d166b7b"
 reason = "2 FlowsHook compact-render tests in distinct TestClass groups probe single-vs-multi entry concatenation with divergent fixtures: TestHookReturnsStringCompact.test_hook_returns_string_compact runs detail=compact on SIMPLE_PKG with a single entry 'main' and asserts traces is a str containing 'main' (single-entry no-header rendering branch), while TestHookMultiEntryConcatenated.test_hook_multi_entry_concatenated runs detail=compact on MULTI_ENTRY_PKG with three entries 'alpha/beta/gamma' and asserts the concatenated str contains all three headers (multi-entry concatenation branch). Different fixtures, different entry counts, separate documentation surfaces — folding would conflate the single-entry and multi-entry compact-rendering contracts."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
@@ -506,7 +468,7 @@ hash = "af9db0fc2519"
 reason = "2 DescribeTool summary-text tests share detail='summary' but assert two orthogonal text-rendering contracts: test_summary_strips_def asserts 'def ' not in result.text (source-body-stripping branch — summary mode must drop function-def source lines), while test_summary_skips_empty asserts '## _version' not in text AND '## models\n' not in text (empty-module-skipping branch — modules with no renderable symbols get no header). Same detail value but different excluded tokens with different semantics (strip def-lines vs skip empty-module headers) and different assertion counts — folding would conflate the source-stripping rule with the empty-module-skip rule."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "6e126f9f483b"
+hash = "de463976a411"
 reason = "8 PackageCache.get tests span five TestClass groups and two pyramid mirrors documenting mutually-exclusive cache-lifecycle branches: test_cache_hit_unchanged / test_get_returns_cached_on_unchanged_files assert identity (first is second) on the no-change hit path; test_cache_invalidation_on_delete and test_clear_cache_full_reset assert second is not first on the delete and clear() eviction paths; test_different_paths_independent spies analyze_package call_count==2 across two distinct package roots; and the unit-mirror tests/unit/core/test_cache.py members (test_cache_hit_no_reparse, test_cache_miss_calls_analyze, test_nonexistent_path) mock analyze_package via MagicMock for pure call-count/identity assertions. Real-I/O integration fixtures (tmp_path mkdir/write/unlink) cannot be folded with mock-based unit assertions, and the five lifecycle branches (hit / delete / clear / cross-path / miss) each pin a distinct invalidation contract."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
@@ -516,10 +478,6 @@ reason = "5 parse_file tests span two pyramid mirrors and assert mutually-exclus
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "86a4504b82d8"
 reason = "3 render_docs_text tests probe three mutually-exclusive detail modes on three distinct page fixtures: test_full_reproduces_page_body_verbatim (detail='full', _PAGE_FULL with raw content) asserts the complete page body is reproduced verbatim, test_full_includes_readme_and_mkdocs (detail='full') asserts the README and mkdocs bodies are reproduced, and test_summary_renders_first_sentences (detail='summary', _PAGE_SUMMARY with per-heading summaries) asserts the per-heading first-sentence rendering. Three different detail values ('full' vs 'summary'), three different input page shapes, and three different documented rendering contracts (body-verbatim / extras-verbatim / summary-sentences) cannot be folded without conflating mutually-exclusive disclosure modes."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "26a4508d361a"
-reason = "2 PackageCache modify-invalidation tests live in distinct TestClass groups documenting two different mechanisms: test_cache_invalidation_on_modify (TestPackageCacheMtimeInvalidation) plainly rewrites a file's content between two get() calls and asserts the second PackageInfo reflects the new function (goodbye present, hello absent) — the baseline mtime-fingerprint invalidation branch; while test_get_invalidates_after_file_modification (TestPackageCacheToctou, AXM-1885) monkeypatches analyze_package to mutate the source DURING analysis, reproducing the TOCTOU race the fingerprint-before-analyze reorder narrows. Same observable (second is not first, new content) but different SUT branches (plain mtime delta vs fingerprint-capture-ordering under a mid-analysis mutation) and different fixtures (direct rewrite vs monkeypatched analyze) — folding would erase the TOCTOU-specific documentation."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "1bab739dd47e"
@@ -607,28 +565,8 @@ reason = "3 format_compressed tests probe two divergent fixture pipelines and as
 
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "0751783362fd"
-reason = "2 'format_empty' tests live in two unrelated modules (core/dead_code.py vs core/flows.py) and call two distinct pure-function SUTs (format_dead_code([]) vs format_flows([])) that each assert on a different module-specific empty-output string ('✅ No dead code detected.' vs '✅ No entry points detected.'). Each test is the canonical empty-input contract for its own formatter — the AST shape (assert SUT([]) == STRING_LITERAL) is incidental; folding would require importing both formatters and parametrizing (callable, expected_string) pairs from two different SUT modules just to save 2 lines, while erasing the per-module documentation that each formatter has its own empty contract."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "6083a01d1114"
-reason = "2 inter-pyramid tests of the same trace_flow leaf contract span integration + unit with incompatible fixture pipelines: test_empty_callees (tests/integration/test_analyze_package__trace_flow.py, TestTraceFlowEdgeCases) builds a real tmp_path package 'def leaf(): return 42' via _make_pkg + analyze_package and exercises the full leaf-resolution path through real PackageInfo to assert len(steps) == 1 + steps[0].name == 'leaf' + depth == 0 (integration coverage of _find_symbol_location + _build_package_symbols + find_callees on real source), while test_trace_flow_found_no_callees (tests/unit/core/test_flows.py) uses MagicMock pkg + monkeypatched _find_symbol_location returning ('some.module', 10), monkeypatched _build_package_symbols returning frozenset(), and monkeypatched find_callees returning [] — a pure unit-level isolation of the no-callees branch. Cross-pyramid parametrization would conflate real-I/O integration with mock-based unit coverage and force the unit test off its monkeypatch seam."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "350523c9ac7c"
-reason = "2 inter-file integration tests across 2 files probe two completely unrelated SUTs with no shared fixture: test_circular_calls (tests/integration/test_analyze_package__trace_flow.py, TestEdgeCircularCalls) builds a tmp_path on-disk package with a 'def func_a(): func_b()' / 'def func_b(): func_a()' cycle and asserts trace_flow terminates with len(steps) == 2 (cycle-termination contract on the trace_flow + analyze_package pipeline), while test_docs_full_returns_content (tests/integration/test_discover_docs.py, TestDetailLevels) builds a docs/ tree via _make_project and asserts discover_docs(detail='full') returns a 'content' key (docs progressive-disclosure contract). Different first-party symbols (trace_flow vs discover_docs), different fixture builders (_make_pkg vs _make_project), different assertion targets (cycle len + names vs docs detail key) — no foldable contract."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "1c060816b80d"
-reason = "2 test_has_agent_hint unit tests live in tests/unit/tools/test_describe.py (TestDescribeToolIdentity) and tests/unit/tools/test_search.py (TestSearchToolIdentity) — each instantiates a different Tool class (DescribeTool, SearchTool) and asserts its own .agent_hint attribute is truthy; cross-file parametrization would break the 1:1 src/tools/ mirror contract and centralize per-tool agent-hint contracts away from their owning mirror test module."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "fbfc1feaf753"
 reason = "2 test_bad_path unit tests live in tests/unit/tools/test_callers.py (TestCallersToolEdgeCasesUnit) and tests/unit/tools/test_inspect.py (TestInspectEdgeCasesUnit) — each instantiates a different Tool class (CallersTool, InspectTool) and exercises its own .execute(path='/nonexistent/path', symbol='foo') error path; cross-file parametrization would break the 1:1 src/tools/ mirror contract (same rationale as acked cluster dab824cfb1a2)."
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "8da645903892"
-reason = "2 test_bad_path unit tests live in tests/unit/tools/test_callees.py (TestCalleesToolEdgeCasesUnit) and tests/unit/tools/test_impact.py (TestImpactToolEdgeCasesUnit) — each instantiates a different Tool class (CalleesTool, ImpactTool) and exercises its own .execute(path='/nonexistent/...', symbol='foo') error path; cross-file parametrization would break the 1:1 src/tools/ mirror contract (same rationale as acked cluster dab824cfb1a2)."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "cfca326a0ac8"
