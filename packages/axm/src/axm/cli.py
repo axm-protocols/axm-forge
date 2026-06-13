@@ -138,7 +138,11 @@ def _nonscalar_names(params: list[inspect.Parameter]) -> frozenset[str]:
 
 
 def _emit(result: Any) -> None:
-    """Write a ToolResult-like to stdout: text first, else JSON of data."""
+    """Render a ToolResult-like: text to stdout first, else JSON of data.
+
+    A text-less failure (``success is False`` with a non-empty ``error``)
+    writes the error to stderr instead of falling through to the ``repr``.
+    """
     text = getattr(result, "text", None)
     if isinstance(text, str):
         sys.stdout.write(text + "\n")
@@ -146,8 +150,12 @@ def _emit(result: Any) -> None:
     data = getattr(result, "data", None)
     if isinstance(data, dict):
         sys.stdout.write(json.dumps(data, indent=2, default=str) + "\n")
-    else:
-        sys.stdout.write(str(result) + "\n")
+        return
+    error = getattr(result, "error", None)
+    if getattr(result, "success", True) is False and isinstance(error, str) and error:
+        sys.stderr.write(error + "\n")
+        return
+    sys.stdout.write(str(result) + "\n")
 
 
 def build_command_for_tool(tool_name: str, tool_obj: Any) -> Any:

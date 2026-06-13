@@ -13,6 +13,7 @@ from cyclopts import Parameter
 from axm.cli import (
     _COMMANDS_GROUP,
     _TOOLS_GROUP,
+    _emit,
     build_command_for_tool,
     cli_param,
     create_app,
@@ -386,3 +387,52 @@ def test_build_command_decodes_annotated_param() -> None:
     command = build_command_for_tool("annotated", _AnnotatedTool())
     command(items='["a", "b"]')
     assert _AnnotatedTool.captured == ["a", "b"]
+
+
+# ── _emit: surfacing text-less failures ──────────────────────────────
+
+
+class _EmitStub:
+    """Minimal ToolResult-like for ``_emit`` (it reads via ``getattr``)."""
+
+    def __init__(
+        self,
+        *,
+        success: bool = True,
+        error: str | None = None,
+        text: str | None = None,
+        data: dict[str, object] | None = None,
+    ) -> None:
+        self.success = success
+        self.error = error
+        self.text = text
+        self.data = data
+
+
+def test_emit_writes_error_to_stderr_on_textless_failure(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC1: a text-less failure writes ``error`` to stderr, not the repr fallback."""
+    result = _EmitStub(success=False, error="boom", text=None, data=None)
+    _emit(result)
+    captured = capsys.readouterr()
+    assert "boom" in captured.err
+    assert "_EmitStub" not in captured.out
+    assert captured.out == ""
+
+
+def test_emit_success_text_unchanged(capsys: pytest.CaptureFixture[str]) -> None:
+    """AC2: a successful result with text is unchanged (stdout text, no stderr)."""
+    _emit(_EmitStub(success=True, text="ok"))
+    captured = capsys.readouterr()
+    assert captured.out == "ok\n"
+    assert captured.err == ""
+
+
+def test_emit_failure_with_text_prints_text(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """AC3: a failure that carries text still prints its text (text wins)."""
+    _emit(_EmitStub(success=False, error="boom", text="detail"))
+    captured = capsys.readouterr()
+    assert "detail" in captured.out
