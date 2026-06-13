@@ -154,3 +154,30 @@ def test_edge_malformed_json_brace() -> None:
 
 def test_edge_xml_doctype() -> None:
     assert detect_format("<!DOCTYPE html>") != Format.XML
+
+
+# --- TOML / CSV detection (AXM-2002) ---
+
+
+def test_detect_toml() -> None:
+    """AC1: representative TOML input is detected as Format.TOML."""
+    text = '[server]\nhost = "x"\nport = 8080'
+    assert detect_format(text) == Format.TOML
+
+
+def test_detect_csv() -> None:
+    """AC2: representative CSV input is detected as Format.CSV."""
+    text = "a,b,c\n1,2,3\n4,5,6"
+    assert detect_format(text) == Format.CSV
+
+
+def test_prose_with_commas_not_csv() -> None:
+    """AC3: single-line prose with commas is TEXT, not CSV."""
+    text = "Hello, world, this is prose."
+    assert detect_format(text) == Format.TEXT
+
+
+def test_yaml_not_toml() -> None:
+    """AC3: YAML mapping is not stolen by the TOML probe."""
+    text = "key: value\nlist:\n  - a"
+    assert detect_format(text) == Format.YAML
