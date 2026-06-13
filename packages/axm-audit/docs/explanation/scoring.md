@@ -7,6 +7,25 @@ Computed by `AuditResult.quality_score` — returns `None` when no scored checks
 are present, and normalizes by the sum of present weights so filtered audits
 (e.g. `category="lint"`) are not penalized for missing categories.
 
+### Crashed vs. absent categories
+
+The renormalization above applies only to categories that were **genuinely not
+executed** (a filtered run such as `category="lint"`): the missing categories
+are dropped and the remaining weights are renormalized, so the audit is not
+penalized for work it never did.
+
+A rule that **crashes** (its `check()` raises) is the opposite case and must
+never silently disappear from the composite. A crashed rule contributes
+`score=0` to its category — averaged in alongside any healthy rules in the same
+category, so a single crash can never leave the category falsely at 100. The
+discriminant is *crash vs. absent*, not `None` vs. not-`None`: the crash is
+encoded explicitly (`score=0` plus a crash marker in the `CheckResult`
+metadata), so `quality_score` is penalized rather than inflated.
+
+Crashed rules are also surfaced on `AuditResult.crashed_rules` — the list of
+`rule_id`s whose check raised — so a degraded audit is observable and traceable
+instead of silently passing with an optimistic grade.
+
 | Category | Tool | Weight |
 |---|---|---|
 | Linting | Ruff | **15%** |

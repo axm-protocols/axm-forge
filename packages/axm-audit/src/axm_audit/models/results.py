@@ -73,6 +73,46 @@ def format_categories_help() -> str:
     return "\n".join(lines)
 
 
+# ── Crash marker ──────────────────────────────────────────────────────
+# A rule whose ``check`` raises is recorded as an explicit crash (score=0 in
+# its category, never silently dropped) and flagged via this metadata key so
+# downstream code can tell a crash apart from a legitimately-absent score.
+_CRASH_MARKER_KEY: str = "crashed"
+
+
+def crash_check_result(
+    rule_id: str,
+    category: str | None,
+    message: str,
+    *,
+    details: dict[str, object] | None = None,
+) -> CheckResult:
+    """Build the canonical ``CheckResult`` for a rule whose check raised.
+
+    A crash in a scored category must **penalize** that category, not vanish
+    from the composite. The crash is encoded explicitly as ``score=0`` plus a
+    crash marker in ``metadata`` (the discriminant is crash-vs-absent, not
+    ``None``-vs-not-``None``), so ``quality_score`` averages the 0 in and
+    ``AuditResult.crashed_rules`` can surface the rule for traceability.
+    """
+    return CheckResult(
+        rule_id=rule_id,
+        passed=False,
+        message=message,
+        severity=Severity.ERROR,
+        fix_hint="Check rule configuration and dependencies",
+        category=category,
+        details=details,
+        metadata={_CRASH_MARKER_KEY: True},
+        score=0,
+    )
+
+
+def _is_crashed(check: CheckResult) -> bool:
+    """True if ``check`` was produced by a crashed rule (carries the marker)."""
+    return bool(check.metadata.get(_CRASH_MARKER_KEY))
+
+
 def collect_category_scores(
     checks: Sequence[CheckResult],
 ) -> dict[str, list[float]]:
@@ -200,6 +240,17 @@ class AuditResult(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesi
         if weight_sum <= 0:
             return None
         return round(total / weight_sum, 1)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def crashed_rules(self) -> list[str]:
+        """rule_ids whose check raised, in encounter order.
+
+        Crashed rules contribute ``score=0`` to their scored category (they
+        are never silently dropped); this field makes a degraded audit
+        traceable rather than silent.
+        """
+        return [c.rule_id for c in self.checks if _is_crashed(c)]
 
     @computed_field  # type: ignore[prop-decorator]
     @property

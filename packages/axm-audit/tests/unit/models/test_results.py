@@ -23,6 +23,7 @@ from axm_audit.models.results import (
     CheckResult,
     Severity,
     collect_category_scores,
+    crash_check_result,
 )
 from axm_audit.models.results import (
     SCORED_CATEGORIES as RESULTS_SCORED_CATEGORIES,
@@ -754,7 +755,14 @@ def test_audit_result_round_trip() -> None:
     # Pure round-trip across the persistent (non-computed) fields: dump and
     # re-validate without the __init__ hack popping keys.
     dump = ar.model_dump(
-        exclude={"success", "total", "failed", "quality_score", "grade"}
+        exclude={
+            "success",
+            "total",
+            "failed",
+            "crashed_rules",
+            "quality_score",
+            "grade",
+        }
     )
     restored = AuditResult.model_validate(dump)
     assert restored == ar
@@ -834,3 +842,87 @@ def test_audit_result_score_normalizes_partial_categories() -> None:
     checks = [_public_api_check("lint_a", "lint", 90)]
     result = AuditResult(checks=checks)
     assert result.quality_score == 90.0
+
+
+# ---------------------------------------------------------------------------
+# Crashed scored rule floors category to 0 (AXM-1957)
+# ---------------------------------------------------------------------------
+
+
+def _healthy_check(rule_id: str, category: str, score: int) -> CheckResult:
+    return CheckResult(
+        rule_id=rule_id,
+        passed=True,
+        message="ok",
+        category=category,
+        score=score,
+    )
+
+
+def test_crashed_scored_rule_floors_category_to_zero() -> None:
+    """AC1: a crashed rule in a scored category contributes 0 and lowers the
+    composite strictly below the all-healthy baseline."""
+    healthy = [
+        _healthy_check("lint", "lint", 100),
+        _healthy_check("types", "type", 100),
+    ]
+    baseline = AuditResult(checks=healthy).quality_score
+
+    crashed_checks = [
+        _healthy_check("lint", "lint", 100),
+        crash_check_result(
+            rule_id="types",
+            category="type",
+            message="Rule crashed: boom",
+        ),
+    ]
+    scores = collect_category_scores(crashed_checks)
+    assert scores["type"] == [0.0]
+
+    crashed_score = AuditResult(checks=crashed_checks).quality_score
+    assert baseline is not None and crashed_score is not None
+    assert crashed_score < baseline
+
+
+def test_filtered_category_absent_renormalizes_without_penalty() -> None:
+    """AC2: a checks list missing categories renormalizes over the present
+    category only (no penalty for absent categories)."""
+    result = AuditResult(
+        checks=[
+            _healthy_check("lint-a", "lint", 80),
+            _healthy_check("lint-b", "lint", 90),
+        ]
+    )
+    assert result.quality_score == 85.0
+
+
+def test_one_crash_among_many_in_category_not_falsely_100() -> None:
+    """AC3: one healthy 100 + one crash in the same scored category averages
+    the 0 in, so the category score is strictly below 100."""
+    checks = [
+        _healthy_check("lint-ok", "lint", 100),
+        crash_check_result(
+            rule_id="lint-boom",
+            category="lint",
+            message="Rule crashed: boom",
+        ),
+    ]
+    scores = collect_category_scores(checks)
+    assert 0.0 in scores["lint"]
+    assert sum(scores["lint"]) / len(scores["lint"]) < 100.0
+
+
+def test_crashed_rules_field_exposes_rule_ids() -> None:
+    """AC4: crashed_rules lists the rule_ids whose check raised and excludes
+    healthy ones."""
+    result = AuditResult(
+        checks=[
+            _healthy_check("lint-ok", "lint", 100),
+            crash_check_result(
+                rule_id="type-boom",
+                category="type",
+                message="Rule crashed: boom",
+            ),
+        ]
+    )
+    assert result.crashed_rules == ["type-boom"]
