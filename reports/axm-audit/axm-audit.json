@@ -1,9 +1,9 @@
 {
-  "score": 95.9,
+  "score": 96.9,
   "grade": "A",
   "total": 31,
-  "failed": 1,
-  "success": false,
+  "failed": 0,
+  "success": true,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -92,10 +92,19 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": true,
-      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
       "details": {
-        "high_complexity_count": 0,
-        "top_offenders": [],
+        "high_complexity_count": 1,
+        "top_offenders": [
+          {
+            "file": "axm_audit/core/rules/complexity.py",
+            "function": "ComplexityRule._process_radon_output",
+            "cc": 8,
+            "rank": "B",
+            "cognitive": 16,
+            "reason": "cog"
+          }
+        ],
         "cognitive_disabled": false
       },
       "metadata": null
@@ -105,7 +114,7 @@
       "passed": true,
       "message": "Test coverage: 91% (90/100)",
       "details": {
-        "coverage": 90.9386185867692,
+        "coverage": 90.91210393742543,
         "failures": []
       },
       "metadata": null
@@ -3436,22 +3445,11 @@
     },
     {
       "rule_id": "PRACTICE_SECURITY",
-      "passed": false,
-      "message": "2 potential secret(s) found",
+      "passed": true,
+      "message": "0 potential secret(s) found",
       "details": {
-        "secret_count": 2,
-        "matches": [
-          {
-            "file": "axm_audit/core/rules/security.py",
-            "line": 259,
-            "pattern": "api_key"
-          },
-          {
-            "file": "axm_audit/core/rules/security.py",
-            "line": 340,
-            "pattern": "token"
-          }
-        ]
+        "secret_count": 0,
+        "matches": []
       },
       "metadata": null
     },

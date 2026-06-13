@@ -1,5 +1,5 @@
 {
-  "score": 98.5,
+  "score": 98.7,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -60,9 +60,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 94% (93/100)",
+      "message": "Test coverage: 94% (94/100)",
       "details": {
-        "coverage": 93.99253731343283,
+        "coverage": 94.01931649331353,
         "failures": []
       },
       "metadata": null
@@ -196,7 +196,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "42 cluster(s), 0 clustered pair(s)",
+      "message": "44 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -823,22 +823,22 @@
               {
                 "file": "tests/unit/core/test_semver.py",
                 "name": "test_valid_with_prefix",
-                "line": 13
+                "line": 38
               },
               {
                 "file": "tests/unit/core/test_semver.py",
                 "name": "test_valid_without_prefix",
-                "line": 16
+                "line": 41
               },
               {
                 "file": "tests/unit/core/test_semver.py",
                 "name": "test_zero_version",
-                "line": 19
+                "line": 44
               },
               {
                 "file": "tests/unit/core/test_semver.py",
                 "name": "test_invalid_raises",
-                "line": 22
+                "line": 47
               }
             ],
             "cluster_hash": "53396655fe5b",
@@ -1268,6 +1268,24 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT classify_commit(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/core/test_semver.py",
+                "name": "test_classify_commit_returns_real_type_for_docs_chore",
+                "line": 18
+              },
+              {
+                "file": "tests/unit/core/test_semver.py",
+                "name": "test_classify_commit_keeps_feat_fix_and_breaking",
+                "line": 24
+              }
+            ],
+            "cluster_hash": "6ed51643664a"
+          },
+          {
             "signal": "signal1_call_assert",
             "reason": "same SUT: ep.load(0)>next(1) + same asserts",
             "similarity": 0.0,
@@ -1285,6 +1303,24 @@
             ],
             "cluster_hash": "e714397697ca",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT next(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/tools/test_release_diff_text.py",
+                "name": "test_commit_line_no_duplicate_prefix",
+                "line": 115
+              },
+              {
+                "file": "tests/unit/tools/test_release_diff_text.py",
+                "name": "test_commit_line_unprefixed_subject_gets_other",
+                "line": 142
+              }
+            ],
+            "cluster_hash": "60a53c4abfbb"
           },
           {
             "signal": "signal3_intra_file_similarity",
@@ -1402,8 +1438,8 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 11,
-          "AMBIGUOUS": 155,
-          "UNIQUE": 365
+          "AMBIGUOUS": 159,
+          "UNIQUE": 372
         },
         "stale_acknowledged": [
           {

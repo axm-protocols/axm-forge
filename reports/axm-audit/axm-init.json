@@ -58,7 +58,7 @@
             "function": "InitReserveTool.execute",
             "cc": 14,
             "rank": "C",
-            "cognitive": 0,
+            "cognitive": 14,
             "reason": "cc"
           }
         ],
