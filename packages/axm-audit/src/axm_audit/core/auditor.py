@@ -29,6 +29,7 @@ from axm_audit.models.results import (
     AuditResult,
     CheckResult,
     Severity,
+    crash_check_result,
 )
 
 logger = logging.getLogger(__name__)
@@ -110,13 +111,10 @@ def _safe_check(rule: ProjectRule, project_path: Path) -> CheckResult:
     except Exception as exc:  # noqa: BLE001
         tb = _traceback.format_exc()[-500:]
         logger.warning("Rule %s raised: %s", rule.rule_id, exc, exc_info=True)
-        return CheckResult(
+        return crash_check_result(
             rule_id=rule.rule_id,
-            passed=False,
-            message=f"Rule crashed: {exc}",
-            severity=Severity.ERROR,
-            fix_hint="Check rule configuration and dependencies",
             category=rule.category,
+            message=f"Rule crashed: {exc}",
             details={"traceback": tb},
         )
 
