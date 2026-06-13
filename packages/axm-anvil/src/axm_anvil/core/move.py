@@ -2164,6 +2164,20 @@ def move_symbols(  # noqa: PLR0913
     expanded_names, moved_names, skipped_warnings = _validate_and_expand(
         source_tree, target_tree, symbol_names, strict=strict
     )
+    if not moved_names:
+        # Nothing resolved to a present symbol (all absent, non-strict): the
+        # move is a no-op. Return an empty plan with the original texts BEFORE
+        # any tree-building or write, so source and target stay byte-identical.
+        noop_plan = _build_plan(
+            source_text,
+            target_text,
+            moved_names,
+            [],
+            [],
+            {},
+        )
+        noop_plan.warnings.extend(skipped_warnings)
+        return noop_plan
     remove_targets, blocks = _extract_moved_blocks(source_tree, expanded_names)
     rename_map = _active_rename(rename, moved_names)
     if rename_map:

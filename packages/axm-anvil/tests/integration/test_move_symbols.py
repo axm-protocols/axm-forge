@@ -23,6 +23,50 @@ from tests.integration._helpers import (
 pytestmark = pytest.mark.integration
 
 
+_NOOP_SOURCE = "def stayer() -> int:\n    return 1\n"
+
+
+def test_noop_move_writes_nothing(tmp_path: Path) -> None:
+    """AC1: a non-dry-run move where ALL requested symbols are absent
+    (non-strict) writes NOTHING -- source and target files are byte-unchanged
+    -- and returns a plan with moved_names == []."""
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text(_NOOP_SOURCE)
+    tgt.write_text("")
+    src_before = src.read_bytes()
+    tgt_before = tgt.read_bytes()
+
+    plan = move_symbols(src, tgt, ["ghost"], workspace_root=tmp_path)
+
+    assert plan.moved_names == []
+    assert src.read_bytes() == src_before
+    assert tgt.read_bytes() == tgt_before
+
+
+_PARTIAL_SOURCE = (
+    'def present() -> int:\n    return 1\n\n\ndef stayer() -> str:\n    return "stay"\n'
+)
+
+
+def test_partial_move_still_moves_present(tmp_path: Path) -> None:
+    """AC2: a move where SOME symbols are present still moves those present
+    ones and leaves the rest (existing partial behavior unchanged)."""
+    src = tmp_path / "source.py"
+    tgt = tmp_path / "target.py"
+    src.write_text(_PARTIAL_SOURCE)
+    tgt.write_text("")
+
+    plan = move_symbols(src, tgt, ["present", "ghost"], workspace_root=tmp_path)
+
+    assert plan.moved_names == ["present"]
+    after_src = src.read_text()
+    after_tgt = tgt.read_text()
+    assert "def present" not in after_src
+    assert "def stayer" in after_src
+    assert "def present" in after_tgt
+
+
 _CONDITIONAL_SOURCE = (
     "try:\n"
     "    import fast_json as json\n"
