@@ -170,3 +170,21 @@ def test_execute_wraps_generic_exception(mocker):
 
     assert result.success is False
     assert result.error == "boom"
+
+
+def test_extract_mode_returns_clean_toolresult_error():
+    """AC3: shared_helpers="extract" via the AXMTool returns a clean
+    ToolResult(success=False) with an explicit Phase-3 message, with no raw
+    NotImplementedError escaping the tool boundary."""
+    tool = MoveTool()
+    result = tool.execute(
+        path=".",
+        symbols="Foo",
+        from_file="source.py",
+        to_file="target.py",
+        shared_helpers="extract",
+    )
+
+    assert result.success is False
+    assert result.error is not None
+    assert "phase 3" in result.error.lower()

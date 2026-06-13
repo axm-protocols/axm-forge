@@ -124,6 +124,11 @@ class MoveTool(AXMTool):
                 )
             case ImportCycleError():
                 return ToolResult(success=False, error=str(exc))
+            case NotImplementedError():
+                return ToolResult(
+                    success=False,
+                    error=("shared_helpers='extract' is not yet implemented (Phase 3)"),
+                )
             case _:
                 return ToolResult(success=False, error=str(exc))
 
