@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import importlib.metadata
+import json
 
 import pytest
 
+from axm_smelt.core.models import SmeltContext
 from axm_smelt.tools.count import SmeltCountTool
 
 
@@ -84,3 +86,28 @@ def test_count_reports_fallback_backend(tool: SmeltCountTool) -> None:
     assert result.success is True
     assert result.data["counter_backend"] == "fallback"
     assert "fallback" in result.text
+
+
+def test_count_uses_canonical_json_encoding(tool: SmeltCountTool) -> None:
+    """AC1: non-string input is serialized in the pipeline's canonical form.
+
+    Canonical = ``separators=(",", ":")`` (no spaces) + ``sort_keys=True``.
+    Counting an unordered dict must equal counting its canonical string;
+    counting the pretty (default ``json.dumps``) string must NOT, proving
+    the tool no longer uses the pretty form.
+    """
+    data = {"b": 1, "a": 2, "c": {"z": 3, "y": 4}}
+    canonical = json.dumps(data, sort_keys=True, separators=(",", ":"))
+    pretty = json.dumps(data)
+
+    dict_count = tool.execute(data=data).data["tokens"]
+    assert dict_count == tool.execute(data=canonical).data["tokens"]
+    assert dict_count != tool.execute(data=pretty).data["tokens"]
+
+
+def test_count_baseline_matches_pipeline(tool: SmeltCountTool) -> None:
+    """AC2: the measured baseline matches tokens of ``SmeltContext(...).text``."""
+    data = {"b": 1, "a": 2, "c": {"z": 3, "y": 4}}
+    dict_count = tool.execute(data=data).data["tokens"]
+    pipeline_text = SmeltContext(parsed=data).text
+    assert dict_count == tool.execute(data=pipeline_text).data["tokens"]

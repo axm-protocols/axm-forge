@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_smelt._types import JsonValue
@@ -49,7 +47,12 @@ class SmeltCountTool(AXMTool):
                 raise ValueError(msg)
 
             if not isinstance(data, str):
-                data = json.dumps(data)
+                # Reuse the pipeline's canonical serialization
+                # (separators=(",", ":") + sort_keys=True) so smelt_count
+                # measures the same baseline that smelt later tokenizes.
+                from axm_smelt.core.models import SmeltContext
+
+                data = SmeltContext(parsed=data).text
 
             from axm_smelt.core.counter import count_with_backend
 
