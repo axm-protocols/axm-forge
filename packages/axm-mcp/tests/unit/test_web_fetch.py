@@ -195,3 +195,56 @@ class TestWebFetchTool:
         assert result.success is False
         assert result.error == "boom"
         assert result.data["url"] == "https://x"
+
+    def test_execute_tolerates_none_status_in_data(self) -> None:
+        """AC3: a None status_code flows through to ToolResult.data unchanged."""
+        payload = {
+            "success": True,
+            "url": "https://example.com",
+            "title": "Hi",
+            "text": "body",
+            "status_code": None,
+            "mode": "basic",
+        }
+        with patch(
+            "axm_mcp.web_fetch.fetch_page",
+            new=AsyncMock(return_value=payload),
+        ):
+            result = WebFetchTool().execute(url="https://example.com")
+
+        assert result.success is True
+        assert result.data["status_code"] is None
+
+
+# ── status default (AC3) ─────────────────────────────────────────────
+
+
+@patch("axm_mcp.web_fetch._HAS_SCRAPLING", True)
+class TestStatusDefault:
+    """``status`` is ``None`` (not ``200``) when the page lacks the attribute."""
+
+    @pytest.mark.asyncio
+    @patch("axm_mcp.web_fetch.Fetcher")
+    async def test_status_defaults_to_none_when_absent(
+        self, mock_fetcher_cls: MagicMock
+    ) -> None:
+        """AC3: status is None — not 200 — when the page has no ``status``."""
+        page = MagicMock(spec=["css", "get_all_text"])
+        page.css.return_value.get.return_value = "Test Page"
+        page.get_all_text.return_value = "Hello world"
+        mock_fetcher_cls.get.return_value = page
+
+        result = await fetch_page(url="https://example.com", mode="basic")
+
+        assert result["success"] is True
+        assert result["status_code"] is None
+
+
+# ── docstring honesty (AC2) ──────────────────────────────────────────
+
+
+def test_fetch_page_docstring_matches_behavior() -> None:
+    """AC2: docstring documents auto==basic with no escalation yet."""
+    doc = (fetch_page.__doc__ or "").lower()
+    assert "no escalation" in doc
+    assert "basic" in doc

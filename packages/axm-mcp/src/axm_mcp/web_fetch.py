@@ -13,12 +13,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Coroutine
+from concurrent.futures import ThreadPoolExecutor
 
 from axm.tools.base import ToolResult
 
 __all__ = ["WebFetchTool", "fetch_page"]
 
-FetchResult = dict[str, bool | int | str]
+FetchResult = dict[str, bool | int | str | None]
 
 logger = logging.getLogger(__name__)
 
@@ -48,16 +50,19 @@ async def fetch_page(
 ) -> FetchResult:
     """Fetch a web page with optional anti-bot bypass.
 
-    Uses Scrapling as backend with automatic escalation.
+    Uses Scrapling as backend.
 
     Args:
         url: URL to fetch (required).
         mode: Fetching mode — ``auto``, ``basic``, ``dynamic``,
-            or ``stealth``. Defaults to ``auto`` (same as ``basic``).
+            or ``stealth``. ``auto`` currently behaves exactly like
+            ``basic`` (no escalation yet): there is no automatic
+            escalation from ``basic`` to ``dynamic``/``stealth``.
 
     Returns:
         Dict with ``success``, ``url``, ``title``, ``text``,
-        and ``status_code`` on success.
+        and ``status_code`` on success (``status_code`` is ``None``
+        when the backend does not expose a status).
         Dict with ``success=False`` and ``error`` on failure.
     """
     if not _HAS_SCRAPLING:
@@ -93,7 +98,7 @@ async def fetch_page(
         text: str = page.get_all_text() or ""
         if len(text) > _MAX_TEXT_CHARS:
             text = text[:_MAX_TEXT_CHARS] + "\n... [truncated]"
-        status: int = getattr(page, "status", 200)
+        status: int | None = getattr(page, "status", None)
 
         return {
             "success": True,
@@ -111,6 +116,24 @@ async def fetch_page(
             "url": url,
             "mode": mode,
         }
+
+
+def _run_sync(coro: Coroutine[object, object, FetchResult]) -> FetchResult:
+    """Run an async coroutine to completion from a sync context.
+
+    ``asyncio.run`` raises ``RuntimeError`` when invoked from within an
+    already-running event loop. The MCP wrapping layer may call
+    :meth:`WebFetchTool.execute` from either context, so detect a running
+    loop and offload the coroutine to a dedicated thread (with its own
+    loop) when one is active; otherwise use ``asyncio.run`` directly.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
 
 
 class WebFetchTool:
@@ -143,7 +166,7 @@ class WebFetchTool:
             mode: Fetching mode — ``auto``, ``basic``, ``dynamic``,
                 or ``stealth``. Defaults to ``auto``.
         """
-        result = asyncio.run(fetch_page(url=url, mode=mode))
+        result = _run_sync(fetch_page(url=url, mode=mode))
         success = bool(result.get("success", False))
         error = result.get("error")
         data = {k: v for k, v in result.items() if k not in {"success", "error"}}
