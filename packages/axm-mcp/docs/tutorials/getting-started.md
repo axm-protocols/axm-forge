@@ -12,7 +12,7 @@ first `verify`.
 ## Connect in one command
 
 ```bash
-claude mcp add axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]" axm-mcp
+claude mcp add --scope user axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]@latest" axm-mcp
 ```
 
 → Full walkthrough, the `.mcp.json` form, and the advanced HTTP transport are in

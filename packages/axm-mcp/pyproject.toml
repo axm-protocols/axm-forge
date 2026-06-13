@@ -34,10 +34,18 @@ audit  = ["axm-audit"]
 bib    = ["axm-bib"]
 git    = ["axm-git"]
 ast    = ["axm-ast"]
-ticker = ["axm-ticket"]
-forge  = ["axm-ast", "axm-audit", "axm-init"]
+anvil  = ["axm-anvil"]
+edit   = ["axm-edit"]
+smelt  = ["axm-smelt"]
+ticket = ["axm-ticket"]
 web    = ["scrapling"]
-all    = ["axm-init", "axm-audit", "axm-bib", "axm-git", "axm-ast", "axm-ticket"]
+# forge = the full public developer toolchain (axm-forge packages)
+forge  = ["axm-ast", "axm-audit", "axm-init", "axm-git", "axm-anvil", "axm-edit", "axm-smelt"]
+# all = the complete public surface (forge + bibliography + ticketing)
+all    = [
+    "axm-ast", "axm-audit", "axm-init", "axm-git", "axm-anvil", "axm-edit",
+    "axm-smelt", "axm-bib", "axm-ticket",
+]
 
 [project.scripts]
 axm-mcp = "axm_mcp:main"

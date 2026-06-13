@@ -17,8 +17,13 @@ demand, always resolving the latest published version.
 The fastest path — one command, no JSON to edit:
 
 ```bash
-claude mcp add axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]" axm-mcp
+claude mcp add --scope user axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]@latest" axm-mcp
 ```
+
+!!! note "What does `--scope user` do?"
+    `--scope user` installs it globally (available in every session). Drop it to
+    enable AXM per-project instead — the server then loads only in the directory
+    where you run the command.
 
 Prefer editing config by hand? Add this to your `.mcp.json` instead:
 
@@ -27,7 +32,7 @@ Prefer editing config by hand? Add this to your `.mcp.json` instead:
   "mcpServers": {
     "axm-mcp": {
       "command": "uvx",
-      "args": ["--python", "3.12", "--from", "axm-mcp[all]", "axm-mcp"]
+      "args": ["--python", "3.12", "--from", "axm-mcp[all]@latest", "axm-mcp"]
     }
   }
 }

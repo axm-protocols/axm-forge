@@ -32,8 +32,10 @@ Connect the server to your MCP client (Claude Code, IDE…) in one command — n
 manual install, `uvx` fetches the latest version on demand:
 
 ```bash
-claude mcp add axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]" axm-mcp
+claude mcp add --scope user axm-mcp -- uvx --python 3.12 --from "axm-mcp[all]@latest" axm-mcp
 ```
+
+`--scope user` installs it globally (available in every session). Drop it to enable AXM per-project instead — the server then loads only in the directory where you run the command.
 
 Prefer editing `.mcp.json` by hand? Add:
 
@@ -42,7 +44,7 @@ Prefer editing `.mcp.json` by hand? Add:
   "mcpServers": {
     "axm-mcp": {
       "command": "uvx",
-      "args": ["--python", "3.12", "--from", "axm-mcp[all]", "axm-mcp"]
+      "args": ["--python", "3.12", "--from", "axm-mcp[all]@latest", "axm-mcp"]
     }
   }
 }
@@ -61,7 +63,7 @@ option for running a single shared persistent server.
 
 | Mode | Command | Client config | Use case |
 |---|---|---|---|
-| **stdio** (default) | `axm-mcp` | `uvx --from "axm-mcp[all]" axm-mcp` | Simple, one process per conversation |
+| **stdio** (default) | `axm-mcp` | `uvx --from "axm-mcp[all]@latest" axm-mcp` | Simple, one process per conversation |
 | **HTTP** (advanced) | `axm-mcp serve` | `{"type": "url", "url": "http://localhost:9427/mcp"}` | Single shared server, persistent cache |
 
 For the HTTP setup, see [Migrate to HTTP Transport](https://forge.axm-protocols.io/mcp/howto/migration-http/).
