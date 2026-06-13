@@ -61,9 +61,12 @@ def recover_existing_pr(working_dir: Path) -> PRRecovery:
         return PRRecovery(
             error=f"PR already exists but could not retrieve it: {view.stderr}"
         )
-    data = json.loads(view.stdout)
-    return PRRecovery(
-        url=data["url"],
-        number=str(data["number"]),
-        already_existed=True,
-    )
+    try:
+        data = json.loads(view.stdout)
+        return PRRecovery(
+            url=data["url"],
+            number=str(data["number"]),
+            already_existed=True,
+        )
+    except (json.JSONDecodeError, KeyError) as exc:
+        return PRRecovery(error=f"PR already exists but could not parse it: {exc}")
