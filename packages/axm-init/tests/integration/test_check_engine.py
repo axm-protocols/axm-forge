@@ -113,7 +113,7 @@ class TestMemberRedirectsStructure:
     @pytest.mark.parametrize(
         "check_name",
         [
-            pytest.param("structure.license", id="license"),
+            pytest.param("structure.license_file", id="license"),
             pytest.param("structure.python_version", id="python_version"),
             pytest.param("structure.contributing", id="contributing"),
             pytest.param("tooling.makefile", id="makefile"),
@@ -263,7 +263,7 @@ def test_axm_init_check_passes_on_correctly_wired_docs(tmp_path: Path) -> None:
     engine = CheckEngine(tmp_path)
     project_result = engine.run()
 
-    finding = _find_result(project_result, "pyproject.wheel_doc_shipping")
+    finding = _find_result(project_result, "pyproject.pyproject_wheel_doc_shipping")
     assert finding.passed is True
 
 
@@ -273,35 +273,37 @@ def test_axm_init_check_fails_on_orphan_docs(tmp_path: Path) -> None:
     engine = CheckEngine(tmp_path)
     project_result = engine.run()
 
-    finding = _find_result(project_result, "pyproject.wheel_doc_shipping")
+    finding = _find_result(project_result, "pyproject.pyproject_wheel_doc_shipping")
     assert finding.passed is False
     assert any("test_quality.md" in d for d in finding.details)
 
 
-# --- CheckEngine exclusion-by-displayed-name (AXM-1840) ---
+# --- CheckEngine exclusion-by-canonical-name (AXM-1840 -> AXM-2046) ---
 #
-# The canonical name carried by ``CheckResult.name`` (hand-set inside each check
-# function, e.g. ``pyproject.urls``) must be the single source of truth for
-# exclusion matching. Excluding a check by its DISPLAYED name must actually skip
-# it, and the excluded-result stamp must carry that same canonical name.
+# The canonical check name is the ``_get_check_name`` form
+# (``category.function_name_without_check_``, e.g. ``pyproject.pyproject_urls``)
+# — the SAME convention used by ``SKIP_FOR_*`` / ``REDIRECT_FOR_*`` and the
+# README ``exclude`` example. AXM-2046 unified on this form: ``run`` re-stamps
+# every ``CheckResult.name`` to it, so the displayed name, the skip/redirect
+# constants, and ``[tool.axm-init].exclude`` all key off ONE string.
 #
 # The ``pyproject.urls`` check is the canary: its function name is
-# ``check_pyproject_urls`` so the legacy inferred name was
-# ``pyproject.pyproject_urls`` (divergent from the displayed ``pyproject.urls``).
+# ``check_pyproject_urls`` so the canonical name is ``pyproject.pyproject_urls``
+# (the hand-set ``pyproject.urls`` is overridden by the stamp).
 
 
 def _exclude_pyproject_urls(project: Path) -> None:
-    """Append a ``[tool.axm-init].exclude`` of the displayed name to pyproject."""
+    """Append a ``[tool.axm-init].exclude`` of the canonical name to pyproject."""
     pyproject = project / "pyproject.toml"
     content = pyproject.read_text()
-    content += '\n[tool.axm-init]\nexclude = ["pyproject.urls"]\n'
+    content += '\n[tool.axm-init]\nexclude = ["pyproject.pyproject_urls"]\n'
     pyproject.write_text(content)
 
 
 def test_exclusion_by_displayed_name_skips_check(
     gold_project__from_check_engine_run_and_format: Path,
 ) -> None:
-    """AC2: excluding by the displayed name ``pyproject.urls`` removes it.
+    """AC2: excluding by the canonical name ``pyproject.pyproject_urls`` removes it.
 
     The check must not appear as an active (executed) result and must be
     recorded in ``excluded_checks``.
@@ -311,14 +313,14 @@ def test_exclusion_by_displayed_name_skips_check(
 
     result = CheckEngine(project).run()
 
-    # The displayed name was excluded by config -> recorded as excluded.
-    assert "pyproject.urls" in result.excluded_checks
-    # And the legacy inferred name must NOT leak into excluded_checks.
-    assert "pyproject.pyproject_urls" not in result.excluded_checks
+    # The canonical name was excluded by config -> recorded as excluded.
+    assert "pyproject.pyproject_urls" in result.excluded_checks
+    # And the old hand-set name must NOT leak into excluded_checks anymore.
+    assert "pyproject.urls" not in result.excluded_checks
 
     # The check still surfaces (as an auto-pass excluded stamp), never as a
     # freshly executed result with a real weight/message.
-    matching = [c for c in result.checks if c.name == "pyproject.urls"]
+    matching = [c for c in result.checks if c.name == "pyproject.pyproject_urls"]
     assert len(matching) == 1
     assert matching[0].message == "Excluded by config"
 
@@ -326,10 +328,11 @@ def test_exclusion_by_displayed_name_skips_check(
 def test_excluded_result_uses_canonical_name(
     gold_project__from_check_engine_run_and_format: Path,
 ) -> None:
-    """AC3: the excluded-result stamp carries the canonical displayed name.
+    """AC3: the excluded-result stamp carries the canonical name.
 
-    Excluding ``pyproject.urls`` must produce a ``CheckResult`` whose ``name``
-    is exactly ``pyproject.urls`` (not the inferred ``pyproject.pyproject_urls``).
+    Excluding ``pyproject.pyproject_urls`` must produce a ``CheckResult`` whose
+    ``name`` is exactly ``pyproject.pyproject_urls`` (the canonical form, not the
+    legacy hand-set ``pyproject.urls``).
     """
     project = gold_project__from_check_engine_run_and_format
     _exclude_pyproject_urls(project)
@@ -338,10 +341,10 @@ def test_excluded_result_uses_canonical_name(
 
     excluded = [c for c in result.checks if c.message == "Excluded by config"]
     excluded_names = {c.name for c in excluded}
-    assert "pyproject.urls" in excluded_names
-    assert "pyproject.pyproject_urls" not in excluded_names
+    assert "pyproject.pyproject_urls" in excluded_names
+    assert "pyproject.urls" not in excluded_names
 
-    stamp = next(c for c in excluded if c.name == "pyproject.urls")
+    stamp = next(c for c in excluded if c.name == "pyproject.pyproject_urls")
     assert stamp.passed is True
     assert stamp.category == "pyproject"
 
@@ -383,5 +386,5 @@ def test_scaffolded_project_scores_100(scaffolded_standalone: Path) -> None:
     result = CheckEngine(scaffolded_standalone).run()
 
     failed_names = {c.name for c in result.failures}
-    assert "pyproject.wheel_doc_shipping" not in failed_names, result.failures
+    assert "pyproject.pyproject_wheel_doc_shipping" not in failed_names, result.failures
     assert result.score == 100, sorted(failed_names)
