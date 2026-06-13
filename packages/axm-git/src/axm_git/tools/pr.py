@@ -38,7 +38,7 @@ class GitPRTool(AXMTool):
         title: str,
         body: str | None = None,
         base: str | None = None,
-        auto_merge: bool = True,
+        auto_merge: bool = False,
         path: str = ".",
         **kwargs: object,
     ) -> ToolResult:
@@ -48,7 +48,7 @@ class GitPRTool(AXMTool):
             title: PR title (required).
             body: PR body/description.
             base: Base branch (default: the repo's resolved default branch).
-            auto_merge: Enable auto-merge with squash (default ``True``).
+            auto_merge: Enable auto-merge with squash (default ``False``).
             path: Repository path.
 
         Returns:

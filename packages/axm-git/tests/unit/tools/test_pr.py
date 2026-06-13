@@ -103,6 +103,61 @@ class TestGitPRTool:
         args = merge_call[0][0]
         assert args == ["pr", "merge", "42", "--auto", "--squash"]
 
+    @patch("axm_git.tools.pr.gh_available", return_value=True)
+    @patch("axm_git.tools.pr.run_gh")
+    @patch("axm_git.tools.pr.run_git")
+    def test_execute_no_auto_merge_by_default(
+        self,
+        mock_git: MagicMock,
+        mock_gh: MagicMock,
+        _: MagicMock,
+    ) -> None:
+        """AC1: without auto_merge, no squash merge is invoked and data is False."""
+        mock_git.return_value = _ok()  # rev-parse
+        mock_gh.return_value = _ok(stdout=f"{_PR_URL}\n")
+
+        result = GitPRTool().execute(
+            title="feat: add worktree support",
+            base="main",
+            path="/repo",
+        )
+        assert result.success
+        assert result.data["auto_merge"] is False
+
+        # No `gh pr merge --auto --squash` should have been invoked.
+        for call in mock_gh.call_args_list:
+            args = call[0][0]
+            assert args[:2] != ["pr", "merge"]
+            assert "--auto" not in args
+
+    @patch("axm_git.tools.pr.gh_available", return_value=True)
+    @patch("axm_git.tools.pr.run_gh")
+    @patch("axm_git.tools.pr.run_git")
+    def test_execute_auto_merge_opt_in(
+        self,
+        mock_git: MagicMock,
+        mock_gh: MagicMock,
+        _: MagicMock,
+    ) -> None:
+        """AC2: opt-in auto_merge=True invokes gh pr merge --auto --squash."""
+        mock_git.return_value = _ok()  # rev-parse
+        mock_gh.side_effect = [
+            _ok(stdout=f"{_PR_URL}\n"),  # pr create
+            _ok(),  # pr merge --auto --squash
+        ]
+
+        result = GitPRTool().execute(
+            title="feat: add worktree support",
+            base="main",
+            auto_merge=True,
+            path="/repo",
+        )
+        assert result.success
+        assert result.data["auto_merge"] is True
+
+        merge_call = mock_gh.call_args_list[1]
+        assert merge_call[0][0] == ["pr", "merge", "42", "--auto", "--squash"]
+
     @patch("axm_git.tools.pr.gh_available", return_value=False)
     @patch("axm_git.tools.pr.run_git")
     def test_pr_no_gh(
