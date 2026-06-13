@@ -8,7 +8,12 @@ from pathlib import Path
 from axm.tools.base import AXMTool, ToolResult
 
 from axm_git.core.identity import author_args, resolve_identity
-from axm_git.core.runner import not_a_repo_error, run_git, timeout_error_result
+from axm_git.core.runner import (
+    not_a_repo_error,
+    resolve_default_branch,
+    run_git,
+    timeout_error_result,
+)
 from axm_git.tools.merge_text import render_failure_text, render_text
 
 __all__ = ["GitMergeTool"]
@@ -47,7 +52,7 @@ class GitMergeTool(AXMTool):
         self,
         *,
         branch: str,
-        target_branch: str = "main",
+        target_branch: str | None = None,
         message: str | None = None,
         path: str = ".",
         **kwargs: object,
@@ -56,7 +61,8 @@ class GitMergeTool(AXMTool):
 
         Args:
             branch: The branch to merge in (required).
-            target_branch: The branch to merge into (default ``main``).
+            target_branch: The branch to merge into (default: the repo's
+                resolved default branch).
             message: Commit message for the squash commit. Defaults to
                 ``Merge <branch> (squash)``.
             path: Repository path.
@@ -65,6 +71,7 @@ class GitMergeTool(AXMTool):
             ToolResult with ``merged``, ``into`` and ``message`` on success.
         """
         resolved = Path(path).resolve()
+        target_branch = target_branch or resolve_default_branch(resolved)
         msg = message or f"Merge {branch} (squash)"
         try:
             check = run_git(["rev-parse", "--git-dir"], resolved)

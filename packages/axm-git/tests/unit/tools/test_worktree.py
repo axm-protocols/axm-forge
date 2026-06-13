@@ -171,6 +171,7 @@ class TestGitWorktreeTool:
             action="add",
             path="/repo/wt-feat",
             branch="feat/x",
+            base="main",
         )
         assert not result.success
         assert "already exists" in (result.error or "")

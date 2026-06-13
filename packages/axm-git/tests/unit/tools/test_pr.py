@@ -56,6 +56,7 @@ class TestGitPRTool:
 
         result = GitPRTool().execute(
             title="feat: add worktree support",
+            base="main",
             auto_merge=False,
             path="/repo",
         )
@@ -89,6 +90,7 @@ class TestGitPRTool:
 
         result = GitPRTool().execute(
             title="feat: add worktree support",
+            base="main",
             auto_merge=True,
             path="/repo",
         )
@@ -113,6 +115,7 @@ class TestGitPRTool:
 
         result = GitPRTool().execute(
             title="feat: anything",
+            base="main",
             path="/repo",
         )
         assert not result.success
@@ -127,6 +130,7 @@ class TestGitPRTool:
             mock_err.return_value = MagicMock(success=False, error="not a repo")
             result = GitPRTool().execute(
                 title="feat: anything",
+                base="main",
                 path="/not-a-repo",
             )
             assert not result.success
@@ -148,6 +152,7 @@ class TestGitPRTool:
         GitPRTool().execute(
             title="feat: x",
             body="Detailed description",
+            base="main",
             auto_merge=False,
             path="/repo",
         )
@@ -172,6 +177,7 @@ class TestGitPRTool:
 
         result = GitPRTool().execute(
             title="feat: x",
+            base="main",
             path="/repo",
         )
         assert not result.success
@@ -194,7 +200,7 @@ class TestGitPRTool:
         ]
 
         with patch("axm_git.core.pr_recovery.run_gh", mock_gh):
-            result = GitPRTool().execute(title="feat: x", path="/repo")
+            result = GitPRTool().execute(title="feat: x", base="main", path="/repo")
 
         assert result.success is True
         assert result.data["pr_url"] == "https://github.com/o/r/pull/42"
@@ -217,7 +223,7 @@ class TestGitPRTool:
         mock_git.return_value = _ok()
         mock_gh.return_value = _fail(stderr="HTTP 401: Bad credentials")
 
-        result = GitPRTool().execute(title="feat: x", path="/repo")
+        result = GitPRTool().execute(title="feat: x", base="main", path="/repo")
 
         assert not result.success
         assert "Bad credentials" in (result.error or "")

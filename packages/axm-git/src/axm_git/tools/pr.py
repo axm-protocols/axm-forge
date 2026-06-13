@@ -11,6 +11,7 @@ from axm_git.core.pr_recovery import is_already_exists, recover_existing_pr
 from axm_git.core.runner import (
     gh_available,
     not_a_repo_error,
+    resolve_default_branch,
     run_gh,
     run_git,
     timeout_error_result,
@@ -36,7 +37,7 @@ class GitPRTool(AXMTool):
         *,
         title: str,
         body: str | None = None,
-        base: str = "main",
+        base: str | None = None,
         auto_merge: bool = True,
         path: str = ".",
         **kwargs: object,
@@ -46,7 +47,7 @@ class GitPRTool(AXMTool):
         Args:
             title: PR title (required).
             body: PR body/description.
-            base: Base branch (default ``main``).
+            base: Base branch (default: the repo's resolved default branch).
             auto_merge: Enable auto-merge with squash (default ``True``).
             path: Repository path.
 
@@ -54,6 +55,7 @@ class GitPRTool(AXMTool):
             ToolResult with ``pr_url`` and ``pr_number`` on success.
         """
         resolved = Path(path).resolve()
+        base = base or resolve_default_branch(resolved)
 
         try:
             # 1. Verify this is a git repo.
