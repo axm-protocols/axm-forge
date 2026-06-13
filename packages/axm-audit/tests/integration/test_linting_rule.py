@@ -8,6 +8,7 @@ in-body call to ``run_in_project`` is mocked.
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -251,3 +252,37 @@ class TestDetailsUnchanged:
         """issues[].file still uses absolute paths."""
         for issue in lint_result.details["issues"]:
             assert issue["file"].startswith(str(project_path))
+
+
+@pytest.mark.integration
+def test_lint_expected_exit_with_findings_scores_normally(
+    project_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC4: a real ruff exit (rc=1) with N findings is scored normally."""
+    findings = [
+        {
+            "filename": "src/pkg/a.py",
+            "location": {"row": 1},
+            "code": "E501",
+            "message": "line too long",
+        },
+        {
+            "filename": "src/pkg/b.py",
+            "location": {"row": 2},
+            "code": "F401",
+            "message": "unused import",
+        },
+    ]
+
+    def _ruff_findings(*_a: object, **_kw: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=["ruff"], returncode=1, stdout=json.dumps(findings)
+        )
+
+    monkeypatch.setattr(_PATCH, _ruff_findings)
+
+    result = LintingRule().check(project_path)
+
+    assert result.score == max(0, 100 - len(findings) * 2)
+    assert result.details is not None
+    assert result.details["issue_count"] == len(findings)
