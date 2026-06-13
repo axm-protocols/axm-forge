@@ -68,10 +68,7 @@ class MoveTool(AXMTool):
         check: bool,
     ) -> dict[str, object]:
         data: dict[str, object] = {
-            "moved": [
-                {"symbol": name, "from_lines": [], "to_lines": []}
-                for name in plan.moved_names
-            ],
+            "moved": [{"symbol": name} for name in plan.moved_names],
             "dependencies_copied": {
                 "imports": list(plan.imports_added),
                 "constants": list(plan.constants_added),
@@ -85,7 +82,6 @@ class MoveTool(AXMTool):
                 }
                 for entry in plan.callers_updated
             ],
-            "orphans_removed": [],
             "warnings": list(plan.warnings),
             "shared_helpers_detected": [
                 {
@@ -145,6 +141,7 @@ class MoveTool(AXMTool):
         reexport: bool = False,
         rename: str | None = None,
         check: bool = False,
+        strict: bool = False,
         insert_after: str | None = None,
         include_helpers: bool = True,
         side_effect_decorators: str | None = None,
@@ -179,6 +176,11 @@ class MoveTool(AXMTool):
             (e.g. ``'{"OldName": "NewName"}'``). Parsed to ``dict[str, str]``
             and forwarded to :func:`move_symbols`. Invalid JSON yields a
             ``success=False`` result.
+        strict:
+            When ``True``, a requested symbol absent from the source module
+            raises (surfaced as ``success=False``) instead of being silently
+            skipped with a warning. When ``False`` (default) the current
+            skip-and-warn behaviour is preserved.
         insert_after:
             Optional name of a top-level symbol in the target module; moved
             blocks are spliced immediately after it. When ``None`` blocks
@@ -227,6 +229,7 @@ class MoveTool(AXMTool):
                 reexport=reexport,
                 rename=rename_map,
                 check=check,
+                strict=strict,
                 insert_after=insert_after,
                 include_helpers=include_helpers,
                 side_effect_decorators=extra_decorators,
