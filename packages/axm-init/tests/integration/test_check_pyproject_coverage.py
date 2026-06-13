@@ -1,16 +1,35 @@
 """Split from ``test_pyproject_gold_standard_requirements.py``."""
 
+from collections.abc import Callable
 from pathlib import Path
+
+import pytest
 
 from axm_init.checks.pyproject import check_pyproject_coverage
 
 
 class TestCheckPyprojectCoverage:
-    def test_pass(self, gold_project: Path) -> None:
-        r = check_pyproject_coverage(gold_project)
-        assert r.passed is True
-
-    def test_fail_missing(self, tmp_path: Path) -> None:
-        (tmp_path / "pyproject.toml").write_text('[project]\nname="x"\n')
-        r = check_pyproject_coverage(tmp_path)
-        assert r.passed is False
+    @pytest.mark.parametrize(
+        ("setup", "expected"),
+        [
+            pytest.param(None, True, id="pass-gold"),
+            pytest.param(
+                lambda p: (p / "pyproject.toml").write_text('[project]\nname="x"\n'),
+                False,
+                id="fail-missing",
+            ),
+        ],
+    )
+    def test_passed(
+        self,
+        setup: Callable[[Path], object] | None,
+        expected: bool,
+        gold_project: Path,
+        tmp_path: Path,
+    ) -> None:
+        project = gold_project
+        if setup is not None:
+            setup(tmp_path)
+            project = tmp_path
+        r = check_pyproject_coverage(project)
+        assert r.passed is expected

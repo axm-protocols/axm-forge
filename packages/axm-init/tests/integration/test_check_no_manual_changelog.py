@@ -2,17 +2,36 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+
+import pytest
 
 from axm_init.checks.changelog import check_no_manual_changelog
 
 
 class TestCheckNoManualChangelog:
-    def test_pass(self, gold_project: Path) -> None:
-        r = check_no_manual_changelog(gold_project)
-        assert r.passed is True
-
-    def test_fail_has_changelog(self, tmp_path: Path) -> None:
-        (tmp_path / "CHANGELOG.md").write_text("# Changelog\n")
-        r = check_no_manual_changelog(tmp_path)
-        assert r.passed is False
+    @pytest.mark.parametrize(
+        ("setup", "expected"),
+        [
+            pytest.param(None, True, id="pass-gold"),
+            pytest.param(
+                lambda p: (p / "CHANGELOG.md").write_text("# Changelog\n"),
+                False,
+                id="fail-has-changelog",
+            ),
+        ],
+    )
+    def test_passed(
+        self,
+        setup: Callable[[Path], object] | None,
+        expected: bool,
+        gold_project: Path,
+        tmp_path: Path,
+    ) -> None:
+        project = gold_project
+        if setup is not None:
+            setup(tmp_path)
+            project = tmp_path
+        r = check_no_manual_changelog(project)
+        assert r.passed is expected
