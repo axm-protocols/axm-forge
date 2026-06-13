@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from axm_edit.core.checkpoint import create_checkpoint, rollback
+from axm_edit.core.checkpoint import create_checkpoint, rollback, snapshot_paths
 from axm_edit.models.operations import Edit, ReplaceOp
 
 pytestmark = pytest.mark.integration
@@ -61,3 +61,39 @@ def test_create_checkpoint_in_non_git_dir_still_snapshots(tmp_path: Path) -> Non
     target.write_text("data2")
     assert rollback(tmp_path, snapshot).ok is True
     assert target.read_text() == "data"
+
+
+# ---------------------------------------------------------------------------
+# Merged from tests/unit/test_checkpoint.py (AXM-2031): resolved-path dedup of
+# the snapshot path set. (module-level ``pytestmark`` already marks them.)
+# ---------------------------------------------------------------------------
+
+
+def test_aliased_paths_dedup_to_one_entry(tmp_path: Path) -> None:
+    """AC1: two spellings of the same real file produce exactly one entry."""
+    target = tmp_path / "a.py"
+    target.write_text("x = 1\n")
+    edit = [Edit(old="x = 1", new="x = 2")]
+    ops = [
+        ReplaceOp(file="a.py", edits=edit),
+        ReplaceOp(file="./a.py", edits=edit),
+    ]
+
+    checkpoint = create_checkpoint(tmp_path, ops)
+
+    assert len(snapshot_paths(checkpoint)) == 1
+
+
+def test_single_spelling_unchanged(tmp_path: Path) -> None:
+    """AC2: a single-spelling snapshot still records and restores the file."""
+    target = tmp_path / "a.py"
+    target.write_text("original\n")
+    op = ReplaceOp(file="a.py", edits=[Edit(old="original", new="changed")])
+    checkpoint = create_checkpoint(tmp_path, [op])
+    target.write_text("changed\n")  # simulate the batch having edited the file
+
+    result = rollback(tmp_path, checkpoint)
+
+    assert snapshot_paths(checkpoint) == ["a.py"]
+    assert target.read_text() == "original\n"
+    assert result.ok
