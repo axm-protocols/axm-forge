@@ -77,6 +77,15 @@ class GitMergeTool(AXMTool):
                     text=render_failure_text(error=repo_err.error or ""),
                 )
 
+            status = run_git(["status", "--porcelain"], resolved)
+            if status.stdout.strip():
+                error = "working tree is dirty; commit or stash before merging"
+                return ToolResult(
+                    success=False,
+                    error=error,
+                    text=render_failure_text(error=error),
+                )
+
             identity = resolve_identity(resolved)
             steps = [
                 (["checkout", target_branch], f"checkout {target_branch}"),
@@ -86,6 +95,11 @@ class GitMergeTool(AXMTool):
             for args, label in steps:
                 failure = _run_step(args, resolved, label)
                 if failure is not None:
+                    if label == "merge --squash":
+                        # --squash leaves no MERGE_HEAD, so `merge --abort`
+                        # does not apply; reset --hard clears the conflicted
+                        # index/worktree, leaving the repo clean.
+                        run_git(["reset", "--hard"], resolved)
                     return failure
         except subprocess.TimeoutExpired as exc:
             return timeout_error_result(exc)

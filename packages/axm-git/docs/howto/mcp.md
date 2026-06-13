@@ -20,7 +20,7 @@
 | `git_pull` | Pull `origin main` (override via `remote` / `branch`) into the local repo |
 | `git_worktree` | Add, remove, or list git worktrees |
 | `git_pr` | Create GitHub pull requests with optional auto-merge; idempotent — recovers an existing open PR |
-| `git_merge` | Squash-merge a branch back into its target |
+| `git_merge` | Squash-merge a branch back into its target; refuses to run on a dirty working tree, and rolls back via `git reset --hard` if the squash conflicts so the repo is left clean |
 | `git_await_merge` | Poll a PR (`pr_number` / `pr_url`) until merged or timeout |
 
 ## Usage
