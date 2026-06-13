@@ -62,8 +62,8 @@ packages = ["src/axm_smelt"]
 exempt_paths = ["_types.py", "_version.py", "__main__.py", "**/__init__.py", "cli.py"]
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "9ad9bb2c629d"
-reason = "tests assert on distinct value-type encodings (nested dict, pipe-in-string, boolean/null) with mixed `in` vs `==` assertion shapes — parametrization would erase the divergence"
+hash = "ed880e45fa13"
+reason = "tabular boolean/null and pipe-in-value cases assert distinct value-type encodings with mixed `in` vs `==` assertion shapes — parametrization would erase the divergence"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "66f6b4a3fc35"
@@ -85,9 +85,7 @@ reason = "no_match exercises an empty lookup so the function returns the input u
 hash = "b3014e97a434"
 reason = "refs_collision additionally asserts a DEBUG log record was emitted via caplog (the contract on the `_refs` reserved key), while data_collision only asserts the passthrough — the caplog assertion is a separate concern that parametrization would either lose or force onto both cases artificially"
 
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "19f1551479b4"
-reason = "15-test cluster covers structurally similar one-liners across distinct format branches (json/yaml/xml/markdown/text) and edge cases (empty, whitespace, doctype, malformed brace, html-heavy) — each test pins a separate detector branch and parametrization would erase the per-format intent"
+
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "73dc33eaff83"
@@ -97,21 +95,17 @@ reason = "each test exercises a distinct detector probe (try_json, try_xml, try_
 hash = "761417a37983"
 reason = "XML minify cases assert on distinct invariants (text preservation via `in`, multi-attribute survival via three `in` checks, CDATA literal block preservation, XML declaration preservation alongside `==` body) — distinct expected shapes per branch resist generic parametrization"
 
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "73304e8fb752"
-reason = "caches_encoding_once asserts a single tiktoken call across 100 invocations of one model (single-model cache invariant), while caches_per_model asserts two calls across two distinct models (per-model cache invariant) — different call multiplicities pin distinct cache semantics"
+
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "d33fec7af617"
 reason = "compact_missing_file and check_missing_file exercise distinct CLI subcommands (compact vs check) — each pins the missing-file error path for a separate entrypoint, parametrizing on the callable would obscure which subcommand contract is verified"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "e45c7c20e23d"
+hash = "3d8ebe3efc54"
 reason = "18 tests cover three distinct strategies (drop_nulls, flatten, round_numbers) across three files — each asserts a different SUT contract with strategy-specific expected outputs (key removal vs key flattening vs numeric rounding); cross-file fold would conflate three unrelated SUTs"
 
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "5c554968d784"
-reason = "5 tests across 5 files exercise unrelated SUTs (counter warning dedup with monkeypatch+caplog, dedup_values.collect_strings helper, TabularStrategy wide-table column count, two distinct entry-point group lookups) — different fixtures, different assertions, no shared parametrization shape"
+
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "01be284c6e6e"
@@ -121,9 +115,7 @@ reason = "5 noop/passthrough tests pin distinct trigger conditions on three diff
 hash = "4a40af610285"
 reason = "7 tests across three strategy files (collapse_whitespace, compact_tables, strip_html_comments) cover distinct literal inputs and assertion shapes — pure-table compaction vs whitespace collapsing vs HTML-comment stripping have non-overlapping expected outputs that resist generic parametrization"
 
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "2710a8c31905"
-reason = "4 single-call+assert tests cover four distinct module surfaces (axm_smelt.__version__ import + three tool agent_hint attributes on SmeltCheckTool/SmeltCountTool/SmeltTool) — folding across files would relocate tool-local contract checks away from their SUT"
+
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "2cf3715bb547"
@@ -133,9 +125,7 @@ reason = "YAML/XML savings_pct functional tests (test_minify) and the get_strate
 hash = "6c64caffb020"
 reason = "CompactTables fenced-code passthrough preserves padding inside code blocks, while StripHtmlComments preserve_code_block_comments and strip_real_markdown assert distinct comment-survival/removal invariants on different strategy SUTs — cross-file fold across two strategies is forbidden"
 
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "0bdd8451a99f"
-reason = "name_and_category tests in compact_tables and strip_html_comments pin per-strategy contract literals (compact_tables/whitespace vs strip_html_comments/cosmetic) — folding across files would relocate each strategy's contract check away from its SUT module"
+
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "8a54c822aea8"
