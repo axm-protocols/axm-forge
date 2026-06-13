@@ -69,6 +69,13 @@ def move(  # noqa: PLR0913
             help="Simulate the move (incl. cycle detection) without writing.",
         ),
     ] = False,
+    strict: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name=["--strict"],
+            help="Fail on an absent symbol instead of skipping it with a warning.",
+        ),
+    ] = False,
     insert_after: Annotated[
         str | None,
         cyclopts.Parameter(
@@ -104,6 +111,7 @@ def move(  # noqa: PLR0913
         reexport=reexport,
         rename=rename,
         check=check,
+        strict=strict,
         insert_after=insert_after,
         include_helpers=include_helpers,
         side_effect_decorators=side_effect_decorators,

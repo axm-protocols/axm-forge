@@ -8,7 +8,7 @@ Move top-level symbols (classes, functions, constants) between Python
 files atomically. Wraps the [`MoveTool`](#movetool) MCP tool.
 
 ```bash
-axm-anvil move <from_file> <to_file> <symbols> [--dry-run] [--check] [--path <root>] [--shared-helpers <strategy>] [--reexport] [--rename '<json>'] [--insert-after <symbol>] [--no-include-helpers] [--side-effect-decorators '<csv>']
+axm-anvil move <from_file> <to_file> <symbols> [--dry-run] [--check] [--strict] [--path <root>] [--shared-helpers <strategy>] [--reexport] [--rename '<json>'] [--insert-after <symbol>] [--no-include-helpers] [--side-effect-decorators '<csv>']
 ```
 
 | Argument | Description |
@@ -18,6 +18,7 @@ axm-anvil move <from_file> <to_file> <symbols> [--dry-run] [--check] [--path <ro
 | `symbols` | Comma-separated symbol names to move |
 | `--dry-run` | Preview the move without writing files |
 | `--check` | Simulate the move, including import-cycle detection, without writing. Fails with `ImportCycleError` if the move would introduce a new cycle |
+| `--strict` | Fail (non-zero exit) on a requested symbol that is absent from the source module instead of skipping it with a warning. Default (`--no-strict`) preserves the skip-and-warn behaviour |
 | `--path` | Workspace root (default: `.`) |
 | `--shared-helpers` | Strategy when a helper is used by both moved and remaining symbols: `duplicate` (default, copies the helper and emits a warning) or `error` (abort with `SharedHelpersError`) |
 | `--reexport` | Leave callers untouched; inject `from new_module import <Symbol>  # re-export for backwards compat` into the source module for gradual migration |
@@ -101,8 +102,10 @@ class, or a name that simply does not exist) is **skipped** by default:
 [`move_symbols`](#move_symbols) drops it from the move and records a
 `skipped '<name>': not a top-level symbol in source` entry on
 `MovePlan.warnings`. The CLI and the `ast_move` MCP tool surface that
-warning and still exit successfully. Pass `strict=True` to restore the
-legacy behaviour of raising `SymbolNotFoundError` on the first absent
-name. Names that *are* present continue to move exactly as before.
+warning and still exit successfully. Pass `strict=True`
+([`move_symbols`](#move_symbols) / `MoveTool.execute`) or `--strict` on the
+CLI to restore the legacy behaviour of raising `SymbolNotFoundError` on the
+first absent name (surfaced as a `ToolResult` error / non-zero CLI exit).
+Names that *are* present continue to move exactly as before.
 
 Auto-generated API reference is available under [Python API](api/).

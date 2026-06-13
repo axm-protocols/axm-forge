@@ -172,6 +172,52 @@ def test_execute_wraps_generic_exception(mocker):
     assert result.error == "boom"
 
 
+def test_execute_accepts_and_forwards_strict(mocker):
+    """AC1: ``MoveTool.execute`` accepts ``strict`` and forwards it to
+    ``move_symbols``."""
+    mock = mocker.patch(
+        "axm_anvil.tools.move.move_symbols",
+        return_value=_plan(moved=("Foo",)),
+    )
+
+    tool = MoveTool()
+    tool.execute(
+        path=".",
+        symbols="Foo",
+        from_file="source.py",
+        to_file="target.py",
+        strict=True,
+    )
+
+    _, kwargs = mock.call_args
+    assert kwargs["strict"] is True
+
+
+def test_result_fields_populated_or_absent(mocker):
+    """AC4: ``from_lines``/``to_lines``/``orphans_removed`` are not advertised
+    as always-empty fields. ``MovePlan`` exposes no line ranges nor
+    orphans-removed data, so the honest contract drops those keys rather than
+    fabricating empty lists."""
+    mocker.patch(
+        "axm_anvil.tools.move.move_symbols",
+        return_value=_plan(moved=("Foo", "Bar")),
+    )
+
+    tool = MoveTool()
+    result = tool.execute(
+        path=".",
+        symbols="Foo,Bar",
+        from_file="source.py",
+        to_file="target.py",
+    )
+
+    assert result.data is not None
+    assert "orphans_removed" not in result.data
+    for entry in result.data["moved"]:
+        assert "from_lines" not in entry
+        assert "to_lines" not in entry
+
+
 def test_extract_mode_returns_clean_toolresult_error():
     """AC3: shared_helpers="extract" via the AXMTool returns a clean
     ToolResult(success=False) with an explicit Phase-3 message, with no raw

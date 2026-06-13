@@ -36,6 +36,7 @@ Useful options (full list in the [CLI Reference](../reference/cli.md)):
 
 - `dry_run=True` — preview the plan without writing files
 - `check=True` — simulate the move with import-cycle detection (fails on a new cycle)
+- `strict=True` — fail on an absent symbol instead of skipping it with a warning
 - `rename='{"OldName": "NewName"}'` — rename moved definitions and rewrite all references
 - `reexport=True` — leave callers untouched and inject a backwards-compat re-export
 - `insert_after="<symbol>"` — splice moved blocks after a named target symbol

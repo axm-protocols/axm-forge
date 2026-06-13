@@ -103,6 +103,25 @@ def test_cli_symbol_not_found(fixture_dir: Path) -> None:
     assert "Nope" in combined
 
 
+def test_strict_flag_fails_on_absent_symbol(fixture_dir: Path) -> None:
+    """AC2, AC3: ``--strict`` makes an absent symbol a hard CLI failure
+    (non-zero exit, stderr names the missing symbol) instead of a skip."""
+    src = fixture_dir / "source.py"
+    tgt = fixture_dir / "target.py"
+
+    result = _run_cli(
+        fixture_dir,
+        "move",
+        str(src),
+        str(tgt),
+        "Nope",
+        "--strict",
+    )
+
+    assert result.returncode != 0
+    assert "Nope" in result.stderr
+
+
 def test_cli_help_lists_move(fixture_dir: Path) -> None:
     result = _run_cli(fixture_dir, "--help")
 
