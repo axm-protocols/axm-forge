@@ -7,7 +7,40 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from axm_git.core import runner
-from axm_git.core.runner import find_git_root, gh_available, run_gh, run_git
+from axm_git.core.runner import (
+    find_git_root,
+    gh_available,
+    resolve_default_branch,
+    run_gh,
+    run_git,
+)
+
+
+class TestResolveDefaultBranch:
+    """Unit tests for resolve_default_branch (run_git mocked)."""
+
+    @patch("axm_git.core.runner.run_git")
+    def test_resolve_default_branch_falls_back_to_main(
+        self, mock_run_git: MagicMock
+    ) -> None:
+        """AC1: a non-zero symbolic-ref falls back to \"main\"."""
+        mock_run_git.return_value = subprocess.CompletedProcess(
+            args=["git"], returncode=1, stdout="", stderr="fatal: no origin/HEAD"
+        )
+        assert resolve_default_branch(Path("/repo")) == "main"
+
+    @patch("axm_git.core.runner.run_git")
+    def test_resolve_default_branch_parses_origin_head(
+        self, mock_run_git: MagicMock
+    ) -> None:
+        """AC4: origin/HEAD -> master is parsed to \"master\"."""
+        mock_run_git.return_value = subprocess.CompletedProcess(
+            args=["git"],
+            returncode=0,
+            stdout="refs/remotes/origin/master\n",
+            stderr="",
+        )
+        assert resolve_default_branch(Path("/repo")) == "master"
 
 
 class TestRunnerPublicSurface:

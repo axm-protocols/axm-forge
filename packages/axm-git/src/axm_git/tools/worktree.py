@@ -10,6 +10,7 @@ from axm.tools.base import AXMTool, ToolResult
 from axm_git.core.runner import (
     find_git_root,
     not_a_repo_error,
+    resolve_default_branch,
     run_git,
     timeout_error_result,
 )
@@ -106,7 +107,7 @@ class GitWorktreeTool(AXMTool):
         action: str,
         path: str = ".",
         branch: str | None = None,
-        base: str = "main",
+        base: str | None = None,
         force: bool = False,
         **kwargs: object,
     ) -> ToolResult:
@@ -117,7 +118,8 @@ class GitWorktreeTool(AXMTool):
             path: For ``add``/``remove``: worktree path.
                   For ``list``: repository path.
             branch: Branch name for ``add`` action.
-            base: Base ref for ``add`` (default ``main``).
+            base: Base ref for ``add`` (default: the repo's resolved
+                  default branch).
             force: Force removal for ``remove`` action.
 
         Returns:
@@ -132,7 +134,7 @@ class GitWorktreeTool(AXMTool):
                 return self._add(
                     resolved,
                     branch=branch,
-                    base=base,
+                    base=base or resolve_default_branch(resolved),
                 )
             case "remove":
                 return self._remove(resolved, force=force)

@@ -53,7 +53,9 @@ class TestGitMergeTool:
             _ok(stdout="Squash commit -- not updating HEAD"),  # merge --squash
             _ok(stdout="[main abc123] Merge feat/x (squash)"),  # commit
         ]
-        result = GitMergeTool().execute(branch="feat/x", path="/repo")
+        result = GitMergeTool().execute(
+            branch="feat/x", target_branch="main", path="/repo"
+        )
         assert result.success
         assert result.data["merged"] == "feat/x"
         assert result.data["into"] == "main"
@@ -73,7 +75,7 @@ class TestGitMergeTool:
             _ok(),  # merge --squash
             _ok(),  # commit
         ]
-        GitMergeTool().execute(branch="feat/x", path="/repo")
+        GitMergeTool().execute(branch="feat/x", target_branch="main", path="/repo")
 
         merge_call = mock_git.call_args_list[3]
         assert merge_call[0][0] == ["merge", "--squash", "feat/x"]
@@ -110,7 +112,9 @@ class TestGitMergeTool:
         identity.email = "alice@example.com"
         mock_identity.return_value = identity
         mock_git.side_effect = [_ok(), _ok(), _ok(), _ok(), _ok()]
-        result = GitMergeTool().execute(branch="feat/x", path="/repo")
+        result = GitMergeTool().execute(
+            branch="feat/x", target_branch="main", path="/repo"
+        )
         assert result.success
 
         commit_call = mock_git.call_args_list[4][0][0]
@@ -129,7 +133,9 @@ class TestGitMergeTool:
             _ok(),  # status --porcelain (clean)
             _fail(stderr="error: pathspec 'main' did not match"),  # checkout
         ]
-        result = GitMergeTool().execute(branch="feat/x", path="/repo")
+        result = GitMergeTool().execute(
+            branch="feat/x", target_branch="main", path="/repo"
+        )
         assert not result.success
         assert "checkout main failed" in (result.error or "")
         # AC4: a checkout failure leaves nothing to reset (no reset --hard call)
@@ -150,7 +156,9 @@ class TestGitMergeTool:
             _fail(stderr="CONFLICT (content): Merge conflict"),  # merge --squash
             _ok(),  # reset --hard (rollback)
         ]
-        result = GitMergeTool().execute(branch="feat/x", path="/repo")
+        result = GitMergeTool().execute(
+            branch="feat/x", target_branch="main", path="/repo"
+        )
         assert not result.success
         assert "merge --squash failed" in (result.error or "")
         # AC2: the conflicted state is cleared via reset --hard before returning
@@ -169,7 +177,9 @@ class TestGitMergeTool:
             _ok(),  # merge --squash
             _fail(stdout="nothing to commit, working tree clean"),  # commit
         ]
-        result = GitMergeTool().execute(branch="feat/x", path="/repo")
+        result = GitMergeTool().execute(
+            branch="feat/x", target_branch="main", path="/repo"
+        )
         assert not result.success
         assert "commit failed" in (result.error or "")
 
@@ -184,7 +194,9 @@ class TestGitMergeTool:
             _ok(),  # rev-parse --git-dir
             _ok(stdout=" M file.py"),  # status --porcelain (dirty)
         ]
-        result = GitMergeTool().execute(branch="feat/x", path="/repo")
+        result = GitMergeTool().execute(
+            branch="feat/x", target_branch="main", path="/repo"
+        )
         assert not result.success
         assert "dirty" in (result.error or "").lower()
         # AC1: no checkout (nor any later step) is issued on a dirty tree
@@ -204,6 +216,8 @@ class TestGitMergeTool:
             mock_err.return_value = MagicMock(
                 success=False, error="not a repo", data=None
             )
-            result = GitMergeTool().execute(branch="feat/x", path="/not-a-repo")
+            result = GitMergeTool().execute(
+                branch="feat/x", target_branch="main", path="/not-a-repo"
+            )
             assert not result.success
             mock_err.assert_called_once()

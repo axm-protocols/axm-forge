@@ -147,6 +147,7 @@ Add, remove, or list git worktrees.
 | `action` | *required* | `add`, `remove`, or `list` |
 | `worktree_path` | `None` | Path for the new or existing worktree |
 | `branch` | `None` | Branch name for `add` |
+| `base` | `None` | Base ref for `add` (defaults to repo default) |
 
 ### `git_pr`
 

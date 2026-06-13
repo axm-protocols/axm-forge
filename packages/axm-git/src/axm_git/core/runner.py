@@ -19,6 +19,7 @@ __all__ = [
     "gh_available",
     "not_a_repo_error",
     "parse_porcelain_z",
+    "resolve_default_branch",
     "run_gh",
     "run_git",
     "stage_spec_files",
@@ -199,6 +200,32 @@ def timeout_error_result(exc: subprocess.TimeoutExpired) -> ToolResult:
         success=False,
         error=f"{cmd_str} timed out after {exc.timeout}s",
     )
+
+
+_ORIGIN_HEAD_PREFIX = "refs/remotes/origin/"
+
+
+def resolve_default_branch(working_dir: Path) -> str:
+    """Resolve the repository's default branch.
+
+    Reads ``git symbolic-ref refs/remotes/origin/HEAD`` (e.g.
+    ``refs/remotes/origin/master``) and strips the
+    ``refs/remotes/origin/`` prefix. Falls back to ``"main"`` when the
+    command fails or returns an empty/unexpected value (for instance a
+    repo with no ``origin/HEAD`` ref).
+
+    Args:
+        working_dir: A directory inside the git repository.
+
+    Returns:
+        The default branch name, or ``"main"`` as a fallback.
+    """
+    result = run_git(["symbolic-ref", "refs/remotes/origin/HEAD"], working_dir)
+    ref = result.stdout.strip()
+    if result.returncode != 0 or not ref.startswith(_ORIGIN_HEAD_PREFIX):
+        return "main"
+    branch = ref.removeprefix(_ORIGIN_HEAD_PREFIX)
+    return branch or "main"
 
 
 def find_git_root(path: Path) -> Path | None:
