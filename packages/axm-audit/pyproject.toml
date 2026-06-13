@@ -558,6 +558,22 @@ reason = "Cluster of 4 run_bandit tests guarding disjoint return/log paths by ba
 hash = "658aac0d27ad"
 reason = "Two DuplicateTestsRule non-clustering hardening tests guarding distinct SUT-disambiguation paths: distinct_self_attr_sut_not_clustered (parametrized over setUp / setup_method / pytest.fixture) verifies that two tests reading different self.parser_a/self.parser_b attributes set up in a class fixture are NOT clustered, while different_sut_sharing_result_assert_not_fused verifies that two same-named cross-file tests exercising different first-party symbols (AlphaRule vs BetaRule) sharing generic `result.passed`/`result.details` are NOT fused. Different fixture topology (intra-class self-attr divergence vs cross-file distinct symbol) and different clustering branch; the already-parametrized variant cannot absorb the bespoke cross-file case without erasing the second hardening path. ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ba47c7510834"
+reason = "Inter-file cluster of 15 tests across 7 distinct rule SUTs (BareExceptRule, BlockingIORule, CouplingMetricRule, DocstringCoverageRule, GodClassRule, MirrorRule, SecurityPatternRule). They share only the `assert result.passed is True` literal shape but each targets a different rule's pass contract with its own fixture/source layout; the same-file subsets (coupling x5, mirror x3, godclass x2, blocking_io x2) probe disjoint scenarios (per-module-override vs reads-pyproject vs low-coupling vs warnings-only vs error) with different setups and assertion fields, so they are not homogeneous parametrize candidates. Cross-rule folding would couple unrelated rule modules. Distinct-SUT — ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "85ded6d3fbfb"
+reason = "Inter-file cluster of 15 tests across 9 files / 8+ rule SUTs (BlockingIORule, CouplingMetricRule, DuplicationRule, LintingRule, MirrorRule, PyprojectCompletenessRule, SecurityPatternRule, TypeCheckRule, quality_rules unit). They share only the `assert result.text is None` clean/passed shape but each targets a different rule's no-text contract with its own fixture (monkeypatched run_in_project vs real src layout vs distinct-bodies vs missing-src). The same-file subsets probe disjoint branches (duplication: all-unique vs 2-distinct vs no-src-dir; linting: monkeypatched-clean vs no-crash-with-passed-assert), not homogeneous parametrize candidates. Cross-rule folding would couple unrelated rule modules. Distinct-SUT — ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9c8e457234da"
+reason = "Inter-file cluster of 8 audit_project/auditor tests with the ambiguous_raises_divergence false-positive signal (asymmetric pytest.raises across members). They guard disjoint contracts: three edge-case-survival tests (broken-lint, no-tests-dir, syntax-error) each assert isinstance(quality_score, float) on a different fixture; returns_audit_result asserts the AuditResult shape; runs_all_categories asserts category coverage; safe_check_isolation monkeypatches SecurityRule.check to raise and asserts the failure is recorded not propagated; crashing_rule_penalizes_score asserts crashed_rules + score penalty; nonexistent_path_raises_error (unit) asserts pytest.raises(FileNotFoundError). Different fixtures, assertion targets and branches; no shared helper signature across the 5 files. Distinct-branch — ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "96bfe2bbbc39"
+reason = "Inter-file cluster of 7 path/text-rendering tests across 6 files / 6 distinct rule SUTs (CircularImportRule FQN-prefix strip + arrow, DuplicationRule clone-pair func-name, LintingRule out-of-project path fallback, MirrorRule private-module-listing + no-truncation, TypeCheckRule src/ strip, DeadCodeRule src/ strip). They share only the 'rendered text contains/strips a path fragment' shape but each targets a different rule's text schema with its own fixture (real src I/O vs monkeypatched ruff JSON vs mocked mypy JSON vs mocked axm-ast subprocess JSON); the two MirrorRule members guard disjoint rendering branches (private-module listing vs single-missing no-truncation). Cross-rule folding would couple unrelated rule modules and erase per-rule text contracts. Distinct-SUT — ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
