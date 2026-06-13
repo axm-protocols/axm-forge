@@ -151,7 +151,7 @@ ambiguous clusters are surfaced but do not dock points.
 | Signal | What it catches | AXM example |
 | -- | -- | -- |
 | **S1** — call + assert fingerprint | Same SUT call signature (`mod.func(2)`) and same normalized assert pattern across the tree. | `axm-ticket/tests/unit/test_parse_symbols.py::test_parses_single_symbol` vs `..._parses_two_symbols` — both reduced to `parse(STR) == LIST`; S1 clustered, P1 rescued them on distinct literals. |
-| **S2** — cross-file same-name + high similarity | Tests with identical names across files whose statement-set Jaccard ≥ `0.95`. | Two `test_handles_empty_input` — one in `test_parser.py`, one in `test_lexer.py` — with identical bodies; S2 flagged a real copy-paste. |
+| **S2** — cross-file same-name + high similarity + **shared SUT** | Tests with identical names across files whose statement-set Jaccard ≥ `0.95` **and which share at least one first-party SUT symbol**. The shared-SUT gate is required because the statement-set normalizes away symbol identity: two same-named tests of *different* rules/parsers that merely share an `assert result.passed` / `result.details` skeleton are **not** fused. | Two `test_handles_empty_input` — one in `test_parser.py`, one in `test_lexer.py` — with identical bodies *both calling `parse(...)`*; S2 flagged a real copy-paste. |
 | **S3** — intra-file Jaccard ≥ threshold | Statement-set similarity ≥ `ast_similarity_threshold` (default `0.8`) within the same file. | `axm-mail/tests/test_format.py::test_format_plain` vs `test_format_html` — 0.92 Jaccard; S3 clustered, P2 rescued on different `@patch` targets. |
 
 ### Anti-signals (rescues)
@@ -164,6 +164,43 @@ ambiguous clusters are surfaced but do not dock points.
 | **P4** — body size | Intra-file pair whose largest body has ≤ 8 child nodes → `ambiguous_body_size`. | Trivially small smoke tests that look alike by accident. |
 | **P8** — distinct parent class | Clustered tests live in ≥ 2 distinct enclosing test classes → `ambiguous_distinct_class`. | Per-scenario `TestX` / `TestY` classes sharing a method shape. |
 | **P9** — pytest.raises divergence | Some clustered tests wrap their SUT call in `with pytest.raises(...)` while others do not → `ambiguous_raises_divergence`. | Happy-path vs error-path pairs over the same call signature. |
+
+### Collection scope
+
+The rule walks `tests/**/test_*.py` but **excludes `tests/fixtures/**` by
+default** — fixture corpora (e.g. `tests/fixtures/fix_corpus/{input,expected}/`
+snapshots fed to the fix-pipeline tests) are static data, near-identical by
+construction, and are *not* the suite's own tests. They are skipped before
+clustering, so they never produce false positives.
+
+### Exemptions
+
+Two complementary mechanisms suppress a known cluster:
+
+| Mechanism | Survives refactors? | Use for |
+| -- | -- | -- |
+| `exempt_paths` globs | ✅ (path-based) | Whole test files / subtrees that should never be clustered. |
+| `acknowledged` by-hash | ❌ (hash drifts on membership change) | A single validated residual cluster you want to keep flagged-but-accepted. |
+
+`exempt_paths` uses the same glob semantics as `MirrorRule.exempt_paths`
+(segment-wise `fnmatch`, a literal `**` segment spans path segments). Matched
+files are dropped from collection — surviving renames within the glob:
+
+```toml
+[tool.axm-audit.duplicate_tests]
+# Drop generated / contract test trees from dedup entirely.
+exempt_paths = ["tests/integration/contracts/*.py", "tests/generated/**"]
+
+# Accept one genuine same-SUT intra-file residual by its cluster hash.
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "a1b2c3d4e5f6"
+reason = "validated: distinct branches, parametrize would hurt"
+```
+
+A `hash` whose cluster no longer exists is reported under
+`metadata["stale_acknowledged"]` and rendered as a `⚠ stale acknowledged
+cluster` line — it never affects the score, so prefer `exempt_paths` for
+anything structural.
 
 ## Tautology Triage v4
 

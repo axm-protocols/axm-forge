@@ -13,6 +13,7 @@ from axm_audit.core.rules.base import get_registry
 from axm_audit.core.rules.test_quality.duplicate_tests import (
     _MAX_TEXT_CLUSTERS,
     DuplicateTestsRule,
+    _load_duplicate_tests_config,
     collect_assert_call_sigs,
     make_test_func,
     merge_clusters,
@@ -48,6 +49,21 @@ def test_rule_registered() -> None:
     registry = get_registry()
     bucket = registry.get("test_quality", [])
     assert DuplicateTestsRule in bucket
+
+
+def test_config_loads_exempt_paths_globs(tmp_path: Path) -> None:
+    """AC3: exempt_paths globs under [tool.axm-audit.duplicate_tests] parse."""
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.axm-audit.duplicate_tests]\n"
+        'exempt_paths = ["tests/fixtures/**", "tests/integration/contracts/*.py"]\n',
+        encoding="utf-8",
+    )
+    config = _load_duplicate_tests_config(tmp_path)
+    assert config.error is None
+    assert config.exempt_paths == [
+        "tests/fixtures/**",
+        "tests/integration/contracts/*.py",
+    ]
 
 
 @pytest.mark.parametrize(

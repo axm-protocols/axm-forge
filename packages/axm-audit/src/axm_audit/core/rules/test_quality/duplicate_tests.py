@@ -21,6 +21,10 @@ from typing import TypedDict
 from pydantic import Field
 
 from axm_audit.core.rules.base import ProjectRule, register_rule
+from axm_audit.core.rules.practices.mirror import (
+    _coerce_str_list,
+    _glob_segments_match,
+)
 from axm_audit.models.results import CheckResult, Severity
 
 __all__ = [
@@ -65,10 +69,14 @@ class _DuplicateTestsConfig:
     """Acknowledgement config loaded from ``pyproject.toml``.
 
     Each entry in ``acknowledged`` is a dict ``{"hash": str, "reason": str}``.
+    ``exempt_paths`` is a list of globs (``MirrorRule`` semantics) whose
+    matched test files are dropped before clustering — surviving refactors,
+    unlike the by-hash ``acknowledged`` entries.
     ``error`` is populated on malformed TOML or wrong schema; never raises.
     """
 
     acknowledged: list[dict[str, str]]
+    exempt_paths: list[str] = field(default_factory=list)
     error: str | None = None
 
 
@@ -133,24 +141,40 @@ def _load_duplicate_tests_config(project_path: Path) -> _DuplicateTestsConfig:
             error=f"malformed pyproject.toml: {exc}",
         )
     section = _extract_acknowledged_section(data)
-    if not isinstance(section, dict) or "acknowledged" not in section:
+    if not isinstance(section, dict):
         return _DuplicateTestsConfig(acknowledged=[])
+    exempt = _coerce_str_list(section.get("exempt_paths"), "exempt_paths")
+    if exempt.error is not None:
+        return _DuplicateTestsConfig(acknowledged=[], error=exempt.error)
+    parsed, error = _parse_acknowledged(section)
+    return _DuplicateTestsConfig(
+        acknowledged=parsed, exempt_paths=exempt.values, error=error
+    )
+
+
+def _parse_acknowledged(
+    section: dict[str, object],
+) -> tuple[list[dict[str, str]], str | None]:
+    """Validate the ``acknowledged`` list; return ``(entries, error)``.
+
+    Any schema error returns ``([], message)`` so the caller can surface it
+    while preserving the parsed ``exempt_paths``; never raises.
+    """
+    if "acknowledged" not in section:
+        return [], None
     raw = section["acknowledged"]
     if not isinstance(raw, list):
-        return _DuplicateTestsConfig(
-            acknowledged=[],
-            error=(
-                "[tool.axm-audit.duplicate_tests] acknowledged must be a list "
-                "of tables (schema error)"
-            ),
+        return [], (
+            "[tool.axm-audit.duplicate_tests] acknowledged must be a list "
+            "of tables (schema error)"
         )
     parsed: list[dict[str, str]] = []
     for entry in raw:
         error = _validate_acknowledged_entry(entry)
         if error is not None:
-            return _DuplicateTestsConfig(acknowledged=[], error=error)
+            return [], error
         parsed.append({"hash": entry["hash"], "reason": entry["reason"]})
-    return _DuplicateTestsConfig(acknowledged=parsed)
+    return parsed, None
 
 
 _RescuePredicate = Callable[[list["_TestFunc"]], bool]
@@ -169,6 +193,18 @@ _SCORE_PENALTY = 5
 _MIN_PAIR = 2
 _MAX_TEXT_CLUSTERS = 10
 _MAX_MEMBERS_INLINE = 5
+
+# Default subtree excluded from dedup collection (corpus data, near-identical
+# by construction, not real tests). Matches the dead-code exclusion in config.
+_DEFAULT_EXEMPT_GLOBS = ("tests/fixtures/**",)
+
+# Generic result accessors / locals that carry no SUT identity. A call whose
+# leftmost base is one of these must not contribute to ``call_sig`` nor to the
+# shared-SUT predicate — otherwise tests of different SUTs that share
+# ``assert result.passed`` / ``result.details`` get falsely fused.
+_GENERIC_CALL_BASES = frozenset(
+    {"result", "res", "results", "out", "output", "ret", "r", "self"}
+)
 
 
 def _render_cluster_members(members: list[_TestEntry]) -> str:
@@ -290,6 +326,13 @@ _P6_EXCLUDED_NAMES: frozenset[str] = frozenset(
     }
 )
 
+# Call targets that never identify a SUT (builtins, test infra, ubiquitous
+# library helpers). Reuses ``_P6_EXCLUDED_NAMES`` so the SUT predicate and
+# ``call_sig`` gate share one source of truth, plus a few module aliases.
+_GENERIC_CALL_NAMES = _P6_EXCLUDED_NAMES | frozenset(
+    {"pytest", "mocker", "monkeypatch", "dedent", "textwrap"}
+)
+
 
 class DuplicateTestsCheckResult(CheckResult):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
     """:class:`CheckResult` with cluster metadata.
@@ -327,6 +370,7 @@ class _TestFunc:
     assert_pattern: str = ""
     stmt_set: frozenset[str] = field(default_factory=frozenset)
     setup_set: frozenset[str] = field(default_factory=frozenset)
+    sut_symbols: frozenset[str] = field(default_factory=frozenset)
     class_name: str | None = None
     has_raises_block: bool = False
 
@@ -460,18 +504,67 @@ def _call_kwargs_fingerprint(call: ast.Call) -> str:
 
 
 def _call_sig(call: ast.Call) -> str | None:
+    """Stable signature for a call, or ``None`` for generic/builtin targets.
+
+    Generic accessors (``result.passed``, ``len(...)``, …) carry no SUT
+    identity, so they must not drive the S1 merge key: two tests of
+    different SUTs that merely share ``assert result.passed`` would
+    otherwise be fused.
+    """
     kw = _call_kwargs_fingerprint(call)
     match call.func:
         case ast.Name(id=name):
-            return f"{name}({len(call.args)}{kw})"
+            sig = f"{name}({len(call.args)}{kw})"
+            return None if name in _GENERIC_CALL_NAMES else sig
         case ast.Attribute(attr=attr, value=ast.Name(id=obj)):
-            return f"{obj}.{attr}({len(call.args)}{kw})"
+            sig = f"{obj}.{attr}({len(call.args)}{kw})"
+            return None if obj in _GENERIC_CALL_BASES else sig
         case ast.Attribute(
             attr=attr,
             value=ast.Attribute(attr=mid, value=ast.Name(id=base)),
         ):
-            return f"{base}.{mid}.{attr}({len(call.args)}{kw})"
+            sig = f"{base}.{mid}.{attr}({len(call.args)}{kw})"
+            return None if base in _GENERIC_CALL_BASES else sig
     return None
+
+
+def _call_root_name(func: ast.expr) -> str | None:
+    """Return the leftmost identifier of a call's func chain, else ``None``.
+
+    ``parse(...)`` → ``parse``; ``AlphaRule().check(...)`` → ``AlphaRule``;
+    ``self.parser.run()`` → ``self``; subscripts/other shapes → ``None``.
+    """
+    node: ast.expr = func
+    while True:
+        match node:
+            case ast.Name(id=name):
+                return name
+            case ast.Attribute(value=inner):
+                node = inner
+            case ast.Call(func=inner):
+                node = inner
+            case _:
+                return None
+
+
+def _sut_symbols(node: ast.FunctionDef) -> frozenset[str]:
+    """First-party symbols a test exercises (the SUTs it calls).
+
+    Collects the leftmost identifier of every call chain, dropping generic
+    result accessors, builtins, and test-infrastructure names. Used to gate
+    cross-file clustering on a shared SUT rather than on assertion shape.
+    """
+    syms: set[str] = set()
+    for child in ast.walk(node):
+        if not isinstance(child, ast.Call):
+            continue
+        root = _call_root_name(child.func)
+        if root is None:
+            continue
+        if root in _GENERIC_CALL_BASES or root in _GENERIC_CALL_NAMES:
+            continue
+        syms.add(root)
+    return frozenset(syms)
 
 
 def _is_pytest_raises_call(expr: ast.expr) -> bool:
@@ -1068,8 +1161,17 @@ def _try_emit_s2_pair(
     b: _TestFunc,
     seen_pairs: set[tuple[str, str]],
 ) -> _Cluster | None:
-    """Return cluster dict if ``a``/``b`` form a valid S2 pair, else ``None``."""
+    """Return cluster dict if ``a``/``b`` form a valid S2 pair, else ``None``.
+
+    A cross-file pair requires a **shared first-party SUT** in addition to
+    same-name + high Jaccard: two same-named tests exercising different SUTs
+    (different rules, parsers, …) that merely share an assertion skeleton
+    must not be fused. ``_statement_set`` normalizes away symbol identity, so
+    the SUT gate is the only signal that distinguishes them.
+    """
     if a.file == b.file:
+        return None
+    if not (a.sut_symbols & b.sut_symbols):
         return None
     pk = _pair_key(a, b)
     if pk in seen_pairs:
@@ -1454,6 +1556,7 @@ def make_test_func(
     tf.assert_pattern = _compute_assert_pattern(node)
     tf.stmt_set = _statement_set(node)
     tf.setup_set = _compute_setup_set(node, tainted)
+    tf.sut_symbols = _sut_symbols(node)
     tf.has_raises_block = _has_pytest_raises_block(node)
     return tf
 
@@ -1479,16 +1582,35 @@ def _iter_test_functions(
             yield node, None
 
 
-def _collect_tests(project_path: Path) -> list[_TestFunc]:
+def _is_collection_exempt(rel_posix: str, exempt_paths: list[str]) -> bool:
+    """True if *rel_posix* matches a default or configured exempt glob.
+
+    ``tests/fixtures/**`` is excluded by default (corpus data, near-identical
+    by construction); additional globs come from
+    ``[tool.axm-audit.duplicate_tests].exempt_paths`` with ``MirrorRule``
+    matching semantics (segment-wise, ``**`` spans path segments).
+    """
+    parts = rel_posix.split("/")
+    patterns = (*_DEFAULT_EXEMPT_GLOBS, *exempt_paths)
+    return any(_glob_segments_match(pattern.split("/"), parts) for pattern in patterns)
+
+
+def _collect_tests(
+    project_path: Path, exempt_paths: list[str] | None = None
+) -> list[_TestFunc]:
     tests_dir = project_path / "tests"
     if not tests_dir.exists():
         return []
+    exempt = exempt_paths or []
     out: list[_TestFunc] = []
     for test_file in sorted(tests_dir.rglob("test_*.py")):
+        rel_path = test_file.relative_to(project_path)
+        rel = str(rel_path)
+        if _is_collection_exempt(rel_path.as_posix(), exempt):
+            continue
         tree = _parse_test_file(test_file)
         if tree is None:
             continue
-        rel = str(test_file.relative_to(project_path))
         for node, class_name in _iter_test_functions(tree):
             out.append(make_test_func(rel, node, class_name))
     return out
@@ -1581,11 +1703,11 @@ class DuplicateTestsRule(ProjectRule):
 
     def check(self, project_path: Path) -> DuplicateTestsCheckResult:
         """Cluster duplicate tests in ``project_path`` and return verdicts."""
-        tests = _collect_tests(project_path)
+        config = _load_duplicate_tests_config(project_path)
+        tests = _collect_tests(project_path, config.exempt_paths)
         if not tests:
             return self._empty_result()
 
-        config = _load_duplicate_tests_config(project_path)
         clusters = _cluster(tests, self.ast_similarity_threshold)
         bucket_counts = _bucket_counts(tests, clusters)
         slim = _slim_clusters(clusters)
