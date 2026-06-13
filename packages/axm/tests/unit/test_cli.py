@@ -13,7 +13,6 @@ from cyclopts import Parameter
 from axm.cli import (
     _COMMANDS_GROUP,
     _TOOLS_GROUP,
-    _emit,
     build_command_for_tool,
     cli_param,
     create_app,
@@ -78,6 +77,18 @@ class _FailTool:
     def execute(self, *, path: str = ".") -> ToolResult:
         """Always fails."""
         return ToolResult(success=False, error="nope", text="error: nope")
+
+
+class _TextlessFailTool:
+    """Tool failing with an ``error`` but no ``text``/``data`` (surfaces on stderr)."""
+
+    @property
+    def name(self) -> str:
+        return "boom"
+
+    def execute(self, *, path: str = ".") -> ToolResult:
+        """Fails with only an ``error`` set (no ``text``, no ``data``)."""
+        return ToolResult(success=False, error="boom", text=None, data=None)
 
 
 class _DispatchTool:
@@ -212,6 +223,27 @@ class TestBuildCommand:
             cmd(path=".")
         assert exc.value.code == _EXIT_TOOL_ERROR
 
+    def test_textless_failure_surfaces_error_on_stderr(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """AXM-2017: a text-less failure surfaces ``error`` on stderr, exits 1."""
+        cmd = build_command_for_tool("boom", _TextlessFailTool())
+        with pytest.raises(SystemExit) as exc:
+            cmd(path=".")
+        assert exc.value.code == _EXIT_TOOL_ERROR
+        captured = capsys.readouterr()
+        assert "boom" in captured.err
+        assert "_TextlessFailTool" not in captured.out
+
+    def test_failure_with_text_prints_text(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """AXM-2017: a failure carrying text still prints its text (text wins)."""
+        cmd = build_command_for_tool("boom", _FailTool())
+        with pytest.raises(SystemExit):
+            cmd(path=".")
+        assert "error: nope" in capsys.readouterr().out
+
     def test_exception_exits_1(self) -> None:
         class _Raises:
             @property
@@ -313,30 +345,18 @@ class TestMainDispatch:
             _run_main_ok()
         assert "audit /z: 90" in capsys.readouterr().out
 
+    @pytest.mark.parametrize("flag", ["--version", "-V"])
     def test_version_flag_prints_version(
-        self, capsys: pytest.CaptureFixture[str]
+        self, flag: str, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """AC1: ``axm --version`` prints ``axm.__version__`` to stdout, returns 0."""
+        """AC1/AC2: ``axm --version`` and ``axm -V`` print ``__version__``, return 0."""
         from axm import __version__
 
         with (
             patch(_EP, _eps(tools={"audit": _AuditTool})),
-            patch("sys.argv", ["axm", "--version"]),
+            patch("sys.argv", ["axm", flag]),
         ):
             main()  # early return, no SystemExit
-        assert __version__ in capsys.readouterr().out
-
-    def test_short_version_flag_prints_version(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """AC2: ``axm -V`` behaves identically to ``--version``."""
-        from axm import __version__
-
-        with (
-            patch(_EP, _eps(tools={"audit": _AuditTool})),
-            patch("sys.argv", ["axm", "-V"]),
-        ):
-            main()
         assert __version__ in capsys.readouterr().out
 
     def test_custom_command_failure_falls_back_to_tool(
@@ -371,19 +391,21 @@ def test_group_constants() -> None:
 # ── is_nonscalar: Annotated unwrapping ────────────────────────────────────
 
 
-def test_is_nonscalar_unwraps_annotated_container() -> None:
-    """AC1: Annotated wrapping a container classifies via the wrapped type."""
-    assert is_nonscalar(Annotated[list[str], Parameter()]) is True
-
-
-def test_is_nonscalar_annotated_scalar_stays_scalar() -> None:
-    """AC2: Annotated wrapping a scalar stays scalar."""
-    assert is_nonscalar(Annotated[str, Parameter()]) is False
-
-
-def test_is_nonscalar_annotated_optional_container() -> None:
-    """AC1: nested Annotated[Optional[list[str]], ...] resolves to non-scalar."""
-    assert is_nonscalar(Annotated[list[str] | None, Parameter()]) is True
+@pytest.mark.parametrize(
+    ("annotation", "expected"),
+    [
+        pytest.param(Annotated[list[str], Parameter()], True, id="annotated_container"),
+        pytest.param(Annotated[str, Parameter()], False, id="annotated_scalar"),
+        pytest.param(
+            Annotated[list[str] | None, Parameter()],
+            True,
+            id="annotated_optional_container",
+        ),
+    ],
+)
+def test_is_nonscalar_unwraps_annotated(annotation: Any, expected: bool) -> None:
+    """AC1/AC2: is_nonscalar unwraps Annotated and classifies the wrapped type."""
+    assert is_nonscalar(annotation) is expected
 
 
 def test_is_nonscalar_bare_scalar_unchanged() -> None:
@@ -413,52 +435,3 @@ def test_build_command_decodes_annotated_param() -> None:
     command = build_command_for_tool("annotated", _AnnotatedTool())
     command(items='["a", "b"]')
     assert _AnnotatedTool.captured == ["a", "b"]
-
-
-# ── _emit: surfacing text-less failures ──────────────────────────────
-
-
-class _EmitStub:
-    """Minimal ToolResult-like for ``_emit`` (it reads via ``getattr``)."""
-
-    def __init__(
-        self,
-        *,
-        success: bool = True,
-        error: str | None = None,
-        text: str | None = None,
-        data: dict[str, object] | None = None,
-    ) -> None:
-        self.success = success
-        self.error = error
-        self.text = text
-        self.data = data
-
-
-def test_emit_writes_error_to_stderr_on_textless_failure(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AC1: a text-less failure writes ``error`` to stderr, not the repr fallback."""
-    result = _EmitStub(success=False, error="boom", text=None, data=None)
-    _emit(result)
-    captured = capsys.readouterr()
-    assert "boom" in captured.err
-    assert "_EmitStub" not in captured.out
-    assert captured.out == ""
-
-
-def test_emit_success_text_unchanged(capsys: pytest.CaptureFixture[str]) -> None:
-    """AC2: a successful result with text is unchanged (stdout text, no stderr)."""
-    _emit(_EmitStub(success=True, text="ok"))
-    captured = capsys.readouterr()
-    assert captured.out == "ok\n"
-    assert captured.err == ""
-
-
-def test_emit_failure_with_text_prints_text(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AC3: a failure that carries text still prints its text (text wins)."""
-    _emit(_EmitStub(success=False, error="boom", text="detail"))
-    captured = capsys.readouterr()
-    assert "detail" in captured.out

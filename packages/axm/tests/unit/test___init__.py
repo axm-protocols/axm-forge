@@ -18,6 +18,8 @@ _CONTRACTS = (
     "__version__",
 )
 
+_TOOL_NODE_SURFACE = ("tool_node", "ToolNodeError", "ToolMetadata", "tool_metadata")
+
 
 def test_root_reexports_core_contracts() -> None:
     """AC1: all 7 contracts + __version__ accessible as axm.<name>."""
@@ -42,3 +44,18 @@ def test_all_matches_namespace() -> None:
         assert getattr(axm, name) is not None
     assert "ToolResult" in axm.__all__
     assert "__version__" in axm.__all__
+
+
+def test_root_reexports_tool_node_surface() -> None:
+    """AXM-2017: tool_node surface on ``axm`` is identical to ``axm.tools``."""
+    from axm import tools
+
+    assert axm.tool_node is tools.tool_node
+    assert axm.ToolNodeError is tools.ToolNodeError
+    assert axm.ToolMetadata is tools.ToolMetadata
+    assert axm.tool_metadata is tools.tool_metadata
+
+
+def test_tool_node_surface_in_all() -> None:
+    """AXM-2017: the four tool_node-surface names appear in ``axm.__all__``."""
+    assert set(_TOOL_NODE_SURFACE) <= set(axm.__all__)

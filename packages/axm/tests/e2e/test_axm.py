@@ -16,6 +16,8 @@ from importlib.metadata import entry_points
 
 import pytest
 
+from axm import __version__
+
 pytestmark = pytest.mark.e2e
 
 # POSIX convention: 2 = bad command-line usage (unknown command).
@@ -26,23 +28,27 @@ _EXIT_USAGE = 2
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+")
 
 
-def _axm_argv() -> list[str]:
-    """Resolve the ``axm`` invocation: console-script if on PATH, else module.
-
-    Prefers the venv console-script (``axm``); falls back to
-    ``[sys.executable, "-m", "axm.cli"]`` so the suite runs in a bare env
-    (e.g. CI before the package is pip-installed with its entry point).
-    """
-    script = shutil.which("axm")
-    if script:
-        return [script]
-    return [sys.executable, "-m", "axm.cli"]
-
-
 def _run(*args: str) -> subprocess.CompletedProcess[str]:
-    """Invoke the resolved ``axm`` binary with ``args``, capturing text I/O."""
-    return subprocess.run(  # noqa: S603 - trusted, locally-resolved axm binary
-        [*_axm_argv(), *args],
+    """Invoke the ``axm`` package CLI as a subprocess, capturing text I/O.
+
+    Drives the installed ``axm`` console-script declared in
+    ``[project.scripts]`` when it is on PATH; otherwise falls back to
+    ``[sys.executable, "-m", "axm.cli"]`` so the suite still runs in a bare
+    env (e.g. CI before the package is pip-installed with its entry point).
+    Both forms invoke the package's own CLI entrypoint end-to-end.
+    """
+    # Console-script first (declared in ``[project.scripts]``); module fallback
+    # for bare envs. Each branch passes a direct list literal so the package
+    # entrypoint (``axm`` / ``-m axm.cli``) stays statically visible (e2e).
+    if shutil.which("axm"):
+        return subprocess.run(  # noqa: S603 - trusted, locally-resolved axm CLI
+            ["axm", *args],  # noqa: S607 - intentional PATH lookup of axm script
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    return subprocess.run(  # noqa: S603 - trusted, locally-resolved axm CLI
+        [sys.executable, "-m", "axm.cli", *args],
         capture_output=True,
         text=True,
         timeout=60,
@@ -87,7 +93,9 @@ def test_axm_unknown_command_exits_2() -> None:
 
 
 def test_axm_version_prints_version() -> None:
-    """AC4: ``axm --version`` prints a semver on stdout and exits 0."""
+    """AC4: ``axm --version`` prints the package ``__version__`` and exits 0."""
     proc = _run("--version")
     assert proc.returncode == 0, proc.stderr
-    assert _SEMVER.match(proc.stdout.strip())
+    printed = proc.stdout.strip()
+    assert _SEMVER.match(printed)
+    assert printed == __version__
