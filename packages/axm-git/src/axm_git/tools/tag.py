@@ -21,7 +21,7 @@ from axm_git.core.runner import (
 from axm_git.core.runner import (
     timeout_error_result as _timeout_error_result,
 )
-from axm_git.core.semver import compute_bump
+from axm_git.core.semver import compute_bump, parse_tag
 from axm_git.tools.tag_text import render_failure_text, render_text
 
 __all__ = ["GitTagTool"]
@@ -255,6 +255,13 @@ def _resolve_version(
             if version_override.startswith("v")
             else f"v{version_override}"
         )
+        override_tuple = parse_tag(v)
+        if current_tag and override_tuple <= parse_tag(current_tag):
+            msg = (
+                f"Version override {v!r} is not strictly greater than "
+                f"the current tag {current_tag!r}"
+            )
+            raise ValueError(msg)
         return v, "override", False
 
     base = current_tag or "v0.0.0"
@@ -335,6 +342,13 @@ class GitTagTool(AXMTool):
 
             # 5. Push tag
             push = run_git(["push", "origin", full_tag], resolved)
+        except ValueError as exc:
+            error = str(exc)
+            return ToolResult(
+                success=False,
+                error=error,
+                text=render_failure_text(error=error, data=None),
+            )
         except subprocess.TimeoutExpired as exc:
             return _timeout_error_result(exc)
 

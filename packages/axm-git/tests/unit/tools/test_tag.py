@@ -11,7 +11,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from axm_git.tools import tag as tag_mod
-from axm_git.tools.tag import GitTagTool, check_ci, verify_hatch_vcs
+from axm_git.tools.tag import (
+    GitTagTool,
+    _resolve_version,
+    check_ci,
+    verify_hatch_vcs,
+)
 
 
 def _mock_completed(
@@ -26,6 +31,28 @@ def _mock_completed(
         stdout=stdout,
         stderr=stderr,
     )
+
+
+class TestResolveVersionOverride:
+    """Override-validation behavior of _resolve_version (pure, no I/O)."""
+
+    def test_resolve_version_rejects_invalid_override(self) -> None:
+        """AC3: a non-semver override is rejected (no vbanana tag)."""
+        with pytest.raises(ValueError):
+            _resolve_version("banana", "v1.0.0", [])
+
+    def test_resolve_version_rejects_non_increasing_override(self) -> None:
+        """AC4: an override equal to the current tag is rejected."""
+        with pytest.raises(ValueError):
+            _resolve_version("v1.0.0", "v1.0.0", [])
+
+    def test_resolve_version_accepts_greater_override(self) -> None:
+        """AC4: a strictly-greater override is accepted."""
+        assert _resolve_version("v2.0.0", "v1.0.0", []) == (
+            "v2.0.0",
+            "override",
+            False,
+        )
 
 
 class TestVerifyHatchVcsTimeouts:
