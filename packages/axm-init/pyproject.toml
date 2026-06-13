@@ -432,6 +432,14 @@ reason = "Members assert divergent result fields, not just an expected pass/fail
 hash = "23926b49ea18"
 reason = "Mixed-field cluster on check_uv_lock: test_pass_workspace_root asserts r.passed is True AND 'workspace root' in r.message (a different result field) after building a full workspace-root + member tree, while test_fail_missing (shared empty_project, no pyproject) and test_fail_workspace_no_lock (workspace root WITHOUT uv.lock + member) assert only r.passed is False on two structurally distinct failure branches — folding would erase both the .message contract and the missing-pyproject vs missing-root-lock branch distinction."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "d9a5222d2877"
+reason = "Both members assert passed is True on check_pyproject_wheel_doc_shipping but exercise materially incompatible setups: test_..._passes_when_docs_force_included builds a docs/index.md tree plus a [tool.hatch.build.targets.wheel.force-include] block (fresh-scaffold AC2), while test_..._passes_when_no_docs_dir has no docs dir at all (vacuous-pass branch) — folding would conflate two distinct acceptance criteria."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7f62a072ec5f"
+reason = "Members assert divergent result semantics on load_exclusions: test_returns_empty_set asserts load_exclusions(...) == set() across no-section/no-exclude/no-pyproject/empty-list/corrupt-toml inputs, while test_valid_exclusions asserts == a non-empty expected set ({'cli','changelog'}) — two already-parametrized tables with disjoint param signatures and opposite expected outcomes that cannot be merged."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 

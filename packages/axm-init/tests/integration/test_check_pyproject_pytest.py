@@ -2,15 +2,30 @@
 
 from pathlib import Path
 
+import pytest
+
 from axm_init.checks.pyproject import check_pyproject_pytest
 
 
 class TestCheckPyprojectPytest:
-    def test_pass(self, gold_project: Path) -> None:
-        r = check_pyproject_pytest(gold_project)
-        assert r.passed is True
-
-    def test_fail_missing(self, tmp_path: Path) -> None:
-        (tmp_path / "pyproject.toml").write_text('[project]\nname="x"\n')
-        r = check_pyproject_pytest(tmp_path)
-        assert r.passed is False
+    @pytest.mark.parametrize(
+        ("use_gold", "expected"),
+        [
+            pytest.param(True, True, id="pass"),
+            pytest.param(False, False, id="fail_missing"),
+        ],
+    )
+    def test_pytest_config(
+        self,
+        gold_project: Path,
+        tmp_path: Path,
+        use_gold: bool,
+        expected: bool,
+    ) -> None:
+        if use_gold:
+            project = gold_project
+        else:
+            (tmp_path / "pyproject.toml").write_text('[project]\nname="x"\n')
+            project = tmp_path
+        r = check_pyproject_pytest(project)
+        assert r.passed is expected
