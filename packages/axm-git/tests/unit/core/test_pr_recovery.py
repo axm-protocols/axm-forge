@@ -91,19 +91,20 @@ class TestRecoverExistingPr:
         assert rec.url == ""
         assert rec.number == ""
 
+    @pytest.mark.parametrize(
+        "stdout",
+        [
+            pytest.param("not json{", id="malformed_json"),
+            pytest.param(json.dumps({"url": "u"}), id="missing_key"),
+        ],
+    )
     @patch("axm_git.core.pr_recovery.run_gh")
-    def test_malformed_json_returns_error(self, mock_gh: MagicMock) -> None:
-        """AC1: malformed gh stdout yields a structured error, no exception."""
-        mock_gh.return_value = _gh_proc(stdout="not json{")
-        rec = recover_existing_pr(Path("/tmp"))
-        assert rec.ok is False
-        assert rec.error
-        assert rec.url == ""
-
-    @patch("axm_git.core.pr_recovery.run_gh")
-    def test_missing_key_returns_error(self, mock_gh: MagicMock) -> None:
-        """AC2: valid JSON missing a key yields a structured error, no exception."""
-        mock_gh.return_value = _gh_proc(stdout=json.dumps({"url": "u"}))
+    def test_unparseable_view_json_returns_error(
+        self, mock_gh: MagicMock, stdout: str
+    ) -> None:
+        """AC1/AC2: malformed or key-missing gh stdout yields a structured
+        error (ok is False, error set, url empty) without raising."""
+        mock_gh.return_value = _gh_proc(stdout=stdout)
         rec = recover_existing_pr(Path("/tmp"))
         assert rec.ok is False
         assert rec.error

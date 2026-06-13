@@ -400,3 +400,27 @@ reason = "cross-file test_plain_error over 3 files calls 3 different render_fail
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "978654efc031"
 reason = "2 hook.execute branch-from-params tests target distinct hook SUTs with distinct fixtures: BranchDeleteHook::test_branch_delete_param_resolution runs on tmp_git_repo and asserts metadata['branch']=='feat/x', while MergeSquashHook::test_merge_squash_branch_from_params requires the pre-created tmp_git_repo_with_named_branch fixture and asserts metadata['merged']=='feat/x' -- different hook contracts, different fixtures (plain repo vs named-branch repo), different asserted metadata keys, no parametrizable matrix"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "41737a73fd9f"
+reason = "resolve_version cluster mixes 2 pytest.raises(ValueError) reject cases (invalid override 'banana' AC3, non-increasing override == current AC4) with 1 equality assertion on the accept path (strictly-greater override returns the (v, 'override', False) 3-tuple, AC4) -- raises-vs-return observation surfaces are heterogeneous and AC3/AC4 document distinct contracts, parametrize would force an optional-expected/optional-raises matrix that erases the reject-vs-accept intent"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "6ed51643664a"
+reason = "ambiguous_distinct_literals -- 2 classify_commit tests each group distinct conventional-commit literals by concern: test_classify_commit_returns_real_type_for_docs_chore asserts non-feat/fix types are returned verbatim (docs/chore/refactor, breaking always False), while test_classify_commit_keeps_feat_fix_and_breaking adds the breaking-flag dimension (feat!:->True) absent from the first group -- folding would conflate the verbatim-type concern with the breaking-flag concern over a mixed (input, type, breaking) matrix"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "bdd7447cd3b9"
+reason = "ambiguous_distinct_literals -- test_empty_message_error exercises the empty-message validation branch (no extra patches, asserts 'empty message') while test_git_add_failure also patches stage_spec_files to return a failure (different patch topology, asserts 'git add failed') -- distinct GitCommitTool.execute failure branches, distinct mock setups, distinct error substrings, no parametrizable matrix"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "584f7d91bafd"
+reason = "cross-file test_plain_error over 3 files calls 3 different render_failure_text SUTs (await_merge_text/merge_text/pull_text) with distinct error literals (timed out waiting for merge vs merge --squash failed: conflict vs could not pull: diverged) and distinct tool prefixes (git_await_merge vs git_merge vs git_pull) -- folding would erase which tool's plain-error path is verified and conflate three unrelated error messages"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "893cc0dc09d7"
+reason = "resolve_default_branch cluster spans 2 pyramid levels with incompatible fixtures: test_resolve_default_branch_master_repo is an integration test driving a real git clone (tmp_path, origin/HEAD->master) asserting 'master', while test_resolve_default_branch_falls_back_to_main and test_resolve_default_branch_parses_origin_head are unit tests with a mocked run_git (CompletedProcess rc=1 fallback vs rc=0 'refs/remotes/origin/master' parse) -- a real-subprocess fixture cannot be folded with MagicMock fixtures across pyramid levels"
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "ffee9e83e104"
+reason = "find_git_root cluster spans 2 pyramid levels and 2 distinct control-flow branches: test_not_a_repo is an integration test on a real tmp_path with no .git (early-return-None branch before any subprocess), while test_find_git_root_returns_none_on_timeout is a unit test mocking subprocess.run to raise TimeoutExpired (exception-path None) -- shared 'is None' assertion masks distinct branches, distinct fixtures (real dir vs mock), and distinct pyramid levels, no parametrizable matrix"
