@@ -16,6 +16,34 @@ logger = logging.getLogger(__name__)
 
 _MIN_LENGTH = 20
 _MIN_OCCURRENCES = 2
+_DEFAULT_ALIAS_PREFIX = "$R"
+
+
+def _all_string_values(data: JsonValue, out: list[str]) -> None:
+    """Walk data and collect every string value (any length)."""
+    if isinstance(data, str):
+        out.append(data)
+    elif isinstance(data, dict):
+        for v in data.values():
+            _all_string_values(v, out)
+    elif isinstance(data, list):
+        for item in data:
+            _all_string_values(item, out)
+
+
+def _collision_free_prefix(data: JsonValue) -> str:
+    """Return an alias prefix that prefixes no input string value.
+
+    Aliases have the shape ``f"{prefix}{i}"``; ensuring no input value
+    starts with ``prefix`` guarantees no input value can equal an alias,
+    so the ``_refs``/``_data`` envelope stays unambiguously decodable.
+    """
+    values: list[str] = []
+    _all_string_values(data, values)
+    prefix = _DEFAULT_ALIAS_PREFIX
+    while any(v.startswith(prefix) for v in values):
+        prefix = "$" + prefix
+    return prefix
 
 
 def collect_strings(data: JsonValue, strings: list[str]) -> None:
@@ -101,10 +129,15 @@ class DedupValuesStrategy(SmeltStrategy):
         # Sort by savings (length * count) descending
         by_savings = sorted(repeated, key=lambda s: len(s) * repeated[s], reverse=True)
 
+        # Pick an alias prefix guaranteed absent from the input's string
+        # values so a decoder can never confuse a literal value (e.g.
+        # "$R0") with an alias reference.
+        prefix = _collision_free_prefix(parsed)
+
         lookup: dict[str, str] = {}
         aliases: dict[str, str] = {}
         for i, s in enumerate(by_savings):
-            alias = f"$R{i}"
+            alias = f"{prefix}{i}"
             lookup[s] = alias
             aliases[alias] = s
 
