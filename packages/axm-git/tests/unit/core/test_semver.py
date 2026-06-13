@@ -48,6 +48,25 @@ class TestParseTag:
         with pytest.raises(ValueError, match="Invalid semver"):
             parse_tag("not-a-version")
 
+    def test_parse_tag_rejects_prerelease(self) -> None:
+        """AC1: anchored regex rejects a prerelease suffix."""
+        with pytest.raises(ValueError):
+            parse_tag("v1.2.3-rc1")
+
+    def test_parse_tag_rejects_trailing_segment(self) -> None:
+        """AC1: anchored regex rejects a 4th trailing segment."""
+        with pytest.raises(ValueError):
+            parse_tag("v1.2.3.4")
+
+    def test_parse_tag_rejects_garbage(self) -> None:
+        """AC1: anchored regex rejects non-semver garbage."""
+        with pytest.raises(ValueError):
+            parse_tag("banana")
+
+    def test_parse_tag_accepts_valid_with_and_without_prefix(self) -> None:
+        """AC2: accepts v-prefixed and bare semver equally."""
+        assert parse_tag("v1.2.3") == parse_tag("1.2.3") == (1, 2, 3)
+
 
 class TestComputeBump:
     """Test compute_bump version logic."""

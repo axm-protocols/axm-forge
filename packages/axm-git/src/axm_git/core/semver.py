@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["VersionBump", "compute_bump", "parse_tag"]
 
-_TAG_RE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
+_TAG_RE = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)$")
 _BREAKING_RE = re.compile(r"^[a-z]+(\(.+\))?!:")
 _SHORT_HASH_RE = re.compile(r"^[0-9a-f]{3,40}$")
 _FEAT_RE = re.compile(r"^feat(\(.+\))?!?:")
