@@ -90,3 +90,21 @@ class TestRecoverExistingPr:
         assert "no PR found" in (rec.error or "")
         assert rec.url == ""
         assert rec.number == ""
+
+    @patch("axm_git.core.pr_recovery.run_gh")
+    def test_malformed_json_returns_error(self, mock_gh: MagicMock) -> None:
+        """AC1: malformed gh stdout yields a structured error, no exception."""
+        mock_gh.return_value = _gh_proc(stdout="not json{")
+        rec = recover_existing_pr(Path("/tmp"))
+        assert rec.ok is False
+        assert rec.error
+        assert rec.url == ""
+
+    @patch("axm_git.core.pr_recovery.run_gh")
+    def test_missing_key_returns_error(self, mock_gh: MagicMock) -> None:
+        """AC2: valid JSON missing a key yields a structured error, no exception."""
+        mock_gh.return_value = _gh_proc(stdout=json.dumps({"url": "u"}))
+        rec = recover_existing_pr(Path("/tmp"))
+        assert rec.ok is False
+        assert rec.error
+        assert rec.url == ""
