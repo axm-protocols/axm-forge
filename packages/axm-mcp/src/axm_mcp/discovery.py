@@ -217,10 +217,12 @@ def register_list_tools(  # type: ignore[explicit-any]
     def _list_tools(**kwargs: object) -> dict[str, object]:
         """List all available AXM tools with their names and descriptions."""
         tool_list = []
-        for name, tool in sorted(tools.items()):
+        for name, tool in tools.items():
             tool_list.append({"name": name, "description": _get_tool_doc(tool)})
-        for name, desc in sorted(extra_tools.items()):
+        for name, desc in extra_tools.items():
             tool_list.append({"name": name, "description": desc})
+        # Single canonical name-sort over the merged list (the per-segment
+        # ``sorted()`` calls above were redundant — this is the only sort).
         tool_list.sort(key=lambda t: t["name"])
         return {"tools": tool_list, "count": len(tool_list)}
 
