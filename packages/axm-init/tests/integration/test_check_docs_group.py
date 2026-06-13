@@ -4,16 +4,29 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axm_init.checks.deps import check_docs_group
 
 
-class TestCheckDocsDeps:
-    def test_pass(self, gold_project: Path) -> None:
-        r = check_docs_group(gold_project)
-        assert r.passed is True
+@pytest.fixture()
+def docs_group_missing(tmp_path: Path) -> Path:
+    toml = '[project]\nname="x"\n[dependency-groups]\ndocs = ["mkdocs"]\n'
+    (tmp_path / "pyproject.toml").write_text(toml)
+    return tmp_path
 
-    def test_fail_missing(self, tmp_path: Path) -> None:
-        toml = '[project]\nname="x"\n[dependency-groups]\ndocs = ["mkdocs"]\n'
-        (tmp_path / "pyproject.toml").write_text(toml)
-        r = check_docs_group(tmp_path)
-        assert r.passed is False
+
+class TestCheckDocsDeps:
+    @pytest.mark.parametrize(
+        ("fixture_name", "expected"),
+        [
+            pytest.param("gold_project", True, id="pass"),
+            pytest.param("docs_group_missing", False, id="fail_missing"),
+        ],
+    )
+    def test_passed(
+        self, request: pytest.FixtureRequest, fixture_name: str, expected: bool
+    ) -> None:
+        project: Path = request.getfixturevalue(fixture_name)
+        r = check_docs_group(project)
+        assert r.passed is expected

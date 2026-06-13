@@ -2,14 +2,22 @@
 
 from pathlib import Path
 
+import pytest
+
 from axm_init.checks.ci import check_ci_test_job
 
 
 class TestCheckCiTestJob:
-    def test_pass(self, gold_project: Path) -> None:
-        r = check_ci_test_job(gold_project)
-        assert r.passed is True
-
-    def test_fail_no_ci(self, empty_project: Path) -> None:
-        r = check_ci_test_job(empty_project)
-        assert r.passed is False
+    @pytest.mark.parametrize(
+        ("fixture_name", "expected"),
+        [
+            pytest.param("gold_project", True, id="pass"),
+            pytest.param("empty_project", False, id="fail_no_ci"),
+        ],
+    )
+    def test_passed(
+        self, request: pytest.FixtureRequest, fixture_name: str, expected: bool
+    ) -> None:
+        project: Path = request.getfixturevalue(fixture_name)
+        r = check_ci_test_job(project)
+        assert r.passed is expected
