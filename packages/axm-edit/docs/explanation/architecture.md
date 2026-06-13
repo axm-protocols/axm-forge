@@ -48,6 +48,11 @@ When an edit at line 10 replaces 2 lines with 3 lines, every line number after 1
 - **Best-effort apply with automatic rollback**: atomicity is *announced at validation*, not at the OS level. Once validation passes the apply phase is best-effort: **any** exception raised mid-apply — anchor drift, a `write_text`/`unlink`/`mkdir` failure, a permission error — triggers a rollback to the pre-apply checkpoint and returns `BatchResult(success=False)` with the error. No half-applied batch is ever left behind
 - **Rollback**: `batch_rollback` restores **only** the snapshotted paths (rewrite original bytes, remove files that were absent before, recreate deleted files) and touches nothing else — no `git checkout`/`clean`/`stash`. When a batch-created file is removed, the now-empty directories the batch created for it are also pruned (only empty ones — populated directories are never touched)
 
+## Encoding & line endings
+
+- **EOL preservation**: a replace reads the file with universal-newline translation for anchor matching, but the original end-of-line style (`\r\n` vs `\n`) is detected up front and **restored on write**. Editing one line of a CRLF file leaves every untouched line as `\r\n` — only the spliced region changes — and an LF file stays LF. `CreateOp` content is written verbatim, so its embedded newlines are preserved as-authored.
+- **Binary / non-UTF-8 rejection as a verdict**: before any decode, the validation gate runs `is_binary()` and decodes as UTF-8 inside a guarded read. A binary file (null bytes / mostly non-printable) or a file that is not valid UTF-8 is rejected as a `ValidationError`, yielding `BatchResult(success=False)` with a clear message — a `UnicodeDecodeError` never escapes `batch_apply`, so callers (e.g. `axm-anvil`) can rely on the all-or-nothing contract.
+
 ## Security
 
 | Constraint | Reason |

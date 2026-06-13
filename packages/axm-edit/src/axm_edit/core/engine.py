@@ -27,6 +27,7 @@ from axm_edit.models.operations import (
     ReplaceOp,
     ValidationError,
 )
+from axm_edit.utils import is_binary
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,20 @@ def _resolve_safe(root: Path, relative: str) -> Path | None:
 def _old_line_count(old: str) -> int:
     """Return the number of file lines spanned by *old*."""
     return old.rstrip("\n").count("\n") + 1
+
+
+def _detect_eol(path: Path) -> str:
+    """Return the dominant end-of-line style of *path* (``\\r\\n`` or ``\\n``).
+
+    The file is read in text mode with universal-newline translation
+    disabled so the raw line endings survive. ``\\r\\n`` wins ties; a file
+    with no newline (or a pure-LF file) yields ``\\n``.
+    """
+    with path.open(encoding="utf-8", newline="") as handle:
+        text = handle.read()
+    crlf = text.count("\r\n")
+    lf = text.count("\n") - crlf
+    return "\r\n" if crlf > lf else "\n"
 
 
 def _common_ws_prefix(lines: list[str]) -> str:
@@ -432,6 +447,39 @@ def _resolve_one_edit(lines: list[str], edit: Edit) -> ResolvedEdit | None:
     )
 
 
+def _read_editable_lines(
+    root: Path,
+    file_rel: str,
+) -> tuple[list[str] | None, list[ValidationError]]:
+    """Resolve, guard and read *file_rel* as a list of text lines.
+
+    Rejects path traversal, missing files, binary files and non-UTF-8 files
+    as :class:`ValidationError` verdicts (never raising), so a non-decodable
+    file becomes ``BatchResult(success=False)`` rather than an escaping
+    ``UnicodeDecodeError``.  On success returns the keepends line list and an
+    empty error list.
+    """
+    target = _resolve_safe(root, file_rel)
+    if target is None:
+        err = ValidationError(file=file_rel, error="Path traversal not allowed")
+        return None, [err]
+
+    if not target.is_file():
+        return None, [ValidationError(file=file_rel, error="File not found")]
+
+    if is_binary(target):
+        err = ValidationError(file=file_rel, error="Cannot edit a binary file")
+        return None, [err]
+
+    try:
+        content = target.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        msg = f"Cannot edit a non-UTF-8 file: {exc}"
+        return None, [ValidationError(file=file_rel, error=msg)]
+
+    return content.splitlines(keepends=True), []
+
+
 def _validate_replace(
     root: Path,
     file_rel: str,
@@ -442,14 +490,9 @@ def _validate_replace(
     Returns a tuple of (resolved_edits, errors).  If errors is non-empty,
     resolved_edits should be discarded.
     """
-    target = _resolve_safe(root, file_rel)
-    if target is None:
-        return [], [ValidationError(file=file_rel, error="Path traversal not allowed")]
-
-    if not target.is_file():
-        return [], [ValidationError(file=file_rel, error="File not found")]
-
-    lines = target.read_text(encoding="utf-8").splitlines(keepends=True)
+    lines, read_errors = _read_editable_lines(root, file_rel)
+    if lines is None:
+        return [], read_errors
 
     errors: list[ValidationError] = []
     resolved: list[ResolvedEdit] = []
@@ -518,8 +561,12 @@ def _apply_replace(
     Returns the number of edits applied.
     """
     target = _resolve_safe(root, file_rel)
-    assert target is not None  # already validated
+    if target is None:  # pragma: no cover - already validated
+        raise _AnchorDriftError(
+            ValidationError(file=file_rel, error="Path resolution failed at apply"),
+        )
 
+    eol = _detect_eol(target)
     lines = target.read_text(encoding="utf-8").splitlines(keepends=True)
 
     # Sort bottom-to-top so upper edits don't shift
@@ -552,7 +599,7 @@ def _apply_replace(
         new_lines = new_content.splitlines(keepends=True)
         lines[start - 1 : end] = new_lines
 
-    target.write_text("".join(lines), encoding="utf-8", newline="")
+    target.write_text("".join(lines), encoding="utf-8", newline=eol)
     return len(resolved)
 
 
