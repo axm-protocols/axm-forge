@@ -844,6 +844,16 @@ def find_dead_code(
         5. Also scan a sibling ``tests/`` directory for callers.
         6. Detect lazy imports inside function bodies.
 
+    .. warning:: Reference matching is **by name only**. Liveness is decided
+        against a single global ``set[str]`` of referenced names, so a dead
+        symbol that shares its name with a live, distinct symbol elsewhere is
+        wrongly considered referenced and **omitted from the result** (a false
+        negative). This is an intrinsic tree-sitter limitation — no type or
+        scope inference is performed — and mirrors the homonym ambiguity
+        documented on :func:`~axm_ast.core.callers.find_callers`. Symbols
+        reported as dead are therefore high-confidence; truly-dead symbols that
+        are homonymous with a live one may be silently missed.
+
     Args:
         pkg: Analyzed package from ``analyze_package()``.
         include_tests: If ``True``, also scan modules inside ``tests/``
