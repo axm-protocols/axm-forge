@@ -40,6 +40,7 @@ __all__ = [
     "_git_lock",
     "_session_lock",
     "_wrap_with_lock",
+    "flatten_result",
     "log_external_step",
 ]
 
@@ -143,7 +144,7 @@ def _trace_step(
 _RESERVED_KEYS = ("success", "error", "hint")
 
 
-def _flatten_result(result: ToolResultLike) -> dict[str, object]:
+def flatten_result(result: ToolResultLike) -> dict[str, object]:
     """Flatten a ToolResult into a JSON-friendly dict.
 
     Spreads ``result.data`` first, then sets the envelope keys
@@ -215,7 +216,7 @@ def _build_tool_wrapper(ctx: _WrapperCtx, tool: ToolEntry) -> _SyncWrapper:
         if result.success and isinstance(text, str):
             _trace_step(ctx, kwargs, result.success, text, start_ns)
             return text
-        output = _flatten_result(result)
+        output = flatten_result(result)
         _trace_step(ctx, kwargs, result.success, str(output), start_ns)
         return output
 

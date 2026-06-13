@@ -20,14 +20,16 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
 from axm.tools.base import tool_metadata
 
 from axm_mcp.schema import IntrospectableFn, signature_params
+from axm_mcp.wrapping import flatten_result
 
 if TYPE_CHECKING:
-    from axm_mcp.discovery import ToolEntry
+    from axm_mcp.discovery import ToolEntry, ToolResultLike
 
 __all__ = ["ToolCatalog", "UnknownToolError"]
 
@@ -174,30 +176,40 @@ class ToolCatalog:
     def call(self, name: str, arguments: dict[str, object] | None = None) -> str:
         """Execute *name* with *arguments* and return its text output.
 
+        Mirrors the wrapping hot-path contract
+        (:func:`axm_mcp.wrapping.flatten_result`): the ``text`` short-circuit
+        only applies to a *successful* result, so a failing tool never loses
+        its ``success=False``/``error`` signal. A missing ``success`` attribute
+        is treated as failure (never defaulted to ``True``), and a ``data`` key
+        colliding with a reserved envelope key is relocated, not clobbered.
+
         Args:
             name: Tool name.
             arguments: Keyword arguments for the tool.
 
         Returns:
-            The tool's ``ToolResult.text`` if present, else a readable
-            rendering of the flattened ``data`` dict.
+            The tool's ``ToolResult.text`` when the result is successful, else a
+            readable rendering of the shared flattened envelope.
 
         Raises:
             UnknownToolError: If *name* is not in the catalog.
         """
         tool = self._get(name)
         result = _exec_fn(tool)(**(arguments or {}))
+        success = getattr(result, "success", False)
         text = getattr(result, "text", None)
-        if isinstance(text, str):
+        if success and isinstance(text, str):
             return text
-        success = getattr(result, "success", True)
         data = getattr(result, "data", None)
         if not isinstance(data, dict):
             return str(result)
-        flat: dict[str, object] = {"success": success, **data}
-        error = getattr(result, "error", None)
-        if error:
-            flat["error"] = error
+        like = SimpleNamespace(
+            success=success,
+            data=data,
+            error=getattr(result, "error", None),
+            hint=getattr(result, "hint", None),
+        )
+        flat = flatten_result(cast("ToolResultLike", like))
         return "\n".join(f"{k}: {v}" for k, v in flat.items())
 
     def param_hint(self, name: str) -> str:
