@@ -25,6 +25,6 @@ def test_rollback_restores_batch_deleted_file(tmp_path: Path) -> None:
     snapshot = create_checkpoint(tmp_path, ops)
     target.unlink()
 
-    assert rollback(tmp_path, snapshot) is True
+    assert rollback(tmp_path, snapshot).ok is True
     assert target.exists()
     assert target.read_text() == "keepme"

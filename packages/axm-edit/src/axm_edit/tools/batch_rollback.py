@@ -95,7 +95,7 @@ class BatchRollbackTool:
                 )
 
             files = _restored_files(checkpoint)
-            success = rollback(root, checkpoint)
+            success = rollback(root, checkpoint).ok
             error = None if success else "Rollback failed"
             return ToolResult(
                 success=success,

@@ -24,5 +24,5 @@ def test_rollback_removes_batch_created_file(tmp_path: Path) -> None:
     created = tmp_path / "new.txt"
     created.write_text("hello")
 
-    assert rollback(tmp_path, snapshot) is True
+    assert rollback(tmp_path, snapshot).ok is True
     assert not created.exists()

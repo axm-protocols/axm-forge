@@ -131,5 +131,34 @@ class BatchResult(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesi
     error: str | None = None
     details: list[ValidationError] = Field(default_factory=list)
     lint_errors: list[str] = Field(default_factory=list)
+    rollback_failed: bool = False
 
     model_config = {"extra": "forbid"}
+
+
+class RollbackResult(BaseModel):  # type: ignore[explicit-any]  # pydantic synthesizes __init__(**data: Any)
+    """Outcome of a best-effort rollback.
+
+    Rollback is a *strict inverse*: it only undoes what the batch did. It is
+    also best-effort — every captured path is attempted even if an earlier one
+    fails, so a partial rollback is fully observable instead of aborting
+    mid-loop. ``ok`` is ``True`` only when the snapshot was well-formed and
+    every captured path was restored.
+
+    Attributes:
+        restored: Relative paths successfully restored to their pre-batch state.
+        unrestored: Relative paths that could not be restored (a filesystem
+            error was raised while undoing them).
+        valid: Whether the snapshot was well-formed and parseable.
+    """
+
+    restored: list[str] = Field(default_factory=list)
+    unrestored: list[str] = Field(default_factory=list)
+    valid: bool = True
+
+    model_config = {"extra": "forbid"}
+
+    @property
+    def ok(self) -> bool:
+        """True iff the snapshot was valid and nothing failed to restore."""
+        return self.valid and not self.unrestored
