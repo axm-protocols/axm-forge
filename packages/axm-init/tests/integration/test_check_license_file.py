@@ -2,14 +2,22 @@
 
 from pathlib import Path
 
+import pytest
+
 from axm_init.checks.structure import check_license_file
 
 
 class TestCheckLicenseFile:
-    def test_pass(self, gold_project: Path) -> None:
-        r = check_license_file(gold_project)
-        assert r.passed is True
-
-    def test_fail(self, empty_project: Path) -> None:
-        r = check_license_file(empty_project)
-        assert r.passed is False
+    @pytest.mark.parametrize(
+        ("fixture_name", "expected"),
+        [
+            pytest.param("gold_project", True, id="pass"),
+            pytest.param("empty_project", False, id="fail"),
+        ],
+    )
+    def test_passed(
+        self, request: pytest.FixtureRequest, fixture_name: str, expected: bool
+    ) -> None:
+        project: Path = request.getfixturevalue(fixture_name)
+        r = check_license_file(project)
+        assert r.passed is expected
