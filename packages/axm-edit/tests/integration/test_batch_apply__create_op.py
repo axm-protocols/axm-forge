@@ -5,11 +5,15 @@ from __future__ import annotations
 import pathlib
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from axm_edit.core.engine import batch_apply
 from axm_edit.models.operations import CreateOp, Edit, ReplaceOp
+
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
 
 
 class TestCreate:
@@ -121,3 +125,55 @@ def test_apply_failure_removes_batch_created_files(
     assert not (tmp_path / "created.txt").exists()
     # And the replace was restored.
     assert file_a.read_text(encoding="utf-8") == "original A\n"
+
+
+# ---------------------------------------------------------------------------
+# Merged from tests/unit/test_engine.py (AXM-2030): CreateOp EOL fidelity --
+# real-filesystem integration tests.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_create_preserves_crlf_content(tmp_path: Path) -> None:
+    """AC1: a CreateOp whose content carries CRLF is written verbatim."""
+    result = batch_apply(
+        tmp_path,
+        [CreateOp(file="new.txt", content="red\r\ngreen\r\nblue\r\n")],
+    )
+
+    assert result.success is True
+    assert (tmp_path / "new.txt").read_bytes() == b"red\r\ngreen\r\nblue\r\n"
+
+
+@pytest.mark.integration
+def test_create_preserves_lf_content(tmp_path: Path) -> None:
+    """AC2: a CreateOp whose content carries LF is written verbatim (no CRLF leak)."""
+    result = batch_apply(
+        tmp_path,
+        [CreateOp(file="new_lf.txt", content="red\ngreen\nblue\n")],
+    )
+
+    assert result.success is True
+    assert (tmp_path / "new_lf.txt").read_bytes() == b"red\ngreen\nblue\n"
+
+
+@pytest.mark.integration
+def test_batch_apply_surfaces_rollback_failure(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """AC3: a partial rollback failure is surfaced on BatchResult.rollback_failed."""
+    # Force the apply phase to raise so rollback runs.
+    mocker.patch(
+        "axm_edit.core.engine._apply_creates_deletes",
+        side_effect=RuntimeError("boom"),
+    )
+    # Force rollback's per-path restore to fail so the rollback is partial.
+    mocker.patch(
+        "axm_edit.core.checkpoint._restore_one",
+        side_effect=OSError("cannot restore"),
+    )
+
+    result = batch_apply(tmp_path, [CreateOp(file="new.py", content="x = 1\n")])
+
+    assert result.success is False
+    assert result.rollback_failed is True

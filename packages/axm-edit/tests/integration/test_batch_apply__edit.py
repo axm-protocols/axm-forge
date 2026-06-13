@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from axm_edit.core.engine import batch_apply
 from axm_edit.models.operations import Edit, ReplaceOp
 
@@ -75,3 +77,32 @@ class TestOverlap:
         assert not result.success
         # File untouched
         assert (tmp_project / "src" / "foo.py").read_text() == original
+
+
+# ---------------------------------------------------------------------------
+# Merged from tests/unit/test_engine.py (AXM-2030): multi-Edit CRLF fidelity --
+# a real-filesystem integration test exercising two edits in one ReplaceOp.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_replace_preserves_crlf_multiple_edits(tmp_path: Path) -> None:
+    """AC1: multiple edits on a CRLF file all preserve CRLF endings."""
+    target = tmp_path / "crlf_multi.txt"
+    target.write_bytes(b"one\r\ntwo\r\nthree\r\nfour\r\n")
+
+    result = batch_apply(
+        tmp_path,
+        [
+            ReplaceOp(
+                file="crlf_multi.txt",
+                edits=[
+                    Edit(old="one", new="ONE"),
+                    Edit(old="three", new="THREE"),
+                ],
+            )
+        ],
+    )
+
+    assert result.success is True
+    assert target.read_bytes() == b"ONE\r\ntwo\r\nTHREE\r\nfour\r\n"
