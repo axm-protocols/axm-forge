@@ -3,11 +3,28 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from unittest.mock import patch
 
 import pytest
 
+from axm_mcp import server, wrapping
 from axm_mcp.server import DEFAULT_PORT, serve
+
+
+@pytest.fixture
+def _restore_http_mode() -> Iterator[None]:
+    """Save and restore the module-global ``_HTTP_MODE`` around each test.
+
+    The flag is process-global; serving flips it. We snapshot and restore so
+    one test's serve path cannot leak ``True`` into another test.
+    """
+    saved = wrapping._HTTP_MODE
+    try:
+        yield
+    finally:
+        wrapping._HTTP_MODE = saved
+
 
 # ──────────────────────── Unit tests ──────────────────────────
 
@@ -20,6 +37,19 @@ class TestServeCallsMcpRun:
         with patch("axm_mcp.server.mcp") as mock_mcp:
             serve()
             mock_mcp.run.assert_called_once_with(transport="streamable-http")
+
+    def test_serve_path_enables_http_mode(self, _restore_http_mode: None) -> None:
+        """AC4: the real HTTP serve path sets ``wrapping._HTTP_MODE`` to True.
+
+        Drives ``server.serve`` (reached in production via ``cli.serve``) with
+        only ``mcp.run`` mocked. The flag is NOT patched: we assert the wiring
+        actually flips it before ``mcp.run`` is entered.
+        """
+        wrapping._HTTP_MODE = False  # start from the stdio default, no patching
+        with patch("axm_mcp.server.mcp") as mock_mcp:
+            server.serve()
+        mock_mcp.run.assert_called_once_with(transport="streamable-http")
+        assert wrapping._HTTP_MODE is True
 
     def test_serve_sets_host_and_port(self) -> None:
         """serve() configures mcp.settings before calling run."""
@@ -115,11 +145,14 @@ class TestStdioStillWorks:
 
     def test_stdio_still_works(self) -> None:
         """The stdio default entry calls mcp.run() without a transport."""
-        from axm_mcp.cli import _stdio
+        from axm_mcp.cli import app
 
-        with patch("axm_mcp.mcp_app.mcp") as mock_mcp:
-            _stdio()
-            mock_mcp.run.assert_called_once_with()
+        with (
+            patch("axm_mcp.mcp_app.mcp") as mock_mcp,
+            pytest.raises(SystemExit, match="0"),
+        ):
+            app([], exit_on_error=False)
+        mock_mcp.run.assert_called_once_with()
 
 
 # ──────────────────────── Edge cases ──────────────────────────

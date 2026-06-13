@@ -4,16 +4,33 @@ from __future__ import annotations
 
 import os
 import signal
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 
+from axm_mcp import cli, wrapping
 from axm_mcp.cli import (
     app,
     is_process_alive,
     stop,
 )
+
+
+@pytest.fixture
+def _restore_http_mode() -> Iterator[None]:
+    """Save and restore the module-global ``_HTTP_MODE`` around each test.
+
+    The flag is process-global; serving flips it. We snapshot and restore so
+    one test's serve path cannot leak ``True`` into another test.
+    """
+    saved = wrapping._HTTP_MODE
+    try:
+        yield
+    finally:
+        wrapping._HTTP_MODE = saved
+
 
 # ──────────────────────── Helpers ──────────────────────────
 
@@ -77,6 +94,40 @@ class TestDefaultStdio:
         with patch("axm_mcp.mcp_app.mcp") as mock_mcp:
             _run_cli([])
             mock_mcp.run.assert_called_once_with()
+
+    def test_stdio_path_leaves_http_mode_false(self, _restore_http_mode: None) -> None:
+        """AC1: the stdio default entry leaves ``wrapping._HTTP_MODE`` False.
+
+        Stdio is one process per conversation — no cross-session contention — so
+        the lock must stay disengaged. Drives the real ``cli`` stdio default with
+        ``mcp.run`` mocked; the flag is asserted, never patched.
+        """
+        wrapping._HTTP_MODE = False
+        with patch("axm_mcp.mcp_app.mcp") as mock_mcp:
+            _run_cli([])  # bare CLI -> @app.default stdio entry, public surface
+        mock_mcp.run.assert_called_once_with()
+        assert wrapping._HTTP_MODE is False
+
+
+class TestCliServeEnablesHttp:
+    """The full ``cli.serve`` chain flips the HTTP mode flag."""
+
+    def test_cli_serve_enables_http_mode(self, _restore_http_mode: None) -> None:
+        """AC1, AC4: the full ``cli.serve`` chain enables HTTP mode.
+
+        Covers the production chain cli.serve -> server.serve -> mcp.run with
+        ``mcp.run`` mocked. PID file side effects are tolerated (real tmp I/O).
+        The flag is asserted, never patched.
+        """
+        wrapping._HTTP_MODE = False
+        with (
+            patch("axm_mcp.server.mcp") as mock_mcp,
+            patch("axm_mcp.cli.write_pid"),
+            patch("axm_mcp.cli.remove_pid_file"),
+        ):
+            cli.serve()
+        mock_mcp.run.assert_called_once_with(transport="streamable-http")
+        assert wrapping._HTTP_MODE is True
 
 
 # ──────────────────────── PID helpers ──────────────────────────
