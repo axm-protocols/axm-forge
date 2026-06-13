@@ -23,8 +23,7 @@
 - 🛠️ **MCP bridge** — Exposes discovered tools as Model Context Protocol callables
 - ✅ **Verify** — One-shot project quality check: audit + init check + AST enrichment
 - 🌐 **Web fetch** — Anti-bot web page fetching via Scrapling (basic / dynamic / stealth)
-- 📋 **List tools** — Built-in meta-tool to list all available tools and descriptions
-- 📂 **Tool catalog resource** — `axm://tools` MCP resource for passive tool discovery
+- 📋 **List tools** — Built-in `list_tools` meta-tool to enumerate all available tools and their descriptions
 
 ## Installation
 
@@ -104,7 +103,6 @@ axm-mcp uninstall
 | `list_tools` | built-in | List all available tools |
 | `verify` | built-in | One-shot audit + init check + AST enrichment |
 | `web_fetch` | built-in | Fetch web pages with anti-bot bypass (basic / dynamic / stealth) |
-| `axm://tools` | built-in | MCP resource — passive tool catalog (via `read_resource`) |
 | `audit` | `axm-audit` | Code quality audit (lint, types, complexity, security) |
 | `init_check` | `axm-init` | 39 governance checks against AXM gold standard |
 | `init_scaffold` | `axm-init` | Scaffold a new Python project |
