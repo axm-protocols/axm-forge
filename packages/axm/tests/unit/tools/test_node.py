@@ -35,7 +35,9 @@ def _ep(name: str, obj: object) -> MagicMock:
 
 def _with_tool(tool: object, name: str = "ast_impact"):  # type: ignore[no-untyped-def]
     """Patch entry-point discovery to expose a single fake tool."""
-    return patch("axm.tools.node.entry_points", return_value=[_ep(name, tool)])
+    return patch(
+        "axm.tools.node.entry_points_for", return_value={name: _ep(name, tool)}
+    )
 
 
 class TestPayloadMapping:
@@ -110,8 +112,8 @@ class TestClassEntryPoint:
 
         node = tool_node("ast_impact", returns={"r": "text"})
         with patch(
-            "axm.tools.node.entry_points",
-            return_value=[_ep("ast_impact", _Factory)],
+            "axm.tools.node.entry_points_for",
+            return_value={"ast_impact": _ep("ast_impact", _Factory)},
         ):
             out = node({"path": "/p", "symbol": "F"})
         assert out == {"r": "ok"}

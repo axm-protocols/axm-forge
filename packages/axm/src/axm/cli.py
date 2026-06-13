@@ -32,6 +32,8 @@ from typing import Annotated, Any, Union
 
 import cyclopts
 
+from axm.tools._discovery import entry_points_for
+
 __all__ = ["build_command_for_tool", "create_app", "main"]
 
 logger = logging.getLogger(__name__)
@@ -48,8 +50,8 @@ _SCALARS = (str, int, float, bool)
 
 
 def _entry_points(group: str) -> dict[str, importlib.metadata.EntryPoint]:
-    """Map name -> entry point for *group* (no ``.load()`` — pure metadata)."""
-    return {ep.name: ep for ep in importlib.metadata.entry_points(group=group)}
+    """Map name -> entry point for *group* (delegates to the shared helper)."""
+    return entry_points_for(group)
 
 
 def _load(ep: importlib.metadata.EntryPoint) -> Any:

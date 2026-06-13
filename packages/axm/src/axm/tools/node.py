@@ -20,8 +20,9 @@ the node's ``writes``. :func:`tool_node` builds such a callable around a tool:
 
 from __future__ import annotations
 
-from importlib.metadata import entry_points
 from typing import TYPE_CHECKING
+
+from axm.tools._discovery import entry_points_for
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -43,13 +44,13 @@ class ToolNodeError(RuntimeError):
 
 def _load_tool(name: str) -> AXMTool:
     """Resolve and instantiate the ``axm.tools`` entry point named *name*."""
-    for ep in entry_points(group=TOOLS_ENTRY_POINT_GROUP):
-        if ep.name == name:
-            obj = ep.load()
-            tool: AXMTool = obj() if isinstance(obj, type) else obj
-            return tool
-    eps = entry_points(group=TOOLS_ENTRY_POINT_GROUP)
-    known = ", ".join(sorted(ep.name for ep in eps))
+    eps = entry_points_for(TOOLS_ENTRY_POINT_GROUP)
+    ep = eps.get(name)
+    if ep is not None:
+        obj = ep.load()
+        tool: AXMTool = obj() if isinstance(obj, type) else obj
+        return tool
+    known = ", ".join(sorted(eps))
     msg = f"No tool registered under {name!r}. Registered: {known or '<none>'}"
     raise ToolNodeError(msg)
 

@@ -23,7 +23,7 @@ from axm.cli import (
 )
 from axm.tools.base import ToolResult
 
-_EP = "axm.cli.importlib.metadata.entry_points"
+_EP = "axm.tools._discovery.importlib.metadata.entry_points"
 _EXIT_BAD_ARGS = 2
 _EXIT_TOOL_ERROR = 1
 
