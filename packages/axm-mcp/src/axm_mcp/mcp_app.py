@@ -20,7 +20,6 @@ from typing import cast
 
 from mcp.server.fastmcp import FastMCP
 
-import axm_mcp.wrapping as _wrapping
 from axm_mcp.discovery import (
     ToolEntry,
     discover_tools,
@@ -90,18 +89,3 @@ else:
     register_tools(mcp, discovered_tools)
     _register_direct(_BUILTINS)
     register_list_tools(mcp, discovered_tools, _EXTRA_TOOLS)
-
-
-# Entry point for MCP CLI
-def main(*, http: bool = False) -> None:
-    """Run the MCP server.
-
-    Args:
-        http: When True, enable HTTP-mode warnings for implicit paths.
-    """
-    _wrapping._HTTP_MODE = http
-    mcp.run()
-
-
-if __name__ == "__main__":
-    main()
