@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from axm_init.checks.structure import check_src_layout
 
 
@@ -14,12 +16,23 @@ class TestCheckSrcLayout:
         r = check_src_layout(empty_project)
         assert r.passed is False
 
-    def test_fail_flat_layout(self, tmp_path: Path) -> None:
-        pkg = tmp_path / "my_pkg"
-        pkg.mkdir()
-        (pkg / "__init__.py").write_text("")
+    @pytest.mark.parametrize(
+        ("dirs", "expected"),
+        [
+            pytest.param(["my_pkg"], False, id="fail_flat_layout"),
+            pytest.param(["src/a/b/c"], True, id="pass_deep_namespace"),
+        ],
+    )
+    def test_src_layout_detection(
+        self, tmp_path: Path, dirs: list[str], expected: bool
+    ) -> None:
+        """src/ namespace nesting passes; a flat top-level package fails."""
+        for rel in dirs:
+            pkg = tmp_path / rel
+            pkg.mkdir(parents=True)
+            (pkg / "__init__.py").touch()
         r = check_src_layout(tmp_path)
-        assert r.passed is False
+        assert r.passed is expected
 
     def test_pass_flat_package(self, tmp_path: Path) -> None:
         """Standard flat package: src/pkg/__init__.py -> PASS, 1 package."""
@@ -53,10 +66,3 @@ class TestCheckSrcLayout:
         r = check_src_layout(tmp_path)
         assert r.passed is True
         assert "2 package" in r.message
-
-    def test_pass_deep_namespace(self, tmp_path: Path) -> None:
-        """Deep namespace: src/a/b/c/__init__.py -> PASS."""
-        (tmp_path / "src" / "a" / "b" / "c").mkdir(parents=True)
-        (tmp_path / "src" / "a" / "b" / "c" / "__init__.py").touch()
-        r = check_src_layout(tmp_path)
-        assert r.passed is True
