@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import re
+import tomllib
 from pathlib import Path
 from typing import TypedDict
 
@@ -100,17 +101,15 @@ def parse_workspace_members(text: str) -> list[str]:
     Returns:
         List of member directory names, empty if not found.
     """
-    # Match [tool.uv.workspace] section
-    match = re.search(
-        r"\[tool\.uv\.workspace\]\s*\n\s*members\s*=\s*\[([^\]]*)\]",
-        text,
-        re.DOTALL,
-    )
-    if not match:
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
         return []
 
-    raw = match.group(1)
-    return [m.strip().strip("\"'") for m in raw.split(",") if m.strip().strip("\"'")]
+    members = data.get("tool", {}).get("uv", {}).get("workspace", {}).get("members")
+    if not isinstance(members, list):
+        return []
+    return [str(m) for m in members]
 
 
 def _expand_workspace_members(root: Path, raw_members: list[str]) -> list[str]:

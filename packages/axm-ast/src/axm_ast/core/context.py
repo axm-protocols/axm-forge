@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import tomllib
 from collections.abc import Iterator
 from pathlib import Path
 from typing import TypedDict
@@ -224,21 +225,37 @@ def _extract_build_system(text: str) -> list[str]:
     return _parse_dep_list(text, "requires")
 
 
-def _parse_dep_list(text: str, key: str) -> list[str]:
-    """Parse a TOML-like dep list: key = ["dep1", "dep2"]."""
-    import re
+# Maps a logical dep key to its canonical pyproject.toml location.
+# Avoids the substring collision the old regex had between
+# ``dependencies`` and ``optional-dependencies``.
+_DEP_KEY_LOCATIONS: dict[str, tuple[str, str]] = {
+    "dependencies": ("project", "dependencies"),
+    "dev": ("dependency-groups", "dev"),
+    "requires": ("build-system", "requires"),
+}
 
-    # Match: key = [...] across lines
-    pattern = rf"{key}\s*=\s*\[(.*?)\]"
-    match = re.search(pattern, text, re.DOTALL)
-    if not match:
+
+def _parse_dep_list(text: str, key: str) -> list[str]:
+    """Parse a dependency list from pyproject.toml via tomllib.
+
+    ``key`` is a logical name (``dependencies``, ``dev``, ``requires``)
+    resolved to its canonical TOML table through :data:`_DEP_KEY_LOCATIONS`.
+    A malformed/absent table degrades to an empty list (no crash).
+    """
+    location = _DEP_KEY_LOCATIONS.get(key)
+    if location is None:
         return []
 
-    items_text = match.group(1)
-    # Extract quoted strings
-    names = re.findall(r'"([^"]+)"', items_text)
-    # Normalize: "pytest>=8.0" → "pytest"
-    return [_normalize_dep_name(n) for n in names]
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return []
+
+    table, field = location
+    raw = data.get(table, {}).get(field)
+    if not isinstance(raw, list):
+        return []
+    return [_normalize_dep_name(str(dep)) for dep in raw]
 
 
 def _normalize_dep_name(dep: str) -> str:
