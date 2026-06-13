@@ -424,6 +424,10 @@ reason = "test_patch_publish_keeps_yaml_parseable invokes patch_publish on a rea
 hash = "815feff35c53"
 reason = "test_copier_imports_at_runtime executes a subprocess that imports axm_init.adapters.copier (CopierAdapter, CopierConfig) — guards the copier adapter against import-time regressions; test_checker_imports_at_runtime executes a subprocess that imports axm_init.core.checker (CheckEngine) — guards the checker core against import-time regressions. Same subprocess shape but two disjoint import targets documenting fresh-interpreter importability for two distinct top-level modules."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "28cb02da3de1"
+reason = "Members assert divergent result fields, not just an expected pass/fail value: test_mypy_strict_implies_sub_flags asserts r.weight == 3, test_fail_partial/test_mypy_pretty_not_implied assert 'pretty' in r.details, test_mypy_strict_with_override_false asserts 'check_untyped_defs' in r.details, and test_mypy_strict_false_requires_explicit asserts 'strict' in r.details — parametrizing would erase the per-case field/diagnostic divergence (weight vs distinct details substrings)."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 
