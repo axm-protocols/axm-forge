@@ -9,6 +9,7 @@ from axm_anvil.core.callers import CallerRewrite
 __all__ = [
     "CallerRewrite",
     "ImportCycleError",
+    "MovePathError",
     "MovePlan",
     "MoveValidationError",
     "OverloadPartialMoveError",
@@ -46,6 +47,23 @@ class MoveValidationError(Exception):
     def __init__(self, text: str, cause: BaseException) -> None:
         super().__init__(f"Rendered module failed to parse: {cause}")
         self.text = text
+
+
+class MovePathError(Exception):
+    """Raised when source and target paths share no usable common base.
+
+    Computing the relative paths handed to ``batch_edit`` requires a base
+    directory that contains *both* the source and the target. When the two
+    live in disjoint trees (e.g. different drives) no such base exists, so the
+    fallback raises this typed error instead of leaking a bare ``ValueError``.
+    """
+
+    def __init__(self, source: object, target: object) -> None:
+        self.source = source
+        self.target = target
+        super().__init__(
+            f"No common base directory contains both {source} and {target}"
+        )
 
 
 class SharedHelpersError(Exception):
