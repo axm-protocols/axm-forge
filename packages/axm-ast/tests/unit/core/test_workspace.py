@@ -52,6 +52,11 @@ class TestParsingUnit:
                 [],
                 id="no_section",
             ),
+            pytest.param(
+                "[tool.uv.workspace\nmembers = [ this is not valid toml ",
+                [],
+                id="malformed_graceful",
+            ),
         ],
     )
     def test_parse_workspace_members(self, text: str, expected: list[str]) -> None:
