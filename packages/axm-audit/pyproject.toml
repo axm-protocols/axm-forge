@@ -415,6 +415,22 @@ hash = "d291aa9a22d1"
 reason = "Inter-file heterogeneous case: ComplexityRule.test_all_offenders_shown generates 8 high-CC functions on-disk and asserts `top_offenders` includes ALL of them (no top-5 cap), while FormattingRule.test_many_unformatted_capped_at_20 mocks ruff format --check stdout with 30 unformatted-file lines and asserts the surfaced list is capped at 20. Different rule SUTs (complexity.ComplexityRule vs quality.FormattingRule), different contracts (no-cap-for-offenders vs cap-at-20-for-files), opposite cap semantics on disjoint payloads. ACK."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "9efbd8dbef78"
+reason = "Inter-file heterogeneous case spanning 3 rule SUTs with disjoint details keys: DocstringCoverageRule.test_missing_no_cap asserts len(details['missing'])==15 (uncapped missing-docstring list), LintingRule.test_lint_issues_match_count asserts len(details['issues'])==min(issue_count,20) (cap-at-20 issues list), and TypeCheckRule.test_typecheck_errors_match_count asserts len(details['errors'])==error_count (uncapped errors list). Each rule exposes a different details field with a different cap contract on disjoint fixtures (15 funcs vs unused imports vs return-type mismatch). No shared helper signature. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "121e82ae611c"
+reason = "Inter-file heterogeneous case: scan_package.test_known_true_e2e_files_stay_e2e runs scan_package(AXM_AUDIT) and asserts true-e2e files are NOT reclassified away from e2e (pyramid-level classifier contract), while test_base.test_promoted_symbols_not_in_root_all imports axm_audit and asserts the _PROMOTED helper set does not leak into axm_audit.__all__ (API-surface contract). Different SUTs (pyramid scanner vs package __all__), different fixtures (real AXM_AUDIT scan vs in-process import), unrelated 'leaked set is empty' assertions on disjoint concerns. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7dbb1bb9c335"
+reason = "Inter-file heterogeneous case both asserting passed+score==100 on two unrelated rules: DuplicationRule.test_no_src_directory runs check on a bare tmp_path with no src/ (graceful empty-tree pass, no mocking), while TypeCheckRule.test_clean_run_scores_100 patches mypy via _patch_infra/_patch_check_src_ok/_mock_mypy_full to simulate a genuinely clean type-check happy path. Different rule SUTs (duplication vs quality_rules.TypeCheckRule), different fixtures (raw empty dir vs monkeypatched mypy infra); folding would couple a no-src skip with a mocked-clean-run regression guard. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "129b4881db48"
+reason = "Inter-file heterogeneous fix-hint case across two unrelated rules: FormattingRule.test_fix_hint_when_violations mocks ruff format --check (CompletedProcess rc=1) and asserts 'ruff format' is in result.fix_hint, while SecurityRule.test_fix_hint_provided mocks bandit JSON output (HIGH severity finding) and asserts a bandit-oriented fix_hint is provided. Different rule SUTs (quality_rules.FormattingRule vs security.SecurityRule), different mock infra (subprocess CompletedProcess vs MagicMock bandit JSON), different hint payloads. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "183f6f779af3"
 reason = "Inter-file heterogeneous case: LintingRule.test_lint_details_has_issues_key asserts `details['issues']` is a list on a clean package (lint contract), while TypeCheckRule.test_typecheck_details_has_errors_key asserts `details['errors']` is a list on a typed package (type-check contract). Different rule SUTs (quality.LintingRule vs quality.TypeCheckRule), different details schemas (`issues` vs `errors`), different toolchains (ruff vs mypy). ACK."
 
