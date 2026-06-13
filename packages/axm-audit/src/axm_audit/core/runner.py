@@ -9,12 +9,66 @@ from __future__ import annotations
 import itertools
 import logging
 import subprocess
+from enum import Enum
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT: int = 300
 """Default subprocess timeout in seconds (5 minutes)."""
+
+_ENV_FAILURE_RETURNCODES: frozenset[int] = frozenset({2, 124})
+"""Exit codes that signal the tool *did not actually run the check*: a
+blocking/config error (2) or our timeout sentinel (124).  This is the
+single source of truth for the env-failure returncode set, shared by
+every subprocess-scored rule (lint, type, and incrementally others)."""
+
+
+class ProcessVerdict(Enum):
+    """Centralized interpretation of a subprocess exit.
+
+    One source of truth for what a returncode *means* to a scored rule,
+    so individual rules no longer re-derive returncode semantics
+    (which is how an env-failure could silently score a green 100).
+
+    Members:
+        CLEAN: the tool ran and found nothing (rc == 0).
+        ISSUES: the tool ran and reported findings via an expected
+            non-zero exit (e.g. ruff rc=1 with JSON findings).
+        ENV_FAILURE: the tool did not actually complete the check
+            (rc in :data:`_ENV_FAILURE_RETURNCODES`, or a timeout).
+            A scored rule MUST fail loud on this verdict, never green.
+    """
+
+    CLEAN = "clean"
+    ISSUES = "issues"
+    ENV_FAILURE = "env_failure"
+
+
+def interpret_process(
+    result: subprocess.CompletedProcess[str],
+) -> ProcessVerdict:
+    """Classify a finished subprocess into a :class:`ProcessVerdict`.
+
+    This is the single home of the env-failure returncode set
+    (:data:`_ENV_FAILURE_RETURNCODES`). Both the lint and type rules
+    route their env-failure decision through here, removing the
+    historical mypy-vs-lint asymmetry.
+
+    Args:
+        result: The completed (or synthetic-on-timeout) subprocess.
+
+    Returns:
+        ``CLEAN`` when ``returncode == 0``; ``ENV_FAILURE`` when the
+        returncode is in the env-failure set; otherwise ``ISSUES``
+        (an expected non-zero exit carrying findings).
+    """
+    if result.returncode == 0:
+        return ProcessVerdict.CLEAN
+    if result.returncode in _ENV_FAILURE_RETURNCODES:
+        return ProcessVerdict.ENV_FAILURE
+    return ProcessVerdict.ISSUES
+
 
 _MAX_VENV_SEARCH_DEPTH: int = 5
 """Maximum number of ancestor directories to check when searching for a
@@ -112,6 +166,11 @@ def run_in_project(  # noqa: PLR0913
     except subprocess.TimeoutExpired:
         cmd_str = " ".join(full_cmd)
         logger.warning("Command timed out after %ds: %s", timeout, cmd_str)
+        if check:
+            # Honor the documented ``check`` contract: a timeout under
+            # ``check=True`` must fail loud, never be swallowed into a
+            # synthetic rc=124 that a caller could mistake for a result.
+            raise
         return subprocess.CompletedProcess(
             args=full_cmd,
             returncode=124,

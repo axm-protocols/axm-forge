@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 
 class TestRunInProjectUnit:
     """Unit tests for run_in_project (mocked subprocess, no real I/O)."""
@@ -236,3 +238,45 @@ def test_run_tests_normal_run_unaffected() -> None:
     assert report.coverage == 90.0
     assert getattr(report, "timed_out", False) is False
     assert report.passed == 3
+
+
+# --- interpret_process classifier + check semantics (AXM-1958) ---
+
+
+def test_interpret_process_classifies_clean_issues_env_failure() -> None:
+    """AC2: rc=0 -> CLEAN, rc=1+findings -> ISSUES, rc in {2,124} -> ENV_FAILURE."""
+    from axm_audit.core.runner import ProcessVerdict, interpret_process
+
+    clean = subprocess.CompletedProcess(args=["x"], returncode=0, stdout="")
+    issues = subprocess.CompletedProcess(
+        args=["x"], returncode=1, stdout='[{"code": "E501"}]'
+    )
+    timeout = subprocess.CompletedProcess(args=["x"], returncode=124, stdout="")
+    blocking = subprocess.CompletedProcess(args=["x"], returncode=2, stdout="")
+
+    assert interpret_process(clean) is ProcessVerdict.CLEAN
+    assert interpret_process(issues) is ProcessVerdict.ISSUES
+    assert interpret_process(timeout) is ProcessVerdict.ENV_FAILURE
+    assert interpret_process(blocking) is ProcessVerdict.ENV_FAILURE
+
+
+def test_run_in_project_check_true_raises_on_timeout(tmp_path: Path) -> None:
+    """AC3: check=True on a timeout raises instead of returning rc=124."""
+    from axm_audit.core.runner import run_in_project
+
+    with patch("axm_audit.core.runner.subprocess.run") as mock_run:
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd=["ruff"], timeout=1)
+        with pytest.raises(subprocess.TimeoutExpired):
+            run_in_project(["ruff"], tmp_path, check=True)
+
+
+def test_run_in_project_check_false_returns_synthetic_on_timeout(
+    tmp_path: Path,
+) -> None:
+    """AC3: check=False on a timeout keeps the synthetic rc=124 result."""
+    from axm_audit.core.runner import run_in_project
+
+    with patch("axm_audit.core.runner.subprocess.run") as mock_run:
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd=["ruff"], timeout=1)
+        result = run_in_project(["ruff"], tmp_path, check=False)
+    assert result.returncode == 124
