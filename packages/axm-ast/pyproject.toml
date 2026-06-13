@@ -234,6 +234,9 @@ exempt_paths = [
     "tools/inspect_resolve.py", # resolves symbols against real PackageInfo, integration-only
     "hooks/_trace_protocol.py", # Protocol typing stub (TYPE_CHECKING-only)
 ]
+exempt_tests = [
+    "test_init.py", # root __init__.py re-export smoke test — façade, no src module to mirror
+]
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "77df94591005"
