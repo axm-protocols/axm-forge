@@ -111,7 +111,11 @@ Reserve a package name on PyPI with a minimal placeholder.
 
 ### Per-Package Check Exclusions
 
-Workspace members can exclude inapplicable checks via `pyproject.toml`:
+Workspace members can exclude inapplicable checks via `pyproject.toml`.
+Each entry is a prefix of a canonical check name — the
+`category.function_name_without_check_` form shown in the report (e.g.
+`ci.ci_workflow_exists`). A bare category like `"ci"` excludes the whole
+category:
 
 ```toml
 [tool.axm-init]

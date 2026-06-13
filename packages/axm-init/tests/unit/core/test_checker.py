@@ -3,9 +3,20 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
-from axm_init.core.checker import ALL_CHECKS, format_agent, format_json
+from axm_init.core.checker import (
+    ALL_CHECKS,
+    REDIRECT_FOR_MEMBER,
+    SKIP_FOR_MEMBER,
+    SKIP_FOR_WORKSPACE,
+    CheckEngine,
+    _get_check_name,
+    _stamp_canonical_name,
+    format_agent,
+    format_json,
+)
 from axm_init.models.check import CheckResult, ProjectResult
 
 
@@ -136,6 +147,95 @@ def _result_with_failure() -> ProjectResult:
         fix="add a LICENSE file",
     )
     return ProjectResult.from_checks(Path("/tmp/project"), [failing])
+
+
+# --- AXM-2046: single canonical check-name convention --------------------
+#
+# SKIP / REDIRECT / exclude / display all key off the SAME string
+# (``_get_check_name``). These tests guard that unification: the displayed
+# name agrees with the inferred name (AC1), excluding by that name actually
+# skips the check (AC2), and every SKIP/REDIRECT entry still resolves to a
+# real check after unification (AC4).
+
+
+def _all_check_fns() -> list[Callable[[Path], CheckResult]]:
+    """Flatten every discovered check function across all categories."""
+    return [fn for fns in ALL_CHECKS.values() for fn in fns]
+
+
+def test_check_name_single_convention() -> None:
+    """AC1: stamped CheckResult.name agrees with _get_check_name (one source).
+
+    For every discovered check, re-stamping a result (even one carrying a
+    divergent hand-set name) yields the canonical ``_get_check_name`` value.
+    """
+    for fn in _all_check_fns():
+        canonical = _get_check_name(fn)
+        assert canonical is not None, f"{fn!r} has no inferable check name"
+        # A result with a deliberately wrong name must be re-stamped canonical.
+        divergent = CheckResult(
+            name="WRONG.name",
+            category=canonical.split(".", 1)[0],
+            passed=True,
+            weight=1,
+            message="",
+            details=[],
+            fix="",
+        )
+        stamped = _stamp_canonical_name(fn, divergent)
+        assert stamped.name == canonical
+
+
+def test_exclude_actually_excludes() -> None:
+    """AC2: excluding a canonical check name auto-passes that check.
+
+    ``_apply_exclusions`` keys off the canonical name now stamped on results,
+    so ``exclude = ["ci.ci_workflow_exists"]`` is no longer a silent no-op.
+    """
+    engine = CheckEngine.__new__(CheckEngine)  # no I/O: skip __init__ probing
+    canonical = "ci.ci_workflow_exists"
+    results = [
+        CheckResult(
+            name=canonical,
+            category="ci",
+            passed=False,
+            weight=4,
+            message="CI workflow not found",
+            details=[],
+            fix="",
+        ),
+        CheckResult(
+            name="structure.src_layout",
+            category="structure",
+            passed=True,
+            weight=4,
+            message="ok",
+            details=[],
+            fix="",
+        ),
+    ]
+    kept, excluded = engine._apply_exclusions(results, {canonical})
+    excluded_result = next(r for r in kept if r.name == canonical)
+    assert excluded_result.passed is True
+    assert excluded_result.message == "Excluded by config"
+    assert excluded == [canonical]
+    # The unrelated check is untouched.
+    src = next(r for r in kept if r.name == "structure.src_layout")
+    assert src.message == "ok"
+
+
+def test_skip_redirect_sets_unchanged_after_unification() -> None:
+    """AC4: every SKIP/REDIRECT entry still resolves to a real check name.
+
+    Guards against accidentally un-skipping / un-redirecting a check: each
+    constant entry must equal ``_get_check_name(fn)`` for some discovered fn.
+    """
+    canonical_names = {_get_check_name(fn) for fn in _all_check_fns()}
+    for entry in SKIP_FOR_WORKSPACE | SKIP_FOR_MEMBER | REDIRECT_FOR_MEMBER:
+        assert entry in canonical_names, (
+            f"{entry!r} no longer resolves to a discovered check — "
+            "a check was accidentally un-skipped/un-redirected"
+        )
 
 
 def test_json_and_agent_use_same_failures_key() -> None:

@@ -176,12 +176,15 @@ def load_exclusions(project: Path) -> set[str]:
     """Load per-package check exclusions from pyproject.toml.
 
     Reads the ``[tool.axm-init].exclude`` key and returns check name
-    prefixes that should be auto-passed for this package.
+    prefixes that should be auto-passed for this package. A prefix matches
+    canonical check names (the ``category.function_name_without_check_``
+    form shown in the report, e.g. ``ci.ci_workflow_exists``); a bare
+    category prefix like ``"ci"`` excludes every check in that category.
 
     Example config::
 
         [tool.axm-init]
-        exclude = ["cli", "changelog", "deps.entry_points"]
+        exclude = ["ci.ci_workflow_exists", "tooling.makefile", "changelog"]
 
     Args:
         project: Path to the project root containing ``pyproject.toml``.

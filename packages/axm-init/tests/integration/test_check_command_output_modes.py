@@ -228,7 +228,7 @@ class TestCheckVerboseFlag:
         stdout, _stderr, code = _run("check", str(gold_project), "--verbose")
         assert code == 0
         # Verbose should list individual check names
-        assert "pyproject.exists" in stdout or "✅" in stdout
+        assert "pyproject.pyproject_exists" in stdout or "✅" in stdout
 
     def test_default_hides_individual_checks(self, gold_project: Path) -> None:
         stdout, _stderr, _code = _run("check", str(gold_project))

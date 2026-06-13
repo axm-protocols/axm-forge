@@ -39,5 +39,5 @@ def test_check_command_exits_nonzero_on_orphan_doc(tmp_path: Path) -> None:
 
     assert proc.returncode != 0
     combined = proc.stdout + proc.stderr
-    assert "pyproject.wheel_doc_shipping" in combined
+    assert "pyproject.pyproject_wheel_doc_shipping" in combined
     assert "x.md" in combined

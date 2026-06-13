@@ -80,7 +80,7 @@ Business logic independent of I/O:
 
 | Module | Key Symbols | Purpose |
 |---|---|---|
-| `checker.py` | `CheckEngine`, `format_report()`, `format_json()`, `format_agent()` | Run checks (dynamic discovery via `importlib`), format output |
+| `checker.py` | `CheckEngine`, `format_report()`, `format_json()`, `format_agent()` | Run checks (dynamic discovery via `importlib`), format output. Every result is re-stamped with the *canonical* check name — `_get_check_name()`'s `category.function_name_without_check_` form — so context skips (`SKIP_FOR_*`), member redirects (`REDIRECT_FOR_*`), `[tool.axm-init].exclude` matching, and the displayed name all key off one string |
 | `templates.py` | `TemplateInfo`, `TemplateType`, `get_template_path()` | Template catalog, type dispatch (standalone/workspace/member), and resolution |
 | `reserver.py` | `reserve_pypi()`, `create_minimal_package()`, `build_package()`, `publish_package()` | PyPI name reservation workflow (the `ReserveResult` model lives in `models/results.py`) |
 
