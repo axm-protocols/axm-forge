@@ -546,6 +546,18 @@ reason = "MirrorRule exempt_tests tests guard distinct branches with different a
 hash = "1cc0d58a848c"
 reason = "Both call normalize_findings but guard opposite branches: findings_normalizes_entries (itself parametrized over dict / model_dump / vars / mixed entry shapes) asserts a NON-EMPTY normalized list equals the expected entries (the normalization path), while findings_returns_empty_for_no_findings asserts `== []` for empty / None / no-key inputs (the no-findings fallback). The assertion sense diverges (normalized entries vs empty list); merging the two parametrize tables would conflate the normalization contract with the empty-fallback contract. ACK."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "a5b2332c9ca7"
+reason = "Cluster of 7 get_rules_for_category tests asserting disjoint contracts: all-categories count == 31, registry-derived count equality (no_manual_rule_enumeration), exact per-category count (category_filter_unchanged, parametrized), per-category len >= min (get_rules_by_category, parametrized), monkeypatched-registry surfacing (picks_up_registrations), ValueError on invalid category (raises path), and list/structure shape (empty_ok isinstance + hasattr check). Each probes a different facet (exact count vs lower bound vs registry derivation vs exception vs type), so a single parametrize would lie about the assertion target. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "28a28e764327"
+reason = "Cluster of 4 run_bandit tests guarding disjoint return/log paths by bandit returncode: rc1+empty-stdout asserts {} AND a WARNING is logged (degraded path), rc1+valid-json asserts the parsed results dict AND no WARNING (recoverable path), rc0+empty asserts {} AND no WARNING (clean path), and rc2 asserts pytest.raises(RuntimeError) carrying the stderr (hard-failure path). The assertion targets diverge across return value, log presence, and exception, so folding would conflate warn/no-warn/raise contracts. ACK."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "658aac0d27ad"
+reason = "Two DuplicateTestsRule non-clustering hardening tests guarding distinct SUT-disambiguation paths: distinct_self_attr_sut_not_clustered (parametrized over setUp / setup_method / pytest.fixture) verifies that two tests reading different self.parser_a/self.parser_b attributes set up in a class fixture are NOT clustered, while different_sut_sharing_result_assert_not_fused verifies that two same-named cross-file tests exercising different first-party symbols (AlphaRule vs BetaRule) sharing generic `result.passed`/`result.details` are NOT fused. Different fixture topology (intra-class self-attr divergence vs cross-file distinct symbol) and different clustering branch; the already-parametrized variant cannot absorb the bespoke cross-file case without erasing the second hardening path. ACK."
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

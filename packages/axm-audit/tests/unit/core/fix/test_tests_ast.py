@@ -173,13 +173,29 @@ def test_collect_imported_names(
         assert name not in names
 
 
-def test_marker_fixtures_in_unit_usefixtures_marker() -> None:
-    """AC7: extracts string args from @pytest.mark.usefixtures(...)."""
-    src = "import pytest\n@pytest.mark.usefixtures('a', 'b')\ndef test_x(): pass\n"
+@pytest.mark.parametrize(
+    ("src", "func_index", "expected"),
+    [
+        pytest.param(
+            "import pytest\n@pytest.mark.usefixtures('a', 'b')\ndef test_x(): pass\n",
+            1,
+            {"a", "b"},
+            id="usefixtures_marker",
+        ),
+        pytest.param(
+            "def test_x():\n    pass\n",
+            0,
+            set(),
+            id="returns_empty_when_no_decorator",
+        ),
+    ],
+)
+def test_marker_fixtures_in_unit(src: str, func_index: int, expected: set[str]) -> None:
+    """AC7: usefixtures(...) string args are extracted; bare functions yield none."""
     tree = _parse_source(src)
-    func = tree.body[1]
+    func = tree.body[func_index]
     assert isinstance(func, ast.FunctionDef)
-    assert marker_fixtures_in_unit(func) == {"a", "b"}
+    assert marker_fixtures_in_unit(func) == expected
 
 
 def test_func_body_hash_ignores_docstring() -> None:
@@ -248,20 +264,6 @@ def test_top_level_helpers_skips_test_functions() -> None:
 # ---------------------------------------------------------------------------
 # collect_imported_names — boundary cases
 # ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# marker_fixtures_in_unit — extra idiom
-# ---------------------------------------------------------------------------
-
-
-def test_marker_fixtures_in_unit_returns_empty_when_no_decorator() -> None:
-    """A bare function with no markers contributes no fixture names."""
-    src = "def test_x():\n    pass\n"
-    tree = _parse_source(src)
-    func = tree.body[0]
-    assert isinstance(func, ast.FunctionDef)
-    assert marker_fixtures_in_unit(func) == set()
 
 
 # ---------------------------------------------------------------------------
