@@ -102,6 +102,23 @@ _TYPE_MAP: dict[str, type[object]] = {
 
 _SECTION_END_RE = re.compile(r"^[A-Z]\w*:\s*$")
 
+# NumPy style: a ``Parameters`` header underlined by dashes, then
+# ``name : type`` (or bare ``name``) lines followed by indented descriptions.
+_NUMPY_HEADER_RE = re.compile(r"^\s*Parameters\s*$")
+_NUMPY_UNDERLINE_RE = re.compile(r"^\s*-{3,}\s*$")
+_NUMPY_PARAM_RE = re.compile(
+    r"^(\w+)"  # param name (flush-left, no leading indent)
+    r"(?:\s*:\s*(.+))?"  # optional ``: type`` (rest of line)
+    r"\s*$",
+)
+# NumPy section terminator: another underlined header (e.g. ``Returns``).
+_NUMPY_SECTION_HEAD_RE = re.compile(r"^\s*[A-Z]\w*\s*$")
+
+# RST/Sphinx style: ``:param name: desc`` / ``:param type name: desc`` and the
+# companion ``:type name: type`` directive.
+_RST_PARAM_RE = re.compile(r"^\s*:param\s+(?:(\w+)\s+)?(\w+)\s*:")
+_RST_TYPE_RE = re.compile(r"^\s*:type\s+(\w+)\s*:\s*(.+?)\s*$")
+
 
 def _is_section_end(stripped: str) -> bool:
     return (
@@ -131,49 +148,116 @@ def _parse_arg_line(line: str) -> inspect.Parameter | None:
     )
 
 
+def _make_param(name: str, type_hint: str | None) -> inspect.Parameter:
+    """Build a keyword-only ``inspect.Parameter`` with default ``None``."""
+    return inspect.Parameter(
+        name,
+        kind=inspect.Parameter.KEYWORD_ONLY,
+        default=None,
+        annotation=_resolve_annotation(type_hint),
+    )
+
+
+def _parse_google_params(lines: list[str]) -> list[inspect.Parameter]:
+    """Parse a Google-style ``Args:`` / ``Keyword Args:`` section."""
+    in_args = False
+    params: list[inspect.Parameter] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped in ("Args:", "Keyword Args:"):
+            in_args = True
+            continue
+        if not in_args:
+            continue
+        if _is_section_end(stripped):
+            break
+        if stripped.startswith("**"):
+            continue
+        param = _parse_arg_line(line)
+        if param is not None:
+            params.append(param)
+    return params
+
+
+def _numpy_param_at(lines: list[str], idx: int) -> inspect.Parameter | None:
+    """Parse a single NumPy ``name : type`` definition line, if any."""
+    match = _NUMPY_PARAM_RE.match(lines[idx])
+    if not match:
+        return None
+    return _make_param(match.group(1), match.group(2))
+
+
+def _parse_numpy_params(lines: list[str]) -> list[inspect.Parameter]:
+    """Parse a NumPy-style ``Parameters`` section (header + ``----`` underline)."""
+    params: list[inspect.Parameter] = []
+    n = len(lines)
+    for i in range(n - 1):
+        if not (
+            _NUMPY_HEADER_RE.match(lines[i]) and _NUMPY_UNDERLINE_RE.match(lines[i + 1])
+        ):
+            continue
+        for j in range(i + 2, n):
+            row = lines[j]
+            if row.startswith((" ", "\t")) or not row.strip():
+                continue  # description line or blank — skip
+            if j + 1 < n and _NUMPY_UNDERLINE_RE.match(lines[j + 1]):
+                break  # next underlined section header
+            param = _numpy_param_at(lines, j)
+            if param is not None:
+                params.append(param)
+        break
+    return params
+
+
+def _parse_rst_params(lines: list[str]) -> list[inspect.Parameter]:
+    """Parse RST/Sphinx ``:param name:`` / ``:type name:`` directives."""
+    order: list[str] = []
+    types: dict[str, str] = {}
+    inline_types: dict[str, str] = {}
+    for line in lines:
+        pm = _RST_PARAM_RE.match(line)
+        if pm:
+            name = pm.group(2)
+            if name not in order:
+                order.append(name)
+            if pm.group(1):
+                inline_types[name] = pm.group(1)
+            continue
+        tm = _RST_TYPE_RE.match(line)
+        if tm:
+            types[tm.group(1)] = tm.group(2)
+    return [
+        _make_param(name, types.get(name) or inline_types.get(name)) for name in order
+    ]
+
+
 def extract_docstring_params(
     docstring: str | None,
 ) -> list[inspect.Parameter]:
-    """Parse Google-style ``Args:`` section into ``inspect.Parameter`` objects.
+    """Parse a docstring's parameter section into ``inspect.Parameter`` objects.
 
     This is the fallback for non-dispatcher tools whose ``execute(**kwargs)``
     has no typed parameters in the signature but documents them in the
-    docstring.
+    docstring. Three styles are supported, tried in order: Google
+    (``Args:`` / ``Keyword Args:``), NumPy (``Parameters`` + ``----``
+    underline), and RST/Sphinx (``:param name:`` / ``:type name:``).
 
     Args:
         docstring: The docstring to parse.
 
     Returns:
         List of keyword-only ``inspect.Parameter`` with default ``None``.
-        Empty list if no ``Args:`` section found.
+        Empty list if no recognized parameter section is found.
     """
     if not docstring:
         return []
 
-    in_args = False
-    params: list[inspect.Parameter] = []
-
-    for line in docstring.splitlines():
-        stripped = line.strip()
-
-        if stripped in ("Args:", "Keyword Args:"):
-            in_args = True
-            continue
-
-        if not in_args:
-            continue
-
-        if _is_section_end(stripped):
-            break
-
-        if stripped.startswith("**"):
-            continue
-
-        param = _parse_arg_line(line)
-        if param is not None:
-            params.append(param)
-
-    return params
+    lines = docstring.splitlines()
+    for parser in (_parse_google_params, _parse_numpy_params, _parse_rst_params):
+        params = parser(lines)
+        if params:
+            return params
+    return []
 
 
 def collect_dispatcher_params(

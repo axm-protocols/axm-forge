@@ -310,6 +310,113 @@ class TestExtractDocstringParams:
         assert params[0].annotation is str
 
 
+class TestExtractDocstringParamsNumpyStyle:
+    """extract_docstring_params parses NumPy-style ``Parameters`` sections."""
+
+    def test_parses_numpy_typed_params(self) -> None:
+        """AC1: NumPy ``name : type`` lines yield typed params in order."""
+        doc = "\n".join(
+            [
+                "Do something.",
+                "",
+                "Parameters",
+                "----------",
+                "path : str",
+                "    Path to directory.",
+                "limit : int",
+                "    Max results.",
+                "",
+                "Returns",
+                "-------",
+                "bool",
+                "    Whether it worked.",
+            ]
+        )
+        params = extract_docstring_params(doc)
+        names = [p.name for p in params]
+        assert names == ["path", "limit"]
+        assert params[0].annotation is str
+        assert params[1].annotation is int
+
+    def test_numpy_params_are_keyword_only_default_none(self) -> None:
+        """AC1: NumPy params are KEYWORD_ONLY with default None."""
+        doc = "\n".join(
+            [
+                "Summary.",
+                "",
+                "Parameters",
+                "----------",
+                "name : str",
+                "    The name.",
+            ]
+        )
+        params = extract_docstring_params(doc)
+        assert len(params) == 1
+        assert params[0].kind is inspect.Parameter.KEYWORD_ONLY
+        assert params[0].default is None
+
+    def test_numpy_untyped_param(self) -> None:
+        """AC1: NumPy ``name`` with no ``: type`` still yields a param."""
+        doc = "\n".join(
+            [
+                "Summary.",
+                "",
+                "Parameters",
+                "----------",
+                "flag",
+                "    A bare flag.",
+            ]
+        )
+        params = extract_docstring_params(doc)
+        assert [p.name for p in params] == ["flag"]
+        assert params[0].annotation is inspect.Parameter.empty
+
+
+class TestExtractDocstringParamsRstStyle:
+    """extract_docstring_params parses RST/Sphinx ``:param:`` directives."""
+
+    def test_parses_rst_params(self) -> None:
+        """AC2: ``:param name:`` directives yield params in order."""
+        doc = "\n".join(
+            [
+                "Do something.",
+                "",
+                ":param path: Path to directory.",
+                ":type path: str",
+                ":param limit: Max results.",
+                ":type limit: int",
+                ":returns: Whether it worked.",
+            ]
+        )
+        params = extract_docstring_params(doc)
+        names = [p.name for p in params]
+        assert names == ["path", "limit"]
+        assert params[0].annotation is str
+        assert params[1].annotation is int
+
+    def test_rst_params_are_keyword_only_default_none(self) -> None:
+        """AC2: RST params are KEYWORD_ONLY with default None."""
+        doc = "\n".join(["Summary.", "", ":param name: The name."])
+        params = extract_docstring_params(doc)
+        assert len(params) == 1
+        assert params[0].kind is inspect.Parameter.KEYWORD_ONLY
+        assert params[0].default is None
+
+    def test_rst_param_without_type_directive(self) -> None:
+        """AC2: a ``:param:`` with no matching ``:type:`` has empty annotation."""
+        doc = "\n".join(["Summary.", "", ":param flag: Toggle it."])
+        params = extract_docstring_params(doc)
+        assert [p.name for p in params] == ["flag"]
+        assert params[0].annotation is inspect.Parameter.empty
+
+    def test_rst_param_with_inline_type(self) -> None:
+        """AC2: ``:param str path:`` inline-type form is parsed."""
+        doc = "\n".join(["Summary.", "", ":param str path: Path to dir."])
+        params = extract_docstring_params(doc)
+        assert [p.name for p in params] == ["path"]
+        assert params[0].annotation is str
+
+
 # ─────────── Non-dispatcher (AXMTool) registration ───────────────────
 
 
