@@ -12,6 +12,7 @@ import os
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+import axm_mcp.wrapping as _wrapping
 from axm_mcp.mcp_app import mcp
 
 __all__ = ["DEFAULT_PORT", "health_check", "serve"]
@@ -54,4 +55,10 @@ def serve(
 
     mcp.settings.host = host
     mcp.settings.port = port
+    # HTTP mode is the single long-running shared process: enable per-key
+    # concurrency locks (KeyedLock) and implicit-path warnings before the
+    # server starts. Stdio mode (cli._stdio) leaves this False — one process
+    # per conversation, no cross-session contention. This boundary is the
+    # single writer of _HTTP_MODE=True in production.
+    _wrapping._HTTP_MODE = True
     mcp.run(transport="streamable-http")

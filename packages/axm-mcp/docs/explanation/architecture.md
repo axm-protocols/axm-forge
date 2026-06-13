@@ -85,8 +85,9 @@ sequenceDiagram
 
 | Module | Key Symbols | Purpose |
 |---|---|---|
-| `mcp_app.py` | `mcp`, `discovered_tools`, `main()` | FastMCP server instance — discovers tools, registers them, and registers the `verify` meta-tool (`VerifyTool`) |
-| `server.py` | `serve()`, `health_check()`, `DEFAULT_PORT` | Streamable HTTP transport — runs the FastMCP instance over HTTP on port 9427 (or `AXM_MCP_PORT`) |
+| `mcp_app.py` | `mcp`, `discovered_tools` | FastMCP server instance — discovers tools, registers them, and registers the `verify` meta-tool (`VerifyTool`). Holds no entry point; the real entries live in `cli.py` |
+| `cli.py` | `app`, `main()`, `serve` (cmd), `_stdio` (default) | Lifecycle CLI. `main()` (the `axm-mcp` entry point) dispatches the cyclopts `app`: `serve` → `server.serve()` (HTTP), no subcommand → `_stdio()` → `mcp.run()` (stdio, default) |
+| `server.py` | `serve()`, `health_check()`, `DEFAULT_PORT` | Streamable HTTP transport — sets `wrapping._HTTP_MODE = True` then runs the FastMCP instance over HTTP on port 9427 (or `AXM_MCP_PORT`). This is the single writer of `_HTTP_MODE=True` |
 | `concurrency.py` | `KeyedLock` | Per-key asyncio lock manager — prevents concurrent execution of the same session or git operation |
 | `discovery.py` | `discover_tools()`, `register_tools()`, `register_one()`, `ToolLike` | Entry point scanning + MCP registration of discovered tools |
 | `wrapping.py` | `log_external_step()`, `_session_lock`, `_git_lock` | Wraps each tool as a sync callable; `protocol_*` and `git_*` tools are serialized with async keyed locks |
@@ -117,6 +118,11 @@ sequenceDiagram
 
 Multiple conversations run concurrently on the same server. To prevent conflicts:
 
+- **Mode gate** — `server.serve()` sets `wrapping._HTTP_MODE = True` before
+  `mcp.run(transport="streamable-http")`. This single flag gates `KeyedLock`
+  acquisition in `_wrap_with_lock` and the implicit-path warning in
+  `_warn_implicit_path`. The stdio default path (`cli._stdio`) leaves it
+  `False` — one process per conversation means no cross-session contention
 - **Protocol sessions** are serialized per `session_id` via `KeyedLock`
 - **Git operations** are serialized per `repo_path` via `KeyedLock`
 - **Bounded memory** — `KeyedLock` reaps idle (unheld, unawaited) entries

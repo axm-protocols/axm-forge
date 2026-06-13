@@ -114,11 +114,11 @@ class TestStdioStillWorks:
     """AC5: existing stdio mode is not broken."""
 
     def test_stdio_still_works(self) -> None:
-        """Package-level main() still calls mcp.run() without transport."""
-        with patch("axm_mcp.mcp_app.mcp") as mock_mcp:
-            from axm_mcp.mcp_app import main
+        """The stdio default entry calls mcp.run() without a transport."""
+        from axm_mcp.cli import _stdio
 
-            main()
+        with patch("axm_mcp.mcp_app.mcp") as mock_mcp:
+            _stdio()
             mock_mcp.run.assert_called_once_with()
 
 

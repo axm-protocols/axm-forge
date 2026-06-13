@@ -1,8 +1,8 @@
 """Tests for the decoupled FastMCP server configuration.
 
 Merged from aspect-split mirror sources:
-- test_mcp_app.py       (server config + main() existence)
-- test_coverage_gaps.py (main() delegation to mcp.run, package entry point)
+- test_mcp_app.py       (server config)
+- test_coverage_gaps.py (package entry point)
 """
 
 from __future__ import annotations
@@ -30,22 +30,6 @@ class TestMCPServer:
     def test_discovery_ran(self) -> None:
         """Tool discovery ran (may be empty if no axm-* packages installed)."""
         assert isinstance(mcp_app.discovered_tools, dict)
-
-    def test_main_function_exists(self) -> None:
-        """main() entry point exists."""
-        assert callable(mcp_app.main)
-
-
-class TestMcpAppMain:
-    """Cover main() in mcp_app.py (line 47)."""
-
-    def test_main_calls_run(self) -> None:
-        """main() delegates to mcp.run()."""
-        with patch("axm_mcp.mcp_app.mcp") as mock_mcp:
-            from axm_mcp.mcp_app import main
-
-            main()
-            mock_mcp.run.assert_called_once()
 
 
 class TestInitMain:
