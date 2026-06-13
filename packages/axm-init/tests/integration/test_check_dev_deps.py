@@ -2,20 +2,33 @@
 
 from pathlib import Path
 
+import pytest
+
 from axm_init.checks.deps import check_dev_deps
 
 
 class TestCheckDevDeps:
-    def test_pass(self, gold_project: Path) -> None:
-        r = check_dev_deps(gold_project)
-        assert r.passed is True
+    @pytest.mark.parametrize(
+        ("fixture_name", "expected"),
+        [
+            pytest.param("gold_project", True, id="pass"),
+            pytest.param("empty_project", False, id="fail_no_pyproject"),
+            pytest.param("missing_deps_project", False, id="fail_missing_deps"),
+        ],
+    )
+    def test_passed(
+        self,
+        request: pytest.FixtureRequest,
+        fixture_name: str,
+        expected: bool,
+    ) -> None:
+        project = request.getfixturevalue(fixture_name)
+        r = check_dev_deps(project)
+        assert r.passed is expected
 
-    def test_fail_no_pyproject(self, empty_project: Path) -> None:
-        r = check_dev_deps(empty_project)
-        assert r.passed is False
 
-    def test_fail_missing_deps(self, tmp_path: Path) -> None:
-        toml = '[project]\nname="x"\n[dependency-groups]\ndev = ["pytest"]\n'
-        (tmp_path / "pyproject.toml").write_text(toml)
-        r = check_dev_deps(tmp_path)
-        assert r.passed is False
+@pytest.fixture
+def missing_deps_project(tmp_path: Path) -> Path:
+    toml = '[project]\nname="x"\n[dependency-groups]\ndev = ["pytest"]\n'
+    (tmp_path / "pyproject.toml").write_text(toml)
+    return tmp_path
