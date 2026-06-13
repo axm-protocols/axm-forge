@@ -64,11 +64,14 @@ def create_checkpoint(root: Path, operations: Sequence[Operation]) -> str:
     entries: dict[str, str | None] = {}
     created_dirs: set[str] = set()
     for op in operations:
-        rel = op.file
-        if rel in entries:
-            continue
-        target = _resolve_within(root, rel)
+        target = _resolve_within(root, op.file)
         if target is None:
+            continue
+        # Key the dedup on the canonical resolved-within path, not the raw
+        # spelling: "a.py" and "./a.py" name the same file and must collapse
+        # to a single entry. The canonical key is also what rollback re-resolves.
+        rel = target.relative_to(root).as_posix()
+        if rel in entries:
             continue
         if target.is_file():
             entries[rel] = base64.b64encode(target.read_bytes()).decode("ascii")

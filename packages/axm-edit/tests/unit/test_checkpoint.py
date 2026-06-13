@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from axm_edit.core.checkpoint import create_checkpoint, rollback
-from axm_edit.models.operations import CreateOp
+from axm_edit.core.checkpoint import create_checkpoint, rollback, snapshot_paths
+from axm_edit.models.operations import CreateOp, Edit, ReplaceOp
 
 
 def test_rollback_preserves_preexisting_empty_dir(tmp_path: Path) -> None:
@@ -57,4 +57,33 @@ def test_rollback_returns_restored_and_unrestored(tmp_path: Path) -> None:
 
     assert "new.py" in result.restored
     assert result.unrestored == []
+    assert result.ok
+
+
+def test_aliased_paths_dedup_to_one_entry(tmp_path: Path) -> None:
+    """AC1: two spellings of the same real file produce exactly one entry."""
+    target = tmp_path / "a.py"
+    target.write_text("x = 1\n")
+    ops = [
+        ReplaceOp(file="a.py", edits=[Edit(old="x = 1", new="x = 2")]),
+        ReplaceOp(file="./a.py", edits=[Edit(old="x = 2", new="x = 3")]),
+    ]
+
+    checkpoint = create_checkpoint(tmp_path, ops)
+
+    assert len(snapshot_paths(checkpoint)) == 1
+
+
+def test_single_spelling_unchanged(tmp_path: Path) -> None:
+    """AC2: a single-spelling snapshot still records and restores the file."""
+    target = tmp_path / "a.py"
+    target.write_text("original\n")
+    op = ReplaceOp(file="a.py", edits=[Edit(old="original", new="changed")])
+    checkpoint = create_checkpoint(tmp_path, [op])
+    target.write_text("changed\n")  # simulate the batch having edited the file
+
+    result = rollback(tmp_path, checkpoint)
+
+    assert snapshot_paths(checkpoint) == ["a.py"]
+    assert target.read_text() == "original\n"
     assert result.ok
