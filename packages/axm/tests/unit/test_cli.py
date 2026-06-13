@@ -313,6 +313,32 @@ class TestMainDispatch:
             _run_main_ok()
         assert "audit /z: 90" in capsys.readouterr().out
 
+    def test_version_flag_prints_version(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """AC1: ``axm --version`` prints ``axm.__version__`` to stdout, returns 0."""
+        from axm import __version__
+
+        with (
+            patch(_EP, _eps(tools={"audit": _AuditTool})),
+            patch("sys.argv", ["axm", "--version"]),
+        ):
+            main()  # early return, no SystemExit
+        assert __version__ in capsys.readouterr().out
+
+    def test_short_version_flag_prints_version(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """AC2: ``axm -V`` behaves identically to ``--version``."""
+        from axm import __version__
+
+        with (
+            patch(_EP, _eps(tools={"audit": _AuditTool})),
+            patch("sys.argv", ["axm", "-V"]),
+        ):
+            main()
+        assert __version__ in capsys.readouterr().out
+
     def test_custom_command_failure_falls_back_to_tool(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:

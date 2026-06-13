@@ -36,6 +36,7 @@ uv add axm[all]         # everything
 
 ```bash
 axm                          # shows available commands
+axm --version                # print the installed axm version (also -V)
 axm init_scaffold my-project # if axm-init is installed
 axm init_check .             # check project conformity
 axm audit .                  # if axm-audit is installed

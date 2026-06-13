@@ -282,6 +282,13 @@ def main() -> None:
     metadata, no tool import).
     """
     argv = sys.argv[1:]
+    # Version handled here (not via cyclopts version_flags) to keep the
+    # lazy, dispatch-first resolution and catalog behaviour intact.
+    if argv and argv[0] in ("--version", "-V"):
+        from axm import __version__
+
+        sys.stdout.write(f"{__version__}\n")
+        return
     commands = _entry_points(_COMMANDS_GROUP)
     tools = _entry_points(_TOOLS_GROUP)
     cmd = _resolve_command(argv)
