@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import re
+import tomllib
 
 import yaml
 
@@ -151,7 +154,52 @@ def try_markdown(stripped: str) -> Format | None:
     return None
 
 
-_PROBES = [try_json, try_xml, try_yaml, try_markdown]
+def try_toml(stripped: str) -> Format | None:
+    """Return ``Format.TOML`` if *stripped* parses as a non-empty TOML mapping.
+
+    Requires a successful :func:`tomllib.loads` yielding at least one
+    key or table, so plain text never matches. Ordered after the YAML
+    probe; YAML mappings (``key: value``) fail TOML parsing (which needs
+    ``=``), so this never steals YAML inputs.
+    """
+    try:
+        parsed = tomllib.loads(stripped)
+    except tomllib.TOMLDecodeError:
+        return None
+    if parsed:
+        return Format.TOML
+    return None
+
+
+_CSV_MIN_COLUMNS = 2
+_CSV_MIN_ROWS = 2
+
+
+def try_csv(stripped: str) -> Format | None:
+    """Return ``Format.CSV`` if *stripped* is a consistent delimited grid.
+
+    Heuristic: at least two rows sharing the same column count of two or
+    more, with a delimiter sniffed by :class:`csv.Sniffer`. Single-line
+    comma prose has only one row and falls through to ``None``.
+    """
+    if "\n" not in stripped:
+        return None
+    try:
+        dialect = csv.Sniffer().sniff(stripped, delimiters=",;\t|")
+    except csv.Error:
+        return None
+    rows = [row for row in csv.reader(io.StringIO(stripped), dialect) if row]
+    if len(rows) < _CSV_MIN_ROWS:
+        return None
+    width = len(rows[0])
+    if width < _CSV_MIN_COLUMNS:
+        return None
+    if any(len(row) != width for row in rows):
+        return None
+    return Format.CSV
+
+
+_PROBES = [try_json, try_xml, try_yaml, try_markdown, try_toml, try_csv]
 
 
 def detect_format(text: str) -> Format:
@@ -179,8 +227,8 @@ def detect_format_parsed(text: str) -> tuple[Format, object | None]:
         except (json.JSONDecodeError, ValueError):
             pass
 
-    # Remaining probes (XML, YAML, Markdown) — no parsed data
-    for probe in (try_xml, try_yaml, try_markdown):
+    # Remaining probes (XML, YAML, Markdown, TOML, CSV) — no parsed data
+    for probe in (try_xml, try_yaml, try_markdown, try_toml, try_csv):
         result = probe(stripped)
         if result is not None:
             return result, None
