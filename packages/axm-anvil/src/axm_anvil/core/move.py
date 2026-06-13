@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -42,6 +43,7 @@ from axm_anvil.core.deps import (
 )
 from axm_anvil.core.plan import (
     ImportCycleError,
+    MovePathError,
     MovePlan,
     MoveValidationError,
     OverloadPartialMoveError,
@@ -57,6 +59,7 @@ __all__ = [
     "PYTEST_BUILTIN_FIXTURES",
     "SIDE_EFFECT_DECORATORS",
     "ImportCycleError",
+    "MovePathError",
     "MoveValidationError",
     "OverloadPartialMoveError",
     "SymbolAlreadyExistsError",
@@ -1319,7 +1322,11 @@ def _apply_write(  # noqa: PLR0913
         source_rel = source_path.resolve().relative_to(root.resolve())
         target_rel = target_path.resolve().relative_to(root.resolve())
     except ValueError:
-        root = source_path.resolve().parent
+        # Cross-folder / cross-package move: ``target_path`` is not under the
+        # resolved workspace root. Re-anchor on a base that actually contains
+        # *both* paths instead of ``source_path.parent`` (which never contains
+        # the target for a cross-folder move and raised a second ValueError).
+        root = _common_base(source_path, target_path)
         source_rel = source_path.resolve().relative_to(root)
         target_rel = target_path.resolve().relative_to(root)
 
@@ -1349,6 +1356,22 @@ def _apply_write(  # noqa: PLR0913
                 }
             )
     batch_edit(str(root), operations)
+
+
+def _common_base(source_path: Path, target_path: Path) -> Path:
+    """Return a resolved directory that contains both ``source`` and ``target``.
+
+    Used as the ``relative_to`` anchor for the ``batch_edit`` operations when
+    the workspace root does not contain the target (cross-folder or
+    cross-package move). Raises :class:`MovePathError` when the two paths have
+    no usable common ancestor (e.g. different drives on Windows).
+    """
+    source = source_path.resolve()
+    target = target_path.resolve()
+    try:
+        return Path(os.path.commonpath([source, target]))
+    except ValueError as exc:
+        raise MovePathError(source, target) from exc
 
 
 def _find_pkg_root(source_path: Path, workspace_root: Path) -> Path | None:

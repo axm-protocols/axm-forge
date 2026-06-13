@@ -10,6 +10,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from axm_anvil.core.move import move_symbols
+from axm_anvil.core.plan import MovePathError
 from tests.integration._helpers import (
     SOURCE_WITH_METHOD,
     _write,
@@ -1972,3 +1973,91 @@ def test_move_warnings_surface_post_ruff_failure(
     revalidation = [w for w in plan_bad.warnings if "re-validation" in w]
     assert revalidation, plan_bad.warnings
     assert any(str(tgt2) in w for w in revalidation), revalidation
+
+
+def test_move_cross_folder_no_relative_to_error(tmp_path: Path) -> None:
+    """AC1: a cross-folder move (source and target under different subdirs of
+    the same root) completes without raising a ``relative_to`` ValueError.
+
+    The source subtree carries its own ``pyproject.toml`` so
+    ``_find_workspace_root(source)`` resolves to ``root/a`` (not the common
+    ``root``). The target lives under ``root/b``, which is *not* under
+    ``root/a``, forcing the ``relative_to`` fallback. The fix computes a
+    common base (``commonpath``) that contains both paths, so the move
+    succeeds instead of raising a second cryptic ValueError.
+    """
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='root'\n")
+    sub_a = tmp_path / "a"
+    sub_b = tmp_path / "b"
+    sub_a.mkdir()
+    sub_b.mkdir()
+    (sub_a / "pyproject.toml").write_text("[project]\nname='a'\n")
+    source = sub_a / "x.py"
+    target = sub_b / "x.py"
+    source.write_text("def moved():\n    return 1\n\n\ndef stays():\n    return 2\n")
+    target.write_text("")
+
+    plan = move_symbols(source, target, ["moved"])
+
+    assert "moved" in plan.moved_names
+    assert "def moved" in target.read_text()
+    assert "def moved" not in source.read_text()
+    assert "def stays" in source.read_text()
+
+
+def test_move_cross_package_clear_error_or_success(tmp_path: Path) -> None:
+    """AC2: a cross-package move (source and target in disjoint package trees
+    with no common parent below the resolved root) completes, or fails with a
+    clear typed :class:`MovePathError` — never a raw cryptic ``relative_to``
+    traceback.
+
+    ``pkg_a`` and ``pkg_b`` are independent roots (each with its own
+    ``pyproject.toml``) under a shared ``tmp_path``; passing no
+    ``workspace_root`` makes ``_find_workspace_root(source)`` resolve to
+    ``pkg_a``, which does not contain the target. ``commonpath`` still finds
+    ``tmp_path`` as a valid common base, so the move succeeds with both
+    relative paths anchored there.
+    """
+    pkg_a = tmp_path / "pkg_a"
+    pkg_b = tmp_path / "pkg_b"
+    pkg_a.mkdir()
+    pkg_b.mkdir()
+    (pkg_a / "pyproject.toml").write_text("[project]\nname='pkg_a'\n")
+    (pkg_b / "pyproject.toml").write_text("[project]\nname='pkg_b'\n")
+    source = pkg_a / "x.py"
+    target = pkg_b / "y.py"
+    source.write_text("def moved():\n    return 1\n\n\ndef stays():\n    return 2\n")
+    target.write_text("")
+
+    try:
+        plan = move_symbols(source, target, ["moved"])
+    except MovePathError:
+        # Acceptable: a typed move error (mapped to ToolResult) rather than a
+        # bare ValueError. The contract is "clear typed error, not cryptic".
+        return
+    except ValueError as exc:  # pragma: no cover - guards against regression
+        pytest.fail(f"raw ValueError leaked instead of typed MovePathError: {exc}")
+
+    assert "moved" in plan.moved_names
+    assert "def moved" in target.read_text()
+    assert "def moved" not in source.read_text()
+
+
+def test_move_same_folder_unchanged(tmp_path: Path) -> None:
+    """AC3: same-folder moves continue to work unchanged (no regression).
+
+    Source and target share a directory, so the primary ``relative_to`` branch
+    succeeds and the fallback is never exercised.
+    """
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='root'\n")
+    source = tmp_path / "source.py"
+    target = tmp_path / "target.py"
+    source.write_text("def moved():\n    return 1\n\n\ndef stays():\n    return 2\n")
+    target.write_text("")
+
+    plan = move_symbols(source, target, ["moved"])
+
+    assert "moved" in plan.moved_names
+    assert "def moved" in target.read_text()
+    assert "def moved" not in source.read_text()
+    assert "def stays" in source.read_text()
