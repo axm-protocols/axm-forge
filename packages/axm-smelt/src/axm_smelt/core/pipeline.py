@@ -25,6 +25,22 @@ def _worst(a: CounterBackend, b: CounterBackend) -> CounterBackend:
     return CounterBackend.TIKTOKEN
 
 
+def _safe_apply(strategy: SmeltStrategy, ctx: SmeltContext) -> SmeltContext:
+    """Apply *strategy* to *ctx*, degrading to pass-through on overflow.
+
+    The structural walkers (flatten, dedup, drop_nulls, round_numbers) recurse
+    over the parsed tree, so a deeply nested input can exhaust the interpreter
+    recursion limit. Catching ``RecursionError`` here drops the offending
+    strategy (returns the unmodified *ctx*): the keep-if-reduced guard then
+    treats it as a no-op, preserving the pre-strategy text. Only
+    ``RecursionError`` is caught — other failures still propagate.
+    """
+    try:
+        return strategy.apply(ctx)
+    except RecursionError:
+        return ctx
+
+
 def resolve_input(
     text: str | None,
     parsed: dict[str, JsonValue] | list[JsonValue] | None,
@@ -59,7 +75,7 @@ def _apply_strategies(
     applied: list[str] = []
     backend = CounterBackend.TIKTOKEN
     for s in strats:
-        result = s.apply(ctx)
+        result = _safe_apply(s, ctx)
         if result.text != ctx.text:
             result_tokens, b = count_with_backend(result.text)
             backend = _worst(backend, b)
@@ -173,7 +189,7 @@ def check(
     estimates: dict[str, float] = {}
     for name, cls in _REGISTRY.items():
         strategy = cls()
-        result = strategy.apply(ctx)
+        result = _safe_apply(strategy, ctx)
         if result.text != ctx.text:
             result_tokens, b = count_with_backend(result.text)
             backend = _worst(backend, b)

@@ -795,3 +795,53 @@ def test_yaml_through_minify() -> None:
 
     assert result.text != yaml_text
     assert len(result.text) > 0
+
+
+# --- Deep-nesting graceful degradation (AXM-2003) ---
+
+
+def _deep_nested_json(depth: int) -> str:
+    """Build a deeply nested JSON string ITERATIVELY (no recursion).
+
+    Produces ``{"k": {"k": {... {"k": 0} ...}}}`` with ``depth`` levels.
+    """
+    opens = '{"k":' * depth
+    closes = "}" * depth
+    return f"{opens}0{closes}"
+
+
+def test_smelt_deep_nesting_no_recursionerror() -> None:
+    """AC1, AC3: smelt() degrades gracefully on deeply nested input.
+
+    A strategy that overflows the recursion limit is dropped; smelt returns
+    a report instead of raising RecursionError.
+    """
+    text = _deep_nested_json(2000)
+
+    report = smelt(text)
+
+    assert isinstance(report, SmeltReport)
+
+
+def test_check_deep_nesting_no_recursionerror() -> None:
+    """AC1, AC3: check() degrades gracefully on deeply nested input.
+
+    No exception escapes check(); a report is returned.
+    """
+    text = _deep_nested_json(2000)
+
+    report = check(text)
+
+    assert isinstance(report, SmeltReport)
+
+
+def test_shallow_input_unchanged() -> None:
+    """AC2: shallow inputs are unaffected by the RecursionError guard."""
+    text = '{\n  "name": "Alice",\n  "age": 30\n}'
+
+    report = smelt(text)
+
+    assert isinstance(report, SmeltReport)
+    assert report.savings_pct > 0
+    assert "minify" in report.strategies_applied
+    assert json.loads(report.compacted) == json.loads(text)
