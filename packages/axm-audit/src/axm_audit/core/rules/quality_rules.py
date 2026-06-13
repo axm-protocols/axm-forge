@@ -17,7 +17,11 @@ from axm_audit.core.rules.base import (
     ProjectRule,
     register_rule,
 )
-from axm_audit.core.runner import run_in_project
+from axm_audit.core.runner import (
+    ProcessVerdict,
+    interpret_process,
+    run_in_project,
+)
 from axm_audit.models.results import CheckResult, Severity
 
 __all__ = [
@@ -33,11 +37,13 @@ logger = logging.getLogger(__name__)
 # mypy error codes that signal the *audited environment* is incomplete
 # (a missing dependency / missing type stubs), not a code defect.
 _ENV_INCOMPLETE_CODES = frozenset({"import-untyped", "import-not-found"})
-# mypy exit codes: 0 = clean, 1 = errors found, anything else = the check
-# did not complete (blocking/usage/config/internal error). 124 = our own
-# timeout sentinel from run_in_project.
-_MYPY_DID_NOT_COMPLETE = frozenset({2, 124})
 _QUOTED_NAME = re.compile(r'"([^"]+)"')
+_ENV_FAILURE_SCORE_CAP: int = 50
+"""Score ceiling applied when a scored subprocess rule hits an env-failure.
+
+Matches the mypy convention so lint and type behave symmetrically: an
+incomplete env is capped (never a green 100), and falls to 0 when there
+are no parseable findings to score against."""
 
 
 def detect_env_incompleteness(stdout: str, returncode: int) -> str | None:
@@ -93,7 +99,11 @@ def detect_env_incompleteness(stdout: str, returncode: int) -> str | None:
             f"problem."
         )
 
-    if returncode in _MYPY_DID_NOT_COMPLETE:
+    # The returncode-based env-failure decision is owned by the shared
+    # classifier (single source of truth for the {2, 124} set); the
+    # mypy-specific stub/library diagnostics above stay local.
+    synthetic = subprocess.CompletedProcess(args=[], returncode=returncode, stdout="")
+    if interpret_process(synthetic) is ProcessVerdict.ENV_FAILURE:
         return (
             f"audit environment unreliable — mypy did not complete "
             f"(exit code {returncode}: blocking/config error or timeout). "
@@ -157,6 +167,9 @@ class LintingRule(ProjectRule):
             check=False,
         )
 
+        if interpret_process(result) is ProcessVerdict.ENV_FAILURE:
+            return self._env_failure_result(checked, result.returncode)
+
         try:
             issues = json.loads(result.stdout) if result.stdout.strip() else []
         except json.JSONDecodeError:
@@ -196,6 +209,36 @@ class LintingRule(ProjectRule):
             },
             text="\n".join(text_lines) if text_lines else None,
             fix_hint=f"Run: ruff check --fix {checked}" if issue_count > 0 else None,
+        )
+
+    def _env_failure_result(self, checked: str, returncode: int) -> CheckResult:
+        """Fail-loud result when the lint subprocess did not complete.
+
+        Mirrors :class:`TypeCheckRule`'s env-incomplete branch: an
+        env-failure (timeout / blocking exit) must never yield a green
+        score, even though no JSON findings were parsed. Capped score,
+        ``passed=False``, ``ERROR`` severity.
+        """
+        diagnostic = (
+            f"audit environment unreliable — ruff did not complete "
+            f"(exit code {returncode}: blocking/config error or timeout). "
+            f"The lint result is unreliable until the env/config is fixed "
+            f"(run `uv sync`); this is an environment problem, not a code "
+            f"problem."
+        )
+        return CheckResult(
+            rule_id=self.rule_id,
+            passed=False,
+            message=f"Lint check BLOCKED: {diagnostic}",
+            severity=Severity.ERROR,
+            score=min(0, _ENV_FAILURE_SCORE_CAP),
+            details={
+                "issue_count": 0,
+                "checked": checked,
+                "issues": [],
+                "env_incomplete": True,
+            },
+            fix_hint=diagnostic,
         )
 
 
