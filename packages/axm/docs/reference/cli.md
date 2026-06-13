@@ -25,9 +25,26 @@ Commands depend on which AXM packages are installed:
 | `axm-bib extract` | `axm-bib` | Extract local PDF to Markdown |
 | `axm-mcp` | `axm-mcp` | MCP server exposing all AXM tools to AI agents |
 
+## Non-scalar parameters
+
+Each tool's CLI signature mirrors its `execute` signature exactly, including the
+`Annotated[..., cyclopts.Parameter(...)]` convention. Non-scalar parameters
+(`list` / `dict` / `tuple` / `set` / pydantic models), whether bare, wrapped in
+`Optional` / `X | None`, or wrapped in `Annotated[...]`, are passed as a single
+JSON string and decoded before the call:
+
+```bash
+axm batch_edit --path . --operations '[{"op": "replace", "file": "x.py"}]'
+```
+
+This keeps the tool signature and the CLI signature identical without
+CLI-only flags. Invalid JSON exits with code `2`.
+
 ## Python API
 
 ::: axm.cli.create_app
+
+::: axm.cli.build_command_for_tool
 
 ## Tool Interface
 

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any
 from unittest.mock import patch
 
 import pytest
+from cyclopts import Parameter
 
 from axm.cli import (
     _COMMANDS_GROUP,
@@ -338,3 +339,50 @@ class TestMainDispatch:
 def test_group_constants() -> None:
     assert _COMMANDS_GROUP == "axm.commands"
     assert _TOOLS_GROUP == "axm.tools"
+
+
+# ── is_nonscalar: Annotated unwrapping ────────────────────────────────────
+
+
+def test_is_nonscalar_unwraps_annotated_container() -> None:
+    """AC1: Annotated wrapping a container classifies via the wrapped type."""
+    assert is_nonscalar(Annotated[list[str], Parameter()]) is True
+
+
+def test_is_nonscalar_annotated_scalar_stays_scalar() -> None:
+    """AC2: Annotated wrapping a scalar stays scalar."""
+    assert is_nonscalar(Annotated[str, Parameter()]) is False
+
+
+def test_is_nonscalar_annotated_optional_container() -> None:
+    """AC1: nested Annotated[Optional[list[str]], ...] resolves to non-scalar."""
+    assert is_nonscalar(Annotated[list[str] | None, Parameter()]) is True
+
+
+def test_is_nonscalar_bare_scalar_unchanged() -> None:
+    """AC2: bare scalars remain scalar (unchanged classification)."""
+    assert is_nonscalar(str) is False
+    assert is_nonscalar(int) is False
+
+
+class _AnnotatedTool:
+    """Tool whose execute declares an Annotated container param."""
+
+    captured: list[str] | None = None
+
+    @property
+    def name(self) -> str:
+        return "annotated"
+
+    def execute(self, *, items: Annotated[list[str], Parameter()]) -> ToolResult:
+        """Echo the decoded items."""
+        type(self).captured = items
+        return ToolResult(success=True, text="ok")
+
+
+def test_build_command_decodes_annotated_param() -> None:
+    """AC3: an Annotated[list[str], Parameter()] param is JSON-decoded end-to-end."""
+    _AnnotatedTool.captured = None
+    command = build_command_for_tool("annotated", _AnnotatedTool())
+    command(items='["a", "b"]')
+    assert _AnnotatedTool.captured == ["a", "b"]

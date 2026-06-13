@@ -28,7 +28,7 @@ import logging
 import sys
 import types
 import typing
-from typing import Any, Union
+from typing import Annotated, Any, Union
 
 import cyclopts
 
@@ -71,6 +71,8 @@ def is_nonscalar(annotation: Any) -> bool:
     if annotation is inspect.Parameter.empty:
         return False
     origin = typing.get_origin(annotation)
+    if origin is Annotated:
+        return is_nonscalar(typing.get_args(annotation)[0])
     if origin in (Union, types.UnionType):
         members = [a for a in typing.get_args(annotation) if a is not type(None)]
         return any(is_nonscalar(m) for m in members)
