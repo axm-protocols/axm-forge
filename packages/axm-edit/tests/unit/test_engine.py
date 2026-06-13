@@ -14,6 +14,8 @@ from axm_edit.models.operations import CreateOp, Edit, ReplaceOp
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from pytest_mock import MockerFixture
+
 
 def test_replace_preserves_crlf(tmp_path: Path) -> None:
     """AC1: a replace on a CRLF file keeps CRLF on the untouched lines."""
@@ -146,3 +148,24 @@ def test_is_binary_wired_in_validation(tmp_path: Path) -> None:
 
     assert result.success is False
     assert target.read_bytes() == original
+
+
+def test_batch_apply_surfaces_rollback_failure(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """AC3: a partial rollback failure is surfaced on BatchResult.rollback_failed."""
+    # Force the apply phase to raise so rollback runs.
+    mocker.patch(
+        "axm_edit.core.engine._apply_creates_deletes",
+        side_effect=RuntimeError("boom"),
+    )
+    # Force rollback's per-path restore to fail so the rollback is partial.
+    mocker.patch(
+        "axm_edit.core.checkpoint._restore_one",
+        side_effect=OSError("cannot restore"),
+    )
+
+    result = batch_apply(tmp_path, [CreateOp(file="new.py", content="x = 1\n")])
+
+    assert result.success is False
+    assert result.rollback_failed is True

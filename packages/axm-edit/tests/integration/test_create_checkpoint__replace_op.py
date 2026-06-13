@@ -26,7 +26,7 @@ def test_rollback_restores_modified_file_to_original_bytes(tmp_path: Path) -> No
     snapshot = create_checkpoint(tmp_path, ops)
     target.write_text("changed")
 
-    assert rollback(tmp_path, snapshot) is True
+    assert rollback(tmp_path, snapshot).ok is True
     assert target.read_text() == "original"
 
 
@@ -41,7 +41,7 @@ def test_rollback_leaves_unrelated_untracked_file_untouched(tmp_path: Path) -> N
     snapshot = create_checkpoint(tmp_path, ops)
     touched.write_text("after")
 
-    assert rollback(tmp_path, snapshot) is True
+    assert rollback(tmp_path, snapshot).ok is True
     assert unrelated.exists()
     assert unrelated.read_text() == "do-not-erase"
     assert touched.read_text() == "before"
@@ -59,5 +59,5 @@ def test_create_checkpoint_in_non_git_dir_still_snapshots(tmp_path: Path) -> Non
     assert snapshot is not None
     # The snapshot must cover the target path so rollback can restore it.
     target.write_text("data2")
-    assert rollback(tmp_path, snapshot) is True
+    assert rollback(tmp_path, snapshot).ok is True
     assert target.read_text() == "data"

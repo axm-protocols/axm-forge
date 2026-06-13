@@ -752,19 +752,21 @@ def batch_apply(root: Path, operations: Sequence[Operation]) -> BatchResult:
             total_applied += _apply_replace(root, file_rel, resolved)
         total_applied += _apply_creates_deletes(root, grouped.creates, grouped.deletes)
     except _AnchorDriftError as drift:
-        rollback(root, checkpoint)
+        rb = rollback(root, checkpoint)
         return BatchResult(
             success=False,
             checkpoint=checkpoint,
             error="Apply aborted: file drifted between validation and apply",
             details=[drift.detail],
+            rollback_failed=not rb.ok,
         )
     except Exception as exc:  # noqa: BLE001 - any apply failure must roll back
-        rollback(root, checkpoint)
+        rb = rollback(root, checkpoint)
         return BatchResult(
             success=False,
             checkpoint=checkpoint,
             error=f"Apply aborted and rolled back: {exc}",
+            rollback_failed=not rb.ok,
         )
 
     return BatchResult(
