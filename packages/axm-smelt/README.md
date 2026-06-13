@@ -19,7 +19,7 @@
 
 ---
 
-`axm-smelt` reduces token consumption for LLM inputs by applying deterministic compaction strategies — lossless whitespace removal, structural transforms, and optional lossy simplifications. It works as a **CLI**, **Python API**, and **MCP tool** for AI agents.
+`axm-smelt` reduces token consumption for LLM inputs by applying deterministic compaction strategies — whitespace collapsing, structural transforms, and optional lossy simplifications. It works as a **CLI**, **Python API**, and **MCP tool** for AI agents.
 
 📖 **[Full documentation](https://forge.axm-protocols.io/smelt/)**
 
@@ -27,7 +27,7 @@
 
 - **Format detection** — auto-detect JSON, YAML, XML, TOML, CSV, Markdown, and plain text
 - **Token counting** — exact counts via tiktoken (`o200k_base`), with `len//4` fallback
-- **7 strategies** — `minify`, `drop_nulls`, `flatten`, `tabular`, `dedup_values_with_refs`, `strip_quotes`, `round_numbers`
+- **10 strategies** — `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `strip_quotes`, `dedup_values_with_refs`, `collapse_whitespace`, `compact_tables`, `strip_html_comments`
 - **Composable pipeline** — chain strategies explicitly or use presets (`safe`, `moderate`, `aggressive`)
 - **CLI** — `axm-smelt compact|check|count|version` with `--preset`/`--strategies`/`--file`/`--output` flags
 - **MCP tool** — `SmeltTool` for use by AI agents via `axm-mcp`
@@ -106,21 +106,24 @@ All commands accept `--file PATH` to read from a file instead of stdin. `compact
 
 | Name | Category | Description |
 |---|---|---|
-| `minify` | whitespace | Lossless JSON whitespace compaction |
+| `minify` | whitespace | Compact JSON/YAML/XML whitespace (parse + re-serialize; preserves data) |
 | `drop_nulls` | structural | Recursively remove `None`, `""`, `[]`, `{}` values |
 | `flatten` | structural | Collapse single-child wrapper dicts (`{"a":{"b":1}}` → `{"a.b":1}`) |
 | `tabular` | structural | Convert `list[dict]` JSON to pipe-separated tables |
-| `dedup_values_with_refs` | structural | Replace repeated long strings (≥20 chars, ≥2 occurrences) with aliases. **Output is wrapped in a `{_refs, _data}` envelope — not format-preserving.** |
-| `strip_quotes` | cosmetic | Remove quotes on simple alphanumeric JSON keys |
 | `round_numbers` | cosmetic | Round floats to N decimal places (default: 2) |
+| `strip_quotes` | cosmetic | Remove quotes on simple alphanumeric JSON keys |
+| `dedup_values_with_refs` | structural | Replace repeated long strings (≥20 chars, ≥2 occurrences) with aliases. **Output is wrapped in a `{_refs, _data}` envelope — not format-preserving.** |
+| `collapse_whitespace` | whitespace | Collapse consecutive blank lines and strip trailing whitespace on prose/Markdown (skips structured formats and fenced code blocks) |
+| `compact_tables` | whitespace | Remove padding whitespace from Markdown table cells (skips fenced code blocks) |
+| `strip_html_comments` | cosmetic | Remove `<!-- … -->` HTML comments from Markdown/plain text (skips fenced code blocks) |
 
 ## Presets
 
 | Preset | Strategies | Use when |
 |---|---|---|
-| `safe` | `minify` | Lossless only — output is semantically identical |
-| `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values_with_refs`, `tabular`, `strip_quotes` | Structural transforms are acceptable |
-| `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values_with_refs`, `strip_quotes` | Maximum savings, may alter float precision |
+| `safe` | `minify`, `collapse_whitespace` | Data-preserving — keeps the parsed value identical for structured formats (JSON/YAML/…) and never touches fenced code. **Not byte/whitespace-lossless on prose/Markdown**: `collapse_whitespace` collapses blank-line runs and strips trailing whitespace. |
+| `moderate` | `minify`, `drop_nulls`, `flatten`, `dedup_values_with_refs`, `tabular`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` | Structural transforms are acceptable |
+| `aggressive` | `minify`, `drop_nulls`, `flatten`, `tabular`, `round_numbers`, `dedup_values_with_refs`, `strip_quotes`, `collapse_whitespace`, `compact_tables`, `strip_html_comments` | Maximum savings, may alter float precision |
 
 ## Development
 
