@@ -5,6 +5,7 @@ Tests covering only ``analyze_package`` (no ``build_import_graph``).
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -69,6 +70,67 @@ def test_src_layout_multiple_packages(tmp_path: Path) -> None:
 
     pkg = analyze_package(tmp_path)
     assert pkg.name != "src"
+
+
+def _make_named_package(src: Path, name: str) -> None:
+    """Create a minimal importable package ``name`` under ``src``."""
+    pkg = src / name
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text(f'"""{name} package."""\n')
+    (pkg / "mod.py").write_text("VALUE = 1\n")
+
+
+@pytest.mark.integration
+def test_multi_package_src_deterministic(tmp_path: Path) -> None:
+    """AC1: multi-package src/ always selects the first package alphabetically."""
+    src = tmp_path / "src"
+    # Create in non-alphabetical order to expose iterdir() ordering bugs.
+    _make_named_package(src, "pkg_b")
+    _make_named_package(src, "pkg_a")
+    _make_named_package(src, "pkg_c")
+
+    first = analyze_package(tmp_path)
+    second = analyze_package(tmp_path)
+
+    assert first.name == "pkg_a"
+    assert second.name == "pkg_a"
+    assert first.root.name == "pkg_a"
+
+
+@pytest.mark.integration
+def test_multi_package_warns(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """AC2: multi-package src/ warns naming the chosen + skipped packages."""
+    src = tmp_path / "src"
+    _make_named_package(src, "pkg_b")
+    _make_named_package(src, "pkg_a")
+    _make_named_package(src, "pkg_c")
+
+    with caplog.at_level(logging.WARNING, logger="axm_ast.core.analyzer"):
+        analyze_package(tmp_path)
+
+    warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert warnings, "expected a warning when multiple packages exist under src/"
+    message = " ".join(r.getMessage() for r in warnings)
+    assert "pkg_a" in message  # chosen
+    assert "pkg_b" in message  # skipped
+    assert "pkg_c" in message  # skipped
+
+
+@pytest.mark.integration
+def test_single_package_unchanged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """AC3: single-package src-layout is unchanged (same pick, no warning)."""
+    src = tmp_path / "src"
+    _make_named_package(src, "only_pkg")
+
+    with caplog.at_level(logging.WARNING, logger="axm_ast.core.analyzer"):
+        pkg = analyze_package(tmp_path)
+
+    assert pkg.name == "only_pkg"
+    assert pkg.root.name == "only_pkg"
+    warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert not warnings, "single package must not emit an ambiguity warning"
 
 
 @pytest.mark.functional

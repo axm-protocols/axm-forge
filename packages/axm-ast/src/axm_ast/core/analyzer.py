@@ -96,13 +96,26 @@ def analyze_package(path: Path) -> PackageInfo:
     # Detect src-layout: src/<pkg>/__init__.py
     src_dir = path / "src"
     if src_dir.is_dir():
-        pkg_dirs = [
-            child
-            for child in src_dir.iterdir()
-            if child.is_dir() and (child / "__init__.py").exists()
-        ]
+        pkg_dirs = sorted(
+            (
+                child
+                for child in src_dir.iterdir()
+                if child.is_dir() and (child / "__init__.py").exists()
+            ),
+            key=lambda child: child.name,
+        )
         if pkg_dirs:
-            path = pkg_dirs[0]
+            chosen = pkg_dirs[0]
+            if len(pkg_dirs) > 1:
+                skipped = ", ".join(child.name for child in pkg_dirs[1:])
+                logger.warning(
+                    "Multiple packages under %s; selected %r (alphabetically "
+                    "first), skipped: %s",
+                    src_dir,
+                    chosen.name,
+                    skipped,
+                )
+            path = chosen
 
     t0 = time.perf_counter()
 
