@@ -21,6 +21,20 @@
 └── pyproject.toml     # UV workspace root
 ```
 
+## Features
+
+- 🧩 UV workspace — every package under `packages/` is auto-discovered
+- 📚 Shared MkDocs site via the monorepo plugin
+- ✅ One CI matrix + quality gate across all members
+
+## Installation
+
+```bash
+git clone https://github.com/{{ org }}/{{ workspace_name }}.git
+cd {{ workspace_name }}
+uv sync
+```
+
 ## Development
 
 ```bash

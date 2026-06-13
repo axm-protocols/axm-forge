@@ -41,17 +41,21 @@ def test_run_invalid_category(
 
 
 class TestWorkspaceSkipsNewEntries:
-    """Workspace root skips pyproject.mypy, ruff, ruff_rules, changelog.gitcliff."""
+    """Workspace root skips pyproject.mypy and pyproject.ruff (per-package concerns).
+
+    AXM-2045 un-masked ``pyproject.ruff_rules``, ``pyproject.dynamic_version``
+    and ``changelog.gitcliff`` from ``SKIP_FOR_WORKSPACE``: the uv-workspace
+    template now ships these gold-standard, so they are verified at the root
+    rather than skipped. ``pyproject.mypy`` stays skipped (config lives
+    per-package, see mypy-consistency) and ``pyproject.ruff`` stays skipped
+    (workspace root has no first-party package for isort known-first-party).
+    """
 
     @pytest.mark.parametrize(
         "skipped_names",
         [
             pytest.param(["pyproject.pyproject_mypy"], id="pyproject_mypy"),
-            pytest.param(
-                ["pyproject.pyproject_ruff", "pyproject.pyproject_ruff_rules"],
-                id="ruff_config",
-            ),
-            pytest.param(["changelog.gitcliff_config"], id="gitcliff"),
+            pytest.param(["pyproject.pyproject_ruff"], id="ruff_config"),
             pytest.param(["docs.diataxis_nav"], id="diataxis_nav"),
         ],
     )
