@@ -74,3 +74,52 @@ class TestDetectStack:
         stack = detect_stack(tmp_path)
         assert "packaging" in stack
         assert any("poetry" in d for d in stack["packaging"])
+
+    def test_dependencies_not_collide_with_optional(self, tmp_path: Path) -> None:
+        """AC2: 'dependencies' parsed without colliding with 'optional-dependencies'.
+
+        Runtime deps (cyclopts) are detected; optional/extra deps (flask) must
+        NOT leak into the stack via the old ``dependencies`` substring match.
+        """
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\n"
+            'name = "demo"\n'
+            'dependencies = ["cyclopts>=4.5"]\n'
+            "\n"
+            "[project.optional-dependencies]\n"
+            'web = ["flask>=3.0"]\n',
+            encoding="utf-8",
+        )
+        stack = detect_stack(tmp_path)
+        flat = {dep for deps in stack.values() for dep in deps}
+        assert "cyclopts" in flat
+        assert "flask" not in flat
+
+    def test_nested_array_dependency_parsed(self, tmp_path: Path) -> None:
+        """AC2: a multi-line dependencies array with a nearby nested array is parsed.
+
+        The old regex stopped at the first ``]`` and broke on nested arrays;
+        tomllib parses the full array regardless of layout.
+        """
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\n"
+            'name = "demo"\n'
+            "dependencies = [\n"
+            '    "pydantic>=2.0",\n'
+            '    "fastapi>=0.110",\n'
+            "]\n"
+            "\n"
+            "[tool.demo]\n"
+            "matrix = [[1, 2], [3, 4]]\n",
+            encoding="utf-8",
+        )
+        flat = {dep for deps in detect_stack(tmp_path).values() for dep in deps}
+        assert "pydantic" in flat
+        assert "fastapi" in flat
+
+    def test_malformed_pyproject_graceful(self, tmp_path: Path) -> None:
+        """AC3: a malformed pyproject.toml degrades to an empty stack, no crash."""
+        (tmp_path / "pyproject.toml").write_text(
+            "[project\ndependencies = [ broken", encoding="utf-8"
+        )
+        assert detect_stack(tmp_path) == {}
