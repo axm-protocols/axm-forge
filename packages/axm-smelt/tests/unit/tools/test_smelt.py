@@ -143,3 +143,12 @@ def test_invalid_preset(tool: SmeltTool) -> None:
     assert result.success is False
     assert result.error is not None
     assert len(result.error) > 0
+
+
+def test_smelt_exposes_counter_backend(tool: SmeltTool) -> None:
+    """AC2: data and header text surface report.counter_backend."""
+    result = tool.execute(data='{"a": 1, "b": 2}')
+    assert result.success is True
+    assert result.data["counter_backend"] == "tiktoken"
+    header = result.text.partition("\n")[0]
+    assert "tiktoken" in header

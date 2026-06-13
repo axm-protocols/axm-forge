@@ -45,9 +45,18 @@ On success, `result.data` contains a JSON-serializable dict:
   "original_tokens": 14,
   "compacted_tokens": 9,
   "savings_pct": 35.7,
-  "strategies_applied": ["minify"]
+  "strategies_applied": ["minify"],
+  "counter_backend": "tiktoken"
 }
 ```
+
+`counter_backend` reports which token counter produced the numbers: `tiktoken`
+for an exact encoding, or `fallback` when tiktoken is unavailable or the model
+name is unknown and the approximate `len // 4` heuristic is used. It also appears
+in the text header so the source of the counts is never silent. `smelt_count`
+exposes the same `counter_backend` key in its `data` and text — so a typo'd model
+name surfaces as `fallback` instead of being reported under the requested name as
+if it were exact.
 
 On error, `result.success` is `False` and `result.error` contains the message.
 

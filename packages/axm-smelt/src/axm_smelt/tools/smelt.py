@@ -64,7 +64,7 @@ class SmeltTool(AXMTool):
             header = (
                 f"smelt | {report.format.value} | "
                 f"{report.original_tokens}->{report.compacted_tokens} tok "
-                f"(-{savings_pct}%) | {applied}"
+                f"(-{savings_pct}%) | {applied} | {report.counter_backend.value}"
             )
             return ToolResult(
                 success=True,
@@ -75,6 +75,7 @@ class SmeltTool(AXMTool):
                     "compacted_tokens": report.compacted_tokens,
                     "savings_pct": savings_pct,
                     "strategies_applied": report.strategies_applied,
+                    "counter_backend": report.counter_backend.value,
                 },
                 text=f"{header}\n{report.compacted}",
             )

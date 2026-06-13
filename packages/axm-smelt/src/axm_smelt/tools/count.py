@@ -51,17 +51,21 @@ class SmeltCountTool(AXMTool):
             if not isinstance(data, str):
                 data = json.dumps(data)
 
-            from axm_smelt.core.counter import count
+            from axm_smelt.core.counter import count_with_backend
 
-            tokens = count(data, model=model)
+            tokens, backend = count_with_backend(data, model=model)
 
             return ToolResult(
                 success=True,
                 data={
                     "tokens": tokens,
                     "model": model,
+                    "counter_backend": backend.value,
                 },
-                text=f"smelt_count | {tokens} tokens | {len(data)} chars | {model}",
+                text=(
+                    f"smelt_count | {tokens} tokens | {len(data)} chars | "
+                    f"{model} | {backend.value}"
+                ),
             )
         except Exception as exc:  # noqa: BLE001
             return ToolResult(success=False, error=str(exc))
