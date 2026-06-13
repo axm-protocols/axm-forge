@@ -100,6 +100,7 @@ Execute one or more atomic commits with pre-commit hook handling.
 | `path` | `.` | Project root directory |
 | `commits` | *required* | List of commit specs (see below) |
 | `profile` | `None` | Identity profile name — overrides schedule-based resolution from `git-profiles.toml` |
+| `strict` | `False` | When `True`, a non-Conventional-Commit message is a hard failure instead of a warning |
 
 Each commit spec:
 
