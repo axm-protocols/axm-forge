@@ -266,10 +266,6 @@ hash = "7e0906172112"
 reason = "tests cover two distinct repo layouts (flat git repo via tmp_git_repo vs nested workspace via tmp_workspace_repo with tuple unpacking) -- different fixtures and scenarios, no shared data to parametrize"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "5ef18a0e31ec"
-reason = "tests cover opposite branches of retry-on-autofix control flow (retry path with 4 mocked git calls and stage call_count==2 vs clean path with 3 mocked git calls and stage call_count==1) -- collapsing them would obscure the call-sequence verification that is the whole point"
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "3a0c99a704de"
 reason = "three verify_hatch_vcs failure paths exercise structurally different subprocess mock setups (return_value with rc=1 for sync_fails, side_effect callback with call counter for version_check_fails, side_effect=FileNotFoundError for uv_not_found) -- collapsing into parametrize would erase the mock-setup divergence that documents each failure mode"
 
@@ -286,8 +282,8 @@ hash = "31cab244bf8d"
 reason = "11 tests span three classes (TestResolveIdentity, TestScheduleBoundaries, TestIsAxmWorkspace) and three concerns (schedule resolution by time/day, schedule boundary inclusivity, axm-workspace detection) with several inline-TOML setups (default VALID_TOML, minimal `[default]` only, multi-rule first-wins, symlink) -- collapsing into a single parametrize would conflate three independent behaviors and obscure the per-class documentation intent"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "53396655fe5b"
-reason = "parse_tag cluster mixes 3 success-path equality assertions (parse_tag(s) == tuple) with 1 pytest.raises ValueError invalid case -- success vs raises observation surfaces are heterogeneous, parametrize would force an awkward optional-expected/optional-raises matrix that erases the failure-mode documentation"
+hash = "56eb1aaf8690"
+reason = "parse_tag cluster mixes success-path equality assertions (parse_tag(s) == tuple for v-prefixed/bare/zero versions) with 4 pytest.raises ValueError invalid cases (garbage, prerelease, trailing segment, legacy invalid) -- success vs raises observation surfaces are heterogeneous, parametrize would force an awkward optional-expected/optional-raises matrix that erases the failure-mode documentation"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "b52a6d37c8d3"
@@ -330,10 +326,6 @@ hash = "9298be6e5099"
 reason = "test_no_suggestions feeds the 'fatal: not a git repository' string with no child .git dirs (asserts no suggestions in result.data), while test_other_error_passthrough feeds an unrelated 'fatal: some other error' message with a child .git planted (asserts the scanner short-circuits on non-repo errors) -- different error inputs, different scanner branches, different substring assertions ('not a git repository' vs 'some other error')"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "e84d13905500"
-reason = "test_commit_legacy_with_identity drives the legacy `_commit_legacy` codepath with the `_run_git_success` fixture (status/add/commit/rev-parse mocks, no commit_spec in context), while test_commit_from_outputs_with_identity drives the newer `commit_from_outputs` codepath with `_commit_from_outputs_deps` fixture (ls-files/diff/add/commit mocks plus a commit_spec dict in context) -- two distinct SUT entry points, two distinct fixture topologies, parametrize would conflate the legacy/modern API boundary"
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "1e9f84905d11"
 reason = "test_branch_delete_success uses the flat `tmp_git_repo: Path` fixture and runs the hook with working_dir == git root, while test_subdirectory_of_git_repo uses the nested `tmp_workspace_repo: tuple[Path, Path]` fixture (git_root, pkg_dir unpacking) and runs the hook with working_dir == pkg_dir to exercise sub-directory resolution -- different fixture shapes, different working-dir topologies, parametrize cannot bridge tuple-vs-Path fixtures cleanly"
 
@@ -352,14 +344,6 @@ reason = "canonical 'every hook has a disabled test' pattern -- 4 tests across 4
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "e7e9aeba284a"
 reason = "ambiguous_distinct_sut -- 4 disabled-path tests instantiate 4 different hook classes (PreflightHook, WorktreeAddHook, PullHook, PushHook) split across pyramid levels (2 integration with real fixtures: tmp_git_repo + _make_context helper; 2 unit with no fixtures: working_dir='.' literal); the per-hook disabled-contract assertion cannot be parametrized across distinct hook constructors and distinct context shapes (worktree_add needs ticket_id, pull/push need only working_dir)"
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "37d744e2512d"
-reason = "ambiguous_template_pair -- 4 `test_name` assertions across 4 distinct MCP tool classes (GitBranchTool, GitPRTool, GitPushTool, GitWorktreeTool) each verifying its own .name string literal ('git_branch', 'git_pr', 'git_push', 'git_worktree'); identical shape but heterogeneous SUTs with hard-coded per-tool string contracts, no parametrizable matrix"
-
-[[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "00c56eb1fb91"
-reason = "ambiguous_template_pair -- 3 `test_name` assertions across 3 distinct MCP tool classes (GitCommitTool, GitPreflightTool, GitTagTool) each verifying its own .name string literal ('git_commit', 'git_preflight', 'git_tag'); cookie-cutter shape but heterogeneous SUTs with hard-coded per-tool string contracts, no parametrizable matrix"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "b8af6ffac47d"
@@ -394,12 +378,12 @@ hash = "44799bfa7c31"
 reason = "ambiguous_distinct_literals -- test_result_exposes_full_tag patches get_tag_prefix='git/' and asserts data['full_tag']=='git/v0.4.0' AND data['tag']=='v0.4.0' (prefix-exposure concern), while test_no_existing_tags has no prefix patch and asserts data['tag']=='v0.1.0' AND data['current_tag']=='none' (first-tag-ever base concern); different asserted fields and different mock topologies, parametrize would force an awkward optional-field matrix"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "2326f8633a76"
-reason = "5 check_ci tests exercise structurally distinct mock topologies: skipped_when_gh_unavailable patches only gh_available=False (no run_git/run_gh), check_ci_from_gh_output is a 5-case (rc,stdout,status) matrix over run_git+run_gh, exception_returns_error uses run_gh side_effect=FileNotFoundError, ci_green_only_when_headsha_matches and ci_unrelated_red_does_not_block assert headSha-discrimination over bespoke single- and multi-run JSON payloads -- collapsing into one parametrize would require generic mock-config params that erase the per-branch gh-unavailable/exception/headSha-match intent"
+hash = "c12f274ff060"
+reason = "6 check_ci tests (across test_check_ci.py + test_tag.py) exercise structurally distinct mock topologies: skipped_when_gh_unavailable patches only gh_available=False (no run_git/run_gh), check_ci_from_gh_output is a multi-case (rc,stdout,status) matrix over run_git+run_gh, exception_returns_error uses run_gh side_effect=FileNotFoundError, tag_resolves_head_sha/ci_green_only_when_headsha_matches/ci_unrelated_red_does_not_block assert headSha-discrimination over bespoke single- and multi-run JSON payloads -- collapsing into one parametrize would require generic mock-config params that erase the per-branch gh-unavailable/exception/headSha-match intent"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "1e95b2bd529c"
-reason = "ambiguous_distinct_literals -- 10 render_text success-path tests across 6 files target 6 different renderer SUTs imported from different modules (branch_text/clone_text/commit_text/pr_text/push_text/tag_text.render_text), each producing a tool-specific prefix and body (git_branch vs git_clone vs git_commit vs git_pr vs git_push vs git_tag) over its own data dict shape -- a cross-file fold would erase which renderer is under test, and the intra-file pairs (clone with/without path, pr auto/no-auto merge, push upstream-set/existing, tag full/breaking-not-pushed) feed distinct literals exercising opposite branches"
+hash = "f305364c1375"
+reason = "ambiguous_distinct_literals -- 19 render_text success-path tests across 9 files target distinct renderer SUTs imported from different modules (await_merge_text/branch_text/clone_text/commit_text/merge_text/pr_text/pull_text/push_text/tag_text.render_text), each producing a tool-specific prefix and body over its own data dict shape -- a cross-file fold would erase which renderer is under test, and the intra-file pairs (clone with/without path, pr auto/no-auto merge, push upstream-set/existing, tag full/breaking-not-pushed, merge/pull/await_merge missing-keys vs non-str coercion) feed distinct literals exercising opposite branches"
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "5ede5f3be9bd"
