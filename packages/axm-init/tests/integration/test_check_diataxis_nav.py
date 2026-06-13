@@ -2,25 +2,42 @@
 
 from pathlib import Path
 
+import pytest
+
 from axm_init.checks.docs import check_diataxis_nav
 
 
 class TestCheckDiataxisNav:
-    def test_pass(self, gold_project: Path) -> None:
-        r = check_diataxis_nav(gold_project)
-        assert r.passed is True
+    @pytest.mark.parametrize(
+        ("fixture_name", "expected"),
+        [
+            pytest.param("gold_project", True, id="pass"),
+            pytest.param("flat_nav_project", False, id="fail_flat_nav"),
+            pytest.param("partial_nav_project", False, id="fail_partial"),
+        ],
+    )
+    def test_passed(
+        self,
+        request: pytest.FixtureRequest,
+        fixture_name: str,
+        expected: bool,
+    ) -> None:
+        project = request.getfixturevalue(fixture_name)
+        r = check_diataxis_nav(project)
+        assert r.passed is expected
 
-    def test_fail_flat_nav(self, tmp_path: Path) -> None:
-        (tmp_path / "mkdocs.yml").write_text("nav:\n  - Home: index.md\n")
-        r = check_diataxis_nav(tmp_path)
-        assert r.passed is False
 
-    def test_fail_partial(self, tmp_path: Path) -> None:
-        mkdocs = "nav:\n  - Tutorials:\n    - t.md\n  - Reference:\n    - r.md\n"
-        (tmp_path / "mkdocs.yml").write_text(mkdocs)
-        r = check_diataxis_nav(tmp_path)
-        assert r.passed is False
-        # Should report which Diátaxis sections are missing
+@pytest.fixture
+def flat_nav_project(tmp_path: Path) -> Path:
+    (tmp_path / "mkdocs.yml").write_text("nav:\n  - Home: index.md\n")
+    return tmp_path
+
+
+@pytest.fixture
+def partial_nav_project(tmp_path: Path) -> Path:
+    mkdocs = "nav:\n  - Tutorials:\n    - t.md\n  - Reference:\n    - r.md\n"
+    (tmp_path / "mkdocs.yml").write_text(mkdocs)
+    return tmp_path
 
 
 def test_diataxis_nav_workspace_fallback(workspace_member: Path) -> None:

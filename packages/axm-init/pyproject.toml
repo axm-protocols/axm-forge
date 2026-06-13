@@ -428,6 +428,10 @@ reason = "test_copier_imports_at_runtime executes a subprocess that imports axm_
 hash = "28cb02da3de1"
 reason = "Members assert divergent result fields, not just an expected pass/fail value: test_mypy_strict_implies_sub_flags asserts r.weight == 3, test_fail_partial/test_mypy_pretty_not_implied assert 'pretty' in r.details, test_mypy_strict_with_override_false asserts 'check_untyped_defs' in r.details, and test_mypy_strict_false_requires_explicit asserts 'strict' in r.details — parametrizing would erase the per-case field/diagnostic divergence (weight vs distinct details substrings)."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "23926b49ea18"
+reason = "Mixed-field cluster on check_uv_lock: test_pass_workspace_root asserts r.passed is True AND 'workspace root' in r.message (a different result field) after building a full workspace-root + member tree, while test_fail_missing (shared empty_project, no pyproject) and test_fail_workspace_no_lock (workspace root WITHOUT uv.lock + member) assert only r.passed is False on two structurally distinct failure branches — folding would erase both the .message contract and the missing-pyproject vs missing-root-lock branch distinction."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 
