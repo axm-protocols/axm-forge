@@ -460,6 +460,26 @@ reason = "Inter-file cluster spanning test_check_engine.py and test_check_engine
 hash = "2fb6da22c308"
 reason = "Inter-file cluster across test_patch_ci.py and test_patch_dependabot.py covering different SUTs: test_patch_ci_keeps_yaml_parseable calls patch_ci and asserts the jobs/test CI structure, while test_patch_dependabot_keeps_yaml_parseable calls patch_dependabot and asserts the updates/uv directory list — different fixtures (realistic-ci vs workspace_root) and distinct functions, so an inter-file fold is forbidden."
 
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "7b59546ae8f8"
+reason = "Cross-SUT 1:1-mirror cluster: 12 test_passed bodies each live in a distinct test_check_*.py and call a different public check_* SUT (check_ci_test_job, check_ci_workflow_exists, check_contributing, check_docs_group, check_gitcliff_config, check_license_file, check_makefile, check_mkdocs_exists, check_precommit_basic, check_precommit_exists, check_precommit_mypy, check_precommit_ruff) on its gold fixture — parametrizing across files would conflate distinct SUTs and break the per-check mirror layout."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "2af8b7360fce"
+reason = "Cross-SUT 1:1-mirror cluster: 5 test_passed bodies each in a distinct test_check_*.py exercise a different public check_* SUT (check_ci_lint_job, check_ci_security_job, check_dev_deps, check_diataxis_nav, check_readme) on its gold fixture — folding across files would conflate distinct SUTs and break the per-check mirror layout."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "a0f800436549"
+reason = "Cross-SUT 1:1-mirror cluster: 4 test_passed bodies each in a distinct test_check_*.py exercise a different public check_* SUT (check_no_manual_changelog, check_plugins, check_precommit_conventional, check_pyproject_coverage) on its gold fixture — folding across files would conflate distinct SUTs and break the per-check mirror layout."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "14ed07ae7078"
+reason = "Intra-file residual in test_check_src_layout.py: test_pass asserts r.passed on the real on-disk gold_project fixture while test_fail_no_src (empty_project) and the tmp_path-parametrized test_src_layout_detection construct synthetic layouts — the fixtures differ (gold vs empty vs built dirs), so folding would force the gold smoke-check into the parametrize table and change semantics."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "2d1d038a8f57"
+reason = "Intra-file residual in test_check_py_typed.py: test_pass asserts r.passed on the real on-disk gold_project fixture while the tmp_path-parametrized test_py_typed_layouts builds synthetic py.typed placements — different fixtures (gold vs constructed), so folding would force the gold smoke-check into the parametrize table and change semantics."
+
 [tool.coverage.xml]
 output = "coverage.xml"
 
