@@ -104,6 +104,14 @@ Output: {"_refs": {"$R0": "a-very-long-repeated-value"}, "_data": {"a": "$R0", "
 
 Aliases are assigned by savings potential (length x occurrences) descending.
 
+**Collision-free alias namespace:** the alias prefix is chosen so that no input
+string value starts with it. The default prefix is `$R`; if any input value
+already begins with `$R` (e.g. a literal `"$R0"`), the prefix escalates
+(`$$R`, `$$$R`, ...) until it prefixes no input value. Because no input value can
+then equal an alias `f"{prefix}{i}"`, the `{_refs, _data}` envelope is always
+unambiguously decodable — a literal `"$R0"` value round-trips intact instead of
+being mistaken for an alias reference.
+
 **When to use:** Payloads containing repeated long strings such as URLs, UUIDs, or descriptions. Savings increase with string length and repetition count.
 
 ---

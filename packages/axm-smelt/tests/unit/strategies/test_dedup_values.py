@@ -284,6 +284,77 @@ def test_dedup_normal_input_unchanged_behavior(
     assert parsed["_data"] == {"a": alias, "b": alias, "c": alias}
 
 
+# --- alias-namespace collision guard (AXM-1997) ---
+
+
+def _decode(data: object, refs: dict[str, str]) -> object:
+    """Reverse the envelope: substitute only actual alias keys of ``_refs``.
+
+    A self-describing decoder replaces a string only when it is a real
+    alias key, so a literal value that merely looks like an alias is left
+    intact.
+    """
+    if isinstance(data, str):
+        return refs.get(data, data)
+    if isinstance(data, dict):
+        return {k: _decode(v, refs) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_decode(item, refs) for item in data]
+    return data
+
+
+def test_alias_prefix_collision_free(strategy: DedupValuesStrategy) -> None:
+    """AC1: no alias equals any input string value (collision-free namespace)."""
+    payload = {
+        "a": _LONG,
+        "b": _LONG,
+        "c": _LONG,
+        "literal": "$R0",
+        "literal2": "$R1",
+    }
+    ctx = SmeltContext(text=json.dumps(payload), parsed=payload)
+    parsed = json.loads(strategy.apply(ctx).text)
+
+    aliases = set(parsed["_refs"].keys())
+    assert aliases, "repeated long value should have produced an alias"
+
+    input_values = {"$R0", "$R1", _LONG}
+    # No alias may collide with an existing input value.
+    assert aliases.isdisjoint(input_values)
+
+
+def test_roundtrip_with_literal_alias_value(strategy: DedupValuesStrategy) -> None:
+    """AC2: an input with literal ``$R0``/``$R1`` values round-trips exactly."""
+    payload = {
+        "x": _LONG,
+        "y": _LONG,
+        "z": _LONG,
+        "trap": "$R0",
+        "trap2": "$R1",
+    }
+    ctx = SmeltContext(text=json.dumps(payload), parsed=payload)
+    parsed = json.loads(strategy.apply(ctx).text)
+
+    decoded = _decode(parsed["_data"], parsed["_refs"])
+    assert decoded == payload
+    assert decoded["trap"] == "$R0"
+    assert decoded["trap2"] == "$R1"
+
+
+def test_dedup_still_compresses_with_envelope(
+    strategy: DedupValuesStrategy,
+) -> None:
+    """AC3: repeated long strings still compress and yield the envelope."""
+    payload = {"a": _LONG, "b": _LONG, "c": _LONG, "d": _LONG}
+    ctx = SmeltContext(text=json.dumps(payload), parsed=payload)
+    result = strategy.apply(ctx)
+    parsed = json.loads(result.text)
+
+    assert "_refs" in parsed
+    assert "_data" in parsed
+    assert len(result.text) < len(ctx.text)
+
+
 # --- registry name ---
 
 
