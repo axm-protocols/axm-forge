@@ -820,7 +820,12 @@ def test_smelt_deep_nesting_no_recursionerror() -> None:
 
     report = smelt(text)
 
+    # No RecursionError escaped (we reached this line) and a usable report
+    # is returned: the input was preserved as a non-empty compacted string.
     assert isinstance(report, SmeltReport)
+    assert report.original == text
+    assert len(report.compacted) > 0
+    assert report.original_tokens > 0
 
 
 def test_check_deep_nesting_no_recursionerror() -> None:
@@ -832,7 +837,11 @@ def test_check_deep_nesting_no_recursionerror() -> None:
 
     report = check(text)
 
+    # No exception escaped (we reached this line) and check() returned a
+    # usable report describing the original deeply nested input.
     assert isinstance(report, SmeltReport)
+    assert report.original == text
+    assert report.original_tokens > 0
 
 
 def test_shallow_input_unchanged() -> None:
