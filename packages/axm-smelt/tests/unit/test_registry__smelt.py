@@ -18,8 +18,6 @@ import pytest
 from axm_smelt import smelt
 from axm_smelt.strategies import REGISTRY
 
-pytestmark = pytest.mark.integration
-
 # Strictly-lossless strategies on structured JSON: they either reformat
 # whitespace only (``minify``) or are no-ops on structured formats
 # (``collapse_whitespace``, ``strip_html_comments``, ``compact_tables``).
