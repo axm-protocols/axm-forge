@@ -71,7 +71,7 @@ Dicts with multiple keys are not flattened.
 ## tabular
 
 **Category:** structural
-**Lossless:** yes (headers are preserved)
+**Lossless:** no (types collapse to strings; missing keys become empty)
 
 Converts a homogeneous `list[dict]` to a compact pipe-separated table with a header row. Recurses into nested dicts.
 

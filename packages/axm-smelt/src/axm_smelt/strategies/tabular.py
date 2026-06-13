@@ -89,7 +89,13 @@ def _tabularize_dict(data: Mapping[str, object]) -> tuple[dict[str, object], boo
 
 
 class TabularStrategy(SmeltStrategy):
-    """Convert JSON arrays of objects to pipe-separated tables."""
+    """Convert JSON arrays of objects to pipe-separated tables.
+
+    Lossy: typed cell values collapse to strings (``None`` -> ``"null"``,
+    ``False`` -> ``"false"``, ``0`` -> ``"0"``) and a missing key becomes an
+    empty cell, indistinguishable from their string homonyms. The transform is
+    not reversible.
+    """
 
     @property
     def name(self) -> str:
