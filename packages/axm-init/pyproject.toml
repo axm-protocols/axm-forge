@@ -468,11 +468,11 @@ hash = "2fb6da22c308"
 reason = "Inter-file cluster across test_patch_ci.py and test_patch_dependabot.py covering different SUTs: test_patch_ci_keeps_yaml_parseable calls patch_ci and asserts the jobs/test CI structure, while test_patch_dependabot_keeps_yaml_parseable calls patch_dependabot and asserts the updates/uv directory list — different fixtures (realistic-ci vs workspace_root) and distinct functions, so an inter-file fold is forbidden."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "7b59546ae8f8"
+hash = "84a76b4321ac"
 reason = "Cross-SUT 1:1-mirror cluster: 12 test_passed bodies each live in a distinct test_check_*.py and call a different public check_* SUT (check_ci_test_job, check_ci_workflow_exists, check_contributing, check_docs_group, check_gitcliff_config, check_license_file, check_makefile, check_mkdocs_exists, check_precommit_basic, check_precommit_exists, check_precommit_mypy, check_precommit_ruff) on its gold fixture — parametrizing across files would conflate distinct SUTs and break the per-check mirror layout."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
-hash = "2af8b7360fce"
+hash = "0ecd42b79a6c"
 reason = "Cross-SUT 1:1-mirror cluster: 5 test_passed bodies each in a distinct test_check_*.py exercise a different public check_* SUT (check_ci_lint_job, check_ci_security_job, check_dev_deps, check_diataxis_nav, check_readme) on its gold fixture — folding across files would conflate distinct SUTs and break the per-check mirror layout."
 
 [[tool.axm-audit.duplicate_tests.acknowledged]]
@@ -486,6 +486,10 @@ reason = "Intra-file residual in test_check_src_layout.py: test_pass asserts r.p
 [[tool.axm-audit.duplicate_tests.acknowledged]]
 hash = "2d1d038a8f57"
 reason = "Intra-file residual in test_check_py_typed.py: test_pass asserts r.passed on the real on-disk gold_project fixture while the tmp_path-parametrized test_py_typed_layouts builds synthetic py.typed placements — different fixtures (gold vs constructed), so folding would force the gold smoke-check into the parametrize table and change semantics."
+
+[[tool.axm-audit.duplicate_tests.acknowledged]]
+hash = "92568377c76c"
+reason = "Intra-file fail/pass pair in test_check_ci_test_job.py: both call the same SUT check_ci_test_job but on opposite gold fixtures with divergent assertions — test_ci_test_job_requires_real_matrix feeds a comment-only CI (no python-version matrix test job) and asserts result.passed is False, while test_ci_test_job_passes_with_matrix feeds a real test job carrying a python-version matrix + pytest step and asserts result.passed is True. The negative/positive contract pair documents the matrix-detection boundary; parametrizing would collapse two opposite-outcome fixtures into one table and erase the per-branch literals."
 
 [tool.coverage.xml]
 output = "coverage.xml"
