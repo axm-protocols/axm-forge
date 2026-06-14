@@ -85,7 +85,11 @@ _tasks:
     when: "{{ true }}"
   - command: "uv python pin {{ python_min_version }}"
     when: "{{ true }}"
-  - command: "uv sync"
+  # Sync only when the workspace already has members. A fresh, member-less
+  # workspace has nothing to resolve, and `uv sync` would fail and roll back
+  # the whole scaffold. The shell guard keeps this safe both now (skip) and
+  # later (sync once the user adds packages/<member>).
+  - command: "sh -c 'for p in packages/*/pyproject.toml; do [ -e \"$p\" ] && exec uv sync; done; echo \"No workspace members yet — skipping uv sync (run it after adding a member).\"'"
     when: "{{ true }}"
   - command: "git add . && git commit -m 'feat: initial workspace scaffold'"
     when: "{{ true }}"
