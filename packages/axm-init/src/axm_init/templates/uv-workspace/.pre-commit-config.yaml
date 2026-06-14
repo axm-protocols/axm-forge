@@ -14,11 +14,30 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+  # MyPy — local per-package hooks (run inside each member's uv venv so the
+  # member's own dependencies resolve). A single global mypy mirror hook at the
+  # workspace root with only `additional_dependencies` cannot see member deps
+  # and emits false positives. With zero members at scaffold time this list
+  # holds only a commented PLACEHOLDER; add one hook per member as they are
+  # scaffolded (model: axm-travel/.pre-commit-config.yaml).
+  - repo: local
     hooks:
-      - id: mypy
-        additional_dependencies: [pydantic]
+      # PLACEHOLDER: replace `placeholder` with a real packages/* member name,
+      # one block per member, e.g.
+      #   - id: mypy-my-core
+      #     name: mypy (my-core)
+      #     entry: uv run --package my-core mypy --config-file packages/my-core/pyproject.toml
+      #     language: system
+      #     types: [python]
+      #     pass_filenames: false
+      #     args: [packages/my-core/src/, packages/my-core/tests/]
+      - id: mypy-placeholder
+        name: mypy (placeholder)
+        entry: uv run --package placeholder mypy --config-file packages/placeholder/pyproject.toml
+        language: system
+        types: [python]
+        pass_filenames: false
+        args: [packages/placeholder/src/, packages/placeholder/tests/]
 
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0
