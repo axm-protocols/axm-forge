@@ -13,7 +13,7 @@
 |---|---|
 | `git_preflight` | Working tree status and diff summary before a phase |
 | `git_branch` | Create or checkout a branch |
-| `git_commit` | Batched atomic commits with pre-commit; warns on non-Conventional-Commit messages (`strict=True` blocks them), retries on pre-commit auto-fixes |
+| `git_commit` | Batched atomic commits with commit-hook handling; warns on non-Conventional-Commit messages (`strict=True` blocks them), retries on commit-hook auto-fixes |
 | `git_clone` | Clone a repository into a local directory |
 | `git_tag` | One-shot semver tagging (skips CI checks when `gh` is unavailable) |
 | `git_push` | Push with dirty-check and auto-upstream; `force` uses `--force-with-lease` by default |

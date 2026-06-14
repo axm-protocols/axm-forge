@@ -31,7 +31,7 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
-#: Marker emitted by git when a pre-commit hook auto-fixed staged files.
+#: Marker emitted by git when a commit hook auto-fixed staged files.
 AUTOFIX_MARKER = "files were modified"
 
 _REQUIRED_SPEC_KEYS = {"message", "files"}
@@ -80,7 +80,7 @@ class AutofixRetry:
     Attributes:
         result: The final GitResult-like object (returncode/stdout/stderr).
         retried: Whether a re-stage + retry was actually performed.
-        auto_fixed: Files the pre-commit hook modified, captured *before*
+        auto_fixed: Files the commit hook modified, captured *before*
             re-staging (the subsequent ``git add`` would empty the diff).
             Empty when no auto-fix occurred.
     """
@@ -98,7 +98,7 @@ def attempt_commit_with_autofix_retry(
     *,
     working_dir: Path | None = None,
 ) -> AutofixRetry:
-    """Re-stage + retry *cmd* once when a pre-commit hook auto-fixed files.
+    """Re-stage + retry *cmd* once when a commit hook auto-fixed files.
 
     Detection is on the combined stdout+stderr of *first_result*: when the
     canonical ``"files were modified"`` marker is present, the modified
@@ -113,7 +113,7 @@ def attempt_commit_with_autofix_retry(
     if AUTOFIX_MARKER not in output:
         return AutofixRetry(result=first_result, retried=False, auto_fixed=[])
 
-    logger.warning("Pre-commit auto-fixed files, re-staging and retrying")
+    logger.warning("Commit hook auto-fixed files, re-staging and retrying")
     diff = run_git(["diff", "--name-only"], git_root)
     auto_fixed = [f for f in diff.stdout.strip().splitlines() if f.strip()]
 

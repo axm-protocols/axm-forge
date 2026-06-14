@@ -6,7 +6,7 @@
 |---|---|---|
 | `git_preflight` | `GitPreflightTool` | Working tree status and diff summary |
 | `git_branch` | `GitBranchTool` | Create or checkout branches |
-| `git_commit` | `GitCommitTool` | Batched atomic commits with pre-commit; warns on non-Conventional-Commit messages (`strict=True` blocks them) |
+| `git_commit` | `GitCommitTool` | Batched atomic commits with commit-hook handling; warns on non-Conventional-Commit messages (`strict=True` blocks them) |
 | `git_clone` | `GitCloneTool` | Clone a repository into a local directory |
 | `git_tag` | `GitTagTool` | One-shot semver tagging |
 | `git_release_diff` | `GitReleaseDiffTool` | Read-only SemVer bump decision: scopes commits/diffstat to a package subdir since its last tag, flags public-API changes, and suggests the next version |

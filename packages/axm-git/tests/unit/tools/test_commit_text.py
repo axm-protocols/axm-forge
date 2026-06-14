@@ -31,9 +31,9 @@ class TestFormatTextHeader:
 
     def test_header_with_extra(self) -> None:
         line = format_text_header(
-            status="error", succeeded=0, total=1, extra="pre-commit failed at #1"
+            status="error", succeeded=0, total=1, extra="hook check failed at #1"
         )
-        assert line == "git_commit | error | 0/1 commits · pre-commit failed at #1"
+        assert line == "git_commit | error | 0/1 commits · hook check failed at #1"
 
     def test_header_with_retried_and_extra(self) -> None:
         line = format_text_header(
@@ -41,11 +41,11 @@ class TestFormatTextHeader:
             succeeded=1,
             total=2,
             retried_count=1,
-            extra="pre-commit failed at #2 (retried)",
+            extra="hook check failed at #2 (retried)",
         )
         assert line == (
             "git_commit | error | 1/2 commits · 1 retried "
-            "· pre-commit failed at #2 (retried)"
+            "· hook check failed at #2 (retried)"
         )
 
     def test_pure_error_shape_when_total_zero(self) -> None:
@@ -184,10 +184,10 @@ class TestRenderFailureText:
                 "retried": True,
             },
         }
-        out = render_failure_text(error="Commit 2: pre-commit failed", data=data)
+        out = render_failure_text(error="Commit 2: hook check failed", data=data)
         assert out == (
             "git_commit | error | 1/2 commits · "
-            "pre-commit failed at #2 (retried)\n"
+            "hook check failed at #2 (retried)\n"
             "ok: aa83f25 feat: add a\n"
             "fail: feat: add b\n"
             "auto-fixed: src/foo.py, src/bar.py\n"
@@ -209,9 +209,9 @@ class TestRenderFailureText:
                 "retried": False,
             },
         }
-        out = render_failure_text(error="Commit 1: pre-commit failed", data=data)
+        out = render_failure_text(error="Commit 1: hook check failed", data=data)
         assert out == (
-            "git_commit | error | 0/1 commits · pre-commit failed at #1\n"
+            "git_commit | error | 0/1 commits · hook check failed at #1\n"
             "fail: feat: a\n"
             "hook output:\n"
             "  Linter rejected: trailing whitespace"

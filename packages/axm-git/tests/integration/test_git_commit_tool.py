@@ -469,7 +469,7 @@ class TestMidBatchFailure:
         assert result.success is False
         assert result.error is not None
         assert "Commit 2" in result.error
-        assert "pre-commit failed" in result.error
+        assert "hook check failed" in result.error
         assert result.data["succeeded"] == 1
         assert len(result.data["results"]) == 1
         assert result.data["results"][0]["message"] == "first commit"

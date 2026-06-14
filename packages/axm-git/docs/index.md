@@ -18,13 +18,13 @@
 
 ## What it does
 
-`axm-git` provides deterministic, structured Git operations designed for AI agents. Instead of parsing raw `git` CLI output, agents get typed JSON responses with clear success/failure semantics and automatic retry on pre-commit hook fixes.
+`axm-git` provides deterministic, structured Git operations designed for AI agents. Instead of parsing raw `git` CLI output, agents get typed JSON responses with clear success/failure semantics and automatic retry on commit-hook fixes.
 
 ## Features
 
 - 🔍 **Preflight** — Structured working tree status with diff summary
 - 🌿 **Branch** — Create or checkout branches with one call
-- 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes
+- 📦 **Commit** — Batched atomic commits with auto-retry on commit-hook fixes
 - 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
 - 🚀 **Push** — Push with dirty-check, auto-upstream detection, and force support
 - 🌲 **Worktree** — Add, remove, or list git worktrees

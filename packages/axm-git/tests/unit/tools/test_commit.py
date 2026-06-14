@@ -405,6 +405,65 @@ class TestConventionalCommitValidation:
         assert "wip stuff" in (result.error or "")
 
 
+class TestRunnerAgnosticWording:
+    """AC1/AC3: hook-runner-agnostic messaging and stable result key."""
+
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
+    @patch("axm_git.tools.commit.run_git")
+    def test_commit_failure_message_runner_agnostic(
+        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+    ) -> None:
+        """AC1: a failing commit reports runner-agnostic wording.
+
+        The error must speak of a generic 'hook' check failing, never name
+        the ``pre-commit`` tool specifically (git runs whatever the repo's
+        ``.git/hooks/pre-commit`` file is — pre-commit OR prek).
+        """
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if args[0] == "commit":
+                return _fail(stderr="hook error")
+            if args[0] == "log":
+                return _ok("abc1234")
+            return _ok()
+
+        mock_git.side_effect = _side_effect
+        result = GitCommitTool().execute(
+            path="/tmp/test",
+            commits=[{"files": ["a.py"], "message": "fix: a"}],
+        )
+        assert not result.success
+        error = result.error or ""
+        assert "hook" in error.lower()
+        assert "pre-commit failed" not in error
+
+    @patch("axm_git.tools.commit.find_git_root", return_value=Path("/tmp/test"))
+    @patch("axm_git.tools.commit.stage_spec_files", return_value=None)
+    @patch("axm_git.tools.commit.run_git")
+    def test_result_keeps_precommit_passed_key(
+        self, mock_git: MagicMock, _mock_stage: MagicMock, _mock_root: MagicMock
+    ) -> None:
+        """AC3: the ``precommit_passed`` result key is unchanged (no rename)."""
+
+        def _side_effect(
+            args: list[str], cwd: Any, **kw: Any
+        ) -> subprocess.CompletedProcess[str]:
+            if args[0] == "log":
+                return _ok("abc1234")
+            return _ok()
+
+        mock_git.side_effect = _side_effect
+        result = GitCommitTool().execute(
+            path="/tmp/test",
+            commits=[{"files": ["a.py"], "message": "fix: a"}],
+        )
+        assert result.success
+        assert "precommit_passed" in result.data["results"][0]
+
+
 class TestEmptyCommitList:
     """commits=[] returns success=False with clear error."""
 

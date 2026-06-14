@@ -17,7 +17,7 @@ result = GitCommitTool().execute(
 # success=True — deletion is committed
 ```
 
-## Handle pre-commit auto-fixes
+## Handle commit-hook auto-fixes
 
 When ruff or another tool auto-fixes files during `git commit`, the tool retries automatically:
 

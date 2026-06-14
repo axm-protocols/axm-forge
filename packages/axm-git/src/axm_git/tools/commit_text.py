@@ -126,13 +126,13 @@ def _render_failed_commit(
     data: dict[str, object],
     failed: dict[str, object],
 ) -> str:
-    """Render the M7 (pre-commit failed) failure branch."""
+    """Render the M7 (commit-hook failed) failure branch."""
     results = _as_results(data.get("results"))
     succeeded = _as_int(data.get("succeeded"), len(results))
     total = _as_int(data.get("total"), succeeded + 1)
     index = _as_int(failed.get("index"), succeeded + 1)
     retried = bool(failed.get("retried"))
-    extra = f"pre-commit failed at #{index}"
+    extra = f"hook check failed at #{index}"
     if retried:
         extra += " (retried)"
     header = format_text_header(
@@ -201,7 +201,7 @@ def render_failure_text(
 
     - *data* is ``None``  → plain ``git_commit | error: {error}`` line.
     - *data* has ``suggestions``  → M4 not-a-repo hint.
-    - *data* has ``failed_commit``  → M7 pre-commit failure with optional
+    - *data* has ``failed_commit``  → M7 commit-hook failure with optional
       auto-fixed list and indented hook output.
     - otherwise  → M5/M6 validation or git-add failure.
     """

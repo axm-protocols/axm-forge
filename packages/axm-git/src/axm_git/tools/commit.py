@@ -1,4 +1,4 @@
-"""GitCommitTool — batched atomic commits with pre-commit handling."""
+"""GitCommitTool — batched atomic commits with commit-hook handling."""
 
 from __future__ import annotations
 
@@ -39,14 +39,14 @@ def _attempt_commit(
     *,
     working_dir: Path | None = None,
 ) -> tuple[bool, bool, str, list[str]]:
-    """Attempt commit with auto-retry on pre-commit fix.
+    """Attempt commit with auto-retry on a commit-hook fix.
 
     Runs git from *git_root*; *working_dir* (a possible sub-directory of
     the root) is the resolution fallback for the re-stage path.
 
     Returns:
         (success, retried, output, auto_fixed) where ``auto_fixed`` is the
-        list of files modified by the pre-commit hook (captured *before*
+        list of files modified by the commit hook (captured *before*
         re-staging so it survives the subsequent ``git add``). Empty when
         no auto-fix occurred.
     """
@@ -212,7 +212,7 @@ def _process_single_commit(  # noqa: PLR0913
     )
 
     if not ok:
-        error = f"Commit {index}: pre-commit failed"
+        error = f"Commit {index}: hook check failed"
         data = _build_failure_data(
             results,
             index=index,
@@ -237,6 +237,10 @@ def _process_single_commit(  # noqa: PLR0913
         {
             "sha": sha,
             "message": message,
+            # NOTE(deprecation): runner-agnostic key. Kept as
+            # ``precommit_passed`` to avoid breaking GitCommitTool
+            # consumers; a future ticket renames it to ``hooks_passed``
+            # (breaking change).
             "precommit_passed": True,
             "retried": retried,
         }
@@ -248,13 +252,17 @@ class GitCommitTool(AXMTool):
     """Execute one or more atomic commits in a single call.
 
     Each commit in the batch is processed sequentially: stage files,
-    run ``git commit`` (pre-commit hooks fire automatically), and
-    capture the result.  If a commit fails (e.g. pre-commit rejects),
+    run ``git commit`` (the repo's commit hooks fire automatically), and
+    capture the result.  If a commit fails (e.g. a hook rejects it),
     processing stops and the error is returned alongside any commits
     that already succeeded.
 
-    When a pre-commit hook auto-fixes files (e.g. ruff ``--fix``),
+    When a commit hook auto-fixes files (e.g. ruff ``--fix``),
     the tool automatically re-stages and retries the commit once.
+
+    The hook runner is whatever the repo installs at
+    ``.git/hooks/pre-commit`` (pre-commit OR prek); axm-git never
+    invokes the runner directly — git does.
 
     Registered as ``git_commit`` via axm.tools entry point.
     """

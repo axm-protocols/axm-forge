@@ -71,7 +71,7 @@ print(result.data["results"])
 ```
 
 !!! tip "Auto-retry"
-    If a pre-commit hook (like ruff) auto-fixes a file, `git_commit` automatically
+    If a commit hook (like ruff) auto-fixes a file, `git_commit` automatically
     re-stages and retries the commit once.
 
 ## Step 4: Create a Release Tag

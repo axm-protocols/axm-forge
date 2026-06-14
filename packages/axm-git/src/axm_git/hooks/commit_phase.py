@@ -100,7 +100,7 @@ def _format_spec_files(
                 timeout=120,
             )
         except FileNotFoundError:
-            logger.debug("ruff not found, skipping pre-commit format")
+            logger.debug("ruff not found, skipping commit-hook format")
             return
         except subprocess.TimeoutExpired:
             logger.warning("%s timed out after 120s", cmd[0])
@@ -129,7 +129,7 @@ class CommitPhaseHook:
             **params: Optional ``message_format``, ``from_outputs``,
                 ``working_dir``, ``skip_hooks`` (default ``False`` for
                 ``from_outputs`` mode — pass ``True`` to append
-                ``--no-verify`` and bypass project pre-commit hooks).
+                ``--no-verify`` and bypass the project's commit hooks).
 
         Returns:
             HookResult with ``commit`` hash and ``message`` in metadata.
@@ -220,7 +220,7 @@ class CommitPhaseHook:
 
         Resolves the author identity via :func:`resolve_identity` and
         injects ``--author`` into the commit command when a profile is
-        found.  If the commit fails because pre-commit hooks auto-fixed
+        found.  If the commit fails because commit hooks auto-fixed
         files (stderr contains ``"files were modified"``), the listed
         files are re-staged and the commit is retried once.
 
@@ -228,7 +228,7 @@ class CommitPhaseHook:
             context: Session context containing ``commit_spec``.
             working_dir: Repository working directory.
             skip_hooks: When *True*, append ``--no-verify`` to bypass
-                project pre-commit hooks.  Defaults to ``False`` so
+                the project's commit hooks.  Defaults to ``False`` so
                 hooks run and surface failures via ``HookResult.fail``.
             profile: Optional identity profile name override.
         """

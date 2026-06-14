@@ -22,7 +22,7 @@
 
 - 🔍 **Preflight** — Structured working tree status with diff summary
 - 🌿 **Branch** — Create or checkout branches with one call
-- 📦 **Commit** — Batched atomic commits with auto-retry on pre-commit fixes and optional author identity injection
+- 📦 **Commit** — Batched atomic commits with auto-retry on commit-hook fixes and optional author identity injection
 - 🏷️ **Tag** — One-shot semver tagging from Conventional Commits
 - 🚀 **Push** — Push with dirty-check, auto-upstream detection, and force support
 - 🌲 **Worktree** — Add, remove, or list git worktrees
@@ -93,7 +93,7 @@ Returns: `{branch: "<current branch>"}` on success.
 
 ### `git_commit`
 
-Execute one or more atomic commits with pre-commit hook handling.
+Execute one or more atomic commits with commit-hook handling.
 
 | Parameter | Default | Description |
 |---|---|---|
@@ -110,7 +110,7 @@ Each commit spec:
 | `message` | ✅ | Commit summary (Conventional Commits) |
 | `body` | | Extended commit body |
 
-When a pre-commit hook auto-fixes files (e.g. ruff `--fix`), the tool re-stages and retries once automatically.
+When a commit hook auto-fixes files (e.g. ruff `--fix`), the tool re-stages and retries once automatically.
 
 Identity is resolved once per call (not per commit). When resolved, each commit includes `--author="Name <email>"`. The result includes an `author` key (`{name, email}` or `null`).
 
