@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 9,
         "max_fan_in": 10,
-        "avg_coupling": 4.29,
+        "avg_coupling": 4.43,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -62,7 +62,7 @@
       "passed": true,
       "message": "Test coverage: 94% (94/100)",
       "details": {
-        "coverage": 94.33962264150944,
+        "coverage": 94.3407960199005,
         "failures": []
       },
       "metadata": null
@@ -174,11 +174,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (34/34)",
+      "message": "Docstring coverage: 100% (35/35)",
       "details": {
         "coverage": 1.0,
-        "total": 34,
-        "documented": 34,
+        "total": 35,
+        "documented": 35,
         "missing": []
       },
       "metadata": null
@@ -186,7 +186,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "16 cluster(s), 0 clustered pair(s)",
+      "message": "19 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -257,7 +257,7 @@
               {
                 "file": "tests/integration/test_batch_apply__edit.py",
                 "name": "test_adding_lines_doesnt_shift_upper",
-                "line": 12
+                "line": 14
               },
               {
                 "file": "tests/integration/test_batch_apply__replace_op.py",
@@ -345,12 +345,12 @@
               {
                 "file": "tests/integration/test_batch_apply__create_op.py",
                 "name": "test_create_existing_fails",
-                "line": 27
+                "line": 31
               },
               {
                 "file": "tests/integration/test_batch_apply__create_op.py",
                 "name": "test_path_traversal_rejected",
-                "line": 52
+                "line": 56
               },
               {
                 "file": "tests/integration/test_batch_apply__delete_op.py",
@@ -412,7 +412,7 @@
               {
                 "file": "tests/integration/test_batch_apply__edit.py",
                 "name": "test_multiple_edits_same_file",
-                "line": 38
+                "line": 40
               },
               {
                 "file": "tests/integration/test_edit__replace_op.py",
@@ -467,6 +467,24 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT batch_apply(2)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_batch_apply__create_op.py",
+                "name": "test_create_preserves_crlf_content",
+                "line": 137
+              },
+              {
+                "file": "tests/integration/test_batch_apply__create_op.py",
+                "name": "test_create_preserves_lf_content",
+                "line": 149
+              }
+            ],
+            "cluster_hash": "adb577019b4c"
+          },
+          {
             "signal": "ambiguous_distinct_sut",
             "reason": "distinct public SUT rescue for shared sig batch_apply(2)",
             "similarity": 0.0,
@@ -493,7 +511,7 @@
               {
                 "file": "tests/integration/test_batch_apply__edit.py",
                 "name": "test_overlapping_edits_rejected",
-                "line": 59
+                "line": 61
               },
               {
                 "file": "tests/integration/test_batch_apply__operation.py",
@@ -503,6 +521,42 @@
             ],
             "cluster_hash": "f9a0adf152d5",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT batch_apply(2)>target.read_bytes(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_batch_apply__edit.py",
+                "name": "test_replace_preserves_crlf_multiple_edits",
+                "line": 89
+              },
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_is_binary_wired_in_validation",
+                "line": 868
+              }
+            ],
+            "cluster_hash": "0982d4c75519"
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT batch_apply(2)>target.read_bytes(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_replace_binary_is_validation_failure",
+                "line": 825
+              },
+              {
+                "file": "tests/integration/test_batch_apply__replace_op.py",
+                "name": "test_replace_non_utf8_is_validation_failure",
+                "line": 846
+              }
+            ],
+            "cluster_hash": "d5eef4978aeb"
           },
           {
             "signal": "ambiguous_distinct_class",
@@ -621,8 +675,8 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 0,
-          "AMBIGUOUS": 57,
-          "UNIQUE": 160
+          "AMBIGUOUS": 63,
+          "UNIQUE": 168
         },
         "stale_acknowledged": [
           {

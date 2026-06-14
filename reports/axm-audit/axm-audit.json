@@ -1,9 +1,9 @@
 {
-  "score": 96.9,
+  "score": 95.9,
   "grade": "A",
   "total": 31,
-  "failed": 0,
-  "success": true,
+  "failed": 1,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -28,14 +28,14 @@
       "passed": true,
       "message": "Coupling: 6 module(s) above threshold (-18 pts)",
       "details": {
-        "max_fan_out": 14,
+        "max_fan_out": 15,
         "max_fan_in": 49,
-        "avg_coupling": 6.83,
+        "avg_coupling": 6.87,
         "n_over_threshold": 6,
         "over_threshold": [
           {
             "module": "axm_audit.core.rules.test_quality.duplicate_tests",
-            "fan_out": 14,
+            "fan_out": 15,
             "role": "leaf",
             "effective_threshold": 10,
             "severity": "warning"
@@ -114,7 +114,7 @@
       "passed": true,
       "message": "Test coverage: 91% (90/100)",
       "details": {
-        "coverage": 90.91210393742543,
+        "coverage": 90.9533521942233,
         "failures": []
       },
       "metadata": null
@@ -225,11 +225,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 87% (188/217)",
+      "message": "Docstring coverage: 87% (191/220)",
       "details": {
         "coverage": 0.87,
-        "total": 217,
-        "documented": 188,
+        "total": 220,
+        "documented": 191,
         "missing": [
           "axm_audit/core/fix/cst_rewrite.py:leave_Subscript",
           "axm_audit/core/fix/cst_rewrite.py:leave_Attribute",
@@ -266,8 +266,8 @@
     },
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
-      "passed": true,
-      "message": "122 cluster(s), 0 clustered pair(s)",
+      "passed": false,
+      "message": "123 cluster(s), 12 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -525,8 +525,7 @@
                 "line": 66
               }
             ],
-            "cluster_hash": "36bcdf2c13f7",
-            "acknowledged": true
+            "cluster_hash": "36bcdf2c13f7"
           },
           {
             "signal": "ambiguous_multi",
@@ -556,7 +555,7 @@
               {
                 "file": "tests/integration/test_linting_rule.py",
                 "name": "test_text_is_none",
-                "line": 230
+                "line": 231
               },
               {
                 "file": "tests/integration/test_pyproject_completeness_rule.py",
@@ -596,7 +595,7 @@
               {
                 "file": "tests/integration/test_linting_rule.py",
                 "name": "test_no_crash_text_none",
-                "line": 52
+                "line": 53
               },
               {
                 "file": "tests/integration/test_type_check_rule.py",
@@ -604,8 +603,7 @@
                 "line": 151
               }
             ],
-            "cluster_hash": "87ba0a5fee90",
-            "acknowledged": true
+            "cluster_hash": "87ba0a5fee90"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -796,37 +794,37 @@
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_single_category_extreme_score",
-                "line": 460
+                "line": 461
               },
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_all_categories_uniform_score",
-                "line": 473
+                "line": 474
               },
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_single_check_passes_through",
-                "line": 497
+                "line": 498
               },
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_multiple_checks_in_one_category_averaged",
-                "line": 509
+                "line": 510
               },
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_filtered_audit_returns_category_average",
-                "line": 515
+                "line": 516
               },
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_perfect_categories_renormalize_to_100",
-                "line": 579
+                "line": 580
               },
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_unscored_and_unknown_inputs_are_ignored",
-                "line": 585
+                "line": 586
               }
             ],
             "cluster_hash": "231e97b89c9a",
@@ -868,8 +866,7 @@
                 "line": 13
               }
             ],
-            "cluster_hash": "6ed5da2f99d0",
-            "acknowledged": true
+            "cluster_hash": "6ed5da2f99d0"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -907,8 +904,7 @@
                 "line": 148
               }
             ],
-            "cluster_hash": "a7fe43c97b48",
-            "acknowledged": true
+            "cluster_hash": "a7fe43c97b48"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1054,11 +1050,10 @@
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_collect_category_scores_no_warn_for_unscored_category",
-                "line": 640
+                "line": 641
               }
             ],
-            "cluster_hash": "faf50aeea4ef",
-            "acknowledged": true
+            "cluster_hash": "faf50aeea4ef"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1117,7 +1112,7 @@
               {
                 "file": "tests/unit/core/test_runner.py",
                 "name": "test_find_venv_private_alias_removed",
-                "line": 143
+                "line": 145
               },
               {
                 "file": "tests/unit/core/test_test_runner.py",
@@ -1125,8 +1120,7 @@
                 "line": 180
               }
             ],
-            "cluster_hash": "97ff44c71715",
-            "acknowledged": true
+            "cluster_hash": "97ff44c71715"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -1154,8 +1148,7 @@
                 "line": 14
               }
             ],
-            "cluster_hash": "e7108e4c3fbe",
-            "acknowledged": true
+            "cluster_hash": "e7108e4c3fbe"
           },
           {
             "signal": "multi_signal",
@@ -1183,8 +1176,7 @@
                 "line": 8
               }
             ],
-            "cluster_hash": "4b7c13a85cab",
-            "acknowledged": true
+            "cluster_hash": "4b7c13a85cab"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -1212,8 +1204,7 @@
                 "line": 16
               }
             ],
-            "cluster_hash": "b9b6273c4646",
-            "acknowledged": true
+            "cluster_hash": "b9b6273c4646"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1241,8 +1232,7 @@
                 "line": 117
               }
             ],
-            "cluster_hash": "69ea5aa5a8c9",
-            "acknowledged": true
+            "cluster_hash": "69ea5aa5a8c9"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1270,8 +1260,7 @@
                 "line": 444
               }
             ],
-            "cluster_hash": "77ab6f2059d2",
-            "acknowledged": true
+            "cluster_hash": "77ab6f2059d2"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1412,11 +1401,10 @@
               {
                 "file": "tests/unit/core/test_runner.py",
                 "name": "test_find_venv_public",
-                "line": 136
+                "line": 138
               }
             ],
-            "cluster_hash": "db37154de7a0",
-            "acknowledged": true
+            "cluster_hash": "db37154de7a0"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1497,8 +1485,7 @@
                 "line": 133
               }
             ],
-            "cluster_hash": "3741fa066258",
-            "acknowledged": true
+            "cluster_hash": "3741fa066258"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1569,8 +1556,7 @@
                 "line": 184
               }
             ],
-            "cluster_hash": "e059631c34e9",
-            "acknowledged": true
+            "cluster_hash": "e059631c34e9"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1614,7 +1600,7 @@
               {
                 "file": "tests/integration/test_linting_rule.py",
                 "name": "test_clean_project_high_score",
-                "line": 86
+                "line": 87
               }
             ],
             "cluster_hash": "fbc4ea5f345b",
@@ -1868,17 +1854,17 @@
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_all_perfect_scores_100",
-                "line": 134
+                "line": 135
               },
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_audit_result_score_normalizes_partial_categories",
-                "line": 832
+                "line": 840
               },
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_rule_addition_no_test_change",
-                "line": 156
+                "line": 157
               }
             ],
             "cluster_hash": "8049e70ad5cd",
@@ -1907,29 +1893,6 @@
             ],
             "cluster_hash": "0a7c6a5b3a39",
             "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT normalize_fails(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/test_quality_trace.py",
-                "name": "test_normalize_fails_audit_shape",
-                "line": 13
-              },
-              {
-                "file": "tests/unit/test_quality_trace.py",
-                "name": "test_normalize_fails_governance_shape",
-                "line": 25
-              },
-              {
-                "file": "tests/unit/test_quality_trace.py",
-                "name": "test_normalize_fails_missing_key_returns_empty",
-                "line": 35
-              }
-            ],
-            "cluster_hash": "11ebfecb0f5d"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -2067,8 +2030,7 @@
                 "line": 8
               }
             ],
-            "cluster_hash": "9f8b1b581bb4",
-            "acknowledged": true
+            "cluster_hash": "9f8b1b581bb4"
           },
           {
             "signal": "signal2_cross_file_name",
@@ -2086,8 +2048,7 @@
                 "line": 11
               }
             ],
-            "cluster_hash": "3ed38403c769",
-            "acknowledged": true
+            "cluster_hash": "3ed38403c769"
           },
           {
             "signal": "signal2_cross_file_name",
@@ -2105,8 +2066,7 @@
                 "line": 8
               }
             ],
-            "cluster_hash": "3b0eb760289a",
-            "acknowledged": true
+            "cluster_hash": "3b0eb760289a"
           },
           {
             "signal": "signal2_cross_file_name",
@@ -2124,8 +2084,7 @@
                 "line": 8
               }
             ],
-            "cluster_hash": "d76b1f9ab5f2",
-            "acknowledged": true
+            "cluster_hash": "d76b1f9ab5f2"
           },
           {
             "signal": "signal2_cross_file_name",
@@ -2143,8 +2102,7 @@
                 "line": 8
               }
             ],
-            "cluster_hash": "b369d4412e61",
-            "acknowledged": true
+            "cluster_hash": "b369d4412e61"
           },
           {
             "signal": "ambiguous_template_pair",
@@ -2162,8 +2120,7 @@
                 "line": 38
               }
             ],
-            "cluster_hash": "4d8ab21a59be",
-            "acknowledged": true
+            "cluster_hash": "4d8ab21a59be"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -2181,8 +2138,7 @@
                 "line": 39
               }
             ],
-            "cluster_hash": "df64470270b4",
-            "acknowledged": true
+            "cluster_hash": "df64470270b4"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -2238,8 +2194,7 @@
                 "line": 553
               }
             ],
-            "cluster_hash": "7b53b4c83f4d",
-            "acknowledged": true
+            "cluster_hash": "7b53b4c83f4d"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -2276,8 +2231,7 @@
                 "line": 365
               }
             ],
-            "cluster_hash": "69215f8917a6",
-            "acknowledged": true
+            "cluster_hash": "69215f8917a6"
           },
           {
             "signal": "ambiguous_setup_divergence",
@@ -2295,8 +2249,7 @@
                 "line": 633
               }
             ],
-            "cluster_hash": "8d67f5ff4c6b",
-            "acknowledged": true
+            "cluster_hash": "8d67f5ff4c6b"
           },
           {
             "signal": "ambiguous_setup_divergence",
@@ -2371,8 +2324,7 @@
                 "line": 132
               }
             ],
-            "cluster_hash": "ad9eb76affcb",
-            "acknowledged": true
+            "cluster_hash": "ad9eb76affcb"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -2485,7 +2437,8 @@
                 "line": 505
               }
             ],
-            "cluster_hash": "7dbb1bb9c335"
+            "cluster_hash": "7dbb1bb9c335",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -2500,11 +2453,10 @@
               {
                 "file": "tests/integration/test_linting_rule.py",
                 "name": "test_short_path_fallback",
-                "line": 32
+                "line": 33
               }
             ],
-            "cluster_hash": "86efaf49eb69",
-            "acknowledged": true
+            "cluster_hash": "86efaf49eb69"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -2579,8 +2531,7 @@
                 "line": 363
               }
             ],
-            "cluster_hash": "0398f95d65eb",
-            "acknowledged": true
+            "cluster_hash": "0398f95d65eb"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -2590,7 +2541,7 @@
               {
                 "file": "tests/integration/test_linting_rule.py",
                 "name": "test_lint_details_has_issues_key",
-                "line": 122
+                "line": 123
               },
               {
                 "file": "tests/integration/test_type_check_rule.py",
@@ -2694,6 +2645,25 @@
               }
             ],
             "cluster_hash": "7a4f2c51e702",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT _has_pair(2)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_duplicate_tests_rule.py",
+                "name": "test_distinct_self_attr_sut_not_clustered",
+                "line": 873
+              },
+              {
+                "file": "tests/integration/test_duplicate_tests_rule.py",
+                "name": "test_different_sut_sharing_result_assert_not_fused",
+                "line": 1179
+              }
+            ],
+            "cluster_hash": "658aac0d27ad",
             "acknowledged": true
           },
           {
@@ -2921,8 +2891,7 @@
                 "line": 213
               }
             ],
-            "cluster_hash": "4a2579591443",
-            "acknowledged": true
+            "cluster_hash": "4a2579591443"
           },
           {
             "signal": "ambiguous_patch_context",
@@ -3092,8 +3061,7 @@
                 "line": 170
               }
             ],
-            "cluster_hash": "8b6d4e68e443",
-            "acknowledged": true
+            "cluster_hash": "8b6d4e68e443"
           },
           {
             "signal": "signal1_call_assert",
@@ -3206,8 +3174,7 @@
                 "line": 442
               }
             ],
-            "cluster_hash": "cfabeb33831e",
-            "acknowledged": true
+            "cluster_hash": "cfabeb33831e"
           },
           {
             "signal": "ambiguous_setup_divergence",
@@ -3225,8 +3192,7 @@
                 "line": 190
               }
             ],
-            "cluster_hash": "07ee4df7a7fe",
-            "acknowledged": true
+            "cluster_hash": "07ee4df7a7fe"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -3236,12 +3202,12 @@
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_audit_result_quality_score",
-                "line": 88
+                "line": 89
               },
               {
                 "file": "tests/unit/models/test_results.py",
                 "name": "test_audit_result_score_combines_categories_within_bounds",
-                "line": 820
+                "line": 828
               }
             ],
             "cluster_hash": "c2d6c85495c6",
@@ -3274,12 +3240,12 @@
               {
                 "file": "tests/integration/test_linting_rule.py",
                 "name": "test_issues_reduce_score",
-                "line": 106
+                "line": 107
               },
               {
                 "file": "tests/integration/test_linting_rule.py",
                 "name": "test_lint_threshold_unchanged",
-                "line": 150
+                "line": 151
               }
             ],
             "cluster_hash": "191d3b600d73",
@@ -3301,8 +3267,7 @@
                 "line": 767
               }
             ],
-            "cluster_hash": "42c00bc8cde3",
-            "acknowledged": true
+            "cluster_hash": "42c00bc8cde3"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -3360,17 +3325,67 @@
             ],
             "cluster_hash": "52b6ec3e7024",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_raises_divergence",
+            "reason": "pytest.raises divergence rescue for SUT audit_project(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_audit_project__project_rule.py",
+                "name": "test_audit_with_crashing_rule_penalizes_score",
+                "line": 24
+              },
+              {
+                "file": "tests/unit/core/test_auditor.py",
+                "name": "test_audit_project_nonexistent_path_raises_error",
+                "line": 41
+              }
+            ],
+            "cluster_hash": "b5b277465f14"
           }
         ],
         "bucket_counts": {
           "CLUSTERED": 28,
-          "AMBIGUOUS": 374,
-          "UNIQUE": 1088
+          "AMBIGUOUS": 375,
+          "UNIQUE": 1098
         },
         "stale_acknowledged": [
           {
-            "hash": "ca8fe9aad724",
-            "reason": "Inter-file cluster spans 4 unrelated SUTs: audit_project pyramid-verdict integration, two PrivateImportsRule attribute-access scenarios (class method no-call, upper constant when enabled), a conftest cache re-parse R4 integration check, and a unit-level finding-count assertion for attribute detection. Different fixtures (tmp_path projects vs pkg_root vs mocker spy) and different rule APIs; no shared helper signature to fold across. ACK."
+            "hash": "dff54d3151e2",
+            "reason": "Intra-file same-SUT residual in test_relpath.py: test_relpath_relativizes_inside_project and test_relpath_falls_back_to_absolute_when_outside both exercise relpath() but guard opposite branches (inside-project relativization vs outside-project absolute fallback); parametrizing would erase the branch-per-test documentation. ACK."
+          },
+          {
+            "hash": "9efbd8dbef78",
+            "reason": "Inter-file heterogeneous case spanning 3 rule SUTs with disjoint details keys: DocstringCoverageRule.test_missing_no_cap asserts len(details['missing'])==15 (uncapped missing-docstring list), LintingRule.test_lint_issues_match_count asserts len(details['issues'])==min(issue_count,20) (cap-at-20 issues list), and TypeCheckRule.test_typecheck_errors_match_count asserts len(details['errors'])==error_count (uncapped errors list). Each rule exposes a different details field with a different cap contract on disjoint fixtures (15 funcs vs unused imports vs return-type mismatch). No shared helper signature. ACK."
+          },
+          {
+            "hash": "129b4881db48",
+            "reason": "Inter-file heterogeneous fix-hint case across two unrelated rules: FormattingRule.test_fix_hint_when_violations mocks ruff format --check (CompletedProcess rc=1) and asserts 'ruff format' is in result.fix_hint, while SecurityRule.test_fix_hint_provided mocks bandit JSON output (HIGH severity finding) and asserts a bandit-oriented fix_hint is provided. Different rule SUTs (quality_rules.FormattingRule vs security.SecurityRule), different mock infra (subprocess CompletedProcess vs MagicMock bandit JSON), different hint payloads. ACK."
+          },
+          {
+            "hash": "a5b2332c9ca7",
+            "reason": "Cluster of 7 get_rules_for_category tests asserting disjoint contracts: all-categories count == 31, registry-derived count equality (no_manual_rule_enumeration), exact per-category count (category_filter_unchanged, parametrized), per-category len >= min (get_rules_by_category, parametrized), monkeypatched-registry surfacing (picks_up_registrations), ValueError on invalid category (raises path), and list/structure shape (empty_ok isinstance + hasattr check). Each probes a different facet (exact count vs lower bound vs registry derivation vs exception vs type), so a single parametrize would lie about the assertion target. ACK."
+          },
+          {
+            "hash": "28a28e764327",
+            "reason": "Cluster of 4 run_bandit tests guarding disjoint return/log paths by bandit returncode: rc1+empty-stdout asserts {} AND a WARNING is logged (degraded path), rc1+valid-json asserts the parsed results dict AND no WARNING (recoverable path), rc0+empty asserts {} AND no WARNING (clean path), and rc2 asserts pytest.raises(RuntimeError) carrying the stderr (hard-failure path). The assertion targets diverge across return value, log presence, and exception, so folding would conflate warn/no-warn/raise contracts. ACK."
+          },
+          {
+            "hash": "ba47c7510834",
+            "reason": "Inter-file cluster of 15 tests across 7 distinct rule SUTs (BareExceptRule, BlockingIORule, CouplingMetricRule, DocstringCoverageRule, GodClassRule, MirrorRule, SecurityPatternRule). They share only the `assert result.passed is True` literal shape but each targets a different rule's pass contract with its own fixture/source layout; the same-file subsets (coupling x5, mirror x3, godclass x2, blocking_io x2) probe disjoint scenarios (per-module-override vs reads-pyproject vs low-coupling vs warnings-only vs error) with different setups and assertion fields, so they are not homogeneous parametrize candidates. Cross-rule folding would couple unrelated rule modules. Distinct-SUT \u2014 ACK."
+          },
+          {
+            "hash": "85ded6d3fbfb",
+            "reason": "Inter-file cluster of 15 tests across 9 files / 8+ rule SUTs (BlockingIORule, CouplingMetricRule, DuplicationRule, LintingRule, MirrorRule, PyprojectCompletenessRule, SecurityPatternRule, TypeCheckRule, quality_rules unit). They share only the `assert result.text is None` clean/passed shape but each targets a different rule's no-text contract with its own fixture (monkeypatched run_in_project vs real src layout vs distinct-bodies vs missing-src). The same-file subsets probe disjoint branches (duplication: all-unique vs 2-distinct vs no-src-dir; linting: monkeypatched-clean vs no-crash-with-passed-assert), not homogeneous parametrize candidates. Cross-rule folding would couple unrelated rule modules. Distinct-SUT \u2014 ACK."
+          },
+          {
+            "hash": "9c8e457234da",
+            "reason": "Inter-file cluster of 8 audit_project/auditor tests with the ambiguous_raises_divergence false-positive signal (asymmetric pytest.raises across members). They guard disjoint contracts: three edge-case-survival tests (broken-lint, no-tests-dir, syntax-error) each assert isinstance(quality_score, float) on a different fixture; returns_audit_result asserts the AuditResult shape; runs_all_categories asserts category coverage; safe_check_isolation monkeypatches SecurityRule.check to raise and asserts the failure is recorded not propagated; crashing_rule_penalizes_score asserts crashed_rules + score penalty; nonexistent_path_raises_error (unit) asserts pytest.raises(FileNotFoundError). Different fixtures, assertion targets and branches; no shared helper signature across the 5 files. Distinct-branch \u2014 ACK."
+          },
+          {
+            "hash": "96bfe2bbbc39",
+            "reason": "Inter-file cluster of 7 path/text-rendering tests across 6 files / 6 distinct rule SUTs (CircularImportRule FQN-prefix strip + arrow, DuplicationRule clone-pair func-name, LintingRule out-of-project path fallback, MirrorRule private-module-listing + no-truncation, TypeCheckRule src/ strip, DeadCodeRule src/ strip). They share only the 'rendered text contains/strips a path fragment' shape but each targets a different rule's text schema with its own fixture (real src I/O vs monkeypatched ruff JSON vs mocked mypy JSON vs mocked axm-ast subprocess JSON); the two MirrorRule members guard disjoint rendering branches (private-module listing vs single-missing no-truncation). Cross-rule folding would couple unrelated rule modules and erase per-rule text contracts. Distinct-SUT \u2014 ACK."
           }
         ]
       }

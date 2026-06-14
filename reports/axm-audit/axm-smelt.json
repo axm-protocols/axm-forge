@@ -1,9 +1,9 @@
 {
-  "score": 97.7,
+  "score": 97.2,
   "grade": "A",
   "total": 31,
-  "failed": 0,
-  "success": true,
+  "failed": 1,
+  "success": false,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 8,
         "max_fan_in": 12,
-        "avg_coupling": 3.68,
+        "avg_coupling": 3.77,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 92.7652733118971,
+        "coverage": 92.64036418816389,
         "failures": []
       },
       "metadata": null
@@ -148,7 +148,9 @@
           "_types.py",
           "cli.py"
         ],
-        "exempt_tests": []
+        "exempt_tests": [
+          "tests/unit/test_registry__smelt.py"
+        ]
       },
       "metadata": null
     },
@@ -183,22 +185,130 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (55/55)",
+      "message": "Docstring coverage: 100% (57/57)",
       "details": {
         "coverage": 1.0,
-        "total": 55,
-        "documented": 55,
+        "total": 57,
+        "documented": 57,
         "missing": []
       },
       "metadata": null
     },
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
-      "passed": true,
-      "message": "24 cluster(s), 0 clustered pair(s)",
+      "passed": false,
+      "message": "23 cluster(s), 6 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
+          {
+            "signal": "ambiguous_multi",
+            "reason": "same SUT: detect_format(1) + same asserts + distinct public SUT rescue (intra-file 100%) + body-size delta rescue (intra-file 100%)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_detect_json",
+                "line": 16
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_detect_yaml",
+                "line": 20
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_detect_markdown_full",
+                "line": 52
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_yaml_with_comments",
+                "line": 65
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_json_with_markdown_values",
+                "line": 70
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_single_heading_only",
+                "line": 75
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_empty_fenced_block",
+                "line": 80
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_html_heavy_markdown",
+                "line": 85
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_detect_xml",
+                "line": 90
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_detect_plain_text",
+                "line": 94
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_detect_json_array",
+                "line": 98
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_edge_empty_string",
+                "line": 138
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_edge_whitespace_only",
+                "line": 142
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_edge_json_array",
+                "line": 146
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_detect_toml",
+                "line": 162
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_detect_csv",
+                "line": 168
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_prose_with_commas_not_csv",
+                "line": 174
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_yaml_not_toml",
+                "line": 180
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_try_json_valid",
+                "line": 105
+              },
+              {
+                "file": "tests/unit/core/test_detector.py",
+                "name": "test_try_markdown_positive_indicators",
+                "line": 40
+              }
+            ],
+            "cluster_hash": "d084bccd99fa"
+          },
           {
             "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT json.loads(1)",
@@ -300,95 +410,7 @@
                 "line": 77
               }
             ],
-            "cluster_hash": "3d8ebe3efc54"
-          },
-          {
-            "signal": "ambiguous_multi",
-            "reason": "same SUT: detect_format(1) + same asserts + distinct public SUT rescue (intra-file 100%) + body-size delta rescue (intra-file 100%)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_json",
-                "line": 16
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_yaml",
-                "line": 20
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_markdown_full",
-                "line": 52
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_yaml_with_comments",
-                "line": 65
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_json_with_markdown_values",
-                "line": 70
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_single_heading_only",
-                "line": 75
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_empty_fenced_block",
-                "line": 80
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_html_heavy_markdown",
-                "line": 85
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_xml",
-                "line": 90
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_plain_text",
-                "line": 94
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_detect_json_array",
-                "line": 98
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_edge_empty_string",
-                "line": 138
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_edge_whitespace_only",
-                "line": 142
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_edge_json_array",
-                "line": 146
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_try_json_valid",
-                "line": 105
-              },
-              {
-                "file": "tests/unit/core/test_detector.py",
-                "name": "test_try_markdown_positive_indicators",
-                "line": 40
-              }
-            ],
-            "cluster_hash": "6af3c08c7b6f",
+            "cluster_hash": "3d8ebe3efc54",
             "acknowledged": true
           },
           {
@@ -463,11 +485,10 @@
               {
                 "file": "tests/unit/tools/test_count.py",
                 "name": "test_entry_point_smelt_count",
-                "line": 58
+                "line": 60
               }
             ],
-            "cluster_hash": "5c554968d784",
-            "acknowledged": true
+            "cluster_hash": "5c554968d784"
           },
           {
             "signal": "ambiguous_setup_divergence",
@@ -521,7 +542,7 @@
               {
                 "file": "tests/unit/tools/test_count.py",
                 "name": "test_count_tool_agent_hint",
-                "line": 40
+                "line": 42
               },
               {
                 "file": "tests/unit/tools/test_smelt.py",
@@ -529,8 +550,7 @@
                 "line": 42
               }
             ],
-            "cluster_hash": "2710a8c31905",
-            "acknowledged": true
+            "cluster_hash": "2710a8c31905"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -630,8 +650,7 @@
                 "line": 100
               }
             ],
-            "cluster_hash": "9ad9bb2c629d",
-            "acknowledged": true
+            "cluster_hash": "9ad9bb2c629d"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -721,26 +740,7 @@
                 "line": 59
               }
             ],
-            "cluster_hash": "0bdd8451a99f",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT read_input(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_cli.py",
-                "name": "test_read_input_valid_file",
-                "line": 11
-              },
-              {
-                "file": "tests/integration/test_cli.py",
-                "name": "test_cli_roundtrip_utf8_non_ascii",
-                "line": 17
-              }
-            ],
-            "cluster_hash": "1b717500ad0f"
+            "cluster_hash": "0bdd8451a99f"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -830,7 +830,7 @@
               {
                 "file": "tests/unit/tools/test_count.py",
                 "name": "test_count_tool_error",
-                "line": 35
+                "line": 37
               }
             ],
             "cluster_hash": "28c783a5b834",
@@ -915,21 +915,17 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 8,
-          "AMBIGUOUS": 92,
-          "UNIQUE": 191
+          "AMBIGUOUS": 94,
+          "UNIQUE": 206
         },
         "stale_acknowledged": [
           {
-            "hash": "19f1551479b4",
-            "reason": "15-test cluster covers structurally similar one-liners across distinct format branches (json/yaml/xml/markdown/text) and edge cases (empty, whitespace, doctype, malformed brace, html-heavy) \u2014 each test pins a separate detector branch and parametrization would erase the per-format intent"
+            "hash": "ed880e45fa13",
+            "reason": "tabular boolean/null and pipe-in-value cases assert distinct value-type encodings with mixed `in` vs `==` assertion shapes \u2014 parametrization would erase the divergence"
           },
           {
-            "hash": "73304e8fb752",
-            "reason": "caches_encoding_once asserts a single tiktoken call across 100 invocations of one model (single-model cache invariant), while caches_per_model asserts two calls across two distinct models (per-model cache invariant) \u2014 different call multiplicities pin distinct cache semantics"
-          },
-          {
-            "hash": "e45c7c20e23d",
-            "reason": "18 tests cover three distinct strategies (drop_nulls, flatten, round_numbers) across three files \u2014 each asserts a different SUT contract with strategy-specific expected outputs (key removal vs key flattening vs numeric rounding); cross-file fold would conflate three unrelated SUTs"
+            "hash": "6af3c08c7b6f",
+            "reason": "16-test detector cluster covers distinct Format branches (JSON/YAML/XML/MARKDOWN/TEXT) through detect_format and the try_* probes plus edge cases (empty, whitespace, doctype, malformed brace, html-heavy, markdown-values-in-json, yaml-with-comments) \u2014 each test pins a separate detector branch; parametrization would erase the per-format intent"
           }
         ]
       }

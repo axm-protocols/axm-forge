@@ -26,11 +26,11 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 0 modules above threshold (max fan-out: 8)",
+      "message": "Coupling: 0 modules above threshold (max fan-out: 9)",
       "details": {
-        "max_fan_out": 8,
+        "max_fan_out": 9,
         "max_fan_in": 6,
-        "avg_coupling": 2.67,
+        "avg_coupling": 2.57,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -60,9 +60,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 92% (92/100)",
+      "message": "Test coverage: 93% (92/100)",
       "details": {
-        "coverage": 92.01101928374656,
+        "coverage": 92.98701298701299,
         "failures": []
       },
       "metadata": null
@@ -173,11 +173,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (18/18)",
+      "message": "Docstring coverage: 100% (19/19)",
       "details": {
         "coverage": 1.0,
-        "total": 18,
-        "documented": 18,
+        "total": 19,
+        "documented": 19,
         "missing": []
       },
       "metadata": null
@@ -185,7 +185,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "4 cluster(s), 0 clustered pair(s)",
+      "message": "5 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -197,27 +197,27 @@
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_runs_and_prints_text",
-                "line": 191
+                "line": 204
               },
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_nonscalar_json_decoded",
-                "line": 196
+                "line": 209
               },
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_help_flag_prints_catalog",
-                "line": 288
+                "line": 322
               },
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_dispatch_runs_tool",
-                "line": 306
+                "line": 340
               },
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_custom_command_failure_falls_back_to_tool",
-                "line": 314
+                "line": 362
               }
             ],
             "cluster_hash": "f7679913e585",
@@ -231,31 +231,49 @@
               {
                 "file": "tests/unit/tools/test_node.py",
                 "name": "test_text_source_returns_result_text",
-                "line": 61
+                "line": 63
               },
               {
                 "file": "tests/unit/tools/test_node.py",
                 "name": "test_data_key_source_returns_that_data_field",
-                "line": 69
+                "line": 71
               },
               {
                 "file": "tests/unit/tools/test_node.py",
                 "name": "test_missing_data_key_raises",
-                "line": 77
+                "line": 79
               },
               {
                 "file": "tests/unit/tools/test_node.py",
                 "name": "test_unsuccessful_result_raises",
-                "line": 86
+                "line": 88
               },
               {
                 "file": "tests/unit/tools/test_node.py",
                 "name": "test_unknown_tool_raises_with_registered_list",
-                "line": 93
+                "line": 95
               }
             ],
             "cluster_hash": "ea93c07b2fcf",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_call_multiplicity",
+            "reason": "call-multiplicity rescue for SUT is_nonscalar(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_cli.py",
+                "name": "test_classifies_annotation",
+                "line": 155
+              },
+              {
+                "file": "tests/unit/test_cli.py",
+                "name": "test_is_nonscalar_unwraps_annotated",
+                "line": 406
+              }
+            ],
+            "cluster_hash": "6535b44e69ab"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -265,12 +283,12 @@
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_failure_exits_1",
-                "line": 207
+                "line": 220
               },
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_exception_exits_1",
-                "line": 213
+                "line": 247
               }
             ],
             "cluster_hash": "54c40b8fa6e0",
@@ -284,12 +302,12 @@
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_tool_registered_as_command",
-                "line": 238
+                "line": 272
               },
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_explicit_command_wins_over_tool",
-                "line": 243
+                "line": 277
               }
             ],
             "cluster_hash": "935c6a5eef12",
@@ -298,8 +316,8 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 2,
-          "AMBIGUOUS": 12,
-          "UNIQUE": 78
+          "AMBIGUOUS": 14,
+          "UNIQUE": 90
         },
         "stale_acknowledged": []
       }

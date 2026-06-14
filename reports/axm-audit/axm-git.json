@@ -1,5 +1,5 @@
 {
-  "score": 98.7,
+  "score": 98.6,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -62,7 +62,7 @@
       "passed": true,
       "message": "Test coverage: 94% (94/100)",
       "details": {
-        "coverage": 94.01931649331353,
+        "coverage": 94.05150525933986,
         "failures": []
       },
       "metadata": null
@@ -184,11 +184,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (100/100)",
+      "message": "Docstring coverage: 100% (102/102)",
       "details": {
         "coverage": 1.0,
-        "total": 100,
-        "documented": 100,
+        "total": 102,
+        "documented": 102,
         "missing": []
       },
       "metadata": null
@@ -196,7 +196,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "44 cluster(s), 0 clustered pair(s)",
+      "message": "46 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -301,7 +301,8 @@
                 "line": 46
               }
             ],
-            "cluster_hash": "f305364c1375"
+            "cluster_hash": "f305364c1375",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -486,6 +487,55 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_raises_divergence",
+            "reason": "same SUT: parse_tag(1) + same asserts + same SUT: parse_tag(1) + pytest.raises divergence rescue for SUT parse_tag(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/core/test_semver.py",
+                "name": "test_valid_with_prefix",
+                "line": 38
+              },
+              {
+                "file": "tests/unit/core/test_semver.py",
+                "name": "test_valid_without_prefix",
+                "line": 41
+              },
+              {
+                "file": "tests/unit/core/test_semver.py",
+                "name": "test_zero_version",
+                "line": 44
+              },
+              {
+                "file": "tests/unit/core/test_semver.py",
+                "name": "test_invalid_raises",
+                "line": 47
+              },
+              {
+                "file": "tests/unit/core/test_semver.py",
+                "name": "test_parse_tag_rejects_prerelease",
+                "line": 51
+              },
+              {
+                "file": "tests/unit/core/test_semver.py",
+                "name": "test_parse_tag_rejects_trailing_segment",
+                "line": 56
+              },
+              {
+                "file": "tests/unit/core/test_semver.py",
+                "name": "test_parse_tag_rejects_garbage",
+                "line": 61
+              },
+              {
+                "file": "tests/unit/core/test_semver.py",
+                "name": "test_parse_tag_accepts_valid_with_and_without_prefix",
+                "line": 66
+              }
+            ],
+            "cluster_hash": "56eb1aaf8690",
+            "acknowledged": true
+          },
+          {
             "signal": "ambiguous_multi",
             "reason": "same SUT: len(1)>load_config(1) + same asserts + same SUT: load_config(1) + same asserts + body-size delta rescue (intra-file 83%)",
             "similarity": 0.8333333333333334,
@@ -644,31 +694,30 @@
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_skipped_when_gh_unavailable",
-                "line": 119
+                "line": 146
               },
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_check_ci_from_gh_output",
-                "line": 156
+                "line": 183
               },
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_exception_returns_error",
-                "line": 172
+                "line": 199
               },
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_ci_green_only_when_headsha_matches",
-                "line": 178
+                "line": 205
               },
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_ci_unrelated_red_does_not_block",
-                "line": 228
+                "line": 255
               }
             ],
-            "cluster_hash": "2326f8633a76",
-            "acknowledged": true
+            "cluster_hash": "2326f8633a76"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -725,8 +774,7 @@
                 "line": 50
               }
             ],
-            "cluster_hash": "37d744e2512d",
-            "acknowledged": true
+            "cluster_hash": "37d744e2512d"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -794,54 +842,25 @@
               {
                 "file": "tests/unit/core/test_runner.py",
                 "name": "test_gh_not_installed",
-                "line": 25
+                "line": 58
               },
               {
                 "file": "tests/unit/core/test_runner.py",
                 "name": "test_gh_installed_auth_ok",
-                "line": 30
+                "line": 63
               },
               {
                 "file": "tests/unit/core/test_runner.py",
                 "name": "test_gh_installed_auth_fail",
-                "line": 38
+                "line": 71
               },
               {
                 "file": "tests/unit/core/test_runner.py",
                 "name": "test_gh_available_returns_false_on_timeout",
-                "line": 105
+                "line": 138
               }
             ],
             "cluster_hash": "f1c75d2de6f0",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_raises_divergence",
-            "reason": "same SUT: parse_tag(1) + same asserts + pytest.raises divergence rescue for SUT parse_tag(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_semver.py",
-                "name": "test_valid_with_prefix",
-                "line": 38
-              },
-              {
-                "file": "tests/unit/core/test_semver.py",
-                "name": "test_valid_without_prefix",
-                "line": 41
-              },
-              {
-                "file": "tests/unit/core/test_semver.py",
-                "name": "test_zero_version",
-                "line": 44
-              },
-              {
-                "file": "tests/unit/core/test_semver.py",
-                "name": "test_invalid_raises",
-                "line": 47
-              }
-            ],
-            "cluster_hash": "53396655fe5b",
             "acknowledged": true
           },
           {
@@ -885,11 +904,10 @@
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_name",
-                "line": 66
+                "line": 93
               }
             ],
-            "cluster_hash": "00c56eb1fb91",
-            "acknowledged": true
+            "cluster_hash": "00c56eb1fb91"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -912,7 +930,8 @@
                 "line": 28
               }
             ],
-            "cluster_hash": "584f7d91bafd"
+            "cluster_hash": "584f7d91bafd",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1035,6 +1054,30 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_multi",
+            "reason": "setup divergence rescue for SUT resolve_version(3) + pytest.raises divergence rescue for SUT resolve_version(3)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/tools/test_tag.py",
+                "name": "test_resolve_version_rejects_invalid_override",
+                "line": 39
+              },
+              {
+                "file": "tests/unit/tools/test_tag.py",
+                "name": "test_resolve_version_rejects_non_increasing_override",
+                "line": 44
+              },
+              {
+                "file": "tests/unit/tools/test_tag.py",
+                "name": "test_resolve_version_accepts_greater_override",
+                "line": 49
+              }
+            ],
+            "cluster_hash": "41737a73fd9f",
+            "acknowledged": true
+          },
+          {
             "signal": "signal1_call_assert",
             "reason": "same SUT: Path(1)>verify_hatch_vcs(2) + same asserts",
             "similarity": 0.0,
@@ -1042,17 +1085,17 @@
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_sync_fails",
-                "line": 267
+                "line": 294
               },
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_version_check_fails",
-                "line": 274
+                "line": 301
               },
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_uv_not_found",
-                "line": 297
+                "line": 324
               }
             ],
             "cluster_hash": "3a0c99a704de",
@@ -1226,8 +1269,7 @@
                 "line": 223
               }
             ],
-            "cluster_hash": "e84d13905500",
-            "acknowledged": true
+            "cluster_hash": "e84d13905500"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1269,6 +1311,24 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT Path(1)>resolve_default_branch(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/core/test_runner.py",
+                "name": "test_resolve_default_branch_falls_back_to_main",
+                "line": 23
+              },
+              {
+                "file": "tests/unit/core/test_runner.py",
+                "name": "test_resolve_default_branch_parses_origin_head",
+                "line": 33
+              }
+            ],
+            "cluster_hash": "2a3ee4faae22"
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT classify_commit(1)",
             "similarity": 0.0,
             "members": [
@@ -1283,7 +1343,8 @@
                 "line": 24
               }
             ],
-            "cluster_hash": "6ed51643664a"
+            "cluster_hash": "6ed51643664a",
+            "acknowledged": true
           },
           {
             "signal": "signal1_call_assert",
@@ -1395,7 +1456,8 @@
                 "line": 163
               }
             ],
-            "cluster_hash": "bdd7447cd3b9"
+            "cluster_hash": "bdd7447cd3b9",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_patch_context",
@@ -1424,12 +1486,12 @@
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_dirty_tree",
-                "line": 72
+                "line": 99
               },
               {
                 "file": "tests/unit/tools/test_tag.py",
                 "name": "test_ci_red_blocks",
-                "line": 99
+                "line": 126
               }
             ],
             "cluster_hash": "e3d125f53c7c",
@@ -1438,17 +1500,21 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 11,
-          "AMBIGUOUS": 159,
-          "UNIQUE": 372
+          "AMBIGUOUS": 168,
+          "UNIQUE": 380
         },
         "stale_acknowledged": [
           {
-            "hash": "5ef18a0e31ec",
-            "reason": "tests cover opposite branches of retry-on-autofix control flow (retry path with 4 mocked git calls and stage call_count==2 vs clean path with 3 mocked git calls and stage call_count==1) -- collapsing them would obscure the call-sequence verification that is the whole point"
+            "hash": "c12f274ff060",
+            "reason": "6 check_ci tests (across test_check_ci.py + test_tag.py) exercise structurally distinct mock topologies: skipped_when_gh_unavailable patches only gh_available=False (no run_git/run_gh), check_ci_from_gh_output is a multi-case (rc,stdout,status) matrix over run_git+run_gh, exception_returns_error uses run_gh side_effect=FileNotFoundError, tag_resolves_head_sha/ci_green_only_when_headsha_matches/ci_unrelated_red_does_not_block assert headSha-discrimination over bespoke single- and multi-run JSON payloads -- collapsing into one parametrize would require generic mock-config params that erase the per-branch gh-unavailable/exception/headSha-match intent"
           },
           {
-            "hash": "1e95b2bd529c",
-            "reason": "ambiguous_distinct_literals -- 10 render_text success-path tests across 6 files target 6 different renderer SUTs imported from different modules (branch_text/clone_text/commit_text/pr_text/push_text/tag_text.render_text), each producing a tool-specific prefix and body (git_branch vs git_clone vs git_commit vs git_pr vs git_push vs git_tag) over its own data dict shape -- a cross-file fold would erase which renderer is under test, and the intra-file pairs (clone with/without path, pr auto/no-auto merge, push upstream-set/existing, tag full/breaking-not-pushed) feed distinct literals exercising opposite branches"
+            "hash": "893cc0dc09d7",
+            "reason": "resolve_default_branch cluster spans 2 pyramid levels with incompatible fixtures: test_resolve_default_branch_master_repo is an integration test driving a real git clone (tmp_path, origin/HEAD->master) asserting 'master', while test_resolve_default_branch_falls_back_to_main and test_resolve_default_branch_parses_origin_head are unit tests with a mocked run_git (CompletedProcess rc=1 fallback vs rc=0 'refs/remotes/origin/master' parse) -- a real-subprocess fixture cannot be folded with MagicMock fixtures across pyramid levels"
+          },
+          {
+            "hash": "ffee9e83e104",
+            "reason": "find_git_root cluster spans 2 pyramid levels and 2 distinct control-flow branches: test_not_a_repo is an integration test on a real tmp_path with no .git (early-return-None branch before any subprocess), while test_find_git_root_returns_none_on_timeout is a unit test mocking subprocess.run to raise TimeoutExpired (exception-path None) -- shared 'is None' assertion masks distinct branches, distinct fixtures (real dir vs mock), and distinct pyramid levels, no parametrizable matrix"
           }
         ]
       }
@@ -1456,9 +1522,34 @@
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "every integration/e2e file matches its canonical tuple",
+      "message": "2 naming finding(s): 2 INFO + 0 WARNING",
       "details": {
-        "findings": []
+        "findings": [
+          {
+            "verdict": "NAME_MISMATCH",
+            "severity": "info",
+            "tier": "integration",
+            "current_name": "test_git_merge_tool.py",
+            "proposed_name": "test_git_merge_tool__run_git.py",
+            "path": "tests/integration/test_git_merge_tool.py",
+            "tuple": [
+              "GitMergeTool",
+              "run_git"
+            ]
+          },
+          {
+            "verdict": "NAME_MISMATCH",
+            "severity": "info",
+            "tier": "integration",
+            "current_name": "test_resolve_default_branch.py",
+            "proposed_name": "test_resolve_default_branch__run_git.py",
+            "path": "tests/integration/test_resolve_default_branch.py",
+            "tuple": [
+              "resolve_default_branch",
+              "run_git"
+            ]
+          }
+        ]
       },
       "metadata": null
     },

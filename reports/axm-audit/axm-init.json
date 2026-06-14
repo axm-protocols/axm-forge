@@ -30,7 +30,7 @@
       "details": {
         "max_fan_out": 10,
         "max_fan_in": 22,
-        "avg_coupling": 3.06,
+        "avg_coupling": 3.09,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 96% (96/100)",
       "details": {
-        "coverage": 96.42154935116005,
+        "coverage": 96.07541362062332,
         "failures": []
       },
       "metadata": null
@@ -156,7 +156,26 @@
           "tooling.py",
           "workspace_patcher.py"
         ],
-        "exempt_tests": []
+        "exempt_tests": [
+          "tests/unit/checks/test_check_ci_lint_job.py",
+          "tests/unit/checks/test_check_ci_security_job.py",
+          "tests/unit/checks/test_check_ci_test_job.py",
+          "tests/unit/checks/test_check_ci_workflow_exists.py",
+          "tests/unit/checks/test_check_contributing.py",
+          "tests/unit/checks/test_check_dev_deps.py",
+          "tests/unit/checks/test_check_diataxis_nav.py",
+          "tests/unit/checks/test_check_docs_group.py",
+          "tests/unit/checks/test_check_gitcliff_config.py",
+          "tests/unit/checks/test_check_license_file.py",
+          "tests/unit/checks/test_check_makefile.py",
+          "tests/unit/checks/test_check_mkdocs_exists.py",
+          "tests/unit/checks/test_check_precommit_basic.py",
+          "tests/unit/checks/test_check_precommit_exists.py",
+          "tests/unit/checks/test_check_precommit_mypy.py",
+          "tests/unit/checks/test_check_precommit_ruff.py",
+          "tests/unit/checks/test_check_readme.py",
+          "tests/unit/checks/test_check_tests_dir.py"
+        ]
       },
       "metadata": null
     },
@@ -191,11 +210,11 @@
     {
       "rule_id": "PRACTICE_DOCSTRING",
       "passed": true,
-      "message": "Docstring coverage: 100% (106/106)",
+      "message": "Docstring coverage: 100% (108/108)",
       "details": {
         "coverage": 1.0,
-        "total": 106,
-        "documented": 106,
+        "total": 108,
+        "documented": 108,
         "missing": []
       },
       "metadata": null
@@ -203,344 +222,39 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "54 cluster(s), 0 clustered pair(s)",
+      "message": "59 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
           {
             "signal": "ambiguous_multi",
-            "reason": "template-pair rescue (cross-file test_pass) + template-pair rescue (cross-file test_fail_no_ci) + template-pair rescue (cross-file test_fail)",
+            "reason": "template-pair rescue (cross-file test_pass) + same SUT: check_py_typed(1) + same asserts + distinct parent class rescue for SUT check_pyproject_mypy(1)",
             "similarity": 1.0,
             "members": [
               {
-                "file": "tests/integration/test_check_ci_lint_job.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_ci_security_job.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_ci_test_job.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_ci_workflow_exists.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_contributing.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_dev_deps.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_diataxis_nav.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_docs_group.py",
-                "name": "test_pass",
-                "line": 11
-              },
-              {
-                "file": "tests/integration/test_check_gitcliff_config.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_license_file.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_makefile.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_mkdocs_exists.py",
-                "name": "test_pass",
-                "line": 12
-              },
-              {
-                "file": "tests/integration/test_check_no_manual_changelog.py",
-                "name": "test_pass",
-                "line": 11
-              },
-              {
-                "file": "tests/integration/test_check_plugins.py",
-                "name": "test_pass",
-                "line": 11
-              },
-              {
-                "file": "tests/integration/test_check_precommit_basic.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_precommit_conventional.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_precommit_exists.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_precommit_mypy.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_precommit_ruff.py",
-                "name": "test_pass",
-                "line": 13
-              },
-              {
                 "file": "tests/integration/test_check_py_typed.py",
                 "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_coverage.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_dynamic_version.py",
-                "name": "test_pass",
-                "line": 9
+                "line": 11
               },
               {
                 "file": "tests/integration/test_check_pyproject_mypy.py",
                 "name": "test_pass",
                 "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_pytest.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_ruff.py",
-                "name": "test_pass",
-                "line": 10
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_urls.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_readme.py",
-                "name": "test_pass",
-                "line": 9
               },
               {
                 "file": "tests/integration/test_check_src_layout.py",
                 "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_tests_dir.py",
-                "name": "test_pass",
                 "line": 11
               },
               {
-                "file": "tests/integration/test_check_ci_lint_job.py",
-                "name": "test_fail_no_ci",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_ci_security_job.py",
-                "name": "test_fail_no_ci",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_ci_test_job.py",
-                "name": "test_fail_no_ci",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_ci_workflow_exists.py",
-                "name": "test_fail",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_contributing.py",
-                "name": "test_fail",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_license_file.py",
-                "name": "test_fail",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_mkdocs_exists.py",
-                "name": "test_fail",
-                "line": 16
-              },
-              {
-                "file": "tests/integration/test_check_precommit_exists.py",
-                "name": "test_fail",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_tests_dir.py",
-                "name": "test_fail",
-                "line": 15
-              },
-              {
-                "file": "tests/integration/test_check_dependabot.py",
-                "name": "test_fail_missing",
-                "line": 14
-              },
-              {
-                "file": "tests/integration/test_check_makefile.py",
-                "name": "test_fail_missing",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_python_version.py",
-                "name": "test_fail_missing",
-                "line": 14
-              },
-              {
-                "file": "tests/integration/test_check_readme.py",
-                "name": "test_fail_missing",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_uv_lock.py",
-                "name": "test_fail_missing",
-                "line": 18
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_coverage.py",
-                "name": "test_fail_missing",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_pytest.py",
-                "name": "test_fail_missing",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_precommit_basic.py",
-                "name": "test_fail_no_file",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_precommit_mypy.py",
-                "name": "test_fail_no_file",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_precommit_ruff.py",
-                "name": "test_fail_no_file",
-                "line": 17
+                "file": "tests/integration/test_check_py_typed.py",
+                "name": "test_py_typed_layouts",
+                "line": 39
               },
               {
                 "file": "tests/integration/test_check_pyproject_mypy.py",
                 "name": "test_fail_missing_section",
                 "line": 17
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_urls.py",
-                "name": "test_fail_missing_section",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_dev_deps.py",
-                "name": "test_fail_no_pyproject",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_dev_deps.py",
-                "name": "test_fail_missing_deps",
-                "line": 17
-              },
-              {
-                "file": "tests/integration/test_check_diataxis_nav.py",
-                "name": "test_fail_flat_nav",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_diataxis_nav.py",
-                "name": "test_fail_partial",
-                "line": 18
-              },
-              {
-                "file": "tests/integration/test_check_docs_group.py",
-                "name": "test_fail_missing",
-                "line": 15
-              },
-              {
-                "file": "tests/integration/test_check_gitcliff_config.py",
-                "name": "test_fail",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_no_manual_changelog.py",
-                "name": "test_fail_has_changelog",
-                "line": 15
-              },
-              {
-                "file": "tests/integration/test_check_plugins.py",
-                "name": "test_fail_no_plugins",
-                "line": 15
-              },
-              {
-                "file": "tests/integration/test_check_precommit_conventional.py",
-                "name": "test_fail_no_hook",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_py_typed.py",
-                "name": "test_fail",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_py_typed.py",
-                "name": "test_py_typed_flat_package",
-                "line": 20
-              },
-              {
-                "file": "tests/integration/test_check_py_typed.py",
-                "name": "test_py_typed_namespace_package",
-                "line": 29
-              },
-              {
-                "file": "tests/integration/test_check_py_typed.py",
-                "name": "test_py_typed_missing",
-                "line": 38
-              },
-              {
-                "file": "tests/integration/test_check_py_typed.py",
-                "name": "test_py_typed_namespace_missing",
-                "line": 46
-              },
-              {
-                "file": "tests/integration/test_check_py_typed.py",
-                "name": "test_py_typed_in_namespace_dir_not_package",
-                "line": 54
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_dynamic_version.py",
-                "name": "test_fail_no_dynamic",
-                "line": 13
               },
               {
                 "file": "tests/integration/test_check_pyproject_mypy.py",
@@ -568,47 +282,90 @@
                 "line": 71
               },
               {
-                "file": "tests/integration/test_check_pyproject_ruff.py",
-                "name": "test_fail_no_per_file_ignores",
-                "line": 14
-              },
-              {
-                "file": "tests/integration/test_check_readme.py",
-                "name": "test_fail_no_features",
-                "line": 17
-              },
-              {
                 "file": "tests/integration/test_check_src_layout.py",
                 "name": "test_fail_no_src",
-                "line": 13
+                "line": 15
               },
               {
                 "file": "tests/integration/test_check_src_layout.py",
-                "name": "test_fail_flat_layout",
-                "line": 17
-              },
-              {
-                "file": "tests/integration/test_check_src_layout.py",
-                "name": "test_pass_deep_namespace",
-                "line": 57
-              },
-              {
-                "file": "tests/integration/test_check_uv_lock.py",
-                "name": "test_fail_workspace_no_lock",
-                "line": 37
+                "name": "test_src_layout_detection",
+                "line": 26
               },
               {
                 "file": "tests/integration/test_check_pyproject_mypy.py",
                 "name": "test_mypy_strict_implies_sub_flags",
                 "line": 33
+              }
+            ],
+            "cluster_hash": "99f8d394bd70"
+          },
+          {
+            "signal": "ambiguous_distinct_sut",
+            "reason": "distinct public SUT rescue (cross-file test_passed)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/checks/test_check_ci_test_job.py",
+                "name": "test_passed",
+                "line": 18
               },
               {
-                "file": "tests/integration/test_check_uv_lock.py",
-                "name": "test_pass_workspace_root",
+                "file": "tests/unit/checks/test_check_ci_workflow_exists.py",
+                "name": "test_passed",
+                "line": 18
+              },
+              {
+                "file": "tests/unit/checks/test_check_contributing.py",
+                "name": "test_passed",
+                "line": 18
+              },
+              {
+                "file": "tests/unit/checks/test_check_docs_group.py",
+                "name": "test_passed",
+                "line": 27
+              },
+              {
+                "file": "tests/unit/checks/test_check_gitcliff_config.py",
+                "name": "test_passed",
+                "line": 24
+              },
+              {
+                "file": "tests/unit/checks/test_check_license_file.py",
+                "name": "test_passed",
+                "line": 18
+              },
+              {
+                "file": "tests/unit/checks/test_check_makefile.py",
+                "name": "test_passed",
+                "line": 20
+              },
+              {
+                "file": "tests/unit/checks/test_check_mkdocs_exists.py",
+                "name": "test_passed",
+                "line": 20
+              },
+              {
+                "file": "tests/unit/checks/test_check_precommit_basic.py",
+                "name": "test_passed",
+                "line": 18
+              },
+              {
+                "file": "tests/unit/checks/test_check_precommit_exists.py",
+                "name": "test_passed",
+                "line": 18
+              },
+              {
+                "file": "tests/unit/checks/test_check_precommit_mypy.py",
+                "name": "test_passed",
+                "line": 18
+              },
+              {
+                "file": "tests/unit/checks/test_check_precommit_ruff.py",
+                "name": "test_passed",
                 "line": 22
               }
             ],
-            "cluster_hash": "0c32aff37b48",
+            "cluster_hash": "84a76b4321ac",
             "acknowledged": true
           },
           {
@@ -619,47 +376,47 @@
               {
                 "file": "tests/integration/test_check_plugins.py",
                 "name": "test_docs_plugins_workspace_fallback",
-                "line": 21
+                "line": 38
               },
               {
                 "file": "tests/integration/test_check_plugins.py",
                 "name": "test_docs_plugins_local_nav_only_root_has_plugins",
-                "line": 111
+                "line": 128
               },
               {
                 "file": "tests/integration/test_check_plugins.py",
                 "name": "test_docs_plugins_local_has_some_root_has_rest",
-                "line": 140
+                "line": 157
               },
               {
                 "file": "tests/integration/test_check_plugins.py",
                 "name": "test_docs_plugins_local_has_all_plugins_workspace_member",
-                "line": 153
+                "line": 170
               },
               {
                 "file": "tests/integration/test_check_plugins.py",
                 "name": "test_non_workspace_no_fallback",
-                "line": 72
+                "line": 89
               },
               {
                 "file": "tests/integration/test_check_plugins.py",
                 "name": "test_docs_plugins_local_nav_only_no_root_plugins",
-                "line": 124
+                "line": 141
               },
               {
                 "file": "tests/integration/test_check_plugins.py",
                 "name": "test_docs_plugins_not_workspace_member",
-                "line": 165
+                "line": 182
               },
               {
                 "file": "tests/integration/test_check_plugins.py",
                 "name": "test_workspace_no_root_mkdocs",
-                "line": 60
+                "line": 77
               },
               {
                 "file": "tests/integration/test_check_plugins.py",
                 "name": "test_docs_plugins_workspace_member_no_root_mkdocs",
-                "line": 179
+                "line": 196
               }
             ],
             "cluster_hash": "4c1c5bc60a4a",
@@ -701,7 +458,102 @@
                 "line": 13
               }
             ],
-            "cluster_hash": "fec5b9bdbd8a",
+            "cluster_hash": "fec5b9bdbd8a"
+          },
+          {
+            "signal": "ambiguous_template_pair",
+            "reason": "template-pair rescue (cross-file test_fail_missing) + same SUT: check_uv_lock(1) + same asserts + AST similarity 86%",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/integration/test_check_dependabot.py",
+                "name": "test_fail_missing",
+                "line": 14
+              },
+              {
+                "file": "tests/integration/test_check_python_version.py",
+                "name": "test_fail_missing",
+                "line": 14
+              },
+              {
+                "file": "tests/integration/test_check_uv_lock.py",
+                "name": "test_fail_missing",
+                "line": 18
+              },
+              {
+                "file": "tests/integration/test_check_uv_lock.py",
+                "name": "test_fail_workspace_no_lock",
+                "line": 37
+              },
+              {
+                "file": "tests/integration/test_check_uv_lock.py",
+                "name": "test_pass_workspace_root",
+                "line": 22
+              }
+            ],
+            "cluster_hash": "366353a1ecb5"
+          },
+          {
+            "signal": "ambiguous_distinct_sut",
+            "reason": "distinct public SUT rescue (cross-file test_passed)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/unit/checks/test_check_ci_lint_job.py",
+                "name": "test_passed",
+                "line": 16
+              },
+              {
+                "file": "tests/unit/checks/test_check_ci_security_job.py",
+                "name": "test_passed",
+                "line": 16
+              },
+              {
+                "file": "tests/unit/checks/test_check_dev_deps.py",
+                "name": "test_passed",
+                "line": 19
+              },
+              {
+                "file": "tests/unit/checks/test_check_diataxis_nav.py",
+                "name": "test_passed",
+                "line": 21
+              },
+              {
+                "file": "tests/unit/checks/test_check_readme.py",
+                "name": "test_passed",
+                "line": 19
+              }
+            ],
+            "cluster_hash": "0ecd42b79a6c",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_sut",
+            "reason": "distinct public SUT rescue (cross-file test_passed)",
+            "similarity": 1.0,
+            "members": [
+              {
+                "file": "tests/integration/test_check_no_manual_changelog.py",
+                "name": "test_passed",
+                "line": 25
+              },
+              {
+                "file": "tests/integration/test_check_plugins.py",
+                "name": "test_passed",
+                "line": 23
+              },
+              {
+                "file": "tests/integration/test_check_precommit_conventional.py",
+                "name": "test_passed",
+                "line": 25
+              },
+              {
+                "file": "tests/integration/test_check_pyproject_coverage.py",
+                "name": "test_passed",
+                "line": 23
+              }
+            ],
+            "cluster_hash": "a0f800436549",
             "acknowledged": true
           },
           {
@@ -730,8 +582,7 @@
                 "line": 22
               }
             ],
-            "cluster_hash": "66c8a8174017",
-            "acknowledged": true
+            "cluster_hash": "66c8a8174017"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -799,22 +650,22 @@
               {
                 "file": "tests/integration/test_check_src_layout.py",
                 "name": "test_pass_flat_package",
-                "line": 24
+                "line": 37
               },
               {
                 "file": "tests/integration/test_check_src_layout.py",
                 "name": "test_pass_namespace_package",
-                "line": 32
+                "line": 45
               },
               {
                 "file": "tests/integration/test_check_src_layout.py",
                 "name": "test_fail_empty_src",
-                "line": 40
+                "line": 53
               },
               {
                 "file": "tests/integration/test_check_src_layout.py",
                 "name": "test_pass_mixed_layout",
-                "line": 47
+                "line": 60
               }
             ],
             "cluster_hash": "d4ac5367f675",
@@ -881,17 +732,17 @@
               {
                 "file": "tests/integration/test_check_mkdocs_exists.py",
                 "name": "test_mkdocs_exists_workspace_member",
-                "line": 47
+                "line": 37
               },
               {
                 "file": "tests/integration/test_check_mkdocs_exists.py",
                 "name": "test_mkdocs_exists_standalone",
-                "line": 53
+                "line": 43
               },
               {
                 "file": "tests/integration/test_check_mkdocs_exists.py",
                 "name": "test_mkdocs_exists_packages_parent_no_workspace_mkdocs",
-                "line": 59
+                "line": 49
               }
             ],
             "cluster_hash": "c128c5e3dd03",
@@ -920,6 +771,29 @@
             ],
             "cluster_hash": "bfd1190b6904",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT detect_context(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_scaffold__check_engine.py",
+                "name": "test_uv_workspace_template_scores_100",
+                "line": 142
+              },
+              {
+                "file": "tests/integration/test_scaffold__check_engine.py",
+                "name": "test_python_project_template_scores_100",
+                "line": 150
+              },
+              {
+                "file": "tests/integration/test_scaffold__check_engine.py",
+                "name": "test_workspace_member_template_scores_100",
+                "line": 158
+              }
+            ],
+            "cluster_hash": "1dd0bfdab867"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -966,8 +840,7 @@
                 "line": 381
               }
             ],
-            "cluster_hash": "9fbf3e249d01",
-            "acknowledged": true
+            "cluster_hash": "9fbf3e249d01"
           },
           {
             "signal": "ambiguous_patch_context",
@@ -990,31 +863,7 @@
                 "line": 397
               }
             ],
-            "cluster_hash": "9db99ab739b6",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT normalize_fails(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/test_quality_trace.py",
-                "name": "test_normalize_fails_governance_shape",
-                "line": 13
-              },
-              {
-                "file": "tests/unit/test_quality_trace.py",
-                "name": "test_normalize_fails_audit_shape",
-                "line": 23
-              },
-              {
-                "file": "tests/unit/test_quality_trace.py",
-                "name": "test_normalize_fails_missing_key_returns_empty",
-                "line": 35
-              }
-            ],
-            "cluster_hash": "11ebfecb0f5d"
+            "cluster_hash": "9db99ab739b6"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -1056,8 +905,7 @@
                 "line": 11
               }
             ],
-            "cluster_hash": "81a9ea6613a3",
-            "acknowledged": true
+            "cluster_hash": "81a9ea6613a3"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -1075,8 +923,7 @@
                 "line": 17
               }
             ],
-            "cluster_hash": "a28dc819abb4",
-            "acknowledged": true
+            "cluster_hash": "a28dc819abb4"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -1094,8 +941,7 @@
                 "line": 23
               }
             ],
-            "cluster_hash": "565e7674dbf6",
-            "acknowledged": true
+            "cluster_hash": "565e7674dbf6"
           },
           {
             "signal": "ambiguous_setup_divergence",
@@ -1113,7 +959,8 @@
                 "line": 26
               }
             ],
-            "cluster_hash": "815feff35c53"
+            "cluster_hash": "815feff35c53",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_class",
@@ -1154,6 +1001,25 @@
             "acknowledged": true
           },
           {
+            "signal": "signal1_call_assert",
+            "reason": "same SUT: check_ci_test_job(1) + same asserts",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_check_ci_test_job.py",
+                "name": "test_ci_test_job_requires_real_matrix",
+                "line": 20
+              },
+              {
+                "file": "tests/integration/test_check_ci_test_job.py",
+                "name": "test_ci_test_job_passes_with_matrix",
+                "line": 44
+              }
+            ],
+            "cluster_hash": "92568377c76c",
+            "acknowledged": true
+          },
+          {
             "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT len(1)>sorted(1)",
             "similarity": 0.0,
@@ -1161,7 +1027,7 @@
               {
                 "file": "tests/integration/test_check_engine.py",
                 "name": "test_checker_fan_out_at_most_10",
-                "line": 189
+                "line": 193
               },
               {
                 "file": "tests/integration/test_copier_config.py",
@@ -1237,12 +1103,12 @@
               {
                 "file": "tests/integration/test_check_pyproject_ruff.py",
                 "name": "test_fails_without_workspace",
-                "line": 28
+                "line": 43
               },
               {
                 "file": "tests/integration/test_check_pyproject_ruff.py",
                 "name": "test_falls_back_to_member_only",
-                "line": 44
+                "line": 59
               }
             ],
             "cluster_hash": "00d1abdb1a4c",
@@ -1264,7 +1130,8 @@
                 "line": 114
               }
             ],
-            "cluster_hash": "d9a5222d2877"
+            "cluster_hash": "d9a5222d2877",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_setup_divergence",
@@ -1301,8 +1168,7 @@
                 "line": 39
               }
             ],
-            "cluster_hash": "d0659a349149",
-            "acknowledged": true
+            "cluster_hash": "d0659a349149"
           },
           {
             "signal": "signal1_call_assert",
@@ -1491,7 +1357,8 @@
                 "line": 60
               }
             ],
-            "cluster_hash": "2fb6da22c308"
+            "cluster_hash": "2fb6da22c308",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -1528,8 +1395,7 @@
                 "line": 100
               }
             ],
-            "cluster_hash": "993794ebff86",
-            "acknowledged": true
+            "cluster_hash": "993794ebff86"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -1565,7 +1431,8 @@
                 "line": 57
               }
             ],
-            "cluster_hash": "51a0d06a29ec"
+            "cluster_hash": "51a0d06a29ec",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_setup_divergence",
@@ -1583,7 +1450,8 @@
                 "line": 283
               }
             ],
-            "cluster_hash": "b23135302f50"
+            "cluster_hash": "b23135302f50",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_body_size",
@@ -1593,12 +1461,12 @@
               {
                 "file": "tests/integration/test_check_engine.py",
                 "name": "test_axm_init_check_passes_on_correctly_wired_docs",
-                "line": 256
+                "line": 260
               },
               {
                 "file": "tests/integration/test_check_engine.py",
                 "name": "test_axm_init_check_fails_on_orphan_docs",
-                "line": 266
+                "line": 270
               }
             ],
             "cluster_hash": "8b56ed7aeb29",
@@ -1658,7 +1526,8 @@
                 "line": 40
               }
             ],
-            "cluster_hash": "fa9bcce3d4e7"
+            "cluster_hash": "fa9bcce3d4e7",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_class",
@@ -1757,26 +1626,42 @@
           }
         ],
         "bucket_counts": {
-          "CLUSTERED": 9,
-          "AMBIGUOUS": 208,
-          "UNIQUE": 297
+          "CLUSTERED": 11,
+          "AMBIGUOUS": 168,
+          "UNIQUE": 316
         },
         "stale_acknowledged": [
           {
-            "hash": "83ae2eb6faa0",
-            "reason": "test_check_auth_status patches subprocess.run with return_value MagicMocks (returncode 0 then 1) inside a single block asserting both True and False outcomes (success/failure branch coverage); test_check_auth_no_gh patches subprocess.run with side_effect=FileNotFoundError asserting only False (exception branch) \u2014 different mock topology (return_value sequence vs exception side_effect) targeting distinct code paths in check_auth."
+            "hash": "6d62e9d17a23",
+            "reason": "The six reserve_pypi unit tests cover distinct branches with divergent mock setups and message literals: test_full_reserve_success (build OK+publish OK \u2192 'Reserved'), test_reserve_build_fails ('Build failed'), test_reserve_publish_fails ('Publish failed'), test_reserve_race_condition (TAKEN on recheck \u2192 'taken by another user'), test_reserve_idempotent_rerun (AVAILABLE on recheck \u2192 'already reserved'), and test_reserve_availability_error (initial ERROR, no build/publish mocks \u2192 'availability'). Same SUT, six disjoint side-effect scenarios \u2014 folding would erase the per-branch documentation."
           },
           {
-            "hash": "2cad2750f7f8",
-            "reason": "test_context_manager_rollbacks_on_error exercises the public FileSystemAdapter.transaction() context manager with pytest.raises(RuntimeError) for an implicit rollback on exception; test_rollback_removes_files calls the lower-level Transaction class directly via tx.rollback() (no exception, explicit rollback); test_rollback_noop_after_commit asserts the inverse contract (file still exists after rollback because commit was called first). Three distinct SUTs/invocation patterns with divergent assertions (exists vs not-exists)."
+            "hash": "c628e04ab0b7",
+            "reason": "The three check_pytest_testpaths integration tests exercise distinct early-return branches with divergent setups and message assertions: test_no_pyproject_fails (bare tmp_path, no pyproject.toml \u2192 'No pyproject.toml'), test_testpaths_missing (pyproject without testpaths \u2192 missing branch), and test_testpaths_without_packages_ref (testpaths pointing outside packages/ \u2192 'does not reference')."
           },
           {
-            "hash": "93a744de499e",
-            "reason": "test_standalone_skips_workspace (test_check_engine.py) invokes CheckEngine(tmp_path).run() against a minimal standalone pyproject and asserts len([c for c in result.checks if c.category == 'workspace']) == 0 \u2014 exercising the workspace-context filter on CheckEngine. test_transaction_tracks_created_files (test_file_system_adapter.py) invokes FileSystemAdapter().transaction() as a context manager, writes a file via tx.write_file, and asserts len(tx.created_files) == 1 \u2014 exercising in-transaction file tracking on a completely different SUT. Two disjoint modules, two disjoint behavioural contracts; only the `len(...) == N` assertion shape coincides."
+            "hash": "28cb02da3de1",
+            "reason": "Members assert divergent result fields, not just an expected pass/fail value: test_mypy_strict_implies_sub_flags asserts r.weight == 3, test_fail_partial/test_mypy_pretty_not_implied assert 'pretty' in r.details, test_mypy_strict_with_override_false asserts 'check_untyped_defs' in r.details, and test_mypy_strict_false_requires_explicit asserts 'strict' in r.details \u2014 parametrizing would erase the per-case field/diagnostic divergence (weight vs distinct details substrings)."
           },
           {
-            "hash": "c1dbed0e98c5",
-            "reason": "test_copier_imports_at_runtime executes a subprocess that imports axm_init.adapters.copier (CopierAdapter, CopierConfig) \u2014 guards the copier adapter against import-time regressions; test_checker_imports_at_runtime executes a subprocess that imports axm_init.core.checker (CheckEngine) \u2014 guards the checker core against import-time regressions. Same subprocess shape but two disjoint import targets documenting fresh-interpreter importability for two distinct top-level modules."
+            "hash": "23926b49ea18",
+            "reason": "Mixed-field cluster on check_uv_lock: test_pass_workspace_root asserts r.passed is True AND 'workspace root' in r.message (a different result field) after building a full workspace-root + member tree, while test_fail_missing (shared empty_project, no pyproject) and test_fail_workspace_no_lock (workspace root WITHOUT uv.lock + member) assert only r.passed is False on two structurally distinct failure branches \u2014 folding would erase both the .message contract and the missing-pyproject vs missing-root-lock branch distinction."
+          },
+          {
+            "hash": "7f62a072ec5f",
+            "reason": "Members assert divergent result semantics on load_exclusions: test_returns_empty_set asserts load_exclusions(...) == set() across no-section/no-exclude/no-pyproject/empty-list/corrupt-toml inputs, while test_valid_exclusions asserts == a non-empty expected set ({'cli','changelog'}) \u2014 two already-parametrized tables with disjoint param signatures and opposite expected outcomes that cannot be merged."
+          },
+          {
+            "hash": "583c856f03e2",
+            "reason": "Inter-file cluster spanning test_check_engine.py and test_check_engine__grade.py with divergent CheckEngine assertions: members exercise category filtering (len==7 tooling), invalid-category ValueError raises, exclusion auto-pass, nonexistent-exclusion no-op and the full 40-check grade-A standalone path \u2014 no shared top-level helper and mutually incompatible asserts, so an inter-file fold is forbidden."
+          },
+          {
+            "hash": "14ed07ae7078",
+            "reason": "Intra-file residual in test_check_src_layout.py: test_pass asserts r.passed on the real on-disk gold_project fixture while test_fail_no_src (empty_project) and the tmp_path-parametrized test_src_layout_detection construct synthetic layouts \u2014 the fixtures differ (gold vs empty vs built dirs), so folding would force the gold smoke-check into the parametrize table and change semantics."
+          },
+          {
+            "hash": "2d1d038a8f57",
+            "reason": "Intra-file residual in test_check_py_typed.py: test_pass asserts r.passed on the real on-disk gold_project fixture while the tmp_path-parametrized test_py_typed_layouts builds synthetic py.typed placements \u2014 different fixtures (gold vs constructed), so folding would force the gold smoke-check into the parametrize table and change semantics."
           }
         ]
       }
@@ -1784,9 +1669,33 @@
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "every integration/e2e file matches its canonical tuple",
+      "message": "2 naming finding(s): 2 INFO + 0 WARNING",
       "details": {
-        "findings": []
+        "findings": [
+          {
+            "verdict": "NAME_MISMATCH",
+            "severity": "info",
+            "tier": "integration",
+            "current_name": "test_scaffold__check_engine.py",
+            "proposed_name": "test_grade__project_context.py",
+            "path": "tests/integration/test_scaffold__check_engine.py",
+            "tuple": [
+              "Grade",
+              "ProjectContext"
+            ]
+          },
+          {
+            "verdict": "NAME_MISMATCH",
+            "severity": "info",
+            "tier": "integration",
+            "current_name": "test_template_config.py",
+            "proposed_name": "test_template_type.py",
+            "path": "tests/integration/test_template_config.py",
+            "tuple": [
+              "TemplateType"
+            ]
+          }
+        ]
       },
       "metadata": null
     },

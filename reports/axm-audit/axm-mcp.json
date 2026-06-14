@@ -1,5 +1,5 @@
 {
-  "score": 99.3,
+  "score": 97.8,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -26,11 +26,11 @@
     {
       "rule_id": "ARCH_COUPLING",
       "passed": true,
-      "message": "Coupling: 0 modules above threshold (max fan-out: 9)",
+      "message": "Coupling: 0 modules above threshold (max fan-out: 8)",
       "details": {
-        "max_fan_out": 9,
+        "max_fan_out": 8,
         "max_fan_in": 8,
-        "avg_coupling": 4.47,
+        "avg_coupling": 4.73,
         "n_over_threshold": 0,
         "over_threshold": []
       },
@@ -49,10 +49,19 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": true,
-      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
       "details": {
-        "high_complexity_count": 0,
-        "top_offenders": [],
+        "high_complexity_count": 1,
+        "top_offenders": [
+          {
+            "file": "axm_mcp/schema.py",
+            "function": "_parse_numpy_params",
+            "cc": 10,
+            "rank": "B",
+            "cognitive": 17,
+            "reason": "cog"
+          }
+        ],
         "cognitive_disabled": false
       },
       "metadata": null
@@ -60,9 +69,9 @@
     {
       "rule_id": "QUALITY_COVERAGE",
       "passed": true,
-      "message": "Test coverage: 93% (93/100)",
+      "message": "Test coverage: 94% (93/100)",
       "details": {
-        "coverage": 93.16303531179564,
+        "coverage": 93.56435643564356,
         "failures": []
       },
       "metadata": null
@@ -183,7 +192,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "16 cluster(s), 0 clustered pair(s)",
+      "message": "19 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -239,27 +248,27 @@
               {
                 "file": "tests/unit/facade/test_catalog.py",
                 "name": "test_unknown_raises",
-                "line": 128
+                "line": 129
               },
               {
                 "file": "tests/unit/facade/test_catalog.py",
                 "name": "test_bad_kwargs_propagate_typeerror",
-                "line": 132
+                "line": 133
               },
               {
                 "file": "tests/unit/facade/test_catalog.py",
                 "name": "test_text_result_returned",
-                "line": 117
+                "line": 118
               },
               {
                 "file": "tests/unit/facade/test_catalog.py",
                 "name": "test_data_rendered_when_no_text",
-                "line": 120
+                "line": 121
               },
               {
                 "file": "tests/unit/facade/test_catalog.py",
                 "name": "test_plain_callable",
-                "line": 125
+                "line": 126
               }
             ],
             "cluster_hash": "442a41860557",
@@ -324,6 +333,52 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT extract_docstring_params(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_schema.py",
+                "name": "test_parses_typed_params",
+                "line": 212
+              },
+              {
+                "file": "tests/unit/test_schema.py",
+                "name": "test_parses_numpy_typed_params",
+                "line": 316
+              },
+              {
+                "file": "tests/unit/test_schema.py",
+                "name": "test_parses_rst_params",
+                "line": 378
+              }
+            ],
+            "cluster_hash": "ad6f44b64ded"
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT extract_docstring_params(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_schema.py",
+                "name": "test_numpy_untyped_param",
+                "line": 358
+              },
+              {
+                "file": "tests/unit/test_schema.py",
+                "name": "test_rst_param_without_type_directive",
+                "line": 405
+              },
+              {
+                "file": "tests/unit/test_schema.py",
+                "name": "test_rst_param_with_inline_type",
+                "line": 412
+              }
+            ],
+            "cluster_hash": "a221380a7787"
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT format_verify_text(1)",
             "similarity": 0.0,
             "members": [
@@ -378,11 +433,29 @@
               {
                 "file": "tests/unit/test_cli.py",
                 "name": "test_cli_status_not_running",
-                "line": 46
+                "line": 63
               }
             ],
             "cluster_hash": "1dc373f3639b",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT app(1|exit_on_error=False)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_cli.py",
+                "name": "test_cli_status_bad_response",
+                "line": 77
+              },
+              {
+                "file": "tests/unit/test_server.py",
+                "name": "test_stdio_still_works",
+                "line": 146
+              }
+            ],
+            "cluster_hash": "6cf0ea4fb95c"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -392,12 +465,12 @@
               {
                 "file": "tests/unit/test_schema.py",
                 "name": "test_axm_tool_with_kwargs_gets_docstring_params",
-                "line": 319
+                "line": 426
               },
               {
                 "file": "tests/unit/test_schema.py",
                 "name": "test_regular_tool_with_typed_params_not_affected",
-                "line": 379
+                "line": 486
               }
             ],
             "cluster_hash": "343f7ae8b789",
@@ -424,25 +497,6 @@
           },
           {
             "signal": "ambiguous_setup_divergence",
-            "reason": "setup divergence rescue for SUT callable(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/test_mcp_app.py",
-                "name": "test_main_function_exists",
-                "line": 34
-              },
-              {
-                "file": "tests/unit/test_verify.py",
-                "name": "test_verify_function_importable",
-                "line": 69
-              }
-            ],
-            "cluster_hash": "e19671524dde",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_setup_divergence",
             "reason": "setup divergence rescue for SUT collect_dispatcher_params(1)",
             "similarity": 0.0,
             "members": [
@@ -459,6 +513,24 @@
             ],
             "cluster_hash": "3da3a2d46057",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_class",
+            "reason": "distinct parent class rescue for SUT extract_docstring_params(1)>len(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/test_schema.py",
+                "name": "test_numpy_params_are_keyword_only_default_none",
+                "line": 341
+              },
+              {
+                "file": "tests/unit/test_schema.py",
+                "name": "test_rst_params_are_keyword_only_default_none",
+                "line": 397
+              }
+            ],
+            "cluster_hash": "6fba6436c20d"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -558,13 +630,17 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 0,
-          "AMBIGUOUS": 46,
-          "UNIQUE": 159
+          "AMBIGUOUS": 54,
+          "UNIQUE": 168
         },
         "stale_acknowledged": [
           {
             "hash": "8af93204ef91",
             "reason": "Heterogeneous: distinct header-line rules - governance None -> 'governance: skipped' branch, audit count derived from len(passed)+len(failed) ('3/4'), and governance count derived from the passed_count field + len(failed) ('7/8'). Skip branch vs two different count-derivation sources."
+          },
+          {
+            "hash": "e19671524dde",
+            "reason": "Inter-file existence guards on distinct SUTs: test_main_function_exists asserts callable(mcp_app.main) in test_mcp_app.py, test_verify_function_importable asserts callable(verify_project) in test_verify.py. Each guards a different module's public symbol and lives in its module's mirror test file; folding would violate the 1:1 source-mirror by moving a test out of its module's file."
           }
         ]
       }

@@ -1,5 +1,5 @@
 {
-  "score": 98.4,
+  "score": 96.9,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -28,14 +28,14 @@
       "passed": true,
       "message": "Coupling: 1 module(s) above threshold (-3 pts)",
       "details": {
-        "max_fan_out": 18,
+        "max_fan_out": 19,
         "max_fan_in": 9,
-        "avg_coupling": 4.07,
+        "avg_coupling": 4.13,
         "n_over_threshold": 1,
         "over_threshold": [
           {
             "module": "axm_anvil.core.move",
-            "fan_out": 18,
+            "fan_out": 19,
             "role": "orchestrator",
             "effective_threshold": 15,
             "severity": "warning"
@@ -57,10 +57,19 @@
     {
       "rule_id": "QUALITY_COMPLEXITY",
       "passed": true,
-      "message": "Complexity score: 100/100 (0 high-complexity functions)",
+      "message": "Complexity score: 90/100 (1 high-complexity functions)",
       "details": {
-        "high_complexity_count": 0,
-        "top_offenders": [],
+        "high_complexity_count": 1,
+        "top_offenders": [
+          {
+            "file": "axm_anvil/core/move.py",
+            "function": "move_symbols",
+            "cc": 11,
+            "rank": "C",
+            "cognitive": 7,
+            "reason": "cc"
+          }
+        ],
         "cognitive_disabled": false
       },
       "metadata": null
@@ -70,7 +79,7 @@
       "passed": true,
       "message": "Test coverage: 91% (90/100)",
       "details": {
-        "coverage": 90.5289492494639,
+        "coverage": 90.71251329315845,
         "failures": []
       },
       "metadata": null
@@ -200,7 +209,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "17 cluster(s), 0 clustered pair(s)",
+      "message": "18 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -210,23 +219,22 @@
             "similarity": 0.0,
             "members": [
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_relative_import_intra_package_preserved",
-                "line": 1724
+                "line": 1773
               },
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_relative_import_cross_package_converted",
-                "line": 1743
+                "line": 1792
               },
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_include_helpers_false_real_files",
-                "line": 1896
+                "line": 1945
               }
             ],
-            "cluster_hash": "3898437281a2",
-            "acknowledged": true
+            "cluster_hash": "51bf7082f195"
           },
           {
             "signal": "ambiguous_multi",
@@ -244,13 +252,12 @@
                 "line": 12
               },
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_string_forward_ref_not_rewritten",
-                "line": 1530
+                "line": 1579
               }
             ],
-            "cluster_hash": "1f3ae3172b3e",
-            "acknowledged": true
+            "cluster_hash": "83d3b3c58496"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -311,18 +318,17 @@
                 "line": 13
               },
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_move_simple_class",
-                "line": 909
+                "line": 958
               },
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_move_with_direct_constants",
-                "line": 1326
+                "line": 1375
               }
             ],
-            "cluster_hash": "577ca9835640",
-            "acknowledged": true
+            "cluster_hash": "b0a57ba93141"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -349,18 +355,17 @@
             "similarity": 0.0,
             "members": [
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_all_added_to_existing_target",
-                "line": 178
+                "line": 227
               },
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_all_untouched_for_unexported_symbol",
-                "line": 202
+                "line": 251
               }
             ],
-            "cluster_hash": "43137c935923",
-            "acknowledged": true
+            "cluster_hash": "0b2c2a1695cd"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -368,18 +373,17 @@
             "similarity": 0.0,
             "members": [
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_absolute_import_untouched",
-                "line": 1763
+                "line": 1812
               },
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_relative_import_cross_package_real_files",
-                "line": 1799
+                "line": 1848
               }
             ],
-            "cluster_hash": "caf1e7efb56c",
-            "acknowledged": true
+            "cluster_hash": "b6006d88e10e"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -387,18 +391,17 @@
             "similarity": 0.0,
             "members": [
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_shared_helper_duplicate_mode_default",
-                "line": 1371
+                "line": 1420
               },
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_transitive_shared_helper_detected",
-                "line": 1416
+                "line": 1465
               }
             ],
-            "cluster_hash": "c560ca201423",
-            "acknowledged": true
+            "cluster_hash": "1e08f7a20b74"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -406,18 +409,17 @@
             "similarity": 0.0,
             "members": [
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_string_forward_ref_warns",
-                "line": 1501
+                "line": 1550
               },
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_side_effect_decorator_bare_warns",
-                "line": 1649
+                "line": 1698
               }
             ],
-            "cluster_hash": "3c07c9f9c530",
-            "acknowledged": true
+            "cluster_hash": "f7575cca809a"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -425,18 +427,35 @@
             "similarity": 0.0,
             "members": [
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_string_forward_ref_no_false_positive",
-                "line": 1515
+                "line": 1564
               },
               {
-                "file": "tests/integration/test_move_symbols.py",
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
                 "name": "test_non_whitelisted_decorator_no_warn",
-                "line": 1668
+                "line": 1717
               }
             ],
-            "cluster_hash": "c5e5201d1e9d",
-            "acknowledged": true
+            "cluster_hash": "9eac666a8d16"
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT move_symbols(3)>source.read_text(0)>target.read_text(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_move_cross_folder_no_relative_to_error",
+                "line": 2026
+              },
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_move_same_folder_unchanged",
+                "line": 2094
+              }
+            ],
+            "cluster_hash": "5484f529270a"
           },
           {
             "signal": "signal1_call_assert",
@@ -555,31 +574,51 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 4,
-          "AMBIGUOUS": 35,
-          "UNIQUE": 185
+          "AMBIGUOUS": 37,
+          "UNIQUE": 192
         },
-        "stale_acknowledged": []
+        "stale_acknowledged": [
+          {
+            "hash": "3898437281a2",
+            "reason": "Three divergent import concerns: intra-package asserts the relative import is PRESERVED, cross-package asserts it is CONVERTED to absolute, and include_helpers_false asserts a skipped helper is ABSENT from the target \u2014 opposite outcomes, not shared data."
+          },
+          {
+            "hash": "caf1e7efb56c",
+            "reason": "Different import kinds and outcomes: absolute_import_untouched asserts `import os` is copied verbatim, while cross_package_real_files asserts a relative `.utils` import is rewritten to absolute `alpha.utils` \u2014 distinct branches of the import-rewrite logic."
+          },
+          {
+            "hash": "43137c935923",
+            "reason": "Opposite __all__ branches: all_added_to_existing_target asserts a moved EXPORTED name is appended to the target __all__, whereas all_untouched_for_unexported_symbol asserts BOTH __all__ lists stay unchanged when the moved symbol is not exported."
+          },
+          {
+            "hash": "c560ca201423",
+            "reason": "Divergent setup and detection path: duplicate_mode_default drives a directly-shared helper via the shared_helper_fixture, while transitive_shared_helper_detected builds an inline two-hop chain (_b -> _a) to exercise TRANSITIVE sharing detection \u2014 different fixtures and a different code path, not the same data."
+          },
+          {
+            "hash": "3c07c9f9c530",
+            "reason": "Different warning categories: string_forward_ref_warns asserts a string-annotation forward-reference warning naming the moved symbol, while side_effect_decorator_bare_warns asserts a 'side-effect decorator' warning naming a bare @fixture \u2014 unrelated detectors with different warning text."
+          },
+          {
+            "hash": "c5e5201d1e9d",
+            "reason": "Negative assertions on different detectors: forward_ref_no_false_positive asserts no 'forward-reference' warning when only a substring-overlapping name is moved, while non_whitelisted_decorator_no_warn asserts no 'side-effect decorator' warning for an unlisted decorator \u2014 distinct false-positive guards."
+          },
+          {
+            "hash": "1f3ae3172b3e",
+            "reason": "Three divergent concerns across files: overload_partial_move_raises asserts OverloadPartialMoveError, symbol_already_exists_raises asserts a different exception SymbolAlreadyExistsError, and string_forward_ref_not_rewritten is a non-raising happy-path dry_run asserting the literal forward-ref string is preserved in source_text_new \u2014 different exceptions plus a return path, not shared data."
+          },
+          {
+            "hash": "577ca9835640",
+            "reason": "Mixes a raises/rollback branch with two happy-path moves: move_parse_error_rollback monkeypatches a render seam to force MoveValidationError and asserts both files roll back, while move_simple_class asserts plan.moved_names and move_with_direct_constants asserts plan.constants_added \u2014 a raise path versus two return paths checking different fields over different setups (fixture copy vs inline write)."
+          }
+        ]
       }
     },
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "1 naming finding(s): 1 INFO + 0 WARNING",
+      "message": "every integration/e2e file matches its canonical tuple",
       "details": {
-        "findings": [
-          {
-            "verdict": "NAME_MISMATCH",
-            "severity": "info",
-            "tier": "integration",
-            "current_name": "test_ruff_fix.py",
-            "proposed_name": "test_move_symbols__postprocess.py",
-            "path": "tests/integration/test_ruff_fix.py",
-            "tuple": [
-              "move_symbols",
-              "postprocess"
-            ]
-          }
-        ]
+        "findings": []
       },
       "metadata": null
     },
@@ -658,14 +697,14 @@
             "code": "B112",
             "message": "Try, Except, Continue detected.",
             "file": "move.py",
-            "line": 1454
+            "line": 1477
           },
           {
             "severity": "LOW",
             "code": "B112",
             "message": "Try, Except, Continue detected.",
             "file": "move.py",
-            "line": 1588
+            "line": 1611
           }
         ]
       },
