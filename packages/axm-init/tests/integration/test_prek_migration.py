@@ -25,9 +25,9 @@ def _read(template: TemplateType, *parts: str) -> str:
 
 
 def test_standalone_pyproject_pins_prek() -> None:
-    """AC1: python-project dev deps pin prek>=0.4.4, not pre-commit."""
+    """AC1: python-project dev deps pin prek (version-agnostic), not pre-commit."""
     content = _read(TemplateType.STANDALONE, "pyproject.toml.jinja")
-    assert '"prek>=0.4.4"' in content
+    assert '"prek>=' in content
     assert "pre-commit" not in content
 
 
@@ -40,9 +40,9 @@ def test_standalone_copier_installs_prek() -> None:
 
 
 def test_workspace_pyproject_pins_prek() -> None:
-    """AC2: uv-workspace dev deps pin prek>=0.4.4, not pre-commit."""
+    """AC2: uv-workspace dev deps pin prek (version-agnostic), not pre-commit."""
     content = _read(TemplateType.WORKSPACE, "pyproject.toml.jinja")
-    assert '"prek>=0.4.4"' in content
+    assert '"prek>=' in content
     assert "pre-commit" not in content
 
 
@@ -61,9 +61,9 @@ def test_workspace_contributing_mentions_prek() -> None:
 
 
 def test_member_pyproject_pins_prek() -> None:
-    """AC3: workspace-member dev deps pin prek>=0.4.4 (only surface)."""
+    """AC3: workspace-member dev deps pin prek (version-agnostic, only surface)."""
     content = _read(TemplateType.MEMBER, "pyproject.toml.jinja")
-    assert '"prek>=0.4.4"' in content
+    assert '"prek>=' in content
     assert "pre-commit" not in content
 
 

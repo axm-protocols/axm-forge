@@ -70,7 +70,7 @@ my-project/
 ```
 
 !!! note
-    The actual scaffolded project contains additional files (CI workflows, pre-commit config,
+    The actual scaffolded project contains additional files (CI workflows, `.pre-commit-config.yaml`,
     Makefile, docs setup). The tree above shows the essential structure.
 
 !!! note "What's included"

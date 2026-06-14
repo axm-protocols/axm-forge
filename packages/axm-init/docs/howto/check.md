@@ -75,7 +75,7 @@ By default, only failures are displayed.
 |----------|--------|--------|
 | **pyproject** | exists, urls, dynamic_version, mypy, ruff, pytest, coverage, classifiers, ruff_rules, wheel_doc_shipping | 29 |
 | **ci** | workflow, lint job, test job, security job, trusted publishing, dependabot | 16 |
-| **tooling** | pre-commit (×5), hooks installed, Makefile targets | 16 |
+| **tooling** | commit-hook config (×5), hooks installed, Makefile targets | 16 |
 | **docs** | mkdocs.yml, Diátaxis nav, plugins, gen_ref_pages, README, README badges | 16 |
 | **structure** | src/ layout, py.typed, tests/, CONTRIBUTING, LICENSE, uv.lock, .python-version | 17 |
 | **deps** | dev group, docs group | 5 |

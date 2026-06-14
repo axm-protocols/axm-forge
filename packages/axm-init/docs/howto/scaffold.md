@@ -22,7 +22,7 @@ This scaffolds a production-grade Python project with:
 - `src/` layout with `py.typed` marker
 - Pre-configured linting (Ruff), typing (MyPy), testing (Pytest), and docs (MkDocs)
 - CI/CD workflows (GitHub Actions)
-- Automated pre-commit hook updates (weekly via `prek autoupdate`)
+- Automated commit-hook updates (weekly via `prek autoupdate`)
 - Dependency groups: `dev`, `docs`
 
 ### 2. Required flags
