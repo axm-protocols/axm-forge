@@ -12,8 +12,11 @@ jobs:
     strategy:
       matrix:
         python-version: {{ python_matrix }}
+        # PLACEHOLDER: replace `placeholder` with your real package names
+        # (one entry per publishable member under packages/), e.g.
+        #   package: [my-core, my-cli]
         package:
-          - placeholder
+          - placeholder  # placeholder: fill in your packages/* member names
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
@@ -22,7 +25,9 @@ jobs:
       - name: Install dependencies
         run: uv sync
       - name: Test {% raw %}${{ matrix.package }}{% endraw %}
-        run: uv run pytest --package {% raw %}${{ matrix.package }}{% endraw %} -q --cov
+        # `--package` is a `uv run` flag (selects the workspace member); it must
+        # come before `pytest`, not be passed to pytest.
+        run: uv run --package {% raw %}${{ matrix.package }}{% endraw %} pytest -q --cov
 
   lint:
     runs-on: ubuntu-latest
