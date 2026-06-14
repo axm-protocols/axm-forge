@@ -151,7 +151,7 @@ class CopierAdapter:
                 for p in config.destination.rglob("*")
                 if p.is_file()
                 and not any(
-                    part in _excluded or part.startswith(".")
+                    part in _excluded
                     for part in p.relative_to(config.destination).parts[:-1]
                 )
             )

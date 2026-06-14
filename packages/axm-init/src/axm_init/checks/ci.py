@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import yaml
+
 from axm_init.models.check import CheckResult
 
 logger = logging.getLogger(__name__)
@@ -66,17 +68,61 @@ def check_ci_lint_job(project: Path) -> CheckResult:
     )
 
 
+def _step_runs_tests(step: object) -> bool:
+    """True if a workflow step invokes a test runner (e.g. pytest)."""
+    if not isinstance(step, dict):
+        return False
+    run = str(step.get("run", "")).lower()
+    uses = str(step.get("uses", "")).lower()
+    return "pytest" in run or "test" in run or "test" in uses
+
+
+def _job_has_python_matrix(job: object) -> bool:
+    """True if a job declares a strategy.matrix.python-version axis."""
+    if not isinstance(job, dict):
+        return False
+    strategy = job.get("strategy")
+    if not isinstance(strategy, dict):
+        return False
+    matrix = strategy.get("matrix")
+    return isinstance(matrix, dict) and "python-version" in matrix
+
+
+def _has_matrix_test_job(content: str) -> bool:
+    """True if the workflow has a job with a python-version matrix and a
+    step that runs tests."""
+    try:
+        workflow = yaml.safe_load(content)
+    except yaml.YAMLError:
+        return False
+    if not isinstance(workflow, dict):
+        return False
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return False
+    for job in jobs.values():
+        if not _job_has_python_matrix(job):
+            continue
+        steps = job.get("steps") if isinstance(job, dict) else None
+        if isinstance(steps, list) and any(_step_runs_tests(s) for s in steps):
+            return True
+    return False
+
+
 def check_ci_test_job(project: Path) -> CheckResult:
-    """Check 10: CI has a test job with Python matrix."""
+    """Check 10: CI has a test job with a python-version matrix."""
     content = _read_ci(project)
-    if content is None or "test" not in content.lower():
+    if content is None or not _has_matrix_test_job(content):
         return CheckResult(
             name="ci.test_job",
             category="ci",
             passed=False,
             weight=3,
-            message="No test job in CI",
-            details=["CI should have a test job with python-version matrix"],
+            message="No matrix test job in CI",
+            details=[
+                "CI must define a job with strategy.matrix.python-version "
+                "and a step that runs the tests"
+            ],
             fix="Add a test job with strategy.matrix.python-version.",
         )
     return CheckResult(
@@ -84,7 +130,7 @@ def check_ci_test_job(project: Path) -> CheckResult:
         category="ci",
         passed=True,
         weight=3,
-        message="Test job present",
+        message="Matrix test job present",
         details=[],
         fix="",
     )
