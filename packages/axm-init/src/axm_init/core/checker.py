@@ -89,7 +89,7 @@ def _discover_checks() -> dict[str, list[Callable[[Path], CheckResult]]]:
     return registry
 
 
-def _get_check_name(fn: Callable[[Path], CheckResult]) -> str | None:
+def get_check_name(fn: Callable[[Path], CheckResult]) -> str | None:
     """Derive the canonical check name from the function's module + name.
 
     This is THE single source of truth for check naming. The convention is
@@ -107,7 +107,7 @@ def _get_check_name(fn: Callable[[Path], CheckResult]) -> str | None:
     return None
 
 
-def _stamp_canonical_name(
+def stamp_canonical_name(
     fn: Callable[[Path], CheckResult],
     result: CheckResult,
 ) -> CheckResult:
@@ -117,11 +117,11 @@ def _stamp_canonical_name(
     strings that sometimes dropped a redundant category prefix
     (e.g. ``ci.workflow_exists`` instead of ``ci.ci_workflow_exists``). To
     keep ONE convention across SKIP / REDIRECT / exclude / display, every
-    result is re-stamped here with :func:`_get_check_name` — the same value
+    result is re-stamped here with :func:`get_check_name` — the same value
     the skip/redirect filters key off. When the name cannot be inferred
     (function not named ``check_*``), the result's own name is kept.
     """
-    canonical = _get_check_name(fn)
+    canonical = get_check_name(fn)
     if canonical is None or canonical == result.name:
         return result
     return result.model_copy(update={"name": canonical})
@@ -212,18 +212,18 @@ class CheckEngine:
         """Apply context-aware skip and redirect filtering.
 
         Skip and redirect decisions key off the canonical
-        ``category.fn_name`` name (:func:`_get_check_name`, the same
+        ``category.fn_name`` name (:func:`get_check_name`, the same
         convention used by ``SKIP_FOR_*`` / ``REDIRECT_FOR_*``). Exclusions
         are NOT handled here: they match against ``CheckResult.name`` after
         the check runs — but that name is now re-stamped with the SAME
-        canonical value (see :func:`_stamp_canonical_name`), so excluding by
+        canonical value (see :func:`stamp_canonical_name`), so excluding by
         the displayed name actually skips the check.
         """
         all_fns: list[Callable[[Path], CheckResult]] = []
 
         for _category, fns in checks_to_run.items():
             for fn in fns:
-                check_name = _get_check_name(fn)
+                check_name = get_check_name(fn)
                 if self._should_skip(check_name, _category):
                     continue
                 if self._should_redirect(check_name):
@@ -241,7 +241,7 @@ class CheckEngine:
         """Split run results into kept + excluded using the canonical name.
 
         Exclusion matching keys off ``CheckResult.name`` — which ``run`` has
-        already re-stamped to the canonical :func:`_get_check_name` form, the
+        already re-stamped to the canonical :func:`get_check_name` form, the
         same convention used by ``SKIP_FOR_*`` / ``REDIRECT_FOR_*`` and shown
         in the report. Excluding by the displayed name therefore actually
         skips the check. Excluded checks become auto-pass results carrying
@@ -278,10 +278,10 @@ class CheckEngine:
             raw_results = list(pool.map(lambda fn: fn(self.project_path), all_fns))
 
         # Single source of truth: re-stamp every result with the canonical
-        # name (``_get_check_name``) so SKIP / REDIRECT / exclude / display
+        # name (``get_check_name``) so SKIP / REDIRECT / exclude / display
         # all key off the SAME string (AXM-2046).
         results = [
-            _stamp_canonical_name(fn, result)
+            stamp_canonical_name(fn, result)
             for fn, result in zip(all_fns, raw_results, strict=True)
         ]
 
