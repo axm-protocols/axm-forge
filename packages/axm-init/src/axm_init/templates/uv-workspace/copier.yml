@@ -93,6 +93,6 @@ _tasks:
     when: "{{ true }}"
   - command: "git add . && git commit -m 'feat: initial workspace scaffold'"
     when: "{{ true }}"
-  - command: "uv run pre-commit install"
+  - command: "uv run prek install"
     when: "{{ true }}"
   - "echo '✅ Workspace scaffolded! Run: cd {{ workspace_name }} && make test-all'"

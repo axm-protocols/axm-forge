@@ -51,7 +51,7 @@ class TestWorkspaceTemplateStructure:
             "README.md.jinja",
             "CONTRIBUTING.md.jinja",
             ".gitignore",
-            ".pre-commit-config.yaml",
+            ".pre-commit-config.yaml.jinja",
             "cliff.toml",
         ]:
             assert (ws_template / name).exists(), f"Missing {name}"

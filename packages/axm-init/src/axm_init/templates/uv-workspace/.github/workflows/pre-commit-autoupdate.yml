@@ -1,4 +1,4 @@
-name: Pre-commit autoupdate
+name: prek autoupdate
 
 on:
   schedule:
@@ -16,10 +16,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pre-commit
-      - run: pre-commit autoupdate
+      - run: uv tool install prek
+      - run: prek autoupdate
       - uses: peter-evans/create-pull-request@v8
         with:
-          title: "chore: pre-commit autoupdate"
-          commit-message: "chore: pre-commit autoupdate"
-          branch: pre-commit-autoupdate
+          title: "chore: prek autoupdate"
+          commit-message: "chore: prek autoupdate"
+          branch: prek-autoupdate

@@ -747,7 +747,7 @@ requires-dist = [
     { name = "cyclopts", specifier = ">=4.5" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "tiktoken", specifier = ">=0.13.0" },
+    { name = "tiktoken", specifier = ">=0.9" },
 ]
 
 [package.metadata.requires-dev]

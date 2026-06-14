@@ -88,7 +88,7 @@ def test_workspace_mypy_hook_is_local_per_package() -> None:
     false positives. It is replaced by a ``repo: local`` mypy hook invoked via
     ``uv run --package <pkg> mypy`` with ``pass_filenames: false``.
     """
-    content = _read(TemplateType.WORKSPACE, ".pre-commit-config.yaml")
+    content = _read(TemplateType.WORKSPACE, ".pre-commit-config.yaml.jinja")
     assert "mirrors-mypy" not in content
     assert "repo: local" in content
     assert "uv run --package" in content

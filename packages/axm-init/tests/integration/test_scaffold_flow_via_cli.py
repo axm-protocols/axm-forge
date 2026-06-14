@@ -127,6 +127,15 @@ class TestScaffoldFlow:
         pyproject_files = list(scaffolded_project.rglob("pyproject.toml"))
         assert len(pyproject_files) > 0, "No pyproject.toml found in scaffolded output"
 
+    def test_scaffold_python_project_installs_prek(
+        self, scaffolded_project: Path
+    ) -> None:
+        """AC1: scaffolded python-project dev deps pin prek, not pre-commit."""
+        pyproject = next(scaffolded_project.rglob("pyproject.toml"))
+        content = pyproject.read_text()
+        assert "prek>=0.4,<0.5" in content
+        assert "pre-commit" not in content
+
     def test_scaffold_json_output_is_valid_json(
         self, scaffolded_json_output: tuple[str, int]
     ) -> None:
@@ -159,6 +168,16 @@ class TestWorkspaceScaffoldFlow:
         """scaffold --workspace creates a directory with expected files."""
         assert scaffolded_workspace.exists()
         assert (scaffolded_workspace / "pyproject.toml").is_file()
+
+    def test_scaffold_uv_workspace_installs_prek(
+        self, scaffolded_workspace: Path
+    ) -> None:
+        """AC2: scaffolded uv-workspace dev deps + CONTRIBUTING mention prek."""
+        pyproject = (scaffolded_workspace / "pyproject.toml").read_text()
+        assert "prek>=0.4,<0.5" in pyproject
+        assert "pre-commit" not in pyproject
+        contributing = (scaffolded_workspace / "CONTRIBUTING.md").read_text()
+        assert "uv run prek install" in contributing
 
     def test_workspace_has_uv_workspace_config(
         self, scaffolded_workspace: Path

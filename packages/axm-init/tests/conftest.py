@@ -92,7 +92,7 @@ def gold_project__from_check_engine_run_and_format(tmp_path: Path) -> Path:
         'requires = ["hatchling", "hatch-vcs"]\n'
         'build-backend = "hatchling.build"\n'
         "\n[dependency-groups]\n"
-        'dev = ["pytest>=8.0","pytest-cov>=4.0","ruff>=0.8","mypy>=1.14","pre-commit>=4.0"]\n'  # noqa: E501
+        'dev = ["pytest>=8.0","pytest-cov>=4.0","ruff>=0.8","mypy>=1.14","prek>=0.4,<0.5"]\n'  # noqa: E501
         'docs = ["mkdocs-material>=9.0","mkdocstrings[python]>=0.27",'
         '"mkdocs-gen-files>=0.5","mkdocs-literate-nav>=0.6"]\n'
         "\n[tool.mypy]\nstrict = true\npretty = true\n"

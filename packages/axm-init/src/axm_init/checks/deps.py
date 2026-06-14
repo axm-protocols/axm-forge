@@ -15,11 +15,11 @@ from axm_init.models.check import CheckResult
     fix="Create pyproject.toml with [dependency-groups] dev group.",
 )
 def check_dev_deps(project: Path, data: TomlTable) -> CheckResult:
-    """Check 29: dev deps include pytest, ruff, mypy, pre-commit."""
+    """Check 29: dev deps include pytest, ruff, mypy, prek."""
     raw_dev = section(data, "dependency-groups").get("dev", [])
     dev = raw_dev if isinstance(raw_dev, list) else []
     dev_str = " ".join(str(d) for d in dev).lower()
-    required = ["pytest", "ruff", "mypy", "pre-commit"]
+    required = ["pytest", "ruff", "mypy", "prek"]
     missing = [d for d in required if d not in dev_str]
     if missing:
         return CheckResult(

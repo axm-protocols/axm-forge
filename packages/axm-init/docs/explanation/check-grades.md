@@ -103,7 +103,7 @@ Dependency groups:
 
 | Check | Weight | What It Verifies |
 |-------|--------|-----------------|
-| `deps.dev_group` | 3 | pytest, ruff, mypy, pre-commit in dev group |
+| `deps.dev_group` | 3 | pytest, ruff, mypy, prek in dev group |
 | `deps.docs_group` | 2 | mkdocs-material, mkdocstrings, gen-files, literate-nav |
 
 ### changelog (5 pts)

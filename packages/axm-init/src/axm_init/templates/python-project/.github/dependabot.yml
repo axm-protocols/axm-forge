@@ -12,7 +12,7 @@ updates:
           - "pytest*"
           - "ruff"
           - "mypy"
-          - "pre-commit"
+          - "prek"
 
   - package-ecosystem: "github-actions"
     directory: "/"
