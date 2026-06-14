@@ -1,14 +1,14 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge",
-  "score": 91,
-  "grade": "A",
+  "score": 83,
+  "grade": "B",
   "context": "workspace",
   "workspace_root": null,
   "excluded_checks": [],
   "categories": {
     "changelog": {
       "earned": 2,
-      "total": 2
+      "total": 5
     },
     "ci": {
       "earned": 16,
@@ -20,7 +20,7 @@
     },
     "pyproject": {
       "earned": 4,
-      "total": 6
+      "total": 11
     },
     "structure": {
       "earned": 8,
@@ -37,7 +37,15 @@
   },
   "checks": [
     {
-      "name": "changelog.no_manual",
+      "name": "changelog.gitcliff_config",
+      "category": "changelog",
+      "passed": false,
+      "earned": 0,
+      "weight": 3,
+      "message": "No [tool.git-cliff] config found"
+    },
+    {
+      "name": "changelog.no_manual_changelog",
       "category": "changelog",
       "passed": true,
       "earned": 2,
@@ -45,7 +53,7 @@
       "message": "No manual CHANGELOG.md"
     },
     {
-      "name": "ci.lint_job",
+      "name": "ci.ci_lint_job",
       "category": "ci",
       "passed": true,
       "earned": 3,
@@ -53,7 +61,7 @@
       "message": "Lint job present"
     },
     {
-      "name": "ci.security_job",
+      "name": "ci.ci_security_job",
       "category": "ci",
       "passed": true,
       "earned": 2,
@@ -61,15 +69,15 @@
       "message": "Security audit job present"
     },
     {
-      "name": "ci.test_job",
+      "name": "ci.ci_test_job",
       "category": "ci",
       "passed": true,
       "earned": 3,
       "weight": 3,
-      "message": "Test job present"
+      "message": "Matrix test job present"
     },
     {
-      "name": "ci.workflow_exists",
+      "name": "ci.ci_workflow_exists",
       "category": "ci",
       "passed": true,
       "earned": 4,
@@ -133,7 +141,15 @@
       "message": "README has axm-audit + axm-init badges"
     },
     {
-      "name": "pyproject.exists",
+      "name": "pyproject.pyproject_dynamic_version",
+      "category": "pyproject",
+      "passed": false,
+      "earned": 0,
+      "weight": 3,
+      "message": "Version is not dynamically managed"
+    },
+    {
+      "name": "pyproject.pyproject_exists",
       "category": "pyproject",
       "passed": true,
       "earned": 4,
@@ -141,7 +157,15 @@
       "message": "pyproject.toml found"
     },
     {
-      "name": "pyproject.wheel_doc_shipping",
+      "name": "pyproject.pyproject_ruff_rules",
+      "category": "pyproject",
+      "passed": false,
+      "earned": 0,
+      "weight": 2,
+      "message": "Missing 9 essential ruff rule(s)"
+    },
+    {
+      "name": "pyproject.pyproject_wheel_doc_shipping",
       "category": "pyproject",
       "passed": false,
       "earned": 0,
@@ -157,7 +181,7 @@
       "message": "CONTRIBUTING.md found"
     },
     {
-      "name": "structure.license",
+      "name": "structure.license_file",
       "category": "structure",
       "passed": true,
       "earned": 3,
@@ -311,6 +335,15 @@
   ],
   "failures": [
     {
+      "name": "changelog.gitcliff_config",
+      "weight": 3,
+      "message": "No [tool.git-cliff] config found",
+      "details": [
+        "git-cliff auto-generates CHANGELOG from conventional commits"
+      ],
+      "fix": "Add [tool.git-cliff.changelog] and [tool.git-cliff.git] to pyproject.toml."
+    },
+    {
       "name": "docs.readme",
       "weight": 3,
       "message": "README missing 2 section(s)",
@@ -320,7 +353,26 @@
       "fix": "Add Features, Installation section(s) to README.md."
     },
     {
-      "name": "pyproject.wheel_doc_shipping",
+      "name": "pyproject.pyproject_dynamic_version",
+      "weight": 3,
+      "message": "Version is not dynamically managed",
+      "details": [
+        "Missing: dynamic = [\"version\"]",
+        "Missing: hatch-vcs in build-system.requires"
+      ],
+      "fix": "Add hatch-vcs to build-system.requires and set dynamic = [\"version\"]."
+    },
+    {
+      "name": "pyproject.pyproject_ruff_rules",
+      "weight": 2,
+      "message": "Missing 9 essential ruff rule(s)",
+      "details": [
+        "Missing: B, BLE, E, F, I, N, PLR, S, UP"
+      ],
+      "fix": "Add B, BLE, E, F, I, N, PLR, S, UP to [tool.ruff.lint] select."
+    },
+    {
+      "name": "pyproject.pyproject_wheel_doc_shipping",
       "weight": 2,
       "message": "2 auto-detected docs/*.md file(s) not force-included",
       "details": [
@@ -336,7 +388,7 @@
       "details": [
         ".pre-commit-config.yaml exists but hooks are not activated"
       ],
-      "fix": "Run 'pre-commit install' to activate hooks."
+      "fix": "Run 'prek install' to activate hooks."
     }
   ]
 }

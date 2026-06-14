@@ -222,83 +222,10 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "60 cluster(s), 0 clustered pair(s)",
+      "message": "56 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
-          {
-            "signal": "ambiguous_multi",
-            "reason": "template-pair rescue (cross-file test_pass) + same SUT: check_py_typed(1) + same asserts + distinct parent class rescue for SUT check_pyproject_mypy(1)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/integration/test_check_py_typed.py",
-                "name": "test_pass",
-                "line": 11
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_mypy.py",
-                "name": "test_pass",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_src_layout.py",
-                "name": "test_pass",
-                "line": 11
-              },
-              {
-                "file": "tests/integration/test_check_py_typed.py",
-                "name": "test_py_typed_layouts",
-                "line": 39
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_mypy.py",
-                "name": "test_fail_missing_section",
-                "line": 17
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_mypy.py",
-                "name": "test_mypy_all_explicit_with_strict",
-                "line": 83
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_mypy.py",
-                "name": "test_fail_partial",
-                "line": 22
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_mypy.py",
-                "name": "test_mypy_strict_with_override_false",
-                "line": 52
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_mypy.py",
-                "name": "test_mypy_pretty_not_implied",
-                "line": 63
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_mypy.py",
-                "name": "test_mypy_strict_false_requires_explicit",
-                "line": 71
-              },
-              {
-                "file": "tests/integration/test_check_src_layout.py",
-                "name": "test_fail_no_src",
-                "line": 15
-              },
-              {
-                "file": "tests/integration/test_check_src_layout.py",
-                "name": "test_src_layout_detection",
-                "line": 26
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_mypy.py",
-                "name": "test_mypy_strict_implies_sub_flags",
-                "line": 33
-              }
-            ],
-            "cluster_hash": "99f8d394bd70"
-          },
           {
             "signal": "ambiguous_distinct_sut",
             "reason": "distinct public SUT rescue (cross-file test_passed)",
@@ -423,75 +350,131 @@
             "acknowledged": true
           },
           {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue (cross-file test_pass)",
-            "similarity": 1.0,
+            "signal": "ambiguous_multi",
+            "reason": "distinct parent class rescue for SUT check_pyproject_mypy(1) + distinct literals rescue for SUT check_pyproject_mypy(1) + body-size delta rescue (intra-file 83%)",
+            "similarity": 0.8333333333333334,
             "members": [
               {
-                "file": "tests/integration/test_check_dependabot.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_classifiers.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_exists.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_pyproject_ruff_rules.py",
-                "name": "test_pass",
-                "line": 16
-              },
-              {
-                "file": "tests/integration/test_check_python_version.py",
-                "name": "test_pass",
-                "line": 9
-              },
-              {
-                "file": "tests/integration/test_check_uv_lock.py",
+                "file": "tests/integration/test_check_pyproject_mypy.py",
                 "name": "test_pass",
                 "line": 13
+              },
+              {
+                "file": "tests/integration/test_check_pyproject_mypy.py",
+                "name": "test_fail_missing_section",
+                "line": 17
+              },
+              {
+                "file": "tests/integration/test_check_pyproject_mypy.py",
+                "name": "test_mypy_all_explicit_with_strict",
+                "line": 83
+              },
+              {
+                "file": "tests/integration/test_check_pyproject_mypy.py",
+                "name": "test_fail_partial",
+                "line": 22
+              },
+              {
+                "file": "tests/integration/test_check_pyproject_mypy.py",
+                "name": "test_mypy_strict_with_override_false",
+                "line": 52
+              },
+              {
+                "file": "tests/integration/test_check_pyproject_mypy.py",
+                "name": "test_mypy_pretty_not_implied",
+                "line": 63
+              },
+              {
+                "file": "tests/integration/test_check_pyproject_mypy.py",
+                "name": "test_mypy_strict_false_requires_explicit",
+                "line": 71
+              },
+              {
+                "file": "tests/integration/test_check_pyproject_mypy.py",
+                "name": "test_mypy_strict_implies_sub_flags",
+                "line": 33
               }
             ],
-            "cluster_hash": "fec5b9bdbd8a"
+            "cluster_hash": "28cb02da3de1",
+            "acknowledged": true
           },
           {
-            "signal": "ambiguous_template_pair",
-            "reason": "template-pair rescue (cross-file test_fail_missing) + same SUT: check_uv_lock(1) + same asserts + AST similarity 86%",
-            "similarity": 1.0,
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT reserve_pypi(4|checker=Name)",
+            "similarity": 0.0,
             "members": [
               {
-                "file": "tests/integration/test_check_dependabot.py",
-                "name": "test_fail_missing",
-                "line": 14
+                "file": "tests/unit/core/test_reserver.py",
+                "name": "test_full_reserve_success",
+                "line": 301
               },
               {
-                "file": "tests/integration/test_check_python_version.py",
-                "name": "test_fail_missing",
-                "line": 14
+                "file": "tests/unit/core/test_reserver.py",
+                "name": "test_reserve_build_fails",
+                "line": 319
               },
               {
-                "file": "tests/integration/test_check_uv_lock.py",
-                "name": "test_fail_missing",
-                "line": 18
+                "file": "tests/unit/core/test_reserver.py",
+                "name": "test_reserve_race_condition",
+                "line": 336
               },
               {
-                "file": "tests/integration/test_check_uv_lock.py",
-                "name": "test_fail_workspace_no_lock",
-                "line": 37
+                "file": "tests/unit/core/test_reserver.py",
+                "name": "test_reserve_idempotent_rerun",
+                "line": 359
               },
               {
-                "file": "tests/integration/test_check_uv_lock.py",
-                "name": "test_pass_workspace_root",
-                "line": 22
+                "file": "tests/unit/core/test_reserver.py",
+                "name": "test_reserve_publish_fails",
+                "line": 381
+              },
+              {
+                "file": "tests/unit/core/test_reserver.py",
+                "name": "test_reserve_availability_error",
+                "line": 397
               }
             ],
-            "cluster_hash": "366353a1ecb5"
+            "cluster_hash": "6d62e9d17a23",
+            "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_raises_divergence",
+            "reason": "pytest.raises divergence rescue for SUT engine.run(0)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_check_engine.py",
+                "name": "test_run_single_category",
+                "line": 20
+              },
+              {
+                "file": "tests/integration/test_check_engine.py",
+                "name": "test_run_invalid_category",
+                "line": 32
+              },
+              {
+                "file": "tests/integration/test_check_engine.py",
+                "name": "test_engine_exclusion_auto_pass",
+                "line": 139
+              },
+              {
+                "file": "tests/integration/test_check_engine.py",
+                "name": "test_exclusion_nonexistent_ignored",
+                "line": 159
+              },
+              {
+                "file": "tests/integration/test_check_engine__grade.py",
+                "name": "test_run_all_categories",
+                "line": 9
+              },
+              {
+                "file": "tests/integration/test_check_engine__grade.py",
+                "name": "test_engine_standalone_unchanged",
+                "line": 23
+              }
+            ],
+            "cluster_hash": "583c856f03e2",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -588,34 +571,6 @@
             ],
             "cluster_hash": "a0f800436549",
             "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue (cross-file test_idempotent)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/integration/test_patch_makefile.py",
-                "name": "test_idempotent",
-                "line": 22
-              },
-              {
-                "file": "tests/integration/test_patch_mkdocs.py",
-                "name": "test_idempotent",
-                "line": 18
-              },
-              {
-                "file": "tests/integration/test_patch_pyproject.py",
-                "name": "test_idempotent",
-                "line": 19
-              },
-              {
-                "file": "tests/integration/test_patch_testpaths.py",
-                "name": "test_idempotent",
-                "line": 22
-              }
-            ],
-            "cluster_hash": "66c8a8174017"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -782,6 +737,78 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT check_pytest_testpaths(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_check_pytest_testpaths.py",
+                "name": "test_testpaths_missing",
+                "line": 22
+              },
+              {
+                "file": "tests/integration/test_check_pytest_testpaths.py",
+                "name": "test_no_pyproject_fails",
+                "line": 32
+              },
+              {
+                "file": "tests/integration/test_check_pytest_testpaths.py",
+                "name": "test_testpaths_without_packages_ref",
+                "line": 39
+              }
+            ],
+            "cluster_hash": "c628e04ab0b7",
+            "acknowledged": true
+          },
+          {
+            "signal": "signal1_call_assert",
+            "reason": "same SUT: check_src_layout(1) + same asserts",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_check_src_layout.py",
+                "name": "test_pass",
+                "line": 11
+              },
+              {
+                "file": "tests/integration/test_check_src_layout.py",
+                "name": "test_fail_no_src",
+                "line": 15
+              },
+              {
+                "file": "tests/integration/test_check_src_layout.py",
+                "name": "test_src_layout_detection",
+                "line": 26
+              }
+            ],
+            "cluster_hash": "14ed07ae7078",
+            "acknowledged": true
+          },
+          {
+            "signal": "multi_signal",
+            "reason": "same SUT: check_uv_lock(1) + same asserts + AST similarity 86%",
+            "similarity": 0.8571428571428571,
+            "members": [
+              {
+                "file": "tests/integration/test_check_uv_lock.py",
+                "name": "test_fail_missing",
+                "line": 18
+              },
+              {
+                "file": "tests/integration/test_check_uv_lock.py",
+                "name": "test_fail_workspace_no_lock",
+                "line": 37
+              },
+              {
+                "file": "tests/integration/test_check_uv_lock.py",
+                "name": "test_pass_workspace_root",
+                "line": 22
+              }
+            ],
+            "cluster_hash": "23926b49ea18",
+            "acknowledged": true
+          },
+          {
             "signal": "ambiguous_patch_context",
             "reason": "patch-context rescue for SUT creds.resolve_pypi_token(0)>os.environ.pop(2)",
             "similarity": 0.0,
@@ -854,52 +881,6 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT reserve_pypi(4|checker=Name)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_reserver.py",
-                "name": "test_full_reserve_success",
-                "line": 301
-              },
-              {
-                "file": "tests/unit/core/test_reserver.py",
-                "name": "test_reserve_build_fails",
-                "line": 319
-              },
-              {
-                "file": "tests/unit/core/test_reserver.py",
-                "name": "test_reserve_publish_fails",
-                "line": 381
-              }
-            ],
-            "cluster_hash": "9fbf3e249d01"
-          },
-          {
-            "signal": "ambiguous_patch_context",
-            "reason": "patch-context rescue for SUT reserve_pypi(4|checker=Name)>result.message.lower(0)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_reserver.py",
-                "name": "test_reserve_race_condition",
-                "line": 336
-              },
-              {
-                "file": "tests/unit/core/test_reserver.py",
-                "name": "test_reserve_idempotent_rerun",
-                "line": 359
-              },
-              {
-                "file": "tests/unit/core/test_reserver.py",
-                "name": "test_reserve_availability_error",
-                "line": 397
-              }
-            ],
-            "cluster_hash": "9db99ab739b6"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue (intra-file 100%)",
             "similarity": 1.0,
             "members": [
@@ -921,60 +902,6 @@
             ],
             "cluster_hash": "329dd2f25a4d",
             "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue (cross-file test_valid)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/integration/test_check_members_consistent.py",
-                "name": "test_valid",
-                "line": 13
-              },
-              {
-                "file": "tests/integration/test_check_packages_layout.py",
-                "name": "test_valid",
-                "line": 11
-              }
-            ],
-            "cluster_hash": "81a9ea6613a3"
-          },
-          {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue (cross-file test_no_members_passes)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/integration/test_check_members_consistent.py",
-                "name": "test_no_members_passes",
-                "line": 30
-              },
-              {
-                "file": "tests/integration/test_check_packages_layout.py",
-                "name": "test_no_members_passes",
-                "line": 17
-              }
-            ],
-            "cluster_hash": "a28dc819abb4"
-          },
-          {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue (cross-file test_idempotent)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/integration/test_patch_ci.py",
-                "name": "test_idempotent",
-                "line": 22
-              },
-              {
-                "file": "tests/integration/test_patch_publish.py",
-                "name": "test_idempotent",
-                "line": 23
-              }
-            ],
-            "cluster_hash": "565e7674dbf6"
           },
           {
             "signal": "ambiguous_setup_divergence",
@@ -1054,7 +981,7 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT len(1)>sorted(1)",
+            "reason": "distinct literals rescue for SUT sorted(1)",
             "similarity": 0.0,
             "members": [
               {
@@ -1092,7 +1019,7 @@
           },
           {
             "signal": "ambiguous_setup_divergence",
-            "reason": "setup divergence rescue for SUT any(1)>check_members_consistent(1)",
+            "reason": "setup divergence rescue for SUT check_members_consistent(1)",
             "similarity": 0.0,
             "members": [
               {
@@ -1126,6 +1053,25 @@
               }
             ],
             "cluster_hash": "d064727e0f25",
+            "acknowledged": true
+          },
+          {
+            "signal": "signal1_call_assert",
+            "reason": "same SUT: check_py_typed(1) + same asserts",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_check_py_typed.py",
+                "name": "test_pass",
+                "line": 11
+              },
+              {
+                "file": "tests/integration/test_check_py_typed.py",
+                "name": "test_py_typed_layouts",
+                "line": 39
+              }
+            ],
+            "cluster_hash": "2d1d038a8f57",
             "acknowledged": true
           },
           {
@@ -1184,24 +1130,6 @@
             ],
             "cluster_hash": "556ba8b3ac5f",
             "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_setup_divergence",
-            "reason": "setup divergence rescue for SUT check_pytest_testpaths(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_check_pytest_testpaths.py",
-                "name": "test_no_pyproject_fails",
-                "line": 32
-              },
-              {
-                "file": "tests/integration/test_check_pytest_testpaths.py",
-                "name": "test_testpaths_without_packages_ref",
-                "line": 39
-              }
-            ],
-            "cluster_hash": "d0659a349149"
           },
           {
             "signal": "signal1_call_assert",
@@ -1375,8 +1303,27 @@
             "acknowledged": true
           },
           {
+            "signal": "ambiguous_setup_divergence",
+            "reason": "setup divergence rescue for SUT load_exclusions(1)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_load_exclusions.py",
+                "name": "test_returns_empty_set",
+                "line": 49
+              },
+              {
+                "file": "tests/integration/test_load_exclusions.py",
+                "name": "test_valid_exclusions",
+                "line": 69
+              }
+            ],
+            "cluster_hash": "7f62a072ec5f",
+            "acknowledged": true
+          },
+          {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT isinstance(2)>yaml.safe_load(1)",
+            "reason": "distinct literals rescue for SUT yaml.safe_load(1)",
             "similarity": 0.0,
             "members": [
               {
@@ -1395,7 +1342,7 @@
           },
           {
             "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue for shared sig isinstance(2)>yaml.safe_load(1)",
+            "reason": "distinct public SUT rescue for shared sig yaml.safe_load(1)",
             "similarity": 0.0,
             "members": [
               {
@@ -1411,42 +1358,6 @@
             ],
             "cluster_hash": "84cbb37932df",
             "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue for shared sig str(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_patch_publish.py",
-                "name": "test_patch_publish_inserts_into_tags_not_steps",
-                "line": 112
-              },
-              {
-                "file": "tests/integration/test_patch_release.py",
-                "name": "test_patch_release_inserts_into_tags_not_steps",
-                "line": 100
-              }
-            ],
-            "cluster_hash": "993794ebff86"
-          },
-          {
-            "signal": "ambiguous_distinct_sut",
-            "reason": "distinct public SUT rescue for shared sig isinstance(2)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_reserver.py",
-                "name": "test_build_package_passes_timeout",
-                "line": 177
-              },
-              {
-                "file": "tests/unit/core/test_reserver.py",
-                "name": "test_publish_package_passes_timeout",
-                "line": 269
-              }
-            ],
-            "cluster_hash": "8ef65dfc1c3f"
           },
           {
             "signal": "ambiguous_patch_context",
@@ -1659,44 +1570,11 @@
           }
         ],
         "bucket_counts": {
-          "CLUSTERED": 11,
-          "AMBIGUOUS": 173,
-          "UNIQUE": 326
+          "CLUSTERED": 19,
+          "AMBIGUOUS": 152,
+          "UNIQUE": 339
         },
-        "stale_acknowledged": [
-          {
-            "hash": "6d62e9d17a23",
-            "reason": "The six reserve_pypi unit tests cover distinct branches with divergent mock setups and message literals: test_full_reserve_success (build OK+publish OK \u2192 'Reserved'), test_reserve_build_fails ('Build failed'), test_reserve_publish_fails ('Publish failed'), test_reserve_race_condition (TAKEN on recheck \u2192 'taken by another user'), test_reserve_idempotent_rerun (AVAILABLE on recheck \u2192 'already reserved'), and test_reserve_availability_error (initial ERROR, no build/publish mocks \u2192 'availability'). Same SUT, six disjoint side-effect scenarios \u2014 folding would erase the per-branch documentation."
-          },
-          {
-            "hash": "c628e04ab0b7",
-            "reason": "The three check_pytest_testpaths integration tests exercise distinct early-return branches with divergent setups and message assertions: test_no_pyproject_fails (bare tmp_path, no pyproject.toml \u2192 'No pyproject.toml'), test_testpaths_missing (pyproject without testpaths \u2192 missing branch), and test_testpaths_without_packages_ref (testpaths pointing outside packages/ \u2192 'does not reference')."
-          },
-          {
-            "hash": "28cb02da3de1",
-            "reason": "Members assert divergent result fields, not just an expected pass/fail value: test_mypy_strict_implies_sub_flags asserts r.weight == 3, test_fail_partial/test_mypy_pretty_not_implied assert 'pretty' in r.details, test_mypy_strict_with_override_false asserts 'check_untyped_defs' in r.details, and test_mypy_strict_false_requires_explicit asserts 'strict' in r.details \u2014 parametrizing would erase the per-case field/diagnostic divergence (weight vs distinct details substrings)."
-          },
-          {
-            "hash": "23926b49ea18",
-            "reason": "Mixed-field cluster on check_uv_lock: test_pass_workspace_root asserts r.passed is True AND 'workspace root' in r.message (a different result field) after building a full workspace-root + member tree, while test_fail_missing (shared empty_project, no pyproject) and test_fail_workspace_no_lock (workspace root WITHOUT uv.lock + member) assert only r.passed is False on two structurally distinct failure branches \u2014 folding would erase both the .message contract and the missing-pyproject vs missing-root-lock branch distinction."
-          },
-          {
-            "hash": "7f62a072ec5f",
-            "reason": "Members assert divergent result semantics on load_exclusions: test_returns_empty_set asserts load_exclusions(...) == set() across no-section/no-exclude/no-pyproject/empty-list/corrupt-toml inputs, while test_valid_exclusions asserts == a non-empty expected set ({'cli','changelog'}) \u2014 two already-parametrized tables with disjoint param signatures and opposite expected outcomes that cannot be merged."
-          },
-          {
-            "hash": "583c856f03e2",
-            "reason": "Inter-file cluster spanning test_check_engine.py and test_check_engine__grade.py with divergent CheckEngine assertions: members exercise category filtering (len==7 tooling), invalid-category ValueError raises, exclusion auto-pass, nonexistent-exclusion no-op and the full 40-check grade-A standalone path \u2014 no shared top-level helper and mutually incompatible asserts, so an inter-file fold is forbidden."
-          },
-          {
-            "hash": "14ed07ae7078",
-            "reason": "Intra-file residual in test_check_src_layout.py: test_pass asserts r.passed on the real on-disk gold_project fixture while test_fail_no_src (empty_project) and the tmp_path-parametrized test_src_layout_detection construct synthetic layouts \u2014 the fixtures differ (gold vs empty vs built dirs), so folding would force the gold smoke-check into the parametrize table and change semantics."
-          },
-          {
-            "hash": "2d1d038a8f57",
-            "reason": "Intra-file residual in test_check_py_typed.py: test_pass asserts r.passed on the real on-disk gold_project fixture while the tmp_path-parametrized test_py_typed_layouts builds synthetic py.typed placements \u2014 different fixtures (gold vs constructed), so folding would force the gold smoke-check into the parametrize table and change semantics."
-          }
-        ]
+        "stale_acknowledged": []
       }
     },
     {

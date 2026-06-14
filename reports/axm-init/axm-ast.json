@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast",
-  "score": 95,
+  "score": 98,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
@@ -15,7 +15,7 @@
       "total": 16
     },
     "deps": {
-      "earned": 0,
+      "earned": 3,
       "total": 3
     },
     "docs": {
@@ -37,7 +37,7 @@
   },
   "checks": [
     {
-      "name": "changelog.gitcliff",
+      "name": "changelog.gitcliff_config",
       "category": "changelog",
       "passed": true,
       "earned": 3,
@@ -45,7 +45,7 @@
       "message": "git-cliff configured"
     },
     {
-      "name": "changelog.no_manual",
+      "name": "changelog.no_manual_changelog",
       "category": "changelog",
       "passed": true,
       "earned": 2,
@@ -53,7 +53,7 @@
       "message": "No manual CHANGELOG.md"
     },
     {
-      "name": "ci.lint_job",
+      "name": "ci.ci_lint_job",
       "category": "ci",
       "passed": true,
       "earned": 3,
@@ -61,7 +61,7 @@
       "message": "Lint job present"
     },
     {
-      "name": "ci.security_job",
+      "name": "ci.ci_security_job",
       "category": "ci",
       "passed": true,
       "earned": 2,
@@ -69,15 +69,15 @@
       "message": "Security audit job present"
     },
     {
-      "name": "ci.test_job",
+      "name": "ci.ci_test_job",
       "category": "ci",
       "passed": true,
       "earned": 3,
       "weight": 3,
-      "message": "Test job present"
+      "message": "Matrix test job present"
     },
     {
-      "name": "ci.workflow_exists",
+      "name": "ci.ci_workflow_exists",
       "category": "ci",
       "passed": true,
       "earned": 4,
@@ -101,12 +101,12 @@
       "message": "Trusted Publishing (OIDC) configured"
     },
     {
-      "name": "deps.dev_group",
+      "name": "deps.dev_deps",
       "category": "deps",
-      "passed": false,
-      "earned": 0,
+      "passed": true,
+      "earned": 3,
       "weight": 3,
-      "message": "Dev group missing 1 dep(s)"
+      "message": "Dev deps complete"
     },
     {
       "name": "docs.mkdocs_exists",
@@ -125,7 +125,7 @@
       "message": "README follows standard"
     },
     {
-      "name": "pyproject.classifiers",
+      "name": "pyproject.pyproject_classifiers",
       "category": "pyproject",
       "passed": true,
       "earned": 1,
@@ -133,7 +133,7 @@
       "message": "Required classifiers present"
     },
     {
-      "name": "pyproject.coverage",
+      "name": "pyproject.pyproject_coverage",
       "category": "pyproject",
       "passed": true,
       "earned": 4,
@@ -141,7 +141,7 @@
       "message": "Coverage fully configured"
     },
     {
-      "name": "pyproject.dynamic_version",
+      "name": "pyproject.pyproject_dynamic_version",
       "category": "pyproject",
       "passed": true,
       "earned": 3,
@@ -149,7 +149,7 @@
       "message": "Dynamic version with hatch-vcs"
     },
     {
-      "name": "pyproject.exists",
+      "name": "pyproject.pyproject_exists",
       "category": "pyproject",
       "passed": true,
       "earned": 4,
@@ -157,7 +157,7 @@
       "message": "pyproject.toml found"
     },
     {
-      "name": "pyproject.mypy",
+      "name": "pyproject.pyproject_mypy",
       "category": "pyproject",
       "passed": true,
       "earned": 3,
@@ -165,7 +165,7 @@
       "message": "MyPy fully configured"
     },
     {
-      "name": "pyproject.pytest",
+      "name": "pyproject.pyproject_pytest",
       "category": "pyproject",
       "passed": true,
       "earned": 4,
@@ -173,7 +173,7 @@
       "message": "Pytest fully configured"
     },
     {
-      "name": "pyproject.ruff",
+      "name": "pyproject.pyproject_ruff",
       "category": "pyproject",
       "passed": true,
       "earned": 3,
@@ -181,7 +181,7 @@
       "message": "Ruff fully configured"
     },
     {
-      "name": "pyproject.ruff_rules",
+      "name": "pyproject.pyproject_ruff_rules",
       "category": "pyproject",
       "passed": true,
       "earned": 2,
@@ -189,7 +189,7 @@
       "message": "Essential ruff rules activated"
     },
     {
-      "name": "pyproject.urls",
+      "name": "pyproject.pyproject_urls",
       "category": "pyproject",
       "passed": true,
       "earned": 3,
@@ -197,7 +197,7 @@
       "message": "All 4 URLs present"
     },
     {
-      "name": "pyproject.wheel_doc_shipping",
+      "name": "pyproject.pyproject_wheel_doc_shipping",
       "category": "pyproject",
       "passed": true,
       "earned": 2,
@@ -213,7 +213,7 @@
       "message": "CONTRIBUTING.md found"
     },
     {
-      "name": "structure.license",
+      "name": "structure.license_file",
       "category": "structure",
       "passed": true,
       "earned": 3,
@@ -319,22 +319,13 @@
   ],
   "failures": [
     {
-      "name": "deps.dev_group",
-      "weight": 3,
-      "message": "Dev group missing 1 dep(s)",
-      "details": [
-        "Missing: pre-commit"
-      ],
-      "fix": "Add pre-commit to [dependency-groups] dev."
-    },
-    {
       "name": "tooling.precommit_installed",
       "weight": 2,
       "message": "Pre-commit hooks not installed",
       "details": [
         ".pre-commit-config.yaml exists but hooks are not activated"
       ],
-      "fix": "Run 'pre-commit install' to activate hooks."
+      "fix": "Run 'prek install' to activate hooks."
     }
   ]
 }

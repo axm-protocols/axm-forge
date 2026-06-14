@@ -186,7 +186,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "19 cluster(s), 0 clustered pair(s)",
+      "message": "16 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -299,47 +299,8 @@
             "acknowledged": true
           },
           {
-            "signal": "ambiguous_template_pair",
-            "reason": "template-pair rescue (cross-file test_name)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/tools/test_batch_edit.py",
-                "name": "test_name",
-                "line": 19
-              },
-              {
-                "file": "tests/unit/tools/test_batch_rollback.py",
-                "name": "test_name",
-                "line": 11
-              },
-              {
-                "file": "tests/unit/tools/test_list_dir.py",
-                "name": "test_name",
-                "line": 11
-              },
-              {
-                "file": "tests/unit/tools/test_read_file.py",
-                "name": "test_name",
-                "line": 11
-              },
-              {
-                "file": "tests/unit/tools/test_run_command.py",
-                "name": "test_name",
-                "line": 11
-              },
-              {
-                "file": "tests/unit/tools/test_search_files.py",
-                "name": "test_name",
-                "line": 11
-              }
-            ],
-            "cluster_hash": "ebcce1633f01",
-            "acknowledged": true
-          },
-          {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT any(1)>batch_apply(2)",
+            "reason": "distinct literals rescue for SUT batch_apply(2)",
             "similarity": 0.0,
             "members": [
               {
@@ -426,44 +387,6 @@
               }
             ],
             "cluster_hash": "57522ceee488",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_template_pair",
-            "reason": "template-pair rescue (cross-file test_name)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/tools/test_edit_file.py",
-                "name": "test_name",
-                "line": 46
-              },
-              {
-                "file": "tests/unit/tools/test_write_file.py",
-                "name": "test_name",
-                "line": 29
-              }
-            ],
-            "cluster_hash": "4ee6e5cd7e73",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_template_pair",
-            "reason": "template-pair rescue (cross-file test_agent_hint_exists)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/tools/test_edit_file.py",
-                "name": "test_agent_hint_exists",
-                "line": 49
-              },
-              {
-                "file": "tests/unit/tools/test_write_file.py",
-                "name": "test_agent_hint_exists",
-                "line": 32
-              }
-            ],
-            "cluster_hash": "f1fa35f55a9f",
             "acknowledged": true
           },
           {
@@ -559,6 +482,25 @@
             "cluster_hash": "d5eef4978aeb"
           },
           {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT tool.execute(0|operations=List,path=Call)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_batch_edit_tool.py",
+                "name": "test_warnings_in_result",
+                "line": 194
+              },
+              {
+                "file": "tests/integration/test_batch_edit_tool.py",
+                "name": "test_ruff_invocation_fails",
+                "line": 247
+              }
+            ],
+            "cluster_hash": "88e7a1199b18",
+            "acknowledged": true
+          },
+          {
             "signal": "ambiguous_distinct_class",
             "reason": "distinct parent class rescue for SUT tool.execute(0|operations=List,path=Call)",
             "similarity": 0.0,
@@ -575,25 +517,6 @@
               }
             ],
             "cluster_hash": "d353e479f0de",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT any(1)>result.data.get(2)>tool.execute(0|operations=List,path=Call)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_batch_edit_tool.py",
-                "name": "test_warnings_in_result",
-                "line": 194
-              },
-              {
-                "file": "tests/integration/test_batch_edit_tool.py",
-                "name": "test_ruff_invocation_fails",
-                "line": 247
-              }
-            ],
-            "cluster_hash": "88e7a1199b18",
             "acknowledged": true
           },
           {
@@ -675,8 +598,8 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 0,
-          "AMBIGUOUS": 63,
-          "UNIQUE": 168
+          "AMBIGUOUS": 53,
+          "UNIQUE": 178
         },
         "stale_acknowledged": [
           {
@@ -692,12 +615,24 @@
             "reason": "Distinct indent-normalization and smart-quote happy paths spread across two files with their own per-test fixtures (bottom-to-top shift, dedent match, multi-line block, smart/wrapped quotes, exact-match-preferred) \u2014 each asserts a different rewritten literal."
           },
           {
+            "hash": "ebcce1633f01",
+            "reason": "Each test_name asserts a different tool's name literal (batch_edit, batch_rollback, list_dir, read_file, run_command, search_files) \u2014 six distinct SUTs, not one duplicated assertion."
+          },
+          {
             "hash": "89d734402dd3",
             "reason": "Six distinct failure branches of batch_apply (create-existing, delete-missing, ambiguous-old, old-not-found, path-traversal, replace-file-not-found) each assert a different error message, only sharing the not-success shape."
           },
           {
             "hash": "70bc0aacea54",
             "reason": "Different multi-edit scenarios with divergent summary expectations \u2014 multi_file_fuzzy asserts modified==2 across two files, multiple_edits_same_file and two_replace_ops_same_file assert modified==1 (merge into one file)."
+          },
+          {
+            "hash": "4ee6e5cd7e73",
+            "reason": "test_name asserts a different tool's name literal for EditFileTool (edit_file) versus WriteFileTool (write_file) \u2014 two distinct SUTs."
+          },
+          {
+            "hash": "f1fa35f55a9f",
+            "reason": "test_agent_hint_exists exercises the agent_hint of two distinct tools, EditFileTool and WriteFileTool \u2014 same shape, different SUTs."
           },
           {
             "hash": "44b49a80eb93",

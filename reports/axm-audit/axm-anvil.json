@@ -209,10 +209,96 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "18 cluster(s), 0 clustered pair(s)",
+      "message": "17 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
+          {
+            "signal": "ambiguous_multi",
+            "reason": "distinct literals rescue for SUT move_symbols(3|workspace_root=Name) + pytest.raises divergence rescue for SUT move_symbols(3|workspace_root=Name)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_import_cycle_error__move_symbols.py",
+                "name": "test_move_cross_package_detects_cycle",
+                "line": 64
+              },
+              {
+                "file": "tests/integration/test_import_cycle_error__move_symbols.py",
+                "name": "test_intra_package_cycle_detection_unchanged",
+                "line": 99
+              },
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_move_rewrites_multiline_from_import_caller",
+                "line": 369
+              },
+              {
+                "file": "tests/integration/test_move_symbols__symbol_not_found_error.py",
+                "name": "test_move_absent_toplevel_warns_not_raises",
+                "line": 23
+              },
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_move_rewrites_module_import_caller",
+                "line": 438
+              },
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_forward_ref_warning_real_files",
+                "line": 1644
+              },
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_side_effect_decorator_warning_real_files",
+                "line": 1756
+              }
+            ],
+            "cluster_hash": "e6ed377337b4"
+          },
+          {
+            "signal": "ambiguous_multi",
+            "reason": "distinct literals rescue for SUT move_symbols(3|dry_run=True) + pytest.raises divergence rescue for SUT move_symbols(3|dry_run=True)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_string_forward_ref_warns",
+                "line": 1550
+              },
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_side_effect_decorator_bare_warns",
+                "line": 1698
+              },
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_string_forward_ref_no_false_positive",
+                "line": 1564
+              },
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_non_whitelisted_decorator_no_warn",
+                "line": 1717
+              },
+              {
+                "file": "tests/integration/test_move_symbols__overload_partial_move_error.py",
+                "name": "test_overload_partial_move_raises",
+                "line": 12
+              },
+              {
+                "file": "tests/integration/test_move_symbols__symbol_already_exists_error.py",
+                "name": "test_symbol_already_exists_raises",
+                "line": 12
+              },
+              {
+                "file": "tests/integration/test_move_path_error__move_symbols.py",
+                "name": "test_string_forward_ref_not_rewritten",
+                "line": 1579
+              }
+            ],
+            "cluster_hash": "0e3a67678730"
+          },
           {
             "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT tgt.read_text(0)",
@@ -235,29 +321,6 @@
               }
             ],
             "cluster_hash": "51bf7082f195"
-          },
-          {
-            "signal": "ambiguous_multi",
-            "reason": "distinct literals rescue for SUT move_symbols(3|dry_run=True) + pytest.raises divergence rescue for SUT move_symbols(3|dry_run=True)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_move_symbols__overload_partial_move_error.py",
-                "name": "test_overload_partial_move_raises",
-                "line": 12
-              },
-              {
-                "file": "tests/integration/test_move_symbols__symbol_already_exists_error.py",
-                "name": "test_symbol_already_exists_raises",
-                "line": 12
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_string_forward_ref_not_rewritten",
-                "line": 1579
-              }
-            ],
-            "cluster_hash": "83d3b3c58496"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -285,7 +348,7 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT _protect(1)>result.count(1) + distinct literals rescue (intra-file 100%)",
+            "reason": "distinct literals rescue for SUT _protect(1) + distinct literals rescue (intra-file 100%)",
             "similarity": 1.0,
             "members": [
               {
@@ -332,25 +395,6 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT move_symbols(3|workspace_root=Name)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_import_cycle_error__move_symbols.py",
-                "name": "test_move_cross_package_detects_cycle",
-                "line": 64
-              },
-              {
-                "file": "tests/integration/test_import_cycle_error__move_symbols.py",
-                "name": "test_intra_package_cycle_detection_unchanged",
-                "line": 99
-              }
-            ],
-            "cluster_hash": "9ec978333da8",
-            "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT _write(2)>move_symbols(3|dry_run=True)",
             "similarity": 0.0,
             "members": [
@@ -387,7 +431,7 @@
           },
           {
             "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT any(1)>move_symbols(3|workspace_root=Name)>source.read_text(0)>target.read_text(0)",
+            "reason": "distinct literals rescue for SUT move_symbols(3|workspace_root=Name)>source.read_text(0)>target.read_text(0)",
             "similarity": 0.0,
             "members": [
               {
@@ -402,42 +446,6 @@
               }
             ],
             "cluster_hash": "1e08f7a20b74"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT any(1)>move_symbols(3|dry_run=True)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_string_forward_ref_warns",
-                "line": 1550
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_side_effect_decorator_bare_warns",
-                "line": 1698
-              }
-            ],
-            "cluster_hash": "f7575cca809a"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT any(1)>move_symbols(3|dry_run=True)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_string_forward_ref_no_false_positive",
-                "line": 1564
-              },
-              {
-                "file": "tests/integration/test_move_path_error__move_symbols.py",
-                "name": "test_non_whitelisted_decorator_no_warn",
-                "line": 1717
-              }
-            ],
-            "cluster_hash": "9eac666a8d16"
           },
           {
             "signal": "ambiguous_distinct_literals",
@@ -494,6 +502,24 @@
             ],
             "cluster_hash": "ac246d3dd420",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT _sync(3)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_sync_handles_tuple_literal",
+                "line": 300
+              },
+              {
+                "file": "tests/unit/_cst/test_transformers.py",
+                "name": "test_sync_concatenated_string_element_removed",
+                "line": 327
+              }
+            ],
+            "cluster_hash": "42b78c2472f4"
           },
           {
             "signal": "signal1_call_assert",
@@ -574,8 +600,8 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 4,
-          "AMBIGUOUS": 37,
-          "UNIQUE": 192
+          "AMBIGUOUS": 44,
+          "UNIQUE": 185
         },
         "stale_acknowledged": [
           {
@@ -601,6 +627,10 @@
           {
             "hash": "c5e5201d1e9d",
             "reason": "Negative assertions on different detectors: forward_ref_no_false_positive asserts no 'forward-reference' warning when only a substring-overlapping name is moved, while non_whitelisted_decorator_no_warn asserts no 'side-effect decorator' warning for an unlisted decorator \u2014 distinct false-positive guards."
+          },
+          {
+            "hash": "9ec978333da8",
+            "reason": "Both raise ImportCycleError but over distinct setups and contracts: move_cross_package_detects_cycle builds an inline two-package uv workspace to assert the AC3/AC6 cross-package detection (formerly skipped), while intra_package_cycle_detection_unchanged is the AC5 regression guard for same-package detection \u2014 different fixtures, different code paths."
           },
           {
             "hash": "1f3ae3172b3e",

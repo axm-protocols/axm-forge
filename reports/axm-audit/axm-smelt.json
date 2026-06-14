@@ -1,9 +1,9 @@
 {
-  "score": 97.2,
+  "score": 97.7,
   "grade": "A",
   "total": 31,
-  "failed": 1,
-  "success": false,
+  "failed": 0,
+  "success": true,
   "checks": [
     {
       "rule_id": "ARCH_CIRCULAR",
@@ -196,8 +196,8 @@
     },
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
-      "passed": false,
-      "message": "23 cluster(s), 6 clustered pair(s)",
+      "passed": true,
+      "message": "19 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -458,39 +458,6 @@
             "acknowledged": true
           },
           {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT len(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_counter.py",
-                "name": "test_warn_emitted_once",
-                "line": 205
-              },
-              {
-                "file": "tests/unit/strategies/test_dedup_values.py",
-                "name": "test_collect_strings_list_of_strings",
-                "line": 63
-              },
-              {
-                "file": "tests/unit/strategies/test_tabular.py",
-                "name": "test_very_wide_table",
-                "line": 92
-              },
-              {
-                "file": "tests/unit/tools/test_check.py",
-                "name": "test_entry_point_smelt_check",
-                "line": 85
-              },
-              {
-                "file": "tests/unit/tools/test_count.py",
-                "name": "test_entry_point_smelt_count",
-                "line": 60
-              }
-            ],
-            "cluster_hash": "5c554968d784"
-          },
-          {
             "signal": "ambiguous_setup_divergence",
             "reason": "setup divergence rescue for SUT SmeltContext(0|format=Attribute,text=Name)>strategy.apply(1)",
             "similarity": 0.0,
@@ -525,34 +492,6 @@
             "acknowledged": true
           },
           {
-            "signal": "signal1_call_assert",
-            "reason": "same SUT: isinstance(2)>len(1) + same asserts",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/test_cli.py",
-                "name": "test_version_importable",
-                "line": 99
-              },
-              {
-                "file": "tests/unit/tools/test_check.py",
-                "name": "test_check_tool_agent_hint",
-                "line": 49
-              },
-              {
-                "file": "tests/unit/tools/test_count.py",
-                "name": "test_count_tool_agent_hint",
-                "line": 42
-              },
-              {
-                "file": "tests/unit/tools/test_smelt.py",
-                "name": "test_smelt_tool_agent_hint",
-                "line": 42
-              }
-            ],
-            "cluster_hash": "2710a8c31905"
-          },
-          {
             "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue (intra-file 100%)",
             "similarity": 1.0,
@@ -582,30 +521,6 @@
             "acknowledged": true
           },
           {
-            "signal": "ambiguous_raises_divergence",
-            "reason": "same SUT: smelt(1|strategies=List) + same asserts + pytest.raises divergence rescue for SUT smelt(1|strategies=List)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_minify.py",
-                "name": "test_smelt_yaml_savings",
-                "line": 115
-              },
-              {
-                "file": "tests/unit/strategies/test_minify.py",
-                "name": "test_smelt_xml_savings",
-                "line": 123
-              },
-              {
-                "file": "tests/unit/core/test_pipeline.py",
-                "name": "test_unknown_strategy",
-                "line": 312
-              }
-            ],
-            "cluster_hash": "2cf3715bb547",
-            "acknowledged": true
-          },
-          {
             "signal": "ambiguous_distinct_literals",
             "reason": "distinct literals rescue for SUT SmeltContext(0|format=Attribute,text=Name)>strategy.apply(1) + distinct literals rescue (intra-file 80%)",
             "similarity": 0.8,
@@ -630,27 +545,28 @@
             "acknowledged": true
           },
           {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT result.split(1) + AST similarity 80%",
-            "similarity": 0.8,
+            "signal": "ambiguous_raises_divergence",
+            "reason": "same SUT: smelt(1|strategies=List) + same asserts + pytest.raises divergence rescue for SUT smelt(1|strategies=List)",
+            "similarity": 0.0,
             "members": [
               {
-                "file": "tests/unit/strategies/test_tabular.py",
-                "name": "test_tabular_nested_values",
-                "line": 27
+                "file": "tests/unit/strategies/test_minify.py",
+                "name": "test_smelt_yaml_savings",
+                "line": 115
               },
               {
-                "file": "tests/unit/strategies/test_tabular.py",
-                "name": "test_pipe_in_value",
-                "line": 74
+                "file": "tests/unit/strategies/test_minify.py",
+                "name": "test_smelt_xml_savings",
+                "line": 123
               },
               {
-                "file": "tests/unit/strategies/test_tabular.py",
-                "name": "test_boolean_null_values",
-                "line": 100
+                "file": "tests/unit/core/test_pipeline.py",
+                "name": "test_unknown_strategy",
+                "line": 312
               }
             ],
-            "cluster_hash": "9ad9bb2c629d"
+            "cluster_hash": "2cf3715bb547",
+            "acknowledged": true
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -723,42 +639,6 @@
             ],
             "cluster_hash": "b7fe5dcf4895",
             "acknowledged": true
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue (cross-file test_name_and_category)",
-            "similarity": 1.0,
-            "members": [
-              {
-                "file": "tests/unit/strategies/test_compact_tables.py",
-                "name": "test_name_and_category",
-                "line": 37
-              },
-              {
-                "file": "tests/unit/strategies/test_strip_html_comments.py",
-                "name": "test_name_and_category",
-                "line": 59
-              }
-            ],
-            "cluster_hash": "0bdd8451a99f"
-          },
-          {
-            "signal": "ambiguous_distinct_literals",
-            "reason": "distinct literals rescue for SUT len(1)",
-            "similarity": 0.0,
-            "members": [
-              {
-                "file": "tests/unit/core/test_counter.py",
-                "name": "test_count_resolves_openai_model_names",
-                "line": 56
-              },
-              {
-                "file": "tests/unit/core/test_counter.py",
-                "name": "test_count_with_backend_fallback_path",
-                "line": 192
-              }
-            ],
-            "cluster_hash": "d72ff7497958"
           },
           {
             "signal": "ambiguous_setup_divergence",
@@ -894,6 +774,25 @@
             "acknowledged": true
           },
           {
+            "signal": "signal3_intra_file_similarity",
+            "reason": "AST similarity 80%",
+            "similarity": 0.8,
+            "members": [
+              {
+                "file": "tests/unit/strategies/test_tabular.py",
+                "name": "test_pipe_in_value",
+                "line": 74
+              },
+              {
+                "file": "tests/unit/strategies/test_tabular.py",
+                "name": "test_boolean_null_values",
+                "line": 100
+              }
+            ],
+            "cluster_hash": "ed880e45fa13",
+            "acknowledged": true
+          },
+          {
             "signal": "ambiguous_distinct_sut",
             "reason": "distinct public SUT rescue (intra-file 100%)",
             "similarity": 1.0,
@@ -914,15 +813,11 @@
           }
         ],
         "bucket_counts": {
-          "CLUSTERED": 8,
-          "AMBIGUOUS": 94,
-          "UNIQUE": 206
+          "CLUSTERED": 6,
+          "AMBIGUOUS": 82,
+          "UNIQUE": 220
         },
         "stale_acknowledged": [
-          {
-            "hash": "ed880e45fa13",
-            "reason": "tabular boolean/null and pipe-in-value cases assert distinct value-type encodings with mixed `in` vs `==` assertion shapes \u2014 parametrization would erase the divergence"
-          },
           {
             "hash": "6af3c08c7b6f",
             "reason": "16-test detector cluster covers distinct Format branches (JSON/YAML/XML/MARKDOWN/TEXT) through detect_format and the try_* probes plus edge cases (empty, whitespace, doctype, malformed brace, html-heavy, markdown-values-in-json, yaml-with-comments) \u2014 each test pins a separate detector branch; parametrization would erase the per-format intent"
