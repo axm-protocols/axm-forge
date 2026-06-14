@@ -20,7 +20,11 @@ class TestCheckPrecommitInstalled:
         assert r.passed is True
 
     def test_fail_config_no_hooks(self, tmp_path: Path) -> None:
-        """Config exists but no .git/hooks/pre-commit -> FAIL."""
+        """Config exists but no .git/hooks/pre-commit -> FAIL (AC4).
+
+        The fix string steers the user to ``prek install`` (the uv-native
+        runner) rather than the legacy ``pre-commit install``.
+        """
         (tmp_path / ".pre-commit-config.yaml").write_text("repos:\n")
         r = check_precommit_installed(tmp_path)
         assert r.passed is False
