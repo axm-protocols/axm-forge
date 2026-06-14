@@ -114,7 +114,7 @@
       "passed": true,
       "message": "Test coverage: 91% (90/100)",
       "details": {
-        "coverage": 90.9533521942233,
+        "coverage": 90.97966971511283,
         "failures": []
       },
       "metadata": null
@@ -154,9 +154,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "No uncommitted changes",
+      "message": "Diff size: 2 lines changed (score 100/100)",
       "details": {
-        "lines_changed": 0
+        "lines_changed": 2
       },
       "metadata": null
     },
