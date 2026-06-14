@@ -6,7 +6,7 @@
 git clone https://github.com/axm-protocols/axm-mcp.git
 cd axm-mcp
 uv sync --all-groups
-pre-commit install
+prek install
 ```
 
 ## Commit Conventions

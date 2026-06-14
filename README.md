@@ -23,7 +23,7 @@ AXM Forge provides the **developer toolchain** for the AXM ecosystem. Every tool
 - 📦 **Automated Scaffolding** — Generate projects, workspaces, and workspace members that pass all 39 governance checks from day one.
 - 🛡️ **Codified Quality Gates** — 40+ rules covering lint, types, coverage, complexity, security, and project governance — all in a single `verify()` call.
 - 🌳 **AST-Powered Introspection** — Tree-sitter based analysis that understands Python at the structural level. Find callers, measure blast radius, and trace import graphs — all without grep noise.
-- 🔀 **Git Workflow Automation** — Structured commits with auto-staging, pre-commit retry, and conventional commit enforcement. Semver tagging and push — all through agent-friendly MCP tools.
+- 🔀 **Git Workflow Automation** — Structured commits with auto-staging, commit-hook retry, and conventional commit enforcement. Semver tagging and push — all through agent-friendly MCP tools.
 - ✏️ **Atomic Batch Editing** — Replace, create, and delete across dozens of files in a single transactional call. No partial writes, no half-applied refactors — it all lands or none of it does.
 - 🔨 **CST-Based Refactoring** — Move, rename, split, and merge symbols across a codebase without breaking a single import. Concrete syntax trees keep every reference in sync.
 - 🔥 **Token Compaction** — Deterministic text compression that shrinks LLM inputs while preserving semantic content. Compact tool outputs, audit reports, and AST results before they hit context windows.

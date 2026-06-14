@@ -6,7 +6,7 @@
 git clone https://github.com/axm-protocols/axm-forge.git
 cd axm-forge
 uv sync --all-groups
-uv run pre-commit install
+uv run prek install
 ```
 
 ## Making Changes

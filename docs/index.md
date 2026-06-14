@@ -48,7 +48,7 @@ AXM Forge provides the **developer toolchain** for the AXM ecosystem. Every tool
 
     ---
 
-    Structured commits with auto-staging, pre-commit retry, and conventional commit enforcement. Semver tagging and push — all through agent-friendly MCP tools.
+    Structured commits with auto-staging, commit-hook retry, and conventional commit enforcement. Semver tagging and push — all through agent-friendly MCP tools.
 
 -   :material-file-replace-outline:{ .lg .middle } **Atomic Batch Editing**
 
