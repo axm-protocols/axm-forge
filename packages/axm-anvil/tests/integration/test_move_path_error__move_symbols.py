@@ -20,7 +20,11 @@ from tests.integration._helpers import (
     _write_workspace,
 )
 
-pytestmark = pytest.mark.integration
+# scenario_name_ok: deliberately cohesive move_symbols integration suite.
+# Its tests span two canonical tuples (move_path_error + move_symbols), but
+# splitting them would fragment a single behavioural scenario (the
+# MovePathError / _apply_write cross-folder guards belong with the move flow).
+pytestmark = [pytest.mark.integration, pytest.mark.scenario_name_ok]
 
 
 _NOOP_SOURCE = "def stayer() -> int:\n    return 1\n"
