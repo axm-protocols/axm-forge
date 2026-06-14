@@ -1,5 +1,5 @@
 {
-  "score": 98.1,
+  "score": 98.0,
   "grade": "A",
   "total": 31,
   "failed": 0,
@@ -71,7 +71,7 @@
       "passed": true,
       "message": "Test coverage: 96% (96/100)",
       "details": {
-        "coverage": 96.07541362062332,
+        "coverage": 96.0919540229885,
         "failures": []
       },
       "metadata": null
@@ -111,9 +111,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 2 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 2
+        "lines_changed": 0
       },
       "metadata": null
     },
@@ -222,7 +222,7 @@
     {
       "rule_id": "TEST_QUALITY_DUPLICATE_TESTS",
       "passed": true,
-      "message": "59 cluster(s), 0 clustered pair(s)",
+      "message": "60 cluster(s), 0 clustered pair(s)",
       "details": null,
       "metadata": {
         "clusters": [
@@ -526,6 +526,39 @@
             ],
             "cluster_hash": "0ecd42b79a6c",
             "acknowledged": true
+          },
+          {
+            "signal": "ambiguous_distinct_literals",
+            "reason": "distinct literals rescue for SUT _read(2)",
+            "similarity": 0.0,
+            "members": [
+              {
+                "file": "tests/integration/test_get_template_path__template_type.py",
+                "name": "test_standalone_pyproject_pins_prek",
+                "line": 168
+              },
+              {
+                "file": "tests/integration/test_get_template_path__template_type.py",
+                "name": "test_workspace_pyproject_pins_prek",
+                "line": 181
+              },
+              {
+                "file": "tests/integration/test_get_template_path__template_type.py",
+                "name": "test_workspace_copier_installs_prek",
+                "line": 187
+              },
+              {
+                "file": "tests/integration/test_get_template_path__template_type.py",
+                "name": "test_workspace_contributing_mentions_prek",
+                "line": 193
+              },
+              {
+                "file": "tests/integration/test_get_template_path__template_type.py",
+                "name": "test_member_pyproject_pins_prek",
+                "line": 199
+              }
+            ],
+            "cluster_hash": "e4367285cf79"
           },
           {
             "signal": "ambiguous_distinct_sut",
@@ -1089,7 +1122,7 @@
               {
                 "file": "tests/integration/test_check_precommit_installed.py",
                 "name": "test_fail_when_hooks_missing",
-                "line": 36
+                "line": 40
               }
             ],
             "cluster_hash": "d064727e0f25",
@@ -1537,12 +1570,12 @@
               {
                 "file": "tests/integration/test_get_template_path__template_type.py",
                 "name": "test_root_files",
-                "line": 46
+                "line": 61
               },
               {
                 "file": "tests/integration/test_get_template_path__template_type.py",
                 "name": "test_root_files",
-                "line": 101
+                "line": 116
               }
             ],
             "cluster_hash": "7d18a25d6d01",
@@ -1556,12 +1589,12 @@
               {
                 "file": "tests/integration/test_get_template_path__template_type.py",
                 "name": "test_dependabot",
-                "line": 76
+                "line": 91
               },
               {
                 "file": "tests/integration/test_get_template_path__template_type.py",
                 "name": "test_docs_files",
-                "line": 121
+                "line": 136
               }
             ],
             "cluster_hash": "563e11fa07a0",
@@ -1575,12 +1608,12 @@
               {
                 "file": "tests/integration/test_get_template_path__template_type.py",
                 "name": "test_pyproject_has_workspace_config",
-                "line": 79
+                "line": 94
               },
               {
                 "file": "tests/integration/test_get_template_path__template_type.py",
                 "name": "test_mkdocs_has_monorepo",
-                "line": 84
+                "line": 99
               }
             ],
             "cluster_hash": "f7c645dfe553",
@@ -1627,8 +1660,8 @@
         ],
         "bucket_counts": {
           "CLUSTERED": 11,
-          "AMBIGUOUS": 168,
-          "UNIQUE": 316
+          "AMBIGUOUS": 173,
+          "UNIQUE": 326
         },
         "stale_acknowledged": [
           {
@@ -1669,9 +1702,21 @@
     {
       "rule_id": "TEST_QUALITY_FILE_NAMING",
       "passed": true,
-      "message": "2 naming finding(s): 2 INFO + 0 WARNING",
+      "message": "3 naming finding(s): 3 INFO + 0 WARNING",
       "details": {
         "findings": [
+          {
+            "verdict": "NAME_MISMATCH",
+            "severity": "info",
+            "tier": "integration",
+            "current_name": "test_check_precommit_installed_content.py",
+            "proposed_name": "test_check_precommit_exists__check_precommit_ruff.py",
+            "path": "tests/integration/test_check_precommit_installed_content.py",
+            "tuple": [
+              "check_precommit_exists",
+              "check_precommit_ruff"
+            ]
+          },
           {
             "verdict": "NAME_MISMATCH",
             "severity": "info",

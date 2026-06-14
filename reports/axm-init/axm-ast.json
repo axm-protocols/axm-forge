@@ -1,6 +1,6 @@
 {
   "project": "/home/runner/work/axm-forge/axm-forge/packages/axm-ast",
-  "score": 98,
+  "score": 95,
   "grade": "A",
   "context": "member",
   "workspace_root": "/home/runner/work/axm-forge/axm-forge",
@@ -15,7 +15,7 @@
       "total": 16
     },
     "deps": {
-      "earned": 3,
+      "earned": 0,
       "total": 3
     },
     "docs": {
@@ -103,10 +103,10 @@
     {
       "name": "deps.dev_group",
       "category": "deps",
-      "passed": true,
-      "earned": 3,
+      "passed": false,
+      "earned": 0,
       "weight": 3,
-      "message": "Dev deps complete"
+      "message": "Dev group missing 1 dep(s)"
     },
     {
       "name": "docs.mkdocs_exists",
@@ -318,6 +318,15 @@
     }
   ],
   "failures": [
+    {
+      "name": "deps.dev_group",
+      "weight": 3,
+      "message": "Dev group missing 1 dep(s)",
+      "details": [
+        "Missing: pre-commit"
+      ],
+      "fix": "Add pre-commit to [dependency-groups] dev."
+    },
     {
       "name": "tooling.precommit_installed",
       "weight": 2,

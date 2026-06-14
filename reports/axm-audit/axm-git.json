@@ -102,9 +102,9 @@
     {
       "rule_id": "QUALITY_DIFF_SIZE",
       "passed": true,
-      "message": "Diff size: 2 lines changed (score 100/100)",
+      "message": "No uncommitted changes",
       "details": {
-        "lines_changed": 2
+        "lines_changed": 0
       },
       "metadata": null
     },
@@ -1501,7 +1501,7 @@
         "bucket_counts": {
           "CLUSTERED": 11,
           "AMBIGUOUS": 168,
-          "UNIQUE": 380
+          "UNIQUE": 382
         },
         "stale_acknowledged": [
           {
