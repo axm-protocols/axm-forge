@@ -34,7 +34,7 @@ class TestCheckDevDeps:
         """
         toml = (
             '[project]\nname="x"\n[dependency-groups]\n'
-            'dev = ["pytest", "ruff", "mypy", "prek>=0.4,<0.5"]\n'
+            'dev = ["pytest", "ruff", "mypy", "prek>=0.4.4"]\n'
         )
         (tmp_path / "pyproject.toml").write_text(toml)
         r = check_dev_deps(tmp_path)

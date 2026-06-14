@@ -133,7 +133,7 @@ class TestScaffoldFlow:
         """AC1: scaffolded python-project dev deps pin prek, not pre-commit."""
         pyproject = next(scaffolded_project.rglob("pyproject.toml"))
         content = pyproject.read_text()
-        assert "prek>=0.4,<0.5" in content
+        assert "prek>=0.4.4" in content
         assert "pre-commit" not in content
 
     def test_scaffold_json_output_is_valid_json(
@@ -174,7 +174,7 @@ class TestWorkspaceScaffoldFlow:
     ) -> None:
         """AC2: scaffolded uv-workspace dev deps + CONTRIBUTING mention prek."""
         pyproject = (scaffolded_workspace / "pyproject.toml").read_text()
-        assert "prek>=0.4,<0.5" in pyproject
+        assert "prek>=0.4.4" in pyproject
         assert "pre-commit" not in pyproject
         contributing = (scaffolded_workspace / "CONTRIBUTING.md").read_text()
         assert "uv run prek install" in contributing

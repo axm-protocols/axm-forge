@@ -37,7 +37,7 @@ GOLD_PYPROJECT = dedent("""\
         "pytest-cov>=4.0",
         "ruff>=0.8",
         "mypy>=1.14",
-        "prek>=0.4,<0.5",
+        "prek>=0.4.4",
     ]
     docs = [
         "mkdocs-material>=9.0",
