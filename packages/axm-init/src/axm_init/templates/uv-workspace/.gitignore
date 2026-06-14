@@ -12,6 +12,7 @@ build/
 .ruff_cache/
 *.so
 .coverage
+coverage.xml
 htmlcov/
 site/
 _version.py
